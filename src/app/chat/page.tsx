@@ -1,19 +1,13 @@
-import Sidebar from "@/components/layout/Sidebar";
-
 export default function ChatPage() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <header className="mb-6">
-            <p className="text-sm uppercase tracking-widest text-slate-500">Chat</p>
-            <h2 className="mt-2 text-3xl font-semibold">Agent Group Chat</h2>
-          </header>
-          <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-            Collaborative chat UI will live here.
-          </div>
-        </main>
+    <div>
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">群聊</h1>
+        <p className="text-gray-600 mt-2">Agent 群聊管理</p>
+      </header>
+
+      <div className="bg-white rounded-lg shadow p-8 text-center">
+        <p className="text-gray-500">群聊功能开发中...</p>
       </div>
     </div>
   );

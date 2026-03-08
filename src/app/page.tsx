@@ -1,77 +1,83 @@
-import AgentCard from "@/components/dashboard/AgentCard";
-import Sidebar from "@/components/layout/Sidebar";
+import { AgentGrid, DashboardStatsView } from "@/components/dashboard";
+import { Agent, DashboardStats } from "@/types";
 
-const agents = [
+// 示例数据 - 后续从 API 获取
+const sampleAgents: Agent[] = [
   {
-    id: "agent-core",
-    name: "Core Orchestrator",
-    status: "busy" as const,
-    description: "Routing tasks across nodes and maintaining state.",
-    nodesCount: 3,
-    tasksCount: 8,
+    id: "1",
+    name: "Agent-Alpha",
+    type: "coding",
+    location: "本地",
+    capabilities: ["代码生成", "代码审查", "重构"],
+    status: "online",
+    lastHeartbeat: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
-    id: "agent-reporter",
-    name: "Insight Reporter",
-    status: "idle" as const,
-    description: "Summarizing metrics and generating weekly digests.",
-    nodesCount: 1,
-    tasksCount: 2,
+    id: "2",
+    name: "Agent-Beta",
+    type: "analysis",
+    location: "云端",
+    capabilities: ["数据分析", "日志解析", "监控"],
+    status: "busy",
+    lastHeartbeat: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
-    id: "agent-ops",
-    name: "Ops Sentinel",
-    status: "offline" as const,
-    description: "Monitoring deployments and alerting on anomalies.",
-    nodesCount: 0,
-    tasksCount: 0,
+    id: "3",
+    name: "Agent-Gamma",
+    type: "communication",
+    location: "本地",
+    capabilities: ["消息处理", "通知发送", "群聊管理"],
+    status: "online",
+    lastHeartbeat: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "4",
+    name: "Agent-Delta",
+    type: "coding",
+    location: "远程",
+    capabilities: ["代码生成", "测试", "部署"],
+    status: "offline",
+    lastHeartbeat: new Date(Date.now() - 86400000).toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
 ];
 
+const sampleStats: DashboardStats = {
+  totalAgents: 4,
+  onlineAgents: 2,
+  totalNodes: 2,
+  onlineNodes: 2,
+  pendingTasks: 3,
+  runningTasks: 1,
+};
+
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <header className="mb-8">
-            <p className="text-sm uppercase tracking-widest text-slate-500">
-              Dashboard
-            </p>
-            <h2 className="mt-2 text-3xl font-semibold">Agent Overview</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Monitor active agents, nodes, and queued tasks in real time.
-            </p>
-          </header>
+    <div>
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-600 mt-2">Agent 平台监控看板</p>
+      </header>
 
-          <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {agents.map((agent) => (
-              <AgentCard key={agent.id} {...agent} />
-            ))}
-          </section>
+      <DashboardStatsView stats={sampleStats} />
 
-          <section className="mt-10 grid gap-6 lg:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-6">
-              <h3 className="text-lg font-semibold">Live Nodes</h3>
-              <p className="mt-2 text-sm text-slate-600">
-                4 nodes connected · 1 degraded · 0 offline
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-6">
-              <h3 className="text-lg font-semibold">Queued Tasks</h3>
-              <p className="mt-2 text-sm text-slate-600">
-                12 pending · 3 running · 5 completed today
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-6">
-              <h3 className="text-lg font-semibold">Alerts</h3>
-              <p className="mt-2 text-sm text-slate-600">
-                No critical alerts. Next health check in 15 minutes.
-              </p>
-            </div>
-          </section>
-        </main>
-      </div>
+      <section>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">Agents</h2>
+          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            + 新建 Agent
+          </button>
+        </div>
+        
+        <AgentGrid agents={sampleAgents} />
+      </section>
     </div>
   );
 }
