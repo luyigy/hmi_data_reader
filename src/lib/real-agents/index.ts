@@ -114,22 +114,24 @@ export const registerRealAgent = async (
   location: string;
   status: string;
 }> => {
-  // Call the API to register the agent
-  const res = await fetch('/api/agents', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // Import prisma directly for server-side registration
+  const { prisma } = await import('@/lib/prisma');
+  
+  const agent = await prisma.agent.create({
+    data: {
       name,
       type: type === 'codex' ? 'coding' : 'coding',
       location,
-      capabilities: ['coding', 'analysis', 'review'],
+      capabilities: JSON.stringify(['coding', 'analysis', 'review']),
       status: 'online',
-    }),
+    },
   });
-
-  if (!res.ok) {
-    throw new Error('Failed to register agent');
-  }
-
-  return await res.json();
+  
+  return {
+    id: agent.id,
+    name: agent.name,
+    type: agent.type,
+    location: agent.location || 'local',
+    status: agent.status,
+  };
 };
