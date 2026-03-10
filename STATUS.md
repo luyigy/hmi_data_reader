@@ -259,19 +259,48 @@ const handleSend = async (content: string) => {
 
 **下一步**：
 - ✅ 手动测试@提及功能 - **已完成**
+- ✅ Dashboard 验证 Agent 列表 - **已完成**
+- ✅ Agent 上线/下线功能 - **已完成** (Commit: 6f24027)
 - ⏳ 优化 Agent 响应模板
 - ⏳ 实现真实 Agent API 集成
 
 ---
 
-### 优先级 2 Step 3 -  Dashboard 验证（下一步）
+### ✅ 已完成 - Dashboard Agent 状态管理
+
+**状态**: 已完成 ✅ (2026-03-10 14:44)
+
+**实现内容**:
+1. **API 端点** (`src/app/api/agents/[id]/route.ts`) - 新增
+   - PUT `/api/agents/[id]` - 更新 Agent 状态
+   - 支持 status, nodeId 等字段
+   - 自动更新 lastHeartbeat
+
+2. **UI 组件** (`src/components/dashboard/AgentCard.tsx`) - 更新
+   - 上线按钮（绿色）
+   - 下线按钮（灰色）
+   - 忙碌按钮（黄色）
+   - 乐观更新 UI
+
+3. **状态管理** (`src/components/dashboard/AgentGrid.tsx`) - 更新
+   - 处理状态变更回调
+   - 立即刷新 UI
+
+**测试结果**:
+- ✅ 用户手动测试通过
+- ✅ 状态切换正常
+- ✅ UI 立即响应
+
+---
+
+### 优先级 3 - 任务编排（下一步）
 
 **任务**：
-1. 访问 Dashboard 查看 Agent 列表
-2. 验证 Agent 状态显示
-3. 测试群聊页面 Agent 响应
+1. 完善 tasks 页面
+2. 任务创建、分配、执行
+3. 任务状态跟踪
 
-**预计时间**: 30 分钟
+**预计时间**: 2-3 小时
 
 ### 优先级 2 Step 3 - Agent 响应
 

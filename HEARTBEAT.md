@@ -124,16 +124,32 @@
 - 优化 Agent 响应模板
 - 集成真实 Agent API
 
-### Heartbeat #4 (2026-03-10 12:29)
-**状态**: ⏳ 等待用户测试反馈  
-**当前任务**: 无阻塞，等待中  
-**进展**: 
-- Step 1-3 代码已完成
-- 开发服务器运行中 (http://localhost:3000)
-- 等待用户手动测试@提及功能
+### Heartbeat #5 (2026-03-10 14:44)
+**状态**: ✅ Agent 状态管理完成  
+**当前任务**: Agent 上线/下线功能  
+**进展**:
+- 新增 API: PUT /api/agents/[id]
+- Dashboard 添加状态切换按钮（上线/下线/忙碌）
+- 乐观更新 UI
+- 自动更新 lastHeartbeat
+- Git Commit: 6f24027
+- 用户测试通过 ✅
 **下一步**: 
-- 根据测试结果优化
-- Dashboard 验证 Agent 列表
+- 优化 Agent 响应模板
 - 集成真实 Agent API
+- 任务编排功能
+
+### Heartbeat #5 (2026-03-10 14:29)
+**状态**: ✅ 准备 Dashboard 验证  
+**当前任务**: Dashboard 页面检查  
+**进展**:
+- Dashboard 页面存在 (src/app/page.tsx)
+- Dashboard 组件完整 (AgentCard, AgentGrid, DashboardStats)
+- 数据库已有 6 个 Agent + 3 个 Node
+- 页面配置 force-dynamic 确保实时数据
+**下一步**:
+- 访问 http://localhost:3000 验证 Dashboard
+- 确认 6 个 Agent 显示正常
+- 确认状态统计正确 (2 online, 2 busy, 2 offline)
 
 ---
