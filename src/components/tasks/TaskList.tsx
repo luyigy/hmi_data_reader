@@ -51,7 +51,7 @@ export default function TaskList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-5xl">
       {tasks.map((task) => (
         <TaskCard
           key={task.id}
