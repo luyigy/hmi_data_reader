@@ -59,56 +59,70 @@ export const executeCodexTask = async (
 };
 
 /**
- * Execute using codex CLI
- * Codex requires a terminal, so we use a different approach
+ * Execute using codex CLI with exec subcommand
  */
 const executeCodexCLI = async (
   task: CodexTask,
   timeout: number
 ): Promise<string> => {
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
-  const execAsync = promisify(exec);
+  const { spawn } = await import('child_process');
+  
+  // Create prompt for Codex
+  const prompt = `Task: ${task.name}\nDescription: ${task.description || 'No description'}\n\nPlease complete this task and provide a summary of what you did.`;
 
-  // Create prompt for Codex - use -p flag for prompt
-  const prompt = `Task: ${task.name}\nDescription: ${task.description || 'No description'}\n\nPlease complete this task:`;
-
-  try {
-    console.log('[Codex] Executing with prompt:', prompt.substring(0, 100) + '...');
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
     
-    // Codex doesn't support stdin, use -p flag or create a temp file
-    // For now, use a simpler approach with timeout
-    const { stdout, stderr } = await execAsync(
-      `codex -p "${escapeShell(prompt)}"`,
-      { 
-        timeout,
-        env: { ...process.env },
-        shell: true,
+    // Use 'codex exec' subcommand which reads from stdin
+    const child = spawn('codex', ['exec'], {
+      env: { ...process.env },
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true,
+    });
+
+    // Send prompt to stdin
+    child.stdin.write(prompt);
+    child.stdin.end();
+    
+    console.log('[Codex] Sending prompt via exec:', prompt.substring(0, 100) + '...');
+
+    // Collect stdout
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    // Collect stderr
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // Handle completion
+    child.on('close', (code) => {
+      console.log('[Codex] Process exited with code:', code);
+      console.log('[Codex] Stdout length:', stdout.length);
+      console.log('[Codex] Stderr:', stderr);
+      
+      if (code === 0 || stdout.length > 0) {
+        resolve(stdout || 'Task executed successfully');
+      } else {
+        reject(new Error(stderr || `Codex exited with code ${code}`));
       }
-    );
+    });
 
-    if (stderr && !stdout) {
-      throw new Error(stderr);
-    }
+    // Handle errors
+    child.on('error', (err) => {
+      console.error('[Codex] Spawn error:', err);
+      reject(err);
+    });
 
-    return stdout || 'Task executed successfully';
-  } catch (error) {
-    console.error('[Codex] Execution error:', error);
-    
-    // If -p flag doesn't work, try without it (interactive mode won't work but we can at least test)
-    if (error instanceof Error && error.message.includes('-p')) {
-      console.log('[Codex] Trying alternative approach...');
-      // For now, return a simulated response for testing
-      return `Codex task "${task.name}" executed (simulated response - interactive mode requires terminal)`;
-    }
-    
-    if (error instanceof Error && 'code' in error) {
-      if ((error as any).code === 'ETIMEDOUT') {
-        throw new Error(`Codex execution timed out after ${timeout}ms`);
-      }
-    }
-    throw error;
-  }
+    // Handle timeout
+    setTimeout(() => {
+      console.log('[Codex] Timeout, killing process');
+      child.kill('SIGTERM');
+      reject(new Error(`Codex execution timed out after ${timeout}ms`));
+    }, timeout);
+  });
 };
 
 /**
