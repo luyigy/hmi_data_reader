@@ -109,7 +109,9 @@
 
 ### ✅ 已完成 - 优先级 2 Step 2：@提及功能 + Agent 响应
 
-**状态**：已完成 ✅ (2026-03-10 11:55)
+**状态**：已完成 ✅ (2026-03-10 11:55)  
+**最后更新**：2026-03-10 13:30  
+**Git Commit**：`89e0df9`
 
 **实现内容**：
 
@@ -140,6 +142,113 @@
    - ✅ 调用 Agent 响应 API
    - ✅ 异步处理 Agent 回复
 
+---
+
+## 🐛 Bug 修复记录
+
+### Bug 1: @提及下拉框重复弹出
+
+**发现时间**: 2026-03-10 13:26  
+**修复时间**: 2026-03-10 13:30  
+**Commit**: `89e0df9`
+
+**症状**:
+- 第一次选择 Agent 后下拉框消失
+- 继续打字时下拉框又跳出来
+
+**根本原因**:
+```typescript
+// 错误代码
+onChange={(event) => {
+  const next = event.target.value;
+  if (next.includes('@')) {  // ❌ 只要包含@就显示
+    setShowMentions(true);
+  }
+}}
+```
+
+**解决方案**:
+```typescript
+// 正确代码
+const isTypingMention = (text: string): boolean => {
+  const match = text.match(/@([\w\u4e00-\u9fa5-]*)$/);
+  return !!match;  // ✅ 只在@在末尾时显示
+};
+
+onChange={(event) => {
+  const next = event.target.value;
+  if (isTypingMention(next)) {  // 检查@是否在末尾
+    setShowMentions(true);
+  } else {
+    setShowMentions(false);
+  }
+}}
+```
+
+**验证方法**:
+1. 输入 `@` 查看下拉框
+2. 点击选择 `Agent Alpha`
+3. 下拉框消失
+4. 继续打字 `帮我写个函数`
+5. ✅ 下拉框不再出现
+
+---
+
+### Bug 2: 消息发送后不显示
+
+**发现时间**: 2026-03-10 13:20  
+**修复时间**: 2026-03-10 13:30  
+**Commit**: `89e0df9`
+
+**症状**:
+- 点击发送后聊天列表没有立即显示消息
+
+**根本原因**:
+```typescript
+// 错误代码
+const handleSend = (content: string) => {
+  socket.emit('chat:message', message);
+  // ❌ 只依赖 WebSocket 广播回来的消息
+}
+```
+
+**解决方案**:
+```typescript
+// 正确代码 - 乐观更新
+const handleSend = async (content: string) => {
+  // ✅ 立即显示消息
+  setMessages((prev) => [...prev, message]);
+  
+  socket.emit('chat:message', message);
+}
+```
+
+**验证方法**:
+1. 输入任意消息
+2. 点击发送
+3. ✅ 消息立即显示在聊天列表中
+
+---
+
+## ✅ 测试结果
+
+**测试时间**: 2026-03-10 13:59  
+**测试人员**: 用户手动测试  
+**测试状态**: ✅ **通过**
+
+**测试项**：
+- [x] ✅ 消息立即显示在聊天列表
+- [x] ✅ @提及选择后下拉框消失
+- [x] ✅ 继续打字下拉框不重复弹出
+
+**测试结论**:
+- 所有 Bug 已修复
+- @提及功能正常工作
+- 消息发送功能正常工作
+- 可以进入下一步开发
+
+---
+
 **测试方法**：
 ```
 1. 访问 http://localhost:3000/chat
@@ -149,9 +258,9 @@
 ```
 
 **下一步**：
-- 手动测试@提及功能
-- 优化 Agent 响应模板
-- 实现真实 Agent API 集成
+- ✅ 手动测试@提及功能 - **已完成**
+- ⏳ 优化 Agent 响应模板
+- ⏳ 实现真实 Agent API 集成
 
 ---
 
