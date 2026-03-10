@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { executeTask, executeTaskBatch } from '@/lib/agent-executor';
+import { getSocketServer } from '@/lib/websocket';
 
 /**
  * POST /api/tasks/[id]/execute
  * 
  * 执行任务 - 将任务发送给分配的 Agent
+ * 自动创建聊天室并发送 Agent 消息
  */
 export async function POST(
   request: NextRequest,
@@ -45,6 +47,55 @@ export async function POST(
       );
     }
 
+    // 自动创建聊天室（如果不存在）
+    let chatRoom = await prisma.chatRoom.findFirst({
+      where: {
+        name: `任务：${task.name}`,
+      },
+    });
+
+    if (!chatRoom) {
+      chatRoom = await prisma.chatRoom.create({
+        data: {
+          name: `任务：${task.name}`,
+          description: `任务执行聊天室 - ${new Date().toLocaleString('zh-CN')}`,
+        },
+      });
+      
+      console.log('[Task Execute] Created chat room:', chatRoom.id);
+    }
+
+    // 发送系统消息到聊天室
+    const sendChatMessage = async (content: string, userName: string = '系统') => {
+      try {
+        await prisma.message.create({
+          data: {
+            content,
+            roomId: chatRoom!.id,
+            userId: 'system',
+            userName,
+          },
+        });
+        
+        // 通过 WebSocket 广播
+        const io = getSocketServer();
+        if (io) {
+          io.emit('chat:message', {
+            id: `task-${Date.now()}`,
+            roomId: chatRoom!.id,
+            user: { id: 'system', name: userName },
+            content,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.error('Failed to send chat message:', error);
+      }
+    };
+
+    // 发送任务开始消息
+    await sendChatMessage(`🚀 任务 "${task.name}" 开始执行，分配给 ${task.assignedAgents.length} 个 Agent`);
+
     // 更新任务状态为 running
     await prisma.task.update({
       where: { id: taskId },
@@ -70,6 +121,21 @@ export async function POST(
     // 执行任务给所有分配的 Agent
     const agentIds = task.assignedAgents.map((a) => a.id);
     const results = await executeTaskBatch(taskData, agentIds);
+
+    // 发送每个 Agent 的执行消息
+    for (const result of results) {
+      if (result.success) {
+        await sendChatMessage(
+          `✅ ${result.agentName}: ${result.result?.message || '任务执行完成'}\n耗时：${(result.duration / 1000).toFixed(2)}s`,
+          result.agentName
+        );
+      } else {
+        await sendChatMessage(
+          `❌ ${result.agentName}: ${result.error || '执行失败'}`,
+          result.agentName
+        );
+      }
+    }
 
     // 汇总结果
     const successCount = results.filter((r) => r.success).length;
@@ -104,9 +170,17 @@ export async function POST(
       },
     });
 
+    // 发送任务完成消息
+    await sendChatMessage(
+      finalStatus === 'completed'
+        ? `✅ 任务执行完成！成功：${successCount}, 失败：${failCount}`
+        : `❌ 任务执行失败！成功：${successCount}, 失败：${failCount}`
+    );
+
     return NextResponse.json({
       taskId,
       status: finalStatus,
+      chatRoomId: chatRoom.id,
       ...resultData,
     });
   } catch (error) {

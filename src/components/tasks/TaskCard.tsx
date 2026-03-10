@@ -59,7 +59,15 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
       }
 
       const result = await res.json();
-      alert(`任务执行完成！\n成功：${result.successCount}\n失败：${result.failCount}`);
+      
+      // 显示执行结果
+      const message = `任务执行完成！\n成功：${result.successCount}\n失败：${result.failCount}\n\n聊天室已创建，可以查看 Agent 实时消息。`;
+      alert(message);
+      
+      // 如果有聊天室，提示用户查看
+      if (result.chatRoomId) {
+        console.log('Chat room created:', result.chatRoomId);
+      }
       
       // 刷新页面以显示最新状态
       window.location.reload();
@@ -89,6 +97,15 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
         </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
+          <a
+            href={`/chat?room=task-${task.id}`}
+            className="p-1.5 text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded transition-colors"
+            title="查看聊天室"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+            </svg>
+          </a>
           <a
             href={`/tasks/${task.id}/chat`}
             className="p-1.5 text-green-500 hover:text-green-700 hover:bg-green-50 rounded transition-colors"

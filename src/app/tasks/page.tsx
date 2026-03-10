@@ -86,6 +86,7 @@ export default function TasksPage() {
       if (res.ok) {
         await fetchTasks();
         setShowForm(false);
+        alert('任务创建成功！\n聊天室会自动创建当任务执行时。');
       }
     } catch (error) {
       console.error('Failed to create task:', error);
