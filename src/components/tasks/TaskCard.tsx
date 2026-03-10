@@ -47,6 +47,28 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
     onUpdateStatus(task.id, newStatus);
   };
 
+  const handleExecuteTask = async (taskId: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/execute`, {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || '执行失败');
+      }
+
+      const result = await res.json();
+      alert(`任务执行完成！\n成功：${result.successCount}\n失败：${result.failCount}`);
+      
+      // 刷新页面以显示最新状态
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to execute task:', error);
+      alert(`执行失败：${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
       <div className="flex items-start justify-between mb-4">
@@ -131,10 +153,17 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
         {task.status === 'pending' && (
           <>
             <button
+              onClick={() => handleExecuteTask(task.id)}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
+              title="执行任务并发送给分配的 Agent"
+            >
+              🚀 执行任务
+            </button>
+            <button
               onClick={() => handleStatusChange('running')}
               className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
             >
-              开始执行
+              手动开始
             </button>
             <button
               onClick={() => handleStatusChange('failed')}
