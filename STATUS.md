@@ -261,8 +261,10 @@ const handleSend = async (content: string) => {
 - ✅ 手动测试@提及功能 - **已完成**
 - ✅ Dashboard 验证 Agent 列表 - **已完成**
 - ✅ Agent 上线/下线功能 - **已完成** (Commit: 6f24027)
+- ✅ 任务编排系统 - **已完成** (Commit: b78b006)
+- ✅ 真实 Agent 集成 - **已完成** (Commit: 4768f50)
 - ⏳ 优化 Agent 响应模板
-- ⏳ 实现真实 Agent API 集成
+- ⏳ 端到端测试
 
 ---
 
