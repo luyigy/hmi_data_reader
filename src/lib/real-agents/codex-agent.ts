@@ -75,14 +75,17 @@ const executeCodexCLI = async (
     let stderr = '';
     
     // Spawn codex process
-    const child = spawn('codex', {
+    const child = spawn('codex', [], {
       env: { ...process.env },
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true, // Windows 需要这个来找到命令
     });
 
     // Send prompt to stdin
     child.stdin.write(prompt);
     child.stdin.end();
+    
+    console.log('[Codex] Sending prompt:', prompt);
 
     // Collect stdout
     child.stdout.on('data', (data) => {

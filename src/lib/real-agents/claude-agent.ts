@@ -83,6 +83,7 @@ const executeClaudeCLI = async (
       cwd: options.workingDirectory,
       env: { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true, // Windows 需要这个来找到命令
     });
 
     // Collect stdout
