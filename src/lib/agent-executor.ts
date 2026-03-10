@@ -3,7 +3,13 @@
  * 
  * 这个模块负责将任务发送给真实的 Agent 并获取结果
  * 支持多种 Agent 类型和通信协议
+ * 
+ * 真实 Agent 支持:
+ * - Codex (OpenAI)
+ * - Claude Code (Anthropic)
  */
+
+import { executeRealAgentTask, getRealAgentsStatus } from './real-agents';
 
 export interface AgentTask {
   id: string;
@@ -95,7 +101,18 @@ const executeLocalAgent = async (
 ): Promise<any> => {
   console.log(`[Local Agent] Executing task "${task.name}" on ${agent.name} (${agent.type})`);
   
-  // 根据 Agent 类型调用不同的处理函数
+  // 检查是否是真实 Agent (Codex 或 Claude Code)
+  const agentNameLower = agent.name.toLowerCase();
+  
+  if (agentNameLower.includes('codex')) {
+    // 使用真实的 Codex 执行
+    return await executeRealCodexTask(task, agent);
+  } else if (agentNameLower.includes('claude')) {
+    // 使用真实的 Claude Code 执行
+    return await executeRealClaudeTask(task, agent);
+  }
+  
+  // 否则使用模拟处理器
   switch (agent.type.toLowerCase()) {
     case 'coding':
       return await handleCodingTask(task, agent);
@@ -372,4 +389,91 @@ export const getAgentStatus = async (agentId: string): Promise<string | null> =>
   } catch {
     return null;
   }
+};
+
+// ==================== 真实 Agent 执行函数 ====================
+
+/**
+ * 执行真实的 Codex 任务
+ */
+const executeRealCodexTask = async (
+  task: AgentTask,
+  agent: AgentTask['assignedAgents'][0]
+): Promise<any> => {
+  console.log(`[Real Codex] Executing task "${task.name}"`);
+  
+  try {
+    const result = await executeRealAgentTask(
+      { id: task.id, name: task.name, description: task.description },
+      'codex'
+    );
+    
+    if (result.success) {
+      return {
+        taskType: 'real-codex',
+        agentName: agent.name,
+        taskName: task.name,
+        status: 'completed',
+        message: `Codex 完成任务 "${task.name}"`,
+        output: result.output,
+        executionTime: result.executionTime,
+        timestamp: new Date().toISOString(),
+      };
+    } else {
+      throw new Error(result.error || 'Codex execution failed');
+    }
+  } catch (error) {
+    console.error('[Real Codex] Error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 执行真实的 Claude Code 任务
+ */
+const executeRealClaudeTask = async (
+  task: AgentTask,
+  agent: AgentTask['assignedAgents'][0]
+): Promise<any> => {
+  console.log(`[Real Claude] Executing task "${task.name}"`);
+  
+  try {
+    const result = await executeRealAgentTask(
+      { id: task.id, name: task.name, description: task.description },
+      'claude'
+    );
+    
+    if (result.success) {
+      return {
+        taskType: 'real-claude',
+        agentName: agent.name,
+        taskName: task.name,
+        status: 'completed',
+        message: `Claude Code 完成任务 "${task.name}"`,
+        output: result.output,
+        filesModified: result.filesModified,
+        executionTime: result.executionTime,
+        timestamp: new Date().toISOString(),
+      };
+    } else {
+      throw new Error(result.error || 'Claude execution failed');
+    }
+  } catch (error) {
+    console.error('[Real Claude] Error:', error);
+    throw error;
+  }
+};
+
+/**
+ * 检查真实 Agent 是否可用
+ */
+export const checkRealAgentsAvailability = async (): Promise<{
+  codex: boolean;
+  claude: boolean;
+}> => {
+  const status = await getRealAgentsStatus();
+  return {
+    codex: status.codex.available,
+    claude: status.claude.available,
+  };
 };
