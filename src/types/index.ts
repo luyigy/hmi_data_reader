@@ -45,8 +45,6 @@ export interface Task {
 export interface DashboardStats {
   totalAgents: number;
   onlineAgents: number;
-  totalNodes: number;
-  onlineNodes: number;
-  pendingTasks: number;
-  runningTasks: number;
+  busyAgents: number;
+  offlineAgents: number;
 }

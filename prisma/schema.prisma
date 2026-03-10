@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL") ?? "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model Agent {
@@ -52,4 +52,26 @@ model Task {
   updatedAt       DateTime  @updatedAt
 
   @@index([status])
+}
+
+model ChatRoom {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  messages    Message[]
+  createdAt   DateTime  @default(now())
+
+  @@index([name])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  roomId    String
+  userId    String
+  userName  String
+  createdAt DateTime @default(now())
+  room      ChatRoom @relation(fields: [roomId], references: [id])
+
+  @@index([roomId, createdAt])
 }

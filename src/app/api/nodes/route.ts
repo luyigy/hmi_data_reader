@@ -8,8 +8,23 @@ export async function GET() {
       include: {
         agents: true,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
-    return NextResponse.json(nodes);
+
+    const formatted = nodes.map((node) => ({
+      ...node,
+      resources: (() => {
+        try {
+          return node.resources ? JSON.parse(node.resources) : undefined;
+        } catch {
+          return undefined;
+        }
+      })(),
+    }));
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error('Failed to fetch nodes:', error);
     return NextResponse.json(

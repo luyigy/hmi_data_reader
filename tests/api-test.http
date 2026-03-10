@@ -1,0 +1,173 @@
+### Agent Platform v2 API Test Suite
+### Use with VS Code REST Client extension or similar tool
+
+@baseUrl = http://localhost:3000/api
+@contentType = application/json
+
+### ===========================================
+### Health Check
+### ===========================================
+
+GET {{baseUrl}}/health
+Content-Type: {{contentType}}
+
+### ===========================================
+### Agent Management API
+### ===========================================
+
+# Get all agents
+GET {{baseUrl}}/agents
+Content-Type: {{contentType}}
+
+###
+
+# Get single agent by ID
+GET {{baseUrl}}/agents/1
+Content-Type: {{contentType}}
+
+###
+
+# Create new agent
+POST {{baseUrl}}/agents
+Content-Type: {{contentType}}
+
+{
+  "name": "Test Agent",
+  "status": "online",
+  "nodeId": 1
+}
+
+###
+
+# Update agent status
+PUT {{baseUrl}}/agents/1
+Content-Type: {{contentType}}
+
+{
+  "status": "busy"
+}
+
+###
+
+# Delete agent
+DELETE {{baseUrl}}/agents/1
+Content-Type: {{contentType}}
+
+### ===========================================
+### Node Management API
+### ===========================================
+
+# Get all nodes
+GET {{baseUrl}}/nodes
+Content-Type: {{contentType}}
+
+###
+
+# Get single node by ID
+GET {{baseUrl}}/nodes/1
+Content-Type: {{contentType}}
+
+###
+
+# Create new node
+POST {{baseUrl}}/nodes
+Content-Type: {{contentType}}
+
+{
+  "name": "Test Node",
+  "location": "Test Location",
+  "status": "online"
+}
+
+###
+
+# Update node status
+PUT {{baseUrl}}/nodes/1
+Content-Type: {{contentType}}
+
+{
+  "status": "offline"
+}
+
+###
+
+# Delete node
+DELETE {{baseUrl}}/nodes/1
+Content-Type: {{contentType}}
+
+### ===========================================
+### Task Management API
+### ===========================================
+
+# Get all tasks
+GET {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+###
+
+# Get single task by ID
+GET {{baseUrl}}/tasks/1
+Content-Type: {{contentType}}
+
+###
+
+# Create new task
+POST {{baseUrl}}/tasks
+Content-Type: {{contentType}}
+
+{
+  "description": "Test Task Description",
+  "status": "pending",
+  "assignedNodeId": 1,
+  "priority": "medium"
+}
+
+###
+
+# Update task status
+PUT {{baseUrl}}/tasks/1
+Content-Type: {{contentType}}
+
+{
+  "status": "in-progress",
+  "assignedAgentId": 1
+}
+
+###
+
+# Delete task
+DELETE {{baseUrl}}/tasks/1
+Content-Type: {{contentType}}
+
+### ===========================================
+### Error Handling Tests
+### ===========================================
+
+# Test 404 - Non-existent agent
+GET {{baseUrl}}/agents/99999
+Content-Type: {{contentType}}
+
+###
+
+# Test 400 - Missing required fields
+POST {{baseUrl}}/agents
+Content-Type: {{contentType}}
+
+{
+  "status": "online"
+}
+
+###
+
+# Test 400 - Invalid status value
+PUT {{baseUrl}}/agents/1
+Content-Type: {{contentType}}
+
+{
+  "status": "invalid_status"
+}
+
+###
+
+# Test 500 scenarios (if applicable based on implementation)
+# Add specific test cases based on your error handling logic

@@ -6,7 +6,7 @@ interface StatsCardProps {
   title: string;
   value: number;
   subtitle?: string;
-  color?: 'blue' | 'green' | 'yellow' | 'red';
+  color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray';
 }
 
 function StatsCard({ title, value, subtitle, color = 'blue' }: StatsCardProps) {
@@ -15,6 +15,7 @@ function StatsCard({ title, value, subtitle, color = 'blue' }: StatsCardProps) {
     green: 'bg-green-50 border-green-200 text-green-900',
     yellow: 'bg-yellow-50 border-yellow-200 text-yellow-900',
     red: 'bg-red-50 border-red-200 text-red-900',
+    gray: 'bg-gray-50 border-gray-200 text-gray-900',
   };
 
   return (
@@ -34,24 +35,30 @@ interface DashboardStatsProps {
 
 export function DashboardStatsView({ stats }: DashboardStatsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       <StatsCard
         title="总 Agents"
         value={stats.totalAgents}
-        subtitle={`${stats.onlineAgents} 在线`}
+        subtitle="全部"
         color="blue"
       />
       <StatsCard
-        title="总 Nodes"
-        value={stats.totalNodes}
-        subtitle={`${stats.onlineNodes} 在线`}
+        title="在线 Agents"
+        value={stats.onlineAgents}
+        subtitle="在线"
         color="green"
       />
       <StatsCard
-        title="待处理任务"
-        value={stats.pendingTasks}
-        subtitle={`${stats.runningTasks} 运行中`}
+        title="忙碌 Agents"
+        value={stats.busyAgents}
+        subtitle="忙碌"
         color="yellow"
+      />
+      <StatsCard
+        title="离线 Agents"
+        value={stats.offlineAgents}
+        subtitle="离线"
+        color="gray"
       />
     </div>
   );

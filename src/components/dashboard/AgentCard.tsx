@@ -30,28 +30,19 @@ export function AgentCard({ agent }: AgentCardProps) {
           <span className="text-sm text-gray-600">{statusLabels[agent.status]}</span>
         </div>
       </div>
-      
+
       <div className="space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-500">类型:</span>
-          <span className="font-medium">{agent.type}</span>
-        </div>
-        
         {agent.location && (
           <div className="flex justify-between">
             <span className="text-gray-500">位置:</span>
             <span className="font-medium">{agent.location}</span>
           </div>
         )}
-        
-        <div className="flex justify-between">
-          <span className="text-gray-500">能力:</span>
-          <span className="font-medium">{agent.capabilities.length} 项</span>
-        </div>
-        
-        <div className="mt-3">
+
+        <div>
+          <div className="text-gray-500 mb-2">能力:</div>
           <div className="flex flex-wrap gap-1">
-            {agent.capabilities.slice(0, 3).map((cap, idx) => (
+            {agent.capabilities.map((cap, idx) => (
               <span
                 key={idx}
                 className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
@@ -59,14 +50,9 @@ export function AgentCard({ agent }: AgentCardProps) {
                 {cap}
               </span>
             ))}
-            {agent.capabilities.length > 3 && (
-              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
-                +{agent.capabilities.length - 3}
-              </span>
-            )}
           </div>
         </div>
-        
+
         <div className="pt-2 text-xs text-gray-400">
           最后心跳: {new Date(agent.lastHeartbeat).toLocaleString('zh-CN')}
         </div>

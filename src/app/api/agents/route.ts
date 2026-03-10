@@ -9,8 +9,23 @@ export async function GET() {
         node: true,
         tasks: true,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
-    return NextResponse.json(agents);
+
+    const formatted = agents.map((agent) => ({
+      ...agent,
+      capabilities: (() => {
+        try {
+          return JSON.parse(agent.capabilities || '[]');
+        } catch {
+          return [];
+        }
+      })(),
+    }));
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error('Failed to fetch agents:', error);
     return NextResponse.json(
