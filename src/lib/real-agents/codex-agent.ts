@@ -65,37 +65,55 @@ const executeCodexCLI = async (
   task: CodexTask,
   timeout: number
 ): Promise<string> => {
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
-  const execAsync = promisify(exec);
-
-  // Create a temporary script file with the task
-  const taskPrompt = `Task: ${task.name}\nDescription: ${task.description || 'No description'}\n\nPlease complete this task:`;
+  const { spawn } = await import('child_process');
   
-  try {
-    // Execute codex with the task
-    const { stdout, stderr } = await execAsync(
-      `echo "${escapeShell(taskPrompt)}" | codex`,
-      { 
-        timeout,
-        env: { ...process.env },
-      }
-    );
+  // Create prompt for Codex
+  const prompt = `Task: ${task.name}\nDescription: ${task.description || 'No description'}\n\nPlease complete this task:`;
 
-    if (stderr && !stdout) {
-      throw new Error(stderr);
-    }
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    
+    // Spawn codex process
+    const child = spawn('codex', {
+      env: { ...process.env },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
-    return stdout || 'Task executed successfully';
-  } catch (error) {
-    if (error instanceof Error && 'code' in error) {
-      // Handle timeout
-      if ((error as any).code === 'ETIMEDOUT') {
-        throw new Error(`Codex execution timed out after ${timeout}ms`);
+    // Send prompt to stdin
+    child.stdin.write(prompt);
+    child.stdin.end();
+
+    // Collect stdout
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    // Collect stderr
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // Handle completion
+    child.on('close', (code) => {
+      if (code === 0 || stdout.length > 0) {
+        resolve(stdout || 'Task executed successfully');
+      } else {
+        reject(new Error(stderr || `Codex exited with code ${code}`));
       }
-    }
-    throw error;
-  }
+    });
+
+    // Handle errors
+    child.on('error', (err) => {
+      reject(err);
+    });
+
+    // Handle timeout
+    setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error(`Codex execution timed out after ${timeout}ms`));
+    }, timeout);
+  });
 };
 
 /**

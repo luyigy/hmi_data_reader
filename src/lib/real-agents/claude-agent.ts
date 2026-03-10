@@ -69,43 +69,57 @@ const executeClaudeCLI = async (
   task: ClaudeTask,
   options: { timeout: number; workingDirectory: string }
 ): Promise<{ output: string; filesModified?: string[] }> => {
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
-  const execAsync = promisify(exec);
-
+  const { spawn } = await import('child_process');
+  
   // Create prompt for Claude
   const prompt = `Task: ${task.name}\n${task.description ? `Description: ${task.description}` : ''}\n\nPlease complete this task. Provide a summary of what you did at the end.`;
 
-  try {
-    // Execute claude code with the task
-    // Using --print flag to get output and --permission-mode bypassPermissions for automation
-    const { stdout, stderr } = await execAsync(
-      `claude "${escapeShell(prompt)}" --print --permission-mode bypassPermissions`,
-      {
-        timeout: options.timeout,
-        cwd: options.workingDirectory,
-        env: { ...process.env },
-      }
-    );
-
-    const output = stdout || stderr || 'Task executed successfully';
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
     
-    // Try to extract modified files from output
-    const filesModified = extractModifiedFiles(output);
+    // Spawn claude process
+    const child = spawn('claude', [prompt, '--print', '--permission-mode', 'bypassPermissions'], {
+      cwd: options.workingDirectory,
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
 
-    return {
-      output,
-      filesModified,
-    };
-  } catch (error) {
-    if (error instanceof Error && 'code' in error) {
-      // Handle timeout
-      if ((error as any).code === 'ETIMEDOUT') {
-        throw new Error(`Claude execution timed out after ${options.timeout}ms`);
+    // Collect stdout
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    // Collect stderr
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // Handle completion
+    child.on('close', (code) => {
+      const output = stdout || stderr || 'Task executed successfully';
+      
+      // Try to extract modified files from output
+      const filesModified = extractModifiedFiles(output);
+
+      if (code === 0 || stdout.length > 0) {
+        resolve({ output, filesModified });
+      } else {
+        reject(new Error(stderr || `Claude exited with code ${code}`));
       }
-    }
-    throw error;
-  }
+    });
+
+    // Handle errors
+    child.on('error', (err) => {
+      reject(err);
+    });
+
+    // Handle timeout
+    setTimeout(() => {
+      child.kill('SIGTERM');
+      reject(new Error(`Claude execution timed out after ${options.timeout}ms`));
+    }, options.timeout);
+  });
 };
 
 /**
