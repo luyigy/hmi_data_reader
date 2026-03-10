@@ -71,8 +71,19 @@ const executeClaudeCLI = async (
 ): Promise<{ output: string; filesModified?: string[] }> => {
   const { spawn } = await import('child_process');
   
-  // Create prompt for Claude
-  const prompt = `Task: ${task.name}\n${task.description ? `Description: ${task.description}` : ''}\n\nPlease complete this task. Provide a summary of what you did at the end.`;
+  // Create prompt for Claude - ensure complete message
+  const prompt = `Task: ${task.name}
+
+${task.description ? `Description: ${task.description}` : 'Please complete this task.'}
+
+Please complete this task step by step. When you're done, provide a summary of:
+1. What you did
+2. Any files you modified
+3. Any issues you encountered
+
+Take your time and be thorough.`;
+
+  console.log('[Claude] Prompt:', prompt.substring(0, 200) + '...');
 
   return new Promise((resolve, reject) => {
     let stdout = '';
