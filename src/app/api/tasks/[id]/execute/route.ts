@@ -122,16 +122,28 @@ export async function POST(
     const agentIds = task.assignedAgents.map((a) => a.id);
     const results = await executeTaskBatch(taskData, agentIds);
 
-    // 发送每个 Agent 的执行消息
+    // 发送每个 Agent 的执行消息（包含完整输出）
     for (const result of results) {
       if (result.success) {
-        await sendChatMessage(
-          `✅ ${result.agentName}: ${result.result?.message || '任务执行完成'}\n耗时：${(result.duration / 1000).toFixed(2)}s`,
-          result.agentName
-        );
+        // 提取 Agent 的真实输出内容
+        const agentOutput = result.result?.output || result.result?.message || '任务执行完成';
+        
+        // 发送 Agent 输出到聊天室
+        await sendChatMessage(agentOutput, result.agentName);
+        
+        // 如果是结构化结果，也发送详细信息
+        if (result.result && typeof result.result === 'object') {
+          const details = JSON.stringify(result.result, null, 2);
+          if (details.length > 0 && details !== '{}') {
+            await sendChatMessage(
+              `📊 执行详情:\n\`\`\`json\n${details.substring(0, 1000)}${details.length > 1000 ? '...' : ''}\n\`\`\``,
+              result.agentName
+            );
+          }
+        }
       } else {
         await sendChatMessage(
-          `❌ ${result.agentName}: ${result.error || '执行失败'}`,
+          `❌ 执行失败：${result.error || '未知错误'}`,
           result.agentName
         );
       }

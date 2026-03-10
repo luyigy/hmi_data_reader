@@ -414,8 +414,8 @@ const executeRealCodexTask = async (
         agentName: agent.name,
         taskName: task.name,
         status: 'completed',
-        message: `Codex 完成任务 "${task.name}"`,
-        output: result.output,
+        message: `Codex 完成任务`,
+        output: result.output, // 完整的 Codex 输出（包含实际对话内容）
         executionTime: result.executionTime,
         timestamp: new Date().toISOString(),
       };
@@ -449,8 +449,8 @@ const executeRealClaudeTask = async (
         agentName: agent.name,
         taskName: task.name,
         status: 'completed',
-        message: `Claude Code 完成任务 "${task.name}"`,
-        output: result.output,
+        message: `Claude Code 完成任务`,
+        output: result.output, // 完整的 Claude 输出（包含实际对话内容）
         filesModified: result.filesModified,
         executionTime: result.executionTime,
         timestamp: new Date().toISOString(),
