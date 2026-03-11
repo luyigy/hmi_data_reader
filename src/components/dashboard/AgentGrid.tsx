@@ -2,16 +2,22 @@
 
 import { Agent } from '@/types';
 import { AgentCard } from './AgentCard';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface AgentGridProps {
   agents: Agent[];
+  onAgentRefresh?: () => void;
 }
 
-export function AgentGrid({ agents }: AgentGridProps) {
+export function AgentGrid({ agents, onAgentRefresh }: AgentGridProps) {
   const [agentList, setAgentList] = useState<Agent[]>(agents);
 
-  const handleStatusChange = (agentId: string, newStatus: Agent['status']) => {
+  useEffect(() => {
+    setAgentList(agents);
+  }, [agents]);
+
+  const handleStatusChange = async (agentId: string, newStatus: Agent['status']) => {
+    // 乐观更新 UI
     setAgentList((prev) =>
       prev.map((agent) =>
         agent.id === agentId
@@ -19,6 +25,24 @@ export function AgentGrid({ agents }: AgentGridProps) {
           : agent
       )
     );
+
+    // 调用 API 更新
+    try {
+      await fetch(`/api/agents/${agentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+        }),
+      });
+      
+      // 通知父组件刷新
+      onAgentRefresh?.();
+    } catch (error) {
+      console.error('Failed to update agent status:', error);
+      // 失败时恢复原状态
+      setAgentList(agents);
+    }
   };
 
   if (agentList.length === 0) {

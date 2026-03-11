@@ -1,6 +1,6 @@
 # Agent Platform v2 - 项目状态
 
-**最后更新**: 2026-03-09 23:40  
+**最后更新**: 2026-03-11 08:30  
 **群聊 ID**: oc_5917af2dc3ec90bc7b5fe4c48b762e00
 
 ---
@@ -331,10 +331,15 @@ const handleSend = async (content: string) => {
 E:\projects\agent-platform-v2\
 ├── src/
 │   ├── app/chat/page.tsx          # 群聊前端页面
+│   ├── app/api/nodes/register/    # 跨网关注册 API (新增)
 │   ├── lib/websocket.ts           # WebSocket 服务端
 │   ├── lib/websocket-client.ts    # WebSocket 客户端
 │   ├── lib/chat.ts                # 聊天共享逻辑
 │   └── components/chat/           # 聊天组件
+├── scripts/
+│   └── register-remote-gateway.js # 远程网关注册脚本 (新增)
+├── docs/
+│   └── CROSS_GATEWAY_REGISTRATION.md # 跨网关注册文档 (新增)
 ├── prisma/schema.prisma           # 数据库模型
 └── .env                           # 环境变量
 ```
@@ -351,4 +356,58 @@ npm run dev
 
 # 访问
 http://localhost:3000/chat
+http://localhost:3000/dashboard
 ```
+
+---
+
+## 🌐 跨网关注册（新增）
+
+### 在远程电脑上运行
+
+```bash
+# 1. 配置环境变量
+$env:PLATFORM_URL="http://192.168.1.50:3000"
+$env:GATEWAY_ID="gateway-office-pc"
+$env:GATEWAY_NAME="Office PC Gateway"
+
+# 2. 运行注册脚本（守护进程模式）
+node scripts/register-remote-gateway.js daemon
+
+# 3. 验证注册
+curl http://localhost:3000/api/nodes
+```
+
+### 文档
+
+详见：`docs/CROSS_GATEWAY_REGISTRATION.md`
+
+---
+
+## 🎨 注册 UI（新增 2026-03-11 08:45）
+
+### Dashboard 集成
+
+访问 Dashboard 首页，点击 **"注册远程网关"** 按钮：
+
+**方式 1: 手动配置**
+- 填写网关名称、IP、端口
+- 配置 Agent 列表（名称、类型、能力）
+- 一键注册
+
+**方式 2: 自动生成脚本**
+- 自动生成 PowerShell 注册脚本
+- 一键复制到剪贴板
+- 在远程电脑运行即可
+
+### 独立页面
+
+访问 `/nodes/register` 直接进入注册流程。
+
+### 特性
+
+- ✅ 两步向导式 UI（选择方式 → 填写信息）
+- ✅ 实时验证和错误提示
+- ✅ 成功后自动刷新 Dashboard
+- ✅ 支持添加多个 Agents
+- ✅ 脚本自动生成并复制
