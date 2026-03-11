@@ -199,7 +199,14 @@ export async function GET() {
         body: {
           action: 'heartbeat',
           gatewayId: 'unique-gateway-id',
-          agents: [...], // 当前 agent 状态
+          agents: [
+            {
+              name: 'Agent 1',
+              type: 'coding',
+              capabilities: ['typescript'],
+              status: 'online',
+            },
+          ],
         },
         interval: '每 30 秒',
       },
