@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateGatewayToken } from '@/lib/gateway-auth';
 
 /**
- * POST /api/nodes/register
+ * POST /api/gateways/register
  * 
  * 远程网关自动注册端点
  * 
@@ -32,17 +33,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 强制要求带 token（Authorization 或 X-Gateway-Token），验证失败返回 401
+    const auth = await validateGatewayToken(request);
+    if (!auth.authenticated) {
+      return NextResponse.json(
+        { error: auth.error || 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     // 根据 action 处理
     switch (action) {
       case 'register': {
-        // 创建或更新 Node
-        const node = await prisma.node.upsert({
+        // 创建或更新 Gateway
+        const gateway = await prisma.gateway.upsert({
           where: {
             id: gatewayId,
           },
           update: {
             name,
-            ip: `${ip}:${port}`,
+            url: `${ip}:${port}`,
             resources: resources ? JSON.stringify(resources) : null,
             status: 'online',
             updatedAt: new Date(),
@@ -50,7 +60,7 @@ export async function POST(request: NextRequest) {
           create: {
             id: gatewayId,
             name,
-            ip: `${ip}:${port}`,
+            url: `${ip}:${port}`,
             resources: resources ? JSON.stringify(resources) : null,
             status: 'online',
           },
@@ -69,7 +79,7 @@ export async function POST(request: NextRequest) {
                 location: 'remote',
                 capabilities: JSON.stringify(agentData.capabilities || []),
                 status: agentData.status || 'online',
-                nodeId: node.id,
+                gatewayId: gateway.id,
                 lastHeartbeat: new Date(),
               },
               create: {
@@ -79,7 +89,7 @@ export async function POST(request: NextRequest) {
                 location: 'remote',
                 capabilities: JSON.stringify(agentData.capabilities || []),
                 status: agentData.status || 'online',
-                nodeId: node.id,
+                gatewayId: gateway.id,
               },
             });
           }
@@ -87,14 +97,14 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          node,
-          message: 'Node and agents registered successfully',
+          gateway,
+          message: 'Gateway and agents registered successfully',
         });
       }
 
       case 'heartbeat': {
         // 更新心跳
-        const node = await prisma.node.update({
+        const gateway = await prisma.gateway.update({
           where: { id: gatewayId },
           data: {
             status: 'online',
@@ -120,13 +130,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           message: 'Heartbeat received',
-          node,
+          gateway,
         });
       }
 
       case 'unregister': {
         // 标记为离线
-        await prisma.node.update({
+        await prisma.gateway.update({
           where: { id: gatewayId },
           data: {
             status: 'offline',
@@ -136,7 +146,7 @@ export async function POST(request: NextRequest) {
 
         // 将所有关联 agent 设为离线
         await prisma.agent.updateMany({
-          where: { nodeId: gatewayId },
+          where: { gatewayId: gatewayId },
           data: {
             status: 'offline',
           },
@@ -144,7 +154,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          message: 'Node unregistered',
+          message: 'Gateway unregistered',
         });
       }
 
@@ -155,16 +165,16 @@ export async function POST(request: NextRequest) {
         );
     }
   } catch (error) {
-    console.error('Failed to register node:', error);
+    console.error('Failed to register gateway:', error);
     return NextResponse.json(
-      { error: 'Failed to register node' },
+      { error: 'Failed to register gateway' },
       { status: 500 }
     );
   }
 }
 
 /**
- * GET /api/nodes/register
+ * GET /api/gateways/register
  * 
  * 获取注册说明
  */

@@ -1,7 +1,6 @@
 'use client';
 
-import { AgentGrid, DashboardStatsView } from '@/components/dashboard';
-import { RegisterGatewayModal } from '@/components/dashboard/RegisterGatewayModal';
+import { AgentGrid, DashboardStatsView, RegisterGatewayModal, CreateAgentModal } from '@/components/dashboard';
 import { Agent, DashboardStats } from '@/types';
 import { useState, useEffect } from 'react';
 
@@ -11,6 +10,7 @@ export default function DashboardPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateAgentModalOpen, setIsCreateAgentModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchAgents = async () => {
@@ -67,7 +67,7 @@ export default function DashboardPage() {
               </svg>
               注册远程网关
             </button>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors" onClick={() => setIsCreateAgentModalOpen(true)}>
               + 新建 Agent
             </button>
           </div>
@@ -85,6 +85,12 @@ export default function DashboardPage() {
       <RegisterGatewayModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onSuccess={handleRegistrationSuccess}
+      />
+
+      <CreateAgentModal
+        isOpen={isCreateAgentModalOpen}
+        onClose={() => setIsCreateAgentModalOpen(false)}
         onSuccess={handleRegistrationSuccess}
       />
     </div>

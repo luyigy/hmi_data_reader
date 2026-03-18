@@ -11,6 +11,7 @@ interface FormData {
   ip: string;
   port: string;
   gatewayId: string;
+  token?: string;
   agents: AgentConfig[];
 }
 
@@ -32,6 +33,7 @@ export function RemoteGatewayForm({ onSuccess }: RemoteGatewayFormProps) {
     ip: '',
     port: '8080',
     gatewayId: '',
+    token: '',
     agents: [{ name: '', type: 'generic', capabilities: '' }],
   });
 
@@ -40,9 +42,14 @@ export function RemoteGatewayForm({ onSuccess }: RemoteGatewayFormProps) {
     setError(null);
 
     try {
-      const response = await fetch('/api/nodes/register', {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (formData.token) {
+        headers['Authorization'] = `Bearer ${formData.token}`;
+      }
+
+      const response = await fetch('/api/gateways/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           action: 'register',
           gatewayId: formData.gatewayId || `gateway-${Date.now()}`,
@@ -68,7 +75,7 @@ export function RemoteGatewayForm({ onSuccess }: RemoteGatewayFormProps) {
       }
 
       setSuccess(true);
-      setRegistrationKey(result.node?.id || 'unknown');
+      setRegistrationKey(result.gateway?.id || 'unknown');
       
       setTimeout(() => {
         onSuccess?.();
@@ -236,6 +243,20 @@ export function RemoteGatewayForm({ onSuccess }: RemoteGatewayFormProps) {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Gateway Token
+              </label>
+              <input
+                type="text"
+                value={formData.token}
+                onChange={(e) => setFormData({ ...formData, token: e.target.value })}
+                placeholder="可选：用于认证的 token"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">如果网关需要认证，请在此处填写生成的 token</p>
+            </div>
           </div>
         </div>
 
@@ -327,18 +348,19 @@ export function RemoteGatewayForm({ onSuccess }: RemoteGatewayFormProps) {
   if (step === 3) {
     const gatewayId = `gateway-${Date.now()}`;
     const scriptContent = `# 远程网关自动注册脚本
-# 在远程电脑上运行此脚本
+  # 在远程电脑上运行此脚本
 
-# 配置环境变量
-\\$env:PLATFORM_URL="http://${formData.ip || '<platform-ip>'}:3000"
-\\$env:GATEWAY_ID="${gatewayId}"
-\\$env:GATEWAY_NAME="${formData.name || 'Remote Gateway'}"
-\\$env:GATEWAY_PORT="8080"
+  # 配置环境变量
+  \$env:PLATFORM_URL="http://${formData.ip || '<platform-ip>'}:3000"
+  \$env:GATEWAY_ID="${gatewayId}"
+  \$env:GATEWAY_NAME="${formData.name || 'Remote Gateway'}"
+  \$env:GATEWAY_PORT="8080"
+  \$env:GATEWAY_TOKEN="${formData.token || ''}"
 
-# 运行注册脚本（守护进程模式）
-cd E:\\projects\\agent-platform-v2
-node scripts/register-remote-gateway.js daemon
-`;
+  # 运行注册脚本（守护进程模式）
+  cd E:\projects\agent-platform-v2
+  node scripts/register-remote-gateway.js daemon
+  `;
 
     const copyToClipboard = async (text: string) => {
       try {

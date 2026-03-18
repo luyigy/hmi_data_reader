@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// GET /api/nodes - 获取所有 nodes
+// GET /api/gateways - 获取所有 gateways
 export async function GET() {
   try {
-    const nodes = await prisma.node.findMany({
+    const gateways = await prisma.gateway.findMany({
       include: {
         agents: true,
       },
@@ -13,11 +13,11 @@ export async function GET() {
       },
     });
 
-    const formatted = nodes.map((node) => ({
-      ...node,
+    const formatted = gateways.map((gateway) => ({
+      ...gateway,
       resources: (() => {
         try {
-          return node.resources ? JSON.parse(node.resources) : undefined;
+          return gateway.resources ? JSON.parse(gateway.resources) : undefined;
         } catch {
           return undefined;
         }
@@ -26,33 +26,35 @@ export async function GET() {
 
     return NextResponse.json(formatted);
   } catch (error) {
-    console.error('Failed to fetch nodes:', error);
+    console.error('Failed to fetch gateways:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch nodes' },
+      { error: 'Failed to fetch gateways' },
       { status: 500 }
     );
   }
 }
 
-// POST /api/nodes - 创建新 node
+// POST /api/gateways - 创建新 gateway
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, ip, resources } = body;
+    const { name, url, token, ip, resources } = body;
 
-    const node = await prisma.node.create({
+    const gateway = await prisma.gateway.create({
       data: {
         name,
+        url,
+        token,
         ip,
         resources: resources ? JSON.stringify(resources) : null,
       },
     });
 
-    return NextResponse.json(node, { status: 201 });
+    return NextResponse.json(gateway, { status: 201 });
   } catch (error) {
-    console.error('Failed to create node:', error);
+    console.error('Failed to create gateway:', error);
     return NextResponse.json(
-      { error: 'Failed to create node' },
+      { error: 'Failed to create gateway' },
       { status: 500 }
     );
   }

@@ -6,23 +6,25 @@ export interface Agent {
   capabilities: string[];
   status: 'online' | 'offline' | 'busy' | 'error';
   lastHeartbeat: string;
-  nodeId?: string;
+  gatewayId?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Node {
+export interface Gateway {
   id: string;
   name: string;
-  ip?: string;
+  url?: string;  // Gateway API URL
+  token?: string;  // Authentication token
+  ip?: string;  // Legacy field
   status: 'online' | 'offline' | 'maintenance';
-  resources?: NodeResources;
+  resources?: GatewayResources;
   agentCount?: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface NodeResources {
+export interface GatewayResources {
   cpu: number;
   memory: number;
   disk: number;

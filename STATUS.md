@@ -1,6 +1,6 @@
 # Agent Platform v2 - 项目状态
 
-**最后更新**: 2026-03-11 08:30  
+**最后更新**: 2026-03-17 11:35  
 **群聊 ID**: oc_5917af2dc3ec90bc7b5fe4c48b762e00
 
 ---
@@ -26,7 +26,7 @@
 
 **后端 API**：
 - `/api/agents` - Agent CRUD
-- `/api/nodes` - Node 管理
+- `/api/gateways` - Gateway 管理（原 `/api/nodes`，2026-03-17 重构）
 - `/api/chat/rooms` - 聊天房间
 - `/api/chat/messages` - 消息读写
 
@@ -411,3 +411,169 @@ curl http://localhost:3000/api/nodes
 - ✅ 成功后自动刷新 Dashboard
 - ✅ 支持添加多个 Agents
 - ✅ 脚本自动生成并复制
+
+---
+
+## 🔄 Feature 8 - Gateway 模型重构（2026-03-17 已完成）
+
+**状态**: ✅ 已完成  
+**开始时间**: 2026-03-17 11:35  
+**完成时间**: 2026-03-17 12:30  
+**负责人**: HK-vision
+
+### 重构内容
+
+**数据库模型变更**:
+- ✅ `Node` 表重命名为 `Gateway`
+- ✅ 添加 `url` 字段（Gateway API 地址）
+- ✅ 添加 `token` 字段（认证令牌）
+- ✅ `Agent.nodeId` 重命名为 `Agent.gatewayId`
+- ✅ 保留 `ip` 字段作为向后兼容
+
+**API 更新**:
+- ✅ `/api/nodes` → `/api/gateways`
+- ✅ `/api/nodes/register` → `/api/gateways/register`
+- ✅ 代码中所有 `node/nodeId` 引用更新为 `gateway/gatewayId`
+
+**TypeScript 类型更新**:
+- ✅ `interface Node` → `interface Gateway`
+- ✅ `interface NodeResources` → `interface GatewayResources`
+- ✅ `Agent.nodeId` → `Agent.gatewayId`
+
+### 已完成步骤
+
+1. ✅ 更新 `prisma/schema.prisma`
+2. ✅ 运行 `prisma db push --accept-data-loss` 应用迁移
+3. ✅ 更新 `src/types/index.ts`
+4. ✅ 更新 `src/app/api/gateways/route.ts`（原 nodes/route.ts）
+5. ✅ 更新 `src/app/api/gateways/register/route.ts`
+6. ✅ 更新 `src/app/api/agents/route.ts`
+7. ✅ 更新 `src/app/api/agents/[id]/route.ts`
+8. ✅ 更新 `src/components/dashboard/RemoteGatewayForm.tsx`
+9. ✅ 更新 `prisma/seed.ts`
+10. ✅ 运行数据库种子 (`prisma db seed`)
+11. ✅ 重命名 API 路由文件夹 (`/api/nodes` → `/api/gateways`)
+
+### TypeScript 编译状态
+
+- ✅ 所有 Node/Gateway 相关错误已修复
+- ⚠️ 剩余 3 个无关错误（websocket 导出、测试文件）
+
+### 数据库状态
+
+- ✅ 3 个 Gateways 已创建
+- ✅ 6 个 Agents 已创建并关联到 Gateways
+
+### 下一步
+
+- 验证前端页面正常显示
+- 继续 Feature 9+ 开发
+
+---
+
+## 🔄 Feature 9 - Gateway Token 认证实现（2026-03-17 已完成）
+
+**状态**: ✅ 已完成  
+**开始时间**: 2026-03-17 13:05  
+**完成时间**: 2026-03-17 13:35  
+**负责人**: HK-vision
+
+### 实现内容
+
+**Token 管理 API**:
+- ✅ `/api/gateways/token` (POST) - 生成 Token
+- ✅ `/api/gateways/token` (GET) - 验证 Token
+- ✅ `/api/gateways/token` (DELETE) - 撤销 Token
+
+**认证中间件**:
+- ✅ `src/lib/gateway-auth.ts` - Token 验证库
+- ✅ `validateGatewayToken()` - 验证函数
+- ✅ `withGatewayAuth()` - 认证装饰器
+
+**连接测试**:
+- ✅ `/api/gateways/[id]/test` (POST) - 测试连接
+- ✅ `/api/gateways/[id]/test` (GET) - 获取状态
+
+---
+
+## 🔄 Feature 10 - 跨网关消息路由（2026-03-17 已完成）
+
+**状态**: ✅ 已完成  
+**开始时间**: 2026-03-17 14:05  
+**完成时间**: 2026-03-17 14:35  
+**负责人**: HK-vision
+
+### 实现内容
+
+**消息路由库**:
+- ✅ `src/lib/gateway-router.ts` - 消息路由核心逻辑
+- ✅ `routeMessageToGateway()` - 单播消息
+- ✅ `broadcastToGateways()` - 广播消息
+- ✅ `retryPendingMessages()` - 重试失败消息
+
+**发送 API**:
+- ✅ `/api/gateways/messages/send` (POST) - 发送消息
+- ✅ `/api/gateways/messages/send` (GET) - 消息历史
+
+**接收 API**:
+- ✅ `/api/gateways/messages/incoming` (POST) - 接收消息
+- ✅ `/api/gateways/messages/incoming` (GET) - 接收历史
+
+**数据库模型**:
+- ✅ `GatewayMessage` - 发出消息记录
+- ✅ `IncomingGatewayMessage` - 接收消息记录
+- ✅ 数据库迁移完成
+
+### 已完成步骤
+
+1. ✅ 创建消息路由库
+2. ✅ 创建发送 API
+3. ✅ 创建接收 API
+4. ✅ 更新 Prisma schema
+5. ✅ 运行数据库迁移
+6. ✅ TypeScript 编译验证
+
+---
+
+## 🔄 Feature 11 - Token 加密存储（2026-03-17 已完成）
+
+**状态**: ✅ 已完成  
+**开始时间**: 2026-03-17 15:05  
+**完成时间**: 2026-03-17 15:35  
+**负责人**: HK-vision
+
+### 实现内容
+
+**加密工具库**:
+- ✅ `src/lib/encryption.ts` - AES-256-GCM 加密
+- ✅ `encryptToken()` - 加密 Token
+- ✅ `decryptToken()` - 解密 Token
+- ✅ `generateEncryptionKey()` - 生成密钥
+- ✅ `validateEncryptionKey()` - 验证密钥
+- ✅ `testEncryption()` - 测试功能
+
+**API 更新**:
+- ✅ `/api/gateways/token` (POST) - 加密存储 Token
+- ✅ `/api/gateways/token` (GET) - 解密验证 Token
+- ✅ `src/lib/gateway-auth.ts` - 认证时解密 Token
+
+**环境变量**:
+- `OPENCLAW_ENCRYPTION_KEY` - 32 字符加密密钥
+
+### 已完成步骤
+
+1. ✅ 创建加密工具库
+2. ✅ 更新 Token API 加密存储
+3. ✅ 更新 Token 验证解密逻辑
+4. ✅ 更新 gateway-auth 解密验证
+5. ✅ TypeScript 编译验证
+
+### TypeScript 编译状态
+
+- ✅ Feature 11 相关代码无错误
+- ⚠️ 剩余 3 个无关错误（websocket 导出、测试文件）
+
+### 下一步
+
+- Feature 12 - 端到端测试（阶段 2 最后任务）
+- 或阶段 2 结项（92% 完成）

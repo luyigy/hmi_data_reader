@@ -8,32 +8,37 @@ datasource db {
 }
 
 model Agent {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
   type           String
   location       String?
-  capabilities   String   // JSON array as string
-  status         String   @default("offline") // online, offline, busy, error
-  lastHeartbeat  DateTime @default(now())
-  nodeId         String?
-  node           Node?    @relation(fields: [nodeId], references: [id])
+  capabilities   String    // JSON array as string
+  status         String    @default("offline") // online, offline, busy, error
+  lastHeartbeat  DateTime  @default(now())
+  gatewayId      String?
+  gateway        Gateway?  @relation(fields: [gatewayId], references: [id])
   tasks          Task[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([status])
-  @@index([nodeId])
+  @@index([gatewayId])
 }
 
-model Node {
-  id          String   @id @default(cuid())
-  name        String
-  ip          String?
-  status      String   @default("offline") // online, offline, maintenance
-  resources   String?  // JSON object as string: { cpu, memory, disk }
-  agents      Agent[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Gateway {
+  id              String            @id @default(cuid())
+  name            String
+  url             String?           // Gateway API URL (e.g., http://192.168.1.100:3000)
+  token           String?           // Authentication token (encrypted)
+  ip              String?           // Legacy field for backward compatibility
+  status          String            @default("offline") // online, offline, maintenance
+  resources       String?           // JSON object as string: { cpu, memory, disk }
+  agents          Agent[]
+  outgoingMessages GatewayMessage[] @relation("outgoingMessages")
+  incomingMessages GatewayMessage[] @relation("incomingMessages")
+  sentMessages    IncomingGatewayMessage[] @relation("sentMessages")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@index([status])
 }
@@ -74,4 +79,38 @@ model Message {
   room      ChatRoom @relation(fields: [roomId], references: [id])
 
   @@index([roomId, createdAt])
+}
+
+model GatewayMessage {
+  id            String   @id @default(cuid())
+  fromGatewayId String
+  toGatewayId   String
+  fromGateway   Gateway  @relation("outgoingMessages", fields: [fromGatewayId], references: [id])
+  toGateway     Gateway  @relation("incomingMessages", fields: [toGatewayId], references: [id])
+  type          String   @default("direct") // direct, broadcast, request
+  payload       String   // JSON payload
+  status        String   @default("pending") // pending, sent, delivered, failed
+  createdAt     DateTime @default(now())
+  deliveredAt   DateTime?
+  error         String?
+
+  @@index([fromGatewayId])
+  @@index([toGatewayId])
+  @@index([status])
+}
+
+model IncomingGatewayMessage {
+  id            String    @id @default(cuid())
+  fromGatewayId String
+  fromGateway   Gateway   @relation("sentMessages", fields: [fromGatewayId], references: [id])
+  message       String    // JSON message
+  type          String    @default("direct") // direct, broadcast, request
+  status        String    @default("received") // received, processed, failed
+  receivedAt    DateTime  @default(now())
+  processedAt   DateTime?
+  error         String?
+
+  @@index([fromGatewayId])
+  @@index([status])
+  @@index([receivedAt])
 }

@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const agents = await prisma.agent.findMany({
       include: {
-        node: true,
+        gateway: true,
         tasks: true,
       },
       orderBy: {
@@ -39,7 +39,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, type, location, capabilities, nodeId } = body;
+    const { name, type, location, capabilities, gatewayId } = body;
 
     const agent = await prisma.agent.create({
       data: {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         type,
         location,
         capabilities: JSON.stringify(capabilities || []),
-        nodeId,
+        gatewayId,
       },
     });
 

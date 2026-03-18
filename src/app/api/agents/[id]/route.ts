@@ -10,7 +10,7 @@ export async function GET(
     const agent = await prisma.agent.findUnique({
       where: { id: params.id },
       include: {
-        node: true,
+        gateway: true,
         tasks: true,
       },
     });
@@ -50,7 +50,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const { status, nodeId, ...otherFields } = body;
+    const { status, gatewayId, ...otherFields } = body;
 
     // 验证状态
     const validStatuses = ['online', 'offline', 'busy', 'error'];
@@ -77,11 +77,11 @@ export async function PUT(
       data: {
         ...otherFields,
         status,
-        nodeId,
+        gatewayId,
         lastHeartbeat: status ? new Date() : undefined,
       },
       include: {
-        node: true,
+        gateway: true,
       },
     });
 
