@@ -1,7 +1,24 @@
 # Agent Platform v2 - 项目状态
 
-**最后更新**: 2026-03-17 11:35  
+**最后更新**: 2026-03-20 15:30  
 **群聊 ID**: oc_5917af2dc3ec90bc7b5fe4c48b762e00
+
+---
+
+## 🎉 阶段 2 完成公告 (2026-03-20)
+
+**状态**: ✅ **阶段 2 正式完成** (100%)  
+**完成日期**: 2026-03-20  
+**Feature 12**: E2E 测试框架 - ✅ 已完成
+
+**阶段 2 总结**:
+- 12/12 Features 完成
+- Playwright E2E 测试框架建立
+- 18 个测试用例 (6 个 API 测试通过)
+- HTML 测试报告生成
+- 控制平面增量集成完成
+
+**下一步**: 阶段 3 规划 或 回归 Defects Detection Phase 1
 
 ---
 
@@ -541,6 +558,32 @@ curl http://localhost:3000/api/nodes
 **开始时间**: 2026-03-17 15:05  
 **完成时间**: 2026-03-17 15:35  
 **负责人**: HK-vision
+
+---
+
+## 🔄 Feature 12 - Control Plane 增量集成（2026-03-19 进行中）
+
+**状态**: 🟡 进行中  
+**开始时间**: 2026-03-19 23:35  
+**负责人**: Coder Agent（委派）
+
+### 目标
+实现中央 Control Plane，编排和连接多个 Gateway，通过飞书机器人进行 Agent 调度。
+
+### 架构
+```
+飞书群聊 → Control Plane → Gateway A / Gateway B → 结果回飞书群聊
+```
+
+### 实现内容（计划中）
+1. **GatewayClient** (`src/lib/gateway-client.ts`) - WebSocket 客户端
+2. **GatewayManager** (`src/lib/gateway-manager.ts`) - 多 Gateway 管理
+3. **FeishuCommandRouter** (`src/lib/feishu-command-router.ts`) - 飞书命令解析
+4. **TaskStore** (`src/lib/task-store.ts`) - 任务状态跟踪
+5. **API 扩展** - 连接管理、状态查询、任务发送
+
+### 进展日志
+- **2026-03-19 23:35**: 任务已委派给 Coder Agent，开始执行 Step 1（理解现有代码）
 
 ### 实现内容
 

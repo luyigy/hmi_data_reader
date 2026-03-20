@@ -1,0 +1,70 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Agent Platform" [level=1] [ref=e5]
+        - paragraph [ref=e6]: v2.0
+      - navigation [ref=e7]:
+        - link "📊 Dashboard" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e9]: 📊
+          - generic [ref=e10]: Dashboard
+        - link "💬 群聊" [ref=e11] [cursor=pointer]:
+          - /url: /chat
+          - generic [ref=e12]: 💬
+          - generic [ref=e13]: 群聊
+        - link "📋 任务" [ref=e14] [cursor=pointer]:
+          - /url: /tasks
+          - generic [ref=e15]: 📋
+          - generic [ref=e16]: 任务
+      - paragraph [ref=e19]: "系统状态: 运行中"
+    - main [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - heading "群聊" [level=1] [ref=e23]
+          - paragraph [ref=e24]: Agent 群聊管理
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - generic [ref=e27]:
+              - generic [ref=e29]:
+                - generic [ref=e30]:
+                  - generic [ref=e31]: "????"
+                  - generic [ref=e32]: 11:18:31 PM
+                - generic [ref=e33]: API ????
+              - generic [ref=e35]:
+                - generic [ref=e36]:
+                  - generic [ref=e37]: 测试用户
+                  - generic [ref=e38]: 11:18:37 PM
+                - generic [ref=e39]: API 测试消息
+              - generic [ref=e41]:
+                - generic [ref=e42]:
+                  - generic [ref=e43]: 浏览器测试用户
+                  - generic [ref=e44]: 11:42:37 PM
+                - generic [ref=e45]: ✅ 浏览器测试成功 - 小步快跑验证
+            - generic [ref=e47]:
+              - textbox "输入消息，使用 @agent-name 提及" [ref=e48]
+              - button "发送" [ref=e49] [cursor=pointer]
+          - complementary [ref=e50]:
+            - generic [ref=e51]:
+              - heading "聊天房间" [level=3] [ref=e52]
+              - generic [ref=e53]:
+                - button "大厅 全员沟通" [ref=e54] [cursor=pointer]:
+                  - generic [ref=e55]: 大厅
+                  - generic [ref=e56]: 全员沟通
+                - button "任务协作 任务编排与状态" [ref=e57] [cursor=pointer]:
+                  - generic [ref=e58]: 任务协作
+                  - generic [ref=e59]: 任务编排与状态
+                - button "Agent 协作 多 Agent 讨论" [ref=e60] [cursor=pointer]:
+                  - generic [ref=e61]: Agent 协作
+                  - generic [ref=e62]: 多 Agent 讨论
+                - button "任务：chat room test 任务执行聊天室 - 2026/3/10 21:52:55" [ref=e63] [cursor=pointer]:
+                  - generic [ref=e64]: 任务：chat room test
+                  - generic [ref=e65]: 任务执行聊天室 - 2026/3/10 21:52:55
+            - generic [ref=e66]:
+              - heading "在线用户" [level=3] [ref=e67]
+              - generic [ref=e69]: 暂无在线用户
+  - alert [ref=e70]
+```

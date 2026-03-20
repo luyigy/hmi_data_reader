@@ -114,3 +114,18 @@ model IncomingGatewayMessage {
   @@index([status])
   @@index([receivedAt])
 }
+
+model ControlPlaneState {
+  id              String   @id @default(cuid())
+  gatewayId       String   @unique
+  status          String   @default("offline") // online, offline, unhealthy, maintenance
+  lastHeartbeat   DateTime @default(now())
+  loadScore       Float    @default(0) // 0-100, lower is better
+  latency         Int      @default(0) // ms
+  consecutiveFails Int     @default(0)
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}

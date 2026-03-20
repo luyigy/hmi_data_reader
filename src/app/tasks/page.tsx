@@ -32,6 +32,9 @@ interface Agent {
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [gateways, setGateways] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedGateway, setSelectedGateway] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +42,7 @@ export default function TasksPage() {
   useEffect(() => {
     fetchTasks();
     fetchAgents();
+    fetchGateways();
   }, [filter]);
 
   const fetchTasks = async () => {
@@ -64,12 +68,39 @@ export default function TasksPage() {
       const res = await fetch('/api/agents');
       const data = await res.json();
       if (Array.isArray(data)) {
-        setAgents(data);
+        setAllAgents(data);
+        // apply gateway filter
+        if (selectedGateway === 'all') {
+          setAgents(data);
+        } else {
+          setAgents(data.filter((a: Agent) => a.gatewayId === selectedGateway));
+        }
       }
     } catch (error) {
       console.error('Failed to fetch agents:', error);
     }
   };
+
+  const fetchGateways = async () => {
+    try {
+      const res = await fetch('/api/gateways');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setGateways(data.map((g: any) => ({ id: g.id, name: g.name })));
+      }
+    } catch (error) {
+      console.error('Failed to fetch gateways:', error);
+    }
+  };
+
+  useEffect(() => {
+    // when selectedGateway changes, update visible agents
+    if (selectedGateway === 'all') {
+      setAgents(allAgents);
+    } else {
+      setAgents(allAgents.filter((a) => a.gatewayId === selectedGateway));
+    }
+  }, [selectedGateway, allAgents]);
 
   const handleCreateTask = async (taskData: {
     name: string;
@@ -159,7 +190,20 @@ export default function TasksPage() {
       <TaskStats stats={stats} />
 
       <div className="mb-6">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <label className="text-sm text-gray-600 mr-2">按网关筛选：</label>
+          <select
+            value={selectedGateway}
+            onChange={(e) => setSelectedGateway(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg bg-white"
+          >
+            <option value="all">全部网关</option>
+            {gateways.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+
+          <div className="flex gap-2 ml-4">
           {['all', 'pending', 'running', 'completed', 'failed'].map((status) => (
             <button
               key={status}
@@ -173,6 +217,7 @@ export default function TasksPage() {
               {status === 'all' ? '全部' : status === 'pending' ? '待处理' : status === 'running' ? '进行中' : status === 'completed' ? '已完成' : '失败'}
             </button>
           ))}
+          </div>
         </div>
       </div>
 

@@ -1,0 +1,179 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Agent Platform" [level=1] [ref=e5]
+        - paragraph [ref=e6]: v2.0
+      - navigation [ref=e7]:
+        - link "📊 Dashboard" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e9]: 📊
+          - generic [ref=e10]: Dashboard
+        - link "💬 群聊" [ref=e11] [cursor=pointer]:
+          - /url: /chat
+          - generic [ref=e12]: 💬
+          - generic [ref=e13]: 群聊
+        - link "📋 任务" [ref=e14] [cursor=pointer]:
+          - /url: /tasks
+          - generic [ref=e15]: 📋
+          - generic [ref=e16]: 任务
+      - paragraph [ref=e19]: "系统状态: 运行中"
+    - main [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - heading "Dashboard" [level=1] [ref=e23]
+          - paragraph [ref=e24]: Agent 平台监控看板
+        - generic [ref=e25]:
+          - generic [ref=e26]:
+            - heading "总 Agents" [level=3] [ref=e27]
+            - paragraph [ref=e28]: "7"
+            - paragraph [ref=e29]: 全部
+          - generic [ref=e30]:
+            - heading "在线 Agents" [level=3] [ref=e31]
+            - paragraph [ref=e32]: "3"
+            - paragraph [ref=e33]: 在线
+          - generic [ref=e34]:
+            - heading "忙碌 Agents" [level=3] [ref=e35]
+            - paragraph [ref=e36]: "2"
+            - paragraph [ref=e37]: 忙碌
+          - generic [ref=e38]:
+            - heading "离线 Agents" [level=3] [ref=e39]
+            - paragraph [ref=e40]: "2"
+            - paragraph [ref=e41]: 离线
+        - generic [ref=e42]:
+          - generic [ref=e43]:
+            - generic [ref=e44]:
+              - heading "Agents" [level=2] [ref=e45]
+              - paragraph [ref=e46]: 管理本地和远程网关的 Agents
+            - generic [ref=e47]:
+              - button "注册远程网关" [ref=e48] [cursor=pointer]:
+                - img [ref=e49]
+                - text: 注册远程网关
+              - button "+ 新建 Agent" [ref=e51] [cursor=pointer]
+          - generic [ref=e52]:
+            - generic [ref=e53]:
+              - generic [ref=e54]:
+                - heading "main" [level=3] [ref=e55]
+                - generic [ref=e58]: 在线
+              - generic [ref=e59]:
+                - generic [ref=e60]:
+                  - generic [ref=e61]: "位置:"
+                  - generic [ref=e62]: remote
+                - generic [ref=e64]: "能力:"
+                - generic [ref=e66]:
+                  - button "下线" [ref=e67] [cursor=pointer]
+                  - button "忙碌" [ref=e68] [cursor=pointer]
+                - generic [ref=e69]: 最后心跳：2026/3/20 14:54:57
+            - generic [ref=e70]:
+              - generic [ref=e71]:
+                - heading "Agent Alpha" [level=3] [ref=e72]
+                - generic [ref=e75]: 在线
+              - generic [ref=e76]:
+                - generic [ref=e77]:
+                  - generic [ref=e78]: "位置:"
+                  - generic [ref=e79]: 本地
+                - generic [ref=e80]:
+                  - generic [ref=e81]: "能力:"
+                  - generic [ref=e82]:
+                    - generic [ref=e83]: 代码生成
+                    - generic [ref=e84]: 代码审查
+                    - generic [ref=e85]: 重构
+                - generic [ref=e87]:
+                  - button "下线" [ref=e88] [cursor=pointer]
+                  - button "忙碌" [ref=e89] [cursor=pointer]
+                - generic [ref=e90]: 最后心跳：2026/3/17 12:08:57
+            - generic [ref=e91]:
+              - generic [ref=e92]:
+                - heading "Agent Beta" [level=3] [ref=e93]
+                - generic [ref=e96]: 在线
+              - generic [ref=e97]:
+                - generic [ref=e98]:
+                  - generic [ref=e99]: "位置:"
+                  - generic [ref=e100]: 云端
+                - generic [ref=e101]:
+                  - generic [ref=e102]: "能力:"
+                  - generic [ref=e103]:
+                    - generic [ref=e104]: 数据分析
+                    - generic [ref=e105]: 监控
+                    - generic [ref=e106]: 报告生成
+                - generic [ref=e108]:
+                  - button "下线" [ref=e109] [cursor=pointer]
+                  - button "忙碌" [ref=e110] [cursor=pointer]
+                - generic [ref=e111]: 最后心跳：2026/3/17 12:03:57
+            - generic [ref=e112]:
+              - generic [ref=e113]:
+                - heading "Agent Gamma" [level=3] [ref=e114]
+                - generic [ref=e117]: 忙碌
+              - generic [ref=e118]:
+                - generic [ref=e119]:
+                  - generic [ref=e120]: "位置:"
+                  - generic [ref=e121]: 本地
+                - generic [ref=e122]:
+                  - generic [ref=e123]: "能力:"
+                  - generic [ref=e124]:
+                    - generic [ref=e125]: 消息处理
+                    - generic [ref=e126]: 通知发送
+                    - generic [ref=e127]: 群聊管理
+                - generic [ref=e129]:
+                  - button "上线" [ref=e130] [cursor=pointer]
+                  - button "下线" [ref=e131] [cursor=pointer]
+                - generic [ref=e132]: 最后心跳：2026/3/17 12:06:57
+            - generic [ref=e133]:
+              - generic [ref=e134]:
+                - heading "Agent Delta" [level=3] [ref=e135]
+                - generic [ref=e138]: 忙碌
+              - generic [ref=e139]:
+                - generic [ref=e140]:
+                  - generic [ref=e141]: "位置:"
+                  - generic [ref=e142]: 远程
+                - generic [ref=e143]:
+                  - generic [ref=e144]: "能力:"
+                  - generic [ref=e145]:
+                    - generic [ref=e146]: 测试
+                    - generic [ref=e147]: 部署
+                    - generic [ref=e148]: CI/CD
+                - generic [ref=e150]:
+                  - button "上线" [ref=e151] [cursor=pointer]
+                  - button "下线" [ref=e152] [cursor=pointer]
+                - generic [ref=e153]: 最后心跳：2026/3/17 11:56:57
+            - generic [ref=e154]:
+              - generic [ref=e155]:
+                - heading "Agent Epsilon" [level=3] [ref=e156]
+                - generic [ref=e159]: 离线
+              - generic [ref=e160]:
+                - generic [ref=e161]:
+                  - generic [ref=e162]: "位置:"
+                  - generic [ref=e163]: 远程
+                - generic [ref=e164]:
+                  - generic [ref=e165]: "能力:"
+                  - generic [ref=e166]:
+                    - generic [ref=e167]: 日志采集
+                    - generic [ref=e168]: 告警
+                    - generic [ref=e169]: 指标分析
+                - generic [ref=e171]:
+                  - button "上线" [ref=e172] [cursor=pointer]
+                  - button "忙碌" [ref=e173] [cursor=pointer]
+                - generic [ref=e174]: 最后心跳：2026/3/17 06:08:57
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - heading "Agent Zeta" [level=3] [ref=e177]
+                - generic [ref=e180]: 离线
+              - generic [ref=e181]:
+                - generic [ref=e182]:
+                  - generic [ref=e183]: "位置:"
+                  - generic [ref=e184]: 云端
+                - generic [ref=e185]:
+                  - generic [ref=e186]: "能力:"
+                  - generic [ref=e187]:
+                    - generic [ref=e188]: 自动化运维
+                    - generic [ref=e189]: 备份
+                    - generic [ref=e190]: 恢复
+                - generic [ref=e192]:
+                  - button "上线" [ref=e193] [cursor=pointer]
+                  - button "忙碌" [ref=e194] [cursor=pointer]
+                - generic [ref=e195]: 最后心跳：2026/3/16 12:08:57
+  - alert [ref=e196]
+```
