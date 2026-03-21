@@ -84,6 +84,7 @@ Get-NetTCPConnection -LocalPort 3000,3001,3002,3003 -ErrorAction SilentlyContinu
 - 2026-03-21 的 OpenClaw HTTP 联调里程碑见 `docs/07_OPENCLAW_HTTP_MILESTONE.md`。
 - 下一阶段接手说明见 `docs/08_OPENCLAW_HTTP_HANDOVER.md`。
 - 跨 Gateway Agent 对话阶段的接手说明见 `docs/09_CROSS_GATEWAY_AGENT_CHAT_HANDOVER.md`。
+- Dashboard / Chat 布局与 Feishu 接入阶段的接手说明见 `docs/10_LAYOUT_AND_FEISHU_HANDOVER.md`。
 
 ---
 
