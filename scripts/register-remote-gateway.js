@@ -1,39 +1,44 @@
 /**
  * 远程网关自动注册脚本
- * 
  * 在远程 OpenClaw 实例上运行，自动向 Agent Platform 注册
- * 
- * 使用方式：
- * 1. 配置 PLATFORM_URL 和 GATEWAY_ID
- * 2. node register-remote-gateway.js
- * 3. 后台持续运行（心跳）
  */
 
 const PLATFORM_URL = process.env.PLATFORM_URL || 'http://localhost:3000';
 const GATEWAY_ID = process.env.GATEWAY_ID || 'gateway-office-pc';
 const GATEWAY_NAME = process.env.GATEWAY_NAME || 'Office PC Gateway';
 const GATEWAY_PORT = process.env.GATEWAY_PORT || '8080';
-const HEARTBEAT_INTERVAL = parseInt(process.env.HEARTBEAT_INTERVAL || '30000');
+const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || '';
+const HEARTBEAT_INTERVAL = parseInt(process.env.HEARTBEAT_INTERVAL || '30000', 10);
+const PREFERRED_IP = process.env.GATEWAY_IP || '';
 
-// 获取本地网关信息
+function getAuthHeaders() {
+  if (!GATEWAY_TOKEN) {
+    throw new Error('GATEWAY_TOKEN is required. Generate it from /api/gateways/token first.');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + GATEWAY_TOKEN,
+  };
+}
+
 async function getGatewayInfo() {
   try {
-    // 读取 openclaw.json 获取配置
     const fs = require('fs');
     const path = require('path');
-    
+    const os = require('os');
+
     const openclawConfigPath = path.join(
       process.env.APPDATA || process.env.HOME,
       '.openclaw',
       'openclaw.json'
     );
-    
+
     let config = {};
     if (fs.existsSync(openclawConfigPath)) {
       config = JSON.parse(fs.readFileSync(openclawConfigPath, 'utf8'));
     }
 
-    // 获取 agents 信息
     const agents = [];
     if (config.agents && Array.isArray(config.agents)) {
       for (const agent of config.agents) {
@@ -47,11 +52,9 @@ async function getGatewayInfo() {
       }
     }
 
-    // 获取系统资源
-    const os = require('os');
     const resources = {
-      cpu: `${os.cpus().length} cores`,
-      memory: `${Math.round(os.totalmem() / 1024 / 1024 / 1024)}GB`,
+      cpu: String(os.cpus().length) + ' cores',
+      memory: String(Math.round(os.totalmem() / 1024 / 1024 / 1024)) + 'GB',
       platform: os.platform(),
       uptime: os.uptime(),
     };
@@ -59,10 +62,10 @@ async function getGatewayInfo() {
     return {
       gatewayId: GATEWAY_ID,
       name: GATEWAY_NAME,
-      ip: getLocalIP(),
+      ip: PREFERRED_IP || getLocalIP(),
       port: GATEWAY_PORT,
-      agents,
-      resources,
+      agents: agents,
+      resources: resources,
     };
   } catch (error) {
     console.error('Failed to get gateway info:', error);
@@ -70,11 +73,10 @@ async function getGatewayInfo() {
   }
 }
 
-// 获取本地 IP
 function getLocalIP() {
   const os = require('os');
   const interfaces = os.networkInterfaces();
-  
+
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
@@ -82,11 +84,21 @@ function getLocalIP() {
       }
     }
   }
-  
+
   return '127.0.0.1';
 }
 
-// 注册到平台
+async function postRegistrationAction(action, payload) {
+  const response = await fetch(PLATFORM_URL + '/api/gateways/register', {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(Object.assign({ action: action }, payload)),
+  });
+
+  const result = await response.json();
+  return { response: response, result: result };
+}
+
 async function register() {
   const info = await getGatewayInfo();
   if (!info) {
@@ -95,32 +107,24 @@ async function register() {
   }
 
   try {
-    const response = await fetch(`${PLATFORM_URL}/api/nodes/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'register',
-        ...info,
-      }),
-    });
+    const outcome = await postRegistrationAction('register', info);
 
-    const result = await response.json();
-    
-    if (response.ok) {
-      console.log('✅ Registered successfully:', result.node?.name);
-      console.log(`   Agents: ${info.agents.length}`);
+    if (outcome.response.ok) {
+      console.log('Registered successfully:', outcome.result.gateway && outcome.result.gateway.name ? outcome.result.gateway.name : info.name);
+      console.log('Gateway ID:', GATEWAY_ID);
+      console.log('Reported URL: http://' + info.ip + ':' + info.port);
+      console.log('Agents:', info.agents.length);
       return true;
-    } else {
-      console.error('❌ Registration failed:', result.error);
-      return false;
     }
+
+    console.error('Registration failed:', outcome.result.error || outcome.response.statusText);
+    return false;
   } catch (error) {
-    console.error('❌ Registration error:', error.message);
+    console.error('Registration error:', error.message);
     return false;
   }
 }
 
-// 发送心跳
 async function sendHeartbeat() {
   const info = await getGatewayInfo();
   if (!info) {
@@ -129,59 +133,45 @@ async function sendHeartbeat() {
   }
 
   try {
-    const response = await fetch(`${PLATFORM_URL}/api/nodes/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'heartbeat',
-        gatewayId: GATEWAY_ID,
-        agents: info.agents,
-      }),
+    const outcome = await postRegistrationAction('heartbeat', {
+      gatewayId: GATEWAY_ID,
+      ip: info.ip,
+      port: info.port,
+      agents: info.agents,
     });
 
-    const result = await response.json();
-    
-    if (response.ok) {
-      console.log('💓 Heartbeat sent');
+    if (outcome.response.ok) {
+      console.log('Heartbeat sent');
       return true;
-    } else {
-      console.error('❌ Heartbeat failed:', result.error);
-      return false;
     }
+
+    console.error('Heartbeat failed:', outcome.result.error || outcome.response.statusText);
+    return false;
   } catch (error) {
-    console.error('❌ Heartbeat error:', error.message);
+    console.error('Heartbeat error:', error.message);
     return false;
   }
 }
 
-// 注销
 async function unregister() {
   try {
-    const response = await fetch(`${PLATFORM_URL}/api/nodes/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'unregister',
-        gatewayId: GATEWAY_ID,
-      }),
+    const outcome = await postRegistrationAction('unregister', {
+      gatewayId: GATEWAY_ID,
     });
 
-    const result = await response.json();
-    
-    if (response.ok) {
-      console.log('👋 Unregistered successfully');
+    if (outcome.response.ok) {
+      console.log('Unregistered successfully');
       return true;
-    } else {
-      console.error('❌ Unregister failed:', result.error);
-      return false;
     }
+
+    console.error('Unregister failed:', outcome.result.error || outcome.response.statusText);
+    return false;
   } catch (error) {
-    console.error('❌ Unregister error:', error.message);
+    console.error('Unregister error:', error.message);
     return false;
   }
 }
 
-// 主函数
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -190,46 +180,45 @@ async function main() {
     case 'register':
       await register();
       break;
-
     case 'heartbeat':
       await sendHeartbeat();
       break;
-
     case 'unregister':
       await unregister();
       break;
-
     case 'daemon':
     default:
-      // 守护进程模式：先注册，然后定期心跳
-      console.log('🚀 Starting gateway registration daemon...');
-      console.log(`   Platform: ${PLATFORM_URL}`);
-      console.log(`   Gateway: ${GATEWAY_ID}`);
-      console.log(`   Heartbeat: every ${HEARTBEAT_INTERVAL / 1000}s`);
-      
-      // 首次注册
-      const registered = await register();
-      if (!registered) {
-        console.error('Initial registration failed');
+      console.log('Starting gateway registration daemon...');
+      console.log('Platform:', PLATFORM_URL);
+      console.log('Gateway:', GATEWAY_ID);
+      console.log('Heartbeat every', HEARTBEAT_INTERVAL / 1000, 'seconds');
+
+      if (!GATEWAY_TOKEN) {
+        console.error('Missing GATEWAY_TOKEN');
         process.exit(1);
       }
 
-      // 定期心跳
-      setInterval(async () => {
+      {
+        const registered = await register();
+        if (!registered) {
+          console.error('Initial registration failed');
+          process.exit(1);
+        }
+      }
+
+      setInterval(async function () {
         await sendHeartbeat();
       }, HEARTBEAT_INTERVAL);
 
-      // 优雅退出
-      process.on('SIGINT', async () => {
-        console.log('\n👋 Shutting down...');
+      process.on('SIGINT', async function () {
+        console.log('\nShutting down...');
         await unregister();
         process.exit(0);
       });
 
-      console.log('✅ Daemon started. Press Ctrl+C to stop.');
+      console.log('Daemon started. Press Ctrl+C to stop.');
       break;
   }
 }
 
-// 运行
 main().catch(console.error);

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { decryptToken } from '@/lib/encryption';
 
 export interface GatewayMessage {
   id: string;
@@ -12,9 +13,28 @@ export interface GatewayMessage {
   error?: string | null;
 }
 
+function joinUrl(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
+async function getGatewayRawToken(gatewayId: string): Promise<string | null> {
+  const gateway = await prisma.gateway.findUnique({
+    where: { id: gatewayId },
+    select: { token: true },
+  });
+
+  if (!gateway?.token) {
+    return null;
+  }
+
+  return decryptToken(gateway.token);
+}
+
 /**
  * 将消息路由到目标 Gateway
- * 
+ *
  * 如果目标 Gateway 在线且有 URL，尝试直接发送
  * 否则将消息存入队列等待重试
  */
@@ -25,7 +45,6 @@ export async function routeMessageToGateway(
   type: 'direct' | 'broadcast' | 'request' = 'direct'
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    // 创建消息记录
     const message = await prisma.gatewayMessage.create({
       data: {
         fromGatewayId,
@@ -36,16 +55,32 @@ export async function routeMessageToGateway(
       },
     });
 
-    // 获取目标 Gateway 信息
-    const targetGateway = await prisma.gateway.findUnique({
-      where: { id: toGatewayId },
-      select: {
-        id: true,
-        url: true,
-        token: true,
-        status: true,
-      },
-    });
+    const [sourceToken, targetGateway] = await Promise.all([
+      getGatewayRawToken(fromGatewayId),
+      prisma.gateway.findUnique({
+        where: { id: toGatewayId },
+        select: {
+          id: true,
+          url: true,
+          status: true,
+        },
+      }),
+    ]);
+
+    if (!sourceToken) {
+      await prisma.gatewayMessage.update({
+        where: { id: message.id },
+        data: {
+          status: 'failed',
+          error: 'Source gateway token not configured',
+        },
+      });
+      return {
+        success: false,
+        messageId: message.id,
+        error: 'Source gateway token not configured',
+      };
+    }
 
     if (!targetGateway) {
       await prisma.gatewayMessage.update({
@@ -77,17 +112,14 @@ export async function routeMessageToGateway(
       };
     }
 
-    // 尝试发送消息
     try {
-      const messageUrl = targetGateway.url.endsWith('/')
-        ? `${targetGateway.url}api/gateways/messages/incoming`
-        : `${targetGateway.url}/api/gateways/messages/incoming`;
+      const messageUrl = joinUrl(targetGateway.url, '/api/gateways/messages/incoming');
 
       const response = await fetch(messageUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${targetGateway.token}`,
+          'Authorization': `Bearer ${sourceToken}`,
         },
         body: JSON.stringify({
           fromGatewayId,
@@ -102,17 +134,18 @@ export async function routeMessageToGateway(
           data: {
             status: 'sent',
             deliveredAt: new Date(),
+            error: null,
           },
         });
         return {
           success: true,
           messageId: message.id,
         };
-      } else {
-        throw new Error(`HTTP ${response.status}`);
       }
+
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}${errorText ? `: ${errorText}` : ''}`);
     } catch (error) {
-      // 发送失败，标记为 pending 等待重试
       await prisma.gatewayMessage.update({
         where: { id: message.id },
         data: {

@@ -3,6 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { validateGatewayToken } from '@/lib/gateway-auth';
 import { decryptToken } from '@/lib/encryption';
 
+function joinUrl(baseUrl: string, path: string): string {
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
 /**
  * POST /api/gateways/[id]/test
  * 
@@ -43,20 +49,10 @@ export async function POST(
     let connectionStatus = 'unknown';
     let responseTime = -1;
     let errorMessage: string | null = null;
+    let checkedPath: string | null = null;
 
     if (gateway.url) {
       try {
-        const startTime = Date.now();
-        
-        // 尝试访问 Gateway 的健康检查端点
-        const testUrl = gateway.url.endsWith('/')
-          ? `${gateway.url}api/health`
-          : `${gateway.url}/api/health`;
-        
-        // 使用 AbortController 实现超时
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-        
         // 如果数据库中保存了加密 token，解密后发送给远端 Gateway
         const authHeaders: Record<string, string> = {};
         if (gateway.token) {
@@ -69,30 +65,51 @@ export async function POST(
           }
         }
 
-        const response = await fetch(testUrl, {
-          method: 'GET',
-          headers: authHeaders,
-          signal: controller.signal,
-        });
-        
-        clearTimeout(timeoutId);
+        // OpenClaw 默认健康检查是 /health；保留 /api/health 兼容平台自有实例
+        const healthPaths = ['/health', '/healthz', '/api/health'];
+        let lastHttpError: string | null = null;
 
-        responseTime = Date.now() - startTime;
+        for (const healthPath of healthPaths) {
+          const startTime = Date.now();
+          const testUrl = joinUrl(gateway.url, healthPath);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        if (response.ok) {
-          connectionStatus = 'connected';
-          
-          // 更新 Gateway 状态为 online
-          await prisma.gateway.update({
-            where: { id: gatewayId },
-            data: {
-              status: 'online',
-              updatedAt: new Date(),
-            },
-          });
-        } else {
-          connectionStatus = 'error';
-          errorMessage = `HTTP ${response.status}`;
+          try {
+            const response = await fetch(testUrl, {
+              method: 'GET',
+              headers: authHeaders,
+              signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+              checkedPath = healthPath;
+              responseTime = Date.now() - startTime;
+              connectionStatus = 'connected';
+              errorMessage = null;
+
+              await prisma.gateway.update({
+                where: { id: gatewayId },
+                data: {
+                  status: 'online',
+                  updatedAt: new Date(),
+                },
+              });
+              break;
+            }
+
+            lastHttpError = `HTTP ${response.status} (${healthPath})`;
+          } catch (error) {
+            clearTimeout(timeoutId);
+            lastHttpError = error instanceof Error ? error.message : 'Unknown error';
+          }
+        }
+
+        if (connectionStatus !== 'connected') {
+          connectionStatus = 'unreachable';
+          errorMessage = lastHttpError || 'Gateway health probe failed';
         }
       } catch (error) {
         connectionStatus = 'unreachable';
@@ -114,6 +131,7 @@ export async function POST(
       connection: {
         status: connectionStatus,
         responseTime,
+        checkedPath,
         error: errorMessage,
         testedAt: new Date().toISOString(),
       },

@@ -5,17 +5,19 @@ import { encryptToken, decryptToken } from '@/lib/encryption';
 
 /**
  * POST /api/gateways/token
- * 
+ *
  * 为指定 Gateway 生成或刷新认证 Token
- * 
+ *
  * 请求体:
  * - gatewayId: Gateway ID
  * - expiresIn: Token 有效期（小时），默认 24 小时
+ * - name: 可选，Gateway 名称（当 Gateway 尚不存在时使用）
+ * - url: 可选，Gateway URL（当 Gateway 尚不存在时使用）
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { gatewayId, expiresIn = 24 } = body;
+    const { gatewayId, expiresIn = 24, name, url } = body;
 
     if (!gatewayId) {
       return NextResponse.json(
@@ -24,37 +26,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 验证 Gateway 是否存在
-    const gateway = await prisma.gateway.findUnique({
-      where: { id: gatewayId },
-    });
-
-    if (!gateway) {
-      return NextResponse.json(
-        { error: 'Gateway not found' },
-        { status: 404 }
-      );
-    }
-
-    // 生成 Token
     const rawToken = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + expiresIn * 60 * 60 * 1000);
-
-    // 加密后存储
     const encryptedToken = encryptToken(rawToken);
 
-    // 保存 Token 到数据库
-    const updated = await prisma.gateway.update({
+    const updated = await prisma.gateway.upsert({
       where: { id: gatewayId },
-      data: {
+      update: {
         token: encryptedToken,
+        ...(name ? { name } : {}),
+        ...(url ? { url } : {}),
         updatedAt: new Date(),
+      },
+      create: {
+        id: gatewayId,
+        name: name || gatewayId,
+        url: url || null,
+        token: encryptedToken,
+        status: 'offline',
       },
     });
 
     return NextResponse.json({
       success: true,
-      token: rawToken, // 返回原始 Token 给客户端
+      token: rawToken,
       encrypted: true,
       expiresAt: expiresAt.toISOString(),
       gateway: {
@@ -74,16 +69,16 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/gateways/token
- * 
+ *
  * 验证 Token 是否有效
- * 
+ *
  * 请求头:
  * - Authorization: Bearer <token>
  */
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Missing or invalid Authorization header' },
@@ -91,9 +86,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rawToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const rawToken = authHeader.substring(7);
 
-    // 查找所有有 Token 的 Gateway
     const gateways = await prisma.gateway.findMany({
       where: {
         token: {
@@ -102,13 +96,12 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // 解密并比对每个 Token
     for (const gateway of gateways) {
       try {
         if (!gateway.token) continue;
-        
+
         const decryptedToken = decryptToken(gateway.token);
-        
+
         if (decryptedToken === rawToken) {
           return NextResponse.json({
             valid: true,
@@ -121,7 +114,6 @@ export async function GET(request: NextRequest) {
           });
         }
       } catch {
-        // 解密失败，跳过此 Gateway
         continue;
       }
     }
@@ -141,7 +133,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * DELETE /api/gateways/token
- * 
+ *
  * 撤销指定 Gateway 的 Token
  */
 export async function DELETE(request: NextRequest) {

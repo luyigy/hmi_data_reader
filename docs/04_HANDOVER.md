@@ -47,8 +47,10 @@ curl -X POST http://localhost:3002/api/gateways/token \
 
 ## 常见故障与排查
 - 无法注册（401）: 检查 token 是否正确、是否使用 `Authorization` 或 `X-Gateway-Token` 头。
-- 无法连通（connection unreachable）: 检查 `gateway.url` 配置、网络连通性、防火墙和远端 `/api/health` 是否可达。
+- 无法连通（connection unreachable）: 检查 `gateway.url` 配置、网络连通性、防火墙和远端 `/health` 是否可达。平台测试接口已优先探测 `/health`、`/healthz`，最后回退 `/api/health` 兼容旧实现。
 - 跨网关消息失败: 检查在 `src/lib/gateway-router.ts` 发送消息时是否使用了解密后的 token（已修复测试路由）。
+- OpenClaw AI 调用返回 `401 Unauthorized`: 这是 OpenClaw 自己的 gateway token，不是平台 token。平台 token 只用于 `gateway -> agent-platform` 注册/心跳。
+- OpenClaw AI 调用返回 `404 Not Found`: 检查 OpenClaw `openclaw.json` 是否已启用 `gateway.http.endpoints.responses.enabled` 和/或 `gateway.http.endpoints.chatCompletions.enabled`。
 
 ## 代码位置参考
 - API: `src/app/api/gateways`（register、token、[id]/test、messages）
@@ -74,6 +76,10 @@ Get-NetTCPConnection -LocalPort 3000,3001,3002,3003 -ErrorAction SilentlyContinu
 - `OPENCLAW_ENCRYPTION_KEY` 环境变量用于 AES-256-GCM token 加密；生产环境务必设置为强随机值。
 - 若要强制回滚到“允许无 token 注册”的兼容模式，需要修改 `src/app/api/gateways/register/route.ts`（不推荐）。
 - 若要增强安全性，建议新增 `verified` 字段并执行 DB 迁移，区分“已验证”和“未验证”网关。
+- 多 Gateway、跨 Gateway Agent 通信、ACPX/OpenClaw 集成和多 Agent meeting 的后续实施方案，见 `docs/05_MULTI_GATEWAY_AGENT_MEETING_PLAN.md`。
+- 阶段 1 的可执行开发清单见 `docs/06_STAGE1_MULTI_GATEWAY_MVP_CHECKLIST.md`。
+- 2026-03-21 的 OpenClaw HTTP 联调里程碑见 `docs/07_OPENCLAW_HTTP_MILESTONE.md`。
+- 下一阶段接手说明见 `docs/08_OPENCLAW_HTTP_HANDOVER.md`。
 
 ---
 
