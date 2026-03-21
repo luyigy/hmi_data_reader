@@ -10,6 +10,7 @@ datasource db {
 model Agent {
   id             String    @id @default(cuid())
   name           String
+  runtimeAgentId String?
   type           String
   location       String?
   capabilities   String    // JSON array as string
@@ -23,6 +24,7 @@ model Agent {
 
   @@index([status])
   @@index([gatewayId])
+  @@index([runtimeAgentId])
 }
 
 model Gateway {
@@ -129,4 +131,39 @@ model ControlPlaneState {
   updatedAt       DateTime @updatedAt
 
   @@index([status])
+}
+
+model CrossGatewayChatSession {
+  id            String                    @id @default(cuid())
+  fromGatewayId String
+  toGatewayId   String
+  fromAgentId   String                    @default("main")
+  toAgentId     String                    @default("main")
+  prompt        String
+  turns         Int                       @default(2)
+  status        String                    @default("completed") // completed, failed
+  error         String?
+  messages      CrossGatewayChatMessage[]
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  @@index([fromGatewayId])
+  @@index([toGatewayId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model CrossGatewayChatMessage {
+  id         String                  @id @default(cuid())
+  sessionId  String
+  sequence   Int
+  speaker    String
+  gatewayId  String?
+  agentId    String?
+  text       String
+  createdAt  DateTime                @default(now())
+  session    CrossGatewayChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, sequence])
+  @@index([gatewayId])
 }

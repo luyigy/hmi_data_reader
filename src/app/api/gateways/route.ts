@@ -39,7 +39,13 @@ export async function GET() {
       updatedAt: gateway.updatedAt,
       hasToken: !!gateway.token,
       hasOpenClawToken: !!gateway.openclawToken,
-      agents: gateway.agents,
+      agents: gateway.agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        runtimeAgentId: (agent as { runtimeAgentId?: string | null }).runtimeAgentId || undefined,
+        type: agent.type,
+        status: agent.status,
+      })),
       resources: (() => {
         try {
           return gateway.resources ? JSON.parse(gateway.resources) : undefined;

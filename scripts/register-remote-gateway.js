@@ -10,6 +10,8 @@ const GATEWAY_PORT = process.env.GATEWAY_PORT || '8080';
 const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || '';
 const HEARTBEAT_INTERVAL = parseInt(process.env.HEARTBEAT_INTERVAL || '30000', 10);
 const PREFERRED_IP = process.env.GATEWAY_IP || '';
+const RUNTIME_AGENTS_JSON = process.env.RUNTIME_AGENTS_JSON || '';
+const RUNTIME_AGENTS_FILE = process.env.RUNTIME_AGENTS_FILE || '';
 
 function getAuthHeaders() {
   if (!GATEWAY_TOKEN) {
@@ -20,6 +22,64 @@ function getAuthHeaders() {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer ' + GATEWAY_TOKEN,
   };
+}
+
+function normalizeAgent(agent, index) {
+  const fallbackName = typeof agent.name === 'string' && agent.name.trim()
+    ? agent.name.trim()
+    : `agent-${index + 1}`;
+
+  const runtimeAgentId =
+    (typeof agent.runtimeAgentId === 'string' && agent.runtimeAgentId.trim()) ||
+    (typeof agent.openclawAgentId === 'string' && agent.openclawAgentId.trim()) ||
+    (typeof agent.acpAgentId === 'string' && agent.acpAgentId.trim()) ||
+    (typeof agent.agentId === 'string' && agent.agentId.trim()) ||
+    (typeof agent.id === 'string' && agent.id.trim()) ||
+    fallbackName;
+
+  return {
+    id:
+      (typeof agent.id === 'string' && agent.id.trim()) ||
+      runtimeAgentId ||
+      fallbackName,
+    runtimeAgentId,
+    name: fallbackName,
+    type:
+      (typeof agent.type === 'string' && agent.type.trim()) ||
+      'generic',
+    capabilities: Array.isArray(agent.capabilities)
+      ? agent.capabilities.filter(Boolean)
+      : [],
+    status:
+      (typeof agent.status === 'string' && agent.status.trim()) ||
+      'online',
+  };
+}
+
+function parseRuntimeAgentsOverride(fs) {
+  try {
+    if (RUNTIME_AGENTS_JSON) {
+      const parsed = JSON.parse(RUNTIME_AGENTS_JSON);
+      if (!Array.isArray(parsed)) {
+        throw new Error('RUNTIME_AGENTS_JSON must be a JSON array');
+      }
+      return parsed.map(normalizeAgent);
+    }
+
+    if (RUNTIME_AGENTS_FILE) {
+      const content = fs.readFileSync(RUNTIME_AGENTS_FILE, 'utf8');
+      const parsed = JSON.parse(content);
+      if (!Array.isArray(parsed)) {
+        throw new Error('RUNTIME_AGENTS_FILE must point to a JSON array file');
+      }
+      return parsed.map(normalizeAgent);
+    }
+  } catch (error) {
+    console.error('Failed to parse runtime agent overrides:', error.message);
+    process.exit(1);
+  }
+
+  return null;
 }
 
 async function getGatewayInfo() {
@@ -39,16 +99,14 @@ async function getGatewayInfo() {
       config = JSON.parse(fs.readFileSync(openclawConfigPath, 'utf8'));
     }
 
+    const overrideAgents = parseRuntimeAgentsOverride(fs);
     const agents = [];
-    if (config.agents && Array.isArray(config.agents)) {
-      for (const agent of config.agents) {
-        agents.push({
-          id: agent.id || agent.name,
-          name: agent.name,
-          type: agent.type || 'generic',
-          capabilities: agent.capabilities || [],
-          status: 'online',
-        });
+
+    if (overrideAgents) {
+      agents.push(...overrideAgents);
+    } else if (config.agents && Array.isArray(config.agents)) {
+      for (let index = 0; index < config.agents.length; index += 1) {
+        agents.push(normalizeAgent(config.agents[index], index));
       }
     }
 
@@ -114,6 +172,9 @@ async function register() {
       console.log('Gateway ID:', GATEWAY_ID);
       console.log('Reported URL: http://' + info.ip + ':' + info.port);
       console.log('Agents:', info.agents.length);
+      console.log('Runtime agent IDs:', info.agents.map(function (agent) {
+        return agent.runtimeAgentId;
+      }).join(', ') || '(none)');
       return true;
     }
 
@@ -141,7 +202,9 @@ async function sendHeartbeat() {
     });
 
     if (outcome.response.ok) {
-      console.log('Heartbeat sent');
+      console.log('Heartbeat sent. Runtime agent IDs:', info.agents.map(function (agent) {
+        return agent.runtimeAgentId;
+      }).join(', ') || '(none)');
       return true;
     }
 
@@ -192,6 +255,13 @@ async function main() {
       console.log('Platform:', PLATFORM_URL);
       console.log('Gateway:', GATEWAY_ID);
       console.log('Heartbeat every', HEARTBEAT_INTERVAL / 1000, 'seconds');
+      if (RUNTIME_AGENTS_JSON) {
+        console.log('Using runtime agents from RUNTIME_AGENTS_JSON');
+      } else if (RUNTIME_AGENTS_FILE) {
+        console.log('Using runtime agents from file:', RUNTIME_AGENTS_FILE);
+      } else {
+        console.log('Using runtime agents from ~/.openclaw/openclaw.json when available');
+      }
 
       if (!GATEWAY_TOKEN) {
         console.error('Missing GATEWAY_TOKEN');

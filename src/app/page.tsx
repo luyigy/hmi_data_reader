@@ -2,6 +2,7 @@
 
 import {
   AgentGrid,
+  CrossGatewayChatPanel,
   DashboardStatsView,
   RegisterGatewayModal,
   CreateAgentModal,
@@ -104,6 +105,13 @@ export default function DashboardPage() {
         <OpenClawGatewayConsole
           gateways={gateways.filter((gateway) => !!gateway.url)}
           onRefresh={() => setRefreshKey((prev) => prev + 1)}
+        />
+      </section>
+
+      <section className="mt-10">
+        <CrossGatewayChatPanel
+          gateways={gateways.filter((gateway) => !!gateway.url)}
+          onRefresh={fetchDashboardData}
         />
       </section>
 

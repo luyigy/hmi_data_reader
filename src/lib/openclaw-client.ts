@@ -98,8 +98,14 @@ export async function createOpenClawResponse(
   return data;
 }
 
-export function extractOpenClawText(response: any): string {
-  const output = Array.isArray(response?.output) ? response.output : [];
+export function extractOpenClawText(response: unknown): string {
+  const output =
+    response &&
+    typeof response === 'object' &&
+    'output' in response &&
+    Array.isArray(response.output)
+      ? response.output
+      : [];
   const texts: string[] = [];
 
   for (const item of output) {

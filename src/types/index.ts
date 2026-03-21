@@ -1,6 +1,7 @@
 export interface Agent {
   id: string;
   name: string;
+  runtimeAgentId?: string;
   type: string;
   location?: string;
   capabilities: string[];
@@ -9,6 +10,14 @@ export interface Agent {
   gatewayId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface GatewayAgentSummary {
+  id: string;
+  name: string;
+  runtimeAgentId?: string;
+  type: string;
+  status: 'online' | 'offline' | 'busy' | 'error';
 }
 
 export interface Gateway {
@@ -21,6 +30,7 @@ export interface Gateway {
   agentCount?: number;
   hasToken?: boolean;
   hasOpenClawToken?: boolean;
+  agents?: GatewayAgentSummary[];
   createdAt: string;
   updatedAt: string;
 }

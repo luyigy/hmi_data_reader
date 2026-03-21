@@ -24,6 +24,30 @@ function normalizeGatewayUrl(ip?: string, port?: string | number): string | null
   return port ? `http://${trimmedIp}:${port}` : `http://${trimmedIp}`;
 }
 
+function resolveRuntimeAgentId(
+  gatewayId: string,
+  agentData: Record<string, unknown>
+): string | null {
+  const candidates = [
+    agentData.runtimeAgentId,
+    agentData.openclawAgentId,
+    agentData.acpAgentId,
+    agentData.agentId,
+    agentData.id,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      const value = candidate.trim();
+      if (!value.startsWith(`${gatewayId}:`)) {
+        return value;
+      }
+    }
+  }
+
+  return null;
+}
+
 /**
  * POST /api/gateways/register
  *
@@ -103,22 +127,24 @@ export async function POST(request: NextRequest) {
               },
               update: {
                 name: agentData.name,
+                runtimeAgentId: resolveRuntimeAgentId(gatewayId, agentData),
                 type: agentData.type,
                 location: 'remote',
                 capabilities: JSON.stringify(agentData.capabilities || []),
                 status: agentData.status || 'online',
                 gatewayId: gateway.id,
                 lastHeartbeat: new Date(),
-              },
+              } as never,
               create: {
                 id: agentData.id || `${gatewayId}:${agentData.name}`,
                 name: agentData.name,
+                runtimeAgentId: resolveRuntimeAgentId(gatewayId, agentData),
                 type: agentData.type,
                 location: 'remote',
                 capabilities: JSON.stringify(agentData.capabilities || []),
                 status: agentData.status || 'online',
                 gatewayId: gateway.id,
-              },
+              } as never,
             });
           }
         }
@@ -149,22 +175,24 @@ export async function POST(request: NextRequest) {
               },
               update: {
                 name: agentData.name,
+                runtimeAgentId: resolveRuntimeAgentId(gatewayId, agentData),
                 type: agentData.type,
                 location: 'remote',
                 capabilities: JSON.stringify(agentData.capabilities || []),
                 status: agentData.status || 'online',
                 gatewayId: gatewayId,
                 lastHeartbeat: new Date(),
-              },
+              } as never,
               create: {
                 id: agentData.id || `${gatewayId}:${agentData.name}`,
                 name: agentData.name,
+                runtimeAgentId: resolveRuntimeAgentId(gatewayId, agentData),
                 type: agentData.type,
                 location: 'remote',
                 capabilities: JSON.stringify(agentData.capabilities || []),
                 status: agentData.status || 'online',
                 gatewayId: gatewayId,
-              },
+              } as never,
             });
           }
         }
@@ -238,6 +266,7 @@ export async function GET() {
           agents: [
             {
               name: 'Coder Agent',
+              runtimeAgentId: 'codex',
               type: 'coding',
               capabilities: ['python', 'typescript'],
               status: 'online',
@@ -259,6 +288,7 @@ export async function GET() {
           agents: [
             {
               name: 'Agent 1',
+              runtimeAgentId: 'main',
               type: 'coding',
               capabilities: ['typescript'],
               status: 'online',

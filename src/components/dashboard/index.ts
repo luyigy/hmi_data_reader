@@ -2,6 +2,7 @@ export { AgentCard } from './AgentCard';
 export { AgentGrid } from './AgentGrid';
 export { CreateAgentForm } from './CreateAgentForm';
 export { CreateAgentModal } from './CreateAgentModal';
+export { CrossGatewayChatPanel } from './CrossGatewayChatPanel';
 export { DashboardStatsView } from './DashboardStats';
 export { OpenClawGatewayConsole } from './OpenClawGatewayConsole';
 export { RemoteGatewayForm } from './RemoteGatewayForm';
