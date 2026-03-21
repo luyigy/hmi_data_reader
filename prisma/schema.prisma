@@ -30,6 +30,7 @@ model Gateway {
   name            String
   url             String?           // Gateway API URL (e.g., http://192.168.1.100:3000)
   token           String?           // Authentication token (encrypted)
+  openclawToken   String?           // OpenClaw HTTP API token (encrypted)
   ip              String?           // Legacy field for backward compatibility
   status          String            @default("offline") // online, offline, maintenance
   resources       String?           // JSON object as string: { cpu, memory, disk }

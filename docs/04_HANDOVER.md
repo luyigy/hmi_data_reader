@@ -26,6 +26,8 @@ npm run dev
 - `POST /api/gateways/register` — 远端网关注册/心跳/注销（必须带 token）
 - `POST /api/gateways/token` — 为指定 gateway 生成 token（返回原始 token）
 - `GET /api/gateways/[id]/test` — 测试与指定网关连通性（会使用解密后 token 发起请求）
+- `GET|POST|DELETE /api/gateways/[id]/openclaw/config` — 查询/保存/清除该 Gateway 的 OpenClaw token
+- `POST /api/gateways/[id]/openclaw/respond` — 通过该 Gateway 调用 OpenClaw `/v1/responses`
 - `POST /api/agents` — 创建本地 agent
 
 > 注意: 注册接口已强制要求 token 验证；若远端未携带 token，请先在管理端为其生成并下发。
@@ -55,6 +57,7 @@ curl -X POST http://localhost:3002/api/gateways/token \
 ## 代码位置参考
 - API: `src/app/api/gateways`（register、token、[id]/test、messages）
 - 网关路由/队列: `src/lib/gateway-router.ts`
+- OpenClaw adapter: `src/lib/openclaw-client.ts`
 - Token 加密: `src/lib/encryption.ts`
 - 验证中间件: `src/lib/gateway-auth.ts`
 - 前端注册表单: `src/components/dashboard/RemoteGatewayForm.tsx`
