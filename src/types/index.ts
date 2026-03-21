@@ -15,11 +15,12 @@ export interface Gateway {
   id: string;
   name: string;
   url?: string;  // Gateway API URL
-  token?: string;  // Authentication token
   ip?: string;  // Legacy field
   status: 'online' | 'offline' | 'maintenance';
   resources?: GatewayResources;
   agentCount?: number;
+  hasToken?: boolean;
+  hasOpenClawToken?: boolean;
   createdAt: string;
   updatedAt: string;
 }

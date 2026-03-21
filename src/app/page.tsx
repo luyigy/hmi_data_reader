@@ -1,32 +1,50 @@
 'use client';
 
-import { AgentGrid, DashboardStatsView, RegisterGatewayModal, CreateAgentModal } from '@/components/dashboard';
-import { Agent, DashboardStats } from '@/types';
+import {
+  AgentGrid,
+  DashboardStatsView,
+  RegisterGatewayModal,
+  CreateAgentModal,
+  OpenClawGatewayConsole,
+} from '@/components/dashboard';
+import { Agent, DashboardStats, Gateway } from '@/types';
 import { useState, useEffect } from 'react';
 
 export const dynamic = 'force-dynamic';
 
 export default function DashboardPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [gateways, setGateways] = useState<Gateway[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreateAgentModalOpen, setIsCreateAgentModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchAgents = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const response = await fetch('/api/agents');
-      const data = await response.json();
-      setAgents(data);
+      const [agentsResponse, gatewaysResponse] = await Promise.all([
+        fetch('/api/agents'),
+        fetch('/api/gateways'),
+      ]);
+
+      const [agentsData, gatewaysData] = await Promise.all([
+        agentsResponse.json(),
+        gatewaysResponse.json(),
+      ]);
+
+      setAgents(Array.isArray(agentsData) ? agentsData : []);
+      setGateways(Array.isArray(gatewaysData) ? gatewaysData : []);
     } catch (error) {
-      console.error('Failed to fetch agents:', error);
+      console.error('Failed to fetch dashboard data:', error);
+      setAgents([]);
+      setGateways([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAgents();
+    fetchDashboardData();
   }, [refreshKey]);
 
   const stats: DashboardStats = {
@@ -80,6 +98,13 @@ export default function DashboardPage() {
         ) : (
           <AgentGrid agents={agents} onAgentRefresh={() => setRefreshKey(prev => prev + 1)} />
         )}
+      </section>
+
+      <section className="mt-10">
+        <OpenClawGatewayConsole
+          gateways={gateways.filter((gateway) => !!gateway.url)}
+          onRefresh={() => setRefreshKey((prev) => prev + 1)}
+        />
       </section>
 
       <RegisterGatewayModal
