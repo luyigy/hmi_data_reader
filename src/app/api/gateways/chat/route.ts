@@ -13,6 +13,23 @@ interface TranscriptMessage {
   text: string;
 }
 
+interface PersistedChatMessage extends TranscriptMessage {
+  sequence: number;
+}
+
+interface PersistedChatSession {
+  id: string;
+  fromGatewayId: string;
+  toGatewayId: string;
+  fromAgentId: string;
+  toAgentId: string;
+  prompt: string;
+  turns: number;
+  status: string;
+  error?: string | null;
+  messages: PersistedChatMessage[];
+}
+
 type ChatSessionRecord = {
   id: string;
 };
@@ -35,6 +52,10 @@ type ChatPersistenceClient = {
         status: string;
       };
     }): Promise<ChatSessionRecord>;
+    findUnique(args: {
+      where: { id: string };
+      include: { messages: { orderBy: { sequence: 'asc' } } };
+    }): Promise<PersistedChatSession | null>;
     update(args: {
       where: { id: string };
       data: {
@@ -93,6 +114,15 @@ function normalizeTurns(value: unknown): number {
   return value === 1 ? 1 : 2;
 }
 
+function toTranscriptMessages(messages: PersistedChatMessage[]): TranscriptMessage[] {
+  return messages.map((message) => ({
+    speaker: message.speaker,
+    gatewayId: message.gatewayId,
+    agentId: message.agentId,
+    text: message.text,
+  }));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -142,6 +172,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      sessionId: requestedSessionId,
       fromGatewayId,
       toGatewayId,
       prompt,
@@ -178,15 +209,60 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedRequestedSessionId =
+      typeof requestedSessionId === 'string' && requestedSessionId.trim()
+        ? requestedSessionId.trim()
+        : null;
+
+    let existingSession: PersistedChatSession | null = null;
+    if (normalizedRequestedSessionId) {
+      if (!persistenceAvailable) {
+        return NextResponse.json(
+          { error: '当前环境暂不支持继续历史会话，请先重启 dev server' },
+          { status: 400 }
+        );
+      }
+
+      existingSession = await chatPersistence.crossGatewayChatSession.findUnique({
+        where: { id: normalizedRequestedSessionId },
+        include: {
+          messages: {
+            orderBy: {
+              sequence: 'asc',
+            },
+          },
+        },
+      });
+
+      if (!existingSession) {
+        return NextResponse.json(
+          { error: '指定的会话不存在' },
+          { status: 404 }
+        );
+      }
+    }
+
+    const effectiveFromGatewayId = existingSession?.fromGatewayId || fromGatewayId;
+    const effectiveToGatewayId = existingSession?.toGatewayId || toGatewayId;
+
     const normalizedFromAgentId =
-      typeof fromAgentId === 'string' && fromAgentId.trim() ? fromAgentId.trim() : 'main';
+      existingSession?.fromAgentId ||
+      (typeof fromAgentId === 'string' && fromAgentId.trim() ? fromAgentId.trim() : 'main');
     const normalizedToAgentId =
-      typeof toAgentId === 'string' && toAgentId.trim() ? toAgentId.trim() : 'main';
-    const normalizedTurns = normalizeTurns(turns);
+      existingSession?.toAgentId ||
+      (typeof toAgentId === 'string' && toAgentId.trim() ? toAgentId.trim() : 'main');
+    const normalizedTurns = existingSession?.turns || normalizeTurns(turns);
+
+    if (effectiveFromGatewayId === effectiveToGatewayId) {
+      return NextResponse.json(
+        { error: 'fromGatewayId and toGatewayId must be different' },
+        { status: 400 }
+      );
+    }
 
     const [fromConfig, toConfig] = await Promise.all([
-      getOpenClawGatewayConfig(fromGatewayId),
-      getOpenClawGatewayConfig(toGatewayId),
+      getOpenClawGatewayConfig(effectiveFromGatewayId),
+      getOpenClawGatewayConfig(effectiveToGatewayId),
     ]);
 
     if (!fromConfig) {
@@ -203,12 +279,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const persistedSessionId = persistenceAvailable
+    const persistedSessionId = existingSession
+      ? existingSession.id
+      : persistenceAvailable
       ? (
           await chatPersistence.crossGatewayChatSession.create({
             data: {
-              fromGatewayId,
-              toGatewayId,
+              fromGatewayId: effectiveFromGatewayId,
+              toGatewayId: effectiveToGatewayId,
               fromAgentId: normalizedFromAgentId,
               toAgentId: normalizedToAgentId,
               prompt,
@@ -221,7 +299,8 @@ export async function POST(request: NextRequest) {
 
     sessionId = persistedSessionId;
 
-    const messages: TranscriptMessage[] = [
+    const existingMessages = existingSession ? toTranscriptMessages(existingSession.messages) : [];
+    const newMessages: TranscriptMessage[] = [
       {
         speaker: 'user',
         gatewayId: null,
@@ -233,11 +312,13 @@ export async function POST(request: NextRequest) {
     const fromResponse = await createOpenClawResponse(fromConfig, {
       input: prompt,
       agentId: normalizedFromAgentId,
-      sessionKey: `cross-gateway:${fromGatewayId}:${toGatewayId}:from`,
+      sessionKey: persistedSessionId
+        ? `cross-gateway:${persistedSessionId}:from`
+        : `cross-gateway:${effectiveFromGatewayId}:${effectiveToGatewayId}:from`,
     });
     const fromText = extractOpenClawText(fromResponse) || '(空回复)';
 
-    messages.push({
+    newMessages.push({
       speaker: fromConfig.gatewayId,
       gatewayId: fromConfig.gatewayId,
       agentId: normalizedFromAgentId,
@@ -254,11 +335,13 @@ export async function POST(request: NextRequest) {
     const toResponse = await createOpenClawResponse(toConfig, {
       input: handoffPrompt,
       agentId: normalizedToAgentId,
-      sessionKey: `cross-gateway:${fromGatewayId}:${toGatewayId}:to`,
+      sessionKey: persistedSessionId
+        ? `cross-gateway:${persistedSessionId}:to`
+        : `cross-gateway:${effectiveFromGatewayId}:${effectiveToGatewayId}:to`,
     });
     const toText = extractOpenClawText(toResponse) || '(空回复)';
 
-    messages.push({
+    newMessages.push({
       speaker: toConfig.gatewayId,
       gatewayId: toConfig.gatewayId,
       agentId: normalizedToAgentId,
@@ -276,11 +359,13 @@ export async function POST(request: NextRequest) {
       const returnResponse = await createOpenClawResponse(fromConfig, {
         input: returnPrompt,
         agentId: normalizedFromAgentId,
-        sessionKey: `cross-gateway:${fromGatewayId}:${toGatewayId}:return`,
+        sessionKey: persistedSessionId
+          ? `cross-gateway:${persistedSessionId}:return`
+          : `cross-gateway:${effectiveFromGatewayId}:${effectiveToGatewayId}:return`,
       });
       const returnText = extractOpenClawText(returnResponse) || '(空回复)';
 
-      messages.push({
+      newMessages.push({
         speaker: fromConfig.gatewayId,
         gatewayId: fromConfig.gatewayId,
         agentId: normalizedFromAgentId,
@@ -288,25 +373,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const messages = [...existingMessages, ...newMessages];
+
     if (persistenceAvailable && persistedSessionId) {
-      await chatPersistence.$transaction([
-        chatPersistence.crossGatewayChatMessage.createMany({
-          data: messages.map((message, index) => ({
-            sessionId: persistedSessionId,
-            sequence: index,
-            speaker: message.speaker,
-            gatewayId: message.gatewayId,
-            agentId: message.agentId,
-            text: message.text,
-          })),
-        }),
-        chatPersistence.crossGatewayChatSession.update({
-          where: { id: persistedSessionId },
-          data: {
-            status: 'completed',
-          },
-        }),
-      ]);
+      await chatPersistence.crossGatewayChatMessage.createMany({
+        data: newMessages.map((message, index) => ({
+          sessionId: persistedSessionId,
+          sequence: existingMessages.length + index,
+          speaker: message.speaker,
+          gatewayId: message.gatewayId,
+          agentId: message.agentId,
+          text: message.text,
+        })),
+      });
+
+      await chatPersistence.crossGatewayChatSession.update({
+        where: { id: persistedSessionId },
+        data: {
+          status: 'completed',
+        },
+      });
     }
 
     return NextResponse.json({
@@ -323,7 +409,7 @@ export async function POST(request: NextRequest) {
         name: toConfig.gatewayName,
         url: toConfig.baseUrl,
       },
-      prompt,
+      prompt: existingSession?.prompt || prompt,
       turns: normalizedTurns,
       fromAgentId: normalizedFromAgentId,
       toAgentId: normalizedToAgentId,

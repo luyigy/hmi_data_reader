@@ -204,6 +204,20 @@ Conversation / Meeting Orchestrator
 - 因此接下来的 Feishu 接入，可以默认围绕“平台统一入口 -> 平台 conversation/orchestrator -> Gateway agents -> 回发 Feishu”这条主链路实现。
 - 当前不需要再把精力放回“多个 Gateway bot 在同一个 Feishu 群里直接互相触发”这条方向。
 
+## 2026-03-21 官方实现调研结论
+- 已确认 OpenClaw 官方 Feishu 扩展源码位于：
+  - `~/.local/share/pnpm/global/5/.pnpm/openclaw@2026.3.13_.../node_modules/openclaw/extensions/feishu`
+- 关键实现结论：
+  - 使用 `@larksuiteoapi/node-sdk`
+  - 支持 `websocket` 与 `webhook`
+  - 当使用 `webhook` 时，官方 schema 明确要求 `verificationToken` 与 `encryptKey`
+  - 官方实现通过 `EventDispatcher` 处理事件，并对 webhook 安全做了更完整约束
+- 因此，平台侧下一轮 Feishu 统一入口的正确目标不是“继续扩最小 demo”，而是：
+  1. 向官方插件的 SDK 接入方式靠拢
+  2. 补齐 `FEISHU_ENCRYPT_KEY`
+  3. 补齐签名校验、加密 payload 解密与更正式的 webhook 安全处理
+  4. 在此基础上再承接平台级 `/ap help`、`/ap status`、`/ap gateways`、`/ap chat`
+
 ## 给下一个接手 Agent 的说明
 
 ### 你现在接手时，应该先知道什么
@@ -277,3 +291,13 @@ Conversation / Meeting Orchestrator
 - 先整理“界面和入口”
 - 再做“手机上的统一入口”
 - 最后再做“Feishu 上的多 Agent meeting”
+
+
+## 下一步
+
+下次接手时，直接沿这个顺序继续就行：
+
+- 换到 @larksuiteoapi/node-sdk
+- 增加 FEISHU_ENCRYPT_KEY
+- 补 webhook 验签和解密
+- 再把平台命令路由接上去

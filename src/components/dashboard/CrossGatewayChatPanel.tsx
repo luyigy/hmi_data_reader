@@ -1,7 +1,7 @@
 'use client';
 
 import { Gateway, GatewayAgentSummary } from '@/types';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface CrossGatewayChatPanelProps {
   gateways: Gateway[];
@@ -62,11 +62,13 @@ export function CrossGatewayChatPanel({
   const [prompt, setPrompt] = useState('请互相打个招呼，并简单介绍各自擅长做什么。');
   const [messages, setMessages] = useState<TranscriptMessage[]>([]);
   const [sessions, setSessions] = useState<SavedChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState('');
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [refreshingGatewayId, setRefreshingGatewayId] = useState('');
+  const autoRefreshedGatewayIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -185,6 +187,7 @@ export function CrossGatewayChatPanel({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          sessionId: activeSessionId || undefined,
           fromGatewayId,
           toGatewayId,
           fromAgentId: fromAgentId.trim(),
@@ -200,6 +203,8 @@ export function CrossGatewayChatPanel({
       }
 
       setMessages(Array.isArray(data.messages) ? data.messages : []);
+      setActiveSessionId(typeof data.sessionId === 'string' ? data.sessionId : '');
+      setPrompt('');
       if (data.persistenceAvailable === false) {
         setNotice('本次对话已完成，但历史记录暂时没有写入数据库。重启 dev server 后再试一次即可。');
       }
@@ -210,18 +215,19 @@ export function CrossGatewayChatPanel({
 
         const nextSession: SavedChatSession = {
           id: data.sessionId,
-          fromGatewayId,
-          toGatewayId,
-          fromAgentId: fromAgentId.trim(),
-          toAgentId: toAgentId.trim(),
-          prompt: prompt.trim(),
+          fromGatewayId: data.fromGateway?.id || fromGatewayId,
+          toGatewayId: data.toGateway?.id || toGatewayId,
+          fromAgentId: data.fromAgentId || fromAgentId.trim(),
+          toAgentId: data.toAgentId || toAgentId.trim(),
+          prompt: data.prompt || prompt.trim(),
           turns,
           status: 'completed',
           createdAt: new Date().toISOString(),
           messages: Array.isArray(data.messages) ? data.messages : [],
         };
 
-        return [nextSession, ...prev].slice(0, 6);
+        const filtered = prev.filter((session) => session.id !== nextSession.id);
+        return [nextSession, ...filtered].slice(0, 6);
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : '跨 Gateway 对话失败');
@@ -231,14 +237,16 @@ export function CrossGatewayChatPanel({
     }
   };
 
-  const refreshGatewayAgents = async (gatewayId: string) => {
+  const refreshGatewayAgents = async (gatewayId: string, options?: { silent?: boolean }) => {
     if (!gatewayId) {
       return;
     }
 
     setRefreshingGatewayId(gatewayId);
-    setError('');
-    setNotice('');
+    if (!options?.silent) {
+      setError('');
+      setNotice('');
+    }
 
     try {
       const response = await fetch(`/api/gateways/${gatewayId}/agents/refresh`, {
@@ -250,15 +258,60 @@ export function CrossGatewayChatPanel({
         throw new Error(data.error || '刷新 Gateway agents 失败');
       }
 
-      setNotice(
-        `${getGatewayLabel(gatewayId)} 已刷新 ${data.count ?? 0} 个 agents。`
-      );
+      if (!options?.silent) {
+        setNotice(
+          `${getGatewayLabel(gatewayId)} 已刷新 ${data.count ?? 0} 个 agents。`
+        );
+      }
       await onRefresh?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '刷新 Gateway agents 失败');
+      if (!options?.silent) {
+        setError(err instanceof Error ? err.message : '刷新 Gateway agents 失败');
+      }
     } finally {
       setRefreshingGatewayId('');
     }
+  };
+
+  useEffect(() => {
+    if (!fromGatewayId || autoRefreshedGatewayIds.current.has(`from:${fromGatewayId}`)) {
+      return;
+    }
+
+    autoRefreshedGatewayIds.current.add(`from:${fromGatewayId}`);
+    void refreshGatewayAgents(fromGatewayId, { silent: true });
+  }, [fromGatewayId]);
+
+  useEffect(() => {
+    if (!toGatewayId || autoRefreshedGatewayIds.current.has(`to:${toGatewayId}`)) {
+      return;
+    }
+
+    autoRefreshedGatewayIds.current.add(`to:${toGatewayId}`);
+    void refreshGatewayAgents(toGatewayId, { silent: true });
+  }, [toGatewayId]);
+
+  const handleContinueSession = (session: SavedChatSession) => {
+    setActiveSessionId(session.id);
+    setFromGatewayId(session.fromGatewayId);
+    setToGatewayId(session.toGatewayId);
+    setFromAgentId(session.fromAgentId);
+    setToAgentId(session.toAgentId);
+    setFromAgentMode(session.fromAgentId);
+    setToAgentMode(session.toAgentId);
+    setTurns(session.turns);
+    setMessages(session.messages);
+    setPrompt('');
+    setError('');
+    setNotice(`已载入会话 ${session.id.slice(0, 8)}，现在输入下一轮消息即可继续。`);
+  };
+
+  const handleStartNewConversation = () => {
+    setActiveSessionId('');
+    setMessages([]);
+    setPrompt('请互相打个招呼，并简单介绍各自擅长做什么。');
+    setError('');
+    setNotice('');
   };
 
   if (availableGateways.length < 2) {
@@ -420,16 +473,33 @@ export function CrossGatewayChatPanel({
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-xs text-gray-500">
-          现在支持单轮和双轮链路，也支持给两侧分别指定 `agentId`。
-        </p>
-        <button
-          onClick={handleRun}
-          disabled={!canRun || running}
-          className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {running ? '对话中...' : '开始跨 Gateway 对话'}
-        </button>
+        <div className="text-xs text-gray-500">
+          <div>现在支持单轮和双轮链路，也支持给两侧分别指定 `agentId`。</div>
+          {activeSessionId ? (
+            <div className="mt-1 text-indigo-600">
+              当前正在续聊会话：{activeSessionId.slice(0, 8)}
+            </div>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-2">
+          {activeSessionId ? (
+            <button
+              type="button"
+              onClick={handleStartNewConversation}
+              disabled={running}
+              className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-400 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              新开会话
+            </button>
+          ) : null}
+          <button
+            onClick={handleRun}
+            disabled={!canRun || running}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {running ? '对话中...' : activeSessionId ? '继续这次会话' : '开始跨 Gateway 对话'}
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -493,8 +563,17 @@ export function CrossGatewayChatPanel({
                   <div className="text-sm font-medium text-gray-800">
                     {getGatewayLabel(session.fromGatewayId)} -&gt; {getGatewayLabel(session.toGatewayId)}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {session.turns} 轮 / {session.status}
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-gray-500">
+                      {session.turns} 轮 / {session.status}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleContinueSession(session)}
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:border-indigo-400 hover:text-indigo-600"
+                    >
+                      继续这次会话
+                    </button>
                   </div>
                 </div>
                 <div className="mt-2 text-sm text-gray-600">{session.prompt}</div>

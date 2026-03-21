@@ -14,6 +14,21 @@
 - 侧边栏导航已增加 `Gateway Tools`，并将 `/chat` 明确命名为 `Chat Room`。
 - 这意味着页面信息架构第一阶段已经完成，下一阶段可以继续在此基础上推进平台统一 Feishu 入口。
 
+## 2026-03-21 Feishu 接入补充判断
+- 已确认 OpenClaw 官方 Feishu 扩展存在原始源码，不是黑盒产物。
+- 本机源码路径：
+  - `~/.local/share/pnpm/global/5/.pnpm/openclaw@2026.3.13_.../node_modules/openclaw/extensions/feishu`
+- 官方实现使用：
+  - `@larksuiteoapi/node-sdk`
+  - `websocket` / `webhook` 双模式
+  - `verificationToken` + `encryptKey` 的 webhook 安全模型
+- 这意味着平台侧下一轮做 Feishu 统一入口时，不应继续停留在“最小 fetch 版 webhook”层面，而应尽量向 OpenClaw 官方实现对齐。
+- 推荐下一轮 Feishu 接入优先事项：
+  1. 对齐 `@larksuiteoapi/node-sdk`
+  2. 新增 `FEISHU_ENCRYPT_KEY`
+  3. 补齐 webhook 签名校验、解密、挑战处理
+  4. 在安全闭环之上保留平台自己的 `/ap status`、`/ap gateways`、`/ap chat` 路由能力
+
 ## 为什么现在先做布局，而不是继续堆功能
 当前 Dashboard 页面同时承载了 3 类完全不同的职责：
 
