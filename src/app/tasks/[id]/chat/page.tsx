@@ -110,6 +110,7 @@ interface TaskRunParticipant {
   summary?: string | null;
   error?: string | null;
   filesModified: string[];
+  controlMetadata?: Record<string, unknown> | null;
   interruptSupported?: boolean;
   resumeSupported?: boolean;
   sessionControlSupported?: boolean;
@@ -546,6 +547,51 @@ export default function TaskChatPage() {
       } / ${activeParticipant.harnessType}`
     : null;
 
+  const continuationParticipant = useMemo(() => {
+    if (!selectedRun || task?.status === 'running') {
+      return null;
+    }
+
+    const participants = selectedRun.participants.filter((participant) => {
+      const threadId = participant.controlMetadata?.codexThreadId ?? participant.controlMetadata?.lastSessionThreadId;
+      return (
+        participant.executionBackend === 'platform_local'
+        && participant.harnessType === 'codex'
+        && typeof threadId === 'string'
+        && threadId.trim().length > 0
+      );
+    });
+
+    if (participants.length === 0) {
+      return null;
+    }
+
+    if (messageTargetType === 'participant') {
+      return participants.find(
+        (participant) =>
+          getTaskRoomParticipantTargetKey({
+            executionBackend: participant.executionBackend,
+            gatewayId: participant.gatewayId,
+            harnessType: participant.harnessType,
+            role: participant.role,
+            agentId: participant.agentId,
+          }) === messageTargetParticipantKey
+      ) || null;
+    }
+
+    return participants[0] || null;
+  }, [messageTargetParticipantKey, messageTargetType, selectedRun, task?.status]);
+
+  const continuationParticipantLabel = continuationParticipant
+    ? `${continuationParticipant.role} · ${
+        continuationParticipant.executionBackend === 'platform_local'
+          ? 'Platform Local'
+          : continuationParticipant.gatewayName
+      } / ${continuationParticipant.harnessType}`
+    : null;
+
+  const canContinueSelectedSession = !!continuationParticipant;
+
   const conversationFeed = useMemo<ConversationFeedItem[]>(() => {
     const roomItems = roomMessages.map((message) => ({
       id: `room-${message.id}`,
@@ -590,12 +636,16 @@ export default function TaskChatPage() {
   const primarySendLabel = task?.executionMode === 'acpx'
     ? task.status === 'running'
       ? '排队到后续轮次'
+      : canContinueSelectedSession
+      ? '继续当前对话'
       : '发送并启动新一轮'
     : '发送到 Task Room';
 
   const composerBehaviorHint = task?.executionMode === 'acpx'
     ? task.status === 'running'
-      ? `当前 ${activeParticipantLabel || 'harness'} 正在运行；主按钮只会把消息记入 task room，留给后续 handoff 或下一轮运行读取。`
+      ? `当前 ${activeParticipantLabel || 'harness'} 正在执行当前 turn；现在还不能把新消息原地送进这次运行，主按钮只会先排队。`
+      : canContinueSelectedSession
+      ? `当前可以继续 ${continuationParticipantLabel || 'local Codex'} 的同一会话；主按钮会把消息送入同一个 Codex thread。`
       : `当前没有忙碌中的 harness；主按钮会先把消息写入 task room，再启动一轮新的运行。`
     : null;
 
@@ -798,7 +848,7 @@ export default function TaskChatPage() {
   };
 
   const handleAcpxControl = async (
-    action: 'queue_message' | 'interrupt_now' | 'stop_run',
+    action: 'queue_message' | 'interrupt_now' | 'stop_run' | 'continue_session',
     deliveryMode: 'queued' | 'immediate',
     overrideContent?: string
   ) => {
@@ -807,7 +857,7 @@ export default function TaskChatPage() {
     }
 
     const content = (overrideContent ?? messageInput).trim();
-    if ((action === 'queue_message' || action === 'interrupt_now') && !content) {
+    if ((action === 'queue_message' || action === 'interrupt_now' || action === 'continue_session') && !content) {
       return;
     }
 
@@ -837,7 +887,7 @@ export default function TaskChatPage() {
         throw new Error(error?.error || '发送控制请求失败');
       }
 
-      await res.json().catch(() => null);
+      const responseData = await res.json().catch(() => null);
 
       if (action === 'queue_message') {
         setComposerNotice(
@@ -846,6 +896,12 @@ export default function TaskChatPage() {
                 activeParticipantLabel || 'harness'
               } 忙碌中；这条消息已记入 task room，后续 handoff 或下一轮运行才会读取。`
             : `消息已发给${selectedTargetLabel}；当前没有忙碌中的 harness，平台会用这条消息启动一轮新的运行。`
+        );
+      } else if (action === 'continue_session') {
+        setComposerNotice(
+          `消息已发给${selectedTargetLabel}；平台正在继续 ${
+            continuationParticipantLabel || '当前 local Codex'
+          } 的同一会话。`
         );
       } else if (action === 'interrupt_now') {
         setComposerNotice('已请求打断当前本地运行；平台会在后续重启时把这条消息带入下一轮。');
@@ -858,8 +914,13 @@ export default function TaskChatPage() {
       }
       await fetchRoomMessages(taskRoom.id);
       await fetchRuns();
-      if (selectedRunId) {
-        await fetchSelectedRun(selectedRunId);
+      const nextRunId =
+        typeof responseData?.continuationRunId === 'string' && responseData.continuationRunId
+          ? responseData.continuationRunId
+          : selectedRunId;
+      if (nextRunId) {
+        setSelectedRunId(nextRunId);
+        await fetchSelectedRun(nextRunId);
       }
       await fetchTaskInfo();
 
@@ -907,6 +968,11 @@ export default function TaskChatPage() {
   };
 
   const handlePrimaryAcpxSend = async () => {
+    if (task?.status !== 'running' && canContinueSelectedSession) {
+      await handleAcpxControl('continue_session', 'immediate');
+      return;
+    }
+
     await handleAcpxControl('queue_message', 'queued');
   };
 
@@ -1294,7 +1360,11 @@ export default function TaskChatPage() {
                   />
                   <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] leading-5 text-slate-500">
-                      主按钮不会把消息实时注入当前 harness；忙碌时只排队，空闲时会用它启动新一轮。
+                      {task.status === 'running'
+                        ? '当前这次 Codex turn 还没结束；新消息暂时不能原地注入，只能先排队到后续轮次。'
+                        : canContinueSelectedSession
+                        ? '主按钮会继续当前 Codex 会话；如果续接失败，再考虑改走排队或重开新一轮。'
+                        : '主按钮会把消息写入 task room，并启动一轮新的运行。'}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button

@@ -15,6 +15,7 @@ export interface CodexConfig {
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   onSpawn?: (child: ChildProcess) => void;
+  onThreadStarted?: (threadId: string) => void;
 }
 
 export interface CodexTask {
@@ -29,6 +30,7 @@ export interface CodexResult {
   error?: string;
   executionTime: number;
   filesModified?: string[];
+  threadId?: string;
 }
 
 /**
@@ -40,8 +42,6 @@ export const executeCodexTask = async (
 ): Promise<CodexResult> => {
   const startTime = Date.now();
   const {
-    apiKey = process.env.OPENAI_API_KEY,
-    model = 'gpt-4',
     timeout = 30000,
     workingDirectory = process.cwd(),
     streamCallbacks,
@@ -51,18 +51,19 @@ export const executeCodexTask = async (
   try {
     console.log(`[Codex] Executing task: ${task.name}`);
 
-    // Method 1: Using codex CLI directly
     const result = await executeCodexCLI(task, {
       timeout,
       workingDirectory,
       streamCallbacks,
       skipGitRepoCheck,
       onSpawn: config.onSpawn,
+      onThreadStarted: config.onThreadStarted,
     });
     
     return {
       success: true,
-      output: result,
+      output: result.output,
+      threadId: result.threadId,
       executionTime: Date.now() - startTime,
     };
   } catch (error) {
@@ -78,19 +79,33 @@ export const executeCodexTask = async (
 /**
  * Execute using codex CLI with exec subcommand
  */
+interface CodexExecutionOptions {
+  timeout: number;
+  workingDirectory: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  skipGitRepoCheck: boolean;
+  onSpawn?: (child: ChildProcess) => void;
+  onThreadStarted?: (threadId: string) => void;
+}
+
+interface CodexCliResult {
+  output: string;
+  threadId: string | null;
+}
+
+interface CodexJsonEvent {
+  type?: string;
+  thread_id?: string;
+  item?: {
+    type?: string;
+    text?: string;
+  };
+}
+
 const executeCodexCLI = async (
   task: CodexTask,
-  options: {
-    timeout: number;
-    workingDirectory: string;
-    streamCallbacks?: HarnessStreamCallbacks;
-    skipGitRepoCheck: boolean;
-    onSpawn?: (child: ChildProcess) => void;
-  }
-): Promise<string> => {
-  const { spawn } = await import('child_process');
-  
-  // Create prompt for Codex - ensure complete message
+  options: CodexExecutionOptions
+): Promise<CodexCliResult> => {
   const prompt = `Task: ${task.name}
 
 ${task.description ? `Description: ${task.description}` : 'Please complete this task.'}
@@ -102,17 +117,80 @@ Please complete this task step by step. When you're done, provide a summary of:
 
 Take your time and be thorough.`;
 
+  return runCodexJsonCommand({
+    args: buildExecArgs(options.skipGitRepoCheck),
+    prompt,
+    options,
+  });
+};
+
+export const resumeCodexSession = async ({
+  threadId,
+  prompt,
+  timeout,
+  workingDirectory,
+  streamCallbacks,
+  skipGitRepoCheck = true,
+  onSpawn,
+}: {
+  threadId: string;
+  prompt: string;
+  timeout: number;
+  workingDirectory: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  skipGitRepoCheck?: boolean;
+  onSpawn?: (child: ChildProcess) => void;
+}): Promise<CodexCliResult> => {
+  return runCodexJsonCommand({
+    args: buildResumeArgs(threadId, skipGitRepoCheck),
+    prompt,
+    options: {
+      timeout,
+      workingDirectory,
+      streamCallbacks,
+      skipGitRepoCheck,
+      onSpawn,
+    },
+  });
+};
+
+const buildExecArgs = (skipGitRepoCheck: boolean) => {
+  const args = ['exec', '--json', '--sandbox', 'workspace-write'];
+  if (skipGitRepoCheck) {
+    args.push('--skip-git-repo-check');
+  }
+  args.push('-');
+  return args;
+};
+
+const buildResumeArgs = (threadId: string, skipGitRepoCheck: boolean) => {
+  const args = ['exec', 'resume', threadId, '--json'];
+  if (skipGitRepoCheck) {
+    args.push('--skip-git-repo-check');
+  }
+  args.push('-');
+  return args;
+};
+
+const runCodexJsonCommand = async ({
+  args,
+  prompt,
+  options,
+}: {
+  args: string[];
+  prompt: string;
+  options: CodexExecutionOptions;
+}) => {
+  const { spawn } = await import('child_process');
+
   return new Promise((resolve, reject) => {
-    let stdout = '';
+    let rawStdout = '';
+    let resolvedText = '';
     let stderr = '';
     let settled = false;
-    const args = ['exec', '--sandbox', 'workspace-write'];
+    let threadId: string | null = null;
+    let stdoutBuffer = '';
 
-    if (options.skipGitRepoCheck) {
-      args.push('--skip-git-repo-check');
-    }
-    
-    // Use 'codex exec' subcommand which reads from stdin
     const child = spawn('codex', args, {
       cwd: options.workingDirectory,
       env: { ...process.env },
@@ -130,29 +208,57 @@ Take your time and be thorough.`;
       reject(new Error(`Codex execution timed out after ${options.timeout}ms`));
     }, options.timeout);
 
-    // Send prompt to stdin
     child.stdin.write(prompt);
     child.stdin.end();
-    
-    console.log('[Codex] Sending prompt via exec:', prompt.substring(0, 100) + '...');
+
+    console.log('[Codex] Sending prompt:', prompt.substring(0, 100) + '...');
     console.log('[Codex] Exec args:', args.join(' '));
     console.log('[Codex] Working directory:', options.workingDirectory);
 
-    // Collect stdout
     child.stdout.on('data', (data) => {
       const chunk = data.toString();
-      stdout += chunk;
-      void options.streamCallbacks?.onStdoutChunk?.(chunk);
+      rawStdout += chunk;
+      stdoutBuffer += chunk;
+
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        try {
+          const event = JSON.parse(trimmed) as CodexJsonEvent;
+          if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
+            threadId = event.thread_id;
+            options.onThreadStarted?.(event.thread_id);
+          }
+
+          const text =
+            event.type === 'item.completed'
+            && event.item?.type === 'agent_message'
+            && typeof event.item.text === 'string'
+              ? event.item.text
+              : null;
+
+          if (text) {
+            resolvedText = text;
+            void options.streamCallbacks?.onStdoutChunk?.(text);
+          }
+        } catch {
+          void options.streamCallbacks?.onStdoutChunk?.(trimmed);
+        }
+      }
     });
 
-    // Collect stderr
     child.stderr.on('data', (data) => {
       const chunk = data.toString();
       stderr += chunk;
       void options.streamCallbacks?.onStderrChunk?.(chunk);
     });
 
-    // Handle completion
     child.on('close', (code) => {
       if (settled) {
         return;
@@ -160,17 +266,44 @@ Take your time and be thorough.`;
       settled = true;
       clearTimeout(timeoutId);
       console.log('[Codex] Process exited with code:', code);
-      console.log('[Codex] Stdout length:', stdout.length);
+      console.log('[Codex] Stdout length:', rawStdout.length);
       console.log('[Codex] Stderr:', stderr);
-      
-      if (code === 0 || stdout.length > 0) {
-        resolve(stdout || 'Task executed successfully');
+
+      if (stdoutBuffer.trim()) {
+        try {
+          const event = JSON.parse(stdoutBuffer.trim()) as CodexJsonEvent;
+          if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
+            threadId = event.thread_id;
+            options.onThreadStarted?.(event.thread_id);
+          }
+
+          const text =
+            event.type === 'item.completed'
+            && event.item?.type === 'agent_message'
+            && typeof event.item.text === 'string'
+              ? event.item.text
+              : null;
+
+          if (text) {
+            resolvedText = text;
+          }
+        } catch {
+          if (!resolvedText) {
+            resolvedText = stdoutBuffer.trim();
+          }
+        }
+      }
+
+      if (code === 0 || resolvedText.length > 0 || rawStdout.length > 0) {
+        resolve({
+          output: resolvedText || rawStdout || 'Task executed successfully',
+          threadId,
+        });
       } else {
         reject(new Error(stderr || `Codex exited with code ${code}`));
       }
     });
 
-    // Handle errors
     child.on('error', (err) => {
       if (settled) {
         return;
@@ -181,13 +314,6 @@ Take your time and be thorough.`;
       reject(err);
     });
   });
-};
-
-/**
- * Escape shell special characters
- */
-const escapeShell = (str: string): string => {
-  return str.replace(/['"\\$`]/g, '\\$&');
 };
 
 /**

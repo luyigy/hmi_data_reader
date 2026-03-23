@@ -4,6 +4,7 @@ import { createTaskRunControlMessage } from '@/lib/acpx/control';
 import { requestRunControl } from '@/lib/acpx/process-registry';
 import { publishTaskRunEvent } from '@/lib/acpx/event-bus';
 import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
+import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import {
   ensureTaskChatRoom,
   postTaskRoomMessage,
@@ -25,7 +26,7 @@ const USER_ID = 'task-room-user';
 const USER_NAME = '用户';
 
 const isControlAction = (value: unknown): value is RunControlAction =>
-  value === 'queue_message' || value === 'interrupt_now' || value === 'stop_run';
+  value === 'queue_message' || value === 'interrupt_now' || value === 'stop_run' || value === 'continue_session';
 
 const isDeliveryMode = (value: unknown): value is RunControlDeliveryMode =>
   value === 'queued' || value === 'immediate';
@@ -44,6 +45,32 @@ const parseParticipants = (value: string | null | undefined): AcpxParticipantReq
   } catch {
     return [];
   }
+};
+
+const parseMetadata = (value: string | null | undefined): Record<string, unknown> => {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+};
+
+const getContinuationThreadId = (participant: {
+  controlMetadata?: string | null;
+  harnessType: string;
+}) => {
+  if (participant.harnessType !== 'codex') {
+    return null;
+  }
+
+  const metadata = parseMetadata(participant.controlMetadata);
+  const threadId = metadata.codexThreadId ?? metadata.lastSessionThreadId;
+  return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : null;
 };
 
 export async function POST(
@@ -75,9 +102,9 @@ export async function POST(
       );
     }
 
-    if ((action === 'queue_message' || action === 'interrupt_now') && !content) {
+    if ((action === 'queue_message' || action === 'interrupt_now' || action === 'continue_session') && !content) {
       return NextResponse.json(
-        { error: 'Message content is required for queue_message and interrupt_now' },
+        { error: 'Message content is required for queue_message, interrupt_now, and continue_session' },
         { status: 400 }
       );
     }
@@ -141,14 +168,39 @@ export async function POST(
           },
         });
 
-    if ((action === 'interrupt_now' || action === 'stop_run') && !targetRun) {
+    if ((action === 'interrupt_now' || action === 'stop_run' || action === 'continue_session') && !targetRun) {
       return NextResponse.json(
         { error: 'No task run available for this control action' },
         { status: 400 }
       );
     }
 
-    const selectedParticipant = participantId
+    const roomTargetParticipant = targetRun?.participants.find(
+      (participant) =>
+        targetType === 'participant'
+        && getTaskRoomParticipantTargetKey({
+          executionBackend: participant.executionBackend,
+          gatewayId: participant.gatewayId,
+          harnessType: participant.harnessType,
+          role: participant.role,
+          agentId: participant.agentId,
+        }) === targetParticipantKey
+    ) ?? null;
+
+    const continuationParticipant = participantId
+      ? targetRun?.participants.find((participant) => participant.id === participantId) ?? null
+      : roomTargetParticipant
+      ?? targetRun?.participants.find(
+          (participant) =>
+            participant.executionBackend === 'platform_local'
+            && participant.harnessType === 'codex'
+            && !!getContinuationThreadId(participant)
+        )
+      ?? null;
+
+    const selectedParticipant = action === 'continue_session'
+      ? continuationParticipant
+      : participantId
       ? targetRun?.participants.find((participant) => participant.id === participantId) ?? null
       : targetRun?.participants.find(
           (participant) =>
@@ -205,14 +257,98 @@ export async function POST(
         roomTargetType: targetType,
         roomTargetParticipantKey:
           targetType === 'participant' ? getTaskRoomParticipantTargetKey(targetParticipantSpec!) : null,
+        continuationThreadId:
+          action === 'continue_session' && selectedParticipant
+            ? getContinuationThreadId(selectedParticipant)
+            : null,
       },
     });
 
     let applied = false;
     let systemMessage = '';
+    let continuationRunId: string | null = null;
 
     if (action === 'queue_message') {
       systemMessage = '系统提示：这条消息已作为排队指令记录；当前 run 不会被强制打断，后续 handoff 或下一轮运行才会读取它。';
+    } else if (action === 'continue_session') {
+      const continuationThreadId = selectedParticipant ? getContinuationThreadId(selectedParticipant) : null;
+
+      if (
+        !selectedParticipant
+        || selectedParticipant.executionBackend !== 'platform_local'
+        || selectedParticipant.harnessType !== 'codex'
+        || !continuationThreadId
+      ) {
+        return NextResponse.json(
+          { error: 'Selected participant does not support session continuation' },
+          { status: 400 }
+        );
+      }
+
+      await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: 'running',
+          startedAt: task.startedAt || new Date(),
+          completedAt: null,
+          error: null,
+        },
+      });
+
+      const continuationResult = await executeAcpxTaskRun({
+        taskId: task.id,
+        taskSessionId: targetRun.taskSessionId || task.currentTaskSession?.id || undefined,
+        taskName: task.name,
+        taskDescription: task.description || undefined,
+        orchestrationMode: 'single',
+        workingDirectory: task.workingDirectory || undefined,
+        participants: [
+          {
+            gatewayId: selectedParticipant.gatewayId || 'local',
+            gatewayName: selectedParticipant.gatewayNameSnapshot,
+            executionBackend: selectedParticipant.executionBackend as 'platform_local' | 'gateway_openclaw',
+            harnessType: selectedParticipant.harnessType,
+            harnessLabel: selectedParticipant.harnessNameSnapshot || undefined,
+            role: selectedParticipant.role,
+            agentId: selectedParticipant.agentId || undefined,
+            agentName: selectedParticipant.agentNameSnapshot || undefined,
+            resumeThreadId: continuationThreadId,
+            continuationMessage: content,
+          },
+        ],
+      });
+
+      const finalStatus =
+        continuationResult.status === 'completed'
+          ? 'completed'
+          : continuationResult.status === 'interrupted'
+          ? 'interrupted'
+          : continuationResult.status === 'stopped'
+          ? 'stopped'
+          : 'failed';
+
+      await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: finalStatus,
+          completedAt: new Date(),
+          result: JSON.stringify({
+            executionMode: 'acpx',
+            taskSessionId: targetRun.taskSessionId || task.currentTaskSession?.id || null,
+            taskRunId: continuationResult.taskRunId,
+            orchestrationMode: 'single',
+            summary: continuationResult.summary,
+            participants: continuationResult.participants,
+            completedAt: new Date().toISOString(),
+            resumedFromThreadId: continuationThreadId,
+          }),
+          error: finalStatus === 'failed' ? 'ACPX continuation failed' : null,
+        },
+      });
+
+      continuationRunId = continuationResult.taskRunId;
+      applied = true;
+      systemMessage = '系统提示：这条消息已送入同一个 Codex 会话，平台已开始继续当前对话。';
     } else {
       await prisma.taskRun.update({
         where: { id: targetRun.id },
@@ -245,7 +381,16 @@ export async function POST(
     const updatedControl = await prisma.taskRunControlMessage.update({
       where: { id: controlMessage.id },
       data: {
-        deliveryStatus: action === 'queue_message' ? 'pending' : applied ? 'delivered' : 'pending',
+        deliveryStatus:
+          action === 'queue_message'
+            ? 'pending'
+            : action === 'continue_session'
+            ? applied
+              ? 'delivered'
+              : 'rejected'
+            : applied
+            ? 'delivered'
+            : 'pending',
         processedAt: action === 'queue_message' || applied ? new Date() : null,
       },
     });
@@ -270,6 +415,8 @@ export async function POST(
       content:
         action === 'queue_message'
           ? '收到排队消息'
+          : action === 'continue_session'
+          ? '收到继续当前会话请求'
           : action === 'stop_run'
           ? '收到停止运行请求'
           : '收到立即介入请求',
@@ -279,6 +426,7 @@ export async function POST(
         deliveryMode,
         deliveryStatus: updatedControl.deliveryStatus,
         roomMessageId: userMessage?.id ?? null,
+        continuationRunId,
       },
     });
 
@@ -302,6 +450,7 @@ export async function POST(
         roomMessageId: updatedControl.roomMessageId,
       },
       applied,
+      continuationRunId,
     });
   } catch (error) {
     console.error('Failed to process task control request:', error);

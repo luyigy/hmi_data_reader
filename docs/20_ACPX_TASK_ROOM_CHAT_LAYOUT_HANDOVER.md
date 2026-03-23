@@ -283,20 +283,26 @@
 ## 本轮新增确认
 
 ### 1. 当前 local Codex 不是“可持续对话 session”
-当前 local Codex 的真实执行方式仍是：
+这条结论现在需要更新：
+
+旧状态确实是：
 - spawn 一次 `codex exec`
 - 写入单次 prompt
 - 立刻关闭 stdin
 - 等 stdout / stderr 或退出
 
-这意味着：
-- 当前并没有“把下一条用户消息写回同一个 harness session”的通路
-- `queue_message` 只能进入 task room / control log
-- 后续只会在下一次 run 或下一阶段 handoff 里被重新拼进 prompt context
+但本轮后续实现已经确认：
+- `codex exec --json` 会返回 `thread_id`
+- `codex exec resume <thread_id>` 可以继续同一个 Codex 会话
 
-结论：
-- 现在的 ACPX chat 还不是“真实聊天 continuation”
-- 更准确地说，它仍是“带聊天外观的 run orchestration UI”
+所以当前更准确的状态应是：
+- 平台已经找到 local Codex continuation 的真实技术路径
+- 这条路径不是“维持一个永不退出的 stdin 进程”
+- 而是“保存 Codex thread_id，再用 `codex exec resume` 续接”
+
+当前仍未完成的部分是：
+- 还没有把这条 continuation 通路完全打磨成稳定、可大规模依赖的产品能力
+- UI / delivery metadata / fallback 还只是第一版
 
 ### 2. 已定位“看起来一直在跑，其实本地进程已经没了”的真实故障
 本轮直接检查服务器进程后确认：
@@ -345,6 +351,93 @@
 - quiet vs stalled：还没有完整产品层定义
 - remote liveness：仍不足
 
+### 5. `continue_session` 已经有第一版实现，但仍处在早期集成阶段
+当前已落地的点：
+- `RunControlAction` 已新增：
+  - `continue_session`
+- local Codex capability 已改为：
+  - `supportsLiveSessionControl = true`
+- `codex exec --json` 的 `thread_id` 已会被保存到：
+  - run `controlMetadata`
+  - participant `controlMetadata`
+- 当存在可续接的 local Codex thread 时：
+  - chat 页主按钮会优先显示“继续当前对话”
+  - control route 会走 `continue_session`
+  - runner 会使用 `codex exec resume <thread_id>` 而不是新开一个完全无关的 prompt 会话
+
+当前仍然只是第一版的点：
+- continuation 目前主要覆盖：
+  - `platform_local`
+  - `codex`
+- old runs 不会自动拥有 `codexThreadId`
+  - 只有新 run 才会保存 thread id
+- UI 还没有把 continuation reply 完全渲染成“真正聊天流式回复”
+- fallback / reject / retry 的可视反馈还不够细
+
+本轮补充确认：
+- 用户已经通过 platform 对 local Codex 做过最小真实对话测试
+- local Codex 已成功回复：
+  - `I can hear you. Your messages are coming through.`
+
+这说明：
+- platform -> local Codex -> chat feed 的基础闭环已经成立
+- “完全收不到 agent 回复”已经不再是当前主问题
+
+但当前仍有两个明显体验缺口：
+- 回复延迟仍偏高
+  - 当前更像“每条消息触发一次小 run”
+  - 还不是 ChatGPT 式低延迟连续对话
+- 同一句最终文本会同时以：
+  - `stdout_chunk`
+  - `summary`
+  的形式出现
+  - 所以用户主观上会感觉 agent 回了两次
+
+### 6. `spawn is not defined` 回归已确认并修复
+在把第一版 continuation 接进平台后，曾出现一轮新的本地 Codex 立即失败：
+- run 很快失败
+- event / participant error 明确显示：
+  - `spawn is not defined`
+
+真实原因已确认：
+- `src/lib/real-agents/codex-agent.ts`
+  中的 `runCodexJsonCommand()` 仍然调用 `spawn(...)`
+- 但重构时漏掉了该函数内的 `child_process` import
+
+当前状态：
+- 这个 bug 已修复
+- 已通过最小 smoke test 验证：
+  - local Codex 可以重新正常启动
+  - 会返回有效 `threadId`
+
+因此下一会话不应再把当前 blocker 判断为：
+- `spawn is not defined`
+
+这个问题已经解决。
+
+### 7. 当前“能 continuation”只成立于 turn 之间，不成立于 turn 中
+这是本轮非常关键的新确认。
+
+当前真实行为是：
+- 如果 local Codex 当前这一轮已经完成
+- 并且平台已经拿到 `thread_id`
+- 那么下一条消息可以走：
+  - `continue_session`
+  - `codex exec resume <thread_id>`
+
+但如果当前 Codex 还在执行这一轮：
+- 新消息仍然不会被原地注入当前 busy turn
+- UI 仍然只能走 `queue_message`
+- 用户会看到：
+  - agent 继续输出旧 turn 的内容
+  - 自己的新消息只是“排队到后续轮次”
+
+结论：
+- 当前第一版 continuation 已经实现的是：
+  - between-turn continuation
+- 还没有实现的是：
+  - mid-turn live interruption + same-thread resume
+
 ## 下一阶段目标
 
 ### 核心目标
@@ -373,24 +466,31 @@
 目标：
 - 先在最可控的一条链路上实现真实 continuation
 
+当前状态更新：
+- 这一阶段的范围收敛已经完成
+- 当前 continuation 第一版就是只针对 local Codex
+
 ### Phase 1. 把 local harness 从“一次性 exec”改成“可持续 session”
 最小实现目标：
-- spawn local harness 后不要立刻关闭 stdin
-- process-registry 不只保存 `child`
-- 还要保存：
-  - `pid`
-  - session writable stdin availability
-  - startedAt / lastSeenAt
-  - harnessType / taskRunId / participantId
+- 保存可续接会话标识
+- 让平台能定位到“上一轮同一个 Codex thread”
+- 不再依赖“长时间保持 stdin 打开”
 
-必要工作：
-- 为 Codex direct run 设计可持续 stdin 写入协议
-- 确认 `codex exec` 是否真的适合 continuation
-- 如果 `codex exec` 天然不适合，就需要切到更适合 session control 的命令模式或 wrapper
+本轮已确认的关键技术结论：
+- `codex exec` 本身仍是单次执行
+- 但 `codex exec --json` + `thread_id` + `codex exec resume <thread_id>` 才是当前可行的 continuation 方案
 
-完成标志：
-- 平台能向当前活着的 local harness session 写入一条 continuation message
-- 不必通过“中断 + 新 run”来伪装继续
+因此这一阶段的计划应更新为：
+- 不再追“永续 stdin session”
+- 改为：
+  - 保存 `thread_id`
+  - 保存 PID / liveness 元数据
+  - 基于 `exec resume` 发 continuation
+
+当前状态：
+- `thread_id` 采集：已完成第一版
+- `exec resume` 接入 runner：已完成第一版
+- 稳定性验证：还没完成
 
 ### Phase 2. 新增真正的 `continue_session` / `inject_message` 控制动作
 当前控制动作只有：
@@ -413,6 +513,12 @@
   - 继续表示“后续轮次再消费”
 - `interrupt_now`
   - 继续表示“马上打断并准备转向”
+
+当前状态：
+- `continue_session` 已新增到 control action
+- control route 已有第一版 continuation 分支
+- chat composer 已会在存在 resumable local Codex thread 时优先走 continuation
+- 但目前还需要更多真实任务验证
 
 ### Phase 3. 在数据模型里显式标记“消息是排队还是已注入当前 session”
 当前 message / control flow 还缺一层关键可观察性：
@@ -457,6 +563,7 @@ continuation 成功后，用户还需要在 UI 上感知：
 - 给 continuation 注入写一条轻量 system event
 - 后续 stdout_chunk 在视觉上更像“agent reply streaming”
 - 降低 run event 的控制台感，增强聊天连续性
+- 如果 `summary` 与最后一条 streamed text 相同，则不要再让用户感觉“回复了两次”
 
 ### Phase 6. 最后再回到 approval / input request 的真交互
 只有在 current-session continuation 打通后，再回头做：
@@ -471,29 +578,71 @@ continuation 成功后，用户还需要在 UI 上感知：
 
 ## 下一会话建议优先级
 
-### P0. 验证 local Codex 哪种命令模式适合真实 continuation
-先不要急着改 UI。
-先确认技术事实：
-- `codex exec` 是否允许持续 stdin 写入并在同一进程里继续
-- 如果不适合，应该切到什么命令模式或 wrapper
+### P0. 做真实端到端 continuation 验证
+当前最优先已不再是“找命令模式”。
+这一点已经确认：
+- local Codex 应走 `codex exec --json` + `thread_id` + `codex exec resume`
 
-这一点是整个 continuation 的关键 blocker。
+所以下一会话最该做的是：
+- 用一条新的 local Codex run 跑通：
+  - 首轮执行
+  - 保存 thread id
+  - 用户追加消息
+  - `continue_session`
+  - agent 后续输出回到 chat feed
 
-### P1. 在 process-registry 上扩展 session write 能力
+需要重点验证：
+- continuation run 是否真的继承了同一 Codex 会话上下文
+- thread id 是否稳定保存
+- chat 页是否正确切到新的 continuation run
+- 若 continuation 失败，fallback 是否清晰
+- turn 结束后的 continuation 是否稳定
+- turn 进行中时，UI 是否足够诚实地提示“当前只能排队”
+
+### P1. 补 continuation 的状态可观察性
 最小目标：
-- 除了 kill 进程，还能向 active local harness 写入 continuation message
-- 能明确知道这次写入成功、失败还是 fallback
+- 明确区分：
+  - queued
+  - delivered to active thread
+  - rejected
+  - fallback to queue
 
-### P2. 新增 `continue_session` control action 与 API 语义
-最小目标：
-- 后端先打通
-- 前端先不做复杂交互
-- 先能通过一个受控入口把消息送到当前 local harness
+建议补：
+- control message metadata 更完整
+- chat 页 notice / badge 更清晰
+- continuation run event 更可识别
+- 当前 turn busy 时，把“不能原地继续，只能排队”的限制说清楚
+
+### P2. 去掉 `stdout_chunk` / `summary` 的重复回复观感
+当前用户已经实际观察到：
+- agent 像是回复了两次
+
+更准确地说：
+- 同一条最终文本先以 `stdout_chunk` 出现
+- 又被 `summary` 再显示一次
+
+下一轮应优先处理：
+- 相同文本的去重展示
+- 或把 `summary` 降级成 run metadata，而不是再作为主聊天回复出现
 
 ### P3. 再把 chat composer 升级成“真实 continuation 优先”的 UI
 最小目标：
 - 当前 harness 支持 continuation 时，主按钮默认继续当前对话
 - 否则明确 fallback 为 queue
+
+### P4. 探索“mid-turn 打断 + same-thread resume”
+这是让它真正像聊天的关键下一步，但比当前第一版更难。
+
+目标：
+- 当 current turn 仍在跑时
+- 用户可以选择：
+  - 打断当前 turn
+  - 仍然沿用同一个 Codex thread 继续
+
+如果这步做成，产品体验会比现在更接近真正聊天。
+
+### P5. 再回头处理 remote liveness 与 permission/input 真交互
+这两件事仍然重要，但现在已经不再是 continuation 的第一 blocker。
 
 ## 建议下一会话先读
 1. `docs/16_ACPX_INTERACTIVE_RUN_CONTROL_PLAN.md`

@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/prisma';
+import type { ChildProcess } from 'child_process';
 import {
   createOpenClawResponse,
   extractOpenClawText,
   getOpenClawGatewayConfig,
 } from '@/lib/openclaw-client';
-import { executeCodexTask } from '@/lib/real-agents/codex-agent';
+import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
 import { buildTaskRoomContext } from '@/lib/task-room';
 import { getHarnessCapabilities } from './capabilities';
@@ -119,6 +120,50 @@ const persistSpawnedHarnessMetadata = async (
           ...parseJsonObject(participant?.controlMetadata),
           childPid,
           spawnedAt: new Date().toISOString(),
+        }),
+      },
+    }),
+  ]);
+};
+
+const persistCodexThreadMetadata = async (
+  taskRunId: string,
+  participantId: string,
+  threadId: string | undefined
+) => {
+  if (!threadId) {
+    return;
+  }
+
+  const [taskRun, participant] = await Promise.all([
+    prisma.taskRun.findUnique({
+      where: { id: taskRunId },
+      select: { controlMetadata: true },
+    }),
+    prisma.taskRunParticipant.findUnique({
+      where: { id: participantId },
+      select: { controlMetadata: true },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.taskRun.update({
+      where: { id: taskRunId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...parseJsonObject(taskRun?.controlMetadata),
+          codexThreadId: threadId,
+          lastSessionThreadId: threadId,
+        }),
+      },
+    }),
+    prisma.taskRunParticipant.update({
+      where: { id: participantId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...parseJsonObject(participant?.controlMetadata),
+          codexThreadId: threadId,
+          lastSessionThreadId: threadId,
         }),
       },
     }),
@@ -414,31 +459,51 @@ const executeViaLocalHarness = async (
   };
 
   if (participant.harnessType === 'codex') {
-    const result = await executeCodexTask(task, {
-      timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
-      workingDirectory: request.workingDirectory,
-      streamCallbacks: callbacks,
-      onSpawn: (child) => {
-        registerRunningProcess({
-          taskRunId,
-          participantId,
-          child,
-          executionBackend: participant.executionBackend,
-          harnessType: participant.harnessType,
-        });
-        onSpawn?.(child);
-      },
-    });
+    const registerSpawn = (child: ChildProcess) => {
+      registerRunningProcess({
+        taskRunId,
+        participantId,
+        child,
+        executionBackend: participant.executionBackend,
+        harnessType: participant.harnessType,
+      });
+      onSpawn?.(child);
+    };
 
-    if (!result.success) {
-      throw new Error(result.error || 'Codex execution failed');
+    const result = participant.resumeThreadId && participant.continuationMessage
+      ? (() => resumeCodexSession({
+          threadId: participant.resumeThreadId,
+          prompt: participant.continuationMessage,
+          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
+          workingDirectory: request.workingDirectory || process.cwd(),
+          streamCallbacks: callbacks,
+          onSpawn: registerSpawn,
+          onThreadStarted: (threadId) => {
+            void persistCodexThreadMetadata(taskRunId, participantId, threadId);
+          },
+        }))()
+      : (() => executeCodexTask(task, {
+          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
+          workingDirectory: request.workingDirectory,
+          streamCallbacks: callbacks,
+          onSpawn: registerSpawn,
+          onThreadStarted: (threadId) => {
+            void persistCodexThreadMetadata(taskRunId, participantId, threadId);
+          },
+        }))();
+
+    const resolved = await result;
+
+    if ('success' in resolved && !resolved.success) {
+      throw new Error(resolved.error || 'Codex execution failed');
     }
 
     return {
-      output: result.output || 'Codex completed',
-      filesModified: result.filesModified ?? [],
-      executionTime: result.executionTime,
+      output: resolved.output || 'Codex completed',
+      filesModified: 'filesModified' in resolved ? (resolved.filesModified ?? []) : [],
+      executionTime: 'executionTime' in resolved ? resolved.executionTime : 0,
       liveStreaming: true,
+      threadId: resolved.threadId || undefined,
     };
   }
 
@@ -468,6 +533,7 @@ const executeViaLocalHarness = async (
       filesModified: result.filesModified ?? [],
       executionTime: result.executionTime,
       liveStreaming: true,
+      threadId: undefined,
     };
   }
 
@@ -807,6 +873,10 @@ const executeParticipant = async (
         filesModified: parseModifiedFiles(result.filesModified),
       },
     });
+
+    if (result.threadId) {
+      await persistCodexThreadMetadata(taskRunId, participantId, result.threadId);
+    }
 
     if (result.filesModified?.length) {
       await publishTaskRunEvent({

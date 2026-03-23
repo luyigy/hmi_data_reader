@@ -17,7 +17,7 @@ export const getHarnessCapabilities = (
       supportsQueuedUserMessages: true,
       supportsImmediateInterrupt: true,
       supportsResumeAfterInterrupt: true,
-      supportsLiveSessionControl: false,
+      supportsLiveSessionControl: true,
       supportsSoftStop: true,
     };
   }

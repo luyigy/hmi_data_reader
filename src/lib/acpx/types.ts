@@ -1,7 +1,7 @@
 export type TaskExecutionMode = 'standard' | 'acpx';
 export type AcpxHarnessType = 'codex' | 'claude' | 'gemini-cli' | string;
 export type AcpxExecutionBackend = 'platform_local' | 'gateway_openclaw';
-export type RunControlAction = 'queue_message' | 'interrupt_now' | 'stop_run';
+export type RunControlAction = 'queue_message' | 'interrupt_now' | 'stop_run' | 'continue_session';
 export type RunControlDeliveryMode = 'queued' | 'immediate';
 export type RunControlDeliveryStatus = 'pending' | 'delivered' | 'superseded' | 'rejected';
 export type RunControlState = 'normal' | 'interrupt_requested' | 'stop_requested';
@@ -68,6 +68,8 @@ export interface AcpxParticipantRequest {
   role: AcpxParticipantRole | string;
   agentId?: string;
   agentName?: string;
+  resumeThreadId?: string;
+  continuationMessage?: string;
 }
 
 export interface AcpxRunRequest {
