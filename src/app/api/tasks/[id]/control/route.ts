@@ -7,10 +7,16 @@ import {
   ensureTaskChatRoom,
   postTaskRoomMessage,
 } from '@/lib/task-room';
+import {
+  getTaskRoomParticipantTargetKey,
+  getTaskRoomParticipantTargetLabel,
+} from '@/lib/task-room-targets';
 import type {
   RunControlAction,
   RunControlDeliveryMode,
+  AcpxParticipantRequest,
 } from '@/lib/acpx/types';
+import type { ChatMessageTargetType } from '@/lib/chat-types';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +28,22 @@ const isControlAction = (value: unknown): value is RunControlAction =>
 
 const isDeliveryMode = (value: unknown): value is RunControlDeliveryMode =>
   value === 'queued' || value === 'immediate';
+
+const isMessageTargetType = (value: unknown): value is ChatMessageTargetType =>
+  value === 'task' || value === 'participant' || value === 'all';
+
+const parseParticipants = (value: string | null | undefined): AcpxParticipantRequest[] => {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed as AcpxParticipantRequest[] : [];
+  } catch {
+    return [];
+  }
+};
 
 export async function POST(
   request: NextRequest,
@@ -36,6 +58,11 @@ export async function POST(
     const participantId =
       typeof body.participantId === 'string' && body.participantId.trim()
         ? body.participantId.trim()
+        : null;
+    const targetType = isMessageTargetType(body.targetType) ? body.targetType : 'task';
+    const targetParticipantKey =
+      typeof body.targetParticipantKey === 'string' && body.targetParticipantKey.trim()
+        ? body.targetParticipantKey.trim()
         : null;
 
     if (!isControlAction(action) || !isDeliveryMode(deliveryMode)) {
@@ -61,6 +88,20 @@ export async function POST(
 
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    const acpxParticipants = parseParticipants(task.acpxParticipants);
+    const targetParticipantSpec = targetType === 'participant'
+      ? acpxParticipants.find(
+          (participant) => getTaskRoomParticipantTargetKey(participant) === targetParticipantKey
+        ) ?? null
+      : null;
+
+    if (targetType === 'participant' && !targetParticipantSpec) {
+      return NextResponse.json(
+        { error: 'Invalid participant target' },
+        { status: 400 }
+      );
     }
 
     const room = await ensureTaskChatRoom(task.id, task.name);
@@ -122,6 +163,11 @@ export async function POST(
           content,
           userId: USER_ID,
           userName: USER_NAME,
+          targetType,
+          targetParticipantKey:
+            targetType === 'participant' ? getTaskRoomParticipantTargetKey(targetParticipantSpec!) : null,
+          targetParticipantLabel:
+            targetType === 'participant' ? getTaskRoomParticipantTargetLabel(targetParticipantSpec!) : null,
         })
       : null;
 
@@ -153,6 +199,9 @@ export async function POST(
       content: content || (action === 'stop_run' ? 'Stop requested by user' : 'Interrupt requested by user'),
       metadata: {
         executionMode: task.executionMode,
+        roomTargetType: targetType,
+        roomTargetParticipantKey:
+          targetType === 'participant' ? getTaskRoomParticipantTargetKey(targetParticipantSpec!) : null,
       },
     });
 

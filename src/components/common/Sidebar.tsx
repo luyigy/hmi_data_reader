@@ -14,13 +14,13 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-gray-900 text-white min-h-screen">
+    <aside className="flex h-screen w-64 shrink-0 flex-col bg-gray-900 text-white">
       <div className="p-6">
         <h1 className="text-xl font-bold">Agent Platform</h1>
         <p className="text-sm text-gray-400 mt-1">v2.0</p>
       </div>
       
-      <nav className="mt-6">
+      <nav className="mt-6 flex-1 overflow-y-auto pb-6">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -40,7 +40,7 @@ export function Sidebar() {
         })}
       </nav>
       
-      <div className="absolute bottom-0 w-64 p-6 border-t border-gray-800">
+      <div className="border-t border-gray-800 p-6">
         <div className="text-sm text-gray-400">
           <p>系统状态: <span className="text-green-400">运行中</span></p>
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getSocketClient, type ChatMessage } from '@/lib/websocket-client';
+import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 
 interface AgentInfo {
   id: string;
@@ -46,6 +47,21 @@ interface TaskRoomInfo {
   id: string;
   name: string;
   description?: string | null;
+}
+
+interface TaskRoomMessageTargetOption {
+  type: 'task' | 'participant' | 'all';
+  participantKey?: string | null;
+  participantLabel?: string | null;
+  label: string;
+}
+
+interface ConversationFeedItem {
+  id: string;
+  createdAt: string;
+  type: 'room_message' | 'run_event';
+  roomMessage?: ChatMessage;
+  runEvent?: TaskRunEvent;
 }
 
 interface StandardLogMessage {
@@ -153,17 +169,25 @@ export default function TaskChatPage() {
   const [taskRoom, setTaskRoom] = useState<TaskRoomInfo | null>(null);
   const [roomMessages, setRoomMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
+  const [messageTargetType, setMessageTargetType] = useState<'task' | 'participant' | 'all'>('task');
+  const [messageTargetParticipantKey, setMessageTargetParticipantKey] = useState('');
   const [standardMessages, setStandardMessages] = useState<StandardLogMessage[]>([]);
   const [runSummaries, setRunSummaries] = useState<TaskRunSummary[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedRun, setSelectedRun] = useState<SelectedRunResponse['latestRun']>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [socketUnavailableReason, setSocketUnavailableReason] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
-  const roomEndRef = useRef<HTMLDivElement>(null);
-  const consoleEndRef = useRef<HTMLDivElement>(null);
+  const [composerNotice, setComposerNotice] = useState<string | null>(null);
+  const [participantProbeState, setParticipantProbeState] = useState<Record<string, {
+    status: 'idle' | 'testing' | 'success' | 'error';
+    message?: string;
+  }>>({});
+  const timelineContainerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -222,35 +246,48 @@ export default function TaskChatPage() {
   }, [selectedRunId, task]);
 
   useEffect(() => {
-    roomEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [roomMessages]);
+    shouldAutoScrollRef.current = true;
+  }, [selectedRunId]);
 
   useEffect(() => {
-    consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedRun]);
+    if (!shouldAutoScrollRef.current) {
+      return;
+    }
+
+    const container = timelineContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollTop = container.scrollHeight;
+  }, [roomMessages, selectedRun, standardMessages]);
 
   useEffect(() => {
     if (!task || !taskRoom) {
       return;
     }
 
-    void fetch('/api/socket');
-    const socket = getSocketClient();
-    if (!socket) {
-      return;
-    }
+    let disposed = false;
+    let fallbackPollingStarted = false;
 
-    if (!socket.connected) {
-      socket.connect();
-    }
+    const startFallbackPolling = () => {
+      if (fallbackPollingStarted || pollingRef.current) {
+        return;
+      }
 
-    socket.emit('chat:join', { user: taskRoomUser, roomId: taskRoom.id });
-
-    if (task.executionMode === 'acpx') {
-      socket.emit('task-run:join', { taskId });
-    }
-
-    setIsConnected(true);
+      fallbackPollingStarted = true;
+      pollingRef.current = setInterval(() => {
+        void fetchRoomMessages(taskRoom.id);
+        if (task.executionMode === 'acpx') {
+          void fetchRuns();
+          if (selectedRunId) {
+            void fetchSelectedRun(selectedRunId);
+          }
+        } else {
+          void fetchStandardLogs();
+        }
+      }, 4000);
+    };
 
     const handleChatMessage = (message: ChatMessage) => {
       if (message.roomId !== taskRoom.id) {
@@ -381,12 +418,71 @@ export default function TaskChatPage() {
       }
     };
 
-    socket.on('chat:message', handleChatMessage);
-    socket.on('task-run:event', handleRunEvent);
+    const bootstrapSocket = async () => {
+      try {
+        const response = await fetch('/api/socket');
+        const bootstrap = await response.json().catch(() => null);
+
+        if (disposed) {
+          return;
+        }
+
+        if (!bootstrap?.liveSocketAvailable) {
+          setSocketUnavailableReason(
+            typeof bootstrap?.reason === 'string'
+              ? bootstrap.reason
+              : '实时 socket 当前不可用，已切换为轮询刷新。'
+          );
+          setIsConnected(false);
+          startFallbackPolling();
+          return;
+        }
+
+        const socket = getSocketClient();
+        if (!socket) {
+          setSocketUnavailableReason('浏览器侧 socket client 不可用，已切换为轮询刷新。');
+          setIsConnected(false);
+          startFallbackPolling();
+          return;
+        }
+
+        if (!socket.connected) {
+          socket.connect();
+        }
+
+        socket.emit('chat:join', { user: taskRoomUser, roomId: taskRoom.id });
+
+        if (task.executionMode === 'acpx') {
+          socket.emit('task-run:join', { taskId });
+        }
+
+        setSocketUnavailableReason(null);
+        setIsConnected(true);
+        socket.on('chat:message', handleChatMessage);
+        socket.on('task-run:event', handleRunEvent);
+      } catch (error) {
+        if (disposed) {
+          return;
+        }
+
+        console.error('Failed to bootstrap socket:', error);
+        setSocketUnavailableReason('实时连接初始化失败，已切换为轮询刷新。');
+        setIsConnected(false);
+        startFallbackPolling();
+      }
+    };
+
+    void bootstrapSocket();
 
     return () => {
-      socket.off('chat:message', handleChatMessage);
-      socket.off('task-run:event', handleRunEvent);
+      disposed = true;
+      const socket = getSocketClient();
+      socket?.off('chat:message', handleChatMessage);
+      socket?.off('task-run:event', handleRunEvent);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
     };
   }, [task, taskRoom, taskId, selectedRunId]);
 
@@ -433,6 +529,123 @@ export default function TaskChatPage() {
     latestHarnessRequest?.kind === 'permission_request'
     || latestHarnessRequest?.kind === 'input_request'
     || latestHarnessRequest?.kind === 'choice_request';
+
+  const activeParticipant = useMemo(
+    () =>
+      selectedRun?.participants.find(
+        (participant) => participant.status === 'running' || participant.status === 'waiting_for_input'
+      ) || null,
+    [selectedRun?.participants]
+  );
+
+  const activeParticipantLabel = activeParticipant
+    ? `${activeParticipant.role} · ${
+        activeParticipant.executionBackend === 'platform_local'
+          ? 'Platform Local'
+          : activeParticipant.gatewayName
+      } / ${activeParticipant.harnessType}`
+    : null;
+
+  const conversationFeed = useMemo<ConversationFeedItem[]>(() => {
+    const roomItems = roomMessages.map((message) => ({
+      id: `room-${message.id}`,
+      createdAt: message.createdAt,
+      type: 'room_message' as const,
+      roomMessage: message,
+    }));
+    const eventItems = selectedRunEvents.map((event) => ({
+      id: `event-${event.id}`,
+      createdAt: event.createdAt,
+      type: 'run_event' as const,
+      runEvent: event,
+    }));
+
+    return [...roomItems, ...eventItems].sort(
+      (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+    );
+  }, [roomMessages, selectedRunEvents]);
+
+  const remoteQuietHint = useMemo(() => {
+    if (
+      !selectedRun
+      || selectedRun.status !== 'running'
+      || !activeParticipant
+      || activeParticipant.executionBackend !== 'gateway_openclaw'
+    ) {
+      return null;
+    }
+
+    const lastEventTime = selectedRunEvents.length > 0
+      ? new Date(selectedRunEvents[selectedRunEvents.length - 1].createdAt).getTime()
+      : null;
+    const quietMinutes = lastEventTime
+      ? Math.max(0, Math.floor((Date.now() - lastEventTime) / 60000))
+      : null;
+
+    return quietMinutes && quietMinutes >= 1
+      ? `当前是远端 ${activeParticipantLabel} 在运行，可能只会在完成后返回结果。已经安静 ${quietMinutes} 分钟，这不一定表示它已卡死。`
+      : `当前是远端 ${activeParticipantLabel} 在运行，可能只会在完成后返回结果；没有流式输出不一定表示它已卡死。`;
+  }, [activeParticipant, activeParticipantLabel, selectedRun, selectedRunEvents]);
+
+  const primarySendLabel = task?.executionMode === 'acpx'
+    ? task.status === 'running'
+      ? '发送消息'
+      : '发送并开始运行'
+    : '发送到 Task Room';
+
+  const composerBehaviorHint = task?.executionMode === 'acpx'
+    ? task.status === 'running'
+      ? `当前 ${activeParticipantLabel || 'harness'} 正在处理任务，发送后会先进入队列，等待它到达下一个可处理节点。`
+      : `当前没有忙碌中的 harness，发送后会把消息写入 task room，并立即触发新一轮运行。`
+    : null;
+
+  const taskRoomTargetOptions = useMemo<TaskRoomMessageTargetOption[]>(() => {
+    const participantOptions = (task?.acpxParticipants || []).map((participant) => ({
+      type: 'participant' as const,
+      participantKey: getTaskRoomParticipantTargetKey(participant),
+      participantLabel: getTaskRoomParticipantTargetLabel(participant),
+      label: getTaskRoomParticipantTargetLabel(participant),
+    }));
+
+    return [
+      { type: 'task', label: '整个任务' },
+      ...participantOptions,
+      { type: 'all', label: '全部参与方' },
+    ];
+  }, [task?.acpxParticipants]);
+
+  const selectedTargetLabel = useMemo(() => {
+    if (messageTargetType === 'all') {
+      return '全部参与方';
+    }
+
+    if (messageTargetType === 'participant') {
+      return (
+        taskRoomTargetOptions.find(
+          (option) => option.type === 'participant' && option.participantKey === messageTargetParticipantKey
+        )?.participantLabel || '指定参与方'
+      );
+    }
+
+    return '整个任务';
+  }, [messageTargetParticipantKey, messageTargetType, taskRoomTargetOptions]);
+
+  useEffect(() => {
+    if (messageTargetType !== 'participant') {
+      return;
+    }
+
+    if (
+      taskRoomTargetOptions.some(
+        (option) => option.type === 'participant' && option.participantKey === messageTargetParticipantKey
+      )
+    ) {
+      return;
+    }
+
+    const firstParticipantOption = taskRoomTargetOptions.find((option) => option.type === 'participant');
+    setMessageTargetParticipantKey(firstParticipantOption?.participantKey || '');
+  }, [messageTargetParticipantKey, messageTargetType, taskRoomTargetOptions]);
 
   const fetchTaskInfo = async () => {
     try {
@@ -547,6 +760,7 @@ export default function TaskChatPage() {
     }
 
     setIsSending(true);
+    shouldAutoScrollRef.current = true;
     try {
       const socket = getSocketClient();
       const optimisticMessage: ChatMessage = {
@@ -554,6 +768,9 @@ export default function TaskChatPage() {
         roomId: taskRoom.id,
         user: taskRoomUser,
         content,
+        target: {
+          type: 'task',
+        },
         createdAt: new Date().toISOString(),
       };
 
@@ -565,6 +782,9 @@ export default function TaskChatPage() {
           roomId: taskRoom.id,
           user: taskRoomUser,
           content,
+          target: {
+            type: 'task',
+          },
           createdAt: optimisticMessage.createdAt,
         });
       }
@@ -593,7 +813,9 @@ export default function TaskChatPage() {
 
     setIsSending(true);
     setControlError(null);
+    shouldAutoScrollRef.current = true;
     try {
+      const taskWasRunning = task.status === 'running';
       const res = await fetch(`/api/tasks/${taskId}/control`, {
         method: 'POST',
         headers: {
@@ -604,12 +826,31 @@ export default function TaskChatPage() {
           deliveryMode,
           content,
           runId: selectedRunId,
+          targetType: messageTargetType,
+          targetParticipantKey:
+            messageTargetType === 'participant' ? messageTargetParticipantKey : null,
         }),
       });
 
       if (!res.ok) {
         const error = await res.json().catch(() => null);
         throw new Error(error?.error || '发送控制请求失败');
+      }
+
+      await res.json().catch(() => null);
+
+      if (action === 'queue_message') {
+        setComposerNotice(
+          taskWasRunning
+            ? `消息已发给${selectedTargetLabel}，当前 ${
+                activeParticipantLabel || 'harness'
+              } 忙碌中，平台会先排队，等待下一次可处理节点。`
+            : `消息已发给${selectedTargetLabel}，当前没有忙碌中的 harness，平台会立即用这条消息启动下一轮运行。`
+        );
+      } else if (action === 'interrupt_now') {
+        setComposerNotice('已请求打断当前本地运行，并带上这条消息进入下一轮处理。');
+      } else {
+        setComposerNotice('已请求停止当前运行。');
       }
 
       if (!overrideContent) {
@@ -621,6 +862,10 @@ export default function TaskChatPage() {
         await fetchSelectedRun(selectedRunId);
       }
       await fetchTaskInfo();
+
+      if (action === 'queue_message' && !taskWasRunning) {
+        await handleExecuteTask();
+      }
     } catch (error) {
       console.error('Failed to send ACPX control message:', error);
       setControlError(error instanceof Error ? error.message : '发送控制请求失败');
@@ -658,6 +903,72 @@ export default function TaskChatPage() {
       if (readyToRestart) {
         await handleExecuteTask();
       }
+    }
+  };
+
+  const handlePrimaryAcpxSend = async () => {
+    await handleAcpxControl('queue_message', 'queued');
+  };
+
+  const handleTimelineScroll = () => {
+    const container = timelineContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 80;
+  };
+
+  const handleParticipantConnectivityProbe = async (participant: TaskRunParticipant) => {
+    if (participant.executionBackend !== 'gateway_openclaw' || !participant.gatewayId) {
+      return;
+    }
+
+    setParticipantProbeState((prev) => ({
+      ...prev,
+      [participant.id]: {
+        status: 'testing',
+        message: '正在测试远端连接…',
+      },
+    }));
+
+    try {
+      const response = await fetch(`/api/gateways/${participant.gatewayId}/openclaw/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          input: 'Reply with exactly: ACPX connectivity OK',
+          agentId: participant.agentId || undefined,
+          sessionKey: `task-${taskId}-probe`,
+        }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error || '远端 OpenClaw 连通性测试失败');
+      }
+
+      setParticipantProbeState((prev) => ({
+        ...prev,
+        [participant.id]: {
+          status: 'success',
+          message: typeof data?.text === 'string' && data.text.trim()
+            ? data.text.trim()
+            : '远端已返回响应。',
+        },
+      }));
+    } catch (error) {
+      setParticipantProbeState((prev) => ({
+        ...prev,
+        [participant.id]: {
+          status: 'error',
+          message: error instanceof Error ? error.message : '远端连接测试失败',
+        },
+      }));
     }
   };
 
@@ -701,8 +1012,8 @@ export default function TaskChatPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-7xl flex-col gap-3 overflow-hidden p-4">
+      <div className="shrink-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">{task.name}</h1>
@@ -711,8 +1022,14 @@ export default function TaskChatPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className={`rounded-full px-3 py-1 text-xs ${isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
-              {isConnected ? '实时连接中' : '等待刷新'}
+            <div className={`rounded-full px-3 py-1 text-xs ${
+              isConnected
+                ? 'bg-green-100 text-green-800'
+                : socketUnavailableReason
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-gray-100 text-gray-700'
+            }`}>
+              {isConnected ? '实时连接中' : socketUnavailableReason ? '轮询刷新中' : '等待刷新'}
             </div>
             {canExecute ? (
               <button
@@ -731,7 +1048,7 @@ export default function TaskChatPage() {
         </div>
 
         {task.executionMode === 'acpx' && task.acpxParticipants?.length ? (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {task.acpxParticipants.map((participant, index) => (
               <span
                 key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
@@ -743,218 +1060,318 @@ export default function TaskChatPage() {
           </div>
         ) : null}
 
-        {task.executionMode === 'acpx' ? (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            这里现在是 task room。你可以发排队消息，也可以对本地运行中的 harness 发“立即介入 / 停止运行”请求。第一版控制能力目前优先支持本地 harness，远端 gateway 会先记录控制请求并在后续阶段处理。
+        {task.executionMode === 'acpx' || socketUnavailableReason ? (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] leading-5 text-amber-800">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {task.executionMode === 'acpx' ? (
+                <span>
+                  Task room 已启用。主按钮会按聊天习惯工作；本地中断/停止仍属于第一版控制能力。
+                </span>
+              ) : null}
+              {socketUnavailableReason ? (
+                <span>
+                  实时 socket 不可用：{socketUnavailableReason}，已自动切到轮询刷新。
+                </span>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr,1.5fr,1fr]">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-sm font-medium text-gray-900">Task Room</div>
-            {taskRoom ? (
-              <span className="text-xs text-gray-500">{taskRoom.name}</span>
-            ) : null}
-          </div>
-
-          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-2">
-            {roomMessages.length === 0 ? (
-              <div className="text-sm text-gray-500">还没有房间消息。你可以先和参与方约定策略，再开始运行。</div>
-            ) : (
-              roomMessages.map((message) => (
-                <div key={message.id} className={`rounded-lg p-3 text-sm ${
-                  message.user.id === taskRoomUser.id
-                    ? 'bg-blue-50 text-blue-900'
-                    : message.user.id === 'system'
-                    ? 'bg-gray-100 text-gray-800'
-                    : 'bg-emerald-50 text-emerald-900'
-                }`}>
-                  <div className="mb-1 text-xs text-gray-500">
-                    {message.user.name} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
-                  </div>
-                  <div className="whitespace-pre-wrap break-words">{message.content}</div>
+      <div className="grid min-h-0 max-h-full flex-1 gap-3 overflow-hidden xl:grid-cols-[minmax(0,1.85fr),360px]">
+        <div className="grid min-h-0 h-full grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="max-h-[18vh] overflow-y-auto border-b border-gray-200 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-gray-900">Task Conversation</div>
+                <div className="mt-1 text-xs text-gray-500">
+                  {taskRoom?.name || 'Task Room'}
                 </div>
-              ))
-            )}
-            <div ref={roomEndRef} />
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <textarea
-              value={messageInput}
-              onChange={(event) => setMessageInput(event.target.value)}
-              rows={4}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-              placeholder="补充任务要求、纠偏、提醒某个参与方先做计划再动手……"
-            />
-            {controlError ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {controlError}
               </div>
-            ) : null}
-            {task.executionMode === 'acpx' ? (
-              <div className="grid gap-2">
-                <button
-                  onClick={() => void handleAcpxControl('queue_message', 'queued')}
-                  disabled={isSending || !taskRoom || !messageInput.trim()}
-                  className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                >
-                  {isSending ? '发送中...' : '排队消息'}
-                </button>
-                <button
-                  onClick={() => void handleAcpxControl('interrupt_now', 'immediate')}
-                  disabled={isSending || !taskRoom || !messageInput.trim() || !selectedRunCanInterrupt}
-                  className="w-full rounded-lg bg-amber-600 px-4 py-2 text-sm text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-300"
-                >
-                  立即介入并中断当前本地运行
-                </button>
-                <button
-                  onClick={() => void handleAcpxControl('stop_run', 'immediate')}
-                  disabled={isSending || !taskRoom || !selectedRunCanStop}
-                  className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-                >
-                  紧急停止当前 Run
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => void handleSendMessage()}
-                disabled={isSending || !taskRoom || !messageInput.trim()}
-                className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-              >
-                {isSending ? '发送中...' : '发送到 Task Room'}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-gray-200 bg-slate-950 p-4 text-sm text-slate-100 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Selected Run Console</div>
-            {selectedRun ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
-                  {selectedRun.status}
-                </span>
-                {selectedRun.activityState ? (
-                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
-                    activity: {selectedRun.activityState}
+              {selectedRun ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                    {selectedRun.status}
                   </span>
-                ) : null}
-                {selectedRun.controlState ? (
-                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
-                    control: {selectedRun.controlState}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-
-          {selectedRun?.status === 'waiting_for_input' ? (
-            <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
-              当前 harness 正在等待用户输入或权限确认。下面会显示最近一次检测到的请求内容。你也可以直接点击“允许继续 / 拒绝 / 让它先解释清楚”，不用自己猜该发什么话。
-            </div>
-          ) : null}
-
-          {latestHarnessRequest ? (
-            <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-50">
-              <div className="font-semibold text-amber-100">
-                最近一次 harness 请求: {latestHarnessRequest.kind}
-              </div>
-              <div className="mt-2 whitespace-pre-wrap text-amber-50">
-                {latestHarnessRequest.message}
-              </div>
-              {latestHarnessRequest.excerpt ? (
-                <pre className="mt-2 whitespace-pre-wrap break-words rounded-md bg-slate-950/50 p-2 text-[11px] text-amber-100">
-                  {latestHarnessRequest.excerpt}
-                </pre>
-              ) : null}
-              {latestHarnessRequestIsActionable ? (
-                <div className="mt-3 grid gap-2 md:grid-cols-3">
-                  <button
-                    onClick={() => void handleHarnessDecision('allow')}
-                    disabled={isSending || !selectedRunCanInterrupt}
-                    className="rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
-                  >
-                    允许继续
-                  </button>
-                  <button
-                    onClick={() => void handleHarnessDecision('deny')}
-                    disabled={isSending || !selectedRunCanInterrupt}
-                    className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-                  >
-                    拒绝这次请求
-                  </button>
-                  <button
-                    onClick={() => void handleHarnessDecision('explain')}
-                    disabled={isSending || !selectedRunCanInterrupt}
-                    className="rounded-lg bg-slate-700 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  >
-                    先解释清楚
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-                  这是一个运行问题提示，不是可直接点击批准的权限请求。
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {task.executionMode !== 'acpx' ? (
-            <div className="space-y-3">
-              {standardMessages.map((message) => (
-                <div key={message.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                  <div className="mb-1 text-xs text-slate-400">
-                    {new Date(message.timestamp).toLocaleString('zh-CN', { hour12: false })}
-                    {message.senderName ? ` · ${message.senderName}` : ''}
-                  </div>
-                  <div className={message.messageType === 'error' ? 'text-red-300' : 'text-slate-100'}>
-                    {message.content}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : selectedRunEvents.length === 0 ? (
-            <div className="text-slate-400">还没有选中的 run。开始一次运行后，这里会显示完整事件流。</div>
-          ) : (
-            <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-2 font-mono text-xs">
-              {selectedRunEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className={`rounded-lg border p-3 ${
-                    event.eventType === 'control_message'
-                      ? 'border-amber-500/40 bg-amber-500/10'
-                      : 'border-slate-800 bg-slate-900/70'
-                  }`}
-                >
-                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                    <span>{new Date(event.createdAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>
-                    <span className="rounded-full bg-slate-800 px-2 py-0.5">{event.eventType}</span>
-                    {event.participant ? (
-                      <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-indigo-200">
-                        {event.participant.role} · {event.participant.executionBackend === 'platform_local' ? 'Platform Local' : event.participant.gatewayName} / {event.participant.harnessType}
-                      </span>
-                    ) : null}
-                  </div>
-                  {event.eventType === 'control_message' && event.metadata?.requestKind ? (
-                    <div className="mb-2 text-[11px] text-amber-200">
-                      request: {String(event.metadata.requestKind)}
-                    </div>
+                  {selectedRun.activityState ? (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                      activity: {selectedRun.activityState}
+                    </span>
                   ) : null}
-                  <pre className={`whitespace-pre-wrap break-words ${event.stream === 'stderr' ? 'text-red-300' : 'text-slate-100'}`}>
-                    {event.content}
-                  </pre>
+                  {selectedRun.controlState ? (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                      control: {selectedRun.controlState}
+                    </span>
+                  ) : null}
                 </div>
-              ))}
-              <div ref={consoleEndRef} />
+              ) : null}
             </div>
-          )}
+
+            {composerBehaviorHint || remoteQuietHint || selectedRun?.status === 'waiting_for_input' ? (
+              <div className="mt-3 space-y-2 text-xs">
+                {composerBehaviorHint ? (
+                  <div className="rounded-md bg-blue-50 px-3 py-1.5 leading-5 text-blue-700">
+                    {composerBehaviorHint}
+                  </div>
+                ) : null}
+                {remoteQuietHint ? (
+                  <div className="rounded-md bg-amber-50 px-3 py-1.5 leading-5 text-amber-800">
+                    {remoteQuietHint}
+                  </div>
+                ) : null}
+                {selectedRun?.status === 'waiting_for_input' ? (
+                  <div className="rounded-md bg-amber-50 px-3 py-1.5 leading-5 text-amber-800">
+                    当前 harness 正在等待用户输入或权限确认。下面的请求卡片仍是第一版过渡交互。
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {latestHarnessRequest ? (
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                <div className="font-semibold">
+                  最近一次 harness 请求: {latestHarnessRequest.kind}
+                </div>
+                <div className="mt-2 whitespace-pre-wrap">
+                  {latestHarnessRequest.message}
+                </div>
+                {latestHarnessRequest.excerpt ? (
+                  <pre className="mt-2 whitespace-pre-wrap break-words rounded-md bg-white/70 p-2 text-[11px] text-amber-900">
+                    {latestHarnessRequest.excerpt}
+                  </pre>
+                ) : null}
+                {latestHarnessRequestIsActionable ? (
+                  <div className="mt-3 grid gap-2 md:grid-cols-3">
+                    <button
+                      onClick={() => void handleHarnessDecision('allow')}
+                      disabled={isSending || !selectedRunCanInterrupt}
+                      className="rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
+                    >
+                      允许继续
+                    </button>
+                    <button
+                      onClick={() => void handleHarnessDecision('deny')}
+                      disabled={isSending || !selectedRunCanInterrupt}
+                      className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                    >
+                      拒绝这次请求
+                    </button>
+                    <button
+                      onClick={() => void handleHarnessDecision('explain')}
+                      disabled={isSending || !selectedRunCanInterrupt}
+                      className="rounded-lg bg-slate-700 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    >
+                      先解释清楚
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-lg border border-amber-300 bg-white/70 px-3 py-2 text-[11px] text-amber-900">
+                    这是一个运行问题提示，不是可直接点击批准的权限请求。
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            ref={timelineContainerRef}
+            onScroll={handleTimelineScroll}
+            className="min-h-0 overflow-y-auto bg-slate-50 px-4 py-3"
+          >
+            {task.executionMode !== 'acpx' ? (
+              <div className="space-y-3">
+                {standardMessages.map((message) => (
+                  <div key={message.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="mb-1 text-xs text-slate-500">
+                      {new Date(message.timestamp).toLocaleString('zh-CN', { hour12: false })}
+                      {message.senderName ? ` · ${message.senderName}` : ''}
+                    </div>
+                    <div className={message.messageType === 'error' ? 'text-red-600' : 'text-slate-900'}>
+                      {message.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : conversationFeed.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
+                还没有消息或运行事件。你可以先发一条消息，然后平台会在这里持续展示对话和运行过程。
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {conversationFeed.map((item) => {
+                  if (item.type === 'room_message' && item.roomMessage) {
+                    const message = item.roomMessage;
+                    const isOwn = message.user.id === taskRoomUser.id;
+                    const bubbleClass = isOwn
+                      ? 'ml-auto bg-blue-600 text-white'
+                      : message.user.id === 'system'
+                      ? 'bg-slate-200 text-slate-900'
+                      : 'bg-emerald-100 text-emerald-950';
+
+                    return (
+                      <div key={item.id} className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${bubbleClass}`}>
+                        <div className={`mb-1 text-xs ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
+                          {message.user.name} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                        </div>
+                        {message.target.type !== 'task' ? (
+                          <div className={`mb-2 text-[11px] ${isOwn ? 'text-blue-100' : 'text-slate-500'}`}>
+                            {message.target.type === 'all'
+                              ? '发给：全部参与方'
+                              : `发给：${message.target.participantLabel || '指定参与方'}`}
+                          </div>
+                        ) : null}
+                        <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                      </div>
+                    );
+                  }
+
+                  if (item.runEvent) {
+                    const event = item.runEvent;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-2xl border px-4 py-3 shadow-sm ${
+                          event.eventType === 'control_message'
+                            ? 'border-amber-200 bg-amber-50'
+                            : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                          <span>{new Date(event.createdAt).toLocaleString('zh-CN', { hour12: false })}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5">{event.eventType}</span>
+                          {event.participant ? (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700">
+                              {event.participant.role} · {event.participant.executionBackend === 'platform_local' ? 'Platform Local' : event.participant.gatewayName} / {event.participant.harnessType}
+                            </span>
+                          ) : null}
+                        </div>
+                        {event.eventType === 'control_message' && event.metadata?.requestKind ? (
+                          <div className="mb-2 text-[11px] text-amber-700">
+                            request: {String(event.metadata.requestKind)}
+                          </div>
+                        ) : null}
+                        <pre className={`whitespace-pre-wrap break-words font-mono text-xs ${event.stream === 'stderr' ? 'text-red-600' : 'text-slate-900'}`}>
+                          {event.content}
+                        </pre>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="z-10 border-t border-gray-200 bg-white/95 p-3 backdrop-blur">
+            {task.executionMode === 'acpx' ? (
+              <div className="space-y-2.5">
+                <div className="grid gap-2 md:grid-cols-[150px,1fr]">
+                  <select
+                    value={messageTargetType}
+                    onChange={(event) => setMessageTargetType(event.target.value as 'task' | 'participant' | 'all')}
+                    className="rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="task">发给整个任务</option>
+                    <option value="participant">发给单个参与方</option>
+                    <option value="all">发给全部参与方</option>
+                  </select>
+                  {messageTargetType === 'participant' ? (
+                    <select
+                      value={messageTargetParticipantKey}
+                      onChange={(event) => setMessageTargetParticipantKey(event.target.value)}
+                      className="rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {taskRoomTargetOptions
+                        .filter((option) => option.type === 'participant')
+                        .map((option) => (
+                          <option key={option.participantKey} value={option.participantKey || ''}>
+                            {option.label}
+                          </option>
+                        ))}
+                    </select>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-500">
+                      当前目标：{selectedTargetLabel}
+                    </div>
+                  )}
+                </div>
+                <textarea
+                  value={messageInput}
+                  onChange={(event) => setMessageInput(event.target.value)}
+                  rows={2}
+                  className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  placeholder="像聊天一样输入你的要求、追问、纠偏或补充信息……"
+                />
+                {controlError ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {controlError}
+                  </div>
+                ) : null}
+                {composerNotice ? (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                    {composerNotice}
+                  </div>
+                ) : null}
+                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr),210px,170px]">
+                  <button
+                    onClick={() => void handlePrimaryAcpxSend()}
+                    disabled={
+                      isSending
+                      || !taskRoom
+                      || !messageInput.trim()
+                      || (messageTargetType === 'participant' && !messageTargetParticipantKey)
+                    }
+                    className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    {isSending ? '发送中...' : primarySendLabel}
+                  </button>
+                  <button
+                    onClick={() => void handleAcpxControl('interrupt_now', 'immediate')}
+                    disabled={
+                      isSending
+                      || !taskRoom
+                      || !messageInput.trim()
+                      || !selectedRunCanInterrupt
+                      || (messageTargetType === 'participant' && !messageTargetParticipantKey)
+                    }
+                    className="rounded-xl bg-amber-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-300"
+                  >
+                    打断当前本地运行后发送
+                  </button>
+                  <button
+                    onClick={() => void handleAcpxControl('stop_run', 'immediate')}
+                    disabled={isSending || !taskRoom || !selectedRunCanStop}
+                    className="rounded-xl bg-red-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                  >
+                    停止当前运行
+                  </button>
+                </div>
+                <div className="text-[11px] leading-5 text-gray-500">
+                  主按钮会尽量按聊天习惯工作：忙碌时先排队，不忙时直接带着这条消息启动新一轮。只有“打断当前本地运行后发送”才会主动中断本地 harness。
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <textarea
+                  value={messageInput}
+                  onChange={(event) => setMessageInput(event.target.value)}
+                  rows={4}
+                  className="w-full rounded-2xl border border-gray-300 px-4 py-3 text-sm focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  placeholder="输入消息……"
+                />
+                <button
+                  onClick={() => void handleSendMessage()}
+                  disabled={isSending || !taskRoom || !messageInput.trim()}
+                  className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                >
+                  {isSending ? '发送中...' : primarySendLabel}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-h-0 h-full space-y-4 overflow-y-auto pr-1">
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="text-sm font-medium text-gray-900">Run History</div>
             <div className="mt-3 max-h-[28vh] space-y-2 overflow-y-auto pr-1">
@@ -1053,6 +1470,32 @@ export default function TaskChatPage() {
                     {participant.softStopSupported ? <span className="rounded-full bg-gray-100 px-2 py-0.5">可停止</span> : null}
                     {participant.resumeSupported ? <span className="rounded-full bg-gray-100 px-2 py-0.5">可恢复重启</span> : null}
                   </div>
+                  {participant.executionBackend === 'gateway_openclaw' ? (
+                    <div className="mt-3 space-y-2">
+                      <button
+                        onClick={() => void handleParticipantConnectivityProbe(participant)}
+                        disabled={participantProbeState[participant.id]?.status === 'testing'}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                      >
+                        {participantProbeState[participant.id]?.status === 'testing'
+                          ? '测试中...'
+                          : '测试远端连通性'}
+                      </button>
+                      {participantProbeState[participant.id]?.message ? (
+                        <div className={`rounded-lg px-3 py-2 text-xs ${
+                          participantProbeState[participant.id]?.status === 'error'
+                            ? 'border border-red-200 bg-red-50 text-red-700'
+                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                        }`}>
+                          {participantProbeState[participant.id]?.message}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-gray-500">
+                      本地 direct harness 的独立连通性测试还未做成单独入口。
+                    </div>
+                  )}
                   {participant.summary ? (
                     <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600">{participant.summary}</p>
                   ) : null}

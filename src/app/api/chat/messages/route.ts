@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { ChatMessageTargetType } from '@/lib/chat-types';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,9 @@ const mapMessage = (message: {
   roomId: string;
   userId: string;
   userName: string;
+  targetType: string;
+  targetParticipantKey: string | null;
+  targetParticipantLabel: string | null;
   createdAt: Date;
 }) => ({
   id: message.id,
@@ -18,6 +22,11 @@ const mapMessage = (message: {
     name: message.userName,
   },
   content: message.content,
+  target: {
+    type: message.targetType as ChatMessageTargetType,
+    participantKey: message.targetParticipantKey,
+    participantLabel: message.targetParticipantLabel,
+  },
   createdAt: message.createdAt.toISOString(),
 });
 
@@ -59,11 +68,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { content, roomId, userId, userName } = body;
+    const { content, roomId, userId, userName, targetType, targetParticipantKey, targetParticipantLabel } = body;
 
     if (!content || !roomId || !userId || !userName) {
       return NextResponse.json(
         { error: 'content, roomId, userId, userName are required' },
+        { status: 400 }
+      );
+    }
+
+    if (targetType && targetType !== 'task' && targetType !== 'participant' && targetType !== 'all') {
+      return NextResponse.json(
+        { error: 'Invalid targetType' },
+        { status: 400 }
+      );
+    }
+
+    if (targetType === 'participant' && (!targetParticipantKey || !targetParticipantLabel)) {
+      return NextResponse.json(
+        { error: 'targetParticipantKey and targetParticipantLabel are required for participant target' },
         { status: 400 }
       );
     }
@@ -74,6 +97,9 @@ export async function POST(request: NextRequest) {
         roomId,
         userId,
         userName,
+        targetType: targetType || 'task',
+        targetParticipantKey: targetType === 'participant' ? targetParticipantKey : null,
+        targetParticipantLabel: targetType === 'participant' ? targetParticipantLabel : null,
       },
     });
 

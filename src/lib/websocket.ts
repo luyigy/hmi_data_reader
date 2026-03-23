@@ -11,6 +11,8 @@ const DEFAULT_PORT = Number(process.env.SOCKET_PORT ?? 3001);
 const globalForSocket = globalThis as unknown as {
   io?: IOServer;
   onlineUsers?: Map<string, ChatUser>;
+  socketInitPromise?: Promise<IOServer | null>;
+  socketDisabledReason?: string | null;
 };
 
 const getOnlineUsersStore = () => {
@@ -56,6 +58,11 @@ const setupSocketEvents = (io: IOServer) => {
             roomId: message.roomId,
             userId: message.user.id,
             userName: message.user.name,
+            targetType: message.target?.type || 'task',
+            targetParticipantKey:
+              message.target?.type === 'participant' ? (message.target.participantKey ?? null) : null,
+            targetParticipantLabel:
+              message.target?.type === 'participant' ? (message.target.participantLabel ?? null) : null,
           },
         });
 
@@ -64,6 +71,11 @@ const setupSocketEvents = (io: IOServer) => {
           roomId: stored.roomId,
           user: { id: stored.userId, name: stored.userName },
           content: stored.content,
+          target: {
+            type: stored.targetType as ChatMessage['target']['type'],
+            participantKey: stored.targetParticipantKey,
+            participantLabel: stored.targetParticipantLabel,
+          },
           createdAt: stored.createdAt.toISOString(),
         };
 
@@ -94,6 +106,9 @@ const setupSocketEvents = (io: IOServer) => {
           roomId: stored.roomId,
           user: { id: stored.userId, name: stored.userName },
           content: stored.content,
+          target: {
+            type: 'task',
+          },
           createdAt: stored.createdAt.toISOString(),
         };
 
@@ -112,40 +127,74 @@ const setupSocketEvents = (io: IOServer) => {
   });
 };
 
-export const initSocketServer = (server?: HTTPServer) => {
+export const initSocketServer = async (server?: HTTPServer): Promise<IOServer | null> => {
   if (globalForSocket.io) {
     return globalForSocket.io;
   }
 
-  let io: IOServer;
+  if (globalForSocket.socketInitPromise) {
+    return globalForSocket.socketInitPromise;
+  }
+
+  globalForSocket.socketDisabledReason = null;
 
   if (server) {
-    io = new IOServer(server, {
+    const io = new IOServer(server, {
       path: SOCKET_PATH,
       cors: {
         origin: '*',
       },
     });
-  } else {
+
+    setupSocketEvents(io);
+    globalForSocket.io = io;
+    return io;
+  }
+
+  globalForSocket.socketInitPromise = new Promise<IOServer | null>((resolve, reject) => {
     const httpServer = createServer((_, res) => {
       res.statusCode = 200;
       res.end('Socket server running');
     });
 
-    io = new IOServer(httpServer, {
+    const io = new IOServer(httpServer, {
       path: SOCKET_PATH,
       cors: {
         origin: '*',
       },
     });
 
+    const handleListening = () => {
+      httpServer.off('error', handleError);
+      setupSocketEvents(io);
+      globalForSocket.io = io;
+      resolve(io);
+    };
+
+    const handleError = (error: Error) => {
+      httpServer.off('listening', handleListening);
+      if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+        globalForSocket.socketDisabledReason = `Socket port ${DEFAULT_PORT} is already in use`;
+        io.close();
+        resolve(null);
+        return;
+      }
+
+      io.close();
+      reject(error);
+    };
+
+    httpServer.once('listening', handleListening);
+    httpServer.once('error', handleError);
     httpServer.listen(DEFAULT_PORT);
+  });
+
+  try {
+    return await globalForSocket.socketInitPromise;
+  } finally {
+    globalForSocket.socketInitPromise = undefined;
   }
-
-  setupSocketEvents(io);
-  globalForSocket.io = io;
-
-  return io;
 };
 
 export const getSocketServer = () => globalForSocket.io ?? null;
+export const getSocketDisabledReason = () => globalForSocket.socketDisabledReason ?? null;

@@ -218,15 +218,19 @@ model ChatRoom {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  content   String
-  roomId    String
-  userId    String
-  userName  String
-  createdAt DateTime @default(now())
-  room      ChatRoom @relation(fields: [roomId], references: [id])
+  id                     String   @id @default(cuid())
+  content                String
+  roomId                 String
+  userId                 String
+  userName               String
+  targetType             String   @default("task") // task, participant, all
+  targetParticipantKey   String?
+  targetParticipantLabel String?
+  createdAt              DateTime @default(now())
+  room                   ChatRoom @relation(fields: [roomId], references: [id])
 
   @@index([roomId, createdAt])
+  @@index([roomId, targetType, createdAt])
 }
 
 model GatewayMessage {

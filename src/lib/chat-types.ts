@@ -3,11 +3,20 @@ export type ChatUser = {
   name: string;
 };
 
+export type ChatMessageTargetType = 'task' | 'participant' | 'all';
+
+export type ChatMessageTarget = {
+  type: ChatMessageTargetType;
+  participantKey?: string | null;
+  participantLabel?: string | null;
+};
+
 export type ChatMessage = {
   id: string;
   roomId: string;
   user: ChatUser;
   content: string;
+  target: ChatMessageTarget;
   createdAt: string;
 };
 

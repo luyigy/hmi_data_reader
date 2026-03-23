@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { initSocketServer } from '@/lib/websocket';
+import { getSocketDisabledReason, initSocketServer } from '@/lib/websocket';
 import type { Server as HTTPServer } from 'http';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,11 @@ export async function GET(request: Request) {
     (request as unknown as { res?: { socket?: { server?: HTTPServer } } }).res
       ?.socket?.server;
 
-  initSocketServer(server);
+  const io = await initSocketServer(server);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    liveSocketAvailable: !!io,
+    reason: io ? null : getSocketDisabledReason(),
+  });
 }
