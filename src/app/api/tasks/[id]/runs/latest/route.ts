@@ -6,6 +6,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const url = new URL(request.url);
+    const selectedRunId = url.searchParams.get('runId');
     const task = await prisma.task.findUnique({
       where: { id: params.id },
       include: {
@@ -29,7 +31,9 @@ export async function GET(
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    const latestRun = task.runs[0] ?? null;
+    const latestRun = selectedRunId
+      ? task.runs.find((run) => run.id === selectedRunId) ?? null
+      : task.runs[0] ?? null;
 
     return NextResponse.json({
       taskId: task.id,

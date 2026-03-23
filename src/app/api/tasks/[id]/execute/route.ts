@@ -4,6 +4,7 @@ import { executeTaskBatch } from '@/lib/agent-executor';
 import { getSocketServer } from '@/lib/websocket';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import type { AcpxParticipantRequest, AcpxOrchestrationMode } from '@/lib/acpx/types';
+import { ensureTaskChatRoom } from '@/lib/task-room';
 
 /**
  * POST /api/tasks/[id]/execute
@@ -68,22 +69,8 @@ export async function POST(
     }
 
     // 自动创建聊天室（如果不存在）
-    let chatRoom = await prisma.chatRoom.findFirst({
-      where: {
-        name: `任务：${task.name}`,
-      },
-    });
-
-    if (!chatRoom) {
-      chatRoom = await prisma.chatRoom.create({
-        data: {
-          name: `任务：${task.name}`,
-          description: `任务执行聊天室 - ${new Date().toLocaleString('zh-CN')}`,
-        },
-      });
-      
-      console.log('[Task Execute] Created chat room:', chatRoom.id);
-    }
+    const chatRoom = await ensureTaskChatRoom(task.id, task.name);
+    console.log('[Task Execute] Using chat room:', chatRoom.id);
 
     // 发送系统消息到聊天室
     const sendChatMessage = async (content: string, userName: string = '系统') => {
@@ -100,7 +87,7 @@ export async function POST(
         // 通过 WebSocket 广播
         const io = getSocketServer();
         if (io) {
-          io.emit('chat:message', {
+          io.to(chatRoom!.id).emit('chat:message', {
             id: `task-${Date.now()}`,
             roomId: chatRoom!.id,
             user: { id: 'system', name: userName },

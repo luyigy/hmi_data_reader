@@ -6,6 +6,7 @@ import {
 } from '@/lib/openclaw-client';
 import { executeCodexTask } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
+import { buildTaskRoomContext } from '@/lib/task-room';
 import { publishTaskRunEvent } from './event-bus';
 import type {
   AcpxLiveEventPayload,
@@ -41,7 +42,8 @@ const toParticipantPayload = (participant: {
 const buildHarnessPrompt = (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
-  previousSummaries: string[]
+  previousSummaries: string[],
+  taskRoomContext: string
 ) => {
   const priorContext =
     previousSummaries.length > 0
@@ -49,6 +51,9 @@ const buildHarnessPrompt = (
           .map((item, index) => `${index + 1}. ${item}`)
           .join('\n')}`
       : '';
+  const roomContext = taskRoomContext
+    ? `\n\nTask room context:\n${taskRoomContext}`
+    : '';
 
   return `Task: ${request.taskName}
 
@@ -58,7 +63,7 @@ Gateway: ${participant.gatewayName || participant.gatewayId}
 Execution Backend: ${participant.executionBackend}
 
 Description:
-${request.taskDescription || 'Please complete this task.'}${priorContext}
+${request.taskDescription || 'Please complete this task.'}${roomContext}${priorContext}
 
 Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.`;
 };
@@ -66,7 +71,8 @@ Work within your assigned role. If you are not the first participant, build on t
 const executeViaGateway = async (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
-  previousSummaries: string[]
+  previousSummaries: string[],
+  taskRoomContext: string
 ) => {
   const config = await getOpenClawGatewayConfig(participant.gatewayId);
 
@@ -75,7 +81,7 @@ const executeViaGateway = async (
   }
 
   const response = await createOpenClawResponse(config, {
-    input: buildHarnessPrompt(request, participant, previousSummaries),
+    input: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext),
     agentId: participant.agentId,
     model: participant.agentId ? `openclaw:${participant.agentId}` : undefined,
     sessionKey: `task:${request.taskId}:gateway:${participant.gatewayId}`,
@@ -93,12 +99,13 @@ const executeViaLocalHarness = async (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
   callbacks: HarnessStreamCallbacks,
-  previousSummaries: string[]
+  previousSummaries: string[],
+  taskRoomContext: string
 ) => {
   const task = {
     id: request.taskId,
     name: request.taskName,
-    description: buildHarnessPrompt(request, participant, previousSummaries),
+    description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext),
   };
 
   if (participant.harnessType === 'codex') {
@@ -305,9 +312,11 @@ const executeParticipant = async (
   };
 
   try {
+    const taskRoomContext = await buildTaskRoomContext(request.taskId, request.taskName, 30);
+
     const result = participant.executionBackend === 'platform_local'
-      ? await executeViaLocalHarness(request, participant, callbacks, previousSummaries)
-      : await executeViaGateway(request, participant, previousSummaries);
+      ? await executeViaLocalHarness(request, participant, callbacks, previousSummaries, taskRoomContext)
+      : await executeViaGateway(request, participant, previousSummaries, taskRoomContext);
 
     if (!result.liveStreaming) {
       await publishTaskRunEvent({

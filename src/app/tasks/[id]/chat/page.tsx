@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getSocketClient } from '@/lib/websocket-client';
+import { getSocketClient, type ChatMessage } from '@/lib/websocket-client';
 
 interface AgentInfo {
   id: string;
@@ -34,6 +34,12 @@ interface TaskInfo {
   workingDirectory?: string | null;
   assignedAgents: AgentInfo[];
   acpxParticipants?: AcpxParticipantSpec[];
+}
+
+interface TaskRoomInfo {
+  id: string;
+  name: string;
+  description?: string | null;
 }
 
 interface StandardLogMessage {
@@ -83,7 +89,28 @@ interface TaskRunParticipant {
   filesModified: string[];
 }
 
-interface LatestRunResponse {
+interface TaskRunSummary {
+  id: string;
+  mode: string;
+  orchestrationMode: string;
+  status: string;
+  summary?: string | null;
+  error?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  participants: Array<{
+    id: string;
+    gatewayId?: string | null;
+    gatewayName: string;
+    executionBackend: 'platform_local' | 'gateway_openclaw';
+    harnessType: string;
+    role: string;
+    status: string;
+  }>;
+}
+
+interface SelectedRunResponse {
   taskId: string;
   executionMode: 'standard' | 'acpx';
   latestRun: {
@@ -97,15 +124,28 @@ interface LatestRunResponse {
   } | null;
 }
 
+const taskRoomUser = {
+  id: 'task-room-user',
+  name: '用户',
+};
+
 export default function TaskChatPage() {
   const params = useParams();
   const taskId = params.id as string;
   const [task, setTask] = useState<TaskInfo | null>(null);
+  const [taskRoom, setTaskRoom] = useState<TaskRoomInfo | null>(null);
+  const [roomMessages, setRoomMessages] = useState<ChatMessage[]>([]);
+  const [messageInput, setMessageInput] = useState('');
   const [standardMessages, setStandardMessages] = useState<StandardLogMessage[]>([]);
-  const [latestRun, setLatestRun] = useState<LatestRunResponse['latestRun']>(null);
+  const [runSummaries, setRunSummaries] = useState<TaskRunSummary[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRun, setSelectedRun] = useState<SelectedRunResponse['latestRun']>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const roomEndRef = useRef<HTMLDivElement>(null);
+  const consoleEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -119,11 +159,14 @@ export default function TaskChatPage() {
   }, [taskId]);
 
   useEffect(() => {
-    if (!task) return;
+    if (!task) {
+      return;
+    }
+
+    void fetchTaskRoom();
 
     if (task.executionMode === 'acpx') {
-      void fetchLatestRun();
-      void initSocket();
+      void fetchRuns();
       return;
     }
 
@@ -137,92 +180,115 @@ export default function TaskChatPage() {
         clearInterval(pollingRef.current);
       }
     };
-  }, [task, taskId]);
+  }, [task]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [standardMessages, latestRun]);
-
-  const groupedEvents = useMemo(() => {
-    if (!latestRun) return [];
-    return latestRun.events;
-  }, [latestRun]);
-
-  const fetchTaskInfo = async () => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`);
-      const data = await res.json();
-      setTask(data);
-    } catch (error) {
-      console.error('Failed to fetch task:', error);
-    } finally {
-      setIsLoading(false);
+    if (!taskRoom) {
+      return;
     }
-  };
 
-  const fetchStandardLogs = async () => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/logs`);
-      const logData = await res.json();
-      const newMessages: StandardLogMessage[] = [];
+    void fetchRoomMessages(taskRoom.id);
+  }, [taskRoom]);
 
-      if (logData.metadata?.createdAt) {
-        newMessages.push({
-          id: 'created',
-          timestamp: logData.metadata.createdAt,
-          sender: 'system',
-          messageType: 'info',
-          content: `任务 "${logData.taskName}" 已创建`,
-        });
-      }
-
-      if (logData.executionLogs && logData.executionLogs.length > 0) {
-        logData.executionLogs.forEach((log: any, index: number) => {
-          newMessages.push({
-            id: `result-${index}`,
-            timestamp: log.timestamp,
-            sender: 'agent',
-            senderName: log.agentName,
-            messageType: log.status === 'error' ? 'error' : 'result',
-            content: log.message || '执行完成',
-          });
-        });
-      }
-
-      setStandardMessages(newMessages);
-      setIsConnected(logData.status !== 'completed' && logData.status !== 'failed');
-    } catch (error) {
-      console.error('Failed to fetch logs:', error);
+  useEffect(() => {
+    if (!task || task.executionMode !== 'acpx') {
+      return;
     }
-  };
 
-  const fetchLatestRun = async () => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/runs/latest`);
-      const data: LatestRunResponse = await res.json();
-      setLatestRun(data.latestRun);
-      if (data.latestRun) {
-        setIsConnected(data.latestRun.status === 'running' || data.latestRun.status === 'pending');
-      }
-    } catch (error) {
-      console.error('Failed to fetch latest run:', error);
+    if (!selectedRunId) {
+      setSelectedRun(null);
+      return;
     }
-  };
 
-  const initSocket = async () => {
-    await fetch('/api/socket');
+    void fetchSelectedRun(selectedRunId);
+  }, [selectedRunId, task]);
+
+  useEffect(() => {
+    roomEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [roomMessages]);
+
+  useEffect(() => {
+    consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [selectedRun]);
+
+  useEffect(() => {
+    if (!task || !taskRoom) {
+      return;
+    }
+
+    void fetch('/api/socket');
     const socket = getSocketClient();
-    if (!socket) return;
+    if (!socket) {
+      return;
+    }
 
     if (!socket.connected) {
       socket.connect();
     }
 
-    socket.emit('task-run:join', { taskId });
+    socket.emit('chat:join', { user: taskRoomUser, roomId: taskRoom.id });
+
+    if (task.executionMode === 'acpx') {
+      socket.emit('task-run:join', { taskId });
+    }
+
     setIsConnected(true);
 
-    const handleEvent = (event: TaskRunEvent) => {
-      setLatestRun((prev) => {
+    const handleChatMessage = (message: ChatMessage) => {
+      if (message.roomId !== taskRoom.id) {
+        return;
+      }
+
+      setRoomMessages((prev) => {
+        if (prev.some((item) => item.id === message.id)) {
+          return prev;
+        }
+        return [...prev, message];
+      });
+    };
+
+    const handleRunEvent = (event: TaskRunEvent) => {
+      setRunSummaries((prev) => {
+        const existing = prev.find((run) => run.id === event.taskRunId);
+        if (!existing) {
+          return [
+            {
+              id: event.taskRunId,
+              mode: 'acpx',
+              orchestrationMode: 'staged',
+              status:
+                event.eventType === 'run_completed'
+                  ? 'completed'
+                  : event.eventType === 'run_failed'
+                  ? 'failed'
+                  : 'running',
+              summary: null,
+              error: null,
+              startedAt: event.createdAt,
+              completedAt: null,
+              createdAt: event.createdAt,
+              participants: [],
+            },
+            ...prev,
+          ];
+        }
+
+        return prev.map((run) =>
+          run.id === event.taskRunId
+            ? {
+                ...run,
+                status:
+                  event.eventType === 'run_completed'
+                    ? 'completed'
+                    : event.eventType === 'run_failed'
+                    ? 'failed'
+                    : run.status,
+              }
+            : run
+        );
+      });
+
+      setSelectedRun((prev) => {
         if (!prev || prev.id !== event.taskRunId) {
           return prev;
         }
@@ -243,18 +309,190 @@ export default function TaskChatPage() {
         };
       });
 
+      if (!selectedRunId) {
+        setSelectedRunId(event.taskRunId);
+      }
+
       if (event.eventType === 'run_completed' || event.eventType === 'run_failed') {
-        setIsConnected(false);
-        void fetchLatestRun();
+        setIsExecuting(false);
+        void fetchRuns();
+        if (!selectedRunId || selectedRunId === event.taskRunId) {
+          void fetchSelectedRun(event.taskRunId);
+        }
       }
     };
 
-    socket.on('task-run:event', handleEvent);
+    socket.on('chat:message', handleChatMessage);
+    socket.on('task-run:event', handleRunEvent);
 
     return () => {
-      socket.off('task-run:event', handleEvent);
+      socket.off('chat:message', handleChatMessage);
+      socket.off('task-run:event', handleRunEvent);
     };
+  }, [task, taskRoom, taskId, selectedRunId]);
+
+  const selectedRunEvents = useMemo(() => selectedRun?.events || [], [selectedRun]);
+
+  const fetchTaskInfo = async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`);
+      const data = await res.json();
+      setTask(data);
+    } catch (error) {
+      console.error('Failed to fetch task:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const fetchTaskRoom = async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/room`);
+      const data = await res.json();
+      setTaskRoom(data.room || null);
+    } catch (error) {
+      console.error('Failed to fetch task room:', error);
+    }
+  };
+
+  const fetchRoomMessages = async (roomId: string) => {
+    try {
+      const res = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}&limit=100`);
+      const data = await res.json();
+      setRoomMessages(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to fetch task room messages:', error);
+    }
+  };
+
+  const fetchStandardLogs = async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/logs`);
+      const logData = await res.json();
+      const newMessages: StandardLogMessage[] = [];
+
+      if (logData.metadata?.createdAt) {
+        newMessages.push({
+          id: 'created',
+          timestamp: logData.metadata.createdAt,
+          sender: 'system',
+          messageType: 'info',
+          content: `任务 "${logData.taskName}" 已创建`,
+        });
+      }
+
+      if (logData.executionLogs && logData.executionLogs.length > 0) {
+        logData.executionLogs.forEach((log: StandardLogMessage, index: number) => {
+          newMessages.push({
+            id: `result-${index}`,
+            timestamp: log.timestamp,
+            sender: 'agent',
+            senderName: log.senderName,
+            messageType: log.messageType,
+            content: log.content,
+          });
+        });
+      }
+
+      setStandardMessages(newMessages);
+      setIsConnected(logData.status !== 'completed' && logData.status !== 'failed');
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+    }
+  };
+
+  const fetchRuns = async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/runs`);
+      const data = await res.json();
+      const runs = Array.isArray(data.runs) ? data.runs : [];
+      setRunSummaries(runs);
+
+      const nextRunId = selectedRunId && runs.some((run: TaskRunSummary) => run.id === selectedRunId)
+        ? selectedRunId
+        : runs[0]?.id || null;
+      setSelectedRunId(nextRunId);
+
+      if (nextRunId) {
+        setIsConnected(runs.find((run: TaskRunSummary) => run.id === nextRunId)?.status === 'running');
+      }
+    } catch (error) {
+      console.error('Failed to fetch task runs:', error);
+    }
+  };
+
+  const fetchSelectedRun = async (runId: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/runs/latest?runId=${encodeURIComponent(runId)}`);
+      const data: SelectedRunResponse = await res.json();
+      setSelectedRun(data.latestRun);
+      if (data.latestRun) {
+        setIsConnected(data.latestRun.status === 'running' || data.latestRun.status === 'pending');
+      }
+    } catch (error) {
+      console.error('Failed to fetch selected task run:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    const content = messageInput.trim();
+    if (!content || !taskRoom) {
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const socket = getSocketClient();
+      const optimisticMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        roomId: taskRoom.id,
+        user: taskRoomUser,
+        content,
+        createdAt: new Date().toISOString(),
+      };
+
+      setRoomMessages((prev) => [...prev, optimisticMessage]);
+      setMessageInput('');
+
+      if (socket) {
+        socket.emit('chat:message', {
+          roomId: taskRoom.id,
+          user: taskRoomUser,
+          content,
+          createdAt: optimisticMessage.createdAt,
+        });
+      }
+
+      await fetchRoomMessages(taskRoom.id);
+    } catch (error) {
+      console.error('Failed to send task room message:', error);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleExecuteTask = async () => {
+    setIsExecuting(true);
+    try {
+      setTask((prev) => (prev ? { ...prev, status: 'running' } : prev));
+      const res = await fetch(`/api/tasks/${taskId}/execute`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || '执行任务失败');
+      }
+      await fetchTaskInfo();
+      await fetchRuns();
+    } catch (error) {
+      console.error('Failed to execute task:', error);
+      await fetchTaskInfo();
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const canExecute = task && task.status !== 'running';
 
   if (isLoading) {
     return <div className="p-8 text-gray-600">加载中...</div>;
@@ -265,23 +503,38 @@ export default function TaskChatPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">{task.name}</h1>
             <p className="mt-2 text-sm text-gray-600">
-              {task.executionMode === 'acpx' ? 'ACPX 执行控制台' : '标准任务执行日志'}
+              {task.executionMode === 'acpx' ? 'ACPX Task Room' : '任务执行日志'}
             </p>
           </div>
-          <div className={`rounded-full px-3 py-1 text-xs ${isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
-            {isConnected ? '实时连接中' : '等待刷新'}
+          <div className="flex items-center gap-3">
+            <div className={`rounded-full px-3 py-1 text-xs ${isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+              {isConnected ? '实时连接中' : '等待刷新'}
+            </div>
+            {canExecute ? (
+              <button
+                onClick={() => void handleExecuteTask()}
+                disabled={isExecuting}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300"
+              >
+                {isExecuting ? '执行中...' : '开始运行'}
+              </button>
+            ) : (
+              <span className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700">
+                当前任务运行中
+              </span>
+            )}
           </div>
         </div>
 
         {task.executionMode === 'acpx' && task.acpxParticipants?.length ? (
           <div className="mt-4 flex flex-wrap gap-2">
-                {task.acpxParticipants.map((participant, index) => (
+            {task.acpxParticipants.map((participant, index) => (
               <span
                 key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
                 className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700"
@@ -291,94 +544,203 @@ export default function TaskChatPage() {
             ))}
           </div>
         ) : null}
+
+        {task.executionMode === 'acpx' ? (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            这里现在是 task room。用户消息会保留在房间里，并在后续 ACPX 参与方执行时作为上下文注入 prompt。当前正在运行的单个 harness 不会被强制中断，但分阶段参与方和后续 rerun 会看到你的最新指令。
+          </div>
+        ) : null}
       </div>
 
-      {task.executionMode === 'acpx' ? (
-        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-          <div className="rounded-xl border border-gray-200 bg-slate-950 p-4 text-sm text-slate-100 shadow-sm">
-            <div className="mb-3 text-xs uppercase tracking-wide text-slate-400">Live Console</div>
-            <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-2 font-mono text-xs">
-              {groupedEvents.length === 0 ? (
-                <div className="text-slate-400">还没有运行事件。执行任务后，这里会显示每个参与方的输出。</div>
-              ) : (
-                groupedEvents.map((event) => (
-                  <div key={event.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                    <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                      <span>{new Date(event.createdAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5">{event.eventType}</span>
-                      {event.participant ? (
-                        <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-indigo-200">
-                          {event.participant.role} · {event.participant.executionBackend === 'platform_local' ? 'Platform Local' : event.participant.gatewayName} / {event.participant.harnessType}
-                        </span>
-                      ) : null}
-                    </div>
-                    <pre className={`whitespace-pre-wrap break-words ${event.stream === 'stderr' ? 'text-red-300' : 'text-slate-100'}`}>
-                      {event.content}
-                    </pre>
-                  </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+      <div className="grid gap-6 xl:grid-cols-[1.1fr,1.5fr,1fr]">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-900">Task Room</div>
+            {taskRoom ? (
+              <span className="text-xs text-gray-500">{taskRoom.name}</span>
+            ) : null}
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="text-sm font-medium text-gray-900">运行摘要</div>
-              <div className="mt-3 text-sm text-gray-600">
-                {latestRun?.summary || '暂无运行摘要'}
-              </div>
-            </div>
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-2">
+            {roomMessages.length === 0 ? (
+              <div className="text-sm text-gray-500">还没有房间消息。你可以先和参与方约定策略，再开始运行。</div>
+            ) : (
+              roomMessages.map((message) => (
+                <div key={message.id} className={`rounded-lg p-3 text-sm ${
+                  message.user.id === taskRoomUser.id
+                    ? 'bg-blue-50 text-blue-900'
+                    : message.user.id === 'system'
+                    ? 'bg-gray-100 text-gray-800'
+                    : 'bg-emerald-50 text-emerald-900'
+                }`}>
+                  <div className="mb-1 text-xs text-gray-500">
+                    {message.user.name} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                  </div>
+                  <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                </div>
+              ))
+            )}
+            <div ref={roomEndRef} />
+          </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="text-sm font-medium text-gray-900">参与方结果</div>
-              <div className="mt-3 space-y-3">
-                {(latestRun?.participants || []).map((participant) => (
-                  <div key={participant.id} className="rounded-lg border border-gray-200 p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-gray-900">
-                          {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : participant.gatewayName} / {participant.harnessType}
-                        </span>
+          <div className="mt-4 space-y-2">
+            <textarea
+              value={messageInput}
+              onChange={(event) => setMessageInput(event.target.value)}
+              rows={4}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              placeholder="补充任务要求、纠偏、提醒某个参与方先做计划再动手……"
+            />
+            <button
+              onClick={() => void handleSendMessage()}
+              disabled={isSending || !taskRoom || !messageInput.trim()}
+              className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {isSending ? '发送中...' : '发送到 Task Room'}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-slate-950 p-4 text-sm text-slate-100 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Selected Run Console</div>
+            {selectedRun ? (
+              <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
+                {selectedRun.status}
+              </span>
+            ) : null}
+          </div>
+
+          {task.executionMode !== 'acpx' ? (
+            <div className="space-y-3">
+              {standardMessages.map((message) => (
+                <div key={message.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <div className="mb-1 text-xs text-slate-400">
+                    {new Date(message.timestamp).toLocaleString('zh-CN', { hour12: false })}
+                    {message.senderName ? ` · ${message.senderName}` : ''}
+                  </div>
+                  <div className={message.messageType === 'error' ? 'text-red-300' : 'text-slate-100'}>
+                    {message.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : selectedRunEvents.length === 0 ? (
+            <div className="text-slate-400">还没有选中的 run。开始一次运行后，这里会显示完整事件流。</div>
+          ) : (
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-2 font-mono text-xs">
+              {selectedRunEvents.map((event) => (
+                <div key={event.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                    <span>{new Date(event.createdAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5">{event.eventType}</span>
+                    {event.participant ? (
+                      <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-indigo-200">
+                        {event.participant.role} · {event.participant.executionBackend === 'platform_local' ? 'Platform Local' : event.participant.gatewayName} / {event.participant.harnessType}
+                      </span>
+                    ) : null}
+                  </div>
+                  <pre className={`whitespace-pre-wrap break-words ${event.stream === 'stderr' ? 'text-red-300' : 'text-slate-100'}`}>
+                    {event.content}
+                  </pre>
+                </div>
+              ))}
+              <div ref={consoleEndRef} />
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="text-sm font-medium text-gray-900">Run History</div>
+            <div className="mt-3 max-h-[28vh] space-y-2 overflow-y-auto pr-1">
+              {runSummaries.length === 0 ? (
+                <div className="text-sm text-gray-500">还没有运行历史。</div>
+              ) : (
+                runSummaries.map((run, index) => (
+                  <button
+                    key={run.id}
+                    onClick={() => setSelectedRunId(run.id)}
+                    className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                      selectedRunId === run.id
+                        ? 'border-indigo-300 bg-indigo-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium text-gray-900">Run {runSummaries.length - index}</div>
                       <span className={`rounded-full px-2 py-0.5 text-xs ${
-                        participant.status === 'completed'
+                        run.status === 'completed'
                           ? 'bg-green-100 text-green-800'
-                          : participant.status === 'failed'
+                          : run.status === 'failed'
                           ? 'bg-red-100 text-red-800'
                           : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {participant.status}
+                        {run.status}
                       </span>
                     </div>
-                    {participant.summary ? (
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600">{participant.summary}</p>
-                    ) : null}
-                    {participant.error ? (
-                      <p className="mt-2 text-sm text-red-600">{participant.error}</p>
-                    ) : null}
+                    <div className="mt-1 text-xs text-gray-500">
+                      {new Date(run.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {run.participants.map((participant) => (
+                        <span
+                          key={participant.id}
+                          className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-700"
+                        >
+                          {participant.role} / {participant.harnessType}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="text-sm font-medium text-gray-900">Selected Run Summary</div>
+            <div className="mt-3 whitespace-pre-wrap text-sm text-gray-600">
+              {selectedRun?.summary || selectedRun?.error || '暂无运行摘要'}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="text-sm font-medium text-gray-900">Participant Outcomes</div>
+            <div className="mt-3 space-y-3">
+              {(selectedRun?.participants || []).map((participant) => (
+                <div key={participant.id} className="rounded-lg border border-gray-200 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-gray-900">
+                      {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : participant.gatewayName} / {participant.harnessType}
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${
+                      participant.status === 'completed'
+                        ? 'bg-green-100 text-green-800'
+                        : participant.status === 'failed'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {participant.status}
+                    </span>
                   </div>
-                ))}
-              </div>
+                  {participant.summary ? (
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600">{participant.summary}</p>
+                  ) : null}
+                  {participant.error ? (
+                    <p className="mt-2 text-sm text-red-600">{participant.error}</p>
+                  ) : null}
+                  {participant.filesModified.length > 0 ? (
+                    <div className="mt-2 text-xs text-gray-500">
+                      修改文件: {participant.filesModified.join(', ')}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      ) : (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="space-y-3">
-            {standardMessages.map((message) => (
-              <div key={message.id} className="rounded-lg border border-gray-200 p-3">
-                <div className="mb-1 text-xs text-gray-500">
-                  {new Date(message.timestamp).toLocaleString('zh-CN', { hour12: false })}
-                  {message.senderName ? ` · ${message.senderName}` : ''}
-                </div>
-                <div className={message.messageType === 'error' ? 'text-red-600' : 'text-gray-800'}>
-                  {message.content}
-                </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
