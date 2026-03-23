@@ -5,6 +5,105 @@
 - ACPX 已经能创建 `TaskRun`、`TaskRunParticipant`、`TaskRunEvent`，并在 `/tasks/[id]/chat` 展示 latest run 的执行事件。
 - 本地 Codex / Claude 与远端 Gateway OpenClaw 已经接入同一条 ACPX 运行链路。
 - 当前实现已经不是“纯 demo 静态页”，但还远远不是一个可交互、可回溯、可协同的真实 task room。
+- 最新一轮已引入：
+  - `TaskSession`
+  - `TaskRunControlMessage`
+  - run activity / control state
+  - task room 中的第一版：
+    - queued message
+    - immediate intervention
+    - emergency stop
+  - 本地 harness 进程注册与中断/停止信号发送
+
+## 2026-03-23 晚间补充交接
+
+### 本轮已经真正落地的内容
+- `/tasks/[id]/chat` 已不再只是只读 console：
+  - 左侧 task room 可发送排队消息
+  - 可对当前 run 发起：
+    - `queue_message`
+    - `interrupt_now`
+    - `stop_run`
+- backend 已新增：
+  - `TaskSession`
+  - `TaskRunControlMessage`
+  - `HarnessCapability`
+  - `RunActivityState`
+  - `WatchdogConfig`
+- ACPX run API 现在会返回更多状态字段：
+  - `taskSessionId`
+  - `controlState`
+  - `activityState`
+  - participant capability flags
+- 本地 `codex` / `claude` 已有第一版进程注册机制：
+  - UI 发出立即介入或停止后，后端会尝试向本地 CLI 子进程发送中断/停止信号
+
+### 本轮联调后确认的新事实
+
+#### 1. 现在的“resume / 再跑一轮”仍然不是原地恢复同一 harness session
+- 当前行为本质上仍然是：
+  - 创建新的 `TaskRun`
+  - 复用 task room 上下文
+- 还不是：
+  - 在同一个 direct harness session 内继续
+  - mid-run 直接向 CLI 会话注入新输入
+
+#### 2. timeout 不能再作为硬编码产品行为
+- 这轮已经把本地 direct harness 默认 runtime 从 60 秒提升到更现实的量级。
+- 但这只是临时缓解，不是最终解法。
+- 已确认后续必须继续推进：
+  - watchdog contract 真正接管
+  - UI 可理解的 runtime / inactivity 策略
+  - 不同 harness 的差异化策略
+
+#### 3. direct harness 当前仍可能处于只读/不可写环境
+- 从 Codex 输出里已明确出现：
+  - “当前会话是只读环境，无法修改仓库”
+- 这说明当前平台虽然能拉起 direct harness，但没有稳定保证：
+  - 可写工作区
+  - 正确的权限模式
+  - direct harness 对本地 repo 的真实写权限
+
+这不是小问题，而是阻断 ACPX 成为真实 coding workspace 的关键缺口。
+
+如果 direct harness 只能读不能写，则 ACPX 当前只能稳定承担：
+- 分析
+- 计划
+- 总结
+- review 意见
+
+而不能稳定承担：
+- 实际改代码
+- 运行会产生修改的修复任务
+- “立即介入后继续编码”这种闭环
+
+#### 4. direct harness 的权限确认 / 交互输入不能只留在服务器侧 CLI
+- 当前直连 `codex` / `claude code` 这类 harness 时，会自然出现：
+  - 权限确认
+  - 选项选择
+  - 需要用户补充输入
+- 平台不能把这些交互吞掉，或让它们只存在于服务器终端里。
+- 用户必须能在 task room 中看到并响应这类请求。
+
+这个能力本质上应被纳入 ACPX control model，而不应被视为“CLI 私有细节”。
+
+建议后续显式引入：
+- `needs_user_input`
+- `permission_request`
+- `choice_request`
+- `input_request`
+
+以及对应的 room UI：
+- 请求卡片
+- 用户确认 / 拒绝
+- 用户选项提交
+- 继续执行
+
+#### 5. Next API route 需要显式保持 dynamic
+- 本轮调试中出现过：
+  - `/api/tasks/[id]/runs` 被 Next 误走到 static path 相关逻辑
+- 当前已通过显式 dynamic 配置做临时修正。
+- 后续仍需继续留意 ACPX 相关 API 不应被静态化。
 
 ## 本轮联调后已经确认的事实
 
@@ -68,14 +167,20 @@
 ## 当前体验上的核心问题
 
 ### 问题 A: Codex timeout 不适合真实编码任务
-- 60 秒足够做极短问答，但通常不够做：
+- 旧的 60 秒足够做极短问答，但通常不够做：
   - 阅读仓库
   - 修改文件
   - 跑测试
   - 输出总结
 
 建议：
-- 先把本地 Codex timeout 提高到更现实的值，例如 10 分钟或按任务类型配置。
+- 已临时把本地 direct harness runtime 提高到更现实的默认值。
+- 但后续不要把“再调大一些 timeout”继续当成最终方案。
+- 应该尽快把：
+  - `watchdogConfig`
+  - inactivity warning / fail
+  - per-harness runtime strategy
+  真正接入 runner 与 UI。
 
 ### 问题 B: task chat 只有日志，没有用户参与入口
 - 当前用户无法在 run 进行中对 ACPX 说：
@@ -126,6 +231,33 @@
   - 共享网络工作区
   - 显式 artifact sync / patch handoff
 
+### 问题 E: direct harness 还没有稳定可写工作区保证
+- 当前 direct `codex` / `claude` 的关键风险不是“能不能拉起”，而是：
+  - 拉起后是否真的可写
+  - 是否能修改当前仓库
+  - 是否在正确权限模式下运行
+- 如果不解决这个问题，ACPX 看起来像 coding workspace，实际却只能做只读分析。
+
+建议：
+- 优先确认并固定 direct harness 的工作区/权限 contract：
+  - working directory 映射
+  - writable sandbox / approval mode
+  - repo trust / permission mode
+  - 修改后的文件可见性
+
+### 问题 F: 用户还无法处理 harness 主动发起的权限 / 输入请求
+- 当前 task room 支持的是：
+  - 用户主动发消息
+  - 用户主动中断 / 停止
+- 但还不支持：
+  - harness 主动请求用户确认
+  - harness 主动让用户在几个选项中选择
+  - harness 等待用户输入再继续
+
+建议：
+- 下一阶段把“用户响应 harness 请求”视为 first-class control flow，而不是后补 UI。
+- `timeout` 与 `waiting_for_input` 必须彻底分开。
+
 ## 当前代码层面的关键文件
 - `src/app/api/tasks/route.ts`
 - `src/app/api/tasks/[id]/execute/route.ts`
@@ -140,30 +272,20 @@
 - `src/lib/real-agents/claude-agent.ts`
 
 ## 建议的下一步优先级
-1. 先把 Codex timeout 调整到真实可用水平
-- 否则“本地 implementer”会持续成为假失败源。
+1. 先解决 direct harness 的可写环境问题
+- 这是当前 ACPX 成为真实 coding workspace 的最大 blocker。
 
-2. 给 task 增加 run history，而不是只看 latest run
-- 先解决“看不见上一轮发生了什么”。
+2. 定义并接入 harness 主动请求用户输入/确认的机制
+- 让 task room 不只是“用户主动发消息”，而是真正的人机交互面板。
 
-3. 把 `/tasks/[id]/chat` 从“console 页面”升级为“task room”
-- 至少加：
-  - 用户输入框
-  - 用户消息流
-  - runner/system 消息
-  - run console 分区
+3. 把 timeout 临时值继续退位为 watchdog contract
+- 不再让“硬编码超时”主导产品语义。
 
-4. 定义用户如何介入运行中的任务
-- 可以先不做真正中断式控制。
-- 但至少要支持：
-  - 用户补充说明
-  - 用户发 follow-up
-  - 用户触发新一轮 run，并保留前一轮上下文
+4. 做“立即介入后自动带上下文重启下一轮 run”
+- 让 immediate intervention 更接近真实 resume，而不是用户手动再点一次开始运行。
 
-5. 重新定义跨 Gateway 共享代码库语义
-- 如果后续要支持多 Gateway 协同编码，必须补：
-  - shared repo/ref contract
-  - per-gateway workspace mapping
+5. 再继续深化跨 Gateway 共享代码库语义
+- 补 shared repo/ref / workspace contract。
 
 ## 当前不应再自我误导的点
 - 现在的 `/tasks/[id]/chat` 不是完整 chat。
@@ -174,3 +296,5 @@
 ## 新会话建议先读
 1. `docs/14_ACPX_TASK_RUNNER_PLAN.md`
 2. `docs/15_ACPX_TASK_RUNNER_HANDOVER.md`
+3. `docs/16_ACPX_INTERACTIVE_RUN_CONTROL_PLAN.md`
+4. `docs/18_ACPX_NEXT_RUN_EXECUTION_ORDER.md`

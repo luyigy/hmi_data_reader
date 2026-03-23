@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { AcpxParticipantRequest, AcpxOrchestrationMode } from '@/lib/acpx/types';
+import { ensureTaskSession } from '@/lib/acpx/session';
 
 const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -15,6 +16,12 @@ const formatTask = (task: any) => ({
   ...task,
   result: parseJson(task.result, null),
   acpxParticipants: parseJson<AcpxParticipantRequest[]>(task.acpxParticipants, []),
+  currentTaskSession: task.currentTaskSession
+    ? {
+        ...task.currentTaskSession,
+        metadata: parseJson(task.currentTaskSession.metadata, null),
+      }
+    : null,
   assignedAgents: task.assignedAgents.map((agent: any) => ({
     ...agent,
     gateway: agent.gateway
@@ -39,6 +46,7 @@ export async function GET(request: NextRequest) {
     const tasks = await prisma.task.findMany({
       where,
       include: {
+        currentTaskSession: true,
         assignedAgents: {
           include: {
             gateway: true,
@@ -162,8 +170,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    if (executionMode === 'acpx') {
+      await ensureTaskSession(task.id, {
+        taskName: task.name,
+        metadata: {
+          orchestrationMode,
+          participantCount: normalizedParticipants.length,
+          workingDirectory: effectiveWorkingDirectory,
+        },
+      });
+    }
+
     const formatted = formatTask({
       ...task,
+      currentTaskSession: null,
       assignedAgents: [],
     });
 

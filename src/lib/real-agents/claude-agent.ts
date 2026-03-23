@@ -5,6 +5,7 @@
  */
 
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import type { ChildProcess } from 'child_process';
 
 export interface ClaudeConfig {
   apiKey?: string;
@@ -12,6 +13,7 @@ export interface ClaudeConfig {
   timeout?: number;
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
 }
 
 export interface ClaudeTask {
@@ -48,7 +50,12 @@ export const executeClaudeTask = async (
     console.log(`[Claude] Executing task: ${task.name}`);
 
     // Execute claude code CLI
-    const result = await executeClaudeCLI(task, { timeout, workingDirectory, streamCallbacks });
+    const result = await executeClaudeCLI(task, {
+      timeout,
+      workingDirectory,
+      streamCallbacks,
+      onSpawn: config.onSpawn,
+    });
     
     return {
       success: true,
@@ -71,7 +78,12 @@ export const executeClaudeTask = async (
  */
 const executeClaudeCLI = async (
   task: ClaudeTask,
-  options: { timeout: number; workingDirectory: string; streamCallbacks?: HarnessStreamCallbacks }
+  options: {
+    timeout: number;
+    workingDirectory: string;
+    streamCallbacks?: HarnessStreamCallbacks;
+    onSpawn?: (child: ChildProcess) => void;
+  }
 ): Promise<{ output: string; filesModified?: string[] }> => {
   const { spawn } = await import('child_process');
   
@@ -100,6 +112,7 @@ Take your time and be thorough.`;
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true, // Windows 需要这个来找到命令
     });
+    options.onSpawn?.(child);
 
     // Collect stdout
     child.stdout.on('data', (data) => {

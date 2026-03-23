@@ -15,6 +15,12 @@ const formatTask = (task: any) => ({
   ...task,
   result: parseJson(task.result, null),
   acpxParticipants: parseJson<AcpxParticipantRequest[]>(task.acpxParticipants, []),
+  currentTaskSession: task.currentTaskSession
+    ? {
+        ...task.currentTaskSession,
+        metadata: parseJson(task.currentTaskSession.metadata, null),
+      }
+    : null,
   assignedAgents: task.assignedAgents.map((agent: any) => ({
     ...agent,
     gateway: agent.gateway
@@ -36,6 +42,7 @@ export async function GET(
     const task = await prisma.task.findUnique({
       where: { id: params.id },
       include: {
+        currentTaskSession: true,
         assignedAgents: {
           include: {
             gateway: true,
@@ -120,6 +127,7 @@ export async function PUT(
       where: { id: params.id },
       data: updateData,
       include: {
+        currentTaskSession: true,
         assignedAgents: {
           include: {
             gateway: true,

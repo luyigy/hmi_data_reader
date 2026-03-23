@@ -5,6 +5,7 @@
  */
 
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import type { ChildProcess } from 'child_process';
 
 export interface CodexConfig {
   apiKey?: string;
@@ -13,6 +14,7 @@ export interface CodexConfig {
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
+  onSpawn?: (child: ChildProcess) => void;
 }
 
 export interface CodexTask {
@@ -55,6 +57,7 @@ export const executeCodexTask = async (
       workingDirectory,
       streamCallbacks,
       skipGitRepoCheck,
+      onSpawn: config.onSpawn,
     });
     
     return {
@@ -82,6 +85,7 @@ const executeCodexCLI = async (
     workingDirectory: string;
     streamCallbacks?: HarnessStreamCallbacks;
     skipGitRepoCheck: boolean;
+    onSpawn?: (child: ChildProcess) => void;
   }
 ): Promise<string> => {
   const { spawn } = await import('child_process');
@@ -115,6 +119,7 @@ Take your time and be thorough.`;
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
     });
+    options.onSpawn?.(child);
     const timeoutId = setTimeout(() => {
       if (settled) {
         return;

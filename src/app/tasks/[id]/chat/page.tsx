@@ -32,6 +32,12 @@ interface TaskInfo {
   status: string;
   executionMode?: 'standard' | 'acpx';
   workingDirectory?: string | null;
+  currentTaskSession?: {
+    id: string;
+    status: string;
+    attentionState: string;
+    activeRunId?: string | null;
+  } | null;
   assignedAgents: AgentInfo[];
   acpxParticipants?: AcpxParticipantSpec[];
 }
@@ -84,16 +90,24 @@ interface TaskRunParticipant {
   agentId?: string | null;
   agentName?: string | null;
   status: string;
+  activityState?: string;
   summary?: string | null;
   error?: string | null;
   filesModified: string[];
+  interruptSupported?: boolean;
+  resumeSupported?: boolean;
+  sessionControlSupported?: boolean;
+  softStopSupported?: boolean;
 }
 
 interface TaskRunSummary {
   id: string;
+  taskSessionId?: string | null;
   mode: string;
   orchestrationMode: string;
   status: string;
+  controlState?: string;
+  activityState?: string;
   summary?: string | null;
   error?: string | null;
   startedAt?: string | null;
@@ -115,8 +129,11 @@ interface SelectedRunResponse {
   executionMode: 'standard' | 'acpx';
   latestRun: {
     id: string;
+    taskSessionId?: string | null;
     orchestrationMode: string;
     status: string;
+    controlState?: string;
+    activityState?: string;
     summary?: string | null;
     error?: string | null;
     participants: TaskRunParticipant[];
@@ -144,6 +161,7 @@ export default function TaskChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [controlError, setControlError] = useState<string | null>(null);
   const roomEndRef = useRef<HTMLDivElement>(null);
   const consoleEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -259,6 +277,10 @@ export default function TaskChatPage() {
               status:
                 event.eventType === 'run_completed'
                   ? 'completed'
+                  : event.eventType === 'run_interrupted'
+                  ? 'interrupted'
+                  : event.eventType === 'run_stopped'
+                  ? 'stopped'
                   : event.eventType === 'run_failed'
                   ? 'failed'
                   : 'running',
@@ -280,6 +302,10 @@ export default function TaskChatPage() {
                 status:
                   event.eventType === 'run_completed'
                     ? 'completed'
+                    : event.eventType === 'run_interrupted'
+                    ? 'interrupted'
+                    : event.eventType === 'run_stopped'
+                    ? 'stopped'
                     : event.eventType === 'run_failed'
                     ? 'failed'
                     : run.status,
@@ -302,6 +328,10 @@ export default function TaskChatPage() {
           status:
             event.eventType === 'run_completed'
               ? 'completed'
+              : event.eventType === 'run_interrupted'
+              ? 'interrupted'
+              : event.eventType === 'run_stopped'
+              ? 'stopped'
               : event.eventType === 'run_failed'
               ? 'failed'
               : prev.status,
@@ -313,8 +343,15 @@ export default function TaskChatPage() {
         setSelectedRunId(event.taskRunId);
       }
 
-      if (event.eventType === 'run_completed' || event.eventType === 'run_failed') {
+      if (
+        event.eventType === 'run_completed'
+        || event.eventType === 'run_failed'
+        || event.eventType === 'run_interrupted'
+        || event.eventType === 'run_stopped'
+        || event.eventType === 'control_message'
+      ) {
         setIsExecuting(false);
+        void fetchTaskInfo();
         void fetchRuns();
         if (!selectedRunId || selectedRunId === event.taskRunId) {
           void fetchSelectedRun(event.taskRunId);
@@ -435,6 +472,11 @@ export default function TaskChatPage() {
   };
 
   const handleSendMessage = async () => {
+    if (task?.executionMode === 'acpx') {
+      await handleAcpxControl('queue_message', 'queued');
+      return;
+    }
+
     const content = messageInput.trim();
     if (!content || !taskRoom) {
       return;
@@ -471,6 +513,55 @@ export default function TaskChatPage() {
     }
   };
 
+  const handleAcpxControl = async (
+    action: 'queue_message' | 'interrupt_now' | 'stop_run',
+    deliveryMode: 'queued' | 'immediate'
+  ) => {
+    if (!taskRoom || !task) {
+      return;
+    }
+
+    const content = messageInput.trim();
+    if ((action === 'queue_message' || action === 'interrupt_now') && !content) {
+      return;
+    }
+
+    setIsSending(true);
+    setControlError(null);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          deliveryMode,
+          content,
+          runId: selectedRunId,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || '发送控制请求失败');
+      }
+
+      setMessageInput('');
+      await fetchRoomMessages(taskRoom.id);
+      await fetchRuns();
+      if (selectedRunId) {
+        await fetchSelectedRun(selectedRunId);
+      }
+      await fetchTaskInfo();
+    } catch (error) {
+      console.error('Failed to send ACPX control message:', error);
+      setControlError(error instanceof Error ? error.message : '发送控制请求失败');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleExecuteTask = async () => {
     setIsExecuting(true);
     try {
@@ -493,6 +584,10 @@ export default function TaskChatPage() {
   };
 
   const canExecute = task && task.status !== 'running';
+  const selectedRunCanInterrupt = selectedRun?.status === 'running'
+    && selectedRun.participants.some((participant) => participant.interruptSupported);
+  const selectedRunCanStop = selectedRun?.status === 'running'
+    && selectedRun.participants.some((participant) => participant.softStopSupported || participant.interruptSupported);
 
   if (isLoading) {
     return <div className="p-8 text-gray-600">加载中...</div>;
@@ -547,7 +642,7 @@ export default function TaskChatPage() {
 
         {task.executionMode === 'acpx' ? (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            这里现在是 task room。用户消息会保留在房间里，并在后续 ACPX 参与方执行时作为上下文注入 prompt。当前正在运行的单个 harness 不会被强制中断，但分阶段参与方和后续 rerun 会看到你的最新指令。
+            这里现在是 task room。你可以发排队消息，也可以对本地运行中的 harness 发“立即介入 / 停止运行”请求。第一版控制能力目前优先支持本地 harness，远端 gateway 会先记录控制请求并在后续阶段处理。
           </div>
         ) : null}
       </div>
@@ -591,13 +686,44 @@ export default function TaskChatPage() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-indigo-500"
               placeholder="补充任务要求、纠偏、提醒某个参与方先做计划再动手……"
             />
-            <button
-              onClick={() => void handleSendMessage()}
-              disabled={isSending || !taskRoom || !messageInput.trim()}
-              className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
-              {isSending ? '发送中...' : '发送到 Task Room'}
-            </button>
+            {controlError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {controlError}
+              </div>
+            ) : null}
+            {task.executionMode === 'acpx' ? (
+              <div className="grid gap-2">
+                <button
+                  onClick={() => void handleAcpxControl('queue_message', 'queued')}
+                  disabled={isSending || !taskRoom || !messageInput.trim()}
+                  className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                >
+                  {isSending ? '发送中...' : '排队消息'}
+                </button>
+                <button
+                  onClick={() => void handleAcpxControl('interrupt_now', 'immediate')}
+                  disabled={isSending || !taskRoom || !messageInput.trim() || !selectedRunCanInterrupt}
+                  className="w-full rounded-lg bg-amber-600 px-4 py-2 text-sm text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-300"
+                >
+                  立即介入并中断当前本地运行
+                </button>
+                <button
+                  onClick={() => void handleAcpxControl('stop_run', 'immediate')}
+                  disabled={isSending || !taskRoom || !selectedRunCanStop}
+                  className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                >
+                  紧急停止当前 Run
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => void handleSendMessage()}
+                disabled={isSending || !taskRoom || !messageInput.trim()}
+                className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {isSending ? '发送中...' : '发送到 Task Room'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -605,9 +731,21 @@ export default function TaskChatPage() {
           <div className="mb-3 flex items-center justify-between">
             <div className="text-xs uppercase tracking-wide text-slate-400">Selected Run Console</div>
             {selectedRun ? (
-              <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
-                {selectedRun.status}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
+                  {selectedRun.status}
+                </span>
+                {selectedRun.activityState ? (
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
+                    activity: {selectedRun.activityState}
+                  </span>
+                ) : null}
+                {selectedRun.controlState ? (
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
+                    control: {selectedRun.controlState}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
           </div>
 
@@ -672,6 +810,10 @@ export default function TaskChatPage() {
                       <span className={`rounded-full px-2 py-0.5 text-xs ${
                         run.status === 'completed'
                           ? 'bg-green-100 text-green-800'
+                          : run.status === 'interrupted'
+                          ? 'bg-amber-100 text-amber-800'
+                          : run.status === 'stopped'
+                          ? 'bg-orange-100 text-orange-800'
                           : run.status === 'failed'
                           ? 'bg-red-100 text-red-800'
                           : 'bg-blue-100 text-blue-800'
@@ -682,6 +824,13 @@ export default function TaskChatPage() {
                     <div className="mt-1 text-xs text-gray-500">
                       {new Date(run.createdAt).toLocaleString('zh-CN', { hour12: false })}
                     </div>
+                    {run.activityState || run.controlState ? (
+                      <div className="mt-1 text-[11px] text-gray-500">
+                        {run.activityState ? `activity=${run.activityState}` : ''}
+                        {run.activityState && run.controlState ? ' · ' : ''}
+                        {run.controlState ? `control=${run.controlState}` : ''}
+                      </div>
+                    ) : null}
                     <div className="mt-2 flex flex-wrap gap-1">
                       {run.participants.map((participant) => (
                         <span
@@ -717,12 +866,26 @@ export default function TaskChatPage() {
                     <span className={`rounded-full px-2 py-0.5 text-xs ${
                       participant.status === 'completed'
                         ? 'bg-green-100 text-green-800'
+                        : participant.status === 'interrupted'
+                        ? 'bg-amber-100 text-amber-800'
+                        : participant.status === 'stopped'
+                        ? 'bg-orange-100 text-orange-800'
                         : participant.status === 'failed'
                         ? 'bg-red-100 text-red-800'
                         : 'bg-blue-100 text-blue-800'
                     }`}>
                       {participant.status}
                     </span>
+                  </div>
+                  {participant.activityState ? (
+                    <div className="mt-2 text-xs text-gray-500">
+                      activity: {participant.activityState}
+                    </div>
+                  ) : null}
+                  <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-gray-500">
+                    {participant.interruptSupported ? <span className="rounded-full bg-gray-100 px-2 py-0.5">可中断</span> : null}
+                    {participant.softStopSupported ? <span className="rounded-full bg-gray-100 px-2 py-0.5">可停止</span> : null}
+                    {participant.resumeSupported ? <span className="rounded-full bg-gray-100 px-2 py-0.5">可恢复重启</span> : null}
                   </div>
                   {participant.summary ? (
                     <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600">{participant.summary}</p>

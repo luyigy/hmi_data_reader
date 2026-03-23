@@ -53,6 +53,10 @@
   - 还是已经异常退出
 - 当前没有正式的“运行控制动作”模型。
 - 当前没有 per-harness capability matrix。
+- direct harness 当前还没有稳定保证：
+  - 可写工作区
+  - 正确权限模式
+  - CLI 主动向用户请求确认/输入时的平台接入能力
 
 ## 产品目标
 
@@ -188,6 +192,35 @@ watchdog 不是硬失败逻辑，而是运行保护策略。
 这些能力并不相同。
 
 如果没有 capability matrix，前端 UI 会误导用户，以为所有按钮都等价有效。
+
+### 5. direct harness 的权限请求与输入请求必须进入 task room
+对于 `codex`、`claude code` 这类 direct harness，平台必须假设运行中可能出现：
+- permission request
+- choice request
+- input request
+- confirmation request
+
+这些都不能只停留在服务器侧 CLI stderr/stdout 中。
+
+平台需要把它们提升成显式运行状态与可交互 UI：
+- run / participant 进入 `waiting_for_input`
+- task room 中出现请求卡片
+- 用户可：
+  - 同意
+  - 拒绝
+  - 选择某个选项
+  - 提交补充输入
+
+这点对 human-in-the-loop ACPX 是硬要求，不是后期体验优化。
+
+### 6. direct harness 必须支持真正可写工作区
+如果 ACPX 使用 direct `codex` / `claude code` 作为 coding harness，则平台需要明确保证：
+- working directory 指向目标 repo
+- harness 处于可写环境，而不是只读
+- 权限/approval 模式符合产品预期
+- harness 修改的文件能被平台后续 run 与 UI 正确看见
+
+否则 direct harness 只能做分析，不能稳定承担真实编码任务。
 
 ## 数据模型建议
 

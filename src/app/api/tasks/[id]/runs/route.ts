@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -29,11 +31,18 @@ export async function GET(
       executionMode: task.executionMode,
       runs: task.runs.map((run) => ({
         id: run.id,
+        taskSessionId: run.taskSessionId,
         mode: run.mode,
         orchestrationMode: run.orchestrationMode,
         status: run.status,
+        controlState: run.controlState,
+        activityState: run.activityState,
         summary: run.summary,
         error: run.error,
+        watchdogConfig: run.watchdogConfig ? JSON.parse(run.watchdogConfig) : null,
+        lastActivityAt: run.lastActivityAt?.toISOString() ?? null,
+        lastStdoutAt: run.lastStdoutAt?.toISOString() ?? null,
+        lastStderrAt: run.lastStderrAt?.toISOString() ?? null,
         startedAt: run.startedAt?.toISOString() ?? null,
         completedAt: run.completedAt?.toISOString() ?? null,
         createdAt: run.createdAt.toISOString(),
@@ -45,6 +54,12 @@ export async function GET(
           harnessType: participant.harnessType,
           role: participant.role,
           status: participant.status,
+          activityState: participant.activityState,
+          lastActivityAt: participant.lastActivityAt?.toISOString() ?? null,
+          interruptSupported: participant.interruptSupported,
+          resumeSupported: participant.resumeSupported,
+          sessionControlSupported: participant.sessionControlSupported,
+          softStopSupported: participant.softStopSupported,
         })),
       })),
     });

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -22,7 +24,6 @@ export async function GET(
             },
           },
           orderBy: { createdAt: 'desc' },
-          take: 1,
         },
       },
     });
@@ -41,11 +42,19 @@ export async function GET(
       latestRun: latestRun
         ? {
             id: latestRun.id,
+            taskSessionId: latestRun.taskSessionId,
             mode: latestRun.mode,
             orchestrationMode: latestRun.orchestrationMode,
             status: latestRun.status,
+            controlState: latestRun.controlState,
+            activityState: latestRun.activityState,
             summary: latestRun.summary,
             error: latestRun.error,
+            watchdogConfig: latestRun.watchdogConfig ? JSON.parse(latestRun.watchdogConfig) : null,
+            controlMetadata: latestRun.controlMetadata ? JSON.parse(latestRun.controlMetadata) : null,
+            lastActivityAt: latestRun.lastActivityAt?.toISOString() ?? null,
+            lastStdoutAt: latestRun.lastStdoutAt?.toISOString() ?? null,
+            lastStderrAt: latestRun.lastStderrAt?.toISOString() ?? null,
             startedAt: latestRun.startedAt?.toISOString() ?? null,
             completedAt: latestRun.completedAt?.toISOString() ?? null,
             participants: latestRun.participants.map((participant) => ({
@@ -59,9 +68,16 @@ export async function GET(
               agentId: participant.agentId,
               agentName: participant.agentNameSnapshot,
               status: participant.status,
+              activityState: participant.activityState,
               summary: participant.summary,
               error: participant.error,
               filesModified: participant.filesModified ? JSON.parse(participant.filesModified) : [],
+              controlMetadata: participant.controlMetadata ? JSON.parse(participant.controlMetadata) : null,
+              lastActivityAt: participant.lastActivityAt?.toISOString() ?? null,
+              interruptSupported: participant.interruptSupported,
+              resumeSupported: participant.resumeSupported,
+              sessionControlSupported: participant.sessionControlSupported,
+              softStopSupported: participant.softStopSupported,
               startedAt: participant.startedAt?.toISOString() ?? null,
               completedAt: participant.completedAt?.toISOString() ?? null,
             })),

@@ -50,6 +50,14 @@ ACPX 已经不应该再被理解为“任务创建 + 执行日志页面”的功
 ### 5. 平台未来不能只依赖 OpenClaw 作为远端 agent 激活路径
 OpenClaw 当前是一个重要 adapter，但不应等于平台 ACPX runtime 本身。
 
+### 6. direct harness 必须是可写且可交互的
+这一点现在应视为锁定方向：
+- direct `codex` / `claude code` 不能只是“能跑起来”
+- 必须能：
+  - 写代码
+  - 请求用户确认/输入
+  - 在 task room 中等待用户后继续
+
 ## 下一轮总原则
 
 ### 原则 1：先稳固抽象，再扩 UI
@@ -176,6 +184,27 @@ Task Deck 很重要，但如果单个 task room 的交互语义不稳，总控�
 
 先做内部 contract，UI 后补也可以。
 
+### B4. 解决 direct harness 的可写环境
+这一阶段必须补上：
+- writable workspace contract
+- permission / approval mode contract
+- repo trust / working directory contract
+
+如果 direct harness 仍然输出“当前会话是只读环境，无法修改仓库”，那 ACPX 还没有真正进入可用的 coding 阶段。
+
+### B5. 把 harness 主动请求用户输入建模成 first-class flow
+需要开始定义并接入：
+- permission request
+- confirmation request
+- choice request
+- freeform input request
+
+以及对应状态：
+- `waiting_for_input`
+- `needs_user_input`
+
+这一步不能再被 timeout 逻辑掩盖。
+
 ## 阶段 C：Task Room 交互闭环
 
 ### C1. 把 room message 与 control message 接起来
@@ -210,6 +239,14 @@ Task Deck 很重要，但如果单个 task room 的交互语义不稳，总控�
 - 运行控制消息
 - 系统状态消息
 - participant 消息
+
+### C5. 支持用户响应 harness 请求
+除了用户主动发 queued/immediate 消息，task room 还应支持：
+- 回复 harness 的权限确认
+- 回答 harness 的输入请求
+- 在候选选项中做选择
+
+这会是 direct harness 真正“像一个可协作 coding room”而不是“后台 CLI 包装器”的关键一步。
 
 ## 阶段 D：邀请协助 agent
 

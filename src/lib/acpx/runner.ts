@@ -7,17 +7,68 @@ import {
 import { executeCodexTask } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
 import { buildTaskRoomContext } from '@/lib/task-room';
+import { getHarnessCapabilities } from './capabilities';
 import { publishTaskRunEvent } from './event-bus';
+import {
+  clearRunningProcess,
+  consumeRunControlRequest,
+  registerRunningProcess,
+} from './process-registry';
+import { ensureTaskSession, setTaskSessionActiveRun } from './session';
 import type {
   AcpxLiveEventPayload,
   AcpxParticipantRequest,
   AcpxRunRequest,
   HarnessStreamCallbacks,
+  RunControlAction,
+  RunActivityState,
   TaskRunStatus,
+  WatchdogConfig,
 } from './types';
 
 const parseModifiedFiles = (filesModified?: string[] | null) =>
   JSON.stringify(filesModified ?? []);
+
+const DEFAULT_CODEX_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_CLAUDE_MAX_RUNTIME_MS = 10 * 60 * 1000;
+
+const stringifyJson = (value?: Record<string, unknown> | WatchdogConfig | object | null) =>
+  value ? JSON.stringify(value) : null;
+
+const updateRunActivity = async (
+  taskRunId: string,
+  activityState: RunActivityState,
+  fields?: Partial<{
+    lastActivityAt: Date;
+    lastStdoutAt: Date;
+    lastStderrAt: Date;
+  }>
+) => {
+  await prisma.taskRun.update({
+    where: { id: taskRunId },
+    data: {
+      activityState,
+      ...fields,
+    },
+  });
+};
+
+const updateParticipantActivity = async (
+  participantId: string,
+  activityState: RunActivityState,
+  lastActivityAt?: Date
+) => {
+  await prisma.taskRunParticipant.update({
+    where: { id: participantId },
+    data: {
+      activityState,
+      lastActivityAt,
+    },
+  });
+};
+
+const mapControlActionToRunStatus = (action: RunControlAction): TaskRunStatus =>
+  action === 'stop_run' ? 'stopped' : 'interrupted';
 
 const toParticipantPayload = (participant: {
   gatewayId?: string | null;
@@ -97,6 +148,8 @@ const executeViaGateway = async (
 
 const executeViaLocalHarness = async (
   request: AcpxRunRequest,
+  taskRunId: string,
+  participantId: string,
   participant: AcpxParticipantRequest,
   callbacks: HarnessStreamCallbacks,
   previousSummaries: string[],
@@ -110,9 +163,18 @@ const executeViaLocalHarness = async (
 
   if (participant.harnessType === 'codex') {
     const result = await executeCodexTask(task, {
-      timeout: 60000,
+      timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
       workingDirectory: request.workingDirectory,
       streamCallbacks: callbacks,
+      onSpawn: (child) => {
+        registerRunningProcess({
+          taskRunId,
+          participantId,
+          child,
+          executionBackend: participant.executionBackend,
+          harnessType: participant.harnessType,
+        });
+      },
     });
 
     if (!result.success) {
@@ -129,9 +191,18 @@ const executeViaLocalHarness = async (
 
   if (participant.harnessType === 'claude') {
     const result = await executeClaudeTask(task, {
-      timeout: 120000,
+      timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CLAUDE_MAX_RUNTIME_MS,
       workingDirectory: request.workingDirectory,
       streamCallbacks: callbacks,
+      onSpawn: (child) => {
+        registerRunningProcess({
+          taskRunId,
+          participantId,
+          child,
+          executionBackend: participant.executionBackend,
+          harnessType: participant.harnessType,
+        });
+      },
     });
 
     if (!result.success) {
@@ -150,32 +221,65 @@ const executeViaLocalHarness = async (
 };
 
 export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
+  const taskSession =
+    request.taskSessionId
+      ? await prisma.taskSession.findUnique({ where: { id: request.taskSessionId } })
+      : await ensureTaskSession(request.taskId, {
+          taskName: request.taskName,
+          metadata: {
+            executionMode: 'acpx',
+          },
+        });
+
+  if (!taskSession) {
+    throw new Error(`Task session not found for task "${request.taskId}"`);
+  }
+
   const taskRun = await prisma.taskRun.create({
     data: {
       taskId: request.taskId,
+      taskSessionId: taskSession.id,
       mode: 'acpx',
       orchestrationMode: request.orchestrationMode,
       status: 'running',
+      activityState: 'quiet',
+      watchdogConfig: stringifyJson(request.watchdogConfig ?? null),
+      lastActivityAt: new Date(),
       startedAt: new Date(),
       participants: {
-        create: request.participants.map((participant) => ({
-          gatewayId: participant.gatewayId,
-          gatewayNameSnapshot: participant.gatewayName || participant.gatewayId,
-          executionBackend: participant.executionBackend,
-          harnessType: participant.harnessType,
-          harnessNameSnapshot: participant.harnessLabel || participant.harnessType,
-          role: participant.role,
-          agentId: participant.agentId,
-          agentNameSnapshot: participant.agentName || null,
-          runner: participant.harnessType,
-          status: 'pending',
-        })),
+        create: request.participants.map((participant) => {
+          const capabilities = getHarnessCapabilities(
+            participant.harnessType,
+            participant.executionBackend
+          );
+
+          return {
+            gatewayId: participant.gatewayId,
+            gatewayNameSnapshot: participant.gatewayName || participant.gatewayId,
+            executionBackend: participant.executionBackend,
+            harnessType: participant.harnessType,
+            harnessNameSnapshot: participant.harnessLabel || participant.harnessType,
+            role: participant.role,
+            agentId: participant.agentId,
+            agentNameSnapshot: participant.agentName || null,
+            runner: participant.harnessType,
+            status: 'pending',
+            activityState: 'quiet',
+            interruptSupported: capabilities.supportsImmediateInterrupt,
+            resumeSupported: capabilities.supportsResumeAfterInterrupt,
+            sessionControlSupported: capabilities.supportsLiveSessionControl,
+            softStopSupported: capabilities.supportsSoftStop,
+            controlMetadata: stringifyJson(capabilities),
+          };
+        }),
       },
     },
     include: {
       participants: true,
     },
   });
+
+  await setTaskSessionActiveRun(taskSession.id, taskRun.id);
 
   await publishTaskRunEvent({
     taskId: request.taskId,
@@ -184,8 +288,10 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     content: `ACPX 运行开始，共 ${request.participants.length} 个参与方`,
     metadata: {
       mode: 'acpx',
+      taskSessionId: taskSession.id,
       orchestrationMode: request.orchestrationMode,
       workingDirectory: request.workingDirectory ?? null,
+      watchdogConfig: request.watchdogConfig ?? null,
       participants: request.participants,
     },
   });
@@ -209,11 +315,23 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
         `${requestParticipant.role} @ ${requestParticipant.gatewayName || requestParticipant.gatewayId} / ${requestParticipant.harnessType}: ${result.summary}`
       );
     }
+
+    if (result.status === 'interrupted' || result.status === 'stopped') {
+      break;
+    }
   }
 
   const failedParticipants = participantResults.filter((result) => result.status === 'failed');
   const completedParticipants = participantResults.filter((result) => result.status === 'completed');
-  const runStatus: TaskRunStatus = failedParticipants.length > 0 ? 'failed' : 'completed';
+  const interruptedParticipant = participantResults.find((result) => result.status === 'interrupted');
+  const stoppedParticipant = participantResults.find((result) => result.status === 'stopped');
+  const runStatus: TaskRunStatus = stoppedParticipant
+    ? 'stopped'
+    : interruptedParticipant
+    ? 'interrupted'
+    : failedParticipants.length > 0
+    ? 'failed'
+    : 'completed';
   const summaryLines = participantResults.map((result) =>
     `${result.role} @ ${result.gatewayName} / ${result.harnessType}: ${
       result.status === 'completed' ? result.summary || '完成' : result.error || '失败'
@@ -224,19 +342,53 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     where: { id: taskRun.id },
     data: {
       status: runStatus,
+      activityState: runStatus === 'completed' ? 'quiet' : 'stalled',
       completedAt: new Date(),
       summary: summaryLines.join('\n'),
-      error: failedParticipants.length > 0 ? `${failedParticipants.length} participant(s) failed` : null,
+      error:
+        runStatus === 'failed'
+          ? `${failedParticipants.length} participant(s) failed`
+          : runStatus === 'interrupted'
+          ? 'Run interrupted by user'
+          : runStatus === 'stopped'
+          ? 'Run stopped by user'
+          : null,
+    },
+  });
+
+  await prisma.taskSession.update({
+    where: { id: taskSession.id },
+    data: {
+      status: runStatus === 'completed' ? 'active' : 'failed',
+      attentionState:
+        runStatus === 'completed'
+          ? 'normal'
+          : runStatus === 'interrupted' || runStatus === 'stopped'
+          ? 'needs_review'
+          : 'error',
+      summary: summaryLines.join('\n'),
+      activeRunId: null,
     },
   });
 
   await publishTaskRunEvent({
     taskId: request.taskId,
     taskRunId: taskRun.id,
-    eventType: runStatus === 'completed' ? 'run_completed' : 'run_failed',
+    eventType:
+      runStatus === 'completed'
+        ? 'run_completed'
+        : runStatus === 'interrupted'
+        ? 'run_interrupted'
+        : runStatus === 'stopped'
+        ? 'run_stopped'
+        : 'run_failed',
     content:
       runStatus === 'completed'
         ? `ACPX 运行完成，成功 ${completedParticipants.length} 个参与方`
+        : runStatus === 'interrupted'
+        ? 'ACPX 运行已被用户立即介入中断'
+        : runStatus === 'stopped'
+        ? 'ACPX 运行已被用户停止'
         : `ACPX 运行失败，失败 ${failedParticipants.length} 个参与方`,
     metadata: {
       summaries: participantResults,
@@ -258,10 +410,14 @@ const executeParticipant = async (
   participant: AcpxParticipantRequest,
   previousSummaries: string[]
 ) => {
+  const registryParticipantId = participantId;
+
   await prisma.taskRunParticipant.update({
     where: { id: participantId },
     data: {
       status: 'running',
+      activityState: 'quiet',
+      lastActivityAt: new Date(),
       startedAt: new Date(),
     },
   });
@@ -288,6 +444,13 @@ const executeParticipant = async (
 
   const callbacks: HarnessStreamCallbacks = {
     onStdoutChunk: async (chunk) => {
+      const now = new Date();
+      await updateRunActivity(taskRunId, 'streaming', {
+        lastActivityAt: now,
+        lastStdoutAt: now,
+      });
+      await updateParticipantActivity(participantId, 'streaming', now);
+
       await publishTaskRunEvent({
         taskId: request.taskId,
         taskRunId,
@@ -299,6 +462,13 @@ const executeParticipant = async (
       });
     },
     onStderrChunk: async (chunk) => {
+      const now = new Date();
+      await updateRunActivity(taskRunId, 'streaming', {
+        lastActivityAt: now,
+        lastStderrAt: now,
+      });
+      await updateParticipantActivity(participantId, 'streaming', now);
+
       await publishTaskRunEvent({
         taskId: request.taskId,
         taskRunId,
@@ -315,8 +485,18 @@ const executeParticipant = async (
     const taskRoomContext = await buildTaskRoomContext(request.taskId, request.taskName, 30);
 
     const result = participant.executionBackend === 'platform_local'
-      ? await executeViaLocalHarness(request, participant, callbacks, previousSummaries, taskRoomContext)
+      ? await executeViaLocalHarness(
+          request,
+          taskRunId,
+          participantId,
+          participant,
+          callbacks,
+          previousSummaries,
+          taskRoomContext
+        )
       : await executeViaGateway(request, participant, previousSummaries, taskRoomContext);
+
+    clearRunningProcess(registryParticipantId);
 
     if (!result.liveStreaming) {
       await publishTaskRunEvent({
@@ -337,6 +517,7 @@ const executeParticipant = async (
       where: { id: participantId },
       data: {
         status: 'completed',
+        activityState: 'quiet',
         completedAt: new Date(),
         summary: result.output,
         filesModified: parseModifiedFiles(result.filesModified),
@@ -392,12 +573,52 @@ const executeParticipant = async (
       executionTime: result.executionTime,
     };
   } catch (error) {
+    clearRunningProcess(registryParticipantId);
     const message = error instanceof Error ? error.message : 'Unknown error';
+    const requestedControl = consumeRunControlRequest(registryParticipantId);
+
+    if (requestedControl) {
+      const controlledStatus = mapControlActionToRunStatus(requestedControl);
+
+      await prisma.taskRunParticipant.update({
+        where: { id: participantId },
+        data: {
+          status: controlledStatus,
+          activityState: 'terminating',
+          completedAt: new Date(),
+          error: requestedControl === 'stop_run' ? 'Stopped by user' : 'Interrupted by user',
+        },
+      });
+
+      await publishTaskRunEvent({
+        taskId: request.taskId,
+        taskRunId,
+        participantId,
+        participant: participantPayload,
+        eventType: requestedControl === 'stop_run' ? 'participant_stopped' : 'participant_interrupted',
+        content: requestedControl === 'stop_run' ? `${participant.role} 已被用户停止` : `${participant.role} 已被用户中断`,
+        metadata: {
+          controlAction: requestedControl,
+        },
+      });
+
+      return {
+        participantId,
+        gatewayId: participant.gatewayId,
+        gatewayName: participantPayload.gatewayName,
+        harnessType: participant.harnessType,
+        role: participant.role,
+        status: controlledStatus,
+        error: requestedControl === 'stop_run' ? 'Stopped by user' : 'Interrupted by user',
+        filesModified: [],
+      };
+    }
 
     await prisma.taskRunParticipant.update({
       where: { id: participantId },
       data: {
         status: 'failed',
+        activityState: 'stalled',
         completedAt: new Date(),
         error: message,
       },

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { executeTaskBatch } from '@/lib/agent-executor';
-import { getSocketServer } from '@/lib/websocket';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import type { AcpxParticipantRequest, AcpxOrchestrationMode } from '@/lib/acpx/types';
-import { ensureTaskChatRoom } from '@/lib/task-room';
+import { ensureTaskSession } from '@/lib/acpx/session';
+import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/tasks/[id]/execute
@@ -34,14 +36,6 @@ export async function POST(
       );
     }
 
-    // 检查任务状态
-    if (task.status !== 'pending' && task.status !== 'running') {
-      return NextResponse.json(
-        { error: 'Task is not in pending or running status' },
-        { status: 400 }
-      );
-    }
-
     const isAcpxTask = task.executionMode === 'acpx';
     const acpxParticipants = isAcpxTask
       ? (() => {
@@ -52,6 +46,20 @@ export async function POST(
           }
         })()
       : [];
+
+    if (isAcpxTask) {
+      if (task.status === 'running') {
+        return NextResponse.json(
+          { error: 'ACPX task already has a running execution' },
+          { status: 400 }
+        );
+      }
+    } else if (task.status !== 'pending' && task.status !== 'running') {
+      return NextResponse.json(
+        { error: 'Task is not in pending or running status' },
+        { status: 400 }
+      );
+    }
 
     // 如果没有分配 Agent，返回错误
     if (!isAcpxTask && task.assignedAgents.length === 0) {
@@ -75,26 +83,12 @@ export async function POST(
     // 发送系统消息到聊天室
     const sendChatMessage = async (content: string, userName: string = '系统') => {
       try {
-        await prisma.message.create({
-          data: {
-            content,
-            roomId: chatRoom!.id,
-            userId: 'system',
-            userName,
-          },
+        await postTaskRoomMessage({
+          roomId: chatRoom.id,
+          content,
+          userId: 'system',
+          userName,
         });
-        
-        // 通过 WebSocket 广播
-        const io = getSocketServer();
-        if (io) {
-          io.to(chatRoom!.id).emit('chat:message', {
-            id: `task-${Date.now()}`,
-            roomId: chatRoom!.id,
-            user: { id: 'system', name: userName },
-            content,
-            createdAt: new Date().toISOString(),
-          });
-        }
       } catch (error) {
         console.error('Failed to send chat message:', error);
       }
@@ -117,8 +111,16 @@ export async function POST(
     });
 
     if (isAcpxTask) {
+      const taskSession = await ensureTaskSession(task.id, {
+        taskName: task.name,
+        metadata: {
+          executionMode: 'acpx',
+        },
+      });
+
       const runResult = await executeAcpxTaskRun({
         taskId: task.id,
+        taskSessionId: taskSession.id,
         taskName: task.name,
         taskDescription: task.description || undefined,
         orchestrationMode:
@@ -127,9 +129,17 @@ export async function POST(
         workingDirectory: task.workingDirectory || undefined,
       });
 
-      const finalStatus = runResult.status === 'completed' ? 'completed' : 'failed';
+      const finalStatus =
+        runResult.status === 'completed'
+          ? 'completed'
+          : runResult.status === 'interrupted'
+          ? 'interrupted'
+          : runResult.status === 'stopped'
+          ? 'stopped'
+          : 'failed';
       const resultData = {
         executionMode: 'acpx',
+        taskSessionId: taskSession.id,
         taskRunId: runResult.taskRunId,
         orchestrationMode: acpxParticipants.length > 1 ? 'staged' : 'single',
         summary: runResult.summary,
@@ -150,6 +160,10 @@ export async function POST(
       await sendChatMessage(
         finalStatus === 'completed'
           ? `✅ ACPX 任务执行完成`
+          : finalStatus === 'interrupted'
+          ? '⏸️ ACPX 任务已被立即介入中断'
+          : finalStatus === 'stopped'
+          ? '🛑 ACPX 任务已被用户停止'
           : `❌ ACPX 任务执行失败`
       );
 

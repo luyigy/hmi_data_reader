@@ -47,70 +47,94 @@ model Gateway {
 }
 
 model Task {
-  id             String    @id @default(cuid())
-  name           String
-  description    String?
-  status         String    @default("pending") // pending, running, completed, failed
-  executionMode  String    @default("standard") // standard, acpx
-  runnerTarget   String?   // legacy ACPX field
-  acpxParticipants String? // JSON array of gateway/harness/role participants
-  workingDirectory String?
-  assignedAgents Agent[]
-  result         String?   // JSON result data
-  error          String?
-  startedAt      DateTime?
-  completedAt    DateTime?
-  runs           TaskRun[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                   String                  @id @default(cuid())
+  name                 String
+  description          String?
+  status               String                  @default("pending") // pending, running, completed, failed
+  executionMode        String                  @default("standard") // standard, acpx
+  runnerTarget         String?                 // legacy ACPX field
+  acpxParticipants     String?                 // JSON array of gateway/harness/role participants
+  workingDirectory     String?
+  currentTaskSessionId String?
+  assignedAgents       Agent[]
+  result               String?                 // JSON result data
+  error                String?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  runs                 TaskRun[]
+  taskSessions         TaskSession[]
+  controlMessages      TaskRunControlMessage[]
+  currentTaskSession   TaskSession?            @relation("TaskCurrentSession", fields: [currentTaskSessionId], references: [id])
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
   @@index([status])
   @@index([executionMode])
+  @@index([currentTaskSessionId])
 }
 
 model TaskRun {
-  id             String               @id @default(cuid())
-  taskId         String
-  task           Task                 @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  mode           String               @default("acpx") // acpx
-  runnerTarget   String?              // legacy ACPX field
-  orchestrationMode String            @default("single") // single, staged
-  status         String               @default("pending") // pending, running, completed, failed
-  summary        String?
-  error          String?
-  startedAt      DateTime?
-  completedAt    DateTime?
-  participants   TaskRunParticipant[]
-  events         TaskRunEvent[]
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  id                String                  @id @default(cuid())
+  taskId            String
+  taskSessionId     String?
+  task              Task                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskSession       TaskSession?            @relation(fields: [taskSessionId], references: [id], onDelete: SetNull)
+  mode              String                  @default("acpx") // acpx
+  runnerTarget      String?                 // legacy ACPX field
+  orchestrationMode String                  @default("single") // single, staged
+  status            String                  @default("pending") // pending, running, completed, failed
+  controlState      String                  @default("normal") // normal, interrupt_requested, stop_requested
+  activityState     String                  @default("quiet") // streaming, quiet, stalled, waiting_user, terminating
+  summary           String?
+  error             String?
+  watchdogConfig    String?                 // JSON
+  controlMetadata   String?                 // JSON
+  lastActivityAt    DateTime?
+  lastStdoutAt      DateTime?
+  lastStderrAt      DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  participants      TaskRunParticipant[]
+  events            TaskRunEvent[]
+  controlMessages   TaskRunControlMessage[]
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
 
   @@index([taskId, createdAt])
+  @@index([taskSessionId, createdAt])
   @@index([status])
 }
 
 model TaskRunParticipant {
-  id             String         @id @default(cuid())
-  taskRunId      String
-  taskRun        TaskRun        @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
-  runner         String?        // legacy ACPX field
-  executionBackend String       @default("gateway_openclaw") // platform_local, gateway_openclaw
-  gatewayId      String?
-  gatewayNameSnapshot String
-  harnessType    String
-  harnessNameSnapshot String?
-  role           String
-  agentId        String?
-  agentNameSnapshot String?
-  status         String         @default("pending") // pending, running, completed, failed
-  summary        String?
-  error          String?
-  filesModified  String?        // JSON string array
-  startedAt      DateTime?
-  completedAt    DateTime?
-  events         TaskRunEvent[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                      String                  @id @default(cuid())
+  taskRunId               String
+  taskRun                 TaskRun                 @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+  runner                  String?                 // legacy ACPX field
+  executionBackend        String                  @default("gateway_openclaw") // platform_local, gateway_openclaw
+  gatewayId               String?
+  gatewayNameSnapshot     String
+  harnessType             String
+  harnessNameSnapshot     String?
+  role                    String
+  agentId                 String?
+  agentNameSnapshot       String?
+  status                  String                  @default("pending") // pending, running, completed, failed
+  activityState           String                  @default("quiet") // streaming, quiet, stalled, waiting_user, terminating
+  summary                 String?
+  error                   String?
+  filesModified           String?                 // JSON string array
+  controlMetadata         String?                 // JSON
+  lastActivityAt          DateTime?
+  interruptSupported      Boolean                 @default(false)
+  resumeSupported         Boolean                 @default(false)
+  sessionControlSupported Boolean                 @default(false)
+  softStopSupported       Boolean                 @default(false)
+  startedAt               DateTime?
+  completedAt             DateTime?
+  events                  TaskRunEvent[]
+  controlMessages         TaskRunControlMessage[]
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
 
   @@index([taskRunId])
   @@index([runner])
@@ -133,6 +157,54 @@ model TaskRunEvent {
   @@index([taskRunId, sequence])
   @@index([participantId])
   @@index([eventType])
+}
+
+model TaskSession {
+  id             String                  @id @default(cuid())
+  taskId         String
+  status         String                  @default("active") // active, waiting_user, paused, completed, failed
+  attentionState String                  @default("normal") // normal, needs_review, needs_user_input, stuck, error
+  activeRunId    String?
+  summary        String?
+  metadata       String?                 // JSON
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  task           Task                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  runs           TaskRun[]
+  controlMessages TaskRunControlMessage[]
+  currentForTask Task[]                  @relation("TaskCurrentSession")
+
+  @@index([taskId, createdAt])
+  @@index([status])
+  @@index([activeRunId])
+}
+
+model TaskRunControlMessage {
+  id             String               @id @default(cuid())
+  taskId         String
+  taskSessionId  String?
+  taskRunId      String
+  roomMessageId  String?
+  participantId  String?
+  senderUserId   String
+  senderName     String
+  deliveryMode   String               @default("queued") // queued, immediate
+  deliveryStatus String               @default("pending") // pending, delivered, superseded, rejected
+  controlAction  String               @default("queue_message") // queue_message, interrupt_now, stop_run
+  content        String
+  metadata       String?              // JSON
+  createdAt      DateTime             @default(now())
+  processedAt    DateTime?
+  task           Task                 @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskSession    TaskSession?         @relation(fields: [taskSessionId], references: [id], onDelete: SetNull)
+  taskRun        TaskRun              @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+  participant    TaskRunParticipant?  @relation(fields: [participantId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@index([taskSessionId, createdAt])
+  @@index([taskRunId, createdAt])
+  @@index([participantId])
+  @@index([deliveryStatus])
 }
 
 model ChatRoom {

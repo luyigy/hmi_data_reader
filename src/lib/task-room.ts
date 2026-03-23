@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getSocketServer } from '@/lib/websocket';
 
 const TASK_ROOM_MARKER_PREFIX = 'TASK_ROOM:';
 
@@ -83,4 +84,41 @@ export const buildTaskRoomContext = async (taskId: string, taskName: string, lim
       return `[${timestamp}] ${message.userName}: ${message.content}`;
     })
     .join('\n');
+};
+
+export const postTaskRoomMessage = async ({
+  roomId,
+  content,
+  userId,
+  userName,
+}: {
+  roomId: string;
+  content: string;
+  userId: string;
+  userName: string;
+}) => {
+  const message = await prisma.message.create({
+    data: {
+      roomId,
+      content,
+      userId,
+      userName,
+    },
+  });
+
+  const io = getSocketServer();
+  if (io) {
+    io.to(roomId).emit('chat:message', {
+      id: message.id,
+      roomId: message.roomId,
+      user: {
+        id: message.userId,
+        name: message.userName,
+      },
+      content: message.content,
+      createdAt: message.createdAt.toISOString(),
+    });
+  }
+
+  return message;
 };
