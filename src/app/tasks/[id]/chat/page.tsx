@@ -391,6 +391,48 @@ export default function TaskChatPage() {
   }, [task, taskRoom, taskId, selectedRunId]);
 
   const selectedRunEvents = useMemo(() => selectedRun?.events || [], [selectedRun]);
+  const latestHarnessRequest = useMemo(() => {
+    if (
+      !selectedRun
+      || selectedRun.status !== 'waiting_for_input'
+    ) {
+      return null;
+    }
+
+    for (let index = selectedRunEvents.length - 1; index >= 0; index -= 1) {
+      const event = selectedRunEvents[index];
+      const requestKind =
+        event.eventType === 'control_message'
+        && event.metadata
+        && typeof event.metadata.requestKind === 'string'
+          ? event.metadata.requestKind
+          : null;
+      const requestRunStatus =
+        event.eventType === 'control_message'
+        && event.metadata
+        && typeof event.metadata.runStatus === 'string'
+          ? event.metadata.runStatus
+          : null;
+
+      if (requestKind && requestRunStatus === 'waiting_for_input') {
+        return {
+          kind: requestKind,
+          message: event.content,
+          excerpt:
+            event.metadata && typeof event.metadata.excerpt === 'string'
+              ? event.metadata.excerpt
+              : null,
+        };
+      }
+    }
+
+    return null;
+  }, [selectedRun, selectedRunEvents]);
+
+  const latestHarnessRequestIsActionable =
+    latestHarnessRequest?.kind === 'permission_request'
+    || latestHarnessRequest?.kind === 'input_request'
+    || latestHarnessRequest?.kind === 'choice_request';
 
   const fetchTaskInfo = async () => {
     try {
@@ -537,13 +579,14 @@ export default function TaskChatPage() {
 
   const handleAcpxControl = async (
     action: 'queue_message' | 'interrupt_now' | 'stop_run',
-    deliveryMode: 'queued' | 'immediate'
+    deliveryMode: 'queued' | 'immediate',
+    overrideContent?: string
   ) => {
     if (!taskRoom || !task) {
       return;
     }
 
-    const content = messageInput.trim();
+    const content = (overrideContent ?? messageInput).trim();
     if ((action === 'queue_message' || action === 'interrupt_now') && !content) {
       return;
     }
@@ -569,7 +612,9 @@ export default function TaskChatPage() {
         throw new Error(error?.error || '发送控制请求失败');
       }
 
-      setMessageInput('');
+      if (!overrideContent) {
+        setMessageInput('');
+      }
       await fetchRoomMessages(taskRoom.id);
       await fetchRuns();
       if (selectedRunId) {
@@ -581,6 +626,38 @@ export default function TaskChatPage() {
       setControlError(error instanceof Error ? error.message : '发送控制请求失败');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const waitForTaskToLeaveRunningState = async () => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const res = await fetch(`/api/tasks/${taskId}`);
+      const data = await res.json();
+      if (data.status !== 'running') {
+        setTask(data);
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    return false;
+  };
+
+  const handleHarnessDecision = async (decision: 'allow' | 'deny' | 'explain') => {
+    const content =
+      decision === 'allow'
+        ? '我允许你继续执行刚才请求的权限或操作。请继续，并在继续前简短说明你将执行什么。'
+        : decision === 'deny'
+        ? '我不允许刚才请求的权限或操作。请停止该动作，改用不需要该权限的方案，并说明替代路径。'
+        : '请明确说明你刚才需要我确认的具体权限、原因、影响范围，以及继续前你希望我点击或确认什么。';
+
+    await handleAcpxControl('interrupt_now', 'immediate', content);
+
+    if (decision !== 'explain') {
+      const readyToRestart = await waitForTaskToLeaveRunningState();
+      if (readyToRestart) {
+        await handleExecuteTask();
+      }
     }
   };
 
@@ -777,7 +854,52 @@ export default function TaskChatPage() {
 
           {selectedRun?.status === 'waiting_for_input' ? (
             <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
-              当前 harness 正在等待用户输入或权限确认。你可以在左侧输入回复，再用“立即介入并中断当前本地运行”提交你的决定，然后发起下一轮运行。
+              当前 harness 正在等待用户输入或权限确认。下面会显示最近一次检测到的请求内容。你也可以直接点击“允许继续 / 拒绝 / 让它先解释清楚”，不用自己猜该发什么话。
+            </div>
+          ) : null}
+
+          {latestHarnessRequest ? (
+            <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-50">
+              <div className="font-semibold text-amber-100">
+                最近一次 harness 请求: {latestHarnessRequest.kind}
+              </div>
+              <div className="mt-2 whitespace-pre-wrap text-amber-50">
+                {latestHarnessRequest.message}
+              </div>
+              {latestHarnessRequest.excerpt ? (
+                <pre className="mt-2 whitespace-pre-wrap break-words rounded-md bg-slate-950/50 p-2 text-[11px] text-amber-100">
+                  {latestHarnessRequest.excerpt}
+                </pre>
+              ) : null}
+              {latestHarnessRequestIsActionable ? (
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <button
+                    onClick={() => void handleHarnessDecision('allow')}
+                    disabled={isSending || !selectedRunCanInterrupt}
+                    className="rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
+                  >
+                    允许继续
+                  </button>
+                  <button
+                    onClick={() => void handleHarnessDecision('deny')}
+                    disabled={isSending || !selectedRunCanInterrupt}
+                    className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                  >
+                    拒绝这次请求
+                  </button>
+                  <button
+                    onClick={() => void handleHarnessDecision('explain')}
+                    disabled={isSending || !selectedRunCanInterrupt}
+                    className="rounded-lg bg-slate-700 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    先解释清楚
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                  这是一个运行问题提示，不是可直接点击批准的权限请求。
+                </div>
+              )}
             </div>
           ) : null}
 

@@ -108,9 +108,12 @@ export async function POST(
       ? targetRun?.participants.find((participant) => participant.id === participantId) ?? null
       : targetRun?.participants.find(
           (participant) =>
-            participant.status === 'running' && participant.executionBackend === 'platform_local'
+            (participant.status === 'running' || participant.status === 'waiting_for_input')
+            && participant.executionBackend === 'platform_local'
         )
-        ?? targetRun?.participants.find((participant) => participant.status === 'running')
+        ?? targetRun?.participants.find(
+          (participant) => participant.status === 'running' || participant.status === 'waiting_for_input'
+        )
         ?? null;
 
     const userMessage = content
@@ -172,7 +175,10 @@ export async function POST(
         },
       });
 
-      if (selectedParticipant?.executionBackend === 'platform_local' && selectedParticipant.status === 'running') {
+      if (
+        selectedParticipant?.executionBackend === 'platform_local'
+        && (selectedParticipant.status === 'running' || selectedParticipant.status === 'waiting_for_input')
+      ) {
         const result = requestRunControl(targetRun.id, selectedParticipant.id, action);
         applied = result.applied;
       }

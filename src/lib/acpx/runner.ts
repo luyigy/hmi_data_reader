@@ -92,10 +92,14 @@ const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionReque
   }
 
   if (
-    normalized.includes('permission')
-    || normalized.includes('approval')
-    || normalized.includes('allow this')
-    || normalized.includes('grant access')
+    (normalized.includes('permission') && normalized.includes('?'))
+    || normalized.includes('approve this action')
+    || normalized.includes('allow this action')
+    || normalized.includes('allow this command')
+    || normalized.includes('grant access to')
+    || normalized.includes('do you want to allow')
+    || normalized.includes('需要你的确认')
+    || normalized.includes('请确认是否允许')
   ) {
     return {
       kind: 'permission_request',
@@ -108,6 +112,7 @@ const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionReque
     normalized.includes('select an option')
     || normalized.includes('choose an option')
     || normalized.includes('pick one')
+    || normalized.includes('choose one of the following')
     || normalized.includes('请选择')
     || normalized.includes('选择一个')
   ) {
@@ -122,7 +127,8 @@ const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionReque
     normalized.includes('waiting for input')
     || normalized.includes('input required')
     || normalized.includes('need your input')
-    || normalized.includes('please provide')
+    || normalized.includes('please provide the following')
+    || normalized.includes('please answer')
     || normalized.includes('请输入')
     || normalized.includes('请提供')
   ) {
@@ -213,6 +219,49 @@ const handleHarnessInteractionRequest = async ({
       excerpt: request.rawContent.slice(0, 600),
     },
   });
+};
+
+const clearWaitingForInputIfNeeded = async (taskRunId: string, participantId: string) => {
+  const [taskRun, participant] = await Promise.all([
+    prisma.taskRun.findUnique({
+      where: { id: taskRunId },
+      select: { status: true, taskSessionId: true },
+    }),
+    prisma.taskRunParticipant.findUnique({
+      where: { id: participantId },
+      select: { status: true },
+    }),
+  ]);
+
+  if (taskRun?.status === 'waiting_for_input') {
+    await prisma.taskRun.update({
+      where: { id: taskRunId },
+      data: {
+        status: 'running',
+        activityState: 'streaming',
+      },
+    });
+
+    if (taskRun.taskSessionId) {
+      await prisma.taskSession.update({
+        where: { id: taskRun.taskSessionId },
+        data: {
+          status: 'active',
+          attentionState: 'normal',
+        },
+      });
+    }
+  }
+
+  if (participant?.status === 'waiting_for_input') {
+    await prisma.taskRunParticipant.update({
+      where: { id: participantId },
+      data: {
+        status: 'running',
+        activityState: 'streaming',
+      },
+    });
+  }
 };
 
 const toParticipantPayload = (participant: {
@@ -615,6 +664,8 @@ const executeParticipant = async (
           participantId,
           participant: participantPayload,
         });
+      } else {
+        await clearWaitingForInputIfNeeded(taskRunId, participantId);
       }
     },
     onStderrChunk: async (chunk) => {
@@ -644,6 +695,8 @@ const executeParticipant = async (
           participantId,
           participant: participantPayload,
         });
+      } else {
+        await clearWaitingForInputIfNeeded(taskRunId, participantId);
       }
     },
   };
