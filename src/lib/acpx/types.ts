@@ -39,6 +39,11 @@ export type TaskRunEventType =
   | 'run_completed'
   | 'run_failed';
 export type TaskRunStream = 'system' | 'stdout' | 'stderr';
+export type HarnessInteractionRequestKind =
+  | 'permission_request'
+  | 'input_request'
+  | 'choice_request'
+  | 'workspace_issue';
 
 export interface HarnessCapability {
   supportsQueuedUserMessages: boolean;
@@ -102,6 +107,12 @@ export interface AcpxLiveEventPayload {
 export interface HarnessStreamCallbacks {
   onStdoutChunk?: (chunk: string) => Promise<void> | void;
   onStderrChunk?: (chunk: string) => Promise<void> | void;
+}
+
+export interface HarnessInteractionRequest {
+  kind: HarnessInteractionRequestKind;
+  message: string;
+  rawContent: string;
 }
 
 export interface TaskRunControlMessageDraft {

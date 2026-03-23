@@ -37,6 +37,15 @@
   - participant capability flags
 - 本地 `codex` / `claude` 已有第一版进程注册机制：
   - UI 发出立即介入或停止后，后端会尝试向本地 CLI 子进程发送中断/停止信号
+- direct `codex` 的只读问题已定位并修正：
+  - `codex exec` 的 `--sandbox workspace-write` 必须跟在 `exec` 后，而不是放在子命令前
+  - 修正后已实测可在目标工作区创建文件
+- runner 现已具备第一版 harness 交互信号识别：
+  - `permission_request`
+  - `input_request`
+  - `choice_request`
+  - `workspace_issue`
+  - 相关信号会进入 run event / status，而不再完全埋在 stdout/stderr 中
 
 ### 本轮联调后确认的新事实
 

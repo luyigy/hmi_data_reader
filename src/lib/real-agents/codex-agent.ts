@@ -106,7 +106,7 @@ Take your time and be thorough.`;
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const args = ['exec'];
+    const args = ['exec', '--sandbox', 'workspace-write'];
 
     if (options.skipGitRepoCheck) {
       args.push('--skip-git-repo-check');

@@ -19,6 +19,7 @@ import type {
   AcpxLiveEventPayload,
   AcpxParticipantRequest,
   AcpxRunRequest,
+  HarnessInteractionRequest,
   HarnessStreamCallbacks,
   RunControlAction,
   RunActivityState,
@@ -69,6 +70,150 @@ const updateParticipantActivity = async (
 
 const mapControlActionToRunStatus = (action: RunControlAction): TaskRunStatus =>
   action === 'stop_run' ? 'stopped' : 'interrupted';
+
+const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionRequest | null => {
+  const normalized = chunk.toLowerCase();
+
+  if (
+    normalized.includes('只读环境')
+    || normalized.includes('只读')
+    || normalized.includes('read-only environment')
+    || normalized.includes('read only environment')
+    || normalized.includes('cannot modify')
+    || normalized.includes('unable to modify')
+    || normalized.includes('cannot edit')
+    || normalized.includes('unable to edit')
+  ) {
+    return {
+      kind: 'workspace_issue',
+      message: 'Harness 报告当前工作区不可写，无法直接修改代码。',
+      rawContent: chunk,
+    };
+  }
+
+  if (
+    normalized.includes('permission')
+    || normalized.includes('approval')
+    || normalized.includes('allow this')
+    || normalized.includes('grant access')
+  ) {
+    return {
+      kind: 'permission_request',
+      message: 'Harness 请求用户确认权限后继续。',
+      rawContent: chunk,
+    };
+  }
+
+  if (
+    normalized.includes('select an option')
+    || normalized.includes('choose an option')
+    || normalized.includes('pick one')
+    || normalized.includes('请选择')
+    || normalized.includes('选择一个')
+  ) {
+    return {
+      kind: 'choice_request',
+      message: 'Harness 请求用户在多个选项中做选择。',
+      rawContent: chunk,
+    };
+  }
+
+  if (
+    normalized.includes('waiting for input')
+    || normalized.includes('input required')
+    || normalized.includes('need your input')
+    || normalized.includes('please provide')
+    || normalized.includes('请输入')
+    || normalized.includes('请提供')
+  ) {
+    return {
+      kind: 'input_request',
+      message: 'Harness 请求用户补充输入后继续。',
+      rawContent: chunk,
+    };
+  }
+
+  return null;
+};
+
+const handleHarnessInteractionRequest = async ({
+  request,
+  taskId,
+  taskRunId,
+  participantId,
+  participant,
+}: {
+  request: HarnessInteractionRequest;
+  taskId: string;
+  taskRunId: string;
+  participantId: string;
+  participant: NonNullable<AcpxLiveEventPayload['participant']>;
+}) => {
+  const isWaitingUser =
+    request.kind === 'permission_request'
+    || request.kind === 'input_request'
+    || request.kind === 'choice_request';
+
+  await prisma.taskRun.update({
+    where: { id: taskRunId },
+    data: {
+      status: isWaitingUser ? 'waiting_for_input' : undefined,
+      activityState: isWaitingUser ? 'waiting_user' : 'stalled',
+      controlMetadata: stringifyJson({
+        interactionRequest: {
+          kind: request.kind,
+          message: request.message,
+          detectedAt: new Date().toISOString(),
+        },
+      }),
+    },
+  });
+
+  await prisma.taskRunParticipant.update({
+    where: { id: participantId },
+    data: {
+      status: isWaitingUser ? 'waiting_for_input' : undefined,
+      activityState: isWaitingUser ? 'waiting_user' : 'stalled',
+      controlMetadata: stringifyJson({
+        interactionRequest: {
+          kind: request.kind,
+          message: request.message,
+          detectedAt: new Date().toISOString(),
+        },
+      }),
+    },
+  });
+
+  const taskRun = await prisma.taskRun.findUnique({
+    where: { id: taskRunId },
+    select: { taskSessionId: true },
+  });
+
+  if (taskRun?.taskSessionId) {
+    await prisma.taskSession.update({
+      where: { id: taskRun.taskSessionId },
+      data: {
+        status: isWaitingUser ? 'waiting_user' : 'failed',
+        attentionState: isWaitingUser ? 'needs_user_input' : 'error',
+      },
+    });
+  }
+
+  await publishTaskRunEvent({
+    taskId,
+    taskRunId,
+    participantId,
+    participant,
+    eventType: 'control_message',
+    content: request.message,
+    metadata: {
+      requestKind: request.kind,
+      runStatus: isWaitingUser ? 'waiting_for_input' : 'failed',
+      activityState: isWaitingUser ? 'waiting_user' : 'stalled',
+      excerpt: request.rawContent.slice(0, 600),
+    },
+  });
+};
 
 const toParticipantPayload = (participant: {
   gatewayId?: string | null;
@@ -460,6 +605,17 @@ const executeParticipant = async (
         stream: 'stdout',
         content: chunk,
       });
+
+      const interactionRequest = detectHarnessInteractionRequest(chunk);
+      if (interactionRequest) {
+        await handleHarnessInteractionRequest({
+          request: interactionRequest,
+          taskId: request.taskId,
+          taskRunId,
+          participantId,
+          participant: participantPayload,
+        });
+      }
     },
     onStderrChunk: async (chunk) => {
       const now = new Date();
@@ -478,6 +634,17 @@ const executeParticipant = async (
         stream: 'stderr',
         content: chunk,
       });
+
+      const interactionRequest = detectHarnessInteractionRequest(chunk);
+      if (interactionRequest) {
+        await handleHarnessInteractionRequest({
+          request: interactionRequest,
+          taskId: request.taskId,
+          taskRunId,
+          participantId,
+          participant: participantPayload,
+        });
+      }
     },
   };
 

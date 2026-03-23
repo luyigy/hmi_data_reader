@@ -266,6 +266,19 @@ export default function TaskChatPage() {
     };
 
     const handleRunEvent = (event: TaskRunEvent) => {
+      const controlRunStatus =
+        event.eventType === 'control_message'
+        && event.metadata
+        && typeof event.metadata.runStatus === 'string'
+          ? event.metadata.runStatus
+          : null;
+      const controlActivityState =
+        event.eventType === 'control_message'
+        && event.metadata
+        && typeof event.metadata.activityState === 'string'
+          ? event.metadata.activityState
+          : null;
+
       setRunSummaries((prev) => {
         const existing = prev.find((run) => run.id === event.taskRunId);
         if (!existing) {
@@ -275,7 +288,9 @@ export default function TaskChatPage() {
               mode: 'acpx',
               orchestrationMode: 'staged',
               status:
-                event.eventType === 'run_completed'
+                controlRunStatus
+                  ? controlRunStatus
+                  : event.eventType === 'run_completed'
                   ? 'completed'
                   : event.eventType === 'run_interrupted'
                   ? 'interrupted'
@@ -284,6 +299,7 @@ export default function TaskChatPage() {
                   : event.eventType === 'run_failed'
                   ? 'failed'
                   : 'running',
+              activityState: controlActivityState || 'quiet',
               summary: null,
               error: null,
               startedAt: event.createdAt,
@@ -300,7 +316,9 @@ export default function TaskChatPage() {
             ? {
                 ...run,
                 status:
-                  event.eventType === 'run_completed'
+                  controlRunStatus
+                    ? controlRunStatus
+                    : event.eventType === 'run_completed'
                     ? 'completed'
                     : event.eventType === 'run_interrupted'
                     ? 'interrupted'
@@ -309,6 +327,7 @@ export default function TaskChatPage() {
                     : event.eventType === 'run_failed'
                     ? 'failed'
                     : run.status,
+                activityState: controlActivityState || run.activityState,
               }
             : run
         );
@@ -326,7 +345,9 @@ export default function TaskChatPage() {
         return {
           ...prev,
           status:
-            event.eventType === 'run_completed'
+            controlRunStatus
+              ? controlRunStatus
+              : event.eventType === 'run_completed'
               ? 'completed'
               : event.eventType === 'run_interrupted'
               ? 'interrupted'
@@ -335,6 +356,7 @@ export default function TaskChatPage() {
               : event.eventType === 'run_failed'
               ? 'failed'
               : prev.status,
+          activityState: controlActivityState || prev.activityState,
           events: [...prev.events, event].sort((a, b) => a.sequence - b.sequence),
         };
       });
@@ -585,9 +607,13 @@ export default function TaskChatPage() {
 
   const canExecute = task && task.status !== 'running';
   const selectedRunCanInterrupt = selectedRun?.status === 'running'
-    && selectedRun.participants.some((participant) => participant.interruptSupported);
+    || selectedRun?.status === 'waiting_for_input'
+    ? selectedRun.participants.some((participant) => participant.interruptSupported)
+    : false;
   const selectedRunCanStop = selectedRun?.status === 'running'
-    && selectedRun.participants.some((participant) => participant.softStopSupported || participant.interruptSupported);
+    || selectedRun?.status === 'waiting_for_input'
+    ? selectedRun.participants.some((participant) => participant.softStopSupported || participant.interruptSupported)
+    : false;
 
   if (isLoading) {
     return <div className="p-8 text-gray-600">加载中...</div>;
@@ -749,6 +775,12 @@ export default function TaskChatPage() {
             ) : null}
           </div>
 
+          {selectedRun?.status === 'waiting_for_input' ? (
+            <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+              当前 harness 正在等待用户输入或权限确认。你可以在左侧输入回复，再用“立即介入并中断当前本地运行”提交你的决定，然后发起下一轮运行。
+            </div>
+          ) : null}
+
           {task.executionMode !== 'acpx' ? (
             <div className="space-y-3">
               {standardMessages.map((message) => (
@@ -768,7 +800,14 @@ export default function TaskChatPage() {
           ) : (
             <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-2 font-mono text-xs">
               {selectedRunEvents.map((event) => (
-                <div key={event.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                <div
+                  key={event.id}
+                  className={`rounded-lg border p-3 ${
+                    event.eventType === 'control_message'
+                      ? 'border-amber-500/40 bg-amber-500/10'
+                      : 'border-slate-800 bg-slate-900/70'
+                  }`}
+                >
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
                     <span>{new Date(event.createdAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>
                     <span className="rounded-full bg-slate-800 px-2 py-0.5">{event.eventType}</span>
@@ -778,6 +817,11 @@ export default function TaskChatPage() {
                       </span>
                     ) : null}
                   </div>
+                  {event.eventType === 'control_message' && event.metadata?.requestKind ? (
+                    <div className="mb-2 text-[11px] text-amber-200">
+                      request: {String(event.metadata.requestKind)}
+                    </div>
+                  ) : null}
                   <pre className={`whitespace-pre-wrap break-words ${event.stream === 'stderr' ? 'text-red-300' : 'text-slate-100'}`}>
                     {event.content}
                   </pre>
