@@ -14,6 +14,10 @@ interface Task {
     id: string;
     name: string;
     type: string;
+    gateway?: {
+      id: string;
+      name: string;
+    } | null;
   }>;
   result?: any;
   error?: string;
@@ -27,6 +31,11 @@ interface Agent {
   id: string;
   name: string;
   status: string;
+  gatewayId?: string | null;
+  gateway?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export default function TasksPage() {
@@ -50,7 +59,7 @@ export default function TasksPage() {
       const url = filter === 'all'
         ? '/api/tasks?limit=50'
         : `/api/tasks?status=${filter}&limit=50`;
-      
+
       const res = await fetch(url);
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -69,7 +78,6 @@ export default function TasksPage() {
       const data = await res.json();
       if (Array.isArray(data)) {
         setAllAgents(data);
-        // apply gateway filter
         if (selectedGateway === 'all') {
           setAgents(data);
         } else {
@@ -94,7 +102,6 @@ export default function TasksPage() {
   };
 
   useEffect(() => {
-    // when selectedGateway changes, update visible agents
     if (selectedGateway === 'all') {
       setAgents(allAgents);
     } else {
@@ -117,7 +124,7 @@ export default function TasksPage() {
       if (res.ok) {
         await fetchTasks();
         setShowForm(false);
-        alert('任务创建成功！\n聊天室会自动创建当任务执行时。');
+        alert(`任务创建成功！\n聊天室会自动创建当任务执行时。`);
       }
     } catch (error) {
       console.error('Failed to create task:', error);

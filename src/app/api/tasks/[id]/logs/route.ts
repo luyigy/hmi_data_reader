@@ -12,12 +12,16 @@ export async function GET(
 ) {
   try {
     const taskId = params.id;
-    
+
     // 获取任务信息（包括执行结果）
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        assignedAgents: true,
+        assignedAgents: {
+          include: {
+            gateway: true,
+          },
+        },
       },
     });
 
@@ -30,13 +34,13 @@ export async function GET(
 
     // 解析执行结果
     let executionLogs: any[] = [];
-    
+
     if (task.result) {
       try {
-        const resultData = typeof task.result === 'string' 
-          ? JSON.parse(task.result) 
+        const resultData = typeof task.result === 'string'
+          ? JSON.parse(task.result)
           : task.result;
-        
+
         if (resultData.results && Array.isArray(resultData.results)) {
           executionLogs = resultData.results.map((r: any, index: number) => ({
             timestamp: resultData.executedAt || new Date().toISOString(),
@@ -65,7 +69,7 @@ export async function GET(
         details: {
           name: task.name,
           description: task.description,
-          assignedAgents: task.assignedAgents.map(a => a.name),
+          assignedAgents: task.assignedAgents.map((a) => a.name),
         },
         sequence: 0,
       },
@@ -87,8 +91,8 @@ export async function GET(
         timestamp: task.completedAt.toISOString(),
         action: 'task_completed',
         status: task.status === 'completed' ? 'success' : 'error',
-        message: task.status === 'completed' 
-          ? '任务执行完成' 
+        message: task.status === 'completed'
+          ? '任务执行完成'
           : `任务执行失败：${task.error || '未知错误'}`,
         details: {
           status: task.status,
@@ -112,10 +116,16 @@ export async function GET(
         createdAt: task.createdAt.toISOString(),
         startedAt: task.startedAt?.toISOString(),
         completedAt: task.completedAt?.toISOString(),
-        assignedAgents: task.assignedAgents.map(a => ({
+        assignedAgents: task.assignedAgents.map((a) => ({
           id: a.id,
           name: a.name,
           type: a.type,
+          gateway: a.gateway
+            ? {
+                id: a.gateway.id,
+                name: a.gateway.name,
+              }
+            : null,
         })),
       },
     });

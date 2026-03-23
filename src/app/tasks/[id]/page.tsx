@@ -27,6 +27,10 @@ interface TaskLog {
       id: string;
       name: string;
       type: string;
+      gateway?: {
+        id: string;
+        name: string;
+      } | null;
     }>;
   };
 }
@@ -126,7 +130,6 @@ export default function TaskDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -144,7 +147,6 @@ export default function TaskDetailPage() {
           </div>
         </div>
 
-        {/* Assigned Agents */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">分配的 Agent</h2>
           <div className="flex flex-wrap gap-3">
@@ -154,14 +156,15 @@ export default function TaskDetailPage() {
                 className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg"
               >
                 <div className="font-medium text-blue-900">{agent.name}</div>
-                <div className="text-sm text-blue-600">{agent.type}</div>
+                <div className="text-sm text-blue-600">
+                  {agent.type} · {agent.gateway?.name || '未分配网关'}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Timeline */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">执行时间线</h2>
             <div className="space-y-4">
@@ -192,7 +195,7 @@ export default function TaskDetailPage() {
                   >
                     {getActionIcon(event.action)}
                   </div>
-                  
+
                   <div className="text-sm text-gray-500 mb-1">
                     {formatTime(event.timestamp)}
                   </div>
@@ -209,12 +212,11 @@ export default function TaskDetailPage() {
             </div>
           </div>
 
-          {/* Event Details */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               详细信息 {selectedEvent && `- ${selectedEvent.message}`}
             </h2>
-            
+
             {selectedEvent ? (
               <div>
                 <div className="mb-4">
@@ -261,14 +263,11 @@ export default function TaskDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-500">
-                <p>点击时间线上的事件查看详情</p>
-              </div>
+              <div className="text-gray-500 text-sm">选择左侧时间线项目查看详情</div>
             )}
           </div>
         </div>
 
-        {/* Agent Communication Log */}
         <div className="bg-white rounded-lg shadow p-6 mt-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Agent 通信日志</h2>
           {log.executionLogs.length > 0 ? (

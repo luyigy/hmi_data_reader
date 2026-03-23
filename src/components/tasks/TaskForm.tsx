@@ -6,6 +6,10 @@ interface Agent {
   id: string;
   name: string;
   status: string;
+  gateway?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface TaskFormProps {
@@ -99,7 +103,14 @@ export default function TaskForm({ agents, onSubmit, onClose }: TaskFormProps) {
                       onChange={() => toggleAgent(agent.id)}
                       className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                     />
-                    <span className="text-sm text-gray-700">{agent.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-gray-700">{agent.name}</span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          {agent.gateway?.name || '未分配网关'}
+                        </span>
+                      </div>
+                    </div>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${
                         agent.status === 'online'

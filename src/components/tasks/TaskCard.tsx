@@ -9,6 +9,10 @@ interface Task {
     id: string;
     name: string;
     type: string;
+    gateway?: {
+      id: string;
+      name: string;
+    } | null;
   }>;
   result?: any;
   error?: string;
@@ -59,17 +63,18 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
       }
 
       const result = await res.json();
-      
-      // 显示执行结果
-      const message = `任务执行完成！\n成功：${result.successCount}\n失败：${result.failCount}\n\n聊天室已创建，可以查看 Agent 实时消息。`;
+
+      const message = `任务执行完成！
+成功：${result.successCount}
+失败：${result.failCount}
+
+聊天室已创建，可以查看 Agent 实时消息。`;
       alert(message);
-      
-      // 如果有聊天室，提示用户查看
+
       if (result.chatRoomId) {
         console.log('Chat room created:', result.chatRoomId);
       }
-      
-      // 刷新页面以显示最新状态
+
       window.location.reload();
     } catch (error) {
       console.error('Failed to execute task:', error);
@@ -170,6 +175,7 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
                 className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
               >
                 {agent.name}
+                <span className="ml-1 text-gray-500">· {agent.gateway?.name || '未分配网关'}</span>
               </span>
             ))}
           </div>

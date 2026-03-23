@@ -10,7 +10,11 @@ export async function GET(
     const task = await prisma.task.findUnique({
       where: { id: params.id },
       include: {
-        assignedAgents: true,
+        assignedAgents: {
+          include: {
+            gateway: true,
+          },
+        },
       },
     });
 
@@ -26,6 +30,12 @@ export async function GET(
       result: task.result ? JSON.parse(task.result) : null,
       assignedAgents: task.assignedAgents.map((agent) => ({
         ...agent,
+        gateway: agent.gateway
+          ? {
+              id: agent.gateway.id,
+              name: agent.gateway.name,
+            }
+          : null,
         capabilities: (() => {
           try {
             return JSON.parse(agent.capabilities || '[]');
@@ -76,10 +86,10 @@ export async function PUT(
     }
 
     const updateData: any = {};
-    
+
     if (status) {
       updateData.status = status;
-      
+
       // 自动设置时间戳
       if (status === 'running' && !task.startedAt) {
         updateData.startedAt = new Date();
@@ -88,11 +98,11 @@ export async function PUT(
         updateData.completedAt = new Date();
       }
     }
-    
+
     if (result !== undefined) {
       updateData.result = typeof result === 'string' ? result : JSON.stringify(result);
     }
-    
+
     if (error !== undefined) {
       updateData.error = error;
     }
@@ -101,7 +111,11 @@ export async function PUT(
       where: { id: params.id },
       data: updateData,
       include: {
-        assignedAgents: true,
+        assignedAgents: {
+          include: {
+            gateway: true,
+          },
+        },
       },
     });
 
@@ -110,6 +124,12 @@ export async function PUT(
       result: updated.result ? JSON.parse(updated.result) : null,
       assignedAgents: updated.assignedAgents.map((agent) => ({
         ...agent,
+        gateway: agent.gateway
+          ? {
+              id: agent.gateway.id,
+              name: agent.gateway.name,
+            }
+          : null,
         capabilities: (() => {
           try {
             return JSON.parse(agent.capabilities || '[]');

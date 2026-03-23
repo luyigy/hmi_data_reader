@@ -13,7 +13,11 @@ export async function GET(request: NextRequest) {
     const tasks = await prisma.task.findMany({
       where,
       include: {
-        assignedAgents: true,
+        assignedAgents: {
+          include: {
+            gateway: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -26,6 +30,12 @@ export async function GET(request: NextRequest) {
       result: task.result ? JSON.parse(task.result) : null,
       assignedAgents: task.assignedAgents.map((agent) => ({
         ...agent,
+        gateway: agent.gateway
+          ? {
+              id: agent.gateway.id,
+              name: agent.gateway.name,
+            }
+          : null,
         capabilities: (() => {
           try {
             return JSON.parse(agent.capabilities || '[]');
@@ -75,7 +85,11 @@ export async function POST(request: NextRequest) {
           : undefined,
       },
       include: {
-        assignedAgents: true,
+        assignedAgents: {
+          include: {
+            gateway: true,
+          },
+        },
       },
     });
 
@@ -84,6 +98,12 @@ export async function POST(request: NextRequest) {
       result: null,
       assignedAgents: task.assignedAgents.map((agent) => ({
         ...agent,
+        gateway: agent.gateway
+          ? {
+              id: agent.gateway.id,
+              name: agent.gateway.name,
+            }
+          : null,
         capabilities: (() => {
           try {
             return JSON.parse(agent.capabilities || '[]');

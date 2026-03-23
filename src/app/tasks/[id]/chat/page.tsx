@@ -23,6 +23,10 @@ interface TaskInfo {
     id: string;
     name: string;
     type: string;
+    gateway?: {
+      id: string;
+      name: string;
+    } | null;
   }>;
 }
 
@@ -39,7 +43,7 @@ export default function TaskChatPage() {
   useEffect(() => {
     fetchTaskInfo();
     startPolling();
-    
+
     return () => {
       if (pollingInterval) {
         clearInterval(pollingInterval);
@@ -64,10 +68,7 @@ export default function TaskChatPage() {
   };
 
   const startPolling = () => {
-    // 立即获取一次日志
     fetchLogs();
-    
-    // 然后每 2 秒轮询一次
     const interval = setInterval(fetchLogs, 2000);
     setPollingInterval(interval);
   };
@@ -76,11 +77,9 @@ export default function TaskChatPage() {
     try {
       const res = await fetch(`/api/tasks/${taskId}/logs`);
       const logData = await res.json();
-      
-      // 将日志转换为聊天消息
+
       const newMessages: ChatMessage[] = [];
-      
-      // 任务创建消息
+
       if (logData.metadata?.createdAt) {
         newMessages.push({
           id: 'created',
@@ -91,8 +90,7 @@ export default function TaskChatPage() {
           details: logData.metadata,
         });
       }
-      
-      // Agent 分配消息
+
       if (logData.metadata?.assignedAgents?.length > 0) {
         newMessages.push({
           id: 'assigned',
@@ -100,12 +98,13 @@ export default function TaskChatPage() {
           sender: 'system',
           messageType: 'info',
           content: `分配给 ${logData.metadata.assignedAgents.length} 个 Agent: ${
-            logData.metadata.assignedAgents.map((a: any) => a.name).join(', ')
+            logData.metadata.assignedAgents
+              .map((a: any) => `${a.name} @ ${a.gateway?.name || '未分配网关'}`)
+              .join(', ')
           }`,
         });
       }
-      
-      // 任务开始消息
+
       if (logData.metadata?.startedAt) {
         newMessages.push({
           id: 'started',
@@ -115,11 +114,9 @@ export default function TaskChatPage() {
           content: '🚀 任务开始执行',
         });
       }
-      
-      // Agent 执行日志
+
       if (logData.executionLogs && logData.executionLogs.length > 0) {
         logData.executionLogs.forEach((log: any, index: number) => {
-          // Agent 开始执行
           newMessages.push({
             id: `exec-${index}`,
             timestamp: log.timestamp,
@@ -127,11 +124,10 @@ export default function TaskChatPage() {
             senderName: log.agentName,
             senderType: log.agentType || 'coding',
             messageType: 'output',
-            content: `开始执行任务...`,
+            content: '开始执行任务...',
             details: log,
           });
-          
-          // Agent 输出结果
+
           if (log.details) {
             newMessages.push({
               id: `result-${index}`,
@@ -144,8 +140,7 @@ export default function TaskChatPage() {
               details: log.details,
             });
           }
-          
-          // 如果有错误
+
           if (log.status === 'error') {
             newMessages.push({
               id: `error-${index}`,
@@ -159,30 +154,27 @@ export default function TaskChatPage() {
           }
         });
       }
-      
-      // 任务完成消息
+
       if (logData.metadata?.completedAt) {
         newMessages.push({
           id: 'completed',
           timestamp: logData.metadata.completedAt,
           sender: 'system',
           messageType: logData.status === 'completed' ? 'result' : 'error',
-          content: logData.status === 'completed' 
-            ? '✅ 任务执行完成' 
+          content: logData.status === 'completed'
+            ? '✅ 任务执行完成'
             : `❌ 任务执行失败：${logData.error || '未知错误'}`,
           details: logData.result,
         });
       }
-      
-      // 去重并更新消息
+
       setMessages((prev) => {
-        const existingIds = new Set(prev.map(m => m.id));
-        const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+        const existingIds = new Set(prev.map((m) => m.id));
+        const uniqueNew = newMessages.filter((m) => !existingIds.has(m.id));
         if (uniqueNew.length === 0) return prev;
         return [...prev, ...uniqueNew];
       });
-      
-      // 如果任务已完成，停止轮询
+
       if (logData.status === 'completed' || logData.status === 'failed') {
         setIsConnected(false);
         if (pollingInterval) {
@@ -242,7 +234,6 @@ export default function TaskChatPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -266,7 +257,6 @@ export default function TaskChatPage() {
           </div>
         </div>
 
-        {/* Assigned Agents */}
         {task?.assignedAgents && task.assignedAgents.length > 0 && (
           <div className="bg-white rounded-lg shadow p-4 mb-6">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">参与 Agent</h3>
@@ -277,19 +267,18 @@ export default function TaskChatPage() {
                   className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-sm"
                 >
                   <span className="font-medium text-blue-900">{agent.name}</span>
-                  <span className="text-blue-600 ml-2">({agent.type})</span>
+                  <span className="text-blue-600 ml-2">({agent.type} · {agent.gateway?.name || '未分配网关'})</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Chat Messages */}
         <div className="bg-white rounded-lg shadow">
           <div className="border-b border-gray-200 px-6 py-4">
             <h2 className="text-lg font-semibold text-gray-900">通信记录</h2>
           </div>
-          
+
           <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
             {messages.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
@@ -297,7 +286,7 @@ export default function TaskChatPage() {
                 <p className="text-sm mt-2">实时监听 Agent 通信中</p>
               </div>
             ) : (
-              messages.map((message, index) => (
+              messages.map((message) => (
                 <div
                   key={message.id}
                   className={`rounded-lg border-l-4 p-4 ${getMessageColor(message.messageType)}`}
@@ -327,11 +316,11 @@ export default function TaskChatPage() {
                       {formatTime(message.timestamp)}
                     </div>
                   </div>
-                  
+
                   <div className="text-gray-800 mb-2">
                     {message.content}
                   </div>
-                  
+
                   {message.details && (
                     <details className="text-xs">
                       <summary className="cursor-pointer text-blue-600 hover:text-blue-800 font-medium">
