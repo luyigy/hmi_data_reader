@@ -6,7 +6,7 @@ import type { ChatMessage, ChatUser } from '@/lib/chat-types';
 import type { AgentResponse } from '@/lib/agent-responder';
 
 const SOCKET_PATH = '/api/socket';
-const DEFAULT_PORT = Number(process.env.SOCKET_PORT ?? 3001);
+const DEFAULT_PORT = Number(process.env.SOCKET_PORT ?? 3101);
 
 const globalForSocket = globalThis as unknown as {
   io?: IOServer;

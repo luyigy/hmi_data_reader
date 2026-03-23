@@ -153,6 +153,61 @@
   - agent 是否在后续 run 中真的消费了这条消息
   - UI 是否只是因为没有实时通道而显得没反应
 
+### 8. 已确认 `3001` 的占用方是 Docker 端口映射，socket 默认端口已改到 `3101`
+本轮排查发现：
+- 宿主机 `3001` 当前由 `docker-proxy` 监听
+- 这是容器端口映射，不是当前 Next dev 自己占用
+
+因此本轮已将 ACPX chat realtime socket 的默认端口从：
+- `3001`
+改为：
+- `3101`
+
+已改位置：
+- `src/lib/websocket.ts`
+- `src/lib/websocket-client.ts`
+- `.env`
+- `.env.example`
+
+这次调整的目的：
+- 避开宿主机已有 Docker 映射
+- 恢复 task room 的 realtime push
+- 降低“发了消息但页面没反应”的体感问题
+
+注意：
+- 改完后需要重启 dev server，新的 env 才会生效
+
+### 9. 已确认 realtime socket 恢复后，当前“没自然回复”仍主要是 control 语义问题
+在把默认 socket 端口切到 `3101` 并重启 dev server 之后，用户已观察到：
+- 顶部状态显示为“实时连接中”
+- `/api/socket` 返回正常
+- `favicon.ico` 也恢复到 `200`
+
+这说明：
+- realtime socket 本身已经基本恢复
+- 当前问题不能再继续归因为“socket 没连上”
+
+但用户在恢复 realtime 之后仍然看到：
+- 自己发给 implementer 的消息被记录
+- 紧接着出现 `control_message`
+- 系统提示明确写着：
+  - “这条消息已作为排队指令记录，当前 run 不会被强制打断，下一次合适的 handoff 或 rerun 会看到它。”
+
+这进一步确认了当前真实语义：
+- 主发送按钮走的是 `queue_message`
+- `queue_message` 目前不是“把消息实时送进当前 harness session”
+- 它更像是“写入 room / control log，等待下一次 run 或下一阶段 handoff 再消费”
+
+因此下一会话必须避免的误判是：
+- 不能把“agent 没自然回复”继续简单归因为 socket
+
+更准确的结论是：
+- socket 恢复后，页面的实时感会更好
+- 但当前产品语义仍然不是 ChatGPT 式原地 continuation
+- 所以用户仍然会感觉：
+  - “我发了消息，它记下来了”
+  - “但 agent 没有立刻接着回我”
+
 ## 本轮实际确认的事实
 
 ### 1. Claude 远端 participant 能响应
@@ -204,6 +259,7 @@
 
 需要注意：
 - 这不一定是 transport 故障
+- 在 socket 恢复后，这一判断更强了
 - 更可能是 ACPX 当前 queued/immediate 语义与 run continuation 之间仍有断层
 
 ## 当前工作区状态
@@ -265,6 +321,12 @@
 - 是当前 run 中不会看到，还是下一 run 才会看到
 - 是否需要在 UI 中明确反馈“这条消息何时会被 agent 真正消费”
 - 是否应补一种更自然的 reply/system acknowledgment 机制
+
+当前偏强判断：
+- 当前主按钮的 `queue_message` 语义就是“下一次 run / 下一阶段才消费”
+- 如果希望像聊天一样自然，就需要：
+  - 要么做真实 current-session continuation
+  - 要么把 UI 文案改得更诚实，明确告诉用户这不是即时回复
 
 ### P3. 若继续用浏览器调试，必须使用正确实例
 必须使用：
