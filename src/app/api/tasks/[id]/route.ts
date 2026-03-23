@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
+import type { Prisma } from '@prisma/client';
 import type { AcpxParticipantRequest } from '@/lib/acpx/types';
 
 const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
@@ -11,7 +13,18 @@ const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
   }
 };
 
-const formatTask = (task: any) => ({
+type TaskWithRelations = Prisma.TaskGetPayload<{
+  include: {
+    currentTaskSession: true;
+    assignedAgents: {
+      include: {
+        gateway: true;
+      };
+    };
+  };
+}>;
+
+const formatTask = (task: TaskWithRelations) => ({
   ...task,
   result: parseJson(task.result, null),
   acpxParticipants: parseJson<AcpxParticipantRequest[]>(task.acpxParticipants, []),
@@ -21,7 +34,7 @@ const formatTask = (task: any) => ({
         metadata: parseJson(task.currentTaskSession.metadata, null),
       }
     : null,
-  assignedAgents: task.assignedAgents.map((agent: any) => ({
+  assignedAgents: task.assignedAgents.map((agent) => ({
     ...agent,
     gateway: agent.gateway
       ? {
@@ -39,6 +52,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    await reconcileTaskRunLiveness(params.id);
+
     const task = await prisma.task.findUnique({
       where: { id: params.id },
       include: {
@@ -97,7 +112,7 @@ export async function PUT(
       );
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.TaskUpdateInput = {};
 
     if (status) {
       updateData.status = status;

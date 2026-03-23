@@ -36,6 +36,19 @@ const DEFAULT_CLAUDE_MAX_RUNTIME_MS = 10 * 60 * 1000;
 const stringifyJson = (value?: Record<string, unknown> | WatchdogConfig | object | null) =>
   value ? JSON.stringify(value) : null;
 
+const parseJsonObject = (value?: string | null) => {
+  if (!value) {
+    return {} as Record<string, unknown>;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {} as Record<string, unknown>;
+  }
+};
+
 const updateRunActivity = async (
   taskRunId: string,
   activityState: RunActivityState,
@@ -66,6 +79,50 @@ const updateParticipantActivity = async (
       lastActivityAt,
     },
   });
+};
+
+const persistSpawnedHarnessMetadata = async (
+  taskRunId: string,
+  participantId: string,
+  childPid: number | undefined
+) => {
+  if (!childPid) {
+    return;
+  }
+
+  const [taskRun, participant] = await Promise.all([
+    prisma.taskRun.findUnique({
+      where: { id: taskRunId },
+      select: { controlMetadata: true },
+    }),
+    prisma.taskRunParticipant.findUnique({
+      where: { id: participantId },
+      select: { controlMetadata: true },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.taskRun.update({
+      where: { id: taskRunId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...parseJsonObject(taskRun?.controlMetadata),
+          activeLocalHarnessPid: childPid,
+          localHarnessSpawnedAt: new Date().toISOString(),
+        }),
+      },
+    }),
+    prisma.taskRunParticipant.update({
+      where: { id: participantId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...parseJsonObject(participant?.controlMetadata),
+          childPid,
+          spawnedAt: new Date().toISOString(),
+        }),
+      },
+    }),
+  ]);
 };
 
 const mapControlActionToRunStatus = (action: RunControlAction): TaskRunStatus =>
@@ -347,7 +404,8 @@ const executeViaLocalHarness = async (
   participant: AcpxParticipantRequest,
   callbacks: HarnessStreamCallbacks,
   previousSummaries: string[],
-  taskRoomContext: string
+  taskRoomContext: string,
+  onSpawn?: (child: { pid?: number }) => void
 ) => {
   const task = {
     id: request.taskId,
@@ -368,6 +426,7 @@ const executeViaLocalHarness = async (
           executionBackend: participant.executionBackend,
           harnessType: participant.harnessType,
         });
+        onSpawn?.(child);
       },
     });
 
@@ -396,6 +455,7 @@ const executeViaLocalHarness = async (
           executionBackend: participant.executionBackend,
           harnessType: participant.harnessType,
         });
+        onSpawn?.(child);
       },
     });
 
@@ -703,6 +763,9 @@ const executeParticipant = async (
 
   try {
     const taskRoomContext = await buildTaskRoomContext(request.taskId, request.taskName, 30);
+    const localSpawnHandler = (child: { pid?: number }) => {
+      void persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
+    };
 
     const result = participant.executionBackend === 'platform_local'
       ? await executeViaLocalHarness(
@@ -712,7 +775,8 @@ const executeParticipant = async (
           participant,
           callbacks,
           previousSummaries,
-          taskRoomContext
+          taskRoomContext,
+          localSpawnHandler
         )
       : await executeViaGateway(request, participant, previousSummaries, taskRoomContext);
 

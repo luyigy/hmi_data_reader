@@ -589,14 +589,14 @@ export default function TaskChatPage() {
 
   const primarySendLabel = task?.executionMode === 'acpx'
     ? task.status === 'running'
-      ? '发送消息'
-      : '发送并开始运行'
+      ? '排队到后续轮次'
+      : '发送并启动新一轮'
     : '发送到 Task Room';
 
   const composerBehaviorHint = task?.executionMode === 'acpx'
     ? task.status === 'running'
-      ? `当前 ${activeParticipantLabel || 'harness'} 正在处理任务，发送后会先进入队列，等待它到达下一个可处理节点。`
-      : `当前没有忙碌中的 harness，发送后会把消息写入 task room，并立即触发新一轮运行。`
+      ? `当前 ${activeParticipantLabel || 'harness'} 正在运行；主按钮只会把消息记入 task room，留给后续 handoff 或下一轮运行读取。`
+      : `当前没有忙碌中的 harness；主按钮会先把消息写入 task room，再启动一轮新的运行。`
     : null;
 
   const taskRoomTargetOptions = useMemo<TaskRoomMessageTargetOption[]>(() => {
@@ -844,11 +844,11 @@ export default function TaskChatPage() {
           taskWasRunning
             ? `消息已发给${selectedTargetLabel}，当前 ${
                 activeParticipantLabel || 'harness'
-              } 忙碌中，平台会先排队，等待下一次可处理节点。`
-            : `消息已发给${selectedTargetLabel}，当前没有忙碌中的 harness，平台会立即用这条消息启动下一轮运行。`
+              } 忙碌中；这条消息已记入 task room，后续 handoff 或下一轮运行才会读取。`
+            : `消息已发给${selectedTargetLabel}；当前没有忙碌中的 harness，平台会用这条消息启动一轮新的运行。`
         );
       } else if (action === 'interrupt_now') {
-        setComposerNotice('已请求打断当前本地运行，并带上这条消息进入下一轮处理。');
+        setComposerNotice('已请求打断当前本地运行；平台会在后续重启时把这条消息带入下一轮。');
       } else {
         setComposerNotice('已请求停止当前运行。');
       }
@@ -891,10 +891,10 @@ export default function TaskChatPage() {
   const handleHarnessDecision = async (decision: 'allow' | 'deny' | 'explain') => {
     const content =
       decision === 'allow'
-        ? '我允许你继续执行刚才请求的权限或操作。请继续，并在继续前简短说明你将执行什么。'
+        ? '我同意你继续刚才请求的权限或操作。请在下一轮开始时继续，并先简短说明你将执行什么。'
         : decision === 'deny'
-        ? '我不允许刚才请求的权限或操作。请停止该动作，改用不需要该权限的方案，并说明替代路径。'
-        : '请明确说明你刚才需要我确认的具体权限、原因、影响范围，以及继续前你希望我点击或确认什么。';
+        ? '我不同意刚才请求的权限或操作。请在下一轮改用不需要该权限的方案，并说明替代路径。'
+        : '请在下一轮先明确说明你刚才需要我确认的具体权限、原因、影响范围，以及你希望我确认什么。';
 
     await handleAcpxControl('interrupt_now', 'immediate', content);
 
@@ -1105,7 +1105,7 @@ export default function TaskChatPage() {
               ) : null}
               {selectedRun?.status === 'waiting_for_input' ? (
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
-                  当前在等待用户输入
+                  当前在等待用户输入或平台下一步处理
                 </span>
               ) : null}
             </div>
@@ -1118,7 +1118,11 @@ export default function TaskChatPage() {
                     <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
                       仅提示，不是可批准请求
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
+                      按钮会生成后续处理消息，不会原地注入当前 session
+                    </span>
+                  )}
                 </div>
                 <div className="mt-2 whitespace-pre-wrap leading-5">{latestHarnessRequest.message}</div>
                 {latestHarnessRequest.excerpt ? (
@@ -1133,21 +1137,21 @@ export default function TaskChatPage() {
                       disabled={isSending || !selectedRunCanInterrupt}
                       className="rounded-full bg-emerald-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                     >
-                      允许继续
+                      同意并转入下一轮
                     </button>
                     <button
                       onClick={() => void handleHarnessDecision('deny')}
                       disabled={isSending || !selectedRunCanInterrupt}
                       className="rounded-full bg-rose-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
                     >
-                      拒绝请求
+                      拒绝并转入下一轮
                     </button>
                     <button
                       onClick={() => void handleHarnessDecision('explain')}
                       disabled={isSending || !selectedRunCanInterrupt}
                       className="rounded-full bg-slate-800 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
-                      先解释清楚
+                      先补充说明
                     </button>
                   </div>
                 ) : null}
@@ -1286,11 +1290,11 @@ export default function TaskChatPage() {
                     onChange={(event) => setMessageInput(event.target.value)}
                     rows={2}
                     className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-0"
-                    placeholder="像在 ChatGPT 里一样输入你的要求、追问、纠偏或补充信息……"
+                    placeholder="输入要排队给后续 handoff / 新一轮运行的要求、追问、纠偏或补充信息……"
                   />
                   <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] leading-5 text-slate-500">
-                      主按钮会尽量按聊天习惯工作：忙碌时先排队，不忙时直接带着这条消息启动新一轮。
+                      主按钮不会把消息实时注入当前 harness；忙碌时只排队，空闲时会用它启动新一轮。
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -1304,7 +1308,7 @@ export default function TaskChatPage() {
                         }
                         className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-amber-200 disabled:text-amber-400"
                       >
-                        打断后发送
+                        打断并转入下一轮
                       </button>
                       <button
                         onClick={() => void handleAcpxControl('stop_run', 'immediate')}

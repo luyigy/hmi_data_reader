@@ -265,76 +265,240 @@
 ## 当前工作区状态
 本轮尚未提交的修改主要在：
 - `prisma/dev.db`
-- `prisma/schema.prisma`
-- `src/app/api/chat/messages/route.ts`
-- `src/app/api/socket/route.ts`
 - `src/app/api/tasks/[id]/control/route.ts`
-- `src/app/layout.tsx`
+- `src/app/api/tasks/[id]/route.ts`
+- `src/app/api/tasks/[id]/runs/latest/route.ts`
+- `src/app/api/tasks/[id]/runs/route.ts`
 - `src/app/tasks/[id]/chat/page.tsx`
-- `src/components/common/Sidebar.tsx`
-- `src/lib/chat-types.ts`
-- `src/lib/task-room.ts`
-- `src/lib/task-room-targets.ts`
-- `src/lib/websocket.ts`
+- `src/lib/acpx/liveness.ts`
+- `src/lib/acpx/runner.ts`
 
 这些改动包含：
-- room message target 模型
-- socket fallback
-- chat layout 多轮调整
-- ChatGPT-like chat page 收敛
-- sidebar / root layout 调整
+- task room 主发送按钮与 request card 的“诚实语义”文案
+- `queue_message` / `interrupt_now` 的 UI 提示与后端 system notice 对齐
+- local harness spawn 后记录 PID 到 run / participant `controlMetadata`
+- 读 task / runs / latest / control 入口时，自动 reconcile stale local run
+- 若 DB 仍是 `running`，但本地 `codex` 进程已消失，则自动收口为 failed / interrupted / stopped
 
-## 下一会话最优先事项
+## 本轮新增确认
 
-### P0. 继续压缩 task room 顶部信息区
+### 1. 当前 local Codex 不是“可持续对话 session”
+当前 local Codex 的真实执行方式仍是：
+- spawn 一次 `codex exec`
+- 写入单次 prompt
+- 立刻关闭 stdin
+- 等 stdout / stderr 或退出
+
+这意味着：
+- 当前并没有“把下一条用户消息写回同一个 harness session”的通路
+- `queue_message` 只能进入 task room / control log
+- 后续只会在下一次 run 或下一阶段 handoff 里被重新拼进 prompt context
+
+结论：
+- 现在的 ACPX chat 还不是“真实聊天 continuation”
+- 更准确地说，它仍是“带聊天外观的 run orchestration UI”
+
+### 2. 已定位“看起来一直在跑，其实本地进程已经没了”的真实故障
+本轮直接检查服务器进程后确认：
+- 某个 `platform_local / codex` participant 在 DB 中仍显示 `running`
+- 但宿主机上已不存在对应 `codex exec` 子进程
+
+这说明之前的系统确实会出现：
+- UI 和 DB 以为 harness 还活着
+- 实际本地子进程早已退出或消失
+- 页面继续表现成“长时间运行但没回应”
+
+### 3. stale-run / liveness reconcile 已落地第一版
+本轮已经新增：
+- `src/lib/acpx/liveness.ts`
+
+它会在读取这些入口前先做一次 reconcile：
+- `/api/tasks/[id]`
+- `/api/tasks/[id]/runs`
+- `/api/tasks/[id]/runs/latest`
+- `/api/tasks/[id]/control`
+
+当前第一版规则：
+- 若 run / participant 仍是 `running` 或 `waiting_for_input`
+- 且 participant 是 `platform_local`
+- 且进程注册表里找不到它
+- 且 PID 也不存在或不再像对应 harness
+- 且已超过短暂 grace period
+
+则平台会自动：
+- 把 participant 收口为 `failed` / `interrupted` / `stopped`
+- 把 run 收口为 terminal 状态
+- 清掉 session `activeRunId`
+- 写入 `participant_failed` / `run_failed` 等事件
+
+### 4. 当前 liveness 仍只覆盖“本地 harness 真死了”的场景
+这次已解决的是：
+- 本地进程明明没了，但 UI 还一直显示运行中
+
+这次还没有真正解决的是：
+- 本地 harness 仍活着，但长时间安静
+- 远端 OpenClaw / Claude final-only 执行时，怎么区分 quiet / stalled / dead
+- 真实 heartbeat / watchdog product model
+
+所以当前 liveness 的真实状态应表述为：
+- local dead-process reconcile：已有第一版
+- quiet vs stalled：还没有完整产品层定义
+- remote liveness：仍不足
+
+## 下一阶段目标
+
+### 核心目标
+把 `/tasks/[id]/chat` 从“消息被记录，等待下一轮 run 消费”推进到：
+- 用户发消息后，当前 direct harness 能继续读到
+- harness 的后续输出继续回到同一条聊天流
+- 用户主观体验更像真正的 ChatGPT / Claude 式连续对话
+
+这次不要再把目标描述成抽象的“优化体验”。
+更准确地说，下一阶段要做的是：
+- direct local harness 的真实 continuation 通路
+- 为 continuation 配套的状态与 UI 约束
+
+## 下一阶段实施计划
+
+### Phase 0. 先把 continuation 范围收窄到 local direct harness
+先只做：
+- `platform_local`
+- `codex`
+- 可能再兼容 `claude`
+
+先不要假装：
+- `gateway_openclaw` 也能同样工作
+- 所有 harness 都支持 current-session injection
+
 目标：
-- 把页面标题卡片高度继续缩小
-- 把 task room/info/socket 说明继续收敛
-- 让聊天历史区获得更大可见高度
+- 先在最可控的一条链路上实现真实 continuation
 
-建议方向：
-- 将顶部标题区继续压成更紧凑的一行或两行
-- participant badges 还能再缩
-- notice 继续维持轻量状态栏，不要回退成说明块
-- conversation card 顶部状态区继续减高
+### Phase 1. 把 local harness 从“一次性 exec”改成“可持续 session”
+最小实现目标：
+- spawn local harness 后不要立刻关闭 stdin
+- process-registry 不只保存 `child`
+- 还要保存：
+  - `pid`
+  - session writable stdin availability
+  - startedAt / lastSeenAt
+  - harnessType / taskRunId / participantId
 
-### P1. 把聊天主区真正做成“聊天优先”
-目标：
-- 让聊天历史区成为这页最大的视觉主体
-- 输入区始终稳定可见
-- 右侧侧栏只承担次要信息，不抢高度
+必要工作：
+- 为 Codex direct run 设计可持续 stdin 写入协议
+- 确认 `codex exec` 是否真的适合 continuation
+- 如果 `codex exec` 天然不适合，就需要切到更适合 session control 的命令模式或 wrapper
 
-建议方向：
-- 进一步减少 feed 上方所有说明块
-- 继续压缩 composer 高度
-- 优先保住 feed height
-- 必要时把更多次要状态移到右侧侧栏或折叠区域
+完成标志：
+- 平台能向当前活着的 local harness session 写入一条 continuation message
+- 不必通过“中断 + 新 run”来伪装继续
 
-### P2. 继续调查“消息发给 agent 后为何缺少自然回复”
-当前现象：
-- 用户消息已进入 room
-- control message 也会记录
-- 但用户仍然感觉“agent 没有回复我”
+### Phase 2. 新增真正的 `continue_session` / `inject_message` 控制动作
+当前控制动作只有：
+- `queue_message`
+- `interrupt_now`
+- `stop_run`
 
-下一会话需要优先厘清：
-- 当前消息究竟进入了哪一层 prompt context
-- 是当前 run 中不会看到，还是下一 run 才会看到
-- 是否需要在 UI 中明确反馈“这条消息何时会被 agent 真正消费”
-- 是否应补一种更自然的 reply/system acknowledgment 机制
+下一步建议新增：
+- `continue_session`
+  - 仅在 harness capability 明确支持时启用
 
-当前偏强判断：
-- 当前主按钮的 `queue_message` 语义就是“下一次 run / 下一阶段才消费”
-- 如果希望像聊天一样自然，就需要：
-  - 要么做真实 current-session continuation
-  - 要么把 UI 文案改得更诚实，明确告诉用户这不是即时回复
+真实语义应是：
+- 如果当前 participant 是 local direct harness，且 session 可写
+- 用户消息直接写入当前 session
+- 不新建 `TaskRun`
+- 不强制中断
 
-### P3. 若继续用浏览器调试，必须使用正确实例
-必须使用：
-- `http://127.0.0.1:3010`
+同时保留：
+- `queue_message`
+  - 继续表示“后续轮次再消费”
+- `interrupt_now`
+  - 继续表示“马上打断并准备转向”
 
-不要再使用：
-- `http://127.0.0.1:3000`
+### Phase 3. 在数据模型里显式标记“消息是排队还是已注入当前 session”
+当前 message / control flow 还缺一层关键可观察性：
+- 用户发出去后，到底是 queued
+- 还是 delivered to active session
+- 还是 rejected / fallback to queue
+
+最小目标：
+- control message metadata 里记录：
+  - target participant
+  - delivery attempt
+  - session injection result
+  - fallback reason
+
+UI 最少要能明确显示：
+- 已写入当前 session
+- 当前 harness 不支持 continuation，已改为排队
+- 当前 session 已失活，无法继续注入
+
+### Phase 4. 把聊天 UI 改成真正区分三种发送模式
+主发送体验不能再只有一个模糊主按钮。
+
+建议最小交互：
+- 主按钮：
+  - 若当前 active participant 支持 continuation，则默认“继续当前对话”
+  - 否则默认“排队到后续轮次”
+- 次按钮：
+  - `排队到后续轮次`
+  - `打断并转入下一轮`
+
+并且在 composer 上方明确提示：
+- 当前是“live continuation”
+- 还是“queue for later”
+
+### Phase 5. 把 stdout / stderr 事件和 continuation 回复串成自然聊天闭环
+continuation 成功后，用户还需要在 UI 上感知：
+- 我的消息已经送进去了
+- agent 正在继续思考 / 输出
+- 新输出属于“继续当前对话”，不是“另一轮莫名其妙的 run event”
+
+建议最小落地：
+- 给 continuation 注入写一条轻量 system event
+- 后续 stdout_chunk 在视觉上更像“agent reply streaming”
+- 降低 run event 的控制台感，增强聊天连续性
+
+### Phase 6. 最后再回到 approval / input request 的真交互
+只有在 current-session continuation 打通后，再回头做：
+- permission approval
+- input request submit
+- choice request submit
+
+因为这三类交互真正成立的前提就是：
+- 平台已经能把用户输入送回当前 harness session
+
+如果这个前提没成立，approval UI 仍然只会是“模板消息 + 下一轮重跑”。
+
+## 下一会话建议优先级
+
+### P0. 验证 local Codex 哪种命令模式适合真实 continuation
+先不要急着改 UI。
+先确认技术事实：
+- `codex exec` 是否允许持续 stdin 写入并在同一进程里继续
+- 如果不适合，应该切到什么命令模式或 wrapper
+
+这一点是整个 continuation 的关键 blocker。
+
+### P1. 在 process-registry 上扩展 session write 能力
+最小目标：
+- 除了 kill 进程，还能向 active local harness 写入 continuation message
+- 能明确知道这次写入成功、失败还是 fallback
+
+### P2. 新增 `continue_session` control action 与 API 语义
+最小目标：
+- 后端先打通
+- 前端先不做复杂交互
+- 先能通过一个受控入口把消息送到当前 local harness
+
+### P3. 再把 chat composer 升级成“真实 continuation 优先”的 UI
+最小目标：
+- 当前 harness 支持 continuation 时，主按钮默认继续当前对话
+- 否则明确 fallback 为 queue
 
 ## 建议下一会话先读
-1. `docs/19_ACPX_TASK_ROOM_CONTROL_HANDOVER.md`
-2. `docs/20_ACPX_TASK_ROOM_CHAT_LAYOUT_HANDOVER.md`
+1. `docs/16_ACPX_INTERACTIVE_RUN_CONTROL_PLAN.md`
+2. `docs/19_ACPX_TASK_ROOM_CONTROL_HANDOVER.md`
+3. `docs/20_ACPX_TASK_ROOM_CHAT_LAYOUT_HANDOVER.md`
+4. `src/lib/acpx/liveness.ts`
+5. `src/lib/acpx/runner.ts`
+6. `src/lib/real-agents/codex-agent.ts`

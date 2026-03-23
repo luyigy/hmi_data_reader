@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    await reconcileTaskRunLiveness(params.id);
+
     const task = await prisma.task.findUnique({
       where: { id: params.id },
       include: {

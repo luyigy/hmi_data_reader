@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { createTaskRunControlMessage } from '@/lib/acpx/control';
 import { requestRunControl } from '@/lib/acpx/process-registry';
 import { publishTaskRunEvent } from '@/lib/acpx/event-bus';
+import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
 import {
   ensureTaskChatRoom,
   postTaskRoomMessage,
@@ -50,6 +51,8 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    await reconcileTaskRunLiveness(params.id);
+
     const body = await request.json();
     const action = body.action;
     const deliveryMode = body.deliveryMode;
@@ -209,7 +212,7 @@ export async function POST(
     let systemMessage = '';
 
     if (action === 'queue_message') {
-      systemMessage = '系统提示：这条消息已作为排队指令记录，当前 run 不会被强制打断，下一次合适的 handoff 或 rerun 会看到它。';
+      systemMessage = '系统提示：这条消息已作为排队指令记录；当前 run 不会被强制打断，后续 handoff 或下一轮运行才会读取它。';
     } else {
       await prisma.taskRun.update({
         where: { id: targetRun.id },
