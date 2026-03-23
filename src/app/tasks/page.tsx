@@ -10,6 +10,18 @@ interface Task {
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  executionMode: 'standard' | 'acpx';
+  acpxParticipants?: Array<{
+    gatewayId: string;
+    gatewayName?: string;
+    executionBackend: 'platform_local' | 'gateway_openclaw';
+    harnessType: string;
+    harnessLabel?: string;
+    role: string;
+    agentId?: string;
+    agentName?: string;
+  }>;
+  workingDirectory?: string | null;
   assignedAgents: Array<{
     id: string;
     name: string;
@@ -38,11 +50,24 @@ interface Agent {
   } | null;
 }
 
+interface AcpxHarnessOption {
+  gatewayId: string;
+  gatewayName: string;
+  executionBackend: 'platform_local' | 'gateway_openclaw';
+  harnessType: string;
+  harnessLabel: string;
+  agentId?: string;
+  agentName?: string;
+  runtimeAgentId?: string;
+  status: string;
+}
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
   const [gateways, setGateways] = useState<Array<{ id: string; name: string }>>([]);
+  const [acpxHarnessOptions, setAcpxHarnessOptions] = useState<AcpxHarnessOption[]>([]);
   const [selectedGateway, setSelectedGateway] = useState<string>('all');
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState<string>('all');
@@ -52,6 +77,7 @@ export default function TasksPage() {
     fetchTasks();
     fetchAgents();
     fetchGateways();
+    fetchAcpxHarnessOptions();
   }, [filter]);
 
   const fetchTasks = async () => {
@@ -101,6 +127,18 @@ export default function TasksPage() {
     }
   };
 
+  const fetchAcpxHarnessOptions = async () => {
+    try {
+      const res = await fetch('/api/acpx/harness-options');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setAcpxHarnessOptions(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch ACPX harness options:', error);
+    }
+  };
+
   useEffect(() => {
     if (selectedGateway === 'all') {
       setAgents(allAgents);
@@ -112,6 +150,19 @@ export default function TasksPage() {
   const handleCreateTask = async (taskData: {
     name: string;
     description?: string;
+    executionMode: 'standard' | 'acpx';
+    orchestrationMode?: 'single' | 'staged';
+    acpxParticipants?: Array<{
+      gatewayId: string;
+      gatewayName?: string;
+      executionBackend: 'platform_local' | 'gateway_openclaw';
+      harnessType: string;
+      harnessLabel?: string;
+      role: string;
+      agentId?: string;
+      agentName?: string;
+    }>;
+    workingDirectory?: string;
     assignedAgentIds?: string[];
   }) => {
     try {
@@ -125,7 +176,14 @@ export default function TasksPage() {
         await fetchTasks();
         setShowForm(false);
         alert(`任务创建成功！\n聊天室会自动创建当任务执行时。`);
+        return;
       }
+
+      const errorData = await res.json().catch(() => null);
+      const errorMessage =
+        errorData?.error || `创建任务失败（HTTP ${res.status}）`;
+      console.error('Failed to create task:', errorData || res.statusText);
+      alert(errorMessage);
     } catch (error) {
       console.error('Failed to create task:', error);
       alert('创建任务失败');
@@ -231,6 +289,7 @@ export default function TasksPage() {
       {showForm && (
         <TaskForm
           agents={agents}
+          acpxHarnessOptions={acpxHarnessOptions}
           onSubmit={handleCreateTask}
           onClose={() => setShowForm(false)}
         />

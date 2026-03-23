@@ -7,10 +7,25 @@ interface Task {
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  executionMode: 'standard' | 'acpx';
+  acpxParticipants?: Array<{
+    gatewayId: string;
+    gatewayName?: string;
+    executionBackend: 'platform_local' | 'gateway_openclaw';
+    harnessType: string;
+    harnessLabel?: string;
+    role: string;
+    agentId?: string;
+    agentName?: string;
+  }>;
   assignedAgents: Array<{
     id: string;
     name: string;
     type: string;
+    gateway?: {
+      id: string;
+      name: string;
+    } | null;
   }>;
   result?: any;
   error?: string;

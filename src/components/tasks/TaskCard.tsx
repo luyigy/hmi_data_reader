@@ -5,6 +5,18 @@ interface Task {
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  executionMode: 'standard' | 'acpx';
+  acpxParticipants?: Array<{
+    gatewayId: string;
+    gatewayName?: string;
+    executionBackend: 'platform_local' | 'gateway_openclaw';
+    harnessType: string;
+    harnessLabel?: string;
+    role: string;
+    agentId?: string;
+    agentName?: string;
+  }>;
+  workingDirectory?: string | null;
   assignedAgents: Array<{
     id: string;
     name: string;
@@ -63,12 +75,10 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
       }
 
       const result = await res.json();
-
-      const message = `任务执行完成！
-成功：${result.successCount}
-失败：${result.failCount}
-
-聊天室已创建，可以查看 Agent 实时消息。`;
+      const message =
+        task.executionMode === 'acpx'
+          ? `任务执行完成！\n状态：${result.status}\n参与方：${result.participants?.length || 0}`
+          : `任务执行完成！\n成功：${result.successCount}\n失败：${result.failCount}\n\n聊天室已创建，可以查看 Agent 实时消息。`;
       alert(message);
 
       if (result.chatRoomId) {
@@ -94,6 +104,17 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
               }`}
             >
               {statusLabels[task.status]}
+            </span>
+            <span
+              className={`px-2 py-0.5 text-xs rounded-full border whitespace-nowrap ${
+                task.executionMode === 'acpx'
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                  : 'border-gray-300 bg-gray-50 text-gray-700'
+              }`}
+            >
+              {task.executionMode === 'acpx'
+                ? `ACPX${task.acpxParticipants?.length ? ` · ${task.acpxParticipants.length} 参与方` : ''}`
+                : '标准'}
             </span>
           </div>
           {task.description && (
@@ -161,11 +182,32 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
         )}
         <div>
           <span className="text-gray-500">Agent:</span>
-          <div className="text-gray-900 font-medium">{task.assignedAgents.length} 个</div>
+          <div className="text-gray-900 font-medium">
+            {task.executionMode === 'acpx'
+              ? `${task.acpxParticipants?.length || 0} 个参与方`
+              : `${task.assignedAgents.length} 个`}
+          </div>
         </div>
       </div>
 
-      {task.assignedAgents.length > 0 && (
+      {task.executionMode === 'acpx' ? (
+        <div className="mb-4 rounded border border-indigo-200 bg-indigo-50 p-2 text-xs text-indigo-700">
+          <div><strong>执行方式:</strong> {(task.acpxParticipants?.length || 0) > 1 ? '分阶段' : '单参与方'}</div>
+          <div><strong>工作目录:</strong> {task.workingDirectory || '默认目录'}</div>
+          {task.acpxParticipants?.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+                  {task.acpxParticipants.map((participant, index) => (
+                <span
+                  key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
+                  className="rounded-full border border-indigo-200 bg-white px-2 py-1 text-[11px] text-indigo-700"
+                >
+                  {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : task.assignedAgents.length > 0 && (
         <div className="mb-4">
           <span className="text-xs text-gray-500">分配给:</span>
           <div className="flex flex-wrap gap-1.5 mt-1">

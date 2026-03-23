@@ -4,11 +4,14 @@
  * Executes tasks using Claude Code CLI
  */
 
+import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+
 export interface ClaudeConfig {
   apiKey?: string;
   model?: string;
   timeout?: number;
   workingDirectory?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
 }
 
 export interface ClaudeTask {
@@ -38,13 +41,14 @@ export const executeClaudeTask = async (
     model = 'claude-sonnet-4-20250514',
     timeout = 60000,
     workingDirectory = process.cwd(),
+    streamCallbacks,
   } = config;
 
   try {
     console.log(`[Claude] Executing task: ${task.name}`);
 
     // Execute claude code CLI
-    const result = await executeClaudeCLI(task, { timeout, workingDirectory });
+    const result = await executeClaudeCLI(task, { timeout, workingDirectory, streamCallbacks });
     
     return {
       success: true,
@@ -67,7 +71,7 @@ export const executeClaudeTask = async (
  */
 const executeClaudeCLI = async (
   task: ClaudeTask,
-  options: { timeout: number; workingDirectory: string }
+  options: { timeout: number; workingDirectory: string; streamCallbacks?: HarnessStreamCallbacks }
 ): Promise<{ output: string; filesModified?: string[] }> => {
   const { spawn } = await import('child_process');
   
@@ -99,12 +103,16 @@ Take your time and be thorough.`;
 
     // Collect stdout
     child.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdout += chunk;
+      void options.streamCallbacks?.onStdoutChunk?.(chunk);
     });
 
     // Collect stderr
     child.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+      void options.streamCallbacks?.onStderrChunk?.(chunk);
     });
 
     // Handle completion

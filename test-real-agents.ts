@@ -2,7 +2,8 @@
  * Test Real Agents Execution
  */
 
-import { executeCodexTask, executeClaudeTask } from './src/lib/real-agents/codex-agent';
+import { executeCodexTask } from './src/lib/real-agents/codex-agent';
+import { executeClaudeTask } from './src/lib/real-agents/claude-agent';
 
 async function testAgents() {
   const testTask = {

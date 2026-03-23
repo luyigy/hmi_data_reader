@@ -1,5 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import type { AcpxParticipantRequest } from '@/lib/acpx/types';
+
+const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const formatTask = (task: any) => ({
+  ...task,
+  result: parseJson(task.result, null),
+  acpxParticipants: parseJson<AcpxParticipantRequest[]>(task.acpxParticipants, []),
+  assignedAgents: task.assignedAgents.map((agent: any) => ({
+    ...agent,
+    gateway: agent.gateway
+      ? {
+          id: agent.gateway.id,
+          name: agent.gateway.name,
+        }
+      : null,
+    capabilities: parseJson(agent.capabilities, []),
+  })),
+});
 
 // GET /api/tasks/[id] - 获取单个任务
 export async function GET(
@@ -25,28 +51,7 @@ export async function GET(
       );
     }
 
-    const formatted = {
-      ...task,
-      result: task.result ? JSON.parse(task.result) : null,
-      assignedAgents: task.assignedAgents.map((agent) => ({
-        ...agent,
-        gateway: agent.gateway
-          ? {
-              id: agent.gateway.id,
-              name: agent.gateway.name,
-            }
-          : null,
-        capabilities: (() => {
-          try {
-            return JSON.parse(agent.capabilities || '[]');
-          } catch {
-            return [];
-          }
-        })(),
-      })),
-    };
-
-    return NextResponse.json(formatted);
+    return NextResponse.json(formatTask(task));
   } catch (error) {
     console.error('Failed to fetch task:', error);
     return NextResponse.json(
@@ -63,7 +68,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const { status, result, error } = body;
+    const { status, result, error, acpxParticipants } = body;
 
     // 验证状态
     const validStatuses = ['pending', 'running', 'completed', 'failed'];
@@ -107,6 +112,10 @@ export async function PUT(
       updateData.error = error;
     }
 
+    if (acpxParticipants !== undefined) {
+      updateData.acpxParticipants = JSON.stringify(acpxParticipants);
+    }
+
     const updated = await prisma.task.update({
       where: { id: params.id },
       data: updateData,
@@ -119,28 +128,7 @@ export async function PUT(
       },
     });
 
-    const formatted = {
-      ...updated,
-      result: updated.result ? JSON.parse(updated.result) : null,
-      assignedAgents: updated.assignedAgents.map((agent) => ({
-        ...agent,
-        gateway: agent.gateway
-          ? {
-              id: agent.gateway.id,
-              name: agent.gateway.name,
-            }
-          : null,
-        capabilities: (() => {
-          try {
-            return JSON.parse(agent.capabilities || '[]');
-          } catch {
-            return [];
-          }
-        })(),
-      })),
-    };
-
-    return NextResponse.json(formatted);
+    return NextResponse.json(formatTask(updated));
   } catch (error) {
     console.error('Failed to update task:', error);
     return NextResponse.json(

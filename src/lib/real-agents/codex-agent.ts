@@ -4,10 +4,15 @@
  * Executes tasks using OpenAI Codex via CLI
  */
 
+import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+
 export interface CodexConfig {
   apiKey?: string;
   model?: string;
   timeout?: number;
+  workingDirectory?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  skipGitRepoCheck?: boolean;
 }
 
 export interface CodexTask {
@@ -21,6 +26,7 @@ export interface CodexResult {
   output?: string;
   error?: string;
   executionTime: number;
+  filesModified?: string[];
 }
 
 /**
@@ -35,13 +41,21 @@ export const executeCodexTask = async (
     apiKey = process.env.OPENAI_API_KEY,
     model = 'gpt-4',
     timeout = 30000,
+    workingDirectory = process.cwd(),
+    streamCallbacks,
+    skipGitRepoCheck = true,
   } = config;
 
   try {
     console.log(`[Codex] Executing task: ${task.name}`);
 
     // Method 1: Using codex CLI directly
-    const result = await executeCodexCLI(task, timeout);
+    const result = await executeCodexCLI(task, {
+      timeout,
+      workingDirectory,
+      streamCallbacks,
+      skipGitRepoCheck,
+    });
     
     return {
       success: true,
@@ -63,7 +77,12 @@ export const executeCodexTask = async (
  */
 const executeCodexCLI = async (
   task: CodexTask,
-  timeout: number
+  options: {
+    timeout: number;
+    workingDirectory: string;
+    streamCallbacks?: HarnessStreamCallbacks;
+    skipGitRepoCheck: boolean;
+  }
 ): Promise<string> => {
   const { spawn } = await import('child_process');
   
@@ -82,32 +101,59 @@ Take your time and be thorough.`;
   return new Promise((resolve, reject) => {
     let stdout = '';
     let stderr = '';
+    let settled = false;
+    const args = ['exec'];
+
+    if (options.skipGitRepoCheck) {
+      args.push('--skip-git-repo-check');
+    }
     
     // Use 'codex exec' subcommand which reads from stdin
-    const child = spawn('codex', ['exec'], {
+    const child = spawn('codex', args, {
+      cwd: options.workingDirectory,
       env: { ...process.env },
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true,
+      shell: false,
     });
+    const timeoutId = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      console.log('[Codex] Timeout, killing process');
+      child.kill('SIGTERM');
+      reject(new Error(`Codex execution timed out after ${options.timeout}ms`));
+    }, options.timeout);
 
     // Send prompt to stdin
     child.stdin.write(prompt);
     child.stdin.end();
     
     console.log('[Codex] Sending prompt via exec:', prompt.substring(0, 100) + '...');
+    console.log('[Codex] Exec args:', args.join(' '));
+    console.log('[Codex] Working directory:', options.workingDirectory);
 
     // Collect stdout
     child.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdout += chunk;
+      void options.streamCallbacks?.onStdoutChunk?.(chunk);
     });
 
     // Collect stderr
     child.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+      void options.streamCallbacks?.onStderrChunk?.(chunk);
     });
 
     // Handle completion
     child.on('close', (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
       console.log('[Codex] Process exited with code:', code);
       console.log('[Codex] Stdout length:', stdout.length);
       console.log('[Codex] Stderr:', stderr);
@@ -121,16 +167,14 @@ Take your time and be thorough.`;
 
     // Handle errors
     child.on('error', (err) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
       console.error('[Codex] Spawn error:', err);
       reject(err);
     });
-
-    // Handle timeout
-    setTimeout(() => {
-      console.log('[Codex] Timeout, killing process');
-      child.kill('SIGTERM');
-      reject(new Error(`Codex execution timed out after ${timeout}ms`));
-    }, timeout);
   });
 };
 

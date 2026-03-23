@@ -42,6 +42,11 @@ const setupSocketEvents = (io: IOServer) => {
       io.emit('chat:users', Array.from(onlineUsers.values()));
     });
 
+    socket.on('task-run:join', ({ taskId }: { taskId: string }) => {
+      if (!taskId) return;
+      socket.join(`task-run:${taskId}`);
+    });
+
     socket.on('chat:message', async (message: ChatMessage) => {
       if (!message.roomId) return;
       try {
@@ -143,3 +148,4 @@ export const initSocketServer = (server?: HTTPServer) => {
   return io;
 };
 
+export const getSocketServer = () => globalForSocket.io ?? null;

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { executeTask, executeTaskBatch } from '@/lib/agent-executor';
+import { executeTaskBatch } from '@/lib/agent-executor';
 import { getSocketServer } from '@/lib/websocket';
+import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import type { AcpxParticipantRequest, AcpxOrchestrationMode } from '@/lib/acpx/types';
 
 /**
  * POST /api/tasks/[id]/execute
@@ -39,10 +41,28 @@ export async function POST(
       );
     }
 
+    const isAcpxTask = task.executionMode === 'acpx';
+    const acpxParticipants = isAcpxTask
+      ? (() => {
+          try {
+            return JSON.parse(task.acpxParticipants || '[]') as AcpxParticipantRequest[];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
     // 如果没有分配 Agent，返回错误
-    if (task.assignedAgents.length === 0) {
+    if (!isAcpxTask && task.assignedAgents.length === 0) {
       return NextResponse.json(
         { error: 'No agents assigned to this task' },
+        { status: 400 }
+      );
+    }
+
+    if (isAcpxTask && acpxParticipants.length === 0) {
+      return NextResponse.json(
+        { error: 'ACPX task requires participants' },
         { status: 400 }
       );
     }
@@ -94,7 +114,11 @@ export async function POST(
     };
 
     // 发送任务开始消息
-    await sendChatMessage(`🚀 任务 "${task.name}" 开始执行，分配给 ${task.assignedAgents.length} 个 Agent`);
+    await sendChatMessage(
+      isAcpxTask
+        ? `🚀 ACPX 任务 "${task.name}" 开始执行`
+        : `🚀 任务 "${task.name}" 开始执行，分配给 ${task.assignedAgents.length} 个 Agent`
+    );
 
     // 更新任务状态为 running
     await prisma.task.update({
@@ -104,6 +128,51 @@ export async function POST(
         startedAt: task.startedAt || new Date(),
       },
     });
+
+    if (isAcpxTask) {
+      const runResult = await executeAcpxTaskRun({
+        taskId: task.id,
+        taskName: task.name,
+        taskDescription: task.description || undefined,
+        orchestrationMode:
+          acpxParticipants.length > 1 ? ('staged' as AcpxOrchestrationMode) : ('single' as AcpxOrchestrationMode),
+        participants: acpxParticipants,
+        workingDirectory: task.workingDirectory || undefined,
+      });
+
+      const finalStatus = runResult.status === 'completed' ? 'completed' : 'failed';
+      const resultData = {
+        executionMode: 'acpx',
+        taskRunId: runResult.taskRunId,
+        orchestrationMode: acpxParticipants.length > 1 ? 'staged' : 'single',
+        summary: runResult.summary,
+        participants: runResult.participants,
+        completedAt: new Date().toISOString(),
+      };
+
+      await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          status: finalStatus,
+          completedAt: new Date(),
+          result: JSON.stringify(resultData),
+          error: finalStatus === 'failed' ? 'ACPX run failed' : undefined,
+        },
+      });
+
+      await sendChatMessage(
+        finalStatus === 'completed'
+          ? `✅ ACPX 任务执行完成`
+          : `❌ ACPX 任务执行失败`
+      );
+
+      return NextResponse.json({
+        taskId,
+        status: finalStatus,
+        chatRoomId: chatRoom.id,
+        ...resultData,
+      });
+    }
 
     // 准备任务数据
     const taskData = {

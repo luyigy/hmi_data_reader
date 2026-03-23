@@ -22,6 +22,20 @@ export async function GET(
             gateway: true,
           },
         },
+        runs: {
+          include: {
+            participants: true,
+            events: {
+              orderBy: {
+                sequence: 'asc',
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
       },
     });
 
@@ -35,7 +49,28 @@ export async function GET(
     // 解析执行结果
     let executionLogs: any[] = [];
 
-    if (task.result) {
+    if (task.executionMode === 'acpx' && task.runs[0]) {
+      const latestRun = task.runs[0];
+      executionLogs = latestRun.events.map((event) => {
+        const participant = latestRun.participants.find((item) => item.id === event.participantId);
+        return {
+          timestamp: event.createdAt.toISOString(),
+          agentId: participant?.agentId || event.participantId,
+          agentName: participant?.agentNameSnapshot || participant?.harnessNameSnapshot || 'ACPX',
+          action: event.eventType,
+          status:
+            event.eventType.includes('failed') || event.stream === 'stderr'
+              ? 'error'
+              : event.eventType.includes('completed')
+              ? 'success'
+              : 'info',
+          message: event.content,
+          details: event.metadata ? JSON.parse(event.metadata) : null,
+          duration: undefined,
+          sequence: event.sequence,
+        };
+      });
+    } else if (task.result) {
       try {
         const resultData = typeof task.result === 'string'
           ? JSON.parse(task.result)
@@ -116,6 +151,16 @@ export async function GET(
         createdAt: task.createdAt.toISOString(),
         startedAt: task.startedAt?.toISOString(),
         completedAt: task.completedAt?.toISOString(),
+        executionMode: task.executionMode,
+        runnerTarget: task.runnerTarget,
+        acpxParticipants: (() => {
+          try {
+            return JSON.parse(task.acpxParticipants || '[]');
+          } catch {
+            return [];
+          }
+        })(),
+        workingDirectory: task.workingDirectory,
         assignedAgents: task.assignedAgents.map((a) => ({
           id: a.id,
           name: a.name,

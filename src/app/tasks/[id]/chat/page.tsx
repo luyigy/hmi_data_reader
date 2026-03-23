@@ -1,17 +1,28 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { getSocketClient } from '@/lib/websocket-client';
 
-interface ChatMessage {
+interface AgentInfo {
   id: string;
-  timestamp: string;
-  sender: 'system' | 'agent';
-  senderName?: string;
-  senderType?: string;
-  messageType: 'info' | 'output' | 'conversation' | 'error' | 'result';
-  content: string;
-  details?: any;
+  name: string;
+  type: string;
+  gateway?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+interface AcpxParticipantSpec {
+  gatewayId: string;
+  gatewayName?: string;
+  executionBackend: 'platform_local' | 'gateway_openclaw';
+  harnessType: string;
+  harnessLabel?: string;
+  role: string;
+  agentId?: string;
+  agentName?: string;
 }
 
 interface TaskInfo {
@@ -19,41 +30,123 @@ interface TaskInfo {
   name: string;
   description?: string;
   status: string;
-  assignedAgents: Array<{
+  executionMode?: 'standard' | 'acpx';
+  workingDirectory?: string | null;
+  assignedAgents: AgentInfo[];
+  acpxParticipants?: AcpxParticipantSpec[];
+}
+
+interface StandardLogMessage {
+  id: string;
+  timestamp: string;
+  sender: 'system' | 'agent';
+  senderName?: string;
+  messageType: 'info' | 'output' | 'error' | 'result';
+  content: string;
+}
+
+interface TaskRunEvent {
+  id: string;
+  taskRunId: string;
+  participantId?: string | null;
+  participant?: {
+    gatewayId?: string | null;
+    gatewayName: string;
+    executionBackend: 'platform_local' | 'gateway_openclaw';
+    harnessType: string;
+    harnessLabel?: string | null;
+    role: string;
+    agentId?: string | null;
+    agentName?: string | null;
+  } | null;
+  sequence: number;
+  eventType: string;
+  stream: 'system' | 'stdout' | 'stderr';
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+interface TaskRunParticipant {
+  id: string;
+  gatewayId?: string | null;
+  gatewayName: string;
+  executionBackend: 'platform_local' | 'gateway_openclaw';
+  harnessType: string;
+  harnessLabel?: string | null;
+  role: string;
+  agentId?: string | null;
+  agentName?: string | null;
+  status: string;
+  summary?: string | null;
+  error?: string | null;
+  filesModified: string[];
+}
+
+interface LatestRunResponse {
+  taskId: string;
+  executionMode: 'standard' | 'acpx';
+  latestRun: {
     id: string;
-    name: string;
-    type: string;
-    gateway?: {
-      id: string;
-      name: string;
-    } | null;
-  }>;
+    orchestrationMode: string;
+    status: string;
+    summary?: string | null;
+    error?: string | null;
+    participants: TaskRunParticipant[];
+    events: TaskRunEvent[];
+  } | null;
 }
 
 export default function TaskChatPage() {
   const params = useParams();
   const taskId = params.id as string;
   const [task, setTask] = useState<TaskInfo | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [standardMessages, setStandardMessages] = useState<StandardLogMessage[]>([]);
+  const [latestRun, setLatestRun] = useState<LatestRunResponse['latestRun']>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetchTaskInfo();
-    startPolling();
+    void fetchTaskInfo();
 
     return () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
       }
     };
   }, [taskId]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!task) return;
+
+    if (task.executionMode === 'acpx') {
+      void fetchLatestRun();
+      void initSocket();
+      return;
+    }
+
+    void fetchStandardLogs();
+    pollingRef.current = setInterval(() => {
+      void fetchStandardLogs();
+    }, 2000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, [task, taskId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [standardMessages, latestRun]);
+
+  const groupedEvents = useMemo(() => {
+    if (!latestRun) return [];
+    return latestRun.events;
+  }, [latestRun]);
 
   const fetchTaskInfo = async () => {
     try {
@@ -67,18 +160,11 @@ export default function TaskChatPage() {
     }
   };
 
-  const startPolling = () => {
-    fetchLogs();
-    const interval = setInterval(fetchLogs, 2000);
-    setPollingInterval(interval);
-  };
-
-  const fetchLogs = async () => {
+  const fetchStandardLogs = async () => {
     try {
       const res = await fetch(`/api/tasks/${taskId}/logs`);
       const logData = await res.json();
-
-      const newMessages: ChatMessage[] = [];
+      const newMessages: StandardLogMessage[] = [];
 
       if (logData.metadata?.createdAt) {
         newMessages.push({
@@ -87,257 +173,212 @@ export default function TaskChatPage() {
           sender: 'system',
           messageType: 'info',
           content: `任务 "${logData.taskName}" 已创建`,
-          details: logData.metadata,
-        });
-      }
-
-      if (logData.metadata?.assignedAgents?.length > 0) {
-        newMessages.push({
-          id: 'assigned',
-          timestamp: logData.metadata.createdAt,
-          sender: 'system',
-          messageType: 'info',
-          content: `分配给 ${logData.metadata.assignedAgents.length} 个 Agent: ${
-            logData.metadata.assignedAgents
-              .map((a: any) => `${a.name} @ ${a.gateway?.name || '未分配网关'}`)
-              .join(', ')
-          }`,
-        });
-      }
-
-      if (logData.metadata?.startedAt) {
-        newMessages.push({
-          id: 'started',
-          timestamp: logData.metadata.startedAt,
-          sender: 'system',
-          messageType: 'info',
-          content: '🚀 任务开始执行',
         });
       }
 
       if (logData.executionLogs && logData.executionLogs.length > 0) {
         logData.executionLogs.forEach((log: any, index: number) => {
           newMessages.push({
-            id: `exec-${index}`,
+            id: `result-${index}`,
             timestamp: log.timestamp,
             sender: 'agent',
             senderName: log.agentName,
-            senderType: log.agentType || 'coding',
-            messageType: 'output',
-            content: '开始执行任务...',
-            details: log,
+            messageType: log.status === 'error' ? 'error' : 'result',
+            content: log.message || '执行完成',
           });
-
-          if (log.details) {
-            newMessages.push({
-              id: `result-${index}`,
-              timestamp: log.timestamp,
-              sender: 'agent',
-              senderName: log.agentName,
-              senderType: log.agentType || 'coding',
-              messageType: 'result',
-              content: log.message || '执行完成',
-              details: log.details,
-            });
-          }
-
-          if (log.status === 'error') {
-            newMessages.push({
-              id: `error-${index}`,
-              timestamp: log.timestamp,
-              sender: 'agent',
-              senderName: log.agentName,
-              senderType: log.agentType || 'coding',
-              messageType: 'error',
-              content: log.error || '执行失败',
-            });
-          }
         });
       }
 
-      if (logData.metadata?.completedAt) {
-        newMessages.push({
-          id: 'completed',
-          timestamp: logData.metadata.completedAt,
-          sender: 'system',
-          messageType: logData.status === 'completed' ? 'result' : 'error',
-          content: logData.status === 'completed'
-            ? '✅ 任务执行完成'
-            : `❌ 任务执行失败：${logData.error || '未知错误'}`,
-          details: logData.result,
-        });
-      }
-
-      setMessages((prev) => {
-        const existingIds = new Set(prev.map((m) => m.id));
-        const uniqueNew = newMessages.filter((m) => !existingIds.has(m.id));
-        if (uniqueNew.length === 0) return prev;
-        return [...prev, ...uniqueNew];
-      });
-
-      if (logData.status === 'completed' || logData.status === 'failed') {
-        setIsConnected(false);
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-        }
-      } else {
-        setIsConnected(true);
-      }
+      setStandardMessages(newMessages);
+      setIsConnected(logData.status !== 'completed' && logData.status !== 'failed');
     } catch (error) {
       console.error('Failed to fetch logs:', error);
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('zh-CN', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  };
-
-  const getMessageColor = (messageType: string) => {
-    switch (messageType) {
-      case 'info':
-        return 'bg-gray-100 border-gray-300';
-      case 'output':
-        return 'bg-blue-50 border-blue-300';
-      case 'conversation':
-        return 'bg-purple-50 border-purple-300';
-      case 'result':
-        return 'bg-green-50 border-green-300';
-      case 'error':
-        return 'bg-red-50 border-red-300';
-      default:
-        return 'bg-gray-50 border-gray-200';
+  const fetchLatestRun = async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/runs/latest`);
+      const data: LatestRunResponse = await res.json();
+      setLatestRun(data.latestRun);
+      if (data.latestRun) {
+        setIsConnected(data.latestRun.status === 'running' || data.latestRun.status === 'pending');
+      }
+    } catch (error) {
+      console.error('Failed to fetch latest run:', error);
     }
   };
 
+  const initSocket = async () => {
+    await fetch('/api/socket');
+    const socket = getSocketClient();
+    if (!socket) return;
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    socket.emit('task-run:join', { taskId });
+    setIsConnected(true);
+
+    const handleEvent = (event: TaskRunEvent) => {
+      setLatestRun((prev) => {
+        if (!prev || prev.id !== event.taskRunId) {
+          return prev;
+        }
+
+        if (prev.events.some((item) => item.id === event.id)) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          status:
+            event.eventType === 'run_completed'
+              ? 'completed'
+              : event.eventType === 'run_failed'
+              ? 'failed'
+              : prev.status,
+          events: [...prev.events, event].sort((a, b) => a.sequence - b.sequence),
+        };
+      });
+
+      if (event.eventType === 'run_completed' || event.eventType === 'run_failed') {
+        setIsConnected(false);
+        void fetchLatestRun();
+      }
+    };
+
+    socket.on('task-run:event', handleEvent);
+
+    return () => {
+      socket.off('task-run:event', handleEvent);
+    };
+  };
+
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600 mt-4">加载聊天...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="p-8 text-gray-600">加载中...</div>;
+  }
+
+  if (!task) {
+    return <div className="p-8 text-gray-600">任务不存在</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Agent 实时通信</h1>
-              <p className="text-gray-600 mt-1">{task?.name}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-                <span className="text-sm text-gray-600">
-                  {isConnected ? '实时连接中' : '已完成'}
-                </span>
-              </div>
-              <a
-                href={`/tasks/${taskId}`}
-                className="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                查看日志
-              </a>
-            </div>
+    <div className="mx-auto max-w-6xl space-y-6 p-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">{task.name}</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              {task.executionMode === 'acpx' ? 'ACPX 执行控制台' : '标准任务执行日志'}
+            </p>
+          </div>
+          <div className={`rounded-full px-3 py-1 text-xs ${isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+            {isConnected ? '实时连接中' : '等待刷新'}
           </div>
         </div>
 
-        {task?.assignedAgents && task.assignedAgents.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-4 mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">参与 Agent</h3>
-            <div className="flex flex-wrap gap-2">
-              {task.assignedAgents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full text-sm"
-                >
-                  <span className="font-medium text-blue-900">{agent.name}</span>
-                  <span className="text-blue-600 ml-2">({agent.type} · {agent.gateway?.name || '未分配网关'})</span>
-                </div>
-              ))}
+        {task.executionMode === 'acpx' && task.acpxParticipants?.length ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+                {task.acpxParticipants.map((participant, index) => (
+              <span
+                key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
+                className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700"
+              >
+                {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {task.executionMode === 'acpx' ? (
+        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+          <div className="rounded-xl border border-gray-200 bg-slate-950 p-4 text-sm text-slate-100 shadow-sm">
+            <div className="mb-3 text-xs uppercase tracking-wide text-slate-400">Live Console</div>
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-2 font-mono text-xs">
+              {groupedEvents.length === 0 ? (
+                <div className="text-slate-400">还没有运行事件。执行任务后，这里会显示每个参与方的输出。</div>
+              ) : (
+                groupedEvents.map((event) => (
+                  <div key={event.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                      <span>{new Date(event.createdAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5">{event.eventType}</span>
+                      {event.participant ? (
+                        <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-indigo-200">
+                          {event.participant.role} · {event.participant.executionBackend === 'platform_local' ? 'Platform Local' : event.participant.gatewayName} / {event.participant.harnessType}
+                        </span>
+                      ) : null}
+                    </div>
+                    <pre className={`whitespace-pre-wrap break-words ${event.stream === 'stderr' ? 'text-red-300' : 'text-slate-100'}`}>
+                      {event.content}
+                    </pre>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
             </div>
           </div>
-        )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="border-b border-gray-200 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-900">通信记录</h2>
-          </div>
-
-          <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
-            {messages.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <p>等待任务执行...</p>
-                <p className="text-sm mt-2">实时监听 Agent 通信中</p>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="text-sm font-medium text-gray-900">运行摘要</div>
+              <div className="mt-3 text-sm text-gray-600">
+                {latestRun?.summary || '暂无运行摘要'}
               </div>
-            ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`rounded-lg border-l-4 p-4 ${getMessageColor(message.messageType)}`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {message.sender === 'agent' ? (
-                        <>
-                          <span className="text-2xl">🤖</span>
-                          <div>
-                            <div className="font-semibold text-gray-900">
-                              {message.senderName}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {message.senderType} Agent
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-2xl">ℹ️</span>
-                          <span className="font-semibold text-gray-700">系统</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {formatTime(message.timestamp)}
-                    </div>
-                  </div>
+            </div>
 
-                  <div className="text-gray-800 mb-2">
-                    {message.content}
+            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="text-sm font-medium text-gray-900">参与方结果</div>
+              <div className="mt-3 space-y-3">
+                {(latestRun?.participants || []).map((participant) => (
+                  <div key={participant.id} className="rounded-lg border border-gray-200 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-gray-900">
+                          {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : participant.gatewayName} / {participant.harnessType}
+                        </span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${
+                        participant.status === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : participant.status === 'failed'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {participant.status}
+                      </span>
+                    </div>
+                    {participant.summary ? (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600">{participant.summary}</p>
+                    ) : null}
+                    {participant.error ? (
+                      <p className="mt-2 text-sm text-red-600">{participant.error}</p>
+                    ) : null}
                   </div>
-
-                  {message.details && (
-                    <details className="text-xs">
-                      <summary className="cursor-pointer text-blue-600 hover:text-blue-800 font-medium">
-                        📄 查看详细输出
-                      </summary>
-                      <pre className="mt-2 bg-white p-3 rounded border border-gray-200 overflow-auto max-h-64 text-xs">
-                        {JSON.stringify(message.details, null, 2)}
-                      </pre>
-                    </details>
-                  )}
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="space-y-3">
+            {standardMessages.map((message) => (
+              <div key={message.id} className="rounded-lg border border-gray-200 p-3">
+                <div className="mb-1 text-xs text-gray-500">
+                  {new Date(message.timestamp).toLocaleString('zh-CN', { hour12: false })}
+                  {message.senderName ? ` · ${message.senderName}` : ''}
                 </div>
-              ))
-            )}
+                <div className={message.messageType === 'error' ? 'text-red-600' : 'text-gray-800'}>
+                  {message.content}
+                </div>
+              </div>
+            ))}
             <div ref={messagesEndRef} />
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

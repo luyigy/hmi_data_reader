@@ -47,19 +47,92 @@ model Gateway {
 }
 
 model Task {
-  id              String    @id @default(cuid())
-  name            String
-  description     String?
-  status          String    @default("pending") // pending, running, completed, failed
-  assignedAgents  Agent[]
-  result          String?   // JSON result data
-  error           String?
-  startedAt       DateTime?
-  completedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  name           String
+  description    String?
+  status         String    @default("pending") // pending, running, completed, failed
+  executionMode  String    @default("standard") // standard, acpx
+  runnerTarget   String?   // legacy ACPX field
+  acpxParticipants String? // JSON array of gateway/harness/role participants
+  workingDirectory String?
+  assignedAgents Agent[]
+  result         String?   // JSON result data
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  runs           TaskRun[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([status])
+  @@index([executionMode])
+}
+
+model TaskRun {
+  id             String               @id @default(cuid())
+  taskId         String
+  task           Task                 @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  mode           String               @default("acpx") // acpx
+  runnerTarget   String?              // legacy ACPX field
+  orchestrationMode String            @default("single") // single, staged
+  status         String               @default("pending") // pending, running, completed, failed
+  summary        String?
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  participants   TaskRunParticipant[]
+  events         TaskRunEvent[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([taskId, createdAt])
+  @@index([status])
+}
+
+model TaskRunParticipant {
+  id             String         @id @default(cuid())
+  taskRunId      String
+  taskRun        TaskRun        @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+  runner         String?        // legacy ACPX field
+  executionBackend String       @default("gateway_openclaw") // platform_local, gateway_openclaw
+  gatewayId      String?
+  gatewayNameSnapshot String
+  harnessType    String
+  harnessNameSnapshot String?
+  role           String
+  agentId        String?
+  agentNameSnapshot String?
+  status         String         @default("pending") // pending, running, completed, failed
+  summary        String?
+  error          String?
+  filesModified  String?        // JSON string array
+  startedAt      DateTime?
+  completedAt    DateTime?
+  events         TaskRunEvent[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([taskRunId])
+  @@index([runner])
+  @@index([status])
+}
+
+model TaskRunEvent {
+  id               String              @id @default(cuid())
+  taskRunId        String
+  participantId    String?
+  taskRun          TaskRun             @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+  participant      TaskRunParticipant? @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  sequence         Int
+  eventType        String
+  stream           String              @default("system") // system, stdout, stderr
+  content          String
+  metadata         String?
+  createdAt        DateTime            @default(now())
+
+  @@index([taskRunId, sequence])
+  @@index([participantId])
+  @@index([eventType])
 }
 
 model ChatRoom {
