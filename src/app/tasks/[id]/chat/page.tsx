@@ -895,6 +895,39 @@ export default function TaskChatPage() {
     return '整个任务';
   }, [messageTargetParticipantKey, messageTargetType, taskRoomTargetOptions]);
 
+  const selectedTargetParticipantSpec = useMemo(() => {
+    if (messageTargetType !== 'participant') {
+      return null;
+    }
+
+    return (
+      (task?.acpxParticipants || []).find(
+        (participant) => getTaskRoomParticipantTargetKey(participant) === messageTargetParticipantKey
+      ) || null
+    );
+  }, [messageTargetParticipantKey, messageTargetType, task?.acpxParticipants]);
+
+  const targetDeliveryHint = useMemo(() => {
+    if (messageTargetType === 'task') {
+      return '会写入 task room，供当前或后续 run 作为共享上下文读取。';
+    }
+
+    if (messageTargetType === 'all') {
+      return '会写入 task room，作为给全部参与方的共享说明；不是同时实时推送到每个 participant。';
+    }
+
+    if (!selectedTargetParticipantSpec) {
+      return '会写入 task room，供后续匹配的参与方读取。';
+    }
+
+    const targetKind =
+      selectedTargetParticipantSpec.executionBackend === 'gateway_openclaw'
+        ? '远端 gateway 参与方'
+        : '参与方';
+
+    return `会写入 task room，作为留给${targetKind} ${selectedTargetLabel} 的上下文；当前不是实时直达消息。`;
+  }, [messageTargetType, selectedTargetLabel, selectedTargetParticipantSpec]);
+
   useEffect(() => {
     if (messageTargetType !== 'participant') {
       return;
@@ -1197,18 +1230,18 @@ export default function TaskChatPage() {
       if (action === 'queue_message') {
         setComposerNotice(
           taskWasRunning
-            ? `消息已发给${selectedTargetLabel}，当前 ${
+            ? `消息已记入 task room，并标记给${selectedTargetLabel}；当前 ${
                 activeParticipantLabel || 'harness'
-              } 忙碌中；这条消息已记入 task room，后续 handoff 或下一轮运行才会读取。`
-            : `消息已发给${selectedTargetLabel}；当前没有活动 run，这条消息会先留在 task room，等你明确点击“开始新 Run”后再作为上下文带入。`
+              } 忙碌中；后续 handoff 或下一轮运行才会读取。`
+            : `消息已记入 task room，并标记给${selectedTargetLabel}；当前没有活动 run，它会先留在 room 中，等你明确点击“开始新 Run”后再作为上下文带入。`
         );
       } else if (action === 'continue_session') {
         setComposerNotice(
           deliveryResult === 'delivered_to_active_thread'
-            ? `消息已发给${selectedTargetLabel}；平台正在继续 ${
+            ? `消息已写入并用于继续${selectedTargetLabel}；平台正在继续 ${
                 continuationParticipantLabel || '当前 local Codex'
               } 的同一会话。`
-            : `消息已发给${selectedTargetLabel}；当前 continuation 未成功送达${fallbackReason ? `（${fallbackReason}）` : ''}。`
+            : `消息已写入 task room，并标记给${selectedTargetLabel}；当前 continuation 未成功送达${fallbackReason ? `（${fallbackReason}）` : ''}。`
         );
       } else if (action === 'interrupt_now') {
         setComposerNotice(
@@ -1438,7 +1471,7 @@ export default function TaskChatPage() {
   const composerBehaviorHint = task?.executionMode === 'acpx'
     ? conversationMode === 'chat'
       ? activeRunSummary
-        ? `聊天模式下，消息会先写入 task room。当前 active run 仍在执行时，它不会被原地接管。`
+        ? `聊天模式下，消息会先写入 task room。当前 active run 仍在执行时，它不会被原地接管；participant target 也只是供后续读取。`
         : canContinueSelectedSession
         ? `聊天模式下会优先继续 ${continuationParticipantLabel || '当前 Codex'} 的同一会话；如果没有可续接会话，就会直接拉起一个新的 agent run 来回复。`
         : '聊天模式下如果没有 active run，主按钮会直接拉起新的 agent run 来回复，而不是只把消息留在 task room。'
@@ -1531,7 +1564,7 @@ export default function TaskChatPage() {
         className={`grid min-h-0 flex-1 overflow-hidden ${
           isInspectorOpen
             ? 'xl:grid-cols-[minmax(0,1fr),320px]'
-            : 'xl:grid-cols-[minmax(0,1fr),56px]'
+            : 'xl:grid-cols-[minmax(0,1fr)]'
         }`}
       >
         <section className="grid min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden bg-[#f7f7f8]">
@@ -1870,14 +1903,14 @@ export default function TaskChatPage() {
             )}
           </div>
 
-          <div className="z-10 border-t border-slate-200 bg-white/95 px-3 py-3 backdrop-blur xl:px-6">
+          <div className="z-10 border-t border-slate-200 bg-white/95 px-3 py-2.5 backdrop-blur xl:px-6">
             {task.executionMode === 'acpx' ? (
-              <div className="mx-auto max-w-4xl space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex rounded-full border border-slate-200 bg-slate-100 p-1">
+              <div className="mx-auto max-w-4xl space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="inline-flex rounded-full border border-slate-200 bg-slate-100 p-0.5">
                     <button
                       onClick={() => setConversationMode('chat')}
-                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                         conversationMode === 'chat'
                           ? 'bg-white text-slate-900 shadow-sm'
                           : 'text-slate-500 hover:text-slate-700'
@@ -1887,7 +1920,7 @@ export default function TaskChatPage() {
                     </button>
                     <button
                       onClick={() => setConversationMode('run')}
-                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                         conversationMode === 'run'
                           ? 'bg-white text-slate-900 shadow-sm'
                           : 'text-slate-500 hover:text-slate-700'
@@ -1899,17 +1932,17 @@ export default function TaskChatPage() {
                   <select
                     value={messageTargetType}
                     onChange={(event) => setMessageTargetType(event.target.value as 'task' | 'participant' | 'all')}
-                    className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-slate-400"
+                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-transparent focus:ring-2 focus:ring-slate-400"
                   >
-                    <option value="task">发给整个任务</option>
-                    <option value="participant">发给单个参与方</option>
-                    <option value="all">发给全部参与方</option>
+                    <option value="task">写入整个任务上下文</option>
+                    <option value="participant">给某参与方留消息</option>
+                    <option value="all">给全部参与方留消息</option>
                   </select>
                   {messageTargetType === 'participant' ? (
                     <select
                       value={messageTargetParticipantKey}
                       onChange={(event) => setMessageTargetParticipantKey(event.target.value)}
-                      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 focus:border-transparent focus:ring-2 focus:ring-slate-400"
+                      className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-transparent focus:ring-2 focus:ring-slate-400"
                     >
                       {taskRoomTargetOptions
                         .filter((option) => option.type === 'participant')
@@ -1920,24 +1953,27 @@ export default function TaskChatPage() {
                         ))}
                     </select>
                   ) : (
-                    <div className="rounded-full border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-500">
+                    <div className="rounded-full border border-dashed border-slate-300 px-3 py-1.5 text-xs text-slate-500">
                       当前目标：{selectedTargetLabel}
                     </div>
                   )}
                   <button
                     onClick={() => void handleGrantAgentRights('dev_local')}
                     disabled={isSending || isExecuting || isSavingPermissionConfig}
-                    className="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-sky-200 disabled:text-sky-400"
+                    className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-sky-200 disabled:text-sky-400"
                   >
                     给 agent 开发权限
                   </button>
                   <button
                     onClick={() => void handleGrantAgentRights('full_access')}
                     disabled={isSending || isExecuting || isSavingPermissionConfig}
-                    className="rounded-full border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:border-violet-200 disabled:text-violet-400"
+                    className="rounded-full border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:border-violet-200 disabled:text-violet-400"
                   >
                     给 agent 完全权限
                   </button>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] leading-5 text-amber-800">
+                    {targetDeliveryHint}
                 </div>
 
                 {isPermissionEditorOpen ? (
@@ -2117,12 +2153,12 @@ export default function TaskChatPage() {
                   </div>
                 ) : null}
 
-                <div className="rounded-[24px] border border-slate-200 bg-white px-3 py-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
+                <div className="rounded-[22px] border border-slate-200 bg-white px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
                   <textarea
                     value={messageInput}
                     onChange={(event) => setMessageInput(event.target.value)}
                     rows={1}
-                    className="w-full resize-none border-0 bg-transparent px-2 py-1 text-sm text-slate-900 outline-none focus:ring-0"
+                    className="w-full resize-none border-0 bg-transparent px-1.5 py-1 text-[13px] text-slate-900 outline-none focus:ring-0"
                     placeholder={
                       conversationMode === 'chat'
                         ? '先把你的想法、澄清、计划或指令发到 task room……'
@@ -2131,11 +2167,11 @@ export default function TaskChatPage() {
                         : '输入本轮要执行的最新指令；发送时会一并带上当前对话上下文……'
                     }
                   />
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[11px] text-slate-500">
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[10px] text-slate-500">
                       {conversationMode === 'chat'
                         ? activeRunSummary
-                          ? '当前有 active run，新消息会先排队。'
+                          ? '当前有 active run，新消息会先排队写入 task room，不会实时直达目标参与方。'
                           : canContinueSelectedSession
                           ? '会继续当前 Codex 会话。'
                           : '会直接启动新的 agent 回复。'
@@ -2152,14 +2188,14 @@ export default function TaskChatPage() {
                           || !controlRunCanInterrupt
                           || (messageTargetType === 'participant' && !messageTargetParticipantKey)
                         }
-                        className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-amber-200 disabled:text-amber-400"
+                        className="rounded-full border border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-amber-200 disabled:text-amber-400"
                       >
                         打断并转入下一轮
                       </button>
                       <button
                         onClick={() => void handleAcpxControl('stop_run', 'immediate')}
                         disabled={isSending || !taskRoom || !controlRunCanStop}
-                        className="rounded-full border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-800 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-rose-200 disabled:text-rose-400"
+                        className="rounded-full border border-rose-300 bg-rose-50 px-3.5 py-1.5 text-xs font-medium text-rose-800 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-rose-200 disabled:text-rose-400"
                       >
                         停止运行
                       </button>
@@ -2172,7 +2208,7 @@ export default function TaskChatPage() {
                           || (conversationMode === 'run' ? false : !messageInput.trim())
                           || (messageTargetType === 'participant' && !messageTargetParticipantKey)
                         }
-                        className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        className="rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                       >
                         {isSending || isExecuting ? '处理中...' : primarySendLabel}
                       </button>
@@ -2185,7 +2221,7 @@ export default function TaskChatPage() {
                             || !messageInput.trim()
                             || (messageTargetType === 'participant' && !messageTargetParticipantKey)
                           }
-                          className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                          className="rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                         >
                           继续同一 Codex 会话
                         </button>
@@ -2230,7 +2266,7 @@ export default function TaskChatPage() {
           </div>
         </section>
 
-        <aside className="hidden min-h-0 border-l border-slate-200/80 bg-white/75 xl:flex xl:flex-col">
+        <aside className={`${isInspectorOpen ? 'hidden min-h-0 border-l border-slate-200/80 bg-white/75 xl:flex xl:flex-col' : 'hidden'}`}>
           {isInspectorOpen ? (
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
               <div className="flex items-center justify-between gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -2410,17 +2446,7 @@ export default function TaskChatPage() {
                 ) : null}
               </div>
             </div>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-start gap-3 p-2">
-              <button
-                onClick={() => setIsInspectorOpen(true)}
-                className="mt-4 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-                title="展开 Inspector"
-              >
-                Inspector
-              </button>
-            </div>
-          )}
+          ) : null}
         </aside>
       </div>
     </div>
