@@ -93,6 +93,47 @@ export const buildTaskRoomContext = async (taskId: string, taskName: string, lim
     .join('\n');
 };
 
+export const buildTaskRoomPromptContext = async (taskId: string, taskName: string, limit = 20) => {
+  const { messages } = await getTaskRoomMessages(taskId, taskName, limit);
+  const contextMessages = messages.filter((message) => message.userId !== 'system');
+
+  if (contextMessages.length === 0) {
+    return {
+      transcript: '',
+      latestUserMessage: null,
+    };
+  }
+
+  const transcript = contextMessages
+    .map((message) => {
+      const timestamp = message.createdAt.toLocaleString('zh-CN', { hour12: false });
+      const targetPrefix = formatTaskRoomMessageTargetPrefix({
+        targetType: message.targetType,
+        targetParticipantLabel: message.targetParticipantLabel,
+      });
+
+      return `[${timestamp}] ${message.userName}: ${targetPrefix}${message.content}`;
+    })
+    .join('\n');
+
+  const latestUserMessage = [...contextMessages]
+    .reverse()
+    .find((message) => message.userId === 'task-room-user');
+
+  return {
+    transcript,
+    latestUserMessage: latestUserMessage
+      ? {
+          id: latestUserMessage.id,
+          content: latestUserMessage.content,
+          createdAt: latestUserMessage.createdAt.toISOString(),
+          targetType: latestUserMessage.targetType as ChatMessageTargetType,
+          targetParticipantLabel: latestUserMessage.targetParticipantLabel,
+        }
+      : null,
+  };
+};
+
 export const postTaskRoomMessage = async ({
   roomId,
   content,

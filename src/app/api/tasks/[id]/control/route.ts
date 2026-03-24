@@ -64,6 +64,15 @@ const parseMetadata = (value: string | null | undefined): Record<string, unknown
 
 const stringifyMetadata = (value: Record<string, unknown>) => JSON.stringify(value);
 
+const findActiveRunFromRuns = <TRun extends {
+  status: string;
+  createdAt: Date;
+}>(runs: TRun[]) =>
+  [...runs]
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .find((run) => run.status === 'running' || run.status === 'waiting_for_input')
+    ?? null;
+
 const readTrackingObject = (metadata: Record<string, unknown>) =>
   metadata.sessionTracking && typeof metadata.sessionTracking === 'object'
     ? metadata.sessionTracking as Record<string, unknown>
@@ -181,6 +190,22 @@ export async function POST(
 
     const room = await ensureTaskChatRoom(task.id, task.name);
 
+    const fallbackActiveRun = !runId && !task.currentTaskSession?.activeRunId
+      ? findActiveRunFromRuns(
+          await prisma.taskRun.findMany({
+            where: {
+              taskId: task.id,
+            },
+            include: {
+              participants: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          })
+        )
+      : null;
+
     const targetRun = runId
       ? await prisma.taskRun.findFirst({
           where: {
@@ -201,6 +226,8 @@ export async function POST(
             participants: true,
           },
         })
+      : fallbackActiveRun
+      ? fallbackActiveRun
       : await prisma.taskRun.findFirst({
           where: {
             taskId: task.id,

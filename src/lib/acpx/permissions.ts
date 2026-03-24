@@ -1,4 +1,4 @@
-import type { AcpxPermissionConfig } from './types';
+import type { AcpxExecutionBackend, AcpxHarnessType, AcpxPermissionConfig } from './types';
 
 export const DEFAULT_ACPX_PERMISSION_CONFIG: AcpxPermissionConfig = {
   profile: 'safe_local',
@@ -78,3 +78,42 @@ export const getPermissionProfileLabel = (profile: AcpxPermissionConfig['profile
     : profile === 'full_access'
     ? 'Full Access'
     : 'Custom';
+
+export type AcpxPermissionSupportState = 'applied' | 'partially_applied' | 'recorded_only';
+
+export interface AcpxPermissionSupportSummary {
+  scope: 'next_run_or_continuation';
+  hotReloadSupported: false;
+  summary: string;
+  sandboxMode: AcpxPermissionSupportState;
+  approvalPolicy: AcpxPermissionSupportState;
+  networkAccess: AcpxPermissionSupportState;
+  writableRoots: AcpxPermissionSupportState;
+}
+
+export const getLocalHarnessPermissionSupport = (
+  harnessType: AcpxHarnessType,
+  executionBackend: AcpxExecutionBackend
+): AcpxPermissionSupportSummary => {
+  if (executionBackend === 'platform_local' && harnessType === 'codex') {
+    return {
+      scope: 'next_run_or_continuation',
+      hotReloadSupported: false,
+      summary: '当前会真实应用 sandbox；approval 会尽量映射到现有 Codex CLI；network 和 writable roots 先记录到 run metadata。',
+      sandboxMode: 'applied',
+      approvalPolicy: 'partially_applied',
+      networkAccess: 'recorded_only',
+      writableRoots: 'recorded_only',
+    };
+  }
+
+  return {
+    scope: 'next_run_or_continuation',
+    hotReloadSupported: false,
+    summary: '当前这类 harness 还没有接入 launch-time 权限下发；设置会先记录到 run metadata，供后续能力对齐。',
+    sandboxMode: 'recorded_only',
+    approvalPolicy: 'recorded_only',
+    networkAccess: 'recorded_only',
+    writableRoots: 'recorded_only',
+  };
+};

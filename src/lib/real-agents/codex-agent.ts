@@ -176,8 +176,17 @@ const buildExecArgs = (
   sandboxMode: string,
   approvalPolicy: 'never' | 'on-request'
 ) => {
-  const args = ['exec', '--json', '--sandbox', sandboxMode];
-  args.push('--ask-for-approval', approvalPolicy);
+  const normalizedSandboxMode = sandboxMode.trim().toLowerCase();
+  const args = ['exec', '--json'];
+
+  if (normalizedSandboxMode === 'workspace-write' && approvalPolicy === 'on-request') {
+    args.push('--full-auto');
+  } else if (normalizedSandboxMode === 'danger-full-access' && approvalPolicy === 'on-request') {
+    args.push('--dangerously-bypass-approvals-and-sandbox');
+  } else {
+    args.push('--sandbox', normalizedSandboxMode);
+  }
+
   if (skipGitRepoCheck) {
     args.push('--skip-git-repo-check');
   }

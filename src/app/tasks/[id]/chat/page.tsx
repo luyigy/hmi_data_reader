@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getSocketClient, type ChatMessage } from '@/lib/websocket-client';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
-import { DEFAULT_ACPX_PERMISSION_CONFIG, getPermissionProfileLabel } from '@/lib/acpx/permissions';
+import {
+  DEFAULT_ACPX_PERMISSION_CONFIG,
+  getLocalHarnessPermissionSupport,
+  getPermissionProfileLabel,
+  type AcpxPermissionSupportState,
+  type AcpxPermissionSupportSummary,
+} from '@/lib/acpx/permissions';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 
 interface AgentInfo {
@@ -59,10 +65,7 @@ interface TaskRoomMessageTargetOption {
   label: string;
 }
 
-type ComposerMode =
-  | 'continue_session'
-  | 'queue_only_busy'
-  | 'queue_then_start_new_run';
+type ConversationMode = 'chat' | 'run';
 
 interface ConversationFeedItem {
   id: string;
@@ -146,6 +149,10 @@ interface TaskRunSummary {
     harnessType: string;
     role: string;
     status: string;
+    interruptSupported?: boolean;
+    softStopSupported?: boolean;
+    resumeSupported?: boolean;
+    sessionControlSupported?: boolean;
   }>;
 }
 
@@ -170,6 +177,62 @@ interface SelectedRunResponse {
 const taskRoomUser = {
   id: 'task-room-user',
   name: '用户',
+};
+
+const permissionSupportTone: Record<AcpxPermissionSupportState, string> = {
+  applied: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  partially_applied: 'bg-amber-50 text-amber-800 ring-amber-200',
+  recorded_only: 'bg-slate-100 text-slate-600 ring-slate-200',
+};
+
+const getPermissionSupportLabel = (state: AcpxPermissionSupportState) =>
+  state === 'applied'
+    ? '已应用'
+    : state === 'partially_applied'
+    ? '部分应用'
+    : '仅记录';
+
+const buildPermissionConfigFromProfile = (
+  profile: AcpxPermissionConfig['profile'],
+  currentWritableRoots: string[] = []
+): AcpxPermissionConfig => {
+  if (profile === 'safe_local') {
+    return {
+      profile,
+      sandboxMode: 'workspace-write',
+      networkAccess: 'restricted',
+      approvalPolicy: 'never',
+      writableRoots: [],
+    };
+  }
+
+  if (profile === 'dev_local') {
+    return {
+      profile,
+      sandboxMode: 'workspace-write',
+      networkAccess: 'enabled',
+      approvalPolicy: 'on-request',
+      writableRoots: currentWritableRoots,
+    };
+  }
+
+  if (profile === 'full_access') {
+    return {
+      profile,
+      sandboxMode: 'danger-full-access',
+      networkAccess: 'enabled',
+      approvalPolicy: 'on-request',
+      writableRoots: currentWritableRoots,
+    };
+  }
+
+  return {
+    profile: 'custom',
+    sandboxMode: 'workspace-write',
+    networkAccess: 'restricted',
+    approvalPolicy: 'never',
+    writableRoots: currentWritableRoots,
+  };
 };
 
 export default function TaskChatPage() {
@@ -200,9 +263,11 @@ export default function TaskChatPage() {
   const [isPermissionEditorOpen, setIsPermissionEditorOpen] = useState(false);
   const [isSavingPermissionConfig, setIsSavingPermissionConfig] = useState(false);
   const [permissionConfigNotice, setPermissionConfigNotice] = useState<string | null>(null);
+  const [conversationMode, setConversationMode] = useState<ConversationMode>('chat');
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const runSummariesRef = useRef<TaskRunSummary[]>([]);
 
   useEffect(() => {
     void fetchTaskInfo();
@@ -281,6 +346,10 @@ export default function TaskChatPage() {
   }, [roomMessages, selectedRun, standardMessages]);
 
   useEffect(() => {
+    runSummariesRef.current = runSummaries;
+  }, [runSummaries]);
+
+  useEffect(() => {
     if (!task || !taskRoom) {
       return;
     }
@@ -333,6 +402,7 @@ export default function TaskChatPage() {
         && typeof event.metadata.activityState === 'string'
           ? event.metadata.activityState
           : null;
+      const isNewRun = !runSummariesRef.current.some((run) => run.id === event.taskRunId);
 
       setRunSummaries((prev) => {
         const existing = prev.find((run) => run.id === event.taskRunId);
@@ -420,6 +490,11 @@ export default function TaskChatPage() {
         setSelectedRunId(event.taskRunId);
       }
 
+      if (isNewRun) {
+        setSelectedRunId(event.taskRunId);
+        void fetchSelectedRun(event.taskRunId);
+      }
+
       if (
         event.eventType === 'run_completed'
         || event.eventType === 'run_failed'
@@ -429,7 +504,7 @@ export default function TaskChatPage() {
       ) {
         setIsExecuting(false);
         void fetchTaskInfo();
-        void fetchRuns();
+        void fetchRuns(isNewRun ? event.taskRunId : selectedRunId);
         if (!selectedRunId || selectedRunId === event.taskRunId) {
           void fetchSelectedRun(event.taskRunId);
         }
@@ -608,13 +683,6 @@ export default function TaskChatPage() {
     : null;
 
   const canContinueSelectedSession = !!continuationParticipant;
-  const composerMode: ComposerMode = task?.executionMode === 'acpx'
-    ? task.status === 'running'
-      ? 'queue_only_busy'
-      : canContinueSelectedSession
-      ? 'continue_session'
-      : 'queue_then_start_new_run'
-    : 'queue_then_start_new_run';
 
   const conversationFeed = useMemo<ConversationFeedItem[]>(() => {
     const roomItems = roomMessages.map((message) => ({
@@ -704,21 +772,66 @@ export default function TaskChatPage() {
       : null;
   }, [selectedRun?.controlMetadata]);
 
-  const primarySendLabel = task?.executionMode === 'acpx'
-    ? composerMode === 'queue_only_busy'
-      ? '排队到后续轮次'
-      : composerMode === 'continue_session'
-      ? '继续当前对话'
-      : '发送并启动新一轮'
-    : '发送到 Task Room';
+  const draftPermissionSupport = useMemo<AcpxPermissionSupportSummary | null>(() => {
+    const primaryParticipant = task?.acpxParticipants?.[0];
+    if (!primaryParticipant) {
+      return null;
+    }
 
-  const composerBehaviorHint = task?.executionMode === 'acpx'
-    ? composerMode === 'queue_only_busy'
-      ? `当前 ${activeParticipantLabel || 'harness'} 正在执行当前 turn；现在还不能把新消息原地送进这次运行，主按钮只会先排队。`
-      : composerMode === 'continue_session'
-      ? `当前可以继续 ${continuationParticipantLabel || 'local Codex'} 的同一会话；主按钮会把消息送入同一个 Codex thread。`
-      : `当前没有忙碌中的 harness；主按钮会先把消息写入 task room，再启动一轮新的运行。`
-    : null;
+    return getLocalHarnessPermissionSupport(
+      primaryParticipant.harnessType,
+      primaryParticipant.executionBackend
+    );
+  }, [task?.acpxParticipants]);
+
+  const selectedRunPermissionSupport = useMemo<AcpxPermissionSupportSummary | null>(() => {
+    const metadata = selectedRun?.controlMetadata;
+    if (!metadata || typeof metadata !== 'object') {
+      return null;
+    }
+
+    const supportEntries = Array.isArray(metadata.permissionSupport)
+      ? metadata.permissionSupport
+      : [];
+    const firstSupport = supportEntries[0];
+    if (
+      firstSupport
+      && typeof firstSupport === 'object'
+      && 'support' in firstSupport
+      && firstSupport.support
+      && typeof firstSupport.support === 'object'
+    ) {
+      return firstSupport.support as AcpxPermissionSupportSummary;
+    }
+
+    return draftPermissionSupport;
+  }, [draftPermissionSupport, selectedRun?.controlMetadata]);
+
+  const draftPermissionStatusItems = useMemo(() => {
+    if (!draftPermissionSupport) {
+      return [];
+    }
+
+    return [
+      { key: 'sandbox', label: 'Sandbox', state: draftPermissionSupport.sandboxMode },
+      { key: 'approval', label: 'Approval', state: draftPermissionSupport.approvalPolicy },
+      { key: 'network', label: 'Network', state: draftPermissionSupport.networkAccess },
+      { key: 'writable-roots', label: 'Writable Roots', state: draftPermissionSupport.writableRoots },
+    ];
+  }, [draftPermissionSupport]);
+
+  const selectedRunPermissionStatusItems = useMemo(() => {
+    if (!selectedRunPermissionSupport) {
+      return [];
+    }
+
+    return [
+      { key: 'sandbox', label: 'run sandbox', state: selectedRunPermissionSupport.sandboxMode },
+      { key: 'approval', label: 'run approval', state: selectedRunPermissionSupport.approvalPolicy },
+      { key: 'network', label: 'run network', state: selectedRunPermissionSupport.networkAccess },
+      { key: 'writable-roots', label: 'run writable roots', state: selectedRunPermissionSupport.writableRoots },
+    ];
+  }, [selectedRunPermissionSupport]);
 
   const taskRoomTargetOptions = useMemo<TaskRoomMessageTargetOption[]>(() => {
     const participantOptions = (task?.acpxParticipants || []).map((participant) => ({
@@ -836,14 +949,16 @@ export default function TaskChatPage() {
     }
   };
 
-  const fetchRuns = async () => {
+  const fetchRuns = async (preferredRunId?: string | null) => {
     try {
       const res = await fetch(`/api/tasks/${taskId}/runs`);
       const data = await res.json();
       const runs = Array.isArray(data.runs) ? data.runs : [];
       setRunSummaries(runs);
 
-      const nextRunId = selectedRunId && runs.some((run: TaskRunSummary) => run.id === selectedRunId)
+      const nextRunId = preferredRunId && runs.some((run: TaskRunSummary) => run.id === preferredRunId)
+        ? preferredRunId
+        : selectedRunId && runs.some((run: TaskRunSummary) => run.id === selectedRunId)
         ? selectedRunId
         : runs[0]?.id || null;
       setSelectedRunId(nextRunId);
@@ -873,36 +988,8 @@ export default function TaskChatPage() {
     profile: AcpxPermissionConfig['profile']
   ) => {
     setPermissionConfigNotice(null);
-    if (profile === 'safe_local') {
-      setPermissionConfig({
-        profile,
-        sandboxMode: 'workspace-write',
-        networkAccess: 'restricted',
-        approvalPolicy: 'never',
-        writableRoots: [],
-      });
-      return;
-    }
-
-    if (profile === 'dev_local') {
-      setPermissionConfig({
-        profile,
-        sandboxMode: 'workspace-write',
-        networkAccess: 'enabled',
-        approvalPolicy: 'on-request',
-        writableRoots: permissionConfig.writableRoots,
-      });
-      return;
-    }
-
-    if (profile === 'full_access') {
-      setPermissionConfig({
-        profile,
-        sandboxMode: 'danger-full-access',
-        networkAccess: 'enabled',
-        approvalPolicy: 'on-request',
-        writableRoots: permissionConfig.writableRoots,
-      });
+    if (profile === 'safe_local' || profile === 'dev_local' || profile === 'full_access') {
+      setPermissionConfig(buildPermissionConfigFromProfile(profile, permissionConfig.writableRoots));
       return;
     }
 
@@ -912,7 +999,8 @@ export default function TaskChatPage() {
     }));
   };
 
-  const handlePermissionConfigSave = async () => {
+  const handlePermissionConfigSave = async (nextConfig?: AcpxPermissionConfig) => {
+    const configToSave = nextConfig || permissionConfig;
     setIsSavingPermissionConfig(true);
     setPermissionConfigNotice(null);
     try {
@@ -922,7 +1010,7 @@ export default function TaskChatPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          acpxPermissionConfig: permissionConfig,
+          acpxPermissionConfig: configToSave,
         }),
       });
 
@@ -935,11 +1023,38 @@ export default function TaskChatPage() {
       setTask(updatedTask);
       setPermissionConfig(updatedTask.acpxPermissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG);
       setPermissionConfigNotice('权限设置已保存；新的 run / continuation 会使用这组配置。');
+      return true;
     } catch (error) {
       setPermissionConfigNotice(error instanceof Error ? error.message : '保存权限设置失败');
+      return false;
     } finally {
       setIsSavingPermissionConfig(false);
     }
+  };
+
+  const handleGrantAgentRights = async (profile: 'dev_local' | 'full_access') => {
+    const nextConfig = buildPermissionConfigFromProfile(profile, permissionConfig.writableRoots);
+    const defaultContinuationMessage =
+      profile === 'full_access'
+        ? '我已授予你更高权限。请继续刚才的任务；你现在可以直接修改工作区、联网，并在必要时访问更多本地能力。'
+        : '我已授予你开发权限。请继续刚才的任务；你现在可以写工作区并联网，优先直接验证和修复问题。';
+
+    setPermissionConfig(nextConfig);
+    const saved = await handlePermissionConfigSave(nextConfig);
+    if (!saved) {
+      return;
+    }
+
+    if (canContinueSelectedSession) {
+      await handleAcpxControl(
+        'continue_session',
+        'immediate',
+        messageInput.trim() || defaultContinuationMessage
+      );
+      return;
+    }
+
+    await handleExecuteTask(messageInput.trim() || defaultContinuationMessage);
   };
 
   const handleSendMessage = async () => {
@@ -1000,8 +1115,15 @@ export default function TaskChatPage() {
       return;
     }
 
-    const content = (overrideContent ?? messageInput).trim();
-    if ((action === 'queue_message' || action === 'interrupt_now' || action === 'continue_session') && !content) {
+    const rawContent =
+      overrideContent
+      ?? (
+        action === 'interrupt_now'
+        ? messageInput.trim() || '请停止当前 turn，并在下一轮等待我的下一条指令。'
+        : messageInput
+      );
+    const content = rawContent.trim();
+    if ((action === 'queue_message' || action === 'continue_session') && !content) {
       return;
     }
 
@@ -1019,7 +1141,7 @@ export default function TaskChatPage() {
           action,
           deliveryMode,
           content,
-          runId: selectedRunId,
+          runId: controlRunId,
           targetType: messageTargetType,
           targetParticipantKey:
             messageTargetType === 'participant' ? messageTargetParticipantKey : null,
@@ -1047,7 +1169,7 @@ export default function TaskChatPage() {
             ? `消息已发给${selectedTargetLabel}，当前 ${
                 activeParticipantLabel || 'harness'
               } 忙碌中；这条消息已记入 task room，后续 handoff 或下一轮运行才会读取。`
-            : `消息已发给${selectedTargetLabel}；当前没有忙碌中的 harness，平台会用这条消息启动一轮新的运行。`
+            : `消息已发给${selectedTargetLabel}；当前没有活动 run，这条消息会先留在 task room，等你明确点击“开始新 Run”后再作为上下文带入。`
         );
       } else if (action === 'continue_session') {
         setComposerNotice(
@@ -1079,16 +1201,12 @@ export default function TaskChatPage() {
       const nextRunId =
         typeof responseData?.continuationRunId === 'string' && responseData.continuationRunId
           ? responseData.continuationRunId
-          : selectedRunId;
+          : controlRunId;
       if (nextRunId) {
         setSelectedRunId(nextRunId);
         await fetchSelectedRun(nextRunId);
       }
       await fetchTaskInfo();
-
-      if (action === 'queue_message' && !taskWasRunning) {
-        await handleExecuteTask();
-      }
     } catch (error) {
       console.error('Failed to send ACPX control message:', error);
       setControlError(error instanceof Error ? error.message : '发送控制请求失败');
@@ -1130,8 +1248,18 @@ export default function TaskChatPage() {
   };
 
   const handlePrimaryAcpxSend = async () => {
-    if (composerMode === 'continue_session') {
+    if (conversationMode === 'run') {
+      await handleExecuteTask(messageInput.trim() || undefined);
+      return;
+    }
+
+    if (!activeRunSummary && canContinueSelectedSession) {
       await handleAcpxControl('continue_session', 'immediate');
+      return;
+    }
+
+    if (!activeRunSummary) {
+      await handleExecuteTask(messageInput.trim() || undefined);
       return;
     }
 
@@ -1200,19 +1328,47 @@ export default function TaskChatPage() {
     }
   };
 
-  const handleExecuteTask = async () => {
+  const handleExecuteTask = async (launchMessage?: string) => {
     setIsExecuting(true);
     try {
       setTask((prev) => (prev ? { ...prev, status: 'running' } : prev));
+      shouldAutoScrollRef.current = true;
       const res = await fetch(`/api/tasks/${taskId}/execute`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          task?.executionMode === 'acpx'
+            ? {
+                acpxPermissionConfig: permissionConfig,
+                persistAcpxPermissionConfig: true,
+                launchMessage: launchMessage || undefined,
+                launchTargetType: messageTargetType,
+                launchTargetParticipantKey:
+                  messageTargetType === 'participant' ? messageTargetParticipantKey : null,
+              }
+            : {}
+        ),
       });
       if (!res.ok) {
         const error = await res.json().catch(() => null);
         throw new Error(error?.error || '执行任务失败');
       }
+      const data = await res.json().catch(() => null);
+      const nextRunId =
+        data && typeof data.taskRunId === 'string' && data.taskRunId
+          ? data.taskRunId
+          : null;
       await fetchTaskInfo();
-      await fetchRuns();
+      await fetchRuns(nextRunId);
+      if (nextRunId) {
+        setSelectedRunId(nextRunId);
+        await fetchSelectedRun(nextRunId);
+      }
+      if (launchMessage) {
+        setMessageInput('');
+      }
     } catch (error) {
       console.error('Failed to execute task:', error);
       await fetchTaskInfo();
@@ -1221,15 +1377,44 @@ export default function TaskChatPage() {
     }
   };
 
-  const canExecute = task && task.status !== 'running';
-  const selectedRunCanInterrupt =
-    selectedRun?.status === 'running' || selectedRun?.status === 'waiting_for_input'
-      ? selectedRun.participants.some((participant) => participant.interruptSupported)
+  const activeRunSummary = (
+    task?.currentTaskSession?.activeRunId
+      ? runSummaries.find((run) => run.id === task.currentTaskSession?.activeRunId) ?? null
+      : null
+  ) ?? runSummaries.find((run) => run.status === 'running' || run.status === 'waiting_for_input') ?? null;
+  const canExecute = !!task && task.status !== 'running' && !activeRunSummary;
+  const controlRunId = activeRunSummary?.id ?? null;
+  const controlRunCanInterrupt =
+    activeRunSummary?.status === 'running' || activeRunSummary?.status === 'waiting_for_input'
+      ? activeRunSummary.participants.some((participant) => participant.interruptSupported)
       : false;
-  const selectedRunCanStop =
-    selectedRun?.status === 'running' || selectedRun?.status === 'waiting_for_input'
-      ? selectedRun.participants.some((participant) => participant.softStopSupported || participant.interruptSupported)
+  const controlRunCanStop =
+    activeRunSummary?.status === 'running' || activeRunSummary?.status === 'waiting_for_input'
+      ? activeRunSummary.participants.some((participant) => participant.softStopSupported || participant.interruptSupported)
       : false;
+  const controlRunLabel = activeRunSummary
+    ? `当前控制目标：Run ${runSummaries.findIndex((run) => run.id === activeRunSummary.id) >= 0 ? runSummaries.length - runSummaries.findIndex((run) => run.id === activeRunSummary.id) : 'active'}（${activeRunSummary.status}）`
+    : '当前还没有可控制的 Run';
+  const selectedRunLabel = selectedRun
+    ? `当前查看：Run ${runSummaries.findIndex((run) => run.id === selectedRun.id) >= 0 ? runSummaries.length - runSummaries.findIndex((run) => run.id === selectedRun.id) : 'selected'}（${selectedRun.status}）`
+    : '当前查看：Task Room';
+  const selectedRunIsActive = !!selectedRun && selectedRun.id === activeRunSummary?.id;
+  const primarySendLabel = task?.executionMode === 'acpx'
+    ? conversationMode === 'chat'
+      ? '发送到对话'
+      : '基于当前对话启动 Run'
+    : '发送到 Task Room';
+  const composerBehaviorHint = task?.executionMode === 'acpx'
+    ? conversationMode === 'chat'
+      ? activeRunSummary
+        ? `聊天模式下，消息会先写入 task room。当前 active run 仍在执行时，它不会被原地接管。`
+        : canContinueSelectedSession
+        ? `聊天模式下会优先继续 ${continuationParticipantLabel || '当前 Codex'} 的同一会话；如果没有可续接会话，就会直接拉起一个新的 agent run 来回复。`
+        : '聊天模式下如果没有 active run，主按钮会直接拉起新的 agent run 来回复，而不是只把消息留在 task room。'
+      : activeRunSummary
+      ? `执行模式下只会控制 active run。当前已有 active run，不能再启动新 run；如需介入，请使用打断或停止。`
+      : '执行模式下会把当前输入先写入 task room，再基于最近对话上下文启动新的 run。'
+    : null;
 
   if (isLoading) {
     return <div className="p-8 text-gray-600">加载中...</div>;
@@ -1277,13 +1462,21 @@ export default function TaskChatPage() {
                 disabled={isExecuting}
                 className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {isExecuting ? '执行中...' : '开始运行'}
+                {isExecuting ? '执行中...' : '启动新 Run'}
               </button>
             ) : (
               <span className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-700">
-                当前任务运行中
+                {activeRunSummary ? '当前 active run 进行中' : '当前不可启动新 run'}
               </span>
             )}
+            {task.executionMode === 'acpx' ? (
+              <button
+                onClick={() => setIsPermissionEditorOpen((prev) => !prev)}
+                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {isPermissionEditorOpen ? '收起权限设置' : '权限设置'}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -1307,6 +1500,14 @@ export default function TaskChatPage() {
               <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
                 Approval: {permissionConfig.approvalPolicy}
               </span>
+              {draftPermissionStatusItems.map((item) => (
+                <span
+                  key={item.key}
+                  className={`rounded-full px-2.5 py-1 ring-1 ${permissionSupportTone[item.state]}`}
+                >
+                  {item.label}: {getPermissionSupportLabel(item.state)}
+                </span>
+              ))}
             </>
           ) : null}
           {task.executionMode === 'acpx' && task.acpxParticipants?.length
@@ -1332,6 +1533,21 @@ export default function TaskChatPage() {
           <div className="shrink-0 border-b border-slate-200/70 bg-[#f7f7f8] px-4 py-3 xl:px-6">
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span className="font-medium text-slate-700">对话</span>
+              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                {selectedRunLabel}
+              </span>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
+                activeRunSummary
+                  ? 'bg-sky-50 text-sky-700 ring-sky-200'
+                  : 'bg-slate-100 text-slate-500 ring-slate-200'
+              }`}>
+                {controlRunLabel}
+              </span>
+              {selectedRun && !selectedRunIsActive ? (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
+                  当前浏览的是历史 run；控制按钮不会作用于它
+                </span>
+              ) : null}
               {selectedRun?.controlState ? (
                 <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
                   control {selectedRun.controlState}
@@ -1350,6 +1566,14 @@ export default function TaskChatPage() {
                   </span>
                 </>
               ) : null}
+              {selectedRunPermissionStatusItems.map((item) => (
+                <span
+                  key={item.key}
+                  className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${permissionSupportTone[item.state]}`}
+                >
+                  {item.label} {getPermissionSupportLabel(item.state)}
+                </span>
+              ))}
               {selectedRunSessionTrackingLabel ? (
                 <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
                   selectedRunSessionTracking?.sameSessionConfirmed === false
@@ -1400,176 +1624,39 @@ export default function TaskChatPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       onClick={() => void handleHarnessDecision('allow')}
-                      disabled={isSending || !selectedRunCanInterrupt}
+                      disabled={isSending || !controlRunCanInterrupt}
                       className="rounded-full bg-emerald-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                     >
                       同意并转入下一轮
                     </button>
                     <button
                       onClick={() => void handleHarnessDecision('deny')}
-                      disabled={isSending || !selectedRunCanInterrupt}
+                      disabled={isSending || !controlRunCanInterrupt}
                       className="rounded-full bg-rose-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
                     >
                       拒绝并转入下一轮
                     </button>
                     <button
                       onClick={() => void handleHarnessDecision('explain')}
-                      disabled={isSending || !selectedRunCanInterrupt}
+                      disabled={isSending || !controlRunCanInterrupt}
                       className="rounded-full bg-slate-800 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-400"
                     >
                       先补充说明
                     </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {task.executionMode === 'acpx' ? (
-              <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 p-3 text-xs text-slate-700 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-medium text-slate-800">Local Codex 权限设置</div>
-                  <button
-                    onClick={() => setIsPermissionEditorOpen((prev) => !prev)}
-                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                  >
-                    {isPermissionEditorOpen ? '收起权限设置' : '打开权限设置'}
-                  </button>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                    {getPermissionProfileLabel(permissionConfig.profile)}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                    Sandbox: {permissionConfig.sandboxMode}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                    Network: {permissionConfig.networkAccess}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                    Approval: {permissionConfig.approvalPolicy}
-                  </span>
-                  {permissionConfig.writableRoots.length > 0 ? (
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                      writable roots: {permissionConfig.writableRoots.length}
-                    </span>
-                  ) : null}
-                </div>
-
-                {isPermissionEditorOpen ? (
-                  <div className="mt-3 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
-                    <div className="flex flex-wrap gap-2">
-                      {(['safe_local', 'dev_local', 'full_access'] as const).map((profile) => (
-                        <button
-                          key={profile}
-                          onClick={() => handlePermissionProfileChange(profile)}
-                          className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                            permissionConfig.profile === profile
-                              ? 'bg-slate-900 text-white'
-                              : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          {getPermissionProfileLabel(profile)}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <label className="space-y-1">
-                        <div className="text-[11px] font-medium text-slate-600">Sandbox</div>
-                        <select
-                          value={permissionConfig.sandboxMode}
-                          onChange={(event) =>
-                            setPermissionConfig((prev) => ({
-                              ...prev,
-                              profile: 'custom',
-                              sandboxMode: event.target.value as AcpxPermissionConfig['sandboxMode'],
-                            }))
-                          }
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                        >
-                          <option value="read-only">read-only</option>
-                          <option value="workspace-write">workspace-write</option>
-                          <option value="danger-full-access">danger-full-access</option>
-                        </select>
-                      </label>
-
-                      <label className="space-y-1">
-                        <div className="text-[11px] font-medium text-slate-600">Network</div>
-                        <select
-                          value={permissionConfig.networkAccess}
-                          onChange={(event) =>
-                            setPermissionConfig((prev) => ({
-                              ...prev,
-                              profile: 'custom',
-                              networkAccess: event.target.value as AcpxPermissionConfig['networkAccess'],
-                            }))
-                          }
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                        >
-                          <option value="restricted">restricted</option>
-                          <option value="enabled">enabled</option>
-                        </select>
-                      </label>
-
-                      <label className="space-y-1">
-                        <div className="text-[11px] font-medium text-slate-600">Approval</div>
-                        <select
-                          value={permissionConfig.approvalPolicy}
-                          onChange={(event) =>
-                            setPermissionConfig((prev) => ({
-                              ...prev,
-                              profile: 'custom',
-                              approvalPolicy: event.target.value as AcpxPermissionConfig['approvalPolicy'],
-                            }))
-                          }
-                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                        >
-                          <option value="never">never</option>
-                          <option value="on-request">on-request</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label className="block space-y-1">
-                      <div className="text-[11px] font-medium text-slate-600">Writable Roots</div>
-                      <textarea
-                        value={permissionConfig.writableRoots.join('\n')}
-                        onChange={(event) =>
-                          setPermissionConfig((prev) => ({
-                            ...prev,
-                            profile: 'custom',
-                            writableRoots: event.target.value
-                              .split('\n')
-                              .map((item) => item.trim())
-                              .filter(Boolean),
-                          }))
-                        }
-                        rows={3}
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                        placeholder={"/data1/ai-services/deepseek_ocr\n/data/cache/modelscope\n/tmp"}
-                      />
-                    </label>
-
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-                      当前第一版会真实应用到 local Codex CLI 的主要是 sandbox 和 approval。network / writable roots 会被保存并显示在 run metadata 中，便于后续继续接权限能力。
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      {permissionConfigNotice ? (
-                        <div className="text-[11px] text-slate-600">{permissionConfigNotice}</div>
-                      ) : (
-                        <div className="text-[11px] text-slate-500">
-                          新设置会影响下一次新 run 或 continuation，不会热切换当前正在执行的 turn。
-                        </div>
-                      )}
-                      <button
-                        onClick={() => void handlePermissionConfigSave()}
-                        disabled={isSavingPermissionConfig}
-                        className="rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                      >
-                        {isSavingPermissionConfig ? '保存中...' : '保存权限设置'}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => void handleGrantAgentRights('dev_local')}
+                      disabled={isSending || isExecuting || isSavingPermissionConfig}
+                      className="rounded-full border border-sky-300 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-sky-200 disabled:text-sky-400"
+                    >
+                      授予开发权限并继续
+                    </button>
+                    <button
+                      onClick={() => void handleGrantAgentRights('full_access')}
+                      disabled={isSending || isExecuting || isSavingPermissionConfig}
+                      className="rounded-full border border-violet-300 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:border-violet-200 disabled:text-violet-400"
+                    >
+                      授予完全权限并继续
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -1605,14 +1692,20 @@ export default function TaskChatPage() {
                   if (item.type === 'room_message' && item.roomMessage) {
                     const message = item.roomMessage;
                     const isOwn = message.user.id === taskRoomUser.id;
+                    const isSystemMessage = message.user.id === 'system';
+
+                    if (isSystemMessage) {
+                      return null;
+                    }
                     const bubbleClass = isOwn
                       ? 'ml-auto bg-[#111827] text-white'
-                      : message.user.id === 'system'
-                      ? 'bg-slate-200 text-slate-900'
                       : 'bg-white text-slate-900 ring-1 ring-slate-200';
 
                     return (
-                      <div key={item.id} className={`max-w-[85%] rounded-[28px] px-5 py-4 shadow-sm ${bubbleClass}`}>
+                      <div
+                        key={item.id}
+                        className={`max-w-[85%] rounded-[28px] px-5 py-4 shadow-sm ${bubbleClass}`}
+                      >
                         <div className={`mb-1 text-xs ${isOwn ? 'text-slate-300' : 'text-slate-500'}`}>
                           {message.user.name} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
                         </div>
@@ -1685,9 +1778,9 @@ export default function TaskChatPage() {
                   return (
                     <div
                       key={item.id}
-                      className={`rounded-[22px] border px-4 py-3.5 shadow-sm ${eventToneClass}`}
+                      className={`rounded-[18px] border px-3.5 py-2.5 shadow-sm ${eventToneClass}`}
                     >
-                      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
                         <span>{new Date(event.createdAt).toLocaleString('zh-CN', { hour12: false })}</span>
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">{event.eventType}</span>
                         {event.participant ? (
@@ -1706,7 +1799,7 @@ export default function TaskChatPage() {
                           delivery: {deliveryResult}
                         </div>
                       ) : null}
-                      <pre className={`whitespace-pre-wrap break-words font-mono text-xs ${event.stream === 'stderr' ? 'text-red-600' : 'text-slate-900'}`}>
+                      <pre className={`whitespace-pre-wrap break-words font-mono text-[11px] leading-5 ${event.stream === 'stderr' ? 'text-red-600' : 'text-slate-800'}`}>
                         {event.content}
                       </pre>
                     </div>
@@ -1720,6 +1813,28 @@ export default function TaskChatPage() {
             {task.executionMode === 'acpx' ? (
               <div className="mx-auto max-w-4xl space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex rounded-full border border-slate-200 bg-slate-100 p-1">
+                    <button
+                      onClick={() => setConversationMode('chat')}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                        conversationMode === 'chat'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      聊天模式
+                    </button>
+                    <button
+                      onClick={() => setConversationMode('run')}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                        conversationMode === 'run'
+                          ? 'bg-white text-slate-900 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      执行模式
+                    </button>
+                  </div>
                   <select
                     value={messageTargetType}
                     onChange={(event) => setMessageTargetType(event.target.value as 'task' | 'participant' | 'all')}
@@ -1748,7 +1863,198 @@ export default function TaskChatPage() {
                       当前目标：{selectedTargetLabel}
                     </div>
                   )}
+                  <button
+                    onClick={() => void handleGrantAgentRights('dev_local')}
+                    disabled={isSending || isExecuting || isSavingPermissionConfig}
+                    className="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-800 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-sky-200 disabled:text-sky-400"
+                  >
+                    给 agent 开发权限
+                  </button>
+                  <button
+                    onClick={() => void handleGrantAgentRights('full_access')}
+                    disabled={isSending || isExecuting || isSavingPermissionConfig}
+                    className="rounded-full border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-800 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:border-violet-200 disabled:text-violet-400"
+                  >
+                    给 agent 完全权限
+                  </button>
                 </div>
+
+                {isPermissionEditorOpen ? (
+                  <div className="max-h-[48vh] overflow-y-auto rounded-[24px] border border-slate-200 bg-slate-50/95 p-4 shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-slate-900">Local Harness 权限设置</div>
+                        <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                          这组设置只会影响下一次新 run 或 continuation，不会热切换当前正在执行的 session。
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setIsPermissionEditorOpen(false)}
+                        className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
+                      >
+                        收起
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-600">
+                      <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                        {getPermissionProfileLabel(permissionConfig.profile)}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                        Sandbox: {permissionConfig.sandboxMode}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                        Network: {permissionConfig.networkAccess}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                        Approval: {permissionConfig.approvalPolicy}
+                      </span>
+                      {permissionConfig.writableRoots.length > 0 ? (
+                        <span className="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200">
+                          writable roots: {permissionConfig.writableRoots.length}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(['safe_local', 'dev_local', 'full_access'] as const).map((profile) => (
+                        <button
+                          key={profile}
+                          onClick={() => handlePermissionProfileChange(profile)}
+                          className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                            permissionConfig.profile === profile
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {getPermissionProfileLabel(profile)}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      <label className="space-y-1">
+                        <div className="text-[11px] font-medium text-slate-600">Sandbox</div>
+                        <select
+                          value={permissionConfig.sandboxMode}
+                          onChange={(event) =>
+                            setPermissionConfig((prev) => ({
+                              ...prev,
+                              profile: 'custom',
+                              sandboxMode: event.target.value as AcpxPermissionConfig['sandboxMode'],
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <option value="read-only">read-only</option>
+                          <option value="workspace-write">workspace-write</option>
+                          <option value="danger-full-access">danger-full-access</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <div className="text-[11px] font-medium text-slate-600">Network</div>
+                        <select
+                          value={permissionConfig.networkAccess}
+                          onChange={(event) =>
+                            setPermissionConfig((prev) => ({
+                              ...prev,
+                              profile: 'custom',
+                              networkAccess: event.target.value as AcpxPermissionConfig['networkAccess'],
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <option value="restricted">restricted</option>
+                          <option value="enabled">enabled</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <div className="text-[11px] font-medium text-slate-600">Approval</div>
+                        <select
+                          value={permissionConfig.approvalPolicy}
+                          onChange={(event) =>
+                            setPermissionConfig((prev) => ({
+                              ...prev,
+                              profile: 'custom',
+                              approvalPolicy: event.target.value as AcpxPermissionConfig['approvalPolicy'],
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <option value="never">never</option>
+                          <option value="on-request">on-request</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="mt-3 block space-y-1">
+                      <div className="text-[11px] font-medium text-slate-600">Writable Roots</div>
+                      <textarea
+                        value={permissionConfig.writableRoots.join('\n')}
+                        onChange={(event) =>
+                          setPermissionConfig((prev) => ({
+                            ...prev,
+                            profile: 'custom',
+                            writableRoots: event.target.value
+                              .split('\n')
+                              .map((item) => item.trim())
+                              .filter(Boolean),
+                          }))
+                        }
+                        rows={3}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        placeholder={"/data1/ai-services/deepseek_ocr\n/data/cache/modelscope\n/tmp"}
+                      />
+                    </label>
+
+                    {draftPermissionSupport ? (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-[11px] text-slate-600">
+                        <div className="font-medium text-slate-800">当前生效范围</div>
+                        <div className="mt-1 leading-5">{draftPermissionSupport.summary}</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {draftPermissionStatusItems.map((item) => (
+                            <span
+                              key={item.key}
+                              className={`rounded-full px-2.5 py-1 ring-1 ${permissionSupportTone[item.state]}`}
+                            >
+                              {item.label}: {getPermissionSupportLabel(item.state)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="sticky bottom-0 mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/95 pt-3">
+                      {permissionConfigNotice ? (
+                        <div className="text-[11px] text-slate-600">{permissionConfigNotice}</div>
+                      ) : (
+                        <div className="text-[11px] text-slate-500">
+                          {selectedRun?.status === 'running' || selectedRun?.status === 'waiting_for_input'
+                            ? '当前权限变更不会影响正在执行的 session。'
+                            : '保存后会在下一次新 run 或 continuation 生效。'}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => void handlePermissionConfigSave()}
+                          disabled={isSavingPermissionConfig}
+                          className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                        >
+                          {isSavingPermissionConfig ? '保存中...' : '仅保存配置'}
+                        </button>
+                        <button
+                          onClick={() => void handleExecuteTask()}
+                          disabled={isExecuting}
+                          className="rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        >
+                          {isExecuting ? '启动中...' : '用当前配置启动新 Run'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="rounded-[24px] border border-slate-200 bg-white px-3 py-2.5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
                   <textarea
@@ -1757,20 +2063,29 @@ export default function TaskChatPage() {
                     rows={2}
                     className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-0"
                     placeholder={
-                      composerMode === 'queue_only_busy'
-                        ? '输入要排队给后续轮次的要求、纠偏或补充信息……'
-                        : composerMode === 'continue_session'
-                        ? '输入要继续发送到同一个 Codex 会话的消息……'
-                        : '输入要发送到 task room 并启动新一轮运行的消息……'
+                      conversationMode === 'chat'
+                        ? '先把你的想法、澄清、计划或指令发到 task room……'
+                        : activeRunSummary
+                        ? '当前已有 active run；如需介入，请先用控制按钮处理它……'
+                        : '输入本轮要执行的最新指令；发送时会一并带上当前对话上下文……'
                     }
                   />
                   <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[11px] leading-5 text-slate-500">
-                      {composerMode === 'queue_only_busy'
-                        ? '当前这次 Codex turn 还没结束；新消息暂时不能原地注入，只能先排队到后续轮次。'
-                        : composerMode === 'continue_session'
-                        ? '主按钮会继续当前 Codex 会话；如果续接失败，再考虑改走排队或重开新一轮。'
-                        : '主按钮会把消息写入 task room，并启动一轮新的运行。'}
+                    <div className="space-y-1">
+                      <div className="text-[11px] font-medium text-slate-600">
+                        {controlRunLabel}
+                      </div>
+                      <div className="text-[11px] leading-5 text-slate-500">
+                        {conversationMode === 'chat'
+                          ? activeRunSummary
+                            ? '聊天模式下若当前已有 active run，新消息会先排队到 task room。'
+                            : canContinueSelectedSession
+                            ? '聊天模式下会直接继续同一个 Codex 会话。'
+                            : '聊天模式下会直接启动一个新的 agent run 来回复你。'
+                          : activeRunSummary
+                          ? '执行模式下若 active run 仍在进行，主按钮会保持禁用，避免把历史 selected run 当成控制目标。'
+                          : '执行模式会先把当前输入加入对话，再按 chat-first 上下文启动新的 run。'}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -1778,8 +2093,7 @@ export default function TaskChatPage() {
                         disabled={
                           isSending
                           || !taskRoom
-                          || !messageInput.trim()
-                          || !selectedRunCanInterrupt
+                          || !controlRunCanInterrupt
                           || (messageTargetType === 'participant' && !messageTargetParticipantKey)
                         }
                         className="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-amber-200 disabled:text-amber-400"
@@ -1788,7 +2102,7 @@ export default function TaskChatPage() {
                       </button>
                       <button
                         onClick={() => void handleAcpxControl('stop_run', 'immediate')}
-                        disabled={isSending || !taskRoom || !selectedRunCanStop}
+                        disabled={isSending || !taskRoom || !controlRunCanStop}
                         className="rounded-full border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-800 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-rose-200 disabled:text-rose-400"
                       >
                         停止运行
@@ -1797,14 +2111,29 @@ export default function TaskChatPage() {
                         onClick={() => void handlePrimaryAcpxSend()}
                         disabled={
                           isSending
+                          || (conversationMode === 'run' && (!canExecute || isExecuting))
                           || !taskRoom
-                          || !messageInput.trim()
+                          || (conversationMode === 'run' ? false : !messageInput.trim())
                           || (messageTargetType === 'participant' && !messageTargetParticipantKey)
                         }
                         className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                       >
-                        {isSending ? '发送中...' : primarySendLabel}
+                        {isSending || isExecuting ? '处理中...' : primarySendLabel}
                       </button>
+                      {conversationMode === 'run' && canContinueSelectedSession && !activeRunSummary ? (
+                        <button
+                          onClick={() => void handleAcpxControl('continue_session', 'immediate')}
+                          disabled={
+                            isSending
+                            || !taskRoom
+                            || !messageInput.trim()
+                            || (messageTargetType === 'participant' && !messageTargetParticipantKey)
+                          }
+                          className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                        >
+                          继续同一 Codex 会话
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

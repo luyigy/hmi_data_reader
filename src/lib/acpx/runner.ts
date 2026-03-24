@@ -7,9 +7,9 @@ import {
 } from '@/lib/openclaw-client';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
-import { buildTaskRoomContext } from '@/lib/task-room';
+import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { getHarnessCapabilities } from './capabilities';
-import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
+import { DEFAULT_ACPX_PERMISSION_CONFIG, getLocalHarnessPermissionSupport } from './permissions';
 import { publishTaskRunEvent } from './event-bus';
 import {
   clearRunningProcess,
@@ -311,16 +311,28 @@ const handleHarnessInteractionRequest = async ({
     || request.kind === 'input_request'
     || request.kind === 'choice_request';
 
+  const [existingTaskRun, existingParticipant] = await Promise.all([
+    prisma.taskRun.findUnique({
+      where: { id: taskRunId },
+      select: { controlMetadata: true, taskSessionId: true },
+    }),
+    prisma.taskRunParticipant.findUnique({
+      where: { id: participantId },
+      select: { controlMetadata: true },
+    }),
+  ]);
+
   await prisma.taskRun.update({
     where: { id: taskRunId },
     data: {
       status: isWaitingUser ? 'waiting_for_input' : undefined,
       activityState: isWaitingUser ? 'waiting_user' : 'stalled',
       controlMetadata: stringifyJson({
+        ...parseJsonObject(existingTaskRun?.controlMetadata),
         interactionRequest: {
-          kind: request.kind,
-          message: request.message,
-          detectedAt: new Date().toISOString(),
+            kind: request.kind,
+            message: request.message,
+            detectedAt: new Date().toISOString(),
         },
       }),
     },
@@ -332,23 +344,19 @@ const handleHarnessInteractionRequest = async ({
       status: isWaitingUser ? 'waiting_for_input' : undefined,
       activityState: isWaitingUser ? 'waiting_user' : 'stalled',
       controlMetadata: stringifyJson({
+        ...parseJsonObject(existingParticipant?.controlMetadata),
         interactionRequest: {
-          kind: request.kind,
-          message: request.message,
-          detectedAt: new Date().toISOString(),
+            kind: request.kind,
+            message: request.message,
+            detectedAt: new Date().toISOString(),
         },
       }),
     },
   });
 
-  const taskRun = await prisma.taskRun.findUnique({
-    where: { id: taskRunId },
-    select: { taskSessionId: true },
-  });
-
-  if (taskRun?.taskSessionId) {
+  if (existingTaskRun?.taskSessionId) {
     await prisma.taskSession.update({
-      where: { id: taskRun.taskSessionId },
+      where: { id: existingTaskRun.taskSessionId },
       data: {
         status: isWaitingUser ? 'waiting_user' : 'failed',
         attentionState: isWaitingUser ? 'needs_user_input' : 'error',
@@ -439,17 +447,32 @@ const buildHarnessPrompt = (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
   previousSummaries: string[],
-  taskRoomContext: string
+  taskRoomContext: {
+    transcript: string;
+    latestUserMessage: {
+      id: string;
+      content: string;
+      createdAt: string;
+      targetType: string;
+      targetParticipantLabel: string | null;
+    } | null;
+  }
 ) => {
+  const latestInstruction = taskRoomContext.latestUserMessage
+    ? `\n\nLatest task-room instruction (highest priority for this run):\n${taskRoomContext.latestUserMessage.content}`
+    : '';
+  const taskBackground = request.taskDescription
+    ? `\n\nTask background:\n${request.taskDescription}`
+    : '';
+  const roomTranscript = taskRoomContext.transcript
+    ? `\n\nRecent task-room transcript:\n${taskRoomContext.transcript}`
+    : '';
   const priorContext =
     previousSummaries.length > 0
       ? `\n\nPrevious participant outputs:\n${previousSummaries
           .map((item, index) => `${index + 1}. ${item}`)
           .join('\n')}`
       : '';
-  const roomContext = taskRoomContext
-    ? `\n\nTask room context:\n${taskRoomContext}`
-    : '';
 
   return `Task: ${request.taskName}
 
@@ -458,8 +481,9 @@ Harness: ${participant.harnessType}
 Gateway: ${participant.gatewayName || participant.gatewayId}
 Execution Backend: ${participant.executionBackend}
 
-Description:
-${request.taskDescription || 'Please complete this task.'}${roomContext}${priorContext}
+You are being launched from a chat-first task room.
+Use the latest task-room instruction as the primary direction for this run.
+Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}
 
 Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.`;
 };
@@ -468,7 +492,16 @@ const executeViaGateway = async (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
   previousSummaries: string[],
-  taskRoomContext: string
+  taskRoomContext: {
+    transcript: string;
+    latestUserMessage: {
+      id: string;
+      content: string;
+      createdAt: string;
+      targetType: string;
+      targetParticipantLabel: string | null;
+    } | null;
+  }
 ): Promise<{
   output: string;
   filesModified: string[];
@@ -505,7 +538,16 @@ const executeViaLocalHarness = async (
   participant: AcpxParticipantRequest,
   callbacks: HarnessStreamCallbacks,
   previousSummaries: string[],
-  taskRoomContext: string,
+  taskRoomContext: {
+    transcript: string;
+    latestUserMessage: {
+      id: string;
+      content: string;
+      createdAt: string;
+      targetType: string;
+      targetParticipantLabel: string | null;
+    } | null;
+  },
   onSpawn?: (child: { pid?: number }) => void
 ): Promise<{
   output: string;
@@ -633,6 +675,16 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       watchdogConfig: stringifyJson(request.watchdogConfig ?? null),
       controlMetadata: stringifyJson({
         permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+        permissionSupport: request.participants.map((participant) => ({
+          participantKey: `${participant.executionBackend}:${participant.harnessType}:${participant.role}`,
+          executionBackend: participant.executionBackend,
+          harnessType: participant.harnessType,
+          role: participant.role,
+          support: getLocalHarnessPermissionSupport(
+            participant.harnessType,
+            participant.executionBackend
+          ),
+        })),
       }),
       lastActivityAt: new Date(),
       startedAt: new Date(),
@@ -662,6 +714,10 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
             controlMetadata: stringifyJson({
               ...capabilities,
               permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+              permissionSupport: getLocalHarnessPermissionSupport(
+                participant.harnessType,
+                participant.executionBackend
+              ),
             }),
           };
         }),
@@ -685,6 +741,15 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
         orchestrationMode: request.orchestrationMode,
         workingDirectory: request.workingDirectory ?? null,
         permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+        permissionSupport: request.participants.map((participant) => ({
+          executionBackend: participant.executionBackend,
+          harnessType: participant.harnessType,
+          role: participant.role,
+          support: getLocalHarnessPermissionSupport(
+            participant.harnessType,
+            participant.executionBackend
+          ),
+        })),
         watchdogConfig: request.watchdogConfig ?? null,
         participants: request.participants,
       },
@@ -902,7 +967,7 @@ const executeParticipant = async (
   };
 
   try {
-    const taskRoomContext = await buildTaskRoomContext(request.taskId, request.taskName, 30);
+    const taskRoomContext = await buildTaskRoomPromptContext(request.taskId, request.taskName, 30);
     const localSpawnHandler = (child: { pid?: number }) => {
       void persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
     };
