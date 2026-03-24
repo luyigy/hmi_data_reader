@@ -146,14 +146,44 @@ const persistCodexThreadMetadata = async (
     }),
   ]);
 
+  const now = new Date().toISOString();
+  const taskRunMetadata = parseJsonObject(taskRun?.controlMetadata);
+  const participantMetadata = parseJsonObject(participant?.controlMetadata);
+  const existingRunTracking =
+    taskRunMetadata.sessionTracking && typeof taskRunMetadata.sessionTracking === 'object'
+      ? taskRunMetadata.sessionTracking as Record<string, unknown>
+      : {};
+  const existingParticipantTracking =
+    participantMetadata.sessionTracking && typeof participantMetadata.sessionTracking === 'object'
+      ? participantMetadata.sessionTracking as Record<string, unknown>
+      : {};
+
   await Promise.all([
     prisma.taskRun.update({
       where: { id: taskRunId },
       data: {
         controlMetadata: stringifyJson({
-          ...parseJsonObject(taskRun?.controlMetadata),
+          ...taskRunMetadata,
           codexThreadId: threadId,
           lastSessionThreadId: threadId,
+          sessionTracking: {
+            ...existingRunTracking,
+            rootRunId:
+              typeof existingRunTracking.rootRunId === 'string'
+                ? existingRunTracking.rootRunId
+                : taskRunId,
+            latestRunId: taskRunId,
+            rootThreadId:
+              typeof existingRunTracking.rootThreadId === 'string'
+                ? existingRunTracking.rootThreadId
+                : threadId,
+            latestThreadId: threadId,
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingRunTracking.rootThreadId === 'string'
+                ? existingRunTracking.rootThreadId === threadId
+                : true,
+          },
         }),
       },
     }),
@@ -161,9 +191,27 @@ const persistCodexThreadMetadata = async (
       where: { id: participantId },
       data: {
         controlMetadata: stringifyJson({
-          ...parseJsonObject(participant?.controlMetadata),
+          ...participantMetadata,
           codexThreadId: threadId,
           lastSessionThreadId: threadId,
+          sessionTracking: {
+            ...existingParticipantTracking,
+            rootParticipantId:
+              typeof existingParticipantTracking.rootParticipantId === 'string'
+                ? existingParticipantTracking.rootParticipantId
+                : participantId,
+            latestParticipantId: participantId,
+            rootThreadId:
+              typeof existingParticipantTracking.rootThreadId === 'string'
+                ? existingParticipantTracking.rootThreadId
+                : threadId,
+            latestThreadId: threadId,
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingParticipantTracking.rootThreadId === 'string'
+                ? existingParticipantTracking.rootThreadId === threadId
+                : true,
+          },
         }),
       },
     }),
@@ -420,7 +468,13 @@ const executeViaGateway = async (
   participant: AcpxParticipantRequest,
   previousSummaries: string[],
   taskRoomContext: string
-) => {
+): Promise<{
+  output: string;
+  filesModified: string[];
+  executionTime: number;
+  liveStreaming: boolean;
+  threadId?: string;
+}> => {
   const config = await getOpenClawGatewayConfig(participant.gatewayId);
 
   if (!config) {
@@ -439,6 +493,7 @@ const executeViaGateway = async (
     filesModified: [] as string[],
     executionTime: 0,
     liveStreaming: false,
+    threadId: undefined,
   };
 };
 
@@ -451,7 +506,13 @@ const executeViaLocalHarness = async (
   previousSummaries: string[],
   taskRoomContext: string,
   onSpawn?: (child: { pid?: number }) => void
-) => {
+): Promise<{
+  output: string;
+  filesModified: string[];
+  executionTime: number;
+  liveStreaming: boolean;
+  threadId?: string;
+}> => {
   const task = {
     id: request.taskId,
     name: request.taskName,
@@ -892,19 +953,21 @@ const executeParticipant = async (
       });
     }
 
-    await publishTaskRunEvent({
-      taskId: request.taskId,
-      taskRunId,
-      participantId,
-      participant: participantPayload,
-      eventType: 'summary',
-      content: result.output,
-      metadata: {
-        filesModified: result.filesModified ?? [],
-        executionTime: result.executionTime,
-        streamingMode: result.liveStreaming ? 'live' : 'final-only',
-      },
-    });
+    if (!result.liveStreaming) {
+      await publishTaskRunEvent({
+        taskId: request.taskId,
+        taskRunId,
+        participantId,
+        participant: participantPayload,
+        eventType: 'summary',
+        content: result.output,
+        metadata: {
+          filesModified: result.filesModified ?? [],
+          executionTime: result.executionTime,
+          streamingMode: result.liveStreaming ? 'live' : 'final-only',
+        },
+      });
+    }
 
     await publishTaskRunEvent({
       taskId: request.taskId,

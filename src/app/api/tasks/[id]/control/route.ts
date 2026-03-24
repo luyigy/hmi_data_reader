@@ -60,6 +60,18 @@ const parseMetadata = (value: string | null | undefined): Record<string, unknown
   }
 };
 
+const stringifyMetadata = (value: Record<string, unknown>) => JSON.stringify(value);
+
+const readTrackingObject = (metadata: Record<string, unknown>) =>
+  metadata.sessionTracking && typeof metadata.sessionTracking === 'object'
+    ? metadata.sessionTracking as Record<string, unknown>
+    : {};
+
+const readTrackingString = (tracking: Record<string, unknown>, key: string) =>
+  typeof tracking[key] === 'string' && tracking[key]
+    ? tracking[key] as string
+    : null;
+
 const getContinuationThreadId = (participant: {
   controlMetadata?: string | null;
   harnessType: string;
@@ -72,6 +84,27 @@ const getContinuationThreadId = (participant: {
   const threadId = metadata.codexThreadId ?? metadata.lastSessionThreadId;
   return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : null;
 };
+
+const toParticipantEventPayload = (participant: {
+  id: string;
+  gatewayId?: string | null;
+  gatewayNameSnapshot: string;
+  executionBackend: string;
+  harnessType: string;
+  harnessNameSnapshot?: string | null;
+  role: string;
+  agentId?: string | null;
+  agentNameSnapshot?: string | null;
+}) => ({
+  gatewayId: participant.gatewayId,
+  gatewayName: participant.gatewayNameSnapshot,
+  executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw',
+  harnessType: participant.harnessType,
+  harnessLabel: participant.harnessNameSnapshot,
+  role: participant.role,
+  agentId: participant.agentId,
+  agentName: participant.agentNameSnapshot,
+});
 
 export async function POST(
   request: NextRequest,
@@ -241,6 +274,11 @@ export async function POST(
       });
     }
 
+    const continuationThreadId =
+      action === 'continue_session' && selectedParticipant
+        ? getContinuationThreadId(selectedParticipant)
+        : null;
+
     const controlMessage = await createTaskRunControlMessage({
       taskId: task.id,
       taskSessionId: targetRun.taskSessionId,
@@ -257,22 +295,31 @@ export async function POST(
         roomTargetType: targetType,
         roomTargetParticipantKey:
           targetType === 'participant' ? getTaskRoomParticipantTargetKey(targetParticipantSpec!) : null,
-        continuationThreadId:
-          action === 'continue_session' && selectedParticipant
-            ? getContinuationThreadId(selectedParticipant)
-            : null,
+        targetParticipantId: selectedParticipant?.id ?? null,
+        targetParticipantRole: selectedParticipant?.role ?? null,
+        targetParticipantBackend: selectedParticipant?.executionBackend ?? null,
+        requestedDeliveryMode: deliveryMode,
+        requestedAction: action,
+        continuationThreadId,
+        deliveryAttempted: action !== 'queue_message',
+        deliveryResult: action === 'queue_message' ? 'queued' : 'pending_attempt',
+        fallbackReason: null,
+        fallbackAction: null,
       },
     });
 
     let applied = false;
     let systemMessage = '';
     let continuationRunId: string | null = null;
+    let deliveryResult: 'queued' | 'delivered_to_active_thread' | 'delivered_control_signal' | 'rejected' | 'fallback_to_queue' = 'queued';
+    let fallbackReason: string | null = null;
+    let fallbackAction: 'queue_message' | null = null;
+    let sessionTrackingResult: Record<string, unknown> | null = null;
 
     if (action === 'queue_message') {
       systemMessage = '系统提示：这条消息已作为排队指令记录；当前 run 不会被强制打断，后续 handoff 或下一轮运行才会读取它。';
+      deliveryResult = 'queued';
     } else if (action === 'continue_session') {
-      const continuationThreadId = selectedParticipant ? getContinuationThreadId(selectedParticipant) : null;
-
       if (
         !selectedParticipant
         || selectedParticipant.executionBackend !== 'platform_local'
@@ -318,6 +365,61 @@ export async function POST(
         ],
       });
 
+      const sourceRunTracking = readTrackingObject(parseMetadata(targetRun.controlMetadata));
+      const sourceParticipantTracking = readTrackingObject(parseMetadata(selectedParticipant.controlMetadata));
+      const continuationRun = await prisma.taskRun.findUnique({
+        where: { id: continuationResult.taskRunId },
+        include: {
+          participants: true,
+        },
+      });
+      const continuationRunParticipant =
+        continuationRun?.participants.find((participant) => participant.role === selectedParticipant.role)
+        ?? continuationRun?.participants[0]
+        ?? null;
+      const actualContinuationThreadId =
+        continuationRunParticipant ? getContinuationThreadId(continuationRunParticipant) : null;
+      const sameSessionConfirmed =
+        !!actualContinuationThreadId && actualContinuationThreadId === continuationThreadId;
+      const sessionTrackingMetadata = {
+        sourceRunId: targetRun.id,
+        sourceParticipantId: selectedParticipant.id,
+        rootRunId: readTrackingString(sourceRunTracking, 'rootRunId') || targetRun.id,
+        rootParticipantId: readTrackingString(sourceParticipantTracking, 'rootParticipantId') || selectedParticipant.id,
+        rootThreadId: readTrackingString(sourceRunTracking, 'rootThreadId') || continuationThreadId,
+        resumedFromThreadId: continuationThreadId,
+        actualThreadId: actualContinuationThreadId,
+        latestRunId: continuationResult.taskRunId,
+        latestParticipantId: continuationRunParticipant?.id ?? null,
+        checkedAt: new Date().toISOString(),
+        sameSessionConfirmed,
+      };
+      sessionTrackingResult = sessionTrackingMetadata;
+
+      if (continuationRun) {
+        await prisma.taskRun.update({
+          where: { id: continuationRun.id },
+          data: {
+            controlMetadata: stringifyMetadata({
+              ...parseMetadata(continuationRun.controlMetadata),
+              sessionTracking: sessionTrackingMetadata,
+            }),
+          },
+        });
+      }
+
+      if (continuationRunParticipant) {
+        await prisma.taskRunParticipant.update({
+          where: { id: continuationRunParticipant.id },
+          data: {
+            controlMetadata: stringifyMetadata({
+              ...parseMetadata(continuationRunParticipant.controlMetadata),
+              sessionTracking: sessionTrackingMetadata,
+            }),
+          },
+        });
+      }
+
       const finalStatus =
         continuationResult.status === 'completed'
           ? 'completed'
@@ -348,7 +450,25 @@ export async function POST(
 
       continuationRunId = continuationResult.taskRunId;
       applied = true;
+      deliveryResult = 'delivered_to_active_thread';
       systemMessage = '系统提示：这条消息已送入同一个 Codex 会话，平台已开始继续当前对话。';
+
+      await publishTaskRunEvent({
+        taskId: task.id,
+        taskRunId: continuationResult.taskRunId,
+        participantId: selectedParticipant.id,
+        participant: toParticipantEventPayload(selectedParticipant),
+        eventType: 'session_continuation_started',
+        content: `${selectedParticipant.role} 正在继续同一个 Codex 会话。`,
+        metadata: {
+          sourceRunId: targetRun.id,
+          continuationRunId: continuationResult.taskRunId,
+          controlMessageId: controlMessage.id,
+          threadId: continuationThreadId,
+          actualThreadId: actualContinuationThreadId,
+          sameSessionConfirmed,
+        },
+      });
     } else {
       await prisma.taskRun.update({
         where: { id: targetRun.id },
@@ -371,6 +491,9 @@ export async function POST(
         applied = result.applied;
       }
 
+      deliveryResult = applied ? 'delivered_control_signal' : 'fallback_to_queue';
+      fallbackReason = applied ? null : 'no_live_local_process_available';
+      fallbackAction = applied ? null : 'queue_message';
       systemMessage = applied
         ? action === 'stop_run'
           ? '系统提示：已向本地 harness 发出停止信号。'
@@ -378,6 +501,7 @@ export async function POST(
         : '系统提示：控制请求已记录，但当前没有可直接接管的本地运行进程，后续需要手动重新运行或等待下一阶段处理。';
     }
 
+    const existingControlMetadata = parseMetadata(controlMessage.metadata);
     const updatedControl = await prisma.taskRunControlMessage.update({
       where: { id: controlMessage.id },
       data: {
@@ -392,6 +516,17 @@ export async function POST(
             ? 'delivered'
             : 'pending',
         processedAt: action === 'queue_message' || applied ? new Date() : null,
+        metadata: stringifyMetadata({
+          ...existingControlMetadata,
+          deliveryAttempted: action !== 'queue_message',
+          deliveryResult,
+          fallbackReason,
+          fallbackAction,
+          continuationRunId,
+          sourceRunId: targetRun.id,
+          targetRunId: targetRun.id,
+          sessionTracking: sessionTrackingResult,
+        }),
       },
     });
 
@@ -399,18 +534,7 @@ export async function POST(
       taskId: task.id,
       taskRunId: targetRun.id,
       participantId: selectedParticipant?.id ?? null,
-      participant: selectedParticipant
-        ? {
-            gatewayId: selectedParticipant.gatewayId,
-            gatewayName: selectedParticipant.gatewayNameSnapshot,
-            executionBackend: selectedParticipant.executionBackend as 'platform_local' | 'gateway_openclaw',
-            harnessType: selectedParticipant.harnessType,
-            harnessLabel: selectedParticipant.harnessNameSnapshot,
-            role: selectedParticipant.role,
-            agentId: selectedParticipant.agentId,
-            agentName: selectedParticipant.agentNameSnapshot,
-          }
-        : null,
+      participant: selectedParticipant ? toParticipantEventPayload(selectedParticipant) : null,
       eventType: 'control_message',
       content:
         action === 'queue_message'
@@ -426,7 +550,15 @@ export async function POST(
         deliveryMode,
         deliveryStatus: updatedControl.deliveryStatus,
         roomMessageId: userMessage?.id ?? null,
+        deliveryResult,
+        fallbackReason,
+        fallbackAction,
+        targetParticipantId: selectedParticipant?.id ?? null,
+        targetParticipantRole: selectedParticipant?.role ?? null,
+        continuationThreadId,
+        sourceRunId: targetRun.id,
         continuationRunId,
+        sessionTracking: sessionTrackingResult,
       },
     });
 
@@ -448,8 +580,15 @@ export async function POST(
         deliveryStatus: updatedControl.deliveryStatus,
         participantId: updatedControl.participantId,
         roomMessageId: updatedControl.roomMessageId,
+        metadata: parseMetadata(updatedControl.metadata),
       },
       applied,
+      delivery: {
+        result: deliveryResult,
+        fallbackReason,
+        fallbackAction,
+      },
+      sessionTracking: sessionTrackingResult,
       continuationRunId,
     });
   } catch (error) {

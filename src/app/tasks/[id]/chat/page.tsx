@@ -56,6 +56,11 @@ interface TaskRoomMessageTargetOption {
   label: string;
 }
 
+type ComposerMode =
+  | 'continue_session'
+  | 'queue_only_busy'
+  | 'queue_then_start_new_run';
+
 interface ConversationFeedItem {
   id: string;
   createdAt: string;
@@ -151,6 +156,7 @@ interface SelectedRunResponse {
     status: string;
     controlState?: string;
     activityState?: string;
+    controlMetadata?: Record<string, unknown> | null;
     summary?: string | null;
     error?: string | null;
     participants: TaskRunParticipant[];
@@ -591,6 +597,13 @@ export default function TaskChatPage() {
     : null;
 
   const canContinueSelectedSession = !!continuationParticipant;
+  const composerMode: ComposerMode = task?.executionMode === 'acpx'
+    ? task.status === 'running'
+      ? 'queue_only_busy'
+      : canContinueSelectedSession
+      ? 'continue_session'
+      : 'queue_then_start_new_run'
+    : 'queue_then_start_new_run';
 
   const conversationFeed = useMemo<ConversationFeedItem[]>(() => {
     const roomItems = roomMessages.map((message) => ({
@@ -633,18 +646,53 @@ export default function TaskChatPage() {
       : `当前是远端 ${activeParticipantLabel} 在运行，可能只会在完成后返回结果；没有流式输出不一定表示它已卡死。`;
   }, [activeParticipant, activeParticipantLabel, selectedRun, selectedRunEvents]);
 
+  const selectedRunSessionTracking = useMemo(() => {
+    const metadata = selectedRun?.controlMetadata;
+    if (!metadata || typeof metadata !== 'object') {
+      return null;
+    }
+
+    const tracking = metadata.sessionTracking;
+    return tracking && typeof tracking === 'object'
+      ? tracking as Record<string, unknown>
+      : null;
+  }, [selectedRun?.controlMetadata]);
+
+  const selectedRunSessionTrackingLabel = useMemo(() => {
+    if (!selectedRunSessionTracking) {
+      return null;
+    }
+
+    const sameSessionConfirmed = selectedRunSessionTracking.sameSessionConfirmed;
+    const actualThreadId = typeof selectedRunSessionTracking.actualThreadId === 'string'
+      ? selectedRunSessionTracking.actualThreadId
+      : null;
+
+    if (sameSessionConfirmed === true) {
+      return actualThreadId
+        ? `same Codex session confirmed · ${actualThreadId}`
+        : 'same Codex session confirmed';
+    }
+
+    if (sameSessionConfirmed === false) {
+      return 'Codex session mismatch detected';
+    }
+
+    return null;
+  }, [selectedRunSessionTracking]);
+
   const primarySendLabel = task?.executionMode === 'acpx'
-    ? task.status === 'running'
+    ? composerMode === 'queue_only_busy'
       ? '排队到后续轮次'
-      : canContinueSelectedSession
+      : composerMode === 'continue_session'
       ? '继续当前对话'
       : '发送并启动新一轮'
     : '发送到 Task Room';
 
   const composerBehaviorHint = task?.executionMode === 'acpx'
-    ? task.status === 'running'
+    ? composerMode === 'queue_only_busy'
       ? `当前 ${activeParticipantLabel || 'harness'} 正在执行当前 turn；现在还不能把新消息原地送进这次运行，主按钮只会先排队。`
-      : canContinueSelectedSession
+      : composerMode === 'continue_session'
       ? `当前可以继续 ${continuationParticipantLabel || 'local Codex'} 的同一会话；主按钮会把消息送入同一个 Codex thread。`
       : `当前没有忙碌中的 harness；主按钮会先把消息写入 task room，再启动一轮新的运行。`
     : null;
@@ -888,6 +936,14 @@ export default function TaskChatPage() {
       }
 
       const responseData = await res.json().catch(() => null);
+      const deliveryResult =
+        responseData?.delivery && typeof responseData.delivery.result === 'string'
+          ? responseData.delivery.result
+          : null;
+      const fallbackReason =
+        responseData?.delivery && typeof responseData.delivery.fallbackReason === 'string'
+          ? responseData.delivery.fallbackReason
+          : null;
 
       if (action === 'queue_message') {
         setComposerNotice(
@@ -899,14 +955,24 @@ export default function TaskChatPage() {
         );
       } else if (action === 'continue_session') {
         setComposerNotice(
-          `消息已发给${selectedTargetLabel}；平台正在继续 ${
-            continuationParticipantLabel || '当前 local Codex'
-          } 的同一会话。`
+          deliveryResult === 'delivered_to_active_thread'
+            ? `消息已发给${selectedTargetLabel}；平台正在继续 ${
+                continuationParticipantLabel || '当前 local Codex'
+              } 的同一会话。`
+            : `消息已发给${selectedTargetLabel}；当前 continuation 未成功送达${fallbackReason ? `（${fallbackReason}）` : ''}。`
         );
       } else if (action === 'interrupt_now') {
-        setComposerNotice('已请求打断当前本地运行；平台会在后续重启时把这条消息带入下一轮。');
+        setComposerNotice(
+          deliveryResult === 'delivered_control_signal'
+            ? '已请求打断当前本地运行；平台会在后续重启时把这条消息带入下一轮。'
+            : '中断请求已记录，但当前没有可直接接管的本地进程；后续需要手动重跑或等待下一阶段处理。'
+        );
       } else {
-        setComposerNotice('已请求停止当前运行。');
+        setComposerNotice(
+          deliveryResult === 'delivered_control_signal'
+            ? '已请求停止当前运行。'
+            : '停止请求已记录，但当前没有可直接接管的本地进程。'
+        );
       }
 
       if (!overrideContent) {
@@ -968,7 +1034,7 @@ export default function TaskChatPage() {
   };
 
   const handlePrimaryAcpxSend = async () => {
-    if (task?.status !== 'running' && canContinueSelectedSession) {
+    if (composerMode === 'continue_session') {
       await handleAcpxControl('continue_session', 'immediate');
       return;
     }
@@ -1159,6 +1225,15 @@ export default function TaskChatPage() {
                   control {selectedRun.controlState}
                 </span>
               ) : null}
+              {selectedRunSessionTrackingLabel ? (
+                <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
+                  selectedRunSessionTracking?.sameSessionConfirmed === false
+                    ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                    : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                }`}>
+                  {selectedRunSessionTrackingLabel}
+                </span>
+              ) : null}
               {composerBehaviorHint ? (
                 <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700 ring-1 ring-sky-200">
                   {composerBehaviorHint}
@@ -1282,10 +1357,54 @@ export default function TaskChatPage() {
                   }
 
                   const event = item.runEvent;
+                  const isAssistantReply =
+                    event.eventType === 'stdout_chunk'
+                    && event.stream === 'stdout'
+                    && !!event.participant
+                    && event.participant.executionBackend === 'platform_local';
+                  const isSystemEvent =
+                    event.eventType === 'session_continuation_started'
+                    || event.eventType === 'control_message';
+                  const isLiveSummaryDuplicate =
+                    event.eventType === 'summary'
+                    && event.metadata
+                    && event.metadata.streamingMode === 'live';
+
+                  if (isLiveSummaryDuplicate) {
+                    return null;
+                  }
+
+                  if (event.eventType === 'session_continuation_started') {
+                    return (
+                      <div key={item.id} className="mx-auto max-w-2xl">
+                        <div className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-center text-xs text-sky-800 shadow-sm">
+                          {event.content}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isAssistantReply) {
+                    return (
+                      <div key={item.id} className="max-w-[88%] rounded-[28px] bg-white px-5 py-4 text-slate-900 shadow-sm ring-1 ring-slate-200">
+                        <div className="mb-1 text-xs text-slate-500">
+                          {event.participant?.role || 'assistant'} · {new Date(event.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                        </div>
+                        <div className="whitespace-pre-wrap break-words">{event.content}</div>
+                      </div>
+                    );
+                  }
+
                   const eventToneClass =
-                    event.eventType === 'control_message'
+                    isSystemEvent
                       ? 'border-amber-200 bg-amber-50/80'
                       : 'border-slate-200/80 bg-white/88';
+                  const deliveryResult =
+                    event.eventType === 'control_message'
+                    && event.metadata
+                    && typeof event.metadata.deliveryResult === 'string'
+                      ? event.metadata.deliveryResult
+                      : null;
 
                   return (
                     <div
@@ -1304,6 +1423,11 @@ export default function TaskChatPage() {
                       {event.eventType === 'control_message' && event.metadata?.requestKind ? (
                         <div className="mb-2 text-[11px] text-amber-700">
                           request: {String(event.metadata.requestKind)}
+                        </div>
+                      ) : null}
+                      {event.eventType === 'control_message' && deliveryResult ? (
+                        <div className="mb-2 text-[11px] text-amber-700">
+                          delivery: {deliveryResult}
                         </div>
                       ) : null}
                       <pre className={`whitespace-pre-wrap break-words font-mono text-xs ${event.stream === 'stderr' ? 'text-red-600' : 'text-slate-900'}`}>
@@ -1356,13 +1480,19 @@ export default function TaskChatPage() {
                     onChange={(event) => setMessageInput(event.target.value)}
                     rows={2}
                     className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-0"
-                    placeholder="输入要排队给后续 handoff / 新一轮运行的要求、追问、纠偏或补充信息……"
+                    placeholder={
+                      composerMode === 'queue_only_busy'
+                        ? '输入要排队给后续轮次的要求、纠偏或补充信息……'
+                        : composerMode === 'continue_session'
+                        ? '输入要继续发送到同一个 Codex 会话的消息……'
+                        : '输入要发送到 task room 并启动新一轮运行的消息……'
+                    }
                   />
                   <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] leading-5 text-slate-500">
-                      {task.status === 'running'
+                      {composerMode === 'queue_only_busy'
                         ? '当前这次 Codex turn 还没结束；新消息暂时不能原地注入，只能先排队到后续轮次。'
-                        : canContinueSelectedSession
+                        : composerMode === 'continue_session'
                         ? '主按钮会继续当前 Codex 会话；如果续接失败，再考虑改走排队或重开新一轮。'
                         : '主按钮会把消息写入 task room，并启动一轮新的运行。'}
                     </div>

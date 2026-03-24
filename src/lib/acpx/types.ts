@@ -25,6 +25,7 @@ export type RunActivityState = 'streaming' | 'quiet' | 'stalled' | 'waiting_user
 export type TaskRunEventType =
   | 'runner_started'
   | 'participant_started'
+  | 'session_continuation_started'
   | 'control_message'
   | 'stdout_chunk'
   | 'stderr_chunk'

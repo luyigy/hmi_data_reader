@@ -14,6 +14,7 @@ export interface CodexConfig {
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
+  sandboxMode?: string;
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }
@@ -46,6 +47,7 @@ export const executeCodexTask = async (
     workingDirectory = process.cwd(),
     streamCallbacks,
     skipGitRepoCheck = true,
+    sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
   } = config;
 
   try {
@@ -56,6 +58,7 @@ export const executeCodexTask = async (
       workingDirectory,
       streamCallbacks,
       skipGitRepoCheck,
+      sandboxMode,
       onSpawn: config.onSpawn,
       onThreadStarted: config.onThreadStarted,
     });
@@ -63,7 +66,7 @@ export const executeCodexTask = async (
     return {
       success: true,
       output: result.output,
-      threadId: result.threadId,
+      threadId: result.threadId ?? undefined,
       executionTime: Date.now() - startTime,
     };
   } catch (error) {
@@ -84,6 +87,7 @@ interface CodexExecutionOptions {
   workingDirectory: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck: boolean;
+  sandboxMode: string;
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }
@@ -118,7 +122,7 @@ Please complete this task step by step. When you're done, provide a summary of:
 Take your time and be thorough.`;
 
   return runCodexJsonCommand({
-    args: buildExecArgs(options.skipGitRepoCheck),
+    args: buildExecArgs(options.skipGitRepoCheck, options.sandboxMode),
     prompt,
     options,
   });
@@ -131,7 +135,9 @@ export const resumeCodexSession = async ({
   workingDirectory,
   streamCallbacks,
   skipGitRepoCheck = true,
+  sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
   onSpawn,
+  onThreadStarted,
 }: {
   threadId: string;
   prompt: string;
@@ -139,23 +145,27 @@ export const resumeCodexSession = async ({
   workingDirectory: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
+  sandboxMode?: string;
   onSpawn?: (child: ChildProcess) => void;
+  onThreadStarted?: (threadId: string) => void;
 }): Promise<CodexCliResult> => {
   return runCodexJsonCommand({
-    args: buildResumeArgs(threadId, skipGitRepoCheck),
+    args: buildResumeArgs(threadId, skipGitRepoCheck, sandboxMode),
     prompt,
     options: {
       timeout,
       workingDirectory,
       streamCallbacks,
       skipGitRepoCheck,
+      sandboxMode,
       onSpawn,
+      onThreadStarted,
     },
   });
 };
 
-const buildExecArgs = (skipGitRepoCheck: boolean) => {
-  const args = ['exec', '--json', '--sandbox', 'workspace-write'];
+const buildExecArgs = (skipGitRepoCheck: boolean, sandboxMode: string) => {
+  const args = ['exec', '--json', '--sandbox', sandboxMode];
   if (skipGitRepoCheck) {
     args.push('--skip-git-repo-check');
   }
@@ -163,8 +173,16 @@ const buildExecArgs = (skipGitRepoCheck: boolean) => {
   return args;
 };
 
-const buildResumeArgs = (threadId: string, skipGitRepoCheck: boolean) => {
+const buildResumeArgs = (threadId: string, skipGitRepoCheck: boolean, sandboxMode: string) => {
+  const normalizedSandboxMode = sandboxMode.trim().toLowerCase();
   const args = ['exec', 'resume', threadId, '--json'];
+
+  if (normalizedSandboxMode === 'workspace-write') {
+    args.push('--full-auto');
+  } else if (normalizedSandboxMode === 'danger-full-access') {
+    args.push('--dangerously-bypass-approvals-and-sandbox');
+  }
+
   if (skipGitRepoCheck) {
     args.push('--skip-git-repo-check');
   }
@@ -180,10 +198,10 @@ const runCodexJsonCommand = async ({
   args: string[];
   prompt: string;
   options: CodexExecutionOptions;
-}) => {
+}): Promise<CodexCliResult> => {
   const { spawn } = await import('child_process');
 
-  return new Promise((resolve, reject) => {
+  return new Promise<CodexCliResult>((resolve, reject) => {
     let rawStdout = '';
     let resolvedText = '';
     let stderr = '';
@@ -214,6 +232,7 @@ const runCodexJsonCommand = async ({
     console.log('[Codex] Sending prompt:', prompt.substring(0, 100) + '...');
     console.log('[Codex] Exec args:', args.join(' '));
     console.log('[Codex] Working directory:', options.workingDirectory);
+    console.log('[Codex] Sandbox mode:', options.sandboxMode);
 
     child.stdout.on('data', (data) => {
       const chunk = data.toString();
