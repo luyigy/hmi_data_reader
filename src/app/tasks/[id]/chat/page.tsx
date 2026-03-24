@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { getSocketClient, type ChatMessage } from '@/lib/websocket-client';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
+import { DEFAULT_ACPX_PERMISSION_CONFIG, getPermissionProfileLabel } from '@/lib/acpx/permissions';
+import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 
 interface AgentInfo {
   id: string;
@@ -33,6 +35,7 @@ interface TaskInfo {
   status: string;
   executionMode?: 'standard' | 'acpx';
   workingDirectory?: string | null;
+  acpxPermissionConfig?: AcpxPermissionConfig;
   currentTaskSession?: {
     id: string;
     status: string;
@@ -193,6 +196,10 @@ export default function TaskChatPage() {
     status: 'idle' | 'testing' | 'success' | 'error';
     message?: string;
   }>>({});
+  const [permissionConfig, setPermissionConfig] = useState<AcpxPermissionConfig>(DEFAULT_ACPX_PERMISSION_CONFIG);
+  const [isPermissionEditorOpen, setIsPermissionEditorOpen] = useState(false);
+  const [isSavingPermissionConfig, setIsSavingPermissionConfig] = useState(false);
+  const [permissionConfigNotice, setPermissionConfigNotice] = useState<string | null>(null);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -210,6 +217,10 @@ export default function TaskChatPage() {
   useEffect(() => {
     if (!task) {
       return;
+    }
+
+    if (task.executionMode === 'acpx') {
+      setPermissionConfig(task.acpxPermissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG);
     }
 
     void fetchTaskRoom();
@@ -681,6 +692,18 @@ export default function TaskChatPage() {
     return null;
   }, [selectedRunSessionTracking]);
 
+  const selectedRunPermissionConfig = useMemo(() => {
+    const metadata = selectedRun?.controlMetadata;
+    if (!metadata || typeof metadata !== 'object') {
+      return null;
+    }
+
+    const config = metadata.permissionConfig;
+    return config && typeof config === 'object'
+      ? config as AcpxPermissionConfig
+      : null;
+  }, [selectedRun?.controlMetadata]);
+
   const primarySendLabel = task?.executionMode === 'acpx'
     ? composerMode === 'queue_only_busy'
       ? '排队到后续轮次'
@@ -843,6 +866,79 @@ export default function TaskChatPage() {
       }
     } catch (error) {
       console.error('Failed to fetch selected task run:', error);
+    }
+  };
+
+  const handlePermissionProfileChange = (
+    profile: AcpxPermissionConfig['profile']
+  ) => {
+    setPermissionConfigNotice(null);
+    if (profile === 'safe_local') {
+      setPermissionConfig({
+        profile,
+        sandboxMode: 'workspace-write',
+        networkAccess: 'restricted',
+        approvalPolicy: 'never',
+        writableRoots: [],
+      });
+      return;
+    }
+
+    if (profile === 'dev_local') {
+      setPermissionConfig({
+        profile,
+        sandboxMode: 'workspace-write',
+        networkAccess: 'enabled',
+        approvalPolicy: 'on-request',
+        writableRoots: permissionConfig.writableRoots,
+      });
+      return;
+    }
+
+    if (profile === 'full_access') {
+      setPermissionConfig({
+        profile,
+        sandboxMode: 'danger-full-access',
+        networkAccess: 'enabled',
+        approvalPolicy: 'on-request',
+        writableRoots: permissionConfig.writableRoots,
+      });
+      return;
+    }
+
+    setPermissionConfig((prev) => ({
+      ...prev,
+      profile: 'custom',
+    }));
+  };
+
+  const handlePermissionConfigSave = async () => {
+    setIsSavingPermissionConfig(true);
+    setPermissionConfigNotice(null);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          acpxPermissionConfig: permissionConfig,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || '保存权限设置失败');
+      }
+
+      const updatedTask: TaskInfo = await res.json();
+      setTask(updatedTask);
+      setPermissionConfig(updatedTask.acpxPermissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG);
+      setPermissionConfigNotice('权限设置已保存；新的 run / continuation 会使用这组配置。');
+    } catch (error) {
+      setPermissionConfigNotice(error instanceof Error ? error.message : '保存权限设置失败');
+    } finally {
+      setIsSavingPermissionConfig(false);
     }
   };
 
@@ -1197,6 +1293,22 @@ export default function TaskChatPage() {
               聊天优先布局已启用
             </span>
           ) : null}
+          {task.executionMode === 'acpx' ? (
+            <>
+              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                Profile: {getPermissionProfileLabel(permissionConfig.profile)}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                Sandbox: {permissionConfig.sandboxMode}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                Network: {permissionConfig.networkAccess}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                Approval: {permissionConfig.approvalPolicy}
+              </span>
+            </>
+          ) : null}
           {task.executionMode === 'acpx' && task.acpxParticipants?.length
             ? task.acpxParticipants.map((participant, index) => (
                 <span
@@ -1224,6 +1336,19 @@ export default function TaskChatPage() {
                 <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
                   control {selectedRun.controlState}
                 </span>
+              ) : null}
+              {selectedRunPermissionConfig ? (
+                <>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                    run sandbox {selectedRunPermissionConfig.sandboxMode}
+                  </span>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                    run network {selectedRunPermissionConfig.networkAccess}
+                  </span>
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                    run approval {selectedRunPermissionConfig.approvalPolicy}
+                  </span>
+                </>
               ) : null}
               {selectedRunSessionTrackingLabel ? (
                 <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
@@ -1294,6 +1419,157 @@ export default function TaskChatPage() {
                     >
                       先补充说明
                     </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {task.executionMode === 'acpx' ? (
+              <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 p-3 text-xs text-slate-700 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-medium text-slate-800">Local Codex 权限设置</div>
+                  <button
+                    onClick={() => setIsPermissionEditorOpen((prev) => !prev)}
+                    className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    {isPermissionEditorOpen ? '收起权限设置' : '打开权限设置'}
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                    {getPermissionProfileLabel(permissionConfig.profile)}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                    Sandbox: {permissionConfig.sandboxMode}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                    Network: {permissionConfig.networkAccess}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                    Approval: {permissionConfig.approvalPolicy}
+                  </span>
+                  {permissionConfig.writableRoots.length > 0 ? (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                      writable roots: {permissionConfig.writableRoots.length}
+                    </span>
+                  ) : null}
+                </div>
+
+                {isPermissionEditorOpen ? (
+                  <div className="mt-3 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                    <div className="flex flex-wrap gap-2">
+                      {(['safe_local', 'dev_local', 'full_access'] as const).map((profile) => (
+                        <button
+                          key={profile}
+                          onClick={() => handlePermissionProfileChange(profile)}
+                          className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                            permissionConfig.profile === profile
+                              ? 'bg-slate-900 text-white'
+                              : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {getPermissionProfileLabel(profile)}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <label className="space-y-1">
+                        <div className="text-[11px] font-medium text-slate-600">Sandbox</div>
+                        <select
+                          value={permissionConfig.sandboxMode}
+                          onChange={(event) =>
+                            setPermissionConfig((prev) => ({
+                              ...prev,
+                              profile: 'custom',
+                              sandboxMode: event.target.value as AcpxPermissionConfig['sandboxMode'],
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <option value="read-only">read-only</option>
+                          <option value="workspace-write">workspace-write</option>
+                          <option value="danger-full-access">danger-full-access</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <div className="text-[11px] font-medium text-slate-600">Network</div>
+                        <select
+                          value={permissionConfig.networkAccess}
+                          onChange={(event) =>
+                            setPermissionConfig((prev) => ({
+                              ...prev,
+                              profile: 'custom',
+                              networkAccess: event.target.value as AcpxPermissionConfig['networkAccess'],
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <option value="restricted">restricted</option>
+                          <option value="enabled">enabled</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <div className="text-[11px] font-medium text-slate-600">Approval</div>
+                        <select
+                          value={permissionConfig.approvalPolicy}
+                          onChange={(event) =>
+                            setPermissionConfig((prev) => ({
+                              ...prev,
+                              profile: 'custom',
+                              approvalPolicy: event.target.value as AcpxPermissionConfig['approvalPolicy'],
+                            }))
+                          }
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <option value="never">never</option>
+                          <option value="on-request">on-request</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="block space-y-1">
+                      <div className="text-[11px] font-medium text-slate-600">Writable Roots</div>
+                      <textarea
+                        value={permissionConfig.writableRoots.join('\n')}
+                        onChange={(event) =>
+                          setPermissionConfig((prev) => ({
+                            ...prev,
+                            profile: 'custom',
+                            writableRoots: event.target.value
+                              .split('\n')
+                              .map((item) => item.trim())
+                              .filter(Boolean),
+                          }))
+                        }
+                        rows={3}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                        placeholder={"/data1/ai-services/deepseek_ocr\n/data/cache/modelscope\n/tmp"}
+                      />
+                    </label>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                      当前第一版会真实应用到 local Codex CLI 的主要是 sandbox 和 approval。network / writable roots 会被保存并显示在 run metadata 中，便于后续继续接权限能力。
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {permissionConfigNotice ? (
+                        <div className="text-[11px] text-slate-600">{permissionConfigNotice}</div>
+                      ) : (
+                        <div className="text-[11px] text-slate-500">
+                          新设置会影响下一次新 run 或 continuation，不会热切换当前正在执行的 turn。
+                        </div>
+                      )}
+                      <button
+                        onClick={() => void handlePermissionConfigSave()}
+                        disabled={isSavingPermissionConfig}
+                        className="rounded-full bg-slate-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      >
+                        {isSavingPermissionConfig ? '保存中...' : '保存权限设置'}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </div>

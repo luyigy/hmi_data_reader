@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import type { AcpxParticipantRequest, AcpxOrchestrationMode } from '@/lib/acpx/types';
+import type { AcpxParticipantRequest, AcpxOrchestrationMode, AcpxPermissionConfig } from '@/lib/acpx/types';
 import { ensureTaskSession } from '@/lib/acpx/session';
+import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
 
 const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -16,6 +17,10 @@ const formatTask = (task: any) => ({
   ...task,
   result: parseJson(task.result, null),
   acpxParticipants: parseJson<AcpxParticipantRequest[]>(task.acpxParticipants, []),
+  acpxPermissionConfig: parseJson<AcpxPermissionConfig>(
+    task.acpxPermissionConfig,
+    DEFAULT_ACPX_PERMISSION_CONFIG
+  ),
   currentTaskSession: task.currentTaskSession
     ? {
         ...task.currentTaskSession,
@@ -83,6 +88,7 @@ export async function POST(request: NextRequest) {
       runnerTarget,
       orchestrationMode = 'single',
       acpxParticipants = [],
+      acpxPermissionConfig,
       workingDirectory,
     } = body;
 
@@ -111,6 +117,10 @@ export async function POST(request: NextRequest) {
         && workingDirectory.trim().length > 0
         ? workingDirectory.trim()
         : null;
+    const normalizedPermissionConfig =
+      executionMode === 'acpx'
+        ? normalizeAcpxPermissionConfig(acpxPermissionConfig)
+        : DEFAULT_ACPX_PERMISSION_CONFIG;
 
     if (!normalizedName) {
       return NextResponse.json(
@@ -151,6 +161,8 @@ export async function POST(request: NextRequest) {
         runnerTarget,
         acpxParticipants:
           executionMode === 'acpx' ? JSON.stringify(normalizedParticipants) : null,
+        acpxPermissionConfig:
+          executionMode === 'acpx' ? JSON.stringify(normalizedPermissionConfig) : null,
         workingDirectory: effectiveWorkingDirectory,
         result:
           executionMode === 'acpx'
@@ -158,6 +170,7 @@ export async function POST(request: NextRequest) {
                 executionMode: 'acpx',
                 orchestrationMode: orchestrationMode as AcpxOrchestrationMode,
                 participants: normalizedParticipants,
+                permissionConfig: normalizedPermissionConfig,
                 workingDirectory: effectiveWorkingDirectory,
               })
             : null,

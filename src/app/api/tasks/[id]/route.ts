@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
 import type { Prisma } from '@prisma/client';
-import type { AcpxParticipantRequest } from '@/lib/acpx/types';
+import type { AcpxParticipantRequest, AcpxPermissionConfig } from '@/lib/acpx/types';
+import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
 
 const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -28,6 +29,10 @@ const formatTask = (task: TaskWithRelations) => ({
   ...task,
   result: parseJson(task.result, null),
   acpxParticipants: parseJson<AcpxParticipantRequest[]>(task.acpxParticipants, []),
+  acpxPermissionConfig: parseJson<AcpxPermissionConfig>(
+    task.acpxPermissionConfig,
+    DEFAULT_ACPX_PERMISSION_CONFIG
+  ),
   currentTaskSession: task.currentTaskSession
     ? {
         ...task.currentTaskSession,
@@ -90,7 +95,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const { status, result, error, acpxParticipants } = body;
+    const { status, result, error, acpxParticipants, acpxPermissionConfig } = body;
 
     // 验证状态
     const validStatuses = ['pending', 'running', 'completed', 'failed'];
@@ -136,6 +141,12 @@ export async function PUT(
 
     if (acpxParticipants !== undefined) {
       updateData.acpxParticipants = JSON.stringify(acpxParticipants);
+    }
+
+    if (acpxPermissionConfig !== undefined) {
+      updateData.acpxPermissionConfig = JSON.stringify(
+        normalizeAcpxPermissionConfig(acpxPermissionConfig)
+      );
     }
 
     const updated = await prisma.task.update({

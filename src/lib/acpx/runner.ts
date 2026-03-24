@@ -9,6 +9,7 @@ import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-ag
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
 import { buildTaskRoomContext } from '@/lib/task-room';
 import { getHarnessCapabilities } from './capabilities';
+import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
 import { publishTaskRunEvent } from './event-bus';
 import {
   clearRunningProcess,
@@ -520,6 +521,7 @@ const executeViaLocalHarness = async (
   };
 
   if (participant.harnessType === 'codex') {
+    const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
     const registerSpawn = (child: ChildProcess) => {
       registerRunningProcess({
         taskRunId,
@@ -538,6 +540,8 @@ const executeViaLocalHarness = async (
           timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
           workingDirectory: request.workingDirectory || process.cwd(),
           streamCallbacks: callbacks,
+          sandboxMode: permissionConfig.sandboxMode,
+          approvalPolicy: permissionConfig.approvalPolicy,
           onSpawn: registerSpawn,
           onThreadStarted: (threadId) => {
             void persistCodexThreadMetadata(taskRunId, participantId, threadId);
@@ -547,6 +551,8 @@ const executeViaLocalHarness = async (
           timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
           workingDirectory: request.workingDirectory,
           streamCallbacks: callbacks,
+          sandboxMode: permissionConfig.sandboxMode,
+          approvalPolicy: permissionConfig.approvalPolicy,
           onSpawn: registerSpawn,
           onThreadStarted: (threadId) => {
             void persistCodexThreadMetadata(taskRunId, participantId, threadId);
@@ -625,6 +631,9 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       status: 'running',
       activityState: 'quiet',
       watchdogConfig: stringifyJson(request.watchdogConfig ?? null),
+      controlMetadata: stringifyJson({
+        permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+      }),
       lastActivityAt: new Date(),
       startedAt: new Date(),
       participants: {
@@ -650,7 +659,10 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
             resumeSupported: capabilities.supportsResumeAfterInterrupt,
             sessionControlSupported: capabilities.supportsLiveSessionControl,
             softStopSupported: capabilities.supportsSoftStop,
-            controlMetadata: stringifyJson(capabilities),
+            controlMetadata: stringifyJson({
+              ...capabilities,
+              permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+            }),
           };
         }),
       },
@@ -667,14 +679,15 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     taskRunId: taskRun.id,
     eventType: 'runner_started',
     content: `ACPX 运行开始，共 ${request.participants.length} 个参与方`,
-    metadata: {
-      mode: 'acpx',
-      taskSessionId: taskSession.id,
-      orchestrationMode: request.orchestrationMode,
-      workingDirectory: request.workingDirectory ?? null,
-      watchdogConfig: request.watchdogConfig ?? null,
-      participants: request.participants,
-    },
+      metadata: {
+        mode: 'acpx',
+        taskSessionId: taskSession.id,
+        orchestrationMode: request.orchestrationMode,
+        workingDirectory: request.workingDirectory ?? null,
+        permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+        watchdogConfig: request.watchdogConfig ?? null,
+        participants: request.participants,
+      },
   });
 
   const previousSummaries: string[] = [];

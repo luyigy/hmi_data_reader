@@ -17,8 +17,10 @@ import type {
   RunControlAction,
   RunControlDeliveryMode,
   AcpxParticipantRequest,
+  AcpxPermissionConfig,
 } from '@/lib/acpx/types';
 import type { ChatMessageTargetType } from '@/lib/chat-types';
+import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,6 +154,16 @@ export async function POST(
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
+
+    const permissionConfig = (() => {
+      try {
+        return normalizeAcpxPermissionConfig(
+          JSON.parse(task.acpxPermissionConfig || 'null') as AcpxPermissionConfig | null
+        );
+      } catch {
+        return DEFAULT_ACPX_PERMISSION_CONFIG;
+      }
+    })();
 
     const acpxParticipants = parseParticipants(task.acpxParticipants);
     const targetParticipantSpec = targetType === 'participant'
@@ -300,6 +312,7 @@ export async function POST(
         targetParticipantBackend: selectedParticipant?.executionBackend ?? null,
         requestedDeliveryMode: deliveryMode,
         requestedAction: action,
+        permissionConfig,
         continuationThreadId,
         deliveryAttempted: action !== 'queue_message',
         deliveryResult: action === 'queue_message' ? 'queued' : 'pending_attempt',
@@ -349,6 +362,7 @@ export async function POST(
         taskDescription: task.description || undefined,
         orchestrationMode: 'single',
         workingDirectory: task.workingDirectory || undefined,
+        permissionConfig,
         participants: [
           {
             gatewayId: selectedParticipant.gatewayId || 'local',
@@ -439,6 +453,7 @@ export async function POST(
             taskSessionId: targetRun.taskSessionId || task.currentTaskSession?.id || null,
             taskRunId: continuationResult.taskRunId,
             orchestrationMode: 'single',
+            permissionConfig,
             summary: continuationResult.summary,
             participants: continuationResult.participants,
             completedAt: new Date().toISOString(),

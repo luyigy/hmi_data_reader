@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { executeTaskBatch } from '@/lib/agent-executor';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
-import type { AcpxParticipantRequest, AcpxOrchestrationMode } from '@/lib/acpx/types';
+import type { AcpxParticipantRequest, AcpxOrchestrationMode, AcpxPermissionConfig } from '@/lib/acpx/types';
 import { ensureTaskSession } from '@/lib/acpx/session';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
+import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,17 @@ export async function POST(
           }
         })()
       : [];
+    const acpxPermissionConfig = isAcpxTask
+      ? (() => {
+          try {
+            return normalizeAcpxPermissionConfig(
+              JSON.parse(task.acpxPermissionConfig || 'null') as AcpxPermissionConfig | null
+            );
+          } catch {
+            return DEFAULT_ACPX_PERMISSION_CONFIG;
+          }
+        })()
+      : DEFAULT_ACPX_PERMISSION_CONFIG;
 
     if (isAcpxTask) {
       if (task.status === 'running') {
@@ -127,6 +139,7 @@ export async function POST(
           acpxParticipants.length > 1 ? ('staged' as AcpxOrchestrationMode) : ('single' as AcpxOrchestrationMode),
         participants: acpxParticipants,
         workingDirectory: task.workingDirectory || undefined,
+        permissionConfig: acpxPermissionConfig,
       });
 
       const finalStatus =
@@ -142,6 +155,7 @@ export async function POST(
         taskSessionId: taskSession.id,
         taskRunId: runResult.taskRunId,
         orchestrationMode: acpxParticipants.length > 1 ? 'staged' : 'single',
+        permissionConfig: acpxPermissionConfig,
         summary: runResult.summary,
         participants: runResult.participants,
         completedAt: new Date().toISOString(),

@@ -54,6 +54,7 @@ model Task {
   executionMode        String                  @default("standard") // standard, acpx
   runnerTarget         String?                 // legacy ACPX field
   acpxParticipants     String?                 // JSON array of gateway/harness/role participants
+  acpxPermissionConfig String?                 // JSON object of local Codex permission preferences
   workingDirectory     String?
   currentTaskSessionId String?
   assignedAgents       Agent[]

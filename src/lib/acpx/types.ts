@@ -60,6 +60,14 @@ export interface WatchdogConfig {
   inactivityFailMs?: number | null;
 }
 
+export interface AcpxPermissionConfig {
+  profile: 'safe_local' | 'dev_local' | 'full_access' | 'custom';
+  sandboxMode: 'read-only' | 'workspace-write' | 'danger-full-access';
+  networkAccess: 'restricted' | 'enabled';
+  approvalPolicy: 'never' | 'on-request';
+  writableRoots: string[];
+}
+
 export interface AcpxParticipantRequest {
   gatewayId: string;
   gatewayName?: string;
@@ -81,6 +89,7 @@ export interface AcpxRunRequest {
   orchestrationMode: AcpxOrchestrationMode;
   participants: AcpxParticipantRequest[];
   workingDirectory?: string;
+  permissionConfig?: AcpxPermissionConfig;
   watchdogConfig?: WatchdogConfig;
 }
 

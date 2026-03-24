@@ -15,6 +15,7 @@ export interface CodexConfig {
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
+  approvalPolicy?: 'never' | 'on-request';
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }
@@ -48,6 +49,7 @@ export const executeCodexTask = async (
     streamCallbacks,
     skipGitRepoCheck = true,
     sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
+    approvalPolicy = process.env.ACPX_CODEX_APPROVAL_POLICY === 'on-request' ? 'on-request' : 'never',
   } = config;
 
   try {
@@ -59,6 +61,7 @@ export const executeCodexTask = async (
       streamCallbacks,
       skipGitRepoCheck,
       sandboxMode,
+      approvalPolicy,
       onSpawn: config.onSpawn,
       onThreadStarted: config.onThreadStarted,
     });
@@ -88,6 +91,7 @@ interface CodexExecutionOptions {
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck: boolean;
   sandboxMode: string;
+  approvalPolicy: 'never' | 'on-request';
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }
@@ -122,7 +126,7 @@ Please complete this task step by step. When you're done, provide a summary of:
 Take your time and be thorough.`;
 
   return runCodexJsonCommand({
-    args: buildExecArgs(options.skipGitRepoCheck, options.sandboxMode),
+    args: buildExecArgs(options.skipGitRepoCheck, options.sandboxMode, options.approvalPolicy),
     prompt,
     options,
   });
@@ -136,6 +140,7 @@ export const resumeCodexSession = async ({
   streamCallbacks,
   skipGitRepoCheck = true,
   sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
+  approvalPolicy = process.env.ACPX_CODEX_APPROVAL_POLICY === 'on-request' ? 'on-request' : 'never',
   onSpawn,
   onThreadStarted,
 }: {
@@ -146,11 +151,12 @@ export const resumeCodexSession = async ({
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
+  approvalPolicy?: 'never' | 'on-request';
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }): Promise<CodexCliResult> => {
   return runCodexJsonCommand({
-    args: buildResumeArgs(threadId, skipGitRepoCheck, sandboxMode),
+    args: buildResumeArgs(threadId, skipGitRepoCheck, sandboxMode, approvalPolicy),
     prompt,
     options: {
       timeout,
@@ -158,14 +164,20 @@ export const resumeCodexSession = async ({
       streamCallbacks,
       skipGitRepoCheck,
       sandboxMode,
+      approvalPolicy,
       onSpawn,
       onThreadStarted,
     },
   });
 };
 
-const buildExecArgs = (skipGitRepoCheck: boolean, sandboxMode: string) => {
+const buildExecArgs = (
+  skipGitRepoCheck: boolean,
+  sandboxMode: string,
+  approvalPolicy: 'never' | 'on-request'
+) => {
   const args = ['exec', '--json', '--sandbox', sandboxMode];
+  args.push('--ask-for-approval', approvalPolicy);
   if (skipGitRepoCheck) {
     args.push('--skip-git-repo-check');
   }
@@ -173,11 +185,16 @@ const buildExecArgs = (skipGitRepoCheck: boolean, sandboxMode: string) => {
   return args;
 };
 
-const buildResumeArgs = (threadId: string, skipGitRepoCheck: boolean, sandboxMode: string) => {
+const buildResumeArgs = (
+  threadId: string,
+  skipGitRepoCheck: boolean,
+  sandboxMode: string,
+  approvalPolicy: 'never' | 'on-request'
+) => {
   const normalizedSandboxMode = sandboxMode.trim().toLowerCase();
   const args = ['exec', 'resume', threadId, '--json'];
 
-  if (normalizedSandboxMode === 'workspace-write') {
+  if (normalizedSandboxMode === 'workspace-write' && approvalPolicy === 'on-request') {
     args.push('--full-auto');
   } else if (normalizedSandboxMode === 'danger-full-access') {
     args.push('--dangerously-bypass-approvals-and-sandbox');
@@ -233,6 +250,7 @@ const runCodexJsonCommand = async ({
     console.log('[Codex] Exec args:', args.join(' '));
     console.log('[Codex] Working directory:', options.workingDirectory);
     console.log('[Codex] Sandbox mode:', options.sandboxMode);
+    console.log('[Codex] Approval policy:', options.approvalPolicy);
 
     child.stdout.on('data', (data) => {
       const chunk = data.toString();
