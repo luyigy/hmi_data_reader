@@ -264,6 +264,11 @@ export default function TaskChatPage() {
   const [isSavingPermissionConfig, setIsSavingPermissionConfig] = useState(false);
   const [permissionConfigNotice, setPermissionConfigNotice] = useState<string | null>(null);
   const [conversationMode, setConversationMode] = useState<ConversationMode>('chat');
+  const [isRoomDetailsOpen, setIsRoomDetailsOpen] = useState(false);
+  const [isInspectorOpen, setIsInspectorOpen] = useState(true);
+  const [isRunHistoryOpen, setIsRunHistoryOpen] = useState(true);
+  const [isSelectedSummaryOpen, setIsSelectedSummaryOpen] = useState(true);
+  const [isParticipantOutcomesOpen, setIsParticipantOutcomesOpen] = useState(true);
   const timelineContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -348,6 +353,32 @@ export default function TaskChatPage() {
   useEffect(() => {
     runSummariesRef.current = runSummaries;
   }, [runSummaries]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    setIsRoomDetailsOpen(window.localStorage.getItem('acpx-room-details-open') === 'true');
+    const inspectorValue = window.localStorage.getItem('acpx-inspector-open');
+    setIsInspectorOpen(inspectorValue !== 'false');
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem('acpx-room-details-open', String(isRoomDetailsOpen));
+  }, [isRoomDetailsOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem('acpx-inspector-open', String(isInspectorOpen));
+  }, [isInspectorOpen]);
 
   useEffect(() => {
     if (!task || !taskRoom) {
@@ -1425,7 +1456,7 @@ export default function TaskChatPage() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-2rem)] max-w-[1600px] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-[#f7f7f8] shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+    <div className="mx-auto flex h-[calc(100vh-0.5rem)] max-w-[1680px] flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-[#f7f7f8] shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
       <header className="shrink-0 border-b border-slate-200/80 bg-white/92 px-4 py-3 backdrop-blur xl:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -1477,128 +1508,158 @@ export default function TaskChatPage() {
                 {isPermissionEditorOpen ? '收起权限设置' : '权限设置'}
               </button>
             ) : null}
+            {task.executionMode === 'acpx' ? (
+              <button
+                onClick={() => setIsRoomDetailsOpen((prev) => !prev)}
+                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {isRoomDetailsOpen ? '隐藏详情' : '房间详情'}
+              </button>
+            ) : null}
+            <button
+              onClick={() => setIsInspectorOpen((prev) => !prev)}
+              className="hidden rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 xl:inline-flex"
+            >
+              {isInspectorOpen ? '隐藏侧栏' : '显示侧栏'}
+            </button>
           </div>
         </div>
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-          {task.executionMode === 'acpx' ? (
-            <span className="rounded-full border border-slate-200 bg-slate-50/70 px-2.5 py-1">
-              聊天优先布局已启用
-            </span>
-          ) : null}
-          {task.executionMode === 'acpx' ? (
-            <>
-              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
-                Profile: {getPermissionProfileLabel(permissionConfig.profile)}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
-                Sandbox: {permissionConfig.sandboxMode}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
-                Network: {permissionConfig.networkAccess}
-              </span>
-              <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
-                Approval: {permissionConfig.approvalPolicy}
-              </span>
-              {draftPermissionStatusItems.map((item) => (
-                <span
-                  key={item.key}
-                  className={`rounded-full px-2.5 py-1 ring-1 ${permissionSupportTone[item.state]}`}
-                >
-                  {item.label}: {getPermissionSupportLabel(item.state)}
-                </span>
-              ))}
-            </>
-          ) : null}
-          {task.executionMode === 'acpx' && task.acpxParticipants?.length
-            ? task.acpxParticipants.map((participant, index) => (
-                <span
-                  key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
-                  className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500"
-                >
-                  {participant.role} · {participant.executionBackend === 'platform_local' ? 'Local' : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
-                </span>
-              ))
-            : null}
-          {socketUnavailableReason ? (
-            <span className="rounded-full border border-amber-200 bg-amber-50/80 px-2.5 py-1 text-amber-700">
-              socket unavailable: {socketUnavailableReason}
-            </span>
-          ) : null}
-        </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[minmax(0,1fr),300px]">
+      <div
+        className={`grid min-h-0 flex-1 overflow-hidden ${
+          isInspectorOpen
+            ? 'xl:grid-cols-[minmax(0,1fr),320px]'
+            : 'xl:grid-cols-[minmax(0,1fr),56px]'
+        }`}
+      >
         <section className="grid min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden bg-[#f7f7f8]">
           <div className="shrink-0 border-b border-slate-200/70 bg-[#f7f7f8] px-4 py-3 xl:px-6">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
               <span className="font-medium text-slate-700">对话</span>
-              <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
-                {selectedRunLabel}
-              </span>
-              <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
-                activeRunSummary
-                  ? 'bg-sky-50 text-sky-700 ring-sky-200'
-                  : 'bg-slate-100 text-slate-500 ring-slate-200'
-              }`}>
-                {controlRunLabel}
-              </span>
-              {selectedRun && !selectedRunIsActive ? (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
-                  当前浏览的是历史 run；控制按钮不会作用于它
-                </span>
-              ) : null}
-              {selectedRun?.controlState ? (
-                <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
-                  control {selectedRun.controlState}
-                </span>
-              ) : null}
-              {selectedRunPermissionConfig ? (
-                <>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
-                    run sandbox {selectedRunPermissionConfig.sandboxMode}
-                  </span>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
-                    run network {selectedRunPermissionConfig.networkAccess}
-                  </span>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
-                    run approval {selectedRunPermissionConfig.approvalPolicy}
-                  </span>
-                </>
-              ) : null}
-              {selectedRunPermissionStatusItems.map((item) => (
-                <span
-                  key={item.key}
-                  className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${permissionSupportTone[item.state]}`}
-                >
-                  {item.label} {getPermissionSupportLabel(item.state)}
-                </span>
-              ))}
-              {selectedRunSessionTrackingLabel ? (
-                <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
-                  selectedRunSessionTracking?.sameSessionConfirmed === false
-                    ? 'bg-rose-50 text-rose-700 ring-rose-200'
-                    : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                }`}>
-                  {selectedRunSessionTrackingLabel}
-                </span>
-              ) : null}
-              {composerBehaviorHint ? (
-                <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700 ring-1 ring-sky-200">
-                  {composerBehaviorHint}
-                </span>
-              ) : null}
-              {remoteQuietHint ? (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
-                  {remoteQuietHint}
-                </span>
-              ) : null}
-              {selectedRun?.status === 'waiting_for_input' ? (
-                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
-                  当前在等待用户输入或平台下一步处理
+              {latestHarnessRequest || isRoomDetailsOpen ? (
+                <span className="text-[11px] text-slate-400">
+                  {latestHarnessRequest ? 'agent 需要处理' : '详情已展开'}
                 </span>
               ) : null}
             </div>
+
+            {isRoomDetailsOpen ? (
+              <div className="mt-3 rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                  {task.executionMode === 'acpx' ? (
+                    <span className="rounded-full border border-slate-200 bg-slate-50/70 px-2.5 py-1">
+                      聊天优先布局已启用
+                    </span>
+                  ) : null}
+                  {task.executionMode === 'acpx' ? (
+                    <>
+                      <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                        Profile: {getPermissionProfileLabel(permissionConfig.profile)}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                        Sandbox: {permissionConfig.sandboxMode}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                        Network: {permissionConfig.networkAccess}
+                      </span>
+                      <span className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500">
+                        Approval: {permissionConfig.approvalPolicy}
+                      </span>
+                      {draftPermissionStatusItems.map((item) => (
+                        <span
+                          key={item.key}
+                          className={`rounded-full px-2.5 py-1 ring-1 ${permissionSupportTone[item.state]}`}
+                        >
+                          {item.label}: {getPermissionSupportLabel(item.state)}
+                        </span>
+                      ))}
+                    </>
+                  ) : null}
+                  {task.executionMode === 'acpx' && task.acpxParticipants?.length
+                    ? task.acpxParticipants.map((participant, index) => (
+                        <span
+                          key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
+                          className="rounded-full border border-slate-200 bg-white/85 px-2.5 py-1 text-slate-500"
+                        >
+                          {participant.role} · {participant.executionBackend === 'platform_local' ? 'Local' : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
+                        </span>
+                      ))
+                    : null}
+                  {socketUnavailableReason ? (
+                    <span className="rounded-full border border-amber-200 bg-amber-50/80 px-2.5 py-1 text-amber-700">
+                      socket unavailable: {socketUnavailableReason}
+                    </span>
+                  ) : null}
+                  {selectedRun?.controlState ? (
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                      control {selectedRun.controlState}
+                    </span>
+                  ) : null}
+                  {selectedRunPermissionConfig ? (
+                    <>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                        run sandbox {selectedRunPermissionConfig.sandboxMode}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                        run network {selectedRunPermissionConfig.networkAccess}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                        run approval {selectedRunPermissionConfig.approvalPolicy}
+                      </span>
+                    </>
+                  ) : null}
+                  {selectedRunPermissionStatusItems.map((item) => (
+                    <span
+                      key={item.key}
+                      className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${permissionSupportTone[item.state]}`}
+                    >
+                      {item.label} {getPermissionSupportLabel(item.state)}
+                    </span>
+                  ))}
+                  {selectedRunSessionTrackingLabel ? (
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
+                      selectedRunSessionTracking?.sameSessionConfirmed === false
+                        ? 'bg-rose-50 text-rose-700 ring-rose-200'
+                        : 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                    }`}>
+                      {selectedRunSessionTrackingLabel}
+                    </span>
+                  ) : null}
+                  {remoteQuietHint ? (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
+                      {remoteQuietHint}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
+                    {selectedRunLabel}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${
+                    activeRunSummary
+                      ? 'bg-sky-50 text-sky-700 ring-sky-200'
+                      : 'bg-slate-100 text-slate-500 ring-slate-200'
+                  }`}>
+                    {controlRunLabel}
+                  </span>
+                  {selectedRun && !selectedRunIsActive ? (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
+                      当前浏览的是历史 run；控制按钮不会作用于它
+                    </span>
+                  ) : null}
+                  {selectedRun?.status === 'waiting_for_input' ? (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200">
+                      当前在等待用户输入或平台下一步处理
+                    </span>
+                  ) : null}
+                </div>
+                {composerBehaviorHint ? (
+                  <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] text-sky-700">
+                    {composerBehaviorHint}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {latestHarnessRequest ? (
               <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/85 p-3 text-xs text-amber-950 shadow-sm">
@@ -1704,19 +1765,19 @@ export default function TaskChatPage() {
                     return (
                       <div
                         key={item.id}
-                        className={`max-w-[85%] rounded-[28px] px-5 py-4 shadow-sm ${bubbleClass}`}
+                        className={`max-w-[85%] rounded-[24px] px-4 py-3 shadow-sm ${bubbleClass}`}
                       >
-                        <div className={`mb-1 text-xs ${isOwn ? 'text-slate-300' : 'text-slate-500'}`}>
+                        <div className={`mb-1 text-[11px] ${isOwn ? 'text-slate-300' : 'text-slate-500'}`}>
                           {message.user.name} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
                         </div>
                         {message.target.type !== 'task' ? (
-                          <div className={`mb-2 text-[11px] ${isOwn ? 'text-slate-300' : 'text-slate-500'}`}>
+                          <div className={`mb-1.5 text-[10px] ${isOwn ? 'text-slate-300' : 'text-slate-500'}`}>
                             {message.target.type === 'all'
                               ? '发给：全部参与方'
                               : `发给：${message.target.participantLabel || '指定参与方'}`}
                           </div>
                         ) : null}
-                        <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                        <div className="whitespace-pre-wrap break-words text-[13px] leading-6">{message.content}</div>
                       </div>
                     );
                   }
@@ -1755,11 +1816,11 @@ export default function TaskChatPage() {
 
                   if (isAssistantReply) {
                     return (
-                      <div key={item.id} className="max-w-[88%] rounded-[28px] bg-white px-5 py-4 text-slate-900 shadow-sm ring-1 ring-slate-200">
-                        <div className="mb-1 text-xs text-slate-500">
+                      <div key={item.id} className="max-w-[88%] rounded-[24px] bg-white px-4 py-3 text-slate-900 shadow-sm ring-1 ring-slate-200">
+                        <div className="mb-1 text-[11px] text-slate-500">
                           {event.participant?.role || 'assistant'} · {new Date(event.createdAt).toLocaleString('zh-CN', { hour12: false })}
                         </div>
-                        <div className="whitespace-pre-wrap break-words">{event.content}</div>
+                        <div className="whitespace-pre-wrap break-words text-[13px] leading-6">{event.content}</div>
                       </div>
                     );
                   }
@@ -2056,12 +2117,12 @@ export default function TaskChatPage() {
                   </div>
                 ) : null}
 
-                <div className="rounded-[24px] border border-slate-200 bg-white px-3 py-2.5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
+                <div className="rounded-[24px] border border-slate-200 bg-white px-3 py-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
                   <textarea
                     value={messageInput}
                     onChange={(event) => setMessageInput(event.target.value)}
-                    rows={2}
-                    className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm text-slate-900 outline-none focus:ring-0"
+                    rows={1}
+                    className="w-full resize-none border-0 bg-transparent px-2 py-1 text-sm text-slate-900 outline-none focus:ring-0"
                     placeholder={
                       conversationMode === 'chat'
                         ? '先把你的想法、澄清、计划或指令发到 task room……'
@@ -2070,22 +2131,17 @@ export default function TaskChatPage() {
                         : '输入本轮要执行的最新指令；发送时会一并带上当前对话上下文……'
                     }
                   />
-                  <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="text-[11px] font-medium text-slate-600">
-                        {controlRunLabel}
-                      </div>
-                      <div className="text-[11px] leading-5 text-slate-500">
-                        {conversationMode === 'chat'
-                          ? activeRunSummary
-                            ? '聊天模式下若当前已有 active run，新消息会先排队到 task room。'
-                            : canContinueSelectedSession
-                            ? '聊天模式下会直接继续同一个 Codex 会话。'
-                            : '聊天模式下会直接启动一个新的 agent run 来回复你。'
-                          : activeRunSummary
-                          ? '执行模式下若 active run 仍在进行，主按钮会保持禁用，避免把历史 selected run 当成控制目标。'
-                          : '执行模式会先把当前输入加入对话，再按 chat-first 上下文启动新的 run。'}
-                      </div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] text-slate-500">
+                      {conversationMode === 'chat'
+                        ? activeRunSummary
+                          ? '当前有 active run，新消息会先排队。'
+                          : canContinueSelectedSession
+                          ? '会继续当前 Codex 会话。'
+                          : '会直接启动新的 agent 回复。'
+                        : activeRunSummary
+                        ? '当前有 active run，暂时不能再启动。'
+                        : '会带着当前对话启动新 run。'}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -2175,10 +2231,31 @@ export default function TaskChatPage() {
         </section>
 
         <aside className="hidden min-h-0 border-l border-slate-200/80 bg-white/75 xl:flex xl:flex-col">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm font-medium text-slate-900">Run History</div>
-              <div className="mt-3 max-h-[30vh] space-y-2 overflow-y-auto pr-1">
+          {isInspectorOpen ? (
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+              <div className="flex items-center justify-between gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div>
+                  <div className="text-sm font-medium text-slate-900">Inspector</div>
+                  <div className="mt-1 text-xs text-slate-500">运行历史、摘要和参与方详情</div>
+                </div>
+                <button
+                  onClick={() => setIsInspectorOpen(false)}
+                  className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  收起
+                </button>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <button
+                  onClick={() => setIsRunHistoryOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <div className="text-sm font-medium text-slate-900">Run History</div>
+                  <span className="text-xs text-slate-500">{isRunHistoryOpen ? '收起' : '展开'}</span>
+                </button>
+                {isRunHistoryOpen ? (
+                  <div className="mt-3 max-h-[30vh] space-y-2 overflow-y-auto pr-1">
                 {runSummaries.length === 0 ? (
                   <div className="text-sm text-slate-500">还没有运行历史。</div>
                 ) : (
@@ -2231,19 +2308,35 @@ export default function TaskChatPage() {
                     </button>
                   ))
                 )}
+                  </div>
+                ) : null}
               </div>
-            </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm font-medium text-slate-900">Selected Run Summary</div>
-              <div className="mt-3 whitespace-pre-wrap text-sm text-slate-600">
-                {selectedRun?.summary || selectedRun?.error || '暂无运行摘要'}
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <button
+                  onClick={() => setIsSelectedSummaryOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <div className="text-sm font-medium text-slate-900">Selected Run Summary</div>
+                  <span className="text-xs text-slate-500">{isSelectedSummaryOpen ? '收起' : '展开'}</span>
+                </button>
+                {isSelectedSummaryOpen ? (
+                  <div className="mt-3 whitespace-pre-wrap text-sm text-slate-600">
+                    {selectedRun?.summary || selectedRun?.error || '暂无运行摘要'}
+                  </div>
+                ) : null}
               </div>
-            </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-sm font-medium text-slate-900">Participant Outcomes</div>
-              <div className="mt-3 space-y-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <button
+                  onClick={() => setIsParticipantOutcomesOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                >
+                  <div className="text-sm font-medium text-slate-900">Participant Outcomes</div>
+                  <span className="text-xs text-slate-500">{isParticipantOutcomesOpen ? '收起' : '展开'}</span>
+                </button>
+                {isParticipantOutcomesOpen ? (
+                  <div className="mt-3 space-y-3">
                 {(selectedRun?.participants || []).map((participant) => (
                   <div key={participant.id} className="rounded-2xl border border-slate-200 p-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -2313,9 +2406,21 @@ export default function TaskChatPage() {
                     ) : null}
                   </div>
                 ))}
+                  </div>
+                ) : null}
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex h-full flex-col items-center justify-start gap-3 p-2">
+              <button
+                onClick={() => setIsInspectorOpen(true)}
+                className="mt-4 rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                title="展开 Inspector"
+              >
+                Inspector
+              </button>
+            </div>
+          )}
         </aside>
       </div>
     </div>
