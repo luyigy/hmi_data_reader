@@ -131,6 +131,24 @@ export default function DashboardPage() {
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <Link
+            href="/rooms"
+            className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+          >
+            <div className="text-sm font-medium uppercase tracking-[0.18em] text-slate-500">
+              Live Rooms
+            </div>
+            <h3 className="mt-3 text-2xl font-semibold text-slate-900">
+              进入新的多 Agent 实时协作房间
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              这里是新的 chat-first 产品线，支持按房间组织 topic、成员和持续对话，不再被 task run 控制语义绑住。
+            </p>
+            <div className="mt-5 text-sm font-medium text-slate-900 group-hover:text-slate-700">
+              打开 /rooms
+            </div>
+          </Link>
+
+          <Link
             href="/chat"
             className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
           >
@@ -181,7 +199,7 @@ export default function DashboardPage() {
             还没有 Gateway 数据，先注册远程网关后这里会出现状态卡片。
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-3">
             {gateways.map((gateway) => (
               <div
                 key={gateway.id}
@@ -232,6 +250,12 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex gap-3">
+            <Link
+              href="/rooms"
+              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors"
+            >
+              去 Live Rooms
+            </Link>
             <Link
               href="/chat"
               className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors"

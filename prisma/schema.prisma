@@ -19,6 +19,7 @@ model Agent {
   gatewayId      String?
   gateway        Gateway?  @relation(fields: [gatewayId], references: [id])
   tasks          Task[]
+  liveRoomMembers LiveRoomMember[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -37,6 +38,7 @@ model Gateway {
   status          String            @default("offline") // online, offline, maintenance
   resources       String?           // JSON object as string: { cpu, memory, disk }
   agents          Agent[]
+  liveRoomMembers LiveRoomMember[]
   outgoingMessages GatewayMessage[] @relation("outgoingMessages")
   incomingMessages GatewayMessage[] @relation("incomingMessages")
   sentMessages    IncomingGatewayMessage[] @relation("sentMessages")
@@ -57,6 +59,7 @@ model Task {
   acpxPermissionConfig String?                 // JSON object of local Codex permission preferences
   workingDirectory     String?
   currentTaskSessionId String?
+  liveRooms            LiveRoom[]
   assignedAgents       Agent[]
   result               String?                 // JSON result data
   error                String?
@@ -316,4 +319,126 @@ model CrossGatewayChatMessage {
 
   @@index([sessionId, sequence])
   @@index([gatewayId])
+}
+
+model LiveRoom {
+  id                     String                  @id @default(cuid())
+  title                  String
+  description            String?
+  sourceTaskId           String?
+  currentTopic           String?
+  mode                   String                  @default("discussion") // discussion, execution, hybrid
+  status                 String                  @default("active") // active, archived
+  createdBy              String                  @default("user")
+  currentSpeakerMemberId String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  sourceTask             Task?                   @relation(fields: [sourceTaskId], references: [id], onDelete: SetNull)
+  currentSpeaker         LiveRoomMember?         @relation("LiveRoomCurrentSpeaker", fields: [currentSpeakerMemberId], references: [id], onDelete: SetNull)
+  members                LiveRoomMember[]        @relation("LiveRoomMembers")
+  messages               LiveRoomMessage[]
+  sessions               LiveRoomMemberSession[]
+
+  @@index([sourceTaskId])
+  @@index([status, updatedAt])
+}
+
+model LiveRoomMember {
+  id                   String                  @id @default(cuid())
+  roomId               String
+  agentRecordId        String?
+  gatewayId            String?
+  memberType           String                  @default("user") // user, local_agent, gateway_agent, system
+  displayName          String
+  agentNameSnapshot    String?
+  harnessType          String?
+  backend              String?                 // platform_local, gateway_openclaw
+  runtimeAgentId       String?
+  roleLabel            String?
+  joinStatus           String                  @default("joined") // joined, invited, removed
+  presenceStatus       String                  @default("idle") // idle, online, busy, offline
+  canReply             Boolean                 @default(false)
+  sortOrder            Int                     @default(0)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  room                 LiveRoom                @relation("LiveRoomMembers", fields: [roomId], references: [id], onDelete: Cascade)
+  roomAsCurrentSpeaker LiveRoom[]              @relation("LiveRoomCurrentSpeaker")
+  agentRecord          Agent?                  @relation(fields: [agentRecordId], references: [id], onDelete: SetNull)
+  gateway              Gateway?                @relation(fields: [gatewayId], references: [id], onDelete: SetNull)
+  sentMessages         LiveRoomMessage[]       @relation("LiveRoomMessageSender")
+  sessions             LiveRoomMemberSession[]
+  deliveries           LiveRoomDelivery[]
+
+  @@index([roomId, sortOrder])
+  @@index([agentRecordId])
+  @@index([gatewayId])
+  @@index([memberType, presenceStatus])
+}
+
+model LiveRoomMessage {
+  id               String               @id @default(cuid())
+  roomId           String
+  senderMemberId   String?
+  replyToMessageId String?
+  messageType      String               @default("user") // user, assistant, system, tool, topic, control
+  visibility       String               @default("room") // room, system
+  content          String
+  topicSnapshot    String?
+  metadata         String?
+  createdAt        DateTime             @default(now())
+  room             LiveRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  senderMember     LiveRoomMember?      @relation("LiveRoomMessageSender", fields: [senderMemberId], references: [id], onDelete: SetNull)
+  replyToMessage   LiveRoomMessage?     @relation("LiveRoomMessageReplyTo", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies          LiveRoomMessage[]    @relation("LiveRoomMessageReplyTo")
+  deliveries       LiveRoomDelivery[]
+
+  @@index([roomId, createdAt])
+  @@index([senderMemberId, createdAt])
+  @@index([replyToMessageId])
+  @@index([messageType, createdAt])
+}
+
+model LiveRoomMemberSession {
+  id                    String                  @id @default(cuid())
+  roomId                String
+  memberId              String
+  backend               String                  // platform_local, gateway_openclaw
+  sessionKey            String
+  threadId              String?
+  status                String                  @default("online") // online, offline, busy, expired
+  supportsStreaming     Boolean                 @default(false)
+  supportsAppendMessage Boolean                 @default(true)
+  supportsInterrupt     Boolean                 @default(false)
+  lastHeartbeatAt       DateTime?
+  lastDeliveredAt       DateTime?
+  lastError             String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  room                  LiveRoom                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  member                LiveRoomMember          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  deliveries            LiveRoomDelivery[]
+
+  @@index([roomId, memberId])
+  @@index([sessionKey])
+  @@index([status, updatedAt])
+}
+
+model LiveRoomDelivery {
+  id             String                  @id @default(cuid())
+  roomMessageId  String
+  targetMemberId String
+  sessionId      String?
+  deliveryStatus String                  @default("pending") // pending, delivered, failed, fallback
+  fallbackReason String?
+  attemptedAt    DateTime                @default(now())
+  acknowledgedAt DateTime?
+  createdAt      DateTime                @default(now())
+  roomMessage    LiveRoomMessage         @relation(fields: [roomMessageId], references: [id], onDelete: Cascade)
+  targetMember   LiveRoomMember          @relation(fields: [targetMemberId], references: [id], onDelete: Cascade)
+  session        LiveRoomMemberSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([roomMessageId])
+  @@index([targetMemberId, attemptedAt])
+  @@index([sessionId])
+  @@index([deliveryStatus, attemptedAt])
 }

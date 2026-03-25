@@ -49,6 +49,11 @@ const setupSocketEvents = (io: IOServer) => {
       socket.join(`task-run:${taskId}`);
     });
 
+    socket.on('live-room:join', ({ roomId }: { roomId: string }) => {
+      if (!roomId) return;
+      socket.join(`live-room:${roomId}`);
+    });
+
     socket.on('chat:message', async (message: ChatMessage) => {
       if (!message.roomId) return;
       try {

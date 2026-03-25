@@ -61,3 +61,76 @@ export interface DashboardStats {
   busyAgents: number;
   offlineAgents: number;
 }
+
+export interface LiveRoomCatalogAgent {
+  id: string;
+  agentRecordId?: string | null;
+  gatewayId: string;
+  gatewayName: string;
+  backend: 'platform_local' | 'gateway_openclaw';
+  harnessType: string;
+  label: string;
+  agentName?: string;
+  runtimeAgentId?: string;
+  status: string;
+}
+
+export interface LiveRoomMember {
+  id: string;
+  roomId: string;
+  memberType: string;
+  displayName: string;
+  agentNameSnapshot?: string | null;
+  harnessType?: string | null;
+  backend?: string | null;
+  runtimeAgentId?: string | null;
+  roleLabel?: string | null;
+  joinStatus: string;
+  presenceStatus: string;
+  canReply: boolean;
+  sortOrder: number;
+  gatewayId?: string | null;
+  gatewayName?: string | null;
+  agentRecordId?: string | null;
+}
+
+export interface LiveRoomMessage {
+  id: string;
+  roomId: string;
+  senderMemberId?: string | null;
+  senderName: string;
+  senderLabel?: string;
+  senderType: string;
+  content: string;
+  messageType: string;
+  visibility: string;
+  topicSnapshot?: string | null;
+  createdAt: string;
+  replyToMessageId?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface LiveRoomSummary {
+  id: string;
+  title: string;
+  description?: string | null;
+  currentTopic?: string | null;
+  mode: string;
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  currentSpeakerMemberId?: string | null;
+  currentSpeakerName?: string | null;
+  memberCount: number;
+  lastMessagePreview?: string | null;
+  lastMessageAt?: string | null;
+}
+
+export interface LiveRoomDetail extends LiveRoomSummary {
+  sourceTask?: {
+    id: string;
+    name: string;
+  } | null;
+  members: LiveRoomMember[];
+}
