@@ -9,6 +9,7 @@ import {
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
   serializeLiveRoomMessage,
+  syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 
@@ -83,6 +84,7 @@ export async function POST(
     }
 
     const userMember = await ensureLiveRoomUserMember(params.id);
+    await syncLiveRoomSourceTask(params.id);
     const roomMembers = await prisma.liveRoomMember.findMany({
       where: { roomId: params.id },
       include: {

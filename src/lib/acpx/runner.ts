@@ -18,6 +18,7 @@ import {
   consumeRunControlRequest,
   registerRunningProcess,
 } from './process-registry';
+import { getParticipantContinuationKey } from './session-tracking';
 import { ensureTaskSession, setTaskSessionActiveRun } from './session';
 import type {
   AcpxLiveEventPayload,
@@ -781,6 +782,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
             softStopSupported: capabilities.supportsSoftStop,
             controlMetadata: stringifyJson({
               ...capabilities,
+              continuationKey: getParticipantContinuationKey(participant),
               permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
               permissionSupport: getLocalHarnessPermissionSupport(
                 participant.harnessType,

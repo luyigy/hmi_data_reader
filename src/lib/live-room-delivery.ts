@@ -1,32 +1,36 @@
-import type { ChildProcess } from 'child_process';
 import { prisma } from '@/lib/prisma';
-import { createOpenClawResponse, extractOpenClawText, getOpenClawGatewayConfig } from '@/lib/openclaw-client';
-import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
-import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
+import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { findLatestParticipantSession, parseAcpxMetadata } from '@/lib/acpx/session-tracking';
+import { requestRunControl } from '@/lib/acpx/process-registry';
+import { DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
 import {
   clearLiveRoomRunningProcess,
   enqueueLiveRoomMemberExecution,
   getLiveRoomRunningProcess,
   interruptLiveRoomRunningProcess,
-  registerLiveRoomRunningProcess,
 } from '@/lib/live-room-process-registry';
-import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
-import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import {
-  buildLiveRoomRosterText,
+  buildLiveRoomAcpxParticipant,
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
   extractRemoteHostIdFromRoleLabel,
-  getLiveRoomTranscript,
+  getLiveRoomParticipantContinuationKey,
   parseLiveRoomMessageMetadata,
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
+  syncLiveRoomSourceTask,
 } from '@/lib/live-room';
+import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
+import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
+import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const ALL_REPLY_STAGGER_MS = 750;
 const REMOTE_STALE_GRACE_MS = 30 * 1000;
 const REMOTE_STALE_AFTER_MS = DEFAULT_TIMEOUT_MS + REMOTE_STALE_GRACE_MS;
+const SSH_WARNING_PATTERNS = [
+  /^Warning: Permanently added .*known hosts\.\s*$/gim,
+];
 
 type DeliveryRoomMember = {
   id: string;
@@ -51,71 +55,14 @@ type DeliveryRoom = {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const buildPrompt = ({
-  roomTitle,
-  topic,
-  agentLabel,
-  roster,
-  transcript,
-  latestRoomMessage,
-  routingReason,
-}: {
-  roomTitle: string;
-  topic: string | null;
-  agentLabel: string;
-  roster: string;
-  transcript: string;
-  latestRoomMessage: string;
-  routingReason: string;
-}) => [
-  `You are participating in a live multi-agent room named "${roomTitle}".`,
-  `Your identity in this room: ${agentLabel}.`,
-  topic ? `Current room topic: ${topic}` : 'Current room topic: none set yet.',
-  'Current room members:',
-  roster || '(no members recorded)',
-  `Why you are replying now: ${routingReason}`,
-  '',
-  'Respond like an active collaborator inside an ongoing chat session.',
-  'Prefer concise but useful replies. If you suggest actions, explain what you will do next.',
-  'If you want another room member to respond next, mention them explicitly with @name in your reply.',
-  '',
-  'Recent room transcript:',
-  transcript || '(no earlier transcript)',
-  '',
-  'Latest room message to respond to:',
-  latestRoomMessage,
-].join('\n');
+const normalizeLiveRoomExecutionError = (message: string) => {
+  let normalized = message;
 
-const describeRoutingReason = ({
-  sourceMessageContent,
-  sourceMetadata,
-  targetMemberName,
-  roomCurrentSpeakerMemberId,
-  targetMemberId,
-}: {
-  sourceMessageContent: string;
-  sourceMetadata: ReturnType<typeof parseLiveRoomMessageMetadata>;
-  targetMemberName: string;
-  roomCurrentSpeakerMemberId: string | null;
-  targetMemberId: string;
-}) => {
-  if (sourceMetadata?.deliveryIntent === 'handoff' && sourceMetadata.handoffToMemberId === targetMemberId) {
-    return `${targetMemberName} received a handoff and is now the main responder.`;
+  for (const pattern of SSH_WARNING_PATTERNS) {
+    normalized = normalized.replace(pattern, '').trim();
   }
 
-  if (sourceMetadata?.primaryTargetMemberId === targetMemberId) {
-    return `${targetMemberName} was explicitly selected as the primary target of the latest message.`;
-  }
-
-  if ((sourceMetadata?.mentionedMemberIds || []).includes(targetMemberId)) {
-    return `${targetMemberName} was mentioned in the latest message and should answer next.`;
-  }
-
-  if (roomCurrentSpeakerMemberId === targetMemberId) {
-    return `${targetMemberName} is currently the room's default speaker.`;
-  }
-
-  return `${targetMemberName} was chosen as the fallback responder for the latest message: ${sourceMessageContent}`;
+  return normalized || 'Live room execution failed';
 };
 
 const getSessionKey = (roomId: string, memberId: string) => `live-room:${roomId}:member:${memberId}`;
@@ -235,119 +182,151 @@ const ensureMemberSession = async (roomId: string, member: {
   });
 };
 
-const runLocalHarness = async ({
-  harnessType,
-  prompt,
-  threadId,
+
+const executeLiveRoomReplyViaAcpx = async ({
+  room,
+  sourceMessage,
+  targetMember,
+  session,
 }: {
-  harnessType: string;
-  prompt: string;
-  threadId?: string | null;
+  room: DeliveryRoom & {
+    sourceTask?: {
+      id: string;
+      name: string;
+      description?: string | null;
+      workingDirectory?: string | null;
+      acpxPermissionConfig?: string | null;
+      currentTaskSession?: {
+        id: string;
+      } | null;
+    } | null;
+  };
+  sourceMessage: {
+    id: string;
+    content: string;
+    senderMember?: {
+      id: string;
+      displayName: string;
+      memberType: string;
+    } | null;
+  };
+  targetMember: DeliveryRoomMember;
+  session: {
+    id: string;
+    threadId: string | null;
+  };
 }) => {
-  if (harnessType === 'codex') {
-    if (threadId) {
-      const resumed = await resumeCodexSession({
-        threadId,
-        prompt,
-        timeout: DEFAULT_TIMEOUT_MS,
-        workingDirectory: process.cwd(),
-      });
+  const sourceTask = await syncLiveRoomSourceTask(room.id);
+  if (!sourceTask) {
+    throw new Error('Live room source ACPX task is unavailable');
+  }
 
-      return {
-        output: resumed.output,
-        threadId: resumed.threadId || threadId,
-      };
-    }
+  const participant = buildLiveRoomAcpxParticipant({
+    id: targetMember.id,
+    displayName: targetMember.displayName,
+    backend: targetMember.backend,
+    harnessType: targetMember.harnessType,
+    gatewayId: targetMember.backend === 'remote_ssh'
+      ? extractRemoteHostIdFromRoleLabel(targetMember.roleLabel) || targetMember.gatewayId
+      : targetMember.gatewayId,
+    gatewayName: targetMember.gateway?.name || null,
+    runtimeAgentId: targetMember.runtimeAgentId || targetMember.agentRecord?.runtimeAgentId || null,
+  });
 
-    const created = await executeCodexTask({
-      id: `live-room-${Date.now()}`,
-      name: 'Live Room Reply',
-      description: prompt,
-    }, {
-      timeout: DEFAULT_TIMEOUT_MS,
-      workingDirectory: process.cwd(),
+  const latestSession = await findLatestParticipantSession(sourceTask.id, participant);
+  const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
+  const shouldInjectLatestInstruction = sourceMessage.senderMember?.memberType !== 'user';
+
+  if (shouldInjectLatestInstruction) {
+    await postTaskRoomMessage({
+      roomId: taskRoom.id,
+      content: sourceMessage.content,
+      userId: 'task-room-user',
+      userName: sourceMessage.senderMember?.displayName || '用户',
+      targetType: 'participant',
+      targetParticipantKey: getTaskRoomParticipantTargetKey(participant),
+      targetParticipantLabel: getTaskRoomParticipantTargetLabel(participant),
     });
-
-    if (!created.success) {
-      throw new Error(created.error || 'Codex reply failed');
-    }
-
-    return {
-      output: created.output || 'Codex completed',
-      threadId: created.threadId || null,
-    };
   }
 
-  if (harnessType === 'claude') {
-    const result = await executeClaudeTask({
-      id: `live-room-${Date.now()}`,
-      name: 'Live Room Reply',
-      description: prompt,
-    }, {
-      timeout: DEFAULT_TIMEOUT_MS,
-      workingDirectory: process.cwd(),
-    });
-
-    if (!result.success) {
-      throw new Error(result.error || 'Claude reply failed');
-    }
-
-    return {
-      output: result.output || 'Claude completed',
-      threadId: null,
-    };
-  }
-
-  throw new Error(`Unsupported local harness: ${harnessType}`);
-};
-
-const runRemoteHarness = async ({
-  gatewayId,
-  harnessType,
-  prompt,
-  onSpawn,
-  onProgress,
-}: {
-  gatewayId: string;
-  harnessType: string;
-  prompt: string;
-  onSpawn?: (child: ChildProcess) => void;
-  onProgress?: (event: {
-    phase: 'ssh_spawned' | 'remote_command_started' | 'first_stdout' | 'first_stderr' | 'streaming_output' | 'completed';
-    at: number;
-  }) => void;
-}) => {
-  const remoteHost = await getRemoteHarnessHostById(gatewayId);
-
-  if (!remoteHost) {
-    throw new Error(`Remote SSH host not found: ${gatewayId}`);
-  }
-
-  if (!remoteHost.supportedHarnesses.includes(harnessType.toLowerCase())) {
-    throw new Error(
-      `Remote SSH host "${remoteHost.label}" does not declare harness "${harnessType}"`
-    );
-  }
-
-  const result = await executeRemoteSshTask(
-    {
-      id: `live-room-remote-${Date.now()}`,
-      name: 'Live Room Reply',
-      description: prompt,
+  await prisma.task.update({
+    where: { id: sourceTask.id },
+    data: {
+      status: 'running',
+      startedAt: new Date(),
+      completedAt: null,
+      error: null,
     },
-    {
-      timeout: DEFAULT_TIMEOUT_MS,
-      harnessType,
-      host: remoteHost,
-      onSpawn,
-      onProgress,
-    }
-  );
+  });
+
+  const permissionConfig = (() => {
+    const parsed = parseAcpxMetadata(sourceTask.acpxPermissionConfig);
+    return (Object.keys(parsed).length > 0 ? parsed : DEFAULT_ACPX_PERMISSION_CONFIG) as AcpxPermissionConfig;
+  })();
+
+  const acpxResult = await executeAcpxTaskRun({
+    taskId: sourceTask.id,
+    taskSessionId: sourceTask.currentTaskSession?.id || undefined,
+    taskName: sourceTask.name,
+    taskDescription: sourceTask.description || undefined,
+    orchestrationMode: 'single',
+    participants: [{
+      ...participant,
+      resumeThreadId: latestSession?.continuationThreadId || undefined,
+      continuationMessage: latestSession?.continuationThreadId ? sourceMessage.content : undefined,
+    }],
+    workingDirectory: sourceTask.workingDirectory || process.cwd(),
+    permissionConfig,
+  });
+
+  const participantResult = acpxResult.participants[0];
+  const finalStatus =
+    acpxResult.status === 'completed'
+      ? 'completed'
+      : acpxResult.status === 'interrupted'
+      ? 'running'
+      : acpxResult.status === 'stopped'
+      ? 'failed'
+      : 'failed';
+
+  await prisma.task.update({
+    where: { id: sourceTask.id },
+    data: {
+      status: finalStatus,
+      completedAt: new Date(),
+      result: JSON.stringify({
+        executionMode: 'acpx',
+        source: 'live_room',
+        liveRoomId: room.id,
+        taskRunId: acpxResult.taskRunId,
+        summary: acpxResult.summary,
+        participants: acpxResult.participants,
+      }),
+      error:
+        acpxResult.status === 'failed'
+          ? participantResult?.error || 'Live room ACPX execution failed'
+          : null,
+    },
+  });
+
+  if (acpxResult.status === 'interrupted') {
+    throw new Error('Interrupted by user');
+  }
+
+  if (acpxResult.status === 'stopped') {
+    throw new Error('Stopped by user');
+  }
+
+  if (acpxResult.status === 'failed') {
+    throw new Error(participantResult?.error || 'Live room ACPX execution failed');
+  }
+
+  const refreshedParticipantSession = await findLatestParticipantSession(sourceTask.id, participant);
 
   return {
-    output: result.output,
-    threadId: null,
-    timing: result.timing,
+    output: participantResult?.summary || acpxResult.summary || `${targetMember.displayName} completed`,
+    threadId: refreshedParticipantSession?.continuationThreadId || session.threadId,
+    remoteTiming: null,
   };
 };
 
@@ -523,7 +502,6 @@ const processLiveRoomDelivery = async ({
     return;
   }
 
-  const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
   const session = await ensureMemberSession(room.id, targetMember);
 
   if (targetMember.backend === 'remote_ssh') {
@@ -572,105 +550,38 @@ const processLiveRoomDelivery = async ({
   });
 
   try {
-    const transcript = await getLiveRoomTranscript(room.id, 30);
-    const roster = buildLiveRoomRosterText(room.members);
-    const prompt = buildPrompt({
-      roomTitle: room.title,
-      topic: room.currentTopic,
-      agentLabel: targetMember.displayName,
-      roster,
-      transcript,
-      latestRoomMessage: sourceMessage.content,
-      routingReason: describeRoutingReason({
-        sourceMessageContent: sourceMessage.content,
-        sourceMetadata,
-        targetMemberName: targetMember.displayName,
-        roomCurrentSpeakerMemberId: room.currentSpeakerMemberId,
-        targetMemberId: targetMember.id,
-      }),
+    await prisma.liveRoomMemberSession.update({
+      where: { id: session.id },
+      data: {
+        status: 'busy',
+        lastHeartbeatAt: new Date(),
+        lastError: 'progress:acpx participant running',
+      },
+    }).catch(() => undefined);
+
+    const acpxResult = await executeLiveRoomReplyViaAcpx({
+      room,
+      sourceMessage: {
+        id: sourceMessage.id,
+        content: sourceMessage.content,
+        senderMember: sourceMessage.senderMember
+          ? {
+              id: sourceMessage.senderMember.id,
+              displayName: sourceMessage.senderMember.displayName,
+              memberType: sourceMessage.senderMember.memberType,
+            }
+          : null,
+      },
+      targetMember,
+      session: {
+        id: session.id,
+        threadId: session.threadId,
+      },
     });
 
-    let output = '';
-    let threadId: string | null = session.threadId;
-    let remoteTiming: {
-      sshStartMs: number;
-      remoteCommandStartMs?: number;
-      firstStdoutMs?: number;
-      firstStderrMs?: number;
-      totalMs: number;
-    } | null = null;
-
-    if (targetMember.backend === 'gateway_openclaw') {
-      if (!targetMember.gatewayId) {
-        throw new Error('Gateway member missing gatewayId');
-      }
-
-      const config = await getOpenClawGatewayConfig(targetMember.gatewayId);
-      if (!config) {
-        throw new Error(`Gateway "${targetMember.gateway?.name || targetMember.gatewayId}" not configured`);
-      }
-
-      const response = await createOpenClawResponse(config, {
-        input: prompt,
-        agentId: targetMember.runtimeAgentId || targetMember.agentRecord?.runtimeAgentId || 'main',
-        sessionKey: session.sessionKey,
-      });
-      output = extractOpenClawText(response) || '远端 agent 已处理，但未返回可解析文本。';
-    } else if (targetMember.backend === 'remote_ssh') {
-      const remoteHostId = extractRemoteHostIdFromRoleLabel(targetMember.roleLabel) || targetMember.gatewayId;
-
-      if (!remoteHostId) {
-        throw new Error('Remote SSH member missing host id');
-      }
-
-      const result = await runRemoteHarness({
-        gatewayId: remoteHostId,
-        harnessType: targetMember.harnessType || 'claude',
-        prompt,
-        onSpawn: (child) => {
-          registerLiveRoomRunningProcess({
-            deliveryId: delivery.id,
-            roomId: room.id,
-            memberId: targetMember.id,
-            sessionId: session.id,
-            child,
-            executionBackend: 'remote_ssh',
-            harnessType: targetMember.harnessType || 'claude',
-            startedAt: Date.now(),
-          });
-        },
-        onProgress: async (event) => {
-          const progressLabelByPhase: Record<typeof event.phase, string> = {
-            ssh_spawned: 'SSH connecting',
-            remote_command_started: 'remote command started',
-            first_stdout: 'remote stdout received',
-            first_stderr: 'remote stderr received',
-            streaming_output: 'remote output streaming',
-            completed: 'remote command completed',
-          };
-
-          await prisma.liveRoomMemberSession.update({
-            where: { id: session.id },
-            data: {
-              status: 'busy',
-              lastHeartbeatAt: new Date(event.at),
-              lastError: `progress:${progressLabelByPhase[event.phase]}`,
-            },
-          }).catch(() => undefined);
-        },
-      });
-      output = result.output;
-      threadId = result.threadId;
-      remoteTiming = result.timing;
-    } else {
-      const result = await runLocalHarness({
-        harnessType: targetMember.harnessType || 'codex',
-        prompt,
-        threadId: session.threadId,
-      });
-      output = result.output;
-      threadId = result.threadId;
-    }
+    const output = acpxResult.output;
+    const threadId = acpxResult.threadId;
+    const remoteTiming = acpxResult.remoteTiming;
 
     if (threadId !== session.threadId || session.status !== 'online') {
       await prisma.liveRoomMemberSession.update({
@@ -757,7 +668,8 @@ const processLiveRoomDelivery = async ({
       }
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Live room delivery failed';
+    const rawMessage = error instanceof Error ? error.message : 'Live room delivery failed';
+    const message = normalizeLiveRoomExecutionError(rawMessage);
 
     await prisma.liveRoomDelivery.update({
       where: { id: delivery.id },
@@ -783,18 +695,23 @@ const processLiveRoomDelivery = async ({
       },
     });
 
-    await postLiveRoomMessage({
-      roomId,
-      content: `系统提示：${targetMember.displayName} 本次回复失败：${message}`,
-      messageType: 'system',
-      metadata: resolveLiveRoomMessageMetadata({
-        senderKind: 'system',
-        targetMemberId: targetMember.id,
-        extras: {
-          error: message,
-        },
-      }),
-    });
+    if (message !== 'Interrupted by user') {
+      await postLiveRoomMessage({
+        roomId,
+        content:
+          message === 'Stopped by user'
+            ? `系统提示：${targetMember.displayName} 当前回复已被停止。`
+            : `系统提示：${targetMember.displayName} 本次回复失败：${message}`,
+        messageType: 'system',
+        metadata: resolveLiveRoomMessageMetadata({
+          senderKind: 'system',
+          targetMemberId: targetMember.id,
+          extras: {
+            error: message,
+          },
+        }),
+      });
+    }
   } finally {
     if (targetMember.backend === 'remote_ssh') {
       clearLiveRoomRunningProcess(targetMember.id, delivery.id);
@@ -809,6 +726,21 @@ export const interruptLiveRoomMemberReplies = async ({
   roomId: string;
   memberId: string;
 }) => {
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      sourceTask: {
+        include: {
+          currentTaskSession: true,
+        },
+      },
+    },
+  });
+
+  if (!room) {
+    throw new Error('Live room not found');
+  }
+
   const member = await prisma.liveRoomMember.findFirst({
     where: {
       id: memberId,
@@ -860,9 +792,26 @@ export const interruptLiveRoomMemberReplies = async ({
     },
   });
 
-  const runningRegistry = getLiveRoomRunningProcess(member.id);
-  if (runningRegistry) {
-    interruptLiveRoomRunningProcess(member.id, 'SIGTERM');
+  const activeRun = room.sourceTask?.currentTaskSession?.activeRunId
+    ? await prisma.taskRun.findUnique({
+        where: { id: room.sourceTask.currentTaskSession.activeRunId },
+        include: {
+          participants: true,
+        },
+      })
+    : null;
+  const runningParticipant = activeRun?.participants.find((participant) => {
+    const metadata = parseAcpxMetadata(participant.controlMetadata);
+    return metadata.continuationKey === getLiveRoomParticipantContinuationKey(member.id);
+  }) || null;
+
+  if (activeRun && runningParticipant) {
+    requestRunControl(activeRun.id, runningParticipant.id, 'interrupt_now');
+  } else {
+    const runningRegistry = getLiveRoomRunningProcess(member.id);
+    if (runningRegistry) {
+      interruptLiveRoomRunningProcess(member.id, 'SIGTERM');
+    }
   }
 
   const interruptedAt = new Date();

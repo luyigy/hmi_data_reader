@@ -32,6 +32,106 @@
 - [interrupt route](/data1/code/agent-platform-v2/src/app/api/live-rooms/[id]/interrupt/route.ts)
 - [LiveRoomWorkspace.tsx](/data1/code/agent-platform-v2/src/components/live-room/LiveRoomWorkspace.tsx)
 
+## 当前 continuation 能力矩阵
+
+为了避免“session continuation”这个词被泛化，这里先把当前真实能力写清楚。
+
+### 当前实际情况
+
+| 路径 | 当前是否是真 continuation | 说明 |
+| --- | --- | --- |
+| `platform_local + codex` | 是 | 已有 `threadId`，可通过 `resumeCodexSession(...)` 继续同一 thread |
+| `platform_local + claude` | 否 | 仍然是每轮新进程 |
+| `ACPX + platform_local + codex` | 是 | `continue_session` 当前实质上只支持这一路径 |
+| `ACPX + platform_local + claude` | 否 | 没有 thread/session resume |
+| `ACPX + remote_ssh + codex` | 否 | 当前还是 one-shot remote exec |
+| `ACPX + remote_ssh + claude` | 否 | 当前还是 one-shot remote exec |
+| `Live Room + remote_ssh` | 否 | 只有 queue/control/interrupt，没有真 continuation |
+
+### 结论
+
+所以现在不能说：
+
+- “local agent 都已经有 true continuation”
+- “ACPX agent 都已经有 true continuation”
+
+只能准确地说：
+
+- **local codex 有**
+- **ACPX 中的 local codex continuation 有**
+- **除此之外的大部分路径还没有**
+
+## 目标更新：我们需要 all-path true session continuation
+
+用户已经明确要求：
+
+- **所有路径最终都应具备 true session continuation**
+
+这里的“all-path”至少应包括：
+
+1. `Live Room + platform_local + codex`
+2. `Live Room + platform_local + claude`
+3. `Live Room + remote_ssh + codex`
+4. `Live Room + remote_ssh + claude`
+5. `ACPX + platform_local + codex`
+6. `ACPX + platform_local + claude`
+7. `ACPX + remote_ssh + codex`
+8. `ACPX + remote_ssh + claude`
+
+如果未来 `gateway_openclaw` 也需要 continuation，
+则它也应被纳入同一目标语义。
+
+## 这里所说的 true continuation 的定义
+
+为了后续设计不跑偏，这里约束一下定义。
+
+只有满足下面语义，才算 true session continuation：
+
+1. 后续消息不是单纯重新拼 transcript 然后 fresh spawn
+2. 系统能把消息 append 到同一个 agent session / thread / conversation context
+3. interrupt 后可以继续恢复同一 session，而不是开启全新会话伪装成 continuation
+4. session 有明确 id / ownership / lifecycle / cleanup
+5. room 和 ACPX 都能引用同一种 continuation identity
+
+反过来说，下面这些都**不算** true continuation：
+
+1. 只是把旧 transcript 再塞进 prompt
+2. 每条消息都新起一个 CLI 进程
+3. 只是 UI 上看起来像“继续聊”，底层其实是新会话
+
+## 推荐统一目标
+
+长期应统一成：
+
+- `sessionId / threadId / continuationId` 成为一等公民
+- `Live Room` 和 `ACPX` 都只是在操作同一套 continuation abstraction
+
+也就是说最终不应再存在：
+
+- local 一套 continuation 语义
+- remote 一套 fake continuation 语义
+- ACPX 又是一套 control/run 语义
+
+而应收敛为：
+
+1. `start session`
+2. `append message`
+3. `interrupt session`
+4. `resume session`
+5. `terminate session`
+
+## 因此下一阶段的真正目标
+
+下一阶段不只是“把 remote session 搞出来”。
+
+更准确地说，目标应是：
+
+- **抽象并落地一个适用于 local / remote / ACPX / live room 的统一 continuation model**
+
+如果只是单独给 `remote_ssh` 加一个临时 session manager，
+但仍然和 local / ACPX 的 continuation identity 脱节，
+后续大概率还要重做一次。
+
 ## 新发现的问题 1：interrupt 后错误文案不对
 
 ### 用户观察到的现象

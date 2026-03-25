@@ -8,6 +8,7 @@ import {
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
   serializeLiveRoomSummary,
+  syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 
 export const dynamic = 'force-dynamic';
@@ -128,6 +129,8 @@ export async function POST(request: NextRequest) {
         },
       });
     }
+
+    await syncLiveRoomSourceTask(room.id);
 
     const rosterMembers = await prisma.liveRoomMember.findMany({
       where: { roomId: room.id },

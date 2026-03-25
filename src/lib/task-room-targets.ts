@@ -9,13 +9,14 @@ export const getTaskRoomParticipantTargetKey = (participant: {
   harnessType: string;
   role: string;
   agentId?: string | null;
+  continuationKey?: string | null;
 }) =>
   [
     normalizeTextPart(participant.executionBackend),
     normalizeTextPart(participant.gatewayId || 'local'),
     normalizeTextPart(participant.harnessType),
     normalizeTextPart(participant.role),
-    normalizeTextPart(participant.agentId || 'default'),
+    normalizeTextPart(participant.continuationKey || participant.agentId || 'default'),
   ].join(':');
 
 export const getTaskRoomParticipantTargetLabel = (participant: AcpxParticipantRequest) =>

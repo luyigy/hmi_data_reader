@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { postLiveRoomMessage } from '@/lib/live-room';
+import { postLiveRoomMessage, syncLiveRoomSourceTask } from '@/lib/live-room';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,8 @@ export async function POST(
         currentTopic: topic || null,
       },
     });
+
+    await syncLiveRoomSourceTask(room.id);
 
     await postLiveRoomMessage({
       roomId: room.id,

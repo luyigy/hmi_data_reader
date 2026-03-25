@@ -77,6 +77,7 @@ export interface AcpxParticipantRequest {
   role: AcpxParticipantRole | string;
   agentId?: string;
   agentName?: string;
+  continuationKey?: string;
   resumeThreadId?: string;
   continuationMessage?: string;
 }

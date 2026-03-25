@@ -7,6 +7,7 @@ import {
   listLiveRoomPendingReplies,
   serializeLiveRoomMember,
   serializeLiveRoomSummary,
+  syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 
 export const dynamic = 'force-dynamic';
@@ -148,6 +149,8 @@ export async function PATCH(
         },
       },
     });
+
+    await syncLiveRoomSourceTask(params.id);
 
     await emitLiveRoomUpdated(updated.id);
 

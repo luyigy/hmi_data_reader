@@ -1,7 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { getSocketServer } from '@/lib/websocket';
 import { deriveGatewayHarnessOptions } from '@/lib/acpx/catalog';
-import type { AcpxExecutionBackend } from '@/lib/acpx/types';
+import { ensureTaskSession } from '@/lib/acpx/session';
+import { DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
+import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
+import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
+import type { AcpxExecutionBackend, AcpxParticipantRequest } from '@/lib/acpx/types';
 
 export interface LiveRoomCatalogAgent {
   id: string;
@@ -17,6 +21,7 @@ export interface LiveRoomCatalogAgent {
 }
 
 const REMOTE_HOST_ROLE_LABEL_PREFIX = '__remote_host__:';
+const LIVE_ROOM_ACPX_PARTICIPANT_PREFIX = 'live-room-member:';
 
 export const encodeLiveRoomRoleLabel = ({
   backend,
@@ -38,6 +43,9 @@ export const extractRemoteHostIdFromRoleLabel = (value?: string | null) => {
   const match = value?.match(/__remote_host__:([^\s]+)/);
   return match?.[1] || null;
 };
+
+export const getLiveRoomParticipantContinuationKey = (memberId: string) =>
+  `${LIVE_ROOM_ACPX_PARTICIPANT_PREFIX}${memberId}`;
 
 export interface LiveRoomMemberPayload {
   id: string;
@@ -288,6 +296,32 @@ export const serializeLiveRoomMember = (member: {
   agentRecordId: member.agentRecordId,
 });
 
+export const buildLiveRoomAcpxParticipant = (member: {
+  id: string;
+  displayName: string;
+  backend?: string | null;
+  harnessType?: string | null;
+  gatewayId?: string | null;
+  gatewayName?: string | null;
+  runtimeAgentId?: string | null;
+}): AcpxParticipantRequest => ({
+  gatewayId:
+    member.backend === 'platform_local'
+      ? 'platform-local'
+      : member.gatewayId || 'platform-local',
+  gatewayName:
+    member.backend === 'platform_local'
+      ? 'Platform Local'
+      : member.gatewayName || member.gatewayId || 'Gateway',
+  executionBackend: (member.backend || 'platform_local') as AcpxExecutionBackend,
+  harnessType: member.harnessType || 'codex',
+  harnessLabel: member.harnessType || 'agent',
+  role: member.displayName,
+  agentId: member.runtimeAgentId || undefined,
+  agentName: member.displayName,
+  continuationKey: getLiveRoomParticipantContinuationKey(member.id),
+});
+
 export const serializeLiveRoomMessage = (message: {
   id: string;
   roomId: string;
@@ -519,6 +553,109 @@ export const ensureLiveRoomUserMember = async (roomId: string) => {
   });
 };
 
+export const syncLiveRoomSourceTask = async (roomId: string) => {
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      members: {
+        include: {
+          gateway: true,
+        },
+        orderBy: {
+          sortOrder: 'asc',
+        },
+      },
+      sourceTask: {
+        include: {
+          currentTaskSession: true,
+        },
+      },
+    },
+  });
+
+  if (!room) {
+    return null;
+  }
+
+  const participants = room.members
+    .filter((member) => member.canReply)
+    .map((member) => buildLiveRoomAcpxParticipant({
+      id: member.id,
+      displayName: member.displayName,
+      backend: member.backend,
+      harnessType: member.harnessType,
+      gatewayId: member.backend === 'remote_ssh'
+        ? extractRemoteHostIdFromRoleLabel(member.roleLabel) || member.gatewayId
+        : member.gatewayId,
+      gatewayName: member.gateway?.name || null,
+      runtimeAgentId: member.runtimeAgentId,
+    }));
+
+  if (participants.length === 0) {
+    return room.sourceTask || null;
+  }
+
+  const taskName = `Live Room · ${room.title}`;
+  const taskDescription = room.currentTopic
+    ? `Backs live room "${room.title}". Current topic: ${room.currentTopic}`
+    : `Backs live room "${room.title}".`;
+  const taskData = {
+    name: taskName,
+    description: taskDescription,
+    executionMode: 'acpx',
+    acpxParticipants: JSON.stringify(participants),
+    acpxPermissionConfig: JSON.stringify(DEFAULT_ACPX_PERMISSION_CONFIG),
+    workingDirectory: process.cwd(),
+    result: JSON.stringify({
+      executionMode: 'acpx',
+      source: 'live_room',
+      liveRoomId: room.id,
+      participantCount: participants.length,
+    }),
+  };
+
+  const sourceTask = room.sourceTask
+    ? await prisma.task.update({
+        where: { id: room.sourceTask.id },
+        data: taskData,
+        include: {
+          currentTaskSession: true,
+        },
+      })
+    : await prisma.task.create({
+        data: taskData,
+        include: {
+          currentTaskSession: true,
+        },
+      });
+
+  if (room.sourceTaskId !== sourceTask.id) {
+    await prisma.liveRoom.update({
+      where: { id: room.id },
+      data: {
+        sourceTaskId: sourceTask.id,
+      },
+    });
+  }
+
+  await ensureTaskSession(sourceTask.id, {
+    taskName: sourceTask.name,
+    metadata: {
+      source: 'live_room',
+      liveRoomId: room.id,
+      participantCount: participants.length,
+    },
+  });
+  await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
+
+  return prisma.task.findUnique({
+    where: { id: sourceTask.id },
+    include: {
+      currentTaskSession: true,
+    },
+  });
+};
+
 export const emitLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   const io = getSocketServer();
   if (!io) {
@@ -581,7 +718,14 @@ export const postLiveRoomMessage = async ({
 }) => {
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
-    select: { currentTopic: true },
+    include: {
+      members: {
+        include: {
+          gateway: true,
+        },
+      },
+      sourceTask: true,
+    },
   });
 
   const created = await prisma.liveRoomMessage.create({
@@ -603,6 +747,45 @@ export const postLiveRoomMessage = async ({
       },
     },
   });
+
+  const parsedMetadata = parseLiveRoomMessageMetadata(created.metadata);
+  if (room?.sourceTask) {
+    const taskRoom = await ensureTaskChatRoom(room.sourceTask.id, room.sourceTask.name);
+    const targetMember = parsedMetadata?.primaryTargetMemberId
+      ? room.members.find((member) => member.id === parsedMetadata.primaryTargetMemberId) || null
+      : null;
+    const targetParticipant = targetMember
+      ? buildLiveRoomAcpxParticipant({
+          id: targetMember.id,
+          displayName: targetMember.displayName,
+          backend: targetMember.backend,
+          harnessType: targetMember.harnessType,
+          gatewayId: targetMember.backend === 'remote_ssh'
+            ? extractRemoteHostIdFromRoleLabel(targetMember.roleLabel) || targetMember.gatewayId
+            : targetMember.gatewayId,
+          gatewayName: targetMember.gateway?.name || null,
+          runtimeAgentId: targetMember.runtimeAgentId,
+        })
+      : null;
+
+    await postTaskRoomMessage({
+      roomId: taskRoom.id,
+      content: created.content,
+      userId: created.senderMember
+        ? created.senderMember.memberType === 'user'
+          ? 'task-room-user'
+          : `${getLiveRoomParticipantContinuationKey(created.senderMember.id)}:speaker`
+        : 'system',
+      userName: created.senderMember?.displayName || '系统',
+      targetType: parsedMetadata?.mentionedAll
+        ? 'all'
+        : targetParticipant
+        ? 'participant'
+        : 'task',
+      targetParticipantKey: targetParticipant ? getTaskRoomParticipantTargetKey(targetParticipant) : null,
+      targetParticipantLabel: targetParticipant ? getTaskRoomParticipantTargetLabel(targetParticipant) : null,
+    });
+  }
 
   const payload = serializeLiveRoomMessage(created);
   emitLiveRoomMessage(payload);
