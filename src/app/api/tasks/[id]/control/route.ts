@@ -109,7 +109,7 @@ const toParticipantEventPayload = (participant: {
 }) => ({
   gatewayId: participant.gatewayId,
   gatewayName: participant.gatewayNameSnapshot,
-  executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw',
+  executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
   harnessType: participant.harnessType,
   harnessLabel: participant.harnessNameSnapshot,
   role: participant.role,
@@ -394,7 +394,7 @@ export async function POST(
           {
             gatewayId: selectedParticipant.gatewayId || 'local',
             gatewayName: selectedParticipant.gatewayNameSnapshot,
-            executionBackend: selectedParticipant.executionBackend as 'platform_local' | 'gateway_openclaw',
+            executionBackend: selectedParticipant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
             harnessType: selectedParticipant.harnessType,
             harnessLabel: selectedParticipant.harnessNameSnapshot || undefined,
             role: selectedParticipant.role,

@@ -15,7 +15,7 @@ interface Agent {
 interface AcpxHarnessOption {
   gatewayId: string;
   gatewayName: string;
-  executionBackend: 'platform_local' | 'gateway_openclaw';
+  executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
   harnessType: string;
   harnessLabel: string;
   agentId?: string;
@@ -42,7 +42,7 @@ interface TaskFormProps {
     acpxParticipants?: Array<{
       gatewayId: string;
       gatewayName?: string;
-      executionBackend: 'platform_local' | 'gateway_openclaw';
+      executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
       harnessType: string;
       harnessLabel?: string;
       role: string;
@@ -108,7 +108,9 @@ export default function TaskForm({
     ({ option }) => option?.executionBackend === 'platform_local'
   );
   const hasRemoteParticipant = resolvedParticipants.some(
-    ({ option }) => option?.executionBackend === 'gateway_openclaw'
+    ({ option }) =>
+      option?.executionBackend === 'gateway_openclaw'
+      || option?.executionBackend === 'remote_ssh'
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -121,7 +123,7 @@ export default function TaskForm({
     const acpxParticipants: Array<{
       gatewayId: string;
       gatewayName?: string;
-      executionBackend: 'platform_local' | 'gateway_openclaw';
+      executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
       harnessType: string;
       harnessLabel?: string;
       role: string;
@@ -253,12 +255,12 @@ export default function TaskForm({
           {executionMode === 'acpx' && (
             <>
               <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-700">
-                ACPX 使用参与方配置而不是单一 Runner。每一行都明确指定 `执行后端 + 网关 + harness + 角色`，这样你可以区分平台本地 CLI 和网关侧 harness。
+                ACPX 使用参与方配置而不是单一 Runner。每一行都明确指定 `执行后端 + 节点 + harness + 角色`，这样你可以区分平台本地 CLI、网关侧 harness 和 Remote SSH harness。
               </div>
 
               {hasRemoteParticipant && (
                 <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  远端 gateway 参与方当前不会自动挂载或同步本地工作目录。现在跨网关共享的是任务描述和前序参与方摘要，不是同一份代码工作区。
+                  远端参与方当前不会自动挂载或同步平台本地工作目录。现在跨节点共享的是任务描述和前序参与方摘要，不是同一份代码工作区。
                 </div>
               )}
 
@@ -300,7 +302,7 @@ export default function TaskForm({
                         </div>
 
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-gray-700">网关</label>
+                          <label className="mb-2 block text-sm font-medium text-gray-700">节点</label>
                           <select
                             value={participant.gatewayId}
                             onChange={(e) =>
@@ -311,7 +313,7 @@ export default function TaskForm({
                             }
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
                           >
-                            <option value="">选择网关</option>
+                            <option value="">选择节点</option>
                             {gatewayOptions.map((gateway) => (
                               <option key={gateway.id} value={gateway.id}>
                                 {gateway.gatewayName}
@@ -332,7 +334,11 @@ export default function TaskForm({
                             {gatewayHarnesses.map((option) => (
                               <option key={getHarnessKey(option)} value={getHarnessKey(option)}>
                                 {option.harnessLabel}
-                                {option.executionBackend === 'platform_local' ? ' · 平台本地' : ' · 网关'}
+                                {option.executionBackend === 'platform_local'
+                                  ? ' · 平台本地'
+                                  : option.executionBackend === 'remote_ssh'
+                                  ? ' · Remote SSH'
+                                  : ' · 网关'}
                                 {option.agentName ? ` · ${option.agentName}` : ''}
                               </option>
                             ))}

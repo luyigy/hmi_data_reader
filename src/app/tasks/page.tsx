@@ -14,7 +14,7 @@ interface Task {
   acpxParticipants?: Array<{
     gatewayId: string;
     gatewayName?: string;
-    executionBackend: 'platform_local' | 'gateway_openclaw';
+    executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
     harnessType: string;
     harnessLabel?: string;
     role: string;
@@ -53,7 +53,7 @@ interface Agent {
 interface AcpxHarnessOption {
   gatewayId: string;
   gatewayName: string;
-  executionBackend: 'platform_local' | 'gateway_openclaw';
+  executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
   harnessType: string;
   harnessLabel: string;
   agentId?: string;
@@ -155,7 +155,7 @@ export default function TasksPage() {
     acpxParticipants?: Array<{
       gatewayId: string;
       gatewayName?: string;
-      executionBackend: 'platform_local' | 'gateway_openclaw';
+      executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
       harnessType: string;
       harnessLabel?: string;
       role: string;

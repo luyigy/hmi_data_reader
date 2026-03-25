@@ -48,6 +48,25 @@ model Gateway {
   @@index([status])
 }
 
+model RemoteHarnessHost {
+  id                 String   @id @default(cuid())
+  label              String
+  host               String
+  port               Int      @default(22)
+  sshUser            String
+  authType           String   @default("ssh_key") // ssh_key
+  encryptedPrivateKey String?
+  workingDirectory   String?
+  status             String   @default("offline") // online, offline, maintenance
+  viaNetwork         String   @default("wireguard") // wireguard, lan, public
+  supportedHarnesses String?  // JSON string array
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status])
+  @@index([label])
+}
+
 model Task {
   id                   String                  @id @default(cuid())
   name                 String

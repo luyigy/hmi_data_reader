@@ -22,6 +22,8 @@ export const getTaskRoomParticipantTargetLabel = (participant: AcpxParticipantRe
   `${participant.role} · ${
     participant.executionBackend === 'platform_local'
       ? 'Platform Local'
+      : participant.executionBackend === 'remote_ssh'
+      ? `Remote SSH · ${participant.gatewayName || participant.gatewayId}`
       : (participant.gatewayName || participant.gatewayId)
   } / ${participant.harnessType}`;
 

@@ -1,6 +1,6 @@
 export type TaskExecutionMode = 'standard' | 'acpx';
 export type AcpxHarnessType = 'codex' | 'claude' | 'gemini-cli' | string;
-export type AcpxExecutionBackend = 'platform_local' | 'gateway_openclaw';
+export type AcpxExecutionBackend = 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
 export type RunControlAction = 'queue_message' | 'interrupt_now' | 'stop_run' | 'continue_session';
 export type RunControlDeliveryMode = 'queued' | 'immediate';
 export type RunControlDeliveryStatus = 'pending' | 'delivered' | 'superseded' | 'rejected';

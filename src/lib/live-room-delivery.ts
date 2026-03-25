@@ -2,10 +2,13 @@ import { prisma } from '@/lib/prisma';
 import { createOpenClawResponse, extractOpenClawText, getOpenClawGatewayConfig } from '@/lib/openclaw-client';
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
+import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
+import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import {
   buildLiveRoomRosterText,
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
+  extractRemoteHostIdFromRoleLabel,
   getLiveRoomTranscript,
   parseLiveRoomMessageMetadata,
   postLiveRoomMessage,
@@ -23,6 +26,7 @@ type DeliveryRoomMember = {
   harnessType: string | null;
   runtimeAgentId: string | null;
   gatewayId: string | null;
+  roleLabel?: string | null;
   gateway?: { name: string } | null;
   agentRecord?: { runtimeAgentId: string | null } | null;
 };
@@ -287,6 +291,46 @@ const runLocalHarness = async ({
   throw new Error(`Unsupported local harness: ${harnessType}`);
 };
 
+const runRemoteHarness = async ({
+  gatewayId,
+  harnessType,
+  prompt,
+}: {
+  gatewayId: string;
+  harnessType: string;
+  prompt: string;
+}) => {
+  const remoteHost = await getRemoteHarnessHostById(gatewayId);
+
+  if (!remoteHost) {
+    throw new Error(`Remote SSH host not found: ${gatewayId}`);
+  }
+
+  if (!remoteHost.supportedHarnesses.includes(harnessType.toLowerCase())) {
+    throw new Error(
+      `Remote SSH host "${remoteHost.label}" does not declare harness "${harnessType}"`
+    );
+  }
+
+  const result = await executeRemoteSshTask(
+    {
+      id: `live-room-remote-${Date.now()}`,
+      name: 'Live Room Reply',
+      description: prompt,
+    },
+    {
+      timeout: DEFAULT_TIMEOUT_MS,
+      harnessType,
+      host: remoteHost,
+    }
+  );
+
+  return {
+    output: result.output,
+    threadId: null,
+  };
+};
+
 export const triggerLiveRoomAgentReply = async ({
   roomId,
   roomMessageId,
@@ -402,6 +446,20 @@ export const triggerLiveRoomAgentReply = async ({
         sessionKey: session.sessionKey,
       });
       output = extractOpenClawText(response) || '远端 agent 已处理，但未返回可解析文本。';
+    } else if (targetMember.backend === 'remote_ssh') {
+      const remoteHostId = extractRemoteHostIdFromRoleLabel(targetMember.roleLabel) || targetMember.gatewayId;
+
+      if (!remoteHostId) {
+        throw new Error('Remote SSH member missing host id');
+      }
+
+      const result = await runRemoteHarness({
+        gatewayId: remoteHostId,
+        harnessType: targetMember.harnessType || 'claude',
+        prompt,
+      });
+      output = result.output;
+      threadId = result.threadId;
     } else {
       const result = await runLocalHarness({
         harnessType: targetMember.harnessType || 'codex',

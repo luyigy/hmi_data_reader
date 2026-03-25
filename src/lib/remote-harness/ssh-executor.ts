@@ -1,0 +1,306 @@
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { promises as fs } from 'fs';
+import type { ChildProcess } from 'child_process';
+import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import type { RemoteHarnessHostRecord } from './hosts';
+
+interface RemoteHarnessTask {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface RemoteSshExecutionOptions {
+  timeout: number;
+  harnessType: string;
+  host: RemoteHarnessHostRecord;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+}
+
+interface RemoteSshCommandOptions {
+  timeout: number;
+  host: RemoteHarnessHostRecord;
+  command: string;
+  stdin?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+}
+
+export interface RemoteSshExecutionResult {
+  output: string;
+  filesModified: string[];
+  executionTime: number;
+  liveStreaming: boolean;
+}
+
+export interface RemoteSshProbeResult {
+  success: boolean;
+  output: string;
+  executionTime: number;
+}
+
+const createPrompt = (task: RemoteHarnessTask) => `Task: ${task.name}
+
+${task.description ? `Description: ${task.description}` : 'Please complete this task.'}
+
+Please complete this task step by step. When you're done, provide a concise summary of:
+1. What you did
+2. Any files you modified
+3. Any issues you encountered
+`;
+
+const buildRemoteCommand = (harnessType: string, workingDirectory?: string | null) => {
+  const quotedCwd = workingDirectory ? `cd ${shellQuote(workingDirectory)} && ` : '';
+  let command: string;
+
+  if (harnessType === 'codex') {
+    command = `${quotedCwd}codex exec --json --skip-git-repo-check -`;
+  } else if (harnessType === 'claude') {
+    command = `${quotedCwd}PROMPT=$(cat) && claude "$PROMPT" --print --permission-mode bypassPermissions`;
+  } else {
+    throw new Error(`Unsupported remote harness: ${harnessType}`);
+  }
+
+  return `bash -lc ${shellQuote(command)}`;
+};
+
+const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`;
+
+const extractClaudeModifiedFiles = (output: string): string[] => {
+  const filePattern = /(modified|created|deleted):\s*(.+)/gi;
+  const files: string[] = [];
+  let match: RegExpExecArray | null = null;
+
+  while ((match = filePattern.exec(output)) !== null) {
+    files.push(match[2].trim());
+  }
+
+  return files;
+};
+
+export const executeRemoteSshTask = async (
+  task: RemoteHarnessTask,
+  options: RemoteSshExecutionOptions
+): Promise<RemoteSshExecutionResult> => {
+  const prompt = createPrompt(task);
+  const startedAt = Date.now();
+  let codexResolvedText = '';
+  let codexStdoutBuffer = '';
+  const { stdout, stderr } = await runRemoteSshCommand({
+    timeout: options.timeout,
+    host: options.host,
+    command: buildRemoteCommand(options.harnessType, options.host.workingDirectory),
+    stdin: prompt,
+    streamCallbacks:
+      options.harnessType === 'codex'
+        ? {
+            onStdoutChunk: (chunk) => {
+              codexStdoutBuffer += chunk;
+              const lines = codexStdoutBuffer.split('\n');
+              codexStdoutBuffer = lines.pop() ?? '';
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                  continue;
+                }
+
+                try {
+                  const event = JSON.parse(trimmed) as {
+                    type?: string;
+                    item?: { type?: string; text?: string };
+                  };
+                  const text =
+                    event.type === 'item.completed'
+                    && event.item?.type === 'agent_message'
+                    && typeof event.item.text === 'string'
+                      ? event.item.text
+                      : null;
+
+                  if (text) {
+                    codexResolvedText = text;
+                    void options.streamCallbacks?.onStdoutChunk?.(text);
+                  }
+                } catch {
+                  void options.streamCallbacks?.onStdoutChunk?.(trimmed);
+                }
+              }
+            },
+            onStderrChunk: options.streamCallbacks?.onStderrChunk,
+          }
+        : options.streamCallbacks,
+    onSpawn: options.onSpawn,
+  });
+
+  if (options.harnessType === 'codex' && codexStdoutBuffer.trim()) {
+    try {
+      const event = JSON.parse(codexStdoutBuffer.trim()) as {
+        type?: string;
+        item?: { type?: string; text?: string };
+      };
+      if (
+        event.type === 'item.completed'
+        && event.item?.type === 'agent_message'
+        && typeof event.item.text === 'string'
+      ) {
+        codexResolvedText = event.item.text;
+      }
+    } catch {
+      void options.streamCallbacks?.onStdoutChunk?.(codexStdoutBuffer.trim());
+    }
+  }
+
+  const output =
+    options.harnessType === 'codex'
+      ? codexResolvedText || stdout || stderr || 'Remote codex completed'
+      : stdout || stderr || `Remote ${options.harnessType} completed`;
+
+  return {
+    output,
+    filesModified: options.harnessType === 'claude' ? extractClaudeModifiedFiles(output) : [],
+    executionTime: Date.now() - startedAt,
+    liveStreaming: true,
+  };
+};
+
+const runRemoteSshCommand = async ({
+  timeout,
+  host,
+  command,
+  stdin,
+  streamCallbacks,
+  onSpawn,
+}: RemoteSshCommandOptions): Promise<{ stdout: string; stderr: string }> => {
+  const { spawn } = await import('child_process');
+  const sshKeyPath = host.privateKey
+    ? join(tmpdir(), `acpx-remote-key-${process.pid}-${Date.now()}`)
+    : null;
+
+  if (host.authType !== 'ssh_key') {
+    throw new Error(`Unsupported remote SSH auth type: ${host.authType}`);
+  }
+
+  if (!host.privateKey) {
+    throw new Error(`Remote SSH host "${host.label}" is missing a private key`);
+  }
+
+  if (sshKeyPath) {
+    await fs.writeFile(sshKeyPath, `${host.privateKey.trim()}\n`, { mode: 0o600 });
+  }
+
+  const sshArgs = [
+    '-i',
+    sshKeyPath!,
+    '-p',
+    String(host.port || 22),
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'StrictHostKeyChecking=no',
+    '-o',
+    'UserKnownHostsFile=/dev/null',
+    `${host.sshUser}@${host.host}`,
+    command,
+  ];
+
+  try {
+    return await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+      const child = spawn('ssh', sshArgs, {
+        env: { ...process.env },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false,
+      });
+
+      onSpawn?.(child);
+
+      const timeoutId = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        child.kill('SIGTERM');
+        reject(new Error(`Remote SSH execution timed out after ${timeout}ms`));
+      }, timeout);
+
+      if (stdin) {
+        child.stdin.write(stdin);
+      }
+      child.stdin.end();
+
+      child.stdout.on('data', (data) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        void streamCallbacks?.onStdoutChunk?.(chunk);
+      });
+
+      child.stderr.on('data', (data) => {
+        const chunk = data.toString();
+        stderr += chunk;
+        void streamCallbacks?.onStderrChunk?.(chunk);
+      });
+
+      child.on('error', (error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+
+      child.on('close', (code) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+
+        if (code === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+
+        reject(new Error(stderr || `ssh exited with code ${code}`));
+      });
+    });
+  } finally {
+    if (sshKeyPath) {
+      await fs.rm(sshKeyPath, { force: true }).catch(() => undefined);
+    }
+  }
+};
+
+export const probeRemoteSshHost = async (
+  host: RemoteHarnessHostRecord,
+  timeout = 15_000
+): Promise<RemoteSshProbeResult> => {
+  const startedAt = Date.now();
+  const supported = host.supportedHarnesses;
+  const cwdSnippet = host.workingDirectory ? `cd ${shellQuote(host.workingDirectory)} && ` : '';
+  const probeScript = [
+    `${cwdSnippet}printf 'whoami=%s\\n' \"$(whoami)\"`,
+    `${cwdSnippet}printf 'hostname=%s\\n' \"$(hostname)\"`,
+    `${cwdSnippet}printf 'pwd=%s\\n' \"$(pwd)\"`,
+    ...supported.map(
+      (harness) =>
+        `${cwdSnippet}if command -v ${harness} >/dev/null 2>&1; then printf '${harness}=ok '; ${harness} --version | head -n 1; else printf '${harness}=missing\\n'; fi`
+    ),
+  ].join('; ');
+
+  const { stdout, stderr } = await runRemoteSshCommand({
+    timeout,
+    host,
+    command: `bash -lc ${shellQuote(probeScript)}`,
+  });
+
+  return {
+    success: true,
+    output: stdout || stderr || 'SSH probe completed',
+    executionTime: Date.now() - startedAt,
+  };
+};

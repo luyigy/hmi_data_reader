@@ -26,7 +26,7 @@ interface AgentInfo {
 interface AcpxParticipantSpec {
   gatewayId: string;
   gatewayName?: string;
-  executionBackend: 'platform_local' | 'gateway_openclaw';
+  executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
   harnessType: string;
   harnessLabel?: string;
   role: string;
@@ -91,7 +91,7 @@ interface TaskRunEvent {
   participant?: {
     gatewayId?: string | null;
     gatewayName: string;
-    executionBackend: 'platform_local' | 'gateway_openclaw';
+    executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
     harnessType: string;
     harnessLabel?: string | null;
     role: string;
@@ -110,7 +110,7 @@ interface TaskRunParticipant {
   id: string;
   gatewayId?: string | null;
   gatewayName: string;
-  executionBackend: 'platform_local' | 'gateway_openclaw';
+  executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
   harnessType: string;
   harnessLabel?: string | null;
   role: string;
@@ -145,7 +145,7 @@ interface TaskRunSummary {
     id: string;
     gatewayId?: string | null;
     gatewayName: string;
-    executionBackend: 'platform_local' | 'gateway_openclaw';
+    executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
     harnessType: string;
     role: string;
     status: string;

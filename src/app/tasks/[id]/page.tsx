@@ -23,7 +23,7 @@ interface TaskLog {
     acpxParticipants?: Array<{
       gatewayId: string;
       gatewayName?: string;
-      executionBackend: 'platform_local' | 'gateway_openclaw';
+      executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
       harnessType: string;
       role: string;
     }>;
@@ -48,7 +48,7 @@ interface LatestRun {
   participants: Array<{
     id: string;
     gatewayName: string;
-    executionBackend: 'platform_local' | 'gateway_openclaw';
+    executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
     harnessType: string;
     role: string;
     status: string;
@@ -138,7 +138,7 @@ export default function TaskDetailPage() {
                       key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
                       className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700"
                     >
-                      {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
+                      {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : participant.executionBackend === 'remote_ssh' ? `Remote SSH · ${participant.gatewayName || participant.gatewayId}` : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
                     </span>
                   ))}
                 </div>
@@ -186,7 +186,7 @@ export default function TaskDetailPage() {
                     <div key={participant.id} className="rounded-lg border border-gray-200 p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-gray-900">
-                          {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : participant.gatewayName} / {participant.harnessType}
+                          {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : participant.executionBackend === 'remote_ssh' ? `Remote SSH · ${participant.gatewayName}` : participant.gatewayName} / {participant.harnessType}
                         </span>
                         <span className={`rounded-full px-2 py-0.5 text-xs ${
                           participant.status === 'completed'

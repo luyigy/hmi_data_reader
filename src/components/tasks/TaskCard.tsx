@@ -9,7 +9,7 @@ interface Task {
   acpxParticipants?: Array<{
     gatewayId: string;
     gatewayName?: string;
-    executionBackend: 'platform_local' | 'gateway_openclaw';
+    executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
     harnessType: string;
     harnessLabel?: string;
     role: string;
@@ -201,7 +201,7 @@ export default function TaskCard({ task, onUpdateStatus, onDelete }: TaskCardPro
                   key={`${participant.gatewayId}-${participant.harnessType}-${index}`}
                   className="rounded-full border border-indigo-200 bg-white px-2 py-1 text-[11px] text-indigo-700"
                 >
-                  {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
+                  {participant.role} · {participant.executionBackend === 'platform_local' ? 'Platform Local' : participant.executionBackend === 'remote_ssh' ? `Remote SSH · ${participant.gatewayName || participant.gatewayId}` : (participant.gatewayName || participant.gatewayId)} / {participant.harnessType}
                 </span>
               ))}
             </div>

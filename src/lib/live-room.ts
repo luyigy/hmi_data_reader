@@ -1,19 +1,43 @@
 import { prisma } from '@/lib/prisma';
 import { getSocketServer } from '@/lib/websocket';
 import { deriveGatewayHarnessOptions } from '@/lib/acpx/catalog';
+import type { AcpxExecutionBackend } from '@/lib/acpx/types';
 
 export interface LiveRoomCatalogAgent {
   id: string;
   agentRecordId?: string | null;
   gatewayId: string;
   gatewayName: string;
-  backend: 'platform_local' | 'gateway_openclaw';
+  backend: AcpxExecutionBackend;
   harnessType: string;
   label: string;
   agentName?: string;
   runtimeAgentId?: string;
   status: string;
 }
+
+const REMOTE_HOST_ROLE_LABEL_PREFIX = '__remote_host__:';
+
+export const encodeLiveRoomRoleLabel = ({
+  backend,
+  label,
+  remoteHostId,
+}: {
+  backend: string;
+  label: string;
+  remoteHostId?: string | null;
+}) => {
+  if (backend === 'remote_ssh' && remoteHostId) {
+    return `${label} ${REMOTE_HOST_ROLE_LABEL_PREFIX}${remoteHostId}`;
+  }
+
+  return label;
+};
+
+export const extractRemoteHostIdFromRoleLabel = (value?: string | null) => {
+  const match = value?.match(/__remote_host__:([^\s]+)/);
+  return match?.[1] || null;
+};
 
 export interface LiveRoomMemberPayload {
   id: string;
@@ -104,6 +128,7 @@ export const detectLiveRoomMentionAll = (content: string) => /(^|[\s(])@all\b/i.
 export const getLiveRoomMemberRosterLabel = (member: {
   displayName: string;
   memberType?: string;
+  backend?: string | null;
   gateway?: { name: string } | null;
   gatewayName?: string | null;
   harnessType?: string | null;
@@ -113,12 +138,20 @@ export const getLiveRoomMemberRosterLabel = (member: {
     return `${member.displayName} / user`;
   }
 
-  return `${member.displayName} / ${member.gateway?.name || member.gatewayName || 'Platform Local'} / ${member.harnessType || 'agent'}${member.canReply ? ' / can-reply' : ''}`;
+  const sourceLabel =
+    member.backend === 'platform_local'
+      ? 'Platform Local'
+      : member.backend === 'remote_ssh'
+      ? `Remote SSH · ${member.gateway?.name || member.gatewayName || 'Remote Host'}`
+      : (member.gateway?.name || member.gatewayName || 'Gateway');
+
+  return `${member.displayName} / ${sourceLabel} / ${member.harnessType || 'agent'}${member.canReply ? ' / can-reply' : ''}`;
 };
 
 export const buildLiveRoomRosterText = (members: Array<{
   displayName: string;
   memberType?: string;
+  backend?: string | null;
   gateway?: { name: string } | null;
   gatewayName?: string | null;
   harnessType?: string | null;
@@ -230,7 +263,9 @@ export const serializeLiveRoomMember = (member: {
   canReply: member.canReply,
   sortOrder: member.sortOrder,
   gatewayId: member.gatewayId,
-  gatewayName: member.gateway?.name || null,
+  gatewayName:
+    member.gateway?.name
+    || (member.backend === 'remote_ssh' ? extractRemoteHostIdFromRoleLabel(member.roleLabel) : null),
   agentRecordId: member.agentRecordId,
 });
 
@@ -248,9 +283,11 @@ export const serializeLiveRoomMessage = (message: {
   senderMember?: {
     displayName: string;
     memberType: string;
+    backend?: string | null;
     gateway?: {
       name: string;
     } | null;
+    gatewayName?: string | null;
     harnessType?: string | null;
   } | null;
 }): LiveRoomMessagePayload => ({
@@ -262,7 +299,13 @@ export const serializeLiveRoomMessage = (message: {
     message.senderMember?.memberType === 'user'
       ? message.senderMember.displayName
       : message.senderMember
-      ? `${message.senderMember.displayName} · ${message.senderMember.gateway?.name || 'Platform Local'} / ${message.senderMember.harnessType || 'agent'}`
+      ? `${message.senderMember.displayName} · ${
+          message.senderMember.backend === 'platform_local'
+            ? 'Platform Local'
+            : message.senderMember.backend === 'remote_ssh'
+            ? `Remote SSH · ${message.senderMember.gateway?.name || message.senderMember.gatewayName || 'Remote Host'}`
+            : (message.senderMember.gateway?.name || message.senderMember.gatewayName || 'Gateway')
+        } / ${message.senderMember.harnessType || 'agent'}`
       : '系统',
   senderType: message.senderMember?.memberType || 'system',
   content: message.content,
@@ -371,6 +414,15 @@ export const emitLiveRoomUpdated = async (roomId: string) => {
   }
 
   io.emit('live-room:updated', serializeLiveRoomSummary(room));
+};
+
+export const emitLiveRoomDeleted = (roomId: string) => {
+  const io = getSocketServer();
+  if (!io) {
+    return;
+  }
+
+  io.emit('live-room:deleted', { roomId });
 };
 
 export const postLiveRoomMessage = async ({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   buildLiveRoomRosterText,
+  encodeLiveRoomRoleLabel,
   ensureLiveRoomUserMember,
   listLiveRoomCatalogAgents,
   postLiveRoomMessage,
@@ -16,7 +17,9 @@ export async function GET() {
     const [rooms, availableAgents] = await Promise.all([
       prisma.liveRoom.findMany({
         where: {
-          status: 'active',
+          status: {
+            in: ['active', 'archived'],
+          },
         },
         include: {
           currentSpeaker: true,
@@ -86,14 +89,26 @@ export async function POST(request: NextRequest) {
           data: {
             roomId: room.id,
             agentRecordId: agent.agentRecordId || null,
-            gatewayId: agent.gatewayId === 'platform-local' ? null : agent.gatewayId,
-            memberType: agent.backend === 'gateway_openclaw' ? 'gateway_agent' : 'local_agent',
+            gatewayId:
+              agent.backend === 'gateway_openclaw'
+                ? (agent.gatewayId === 'platform-local' ? null : agent.gatewayId)
+                : null,
+            memberType:
+              agent.backend === 'gateway_openclaw'
+                ? 'gateway_agent'
+                : agent.backend === 'remote_ssh'
+                ? 'remote_agent'
+                : 'local_agent',
             displayName: agent.agentName || agent.label,
             agentNameSnapshot: agent.agentName || agent.label,
             harnessType: agent.harnessType,
             backend: agent.backend,
             runtimeAgentId: agent.runtimeAgentId || null,
-            roleLabel: agent.label,
+            roleLabel: encodeLiveRoomRoleLabel({
+              backend: agent.backend,
+              label: agent.label,
+              remoteHostId: agent.backend === 'remote_ssh' ? agent.gatewayId : null,
+            }),
             joinStatus: 'joined',
             presenceStatus: agent.status === 'online' ? 'online' : 'idle',
             canReply: true,

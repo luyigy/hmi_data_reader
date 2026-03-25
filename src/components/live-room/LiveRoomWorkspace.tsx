@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSocketClient } from '@/lib/websocket-client';
+import { ensureSocketServerReady, getSocketClient } from '@/lib/websocket-client';
 import type {
   LiveRoomCatalogAgent,
   LiveRoomDetail,
@@ -22,19 +22,34 @@ type MentionCandidate =
 
 const ROOMS_PANEL_KEY = 'live-room-left-panel-open';
 const DETAILS_PANEL_KEY = 'live-room-right-panel-open';
+const DISABLE_LIVE_ROOM_SOCKET_AND_POLLING = true;
 
 const getAgentLabel = (agent: LiveRoomCatalogAgent) =>
-  `${agent.agentName || agent.label} · ${agent.gatewayName} / ${agent.harnessType}`;
+  `${agent.agentName || agent.label} · ${
+    agent.backend === 'remote_ssh' ? `Remote SSH · ${agent.gatewayName}` : agent.gatewayName
+  } / ${agent.harnessType}`;
 
 const getMemberLabel = (member: LiveRoomDetail['members'][number]) =>
   member.memberType === 'user'
     ? member.displayName
-    : `${member.displayName} · ${member.gatewayName || 'Platform Local'} / ${member.harnessType || 'agent'}`;
+    : `${member.displayName} · ${
+        member.backend === 'platform_local'
+          ? 'Platform Local'
+          : member.backend === 'remote_ssh'
+          ? `Remote SSH · ${member.gatewayName || 'Remote Host'}`
+          : (member.gatewayName || 'Gateway')
+      } / ${member.harnessType || 'agent'}`;
 
 const getMemberSubtitle = (member: LiveRoomDetail['members'][number]) =>
   member.memberType === 'user'
     ? '你'
-    : `${member.gatewayName || 'Platform Local'} / ${member.harnessType || 'agent'}`;
+    : `${
+        member.backend === 'platform_local'
+          ? 'Platform Local'
+          : member.backend === 'remote_ssh'
+          ? `Remote SSH · ${member.gatewayName || 'Remote Host'}`
+          : (member.gatewayName || 'Gateway')
+      } / ${member.harnessType || 'agent'}`;
 
 const getMentionQuery = (value: string) => value.match(/@([\w\u4e00-\u9fa5-]*)$/)?.[1] ?? '';
 const hasMentionAll = (value: string) => /(^|[\s(])@all\b/i.test(value);
@@ -75,6 +90,9 @@ export function LiveRoomWorkspace({
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [selectedTargetMemberId, setSelectedTargetMemberId] = useState('');
   const [topicDraft, setTopicDraft] = useState('');
+  const [roomTitleDraft, setRoomTitleDraft] = useState('');
+  const [roomDescriptionDraft, setRoomDescriptionDraft] = useState('');
+  const [roomModeDraft, setRoomModeDraft] = useState('discussion');
   const [memberToAdd, setMemberToAdd] = useState('');
   const [isRoomsPanelOpen, setIsRoomsPanelOpen] = useState(true);
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
@@ -82,6 +100,12 @@ export function LiveRoomWorkspace({
   const [isLoadingRoom, setIsLoadingRoom] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isSavingRoomSettings, setIsSavingRoomSettings] = useState(false);
+  const [isArchivingRoom, setIsArchivingRoom] = useState(false);
+  const [isDeletingRoom, setIsDeletingRoom] = useState(false);
+  const [openRoomActionsId, setOpenRoomActionsId] = useState<string | null>(null);
+  const [showArchivedRooms, setShowArchivedRooms] = useState(false);
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
@@ -97,6 +121,8 @@ export function LiveRoomWorkspace({
   );
 
   const mentionQuery = useMemo(() => getMentionQuery(messageInput), [messageInput]);
+  const activeRooms = useMemo(() => rooms.filter((room) => room.status === 'active'), [rooms]);
+  const archivedRooms = useMemo(() => rooms.filter((room) => room.status === 'archived'), [rooms]);
 
   const mentionCandidates = useMemo(() => {
     if (!selectedRoom || !/@([\w\u4e00-\u9fa5-]*)$/.test(messageInput)) {
@@ -183,6 +209,9 @@ export function LiveRoomWorkspace({
       setSelectedRoom(roomData.room || null);
       setMessages(Array.isArray(messagesData.messages) ? messagesData.messages : []);
       setTopicDraft(roomData.room?.currentTopic || '');
+      setRoomTitleDraft(roomData.room?.title || '');
+      setRoomDescriptionDraft(roomData.room?.description || '');
+      setRoomModeDraft(roomData.room?.mode || 'discussion');
       setSelectedTargetMemberId('');
       setDraftMentionAll(false);
       setDraftMentionMemberIds([]);
@@ -236,10 +265,17 @@ export function LiveRoomWorkspace({
   }, [initialRoomId]);
 
   useEffect(() => {
-    const socket = getSocketClient();
-    if (!socket || !initialRoomId) {
+    if (DISABLE_LIVE_ROOM_SOCKET_AND_POLLING) {
+      setIsSocketConnected(false);
       return;
     }
+
+    const socket = getSocketClient();
+    if (!socket) {
+      return;
+    }
+
+    let cancelled = false;
 
     const handleMessage = (message: LiveRoomMessage) => {
       if (message.roomId !== initialRoomId) {
@@ -258,23 +294,104 @@ export function LiveRoomWorkspace({
       });
 
       if (summary.id === initialRoomId) {
-        void refreshSelectedRoom(initialRoomId);
+        setSelectedRoom((current) => current && current.id === summary.id
+          ? {
+              ...current,
+              title: summary.title,
+              description: summary.description,
+              currentTopic: summary.currentTopic,
+              mode: summary.mode,
+              status: summary.status,
+              createdBy: summary.createdBy,
+              createdAt: summary.createdAt,
+              updatedAt: summary.updatedAt,
+              currentSpeakerMemberId: summary.currentSpeakerMemberId,
+              currentSpeakerName: summary.currentSpeakerName,
+              memberCount: summary.memberCount,
+              lastMessagePreview: summary.lastMessagePreview,
+              lastMessageAt: summary.lastMessageAt,
+            }
+          : current);
       }
     };
 
-    if (!socket.connected) {
-      socket.connect();
-    }
+    const handleRoomDeleted = ({ roomId }: { roomId: string }) => {
+      setRooms((prev) => prev.filter((room) => room.id !== roomId));
 
-    socket.emit('live-room:join', { roomId: initialRoomId });
-    socket.on('live-room:message', handleMessage);
-    socket.on('live-room:updated', handleRoomUpdated);
+      if (roomId === initialRoomId) {
+        setSelectedRoom(null);
+        setMessages([]);
+        router.push('/rooms');
+      }
+    };
+
+    const handleConnect = () => {
+      setIsSocketConnected(true);
+    };
+
+    const handleDisconnect = () => {
+      setIsSocketConnected(false);
+    };
+
+    const connectSocket = async () => {
+      await ensureSocketServerReady();
+      if (cancelled) {
+        return;
+      }
+
+      if (!socket.connected) {
+        socket.connect();
+      } else {
+        setIsSocketConnected(true);
+      }
+
+      if (initialRoomId) {
+        socket.emit('live-room:join', { roomId: initialRoomId });
+      }
+
+      socket.on('connect', handleConnect);
+      socket.on('disconnect', handleDisconnect);
+      socket.on('live-room:message', handleMessage);
+      socket.on('live-room:updated', handleRoomUpdated);
+      socket.on('live-room:deleted', handleRoomDeleted);
+    };
+
+    void connectSocket();
 
     return () => {
+      cancelled = true;
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
       socket.off('live-room:message', handleMessage);
       socket.off('live-room:updated', handleRoomUpdated);
+      socket.off('live-room:deleted', handleRoomDeleted);
     };
-  }, [initialRoomId]);
+  }, [initialRoomId, router]);
+
+  useEffect(() => {
+    if (DISABLE_LIVE_ROOM_SOCKET_AND_POLLING) {
+      return;
+    }
+
+    if (isSocketConnected) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
+      void refreshRooms();
+      if (initialRoomId) {
+        void refreshSelectedRoom(initialRoomId);
+      }
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [initialRoomId, isSocketConnected]);
 
   useEffect(() => {
     const viewport = messageViewportRef.current;
@@ -409,6 +526,175 @@ export function LiveRoomWorkspace({
       await refreshRooms();
     } catch (topicError) {
       setError(topicError instanceof Error ? topicError.message : '更新 topic 失败');
+    }
+  };
+
+  const handleSaveRoomSettings = async () => {
+    if (!selectedRoom) {
+      return;
+    }
+
+    if (!roomTitleDraft.trim()) {
+      setError('请先输入 room title');
+      return;
+    }
+
+    setIsSavingRoomSettings(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/live-rooms/${selectedRoom.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: roomTitleDraft.trim(),
+          description: roomDescriptionDraft,
+          mode: roomModeDraft,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '更新房间设置失败');
+      }
+
+      setNotice('房间设置已更新。');
+      await refreshSelectedRoom(selectedRoom.id);
+      await refreshRooms();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '更新房间设置失败');
+    } finally {
+      setIsSavingRoomSettings(false);
+    }
+  };
+
+  const handleOpenRoomSettingsFromList = async (roomId: string) => {
+    setOpenRoomActionsId(null);
+    setIsDetailsPanelOpen(true);
+
+    if (selectedRoom?.id === roomId) {
+      await refreshSelectedRoom(roomId);
+      return;
+    }
+
+    router.push(`/rooms/${roomId}`);
+  };
+
+  const handleArchiveRoomById = async (roomId: string, roomTitle: string) => {
+    const confirmed = window.confirm(`确认归档房间 "${roomTitle}" 吗？归档后它会从当前房间列表中隐藏。`);
+    if (!confirmed) {
+      return;
+    }
+
+    setOpenRoomActionsId(null);
+    setIsArchivingRoom(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/live-rooms/${roomId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'archived',
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '归档房间失败');
+      }
+
+      setNotice(`房间已归档：${roomTitle}`);
+      if (selectedRoom?.id === roomId) {
+        await refreshSelectedRoom(roomId);
+      }
+      await refreshRooms();
+    } catch (archiveError) {
+      setError(archiveError instanceof Error ? archiveError.message : '归档房间失败');
+    } finally {
+      setIsArchivingRoom(false);
+    }
+  };
+
+  const handleArchiveRoom = async () => {
+    if (!selectedRoom) {
+      return;
+    }
+
+    await handleArchiveRoomById(selectedRoom.id, selectedRoom.title);
+  };
+
+  const handleHardDeleteRoom = async () => {
+    if (!selectedRoom) {
+      return;
+    }
+
+    const confirmed = window.confirm(`确认永久删除房间 "${selectedRoom.title}" 吗？这会删除消息、成员和相关记录，且不可恢复。`);
+    if (!confirmed) {
+      return;
+    }
+
+    setOpenRoomActionsId(null);
+    setIsDeletingRoom(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/live-rooms/${selectedRoom.id}?hard=true`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '永久删除房间失败');
+      }
+
+      setNotice(`房间已永久删除：${selectedRoom.title}`);
+      setSelectedRoom(null);
+      setMessages([]);
+      setTopicDraft('');
+      setRoomTitleDraft('');
+      setRoomDescriptionDraft('');
+      setRoomModeDraft('discussion');
+      await refreshRooms();
+      router.push('/rooms');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '永久删除房间失败');
+    } finally {
+      setIsDeletingRoom(false);
+    }
+  };
+
+  const handleHardDeleteRoomById = async (roomId: string, roomTitle: string) => {
+    if (selectedRoom?.id === roomId) {
+      await handleHardDeleteRoom();
+      return;
+    }
+
+    const confirmed = window.confirm(`确认永久删除房间 "${roomTitle}" 吗？这会删除消息、成员和相关记录，且不可恢复。`);
+    if (!confirmed) {
+      return;
+    }
+
+    setOpenRoomActionsId(null);
+    setIsDeletingRoom(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/live-rooms/${roomId}?hard=true`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '永久删除房间失败');
+      }
+
+      setNotice(`房间已永久删除：${roomTitle}`);
+      await refreshRooms();
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '永久删除房间失败');
+    } finally {
+      setIsDeletingRoom(false);
     }
   };
 
@@ -603,26 +889,151 @@ export function LiveRoomWorkspace({
             ) : rooms.length === 0 ? (
               <div className="px-3 py-4 text-sm text-slate-500">还没有 live room，先创建一个。</div>
             ) : (
-              <div className="space-y-1">
-                {rooms.map((room) => {
-                  const isActive = room.id === selectedRoom?.id || room.id === initialRoomId;
-                  return (
-                    <Link
-                      key={room.id}
-                      href={`/rooms/${room.id}`}
-                      className={`block rounded-2xl px-3 py-3 transition ${
-                        isActive ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/70'
-                      }`}
-                    >
-                      <div className="truncate text-sm font-medium text-slate-900">{room.title}</div>
-                      <div className="mt-1 truncate text-xs text-slate-500">{room.currentTopic || '暂未设置 topic'}</div>
-                      <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
-                        <span>{room.memberCount} members</span>
-                        <span className="truncate">{room.currentSpeakerName || '无 speaker'}</span>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  {activeRooms.map((room) => {
+                    const isActive = room.id === selectedRoom?.id || room.id === initialRoomId;
+                    return (
+                      <div
+                        key={room.id}
+                        className={`relative rounded-2xl px-3 py-3 transition ${
+                          isActive ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/70'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <Link
+                            href={`/rooms/${room.id}`}
+                            className="min-w-0 flex-1"
+                          >
+                            <div className="truncate text-sm font-medium text-slate-900">{room.title}</div>
+                            <div className="mt-1 truncate text-xs text-slate-500">{room.currentTopic || '暂未设置 topic'}</div>
+                            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                              <span>{room.memberCount} members</span>
+                              <span className="truncate">{room.currentSpeakerName || '无 speaker'}</span>
+                            </div>
+                          </Link>
+                          <div className="relative shrink-0">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenRoomActionsId((current) => current === room.id ? null : room.id)
+                              }
+                              className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                              aria-label={`Open actions for ${room.title}`}
+                            >
+                              ...
+                            </button>
+                            {openRoomActionsId === room.id ? (
+                              <div className="absolute right-0 top-10 z-10 w-40 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleOpenRoomSettingsFromList(room.id)}
+                                  className="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleArchiveRoomById(room.id, room.title)}
+                                  disabled={isArchivingRoom}
+                                  className="block w-full rounded-xl px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50 disabled:text-rose-300"
+                                >
+                                  Archive
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                    </Link>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white/60">
+                  <button
+                    type="button"
+                    onClick={() => setShowArchivedRooms((current) => !current)}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left"
+                  >
+                    <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Archived Rooms
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {archivedRooms.length} {showArchivedRooms ? 'hide' : 'show'}
+                    </span>
+                  </button>
+                  {showArchivedRooms ? (
+                    archivedRooms.length === 0 ? (
+                      <div className="px-3 pb-3 text-sm text-slate-500">还没有 archived rooms。</div>
+                    ) : (
+                      <div className="space-y-1 px-2 pb-2">
+                        {archivedRooms.map((room) => {
+                          const isActive = room.id === selectedRoom?.id || room.id === initialRoomId;
+                          return (
+                            <div
+                              key={room.id}
+                              className={`relative rounded-2xl px-3 py-3 transition ${
+                                isActive ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/70'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <Link
+                                  href={`/rooms/${room.id}`}
+                                  className="min-w-0 flex-1"
+                                >
+                                  <div className="truncate text-sm font-medium text-slate-700">{room.title}</div>
+                                  <div className="mt-1 truncate text-xs text-slate-500">{room.currentTopic || '暂未设置 topic'}</div>
+                                  <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                                    <span>{room.memberCount} members</span>
+                                    <span className="truncate">archived</span>
+                                  </div>
+                                </Link>
+                                <div className="relative shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setOpenRoomActionsId((current) => current === room.id ? null : room.id)
+                                    }
+                                    className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                                    aria-label={`Open actions for ${room.title}`}
+                                  >
+                                    ...
+                                  </button>
+                                  {openRoomActionsId === room.id ? (
+                                    <div className="absolute right-0 top-10 z-10 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleOpenRoomSettingsFromList(room.id)}
+                                        className="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-300"
+                                      >
+                                        Archived
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleHardDeleteRoomById(room.id, room.title)}
+                                        disabled={isDeletingRoom}
+                                        className="block w-full rounded-xl px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50 disabled:text-rose-300"
+                                      >
+                                        Delete Permanently
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : null}
+                </div>
               </div>
             )}
           </div>
@@ -903,6 +1314,66 @@ export function LiveRoomWorkspace({
             <div className="mt-4 text-sm text-slate-500">选择或创建一个房间后，这里会显示 topic、speaker 和成员信息。</div>
           ) : (
             <div className="space-y-5">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-sm font-medium text-slate-900">房间设置</div>
+                <div className="mt-3 space-y-3">
+                  <label className="block">
+                    <div className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Title</div>
+                    <input
+                      value={roomTitleDraft}
+                      onChange={(event) => setRoomTitleDraft(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Description</div>
+                    <textarea
+                      value={roomDescriptionDraft}
+                      onChange={(event) => setRoomDescriptionDraft(event.target.value)}
+                      rows={3}
+                      className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Mode</div>
+                    <select
+                      value={roomModeDraft}
+                      onChange={(event) => setRoomModeDraft(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                    >
+                      <option value="discussion">discussion</option>
+                      <option value="execution">execution</option>
+                      <option value="hybrid">hybrid</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => void handleSaveRoomSettings()}
+                    disabled={isSavingRoomSettings}
+                    className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:text-slate-400"
+                  >
+                    {isSavingRoomSettings ? '保存中...' : '保存房间设置'}
+                  </button>
+                  <button
+                    onClick={() => void handleArchiveRoom()}
+                    disabled={isArchivingRoom}
+                    className="rounded-full border border-rose-300 bg-white px-4 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:text-rose-300"
+                  >
+                    {isArchivingRoom ? '归档中...' : '归档房间'}
+                  </button>
+                  {selectedRoom.status === 'archived' ? (
+                    <button
+                      onClick={() => void handleHardDeleteRoom()}
+                      disabled={isDeletingRoom}
+                      className="rounded-full border border-rose-500 bg-rose-50 px-4 py-2 text-xs font-medium text-rose-800 transition hover:bg-rose-100 disabled:text-rose-300"
+                    >
+                      {isDeletingRoom ? '删除中...' : '永久删除'}
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+
               <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="text-sm font-medium text-slate-900">当前 Topic</div>
                 <textarea

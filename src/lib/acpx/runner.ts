@@ -7,6 +7,8 @@ import {
 } from '@/lib/openclaw-client';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
+import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
+import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { getHarnessCapabilities } from './capabilities';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, getLocalHarnessPermissionSupport } from './permissions';
@@ -426,7 +428,7 @@ const clearWaitingForInputIfNeeded = async (taskRunId: string, participantId: st
 const toParticipantPayload = (participant: {
   gatewayId?: string | null;
   gatewayNameSnapshot: string;
-  executionBackend: 'platform_local' | 'gateway_openclaw';
+  executionBackend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
   harnessType: string;
   harnessNameSnapshot?: string | null;
   role: string;
@@ -478,7 +480,7 @@ const buildHarnessPrompt = (
 
 Role: ${participant.role}
 Harness: ${participant.harnessType}
-Gateway: ${participant.gatewayName || participant.gatewayId}
+Target: ${participant.gatewayName || participant.gatewayId}
 Execution Backend: ${participant.executionBackend}
 
 You are being launched from a chat-first task room.
@@ -647,6 +649,72 @@ const executeViaLocalHarness = async (
   }
 
   throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
+};
+
+const executeViaRemoteSshHarness = async (
+  request: AcpxRunRequest,
+  taskRunId: string,
+  participantId: string,
+  participant: AcpxParticipantRequest,
+  callbacks: HarnessStreamCallbacks,
+  previousSummaries: string[],
+  taskRoomContext: {
+    transcript: string;
+    latestUserMessage: {
+      id: string;
+      content: string;
+      createdAt: string;
+      targetType: string;
+      targetParticipantLabel: string | null;
+    } | null;
+  },
+  onSpawn?: (child: { pid?: number }) => void
+): Promise<{
+  output: string;
+  filesModified: string[];
+  executionTime: number;
+  liveStreaming: boolean;
+  threadId?: string;
+}> => {
+  const remoteHost = await getRemoteHarnessHostById(participant.gatewayId);
+
+  if (!remoteHost) {
+    throw new Error(`Remote SSH host not found: ${participant.gatewayId}`);
+  }
+
+  if (!remoteHost.supportedHarnesses.includes(participant.harnessType.toLowerCase())) {
+    throw new Error(
+      `Remote SSH host "${remoteHost.label}" does not declare harness "${participant.harnessType}"`
+    );
+  }
+
+  return executeRemoteSshTask(
+    {
+      id: request.taskId,
+      name: request.taskName,
+      description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext),
+    },
+    {
+      timeout:
+        request.watchdogConfig?.maxRuntimeMs
+        ?? (participant.harnessType === 'claude'
+          ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
+          : DEFAULT_CODEX_MAX_RUNTIME_MS),
+      harnessType: participant.harnessType,
+      host: remoteHost,
+      streamCallbacks: callbacks,
+      onSpawn: (child) => {
+        registerRunningProcess({
+          taskRunId,
+          participantId,
+          child,
+          executionBackend: participant.executionBackend,
+          harnessType: participant.harnessType,
+        });
+        onSpawn?.(child);
+      },
+    }
+  );
 };
 
 export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
@@ -969,21 +1037,35 @@ const executeParticipant = async (
   try {
     const taskRoomContext = await buildTaskRoomPromptContext(request.taskId, request.taskName, 30);
     const localSpawnHandler = (child: { pid?: number }) => {
-      void persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
+      if (participant.executionBackend === 'platform_local') {
+        void persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
+      }
     };
 
-    const result = participant.executionBackend === 'platform_local'
-      ? await executeViaLocalHarness(
-          request,
-          taskRunId,
-          participantId,
-          participant,
-          callbacks,
-          previousSummaries,
-          taskRoomContext,
-          localSpawnHandler
-        )
-      : await executeViaGateway(request, participant, previousSummaries, taskRoomContext);
+    const result =
+      participant.executionBackend === 'platform_local'
+        ? await executeViaLocalHarness(
+            request,
+            taskRunId,
+            participantId,
+            participant,
+            callbacks,
+            previousSummaries,
+            taskRoomContext,
+            localSpawnHandler
+          )
+        : participant.executionBackend === 'remote_ssh'
+        ? await executeViaRemoteSshHarness(
+            request,
+            taskRunId,
+            participantId,
+            participant,
+            callbacks,
+            previousSummaries,
+            taskRoomContext,
+            localSpawnHandler
+          )
+        : await executeViaGateway(request, participant, previousSummaries, taskRoomContext);
 
     clearRunningProcess(registryParticipantId);
 

@@ -63,7 +63,7 @@ export async function GET(
               id: participant.id,
               gatewayId: participant.gatewayId,
               gatewayName: participant.gatewayNameSnapshot,
-              executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw',
+              executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
               harnessType: participant.harnessType,
               harnessLabel: participant.harnessNameSnapshot,
               role: participant.role,
@@ -90,7 +90,7 @@ export async function GET(
                 ? {
                     gatewayId: event.participant.gatewayId,
                     gatewayName: event.participant.gatewayNameSnapshot,
-                    executionBackend: event.participant.executionBackend as 'platform_local' | 'gateway_openclaw',
+                    executionBackend: event.participant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
                     harnessType: event.participant.harnessType,
                     harnessLabel: event.participant.harnessNameSnapshot,
                     role: event.participant.role,

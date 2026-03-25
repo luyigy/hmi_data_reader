@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getRealAgentsStatus } from '@/lib/real-agents';
 import type { AcpxExecutionBackend } from './types';
 
-export interface GatewayHarnessOption {
+export interface HarnessOption {
   gatewayId: string;
   gatewayName: string;
   executionBackend: AcpxExecutionBackend;
@@ -41,8 +41,26 @@ const toTitleCase = (value: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
-export const deriveGatewayHarnessOptions = async (): Promise<GatewayHarnessOption[]> => {
-  const [gateways, localStatus] = await Promise.all([
+const parseSupportedHarnesses = (value?: string | null): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => normalizeHarnessType(item))
+          .filter((item): item is string => Boolean(item))
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> => {
+  const [gateways, localStatus, remoteHosts] = await Promise.all([
     prisma.gateway.findMany({
       include: {
         agents: {
@@ -56,9 +74,14 @@ export const deriveGatewayHarnessOptions = async (): Promise<GatewayHarnessOptio
       },
     }),
     getRealAgentsStatus(),
+    prisma.remoteHarnessHost.findMany({
+      orderBy: {
+        label: 'asc',
+      },
+    }),
   ]);
 
-  const options: GatewayHarnessOption[] = [];
+  const options: HarnessOption[] = [];
 
   if (localStatus.codex.available) {
     options.push({
@@ -109,6 +132,24 @@ export const deriveGatewayHarnessOptions = async (): Promise<GatewayHarnessOptio
         agentName: agent.name,
         runtimeAgentId: agent.runtimeAgentId || undefined,
         status: agent.status,
+      });
+    }
+  }
+
+  for (const host of remoteHosts) {
+    const supportedHarnesses = parseSupportedHarnesses(host.supportedHarnesses);
+
+    for (const harnessType of supportedHarnesses) {
+      options.push({
+        gatewayId: host.id,
+        gatewayName: host.label,
+        executionBackend: 'remote_ssh',
+        harnessType,
+        harnessLabel: `${host.label} / ${toTitleCase(harnessType)} SSH`,
+        agentId: `remote-ssh:${host.id}:${harnessType}`,
+        agentName: `${host.label} ${toTitleCase(harnessType)}`,
+        runtimeAgentId: harnessType,
+        status: host.status,
       });
     }
   }

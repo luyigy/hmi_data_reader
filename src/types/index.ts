@@ -67,7 +67,7 @@ export interface LiveRoomCatalogAgent {
   agentRecordId?: string | null;
   gatewayId: string;
   gatewayName: string;
-  backend: 'platform_local' | 'gateway_openclaw';
+  backend: 'platform_local' | 'gateway_openclaw' | 'remote_ssh';
   harnessType: string;
   label: string;
   agentName?: string;

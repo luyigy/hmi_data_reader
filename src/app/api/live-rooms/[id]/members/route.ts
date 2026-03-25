@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
   buildLiveRoomRosterText,
+  encodeLiveRoomRoleLabel,
+  extractRemoteHostIdFromRoleLabel,
   listLiveRoomCatalogAgents,
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
@@ -52,7 +54,11 @@ export async function POST(
     const duplicate = room.members.find((member) =>
       member.runtimeAgentId === (agent.runtimeAgentId || null)
       && member.backend === agent.backend
-      && member.gatewayId === (agent.gatewayId === 'platform-local' ? null : agent.gatewayId)
+      && (
+        agent.backend === 'remote_ssh'
+          ? extractRemoteHostIdFromRoleLabel(member.roleLabel) === agent.gatewayId
+          : member.gatewayId === (agent.gatewayId === 'platform-local' ? null : agent.gatewayId)
+      )
     );
 
     if (duplicate) {
@@ -70,14 +76,26 @@ export async function POST(
       data: {
         roomId: room.id,
         agentRecordId: agent.agentRecordId || null,
-        gatewayId: agent.gatewayId === 'platform-local' ? null : agent.gatewayId,
-        memberType: agent.backend === 'gateway_openclaw' ? 'gateway_agent' : 'local_agent',
+        gatewayId:
+          agent.backend === 'gateway_openclaw'
+            ? (agent.gatewayId === 'platform-local' ? null : agent.gatewayId)
+            : null,
+        memberType:
+          agent.backend === 'gateway_openclaw'
+            ? 'gateway_agent'
+            : agent.backend === 'remote_ssh'
+            ? 'remote_agent'
+            : 'local_agent',
         displayName: agent.agentName || agent.label,
         agentNameSnapshot: agent.agentName || agent.label,
         harnessType: agent.harnessType,
         backend: agent.backend,
         runtimeAgentId: agent.runtimeAgentId || null,
-        roleLabel: agent.label,
+        roleLabel: encodeLiveRoomRoleLabel({
+          backend: agent.backend,
+          label: agent.label,
+          remoteHostId: agent.backend === 'remote_ssh' ? agent.gatewayId : null,
+        }),
         joinStatus: 'joined',
         presenceStatus: agent.status === 'online' ? 'online' : 'idle',
         canReply: true,

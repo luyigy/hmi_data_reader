@@ -162,7 +162,7 @@ const reconcileTaskRun = async (taskRunId: string) => {
           ...parseMetadata(run.controlMetadata),
           liveness: {
             reconciledAt: now.toISOString(),
-            staleParticipantIds: [...staleParticipantIds],
+            staleParticipantIds: Array.from(staleParticipantIds),
             reason: 'local_process_missing',
           },
         }),
@@ -234,7 +234,7 @@ const reconcileTaskRun = async (taskRunId: string) => {
       participant: {
         gatewayId: participant.gatewayId ?? null,
         gatewayName: participant.gatewayNameSnapshot,
-        executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw',
+        executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
         harnessType: participant.harnessType,
         harnessLabel: participant.harnessNameSnapshot ?? null,
         role: participant.role,
@@ -271,7 +271,7 @@ const reconcileTaskRun = async (taskRunId: string) => {
         ? '平台检测到本地 harness 进程已消失，已按停止请求收口该 run。'
         : '平台检测到本地 harness 进程已消失，已按中断请求收口该 run。',
     metadata: {
-      staleParticipantIds: [...staleParticipantIds],
+            staleParticipantIds: Array.from(staleParticipantIds),
       reconciledAt: now.toISOString(),
     },
   });
