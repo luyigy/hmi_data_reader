@@ -295,10 +295,15 @@ const runRemoteHarness = async ({
   gatewayId,
   harnessType,
   prompt,
+  onProgress,
 }: {
   gatewayId: string;
   harnessType: string;
   prompt: string;
+  onProgress?: (event: {
+    phase: 'ssh_spawned' | 'remote_command_started' | 'first_stdout' | 'first_stderr' | 'streaming_output' | 'completed';
+    at: number;
+  }) => void;
 }) => {
   const remoteHost = await getRemoteHarnessHostById(gatewayId);
 
@@ -322,12 +327,14 @@ const runRemoteHarness = async ({
       timeout: DEFAULT_TIMEOUT_MS,
       harnessType,
       host: remoteHost,
+      onProgress,
     }
   );
 
   return {
     output: result.output,
     threadId: null,
+    timing: result.timing,
   };
 };
 
@@ -429,6 +436,13 @@ export const triggerLiveRoomAgentReply = async ({
 
     let output = '';
     let threadId: string | null = session.threadId;
+    let remoteTiming: {
+      sshStartMs: number;
+      remoteCommandStartMs?: number;
+      firstStdoutMs?: number;
+      firstStderrMs?: number;
+      totalMs: number;
+    } | null = null;
 
     if (targetMember.backend === 'gateway_openclaw') {
       if (!targetMember.gatewayId) {
@@ -457,9 +471,29 @@ export const triggerLiveRoomAgentReply = async ({
         gatewayId: remoteHostId,
         harnessType: targetMember.harnessType || 'claude',
         prompt,
+        onProgress: async (event) => {
+          const progressLabelByPhase: Record<typeof event.phase, string> = {
+            ssh_spawned: 'SSH connecting',
+            remote_command_started: 'remote command started',
+            first_stdout: 'remote stdout received',
+            first_stderr: 'remote stderr received',
+            streaming_output: 'remote output streaming',
+            completed: 'remote command completed',
+          };
+
+          await prisma.liveRoomMemberSession.update({
+            where: { id: session.id },
+            data: {
+              status: 'busy',
+              lastHeartbeatAt: new Date(event.at),
+              lastError: `progress:${progressLabelByPhase[event.phase]}`,
+            },
+          }).catch(() => undefined);
+        },
       });
       output = result.output;
       threadId = result.threadId;
+      remoteTiming = result.timing;
     } else {
       const result = await runLocalHarness({
         harnessType: targetMember.harnessType || 'codex',
@@ -530,6 +564,7 @@ export const triggerLiveRoomAgentReply = async ({
           backend: targetMember.backend,
           harnessType: targetMember.harnessType,
           chainDepth,
+          remoteTiming,
         },
       }),
     });

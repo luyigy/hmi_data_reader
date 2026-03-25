@@ -141,6 +141,9 @@ export interface LiveRoomDetail extends LiveRoomSummary {
     oldestPendingAt: string;
     newestPendingAt: string;
     newestPendingAgeSeconds: number;
+    lastProgressAt?: string | null;
+    lastProgressAgeSeconds?: number | null;
+    progressLabel?: string | null;
     status: 'running' | 'stalled';
   }>;
   members: LiveRoomMember[];

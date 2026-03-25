@@ -132,6 +132,8 @@ export function LiveRoomWorkspace({
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dismissedNotice, setDismissedNotice] = useState<string | null>(null);
+  const [dismissedPendingSummary, setDismissedPendingSummary] = useState<string | null>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
 
@@ -148,6 +150,23 @@ export function LiveRoomWorkspace({
   const mentionQuery = useMemo(() => getMentionQuery(messageInput), [messageInput]);
   const activeRooms = useMemo(() => rooms.filter((room) => room.status === 'active'), [rooms]);
   const archivedRooms = useMemo(() => rooms.filter((room) => room.status === 'archived'), [rooms]);
+  const pendingSummaryText = useMemo(() => {
+    if (!selectedRoom?.pendingReplies?.length) {
+      return null;
+    }
+
+    return selectedRoom.pendingReplies.map((reply) => (
+      `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''}：${
+        reply.status === 'stalled'
+          ? `等待过久，可能卡住（${formatPendingAge(reply.newestPendingAgeSeconds)})`
+          : `${reply.progressLabel || '正在执行'}（${formatPendingAge(reply.newestPendingAgeSeconds)}）`
+      }${
+        reply.lastProgressAgeSeconds != null
+          ? `，最近进度 ${formatPendingAge(reply.lastProgressAgeSeconds)} 前`
+          : ''
+      }`
+    )).join('；');
+  }, [selectedRoom?.pendingReplies]);
 
   const mentionCandidates = useMemo(() => {
     if (!selectedRoom || !/@([\w\u4e00-\u9fa5-]*)$/.test(messageInput)) {
@@ -336,6 +355,26 @@ export function LiveRoomWorkspace({
       window.clearInterval(intervalId);
     };
   }, [selectedRoom?.id, selectedRoom?.pendingReplyCount]);
+
+  useEffect(() => {
+    if (!dismissedNotice) {
+      return;
+    }
+
+    if (notice !== dismissedNotice) {
+      setDismissedNotice(null);
+    }
+  }, [dismissedNotice, notice]);
+
+  useEffect(() => {
+    if (!dismissedPendingSummary) {
+      return;
+    }
+
+    if (pendingSummaryText !== dismissedPendingSummary) {
+      setDismissedPendingSummary(null);
+    }
+  }, [dismissedPendingSummary, pendingSummaryText]);
 
   useEffect(() => {
     if (DISABLE_LIVE_ROOM_SOCKET_AND_POLLING) {
@@ -1397,7 +1436,9 @@ export function LiveRoomWorkspace({
                       : '还没有 speaker，先在右侧选择一个可回复成员。'}
                     {selectedRoom?.pendingReplies?.length
                       ? ` 正在等待：${selectedRoom.pendingReplies.map((reply) => (
-                        `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''} (${reply.status === 'stalled' ? `可能卡住，已等待 ${formatPendingAge(reply.newestPendingAgeSeconds)}` : `处理中 ${formatPendingAge(reply.newestPendingAgeSeconds)}`})`
+                        `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''} (${reply.status === 'stalled'
+                          ? `可能卡住，已等待 ${formatPendingAge(reply.newestPendingAgeSeconds)}`
+                          : `${reply.progressLabel || '处理中'} ${formatPendingAge(reply.newestPendingAgeSeconds)}`})`
                       )).join('、')}`
                       : selectedRoom?.pendingReplyCount
                       ? ` 正在等待：${(selectedRoom.pendingReplyTargetNames || []).join('、') || `${selectedRoom.pendingReplyCount} 个 agent`}`
@@ -1412,16 +1453,30 @@ export function LiveRoomWorkspace({
                   </button>
                 </div>
               </div>
-              {notice ? (
-                <div className="mx-auto mt-2 max-w-4xl rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
-                  {notice}
+              {notice && notice !== dismissedNotice ? (
+                <div className="mx-auto mt-2 flex max-w-4xl items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
+                  <div className="min-w-0 flex-1">{notice}</div>
+                  <button
+                    type="button"
+                    onClick={() => setDismissedNotice(notice)}
+                    className="shrink-0 rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-100"
+                    aria-label="Dismiss notice"
+                  >
+                    x
+                  </button>
                 </div>
               ) : null}
-              {selectedRoom?.pendingReplies?.length ? (
-                <div className="mx-auto mt-2 max-w-4xl rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-700">
-                  {selectedRoom.pendingReplies.map((reply) => (
-                    `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''}：${reply.status === 'stalled' ? `等待过久，可能卡住（${formatPendingAge(reply.newestPendingAgeSeconds)}）` : `正在执行（${formatPendingAge(reply.newestPendingAgeSeconds)}）`}`
-                  )).join('；')}。页面会轻量自动刷新。
+              {pendingSummaryText && pendingSummaryText !== dismissedPendingSummary ? (
+                <div className="mx-auto mt-2 flex max-w-4xl items-start justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-700">
+                  <div className="min-w-0 flex-1">{pendingSummaryText}。页面会轻量自动刷新。</div>
+                  <button
+                    type="button"
+                    onClick={() => setDismissedPendingSummary(pendingSummaryText)}
+                    className="shrink-0 rounded-full border border-sky-300 bg-white px-2 py-0.5 text-[11px] font-medium text-sky-700 transition hover:bg-sky-100"
+                    aria-label="Dismiss pending summary"
+                  >
+                    x
+                  </button>
                 </div>
               ) : null}
               {error ? (

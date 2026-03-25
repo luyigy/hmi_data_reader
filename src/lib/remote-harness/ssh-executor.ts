@@ -17,6 +17,10 @@ interface RemoteSshExecutionOptions {
   host: RemoteHarnessHostRecord;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
+  onProgress?: (event: {
+    phase: 'ssh_spawned' | 'remote_command_started' | 'first_stdout' | 'first_stderr' | 'streaming_output' | 'completed';
+    at: number;
+  }) => void;
 }
 
 interface RemoteSshCommandOptions {
@@ -26,6 +30,10 @@ interface RemoteSshCommandOptions {
   stdin?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
+  onProgress?: (event: {
+    phase: 'ssh_spawned' | 'remote_command_started' | 'first_stdout' | 'first_stderr' | 'streaming_output' | 'completed';
+    at: number;
+  }) => void;
 }
 
 export interface RemoteSshExecutionResult {
@@ -33,6 +41,13 @@ export interface RemoteSshExecutionResult {
   filesModified: string[];
   executionTime: number;
   liveStreaming: boolean;
+  timing: {
+    sshStartMs: number;
+    remoteCommandStartMs?: number;
+    firstStdoutMs?: number;
+    firstStderrMs?: number;
+    totalMs: number;
+  };
 }
 
 export interface RemoteSshProbeResult {
@@ -56,9 +71,9 @@ const buildRemoteCommand = (harnessType: string, workingDirectory?: string | nul
   let command: string;
 
   if (harnessType === 'codex') {
-    command = `${quotedCwd}codex exec --json --skip-git-repo-check -`;
+    command = `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}codex exec --json --skip-git-repo-check -`;
   } else if (harnessType === 'claude') {
-    command = `${quotedCwd}PROMPT=$(cat) && claude "$PROMPT" --print --permission-mode bypassPermissions`;
+    command = `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}PROMPT=$(cat) && claude "$PROMPT" --print --permission-mode bypassPermissions`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -88,7 +103,7 @@ export const executeRemoteSshTask = async (
   const startedAt = Date.now();
   let codexResolvedText = '';
   let codexStdoutBuffer = '';
-  const { stdout, stderr } = await runRemoteSshCommand({
+  const { stdout, stderr, timing } = await runRemoteSshCommand({
     timeout: options.timeout,
     host: options.host,
     command: buildRemoteCommand(options.harnessType, options.host.workingDirectory),
@@ -132,6 +147,7 @@ export const executeRemoteSshTask = async (
           }
         : options.streamCallbacks,
     onSpawn: options.onSpawn,
+    onProgress: options.onProgress,
   });
 
   if (options.harnessType === 'codex' && codexStdoutBuffer.trim()) {
@@ -162,6 +178,7 @@ export const executeRemoteSshTask = async (
     filesModified: options.harnessType === 'claude' ? extractClaudeModifiedFiles(output) : [],
     executionTime: Date.now() - startedAt,
     liveStreaming: true,
+    timing,
   };
 };
 
@@ -172,8 +189,20 @@ const runRemoteSshCommand = async ({
   stdin,
   streamCallbacks,
   onSpawn,
-}: RemoteSshCommandOptions): Promise<{ stdout: string; stderr: string }> => {
+  onProgress,
+}: RemoteSshCommandOptions): Promise<{
+  stdout: string;
+  stderr: string;
+  timing: {
+    sshStartMs: number;
+    remoteCommandStartMs?: number;
+    firstStdoutMs?: number;
+    firstStderrMs?: number;
+    totalMs: number;
+  };
+}> => {
   const { spawn } = await import('child_process');
+  const startedAt = Date.now();
   const sshKeyPath = host.privateKey
     ? join(tmpdir(), `acpx-remote-key-${process.pid}-${Date.now()}`)
     : null;
@@ -206,10 +235,24 @@ const runRemoteSshCommand = async ({
   ];
 
   try {
-    return await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    return await new Promise<{
+      stdout: string;
+      stderr: string;
+      timing: {
+        sshStartMs: number;
+        remoteCommandStartMs?: number;
+        firstStdoutMs?: number;
+        firstStderrMs?: number;
+        totalMs: number;
+      };
+    }>((resolve, reject) => {
       let stdout = '';
       let stderr = '';
       let settled = false;
+      let remoteCommandStartedAt: number | undefined;
+      let firstStdoutAt: number | undefined;
+      let firstStderrAt: number | undefined;
+      let lastStreamingAt = 0;
       const child = spawn('ssh', sshArgs, {
         env: { ...process.env },
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -217,6 +260,7 @@ const runRemoteSshCommand = async ({
       });
 
       onSpawn?.(child);
+      onProgress?.({ phase: 'ssh_spawned', at: Date.now() });
 
       const timeoutId = setTimeout(() => {
         if (settled) {
@@ -234,14 +278,47 @@ const runRemoteSshCommand = async ({
 
       child.stdout.on('data', (data) => {
         const chunk = data.toString();
+        if (!firstStdoutAt) {
+          firstStdoutAt = Date.now();
+          onProgress?.({ phase: 'first_stdout', at: firstStdoutAt });
+        }
+        if (Date.now() - lastStreamingAt > 1000) {
+          lastStreamingAt = Date.now();
+          onProgress?.({ phase: 'streaming_output', at: lastStreamingAt });
+        }
         stdout += chunk;
         void streamCallbacks?.onStdoutChunk?.(chunk);
       });
 
       child.stderr.on('data', (data) => {
         const chunk = data.toString();
-        stderr += chunk;
-        void streamCallbacks?.onStderrChunk?.(chunk);
+        const lines = chunk.split('\n');
+        const forwardedLines: string[] = [];
+
+        for (const line of lines) {
+          if (line.trim() === '__ACPX_REMOTE_COMMAND_START__') {
+            if (!remoteCommandStartedAt) {
+              remoteCommandStartedAt = Date.now();
+              onProgress?.({ phase: 'remote_command_started', at: remoteCommandStartedAt });
+            }
+            continue;
+          }
+          forwardedLines.push(line);
+        }
+
+        const forwarded = forwardedLines.join('\n');
+        if (forwarded) {
+          if (!firstStderrAt) {
+            firstStderrAt = Date.now();
+            onProgress?.({ phase: 'first_stderr', at: firstStderrAt });
+          }
+          if (Date.now() - lastStreamingAt > 1000) {
+            lastStreamingAt = Date.now();
+            onProgress?.({ phase: 'streaming_output', at: lastStreamingAt });
+          }
+          stderr += forwarded;
+          void streamCallbacks?.onStderrChunk?.(forwarded);
+        }
       });
 
       child.on('error', (error) => {
@@ -261,7 +338,19 @@ const runRemoteSshCommand = async ({
         clearTimeout(timeoutId);
 
         if (code === 0) {
-          resolve({ stdout, stderr });
+          const completedAt = Date.now();
+          onProgress?.({ phase: 'completed', at: completedAt });
+          resolve({
+            stdout,
+            stderr,
+            timing: {
+              sshStartMs: 0,
+              remoteCommandStartMs: remoteCommandStartedAt ? remoteCommandStartedAt - startedAt : undefined,
+              firstStdoutMs: firstStdoutAt ? firstStdoutAt - startedAt : undefined,
+              firstStderrMs: firstStderrAt ? firstStderrAt - startedAt : undefined,
+              totalMs: completedAt - startedAt,
+            },
+          });
           return;
         }
 

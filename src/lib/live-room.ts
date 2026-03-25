@@ -119,6 +119,9 @@ export interface LiveRoomPendingReplyPayload {
   oldestPendingAt: string;
   newestPendingAt: string;
   newestPendingAgeSeconds: number;
+  lastProgressAt?: string | null;
+  lastProgressAgeSeconds?: number | null;
+  progressLabel?: string | null;
   status: 'running' | 'stalled';
 }
 
@@ -382,9 +385,27 @@ export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRo
       createdAt: 'asc',
     },
   });
+  const latestSessions = await prisma.liveRoomMemberSession.findMany({
+    where: {
+      roomId,
+      memberId: {
+        in: pendingDeliveries.map((delivery) => delivery.targetMember.id),
+      },
+    },
+    orderBy: {
+      updatedAt: 'desc',
+    },
+  });
 
   const now = Date.now();
   const grouped = new Map<string, LiveRoomPendingReplyPayload>();
+  const latestSessionByMemberId = new Map<string, typeof latestSessions[number]>();
+
+  for (const session of latestSessions) {
+    if (!latestSessionByMemberId.has(session.memberId)) {
+      latestSessionByMemberId.set(session.memberId, session);
+    }
+  }
 
   for (const delivery of pendingDeliveries) {
     const existing = grouped.get(delivery.targetMember.id);
@@ -399,6 +420,9 @@ export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRo
         oldestPendingAt: createdAtIso,
         newestPendingAt: createdAtIso,
         newestPendingAgeSeconds: Math.max(0, Math.floor((now - createdAtMs) / 1000)),
+        lastProgressAt: null,
+        lastProgressAgeSeconds: null,
+        progressLabel: null,
         status: 'running',
       });
       continue;
@@ -415,10 +439,24 @@ export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRo
   }
 
   return [...grouped.values()]
-    .map((item) => ({
-      ...item,
-      status: item.newestPendingAgeSeconds >= 180 ? 'stalled' : 'running',
-    }))
+    .map((item) => {
+      const session = latestSessionByMemberId.get(item.memberId);
+      const lastProgressAt = session?.lastHeartbeatAt?.toISOString() || null;
+      const lastProgressAgeSeconds = session?.lastHeartbeatAt
+        ? Math.max(0, Math.floor((now - session.lastHeartbeatAt.getTime()) / 1000))
+        : null;
+      const progressLabel = session?.lastError?.startsWith('progress:')
+        ? session.lastError.replace(/^progress:/, '')
+        : null;
+
+      return {
+        ...item,
+        lastProgressAt,
+        lastProgressAgeSeconds,
+        progressLabel,
+        status: item.newestPendingAgeSeconds >= 180 || ((lastProgressAgeSeconds ?? 0) >= 180) ? 'stalled' : 'running',
+      };
+    })
     .sort((left, right) => right.newestPendingAt.localeCompare(left.newestPendingAt));
 };
 
