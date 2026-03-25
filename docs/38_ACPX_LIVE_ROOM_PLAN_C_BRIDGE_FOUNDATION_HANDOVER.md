@@ -17,6 +17,166 @@
 3. 哪些能力仍然**没有**真正完成
 4. 下一位 agent 应该从哪里继续
 
+## 2026-03-25 后续补充
+
+在本 handover 对应的桥接提交之后，又补了一轮 **generic ACPX session continuation**，对应提交：
+
+- `8d3cebd` `Add generic ACPX session continuation for Claude and remote harnesses`
+
+这一轮的意义不是改掉 Plan C 方向，而是把 Plan C 从“只有 stable identity / ACPX bridge”继续推进到“开始真的让更多 harness 用同一套 continuation 语义”。
+
+### 这轮后续补充做了什么
+
+#### 1. ACPX continuation metadata 不再只围绕 Codex `threadId`
+
+现在 ACPX 开始同时追踪：
+
+- `lastSessionId`
+- `lastSessionKind`
+- `resumeSessionId`
+- `continuationSessionKind`
+
+也就是说 continuation 不再被硬编码成：
+
+- 只有 `codexThreadId`
+
+而是开始变成一套更通用的 session abstraction。
+
+关键实现：
+
+- [acpx/types.ts](/data1/code/agent-platform-v2/src/lib/acpx/types.ts)
+- [acpx/session-tracking.ts](/data1/code/agent-platform-v2/src/lib/acpx/session-tracking.ts)
+- [acpx/runner.ts](/data1/code/agent-platform-v2/src/lib/acpx/runner.ts)
+
+#### 2. local Claude 现在已经接入真实 session continuation
+
+这轮不是再做 prompt replay，而是直接利用 Claude CLI 的真实 session id：
+
+- 启动时读取 `session_id`
+- continuation 时使用 `--resume <session_id>`
+
+关键实现：
+
+- [claude-agent.ts](/data1/code/agent-platform-v2/src/lib/real-agents/claude-agent.ts)
+
+这意味着：
+
+- `platform_local + claude`
+- `ACPX + platform_local + claude`
+
+现在都已经不再是“每轮全新会话”。
+
+#### 3. remote SSH 的 Codex / Claude 也开始走真实 resume
+
+这轮把 remote harness 改成：
+
+- remote codex: 可复用已有 thread id，走 `codex exec resume ...`
+- remote claude: 可复用已有 session id，走 `claude --resume ...`
+
+关键实现：
+
+- [ssh-executor.ts](/data1/code/agent-platform-v2/src/lib/remote-harness/ssh-executor.ts)
+
+注意这里仍然是：
+
+- 每次 continuation 仍然会新起一个远端 CLI 进程
+
+但它已经不是“fresh conversation”了，
+而是：
+
+- 新进程附着到同一个远端 codex thread / claude session
+
+所以从 continuation 语义上，已经明显前进了一大步。
+
+#### 4. ACPX control / Task Chat UI 不再假设 continuation 只属于 local Codex
+
+这轮把 ACPX task control route 和 task chat UI 一并放宽为：
+
+- 只要 participant 有可续接的 session id
+- 就可以作为 continuation target
+
+而不是旧逻辑那样只找：
+
+- `platform_local + codex`
+
+关键实现：
+
+- [task control route](/data1/code/agent-platform-v2/src/app/api/tasks/[id]/control/route.ts)
+- [task chat page](/data1/code/agent-platform-v2/src/app/tasks/[id]/chat/page.tsx)
+
+#### 5. Live Room 通过 ACPX bridge 时，也会传递 generic continuation session
+
+这意味着 live-room 侧现在不只是传：
+
+- `resumeThreadId`
+
+也开始优先传：
+
+- `resumeSessionId`
+- `continuationSessionKind`
+
+关键实现：
+
+- [live-room-delivery.ts](/data1/code/agent-platform-v2/src/lib/live-room-delivery.ts)
+
+### 这轮后续补充之后，能力矩阵如何变化
+
+更准确的说法现在变成：
+
+| 路径 | 当前 continuation 状态 | 说明 |
+| --- | --- | --- |
+| `platform_local + codex` | 是 | 真实 Codex thread continuation |
+| `platform_local + claude` | 是 | 真实 Claude session continuation |
+| `ACPX + platform_local + codex` | 是 | 已接入 generic ACPX continuation |
+| `ACPX + platform_local + claude` | 是 | 已接入 generic ACPX continuation |
+| `ACPX + remote_ssh + codex` | 基本是 | 新起进程，但会 resume 同一 Codex thread |
+| `ACPX + remote_ssh + claude` | 基本是 | 新起进程，但会 resume 同一 Claude session |
+| `Live Room + remote_ssh` | 通过 ACPX 基本接通 | 已经开始消费同一 continuation identity / session |
+
+这里之所以写“基本是”，是因为：
+
+- 远端现在虽然可以 resume 同一 session/thread
+- 但仍然是“每轮新起一个远端 CLI 进程再附着回该 session”
+- 还不是那种长期常驻、可原地 append 输入的 live remote daemon 模式
+
+不过从本文定义的 true continuation 角度看，
+它已经不再是单纯 transcript replay 了。
+
+### 这轮后续补充之后，仍然没有完全结束的地方
+
+#### 1. Live Room UI 还没有完全直接消费 ACPX continuation/run event model
+
+后端语义已经更统一了，
+但前端 room 可视化状态还不是完全 ACPX-native。
+
+#### 2. remote live session control 仍然偏“process control”，不是“long-lived attached transport”
+
+现在 remote continuation 已经能恢复同一 session，
+但 interrupt / append / watchdog 更多仍然建立在：
+
+- 新起 CLI
+- 追踪当前 child process
+
+之上。
+
+如果后续要做更强的：
+
+- append message to active remote session
+- richer remote waiting-user state
+- mid-session user interaction
+
+可能还需要更长期的 remote agent transport / daemon 抽象。
+
+#### 3. gateway_openclaw 仍不在这轮真实 continuation 范围内
+
+本轮主要补的是：
+
+- local Claude
+- remote Codex
+- remote Claude
+
+`gateway_openclaw` 还没有被纳入同等级 continuation 语义。
+
 ## 这轮已完成内容
 
 ### 1. Live Room 现在会自动拥有一个 backing ACPX task
