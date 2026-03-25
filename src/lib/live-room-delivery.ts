@@ -2,7 +2,13 @@ import { prisma } from '@/lib/prisma';
 import { createOpenClawResponse, extractOpenClawText, getOpenClawGatewayConfig } from '@/lib/openclaw-client';
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
-import { detectMentionedLiveRoomMembers, getLiveRoomTranscript, postLiveRoomMessage } from '@/lib/live-room';
+import {
+  detectMentionedLiveRoomMembers,
+  getLiveRoomTranscript,
+  parseLiveRoomMessageMetadata,
+  postLiveRoomMessage,
+  resolveLiveRoomMessageMetadata,
+} from '@/lib/live-room';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -11,27 +17,63 @@ const buildPrompt = ({
   topic,
   agentLabel,
   transcript,
-  latestUserMessage,
+  latestRoomMessage,
+  routingReason,
 }: {
   roomTitle: string;
   topic: string | null;
   agentLabel: string;
   transcript: string;
-  latestUserMessage: string;
+  latestRoomMessage: string;
+  routingReason: string;
 }) => [
   `You are participating in a live multi-agent room named "${roomTitle}".`,
   `Your identity in this room: ${agentLabel}.`,
   topic ? `Current room topic: ${topic}` : 'Current room topic: none set yet.',
+  `Why you are replying now: ${routingReason}`,
   '',
   'Respond like an active collaborator inside an ongoing chat session.',
   'Prefer concise but useful replies. If you suggest actions, explain what you will do next.',
+  'If you want another room member to respond next, mention them explicitly with @name in your reply.',
   '',
   'Recent room transcript:',
   transcript || '(no earlier transcript)',
   '',
-  'Latest user message to respond to:',
-  latestUserMessage,
+  'Latest room message to respond to:',
+  latestRoomMessage,
 ].join('\n');
+
+const describeRoutingReason = ({
+  sourceMessageContent,
+  sourceMetadata,
+  targetMemberName,
+  roomCurrentSpeakerMemberId,
+  targetMemberId,
+}: {
+  sourceMessageContent: string;
+  sourceMetadata: ReturnType<typeof parseLiveRoomMessageMetadata>;
+  targetMemberName: string;
+  roomCurrentSpeakerMemberId: string | null;
+  targetMemberId: string;
+}) => {
+  if (sourceMetadata?.deliveryIntent === 'handoff' && sourceMetadata.handoffToMemberId === targetMemberId) {
+    return `${targetMemberName} received a handoff and is now the main responder.`;
+  }
+
+  if (sourceMetadata?.primaryTargetMemberId === targetMemberId) {
+    return `${targetMemberName} was explicitly selected as the primary target of the latest message.`;
+  }
+
+  if ((sourceMetadata?.mentionedMemberIds || []).includes(targetMemberId)) {
+    return `${targetMemberName} was mentioned in the latest message and should answer next.`;
+  }
+
+  if (roomCurrentSpeakerMemberId === targetMemberId) {
+    return `${targetMemberName} is currently the room's default speaker.`;
+  }
+
+  return `${targetMemberName} was chosen as the fallback responder for the latest message: ${sourceMessageContent}`;
+};
 
 const getSessionKey = (roomId: string, memberId: string) => `live-room:${roomId}:member:${memberId}`;
 
@@ -177,8 +219,17 @@ export const triggerLiveRoomAgentReply = async ({
     return;
   }
 
+  const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const resolvedTargetMemberId =
+    (sourceMetadata?.deliveryIntent === 'handoff' ? sourceMetadata.handoffToMemberId : null)
+    || sourceMetadata?.primaryTargetMemberId
+    || sourceMetadata?.mentionedMemberIds?.[0]
+    || targetMemberId
+    || room.currentSpeakerMemberId
+    || null;
+
   const targetMember =
-    room.members.find((member) => member.id === targetMemberId)
+    room.members.find((member) => member.id === resolvedTargetMemberId)
     || room.members.find((member) => member.id === room.currentSpeakerMemberId)
     || room.members.find((member) => member.canReply)
     || null;
@@ -211,7 +262,14 @@ export const triggerLiveRoomAgentReply = async ({
       topic: room.currentTopic,
       agentLabel: targetMember.displayName,
       transcript,
-      latestUserMessage: sourceMessage.content,
+      latestRoomMessage: sourceMessage.content,
+      routingReason: describeRoutingReason({
+        sourceMessageContent: sourceMessage.content,
+        sourceMetadata,
+        targetMemberName: targetMember.displayName,
+        roomCurrentSpeakerMemberId: room.currentSpeakerMemberId,
+        targetMemberId: targetMember.id,
+      }),
     });
 
     let output = '';
@@ -286,22 +344,26 @@ export const triggerLiveRoomAgentReply = async ({
       content: output,
       messageType: 'assistant',
       replyToMessageId: sourceMessage.id,
-      metadata: {
-        deliveryId: delivery.id,
-        backend: targetMember.backend,
-        harnessType: targetMember.harnessType,
-        chainDepth,
-      },
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'assistant',
+        replyToMessageId: sourceMessage.id,
+        mentionedMemberIds: detectMentionedLiveRoomMembers({
+          content: output,
+          members: room.members,
+          senderMemberId: targetMember.id,
+        }),
+        extras: {
+          deliveryId: delivery.id,
+          backend: targetMember.backend,
+          harnessType: targetMember.harnessType,
+          chainDepth,
+        },
+      }),
     });
 
     if (chainDepth < 2) {
-      const mentionedMemberIds = detectMentionedLiveRoomMembers({
-        content: output,
-        members: room.members,
-        senderMemberId: targetMember.id,
-      });
-
-      const nextMentionedMemberId = mentionedMemberIds[0] || null;
+      const replyMetadata = parseLiveRoomMessageMetadata(JSON.stringify(replyMessage.metadata || null));
+      const nextMentionedMemberId = replyMetadata?.primaryTargetMemberId || replyMetadata?.mentionedMemberIds?.[0] || null;
 
       if (nextMentionedMemberId) {
         await triggerLiveRoomAgentReply({

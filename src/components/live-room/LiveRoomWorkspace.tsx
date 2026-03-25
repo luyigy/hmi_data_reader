@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocketClient } from '@/lib/websocket-client';
 import type {
@@ -32,6 +32,11 @@ const getMemberSubtitle = (member: LiveRoomDetail['members'][number]) =>
     ? '你'
     : `${member.gatewayName || 'Platform Local'} / ${member.harnessType || 'agent'}`;
 
+const getMentionQuery = (value: string) => value.match(/@([\w\u4e00-\u9fa5-]*)$/)?.[1] ?? '';
+
+const getMessageMetadataValue = (message: LiveRoomMessage, key: string) =>
+  (message.metadata && typeof message.metadata[key] !== 'undefined') ? message.metadata[key] : null;
+
 export function LiveRoomWorkspace({
   initialRoomId,
 }: {
@@ -43,6 +48,7 @@ export function LiveRoomWorkspace({
   const [selectedRoom, setSelectedRoom] = useState<LiveRoomDetail | null>(null);
   const [messages, setMessages] = useState<LiveRoomMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
+  const [draftMentionMemberIds, setDraftMentionMemberIds] = useState<string[]>([]);
   const [newRoomTitle, setNewRoomTitle] = useState('');
   const [newRoomTopic, setNewRoomTopic] = useState('');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
@@ -68,6 +74,50 @@ export function LiveRoomWorkspace({
     () => selectedRoom?.members.find((member) => member.id === selectedRoom.currentSpeakerMemberId) || null,
     [selectedRoom?.currentSpeakerMemberId, selectedRoom?.members]
   );
+
+  const mentionQuery = useMemo(() => getMentionQuery(messageInput), [messageInput]);
+
+  const mentionCandidates = useMemo(() => {
+    if (!selectedRoom || !/@([\w\u4e00-\u9fa5-]*)$/.test(messageInput)) {
+      return [];
+    }
+
+    const query = mentionQuery.toLowerCase();
+    return selectedRoom.members
+      .filter((member) => member.canReply)
+      .filter((member) => member.memberType !== 'user')
+      .filter((member) => {
+        if (!query) {
+          return true;
+        }
+
+        return [
+          member.displayName,
+          member.runtimeAgentId || '',
+          member.gatewayName || '',
+        ].some((value) => value.toLowerCase().includes(query));
+      })
+      .sort((left, right) => {
+        if (!query) {
+          return left.sortOrder - right.sortOrder;
+        }
+
+        const leftExact = [left.runtimeAgentId || '', left.displayName].some((value) => value.toLowerCase() === query);
+        const rightExact = [right.runtimeAgentId || '', right.displayName].some((value) => value.toLowerCase() === query);
+        if (leftExact !== rightExact) {
+          return leftExact ? -1 : 1;
+        }
+
+        const leftStartsWith = [left.runtimeAgentId || '', left.displayName].some((value) => value.toLowerCase().startsWith(query));
+        const rightStartsWith = [right.runtimeAgentId || '', right.displayName].some((value) => value.toLowerCase().startsWith(query));
+        if (leftStartsWith !== rightStartsWith) {
+          return leftStartsWith ? -1 : 1;
+        }
+
+        return left.sortOrder - right.sortOrder;
+      })
+      .slice(0, query ? 8 : 20);
+  }, [mentionQuery, messageInput, selectedRoom]);
 
   const refreshRooms = async () => {
     setIsLoadingRooms(true);
@@ -102,6 +152,7 @@ export function LiveRoomWorkspace({
       setMessages(Array.isArray(messagesData.messages) ? messagesData.messages : []);
       setTopicDraft(roomData.room?.currentTopic || '');
       setSelectedTargetMemberId(roomData.room?.currentSpeakerMemberId || '');
+      setDraftMentionMemberIds([]);
     } catch (fetchError) {
       console.error('Failed to fetch live room detail:', fetchError);
       setError(fetchError instanceof Error ? fetchError.message : '加载房间详情失败');
@@ -249,6 +300,7 @@ export function LiveRoomWorkspace({
     setIsSending(true);
     setError(null);
     try {
+      const hasStructuredMention = draftMentionMemberIds.length > 0;
       const response = await fetch(`/api/live-rooms/${selectedRoom.id}/messages`, {
         method: 'POST',
         headers: {
@@ -256,7 +308,8 @@ export function LiveRoomWorkspace({
         },
         body: JSON.stringify({
           content: messageInput.trim(),
-          targetMemberId: selectedTargetMemberId || undefined,
+          targetMemberId: hasStructuredMention ? undefined : (selectedTargetMemberId || undefined),
+          explicitMentionMemberIds: draftMentionMemberIds,
           autoReply: true,
         }),
       });
@@ -266,8 +319,11 @@ export function LiveRoomWorkspace({
       }
 
       setMessageInput('');
-      setNotice(selectedTargetMemberId
-        ? '消息已发送，当前会优先由你选中的 agent 回复。'
+      setDraftMentionMemberIds([]);
+      setNotice(hasStructuredMention && selectedRoom
+        ? `消息已发送，这条消息会优先按 mention 路由给 ${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}。`
+        : selectedTargetMemberId
+        ? '消息已发送，这条消息会优先由你在 dropdown 里选中的 agent 回复。'
         : '消息已发送，当前 speaker 会继续接话。');
       if (Array.isArray(data.messages)) {
         setMessages((prev) => {
@@ -397,6 +453,36 @@ export function LiveRoomWorkspace({
     }
     return 'grid-cols-[minmax(0,1fr)]';
   }, [isDetailsPanelOpen, isRoomsPanelOpen]);
+
+  const handlePickMention = (member: LiveRoomDetail['members'][number]) => {
+    setMessageInput((prev) => prev.replace(/@([\w\u4e00-\u9fa5-]*)$/, `@${member.displayName} `));
+    setDraftMentionMemberIds((prev) => Array.from(new Set([...prev, member.id])));
+  };
+
+  const handleComposerChange = (value: string) => {
+    setMessageInput(value);
+    setDraftMentionMemberIds((prev) => {
+      if (!selectedRoom) {
+        return prev;
+      }
+
+      return prev.filter((memberId) => {
+        const member = selectedRoom.members.find((item) => item.id === memberId);
+        if (!member) {
+          return false;
+        }
+
+        return value.toLowerCase().includes(`@${member.displayName}`.toLowerCase());
+      });
+    });
+  };
+
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSendMessage();
+    }
+  };
 
   return (
     <div className={`grid h-[calc(100vh-4rem)] min-h-[780px] overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.08)] ${layoutClass}`}>
@@ -590,6 +676,44 @@ export function LiveRoomWorkspace({
                           <div className={`mb-1 text-[10px] ${isUser ? 'text-slate-300' : 'text-slate-500'}`}>
                             {message.senderLabel || message.senderName} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
                           </div>
+                          {Array.isArray(getMessageMetadataValue(message, 'mentionedMemberIds')) || getMessageMetadataValue(message, 'primaryTargetMemberId') ? (
+                            <div className="mb-2 flex flex-wrap gap-1.5">
+                              {typeof getMessageMetadataValue(message, 'deliveryIntent') === 'string' ? (
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                  isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {String(getMessageMetadataValue(message, 'deliveryIntent'))}
+                                </span>
+                              ) : null}
+                              {selectedRoom?.members
+                                .filter((member) => member.id === getMessageMetadataValue(message, 'primaryTargetMemberId'))
+                                .map((member) => (
+                                  <span
+                                    key={`${message.id}:${member.id}:primary`}
+                                    className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                      isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
+                                    }`}
+                                  >
+                                    target: {member.displayName}
+                                  </span>
+                                ))}
+                              {selectedRoom?.members
+                                .filter((member) => {
+                                  const mentionedMemberIds = getMessageMetadataValue(message, 'mentionedMemberIds');
+                                  return Array.isArray(mentionedMemberIds) && mentionedMemberIds.includes(member.id);
+                                })
+                                .map((member) => (
+                                  <span
+                                    key={`${message.id}:${member.id}`}
+                                    className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                      isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
+                                    }`}
+                                  >
+                                    @{member.displayName}
+                                  </span>
+                                ))}
+                            </div>
+                          ) : null}
                           <div className="whitespace-pre-wrap break-words text-[14px] leading-6">
                             {message.content}
                           </div>
@@ -617,19 +741,50 @@ export function LiveRoomWorkspace({
                     ))}
                   </select>
                   <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">
-                    {selectedTargetMemberId ? '这条消息会优先投递给你选中的 agent。' : '这条消息会由当前 speaker 优先回复。'}
+                    {draftMentionMemberIds.length > 0
+                      ? '这条消息包含结构化 mention，本次会优先按 mention 路由。'
+                      : selectedTargetMemberId
+                      ? '这条消息会优先投递给你在 dropdown 里选中的 agent。'
+                      : '这条消息会由当前 speaker 优先回复。'}
                   </div>
                 </div>
                 <textarea
                   value={messageInput}
-                  onChange={(event) => setMessageInput(event.target.value)}
+                  onChange={(event) => handleComposerChange(event.target.value)}
+                  onKeyDown={handleComposerKeyDown}
                   rows={1}
                   placeholder="向房间继续说点什么，可以直接 @agent 或点名某个 agent..."
                   className="min-h-[44px] w-full resize-none border-0 bg-transparent px-1 py-0.5 text-[14px] text-slate-900 outline-none"
                 />
+                {mentionCandidates.length > 0 ? (
+                  <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                    <div className="mb-1 px-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">Mention</div>
+                    <div className="space-y-1">
+                      {mentionCandidates.map((member) => (
+                        <button
+                          key={member.id}
+                          onClick={() => handlePickMention(member)}
+                          onMouseDown={(event) => event.preventDefault()}
+                          className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition hover:bg-white"
+                          type="button"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-slate-800">{member.displayName}</div>
+                            <div className="truncate text-[11px] text-slate-500">{getMemberSubtitle(member)}</div>
+                          </div>
+                          <span className="rounded-full bg-white px-2 py-1 text-[10px] text-slate-500">@{member.displayName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-1.5 flex items-center justify-between gap-4">
                   <div className="text-xs text-slate-500">
-                    {selectedSpeaker ? `当前主回复 agent：${getMemberLabel(selectedSpeaker)}` : '还没有 speaker，先在右侧选择一个可回复成员。'}
+                    {draftMentionMemberIds.length > 0 && selectedRoom
+                      ? `已结构化 mention：${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}`
+                      : selectedSpeaker
+                      ? `当前主回复 agent：${getMemberLabel(selectedSpeaker)}`
+                      : '还没有 speaker，先在右侧选择一个可回复成员。'}
                   </div>
                   <button
                     onClick={() => void handleSendMessage()}

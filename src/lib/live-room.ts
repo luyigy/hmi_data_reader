@@ -50,6 +50,23 @@ export interface LiveRoomMessagePayload {
   metadata: Record<string, unknown> | null;
 }
 
+export type LiveRoomDeliveryIntent =
+  | 'broadcast'
+  | 'user_target'
+  | 'mention'
+  | 'ask'
+  | 'handoff';
+
+export interface LiveRoomMessageMetadata {
+  senderKind?: 'user' | 'assistant' | 'system';
+  mentionedMemberIds?: string[];
+  primaryTargetMemberId?: string | null;
+  deliveryIntent?: LiveRoomDeliveryIntent;
+  inReplyToMessageId?: string | null;
+  handoffToMemberId?: string | null;
+  [key: string]: unknown;
+}
+
 export interface LiveRoomSummaryPayload {
   id: string;
   title: string;
@@ -77,7 +94,7 @@ export interface LiveRoomMentionableMember {
   harnessType?: string | null;
 }
 
-const parseMetadata = (value?: string | null) => {
+export const parseLiveRoomMessageMetadata = (value?: string | null): LiveRoomMessageMetadata | null => {
   if (!value) {
     return null;
   }
@@ -85,7 +102,7 @@ const parseMetadata = (value?: string | null) => {
   try {
     const parsed = JSON.parse(value);
     return parsed && typeof parsed === 'object'
-      ? parsed as Record<string, unknown>
+      ? parsed as LiveRoomMessageMetadata
       : null;
   } catch {
     return null;
@@ -93,6 +110,42 @@ const parseMetadata = (value?: string | null) => {
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const findEarliestMentionIndex = (content: string, aliases: string[]) => {
+  let bestIndex = Number.POSITIVE_INFINITY;
+
+  for (const alias of aliases) {
+    const trimmedAlias = alias.trim();
+    if (!trimmedAlias) {
+      continue;
+    }
+
+    const explicitMentionRegex = new RegExp(`@${escapeRegExp(trimmedAlias)}\\b`, 'i');
+    const explicitMatch = explicitMentionRegex.exec(content);
+    if (explicitMatch && explicitMatch.index < bestIndex) {
+      bestIndex = explicitMatch.index;
+    }
+  }
+
+  if (bestIndex !== Number.POSITIVE_INFINITY) {
+    return bestIndex;
+  }
+
+  for (const alias of aliases) {
+    const trimmedAlias = alias.trim();
+    if (!trimmedAlias) {
+      continue;
+    }
+
+    const plainMentionRegex = new RegExp(`\\b${escapeRegExp(trimmedAlias)}\\b`, 'i');
+    const plainMatch = plainMentionRegex.exec(content);
+    if (plainMatch && plainMatch.index < bestIndex) {
+      bestIndex = plainMatch.index;
+    }
+  }
+
+  return bestIndex;
+};
 
 const toCatalogAgentId = (agent: Awaited<ReturnType<typeof deriveGatewayHarnessOptions>>[number]) =>
   `${agent.executionBackend}:${agent.gatewayId}:${agent.runtimeAgentId || agent.agentId || agent.harnessType}`;
@@ -187,7 +240,7 @@ export const serializeLiveRoomMessage = (message: {
   topicSnapshot: message.topicSnapshot,
   createdAt: message.createdAt.toISOString(),
   replyToMessageId: message.replyToMessageId,
-  metadata: parseMetadata(message.metadata),
+  metadata: parseLiveRoomMessageMetadata(message.metadata),
 });
 
 export const serializeLiveRoomSummary = (room: {
@@ -366,8 +419,7 @@ export const detectMentionedLiveRoomMembers = ({
   members: LiveRoomMentionableMember[];
   senderMemberId?: string | null;
 }) => {
-  const normalized = content.toLowerCase();
-  const matches: string[] = [];
+  const matches: Array<{ memberId: string; index: number }> = [];
 
   for (const member of members) {
     if (member.id === senderMemberId) {
@@ -387,24 +439,76 @@ export const detectMentionedLiveRoomMembers = ({
       .map((item) => item.trim())
       .filter(Boolean);
 
-    const matched = aliases.some((alias) => {
-      const loweredAlias = alias.toLowerCase();
-      if (normalized.includes(`@${loweredAlias}`)) {
-        return true;
-      }
-
-      if (normalized.includes(loweredAlias)) {
-        return true;
-      }
-
-      const regex = new RegExp(`\\b${escapeRegExp(loweredAlias)}\\b`, 'i');
-      return regex.test(content);
-    });
-
-    if (matched) {
-      matches.push(member.id);
+    const earliestIndex = findEarliestMentionIndex(content, aliases);
+    if (earliestIndex !== Number.POSITIVE_INFINITY) {
+      matches.push({
+        memberId: member.id,
+        index: earliestIndex,
+      });
     }
   }
 
-  return matches;
+  return matches
+    .sort((left, right) => left.index - right.index)
+    .map((item) => item.memberId);
+};
+
+export const mergeLiveRoomMentionedMemberIds = ({
+  explicitMentionMemberIds = [],
+  detectedMentionedMemberIds = [],
+  members,
+  senderMemberId,
+}: {
+  explicitMentionMemberIds?: string[];
+  detectedMentionedMemberIds?: string[];
+  members: LiveRoomMentionableMember[];
+  senderMemberId?: string | null;
+}) => {
+  const allowedMemberIds = new Set(
+    members
+      .map((member) => member.id)
+      .filter((memberId) => memberId !== senderMemberId)
+  );
+  const merged = [...explicitMentionMemberIds, ...detectedMentionedMemberIds]
+    .filter((memberId) => allowedMemberIds.has(memberId));
+
+  return Array.from(new Set(merged));
+};
+
+export const resolveLiveRoomMessageMetadata = ({
+  senderKind,
+  targetMemberId,
+  mentionedMemberIds,
+  replyToMessageId,
+  handoffToMemberId,
+  extras,
+}: {
+  senderKind: 'user' | 'assistant' | 'system';
+  targetMemberId?: string | null;
+  mentionedMemberIds?: string[];
+  replyToMessageId?: string | null;
+  handoffToMemberId?: string | null;
+  extras?: Record<string, unknown>;
+}): LiveRoomMessageMetadata => {
+  const uniqueMentionedMemberIds = Array.from(new Set((mentionedMemberIds || []).filter(Boolean)));
+  const primaryTargetMemberId = handoffToMemberId || targetMemberId || uniqueMentionedMemberIds[0] || null;
+
+  let deliveryIntent: LiveRoomDeliveryIntent = 'broadcast';
+  if (handoffToMemberId) {
+    deliveryIntent = 'handoff';
+  } else if (targetMemberId) {
+    deliveryIntent = senderKind === 'user' ? 'user_target' : 'ask';
+  } else if (uniqueMentionedMemberIds.length > 0) {
+    deliveryIntent = 'mention';
+  }
+
+  return {
+    senderKind,
+    mentionedMemberIds: uniqueMentionedMemberIds,
+    primaryTargetMemberId,
+    deliveryIntent,
+    inReplyToMessageId: replyToMessageId || null,
+    handoffToMemberId: handoffToMemberId || null,
+    ...(extras || {}),
+  };
 };

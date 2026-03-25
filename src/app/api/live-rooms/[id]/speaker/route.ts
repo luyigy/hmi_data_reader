@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { postLiveRoomMessage } from '@/lib/live-room';
+import { postLiveRoomMessage, resolveLiveRoomMessageMetadata } from '@/lib/live-room';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,9 +44,13 @@ export async function POST(
       roomId: params.id,
       content: `当前主回复 agent 已切换为 ${member.displayName}。`,
       messageType: 'system',
-      metadata: {
-        speakerMemberId: member.id,
-      },
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        handoffToMemberId: member.id,
+        extras: {
+          speakerMemberId: member.id,
+        },
+      }),
     });
 
     return NextResponse.json({

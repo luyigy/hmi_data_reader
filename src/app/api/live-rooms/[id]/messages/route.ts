@@ -3,7 +3,9 @@ import { prisma } from '@/lib/prisma';
 import {
   detectMentionedLiveRoomMembers,
   ensureLiveRoomUserMember,
+  mergeLiveRoomMentionedMemberIds,
   postLiveRoomMessage,
+  resolveLiveRoomMessageMetadata,
   serializeLiveRoomMessage,
 } from '@/lib/live-room';
 import { triggerLiveRoomAgentReply } from '@/lib/live-room-delivery';
@@ -53,6 +55,9 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const content = typeof body.content === 'string' ? body.content.trim() : '';
     const targetMemberId = typeof body.targetMemberId === 'string' ? body.targetMemberId.trim() : '';
+    const explicitMentionMemberIds = Array.isArray(body.explicitMentionMemberIds)
+      ? body.explicitMentionMemberIds.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+      : [];
     const autoReply = body.autoReply !== false;
 
     if (!content) {
@@ -86,16 +91,24 @@ export async function POST(
       members: roomMembers,
       senderMemberId: userMember.id,
     });
-    const resolvedTargetMemberId = targetMemberId || detectedMentionedMemberIds[0] || '';
+    const mentionedMemberIds = mergeLiveRoomMentionedMemberIds({
+      explicitMentionMemberIds,
+      detectedMentionedMemberIds,
+      members: roomMembers,
+      senderMemberId: userMember.id,
+    });
+    // If the message carries a structured mention, route by mention first.
+    const resolvedTargetMemberId = mentionedMemberIds[0] || targetMemberId || '';
     const message = await postLiveRoomMessage({
       roomId: params.id,
       senderMemberId: userMember.id,
       content,
       messageType: 'user',
-      metadata: {
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'user',
         targetMemberId: resolvedTargetMemberId || null,
-        mentionedMemberIds: detectedMentionedMemberIds,
-      },
+        mentionedMemberIds,
+      }),
     });
 
     if (autoReply) {
