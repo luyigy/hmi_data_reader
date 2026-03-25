@@ -44,11 +44,11 @@ export const getHarnessCapabilities = (
 
   if (executionBackend === 'remote_ssh') {
     return {
-      supportsQueuedUserMessages: false,
-      supportsImmediateInterrupt: false,
-      supportsResumeAfterInterrupt: false,
+      supportsQueuedUserMessages: true,
+      supportsImmediateInterrupt: true,
+      supportsResumeAfterInterrupt: harnessType === 'codex' || harnessType === 'claude',
       supportsLiveSessionControl: false,
-      supportsSoftStop: false,
+      supportsSoftStop: true,
     };
   }
 

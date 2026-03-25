@@ -272,8 +272,12 @@ const executeLiveRoomReplyViaAcpx = async ({
     orchestrationMode: 'single',
     participants: [{
       ...participant,
-      resumeThreadId: latestSession?.continuationThreadId || undefined,
-      continuationMessage: latestSession?.continuationThreadId ? sourceMessage.content : undefined,
+      resumeSessionId: latestSession?.continuationSessionId || undefined,
+      continuationSessionKind: latestSession?.continuationSessionKind || undefined,
+      resumeThreadId: latestSession?.continuationSessionKind === 'codex_thread'
+        ? latestSession?.continuationSessionId || undefined
+        : undefined,
+      continuationMessage: latestSession?.continuationSessionId ? sourceMessage.content : undefined,
     }],
     workingDirectory: sourceTask.workingDirectory || process.cwd(),
     permissionConfig,
@@ -325,7 +329,7 @@ const executeLiveRoomReplyViaAcpx = async ({
 
   return {
     output: participantResult?.summary || acpxResult.summary || `${targetMember.displayName} completed`,
-    threadId: refreshedParticipantSession?.continuationThreadId || session.threadId,
+    threadId: refreshedParticipantSession?.continuationSessionId || session.threadId,
     remoteTiming: null,
   };
 };

@@ -6,7 +6,7 @@ import {
   getOpenClawGatewayConfig,
 } from '@/lib/openclaw-client';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
-import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
+import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
@@ -170,6 +170,8 @@ const persistCodexThreadMetadata = async (
           ...taskRunMetadata,
           codexThreadId: threadId,
           lastSessionThreadId: threadId,
+          lastSessionId: threadId,
+          lastSessionKind: 'codex_thread',
           sessionTracking: {
             ...existingRunTracking,
             rootRunId:
@@ -181,7 +183,13 @@ const persistCodexThreadMetadata = async (
               typeof existingRunTracking.rootThreadId === 'string'
                 ? existingRunTracking.rootThreadId
                 : threadId,
+            rootSessionId:
+              typeof existingRunTracking.rootSessionId === 'string'
+                ? existingRunTracking.rootSessionId
+                : threadId,
             latestThreadId: threadId,
+            latestSessionId: threadId,
+            latestSessionKind: 'codex_thread',
             checkedAt: now,
             sameSessionConfirmed:
               typeof existingRunTracking.rootThreadId === 'string'
@@ -198,6 +206,8 @@ const persistCodexThreadMetadata = async (
           ...participantMetadata,
           codexThreadId: threadId,
           lastSessionThreadId: threadId,
+          lastSessionId: threadId,
+          lastSessionKind: 'codex_thread',
           sessionTracking: {
             ...existingParticipantTracking,
             rootParticipantId:
@@ -209,11 +219,113 @@ const persistCodexThreadMetadata = async (
               typeof existingParticipantTracking.rootThreadId === 'string'
                 ? existingParticipantTracking.rootThreadId
                 : threadId,
+            rootSessionId:
+              typeof existingParticipantTracking.rootSessionId === 'string'
+                ? existingParticipantTracking.rootSessionId
+                : threadId,
             latestThreadId: threadId,
+            latestSessionId: threadId,
+            latestSessionKind: 'codex_thread',
             checkedAt: now,
             sameSessionConfirmed:
               typeof existingParticipantTracking.rootThreadId === 'string'
                 ? existingParticipantTracking.rootThreadId === threadId
+                : true,
+          },
+        }),
+      },
+    }),
+  ]);
+};
+
+const persistClaudeSessionMetadata = async (
+  taskRunId: string,
+  participantId: string,
+  sessionId: string | undefined
+) => {
+  if (!sessionId) {
+    return;
+  }
+
+  const [taskRun, participant] = await Promise.all([
+    prisma.taskRun.findUnique({
+      where: { id: taskRunId },
+      select: { controlMetadata: true },
+    }),
+    prisma.taskRunParticipant.findUnique({
+      where: { id: participantId },
+      select: { controlMetadata: true },
+    }),
+  ]);
+
+  const now = new Date().toISOString();
+  const taskRunMetadata = parseJsonObject(taskRun?.controlMetadata);
+  const participantMetadata = parseJsonObject(participant?.controlMetadata);
+  const existingRunTracking =
+    taskRunMetadata.sessionTracking && typeof taskRunMetadata.sessionTracking === 'object'
+      ? taskRunMetadata.sessionTracking as Record<string, unknown>
+      : {};
+  const existingParticipantTracking =
+    participantMetadata.sessionTracking && typeof participantMetadata.sessionTracking === 'object'
+      ? participantMetadata.sessionTracking as Record<string, unknown>
+      : {};
+
+  await Promise.all([
+    prisma.taskRun.update({
+      where: { id: taskRunId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...taskRunMetadata,
+          claudeSessionId: sessionId,
+          lastSessionId: sessionId,
+          lastSessionKind: 'claude_session',
+          sessionTracking: {
+            ...existingRunTracking,
+            rootRunId:
+              typeof existingRunTracking.rootRunId === 'string'
+                ? existingRunTracking.rootRunId
+                : taskRunId,
+            latestRunId: taskRunId,
+            rootSessionId:
+              typeof existingRunTracking.rootSessionId === 'string'
+                ? existingRunTracking.rootSessionId
+                : sessionId,
+            latestSessionId: sessionId,
+            latestSessionKind: 'claude_session',
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingRunTracking.rootSessionId === 'string'
+                ? existingRunTracking.rootSessionId === sessionId
+                : true,
+          },
+        }),
+      },
+    }),
+    prisma.taskRunParticipant.update({
+      where: { id: participantId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...participantMetadata,
+          claudeSessionId: sessionId,
+          lastSessionId: sessionId,
+          lastSessionKind: 'claude_session',
+          sessionTracking: {
+            ...existingParticipantTracking,
+            rootParticipantId:
+              typeof existingParticipantTracking.rootParticipantId === 'string'
+                ? existingParticipantTracking.rootParticipantId
+                : participantId,
+            latestParticipantId: participantId,
+            rootSessionId:
+              typeof existingParticipantTracking.rootSessionId === 'string'
+                ? existingParticipantTracking.rootSessionId
+                : sessionId,
+            latestSessionId: sessionId,
+            latestSessionKind: 'claude_session',
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingParticipantTracking.rootSessionId === 'string'
+                ? existingParticipantTracking.rootSessionId === sessionId
                 : true,
           },
         }),
@@ -510,6 +622,8 @@ const executeViaGateway = async (
   filesModified: string[];
   executionTime: number;
   liveStreaming: boolean;
+  sessionId?: string;
+  sessionKind?: string;
   threadId?: string;
 }> => {
   const config = await getOpenClawGatewayConfig(participant.gatewayId);
@@ -557,6 +671,8 @@ const executeViaLocalHarness = async (
   filesModified: string[];
   executionTime: number;
   liveStreaming: boolean;
+  sessionId?: string;
+  sessionKind?: string;
   threadId?: string;
 }> => {
   const task = {
@@ -615,26 +731,45 @@ const executeViaLocalHarness = async (
       filesModified: 'filesModified' in resolved ? (resolved.filesModified ?? []) : [],
       executionTime: 'executionTime' in resolved ? resolved.executionTime : 0,
       liveStreaming: true,
+      sessionId: resolved.threadId || undefined,
+      sessionKind: resolved.threadId ? 'codex_thread' : undefined,
       threadId: resolved.threadId || undefined,
     };
   }
 
   if (participant.harnessType === 'claude') {
-    const result = await executeClaudeTask(task, {
-      timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CLAUDE_MAX_RUNTIME_MS,
-      workingDirectory: request.workingDirectory,
-      streamCallbacks: callbacks,
-      onSpawn: (child) => {
-        registerRunningProcess({
-          taskRunId,
-          participantId,
-          child,
-          executionBackend: participant.executionBackend,
-          harnessType: participant.harnessType,
+    const registerSpawn = (child: ChildProcess) => {
+      registerRunningProcess({
+        taskRunId,
+        participantId,
+        child,
+        executionBackend: participant.executionBackend,
+        harnessType: participant.harnessType,
+      });
+      onSpawn?.(child);
+    };
+
+    const result = participant.resumeSessionId && participant.continuationMessage
+      ? await resumeClaudeSession({
+          sessionId: participant.resumeSessionId,
+          prompt: participant.continuationMessage,
+          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CLAUDE_MAX_RUNTIME_MS,
+          workingDirectory: request.workingDirectory,
+          streamCallbacks: callbacks,
+          onSpawn: registerSpawn,
+          onSessionStarted: (sessionId) => {
+            void persistClaudeSessionMetadata(taskRunId, participantId, sessionId);
+          },
+        })
+      : await executeClaudeTask(task, {
+          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CLAUDE_MAX_RUNTIME_MS,
+          workingDirectory: request.workingDirectory,
+          streamCallbacks: callbacks,
+          onSpawn: registerSpawn,
+          onSessionStarted: (sessionId) => {
+            void persistClaudeSessionMetadata(taskRunId, participantId, sessionId);
+          },
         });
-        onSpawn?.(child);
-      },
-    });
 
     if (!result.success) {
       throw new Error(result.error || 'Claude execution failed');
@@ -645,6 +780,8 @@ const executeViaLocalHarness = async (
       filesModified: result.filesModified ?? [],
       executionTime: result.executionTime,
       liveStreaming: true,
+      sessionId: result.sessionId,
+      sessionKind: result.sessionId ? 'claude_session' : undefined,
       threadId: undefined,
     };
   }
@@ -675,6 +812,8 @@ const executeViaRemoteSshHarness = async (
   filesModified: string[];
   executionTime: number;
   liveStreaming: boolean;
+  sessionId?: string;
+  sessionKind?: string;
   threadId?: string;
 }> => {
   const remoteHost = await getRemoteHarnessHostById(participant.gatewayId);
@@ -703,6 +842,8 @@ const executeViaRemoteSshHarness = async (
           : DEFAULT_CODEX_MAX_RUNTIME_MS),
       harnessType: participant.harnessType,
       host: remoteHost,
+      resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
+      continuationMessage: participant.resumeSessionId ? participant.continuationMessage : undefined,
       streamCallbacks: callbacks,
       onSpawn: (child) => {
         registerRunningProcess({
@@ -1099,6 +1240,10 @@ const executeParticipant = async (
 
     if (result.threadId) {
       await persistCodexThreadMetadata(taskRunId, participantId, result.threadId);
+    }
+
+    if (result.sessionKind === 'claude_session' && result.sessionId) {
+      await persistClaudeSessionMetadata(taskRunId, participantId, result.sessionId);
     }
 
     if (result.filesModified?.length) {

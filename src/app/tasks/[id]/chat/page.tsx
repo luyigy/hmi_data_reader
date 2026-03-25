@@ -676,12 +676,14 @@ export default function TaskChatPage() {
     }
 
     const participants = selectedRun.participants.filter((participant) => {
-      const threadId = participant.controlMetadata?.codexThreadId ?? participant.controlMetadata?.lastSessionThreadId;
+      const sessionId =
+        participant.controlMetadata?.lastSessionId
+        ?? participant.controlMetadata?.claudeSessionId
+        ?? participant.controlMetadata?.codexThreadId
+        ?? participant.controlMetadata?.lastSessionThreadId;
       return (
-        participant.executionBackend === 'platform_local'
-        && participant.harnessType === 'codex'
-        && typeof threadId === 'string'
-        && threadId.trim().length > 0
+        typeof sessionId === 'string'
+        && sessionId.trim().length > 0
       );
     });
 
@@ -1239,7 +1241,7 @@ export default function TaskChatPage() {
         setComposerNotice(
           deliveryResult === 'delivered_to_active_thread'
             ? `消息已写入并用于继续${selectedTargetLabel}；平台正在继续 ${
-                continuationParticipantLabel || '当前 local Codex'
+                continuationParticipantLabel || '当前会话'
               } 的同一会话。`
             : `消息已写入 task room，并标记给${selectedTargetLabel}；当前 continuation 未成功送达${fallbackReason ? `（${fallbackReason}）` : ''}。`
         );
@@ -1473,7 +1475,7 @@ export default function TaskChatPage() {
       ? activeRunSummary
         ? `聊天模式下，消息会先写入 task room。当前 active run 仍在执行时，它不会被原地接管；participant target 也只是供后续读取。`
         : canContinueSelectedSession
-        ? `聊天模式下会优先继续 ${continuationParticipantLabel || '当前 Codex'} 的同一会话；如果没有可续接会话，就会直接拉起一个新的 agent run 来回复。`
+        ? `聊天模式下会优先继续 ${continuationParticipantLabel || '当前会话'}；如果没有可续接会话，就会直接拉起一个新的 agent run 来回复。`
         : '聊天模式下如果没有 active run，主按钮会直接拉起新的 agent run 来回复，而不是只把消息留在 task room。'
       : activeRunSummary
       ? `执行模式下只会控制 active run。当前已有 active run，不能再启动新 run；如需介入，请使用打断或停止。`
@@ -2173,7 +2175,7 @@ export default function TaskChatPage() {
                         ? activeRunSummary
                           ? '当前有 active run，新消息会先排队写入 task room，不会实时直达目标参与方。'
                           : canContinueSelectedSession
-                          ? '会继续当前 Codex 会话。'
+                          ? '会继续当前已保存的 agent 会话。'
                           : '会直接启动新的 agent 回复。'
                         : activeRunSummary
                         ? '当前有 active run，暂时不能再启动。'
@@ -2223,7 +2225,7 @@ export default function TaskChatPage() {
                           }
                           className="rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                         >
-                          继续同一 Codex 会话
+                          继续当前会话
                         </button>
                       ) : null}
                     </div>

@@ -14,6 +14,8 @@ export interface ClaudeConfig {
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
+  resumeSessionId?: string;
+  onSessionStarted?: (sessionId: string) => void;
 }
 
 export interface ClaudeTask {
@@ -28,6 +30,7 @@ export interface ClaudeResult {
   error?: string;
   executionTime: number;
   filesModified?: string[];
+  sessionId?: string;
 }
 
 /**
@@ -39,8 +42,6 @@ export const executeClaudeTask = async (
 ): Promise<ClaudeResult> => {
   const startTime = Date.now();
   const {
-    apiKey = process.env.ANTHROPIC_API_KEY,
-    model = 'claude-sonnet-4-20250514',
     timeout = 60000,
     workingDirectory = process.cwd(),
     streamCallbacks,
@@ -55,16 +56,71 @@ export const executeClaudeTask = async (
       workingDirectory,
       streamCallbacks,
       onSpawn: config.onSpawn,
+      onSessionStarted: config.onSessionStarted,
     });
     
     return {
       success: true,
       output: result.output,
       filesModified: result.filesModified,
+      sessionId: result.sessionId,
       executionTime: Date.now() - startTime,
     };
   } catch (error) {
     console.error('[Claude] Execution failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      executionTime: Date.now() - startTime,
+    };
+  }
+};
+
+export const resumeClaudeSession = async ({
+  sessionId,
+  prompt,
+  timeout,
+  workingDirectory = process.cwd(),
+  streamCallbacks,
+  onSpawn,
+  onSessionStarted,
+}: {
+  sessionId: string;
+  prompt: string;
+  timeout: number;
+  workingDirectory?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+  onSessionStarted?: (sessionId: string) => void;
+}): Promise<ClaudeResult> => {
+  const startTime = Date.now();
+
+  try {
+    const result = await executeClaudeCLI(
+      {
+        id: 'continuation',
+        name: 'Claude continuation',
+        description: prompt,
+      },
+      {
+        timeout,
+        workingDirectory,
+        streamCallbacks,
+        onSpawn,
+        resumeSessionId: sessionId,
+        onSessionStarted,
+        rawPrompt: prompt,
+      }
+    );
+
+    return {
+      success: true,
+      output: result.output,
+      filesModified: result.filesModified,
+      sessionId: result.sessionId,
+      executionTime: Date.now() - startTime,
+    };
+  } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -83,12 +139,14 @@ const executeClaudeCLI = async (
     workingDirectory: string;
     streamCallbacks?: HarnessStreamCallbacks;
     onSpawn?: (child: ChildProcess) => void;
+    resumeSessionId?: string;
+    onSessionStarted?: (sessionId: string) => void;
+    rawPrompt?: string;
   }
-): Promise<{ output: string; filesModified?: string[] }> => {
+): Promise<{ output: string; filesModified?: string[]; sessionId?: string }> => {
   const { spawn } = await import('child_process');
   
-  // Create prompt for Claude - ensure complete message
-  const prompt = `Task: ${task.name}
+  const prompt = options.rawPrompt ?? `Task: ${task.name}
 
 ${task.description ? `Description: ${task.description}` : 'Please complete this task.'}
 
@@ -104,13 +162,38 @@ Take your time and be thorough.`;
   return new Promise((resolve, reject) => {
     let stdout = '';
     let stderr = '';
+    let stdoutBuffer = '';
+    let resolvedOutput = '';
+    let sessionId: string | null = null;
     
     // Spawn claude process
-    const child = spawn('claude', [prompt, '--print', '--permission-mode', 'bypassPermissions'], {
+    const args = options.resumeSessionId
+      ? [
+          '--resume',
+          options.resumeSessionId,
+          '--print',
+          '--verbose',
+          '--output-format',
+          'stream-json',
+          '--permission-mode',
+          'bypassPermissions',
+          prompt,
+        ]
+      : [
+          '--print',
+          '--verbose',
+          '--output-format',
+          'stream-json',
+          '--permission-mode',
+          'bypassPermissions',
+          prompt,
+        ];
+
+    const child = spawn('claude', args, {
       cwd: options.workingDirectory,
       env: { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true, // Windows 需要这个来找到命令
+      shell: false,
     });
     options.onSpawn?.(child);
 
@@ -118,7 +201,52 @@ Take your time and be thorough.`;
     child.stdout.on('data', (data) => {
       const chunk = data.toString();
       stdout += chunk;
-      void options.streamCallbacks?.onStdoutChunk?.(chunk);
+      stdoutBuffer += chunk;
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        try {
+          const event = JSON.parse(trimmed) as {
+            type?: string;
+            session_id?: string;
+            message?: {
+              content?: Array<{ type?: string; text?: string }>;
+            };
+            result?: string;
+          };
+
+          if (typeof event.session_id === 'string' && event.session_id.trim()) {
+            sessionId = event.session_id.trim();
+            options.onSessionStarted?.(sessionId);
+          }
+
+          if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
+            const text = event.message.content
+              .filter((item) => item.type === 'text' && typeof item.text === 'string')
+              .map((item) => item.text as string)
+              .join('');
+
+            if (text) {
+              resolvedOutput = text;
+              void options.streamCallbacks?.onStdoutChunk?.(text);
+            }
+            continue;
+          }
+
+          if (event.type === 'result' && typeof event.result === 'string') {
+            resolvedOutput = event.result;
+            continue;
+          }
+        } catch {
+          void options.streamCallbacks?.onStdoutChunk?.(trimmed);
+        }
+      }
     });
 
     // Collect stderr
@@ -130,13 +258,28 @@ Take your time and be thorough.`;
 
     // Handle completion
     child.on('close', (code) => {
-      const output = stdout || stderr || 'Task executed successfully';
+      if (stdoutBuffer.trim()) {
+        try {
+          const event = JSON.parse(stdoutBuffer.trim()) as { session_id?: string; result?: string };
+          if (typeof event.session_id === 'string' && event.session_id.trim()) {
+            sessionId = event.session_id.trim();
+            options.onSessionStarted?.(sessionId);
+          }
+          if (typeof event.result === 'string') {
+            resolvedOutput = event.result;
+          }
+        } catch {
+          void options.streamCallbacks?.onStdoutChunk?.(stdoutBuffer.trim());
+        }
+      }
+
+      const output = resolvedOutput || stdout || stderr || 'Task executed successfully';
       
       // Try to extract modified files from output
       const filesModified = extractModifiedFiles(output);
 
       if (code === 0 || stdout.length > 0) {
-        resolve({ output, filesModified });
+        resolve({ output, filesModified, sessionId: sessionId || undefined });
       } else {
         reject(new Error(stderr || `Claude exited with code ${code}`));
       }
@@ -168,13 +311,6 @@ const extractModifiedFiles = (output: string): string[] => {
   }
 
   return files;
-};
-
-/**
- * Escape shell special characters
- */
-const escapeShell = (str: string): string => {
-  return str.replace(/['"\\$`]/g, '\\$&');
 };
 
 /**

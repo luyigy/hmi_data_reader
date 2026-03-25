@@ -15,6 +15,8 @@ interface RemoteSshExecutionOptions {
   timeout: number;
   harnessType: string;
   host: RemoteHarnessHostRecord;
+  resumeSessionId?: string;
+  continuationMessage?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   onProgress?: (event: {
@@ -41,6 +43,9 @@ export interface RemoteSshExecutionResult {
   filesModified: string[];
   executionTime: number;
   liveStreaming: boolean;
+  threadId?: string;
+  sessionId?: string;
+  sessionKind?: string;
   timing: {
     sshStartMs: number;
     remoteCommandStartMs?: number;
@@ -66,14 +71,22 @@ Please complete this task step by step. When you're done, provide a concise summ
 3. Any issues you encountered
 `;
 
-const buildRemoteCommand = (harnessType: string, workingDirectory?: string | null) => {
+const buildRemoteCommand = (
+  harnessType: string,
+  workingDirectory?: string | null,
+  resumeSessionId?: string
+) => {
   const quotedCwd = workingDirectory ? `cd ${shellQuote(workingDirectory)} && ` : '';
   let command: string;
 
   if (harnessType === 'codex') {
-    command = `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}codex exec --json --skip-git-repo-check -`;
+    command = resumeSessionId
+      ? `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}codex exec resume ${shellQuote(resumeSessionId)} --json --skip-git-repo-check -`
+      : `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}codex exec --json --skip-git-repo-check -`;
   } else if (harnessType === 'claude') {
-    command = `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}PROMPT=$(cat) && claude "$PROMPT" --print --permission-mode bypassPermissions`;
+    command = resumeSessionId
+      ? `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}PROMPT=$(cat) && claude --resume ${shellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`
+      : `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}PROMPT=$(cat) && claude --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -99,14 +112,21 @@ export const executeRemoteSshTask = async (
   task: RemoteHarnessTask,
   options: RemoteSshExecutionOptions
 ): Promise<RemoteSshExecutionResult> => {
-  const prompt = createPrompt(task);
+  const prompt =
+    options.resumeSessionId && options.continuationMessage
+      ? options.continuationMessage
+      : createPrompt(task);
   const startedAt = Date.now();
   let codexResolvedText = '';
   let codexStdoutBuffer = '';
+  let codexThreadId: string | undefined;
+  let claudeResolvedText = '';
+  let claudeStdoutBuffer = '';
+  let claudeSessionId: string | undefined;
   const { stdout, stderr, timing } = await runRemoteSshCommand({
     timeout: options.timeout,
     host: options.host,
-    command: buildRemoteCommand(options.harnessType, options.host.workingDirectory),
+    command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId),
     stdin: prompt,
     streamCallbacks:
       options.harnessType === 'codex'
@@ -125,8 +145,12 @@ export const executeRemoteSshTask = async (
                 try {
                   const event = JSON.parse(trimmed) as {
                     type?: string;
+                    thread_id?: string;
                     item?: { type?: string; text?: string };
                   };
+                  if (typeof event.thread_id === 'string' && event.thread_id.trim()) {
+                    codexThreadId = event.thread_id.trim();
+                  }
                   const text =
                     event.type === 'item.completed'
                     && event.item?.type === 'agent_message'
@@ -145,6 +169,53 @@ export const executeRemoteSshTask = async (
             },
             onStderrChunk: options.streamCallbacks?.onStderrChunk,
           }
+        : options.harnessType === 'claude'
+        ? {
+            onStdoutChunk: (chunk) => {
+              claudeStdoutBuffer += chunk;
+              const lines = claudeStdoutBuffer.split('\n');
+              claudeStdoutBuffer = lines.pop() ?? '';
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) {
+                  continue;
+                }
+
+                try {
+                  const event = JSON.parse(trimmed) as {
+                    type?: string;
+                    session_id?: string;
+                    message?: {
+                      content?: Array<{ type?: string; text?: string }>;
+                    };
+                    result?: string;
+                  };
+                  if (typeof event.session_id === 'string' && event.session_id.trim()) {
+                    claudeSessionId = event.session_id.trim();
+                  }
+                  if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
+                    const text = event.message.content
+                      .filter((item) => item.type === 'text' && typeof item.text === 'string')
+                      .map((item) => item.text as string)
+                      .join('');
+
+                    if (text) {
+                      claudeResolvedText = text;
+                      void options.streamCallbacks?.onStdoutChunk?.(text);
+                    }
+                    continue;
+                  }
+                  if (event.type === 'result' && typeof event.result === 'string') {
+                    claudeResolvedText = event.result;
+                  }
+                } catch {
+                  void options.streamCallbacks?.onStdoutChunk?.(trimmed);
+                }
+              }
+            },
+            onStderrChunk: options.streamCallbacks?.onStderrChunk,
+          }
         : options.streamCallbacks,
     onSpawn: options.onSpawn,
     onProgress: options.onProgress,
@@ -154,8 +225,12 @@ export const executeRemoteSshTask = async (
     try {
       const event = JSON.parse(codexStdoutBuffer.trim()) as {
         type?: string;
+        thread_id?: string;
         item?: { type?: string; text?: string };
       };
+      if (typeof event.thread_id === 'string' && event.thread_id.trim()) {
+        codexThreadId = event.thread_id.trim();
+      }
       if (
         event.type === 'item.completed'
         && event.item?.type === 'agent_message'
@@ -168,9 +243,28 @@ export const executeRemoteSshTask = async (
     }
   }
 
+  if (options.harnessType === 'claude' && claudeStdoutBuffer.trim()) {
+    try {
+      const event = JSON.parse(claudeStdoutBuffer.trim()) as {
+        session_id?: string;
+        result?: string;
+      };
+      if (typeof event.session_id === 'string' && event.session_id.trim()) {
+        claudeSessionId = event.session_id.trim();
+      }
+      if (typeof event.result === 'string') {
+        claudeResolvedText = event.result;
+      }
+    } catch {
+      void options.streamCallbacks?.onStdoutChunk?.(claudeStdoutBuffer.trim());
+    }
+  }
+
   const output =
     options.harnessType === 'codex'
       ? codexResolvedText || stdout || stderr || 'Remote codex completed'
+      : options.harnessType === 'claude'
+      ? claudeResolvedText || stdout || stderr || 'Remote claude completed'
       : stdout || stderr || `Remote ${options.harnessType} completed`;
 
   return {
@@ -178,6 +272,19 @@ export const executeRemoteSshTask = async (
     filesModified: options.harnessType === 'claude' ? extractClaudeModifiedFiles(output) : [],
     executionTime: Date.now() - startedAt,
     liveStreaming: true,
+    threadId: options.harnessType === 'codex' ? codexThreadId : undefined,
+    sessionId:
+      options.harnessType === 'codex'
+        ? codexThreadId
+        : options.harnessType === 'claude'
+        ? claudeSessionId
+        : undefined,
+    sessionKind:
+      options.harnessType === 'codex'
+        ? 'codex_thread'
+        : options.harnessType === 'claude'
+        ? 'claude_session'
+        : undefined,
     timing,
   };
 };

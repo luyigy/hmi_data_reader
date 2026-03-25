@@ -27,6 +27,53 @@ export const getContinuationThreadId = (participant: {
   return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : null;
 };
 
+export const getContinuationSession = (participant: {
+  controlMetadata?: string | null;
+  harnessType: string;
+}) => {
+  const metadata = parseAcpxMetadata(participant.controlMetadata);
+  const explicitSessionId = typeof metadata.lastSessionId === 'string' && metadata.lastSessionId.trim()
+    ? metadata.lastSessionId.trim()
+    : null;
+  const explicitSessionKind = typeof metadata.lastSessionKind === 'string' && metadata.lastSessionKind.trim()
+    ? metadata.lastSessionKind.trim()
+    : null;
+
+  if (explicitSessionId) {
+    return {
+      sessionId: explicitSessionId,
+      sessionKind: explicitSessionKind ?? (participant.harnessType === 'codex' ? 'codex_thread' : 'generic_session'),
+    };
+  }
+
+  if (participant.harnessType === 'codex') {
+    const threadId = getContinuationThreadId(participant);
+    if (threadId) {
+      return {
+        sessionId: threadId,
+        sessionKind: 'codex_thread',
+      };
+    }
+  }
+
+  if (participant.harnessType === 'claude') {
+    const sessionId = typeof metadata.claudeSessionId === 'string' && metadata.claudeSessionId.trim()
+      ? metadata.claudeSessionId.trim()
+      : null;
+    if (sessionId) {
+      return {
+        sessionId,
+        sessionKind: 'claude_session',
+      };
+    }
+  }
+
+  return {
+    sessionId: null,
+    sessionKind: null,
+  };
+};
+
 export const getParticipantContinuationKey = (
   participant: Pick<AcpxParticipantRequest, 'continuationKey' | 'executionBackend' | 'gatewayId' | 'harnessType' | 'role' | 'agentId'>
 ) =>
@@ -77,6 +124,8 @@ export const findLatestParticipantSession = async (
     ? {
         participant: matched,
         continuationThreadId: getContinuationThreadId(matched),
+        continuationSessionId: getContinuationSession(matched).sessionId,
+        continuationSessionKind: getContinuationSession(matched).sessionKind,
       }
     : null;
 };

@@ -78,6 +78,8 @@ export interface AcpxParticipantRequest {
   agentId?: string;
   agentName?: string;
   continuationKey?: string;
+  resumeSessionId?: string;
+  continuationSessionKind?: string;
   resumeThreadId?: string;
   continuationMessage?: string;
 }

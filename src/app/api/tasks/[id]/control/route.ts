@@ -5,6 +5,7 @@ import { requestRunControl } from '@/lib/acpx/process-registry';
 import { publishTaskRunEvent } from '@/lib/acpx/event-bus';
 import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { getContinuationSession } from '@/lib/acpx/session-tracking';
 import {
   ensureTaskChatRoom,
   postTaskRoomMessage,
@@ -82,19 +83,6 @@ const readTrackingString = (tracking: Record<string, unknown>, key: string) =>
   typeof tracking[key] === 'string' && tracking[key]
     ? tracking[key] as string
     : null;
-
-const getContinuationThreadId = (participant: {
-  controlMetadata?: string | null;
-  harnessType: string;
-}) => {
-  if (participant.harnessType !== 'codex') {
-    return null;
-  }
-
-  const metadata = parseMetadata(participant.controlMetadata);
-  const threadId = metadata.codexThreadId ?? metadata.lastSessionThreadId;
-  return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : null;
-};
 
 const toParticipantEventPayload = (participant: {
   id: string;
@@ -263,10 +251,7 @@ export async function POST(
       ? targetRun?.participants.find((participant) => participant.id === participantId) ?? null
       : roomTargetParticipant
       ?? targetRun?.participants.find(
-          (participant) =>
-            participant.executionBackend === 'platform_local'
-            && participant.harnessType === 'codex'
-            && !!getContinuationThreadId(participant)
+          (participant) => !!getContinuationSession(participant).sessionId
         )
       ?? null;
 
@@ -313,10 +298,12 @@ export async function POST(
       });
     }
 
-    const continuationThreadId =
+    const continuationSession =
       action === 'continue_session' && selectedParticipant
-        ? getContinuationThreadId(selectedParticipant)
-        : null;
+        ? getContinuationSession(selectedParticipant)
+        : { sessionId: null, sessionKind: null };
+    const continuationSessionId = continuationSession.sessionId;
+    const continuationSessionKind = continuationSession.sessionKind;
 
     const controlMessage = await createTaskRunControlMessage({
       taskId: task.id,
@@ -340,7 +327,8 @@ export async function POST(
         requestedDeliveryMode: deliveryMode,
         requestedAction: action,
         permissionConfig,
-        continuationThreadId,
+        continuationSessionId,
+        continuationSessionKind,
         deliveryAttempted: action !== 'queue_message',
         deliveryResult: action === 'queue_message' ? 'queued' : 'pending_attempt',
         fallbackReason: null,
@@ -362,9 +350,7 @@ export async function POST(
     } else if (action === 'continue_session') {
       if (
         !selectedParticipant
-        || selectedParticipant.executionBackend !== 'platform_local'
-        || selectedParticipant.harnessType !== 'codex'
-        || !continuationThreadId
+        || !continuationSessionId
       ) {
         return NextResponse.json(
           { error: 'Selected participant does not support session continuation' },
@@ -400,7 +386,10 @@ export async function POST(
             role: selectedParticipant.role,
             agentId: selectedParticipant.agentId || undefined,
             agentName: selectedParticipant.agentNameSnapshot || undefined,
-            resumeThreadId: continuationThreadId,
+            resumeSessionId: continuationSessionId,
+            continuationSessionKind: continuationSessionKind || undefined,
+            resumeThreadId:
+              continuationSessionKind === 'codex_thread' ? continuationSessionId : undefined,
             continuationMessage: content,
           },
         ],
@@ -418,18 +407,27 @@ export async function POST(
         continuationRun?.participants.find((participant) => participant.role === selectedParticipant.role)
         ?? continuationRun?.participants[0]
         ?? null;
-      const actualContinuationThreadId =
-        continuationRunParticipant ? getContinuationThreadId(continuationRunParticipant) : null;
+      const actualContinuationSession = continuationRunParticipant
+        ? getContinuationSession(continuationRunParticipant)
+        : { sessionId: null, sessionKind: null };
+      const actualContinuationSessionId = actualContinuationSession.sessionId;
       const sameSessionConfirmed =
-        !!actualContinuationThreadId && actualContinuationThreadId === continuationThreadId;
+        !!actualContinuationSessionId && actualContinuationSessionId === continuationSessionId;
       const sessionTrackingMetadata = {
         sourceRunId: targetRun.id,
         sourceParticipantId: selectedParticipant.id,
         rootRunId: readTrackingString(sourceRunTracking, 'rootRunId') || targetRun.id,
         rootParticipantId: readTrackingString(sourceParticipantTracking, 'rootParticipantId') || selectedParticipant.id,
-        rootThreadId: readTrackingString(sourceRunTracking, 'rootThreadId') || continuationThreadId,
-        resumedFromThreadId: continuationThreadId,
-        actualThreadId: actualContinuationThreadId,
+        rootSessionId: readTrackingString(sourceRunTracking, 'rootSessionId') || continuationSessionId,
+        resumedFromSessionId: continuationSessionId,
+        actualSessionId: actualContinuationSessionId,
+        sessionKind: continuationSessionKind,
+        rootThreadId:
+          continuationSessionKind === 'codex_thread'
+            ? readTrackingString(sourceRunTracking, 'rootThreadId') || continuationSessionId
+            : null,
+        resumedFromThreadId: continuationSessionKind === 'codex_thread' ? continuationSessionId : null,
+        actualThreadId: continuationSessionKind === 'codex_thread' ? actualContinuationSessionId : null,
         latestRunId: continuationResult.taskRunId,
         latestParticipantId: continuationRunParticipant?.id ?? null,
         checkedAt: new Date().toISOString(),
@@ -484,7 +482,8 @@ export async function POST(
             summary: continuationResult.summary,
             participants: continuationResult.participants,
             completedAt: new Date().toISOString(),
-            resumedFromThreadId: continuationThreadId,
+            resumedFromSessionId: continuationSessionId,
+            sessionKind: continuationSessionKind,
           }),
           error: finalStatus === 'failed' ? 'ACPX continuation failed' : null,
         },
@@ -493,7 +492,7 @@ export async function POST(
       continuationRunId = continuationResult.taskRunId;
       applied = true;
       deliveryResult = 'delivered_to_active_thread';
-      systemMessage = '系统提示：这条消息已送入同一个 Codex 会话，平台已开始继续当前对话。';
+      systemMessage = `系统提示：这条消息已送入同一个 ${selectedParticipant.harnessType} 会话，平台已开始继续当前对话。`;
 
       await publishTaskRunEvent({
         taskId: task.id,
@@ -501,13 +500,16 @@ export async function POST(
         participantId: selectedParticipant.id,
         participant: toParticipantEventPayload(selectedParticipant),
         eventType: 'session_continuation_started',
-        content: `${selectedParticipant.role} 正在继续同一个 Codex 会话。`,
+        content: `${selectedParticipant.role} 正在继续同一个 ${selectedParticipant.harnessType} 会话。`,
         metadata: {
           sourceRunId: targetRun.id,
           continuationRunId: continuationResult.taskRunId,
           controlMessageId: controlMessage.id,
-          threadId: continuationThreadId,
-          actualThreadId: actualContinuationThreadId,
+          sessionId: continuationSessionId,
+          sessionKind: continuationSessionKind,
+          actualSessionId: actualContinuationSessionId,
+          threadId: continuationSessionKind === 'codex_thread' ? continuationSessionId : null,
+          actualThreadId: continuationSessionKind === 'codex_thread' ? actualContinuationSessionId : null,
           sameSessionConfirmed,
         },
       });
@@ -525,10 +527,7 @@ export async function POST(
         },
       });
 
-      if (
-        selectedParticipant?.executionBackend === 'platform_local'
-        && (selectedParticipant.status === 'running' || selectedParticipant.status === 'waiting_for_input')
-      ) {
+      if (selectedParticipant && (selectedParticipant.status === 'running' || selectedParticipant.status === 'waiting_for_input')) {
         const result = requestRunControl(targetRun.id, selectedParticipant.id, action);
         applied = result.applied;
       }
@@ -538,9 +537,9 @@ export async function POST(
       fallbackAction = applied ? null : 'queue_message';
       systemMessage = applied
         ? action === 'stop_run'
-          ? '系统提示：已向本地 harness 发出停止信号。'
-          : '系统提示：已向本地 harness 发出立即中断信号。'
-        : '系统提示：控制请求已记录，但当前没有可直接接管的本地运行进程，后续需要手动重新运行或等待下一阶段处理。';
+          ? '系统提示：已向当前 harness 发出停止信号。'
+          : '系统提示：已向当前 harness 发出立即中断信号。'
+        : '系统提示：控制请求已记录，但当前没有可直接接管的运行进程，后续需要手动重新运行或等待下一阶段处理。';
     }
 
     const existingControlMetadata = parseMetadata(controlMessage.metadata);
@@ -597,7 +596,8 @@ export async function POST(
         fallbackAction,
         targetParticipantId: selectedParticipant?.id ?? null,
         targetParticipantRole: selectedParticipant?.role ?? null,
-        continuationThreadId,
+        continuationSessionId,
+        continuationSessionKind,
         sourceRunId: targetRun.id,
         continuationRunId,
         sessionTracking: sessionTrackingResult,
