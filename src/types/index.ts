@@ -132,5 +132,16 @@ export interface LiveRoomDetail extends LiveRoomSummary {
     id: string;
     name: string;
   } | null;
+  pendingReplyCount?: number;
+  pendingReplyTargetNames?: string[];
+  pendingReplies?: Array<{
+    memberId: string;
+    displayName: string;
+    pendingCount: number;
+    oldestPendingAt: string;
+    newestPendingAt: string;
+    newestPendingAgeSeconds: number;
+    status: 'running' | 'stalled';
+  }>;
   members: LiveRoomMember[];
 }

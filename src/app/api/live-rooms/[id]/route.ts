@@ -4,6 +4,7 @@ import {
   emitLiveRoomDeleted,
   emitLiveRoomUpdated,
   listLiveRoomCatalogAgents,
+  listLiveRoomPendingReplies,
   serializeLiveRoomMember,
   serializeLiveRoomSummary,
 } from '@/lib/live-room';
@@ -48,11 +49,15 @@ export async function GET(
     }
 
     const availableAgents = await listLiveRoomCatalogAgents();
+    const pendingReplies = await listLiveRoomPendingReplies(params.id);
 
     return NextResponse.json({
       room: {
         ...serializeLiveRoomSummary(room),
         sourceTask: room.sourceTask,
+        pendingReplyCount: pendingReplies.reduce((total, reply) => total + reply.pendingCount, 0),
+        pendingReplyTargetNames: pendingReplies.map((reply) => reply.displayName),
+        pendingReplies,
         members: room.members.map(serializeLiveRoomMember),
       },
       availableAgents,
@@ -146,10 +151,15 @@ export async function PATCH(
 
     await emitLiveRoomUpdated(updated.id);
 
+    const pendingReplies = await listLiveRoomPendingReplies(params.id);
+
     return NextResponse.json({
       room: {
         ...serializeLiveRoomSummary(updated),
         sourceTask: updated.sourceTask,
+        pendingReplyCount: pendingReplies.reduce((total, reply) => total + reply.pendingCount, 0),
+        pendingReplyTargetNames: pendingReplies.map((reply) => reply.displayName),
+        pendingReplies,
         members: updated.members.map(serializeLiveRoomMember),
       },
     });

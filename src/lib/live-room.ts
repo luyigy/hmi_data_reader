@@ -112,6 +112,16 @@ export interface LiveRoomSummaryPayload {
   lastMessageAt: string | null;
 }
 
+export interface LiveRoomPendingReplyPayload {
+  memberId: string;
+  displayName: string;
+  pendingCount: number;
+  oldestPendingAt: string;
+  newestPendingAt: string;
+  newestPendingAgeSeconds: number;
+  status: 'running' | 'stalled';
+}
+
 export interface LiveRoomMentionableMember {
   id: string;
   displayName: string;
@@ -350,6 +360,66 @@ export const serializeLiveRoomSummary = (room: {
     lastMessagePreview: latestMessage?.content || null,
     lastMessageAt: latestMessage?.createdAt.toISOString() || null,
   };
+};
+
+export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRoomPendingReplyPayload[]> => {
+  const pendingDeliveries = await prisma.liveRoomDelivery.findMany({
+    where: {
+      deliveryStatus: 'pending',
+      roomMessage: {
+        roomId,
+      },
+    },
+    include: {
+      targetMember: {
+        select: {
+          id: true,
+          displayName: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+
+  const now = Date.now();
+  const grouped = new Map<string, LiveRoomPendingReplyPayload>();
+
+  for (const delivery of pendingDeliveries) {
+    const existing = grouped.get(delivery.targetMember.id);
+    const createdAtIso = delivery.createdAt.toISOString();
+    const createdAtMs = delivery.createdAt.getTime();
+
+    if (!existing) {
+      grouped.set(delivery.targetMember.id, {
+        memberId: delivery.targetMember.id,
+        displayName: delivery.targetMember.displayName,
+        pendingCount: 1,
+        oldestPendingAt: createdAtIso,
+        newestPendingAt: createdAtIso,
+        newestPendingAgeSeconds: Math.max(0, Math.floor((now - createdAtMs) / 1000)),
+        status: 'running',
+      });
+      continue;
+    }
+
+    existing.pendingCount += 1;
+    if (createdAtIso < existing.oldestPendingAt) {
+      existing.oldestPendingAt = createdAtIso;
+    }
+    if (createdAtIso > existing.newestPendingAt) {
+      existing.newestPendingAt = createdAtIso;
+      existing.newestPendingAgeSeconds = Math.max(0, Math.floor((now - createdAtMs) / 1000));
+    }
+  }
+
+  return [...grouped.values()]
+    .map((item) => ({
+      ...item,
+      status: item.newestPendingAgeSeconds >= 180 ? 'stalled' : 'running',
+    }))
+    .sort((left, right) => right.newestPendingAt.localeCompare(left.newestPendingAt));
 };
 
 export const ensureLiveRoomUserMember = async (roomId: string) => {

@@ -4,6 +4,7 @@ import {
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
   ensureLiveRoomUserMember,
+  listLiveRoomPendingReplies,
   mergeLiveRoomMentionedMemberIds,
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
@@ -120,10 +121,12 @@ export async function POST(
     });
 
     if (autoReply) {
-      await triggerLiveRoomMessageReplies({
+      void triggerLiveRoomMessageReplies({
         roomId: params.id,
         roomMessageId: message.id,
         requestedTargetMemberId: resolvedTargetMemberId || null,
+      }).catch((error) => {
+        console.error('Failed to trigger live room auto reply:', error);
       });
     }
 
@@ -142,9 +145,14 @@ export async function POST(
       take: 120,
     });
 
+    const pendingReplies = await listLiveRoomPendingReplies(params.id);
+
     return NextResponse.json({
       message,
       messages: freshMessages.map(serializeLiveRoomMessage),
+      pendingReplyCount: pendingReplies.reduce((total, reply) => total + reply.pendingCount, 0),
+      pendingReplyTargetNames: pendingReplies.map((reply) => reply.displayName),
+      pendingReplies,
     }, { status: 201 });
   } catch (error) {
     console.error('Failed to post live room message:', error);

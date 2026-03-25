@@ -16,6 +16,8 @@ interface LiveRoomsResponse {
   availableAgents: LiveRoomCatalogAgent[];
 }
 
+type PendingReply = NonNullable<LiveRoomDetail['pendingReplies']>[number];
+
 type MentionCandidate =
   | { kind: 'all'; id: '__all__'; label: '@all'; subtitle: string }
   | { kind: 'member'; member: LiveRoomDetail['members'][number] };
@@ -53,6 +55,28 @@ const getMemberSubtitle = (member: LiveRoomDetail['members'][number]) =>
 
 const getMentionQuery = (value: string) => value.match(/@([\w\u4e00-\u9fa5-]*)$/)?.[1] ?? '';
 const hasMentionAll = (value: string) => /(^|[\s(])@all\b/i.test(value);
+
+const formatPendingAge = (seconds?: number) => {
+  if (!seconds || seconds <= 0) {
+    return '刚开始';
+  }
+
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainSeconds = seconds % 60;
+  if (minutes < 60) {
+    return remainSeconds > 0 ? `${minutes}m ${remainSeconds}s` : `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainMinutes = minutes % 60;
+  return remainMinutes > 0 ? `${hours}h ${remainMinutes}m` : `${hours}h`;
+};
+
+const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
 
 const getMessageMetadataValue = (message: LiveRoomMessage, key: string) =>
   (message.metadata && typeof message.metadata[key] !== 'undefined') ? message.metadata[key] : null;
@@ -109,6 +133,7 @@ export function LiveRoomWorkspace({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
 
   const activeReplyMembers = useMemo(
     () => selectedRoom?.members.filter((member) => member.canReply) || [],
@@ -177,8 +202,11 @@ export function LiveRoomWorkspace({
     return [...allCandidate, ...memberCandidates].slice(0, query ? 8 : 20);
   }, [activeReplyMembers.length, mentionQuery, messageInput, selectedRoom]);
 
-  const refreshRooms = async () => {
-    setIsLoadingRooms(true);
+  const refreshRooms = async ({ background = false }: { background?: boolean } = {}) => {
+    if (!background) {
+      setIsLoadingRooms(true);
+    }
+
     try {
       const response = await fetch('/api/live-rooms');
       const data: LiveRoomsResponse = await response.json();
@@ -186,14 +214,30 @@ export function LiveRoomWorkspace({
       setAvailableAgents(Array.isArray(data.availableAgents) ? data.availableAgents : []);
     } catch (fetchError) {
       console.error('Failed to fetch live rooms:', fetchError);
-      setError('加载 live rooms 失败');
+      if (!background) {
+        setError('加载 live rooms 失败');
+      }
     } finally {
-      setIsLoadingRooms(false);
+      if (!background) {
+        setIsLoadingRooms(false);
+      }
     }
   };
 
-  const refreshSelectedRoom = async (roomId: string) => {
-    setIsLoadingRoom(true);
+  const refreshSelectedRoom = async (
+    roomId: string,
+    {
+      background = false,
+      preserveComposerState = false,
+    }: {
+      background?: boolean;
+      preserveComposerState?: boolean;
+    } = {}
+  ) => {
+    if (!background) {
+      setIsLoadingRoom(true);
+    }
+
     try {
       const [roomResponse, messagesResponse] = await Promise.all([
         fetch(`/api/live-rooms/${roomId}`),
@@ -212,14 +256,20 @@ export function LiveRoomWorkspace({
       setRoomTitleDraft(roomData.room?.title || '');
       setRoomDescriptionDraft(roomData.room?.description || '');
       setRoomModeDraft(roomData.room?.mode || 'discussion');
-      setSelectedTargetMemberId('');
-      setDraftMentionAll(false);
-      setDraftMentionMemberIds([]);
+      if (!preserveComposerState) {
+        setSelectedTargetMemberId('');
+        setDraftMentionAll(false);
+        setDraftMentionMemberIds([]);
+      }
     } catch (fetchError) {
       console.error('Failed to fetch live room detail:', fetchError);
-      setError(fetchError instanceof Error ? fetchError.message : '加载房间详情失败');
+      if (!background) {
+        setError(fetchError instanceof Error ? fetchError.message : '加载房间详情失败');
+      }
     } finally {
-      setIsLoadingRoom(false);
+      if (!background) {
+        setIsLoadingRoom(false);
+      }
     }
   };
 
@@ -256,6 +306,7 @@ export function LiveRoomWorkspace({
 
   useEffect(() => {
     if (initialRoomId) {
+      shouldStickToBottomRef.current = true;
       void refreshSelectedRoom(initialRoomId);
       return;
     }
@@ -263,6 +314,28 @@ export function LiveRoomWorkspace({
     setSelectedRoom(null);
     setMessages([]);
   }, [initialRoomId]);
+
+  useEffect(() => {
+    if (!selectedRoom?.id || !selectedRoom.pendingReplyCount || selectedRoom.pendingReplyCount <= 0) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+
+      void refreshSelectedRoom(selectedRoom.id, {
+        background: true,
+        preserveComposerState: true,
+      });
+      void refreshRooms({ background: true });
+    }, 2000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [selectedRoom?.id, selectedRoom?.pendingReplyCount]);
 
   useEffect(() => {
     if (DISABLE_LIVE_ROOM_SOCKET_AND_POLLING) {
@@ -399,8 +472,22 @@ export function LiveRoomWorkspace({
       return;
     }
 
+    if (!shouldStickToBottomRef.current) {
+      return;
+    }
+
     viewport.scrollTop = viewport.scrollHeight;
   }, [messages]);
+
+  const handleMessageViewportScroll = () => {
+    const viewport = messageViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const distanceToBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    shouldStickToBottomRef.current = distanceToBottom <= AUTO_SCROLL_BOTTOM_THRESHOLD_PX;
+  };
 
   const handleCreateRoom = async () => {
     if (!newRoomTitle.trim()) {
@@ -447,6 +534,7 @@ export function LiveRoomWorkspace({
       return;
     }
 
+    shouldStickToBottomRef.current = true;
     setIsSending(true);
     setError(null);
     try {
@@ -469,16 +557,34 @@ export function LiveRoomWorkspace({
         throw new Error(data.error || '发送消息失败');
       }
 
+      const pendingReplyCount = typeof data.pendingReplyCount === 'number' ? data.pendingReplyCount : 0;
+      const pendingReplyTargetNames = Array.isArray(data.pendingReplyTargetNames)
+        ? data.pendingReplyTargetNames.filter((value: unknown): value is string => typeof value === 'string')
+        : [];
+      const pendingReplies = Array.isArray(data.pendingReplies)
+        ? data.pendingReplies.filter((value: unknown): value is PendingReply => (
+          Boolean(value)
+          && typeof value === 'object'
+          && typeof (value as PendingReply).memberId === 'string'
+          && typeof (value as PendingReply).displayName === 'string'
+        ))
+        : [];
+
       setMessageInput('');
       setDraftMentionAll(false);
       setDraftMentionMemberIds([]);
-      setNotice(draftMentionAll && selectedRoom
+      const sentNotice = draftMentionAll && selectedRoom
         ? `消息已发送，@all 会通知当前房间内全部 ${selectedRoom.members.filter((member) => member.canReply && member.memberType !== 'user').length} 个可回复成员，并按顺序回复。`
         : hasStructuredMention && selectedRoom
         ? `消息已发送，这条消息会优先按 mention 路由给 ${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}。`
         : selectedTargetMemberId
         ? '消息已发送，这条消息会优先由你在 dropdown 里选中的 agent 回复。'
-        : '消息已发送，这是一条面向整个房间的公开消息，当前 speaker 会优先接话。');
+        : '消息已发送，这是一条面向整个房间的公开消息，当前 speaker 会优先接话。';
+      setNotice(
+        pendingReplyCount > 0
+          ? `${sentNotice} 当前正在等待 ${pendingReplies.length > 0 ? pendingReplies.map((reply) => reply.displayName).join('、') : (pendingReplyTargetNames.join('、') || `${pendingReplyCount} 个 agent`)} 回复。`
+          : sentNotice
+      );
       if (Array.isArray(data.messages)) {
         setMessages((prev) => {
           const next = [...prev];
@@ -492,8 +598,19 @@ export function LiveRoomWorkspace({
       } else if (data.message) {
         setMessages((prev) => prev.some((item) => item.id === data.message.id) ? prev : [...prev, data.message]);
       }
-      await refreshSelectedRoom(selectedRoom.id);
-      await refreshRooms();
+      setSelectedRoom((current) => current && current.id === selectedRoom.id
+        ? {
+            ...current,
+            pendingReplyCount,
+            pendingReplyTargetNames,
+            pendingReplies,
+          }
+        : current);
+      void refreshSelectedRoom(selectedRoom.id, {
+        background: true,
+        preserveComposerState: true,
+      });
+      void refreshRooms({ background: true });
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : '发送消息失败');
     } finally {
@@ -1099,7 +1216,11 @@ export function LiveRoomWorkspace({
               </div>
             </header>
 
-            <div ref={messageViewportRef} className="min-h-0 overflow-y-auto px-5 py-3">
+            <div
+              ref={messageViewportRef}
+              onScroll={handleMessageViewportScroll}
+              className="min-h-0 overflow-y-auto px-5 py-3"
+            >
               {isLoadingRoom ? (
                 <div className="text-sm text-slate-500">加载房间内容中...</div>
               ) : messages.length === 0 ? (
@@ -1274,6 +1395,13 @@ export function LiveRoomWorkspace({
                       : selectedSpeaker
                       ? `当前主回复 agent：${getMemberLabel(selectedSpeaker)}`
                       : '还没有 speaker，先在右侧选择一个可回复成员。'}
+                    {selectedRoom?.pendingReplies?.length
+                      ? ` 正在等待：${selectedRoom.pendingReplies.map((reply) => (
+                        `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''} (${reply.status === 'stalled' ? `可能卡住，已等待 ${formatPendingAge(reply.newestPendingAgeSeconds)}` : `处理中 ${formatPendingAge(reply.newestPendingAgeSeconds)}`})`
+                      )).join('、')}`
+                      : selectedRoom?.pendingReplyCount
+                      ? ` 正在等待：${(selectedRoom.pendingReplyTargetNames || []).join('、') || `${selectedRoom.pendingReplyCount} 个 agent`}`
+                      : ''}
                   </div>
                   <button
                     onClick={() => void handleSendMessage()}
@@ -1287,6 +1415,13 @@ export function LiveRoomWorkspace({
               {notice ? (
                 <div className="mx-auto mt-2 max-w-4xl rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs text-emerald-700">
                   {notice}
+                </div>
+              ) : null}
+              {selectedRoom?.pendingReplies?.length ? (
+                <div className="mx-auto mt-2 max-w-4xl rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-700">
+                  {selectedRoom.pendingReplies.map((reply) => (
+                    `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''}：${reply.status === 'stalled' ? `等待过久，可能卡住（${formatPendingAge(reply.newestPendingAgeSeconds)}）` : `正在执行（${formatPendingAge(reply.newestPendingAgeSeconds)}）`}`
+                  )).join('；')}。页面会轻量自动刷新。
                 </div>
               ) : null}
               {error ? (
