@@ -138,13 +138,19 @@ export interface LiveRoomDetail extends LiveRoomSummary {
     memberId: string;
     displayName: string;
     pendingCount: number;
+    queuedCount: number;
+    runningCount: number;
     oldestPendingAt: string;
     newestPendingAt: string;
     newestPendingAgeSeconds: number;
     lastProgressAt?: string | null;
     lastProgressAgeSeconds?: number | null;
     progressLabel?: string | null;
-    status: 'running' | 'stalled';
+    activeDeliveryId?: string | null;
+    backend?: string | null;
+    harnessType?: string | null;
+    interruptSupported?: boolean;
+    status: 'queued' | 'running' | 'stalled';
   }>;
   members: LiveRoomMember[];
 }

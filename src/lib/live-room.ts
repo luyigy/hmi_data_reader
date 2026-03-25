@@ -116,13 +116,19 @@ export interface LiveRoomPendingReplyPayload {
   memberId: string;
   displayName: string;
   pendingCount: number;
+  queuedCount: number;
+  runningCount: number;
   oldestPendingAt: string;
   newestPendingAt: string;
   newestPendingAgeSeconds: number;
   lastProgressAt?: string | null;
   lastProgressAgeSeconds?: number | null;
   progressLabel?: string | null;
-  status: 'running' | 'stalled';
+  activeDeliveryId?: string | null;
+  backend?: string | null;
+  harnessType?: string | null;
+  interruptSupported?: boolean;
+  status: 'queued' | 'running' | 'stalled';
 }
 
 export interface LiveRoomMentionableMember {
@@ -368,7 +374,9 @@ export const serializeLiveRoomSummary = (room: {
 export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRoomPendingReplyPayload[]> => {
   const pendingDeliveries = await prisma.liveRoomDelivery.findMany({
     where: {
-      deliveryStatus: 'pending',
+      deliveryStatus: {
+        in: ['pending', 'running'],
+      },
       roomMessage: {
         roomId,
       },
@@ -378,6 +386,8 @@ export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRo
         select: {
           id: true,
           displayName: true,
+          backend: true,
+          harnessType: true,
         },
       },
     },
@@ -417,18 +427,30 @@ export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRo
         memberId: delivery.targetMember.id,
         displayName: delivery.targetMember.displayName,
         pendingCount: 1,
+        queuedCount: delivery.deliveryStatus === 'pending' ? 1 : 0,
+        runningCount: delivery.deliveryStatus === 'running' ? 1 : 0,
         oldestPendingAt: createdAtIso,
         newestPendingAt: createdAtIso,
         newestPendingAgeSeconds: Math.max(0, Math.floor((now - createdAtMs) / 1000)),
         lastProgressAt: null,
         lastProgressAgeSeconds: null,
         progressLabel: null,
+        activeDeliveryId: delivery.deliveryStatus === 'running' ? delivery.id : null,
+        backend: delivery.targetMember.backend,
+        harnessType: delivery.targetMember.harnessType,
+        interruptSupported: delivery.targetMember.backend === 'remote_ssh',
         status: 'running',
       });
       continue;
     }
 
     existing.pendingCount += 1;
+    if (delivery.deliveryStatus === 'pending') {
+      existing.queuedCount += 1;
+    } else {
+      existing.runningCount += 1;
+      existing.activeDeliveryId = delivery.id;
+    }
     if (createdAtIso < existing.oldestPendingAt) {
       existing.oldestPendingAt = createdAtIso;
     }
@@ -438,7 +460,7 @@ export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRo
     }
   }
 
-  return [...grouped.values()]
+  return Array.from(grouped.values())
     .map((item) => {
       const session = latestSessionByMemberId.get(item.memberId);
       const lastProgressAt = session?.lastHeartbeatAt?.toISOString() || null;
@@ -454,7 +476,14 @@ export const listLiveRoomPendingReplies = async (roomId: string): Promise<LiveRo
         lastProgressAt,
         lastProgressAgeSeconds,
         progressLabel,
-        status: item.newestPendingAgeSeconds >= 180 || ((lastProgressAgeSeconds ?? 0) >= 180) ? 'stalled' : 'running',
+        interruptSupported: item.interruptSupported && item.runningCount > 0,
+        status: (
+          item.runningCount === 0
+            ? 'queued'
+            : item.newestPendingAgeSeconds >= 180 || ((lastProgressAgeSeconds ?? 0) >= 180)
+            ? 'stalled'
+            : 'running'
+        ) as LiveRoomPendingReplyPayload['status'],
       };
     })
     .sort((left, right) => right.newestPendingAt.localeCompare(left.newestPendingAt));

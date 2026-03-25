@@ -76,6 +76,22 @@ const formatPendingAge = (seconds?: number) => {
   return remainMinutes > 0 ? `${hours}h ${remainMinutes}m` : `${hours}h`;
 };
 
+const getPendingReplyStatusLabel = (reply: PendingReply) => {
+  if (reply.status === 'queued') {
+    return reply.pendingCount > 1
+      ? `排队中（共 ${reply.pendingCount} 条，尚未开始）`
+      : '排队中（尚未开始）';
+  }
+
+  if (reply.status === 'stalled') {
+    return `远端可能卡住（已等待 ${formatPendingAge(reply.newestPendingAgeSeconds)}）`;
+  }
+
+  const progress = reply.progressLabel || '正在执行';
+  const queueSuffix = reply.queuedCount > 0 ? `，后面还有 ${reply.queuedCount} 条排队` : '';
+  return `${progress}（${formatPendingAge(reply.newestPendingAgeSeconds)}）${queueSuffix}`;
+};
+
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
 
 const getMessageMetadataValue = (message: LiveRoomMessage, key: string) =>
@@ -127,6 +143,7 @@ export function LiveRoomWorkspace({
   const [isSavingRoomSettings, setIsSavingRoomSettings] = useState(false);
   const [isArchivingRoom, setIsArchivingRoom] = useState(false);
   const [isDeletingRoom, setIsDeletingRoom] = useState(false);
+  const [interruptingMemberId, setInterruptingMemberId] = useState<string | null>(null);
   const [openRoomActionsId, setOpenRoomActionsId] = useState<string | null>(null);
   const [showArchivedRooms, setShowArchivedRooms] = useState(false);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
@@ -156,11 +173,7 @@ export function LiveRoomWorkspace({
     }
 
     return selectedRoom.pendingReplies.map((reply) => (
-      `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''}：${
-        reply.status === 'stalled'
-          ? `等待过久，可能卡住（${formatPendingAge(reply.newestPendingAgeSeconds)})`
-          : `${reply.progressLabel || '正在执行'}（${formatPendingAge(reply.newestPendingAgeSeconds)}）`
-      }${
+      `${reply.displayName}：${getPendingReplyStatusLabel(reply)}${
         reply.lastProgressAgeSeconds != null
           ? `，最近进度 ${formatPendingAge(reply.lastProgressAgeSeconds)} 前`
           : ''
@@ -600,7 +613,7 @@ export function LiveRoomWorkspace({
       const pendingReplyTargetNames = Array.isArray(data.pendingReplyTargetNames)
         ? data.pendingReplyTargetNames.filter((value: unknown): value is string => typeof value === 'string')
         : [];
-      const pendingReplies = Array.isArray(data.pendingReplies)
+      const pendingReplies: PendingReply[] = Array.isArray(data.pendingReplies)
         ? data.pendingReplies.filter((value: unknown): value is PendingReply => (
           Boolean(value)
           && typeof value === 'object'
@@ -621,7 +634,9 @@ export function LiveRoomWorkspace({
         : '消息已发送，这是一条面向整个房间的公开消息，当前 speaker 会优先接话。';
       setNotice(
         pendingReplyCount > 0
-          ? `${sentNotice} 当前正在等待 ${pendingReplies.length > 0 ? pendingReplies.map((reply) => reply.displayName).join('、') : (pendingReplyTargetNames.join('、') || `${pendingReplyCount} 个 agent`)} 回复。`
+          ? `${sentNotice} 当前执行状态：${pendingReplies.length > 0
+            ? pendingReplies.map((reply) => `${reply.displayName} ${getPendingReplyStatusLabel(reply)}`).join('；')
+            : (pendingReplyTargetNames.join('、') || `${pendingReplyCount} 个 agent`)}。`
           : sentNotice
       );
       if (Array.isArray(data.messages)) {
@@ -654,6 +669,76 @@ export function LiveRoomWorkspace({
       setError(sendError instanceof Error ? sendError.message : '发送消息失败');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleInterruptPendingReply = async (reply: PendingReply) => {
+    if (!selectedRoom || !reply.interruptSupported) {
+      return;
+    }
+
+    const confirmed = window.confirm(`确认中断 ${reply.displayName} 当前的远端回复吗？`);
+    if (!confirmed) {
+      return;
+    }
+
+    setInterruptingMemberId(reply.memberId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/live-rooms/${selectedRoom.id}/interrupt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          memberId: reply.memberId,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '中断远端回复失败');
+      }
+
+      const pendingReplies: PendingReply[] = Array.isArray(data.pendingReplies)
+        ? data.pendingReplies.filter((value: unknown): value is PendingReply => (
+          Boolean(value)
+          && typeof value === 'object'
+          && typeof (value as PendingReply).memberId === 'string'
+          && typeof (value as PendingReply).displayName === 'string'
+        ))
+        : [];
+
+      const pendingReplyTargetNames = Array.isArray(data.pendingReplyTargetNames)
+        ? data.pendingReplyTargetNames.filter((value: unknown): value is string => typeof value === 'string')
+        : [];
+      const pendingReplyCount = typeof data.pendingReplyCount === 'number' ? data.pendingReplyCount : pendingReplies.length;
+
+      setSelectedRoom((current) => current && current.id === selectedRoom.id
+        ? {
+            ...current,
+            pendingReplyCount,
+            pendingReplyTargetNames,
+            pendingReplies,
+          }
+        : current);
+      setNotice(
+        `已请求中断 ${reply.displayName} 的远端回复。${
+          typeof data.cancelledQueuedCount === 'number' && data.cancelledQueuedCount > 0
+            ? ` 同时清理了 ${data.cancelledQueuedCount} 条排队消息。`
+            : ''
+        }`
+      );
+      await refreshSelectedRoom(selectedRoom.id, {
+        background: true,
+        preserveComposerState: true,
+      });
+      void refreshRooms({ background: true });
+    } catch (interruptError) {
+      setError(interruptError instanceof Error ? interruptError.message : '中断远端回复失败');
+    } finally {
+      setInterruptingMemberId(null);
     }
   };
 
@@ -1436,9 +1521,7 @@ export function LiveRoomWorkspace({
                       : '还没有 speaker，先在右侧选择一个可回复成员。'}
                     {selectedRoom?.pendingReplies?.length
                       ? ` 正在等待：${selectedRoom.pendingReplies.map((reply) => (
-                        `${reply.displayName}${reply.pendingCount > 1 ? ` x${reply.pendingCount}` : ''} (${reply.status === 'stalled'
-                          ? `可能卡住，已等待 ${formatPendingAge(reply.newestPendingAgeSeconds)}`
-                          : `${reply.progressLabel || '处理中'} ${formatPendingAge(reply.newestPendingAgeSeconds)}`})`
+                        `${reply.displayName} (${getPendingReplyStatusLabel(reply)})`
                       )).join('、')}`
                       : selectedRoom?.pendingReplyCount
                       ? ` 正在等待：${(selectedRoom.pendingReplyTargetNames || []).join('、') || `${selectedRoom.pendingReplyCount} 个 agent`}`
@@ -1468,7 +1551,28 @@ export function LiveRoomWorkspace({
               ) : null}
               {pendingSummaryText && pendingSummaryText !== dismissedPendingSummary ? (
                 <div className="mx-auto mt-2 flex max-w-4xl items-start justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-xs text-sky-700">
-                  <div className="min-w-0 flex-1">{pendingSummaryText}。页面会轻量自动刷新。</div>
+                  <div className="min-w-0 flex-1">
+                    <div>{pendingSummaryText}。页面会轻量自动刷新。</div>
+                    {selectedRoom?.pendingReplies?.some((reply) => reply.interruptSupported && reply.runningCount > 0) ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedRoom.pendingReplies
+                          .filter((reply) => reply.interruptSupported && reply.runningCount > 0)
+                          .map((reply) => (
+                            <button
+                              key={`interrupt:${reply.memberId}`}
+                              type="button"
+                              onClick={() => void handleInterruptPendingReply(reply)}
+                              disabled={interruptingMemberId === reply.memberId}
+                              className="rounded-full border border-sky-300 bg-white px-3 py-1 text-[11px] font-medium text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:text-sky-400"
+                            >
+                              {interruptingMemberId === reply.memberId
+                                ? `中断 ${reply.displayName} 中...`
+                                : `中断 ${reply.displayName}`}
+                            </button>
+                          ))}
+                      </div>
+                    ) : null}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setDismissedPendingSummary(pendingSummaryText)}
