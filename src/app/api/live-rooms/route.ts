@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
+  buildLiveRoomRosterText,
   ensureLiveRoomUserMember,
   listLiveRoomCatalogAgents,
   postLiveRoomMessage,
+  resolveLiveRoomMessageMetadata,
   serializeLiveRoomSummary,
 } from '@/lib/live-room';
 
@@ -112,16 +114,42 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const rosterMembers = await prisma.liveRoomMember.findMany({
+      where: { roomId: room.id },
+      include: {
+        gateway: true,
+      },
+      orderBy: {
+        sortOrder: 'asc',
+      },
+    });
+
     await postLiveRoomMessage({
       roomId: room.id,
       content: currentTopic
         ? `房间已创建。当前 topic：${currentTopic}`
         : '房间已创建。你可以先设定 topic，然后继续邀请 agent 讨论。',
       messageType: 'system',
-      metadata: {
-        createdBy: userMember.id,
-        selectedAgentCount: createdMembers.length,
-      },
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        extras: {
+          createdBy: userMember.id,
+          selectedAgentCount: createdMembers.length,
+        },
+      }),
+    });
+
+    await postLiveRoomMessage({
+      roomId: room.id,
+      content: `当前房间成员：\n${buildLiveRoomRosterText(rosterMembers)}`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        extras: {
+          systemEvent: 'room_roster',
+          memberCount: rosterMembers.length,
+        },
+      }),
     });
 
     const hydratedRoom = await prisma.liveRoom.findUnique({

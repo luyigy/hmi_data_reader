@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
+  detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
   ensureLiveRoomUserMember,
   mergeLiveRoomMentionedMemberIds,
@@ -8,7 +9,7 @@ import {
   resolveLiveRoomMessageMetadata,
   serializeLiveRoomMessage,
 } from '@/lib/live-room';
-import { triggerLiveRoomAgentReply } from '@/lib/live-room-delivery';
+import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,7 @@ export async function POST(
     const explicitMentionMemberIds = Array.isArray(body.explicitMentionMemberIds)
       ? body.explicitMentionMemberIds.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
       : [];
+    const explicitMentionAll = body.explicitMentionAll === true;
     const autoReply = body.autoReply !== false;
 
     if (!content) {
@@ -86,6 +88,10 @@ export async function POST(
         gateway: true,
       },
     });
+    const mentionedAll = explicitMentionAll || detectLiveRoomMentionAll(content);
+    const expectedResponderMemberIds = mentionedAll
+      ? roomMembers.filter((member) => member.canReply && member.id !== userMember.id).map((member) => member.id)
+      : [];
     const detectedMentionedMemberIds = detectMentionedLiveRoomMembers({
       content,
       members: roomMembers,
@@ -93,12 +99,12 @@ export async function POST(
     });
     const mentionedMemberIds = mergeLiveRoomMentionedMemberIds({
       explicitMentionMemberIds,
-      detectedMentionedMemberIds,
+      detectedMentionedMemberIds: mentionedAll ? expectedResponderMemberIds : detectedMentionedMemberIds,
       members: roomMembers,
       senderMemberId: userMember.id,
     });
     // If the message carries a structured mention, route by mention first.
-    const resolvedTargetMemberId = mentionedMemberIds[0] || targetMemberId || '';
+    const resolvedTargetMemberId = mentionedAll ? '' : (mentionedMemberIds[0] || targetMemberId || '');
     const message = await postLiveRoomMessage({
       roomId: params.id,
       senderMemberId: userMember.id,
@@ -108,14 +114,16 @@ export async function POST(
         senderKind: 'user',
         targetMemberId: resolvedTargetMemberId || null,
         mentionedMemberIds,
+        mentionedAll,
+        expectedResponderMemberIds,
       }),
     });
 
     if (autoReply) {
-      await triggerLiveRoomAgentReply({
+      await triggerLiveRoomMessageReplies({
         roomId: params.id,
         roomMessageId: message.id,
-        targetMemberId: resolvedTargetMemberId || null,
+        requestedTargetMemberId: resolvedTargetMemberId || null,
       });
     }
 

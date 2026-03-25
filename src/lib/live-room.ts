@@ -55,7 +55,8 @@ export type LiveRoomDeliveryIntent =
   | 'user_target'
   | 'mention'
   | 'ask'
-  | 'handoff';
+  | 'handoff'
+  | 'mention_all';
 
 export interface LiveRoomMessageMetadata {
   senderKind?: 'user' | 'assistant' | 'system';
@@ -64,6 +65,9 @@ export interface LiveRoomMessageMetadata {
   deliveryIntent?: LiveRoomDeliveryIntent;
   inReplyToMessageId?: string | null;
   handoffToMemberId?: string | null;
+  mentionedAll?: boolean;
+  expectedResponderMemberIds?: string[];
+  requiredResponseMode?: 'none' | 'any_one' | 'all';
   [key: string]: unknown;
 }
 
@@ -92,7 +96,34 @@ export interface LiveRoomMentionableMember {
     name: string;
   } | null;
   harnessType?: string | null;
+  canReply?: boolean;
 }
+
+export const detectLiveRoomMentionAll = (content: string) => /(^|[\s(])@all\b/i.test(content);
+
+export const getLiveRoomMemberRosterLabel = (member: {
+  displayName: string;
+  memberType?: string;
+  gateway?: { name: string } | null;
+  gatewayName?: string | null;
+  harnessType?: string | null;
+  canReply?: boolean;
+}) => {
+  if (member.memberType === 'user') {
+    return `${member.displayName} / user`;
+  }
+
+  return `${member.displayName} / ${member.gateway?.name || member.gatewayName || 'Platform Local'} / ${member.harnessType || 'agent'}${member.canReply ? ' / can-reply' : ''}`;
+};
+
+export const buildLiveRoomRosterText = (members: Array<{
+  displayName: string;
+  memberType?: string;
+  gateway?: { name: string } | null;
+  gatewayName?: string | null;
+  harnessType?: string | null;
+  canReply?: boolean;
+}>) => members.map((member) => `- ${getLiveRoomMemberRosterLabel(member)}`).join('\n');
 
 export const parseLiveRoomMessageMetadata = (value?: string | null): LiveRoomMessageMetadata | null => {
   if (!value) {
@@ -432,6 +463,9 @@ export const detectMentionedLiveRoomMembers = ({
       member.gateway?.name && member.harnessType
         ? `${member.displayName} · ${member.gateway.name} / ${member.harnessType}`
         : '',
+      member.gateway?.name && member.runtimeAgentId
+        ? `${member.runtimeAgentId} @ ${member.gateway.name}`
+        : '',
       member.gateway?.name
         ? `${member.displayName} @ ${member.gateway.name}`
         : '',
@@ -479,6 +513,9 @@ export const resolveLiveRoomMessageMetadata = ({
   senderKind,
   targetMemberId,
   mentionedMemberIds,
+  mentionedAll,
+  expectedResponderMemberIds,
+  requiredResponseMode,
   replyToMessageId,
   handoffToMemberId,
   extras,
@@ -486,6 +523,9 @@ export const resolveLiveRoomMessageMetadata = ({
   senderKind: 'user' | 'assistant' | 'system';
   targetMemberId?: string | null;
   mentionedMemberIds?: string[];
+  mentionedAll?: boolean;
+  expectedResponderMemberIds?: string[];
+  requiredResponseMode?: 'none' | 'any_one' | 'all';
   replyToMessageId?: string | null;
   handoffToMemberId?: string | null;
   extras?: Record<string, unknown>;
@@ -496,6 +536,8 @@ export const resolveLiveRoomMessageMetadata = ({
   let deliveryIntent: LiveRoomDeliveryIntent = 'broadcast';
   if (handoffToMemberId) {
     deliveryIntent = 'handoff';
+  } else if (mentionedAll) {
+    deliveryIntent = 'mention_all';
   } else if (targetMemberId) {
     deliveryIntent = senderKind === 'user' ? 'user_target' : 'ask';
   } else if (uniqueMentionedMemberIds.length > 0) {
@@ -509,6 +551,9 @@ export const resolveLiveRoomMessageMetadata = ({
     deliveryIntent,
     inReplyToMessageId: replyToMessageId || null,
     handoffToMemberId: handoffToMemberId || null,
+    mentionedAll: Boolean(mentionedAll),
+    expectedResponderMemberIds: expectedResponderMemberIds || [],
+    requiredResponseMode: requiredResponseMode || (mentionedAll ? 'all' : primaryTargetMemberId ? 'any_one' : 'any_one'),
     ...(extras || {}),
   };
 };

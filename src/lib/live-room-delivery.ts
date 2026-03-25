@@ -3,6 +3,8 @@ import { createOpenClawResponse, extractOpenClawText, getOpenClawGatewayConfig }
 import { executeClaudeTask } from '@/lib/real-agents/claude-agent';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import {
+  buildLiveRoomRosterText,
+  detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
   getLiveRoomTranscript,
   parseLiveRoomMessageMetadata,
@@ -11,11 +13,35 @@ import {
 } from '@/lib/live-room';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+const ALL_REPLY_STAGGER_MS = 750;
+
+type DeliveryRoomMember = {
+  id: string;
+  canReply: boolean;
+  displayName: string;
+  backend: string | null;
+  harnessType: string | null;
+  runtimeAgentId: string | null;
+  gatewayId: string | null;
+  gateway?: { name: string } | null;
+  agentRecord?: { runtimeAgentId: string | null } | null;
+};
+
+type DeliveryRoom = {
+  id: string;
+  title: string;
+  currentTopic: string | null;
+  currentSpeakerMemberId: string | null;
+  members: DeliveryRoomMember[];
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildPrompt = ({
   roomTitle,
   topic,
   agentLabel,
+  roster,
   transcript,
   latestRoomMessage,
   routingReason,
@@ -23,6 +49,7 @@ const buildPrompt = ({
   roomTitle: string;
   topic: string | null;
   agentLabel: string;
+  roster: string;
   transcript: string;
   latestRoomMessage: string;
   routingReason: string;
@@ -30,6 +57,8 @@ const buildPrompt = ({
   `You are participating in a live multi-agent room named "${roomTitle}".`,
   `Your identity in this room: ${agentLabel}.`,
   topic ? `Current room topic: ${topic}` : 'Current room topic: none set yet.',
+  'Current room members:',
+  roster || '(no members recorded)',
   `Why you are replying now: ${routingReason}`,
   '',
   'Respond like an active collaborator inside an ongoing chat session.',
@@ -76,6 +105,88 @@ const describeRoutingReason = ({
 };
 
 const getSessionKey = (roomId: string, memberId: string) => `live-room:${roomId}:member:${memberId}`;
+
+const getReplyEligibleMembers = ({
+  room,
+  sourceSenderMemberId,
+}: {
+  room: DeliveryRoom | null;
+  sourceSenderMemberId?: string | null;
+}) => (room?.members || []).filter((member: DeliveryRoomMember) => member.canReply && member.id !== sourceSenderMemberId);
+
+const getPrimaryReplyTarget = ({
+  room,
+  sourceMessageSenderMemberId,
+  sourceMetadata,
+  requestedTargetMemberId,
+  preferRequestedTarget = false,
+}: {
+  room: DeliveryRoom;
+  sourceMessageSenderMemberId?: string | null;
+  sourceMetadata: ReturnType<typeof parseLiveRoomMessageMetadata>;
+  requestedTargetMemberId?: string | null;
+  preferRequestedTarget?: boolean;
+}) => {
+  const eligibleMembers = getReplyEligibleMembers({
+    room,
+    sourceSenderMemberId: sourceMessageSenderMemberId,
+  });
+
+  const baseCandidates = [
+    sourceMetadata?.deliveryIntent === 'handoff' ? sourceMetadata.handoffToMemberId : null,
+    sourceMetadata?.primaryTargetMemberId || null,
+    sourceMetadata?.mentionedMemberIds?.[0] || null,
+    room.currentSpeakerMemberId || null,
+  ].filter(Boolean) as string[];
+
+  const candidates = preferRequestedTarget
+    ? [requestedTargetMemberId || null, ...baseCandidates]
+    : [...baseCandidates, requestedTargetMemberId || null];
+
+  for (const candidate of candidates) {
+    const found = eligibleMembers.find((member: DeliveryRoomMember) => member.id === candidate);
+    if (found) {
+      return found;
+    }
+  }
+
+  return eligibleMembers[0] || null;
+};
+
+const getTargetMemberIdsForMessage = ({
+  room,
+  sourceMessageSenderMemberId,
+  sourceMetadata,
+  requestedTargetMemberId,
+}: {
+  room: DeliveryRoom;
+  sourceMessageSenderMemberId?: string | null;
+  sourceMetadata: ReturnType<typeof parseLiveRoomMessageMetadata>;
+  requestedTargetMemberId?: string | null;
+}) => {
+  const eligibleMembers = getReplyEligibleMembers({
+    room,
+    sourceSenderMemberId: sourceMessageSenderMemberId,
+  });
+
+  if (sourceMetadata?.deliveryIntent === 'mention_all' || sourceMetadata?.mentionedAll) {
+    const expectedIds = (sourceMetadata.expectedResponderMemberIds || []).filter(Boolean) as string[];
+    const targets = (expectedIds.length > 0 ? expectedIds : eligibleMembers.map((member: DeliveryRoomMember) => member.id))
+      .filter((memberId: string, index: number, list: string[]) => list.indexOf(memberId) === index)
+      .filter((memberId: string) => eligibleMembers.some((member: DeliveryRoomMember) => member.id === memberId));
+
+    return targets;
+  }
+
+  const primaryTarget = getPrimaryReplyTarget({
+    room,
+    sourceMessageSenderMemberId,
+    sourceMetadata,
+    requestedTargetMemberId,
+  });
+
+  return primaryTarget ? [primaryTarget.id] : [];
+};
 
 const ensureMemberSession = async (roomId: string, member: {
   id: string;
@@ -181,11 +292,15 @@ export const triggerLiveRoomAgentReply = async ({
   roomMessageId,
   targetMemberId,
   chainDepth = 0,
+  allowChainedMentions = true,
+  forceTargetMember = false,
 }: {
   roomId: string;
   roomMessageId: string;
   targetMemberId?: string | null;
   chainDepth?: number;
+  allowChainedMentions?: boolean;
+  forceTargetMember?: boolean;
 }) => {
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
@@ -220,19 +335,13 @@ export const triggerLiveRoomAgentReply = async ({
   }
 
   const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
-  const resolvedTargetMemberId =
-    (sourceMetadata?.deliveryIntent === 'handoff' ? sourceMetadata.handoffToMemberId : null)
-    || sourceMetadata?.primaryTargetMemberId
-    || sourceMetadata?.mentionedMemberIds?.[0]
-    || targetMemberId
-    || room.currentSpeakerMemberId
-    || null;
-
-  const targetMember =
-    room.members.find((member) => member.id === resolvedTargetMemberId)
-    || room.members.find((member) => member.id === room.currentSpeakerMemberId)
-    || room.members.find((member) => member.canReply)
-    || null;
+  const targetMember = getPrimaryReplyTarget({
+    room,
+    sourceMessageSenderMemberId: sourceMessage.senderMemberId,
+    sourceMetadata,
+    requestedTargetMemberId: targetMemberId,
+    preferRequestedTarget: forceTargetMember,
+  });
 
   if (!targetMember || !targetMember.canReply) {
     return;
@@ -257,10 +366,12 @@ export const triggerLiveRoomAgentReply = async ({
 
   try {
     const transcript = await getLiveRoomTranscript(room.id, 30);
+    const roster = buildLiveRoomRosterText(room.members);
     const prompt = buildPrompt({
       roomTitle: room.title,
       topic: room.currentTopic,
       agentLabel: targetMember.displayName,
+      roster,
       transcript,
       latestRoomMessage: sourceMessage.content,
       routingReason: describeRoutingReason({
@@ -352,6 +463,10 @@ export const triggerLiveRoomAgentReply = async ({
           members: room.members,
           senderMemberId: targetMember.id,
         }),
+        mentionedAll: detectLiveRoomMentionAll(output),
+        expectedResponderMemberIds: detectLiveRoomMentionAll(output)
+          ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
+          : [],
         extras: {
           deliveryId: delivery.id,
           backend: targetMember.backend,
@@ -361,16 +476,22 @@ export const triggerLiveRoomAgentReply = async ({
       }),
     });
 
-    if (chainDepth < 2) {
+    if (allowChainedMentions && chainDepth < 2) {
       const replyMetadata = parseLiveRoomMessageMetadata(JSON.stringify(replyMessage.metadata || null));
-      const nextMentionedMemberId = replyMetadata?.primaryTargetMemberId || replyMetadata?.mentionedMemberIds?.[0] || null;
+      const nextTargetMemberIds = getTargetMemberIdsForMessage({
+        room,
+        sourceMessageSenderMemberId: targetMember.id,
+        sourceMetadata: replyMetadata,
+        requestedTargetMemberId: null,
+      });
 
-      if (nextMentionedMemberId) {
+      for (const nextTargetMemberId of nextTargetMemberIds) {
         await triggerLiveRoomAgentReply({
           roomId: room.id,
           roomMessageId: replyMessage.id,
-          targetMemberId: nextMentionedMemberId,
+          targetMemberId: nextTargetMemberId,
           chainDepth: chainDepth + 1,
+          allowChainedMentions: !(replyMetadata?.deliveryIntent === 'mention_all' || replyMetadata?.mentionedAll),
         });
       }
     }
@@ -404,10 +525,97 @@ export const triggerLiveRoomAgentReply = async ({
       roomId,
       content: `系统提示：${targetMember.displayName} 本次回复失败：${message}`,
       messageType: 'system',
-      metadata: {
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
         targetMemberId: targetMember.id,
-        error: message,
+        extras: {
+          error: message,
+        },
+      }),
+    });
+  }
+};
+
+export const triggerLiveRoomMessageReplies = async ({
+  roomId,
+  roomMessageId,
+  requestedTargetMemberId,
+}: {
+  roomId: string;
+  roomMessageId: string;
+  requestedTargetMemberId?: string | null;
+}) => {
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      members: {
+        include: {
+          gateway: true,
+          agentRecord: true,
+        },
+        orderBy: {
+          sortOrder: 'asc',
+        },
       },
+    },
+  });
+
+  if (!room) {
+    return;
+  }
+
+  const sourceMessage = await prisma.liveRoomMessage.findUnique({
+    where: { id: roomMessageId },
+  });
+
+  if (!sourceMessage) {
+    return;
+  }
+
+  const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const targetMemberIds = getTargetMemberIdsForMessage({
+    room,
+    sourceMessageSenderMemberId: sourceMessage.senderMemberId,
+    sourceMetadata,
+    requestedTargetMemberId,
+  });
+
+  if (targetMemberIds.length === 0) {
+    return;
+  }
+
+  const isMentionAll = sourceMetadata?.deliveryIntent === 'mention_all' || sourceMetadata?.mentionedAll;
+  if (isMentionAll) {
+    await postLiveRoomMessage({
+      roomId,
+      content: `系统提示：@all 已发送，当前共有 ${targetMemberIds.length} 个可回复成员会按顺序回应。`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        mentionedAll: true,
+        expectedResponderMemberIds: targetMemberIds,
+        requiredResponseMode: 'all',
+        extras: {
+          systemEvent: 'mention_all_dispatch_started',
+        },
+      }),
+    });
+  }
+
+  const allowChainedMentions = !isMentionAll;
+  for (let index = 0; index < targetMemberIds.length; index += 1) {
+    const targetMemberId = targetMemberIds[index];
+    if (index > 0 && isMentionAll) {
+      await sleep(ALL_REPLY_STAGGER_MS);
+    }
+
+    await triggerLiveRoomAgentReply({
+      roomId,
+      roomMessageId,
+      targetMemberId,
+      chainDepth: 0,
+      allowChainedMentions,
+      forceTargetMember: isMentionAll,
     });
   }
 };

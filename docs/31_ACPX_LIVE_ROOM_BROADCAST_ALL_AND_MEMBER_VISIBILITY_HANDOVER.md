@@ -348,3 +348,102 @@ Live Room 已经具备：
 `broadcast` 解决的是公开发言，
 `@all` 解决的是全员召集，
 而 room roster visibility 解决的是“大家一开始是否真正知道彼此在场”。
+
+## 当前实现状态补记
+
+截至本轮，第一版已经开始落地：
+- 不点 dropdown、也不点名具体 member 的消息，会按 `broadcast` 语义处理
+- composer 里已支持 `@all`
+- `@all` 会 fan-out 给当前房间内所有可 reply 成员，并按顺序回复
+- room 创建时会自动写 roster system message
+- member 加入时会再次写入最新 roster
+- agent prompt 中会始终注入 current room members
+- `@all` 发出后会先插入一条 dispatch system message，提示本轮共有多少成员已进入顺序回复队列
+- `@all` 回复之间会加入一个轻量 stagger 间隔，避免多 agent 同时刷屏
+- composer 已明确展示当前发送模式：`broadcast / direct / mention / @all`
+- 消息气泡里会显示 `@all` 与 queued count，方便观察当前 fan-out 规模
+
+## 本轮调试补记：为什么曾出现“@all 只有 Codex 在回复”
+
+### 现象
+真实测试里出现过：
+- 用户发出 `@all`
+- system message 也显示 `queued: 8`
+- 但真正连续回复的只有 `Platform Local Codex`
+
+### 根因
+问题不在于 fan-out 队列没有生成，
+而在于执行每一轮 agent reply 时，
+delivery 仍然优先尊重 source message 上的：
+- `primaryTargetMemberId`
+
+而那条 `@all` 消息里，
+`primaryTargetMemberId` 恰好落在了 `Platform Local Codex`。
+
+结果就是：
+1. `@all` 队列的确生成了 8 个 target
+2. 但每次进入单个 reply 执行函数时
+3. 系统又重新按 `primaryTargetMemberId` 选目标
+4. 最终 8 次都重复命中 Codex
+
+所以这不是“只有 Codex 收到了消息”，
+而是：
+- `fan-out queue` 是对的
+- `per-target execution` 被 `primaryTarget` 抢回去了
+
+### 修复方式
+本轮已改成：
+- 普通 `mention / broadcast` 仍走原有优先级
+- 但 `@all` fan-out 进入逐个执行阶段时，
+  每一轮都强制按当前队列 target 执行
+  不再让 `primaryTargetMemberId` 抢走该轮目标
+
+也就是说：
+- `@all` 的“队列 target”在执行期优先级更高
+- 这才是真正的全员 fan-out
+
+## 关于底部 UI 文案的判断
+
+### 你的观察是对的：它会造成误读
+在出问题那一版里，底部同时显示：
+- `向整个房间说话（由当前 speaker 优先回应）`
+- `这是一条面向整个房间的公开消息，当前 speaker 会优先回复`
+- `mode: broadcast`
+
+这套文案在 `@all` 场景下会让人自然怀疑：
+- 系统是不是其实还是只先投给 current speaker
+- 所以才导致只有 Codex 在回复
+
+### 更准确的判断
+严格说，真正的 bug 不是这句文案直接造成的，
+而是执行层的 target precedence 问题。
+
+但这句文案确实暴露了一个产品心智问题：
+- `broadcast`
+  和
+- `@all`
+  不应该共享同一套弱提示
+
+因为：
+- `broadcast` 是“整个房间都能看见，但只有一个主回复者先接话”
+- `@all` 是“所有可回复成员都进入本轮回复队列”
+
+所以在 handover 上应明确记住：
+- 如果 UI 仍然强调“current speaker 优先回应”
+- 用户会非常容易误会 `@all` 其实只是特殊文案，不是真 fan-out
+
+### 后续 UI 建议
+在 `@all` 状态下，应尽量显式显示：
+- `当前模式：@all`
+- `本轮 queued responders: N`
+- `responses will be staggered`
+
+而不是继续沿用：
+- `当前 speaker 会优先回复`
+
+因为那是 `broadcast` 心智，不是 `@all` 心智。
+
+当前仍建议后续继续完善：
+- `@all` 的节流与更细的 stagger 策略
+- `broadcast` 的 primary responder 选择策略
+- roster system message 的噪音控制

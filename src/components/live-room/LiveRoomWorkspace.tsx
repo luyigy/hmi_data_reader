@@ -16,6 +16,10 @@ interface LiveRoomsResponse {
   availableAgents: LiveRoomCatalogAgent[];
 }
 
+type MentionCandidate =
+  | { kind: 'all'; id: '__all__'; label: '@all'; subtitle: string }
+  | { kind: 'member'; member: LiveRoomDetail['members'][number] };
+
 const ROOMS_PANEL_KEY = 'live-room-left-panel-open';
 const DETAILS_PANEL_KEY = 'live-room-right-panel-open';
 
@@ -33,9 +37,25 @@ const getMemberSubtitle = (member: LiveRoomDetail['members'][number]) =>
     : `${member.gatewayName || 'Platform Local'} / ${member.harnessType || 'agent'}`;
 
 const getMentionQuery = (value: string) => value.match(/@([\w\u4e00-\u9fa5-]*)$/)?.[1] ?? '';
+const hasMentionAll = (value: string) => /(^|[\s(])@all\b/i.test(value);
 
 const getMessageMetadataValue = (message: LiveRoomMessage, key: string) =>
   (message.metadata && typeof message.metadata[key] !== 'undefined') ? message.metadata[key] : null;
+
+const getComposerModeLabel = ({
+  draftMentionAll,
+  draftMentionMemberIds,
+  selectedTargetMemberId,
+}: {
+  draftMentionAll: boolean;
+  draftMentionMemberIds: string[];
+  selectedTargetMemberId: string;
+}) => {
+  if (draftMentionAll) return '@all';
+  if (draftMentionMemberIds.length > 0) return 'mention';
+  if (selectedTargetMemberId) return 'direct';
+  return 'broadcast';
+};
 
 export function LiveRoomWorkspace({
   initialRoomId,
@@ -48,6 +68,7 @@ export function LiveRoomWorkspace({
   const [selectedRoom, setSelectedRoom] = useState<LiveRoomDetail | null>(null);
   const [messages, setMessages] = useState<LiveRoomMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
+  const [draftMentionAll, setDraftMentionAll] = useState(false);
   const [draftMentionMemberIds, setDraftMentionMemberIds] = useState<string[]>([]);
   const [newRoomTitle, setNewRoomTitle] = useState('');
   const [newRoomTopic, setNewRoomTopic] = useState('');
@@ -83,7 +104,7 @@ export function LiveRoomWorkspace({
     }
 
     const query = mentionQuery.toLowerCase();
-    return selectedRoom.members
+    const memberCandidates: MentionCandidate[] = selectedRoom.members
       .filter((member) => member.canReply)
       .filter((member) => member.memberType !== 'user')
       .filter((member) => {
@@ -116,8 +137,19 @@ export function LiveRoomWorkspace({
 
         return left.sortOrder - right.sortOrder;
       })
-      .slice(0, query ? 8 : 20);
-  }, [mentionQuery, messageInput, selectedRoom]);
+      .map((member) => ({ kind: 'member', member }));
+
+    const allCandidate: MentionCandidate[] = !query || '@all'.includes(`@${query}`) || 'all'.includes(query)
+      ? [{
+          kind: 'all',
+          id: '__all__',
+          label: '@all',
+          subtitle: `通知当前房间内全部 ${activeReplyMembers.length} 个可回复成员`,
+        }]
+      : [];
+
+    return [...allCandidate, ...memberCandidates].slice(0, query ? 8 : 20);
+  }, [activeReplyMembers.length, mentionQuery, messageInput, selectedRoom]);
 
   const refreshRooms = async () => {
     setIsLoadingRooms(true);
@@ -151,7 +183,8 @@ export function LiveRoomWorkspace({
       setSelectedRoom(roomData.room || null);
       setMessages(Array.isArray(messagesData.messages) ? messagesData.messages : []);
       setTopicDraft(roomData.room?.currentTopic || '');
-      setSelectedTargetMemberId(roomData.room?.currentSpeakerMemberId || '');
+      setSelectedTargetMemberId('');
+      setDraftMentionAll(false);
       setDraftMentionMemberIds([]);
     } catch (fetchError) {
       console.error('Failed to fetch live room detail:', fetchError);
@@ -300,7 +333,7 @@ export function LiveRoomWorkspace({
     setIsSending(true);
     setError(null);
     try {
-      const hasStructuredMention = draftMentionMemberIds.length > 0;
+      const hasStructuredMention = draftMentionAll || draftMentionMemberIds.length > 0;
       const response = await fetch(`/api/live-rooms/${selectedRoom.id}/messages`, {
         method: 'POST',
         headers: {
@@ -309,6 +342,7 @@ export function LiveRoomWorkspace({
         body: JSON.stringify({
           content: messageInput.trim(),
           targetMemberId: hasStructuredMention ? undefined : (selectedTargetMemberId || undefined),
+          explicitMentionAll: draftMentionAll,
           explicitMentionMemberIds: draftMentionMemberIds,
           autoReply: true,
         }),
@@ -319,12 +353,15 @@ export function LiveRoomWorkspace({
       }
 
       setMessageInput('');
+      setDraftMentionAll(false);
       setDraftMentionMemberIds([]);
-      setNotice(hasStructuredMention && selectedRoom
+      setNotice(draftMentionAll && selectedRoom
+        ? `消息已发送，@all 会通知当前房间内全部 ${selectedRoom.members.filter((member) => member.canReply && member.memberType !== 'user').length} 个可回复成员，并按顺序回复。`
+        : hasStructuredMention && selectedRoom
         ? `消息已发送，这条消息会优先按 mention 路由给 ${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}。`
         : selectedTargetMemberId
         ? '消息已发送，这条消息会优先由你在 dropdown 里选中的 agent 回复。'
-        : '消息已发送，当前 speaker 会继续接话。');
+        : '消息已发送，这是一条面向整个房间的公开消息，当前 speaker 会优先接话。');
       if (Array.isArray(data.messages)) {
         setMessages((prev) => {
           const next = [...prev];
@@ -422,7 +459,7 @@ export function LiveRoomWorkspace({
       if (!response.ok) {
         throw new Error(data.error || '切换 speaker 失败');
       }
-      setSelectedTargetMemberId(memberId);
+      setSelectedTargetMemberId('');
       setNotice('当前主回复 agent 已切换。');
       await refreshSelectedRoom(selectedRoom.id);
       await refreshRooms();
@@ -454,13 +491,22 @@ export function LiveRoomWorkspace({
     return 'grid-cols-[minmax(0,1fr)]';
   }, [isDetailsPanelOpen, isRoomsPanelOpen]);
 
-  const handlePickMention = (member: LiveRoomDetail['members'][number]) => {
-    setMessageInput((prev) => prev.replace(/@([\w\u4e00-\u9fa5-]*)$/, `@${member.displayName} `));
-    setDraftMentionMemberIds((prev) => Array.from(new Set([...prev, member.id])));
+  const handlePickMention = (candidate: MentionCandidate) => {
+    if (candidate.kind === 'all') {
+      setMessageInput((prev) => prev.replace(/@([\w\u4e00-\u9fa5-]*)$/, '@all '));
+      setDraftMentionAll(true);
+      setDraftMentionMemberIds([]);
+      return;
+    }
+
+    setMessageInput((prev) => prev.replace(/@([\w\u4e00-\u9fa5-]*)$/, `@${candidate.member.displayName} `));
+    setDraftMentionAll(false);
+    setDraftMentionMemberIds((prev) => Array.from(new Set([...prev, candidate.member.id])));
   };
 
   const handleComposerChange = (value: string) => {
     setMessageInput(value);
+    setDraftMentionAll(hasMentionAll(value));
     setDraftMentionMemberIds((prev) => {
       if (!selectedRoom) {
         return prev;
@@ -676,13 +722,28 @@ export function LiveRoomWorkspace({
                           <div className={`mb-1 text-[10px] ${isUser ? 'text-slate-300' : 'text-slate-500'}`}>
                             {message.senderLabel || message.senderName} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
                           </div>
-                          {Array.isArray(getMessageMetadataValue(message, 'mentionedMemberIds')) || getMessageMetadataValue(message, 'primaryTargetMemberId') ? (
+                          {Array.isArray(getMessageMetadataValue(message, 'mentionedMemberIds')) || getMessageMetadataValue(message, 'primaryTargetMemberId') || getMessageMetadataValue(message, 'mentionedAll') ? (
                             <div className="mb-2 flex flex-wrap gap-1.5">
                               {typeof getMessageMetadataValue(message, 'deliveryIntent') === 'string' ? (
                                 <span className={`rounded-full px-2 py-0.5 text-[10px] ${
                                   isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
                                 }`}>
                                   {String(getMessageMetadataValue(message, 'deliveryIntent'))}
+                                </span>
+                              ) : null}
+                              {getMessageMetadataValue(message, 'mentionedAll') ? (
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                  isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  @all
+                                </span>
+                              ) : null}
+                              {Array.isArray(getMessageMetadataValue(message, 'expectedResponderMemberIds'))
+                                && getMessageMetadataValue(message, 'mentionedAll') ? (
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                  isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  queued: {(getMessageMetadataValue(message, 'expectedResponderMemberIds') as unknown[]).length}
                                 </span>
                               ) : null}
                               {selectedRoom?.members
@@ -733,7 +794,7 @@ export function LiveRoomWorkspace({
                     onChange={(event) => setSelectedTargetMemberId(event.target.value)}
                     className="rounded-full border border-slate-300 px-3 py-1.5 text-xs text-slate-700"
                   >
-                    <option value="">当前 speaker 自动接话</option>
+                    <option value="">向整个房间说话（由当前 speaker 优先回应）</option>
                     {activeReplyMembers.map((member) => (
                       <option key={member.id} value={member.id}>
                         {getMemberLabel(member)}
@@ -741,11 +802,13 @@ export function LiveRoomWorkspace({
                     ))}
                   </select>
                   <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">
-                    {draftMentionMemberIds.length > 0
+                    {draftMentionAll
+                      ? '这条消息带有 @all，当前房间内所有可回复成员都会收到并按顺序回应。'
+                      : draftMentionMemberIds.length > 0
                       ? '这条消息包含结构化 mention，本次会优先按 mention 路由。'
                       : selectedTargetMemberId
                       ? '这条消息会优先投递给你在 dropdown 里选中的 agent。'
-                      : '这条消息会由当前 speaker 优先回复。'}
+                      : '这是一条面向整个房间的公开消息，当前 speaker 会优先回复。'}
                   </div>
                 </div>
                 <textarea
@@ -762,25 +825,40 @@ export function LiveRoomWorkspace({
                     <div className="space-y-1">
                       {mentionCandidates.map((member) => (
                         <button
-                          key={member.id}
+                          key={member.kind === 'all' ? member.id : member.member.id}
                           onClick={() => handlePickMention(member)}
                           onMouseDown={(event) => event.preventDefault()}
                           className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition hover:bg-white"
                           type="button"
                         >
                           <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-slate-800">{member.displayName}</div>
-                            <div className="truncate text-[11px] text-slate-500">{getMemberSubtitle(member)}</div>
+                            <div className="truncate text-sm font-medium text-slate-800">
+                              {member.kind === 'all' ? member.label : member.member.displayName}
+                            </div>
+                            <div className="truncate text-[11px] text-slate-500">
+                              {member.kind === 'all' ? member.subtitle : getMemberSubtitle(member.member)}
+                            </div>
                           </div>
-                          <span className="rounded-full bg-white px-2 py-1 text-[10px] text-slate-500">@{member.displayName}</span>
+                          <span className="rounded-full bg-white px-2 py-1 text-[10px] text-slate-500">
+                            {member.kind === 'all' ? '@all' : `@${member.member.displayName}`}
+                          </span>
                         </button>
                       ))}
                     </div>
                   </div>
                 ) : null}
                 <div className="mt-1.5 flex items-center justify-between gap-4">
-                  <div className="text-xs text-slate-500">
-                    {draftMentionMemberIds.length > 0 && selectedRoom
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-600">
+                      mode: {getComposerModeLabel({
+                        draftMentionAll,
+                        draftMentionMemberIds,
+                        selectedTargetMemberId,
+                      })}
+                    </span>
+                    {draftMentionAll && selectedRoom
+                      ? `已结构化 mention：@all（${selectedRoom.members.filter((member) => member.canReply && member.memberType !== 'user').length} 个可回复成员）`
+                      : draftMentionMemberIds.length > 0 && selectedRoom
                       ? `已结构化 mention：${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}`
                       : selectedSpeaker
                       ? `当前主回复 agent：${getMemberLabel(selectedSpeaker)}`

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
+  buildLiveRoomRosterText,
   listLiveRoomCatalogAgents,
   postLiveRoomMessage,
+  resolveLiveRoomMessageMetadata,
   serializeLiveRoomMember,
 } from '@/lib/live-room';
 
@@ -95,13 +97,27 @@ export async function POST(
       });
     }
 
+    const rosterMembers = await prisma.liveRoomMember.findMany({
+      where: { roomId: room.id },
+      include: {
+        gateway: true,
+      },
+      orderBy: {
+        sortOrder: 'asc',
+      },
+    });
+
     await postLiveRoomMessage({
       roomId: room.id,
-      content: `${created.displayName} 已加入房间。`,
+      content: `${created.displayName} 已加入房间。\n\n当前房间成员：\n${buildLiveRoomRosterText(rosterMembers)}`,
       messageType: 'system',
-      metadata: {
-        memberId: created.id,
-      },
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        extras: {
+          systemEvent: 'member_joined',
+          memberId: created.id,
+        },
+      }),
     });
 
     return NextResponse.json({
