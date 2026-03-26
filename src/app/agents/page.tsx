@@ -21,6 +21,7 @@ interface Agent {
     id: string;
     name: string;
   } | null;
+  isPlatformLocal: boolean;  // 是否为平台内置 agent
 }
 
 interface AgentIdentityResponse {
@@ -132,7 +133,8 @@ export default function AgentsPage() {
   };
 
   const groupedAgents = agents.reduce((acc, agent) => {
-    const key = agent.gateway?.name || 'Platform Local';
+    // Platform Local agents go together
+    const key = agent.isPlatformLocal ? 'Platform Local (Built-in)' : agent.gateway?.name || 'Unknown';
     if (!acc[key]) acc[key] = [];
     acc[key].push(agent);
     return acc;
@@ -279,13 +281,19 @@ function ViewMode({
             style={{ backgroundColor: agent.colorTag || '#ccc' }}
           />
         </div>
-        <button
-          onClick={onEdit}
-          disabled={saveStatus === 'saving'}
-          className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-        >
-          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Edit'}
-        </button>
+        {agent.isPlatformLocal ? (
+          <span className="text-xs text-gray-400 italic">
+            Built-in (use room nicknames)
+          </span>
+        ) : (
+          <button
+            onClick={onEdit}
+            disabled={saveStatus === 'saving'}
+            className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Edit'}
+          </button>
+        )}
       </div>
     </div>
   );

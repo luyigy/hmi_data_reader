@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
-  buildAgentIdentity,
   generateDisplayName,
   generateShortAlias,
   generateDefaultColorTag,
@@ -37,10 +36,15 @@ const generateRawName = (
 /**
  * GET /api/agents
  * 获取所有 Agent 列表，包含身份信息
+ *
+ * 包括:
+ * 1. 数据库中的 Agent (来自 gateway)
+ * 2. Platform Local agents (内置的本地 Claude/Codex)
  */
 export async function GET() {
   try {
-    const agents = await prisma.agent.findMany({
+    // 1. 获取数据库中的 Agent
+    const dbAgents = await prisma.agent.findMany({
       include: {
         gateway: true,
       },
@@ -50,45 +54,70 @@ export async function GET() {
       ],
     });
 
-    // 统计每种类型的 agent 数量，用于生成显示名称
-    const typeCounts = new Map<string, number>();
-    agents.forEach((agent) => {
-      const count = typeCounts.get(agent.type) || 0;
-      typeCounts.set(agent.type, count + 1);
-    });
+    // 2. 构建 platform_local agents (内置本地 agents)
+    const platformLocalAgents = [
+      {
+        id: 'platform-local:claude',
+        agentKey: 'platform-local:claude',
+        originalName: 'Platform Local Claude',
+        rawName: 'Platform Local - Claude',
+        displayName: 'Platform Local Claude',
+        userNickname: null,
+        shortAlias: null,
+        roleDescription: null,
+        colorTag: '#4A90E2',
+        emojiIcon: '🤖',
+        status: 'online',
+        type: 'claude',
+        runtimeAgentId: 'claude',
+        gateway: null,
+        location: '本地',
+        backend: 'platform_local',
+        isPlatformLocal: true,
+        capabilities: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'platform-local:codex',
+        agentKey: 'platform-local:codex',
+        originalName: 'Platform Local Codex',
+        rawName: 'Platform Local - Codex',
+        displayName: 'Platform Local Codex',
+        userNickname: null,
+        shortAlias: null,
+        roleDescription: null,
+        colorTag: '#F5A623',
+        emojiIcon: '💻',
+        status: 'online',
+        type: 'codex',
+        runtimeAgentId: 'codex',
+        gateway: null,
+        location: '本地',
+        backend: 'platform_local',
+        isPlatformLocal: true,
+        capabilities: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
 
-    const result = agents.map((agent) => {
-      // 使用数据库中的原始 name 作为主要标识
-      // 这个 name 来自 gateway，是唯一的（如 "main", "claude-3.5", "codex" 等）
+    // 3. 处理数据库 agents
+    const result = dbAgents.map((agent) => {
       const originalName = agent.name;
-
-      // 生成完整的原始名称（包含 gateway 信息）
       const rawName = generateRawName(agent.type, agent.gateway?.name || null, agent.location || null);
-
-      // 如果有昵称就用昵称，否则用原始名称
       const displayName = agent.userNickname || originalName;
-
-      // 生成简短别名
       const shortAlias = agent.userNickname
-        ? generateShortAlias(
-            displayName,
-            agent.type,
-            agent.gateway?.name || null,
-            agent.location
-          )
+        ? generateShortAlias(displayName, agent.type, agent.gateway?.name || null, agent.location)
         : null;
-
-      // 颜色标签和表情图标
-      const colorTag = agent.colorTag ||
-        generateDefaultColorTag(agent.type, agent.gatewayId);
-      const emojiIcon = agent.emojiIcon ||
-        generateDefaultEmojiIcon(agent.type);
+      const colorTag = agent.colorTag || generateDefaultColorTag(agent.type, agent.gatewayId);
+      const emojiIcon = agent.emojiIcon || generateDefaultEmojiIcon(agent.type);
 
       return {
         id: agent.id,
         agentKey: `${agent.gatewayId || 'platform_local'}:${agent.type}`,
-        originalName,  // 来自 gateway 的原始名称
-        rawName,       // 包含 gateway 的完整名称
+        originalName,
+        rawName,
         displayName,
         userNickname: agent.userNickname || null,
         shortAlias,
@@ -103,13 +132,18 @@ export async function GET() {
           name: agent.gateway.name,
         } : null,
         location: agent.location,
+        backend: agent.location === '本地' ? 'platform_local' : agent.location === '远程' ? 'gateway_openclaw' : agent.location === '云端' ? 'gateway_openclaw' : 'unknown',
+        isPlatformLocal: false,
         capabilities: JSON.parse(agent.capabilities || '[]'),
         createdAt: agent.createdAt.toISOString(),
         updatedAt: agent.updatedAt.toISOString(),
       };
     });
 
-    return NextResponse.json({ agents: result });
+    // 4. 合并 platform_local agents
+    const allAgents = [...platformLocalAgents, ...result];
+
+    return NextResponse.json({ agents: allAgents });
   } catch (error) {
     console.error('Failed to fetch agents:', error);
     return NextResponse.json(
