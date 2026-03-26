@@ -202,9 +202,8 @@ export const parseLiveRoomMessageMetadata = (value?: string | null): LiveRoomMes
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const findEarliestMentionIndex = (content: string, aliases: string[]) => {
+const findEarliestExplicitMentionIndex = (content: string, aliases: string[]) => {
   let bestIndex = Number.POSITIVE_INFINITY;
-
   for (const alias of aliases) {
     const trimmedAlias = alias.trim();
     if (!trimmedAlias) {
@@ -218,10 +217,11 @@ const findEarliestMentionIndex = (content: string, aliases: string[]) => {
     }
   }
 
-  if (bestIndex !== Number.POSITIVE_INFINITY) {
-    return bestIndex;
-  }
+  return bestIndex;
+};
 
+const findEarliestPlainMentionIndex = (content: string, aliases: string[]) => {
+  let bestIndex = Number.POSITIVE_INFINITY;
   for (const alias of aliases) {
     const trimmedAlias = alias.trim();
     if (!trimmedAlias) {
@@ -822,7 +822,8 @@ export const detectMentionedLiveRoomMembers = ({
   members: LiveRoomMentionableMember[];
   senderMemberId?: string | null;
 }) => {
-  const matches: Array<{ memberId: string; index: number }> = [];
+  const explicitMatches: Array<{ memberId: string; index: number }> = [];
+  const plainMatches: Array<{ memberId: string; index: number }> = [];
 
   for (const member of members) {
     if (member.id === senderMemberId) {
@@ -845,16 +846,27 @@ export const detectMentionedLiveRoomMembers = ({
       .map((item) => item.trim())
       .filter(Boolean);
 
-    const earliestIndex = findEarliestMentionIndex(content, aliases);
-    if (earliestIndex !== Number.POSITIVE_INFINITY) {
-      matches.push({
+    const explicitMentionIndex = findEarliestExplicitMentionIndex(content, aliases);
+    if (explicitMentionIndex !== Number.POSITIVE_INFINITY) {
+      explicitMatches.push({
         memberId: member.id,
-        index: earliestIndex,
+        index: explicitMentionIndex,
+      });
+      continue;
+    }
+
+    const plainMentionIndex = findEarliestPlainMentionIndex(content, aliases);
+    if (plainMentionIndex !== Number.POSITIVE_INFINITY) {
+      plainMatches.push({
+        memberId: member.id,
+        index: plainMentionIndex,
       });
     }
   }
 
-  return matches
+  const resolvedMatches = explicitMatches.length > 0 ? explicitMatches : plainMatches;
+
+  return resolvedMatches
     .sort((left, right) => left.index - right.index)
     .map((item) => item.memberId);
 };

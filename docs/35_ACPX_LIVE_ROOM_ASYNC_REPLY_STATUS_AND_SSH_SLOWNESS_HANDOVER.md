@@ -233,6 +233,33 @@ const DISABLE_LIVE_ROOM_SOCKET_AND_POLLING = true;
 但整体 build 仍会在 repo 其它历史 ESLint 问题上失败。
 这些失败并不是本轮 live-room 代码新增的。
 
+## 当前运行方式
+
+当前开发服务已明确改为后台运行在 `3010`：
+
+- URL:
+  - `http://localhost:3010`
+- 启动方式：
+  - 使用 detached 后台进程运行 `npm run dev`
+- 当前日志文件：
+  - [nohup.live-room.dev.log](/data1/code/agent-platform-v2/nohup.live-room.dev.log)
+
+本次确认过日志中已出现：
+- `Local: http://localhost:3010`
+- `Ready in 2.1s`
+
+如果下一位 agent 需要确认当前服务是否还活着，可优先检查：
+
+```bash
+ss -ltnp | rg ':3010 '
+tail -n 60 /data1/code/agent-platform-v2/nohup.live-room.dev.log
+```
+
+注意：
+- 当前工作区里可能还存在别的 Next 进程占用其它端口
+- 但这份 repo 现在约定使用 `3010`
+- 不要再让 `next dev` 自动漂移到 `3004` 之类端口，否则用户容易混淆
+
 ## 涉及文件
 
 - [LiveRoomWorkspace.tsx](/data1/code/agent-platform-v2/src/components/live-room/LiveRoomWorkspace.tsx)
