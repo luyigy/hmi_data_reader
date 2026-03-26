@@ -20,7 +20,11 @@ export async function GET(
     const room = await prisma.liveRoom.findUnique({
       where: { id: params.id },
       include: {
-        currentSpeaker: true,
+        currentSpeaker: {
+          include: {
+            agentRecord: true,  // Include to get userNickname
+          },
+        },
         sourceTask: {
           select: {
             id: true,
@@ -30,6 +34,7 @@ export async function GET(
         members: {
           include: {
             gateway: true,
+            agentRecord: true,  // Include to get userNickname
           },
           orderBy: {
             sortOrder: 'asc',
@@ -128,7 +133,11 @@ export async function PATCH(
             : existing.status,
       },
       include: {
-        currentSpeaker: true,
+        currentSpeaker: {
+          include: {
+            agentRecord: true,  // Include to get userNickname
+          },
+        },
         sourceTask: {
           select: {
             id: true,
@@ -138,6 +147,7 @@ export async function PATCH(
         members: {
           include: {
             gateway: true,
+            agentRecord: true,  // Include to get userNickname
           },
           orderBy: {
             sortOrder: 'asc',

@@ -300,49 +300,39 @@ DEBUG_MENTION_DETECTION=true
 
 | Agent ID | Harness | Description |
 |----------|--------|-------------|
-| `platform-local:claude` | Claude Code CLI | Runs `claude` command locally |
-| `platform-local:codex` | Codex CLI | Runs `codex` command locally |
+| `platform-local:{hostname}:claude` | Claude Code CLI | Runs `claude` command locally |
+| `platform-local:{hostname}:codex` | Codex CLI | Runs `codex` command locally |
 
 **Key Characteristics**:
 - `backend: platform_local` - Runs locally, not through a gateway
-- `agentRecordId: null` - No entry in the Agent table
-- `gatewayId: "platform-local"` - Special gateway ID
+- `gatewayId: null` - No associated gateway
+- `hostname` - Server hostname for differentiation across servers
 - Available in all Live Rooms by default
 
-### Why Don't They Appear in Agent Database?
+### Multi-Server Support
 
-They are **not stored in the Agent table** because:
-1. They are built-in executables (Claude CLI, Codex CLI)
-2. They don't come from a gateway
-3. They are always available locally
-4. They don't need sync/registration
+**✅ UPDATED**: Platform Local agents now have database records with hostname!
 
-### How to Identify Platform Local Agents
+When running on multiple servers:
+- Server `prod-server-01` → `Claude (prod-server-01)`, alias `@prod-server-01-claude`
+- Server `prod-server-02` → `Claude (prod-server-02)`, alias `@prod-server-02-claude`
 
-In `/api/live-rooms` response, look for:
-```json
-{
-  "id": "platform_local:platform-local:claude",
-  "agentRecordId": null,  // ← No Agent record!
-  "gatewayName": "Platform Local",
-  "backend": "platform_local",
-  "agentName": "Platform Local Claude"
-}
-```
+See [docs/44_PLATFORM_LOCAL_AGENT_HOSTNAME_SUPPORT.md](44_PLATFORM_LOCAL_AGENT_HOSTNAME_SUPPORT.md) for full implementation details.
 
 ### Nicknames for Platform Local Agents
 
-**Global nicknames NOT supported** for Platform Local agents because they have no database record.
-
-**Use room-specific nicknames instead**:
+**Global nicknames ARE NOW supported**:
 ```bash
-# Set nickname in a specific Live Room
+# Set global nickname via API
+curl -X PATCH "http://localhost:3010/api/agents/platform-local:prod-server-01:claude" \
+  -H "Content-Type: application/json" \
+  -d '{"userNickname": "小C"}'
+
+# Or use room-specific nicknames
 curl -X PATCH "http://localhost:3010/api/live-rooms/{roomId}/members/{memberId}" \
   -H "Content-Type: application/json" \
-  -d '{"userNickname": "小C", "shortAlias": "lc"}'
+  -d '{"userNickname": "审查员", "shortAlias": "reviewer"}'
 ```
-
-This allows different nicknames for the same Platform Local agent in different rooms.
 
 ---
 
@@ -350,9 +340,7 @@ This allows different nicknames for the same Platform Local agent in different r
 
 ### Known Issues
 
-1. **Platform Local Agents Missing**: The "Platform Local Claude" and "Platform Local Codex" agents don't exist in the database. These need to be created if desired.
-
-2. **Live Room Member Nicknames**: Room-specific nicknames are implemented but the UI doesn't expose them yet.
+1. **Live Room Member Nicknames**: Room-specific nicknames are implemented but the UI doesn't expose them yet.
 
 ### TODO (Future Work)
 
@@ -371,11 +359,10 @@ This allows different nicknames for the same Platform Local agent in different r
    - [ ] Show nicknames in message headers
    - [ ] Color-coded messages by agent
 
-4. **Create Platform Local Agents**:
-   ```bash
-   # Need to create agents with gatewayId = NULL or a specific platform_local gateway
-   # for "Platform Local Claude" and "Platform Local Codex"
-   ```
+4. ~~**Create Platform Local Agents**~~ ✅ **COMPLETED** - See [docs/44_PLATFORM_LOCAL_AGENT_HOSTNAME_SUPPORT.md](44_PLATFORM_LOCAL_AGENT_HOSTNAME_SUPPORT.md)
+   - Platform Local agents now have database records with hostname
+   - Global nicknames are now supported
+   - Agents are differentiated by server hostname
 
 ---
 

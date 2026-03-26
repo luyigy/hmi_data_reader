@@ -6,15 +6,17 @@ import {
   generateDefaultColorTag,
   generateDefaultEmojiIcon,
 } from '@/lib/agent-identity';
+import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
 
 /**
  * 生成原始名称（用于识别是哪个 agent）
- * 例如: "Platform Local - Claude", "Linux Gateway - Claude", "TX-server - Claude"
+ * 例如: "Platform Local - Claude", "Linux Gateway - Claude", "server-01 - Claude"
  */
 const generateRawName = (
   harnessType: string,
   gatewayName: string | null,
-  backend: string | null
+  isPlatformLocal: boolean,
+  hostname: string | null = null
 ): string => {
   const titleCase = harnessType
     .toLowerCase()
@@ -22,7 +24,11 @@ const generateRawName = (
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 
-  if (backend === 'platform_local') {
+  if (isPlatformLocal) {
+    if (hostname) {
+      const hostnameShort = hostname.split('.')[0];
+      return `${hostnameShort} - ${titleCase}`;
+    }
     return `Platform Local - ${titleCase}`;
   }
 
@@ -31,6 +37,17 @@ const generateRawName = (
   }
 
   return titleCase;
+};
+
+/**
+ * Derive backend from agent properties
+ */
+const deriveBackend = (agent: { hostname: string | null; gatewayId: string | null; location: string | null }): string => {
+  if (agent.hostname) return 'platform_local';
+  if (agent.location === '本地') return 'platform_local';
+  if (agent.location === '远程' || agent.location === '云端') return 'gateway_openclaw';
+  if (agent.gatewayId) return 'gateway_openclaw';
+  return 'unknown';
 };
 
 /**
@@ -43,73 +60,59 @@ const generateRawName = (
  */
 export async function GET() {
   try {
-    // 1. 获取数据库中的 Agent
+    // 1. Ensure platform local agents exist in database
+    await ensurePlatformLocalAgents();
+    const currentHostname = getServerHostname();
+
+    // 2. 获取数据库中的所有 Agent (包括 platform_local)
     const dbAgents = await prisma.agent.findMany({
       include: {
         gateway: true,
       },
       orderBy: [
+        // Platform local agents first, grouped by hostname
+        { hostname: { sort: 'asc', nulls: 'first' } },
         { gateway: { name: 'asc' } },
         { type: 'asc' },
       ],
     });
 
-    // 2. 构建 platform_local agents (内置本地 agents)
-    const platformLocalAgents = [
-      {
-        id: 'platform-local:claude',
-        agentKey: 'platform-local:claude',
-        originalName: 'Platform Local Claude',
-        rawName: 'Platform Local - Claude',
-        displayName: 'Platform Local Claude',
-        userNickname: null,
-        shortAlias: null,
-        roleDescription: null,
-        colorTag: '#4A90E2',
-        emojiIcon: '🤖',
-        status: 'online',
-        type: 'claude',
-        runtimeAgentId: 'claude',
-        gateway: null,
-        location: '本地',
-        backend: 'platform_local',
-        isPlatformLocal: true,
-        capabilities: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'platform-local:codex',
-        agentKey: 'platform-local:codex',
-        originalName: 'Platform Local Codex',
-        rawName: 'Platform Local - Codex',
-        displayName: 'Platform Local Codex',
-        userNickname: null,
-        shortAlias: null,
-        roleDescription: null,
-        colorTag: '#F5A623',
-        emojiIcon: '💻',
-        status: 'online',
-        type: 'codex',
-        runtimeAgentId: 'codex',
-        gateway: null,
-        location: '本地',
-        backend: 'platform_local',
-        isPlatformLocal: true,
-        capabilities: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
+    // 3. 统计每个 harnessType 的数量（用于生成 displayName）
+    const typeCount = new Map<string, number>();
+    for (const agent of dbAgents) {
+      const backend = deriveBackend(agent);
+      const key = `${backend}:${agent.type}`;
+      typeCount.set(key, (typeCount.get(key) || 0) + 1);
+    }
 
-    // 3. 处理数据库 agents
+    // 4. 处理所有 agents
     const result = dbAgents.map((agent) => {
+      const hostname = agent.hostname || null;
+      const backend = deriveBackend(agent);
+      const isPlatformLocal = backend === 'platform_local';
+
       const originalName = agent.name;
-      const rawName = generateRawName(agent.type, agent.gateway?.name || null, agent.location || null);
-      const displayName = agent.userNickname || originalName;
+
+      // 生成显示名称
+      const displayName = agent.userNickname || generateDisplayName(
+        agent.type,
+        agent.gateway?.name || null,
+        backend,
+        typeCount.get(`${backend}:${agent.type}`) || 1,
+        hostname
+      );
+
+      const rawName = generateRawName(
+        agent.type,
+        agent.gateway?.name || null,
+        isPlatformLocal,
+        hostname
+      );
+
       const shortAlias = agent.userNickname
-        ? generateShortAlias(displayName, agent.type, agent.gateway?.name || null, agent.location)
+        ? generateShortAlias(displayName, agent.type, agent.gateway?.name || null, backend, hostname)
         : null;
+
       const colorTag = agent.colorTag || generateDefaultColorTag(agent.type, agent.gatewayId);
       const emojiIcon = agent.emojiIcon || generateDefaultEmojiIcon(agent.type);
 
@@ -124,6 +127,7 @@ export async function GET() {
         roleDescription: agent.roleDescription || null,
         colorTag,
         emojiIcon,
+        hostname,
         status: agent.status,
         type: agent.type,
         runtimeAgentId: agent.runtimeAgentId,
@@ -132,22 +136,19 @@ export async function GET() {
           name: agent.gateway.name,
         } : null,
         location: agent.location,
-        backend: agent.location === '本地' ? 'platform_local' : agent.location === '远程' ? 'gateway_openclaw' : agent.location === '云端' ? 'gateway_openclaw' : 'unknown',
-        isPlatformLocal: false,
+        backend,
+        isPlatformLocal,
         capabilities: JSON.parse(agent.capabilities || '[]'),
         createdAt: agent.createdAt.toISOString(),
         updatedAt: agent.updatedAt.toISOString(),
       };
     });
 
-    // 4. 合并 platform_local agents
-    const allAgents = [...platformLocalAgents, ...result];
-
-    return NextResponse.json({ agents: allAgents });
+    return NextResponse.json({ agents: result });
   } catch (error) {
     console.error('Failed to fetch agents:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch agents' },
+      { error: 'Failed to fetch agents', details: String(error) },
       { status: 500 }
     );
   }

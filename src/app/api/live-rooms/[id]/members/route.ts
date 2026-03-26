@@ -87,8 +87,8 @@ export async function POST(
             : agent.backend === 'remote_ssh'
             ? 'remote_agent'
             : 'local_agent',
-        displayName: agent.agentName || agent.label,
-        agentNameSnapshot: agent.agentName || agent.label,
+        displayName: agent.userNickname || agent.agentName || agent.label,
+        agentNameSnapshot: agent.userNickname || agent.agentName || agent.label,
         harnessType: agent.harnessType,
         backend: agent.backend,
         runtimeAgentId: agent.runtimeAgentId || null,
@@ -104,6 +104,7 @@ export async function POST(
       },
       include: {
         gateway: true,
+        agentRecord: true,  // Include to get current nickname
       },
     });
 
@@ -122,6 +123,7 @@ export async function POST(
       where: { roomId: room.id },
       include: {
         gateway: true,
+        agentRecord: true,  // Include to get current nickname
       },
       orderBy: {
         sortOrder: 'asc',

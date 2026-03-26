@@ -17,6 +17,8 @@ export interface LiveRoomCatalogAgent {
   harnessType: string;
   label: string;
   agentName?: string;
+  userNickname?: string | null;  // User-defined nickname
+  hostname?: string | null;       // Server hostname
   runtimeAgentId?: string;
   status: string;
 }
@@ -347,6 +349,8 @@ export const listLiveRoomCatalogAgents = async (): Promise<LiveRoomCatalogAgent[
     harnessType: option.harnessType,
     label: option.harnessLabel,
     agentName: option.agentName || null || undefined,
+    userNickname: option.userNickname || null,
+    hostname: option.hostname || null,
     runtimeAgentId: option.runtimeAgentId || option.agentId || undefined,
     status: option.status,
   }));
@@ -369,26 +373,37 @@ export const serializeLiveRoomMember = (member: {
   gatewayId: string | null;
   agentRecordId: string | null;
   gateway?: { name: string } | null;
-}): LiveRoomMemberPayload => ({
-  id: member.id,
-  roomId: member.roomId,
-  memberType: member.memberType,
-  displayName: member.displayName,
-  agentNameSnapshot: member.agentNameSnapshot,
-  harnessType: member.harnessType,
-  backend: member.backend,
-  runtimeAgentId: member.runtimeAgentId,
-  roleLabel: member.roleLabel,
-  joinStatus: member.joinStatus,
-  presenceStatus: member.presenceStatus,
-  canReply: member.canReply,
-  sortOrder: member.sortOrder,
-  gatewayId: member.gatewayId,
-  gatewayName:
-    member.gateway?.name
-    || (member.backend === 'remote_ssh' ? extractRemoteHostIdFromRoleLabel(member.roleLabel) : null),
-  agentRecordId: member.agentRecordId,
-});
+  agentRecord?: {
+    userNickname: string | null;
+    name: string;
+  } | null;
+}): LiveRoomMemberPayload => {
+  // Prefer the current nickname from Agent record over the stored snapshot
+  const currentNickname = member.agentRecord?.userNickname || null;
+  const displayName = currentNickname || member.displayName;
+  const agentNameSnapshot = currentNickname || member.agentNameSnapshot;
+
+  return {
+    id: member.id,
+    roomId: member.roomId,
+    memberType: member.memberType,
+    displayName,
+    agentNameSnapshot,
+    harnessType: member.harnessType,
+    backend: member.backend,
+    runtimeAgentId: member.runtimeAgentId,
+    roleLabel: member.roleLabel,
+    joinStatus: member.joinStatus,
+    presenceStatus: member.presenceStatus,
+    canReply: member.canReply,
+    sortOrder: member.sortOrder,
+    gatewayId: member.gatewayId,
+    gatewayName:
+      member.gateway?.name
+      || (member.backend === 'remote_ssh' ? extractRemoteHostIdFromRoleLabel(member.roleLabel) : null),
+    agentRecordId: member.agentRecordId,
+  };
+};
 
 export const buildLiveRoomAcpxParticipant = (member: {
   id: string;
@@ -475,11 +490,21 @@ export const serializeLiveRoomSummary = (room: {
   createdAt: Date;
   updatedAt: Date;
   currentSpeakerMemberId: string | null;
-  currentSpeaker?: { displayName: string } | null;
+  currentSpeaker?: {
+    displayName: string;
+    agentRecord?: {
+      userNickname: string | null;
+    } | null;
+  } | null;
   members?: Array<unknown>;
   messages?: Array<{ content: string; createdAt: Date }>;
 }): LiveRoomSummaryPayload => {
   const latestMessage = room.messages?.[0] || null;
+  // Prefer current nickname from agent record
+  const currentSpeakerName =
+    room.currentSpeaker?.agentRecord?.userNickname ||
+    room.currentSpeaker?.displayName ||
+    null;
 
   return {
     id: room.id,
@@ -492,7 +517,7 @@ export const serializeLiveRoomSummary = (room: {
     createdAt: room.createdAt.toISOString(),
     updatedAt: room.updatedAt.toISOString(),
     currentSpeakerMemberId: room.currentSpeakerMemberId,
-    currentSpeakerName: room.currentSpeaker?.displayName || null,
+    currentSpeakerName,
     memberCount: room.members?.length || 0,
     lastMessagePreview: latestMessage?.content || null,
     lastMessageAt: latestMessage?.createdAt.toISOString() || null,

@@ -23,8 +23,16 @@ export async function GET() {
           },
         },
         include: {
-          currentSpeaker: true,
-          members: true,
+          currentSpeaker: {
+            include: {
+              agentRecord: true,  // Include to get current nickname
+            },
+          },
+          members: {
+            include: {
+              agentRecord: true,  // Include to get current nickname
+            },
+          },
           messages: {
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -100,8 +108,8 @@ export async function POST(request: NextRequest) {
                 : agent.backend === 'remote_ssh'
                 ? 'remote_agent'
                 : 'local_agent',
-            displayName: agent.agentName || agent.label,
-            agentNameSnapshot: agent.agentName || agent.label,
+            displayName: agent.userNickname || agent.agentName || agent.label,
+            agentNameSnapshot: agent.userNickname || agent.agentName || agent.label,
             harnessType: agent.harnessType,
             backend: agent.backend,
             runtimeAgentId: agent.runtimeAgentId || null,

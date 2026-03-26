@@ -10,6 +10,8 @@ export interface HarnessOption {
   harnessLabel: string;
   agentId?: string;
   agentName?: string;
+  userNickname?: string | null;  // User-defined nickname from Agent table
+  hostname?: string | null;       // Server hostname for platform_local agents
   runtimeAgentId?: string;
   status: string;
 }
@@ -60,7 +62,7 @@ const parseSupportedHarnesses = (value?: string | null): string[] => {
 };
 
 export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> => {
-  const [gateways, localStatus, remoteHosts] = await Promise.all([
+  const [gateways, localStatus, remoteHosts, platformLocalAgents] = await Promise.all([
     prisma.gateway.findMany({
       include: {
         agents: {
@@ -79,36 +81,84 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         label: 'asc',
       },
     }),
+    // Get platform local agents from database with their nicknames and hostnames
+    prisma.agent.findMany({
+      where: {
+        hostname: { not: null },
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    }),
   ]);
 
   const options: HarnessOption[] = [];
 
-  if (localStatus.codex.available) {
+  // Platform local agents from database (with hostname)
+  for (const agent of platformLocalAgents) {
+    const harnessType = normalizeHarnessType(agent.name) || agent.type;
+
+    if (!harnessType) {
+      continue;
+    }
+
+    // Check if this harness type is available locally
+    const isAvailable = harnessType === 'codex' ? localStatus.codex.available
+      : harnessType === 'claude' ? localStatus.claude.available
+      : true;
+
+    if (!isAvailable) {
+      continue;
+    }
+
+    const hostname = agent.hostname || 'localhost';
+    const hostnameShort = hostname.split('.')[0];
+    const displayName = agent.userNickname || agent.name;
+
     options.push({
       gatewayId: 'platform-local',
-      gatewayName: 'Platform Local',
+      gatewayName: `Platform Local (${hostnameShort})`,
       executionBackend: 'platform_local',
-      harnessType: 'codex',
-      harnessLabel: 'Platform Local / Codex CLI',
-      agentId: 'platform-local:codex',
-      agentName: 'Platform Local Codex',
-      runtimeAgentId: 'codex',
-      status: 'online',
+      harnessType,
+      harnessLabel: `Platform Local (${hostnameShort}) / ${toTitleCase(harnessType)} CLI`,
+      agentId: agent.id,
+      agentName: agent.name,
+      userNickname: agent.userNickname,
+      hostname: agent.hostname,
+      runtimeAgentId: harnessType,
+      status: agent.status,
     });
   }
 
-  if (localStatus.claude.available) {
-    options.push({
-      gatewayId: 'platform-local',
-      gatewayName: 'Platform Local',
-      executionBackend: 'platform_local',
-      harnessType: 'claude',
-      harnessLabel: 'Platform Local / Claude Code CLI',
-      agentId: 'platform-local:claude',
-      agentName: 'Platform Local Claude',
-      runtimeAgentId: 'claude',
-      status: 'online',
-    });
+  // Fallback: If no platform local agents in DB, add defaults (for backwards compatibility)
+  if (platformLocalAgents.length === 0) {
+    if (localStatus.codex.available) {
+      options.push({
+        gatewayId: 'platform-local',
+        gatewayName: 'Platform Local',
+        executionBackend: 'platform_local',
+        harnessType: 'codex',
+        harnessLabel: 'Platform Local / Codex CLI',
+        agentId: 'platform-local:codex',
+        agentName: 'Platform Local Codex',
+        runtimeAgentId: 'codex',
+        status: 'online',
+      });
+    }
+
+    if (localStatus.claude.available) {
+      options.push({
+        gatewayId: 'platform-local',
+        gatewayName: 'Platform Local',
+        executionBackend: 'platform_local',
+        harnessType: 'claude',
+        harnessLabel: 'Platform Local / Claude Code CLI',
+        agentId: 'platform-local:claude',
+        agentName: 'Platform Local Claude',
+        runtimeAgentId: 'claude',
+        status: 'online',
+      });
+    }
   }
 
   for (const gateway of gateways) {
@@ -122,14 +172,20 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         continue;
       }
 
+      // Use nickname as display name if set
+      const displayName = agent.userNickname || agent.name;
+      const harnessLabel = `${gateway.name} / ${toTitleCase(harnessType)}`;
+
       options.push({
         gatewayId: gateway.id,
         gatewayName: gateway.name,
         executionBackend: 'gateway_openclaw',
         harnessType,
-        harnessLabel: `${gateway.name} / ${toTitleCase(harnessType)}`,
+        harnessLabel,
         agentId: agent.id,
         agentName: agent.name,
+        userNickname: agent.userNickname,
+        hostname: agent.hostname,
         runtimeAgentId: agent.runtimeAgentId || undefined,
         status: agent.status,
       });

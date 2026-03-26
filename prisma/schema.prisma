@@ -24,6 +24,7 @@ model Agent {
   roleDescription String?  // 角色描述，如 "前端开发专家", "代码审查员"
   colorTag       String?   // 颜色标签，用于 UI 区分，如 "#4A90E2"
   emojiIcon      String?   // 表情图标，如 "🤖", "🧠", "💻"
+  hostname       String?   // 服务器主机名，用于区分不同服务器上的 platform_local agents
 
   tasks          Task[]
   liveRoomMembers LiveRoomMember[]
@@ -33,6 +34,7 @@ model Agent {
   @@index([status])
   @@index([gatewayId])
   @@index([runtimeAgentId])
+  @@index([hostname])
 }
 
 model Gateway {

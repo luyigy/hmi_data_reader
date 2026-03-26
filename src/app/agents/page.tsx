@@ -13,6 +13,7 @@ interface Agent {
   roleDescription: string | null;
   colorTag: string | null;
   emojiIcon: string | null;
+  hostname: string | null;  // 服务器主机名（用于 platform_local agents）
   status: string;
   type: string;
   runtimeAgentId: string | null;
@@ -66,10 +67,12 @@ export default function AgentsPage() {
   const fetchAgents = async () => {
     try {
       const res = await fetch('/api/agents');
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
       const data: AgentIdentityResponse = await res.json();
-      setAgents(data.agents);
+      setAgents(data.agents || []);
     } catch (error) {
       console.error('Failed to fetch agents:', error);
+      setAgents([]); // Ensure agents is always an array
     } finally {
       setLoading(false);
     }
@@ -133,10 +136,17 @@ export default function AgentsPage() {
   };
 
   const groupedAgents = agents.reduce((acc, agent) => {
-    // Platform Local agents go together
-    const key = agent.isPlatformLocal ? 'Platform Local (Built-in)' : agent.gateway?.name || 'Unknown';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(agent);
+    // Platform Local agents are grouped by hostname
+    if (agent.isPlatformLocal) {
+      const hostname = agent.hostname || 'Local';
+      const key = `Platform Local (${hostname})`;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(agent);
+    } else {
+      const key = agent.gateway?.name || 'Unknown';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(agent);
+    }
     return acc;
   }, {} as Record<string, Agent[]>);
 
@@ -257,7 +267,10 @@ function ViewMode({
                 <p className="text-xs text-gray-400">{agent.rawName}</p>
               </>
             )}
-            <p className="text-sm text-gray-500">{agent.type}</p>
+            <p className="text-sm text-gray-500">
+              {agent.type}
+              {agent.hostname && <span className="text-xs text-gray-400 ml-1">({agent.hostname.split('.')[0]})</span>}
+            </p>
           </div>
         </div>
         <StatusBadge status={agent.status} />
@@ -281,19 +294,13 @@ function ViewMode({
             style={{ backgroundColor: agent.colorTag || '#ccc' }}
           />
         </div>
-        {agent.isPlatformLocal ? (
-          <span className="text-xs text-gray-400 italic">
-            Built-in (use room nicknames)
-          </span>
-        ) : (
-          <button
-            onClick={onEdit}
-            disabled={saveStatus === 'saving'}
-            className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-          >
-            {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Edit'}
-          </button>
-        )}
+        <button
+          onClick={onEdit}
+          disabled={saveStatus === 'saving'}
+          className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+        >
+          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Edit'}
+        </button>
       </div>
     </div>
   );

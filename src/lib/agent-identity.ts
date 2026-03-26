@@ -25,6 +25,8 @@ export interface AgentIdentity {
   colorTag: string | null;
   /** 表情图标 */
   emojiIcon: string | null;
+  /** 服务器主机名（用于 platform_local agents） */
+  hostname: string | null;
 }
 
 export interface AgentWithGateway extends Agent {
@@ -57,17 +59,24 @@ export const generateAgentKey = (
  * 生成显示名称
  * - 单个同类 agent: "Claude"
  * - 多个同类 agent: "Claude (本地)", "Claude (Linux)"
+ * - platform_local with hostname: "Claude (server-01)"
  */
 export const generateDisplayName = (
   harnessType: string,
   gatewayName: string | null,
   backend: string | null,
-  sameTypeCount: number
+  sameTypeCount: number,
+  hostname: string | null = null
 ): string => {
   const titleCase = toTitleCase(harnessType);
 
-  // platform_local 的特殊处理
+  // platform_local 的特殊处理 - 使用 hostname 区分不同服务器
   if (backend === 'platform_local') {
+    if (hostname) {
+      // 有 hostname 时使用: "Claude (server-01)"
+      const hostnameShort = hostname.split('.')[0]; // 只取主机名第一部分
+      return `${titleCase} (${hostnameShort})`;
+    }
     return sameTypeCount <= 1 ? `${titleCase} (本地)` : `${titleCase} (平台本地)`;
   }
 
@@ -84,6 +93,7 @@ export const generateDisplayName = (
 /**
  * 生成简短别名（用于 @提及）
  * - "Claude (本地)" -> "本地Claude" 或 "local-claude"
+ * - "Claude (server-01)" -> "server-01-claude"
  * - "Claude (Linux)" -> "linux-claude"
  * - 支持中英文
  */
@@ -91,11 +101,18 @@ export const generateShortAlias = (
   displayName: string,
   harnessType: string,
   gatewayName: string | null,
-  backend: string | null
+  backend: string | null,
+  hostname: string | null = null
 ): string => {
+  const type = harnessType.toLowerCase();
+
   // platform_local 使用特殊别名
   if (backend === 'platform_local') {
-    const type = harnessType.toLowerCase();
+    if (hostname) {
+      // 有 hostname 时使用: "server-01-claude"
+      const hostnameShort = toKebabCase(hostname.split('.')[0]);
+      return `${hostnameShort}-${type}`;
+    }
     return `local-${type}`; // e.g., "local-claude", "local-codex"
   }
 
@@ -110,8 +127,7 @@ export const generateShortAlias = (
 
   // 降级：使用 gateway 名称的第一个词 + agent 类型
   const gatewayShort = toKebabCase(extractShortName(gatewayName) || 'unknown');
-  const typeShort = harnessType.toLowerCase();
-  return `${gatewayShort}-${typeShort}`;
+  return `${gatewayShort}-${type}`;
 };
 
 /**
@@ -203,7 +219,8 @@ export const getMentionAliases = (
       member.displayName,
       member.harnessType || 'unknown',
       member.gateway?.name || null,
-      member.backend
+      member.backend,
+      member.agentRecord?.hostname || null
     );
     aliases.push(generatedAlias);
   }
@@ -284,7 +301,8 @@ export const buildAgentIdentity = (
       member.displayName,
       member.harnessType || 'unknown',
       gateway?.name || null,
-      member.backend
+      member.backend,
+      agent.hostname || null
     ) : null);
 
   // 角色描述
@@ -305,6 +323,9 @@ export const buildAgentIdentity = (
     member.backend
   );
 
+  // hostname (for platform_local agents)
+  const hostname = agent?.hostname || null;
+
   return {
     agentKey,
     displayName: member.displayName,
@@ -313,6 +334,7 @@ export const buildAgentIdentity = (
     roleDescription,
     colorTag,
     emojiIcon,
+    hostname,
   };
 };
 
