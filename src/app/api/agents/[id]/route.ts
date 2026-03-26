@@ -1,68 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { generateShortAlias } from '@/lib/agent-identity';
 
-// GET /api/agents/[id] - 获取单个 agent
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const agent = await prisma.agent.findUnique({
-      where: { id: params.id },
-      include: {
-        gateway: true,
-        tasks: true,
-      },
-    });
-
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Agent not found' },
-        { status: 404 }
-      );
-    }
-
-    const formatted = {
-      ...agent,
-      capabilities: (() => {
-        try {
-          return JSON.parse(agent.capabilities || '[]');
-        } catch {
-          return [];
-        }
-      })(),
-    };
-
-    return NextResponse.json(formatted);
-  } catch (error) {
-    console.error('Failed to fetch agent:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch agent' },
-      { status: 500 }
-    );
-  }
-}
-
-// PUT /api/agents/[id] - 更新 agent 状态
-export async function PUT(
-  request: NextRequest,
+/**
+ * PATCH /api/agents/[id]
+ * 更新 Agent 的身份信息（昵称、颜色、图标等）
+ */
+export async function PATCH(
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const body = await request.json();
-    const { status, gatewayId, ...otherFields } = body;
+    const {
+      userNickname,
+      roleDescription,
+      colorTag,
+      emojiIcon,
+    } = body;
 
-    // 验证状态
-    const validStatuses = ['online', 'offline', 'busy', 'error'];
-    if (status && !validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
-        { status: 400 }
-      );
-    }
-
+    // 验证 Agent 存在
     const agent = await prisma.agent.findUnique({
       where: { id: params.id },
+      include: { gateway: true },
     });
 
     if (!agent) {
@@ -72,66 +32,48 @@ export async function PUT(
       );
     }
 
+    // 如果设置了昵称，自动生成简短别名
+    let shortAlias = null;
+    if (userNickname) {
+      shortAlias = generateShortAlias(
+        userNickname,
+        agent.type,
+        agent.gateway?.name || null,
+        agent.location
+      );
+    }
+
+    // 更新 Agent
     const updated = await prisma.agent.update({
       where: { id: params.id },
       data: {
-        ...otherFields,
-        status,
-        gatewayId,
-        lastHeartbeat: status ? new Date() : undefined,
+        userNickname: userNickname ?? undefined,
+        roleDescription: roleDescription ?? undefined,
+        colorTag: colorTag ?? undefined,
+        emojiIcon: emojiIcon ?? undefined,
       },
       include: {
         gateway: true,
       },
     });
 
-    const formatted = {
-      ...updated,
-      capabilities: (() => {
-        try {
-          return JSON.parse(updated.capabilities || '[]');
-        } catch {
-          return [];
-        }
-      })(),
-    };
-
-    return NextResponse.json(formatted);
+    return NextResponse.json({
+      success: true,
+      agent: {
+        id: updated.id,
+        agentKey: `${updated.gatewayId || 'platform_local'}:${updated.type}`,
+        displayName: userNickname || updated.name,
+        userNickname: updated.userNickname,
+        shortAlias,
+        roleDescription: updated.roleDescription,
+        colorTag: updated.colorTag,
+        emojiIcon: updated.emojiIcon,
+      },
+    });
   } catch (error) {
     console.error('Failed to update agent:', error);
     return NextResponse.json(
       { error: 'Failed to update agent' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE /api/agents/[id] - 删除 agent
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const agent = await prisma.agent.findUnique({
-      where: { id: params.id },
-    });
-
-    if (!agent) {
-      return NextResponse.json(
-        { error: 'Agent not found' },
-        { status: 404 }
-      );
-    }
-
-    await prisma.agent.delete({
-      where: { id: params.id },
-    });
-
-    return NextResponse.json({ message: 'Agent deleted' });
-  } catch (error) {
-    console.error('Failed to delete agent:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete agent' },
       { status: 500 }
     );
   }

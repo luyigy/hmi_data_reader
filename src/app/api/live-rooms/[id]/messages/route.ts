@@ -95,11 +95,13 @@ export async function POST(
     const expectedResponderMemberIds = mentionedAll
       ? roomMembers.filter((member) => member.canReply && member.id !== userMember.id).map((member) => member.id)
       : [];
-    const detectedMentionedMemberIds = detectMentionedLiveRoomMembers({
+    const detectionResult = detectMentionedLiveRoomMembers({
       content,
       members: roomMembers,
       senderMemberId: userMember.id,
     });
+    const detectedMentionedMemberIds = detectionResult.memberIds;
+    const detectedMatchedAlias = detectionResult.primaryMatchedAlias;
     const mentionedMemberIds = mergeLiveRoomMentionedMemberIds({
       explicitMentionMemberIds,
       detectedMentionedMemberIds: mentionedAll ? expectedResponderMemberIds : detectedMentionedMemberIds,
@@ -113,6 +115,7 @@ export async function POST(
       senderMemberId: userMember.id,
       content,
       messageType: 'user',
+      matchedAlias: detectedMatchedAlias, // 传递匹配的别名用于正确剥离
       metadata: resolveLiveRoomMessageMetadata({
         senderKind: 'user',
         targetMemberId: resolvedTargetMemberId || null,

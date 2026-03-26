@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ensureTaskChatRoom } from '@/lib/task-room';
+import { ensureTaskChatRoom, clearTaskRoomMessages } from '@/lib/task-room';
 
 export async function GET(
   request: Request,
@@ -33,6 +33,52 @@ export async function GET(
     console.error('Failed to fetch task room:', error);
     return NextResponse.json(
       { error: 'Failed to fetch task room' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/tasks/[id]/room
+ * 清空 Task Room 的所有历史消息
+ * 用于清理无关的历史上下文
+ */
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!task) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    const result = await clearTaskRoomMessages(task.id, task.name);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.message },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+      roomId: result.roomId,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error('Failed to clear task room messages:', error);
+    return NextResponse.json(
+      { error: 'Failed to clear task room messages' },
       { status: 500 }
     );
   }

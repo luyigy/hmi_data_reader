@@ -18,6 +18,13 @@ model Agent {
   lastHeartbeat  DateTime  @default(now())
   gatewayId      String?
   gateway        Gateway?  @relation(fields: [gatewayId], references: [id])
+
+  // Agent Identity Management fields
+  userNickname   String?   // 用户自定义昵称，如 "小C", "老王"
+  roleDescription String?  // 角色描述，如 "前端开发专家", "代码审查员"
+  colorTag       String?   // 颜色标签，用于 UI 区分，如 "#4A90E2"
+  emojiIcon      String?   // 表情图标，如 "🤖", "🧠", "💻"
+
   tasks          Task[]
   liveRoomMembers LiveRoomMember[]
   createdAt      DateTime  @default(now())
@@ -374,6 +381,11 @@ model LiveRoomMember {
   backend              String?                 // platform_local, gateway_openclaw
   runtimeAgentId       String?
   roleLabel            String?
+
+  // Agent Identity Management fields
+  userNickname         String?                 // 房间专属昵称（覆盖 Agent 级别的昵称）
+  shortAlias           String?                 // 简短别名，用于 @提及，如 "小C", "lc"
+
   joinStatus           String                  @default("joined") // joined, invited, removed
   presenceStatus       String                  @default("idle") // idle, online, busy, offline
   canReply             Boolean                 @default(false)

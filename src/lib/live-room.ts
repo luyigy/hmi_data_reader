@@ -5,6 +5,7 @@ import { ensureTaskSession } from '@/lib/acpx/session';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
+import { getMentionAliases, type LiveRoomMemberWithAgent } from '@/lib/agent-identity';
 import type { AcpxExecutionBackend, AcpxParticipantRequest } from '@/lib/acpx/types';
 
 export interface LiveRoomCatalogAgent {
@@ -202,40 +203,133 @@ export const parseLiveRoomMessageMetadata = (value?: string | null): LiveRoomMes
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const findEarliestExplicitMentionIndex = (content: string, aliases: string[]) => {
-  let bestIndex = Number.POSITIVE_INFINITY;
-  for (const alias of aliases) {
+interface MentionMatchResult {
+  index: number;
+  matchedAlias: string;
+  matchedLength: number;
+}
+
+const findBestExplicitMentionMatch = (content: string, aliases: string[]): MentionMatchResult | null => {
+  // 按长度降序排序，优先匹配更长的别名（更精确）
+  const sortedAliases = [...aliases].sort((a, b) => b.length - a.length);
+  let bestMatch: MentionMatchResult | null = null;
+
+  for (const alias of sortedAliases) {
     const trimmedAlias = alias.trim();
     if (!trimmedAlias) {
       continue;
     }
 
-    const explicitMentionRegex = new RegExp(`@${escapeRegExp(trimmedAlias)}\\b`, 'i');
+    // 使用更精确的匹配：@别名 后面必须是空格、标点符号或字符串结束
+    // 这样 "Platform Local Claude" 不会只匹配 "Platform"
+    const explicitMentionRegex = new RegExp(
+      `@${escapeRegExp(trimmedAlias)}(?:[\\s,.;:!?\\/()\\[\\]{}"\']|$)`,
+      'i'
+    );
     const explicitMatch = explicitMentionRegex.exec(content);
-    if (explicitMatch && explicitMatch.index < bestIndex) {
-      bestIndex = explicitMatch.index;
+
+    if (explicitMatch) {
+      const matchLength = trimmedAlias.length;
+
+      // 没有之前的匹配，直接使用
+      if (!bestMatch) {
+        bestMatch = {
+          index: explicitMatch.index,
+          matchedAlias: trimmedAlias,
+          matchedLength: matchLength,
+        };
+        continue;
+      }
+
+      // 优先选择位置更靠前的匹配
+      if (explicitMatch.index < bestMatch.index) {
+        bestMatch = {
+          index: explicitMatch.index,
+          matchedAlias: trimmedAlias,
+          matchedLength: matchLength,
+        };
+        continue;
+      }
+
+      // 位置相同时，优先选择更长的匹配（更精确）
+      if (explicitMatch.index === bestMatch.index && matchLength > bestMatch.matchedLength) {
+        bestMatch = {
+          index: explicitMatch.index,
+          matchedAlias: trimmedAlias,
+          matchedLength: matchLength,
+        };
+        continue;
+      }
     }
   }
 
-  return bestIndex;
+  return bestMatch;
 };
 
-const findEarliestPlainMentionIndex = (content: string, aliases: string[]) => {
-  let bestIndex = Number.POSITIVE_INFINITY;
-  for (const alias of aliases) {
+const findBestPlainMentionMatch = (content: string, aliases: string[]): MentionMatchResult | null => {
+  // 按长度降序排序，优先匹配更长的别名
+  const sortedAliases = [...aliases].sort((a, b) => b.length - a.length);
+  let bestMatch: MentionMatchResult | null = null;
+
+  for (const alias of sortedAliases) {
     const trimmedAlias = alias.trim();
     if (!trimmedAlias) {
       continue;
     }
 
-    const plainMentionRegex = new RegExp(`\\b${escapeRegExp(trimmedAlias)}\\b`, 'i');
+    // 使用更精确的边界匹配
+    const plainMentionRegex = new RegExp(
+      `(?:^|[\\s,.;:!?\\/()\\[\\]{}"'])${escapeRegExp(trimmedAlias)}(?:[\\s,.;:!?\\/()\\[\\]{}"\']|$)`,
+      'i'
+    );
     const plainMatch = plainMentionRegex.exec(content);
-    if (plainMatch && plainMatch.index < bestIndex) {
-      bestIndex = plainMatch.index;
+
+    if (plainMatch) {
+      const matchLength = trimmedAlias.length;
+
+      if (!bestMatch) {
+        bestMatch = {
+          index: plainMatch.index,
+          matchedAlias: trimmedAlias,
+          matchedLength: matchLength,
+        };
+        continue;
+      }
+
+      if (plainMatch.index < bestMatch.index) {
+        bestMatch = {
+          index: plainMatch.index,
+          matchedAlias: trimmedAlias,
+          matchedLength: matchLength,
+        };
+        continue;
+      }
+
+      if (plainMatch.index === bestMatch.index && matchLength > bestMatch.matchedLength) {
+        bestMatch = {
+          index: plainMatch.index,
+          matchedAlias: trimmedAlias,
+          matchedLength: matchLength,
+        };
+        continue;
+      }
     }
   }
 
-  return bestIndex;
+  return bestMatch;
+};
+
+// 保留旧函数签名以兼容，但标记为废弃
+/** @deprecated 使用 findBestExplicitMentionMatch 替代 */
+const findEarliestExplicitMentionIndex = (content: string, aliases: string[]) => {
+  const result = findBestExplicitMentionMatch(content, aliases);
+  return result?.index ?? Number.POSITIVE_INFINITY;
+};
+
+/** @deprecated 使用 findBestPlainMentionMatch 替代 */
+const findEarliestPlainMentionIndex = (content: string, aliases: string[]) => {
+  const result = findBestPlainMentionMatch(content, aliases);
+  return result?.index ?? Number.POSITIVE_INFINITY;
 };
 
 const toCatalogAgentId = (agent: Awaited<ReturnType<typeof deriveGatewayHarnessOptions>>[number]) =>
@@ -707,6 +801,7 @@ export const postLiveRoomMessage = async ({
   visibility = 'room',
   replyToMessageId,
   metadata,
+  matchedAlias,
 }: {
   roomId: string;
   senderMemberId?: string | null;
@@ -715,6 +810,8 @@ export const postLiveRoomMessage = async ({
   visibility?: string;
   replyToMessageId?: string | null;
   metadata?: Record<string, unknown> | null;
+  /** 匹配到的 @提及 别名，用于正确剥离 @提及 部分 */
+  matchedAlias?: string | null;
 }) => {
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
@@ -768,9 +865,54 @@ export const postLiveRoomMessage = async ({
         })
       : null;
 
+    // 去掉消息开头的 @提及 部分，避免 Claude CLI 误解析为命令
+    // 但在 Live Room 中仍显示完整内容
+    let contentForTaskRoom = created.content;
+
+    // 对于用户消息，总是尝试去掉开头的 @提及
+    // 格式: "@xxx yyy" -> "yyy"
+    if (created.senderMember?.memberType === 'user') {
+      // 优先使用检测到的匹配别名进行精确剥离
+      if (matchedAlias && created.content.startsWith(`@${matchedAlias}`)) {
+        contentForTaskRoom = created.content.slice(`@${matchedAlias}`.length).trim();
+        if (process.env.DEBUG_MENTION_DETECTION === 'true') {
+          console.log('[Task Room] Stripped @mention using matched alias:', {
+            original: created.content,
+            matchedAlias,
+            stripped: contentForTaskRoom,
+          });
+        }
+      } else {
+        // 降级方案：使用正则表达式（可能不准确，但作为后备）
+        // 改进的正则：贪婪匹配，支持多词名称
+        const greedyMatch = created.content.match(/^@.+\s+(.+)$/s);
+        if (greedyMatch && greedyMatch[1].trim()) {
+          contentForTaskRoom = greedyMatch[1].trim();
+          if (process.env.DEBUG_MENTION_DETECTION === 'true') {
+            console.log('[Task Room] Stripped @mention using greedy regex:', {
+              original: created.content,
+              stripped: contentForTaskRoom,
+            });
+          }
+        } else {
+          // 最后尝试非贪婪匹配
+          const nonGreedyMatch = created.content.match(/^@\S+\s+(.*)$/s);
+          if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
+            contentForTaskRoom = nonGreedyMatch[1].trim();
+            if (process.env.DEBUG_MENTION_DETECTION === 'true') {
+              console.log('[Task Room] Stripped @mention using non-greedy regex:', {
+                original: created.content,
+                stripped: contentForTaskRoom,
+              });
+            }
+          }
+        }
+      }
+    }
+
     await postTaskRoomMessage({
       roomId: taskRoom.id,
-      content: created.content,
+      content: contentForTaskRoom || created.content,
       userId: created.senderMember
         ? created.senderMember.memberType === 'user'
           ? 'task-room-user'
@@ -822,53 +964,75 @@ export const detectMentionedLiveRoomMembers = ({
   members: LiveRoomMentionableMember[];
   senderMemberId?: string | null;
 }) => {
-  const explicitMatches: Array<{ memberId: string; index: number }> = [];
-  const plainMatches: Array<{ memberId: string; index: number }> = [];
+  const explicitMatches: Array<{ memberId: string; index: number; matchedAlias: string }> = [];
+  const plainMatches: Array<{ memberId: string; index: number; matchedAlias: string }> = [];
+
+  // 调试日志：记录提及检测详情
+  const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
+
+  if (debugLog) {
+    console.log('[Mention Detection] Content:', content);
+    console.log('[Mention Detection] Members:', members.map(m => ({ id: m.id, displayName: m.displayName })));
+  }
 
   for (const member of members) {
     if (member.id === senderMemberId) {
       continue;
     }
 
-    const aliases = [
-      member.displayName,
-      member.runtimeAgentId || '',
-      member.gateway?.name && member.harnessType
-        ? `${member.displayName} · ${member.gateway.name} / ${member.harnessType}`
-        : '',
-      member.gateway?.name && member.runtimeAgentId
-        ? `${member.runtimeAgentId} @ ${member.gateway.name}`
-        : '',
-      member.gateway?.name
-        ? `${member.displayName} @ ${member.gateway.name}`
-        : '',
-    ]
-      .map((item) => item.trim())
-      .filter(Boolean);
+    // 使用 Agent Identity 系统获取提及别名（优先级: 昵称 > 短别名 > 显示名称）
+    const aliases = getMentionAliases(member as LiveRoomMemberWithAgent);
 
-    const explicitMentionIndex = findEarliestExplicitMentionIndex(content, aliases);
-    if (explicitMentionIndex !== Number.POSITIVE_INFINITY) {
+    if (debugLog) {
+      console.log(`[Mention Detection] Checking ${member.displayName}, aliases:`, aliases);
+    }
+
+    const explicitMatch = findBestExplicitMentionMatch(content, aliases);
+    if (explicitMatch) {
+      if (debugLog) {
+        console.log(`[Mention Detection] ✓ Explicit match for ${member.displayName}:`, explicitMatch);
+      }
       explicitMatches.push({
         memberId: member.id,
-        index: explicitMentionIndex,
+        index: explicitMatch.index,
+        matchedAlias: explicitMatch.matchedAlias,
       });
       continue;
     }
 
-    const plainMentionIndex = findEarliestPlainMentionIndex(content, aliases);
-    if (plainMentionIndex !== Number.POSITIVE_INFINITY) {
+    const plainMatch = findBestPlainMentionMatch(content, aliases);
+    if (plainMatch) {
+      if (debugLog) {
+        console.log(`[Mention Detection] ○ Plain match for ${member.displayName}:`, plainMatch);
+      }
       plainMatches.push({
         memberId: member.id,
-        index: plainMentionIndex,
+        index: plainMatch.index,
+        matchedAlias: plainMatch.matchedAlias,
       });
     }
   }
 
   const resolvedMatches = explicitMatches.length > 0 ? explicitMatches : plainMatches;
 
-  return resolvedMatches
-    .sort((left, right) => left.index - right.index)
-    .map((item) => item.memberId);
+  // 排序：位置优先，相同位置时优先选择更长匹配（更精确）
+  const sorted = resolvedMatches.sort((left, right) => {
+    if (left.index !== right.index) {
+      return left.index - right.index;
+    }
+    // 位置相同时，优先选择别名更长的匹配（通常意味着更精确）
+    return right.matchedAlias.length - left.matchedAlias.length;
+  });
+
+  if (debugLog) {
+    console.log('[Mention Detection] Resolved matches:', sorted);
+  }
+
+  return {
+    memberIds: sorted.map((item) => item.memberId),
+    // 返回第一个（主要）匹配的别名，用于剥离 @提及
+    primaryMatchedAlias: sorted.length > 0 ? sorted[0].matchedAlias : null,
+  };
 };
 
 export const mergeLiveRoomMentionedMemberIds = ({
@@ -919,13 +1083,21 @@ export const resolveLiveRoomMessageMetadata = ({
 
   let deliveryIntent: LiveRoomDeliveryIntent = 'broadcast';
   if (handoffToMemberId) {
+    // 明确的 handoff，无论谁发送都应该触发
     deliveryIntent = 'handoff';
   } else if (mentionedAll) {
     deliveryIntent = 'mention_all';
   } else if (targetMemberId) {
+    // 有明确目标时，用户消息触发 user_target，agent 消息触发 ask
     deliveryIntent = senderKind === 'user' ? 'user_target' : 'ask';
-  } else if (uniqueMentionedMemberIds.length > 0) {
+  } else if (uniqueMentionedMemberIds.length > 0 && senderKind === 'user') {
+    // 只有用户消息的 @提及才自动触发回复
+    // Agent 消息中的 @提及只是引用，不触发新回复
     deliveryIntent = 'mention';
+  } else if (uniqueMentionedMemberIds.length > 0 && senderKind === 'assistant') {
+    // Agent 消息中的 @提及设置为 broadcast（不触发自动回复）
+    // 除非是明确的 handoff 或 ask 模式
+    deliveryIntent = 'broadcast';
   }
 
   return {

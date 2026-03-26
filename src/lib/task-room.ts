@@ -97,6 +97,13 @@ export const buildTaskRoomPromptContext = async (taskId: string, taskName: strin
   const { messages } = await getTaskRoomMessages(taskId, taskName, limit);
   const contextMessages = messages.filter((message) => message.userId !== 'system');
 
+  const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
+
+  if (debugLog) {
+    console.log('[Task Room Context] Total messages:', messages.length);
+    console.log('[Task Room Context] Filtered messages (non-system):', contextMessages.length);
+  }
+
   if (contextMessages.length === 0) {
     return {
       transcript: '',
@@ -120,7 +127,7 @@ export const buildTaskRoomPromptContext = async (taskId: string, taskName: strin
     .reverse()
     .find((message) => message.userId === 'task-room-user');
 
-  return {
+  const result = {
     transcript,
     latestUserMessage: latestUserMessage
       ? {
@@ -132,6 +139,16 @@ export const buildTaskRoomPromptContext = async (taskId: string, taskName: strin
         }
       : null,
   };
+
+  if (debugLog) {
+    console.log('[Task Room Context] Latest user message:', result.latestUserMessage?.content || 'none');
+    console.log('[Task Room Context] Transcript length:', transcript.length);
+    if (result.latestUserMessage?.content?.startsWith('@')) {
+      console.warn('[Task Room Context] WARNING: Latest user message still starts with @mention!');
+    }
+  }
+
+  return result;
 };
 
 export const postTaskRoomMessage = async ({
@@ -183,4 +200,47 @@ export const postTaskRoomMessage = async ({
   }
 
   return message;
+};
+
+/**
+ * 清空 Task Room 的所有历史消息
+ * 用于清理无关的历史上下文，确保 agent 只收到当前任务相关的消息
+ */
+export const clearTaskRoomMessages = async (taskId: string, taskName: string) => {
+  const room = await findTaskChatRoom(taskId, taskName);
+  if (!room) {
+    return { success: false, message: 'Task room not found' };
+  }
+
+  const deleteResult = await prisma.message.deleteMany({
+    where: {
+      roomId: room.id,
+    },
+  });
+
+  const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
+  if (debugLog) {
+    console.log('[Task Room] Cleared messages:', {
+      taskId,
+      taskName,
+      roomId: room.id,
+      deletedCount: deleteResult.count,
+    });
+  }
+
+  // 通知所有连接的客户端消息已被清空
+  const io = getSocketServer();
+  if (io) {
+    io.to(room.id).emit('chat:messages_cleared', {
+      roomId: room.id,
+      clearedAt: new Date().toISOString(),
+    });
+  }
+
+  return {
+    success: true,
+    message: `Cleared ${deleteResult.count} messages from task room`,
+    roomId: room.id,
+    deletedCount: deleteResult.count,
+  };
 };

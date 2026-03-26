@@ -158,6 +158,10 @@ Please complete this task step by step. When you're done, provide a summary of:
 Take your time and be thorough.`;
 
   console.log('[Claude] Prompt:', prompt.substring(0, 200) + '...');
+  if (process.env.DEBUG_MENTION_DETECTION === 'true') {
+    console.log('[Claude] Full prompt (first 500 chars):', prompt.substring(0, 500));
+    console.log('[Claude] Has resume session:', !!options.resumeSessionId);
+  }
 
   return new Promise((resolve, reject) => {
     let stdout = '';
@@ -189,11 +193,14 @@ Take your time and be thorough.`;
           prompt,
         ];
 
+    // On Windows, need to use shell: true to find .cmd files
+    // On Unix/Linux, use shell: false for better security and performance
+    const shell = process.platform === 'win32';
     const child = spawn('claude', args, {
       cwd: options.workingDirectory,
       env: { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
+      shell,
     });
     options.onSpawn?.(child);
 
@@ -322,7 +329,11 @@ export const isClaudeAvailable = async (): Promise<boolean> => {
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
 
-    await execAsync('claude --version', { timeout: 5000 });
+    // On Windows, use shell option to ensure .cmd files are found
+    await execAsync('claude --version', {
+      timeout: 5000,
+      shell: true,
+    });
     return true;
   } catch {
     return false;
@@ -338,7 +349,10 @@ export const getClaudeVersion = async (): Promise<string> => {
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
 
-    const { stdout } = await execAsync('claude --version', { timeout: 5000 });
+    const { stdout } = await execAsync('claude --version', {
+      timeout: 5000,
+      shell: true,
+    });
     return stdout.trim();
   } catch {
     return 'unknown';
@@ -355,7 +369,10 @@ export const initClaudeConfig = async (): Promise<void> => {
 
   try {
     // Check if claude is already configured
-    await execAsync('claude --version', { timeout: 5000 });
+    await execAsync('claude --version', {
+      timeout: 5000,
+      shell: true,
+    });
     console.log('[Claude] Already configured');
   } catch {
     console.log('[Claude] Not configured. Please run: claude login');

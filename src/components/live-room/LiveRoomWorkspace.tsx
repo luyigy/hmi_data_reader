@@ -1713,7 +1713,17 @@ export function LiveRoomWorkspace({
               </section>
 
               <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="text-sm font-medium text-slate-900">房间成员</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium text-slate-900">房间成员</div>
+                  <a
+                    href="/agents"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    管理昵称 →
+                  </a>
+                </div>
                 <div className="mt-3 space-y-2">
                   {selectedRoom.members.map((member) => (
                     <div key={member.id} className="rounded-2xl bg-slate-50 px-3 py-2">

@@ -237,10 +237,32 @@ const executeLiveRoomReplyViaAcpx = async ({
   const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
   const shouldInjectLatestInstruction = sourceMessage.senderMember?.memberType !== 'user';
 
-  if (shouldInjectLatestInstruction) {
+  // 去掉消息开头的 @提及 部分，避免 Claude CLI 误解析为命令
+  // 使用贪婪匹配：@xxx yyy -> yyy（支持多词名称）
+  const stripMention = (content: string) => {
+    if (!content.startsWith('@')) {
+      return content;
+    }
+    // 贪婪匹配：@后所有内容直到最后一个空格后的实际消息
+    const greedyMatch = content.match(/^@.+\s+(.+)$/s);
+    // 非贪婪匹配作为后备
+    const nonGreedyMatch = content.match(/^@\S+\s+(.*)$/s);
+
+    if (greedyMatch && greedyMatch[1].trim()) {
+      return greedyMatch[1].trim();
+    }
+    if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
+      return nonGreedyMatch[1].trim();
+    }
+    return content;
+  };
+
+  const contentForAgent = stripMention(sourceMessage.content);
+
+  if (shouldInjectLatestInstruction && contentForAgent) {
     await postTaskRoomMessage({
       roomId: taskRoom.id,
-      content: sourceMessage.content,
+      content: contentForAgent,
       userId: 'task-room-user',
       userName: sourceMessage.senderMember?.displayName || '用户',
       targetType: 'participant',
@@ -277,7 +299,8 @@ const executeLiveRoomReplyViaAcpx = async ({
       resumeThreadId: latestSession?.continuationSessionKind === 'codex_thread'
         ? latestSession?.continuationSessionId || undefined
         : undefined,
-      continuationMessage: latestSession?.continuationSessionId ? sourceMessage.content : undefined,
+      // 使用 stripped 内容作为 continuation message，避免 @mention 被 Claude CLI 误解析
+      continuationMessage: latestSession?.continuationSessionId ? contentForAgent : undefined,
     }],
     workingDirectory: sourceTask.workingDirectory || process.cwd(),
     permissionConfig,
@@ -637,7 +660,7 @@ const processLiveRoomDelivery = async ({
           content: output,
           members: room.members,
           senderMemberId: targetMember.id,
-        }),
+        }).memberIds,
         mentionedAll: detectLiveRoomMentionAll(output),
         expectedResponderMemberIds: detectLiveRoomMentionAll(output)
           ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
@@ -654,21 +677,30 @@ const processLiveRoomDelivery = async ({
 
     if (allowChainedMentions && chainDepth < 2) {
       const replyMetadata = parseLiveRoomMessageMetadata(JSON.stringify(replyMessage.metadata || null));
-      const nextTargetMemberIds = getTargetMemberIdsForMessage({
-        room,
-        sourceMessageSenderMemberId: targetMember.id,
-        sourceMetadata: replyMetadata,
-        requestedTargetMemberId: null,
-      });
 
-      for (const nextTargetMemberId of nextTargetMemberIds) {
-        await triggerLiveRoomAgentReply({
-          roomId: room.id,
-          roomMessageId: replyMessage.id,
-          targetMemberId: nextTargetMemberId,
-          chainDepth: chainDepth + 1,
-          allowChainedMentions: !(replyMetadata?.deliveryIntent === 'mention_all' || replyMetadata?.mentionedAll),
+      // 只有明确的 handoff 或 ask 模式才会触发连锁回复
+      // agent 消息中的普通 @提及 (broadcast) 不会触发
+      const shouldChain = replyMetadata?.deliveryIntent === 'handoff' ||
+                         replyMetadata?.deliveryIntent === 'ask' ||
+                         replyMetadata?.mentionedAll;
+
+      if (shouldChain) {
+        const nextTargetMemberIds = getTargetMemberIdsForMessage({
+          room,
+          sourceMessageSenderMemberId: targetMember.id,
+          sourceMetadata: replyMetadata,
+          requestedTargetMemberId: null,
         });
+
+        for (const nextTargetMemberId of nextTargetMemberIds) {
+          await triggerLiveRoomAgentReply({
+            roomId: room.id,
+            roomMessageId: replyMessage.id,
+            targetMemberId: nextTargetMemberId,
+            chainDepth: chainDepth + 1,
+            allowChainedMentions: !(replyMetadata?.deliveryIntent === 'mention_all' || replyMetadata?.mentionedAll),
+          });
+        }
       }
     }
   } catch (error) {

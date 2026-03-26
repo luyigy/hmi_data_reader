@@ -558,6 +558,46 @@ const toParticipantPayload = (participant: {
   agentName: participant.agentNameSnapshot ?? null,
 });
 
+/**
+ * 去掉消息开头的 @提及 部分，作为双重保险
+ * 例如: "@Platform Local Claude 你好" -> "你好"
+ * 例如: "@main hello" -> "hello"
+ *
+ * 注意：这是最后的安全网，理想情况下 Task Room 中的内容已经被正确剥离
+ */
+const stripLeadingMention = (content: string): string => {
+  // 如果不是以 @ 开头，直接返回
+  if (!content.startsWith('@')) {
+    return content;
+  }
+
+  // 使用贪婪匹配：@xxx yyy -> yyy
+  // 贪婪匹配会尽可能多地匹配，直到最后一个空格后的内容
+  const greedyMatch = content.match(/^@.+\s+(.+)$/s);
+
+  // 非贪婪匹配作为后备：@xxx yyy -> yyy (只匹配到第一个空格)
+  const nonGreedyMatch = content.match(/^@\S+\s+(.*)$/s);
+
+  // 优先使用贪婪匹配的结果，但如果结果为空则使用非贪婪匹配
+  let stripped = content;
+  if (greedyMatch && greedyMatch[1].trim()) {
+    stripped = greedyMatch[1].trim();
+  } else if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
+    stripped = nonGreedyMatch[1].trim();
+  }
+
+  const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
+  if (debugLog && stripped !== content) {
+    console.log('[buildHarnessPrompt] Double-insurance stripping @mention:', {
+      original: content,
+      stripped,
+      method: greedyMatch && greedyMatch[1].trim() ? 'greedy' : 'non-greedy',
+    });
+  }
+
+  return stripped;
+};
+
 const buildHarnessPrompt = (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
@@ -573,8 +613,21 @@ const buildHarnessPrompt = (
     } | null;
   }
 ) => {
-  const latestInstruction = taskRoomContext.latestUserMessage
-    ? `\n\nLatest task-room instruction (highest priority for this run):\n${taskRoomContext.latestUserMessage.content}`
+  // 双重保险：确保最新指令不包含开头的 @提及
+  const latestInstructionContent = taskRoomContext.latestUserMessage
+    ? stripLeadingMention(taskRoomContext.latestUserMessage.content)
+    : '';
+
+  const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
+  if (debugLog && taskRoomContext.latestUserMessage) {
+    console.log('[buildHarnessPrompt] Latest user message from Task Room:', {
+      original: taskRoomContext.latestUserMessage.content,
+      stripped: latestInstructionContent,
+    });
+  }
+
+  const latestInstruction = latestInstructionContent
+    ? `\n\nLatest task-room instruction (highest priority for this run):\n${latestInstructionContent}`
     : '';
   const taskBackground = request.taskDescription
     ? `\n\nTask background:\n${request.taskDescription}`
