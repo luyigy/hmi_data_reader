@@ -393,9 +393,18 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
   `;
 
   const pendingReplies = await listLiveRoomPendingReplies(binding.liveRoomId);
+  const targetedMembers = roomMembers
+    .filter((member) => mentionedAll || mentionedMemberIds.includes(member.id))
+    .filter((member) => member.canReply)
+    .map((member) => ({
+      memberId: member.id,
+      displayName: member.displayName,
+    }));
 
   return {
     liveRoomId: binding.liveRoomId,
+    targetedMembers,
+    mentionedAll,
     pendingReplies,
   };
 }

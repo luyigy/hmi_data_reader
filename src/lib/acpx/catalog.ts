@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getRealAgentsStatus } from '@/lib/real-agents';
+import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
 import type { AcpxExecutionBackend } from './types';
 
 export interface HarnessOption {
@@ -62,6 +63,8 @@ const parseSupportedHarnesses = (value?: string | null): string[] => {
 };
 
 export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> => {
+  const currentHostname = getServerHostname();
+  await ensurePlatformLocalAgents();
   const [gateways, localStatus, remoteHosts, platformLocalAgents] = await Promise.all([
     prisma.gateway.findMany({
       include: {
@@ -93,9 +96,15 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
   ]);
 
   const options: HarnessOption[] = [];
+  let currentHostPlatformLocalCount = 0;
 
   // Platform local agents from database (with hostname)
   for (const agent of platformLocalAgents) {
+    if ((agent.hostname || '').trim() !== currentHostname) {
+      continue;
+    }
+    currentHostPlatformLocalCount += 1;
+
     const harnessType = normalizeHarnessType(agent.name) || agent.type;
 
     if (!harnessType) {
@@ -131,7 +140,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
   }
 
   // Fallback: If no platform local agents in DB, add defaults (for backwards compatibility)
-  if (platformLocalAgents.length === 0) {
+  if (currentHostPlatformLocalCount === 0) {
     if (localStatus.codex.available) {
       options.push({
         gatewayId: 'platform-local',
@@ -162,13 +171,17 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
   }
 
   for (const gateway of gateways) {
+    if (gateway.status !== 'online') {
+      continue;
+    }
+
     for (const agent of gateway.agents) {
       const harnessType =
         normalizeHarnessType(agent.runtimeAgentId) ||
         normalizeHarnessType(agent.name) ||
         normalizeHarnessType(agent.type);
 
-      if (!harnessType) {
+      if (!harnessType || (agent.status !== 'online' && agent.status !== 'busy')) {
         continue;
       }
 

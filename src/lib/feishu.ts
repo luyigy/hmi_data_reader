@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { AESCipher } from '@larksuiteoapi/node-sdk';
 import { prisma } from '@/lib/prisma';
+import { getRealAgentsStatus } from '@/lib/real-agents';
+import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
 import {
   ensureFeishuConversationBinding,
   parseFeishuSelectedAgentIds,
@@ -119,6 +121,38 @@ function getHeaderValue(
 function decryptFeishuPayload(encryptedContent: string, encryptKey: string): FeishuIncomingEvent {
   const decrypted = new AESCipher(encryptKey).decrypt(encryptedContent);
   return JSON.parse(decrypted) as FeishuIncomingEvent;
+}
+
+function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
+  const normalized = agentName.trim().toLowerCase();
+  if (normalized.includes('codex')) {
+    return localStatus.codex.available ? 'online' : 'offline';
+  }
+  if (normalized.includes('claude')) {
+    return localStatus.claude.available ? 'online' : 'offline';
+  }
+  return 'offline';
+}
+
+function getEffectiveAgentStatus(
+  agent: {
+    status: string;
+    lastHeartbeat: Date;
+    gatewayId: string | null;
+    hostname: string | null;
+    name: string;
+  },
+  localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>,
+  currentHostname: string
+) {
+  if (agent.hostname) {
+    if (agent.hostname !== currentHostname) {
+      return 'offline';
+    }
+    return getLocalHarnessStatus(agent.name, localStatus);
+  }
+
+  return agent.status;
 }
 
 export function validateFeishuRequestSignature(args: {
@@ -409,15 +443,20 @@ async function handleGatewaysCommand() {
 }
 
 async function handleAgentsCommand(command: ParsedFeishuCommand) {
+  await ensurePlatformLocalAgents();
   const gatewayId = command.args[0];
-  const agents = await prisma.agent.findMany({
-    where: gatewayId ? { gatewayId } : undefined,
-    orderBy: [
-      { gatewayId: 'asc' },
-      { name: 'asc' },
-    ],
-    take: 20,
-  });
+  const currentHostname = getServerHostname();
+  const [agents, localStatus] = await Promise.all([
+    prisma.agent.findMany({
+      where: gatewayId ? { gatewayId } : undefined,
+      orderBy: [
+        { gatewayId: 'asc' },
+        { name: 'asc' },
+      ],
+      take: 40,
+    }),
+    getRealAgentsStatus(),
+  ]);
 
   if (agents.length === 0) {
     return gatewayId
@@ -425,12 +464,19 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
       : '当前还没有 agents。';
   }
 
+  const normalizedAgents = agents
+    .map((agent) => ({
+      ...agent,
+      effectiveStatus: getEffectiveAgentStatus(agent, localStatus, currentHostname),
+    }))
+    .filter((agent) => !agent.hostname || agent.hostname === currentHostname || agent.effectiveStatus !== 'offline');
+
   return [
     gatewayId ? `Agents for ${gatewayId}` : 'Agents',
-    ...agents.map((agent) => {
+    ...normalizedAgents.map((agent) => {
       const runtimeId = agent.runtimeAgentId || agent.id;
       const gatewayLabel = agent.gatewayId || 'local';
-      return `- ${agent.name} (${runtimeId}) | ${gatewayLabel} | ${agent.status}`;
+      return `- ${agent.name} (${runtimeId}) | ${gatewayLabel} | ${agent.effectiveStatus}`;
     }),
   ].join('\n');
 }
@@ -519,11 +565,17 @@ async function handleChatCommand(
     content: prompt,
   });
 
+  const targetedNames = result.targetedMembers.map((member) => member.displayName).join(', ');
   const pendingReplyNames = result.pendingReplies.map((reply) => reply.displayName).join(', ');
   return [
     `消息已写入 Live Room ${result.liveRoomId}`,
+    result.mentionedAll
+      ? '本条消息目标：全部房间成员'
+      : result.targetedMembers.length > 0
+      ? `本条消息目标：${targetedNames}`
+      : '本条消息目标：未指定，按当前房间路由处理',
     result.pendingReplies.length > 0
-      ? `待回复成员：${pendingReplyNames}`
+      ? `房间待回复成员：${pendingReplyNames}`
       : '当前没有待回复成员。若需要触发指定 agent，请在消息里 @房间成员名称。',
   ].join('\n');
 }

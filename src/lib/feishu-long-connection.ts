@@ -225,6 +225,19 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
           messageId: message.messageId,
           error: lastError,
         });
+        try {
+          await sendFeishuTextMessage({
+            receiveId: message.chatId,
+            receiveIdType: 'chat_id',
+            replyId: message.messageId,
+            text: `命令执行失败：${lastError}`,
+          });
+        } catch (replyError) {
+          console.error(`${prefix} failed to send error reply`, {
+            messageId: message.messageId,
+            error: replyError instanceof Error ? replyError.message : String(replyError),
+          });
+        }
         markRuntimeStatus(host, {
           status: 'error',
           lastError,

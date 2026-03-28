@@ -85,6 +85,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, handled: true });
   } catch (error) {
     console.error('Failed to handle Feishu webhook:', error);
+    try {
+      const rawPayload = await request.json().catch(() => null);
+      const payload =
+        rawPayload && typeof rawPayload === 'object' ? normalizeFeishuPayload(rawPayload as any) : null;
+      const message = payload ? parseFeishuMessage(payload as any) : null;
+      if (message) {
+        await sendFeishuTextMessage({
+          receiveId: message.chatId,
+          receiveIdType: 'chat_id',
+          replyId: message.messageId,
+          text: `命令执行失败：${error instanceof Error ? error.message : 'Failed to handle Feishu webhook'}`,
+        });
+      }
+    } catch (replyError) {
+      console.error('Failed to send Feishu webhook error reply:', replyError);
+    }
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Failed to handle Feishu webhook',
