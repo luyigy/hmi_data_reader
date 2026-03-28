@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { unstable_noStore as noStore } from 'next/cache';
 import {
+  getFeishuChallengeResponse,
   handleFeishuCommand,
+  normalizeFeishuPayload,
   parseFeishuCommand,
   parseFeishuMessage,
   sendFeishuTextMessage,
+  validateFeishuRequestSignature,
   validateFeishuVerificationToken,
 } from '@/lib/feishu';
 
@@ -29,14 +32,21 @@ export async function POST(request: NextRequest) {
   try {
     noStore();
 
-    const payload = await request.json();
+    const rawPayload = await request.json();
+
+    if (!validateFeishuRequestSignature({ payload: rawPayload, headers: request.headers })) {
+      return NextResponse.json({ error: 'Invalid Feishu request signature' }, { status: 401 });
+    }
+
+    const payload = normalizeFeishuPayload(rawPayload);
 
     if (!validateFeishuVerificationToken(payload)) {
       return NextResponse.json({ error: 'Invalid Feishu verification token' }, { status: 401 });
     }
 
-    if (payload?.type === 'url_verification' && typeof payload.challenge === 'string') {
-      return NextResponse.json({ challenge: payload.challenge });
+    const challenge = getFeishuChallengeResponse(payload);
+    if (challenge) {
+      return NextResponse.json(challenge);
     }
 
     const message = parseFeishuMessage(payload);
@@ -57,6 +67,12 @@ export async function POST(request: NextRequest) {
     const responseText = await handleFeishuCommand({
       command,
       baseUrl: resolveBaseUrl(request),
+      context: {
+        chatId: message.chatId,
+        chatType: message.chatType,
+        senderOpenId: message.senderOpenId,
+        messageId: message.messageId,
+      },
     });
 
     await sendFeishuTextMessage({

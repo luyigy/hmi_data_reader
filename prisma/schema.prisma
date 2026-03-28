@@ -366,9 +366,26 @@ model LiveRoom {
   members                LiveRoomMember[]        @relation("LiveRoomMembers")
   messages               LiveRoomMessage[]
   sessions               LiveRoomMemberSession[]
+  feishuBindings         FeishuConversationBinding[]
 
   @@index([sourceTaskId])
   @@index([status, updatedAt])
+}
+
+model FeishuConversationBinding {
+  id                 String    @id @default(cuid())
+  scopeKey           String    @unique
+  chatId             String
+  chatType           String
+  senderOpenId       String?
+  latestMessageId    String?
+  liveRoomId         String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  liveRoom           LiveRoom  @relation(fields: [liveRoomId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, updatedAt])
+  @@index([liveRoomId])
 }
 
 model LiveRoomMember {

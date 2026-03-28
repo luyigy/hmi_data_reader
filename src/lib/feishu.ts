@@ -1,4 +1,12 @@
+import crypto from 'node:crypto';
+import { AESCipher } from '@larksuiteoapi/node-sdk';
 import { prisma } from '@/lib/prisma';
+import {
+  ensureFeishuConversationBinding,
+  parseFeishuSelectedAgentIds,
+  postFeishuMessageToBoundLiveRoom,
+  type FeishuConversationContext,
+} from '@/lib/feishu-live-room';
 
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis';
 const DEFAULT_HELP_TEXT = [
@@ -9,7 +17,9 @@ const DEFAULT_HELP_TEXT = [
   '/ap status',
   '/ap gateways',
   '/ap agents <gatewayId>',
+  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [title]',
   '/ap chat --from=<gatewayId> --to=<gatewayId> [--from-agent=main] [--to-agent=main] [--turns=2] <prompt>',
+  '/ap chat [--agents=<agentId1,agentId2>] <message>',
 ].join('\n');
 
 type FeishuTokenResponse = {
@@ -59,6 +69,10 @@ type FeishuIncomingEvent = {
   };
 };
 
+type FeishuWebhookHeaders =
+  | Headers
+  | Record<string, string | string[] | undefined>;
+
 type ParsedFeishuMessage = {
   chatId: string;
   chatType: string;
@@ -69,7 +83,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'chat';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'room' | 'chat';
   args: string[];
   options: Record<string, string>;
 };
@@ -85,6 +99,77 @@ function getRequiredEnv(name: string): string {
 function getOptionalEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
   return value || undefined;
+}
+
+function getHeaderValue(
+  headers: FeishuWebhookHeaders,
+  name: string
+): string | undefined {
+  if (headers instanceof Headers) {
+    return headers.get(name) || undefined;
+  }
+
+  const value = headers[name.toLowerCase()] ?? headers[name];
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+}
+
+function decryptFeishuPayload(encryptedContent: string, encryptKey: string): FeishuIncomingEvent {
+  const decrypted = new AESCipher(encryptKey).decrypt(encryptedContent);
+  return JSON.parse(decrypted) as FeishuIncomingEvent;
+}
+
+export function validateFeishuRequestSignature(args: {
+  payload: unknown;
+  headers: FeishuWebhookHeaders;
+}): boolean {
+  const encryptKey = getOptionalEnv('FEISHU_ENCRYPT_KEY');
+  if (!encryptKey) {
+    return true;
+  }
+
+  const payload =
+    args.payload && typeof args.payload === 'object' && !Array.isArray(args.payload)
+      ? (args.payload as Record<string, unknown>)
+      : null;
+  if (!payload) {
+    return false;
+  }
+
+  const timestamp = getHeaderValue(args.headers, 'x-lark-request-timestamp');
+  const nonce = getHeaderValue(args.headers, 'x-lark-request-nonce');
+  const signature = getHeaderValue(args.headers, 'x-lark-signature');
+  if (!timestamp || !nonce || !signature) {
+    return false;
+  }
+
+  const computedSignature = crypto
+    .createHash('sha256')
+    .update(timestamp + nonce + encryptKey + JSON.stringify(payload))
+    .digest('hex');
+
+  return computedSignature === signature;
+}
+
+export function normalizeFeishuPayload(payload: FeishuIncomingEvent): FeishuIncomingEvent {
+  if (!payload.encrypt) {
+    return payload;
+  }
+
+  const encryptKey = getRequiredEnv('FEISHU_ENCRYPT_KEY');
+  return decryptFeishuPayload(payload.encrypt, encryptKey);
+}
+
+export function getFeishuChallengeResponse(
+  payload: FeishuIncomingEvent
+): { challenge: string } | null {
+  if (payload.type === 'url_verification' && typeof payload.challenge === 'string') {
+    return { challenge: payload.challenge };
+  }
+
+  return null;
 }
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
@@ -167,10 +252,6 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
     return null;
   }
 
-  if (payload.encrypt) {
-    throw new Error('Encrypted Feishu events are not supported yet. Disable event encryption or implement FEISHU_ENCRYPT_KEY handling first.');
-  }
-
   if (payload.header?.event_type !== 'im.message.receive_v1') {
     return null;
   }
@@ -242,7 +323,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'chat'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'room', 'chat'].includes(command)) {
     return null;
   }
 
@@ -356,63 +437,126 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
 
 async function handleChatCommand(
   command: ParsedFeishuCommand,
-  baseUrl: string
+  baseUrl: string,
+  context?: FeishuConversationContext
 ) {
   const fromGatewayId = command.options['from'];
   const toGatewayId = command.options['to'];
   const prompt = command.args.join(' ').trim();
 
-  if (!fromGatewayId || !toGatewayId || !prompt) {
+  if (fromGatewayId || toGatewayId) {
+    if (!fromGatewayId || !toGatewayId || !prompt) {
+      return [
+        'chat 命令参数不足。',
+        '示例：',
+        '/ap chat --from=<gatewayId> --to=<gatewayId> --from-agent=main --to-agent=main --turns=2 请讨论一下当前需求',
+      ].join('\n');
+    }
+
+    const response = await fetch(new URL('/api/gateways/chat', baseUrl).toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fromGatewayId,
+        toGatewayId,
+        fromAgentId: command.options['from-agent'] || 'main',
+        toAgentId: command.options['to-agent'] || 'main',
+        turns: command.options['turns'] === '1' ? 1 : 2,
+        prompt,
+      }),
+    });
+
+    const data = (await response.json()) as {
+      error?: string;
+      messages?: Array<{
+        gatewayId: string | null;
+        agentId: string | null;
+        text: string;
+      }>;
+    };
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to run cross-gateway chat');
+    }
+
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    const transcript = messages
+      .map((message) => {
+        const speaker = message.gatewayId || 'user';
+        const agent = message.agentId ? ` / ${message.agentId}` : '';
+        return `${speaker}${agent}\n${message.text}`;
+      })
+      .join('\n\n');
+
+    return ['Cross-gateway chat 已完成', transcript || '(空回复)'].join('\n\n');
+  }
+
+  if (!context) {
+    return '当前 chat 模式需要来自 Feishu webhook 的会话上下文。';
+  }
+
+  if (!prompt) {
     return [
       'chat 命令参数不足。',
       '示例：',
-      '/ap chat --from=<gatewayId> --to=<gatewayId> --from-agent=main --to-agent=main --turns=2 请讨论一下当前需求',
+      '/ap chat --agents=<agentId1,agentId2> 先建立一个房间并开始讨论',
+      '/ap chat 继续讨论这个问题',
     ].join('\n');
   }
 
-  const response = await fetch(new URL('/api/gateways/chat', baseUrl).toString(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      fromGatewayId,
-      toGatewayId,
-      fromAgentId: command.options['from-agent'] || 'main',
-      toAgentId: command.options['to-agent'] || 'main',
-      turns: command.options['turns'] === '1' ? 1 : 2,
-      prompt,
-    }),
+  const selectedAgentIds = parseFeishuSelectedAgentIds(command.options['agents']);
+  await ensureFeishuConversationBinding({
+    context,
+    selectedAgentIds,
+    title: command.options['title'],
+    topic: command.options['topic'],
   });
 
-  const data = (await response.json()) as {
-    error?: string;
-    messages?: Array<{
-      gatewayId: string | null;
-      agentId: string | null;
-      text: string;
-    }>;
-  };
+  const result = await postFeishuMessageToBoundLiveRoom({
+    context,
+    content: prompt,
+  });
 
-  if (!response.ok) {
-    throw new Error(data.error || 'Failed to run cross-gateway chat');
+  const pendingReplyNames = result.pendingReplies.map((reply) => reply.displayName).join(', ');
+  return [
+    `消息已写入 Live Room ${result.liveRoomId}`,
+    result.pendingReplies.length > 0
+      ? `待回复成员：${pendingReplyNames}`
+      : '当前没有待回复成员。若需要触发指定 agent，请在消息里 @房间成员名称。',
+  ].join('\n');
+}
+
+async function handleRoomCommand(
+  command: ParsedFeishuCommand,
+  context?: FeishuConversationContext
+) {
+  if (!context) {
+    return '当前 room 命令需要来自 Feishu webhook 的会话上下文。';
   }
 
-  const messages = Array.isArray(data.messages) ? data.messages : [];
-  const transcript = messages
-    .map((message) => {
-      const speaker = message.gatewayId || 'user';
-      const agent = message.agentId ? ` / ${message.agentId}` : '';
-      return `${speaker}${agent}\n${message.text}`;
-    })
-    .join('\n\n');
+  const selectedAgentIds = parseFeishuSelectedAgentIds(command.options['agents']);
+  const title = command.args.join(' ').trim() || command.options['title'];
+  const result = await ensureFeishuConversationBinding({
+    context,
+    selectedAgentIds,
+    title,
+    topic: command.options['topic'],
+  });
 
-  return ['Cross-gateway chat 已完成', transcript || '(空回复)'].join('\n\n');
+  return [
+    result.created ? '已创建 Feishu 绑定房间。' : '已复用现有 Feishu 绑定房间。',
+    `Live Room: ${result.roomTitle} (${result.liveRoomId})`,
+    `新增成员数：${result.addedAgentCount}`,
+    '接下来可以直接发送：/ap chat 你的消息',
+  ].join('\n');
 }
 
 export async function handleFeishuCommand(args: {
   command: ParsedFeishuCommand;
   baseUrl: string;
+  context?: FeishuConversationContext;
 }) {
   switch (args.command.command) {
     case 'help':
@@ -423,8 +567,10 @@ export async function handleFeishuCommand(args: {
       return handleGatewaysCommand();
     case 'agents':
       return handleAgentsCommand(args.command);
+    case 'room':
+      return handleRoomCommand(args.command, args.context);
     case 'chat':
-      return handleChatCommand(args.command, args.baseUrl);
+      return handleChatCommand(args.command, args.baseUrl, args.context);
     default:
       return DEFAULT_HELP_TEXT;
   }
