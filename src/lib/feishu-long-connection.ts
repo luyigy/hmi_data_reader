@@ -2,8 +2,8 @@ import * as Lark from '@larksuiteoapi/node-sdk';
 import {
   handleFeishuCommand,
   parseFeishuCommand,
-  sendFeishuTextMessage,
 } from '@/lib/feishu';
+import { sendFeishuTextMessage } from '@/lib/feishu-api';
 import {
   createFeishuRuntimeStatus,
   readFeishuRuntimeStatus,

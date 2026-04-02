@@ -109,16 +109,46 @@ export const findLatestParticipantSession = async (
       role: participant.role,
       agentId: participant.agentId || null,
     },
+    include: {
+      taskRun: {
+        select: {
+          status: true,
+          updatedAt: true,
+        },
+      },
+    },
     orderBy: {
       createdAt: 'desc',
     },
     take: 20,
   });
 
-  const matched =
-    candidates.find((candidate) => readContinuationKeyFromMetadata(candidate.controlMetadata) === expectedContinuationKey)
-    || candidates[0]
-    || null;
+  const isContinuationMarkedStale = (controlMetadata?: string | null) => {
+    const metadata = parseAcpxMetadata(controlMetadata);
+    return typeof metadata.continuationStaleAt === 'string' && metadata.continuationStaleAt.trim().length > 0;
+  };
+
+  const viableCandidates = candidates.filter((candidate) => {
+    if (readContinuationKeyFromMetadata(candidate.controlMetadata) !== expectedContinuationKey) {
+      return false;
+    }
+
+    if (isContinuationMarkedStale(candidate.controlMetadata)) {
+      return false;
+    }
+
+    if (candidate.status !== 'completed') {
+      return false;
+    }
+
+    if (candidate.taskRun.status === 'failed' || candidate.taskRun.status === 'stopped') {
+      return false;
+    }
+
+    return Boolean(getContinuationSession(candidate).sessionId);
+  });
+
+  const matched = viableCandidates[0] || null;
 
   return matched
     ? {

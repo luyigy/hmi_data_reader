@@ -4,6 +4,42 @@ import type { ChatMessageTargetType } from '@/lib/chat-types';
 import { formatTaskRoomMessageTargetPrefix } from './task-room-targets';
 
 const TASK_ROOM_MARKER_PREFIX = 'TASK_ROOM:';
+const TASK_ROOM_PROMPT_MESSAGE_LIMIT = 12;
+const TASK_ROOM_PROMPT_CHAR_LIMIT = 4000;
+
+const RAW_HARNESS_OUTPUT_PATTERNS = [
+  /^\{"type":"thread\.started"/,
+  /^\{"type":"turn\.started"/,
+  /^\{"type":"result","subtype":"error_during_execution"/,
+  /^\{"type":"error","message":/m,
+  /^\{"type":"turn\.failed"/m,
+];
+
+const shouldIncludeTaskRoomPromptMessage = (message: {
+  userId: string;
+  userName: string;
+  content: string;
+}) => {
+  if (message.userId === 'system') {
+    return false;
+  }
+
+  if (message.userName === '系统') {
+    return false;
+  }
+
+  const content = message.content.trim();
+  if (!content) {
+    return false;
+  }
+
+  return !RAW_HARNESS_OUTPUT_PATTERNS.some((pattern) => pattern.test(content));
+};
+
+const trimTaskRoomTranscript = (value: string) =>
+  value.length > TASK_ROOM_PROMPT_CHAR_LIMIT
+    ? value.slice(value.length - TASK_ROOM_PROMPT_CHAR_LIMIT)
+    : value;
 
 export const getTaskRoomName = (taskName: string) => `任务：${taskName}`;
 
@@ -74,13 +110,13 @@ export const getTaskRoomMessages = async (taskId: string, taskName: string, limi
 
 export const buildTaskRoomContext = async (taskId: string, taskName: string, limit = 20) => {
   const { messages } = await getTaskRoomMessages(taskId, taskName, limit);
-  const contextMessages = messages.filter((message) => message.userId !== 'system');
+  const contextMessages = messages.filter(shouldIncludeTaskRoomPromptMessage);
 
   if (contextMessages.length === 0) {
     return '';
   }
 
-  return contextMessages
+  return trimTaskRoomTranscript(contextMessages
     .map((message) => {
       const timestamp = message.createdAt.toLocaleString('zh-CN', { hour12: false });
       const targetPrefix = formatTaskRoomMessageTargetPrefix({
@@ -90,12 +126,13 @@ export const buildTaskRoomContext = async (taskId: string, taskName: string, lim
 
       return `[${timestamp}] ${message.userName}: ${targetPrefix}${message.content}`;
     })
-    .join('\n');
+    .join('\n'));
 };
 
 export const buildTaskRoomPromptContext = async (taskId: string, taskName: string, limit = 20) => {
   const { messages } = await getTaskRoomMessages(taskId, taskName, limit);
-  const contextMessages = messages.filter((message) => message.userId !== 'system');
+  const promptCandidates = messages.filter(shouldIncludeTaskRoomPromptMessage);
+  const contextMessages = promptCandidates.slice(-TASK_ROOM_PROMPT_MESSAGE_LIMIT);
 
   const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
 
@@ -111,7 +148,7 @@ export const buildTaskRoomPromptContext = async (taskId: string, taskName: strin
     };
   }
 
-  const transcript = contextMessages
+  const transcript = trimTaskRoomTranscript(contextMessages
     .map((message) => {
       const timestamp = message.createdAt.toLocaleString('zh-CN', { hour12: false });
       const targetPrefix = formatTaskRoomMessageTargetPrefix({
@@ -121,7 +158,7 @@ export const buildTaskRoomPromptContext = async (taskId: string, taskName: strin
 
       return `[${timestamp}] ${message.userName}: ${targetPrefix}${message.content}`;
     })
-    .join('\n');
+    .join('\n'));
 
   const latestUserMessage = [...contextMessages]
     .reverse()

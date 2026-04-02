@@ -10,8 +10,9 @@ import type { ChildProcess } from 'child_process';
 export interface CodexConfig {
   apiKey?: string;
   model?: string;
-  timeout?: number;
+  timeout?: number | null;
   workingDirectory?: string;
+  ephemeral?: boolean;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
@@ -46,6 +47,7 @@ export const executeCodexTask = async (
   const {
     timeout = 30000,
     workingDirectory = process.cwd(),
+    ephemeral = false,
     streamCallbacks,
     skipGitRepoCheck = true,
     sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
@@ -58,6 +60,7 @@ export const executeCodexTask = async (
     const result = await executeCodexCLI(task, {
       timeout,
       workingDirectory,
+      ephemeral,
       streamCallbacks,
       skipGitRepoCheck,
       sandboxMode,
@@ -86,8 +89,9 @@ export const executeCodexTask = async (
  * Execute using codex CLI with exec subcommand
  */
 interface CodexExecutionOptions {
-  timeout: number;
+  timeout: number | null;
   workingDirectory: string;
+  ephemeral?: boolean;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck: boolean;
   sandboxMode: string;
@@ -104,6 +108,10 @@ interface CodexCliResult {
 interface CodexJsonEvent {
   type?: string;
   thread_id?: string;
+  message?: string;
+  error?: {
+    message?: string;
+  };
   item?: {
     type?: string;
     text?: string;
@@ -126,7 +134,12 @@ Please complete this task step by step. When you're done, provide a summary of:
 Take your time and be thorough.`;
 
   return runCodexJsonCommand({
-    args: buildExecArgs(options.skipGitRepoCheck, options.sandboxMode, options.approvalPolicy),
+    args: buildExecArgs(
+      options.skipGitRepoCheck,
+      options.sandboxMode,
+      options.approvalPolicy,
+      Boolean(options.ephemeral)
+    ),
     prompt,
     options,
   });
@@ -146,7 +159,7 @@ export const resumeCodexSession = async ({
 }: {
   threadId: string;
   prompt: string;
-  timeout: number;
+  timeout: number | null;
   workingDirectory: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
@@ -174,7 +187,8 @@ export const resumeCodexSession = async ({
 const buildExecArgs = (
   skipGitRepoCheck: boolean,
   sandboxMode: string,
-  approvalPolicy: 'never' | 'on-request'
+  approvalPolicy: 'never' | 'on-request',
+  ephemeral: boolean
 ) => {
   const normalizedSandboxMode = sandboxMode.trim().toLowerCase();
   const args = ['exec', '--json'];
@@ -189,6 +203,9 @@ const buildExecArgs = (
 
   if (skipGitRepoCheck) {
     args.push('--skip-git-repo-check');
+  }
+  if (ephemeral) {
+    args.push('--ephemeral');
   }
   args.push('-');
   return args;
@@ -230,10 +247,12 @@ const runCodexJsonCommand = async ({
   return new Promise<CodexCliResult>((resolve, reject) => {
     let rawStdout = '';
     let resolvedText = '';
+    let plainStdout = '';
     let stderr = '';
     let settled = false;
     let threadId: string | null = null;
     let stdoutBuffer = '';
+    let turnFailureMessage: string | null = null;
 
     const child = spawn('codex', args, {
       cwd: options.workingDirectory,
@@ -242,15 +261,17 @@ const runCodexJsonCommand = async ({
       shell: false,
     });
     options.onSpawn?.(child);
-    const timeoutId = setTimeout(() => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      console.log('[Codex] Timeout, killing process');
-      child.kill('SIGTERM');
-      reject(new Error(`Codex execution timed out after ${options.timeout}ms`));
-    }, options.timeout);
+    const timeoutId = typeof options.timeout === 'number' && options.timeout > 0
+      ? setTimeout(() => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          console.log('[Codex] Timeout, killing process');
+          child.kill('SIGTERM');
+          reject(new Error(`Codex execution timed out after ${options.timeout}ms`));
+        }, options.timeout)
+      : null;
 
     child.stdin.write(prompt);
     child.stdin.end();
@@ -282,6 +303,10 @@ const runCodexJsonCommand = async ({
             options.onThreadStarted?.(event.thread_id);
           }
 
+          if (event.type === 'turn.failed') {
+            turnFailureMessage = event.error?.message || event.message || 'Codex turn failed';
+          }
+
           const text =
             event.type === 'item.completed'
             && event.item?.type === 'agent_message'
@@ -294,6 +319,7 @@ const runCodexJsonCommand = async ({
             void options.streamCallbacks?.onStdoutChunk?.(text);
           }
         } catch {
+          plainStdout += `${trimmed}\n`;
           void options.streamCallbacks?.onStdoutChunk?.(trimmed);
         }
       }
@@ -310,7 +336,9 @@ const runCodexJsonCommand = async ({
         return;
       }
       settled = true;
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       console.log('[Codex] Process exited with code:', code);
       console.log('[Codex] Stdout length:', rawStdout.length);
       console.log('[Codex] Stderr:', stderr);
@@ -321,6 +349,10 @@ const runCodexJsonCommand = async ({
           if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
             threadId = event.thread_id;
             options.onThreadStarted?.(event.thread_id);
+          }
+
+          if (event.type === 'turn.failed') {
+            turnFailureMessage = event.error?.message || event.message || 'Codex turn failed';
           }
 
           const text =
@@ -334,15 +366,20 @@ const runCodexJsonCommand = async ({
             resolvedText = text;
           }
         } catch {
-          if (!resolvedText) {
-            resolvedText = stdoutBuffer.trim();
+          if (!resolvedText && stdoutBuffer.trim()) {
+            plainStdout += stdoutBuffer.trim();
           }
         }
       }
 
-      if (code === 0 || resolvedText.length > 0 || rawStdout.length > 0) {
+      if (turnFailureMessage) {
+        reject(new Error(turnFailureMessage));
+        return;
+      }
+
+      if (code === 0 || resolvedText.length > 0 || plainStdout.trim().length > 0) {
         resolve({
-          output: resolvedText || rawStdout || 'Task executed successfully',
+          output: resolvedText || plainStdout.trim() || 'Task executed successfully',
           threadId,
         });
       } else {
@@ -355,7 +392,9 @@ const runCodexJsonCommand = async ({
         return;
       }
       settled = true;
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       console.error('[Codex] Spawn error:', err);
       reject(err);
     });

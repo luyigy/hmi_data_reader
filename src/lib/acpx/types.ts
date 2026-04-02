@@ -82,6 +82,7 @@ export interface AcpxParticipantRequest {
   continuationSessionKind?: string;
   resumeThreadId?: string;
   continuationMessage?: string;
+  ephemeralSession?: boolean;
 }
 
 export interface AcpxRunRequest {

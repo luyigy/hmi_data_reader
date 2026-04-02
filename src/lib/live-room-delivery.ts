@@ -31,6 +31,19 @@ const REMOTE_STALE_AFTER_MS = DEFAULT_TIMEOUT_MS + REMOTE_STALE_GRACE_MS;
 const SSH_WARNING_PATTERNS = [
   /^Warning: Permanently added .*known hosts\.\s*$/gim,
 ];
+const INVALID_CLAUDE_CONTINUATION_PATTERNS = [
+  /No conversation found with session ID/i,
+];
+const INVALID_CODEX_CONTINUATION_PATTERNS = [
+  /(session|thread|conversation).*(not found|does not exist|invalid)/i,
+  /resume.*(failed|error)/i,
+];
+const CODEX_EPHEMERAL_RETRY_PATTERNS = [
+  /Codex local state error:/i,
+  /failed to open state db/i,
+  /failed to initialize state runtime/i,
+  /migration\s+\d+\s+was previously applied but is missing in the resolved migrations/i,
+];
 
 type DeliveryRoomMember = {
   id: string;
@@ -66,6 +79,22 @@ const normalizeLiveRoomExecutionError = (message: string) => {
 };
 
 const getSessionKey = (roomId: string, memberId: string) => `live-room:${roomId}:member:${memberId}`;
+
+const parseJsonObject = (value?: string | null) => {
+  if (!value) {
+    return {} as Record<string, unknown>;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+};
+
+const stringifyJson = (value?: Record<string, unknown> | null) =>
+  value ? JSON.stringify(value) : null;
 
 const getReplyEligibleMembers = ({
   room,
@@ -182,6 +211,265 @@ const ensureMemberSession = async (roomId: string, member: {
   });
 };
 
+const stripLeadingMentionForTarget = ({
+  content,
+  targetDisplayName,
+}: {
+  content: string;
+  targetDisplayName?: string | null;
+}) => {
+  if (!content.startsWith('@')) {
+    return content;
+  }
+
+  if (targetDisplayName) {
+    const exactPrefix = `@${targetDisplayName}`;
+    if (content.startsWith(exactPrefix)) {
+      const stripped = content.slice(exactPrefix.length).trim();
+      if (stripped) {
+        return stripped;
+      }
+    }
+  }
+
+  if (/^@all\b/i.test(content)) {
+    const strippedAll = content.replace(/^@all\b/i, '').trim();
+    if (strippedAll) {
+      return strippedAll;
+    }
+  }
+
+  const nonGreedyMatch = content.match(/^@\S+\s+([\s\S]*)$/);
+  if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
+    return nonGreedyMatch[1].trim();
+  }
+
+  return content;
+};
+
+const isInvalidContinuationError = (harnessType: string | null, message: string) => {
+  const patterns = harnessType === 'claude'
+    ? INVALID_CLAUDE_CONTINUATION_PATTERNS
+    : harnessType === 'codex'
+    ? INVALID_CODEX_CONTINUATION_PATTERNS
+    : [];
+
+  return patterns.some((pattern) => pattern.test(message));
+};
+
+const shouldRetryWithFreshSession = ({
+  harnessType,
+  message,
+  hasContinuation,
+}: {
+  harnessType: string | null;
+  message: string;
+  hasContinuation: boolean;
+}) => {
+  if (!hasContinuation) {
+    return false;
+  }
+
+  if (isInvalidContinuationError(harnessType, message)) {
+    return true;
+  }
+
+  return /timed out after \d+ms/i.test(message);
+};
+
+const shouldRetryCodexEphemeral = ({
+  harnessType,
+  message,
+}: {
+  harnessType: string | null;
+  message: string;
+}) => (
+  harnessType === 'codex'
+  && CODEX_EPHEMERAL_RETRY_PATTERNS.some((pattern) => pattern.test(message))
+);
+
+const markParticipantContinuationStale = async ({
+  participantId,
+  reason,
+}: {
+  participantId: string;
+  reason: string;
+}) => {
+  const participant = await prisma.taskRunParticipant.findUnique({
+    where: { id: participantId },
+    select: {
+      controlMetadata: true,
+    },
+  });
+
+  if (!participant) {
+    return;
+  }
+
+  const metadata = parseJsonObject(participant.controlMetadata);
+  delete metadata.lastSessionId;
+  delete metadata.lastSessionKind;
+  delete metadata.lastSessionThreadId;
+  delete metadata.codexThreadId;
+  delete metadata.claudeSessionId;
+
+  await prisma.taskRunParticipant.update({
+    where: { id: participantId },
+    data: {
+      controlMetadata: stringifyJson({
+        ...metadata,
+        continuationStaleAt: new Date().toISOString(),
+        continuationStaleReason: reason,
+      }),
+    },
+  });
+};
+
+const markLiveRoomSessionExpired = async ({
+  sessionId,
+  reason,
+}: {
+  sessionId: string;
+  reason: string;
+}) => {
+  await prisma.liveRoomMemberSession.update({
+    where: { id: sessionId },
+    data: {
+      threadId: null,
+      status: 'expired',
+      lastHeartbeatAt: new Date(),
+      lastError: reason,
+    },
+  }).catch(() => undefined);
+};
+
+const annotateFreshRetryMetadata = async ({
+  taskRunId,
+  participantId,
+  staleReason,
+  staleParticipantId,
+}: {
+  taskRunId: string;
+  participantId?: string;
+  staleReason: string;
+  staleParticipantId?: string | null;
+}) => {
+  const taskRun = await prisma.taskRun.findUnique({
+    where: { id: taskRunId },
+    select: {
+      controlMetadata: true,
+    },
+  });
+
+  await prisma.taskRun.update({
+    where: { id: taskRunId },
+    data: {
+      controlMetadata: stringifyJson({
+        ...parseJsonObject(taskRun?.controlMetadata),
+        freshRetry: {
+          used: true,
+          staleReason,
+          staleParticipantId: staleParticipantId || null,
+          recordedAt: new Date().toISOString(),
+        },
+      }),
+    },
+  });
+
+  if (!participantId) {
+    return;
+  }
+
+  const participant = await prisma.taskRunParticipant.findUnique({
+    where: { id: participantId },
+    select: {
+      controlMetadata: true,
+    },
+  });
+
+  await prisma.taskRunParticipant.update({
+    where: { id: participantId },
+    data: {
+      controlMetadata: stringifyJson({
+        ...parseJsonObject(participant?.controlMetadata),
+        freshRetry: {
+          used: true,
+          staleReason,
+          staleParticipantId: staleParticipantId || null,
+          recordedAt: new Date().toISOString(),
+        },
+      }),
+    },
+  });
+};
+
+const runLiveRoomAcpxAttempt = async ({
+  sourceTask,
+  room,
+  participant,
+  contentForAgent,
+  permissionConfig,
+  latestSession,
+  useFreshSession,
+  forceEphemeral = false,
+}: {
+  sourceTask: NonNullable<Awaited<ReturnType<typeof syncLiveRoomSourceTask>>>;
+  room: DeliveryRoom & {
+    sourceTask?: {
+      id: string;
+      name: string;
+      description?: string | null;
+      workingDirectory?: string | null;
+      acpxPermissionConfig?: string | null;
+      currentTaskSession?: {
+        id: string;
+      } | null;
+    } | null;
+  };
+  participant: ReturnType<typeof buildLiveRoomAcpxParticipant>;
+  contentForAgent: string;
+  permissionConfig: AcpxPermissionConfig;
+  latestSession: Awaited<ReturnType<typeof findLatestParticipantSession>>;
+  useFreshSession: boolean;
+  forceEphemeral?: boolean;
+}) => {
+  const useEphemeralCodexSession =
+    participant.executionBackend === 'platform_local'
+    && participant.harnessType === 'codex';
+  const shouldUseContinuation =
+    !useFreshSession
+    && !useEphemeralCodexSession
+    && Boolean(latestSession?.continuationSessionId);
+
+  const watchdogConfig =
+    participant.executionBackend === 'platform_local' && participant.harnessType === 'codex'
+      ? { maxRuntimeMs: null }
+      : undefined;
+
+  return executeAcpxTaskRun({
+    taskId: sourceTask.id,
+    taskSessionId: sourceTask.currentTaskSession?.id || undefined,
+    taskName: sourceTask.name,
+    taskDescription: sourceTask.description || undefined,
+    orchestrationMode: 'single',
+    participants: [{
+      ...participant,
+      resumeSessionId: shouldUseContinuation ? latestSession?.continuationSessionId || undefined : undefined,
+      continuationSessionKind: shouldUseContinuation ? latestSession?.continuationSessionKind || undefined : undefined,
+      resumeThreadId:
+        shouldUseContinuation && latestSession?.continuationSessionKind === 'codex_thread'
+          ? latestSession?.continuationSessionId || undefined
+          : undefined,
+      continuationMessage: shouldUseContinuation ? contentForAgent : undefined,
+      ephemeralSession:
+        useEphemeralCodexSession || forceEphemeral,
+    }],
+    workingDirectory: sourceTask.workingDirectory || process.cwd(),
+    permissionConfig,
+    watchdogConfig,
+  });
+};
+
 
 const executeLiveRoomReplyViaAcpx = async ({
   room,
@@ -239,25 +527,10 @@ const executeLiveRoomReplyViaAcpx = async ({
 
   // 去掉消息开头的 @提及 部分，避免 Claude CLI 误解析为命令
   // 使用贪婪匹配：@xxx yyy -> yyy（支持多词名称）
-  const stripMention = (content: string) => {
-    if (!content.startsWith('@')) {
-      return content;
-    }
-    // 贪婪匹配：@后所有内容直到最后一个空格后的实际消息
-    const greedyMatch = content.match(/^@.+\s+(.+)$/s);
-    // 非贪婪匹配作为后备
-    const nonGreedyMatch = content.match(/^@\S+\s+(.*)$/s);
-
-    if (greedyMatch && greedyMatch[1].trim()) {
-      return greedyMatch[1].trim();
-    }
-    if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
-      return nonGreedyMatch[1].trim();
-    }
-    return content;
-  };
-
-  const contentForAgent = stripMention(sourceMessage.content);
+  const contentForAgent = stripLeadingMentionForTarget({
+    content: sourceMessage.content,
+    targetDisplayName: targetMember.displayName,
+  });
 
   if (shouldInjectLatestInstruction && contentForAgent) {
     await postTaskRoomMessage({
@@ -286,28 +559,18 @@ const executeLiveRoomReplyViaAcpx = async ({
     return (Object.keys(parsed).length > 0 ? parsed : DEFAULT_ACPX_PERMISSION_CONFIG) as AcpxPermissionConfig;
   })();
 
-  const acpxResult = await executeAcpxTaskRun({
-    taskId: sourceTask.id,
-    taskSessionId: sourceTask.currentTaskSession?.id || undefined,
-    taskName: sourceTask.name,
-    taskDescription: sourceTask.description || undefined,
-    orchestrationMode: 'single',
-    participants: [{
-      ...participant,
-      resumeSessionId: latestSession?.continuationSessionId || undefined,
-      continuationSessionKind: latestSession?.continuationSessionKind || undefined,
-      resumeThreadId: latestSession?.continuationSessionKind === 'codex_thread'
-        ? latestSession?.continuationSessionId || undefined
-        : undefined,
-      // 使用 stripped 内容作为 continuation message，避免 @mention 被 Claude CLI 误解析
-      continuationMessage: latestSession?.continuationSessionId ? contentForAgent : undefined,
-    }],
-    workingDirectory: sourceTask.workingDirectory || process.cwd(),
+  let acpxResult = await runLiveRoomAcpxAttempt({
+    sourceTask,
+    room,
+    participant,
+    contentForAgent,
     permissionConfig,
+    latestSession,
+    useFreshSession: false,
   });
 
-  const participantResult = acpxResult.participants[0];
-  const finalStatus =
+  let participantResult = acpxResult.participants[0];
+  let finalStatus =
     acpxResult.status === 'completed'
       ? 'completed'
       : acpxResult.status === 'interrupted'
@@ -315,6 +578,92 @@ const executeLiveRoomReplyViaAcpx = async ({
       : acpxResult.status === 'stopped'
       ? 'failed'
       : 'failed';
+
+  const firstFailureMessage =
+    acpxResult.status === 'failed'
+      ? participantResult?.error || 'Live room ACPX execution failed'
+      : null;
+  const shouldFallback =
+    Boolean(firstFailureMessage)
+    && shouldRetryWithFreshSession({
+      harnessType: targetMember.harnessType,
+      message: firstFailureMessage!,
+      hasContinuation: Boolean(latestSession?.continuationSessionId),
+    });
+
+  if (shouldFallback && latestSession?.participant?.id) {
+    const staleReason = firstFailureMessage!;
+    await markParticipantContinuationStale({
+      participantId: latestSession.participant.id,
+      reason: staleReason,
+    });
+    await markLiveRoomSessionExpired({
+      sessionId: session.id,
+      reason: `Continuation expired: ${staleReason}`,
+    });
+
+    acpxResult = await runLiveRoomAcpxAttempt({
+      sourceTask,
+      room,
+      participant,
+      contentForAgent,
+      permissionConfig,
+      latestSession,
+      useFreshSession: true,
+    });
+    participantResult = acpxResult.participants[0];
+    finalStatus =
+      acpxResult.status === 'completed'
+        ? 'completed'
+        : acpxResult.status === 'interrupted'
+        ? 'running'
+        : acpxResult.status === 'stopped'
+        ? 'failed'
+        : 'failed';
+
+    await annotateFreshRetryMetadata({
+      taskRunId: acpxResult.taskRunId,
+      participantId: participantResult?.participantId,
+      staleReason,
+      staleParticipantId: latestSession.participant.id,
+    });
+  }
+
+  if (
+    acpxResult.status === 'failed'
+    && participantResult?.error
+    && shouldRetryCodexEphemeral({
+      harnessType: targetMember.harnessType,
+      message: participantResult.error,
+    })
+  ) {
+    acpxResult = await runLiveRoomAcpxAttempt({
+      sourceTask,
+      room,
+      participant,
+      contentForAgent,
+      permissionConfig,
+      latestSession,
+      useFreshSession: true,
+      forceEphemeral: true,
+    });
+    participantResult = acpxResult.participants[0];
+    finalStatus =
+      acpxResult.status === 'completed'
+        ? 'completed'
+        : acpxResult.status === 'interrupted'
+        ? 'running'
+        : acpxResult.status === 'stopped'
+        ? 'failed'
+        : 'failed';
+
+    await annotateFreshRetryMetadata({
+      taskRunId: acpxResult.taskRunId,
+      participantId: participantResult?.participantId,
+      staleReason: 'codex_local_state_error',
+      staleParticipantId: latestSession?.participant?.id || null,
+    });
+  }
 
   await prisma.task.update({
     where: { id: sourceTask.id },

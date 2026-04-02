@@ -145,6 +145,23 @@ const executeClaudeCLI = async (
   }
 ): Promise<{ output: string; filesModified?: string[]; sessionId?: string }> => {
   const { spawn } = await import('child_process');
+
+  const extractClaudeStructuredError = (event: {
+    subtype?: string;
+    is_error?: boolean;
+    errors?: unknown;
+    result?: string;
+  }): string | null => {
+    const errors = Array.isArray(event.errors)
+      ? event.errors.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : [];
+
+    if (event.subtype === 'error_during_execution' || event.is_error === true || errors.length > 0) {
+      return errors.join('\n') || event.result || 'Claude execution failed';
+    }
+
+    return null;
+  };
   
   const prompt = options.rawPrompt ?? `Task: ${task.name}
 
@@ -168,7 +185,9 @@ Take your time and be thorough.`;
     let stderr = '';
     let stdoutBuffer = '';
     let resolvedOutput = '';
+    let structuredError: string | null = null;
     let sessionId: string | null = null;
+    let settled = false;
     
     // Spawn claude process
     const args = options.resumeSessionId
@@ -221,6 +240,9 @@ Take your time and be thorough.`;
         try {
           const event = JSON.parse(trimmed) as {
             type?: string;
+            subtype?: string;
+            is_error?: boolean;
+            errors?: unknown;
             session_id?: string;
             message?: {
               content?: Array<{ type?: string; text?: string }>;
@@ -246,8 +268,11 @@ Take your time and be thorough.`;
             continue;
           }
 
-          if (event.type === 'result' && typeof event.result === 'string') {
-            resolvedOutput = event.result;
+          if (event.type === 'result') {
+            structuredError = extractClaudeStructuredError(event);
+            if (typeof event.result === 'string') {
+              resolvedOutput = event.result;
+            }
             continue;
           }
         } catch {
@@ -265,12 +290,27 @@ Take your time and be thorough.`;
 
     // Handle completion
     child.on('close', (code) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+
       if (stdoutBuffer.trim()) {
         try {
-          const event = JSON.parse(stdoutBuffer.trim()) as { session_id?: string; result?: string };
+          const event = JSON.parse(stdoutBuffer.trim()) as {
+            type?: string;
+            session_id?: string;
+            result?: string;
+            subtype?: string;
+            is_error?: boolean;
+            errors?: unknown;
+          };
           if (typeof event.session_id === 'string' && event.session_id.trim()) {
             sessionId = event.session_id.trim();
             options.onSessionStarted?.(sessionId);
+          }
+          if (event.type === 'result') {
+            structuredError = structuredError || extractClaudeStructuredError(event);
           }
           if (typeof event.result === 'string') {
             resolvedOutput = event.result;
@@ -281,7 +321,12 @@ Take your time and be thorough.`;
       }
 
       const output = resolvedOutput || stdout || stderr || 'Task executed successfully';
-      
+
+      if (structuredError) {
+        reject(new Error(structuredError));
+        return;
+      }
+
       // Try to extract modified files from output
       const filesModified = extractModifiedFiles(output);
 
@@ -294,11 +339,19 @@ Take your time and be thorough.`;
 
     // Handle errors
     child.on('error', (err) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       reject(err);
     });
 
     // Handle timeout
     setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       child.kill('SIGTERM');
       reject(new Error(`Claude execution timed out after ${options.timeout}ms`));
     }, options.timeout);
@@ -328,11 +381,12 @@ export const isClaudeAvailable = async (): Promise<boolean> => {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
+    const shellPath = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
 
     // On Windows, use shell option to ensure .cmd files are found
     await execAsync('claude --version', {
       timeout: 5000,
-      shell: true,
+      shell: shellPath,
     });
     return true;
   } catch {
@@ -348,10 +402,11 @@ export const getClaudeVersion = async (): Promise<string> => {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
+    const shellPath = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
 
     const { stdout } = await execAsync('claude --version', {
       timeout: 5000,
-      shell: true,
+      shell: shellPath,
     });
     return stdout.trim();
   } catch {
@@ -366,12 +421,13 @@ export const initClaudeConfig = async (): Promise<void> => {
   const { exec } = await import('child_process');
   const { promisify } = await import('util');
   const execAsync = promisify(exec);
+  const shellPath = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
 
   try {
     // Check if claude is already configured
     await execAsync('claude --version', {
       timeout: 5000,
-      shell: true,
+      shell: shellPath,
     });
     console.log('[Claude] Already configured');
   } catch {

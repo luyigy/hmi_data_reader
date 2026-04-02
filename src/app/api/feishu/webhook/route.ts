@@ -6,10 +6,10 @@ import {
   normalizeFeishuPayload,
   parseFeishuCommand,
   parseFeishuMessage,
-  sendFeishuTextMessage,
   validateFeishuRequestSignature,
   validateFeishuVerificationToken,
 } from '@/lib/feishu';
+import { sendFeishuTextMessage } from '@/lib/feishu-api';
 
 export const dynamic = 'force-dynamic';
 

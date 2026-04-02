@@ -1,5 +1,8 @@
 const path = require('path');
 const Module = require('module');
+const { loadEnvConfig } = require('@next/env');
+
+loadEnvConfig(process.cwd());
 
 require('ts-node').register({
   transpileOnly: true,

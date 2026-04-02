@@ -7,6 +7,7 @@ import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import { getMentionAliases, type LiveRoomMemberWithAgent } from '@/lib/agent-identity';
 import type { AcpxExecutionBackend, AcpxParticipantRequest } from '@/lib/acpx/types';
+import { relayLiveRoomMessageToFeishu } from '@/lib/feishu-live-room-relay';
 
 export interface LiveRoomCatalogAgent {
   id: string;
@@ -910,7 +911,7 @@ export const postLiveRoomMessage = async ({
       } else {
         // 降级方案：使用正则表达式（可能不准确，但作为后备）
         // 改进的正则：贪婪匹配，支持多词名称
-        const greedyMatch = created.content.match(/^@.+\s+(.+)$/s);
+        const greedyMatch = created.content.match(/^@.+\s+([\s\S]+)$/);
         if (greedyMatch && greedyMatch[1].trim()) {
           contentForTaskRoom = greedyMatch[1].trim();
           if (process.env.DEBUG_MENTION_DETECTION === 'true') {
@@ -921,7 +922,7 @@ export const postLiveRoomMessage = async ({
           }
         } else {
           // 最后尝试非贪婪匹配
-          const nonGreedyMatch = created.content.match(/^@\S+\s+(.*)$/s);
+          const nonGreedyMatch = created.content.match(/^@\S+\s+([\s\S]*)$/);
           if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
             contentForTaskRoom = nonGreedyMatch[1].trim();
             if (process.env.DEBUG_MENTION_DETECTION === 'true') {
@@ -956,6 +957,9 @@ export const postLiveRoomMessage = async ({
 
   const payload = serializeLiveRoomMessage(created);
   emitLiveRoomMessage(payload);
+  void relayLiveRoomMessageToFeishu(payload).catch((error) => {
+    console.error('Failed to relay live room message to Feishu:', error);
+  });
   await emitLiveRoomUpdated(roomId);
   return payload;
 };

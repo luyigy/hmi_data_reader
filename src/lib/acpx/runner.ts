@@ -38,6 +38,16 @@ const parseModifiedFiles = (filesModified?: string[] | null) =>
 const DEFAULT_CODEX_MAX_RUNTIME_MS = 10 * 60 * 1000;
 const DEFAULT_CLAUDE_MAX_RUNTIME_MS = 10 * 60 * 1000;
 
+const resolveHarnessTimeout = (
+  configuredTimeout: number | null | undefined,
+  defaultTimeout: number
+): number | null =>
+  configuredTimeout === null
+    ? null
+    : typeof configuredTimeout === 'number'
+    ? configuredTimeout
+    : defaultTimeout;
+
 const stringifyJson = (value?: Record<string, unknown> | WatchdogConfig | object | null) =>
   value ? JSON.stringify(value) : null;
 
@@ -573,10 +583,10 @@ const stripLeadingMention = (content: string): string => {
 
   // 使用贪婪匹配：@xxx yyy -> yyy
   // 贪婪匹配会尽可能多地匹配，直到最后一个空格后的内容
-  const greedyMatch = content.match(/^@.+\s+(.+)$/s);
+  const greedyMatch = content.match(/^@.+\s+([\s\S]+)$/);
 
   // 非贪婪匹配作为后备：@xxx yyy -> yyy (只匹配到第一个空格)
-  const nonGreedyMatch = content.match(/^@\S+\s+(.*)$/s);
+  const nonGreedyMatch = content.match(/^@\S+\s+([\s\S]*)$/);
 
   // 优先使用贪婪匹配的结果，但如果结果为空则使用非贪婪匹配
   let stripped = content;
@@ -751,7 +761,7 @@ const executeViaLocalHarness = async (
       ? (() => resumeCodexSession({
           threadId: participant.resumeThreadId,
           prompt: participant.continuationMessage,
-          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_CODEX_MAX_RUNTIME_MS),
           workingDirectory: request.workingDirectory || process.cwd(),
           streamCallbacks: callbacks,
           sandboxMode: permissionConfig.sandboxMode,
@@ -762,8 +772,9 @@ const executeViaLocalHarness = async (
           },
         }))()
       : (() => executeCodexTask(task, {
-          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CODEX_MAX_RUNTIME_MS,
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_CODEX_MAX_RUNTIME_MS),
           workingDirectory: request.workingDirectory,
+          ephemeral: participant.ephemeralSession,
           streamCallbacks: callbacks,
           sandboxMode: permissionConfig.sandboxMode,
           approvalPolicy: permissionConfig.approvalPolicy,
@@ -888,11 +899,14 @@ const executeViaRemoteSshHarness = async (
       description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext),
     },
     {
-      timeout:
-        request.watchdogConfig?.maxRuntimeMs
-        ?? (participant.harnessType === 'claude'
+      timeout: resolveHarnessTimeout(
+        request.watchdogConfig?.maxRuntimeMs,
+        participant.harnessType === 'claude'
           ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
-          : DEFAULT_CODEX_MAX_RUNTIME_MS),
+          : DEFAULT_CODEX_MAX_RUNTIME_MS
+      ) ?? (participant.harnessType === 'claude'
+        ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
+        : DEFAULT_CODEX_MAX_RUNTIME_MS),
       harnessType: participant.harnessType,
       host: remoteHost,
       resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
