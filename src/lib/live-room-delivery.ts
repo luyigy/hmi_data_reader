@@ -30,6 +30,8 @@ const REMOTE_STALE_GRACE_MS = 30 * 1000;
 const REMOTE_STALE_AFTER_MS = DEFAULT_TIMEOUT_MS + REMOTE_STALE_GRACE_MS;
 const SSH_WARNING_PATTERNS = [
   /^Warning: Permanently added .*known hosts\.\s*$/gim,
+  // WSL startup message (UTF-16LE encoded, sent as stderr by Windows SSH+WSL)
+  /^wsl:.*$/gim,
 ];
 const INVALID_CLAUDE_CONTINUATION_PATTERNS = [
   /No conversation found with session ID/i,
@@ -69,13 +71,14 @@ type DeliveryRoom = {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const normalizeLiveRoomExecutionError = (message: string) => {
-  let normalized = message;
+  // Strip embedded null bytes (from WSL UTF-16LE startup messages decoded as UTF-8)
+  let normalized = message.replace(/\0/g, '');
 
   for (const pattern of SSH_WARNING_PATTERNS) {
     normalized = normalized.replace(pattern, '').trim();
   }
 
-  return normalized || 'Live room execution failed';
+  return normalized.trim() || 'Live room execution failed';
 };
 
 const getSessionKey = (roomId: string, memberId: string) => `live-room:${roomId}:member:${memberId}`;
