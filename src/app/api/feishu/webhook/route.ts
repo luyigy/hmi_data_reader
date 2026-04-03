@@ -10,6 +10,7 @@ import {
   validateFeishuVerificationToken,
 } from '@/lib/feishu';
 import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +62,20 @@ export async function POST(request: NextRequest) {
 
     const command = parseFeishuCommand(message);
     if (!command) {
-      return NextResponse.json({ success: true, ignored: true, reason: 'not_a_command' });
+      // Not a /ap command — check if the chat is bound to a live room and relay
+      const relayed = await tryRelayNonCommandToLiveRoom({
+        context: {
+          chatId: message.chatId,
+          chatType: message.chatType,
+          senderOpenId: message.senderOpenId,
+          messageId: message.messageId,
+        },
+        content: message.text,
+      }).catch((err) => {
+        console.error('Failed to relay non-command to live room:', err);
+        return false;
+      });
+      return NextResponse.json({ success: true, ignored: !relayed, reason: relayed ? 'relayed_to_live_room' : 'not_a_command' });
     }
 
     const responseText = await handleFeishuCommand({

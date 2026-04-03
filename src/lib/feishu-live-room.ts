@@ -412,3 +412,32 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
 export function parseFeishuSelectedAgentIds(value?: string) {
   return normalizeSelectedAgentIds(value);
 }
+
+/**
+ * If a regular (non-command) message arrives in a Feishu chat that is already
+ * bound to a live room, relay it into the room and trigger agent replies.
+ * Returns true when the message was handled, false when there is no binding.
+ */
+export async function tryRelayNonCommandToLiveRoom(args: {
+  context: FeishuConversationContext;
+  content: string;
+}): Promise<boolean> {
+  const scopeKey = buildFeishuBindingScopeKey(args.context);
+  const bindingRows = await prisma.$queryRaw<FeishuConversationBindingRow[]>`
+    SELECT
+      "id", "scopeKey", "chatId", "chatType", "senderOpenId",
+      "latestMessageId", "liveRoomId", "createdAt", "updatedAt"
+    FROM "FeishuConversationBinding"
+    WHERE "scopeKey" = ${scopeKey}
+    LIMIT 1
+  `;
+  if (!bindingRows[0]) {
+    return false;
+  }
+
+  await postFeishuMessageToBoundLiveRoom({
+    context: args.context,
+    content: args.content,
+  });
+  return true;
+}

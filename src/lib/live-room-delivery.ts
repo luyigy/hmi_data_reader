@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { relayAgentReplyToFeishu } from '@/lib/feishu-relay';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { findLatestParticipantSession, parseAcpxMetadata } from '@/lib/acpx/session-tracking';
 import { requestRunControl } from '@/lib/acpx/process-registry';
@@ -1022,6 +1023,15 @@ const processLiveRoomDelivery = async ({
           remoteTiming,
         },
       }),
+    });
+
+    // Relay the agent's reply back to the bound Feishu chat (fire-and-forget)
+    void relayAgentReplyToFeishu({
+      roomId: room.id,
+      agentDisplayName: targetMember.displayName,
+      content: output,
+    }).catch((error) => {
+      console.error('Failed to relay agent reply to Feishu:', error);
     });
 
     if (allowChainedMentions && chainDepth < 2) {

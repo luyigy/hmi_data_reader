@@ -4,6 +4,7 @@ import {
   parseFeishuCommand,
 } from '@/lib/feishu';
 import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
 import {
   createFeishuRuntimeStatus,
   readFeishuRuntimeStatus,
@@ -177,10 +178,25 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
 
       const command = parseFeishuCommand(message);
       if (!command) {
-        console.log(`${prefix} ignored non-command`, {
-          messageId: message.messageId,
-          text: message.text,
+        // Not a /ap command — check if the chat is bound to a live room and relay
+        const relayed = await tryRelayNonCommandToLiveRoom({
+          context: {
+            chatId: message.chatId,
+            chatType: message.chatType,
+            senderOpenId: message.senderOpenId,
+            messageId: message.messageId,
+          },
+          content: message.text,
+        }).catch((err) => {
+          console.error(`${prefix} relay non-command failed`, { error: err });
+          return false;
         });
+        if (!relayed) {
+          console.log(`${prefix} ignored non-command (no binding)`, {
+            messageId: message.messageId,
+            text: message.text,
+          });
+        }
         return;
       }
 

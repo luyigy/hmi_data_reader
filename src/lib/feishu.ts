@@ -18,6 +18,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap status',
   '/ap gateways',
   '/ap agents <gatewayId>',
+  '/ap hosts',
+  '/ap run --host=<hostId|label> --harness=<codex|claude> <prompt>',
   '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [title]',
   '/ap chat --from=<gatewayId> --to=<gatewayId> [--from-agent=main] [--to-agent=main] [--turns=2] <prompt>',
   '/ap chat [--agents=<agentId1,agentId2>] <message>',
@@ -72,7 +74,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'room' | 'chat';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'room' | 'chat';
   args: string[];
   options: Record<string, string>;
 };
@@ -279,7 +281,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'room', 'chat'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'room', 'chat'].includes(command)) {
     return null;
   }
 
@@ -401,6 +403,108 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
       return `- ${agent.name} (${runtimeId}) | ${gatewayLabel} | ${agent.effectiveStatus}`;
     }),
   ].join('\n');
+}
+
+async function handleHostsCommand() {
+  const hosts = await prisma.remoteHarnessHost.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+
+  if (hosts.length === 0) {
+    return '当前没有已注册的 SSH 主机。\n可通过 /remote-ssh-tools 页面注册主机。';
+  }
+
+  const lines = hosts.map((host) => {
+    let harnesses: string[] = [];
+    try { harnesses = JSON.parse(host.supportedHarnesses || '[]'); } catch { /* noop */ }
+    const icon = host.status === 'online' ? '🟢' : host.status === 'maintenance' ? '🟡' : '⚪';
+    return `${icon} ${host.label} [${host.id.slice(-8)}]\n  ${host.sshUser}@${host.host}:${host.port} (${host.viaNetwork})\n  harnesses: ${harnesses.join(', ') || '(none)'}`;
+  });
+
+  return ['SSH 主机列表 (/ap hosts)', ...lines].join('\n\n');
+}
+
+async function handleRunCommand(command: ParsedFeishuCommand) {
+  const hostQuery = command.options['host'];
+  const harnessType = (command.options['harness'] || 'codex').toLowerCase();
+  const prompt = command.args.join(' ').trim();
+
+  if (!hostQuery || !prompt) {
+    return [
+      'run 命令参数不足。',
+      '示例：',
+      '/ap run --host=<hostId|label> --harness=codex <prompt>',
+      '/ap run --host=myserver --harness=claude 帮我看看当前目录有哪些文件',
+      '可用主机：/ap hosts',
+    ].join('\n');
+  }
+
+  const allHosts = await prisma.remoteHarnessHost.findMany({ take: 50 });
+  const host = allHosts.find((h) =>
+    h.id === hostQuery ||
+    h.id.slice(-8) === hostQuery ||
+    h.label.toLowerCase() === hostQuery.toLowerCase() ||
+    h.label.toLowerCase().includes(hostQuery.toLowerCase())
+  );
+
+  if (!host) {
+    const names = allHosts.map((h) => `${h.label} [${h.id.slice(-8)}]`).join(', ');
+    return `找不到 SSH 主机：${hostQuery}\n已注册主机：${names || '(none)'}`;
+  }
+
+  let harnesses: string[] = [];
+  try { harnesses = JSON.parse(host.supportedHarnesses || '[]'); } catch { /* noop */ }
+
+  if (!harnesses.includes(harnessType)) {
+    return `主机 "${host.label}" 不支持 harness: ${harnessType}\n支持的 harnesses: ${harnesses.join(', ') || '(none)'}`;
+  }
+
+  if (!host.encryptedPrivateKey) {
+    return `主机 "${host.label}" 未配置私钥，无法执行 SSH 命令。`;
+  }
+
+  const { executeRemoteSshTask } = await import('@/lib/remote-harness/ssh-executor');
+  const { decryptToken } = await import('@/lib/encryption');
+
+  const hostRecord = {
+    id: host.id,
+    label: host.label,
+    host: host.host,
+    port: host.port,
+    sshUser: host.sshUser,
+    authType: host.authType,
+    privateKey: decryptToken(host.encryptedPrivateKey),
+    workingDirectory: host.workingDirectory,
+    status: host.status,
+    viaNetwork: host.viaNetwork,
+    supportedHarnesses: harnesses,
+  };
+
+  const result = await executeRemoteSshTask(
+    {
+      id: `feishu-run-${Date.now()}`,
+      name: prompt.slice(0, 80),
+      description: prompt,
+    },
+    {
+      timeout: 5 * 60 * 1000,
+      harnessType,
+      host: hostRecord,
+    }
+  );
+
+  const lines = [
+    `✅ ${host.label} (${harnessType}) 执行完成，耗时 ${Math.round(result.executionTime / 1000)}s`,
+    '',
+    result.output.trim() || '(无输出)',
+  ];
+
+  if (result.sessionId) {
+    lines.push('', `Session ID: ${result.sessionId}`);
+  }
+
+  return lines.join('\n');
 }
 
 async function handleChatCommand(
@@ -541,6 +645,10 @@ export async function handleFeishuCommand(args: {
       return handleGatewaysCommand();
     case 'agents':
       return handleAgentsCommand(args.command);
+    case 'hosts':
+      return handleHostsCommand();
+    case 'run':
+      return handleRunCommand(args.command);
     case 'room':
       return handleRoomCommand(args.command, args.context);
     case 'chat':
