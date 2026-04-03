@@ -91,9 +91,7 @@ const buildRemoteCommand = (
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
 
-  // Source .bashrc to pick up nvm/fnm/node PATH set up by interactive shell config
-  const withBashrc = `. ~/.bashrc 2>/dev/null || true; ${command}`;
-  return `bash -lc ${shellQuote(withBashrc)}`;
+  return `bash -lc ${shellQuote(command)}`;
 };
 
 const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`;
