@@ -6,6 +6,7 @@ import {
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
   encodeLiveRoomRoleLabel,
+  extractRemoteHostIdFromRoleLabel,
   ensureLiveRoomUserMember,
   listLiveRoomCatalogAgents,
   listLiveRoomPendingReplies,
@@ -90,16 +91,16 @@ async function addAgentsToLiveRoom(roomId: string, selectedAgentIds: string[]) {
   const createdMembers = [] as Awaited<ReturnType<typeof prisma.liveRoomMember.create>>[];
 
   for (const agent of selectedAgents) {
-    const existing = existingMembers.find((member) =>
-      member.agentRecordId === (agent.agentRecordId || null) &&
-      member.backend === agent.backend &&
-      member.harnessType === agent.harnessType &&
-      member.runtimeAgentId === (agent.runtimeAgentId || null) &&
-      member.gatewayId ===
-        (agent.backend === 'gateway_openclaw'
-          ? (agent.gatewayId === 'platform-local' ? null : agent.gatewayId)
-          : null)
-    );
+    const existing = existingMembers.find((member) => {
+      if (member.agentRecordId !== (agent.agentRecordId || null)) return false;
+      if (member.backend !== agent.backend) return false;
+      if (member.harnessType !== agent.harnessType) return false;
+      if (member.runtimeAgentId !== (agent.runtimeAgentId || null)) return false;
+      if (agent.backend === 'remote_ssh') {
+        return extractRemoteHostIdFromRoleLabel(member.roleLabel) === agent.gatewayId;
+      }
+      return member.gatewayId === (agent.gatewayId === 'platform-local' ? null : agent.gatewayId);
+    });
 
     if (existing) {
       continue;
