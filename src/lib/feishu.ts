@@ -19,6 +19,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap gateways',
   '/ap agents [gatewayId]',
   '/ap hosts',
+  '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
   '/ap run --host=<hostId|label> --harness=<codex|claude> <prompt>',
   '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [title]',
   '/ap members',
@@ -77,7 +78,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'room' | 'members' | 'kick' | 'add' | 'chat';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'kick' | 'add' | 'chat';
   args: string[];
   options: Record<string, string>;
 };
@@ -284,7 +285,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'room', 'members', 'kick', 'add', 'chat'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'kick', 'add', 'chat'].includes(command)) {
     return null;
   }
 
@@ -422,7 +423,8 @@ async function handleHostsCommand() {
     let harnesses: string[] = [];
     try { harnesses = JSON.parse(host.supportedHarnesses || '[]'); } catch { /* noop */ }
     const icon = host.status === 'online' ? '🟢' : host.status === 'maintenance' ? '🟡' : '⚪';
-    return `${icon} ${host.label} [${host.id.slice(-8)}]\n  ${host.sshUser}@${host.host}:${host.port} (${host.viaNetwork})\n  harnesses: ${harnesses.join(', ') || '(none)'}`;
+    const agentIds = harnesses.map((h) => `  /ap add --agents=remote_ssh:${host.id}:${h}`).join('\n');
+    return `${icon} ${host.label}\n  ${host.sshUser}@${host.host}:${host.port} (${host.viaNetwork})\n${agentIds}`;
   });
 
   return ['SSH 主机列表 (/ap hosts)', ...lines].join('\n\n');
@@ -609,6 +611,104 @@ async function handleChatCommand(
   ].join('\n');
 }
 
+async function handleRegisterCommand(command: ParsedFeishuCommand) {
+  const label = command.options['label'] || command.args[0];
+  const host = command.options['host'];
+  const sshUser = command.options['user'];
+  const keyFile = command.options['keyfile'];
+  const harnesses = (command.options['harnesses'] || 'claude')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const port = parseInt(command.options['port'] || '22', 10);
+  const workingDirectory = command.options['workdir'] || null;
+  const viaNetwork = ['lan', 'public', 'wireguard'].includes(command.options['network'] || '')
+    ? command.options['network']
+    : 'wireguard';
+
+  if (!label || !host || !sshUser || !keyFile) {
+    return [
+      '用法：',
+      '/ap register --label=<名称> --host=<IP> --user=<ssh用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--workdir=<路径>] [--network=wireguard|lan|public]',
+      '',
+      '示例：',
+      '/ap register --label=TX-server --host=10.0.8.10 --user=ubuntu --keyfile=/home/ubuntu/.ssh/id_rsa --harnesses=claude,codex --network=wireguard',
+      '',
+      '注意：私钥文件路径是平台服务器上的本地路径。',
+    ].join('\n');
+  }
+
+  const { promises: fsPromises } = await import('fs');
+  let privateKey: string;
+  try {
+    privateKey = await fsPromises.readFile(keyFile, 'utf-8');
+  } catch (err) {
+    return `读取私钥文件失败：${keyFile}\n错误：${err instanceof Error ? err.message : String(err)}`;
+  }
+
+  if (!privateKey.trim().startsWith('-----BEGIN')) {
+    return `文件 ${keyFile} 内容不像 PEM 格式的私钥，请检查路径是否正确。`;
+  }
+
+  if (harnesses.includes('codex') && sshUser === 'root') {
+    return '使用 codex 时不能用 root 用户（codex 在 root 下会拒绝 bypassPermissions 模式）。';
+  }
+
+  const { encryptToken } = await import('@/lib/encryption');
+
+  const existing = await prisma.remoteHarnessHost.findFirst({
+    where: { host, sshUser },
+  });
+
+  if (existing) {
+    await prisma.remoteHarnessHost.update({
+      where: { id: existing.id },
+      data: {
+        label,
+        port,
+        encryptedPrivateKey: encryptToken(privateKey.trim()),
+        workingDirectory,
+        status: 'offline',
+        viaNetwork,
+        supportedHarnesses: JSON.stringify(harnesses),
+      },
+    });
+
+    return [
+      `✅ 已更新 SSH 主机：${label}`,
+      `ID: ${existing.id}`,
+      `地址：${sshUser}@${host}:${port} (${viaNetwork})`,
+      `支持的 harnesses：${harnesses.join(', ')}`,
+      '',
+      '添加到房间：',
+      ...harnesses.map((h) => `/ap add --agents=remote_ssh:${existing.id}:${h}`),
+    ].join('\n');
+  }
+
+  const created = await prisma.remoteHarnessHost.create({
+    data: {
+      label,
+      host,
+      port,
+      sshUser,
+      authType: 'ssh_key',
+      encryptedPrivateKey: encryptToken(privateKey.trim()),
+      workingDirectory,
+      status: 'offline',
+      viaNetwork,
+      supportedHarnesses: JSON.stringify(harnesses),
+    },
+  });
+
+  return [
+    `✅ 已注册 SSH 主机：${label}`,
+    `ID: ${created.id}`,
+    `地址：${sshUser}@${host}:${port} (${viaNetwork})`,
+    `支持的 harnesses：${harnesses.join(', ')}`,
+    '',
+    '添加到房间：',
+    ...harnesses.map((h) => `/ap add --agents=remote_ssh:${created.id}:${h}`),
+  ].join('\n');
+}
+
 async function getBoundLiveRoomId(context?: FeishuConversationContext): Promise<string | null> {
   if (!context) return null;
   const scopeKey = context.chatType === 'p2p'
@@ -739,6 +839,8 @@ export async function handleFeishuCommand(args: {
       return handleHostsCommand();
     case 'run':
       return handleRunCommand(args.command);
+    case 'register':
+      return handleRegisterCommand(args.command);
     case 'room':
       return handleRoomCommand(args.command, args.context);
     case 'members':
