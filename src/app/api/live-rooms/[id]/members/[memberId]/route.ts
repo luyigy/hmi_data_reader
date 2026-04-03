@@ -1,6 +1,63 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateShortAlias } from '@/lib/agent-identity';
+import { postLiveRoomMessage, resolveLiveRoomMessageMetadata } from '@/lib/live-room';
+
+/**
+ * DELETE /api/live-rooms/[id]/members/[memberId]
+ * 从 Live Room 移除成员
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string; memberId: string } }
+) {
+  try {
+    const member = await prisma.liveRoomMember.findUnique({
+      where: { id: params.memberId },
+    });
+
+    if (!member || member.roomId !== params.id) {
+      return NextResponse.json({ error: 'Member not found' }, { status: 404 });
+    }
+
+    if (member.memberType === 'user') {
+      return NextResponse.json({ error: 'Cannot remove the user member' }, { status: 400 });
+    }
+
+    await prisma.liveRoomMember.delete({ where: { id: params.memberId } });
+
+    // If this was the current speaker, clear it
+    const room = await prisma.liveRoom.findUnique({
+      where: { id: params.id },
+      select: { currentSpeakerMemberId: true },
+    });
+    if (room?.currentSpeakerMemberId === params.memberId) {
+      const next = await prisma.liveRoomMember.findFirst({
+        where: { roomId: params.id, canReply: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+      await prisma.liveRoom.update({
+        where: { id: params.id },
+        data: { currentSpeakerMemberId: next?.id ?? null },
+      });
+    }
+
+    await postLiveRoomMessage({
+      roomId: params.id,
+      content: `${member.displayName} 已从房间移除。`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        extras: { systemEvent: 'member_removed', memberId: params.memberId },
+      }),
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Failed to remove live room member:', error);
+    return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 });
+  }
+}
 
 /**
  * PATCH /api/live-rooms/[id]/members/[memberId]

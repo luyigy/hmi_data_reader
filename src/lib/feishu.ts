@@ -17,12 +17,15 @@ const DEFAULT_HELP_TEXT = [
   '/ap help',
   '/ap status',
   '/ap gateways',
-  '/ap agents <gatewayId>',
+  '/ap agents [gatewayId]',
   '/ap hosts',
   '/ap run --host=<hostId|label> --harness=<codex|claude> <prompt>',
   '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [title]',
-  '/ap chat --from=<gatewayId> --to=<gatewayId> [--from-agent=main] [--to-agent=main] [--turns=2] <prompt>',
+  '/ap members',
+  '/ap add --agents=<agentId>',
+  '/ap kick <memberName>',
   '/ap chat [--agents=<agentId1,agentId2>] <message>',
+  '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',
 ].join('\n');
 
 type FeishuMessageMention = {
@@ -74,7 +77,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'room' | 'chat';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'room' | 'members' | 'kick' | 'add' | 'chat';
   args: string[];
   options: Record<string, string>;
 };
@@ -281,7 +284,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'room', 'chat'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'room', 'members', 'kick', 'add', 'chat'].includes(command)) {
     return null;
   }
 
@@ -606,6 +609,93 @@ async function handleChatCommand(
   ].join('\n');
 }
 
+async function getBoundLiveRoomId(context?: FeishuConversationContext): Promise<string | null> {
+  if (!context) return null;
+  const scopeKey = context.chatType === 'p2p'
+    ? `feishu:p2p:${context.chatId}`
+    : `feishu:group:${context.chatId}`;
+  const rows = await prisma.$queryRaw<{ liveRoomId: string }[]>`
+    SELECT "liveRoomId" FROM "FeishuConversationBinding" WHERE "scopeKey" = ${scopeKey} LIMIT 1
+  `;
+  return rows[0]?.liveRoomId ?? null;
+}
+
+async function handleMembersCommand(context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。请先使用 /ap room --agents=<agentId> 创建绑定。';
+  }
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  if (members.length === 0) {
+    return `Live Room ${roomId} 没有成员。`;
+  }
+
+  const lines = members.map((m) => {
+    const tag = m.memberType === 'user' ? '(you)' : m.presenceStatus;
+    return `- ${m.displayName} [${m.id.slice(-8)}] | ${m.backend || 'local'} | ${tag}`;
+  });
+
+  return [`Live Room 成员列表 (${roomId.slice(-8)})`, ...lines].join('\n');
+}
+
+async function handleKickCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const nameQuery = command.args.join(' ').trim().replace(/^@/, '');
+  if (!nameQuery) {
+    return '请指定要移除的成员名称。\n示例：/ap kick claude';
+  }
+
+  const members = await prisma.liveRoomMember.findMany({ where: { roomId } });
+  const target = members.find((m) =>
+    m.memberType !== 'user' && (
+      m.displayName.toLowerCase() === nameQuery.toLowerCase() ||
+      m.displayName.toLowerCase().includes(nameQuery.toLowerCase()) ||
+      m.id.endsWith(nameQuery)
+    )
+  );
+
+  if (!target) {
+    const names = members.filter((m) => m.memberType !== 'user').map((m) => m.displayName).join(', ');
+    return `找不到成员：${nameQuery}\n当前可踢出的成员：${names || '(none)'}`;
+  }
+
+  await fetch(new URL(
+    `/api/live-rooms/${roomId}/members/${target.id}`,
+    process.env.AGENT_PLATFORM_BASE_URL?.trim() || 'http://127.0.0.1:3010'
+  ).toString(), { method: 'DELETE' });
+
+  return `✅ 已将 ${target.displayName} 从房间移除。`;
+}
+
+async function handleAddCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const agentIds = (command.options['agents'] || command.args.join(','))
+    .split(',').map((s) => s.trim()).filter(Boolean);
+
+  if (agentIds.length === 0) {
+    return '请指定要添加的 agent ID。\n示例：/ap add --agents=platform_local:platform-local:codex';
+  }
+
+  // Re-use the existing room binding add path
+  const { ensureFeishuConversationBinding } = await import('@/lib/feishu-live-room');
+  if (!context) return '需要 Feishu 会话上下文。';
+  const result = await ensureFeishuConversationBinding({ context, selectedAgentIds: agentIds });
+  return `✅ 已添加 ${result.addedAgentCount} 个成员到 Live Room ${result.liveRoomId.slice(-8)}。\n可使用 /ap members 查看当前成员列表。`;
+}
+
 async function handleRoomCommand(
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext
@@ -651,6 +741,12 @@ export async function handleFeishuCommand(args: {
       return handleRunCommand(args.command);
     case 'room':
       return handleRoomCommand(args.command, args.context);
+    case 'members':
+      return handleMembersCommand(args.context);
+    case 'kick':
+      return handleKickCommand(args.command, args.context);
+    case 'add':
+      return handleAddCommand(args.command, args.context);
     case 'chat':
       return handleChatCommand(args.command, args.baseUrl, args.context);
     default:
