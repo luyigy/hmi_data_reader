@@ -436,12 +436,9 @@ const runLiveRoomAcpxAttempt = async ({
   useFreshSession: boolean;
   forceEphemeral?: boolean;
 }) => {
-  const useEphemeralCodexSession =
-    participant.executionBackend === 'platform_local'
-    && participant.harnessType === 'codex';
   const shouldUseContinuation =
     !useFreshSession
-    && !useEphemeralCodexSession
+    && !forceEphemeral
     && Boolean(latestSession?.continuationSessionId);
 
   const watchdogConfig =
@@ -464,8 +461,7 @@ const runLiveRoomAcpxAttempt = async ({
           ? latestSession?.continuationSessionId || undefined
           : undefined,
       continuationMessage: shouldUseContinuation ? contentForAgent : undefined,
-      ephemeralSession:
-        useEphemeralCodexSession || forceEphemeral,
+      ephemeralSession: forceEphemeral,
     }],
     workingDirectory: sourceTask.workingDirectory || process.cwd(),
     permissionConfig,
