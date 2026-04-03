@@ -56,7 +56,7 @@ export async function GET(
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 秒超时
 
-      const healthUrl = `${gateway.url}/api/health`;
+      const healthUrl = `${gateway.url}/health`;
       const healthResponse = await fetch(healthUrl, {
         method: 'GET',
         headers: {
