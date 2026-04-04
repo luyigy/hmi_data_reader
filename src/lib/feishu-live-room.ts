@@ -478,6 +478,7 @@ export function parseFeishuSelectedAgentIds(value?: string) {
 export async function tryRelayNonCommandToLiveRoom(args: {
   context: FeishuConversationContext;
   content: string;
+  typingReactionId?: string;
 }): Promise<boolean> {
   const scopeKey = buildFeishuBindingScopeKey(args.context);
   const bindingRows = await prisma.$queryRaw<FeishuConversationBindingRow[]>`
@@ -490,6 +491,17 @@ export async function tryRelayNonCommandToLiveRoom(args: {
   `;
   if (!bindingRows[0]) {
     return false;
+  }
+
+  // Persist typing reaction so the relay process can clean it up after agent replies
+  if (args.typingReactionId) {
+    await prisma.$executeRaw`
+      UPDATE "FeishuConversationBinding"
+      SET "typingReactionId" = ${args.typingReactionId},
+          "typingForMessageId" = ${args.context.messageId},
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${bindingRows[0].id}
+    `;
   }
 
   await postFeishuMessageToBoundLiveRoom({

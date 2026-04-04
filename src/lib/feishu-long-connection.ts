@@ -183,6 +183,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
       const command = parseFeishuCommand(message);
       if (!command) {
         // Not a /ap command — check if the chat is bound to a live room and relay
+        const relayTypingReactionId = await addTypingReaction(message.messageId);
         const relayed = await tryRelayNonCommandToLiveRoom({
           context: {
             chatId: message.chatId,
@@ -192,11 +193,16 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
             mentionNames: message.mentionNames,
           },
           content: message.text,
+          typingReactionId: relayTypingReactionId ?? undefined,
         }).catch((err) => {
           console.error(`${prefix} relay non-command failed`, { error: err });
           return false;
         });
         if (!relayed) {
+          // No binding found — clean up the typing reaction we already added
+          if (relayTypingReactionId) {
+            await removeTypingReaction(message.messageId, relayTypingReactionId);
+          }
           console.log(`${prefix} ignored non-command (no binding)`, {
             messageId: message.messageId,
             text: message.text,
