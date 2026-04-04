@@ -19,7 +19,7 @@ interface LiveRoomsResponse {
 type PendingReply = NonNullable<LiveRoomDetail['pendingReplies']>[number];
 
 type MentionCandidate =
-  | { kind: 'all'; id: '__all__'; label: '@all'; subtitle: string }
+  | { kind: 'all'; id: '__all__'; label: '$all'; subtitle: string }
   | { kind: 'member'; member: LiveRoomDetail['members'][number] };
 
 const ROOMS_PANEL_KEY = 'live-room-left-panel-open';
@@ -54,7 +54,7 @@ const getMemberSubtitle = (member: LiveRoomDetail['members'][number]) =>
       } / ${member.harnessType || 'agent'}`;
 
 const getMentionQuery = (value: string) => value.match(/@([\w\u4e00-\u9fa5-]*)$/)?.[1] ?? '';
-const hasMentionAll = (value: string) => /(^|[\s(])@all\b/i.test(value);
+const hasMentionAll = (value: string) => /(^|[\s(])[@$]all\b/i.test(value);
 
 const formatPendingAge = (seconds?: number) => {
   if (!seconds || seconds <= 0) {
@@ -106,7 +106,7 @@ const getComposerModeLabel = ({
   draftMentionMemberIds: string[];
   selectedTargetMemberId: string;
 }) => {
-  if (draftMentionAll) return '@all';
+  if (draftMentionAll) return '$all';
   if (draftMentionMemberIds.length > 0) return 'mention';
   if (selectedTargetMemberId) return 'direct';
   return 'broadcast';
@@ -222,11 +222,11 @@ export function LiveRoomWorkspace({
       })
       .map((member) => ({ kind: 'member', member }));
 
-    const allCandidate: MentionCandidate[] = !query || '@all'.includes(`@${query}`) || 'all'.includes(query)
+    const allCandidate: MentionCandidate[] = !query || '$all'.includes(`$${query}`) || 'all'.includes(query)
       ? [{
           kind: 'all',
           id: '__all__',
-          label: '@all',
+          label: '$all',
           subtitle: `通知当前房间内全部 ${activeReplyMembers.length} 个可回复成员`,
         }]
       : [];
@@ -626,7 +626,7 @@ export function LiveRoomWorkspace({
       setDraftMentionAll(false);
       setDraftMentionMemberIds([]);
       const sentNotice = draftMentionAll && selectedRoom
-        ? `消息已发送，@all 会通知当前房间内全部 ${selectedRoom.members.filter((member) => member.canReply && member.memberType !== 'user').length} 个可回复成员，并按顺序回复。`
+        ? `消息已发送，$all 会通知当前房间内全部 ${selectedRoom.members.filter((member) => member.canReply && member.memberType !== 'user').length} 个可回复成员，并按顺序回复。`
         : hasStructuredMention && selectedRoom
         ? `消息已发送，这条消息会优先按 mention 路由给 ${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}。`
         : selectedTargetMemberId
@@ -1020,7 +1020,7 @@ export function LiveRoomWorkspace({
 
   const handlePickMention = (candidate: MentionCandidate) => {
     if (candidate.kind === 'all') {
-      setMessageInput((prev) => prev.replace(/@([\w\u4e00-\u9fa5-]*)$/, '@all '));
+      setMessageInput((prev) => prev.replace(/[@$]([\w\u4e00-\u9fa5-]*)$/, '$all '));
       setDraftMentionAll(true);
       setDraftMentionMemberIds([]);
       return;
@@ -1391,7 +1391,7 @@ export function LiveRoomWorkspace({
                                 <span className={`rounded-full px-2 py-0.5 text-[10px] ${
                                   isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
                                 }`}>
-                                  @all
+                                  $all
                                 </span>
                               ) : null}
                               {Array.isArray(getMessageMetadataValue(message, 'expectedResponderMemberIds'))
@@ -1459,7 +1459,7 @@ export function LiveRoomWorkspace({
                   </select>
                   <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-600">
                     {draftMentionAll
-                      ? '这条消息带有 @all，当前房间内所有可回复成员都会收到并按顺序回应。'
+                      ? '这条消息带有 $all，当前房间内所有可回复成员都会收到并按顺序回应。'
                       : draftMentionMemberIds.length > 0
                       ? '这条消息包含结构化 mention，本次会优先按 mention 路由。'
                       : selectedTargetMemberId
@@ -1496,7 +1496,7 @@ export function LiveRoomWorkspace({
                             </div>
                           </div>
                           <span className="rounded-full bg-white px-2 py-1 text-[10px] text-slate-500">
-                            {member.kind === 'all' ? '@all' : `@${member.member.displayName}`}
+                            {member.kind === 'all' ? '$all' : `$${member.member.displayName}`}
                           </span>
                         </button>
                       ))}
@@ -1513,7 +1513,7 @@ export function LiveRoomWorkspace({
                       })}
                     </span>
                     {draftMentionAll && selectedRoom
-                      ? `已结构化 mention：@all（${selectedRoom.members.filter((member) => member.canReply && member.memberType !== 'user').length} 个可回复成员）`
+                      ? `已结构化 mention：$all（${selectedRoom.members.filter((member) => member.canReply && member.memberType !== 'user').length} 个可回复成员）`
                       : draftMentionMemberIds.length > 0 && selectedRoom
                       ? `已结构化 mention：${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}`
                       : selectedSpeaker

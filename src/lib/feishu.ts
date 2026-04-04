@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { AESCipher } from '@larksuiteoapi/node-sdk';
 import { prisma } from '@/lib/prisma';
+import { generateShortAlias } from '@/lib/agent-identity';
 import { getRealAgentsStatus } from '@/lib/real-agents';
 import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
 import {
@@ -23,6 +24,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap run --host=<hostId|label> --harness=<codex|claude> <prompt>',
   '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [title]',
   '/ap members',
+  '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
+  '/ap speaker [memberName|idSuffix]',
   '/ap add --agents=<agentId>',
   '/ap kick <memberName>',
   '/ap chat [--agents=<agentId1,agentId2>] <message>',
@@ -75,10 +78,11 @@ type ParsedFeishuMessage = {
   senderOpenId: string;
   text: string;
   mentions: string[];
+  mentionNames: string[];
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'kick' | 'add' | 'chat';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat';
   args: string[];
   options: Record<string, string>;
 };
@@ -245,6 +249,9 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
     mentions: (message.mentions || [])
       .map((mention) => mention.id?.open_id)
       .filter((value): value is string => !!value),
+    mentionNames: (message.mentions || [])
+      .map((mention) => mention.name?.trim())
+      .filter((value): value is string => !!value),
   };
 }
 
@@ -285,7 +292,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'kick', 'add', 'chat'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat'].includes(command)) {
     return null;
   }
 
@@ -743,6 +750,121 @@ async function handleMembersCommand(context?: FeishuConversationContext) {
   return [`Live Room 成员列表 (${roomId.slice(-8)})`, ...lines].join('\n');
 }
 
+async function handleNickCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const memberQuery = (command.options['member'] || command.args[0] || '').trim().replace(/^[@$]/, '');
+  const nickname = (command.options['name'] || command.args.slice(1).join(' ') || '').trim();
+
+  if (!memberQuery || !nickname) {
+    return [
+      '请指定成员和新昵称。',
+      '示例：/ap nick --member="hk-vision Claude" --name="hk-vision"',
+      '示例：/ap nick claude local-claude',
+    ].join('\n');
+  }
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    include: {
+      gateway: true,
+    },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const target = members.find((m) =>
+    m.memberType !== 'user' && (
+      `${m.displayName} [${m.id.slice(-8)}]`.toLowerCase() === memberQuery.toLowerCase() ||
+      m.displayName.toLowerCase() === memberQuery.toLowerCase() ||
+      (m.userNickname || '').toLowerCase() === memberQuery.toLowerCase() ||
+      (m.shortAlias || '').toLowerCase() === memberQuery.toLowerCase() ||
+      m.displayName.toLowerCase().includes(memberQuery.toLowerCase()) ||
+      m.id.endsWith(memberQuery)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((m) => m.memberType !== 'user')
+      .map((m) => `${m.displayName} [${m.id.slice(-8)}]`)
+      .join(', ');
+    return `找不到成员：${memberQuery}\n当前成员：${names || '(none)'}`;
+  }
+
+  const shortAlias = generateShortAlias(
+    nickname,
+    target.harnessType || 'unknown',
+    target.gateway?.name || null,
+    target.backend
+  );
+
+  const updated = await prisma.liveRoomMember.update({
+    where: { id: target.id },
+    data: {
+      userNickname: nickname,
+      shortAlias,
+    },
+  });
+
+  return `✅ 已将 ${target.displayName} 重命名为 ${updated.userNickname}。\n后续可直接使用 $${updated.userNickname} 进行 mention。`;
+}
+
+async function handleSpeakerCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    select: { currentSpeakerMemberId: true },
+  });
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const query = (command.options['member'] || command.args.join(' ') || '').trim().replace(/^[@$]/, '');
+  if (!query) {
+    const current = members.find((member) => member.id === room?.currentSpeakerMemberId) || null;
+    return current
+      ? `当前默认 speaker：${current.userNickname || current.displayName} [${current.id.slice(-8)}]`
+      : '当前房间还没有默认 speaker。';
+  }
+
+  const target = members.find((m) =>
+    m.memberType !== 'user' && (
+      `${m.displayName} [${m.id.slice(-8)}]`.toLowerCase() === query.toLowerCase() ||
+      m.displayName.toLowerCase() === query.toLowerCase() ||
+      (m.userNickname || '').toLowerCase() === query.toLowerCase() ||
+      (m.shortAlias || '').toLowerCase() === query.toLowerCase() ||
+      m.displayName.toLowerCase().includes(query.toLowerCase()) ||
+      m.id.endsWith(query)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((m) => m.memberType !== 'user')
+      .map((m) => `${m.userNickname || m.displayName} [${m.id.slice(-8)}]`)
+      .join(', ');
+    return `找不到成员：${query}\n当前可切换 speaker 的成员：${names || '(none)'}`;
+  }
+
+  await prisma.liveRoom.update({
+    where: { id: roomId },
+    data: {
+      currentSpeakerMemberId: target.id,
+    },
+  });
+
+  return `✅ 默认 speaker 已切换为 ${target.userNickname || target.displayName} [${target.id.slice(-8)}]`;
+}
+
 async function handleKickCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
   const roomId = await getBoundLiveRoomId(context);
   if (!roomId) {
@@ -757,14 +879,20 @@ async function handleKickCommand(command: ParsedFeishuCommand, context?: FeishuC
   const members = await prisma.liveRoomMember.findMany({ where: { roomId } });
   const target = members.find((m) =>
     m.memberType !== 'user' && (
+      `${m.displayName} [${m.id.slice(-8)}]`.toLowerCase() === nameQuery.toLowerCase() ||
       m.displayName.toLowerCase() === nameQuery.toLowerCase() ||
+      (m.userNickname || '').toLowerCase() === nameQuery.toLowerCase() ||
+      (m.shortAlias || '').toLowerCase() === nameQuery.toLowerCase() ||
       m.displayName.toLowerCase().includes(nameQuery.toLowerCase()) ||
       m.id.endsWith(nameQuery)
     )
   );
 
   if (!target) {
-    const names = members.filter((m) => m.memberType !== 'user').map((m) => m.displayName).join(', ');
+    const names = members
+      .filter((m) => m.memberType !== 'user')
+      .map((m) => m.userNickname || m.displayName)
+      .join(', ');
     return `找不到成员：${nameQuery}\n当前可踢出的成员：${names || '(none)'}`;
   }
 
@@ -845,6 +973,10 @@ export async function handleFeishuCommand(args: {
       return handleRoomCommand(args.command, args.context);
     case 'members':
       return handleMembersCommand(args.context);
+    case 'nick':
+      return handleNickCommand(args.command, args.context);
+    case 'speaker':
+      return handleSpeakerCommand(args.command, args.context);
     case 'kick':
       return handleKickCommand(args.command, args.context);
     case 'add':

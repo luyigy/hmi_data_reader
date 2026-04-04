@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
           chatType: message.chatType,
           senderOpenId: message.senderOpenId,
           messageId: message.messageId,
+          mentionNames: message.mentionNames,
         },
         content: message.text,
       }).catch((err) => {
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
         chatType: message.chatType,
         senderOpenId: message.senderOpenId,
         messageId: message.messageId,
+        mentionNames: message.mentionNames,
       },
     });
 

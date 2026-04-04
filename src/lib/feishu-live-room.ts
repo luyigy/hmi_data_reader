@@ -21,6 +21,7 @@ export type FeishuConversationContext = {
   chatType: string;
   senderOpenId: string;
   messageId: string;
+  mentionNames?: string[];
 };
 
 type FeishuConversationBindingRow = {
@@ -39,6 +40,55 @@ function buildFeishuBindingScopeKey(context: FeishuConversationContext) {
   return context.chatType === 'p2p'
     ? `feishu:p2p:${context.chatId}`
     : `feishu:group:${context.chatId}`;
+}
+
+function resolveFeishuMentionMemberIds(args: {
+  mentionNames?: string[];
+  members: Array<{
+    id: string;
+    displayName: string;
+    userNickname: string | null;
+    shortAlias: string | null;
+    agentNameSnapshot: string | null;
+    roleLabel: string | null;
+    harnessType: string | null;
+    backend: string | null;
+    agentRecord: {
+      userNickname: string | null;
+      hostname: string | null;
+    } | null;
+    gateway: {
+      name: string | null;
+    } | null;
+  }>;
+  senderMemberId?: string | null;
+}) {
+  const normalizedMentionNames = (args.mentionNames || [])
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (normalizedMentionNames.length === 0) {
+    return [];
+  }
+
+  const ids: string[] = [];
+  for (const member of args.members) {
+    if (member.id === args.senderMemberId) {
+      continue;
+    }
+
+    const aliases = new Set(
+      [member.displayName, member.userNickname, member.shortAlias, member.agentNameSnapshot, member.roleLabel, member.agentRecord?.userNickname]
+        .map((value) => value?.trim().toLowerCase())
+        .filter((value): value is string => !!value)
+    );
+
+    if (normalizedMentionNames.some((name) => aliases.has(name))) {
+      ids.push(member.id);
+    }
+  }
+
+  return ids;
 }
 
 function normalizeSelectedAgentIds(value?: string): string[] {
@@ -338,6 +388,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
   const roomMembers = await prisma.liveRoomMember.findMany({
     where: { roomId: binding.liveRoomId },
     include: {
+      agentRecord: true,
       gateway: true,
     },
   });
@@ -351,8 +402,13 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     members: roomMembers,
     senderMemberId: userMember.id,
   });
+  const explicitMentionMemberIds = resolveFeishuMentionMemberIds({
+    mentionNames: args.context.mentionNames,
+    members: roomMembers,
+    senderMemberId: userMember.id,
+  });
   const mentionedMemberIds = mergeLiveRoomMentionedMemberIds({
-    explicitMentionMemberIds: [],
+    explicitMentionMemberIds,
     detectedMentionedMemberIds: mentionedAll ? expectedResponderMemberIds : detectionResult.memberIds,
     members: roomMembers,
     senderMemberId: userMember.id,

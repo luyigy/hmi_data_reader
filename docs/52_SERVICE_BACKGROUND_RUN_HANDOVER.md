@@ -73,14 +73,16 @@ tail -f logs/feishu.log logs/dev.log
 ## 停止服务
 
 ```bash
-# 停止 Next.js
-kill $(lsof -ti:3010)
+# 停止 Next.js（按端口找 PID，比按进程名稳定）
+pids=$(lsof -ti:3010)
+[ -n "$pids" ] && kill $pids
 
 # 停止飞书运行时
 pkill -f feishu-standalone-monitor
 
 # 或一次性停止所有相关进程
-kill $(lsof -ti:3010) 2>/dev/null
+pids=$(lsof -ti:3010)
+[ -n "$pids" ] && kill $pids
 pkill -f feishu-standalone-monitor 2>/dev/null
 ```
 
@@ -92,7 +94,11 @@ pkill -f feishu-standalone-monitor 2>/dev/null
 cd /data1/code/agent-platform-v2
 
 # 停止旧进程
-kill $(lsof -ti:3010) 2>/dev/null
+# Next.js 主服务按 3010 端口查 PID 再杀，避免 next/node/bash 包装进程名变化带来的误判
+pids=$(lsof -ti:3010)
+[ -n "$pids" ] && kill $pids
+
+# Feishu 运行时没有固定端口，按进程特征杀
 pkill -f feishu-standalone-monitor 2>/dev/null
 sleep 2
 
@@ -105,6 +111,11 @@ sleep 8
 tail -3 logs/dev.log
 tail -3 logs/feishu.log
 ```
+
+补充说明：
+
+- `npm run dev` 不建议按进程名杀，因为实际进程名可能表现为 `next dev`、`node`、`node_modules/.bin/next` 或外层 shell
+- `npm run feishu:runtime` 没固定监听端口，因此继续使用 `pkill -f feishu-standalone-monitor` 更稳
 
 ---
 

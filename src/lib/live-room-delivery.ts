@@ -235,8 +235,8 @@ const stripLeadingMentionForTarget = ({
     }
   }
 
-  if (/^@all\b/i.test(content)) {
-    const strippedAll = content.replace(/^@all\b/i, '').trim();
+  if (/^[@$]all\b/i.test(content)) {
+    const strippedAll = content.replace(/^[@$]all\b/i, '').trim();
     if (strippedAll) {
       return strippedAll;
     }
@@ -1439,7 +1439,7 @@ export const triggerLiveRoomMessageReplies = async ({
   if (isMentionAll) {
     await postLiveRoomMessage({
       roomId,
-      content: `系统提示：@all 已发送，当前共有 ${targetMemberIds.length} 个可回复成员会按顺序回应。`,
+      content: `系统提示：$all 已发送，当前共有 ${targetMemberIds.length} 个可回复成员会按顺序回应。`,
       messageType: 'system',
       metadata: resolveLiveRoomMessageMetadata({
         senderKind: 'system',

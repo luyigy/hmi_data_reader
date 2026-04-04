@@ -154,7 +154,7 @@ export interface LiveRoomMentionableMember {
   canReply?: boolean;
 }
 
-export const detectLiveRoomMentionAll = (content: string) => /(^|[\s(])@all\b/i.test(content);
+export const detectLiveRoomMentionAll = (content: string) => /(^|[\s(])[@$]all\b/i.test(content);
 
 export const getLiveRoomMemberRosterLabel = (member: {
   displayName: string;
@@ -205,6 +205,8 @@ export const parseLiveRoomMessageMetadata = (value?: string | null): LiveRoomMes
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const EXPLICIT_MENTION_PREFIX_PATTERN = '[@$]';
+const EXPLICIT_MENTION_SUFFIX_PATTERN = `[\\s,.;:!?\\/()\\[\\]{}"']*`;
 
 interface MentionMatchResult {
   index: number;
@@ -223,10 +225,10 @@ const findBestExplicitMentionMatch = (content: string, aliases: string[]): Menti
       continue;
     }
 
-    // 使用更精确的匹配：@别名 后面必须是空格、标点符号或字符串结束
+    // 使用更精确的匹配：@别名 / $别名，后面必须是空格、标点符号或字符串结束
     // 这样 "Platform Local Claude" 不会只匹配 "Platform"
     const explicitMentionRegex = new RegExp(
-      `@${escapeRegExp(trimmedAlias)}(?:[\\s,.;:!?\\/()\\[\\]{}"\']|$)`,
+      `${EXPLICIT_MENTION_PREFIX_PATTERN}${escapeRegExp(trimmedAlias)}(?:[\\s,.;:!?\\/()\\[\\]{}"\']|$)`,
       'i'
     );
     const explicitMatch = explicitMentionRegex.exec(content);
@@ -891,18 +893,25 @@ export const postLiveRoomMessage = async ({
         })
       : null;
 
-    // 去掉消息开头的 @提及 部分，避免 Claude CLI 误解析为命令
+    // 去掉消息开头的显式提及部分，避免 Claude CLI 误解析为命令
     // 但在 Live Room 中仍显示完整内容
     let contentForTaskRoom = created.content;
 
-    // 对于用户消息，总是尝试去掉开头的 @提及
-    // 格式: "@xxx yyy" -> "yyy"
+    // 对于用户消息，总是尝试去掉开头的显式提及
+    // 格式: "@xxx yyy" / "$xxx yyy" -> "yyy"
     if (created.senderMember?.memberType === 'user') {
       // 优先使用检测到的匹配别名进行精确剥离
-      if (matchedAlias && created.content.startsWith(`@${matchedAlias}`)) {
-        contentForTaskRoom = created.content.slice(`@${matchedAlias}`.length).trim();
+      const matchedPrefix = matchedAlias
+        ? ['@', '$'].find((prefix) => created.content.startsWith(`${prefix}${matchedAlias}`)) || null
+        : null;
+      if (matchedAlias && matchedPrefix) {
+        const matchedMentionRegex = new RegExp(
+          `^${escapeRegExp(matchedPrefix)}${escapeRegExp(matchedAlias)}${EXPLICIT_MENTION_SUFFIX_PATTERN}`,
+          'i'
+        );
+        contentForTaskRoom = created.content.replace(matchedMentionRegex, '').trim();
         if (process.env.DEBUG_MENTION_DETECTION === 'true') {
-          console.log('[Task Room] Stripped @mention using matched alias:', {
+          console.log('[Task Room] Stripped explicit mention using matched alias:', {
             original: created.content,
             matchedAlias,
             stripped: contentForTaskRoom,
@@ -911,22 +920,22 @@ export const postLiveRoomMessage = async ({
       } else {
         // 降级方案：使用正则表达式（可能不准确，但作为后备）
         // 改进的正则：贪婪匹配，支持多词名称
-        const greedyMatch = created.content.match(/^@.+\s+([\s\S]+)$/);
+        const greedyMatch = created.content.match(/^[@$].+\s+([\s\S]+)$/);
         if (greedyMatch && greedyMatch[1].trim()) {
           contentForTaskRoom = greedyMatch[1].trim();
           if (process.env.DEBUG_MENTION_DETECTION === 'true') {
-            console.log('[Task Room] Stripped @mention using greedy regex:', {
+            console.log('[Task Room] Stripped explicit mention using greedy regex:', {
               original: created.content,
               stripped: contentForTaskRoom,
             });
           }
         } else {
           // 最后尝试非贪婪匹配
-          const nonGreedyMatch = created.content.match(/^@\S+\s+([\s\S]*)$/);
+          const nonGreedyMatch = created.content.match(/^[@$]\S+\s+([\s\S]*)$/);
           if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
             contentForTaskRoom = nonGreedyMatch[1].trim();
             if (process.env.DEBUG_MENTION_DETECTION === 'true') {
-              console.log('[Task Room] Stripped @mention using non-greedy regex:', {
+              console.log('[Task Room] Stripped explicit mention using non-greedy regex:', {
                 original: created.content,
                 stripped: contentForTaskRoom,
               });

@@ -84,24 +84,41 @@ Agent 在 live room 回复后，飞书收到两条相同内容的消息：
 ### 重启标准流程
 
 ```bash
-# 1. 确认当前 PID
+# 1. Next.js 主服务按端口确认 PID（不要依赖进程名）
+lsof -ti:3010
+
+# 2. Feishu runtime 按进程特征确认 PID
 ps aux | grep "feishu-standalone" | grep -v grep
 
-# 2. 强制停止
+# 3. 停止 Next.js 主服务
+pids=$(lsof -ti:3010)
+[ -n "$pids" ] && kill $pids
+
+# 4. 强制停止 Feishu runtime
 kill -9 <pid>
 sleep 2
 
-# 3. 确认已停止
+# 5. 确认已停止
+lsof -ti:3010
 ps aux | grep "feishu-standalone" | grep -v grep
 
-# 4. 重新启动
+# 6. 重新启动
 cd /data1/code/agent-platform-v2
+nohup npm run dev > logs/dev.log 2>&1 &
 nohup npm run feishu:runtime > logs/feishu.log 2>&1 &
 
-# 5. 确认启动成功
+# 7. 确认启动成功
+sleep 6 && tail -4 logs/dev.log
 sleep 6 && tail -4 logs/feishu.log
-# 期望看到：[ws] ws client ready
+# 期望看到：
+# - dev.log 中出现 ready / started server on ...:3010
+# - feishu.log 中出现 [ws] ws client ready
 ```
+
+补充结论：
+
+- `npm run dev` 这一类服务更应该按 **端口** 找 PID，因为进程名会随着 `next` / `node` / 外层 shell 包装而变化
+- `npm run feishu:runtime` 没固定端口，因此仍然更适合按进程特征查找和停止
 
 ### 判断是否需要重启的快速方法
 
