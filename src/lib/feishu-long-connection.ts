@@ -3,7 +3,7 @@ import {
   handleFeishuCommand,
   parseFeishuCommand,
 } from '@/lib/feishu';
-import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
 import {
   createFeishuRuntimeStatus,
@@ -34,6 +34,7 @@ type FeishuWsMessagePayload = {
       id?: {
         open_id?: string;
       };
+      name?: string;
     }>;
   };
 };
@@ -117,6 +118,9 @@ function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
     mentions: (message.mentions || [])
       .map((mention) => mention.id?.open_id)
       .filter((value): value is string => !!value),
+    mentionNames: (message.mentions || [])
+      .map((mention) => mention.name?.trim())
+      .filter((value): value is string => !!value),
   };
 }
 
@@ -185,6 +189,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
             chatType: message.chatType,
             senderOpenId: message.senderOpenId,
             messageId: message.messageId,
+            mentionNames: message.mentionNames,
           },
           content: message.text,
         }).catch((err) => {
@@ -207,6 +212,8 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
         options: command.options,
       });
 
+      const typingReactionId = await addTypingReaction(message.messageId);
+
       try {
         const responseText = await handleFeishuCommand({
           command,
@@ -216,6 +223,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
             chatType: message.chatType,
             senderOpenId: message.senderOpenId,
             messageId: message.messageId,
+            mentionNames: message.mentionNames,
           },
         });
 
@@ -223,6 +231,10 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
           messageId: message.messageId,
           responsePreview: responseText.slice(0, 200),
         });
+
+        if (typingReactionId) {
+          await removeTypingReaction(message.messageId, typingReactionId);
+        }
 
         await sendFeishuTextMessage({
           receiveId: message.chatId,
@@ -241,6 +253,9 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
           messageId: message.messageId,
           error: lastError,
         });
+        if (typingReactionId) {
+          await removeTypingReaction(message.messageId, typingReactionId);
+        }
         try {
           await sendFeishuTextMessage({
             receiveId: message.chatId,

@@ -1,5 +1,13 @@
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis';
 
+type FeishuReactionResponse = {
+  code: number;
+  msg?: string;
+  data?: {
+    reaction_id?: string;
+  };
+};
+
 type FeishuTokenResponse = {
   code: number;
   msg?: string;
@@ -82,5 +90,45 @@ export async function sendFeishuTextMessage(args: {
   const data = (await response.json()) as FeishuSendMessageResponse;
   if (!response.ok || data.code !== 0) {
     throw new Error(data.msg || `Failed to send Feishu message: HTTP ${response.status}`);
+  }
+}
+
+// Returns the reaction_id on success, or null if the call fails (non-blocking).
+export async function addTypingReaction(messageId: string): Promise<string | null> {
+  try {
+    const token = await getFeishuTenantAccessToken();
+    const response = await fetch(
+      `${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(messageId)}/reactions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reaction_type: { emoji_type: 'Typing' } }),
+      }
+    );
+    const data = (await response.json()) as FeishuReactionResponse;
+    return data.data?.reaction_id || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function removeTypingReaction(
+  messageId: string,
+  reactionId: string
+): Promise<void> {
+  try {
+    const token = await getFeishuTenantAccessToken();
+    await fetch(
+      `${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(reactionId)}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+  } catch {
+    // silent — typing cleanup is best-effort
   }
 }
