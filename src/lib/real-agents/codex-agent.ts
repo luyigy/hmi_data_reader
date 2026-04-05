@@ -118,6 +118,37 @@ interface CodexJsonEvent {
   };
 }
 
+const buildCodexChildEnv = () => {
+  const env = { ...process.env } as NodeJS.ProcessEnv;
+
+  const httpProxy = process.env.FEISHU_RUNTIME_CODEX_HTTP_PROXY?.trim();
+  const httpsProxy = process.env.FEISHU_RUNTIME_CODEX_HTTPS_PROXY?.trim();
+  const allProxy = process.env.FEISHU_RUNTIME_CODEX_ALL_PROXY?.trim();
+  const noProxy = process.env.FEISHU_RUNTIME_CODEX_NO_PROXY?.trim();
+
+  if (httpProxy) {
+    env.http_proxy = httpProxy;
+    env.HTTP_PROXY = httpProxy;
+  }
+
+  if (httpsProxy) {
+    env.https_proxy = httpsProxy;
+    env.HTTPS_PROXY = httpsProxy;
+  }
+
+  if (allProxy) {
+    env.all_proxy = allProxy;
+    env.ALL_PROXY = allProxy;
+  }
+
+  if (noProxy) {
+    env.no_proxy = noProxy;
+    env.NO_PROXY = noProxy;
+  }
+
+  return env;
+};
+
 const executeCodexCLI = async (
   task: CodexTask,
   options: CodexExecutionOptions
@@ -256,7 +287,7 @@ const runCodexJsonCommand = async ({
 
     const child = spawn('codex', args, {
       cwd: options.workingDirectory,
-      env: { ...process.env },
+      env: buildCodexChildEnv(),
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
     });
@@ -281,6 +312,11 @@ const runCodexJsonCommand = async ({
     console.log('[Codex] Working directory:', options.workingDirectory);
     console.log('[Codex] Sandbox mode:', options.sandboxMode);
     console.log('[Codex] Approval policy:', options.approvalPolicy);
+    console.log('[Codex] Proxy enabled:', Boolean(
+      process.env.FEISHU_RUNTIME_CODEX_HTTP_PROXY
+      || process.env.FEISHU_RUNTIME_CODEX_HTTPS_PROXY
+      || process.env.FEISHU_RUNTIME_CODEX_ALL_PROXY
+    ));
 
     child.stdout.on('data', (data) => {
       const chunk = data.toString();
