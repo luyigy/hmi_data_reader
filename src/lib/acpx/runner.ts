@@ -20,6 +20,7 @@ import {
 } from './process-registry';
 import { getParticipantContinuationKey } from './session-tracking';
 import { ensureTaskSession, setTaskSessionActiveRun } from './session';
+import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } from './interactions';
 import type {
   AcpxLiveEventPayload,
   AcpxParticipantRequest,
@@ -379,8 +380,11 @@ const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionReque
   ) {
     return {
       kind: 'permission_request',
+      title: 'Harness 请求权限确认',
       message: 'Harness 请求用户确认权限后继续。',
       rawContent: chunk,
+      responseFormat: 'approve_deny',
+      resumeStrategy: 'rerun_continuation',
     };
   }
 
@@ -394,8 +398,11 @@ const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionReque
   ) {
     return {
       kind: 'choice_request',
+      title: 'Harness 请求用户选择选项',
       message: 'Harness 请求用户在多个选项中做选择。',
       rawContent: chunk,
+      responseFormat: 'single_choice',
+      resumeStrategy: 'rerun_continuation',
     };
   }
 
@@ -410,8 +417,11 @@ const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionReque
   ) {
     return {
       kind: 'input_request',
+      title: 'Harness 请求补充输入',
       message: 'Harness 请求用户补充输入后继续。',
       rawContent: chunk,
+      responseFormat: 'text',
+      resumeStrategy: 'rerun_continuation',
     };
   }
 
@@ -447,6 +457,35 @@ const handleHarnessInteractionRequest = async ({
     }),
   ]);
 
+  const existingRequest = await findRecentPendingInteractionRequest({
+    taskRunId,
+    participantId,
+    requestKind: request.kind,
+    message: request.message,
+  });
+
+  const persistedRequest = existingRequest || await createTaskRunInteractionRequest({
+    taskId,
+    taskSessionId: existingTaskRun?.taskSessionId ?? null,
+    taskRunId,
+    participantId,
+    source: 'harness',
+    requestKind: request.kind,
+    title: request.title ?? null,
+    message: request.message,
+    rawPayload: {
+      rawContent: request.rawContent,
+      responseFormat: request.responseFormat ?? null,
+      resumeStrategy: request.resumeStrategy ?? null,
+    },
+    options: request.options?.map((option) => ({
+      id: option.id,
+      label: option.label,
+      ...(option.description ? { description: option.description } : {}),
+    })) ?? [],
+    defaultAnswer: request.defaultOptionId ?? null,
+  });
+
   await prisma.taskRun.update({
     where: { id: taskRunId },
     data: {
@@ -455,9 +494,11 @@ const handleHarnessInteractionRequest = async ({
       controlMetadata: stringifyJson({
         ...parseJsonObject(existingTaskRun?.controlMetadata),
         interactionRequest: {
+            id: persistedRequest.id,
             kind: request.kind,
             message: request.message,
             detectedAt: new Date().toISOString(),
+            status: persistedRequest.status,
         },
       }),
     },
@@ -471,9 +512,11 @@ const handleHarnessInteractionRequest = async ({
       controlMetadata: stringifyJson({
         ...parseJsonObject(existingParticipant?.controlMetadata),
         interactionRequest: {
+            id: persistedRequest.id,
             kind: request.kind,
             message: request.message,
             detectedAt: new Date().toISOString(),
+            status: persistedRequest.status,
         },
       }),
     },
@@ -489,6 +532,25 @@ const handleHarnessInteractionRequest = async ({
     });
   }
 
+  if (!existingRequest) {
+    await publishTaskRunEvent({
+      taskId,
+      taskRunId,
+      participantId,
+      participant,
+      eventType: 'interaction_request_created',
+      content: request.message,
+      metadata: {
+        interactionRequestId: persistedRequest.id,
+        requestKind: request.kind,
+        requestStatus: persistedRequest.status,
+        responseFormat: request.responseFormat ?? null,
+        resumeStrategy: request.resumeStrategy ?? null,
+        excerpt: request.rawContent.slice(0, 600),
+      },
+    });
+  }
+
   await publishTaskRunEvent({
     taskId,
     taskRunId,
@@ -497,7 +559,9 @@ const handleHarnessInteractionRequest = async ({
     eventType: 'control_message',
     content: request.message,
     metadata: {
+      interactionRequestId: persistedRequest.id,
       requestKind: request.kind,
+      requestStatus: persistedRequest.status,
       runStatus: isWaitingUser ? 'waiting_for_input' : 'failed',
       activityState: isWaitingUser ? 'waiting_user' : 'stalled',
       excerpt: request.rawContent.slice(0, 600),

@@ -27,6 +27,8 @@ export type TaskRunEventType =
   | 'participant_started'
   | 'session_continuation_started'
   | 'control_message'
+  | 'interaction_request_created'
+  | 'interaction_request_resolved'
   | 'stdout_chunk'
   | 'stderr_chunk'
   | 'summary'
@@ -45,6 +47,14 @@ export type HarnessInteractionRequestKind =
   | 'input_request'
   | 'choice_request'
   | 'workspace_issue';
+
+export type TaskRunInteractionRequestStatus =
+  | 'pending'
+  | 'approved'
+  | 'denied'
+  | 'answered'
+  | 'expired'
+  | 'cancelled';
 
 export interface HarnessCapability {
   supportsQueuedUserMessages: boolean;
@@ -129,6 +139,15 @@ export interface HarnessInteractionRequest {
   kind: HarnessInteractionRequestKind;
   message: string;
   rawContent: string;
+  title?: string;
+  options?: Array<{
+    id: string;
+    label: string;
+    description?: string;
+  }>;
+  defaultOptionId?: string | null;
+  responseFormat?: 'approve_deny' | 'text' | 'single_choice';
+  resumeStrategy?: 'in_process' | 'rerun_continuation' | 'restart_required';
 }
 
 export interface TaskRunControlMessageDraft {

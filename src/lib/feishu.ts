@@ -11,6 +11,8 @@ import {
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
 import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
+import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 const DEFAULT_HELP_TEXT = [
   'Agent Platform Feishu Bot',
   '',
@@ -30,6 +32,10 @@ const DEFAULT_HELP_TEXT = [
   '/ap kick <memberName>',
   '/ap chat [--agents=<agentId1,agentId2>] <message>',
   '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',
+  '/ap approvals',
+  '/ap approve <approvalId>',
+  '/ap deny <approvalId> [reason]',
+  '/ap answer <approvalId> <text>',
 ].join('\n');
 
 type FeishuMessageMention = {
@@ -82,7 +88,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer';
   args: string[];
   options: Record<string, string>;
 };
@@ -292,7 +298,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer'].includes(command)) {
     return null;
   }
 
@@ -727,6 +733,31 @@ async function getBoundLiveRoomId(context?: FeishuConversationContext): Promise<
   return rows[0]?.liveRoomId ?? null;
 }
 
+async function getBoundSourceTaskId(context?: FeishuConversationContext): Promise<string | null> {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) return null;
+
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    select: { sourceTaskId: true },
+  });
+
+  return room?.sourceTaskId ?? null;
+}
+
+async function findPendingInteractionRequestForTask(taskId: string, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const requests = await listPendingTaskRunInteractionRequests({ taskId });
+  return requests.find((request) =>
+    request.id.toLowerCase() === normalized
+    || request.id.slice(-8).toLowerCase() === normalized
+  ) || null;
+}
+
 async function handleMembersCommand(context?: FeishuConversationContext) {
   const roomId = await getBoundLiveRoomId(context);
   if (!roomId) {
@@ -924,6 +955,85 @@ async function handleAddCommand(command: ParsedFeishuCommand, context?: FeishuCo
   return `✅ 已添加 ${result.addedAgentCount} 个成员到 Live Room ${result.liveRoomId.slice(-8)}。\n可使用 /ap members 查看当前成员列表。`;
 }
 
+async function handleApprovalsCommand(context?: FeishuConversationContext) {
+  const taskId = await getBoundSourceTaskId(context);
+  if (!taskId) {
+    return '当前 Feishu 会话未绑定可继续的 task 上下文，无法查看 pending approvals。';
+  }
+
+  const requests = await listPendingTaskRunInteractionRequests({ taskId });
+  if (requests.length === 0) {
+    return '当前没有 pending approvals。';
+  }
+
+  const lines = requests.slice(0, 10).map((request) => {
+    const shortId = request.id.slice(-8);
+    return `- ${shortId} | ${request.requestKind} | ${request.message}`;
+  });
+
+  return [
+    'Pending approvals',
+    ...lines,
+    '',
+    '处理示例：',
+    '/ap approve <id>',
+    '/ap deny <id> 原因',
+    '/ap answer <id> 你的回复',
+  ].join('\n');
+}
+
+async function handleApproveLikeCommand(args: {
+  command: ParsedFeishuCommand;
+  context?: FeishuConversationContext;
+  action: 'approve' | 'deny' | 'answer';
+}) {
+  const taskId = await getBoundSourceTaskId(args.context);
+  if (!taskId) {
+    return '当前 Feishu 会话未绑定可继续的 task 上下文，无法处理 approval。';
+  }
+
+  const requestQuery = (args.command.args[0] || '').trim();
+  if (!requestQuery) {
+    return args.action === 'approve'
+      ? '请指定 approval id。\n示例：/ap approve abc12345'
+      : args.action === 'deny'
+      ? '请指定 approval id。\n示例：/ap deny abc12345 不允许联网'
+      : '请指定 approval id 和回复内容。\n示例：/ap answer abc12345 staging';
+  }
+
+  const responseText = args.command.args.slice(1).join(' ').trim() || null;
+  if (args.action === 'answer' && !responseText) {
+    return '请提供 answer 内容。\n示例：/ap answer abc12345 staging';
+  }
+
+  const request = await findPendingInteractionRequestForTask(taskId, requestQuery);
+  if (!request) {
+    return `找不到 pending approval：${requestQuery}\n可先使用 /ap approvals 查看当前列表。`;
+  }
+
+  const result = await resolveInteractionRequestWithContinuation({
+    requestId: request.id,
+    action: args.action,
+    responseText,
+    actor: {
+      id: args.context?.senderOpenId || 'feishu-user',
+      name: 'Feishu User',
+      channel: 'feishu',
+    },
+  });
+
+  return [
+    `✅ approval ${request.id.slice(-8)} 已${args.action === 'deny' ? '拒绝' : '处理'}`,
+    `类型：${request.requestKind}`,
+    `状态：${result.status}`,
+    result.resumed
+      ? `已继续会话，新的 run：${result.continuationRunId}`
+      : result.resumeError
+      ? `未自动继续：${result.resumeError}`
+      : '当前未自动继续会话。',
+  ].join('\n');
+}
+
 async function handleRoomCommand(
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext
@@ -983,6 +1093,14 @@ export async function handleFeishuCommand(args: {
       return handleAddCommand(args.command, args.context);
     case 'chat':
       return handleChatCommand(args.command, args.baseUrl, args.context);
+    case 'approvals':
+      return handleApprovalsCommand(args.context);
+    case 'approve':
+      return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'approve' });
+    case 'deny':
+      return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'deny' });
+    case 'answer':
+      return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'answer' });
     default:
       return DEFAULT_HELP_TEXT;
   }

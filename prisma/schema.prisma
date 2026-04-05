@@ -96,6 +96,7 @@ model Task {
   runs                 TaskRun[]
   taskSessions         TaskSession[]
   controlMessages      TaskRunControlMessage[]
+  interactionRequests  TaskRunInteractionRequest[]
   currentTaskSession   TaskSession?            @relation("TaskCurrentSession", fields: [currentTaskSessionId], references: [id])
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
@@ -129,6 +130,7 @@ model TaskRun {
   participants      TaskRunParticipant[]
   events            TaskRunEvent[]
   controlMessages   TaskRunControlMessage[]
+  interactionRequests TaskRunInteractionRequest[]
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
 
@@ -165,6 +167,7 @@ model TaskRunParticipant {
   completedAt             DateTime?
   events                  TaskRunEvent[]
   controlMessages         TaskRunControlMessage[]
+  interactionRequests     TaskRunInteractionRequest[]
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
 
@@ -204,6 +207,7 @@ model TaskSession {
   task           Task                    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   runs           TaskRun[]
   controlMessages TaskRunControlMessage[]
+  interactionRequests TaskRunInteractionRequest[]
   currentForTask Task[]                  @relation("TaskCurrentSession")
 
   @@index([taskId, createdAt])
@@ -237,6 +241,38 @@ model TaskRunControlMessage {
   @@index([taskRunId, createdAt])
   @@index([participantId])
   @@index([deliveryStatus])
+}
+
+model TaskRunInteractionRequest {
+  id               String              @id @default(cuid())
+  taskId           String
+  taskSessionId    String?
+  taskRunId        String
+  participantId    String?
+  roomMessageId    String?
+  source           String              @default("harness") // harness, system
+  requestKind      String
+  status           String              @default("pending") // pending, approved, denied, answered, expired, cancelled
+  title            String?
+  message          String
+  rawPayload       String?
+  optionsJson      String?
+  defaultAnswer    String?
+  responseText     String?
+  responseMetadata String?
+  requestedAt      DateTime            @default(now())
+  resolvedAt       DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  task             Task                @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskSession      TaskSession?        @relation(fields: [taskSessionId], references: [id], onDelete: SetNull)
+  taskRun          TaskRun             @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+  participant      TaskRunParticipant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+
+  @@index([taskRunId, createdAt])
+  @@index([participantId, status])
+  @@index([status, expiresAt])
 }
 
 model ChatRoom {
