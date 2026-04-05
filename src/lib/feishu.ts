@@ -12,10 +12,11 @@ import {
   postFeishuMessageToBoundLiveRoom,
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
-import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
 import { normalizeAcpxPermissionConfig, DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
 import { buildTaskRoomPromptContext, ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
@@ -43,8 +44,10 @@ const DEFAULT_HELP_TEXT = [
   '/ap approve <approvalId>',
   '/ap deny <approvalId> [reason]',
   '/ap answer <approvalId> <text>',
+  '/ap grant <dev|full> [--agent=<name>] [message]',
+  '/ap rights [--agent=<name>]',
   '/ap handover [agentName|idSuffix] [--title="handover title"]',
-  '/ap new-session --handover="docs/xx.md" [agentName|idSuffix]',
+  '/ap new-session --handover="docs/xx.md" [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
 
 type FeishuMessageMention = {
@@ -97,7 +100,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'handover' | 'new-session';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'new-session';
   args: string[];
   options: Record<string, string>;
 };
@@ -342,7 +345,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'handover', 'new-session'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'new-session'].includes(command)) {
     return null;
   }
 
@@ -842,6 +845,129 @@ function resolveRoomMemberQuery(args: {
   ) || null;
 }
 
+async function handleGrantCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法授权。';
+  }
+
+  const profile =
+    parseGrantProfile(command.options['profile'])
+    || parseGrantProfile(command.args[0])
+    || null;
+  if (!profile) {
+    return [
+      '请指定授权档位。',
+      '示例：/ap grant full',
+      '示例：/ap grant dev --agent=codex',
+      '说明：这会更新下一次 continuation / new run 的权限；不会热切换当前已运行进程。',
+    ].join('\n');
+  }
+
+  const consumedFirstArg = !command.options['profile'] && parseGrantProfile(command.args[0]);
+  const message = command.args.slice(consumedFirstArg ? 1 : 0).join(' ').trim();
+  const memberQuery = (command.options['agent'] || '').trim() || null;
+  const result = await grantRightsForRoom({
+    roomId,
+    profile,
+    memberQuery,
+    message,
+  });
+
+  return [
+    `✅ 已授予 ${result.member.userNickname || result.member.displayName} ${profile === 'full_access' ? '完全权限' : '开发权限'}`,
+    `Task: ${result.room.sourceTask!.name}`,
+    `运行方式：${result.usedContinuation ? '继续原会话' : '启动新 run'}`,
+    `新 run：${result.taskRunId}`,
+    '说明：权限变更会在这次 continuation / new run 生效，不会原地热切换旧进程。',
+  ].join('\n');
+}
+
+async function handleRightsCommand(args: {
+  command: ParsedFeishuCommand;
+  baseUrl: string;
+  context?: FeishuConversationContext;
+}) {
+  if (!args.context) {
+    return '当前 rights 命令需要来自 Feishu webhook 的会话上下文。';
+  }
+
+  const room = await getBoundLiveRoom(args.context);
+  if (!room || !room.sourceTask) {
+    return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法发送授权卡片。';
+  }
+
+  const memberQuery = (args.command.options['agent'] || '').trim();
+  const member = resolveRoomMemberQuery({ room, query: memberQuery });
+  if (!member) {
+    return memberQuery
+      ? `找不到目标成员：${memberQuery}`
+      : '当前房间没有可授权的 agent 成员。';
+  }
+
+  const buildActionUrl = (profile: 'dev_local' | 'full_access') => {
+    const token = createGrantActionToken({
+      roomId: room.id,
+      memberId: member.id,
+      profile,
+    });
+    return new URL(`/api/feishu/grant?token=${encodeURIComponent(token)}`, args.baseUrl).toString();
+  };
+
+  await sendFeishuInteractiveMessage({
+    receiveId: args.context.chatId,
+    receiveIdType: 'chat_id',
+    replyId: args.context.messageId,
+    card: {
+      config: {
+        wide_screen_mode: true,
+      },
+      header: {
+        template: 'orange',
+        title: {
+          tag: 'plain_text',
+          content: `给 ${member.userNickname || member.displayName} 授权`,
+        },
+      },
+      elements: [
+        {
+          tag: 'markdown',
+          content: [
+            `**Task**: ${room.sourceTask.name}`,
+            '点击按钮后会立刻更新权限，并自动 continuation 或启动新的 run。',
+            '说明：不会热切换当前已经运行中的旧进程。',
+          ].join('\n'),
+        },
+        {
+          tag: 'action',
+          actions: [
+            {
+              tag: 'button',
+              text: {
+                tag: 'plain_text',
+                content: '授予开发权限并继续',
+              },
+              type: 'primary',
+              url: buildActionUrl('dev_local'),
+            },
+            {
+              tag: 'button',
+              text: {
+                tag: 'plain_text',
+                content: '授予完全权限并继续',
+              },
+              type: 'danger',
+              url: buildActionUrl('full_access'),
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  return `✅ 已发送授权卡片给当前 Feishu 会话，可直接点击按钮给 ${member.userNickname || member.displayName} 授权。`;
+}
+
 function sanitizeHandoverSlug(value: string) {
   return value
     .trim()
@@ -932,7 +1058,7 @@ async function handleHandoverCommand(command: ParsedFeishuCommand, context?: Fei
     `文件：${relativePath}`,
     '',
     '下一步可发送：',
-    `/ap new-session --handover="${relativePath}" "${member.userNickname || member.displayName}"`,
+    `/ap new-session --handover="${relativePath}" --profile=full "${member.userNickname || member.displayName}"`,
   ].join('\n');
 }
 
@@ -949,6 +1075,76 @@ function resolveHandoverPath(input: string) {
   };
 }
 
+function parseNewSessionProfile(value: string | null | undefined): 'safe_local' | 'dev_local' | 'full_access' | null {
+  const normalized = value?.trim().toLowerCase() || '';
+  if (!normalized) {
+    return null;
+  }
+
+  if (['safe', 'safe_local', 'safe-local', 'local'].includes(normalized)) {
+    return 'safe_local';
+  }
+
+  return parseGrantProfile(normalized);
+}
+
+function buildNewSessionPermissionConfig(
+  currentPermissionConfig: ReturnType<typeof normalizeAcpxPermissionConfig>,
+  requestedProfile: 'safe_local' | 'dev_local' | 'full_access' | null
+) {
+  if (!requestedProfile) {
+    return currentPermissionConfig;
+  }
+
+  if (requestedProfile === 'safe_local') {
+    return normalizeAcpxPermissionConfig({
+      profile: 'safe_local',
+      sandboxMode: 'workspace-write',
+      networkAccess: 'restricted',
+      approvalPolicy: 'never',
+      writableRoots: currentPermissionConfig.writableRoots,
+    });
+  }
+
+  return normalizeAcpxPermissionConfig({
+    profile: requestedProfile,
+    sandboxMode: requestedProfile === 'full_access' ? 'danger-full-access' : 'workspace-write',
+    networkAccess: 'enabled',
+    approvalPolicy: 'on-request',
+    writableRoots: currentPermissionConfig.writableRoots,
+  });
+}
+
+function formatPermissionProfileLabel(profile: string) {
+  return profile === 'full_access'
+    ? 'Full Access'
+    : profile === 'dev_local'
+    ? 'Dev Local'
+    : profile === 'safe_local'
+    ? 'Safe Local'
+    : profile;
+}
+
+async function readRecordedRunPermissionConfig(taskRunId: string) {
+  const taskRun = await prisma.taskRun.findUnique({
+    where: { id: taskRunId },
+    select: { controlMetadata: true },
+  });
+
+  if (!taskRun?.controlMetadata) {
+    return null;
+  }
+
+  try {
+    const metadata = JSON.parse(taskRun.controlMetadata) as {
+      permissionConfig?: Partial<ReturnType<typeof normalizeAcpxPermissionConfig>>;
+    };
+    return normalizeAcpxPermissionConfig(metadata.permissionConfig);
+  } catch {
+    return null;
+  }
+}
+
 async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
   const room = await getBoundLiveRoom(context);
   if (!room || !room.sourceTask) {
@@ -957,7 +1153,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
 
   const handoverOption = (command.options['handover'] || command.options['from-handover'] || '').trim();
   if (!handoverOption) {
-    return '请指定 handover 文件。\n示例：/ap new-session --handover="docs/20260405_xxx_HANDOVER.md" "codex"';
+    return '请指定 handover 文件。\n示例：/ap new-session --handover="docs/20260405_xxx_HANDOVER.md" --profile=full "codex"';
   }
 
   const memberQuery = (command.options['agent'] || command.args.join(' ') || '').trim();
@@ -991,7 +1187,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
     gatewayName: member.gateway?.name || null,
     runtimeAgentId: member.runtimeAgentId,
   });
-  const permissionConfig = (() => {
+  const currentPermissionConfig = (() => {
     try {
       return normalizeAcpxPermissionConfig(
         JSON.parse(room.sourceTask.acpxPermissionConfig || 'null')
@@ -1000,6 +1196,21 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
       return DEFAULT_ACPX_PERMISSION_CONFIG;
     }
   })();
+  const requestedProfile =
+    parseNewSessionProfile(command.options['profile'])
+    || parseNewSessionProfile(command.options['rights'])
+    || parseNewSessionProfile(command.options['permission'])
+    || parseNewSessionProfile(command.options['access']);
+  const permissionConfig = buildNewSessionPermissionConfig(currentPermissionConfig, requestedProfile);
+
+  if (requestedProfile && permissionConfig.profile !== currentPermissionConfig.profile) {
+    await prisma.task.update({
+      where: { id: room.sourceTask.id },
+      data: {
+        acpxPermissionConfig: JSON.stringify(permissionConfig),
+      },
+    });
+  }
 
   const prompt = [
     `Read the handover file at ${handoverPath.relativePath} first.`,
@@ -1054,10 +1265,20 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
       },
     ],
   });
+  const recordedPermissionConfig = await readRecordedRunPermissionConfig(result.taskRunId);
+  const requestedPermissionLabel = formatPermissionProfileLabel(permissionConfig.profile);
+  const recordedPermissionLabel = recordedPermissionConfig
+    ? formatPermissionProfileLabel(recordedPermissionConfig.profile)
+    : '未知';
 
   return [
     `✅ 已为 ${member.userNickname || member.displayName} 启动 fresh session`,
     `Handover：${handoverPath.relativePath}`,
+    `请求权限：${requestedPermissionLabel}`,
+    `实际落库权限：${recordedPermissionLabel}`,
+    ...(recordedPermissionConfig && recordedPermissionConfig.profile !== permissionConfig.profile
+      ? [`警告：请求权限与实际落库权限不一致，请检查运行中的 Feishu runtime 是否已重启到最新代码。`]
+      : []),
     `Run：${result.taskRunId}`,
     '说明：本次会以新 session 先读取 handover，再继续执行。',
   ].join('\n');
@@ -1419,6 +1640,10 @@ export async function handleFeishuCommand(args: {
       return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'deny' });
     case 'answer':
       return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'answer' });
+    case 'grant':
+      return handleGrantCommand(args.command, args.context);
+    case 'rights':
+      return handleRightsCommand(args);
     case 'handover':
       return handleHandoverCommand(args.command, args.context);
     case 'new-session':

@@ -93,6 +93,37 @@ export async function sendFeishuTextMessage(args: {
   }
 }
 
+export async function sendFeishuInteractiveMessage(args: {
+  receiveId: string;
+  card: Record<string, unknown>;
+  receiveIdType?: 'chat_id' | 'open_id';
+  replyId?: string;
+}) {
+  const token = await getFeishuTenantAccessToken();
+  const receiveIdType = args.receiveIdType || 'chat_id';
+  const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
+  url.searchParams.set('receive_id_type', receiveIdType);
+
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      receive_id: args.receiveId,
+      msg_type: 'interactive',
+      content: JSON.stringify(args.card),
+      ...(args.replyId ? { reply_id: args.replyId } : {}),
+    }),
+  });
+
+  const data = (await response.json()) as FeishuSendMessageResponse;
+  if (!response.ok || data.code !== 0) {
+    throw new Error(data.msg || `Failed to send Feishu interactive message: HTTP ${response.status}`);
+  }
+}
+
 // Returns the reaction_id on success, or null if the call fails (non-blocking).
 export async function addTypingReaction(messageId: string): Promise<string | null> {
   try {
