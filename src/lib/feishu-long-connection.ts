@@ -10,6 +10,7 @@ import {
   readFeishuRuntimeStatus,
   updateFeishuRuntimeStatus,
 } from '@/lib/feishu-runtime-status';
+import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 
 type FeishuLongConnectionState = {
   status: 'idle' | 'disabled' | 'starting' | 'running' | 'error';
@@ -206,6 +207,19 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
           console.log(`${prefix} ignored non-command (no binding)`, {
             messageId: message.messageId,
             text: message.text,
+          });
+        } else {
+          await maybeSendFeishuSessionWatermarkWarning({
+            context: {
+              chatId: message.chatId,
+              chatType: message.chatType,
+              senderOpenId: message.senderOpenId,
+              messageId: message.messageId,
+              mentionNames: message.mentionNames,
+            },
+            replyId: message.messageId,
+          }).catch((warningError) => {
+            console.error(`${prefix} session watermark warning failed`, { error: warningError });
           });
         }
         return;

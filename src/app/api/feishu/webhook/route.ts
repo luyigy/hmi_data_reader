@@ -9,7 +9,8 @@ import {
   validateFeishuRequestSignature,
   validateFeishuVerificationToken,
 } from '@/lib/feishu';
-import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
+import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 import { tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
     const command = parseFeishuCommand(message);
     if (!command) {
       // Not a /ap command — check if the chat is bound to a live room and relay
+      const relayTypingReactionId = await addTypingReaction(message.messageId);
       const relayed = await tryRelayNonCommandToLiveRoom({
         context: {
           chatId: message.chatId,
@@ -72,24 +74,50 @@ export async function POST(request: NextRequest) {
           mentionNames: message.mentionNames,
         },
         content: message.text,
+        typingReactionId: relayTypingReactionId ?? undefined,
       }).catch((err) => {
         console.error('Failed to relay non-command to live room:', err);
         return false;
       });
+      if (!relayed && relayTypingReactionId) {
+        await removeTypingReaction(message.messageId, relayTypingReactionId);
+      }
+      if (relayed) {
+        await maybeSendFeishuSessionWatermarkWarning({
+          context: {
+            chatId: message.chatId,
+            chatType: message.chatType,
+            senderOpenId: message.senderOpenId,
+            messageId: message.messageId,
+            mentionNames: message.mentionNames,
+          },
+          replyId: message.messageId,
+        }).catch((warningError) => {
+          console.error('Failed to send session watermark warning:', warningError);
+        });
+      }
       return NextResponse.json({ success: true, ignored: !relayed, reason: relayed ? 'relayed_to_live_room' : 'not_a_command' });
     }
 
-    const responseText = await handleFeishuCommand({
-      command,
-      baseUrl: resolveBaseUrl(request),
-      context: {
-        chatId: message.chatId,
-        chatType: message.chatType,
-        senderOpenId: message.senderOpenId,
-        messageId: message.messageId,
-        mentionNames: message.mentionNames,
-      },
-    });
+    const typingReactionId = await addTypingReaction(message.messageId);
+    let responseText = '';
+    try {
+      responseText = await handleFeishuCommand({
+        command,
+        baseUrl: resolveBaseUrl(request),
+        context: {
+          chatId: message.chatId,
+          chatType: message.chatType,
+          senderOpenId: message.senderOpenId,
+          messageId: message.messageId,
+          mentionNames: message.mentionNames,
+        },
+      });
+    } finally {
+      if (typingReactionId) {
+        await removeTypingReaction(message.messageId, typingReactionId);
+      }
+    }
 
     await sendFeishuTextMessage({
       receiveId: message.chatId,

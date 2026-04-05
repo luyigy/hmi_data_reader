@@ -379,6 +379,8 @@ model FeishuConversationBinding {
   chatType           String
   senderOpenId       String?
   latestMessageId    String?
+  typingReactionId   String?
+  typingForMessageId String?
   liveRoomId         String
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

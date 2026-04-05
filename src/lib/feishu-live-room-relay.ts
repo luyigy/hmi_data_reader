@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
 import type { LiveRoomMessagePayload } from '@/lib/live-room';
 
 type FeishuConversationBindingRow = {
@@ -7,6 +7,8 @@ type FeishuConversationBindingRow = {
   chatId: string;
   chatType: string;
   latestMessageId: string | null;
+  typingReactionId: string | null;
+  typingForMessageId: string | null;
   liveRoomId: string;
 };
 
@@ -41,6 +43,8 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
       "chatId",
       "chatType",
       "latestMessageId",
+      "typingReactionId",
+      "typingForMessageId",
       "liveRoomId"
     FROM "FeishuConversationBinding"
     WHERE "liveRoomId" = ${message.roomId}
@@ -50,6 +54,16 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
 
   if (!binding) {
     return;
+  }
+
+  // Remove typing reaction before sending the actual reply
+  if (binding.typingReactionId && binding.typingForMessageId) {
+    await removeTypingReaction(binding.typingForMessageId, binding.typingReactionId);
+    await prisma.$executeRaw`
+      UPDATE "FeishuConversationBinding"
+      SET "typingReactionId" = NULL, "typingForMessageId" = NULL
+      WHERE "id" = ${binding.id}
+    `;
   }
 
   await sendFeishuTextMessage({
