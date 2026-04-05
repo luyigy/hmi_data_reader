@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
+import { promises as fs } from 'node:fs';
 import { AESCipher } from '@larksuiteoapi/node-sdk';
 import { prisma } from '@/lib/prisma';
 import { generateShortAlias } from '@/lib/agent-identity';
@@ -13,6 +15,11 @@ import {
 import { sendFeishuTextMessage } from '@/lib/feishu-api';
 import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
+import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { normalizeAcpxPermissionConfig, DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
+import { buildTaskRoomPromptContext, ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
+import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
+import { buildLiveRoomAcpxParticipant } from '@/lib/live-room';
 const DEFAULT_HELP_TEXT = [
   'Agent Platform Feishu Bot',
   '',
@@ -36,6 +43,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap approve <approvalId>',
   '/ap deny <approvalId> [reason]',
   '/ap answer <approvalId> <text>',
+  '/ap handover [agentName|idSuffix] [--title="handover title"]',
+  '/ap new-session --handover="docs/xx.md" [agentName|idSuffix]',
 ].join('\n');
 
 type FeishuMessageMention = {
@@ -88,7 +97,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'handover' | 'new-session';
   args: string[];
   options: Record<string, string>;
 };
@@ -265,6 +274,46 @@ function stripBotMention(text: string): string {
   return text.replace(/<at user_id="[^"]+">[^<]+<\/at>/g, '').trim();
 }
 
+function tokenizeCommandText(input: string) {
+  const tokens: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current) {
+    tokens.push(current);
+  }
+
+  return tokens;
+}
+
 export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCommand | null {
   const botOpenId = getOptionalEnv('FEISHU_BOT_OPEN_ID');
   const hasBotMention = botOpenId ? message.mentions.includes(botOpenId) : false;
@@ -289,16 +338,11 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
     return { command: 'help', args: [], options: {} };
   }
 
-  const tokens = commandText.match(/"[^"]+"|'[^']+'|\S+/g) || [];
-  const normalizedTokens = tokens.map((token) =>
-    token.startsWith('"') || token.startsWith("'")
-      ? token.slice(1, -1)
-      : token
-  );
+  const normalizedTokens = tokenizeCommandText(commandText);
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'handover', 'new-session'].includes(command)) {
     return null;
   }
 
@@ -307,9 +351,14 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   for (const token of rest) {
     if (token.startsWith('--')) {
-      const [key, value] = token.slice(2).split('=');
-      if (key && value) {
+      const optionText = token.slice(2);
+      const separatorIndex = optionText.indexOf('=');
+      if (separatorIndex > 0) {
+        const key = optionText.slice(0, separatorIndex);
+        const value = optionText.slice(separatorIndex + 1);
         options[key] = value;
+      } else if (optionText) {
+        options[optionText] = 'true';
       }
     } else {
       args.push(token);
@@ -745,6 +794,275 @@ async function getBoundSourceTaskId(context?: FeishuConversationContext): Promis
   return room?.sourceTaskId ?? null;
 }
 
+async function getBoundLiveRoom(context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) return null;
+
+  return prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      members: {
+        include: {
+          gateway: true,
+          agentRecord: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+      sourceTask: {
+        include: {
+          currentTaskSession: true,
+        },
+      },
+    },
+  });
+}
+
+function resolveRoomMemberQuery(args: {
+  room: NonNullable<Awaited<ReturnType<typeof getBoundLiveRoom>>>;
+  query?: string | null;
+}) {
+  const normalizedQuery = args.query?.trim().replace(/^[@$]/, '').toLowerCase() || '';
+  const replyableMembers = args.room.members.filter((member) => member.memberType !== 'user' && member.canReply);
+
+  if (!normalizedQuery) {
+    return (
+      replyableMembers.find((member) => member.id === args.room.currentSpeakerMemberId)
+      || replyableMembers[0]
+      || null
+    );
+  }
+
+  return replyableMembers.find((member) =>
+    `${member.displayName} [${member.id.slice(-8)}]`.toLowerCase() === normalizedQuery
+    || member.displayName.toLowerCase() === normalizedQuery
+    || (member.userNickname || '').toLowerCase() === normalizedQuery
+    || (member.shortAlias || '').toLowerCase() === normalizedQuery
+    || member.displayName.toLowerCase().includes(normalizedQuery)
+    || member.id.endsWith(normalizedQuery)
+  ) || null;
+}
+
+function sanitizeHandoverSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'handover';
+}
+
+function buildHandoverDocBody(args: {
+  roomTitle: string;
+  memberName: string;
+  taskName: string;
+  latestUserMessage: string | null;
+  transcript: string;
+  title: string;
+}) {
+  return [
+    `# ${args.title}`,
+    '',
+    '## 当前目标',
+    args.latestUserMessage || `继续处理 Live Room "${args.roomTitle}" 中分配给 ${args.memberName} 的任务。`,
+    '',
+    '## 已完成',
+    '- 已生成这份 handover 文档。',
+    '- 当前 room / task 上下文已整理到本文档中。',
+    '',
+    '## 未完成',
+    '- 需要新 session 继续阅读 handover 并执行下一步。',
+    '',
+    '## 风险/阻塞',
+    '- 旧 session 上下文可能不完整或已接近上限。',
+    '- 若涉及 git add / commit，请确认当前执行环境的 `.git` 可写。',
+    '',
+    '## 下一步',
+    `- 先阅读本文档，再继续处理 ${args.memberName} 的当前任务。`,
+    '- 复述当前状态。',
+    '- 执行最直接的下一步，并在必要时回写新的 handover。',
+    '',
+    '## 相关文件',
+    `- Task: ${args.taskName}`,
+    '- 相关仓库：/data1/code/agent-platform-v2',
+    '',
+    '## 验证状态',
+    '- 本文档由 Feishu `/ap handover` 自动生成。',
+    '',
+    '## Task Room 摘要',
+    args.transcript || '(当前没有可用的非系统 task room transcript)',
+    '',
+  ].join('\n');
+}
+
+async function handleHandoverCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const room = await getBoundLiveRoom(context);
+  if (!room || !room.sourceTask) {
+    return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法生成 handover。';
+  }
+
+  const memberQuery = (command.options['agent'] || command.args.join(' ') || '').trim();
+  const member = resolveRoomMemberQuery({ room, query: memberQuery });
+  if (!member) {
+    return memberQuery
+      ? `找不到可交接成员：${memberQuery}`
+      : '当前房间没有可交接的 agent 成员。';
+  }
+
+  const promptContext = await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
+  const title =
+    (command.options['title'] || '').trim()
+    || `${room.title} ${member.userNickname || member.displayName} handover`;
+  const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const fileName = `${timestamp}_${sanitizeHandoverSlug(title)}_HANDOVER.md`;
+  const relativePath = path.posix.join('docs', fileName);
+  const absolutePath = path.join(process.cwd(), relativePath);
+  const body = buildHandoverDocBody({
+    roomTitle: room.title,
+    memberName: member.userNickname || member.displayName,
+    taskName: room.sourceTask.name,
+    latestUserMessage: promptContext.latestUserMessage?.content || null,
+    transcript: promptContext.transcript,
+    title,
+  });
+
+  await fs.writeFile(absolutePath, body, 'utf8');
+
+  return [
+    `✅ 已为 ${member.userNickname || member.displayName} 生成 handover`,
+    `文件：${relativePath}`,
+    '',
+    '下一步可发送：',
+    `/ap new-session --handover="${relativePath}" "${member.userNickname || member.displayName}"`,
+  ].join('\n');
+}
+
+function resolveHandoverPath(input: string) {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const relativePath = trimmed.startsWith('docs/') ? trimmed : path.posix.join('docs', trimmed);
+  return {
+    relativePath,
+    absolutePath: path.join(process.cwd(), relativePath),
+  };
+}
+
+async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const room = await getBoundLiveRoom(context);
+  if (!room || !room.sourceTask) {
+    return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法启动 new session。';
+  }
+
+  const handoverOption = (command.options['handover'] || command.options['from-handover'] || '').trim();
+  if (!handoverOption) {
+    return '请指定 handover 文件。\n示例：/ap new-session --handover="docs/20260405_xxx_HANDOVER.md" "codex"';
+  }
+
+  const memberQuery = (command.options['agent'] || command.args.join(' ') || '').trim();
+  const member = resolveRoomMemberQuery({ room, query: memberQuery });
+  if (!member) {
+    return memberQuery
+      ? `找不到目标成员：${memberQuery}`
+      : '当前房间没有可启动 new session 的 agent 成员。';
+  }
+
+  const handoverPath = resolveHandoverPath(handoverOption);
+  if (!handoverPath) {
+    return 'handover 路径为空。';
+  }
+
+  try {
+    await fs.access(handoverPath.absolutePath);
+  } catch {
+    return `找不到 handover 文件：${handoverPath.relativePath}`;
+  }
+
+  const handoverContent = await fs.readFile(handoverPath.absolutePath, 'utf8');
+  const participant = buildLiveRoomAcpxParticipant({
+    id: member.id,
+    displayName: member.displayName,
+    backend: member.backend,
+    harnessType: member.harnessType,
+    gatewayId: member.backend === 'remote_ssh'
+      ? (member.gateway?.id || member.gatewayId)
+      : member.gatewayId,
+    gatewayName: member.gateway?.name || null,
+    runtimeAgentId: member.runtimeAgentId,
+  });
+  const permissionConfig = (() => {
+    try {
+      return normalizeAcpxPermissionConfig(
+        JSON.parse(room.sourceTask.acpxPermissionConfig || 'null')
+      );
+    } catch {
+      return DEFAULT_ACPX_PERMISSION_CONFIG;
+    }
+  })();
+
+  const prompt = [
+    `Read the handover file at ${handoverPath.relativePath} first.`,
+    'Then do exactly these three things:',
+    '1. Summarize the current state.',
+    '2. Confirm the next step.',
+    '3. Continue the work in a fresh session.',
+    '',
+    'Handover content:',
+    handoverContent,
+  ].join('\n');
+
+  const taskRoom = await ensureTaskChatRoom(room.sourceTask.id, room.sourceTask.name);
+  const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
+  const targetParticipantLabel = getTaskRoomParticipantTargetLabel(participant);
+  await postTaskRoomMessage({
+    roomId: taskRoom.id,
+    content: `[new-session] ${member.userNickname || member.displayName} <- ${handoverPath.relativePath}`,
+    userId: 'task-room-user',
+    userName: '用户',
+    targetType: 'participant',
+    targetParticipantKey,
+    targetParticipantLabel,
+  });
+
+  await postTaskRoomMessage({
+    roomId: taskRoom.id,
+    content: prompt,
+    userId: 'task-room-user',
+    userName: '用户',
+    targetType: 'participant',
+    targetParticipantKey,
+    targetParticipantLabel,
+  });
+
+  const result = await executeAcpxTaskRun({
+    taskId: room.sourceTask.id,
+    taskSessionId: room.sourceTask.currentTaskSession?.id || undefined,
+    taskName: room.sourceTask.name,
+    taskDescription: room.sourceTask.description || undefined,
+    orchestrationMode: 'single',
+    workingDirectory: room.sourceTask.workingDirectory || undefined,
+    permissionConfig,
+    participants: [
+      {
+        ...participant,
+        continuationMessage: undefined,
+        resumeSessionId: undefined,
+        resumeThreadId: undefined,
+        continuationSessionKind: undefined,
+        ephemeralSession: true,
+      },
+    ],
+  });
+
+  return [
+    `✅ 已为 ${member.userNickname || member.displayName} 启动 fresh session`,
+    `Handover：${handoverPath.relativePath}`,
+    `Run：${result.taskRunId}`,
+    '说明：本次会以新 session 先读取 handover，再继续执行。',
+  ].join('\n');
+}
+
 async function findPendingInteractionRequestForTask(taskId: string, query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
@@ -1101,6 +1419,10 @@ export async function handleFeishuCommand(args: {
       return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'deny' });
     case 'answer':
       return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'answer' });
+    case 'handover':
+      return handleHandoverCommand(args.command, args.context);
+    case 'new-session':
+      return handleNewSessionCommand(args.command, args.context);
     default:
       return DEFAULT_HELP_TEXT;
   }
