@@ -274,7 +274,10 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
 }
 
 function stripBotMention(text: string): string {
-  return text.replace(/<at user_id="[^"]+">[^<]+<\/at>/g, '').trim();
+  return text
+    .replace(/<at user_id="[^"]+">[^<]+<\/at>/g, '')
+    .replace(/^@\S+\s*/, '')
+    .trim();
 }
 
 function tokenizeCommandText(input: string) {
