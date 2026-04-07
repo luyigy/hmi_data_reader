@@ -148,6 +148,24 @@ const executeClaudeCLI = async (
 
   const buildClaudeChildEnv = () => {
     const env = { ...process.env } as NodeJS.ProcessEnv;
+
+    // Ensure nvm-managed node/claude binaries are findable even when
+    // the parent process was started without a full login shell PATH.
+    // Include ALL nvm node version bin dirs so claude is found regardless
+    // of which node version the app itself is running under.
+    const nvmDir = process.env.NVM_DIR || `${process.env.HOME}/.nvm`;
+    const nvmVersionsDir = `${nvmDir}/versions/node`;
+    let nvmBinPaths: string[] = [];
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { readdirSync } = require('fs') as typeof import('fs');
+      nvmBinPaths = readdirSync(nvmVersionsDir).map((v) => `${nvmVersionsDir}/${v}/bin`);
+    } catch {
+      // fallback to current node version only
+      nvmBinPaths = [`${nvmVersionsDir}/${process.version}/bin`];
+    }
+    const extraPaths = [...nvmBinPaths, `${process.env.HOME}/.local/bin`].join(':');
+    env.PATH = env.PATH ? `${extraPaths}:${env.PATH}` : extraPaths;
     const httpProxy = process.env.FEISHU_RUNTIME_CODEX_HTTP_PROXY?.trim();
     const httpsProxy = process.env.FEISHU_RUNTIME_CODEX_HTTPS_PROXY?.trim();
     const allProxy = process.env.FEISHU_RUNTIME_CODEX_ALL_PROXY?.trim();
