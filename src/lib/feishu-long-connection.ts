@@ -1,4 +1,5 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
+import { prisma } from '@/lib/prisma';
 import {
   hydrateFeishuMessageResources,
   handleFeishuCommand,
@@ -341,6 +342,25 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
   });
 
   const startPromise = (async () => {
+    // On startup, reset any deliveries/members left in a running/busy state
+    // from a previous process that was killed mid-execution.
+    try {
+      await prisma.liveRoomDelivery.updateMany({
+        where: { deliveryStatus: 'running' },
+        data: { deliveryStatus: 'failed', fallbackReason: 'Stale: runtime restarted', acknowledgedAt: new Date() },
+      });
+      await prisma.liveRoomMember.updateMany({
+        where: { presenceStatus: 'busy' },
+        data: { presenceStatus: 'idle' },
+      });
+      await prisma.liveRoomMemberSession.updateMany({
+        where: { status: 'busy' },
+        data: { status: 'online' },
+      });
+    } catch (cleanupError) {
+      console.warn(`${prefix} startup cleanup failed (non-fatal):`, cleanupError);
+    }
+
     const appId = getRequiredEnv('FEISHU_APP_ID');
     const appSecret = getRequiredEnv('FEISHU_APP_SECRET');
     const eventDispatcher = attachRuntimeHandlers(prefix, host);
