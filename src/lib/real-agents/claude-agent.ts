@@ -146,6 +146,36 @@ const executeClaudeCLI = async (
 ): Promise<{ output: string; filesModified?: string[]; sessionId?: string }> => {
   const { spawn } = await import('child_process');
 
+  const buildClaudeChildEnv = () => {
+    const env = { ...process.env } as NodeJS.ProcessEnv;
+    const httpProxy = process.env.FEISHU_RUNTIME_CODEX_HTTP_PROXY?.trim();
+    const httpsProxy = process.env.FEISHU_RUNTIME_CODEX_HTTPS_PROXY?.trim();
+    const allProxy = process.env.FEISHU_RUNTIME_CODEX_ALL_PROXY?.trim();
+    const noProxy = process.env.FEISHU_RUNTIME_CODEX_NO_PROXY?.trim();
+
+    if (httpProxy) {
+      env.http_proxy = httpProxy;
+      env.HTTP_PROXY = httpProxy;
+    }
+
+    if (httpsProxy) {
+      env.https_proxy = httpsProxy;
+      env.HTTPS_PROXY = httpsProxy;
+    }
+
+    if (allProxy) {
+      env.all_proxy = allProxy;
+      env.ALL_PROXY = allProxy;
+    }
+
+    if (noProxy) {
+      env.no_proxy = noProxy;
+      env.NO_PROXY = noProxy;
+    }
+
+    return env;
+  };
+
   const extractClaudeStructuredError = (event: {
     subtype?: string;
     is_error?: boolean;
@@ -217,7 +247,7 @@ Take your time and be thorough.`;
     const shell = process.platform === 'win32';
     const child = spawn('claude', args, {
       cwd: options.workingDirectory,
-      env: { ...process.env },
+      env: buildClaudeChildEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
       shell,
     });

@@ -206,7 +206,8 @@ export const parseLiveRoomMessageMetadata = (value?: string | null): LiveRoomMes
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const EXPLICIT_MENTION_PREFIX_PATTERN = '[@$]';
-const EXPLICIT_MENTION_SUFFIX_PATTERN = `[\\s,.;:!?\\/()\\[\\]{}"']*`;
+const MENTION_BOUNDARY_CHAR_CLASS = `[\\s,.;:!?\\/()\\[\\]{}"'，。；：！？、】【（）《》、]`;
+const EXPLICIT_MENTION_SUFFIX_PATTERN = `${MENTION_BOUNDARY_CHAR_CLASS}*`;
 
 interface MentionMatchResult {
   index: number;
@@ -228,7 +229,7 @@ const findBestExplicitMentionMatch = (content: string, aliases: string[]): Menti
     // 使用更精确的匹配：@别名 / $别名，后面必须是空格、标点符号或字符串结束
     // 这样 "Platform Local Claude" 不会只匹配 "Platform"
     const explicitMentionRegex = new RegExp(
-      `${EXPLICIT_MENTION_PREFIX_PATTERN}${escapeRegExp(trimmedAlias)}(?:[\\s,.;:!?\\/()\\[\\]{}"\']|$)`,
+      `${EXPLICIT_MENTION_PREFIX_PATTERN}${escapeRegExp(trimmedAlias)}(?:${MENTION_BOUNDARY_CHAR_CLASS}|$)`,
       'i'
     );
     const explicitMatch = explicitMentionRegex.exec(content);
@@ -284,7 +285,7 @@ const findBestPlainMentionMatch = (content: string, aliases: string[]): MentionM
 
     // 使用更精确的边界匹配
     const plainMentionRegex = new RegExp(
-      `(?:^|[\\s,.;:!?\\/()\\[\\]{}"'])${escapeRegExp(trimmedAlias)}(?:[\\s,.;:!?\\/()\\[\\]{}"\']|$)`,
+      `(?:^|${MENTION_BOUNDARY_CHAR_CLASS})${escapeRegExp(trimmedAlias)}(?:${MENTION_BOUNDARY_CHAR_CLASS}|$)`,
       'i'
     );
     const plainMatch = plainMentionRegex.exec(content);
@@ -721,12 +722,11 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
   const taskDescription = room.currentTopic
     ? `Backs live room "${room.title}". Current topic: ${room.currentTopic}`
     : `Backs live room "${room.title}".`;
-  const taskData = {
+  const taskDataBase = {
     name: taskName,
     description: taskDescription,
     executionMode: 'acpx',
     acpxParticipants: JSON.stringify(participants),
-    acpxPermissionConfig: JSON.stringify(DEFAULT_ACPX_PERMISSION_CONFIG),
     workingDirectory: process.cwd(),
     result: JSON.stringify({
       executionMode: 'acpx',
@@ -739,13 +739,18 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
   const sourceTask = room.sourceTask
     ? await prisma.task.update({
         where: { id: room.sourceTask.id },
-        data: taskData,
+        // acpxPermissionConfig is intentionally excluded: it may have been
+        // updated by /ap grant or /ap new-session and must not be reset here.
+        data: taskDataBase,
         include: {
           currentTaskSession: true,
         },
       })
     : await prisma.task.create({
-        data: taskData,
+        data: {
+          ...taskDataBase,
+          acpxPermissionConfig: JSON.stringify(DEFAULT_ACPX_PERMISSION_CONFIG),
+        },
         include: {
           currentTaskSession: true,
         },
@@ -1052,6 +1057,7 @@ export const detectMentionedLiveRoomMembers = ({
   }
 
   const resolvedMatches = explicitMatches.length > 0 ? explicitMatches : plainMatches;
+  const matchType = explicitMatches.length > 0 ? 'explicit' : plainMatches.length > 0 ? 'plain' : null;
 
   // 排序：位置优先，相同位置时优先选择更长匹配（更精确）
   const sorted = resolvedMatches.sort((left, right) => {
@@ -1070,6 +1076,7 @@ export const detectMentionedLiveRoomMembers = ({
     memberIds: sorted.map((item) => item.memberId),
     // 返回第一个（主要）匹配的别名，用于剥离 @提及
     primaryMatchedAlias: sorted.length > 0 ? sorted[0].matchedAlias : null,
+    matchType,
   };
 };
 

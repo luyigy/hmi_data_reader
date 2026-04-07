@@ -2,6 +2,7 @@ import * as Lark from '@larksuiteoapi/node-sdk';
 import {
   handleFeishuCommand,
   parseFeishuCommand,
+  parseFeishuMessageContent,
 } from '@/lib/feishu';
 import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
@@ -30,6 +31,7 @@ type FeishuWsMessagePayload = {
     chat_id?: string;
     chat_type?: string;
     message_id?: string;
+    message_type?: string;
     content?: string;
     mentions?: Array<{
       id?: {
@@ -98,13 +100,7 @@ function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
     return null;
   }
 
-  let text = '';
-  try {
-    const content = JSON.parse(message.content) as { text?: string };
-    text = content.text?.trim() || '';
-  } catch {
-    return null;
-  }
+  const text = parseFeishuMessageContent(message.message_type, message.content);
 
   if (!text) {
     return null;

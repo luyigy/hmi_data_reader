@@ -409,7 +409,11 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
   });
   const mentionedMemberIds = mergeLiveRoomMentionedMemberIds({
     explicitMentionMemberIds,
-    detectedMentionedMemberIds: mentionedAll ? expectedResponderMemberIds : detectionResult.memberIds,
+    detectedMentionedMemberIds: mentionedAll
+      ? expectedResponderMemberIds
+      : detectionResult.matchType === 'explicit'
+      ? detectionResult.memberIds
+      : [],
     members: roomMembers,
     senderMemberId: userMember.id,
   });

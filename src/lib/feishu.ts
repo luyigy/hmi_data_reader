@@ -246,13 +246,7 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
     return null;
   }
 
-  let text = '';
-  try {
-    const content = JSON.parse(message.content) as { text?: string };
-    text = content.text?.trim() || '';
-  } catch {
-    return null;
-  }
+  const text = parseFeishuMessageContent(message.message_type, message.content);
 
   if (!text) {
     return null;
@@ -271,6 +265,53 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
       .map((mention) => mention.name?.trim())
       .filter((value): value is string => !!value),
   };
+}
+
+export function parseFeishuMessageContent(messageType: string | undefined, rawContent: string): string | null {
+  let content: Record<string, unknown>;
+  try {
+    content = JSON.parse(rawContent) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const normalizedType = (messageType || 'text').trim().toLowerCase();
+  if (normalizedType === 'text') {
+    const text = typeof content.text === 'string' ? content.text.trim() : '';
+    return text || null;
+  }
+
+  if (normalizedType === 'image') {
+    const imageKey = typeof content.image_key === 'string' ? content.image_key.trim() : '';
+    return imageKey
+      ? `[图片消息] image_key=${imageKey}`
+      : '[图片消息]';
+  }
+
+  if (normalizedType === 'file') {
+    const fileKey = typeof content.file_key === 'string' ? content.file_key.trim() : '';
+    const fileName = typeof content.file_name === 'string' ? content.file_name.trim() : '';
+    const suffix = [fileName, fileKey ? `file_key=${fileKey}` : ''].filter(Boolean).join(' ');
+    return suffix ? `[文件消息] ${suffix}` : '[文件消息]';
+  }
+
+  if (normalizedType === 'post') {
+    return '[富文本消息]';
+  }
+
+  if (normalizedType === 'audio') {
+    return '[语音消息]';
+  }
+
+  if (normalizedType === 'media') {
+    return '[视频消息]';
+  }
+
+  if (normalizedType === 'sticker') {
+    return '[表情消息]';
+  }
+
+  return `[${normalizedType} 消息]`;
 }
 
 function stripBotMention(text: string): string {
