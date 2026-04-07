@@ -35,6 +35,10 @@ const SSH_WARNING_PATTERNS = [
 ];
 const INVALID_CLAUDE_CONTINUATION_PATTERNS = [
   /No conversation found with session ID/i,
+  // 403 from the API when a resumed session is no longer accessible
+  // (e.g. session created under a different auth context / key)
+  /403.*forbidden|forbidden.*403|Request not allowed/i,
+  /Failed to authenticate/i,
 ];
 const INVALID_CODEX_CONTINUATION_PATTERNS = [
   /(session|thread|conversation).*(not found|does not exist|invalid)/i,
