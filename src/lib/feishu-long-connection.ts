@@ -1,5 +1,6 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
 import {
+  hydrateFeishuMessageResources,
   handleFeishuCommand,
   parseFeishuCommand,
   parseFeishuMessageContent,
@@ -100,9 +101,9 @@ function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
     return null;
   }
 
-  const text = parseFeishuMessageContent(message.message_type, message.content);
+  const parsedContent = parseFeishuMessageContent(message.message_type, message.content);
 
-  if (!text) {
+  if (!parsedContent?.text) {
     return null;
   }
 
@@ -111,7 +112,9 @@ function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
     chatType: message.chat_type || 'group',
     messageId: message.message_id,
     senderOpenId,
-    text,
+    messageType: parsedContent.messageType,
+    text: parsedContent.text,
+    fileKey: parsedContent.fileKey,
     mentions: (message.mentions || [])
       .map((mention) => mention.id?.open_id)
       .filter((value): value is string => !!value),
@@ -153,7 +156,10 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
     loggerLevel: Lark.LoggerLevel.info,
   }).register({
     'im.message.receive_v1': async (data) => {
-      const message = parseWsIncomingMessage(data as FeishuWsMessagePayload);
+      const parsedMessage = parseWsIncomingMessage(data as FeishuWsMessagePayload);
+      const message = parsedMessage
+        ? await hydrateFeishuMessageResources(parsedMessage)
+        : null;
       if (!message) {
         console.log(`${prefix} ignored event: parse failed`);
         return;

@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from 'next/cache';
 import {
   getFeishuChallengeResponse,
   handleFeishuCommand,
+  hydrateFeishuMessageResources,
   normalizeFeishuPayload,
   parseFeishuCommand,
   parseFeishuMessage,
@@ -51,7 +52,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(challenge);
     }
 
-    const message = parseFeishuMessage(payload);
+    const parsedMessage = parseFeishuMessage(payload);
+    const message = parsedMessage ? await hydrateFeishuMessageResources(parsedMessage) : null;
     if (!message) {
       return NextResponse.json({ success: true, ignored: true });
     }

@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { promises as fs } from 'node:fs';
+
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis';
 
 type FeishuReactionResponse = {
@@ -18,6 +21,12 @@ type FeishuTokenResponse = {
 type FeishuSendMessageResponse = {
   code: number;
   msg?: string;
+};
+
+type FeishuMessageResourceDownloadResult = {
+  filePath: string;
+  contentType: string | null;
+  sizeBytes: number;
 };
 
 function getRequiredEnv(name: string): string {
@@ -122,6 +131,64 @@ export async function sendFeishuInteractiveMessage(args: {
   if (!response.ok || data.code !== 0) {
     throw new Error(data.msg || `Failed to send Feishu interactive message: HTTP ${response.status}`);
   }
+}
+
+function guessFileExtension(contentType: string | null, fallbackType: string) {
+  const normalized = (contentType || '').toLowerCase();
+  if (normalized.includes('png')) return 'png';
+  if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'jpg';
+  if (normalized.includes('webp')) return 'webp';
+  if (normalized.includes('gif')) return 'gif';
+  if (normalized.includes('bmp')) return 'bmp';
+  if (normalized.includes('heic')) return 'heic';
+  if (normalized.includes('mp4')) return 'mp4';
+  if (normalized.includes('mpeg')) return 'mpeg';
+  if (normalized.includes('mp3')) return 'mp3';
+  if (normalized.includes('wav')) return 'wav';
+  return fallbackType === 'image' ? 'bin' : fallbackType;
+}
+
+export async function downloadFeishuMessageResource(args: {
+  messageId: string;
+  fileKey: string;
+  type: 'image' | 'file' | 'audio' | 'video' | 'media';
+}): Promise<FeishuMessageResourceDownloadResult> {
+  const token = await getFeishuTenantAccessToken();
+  const url = new URL(
+    `${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(args.messageId)}/resources/${encodeURIComponent(args.fileKey)}`
+  );
+  url.searchParams.set('type', args.type === 'media' ? 'video' : args.type);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(
+      errorText || `Failed to download Feishu message resource: HTTP ${response.status}`
+    );
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const contentType = response.headers.get('content-type');
+  const ext = guessFileExtension(contentType, args.type);
+  const dir = path.join(process.cwd(), '.runtime', 'feishu-message-resources');
+  await fs.mkdir(dir, { recursive: true });
+
+  const safeFileKey = args.fileKey.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 48);
+  const filePath = path.join(dir, `${args.messageId}_${safeFileKey}.${ext}`);
+  await fs.writeFile(filePath, buffer);
+
+  return {
+    filePath,
+    contentType,
+    sizeBytes: buffer.byteLength,
+  };
 }
 
 // Returns the reaction_id on success, or null if the call fails (non-blocking).
