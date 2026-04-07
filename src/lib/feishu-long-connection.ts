@@ -342,8 +342,8 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
   });
 
   const startPromise = (async () => {
-    // On startup, reset any deliveries/members left in a running/busy state
-    // from a previous process that was killed mid-execution.
+    // On startup, reset any deliveries/members/participants left in a running/busy
+    // state from a previous process that was killed mid-execution.
     try {
       await prisma.liveRoomDelivery.updateMany({
         where: { deliveryStatus: 'running' },
@@ -356,6 +356,30 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
       await prisma.liveRoomMemberSession.updateMany({
         where: { status: 'busy' },
         data: { status: 'online' },
+      });
+
+      // Fix stale task run participants: those with session IDs -> completed (eligible for
+      // session continuation on the next message); those without -> failed.
+      const staleParticipants = await prisma.taskRunParticipant.findMany({
+        where: { status: 'running' },
+        select: { id: true, controlMetadata: true },
+      });
+      for (const pt of staleParticipants) {
+        let meta: Record<string, unknown> = {};
+        try { meta = JSON.parse(pt.controlMetadata || '{}'); } catch { /* ignore */ }
+        const hasSession = typeof meta.lastSessionId === 'string' || typeof meta.claudeSessionId === 'string' || typeof meta.codexThreadId === 'string';
+        await prisma.taskRunParticipant.update({
+          where: { id: pt.id },
+          data: hasSession
+            ? { status: 'completed', completedAt: new Date(), error: null }
+            : { status: 'failed', completedAt: new Date(), error: 'Stale: process killed before session started' },
+        });
+      }
+      // Mark stale task runs as completed (not failed — failed runs are excluded from
+      // the continuation session lookup in findLatestParticipantSession).
+      await prisma.taskRun.updateMany({
+        where: { status: 'running' },
+        data: { status: 'completed', completedAt: new Date() },
       });
     } catch (cleanupError) {
       console.warn(`${prefix} startup cleanup failed (non-fatal):`, cleanupError);
