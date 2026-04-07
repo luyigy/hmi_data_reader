@@ -26,6 +26,7 @@ Module._resolveFilename = function patchedResolveFilename(request, parent, isMai
 
 const {
   startFeishuLongConnectionRuntime,
+  shutdownFeishuRuntime,
 } = require(path.join(projectRoot, 'src/lib/feishu-long-connection.ts'));
 
 async function main() {
@@ -35,6 +36,20 @@ async function main() {
   process.on('uncaughtException', (error) => {
     console.error('[FeishuRuntime] uncaughtException', error);
   });
+
+  // Graceful shutdown: clean up stale deliveries before exiting.
+  // systemd sends SIGTERM first, then SIGKILL after TimeoutStopSec (20s).
+  let shuttingDown = false;
+  const handleShutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[FeishuRuntime] received ${signal}, shutting down gracefully...`);
+    shutdownFeishuRuntime()
+      .then(() => { process.exit(0); })
+      .catch((err) => { console.error('[FeishuRuntime] shutdown error:', err); process.exit(1); });
+  };
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
 
   const status = await startFeishuLongConnectionRuntime();
   console.log('[FeishuRuntime] started', status);

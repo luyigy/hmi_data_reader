@@ -389,6 +389,30 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
       startedAt: state.startedAt,
       lastError: null,
     });
+
+    // Periodic watchdog: reap deliveries stuck in 'running' for > 12 minutes
+    // (claude max runtime is 10 min, so any delivery older than 12 min is definitely stale).
+    // This handles SIGKILL cases that bypass the SIGTERM handler.
+    const STALE_DELIVERY_THRESHOLD_MS = 12 * 60 * 1000;
+    const watchdogInterval = setInterval(async () => {
+      try {
+        const staleAt = new Date(Date.now() - STALE_DELIVERY_THRESHOLD_MS);
+        const result = await prisma.liveRoomDelivery.updateMany({
+          where: { deliveryStatus: 'running', attemptedAt: { lt: staleAt } },
+          data: { deliveryStatus: 'failed', fallbackReason: 'Stale: watchdog timeout', acknowledgedAt: new Date() },
+        });
+        if (result.count > 0) {
+          await prisma.liveRoomMember.updateMany({
+            where: { presenceStatus: 'busy' },
+            data: { presenceStatus: 'idle' },
+          });
+          console.warn(`${prefix} watchdog reaped ${result.count} stale deliveries`);
+        }
+      } catch (watchdogError) {
+        console.warn(`${prefix} watchdog error (non-fatal):`, watchdogError);
+      }
+    }, 5 * 60 * 1000); // check every 5 minutes
+    watchdogInterval.unref(); // don't prevent process exit
   })()
     .catch((error) => {
       state.status = 'error';
@@ -418,4 +442,44 @@ export async function ensureFeishuLongConnectionStarted() {
 
 export async function startFeishuLongConnectionRuntime() {
   return startRuntime('standalone', '[FeishuRuntime]');
+}
+
+/**
+ * Called on SIGTERM to kill in-flight claude subprocesses and clean up DB
+ * before the process exits. Must complete within the systemd TimeoutStopSec window.
+ */
+export async function shutdownFeishuRuntime() {
+  console.log('[FeishuRuntime] shutting down — cleaning up in-flight deliveries...');
+  try {
+    // Kill any running claude/codex child processes tracked in the process registry
+    const { acpxRunningProcesses } = globalThis as unknown as {
+      acpxRunningProcesses?: Map<string, { child: { kill: (signal: string) => void } }>;
+    };
+    if (acpxRunningProcesses) {
+      Array.from(acpxRunningProcesses.values()).forEach((entry) => {
+        try { entry.child.kill('SIGTERM'); } catch { /* ignore */ }
+      });
+    }
+
+    // Give child processes a moment to exit and write to DB, then force-clean DB state
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const r1 = await prisma.liveRoomDelivery.updateMany({
+      where: { deliveryStatus: 'running' },
+      data: { deliveryStatus: 'failed', fallbackReason: 'Stale: runtime shutdown', acknowledgedAt: new Date() },
+    });
+    await prisma.liveRoomMember.updateMany({
+      where: { presenceStatus: 'busy' },
+      data: { presenceStatus: 'idle' },
+    });
+    await prisma.liveRoomMemberSession.updateMany({
+      where: { status: 'busy' },
+      data: { status: 'online' },
+    });
+    if (r1.count > 0) {
+      console.log(`[FeishuRuntime] cleaned up ${r1.count} in-flight deliveries on shutdown`);
+    }
+  } catch (err) {
+    console.error('[FeishuRuntime] shutdown cleanup error:', err);
+  }
 }
