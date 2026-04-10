@@ -74,19 +74,30 @@ Please complete this task step by step. When you're done, provide a concise summ
 const buildRemoteCommand = (
   harnessType: string,
   workingDirectory?: string | null,
-  resumeSessionId?: string
+  resumeSessionId?: string,
+  shellMode: 'unix' | 'powershell' = 'unix'
 ) => {
+  if (shellMode === 'powershell') {
+    return buildRemotePowerShellCommand(harnessType, workingDirectory, resumeSessionId);
+  }
+
   const quotedCwd = workingDirectory ? `cd ${shellQuote(workingDirectory)} && ` : '';
+  const preflight = [
+    'echo __ACPX_REMOTE_COMMAND_START__ >&2',
+    `${quotedCwd}echo "__ACPX_PREFLIGHT_PWD__=$(pwd)" >&2`,
+    `${quotedCwd}echo "__ACPX_PREFLIGHT_PATH__=$PATH" >&2`,
+    `${quotedCwd}echo "__ACPX_PREFLIGHT_WHICH__=$(command -v ${harnessType} 2>/dev/null || echo missing)" >&2`,
+  ].join('; ');
   let command: string;
 
   if (harnessType === 'codex') {
     command = resumeSessionId
-      ? `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}codex exec resume ${shellQuote(resumeSessionId)} --json --skip-git-repo-check -`
-      : `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}codex exec --json --skip-git-repo-check -`;
+      ? `${preflight}; ${quotedCwd}codex exec resume ${shellQuote(resumeSessionId)} --json --skip-git-repo-check -`
+      : `${preflight}; ${quotedCwd}codex exec --json --skip-git-repo-check -`;
   } else if (harnessType === 'claude') {
     command = resumeSessionId
-      ? `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}PROMPT=$(cat) && claude --resume ${shellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`
-      : `printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2; ${quotedCwd}PROMPT=$(cat) && claude --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`;
+      ? `${preflight}; ${quotedCwd}PROMPT=$(cat) && claude --resume ${shellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`
+      : `${preflight}; ${quotedCwd}PROMPT=$(cat) && claude --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -95,6 +106,89 @@ const buildRemoteCommand = (
 };
 
 const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`;
+const powerShellQuote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
+
+const buildRemotePowerShellCommand = (
+  harnessType: string,
+  workingDirectory?: string | null,
+  resumeSessionId?: string
+) => {
+  const prelude = [
+    `$ErrorActionPreference = 'Stop'`,
+    `[Console]::Error.WriteLine('__ACPX_REMOTE_COMMAND_START__')`,
+    workingDirectory ? `Set-Location -LiteralPath ${powerShellQuote(workingDirectory)}` : null,
+  ].filter(Boolean).join('; ');
+
+  let script: string;
+  if (harnessType === 'codex') {
+    script = resumeSessionId
+      ? `${prelude}; & codex exec resume ${powerShellQuote(resumeSessionId)} --json --skip-git-repo-check -`
+      : `${prelude}; & codex exec --json --skip-git-repo-check -`;
+  } else if (harnessType === 'claude') {
+    script = resumeSessionId
+      ? `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --resume ${powerShellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`
+      : `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`;
+  } else {
+    throw new Error(`Unsupported remote harness: ${harnessType}`);
+  }
+
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  return `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`;
+};
+
+const shouldRetryWithPowerShell = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return [
+    'printf: usage: printf',
+    '\'bash\' is not recognized',
+    '\'printf\' is not recognized',
+    'Set-Location',
+  ].some((pattern) => message.includes(pattern));
+};
+
+const toErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error ?? '');
+
+const buildProbeCommand = (
+  host: RemoteHarnessHostRecord,
+  shellMode: 'unix' | 'powershell' = 'unix'
+) => {
+  if (shellMode === 'powershell') {
+    const prelude = [
+      `$ErrorActionPreference = 'Stop'`,
+      host.workingDirectory ? `Set-Location -LiteralPath ${powerShellQuote(host.workingDirectory)}` : null,
+    ].filter(Boolean).join('; ');
+    const harnessChecks = host.supportedHarnesses.map(
+      (harness) =>
+        `if (Get-Command ${powerShellQuote(harness)} -ErrorAction SilentlyContinue) { ` +
+        `$version = (& ${harness} --version | Select-Object -First 1); ` +
+        `Write-Output "${harness}=ok $version" } else { Write-Output "${harness}=missing" }`
+    );
+    const script = [
+      prelude,
+      `Write-Output ("whoami=" + (whoami))`,
+      `$hostname = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { hostname }`,
+      `Write-Output ("hostname=" + $hostname)`,
+      `Write-Output ("pwd=" + (Get-Location).Path)`,
+      ...harnessChecks,
+    ].filter(Boolean).join('; ');
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    return `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`;
+  }
+
+  const cwdSnippet = host.workingDirectory ? `cd ${shellQuote(host.workingDirectory)} && ` : '';
+  const probeScript = [
+    `${cwdSnippet}echo whoami=\"$(whoami)\"`,
+    `${cwdSnippet}echo hostname=\"$(hostname)\"`,
+    `${cwdSnippet}echo pwd=\"$(pwd)\"`,
+    ...host.supportedHarnesses.map(
+      (harness) =>
+        `${cwdSnippet}if command -v ${harness} >/dev/null 2>&1; then echo '${harness}=ok' && ${harness} --version | head -n 1; else echo '${harness}=missing'; fi`
+    ),
+  ].join('; ');
+
+  return `bash -lc ${shellQuote(probeScript)}`;
+};
 
 const extractClaudeModifiedFiles = (output: string): string[] => {
   const filePattern = /(modified|created|deleted):\s*(.+)/gi;
@@ -123,103 +217,151 @@ export const executeRemoteSshTask = async (
   let claudeResolvedText = '';
   let claudeStdoutBuffer = '';
   let claudeSessionId: string | undefined;
-  const { stdout, stderr, timing } = await runRemoteSshCommand({
-    timeout: options.timeout,
-    host: options.host,
-    command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId),
-    stdin: prompt,
-    streamCallbacks:
-      options.harnessType === 'codex'
-        ? {
-            onStdoutChunk: (chunk) => {
-              codexStdoutBuffer += chunk;
-              const lines = codexStdoutBuffer.split('\n');
-              codexStdoutBuffer = lines.pop() ?? '';
+  const streamCallbacks =
+    options.harnessType === 'codex'
+      ? {
+          onStdoutChunk: (chunk: string) => {
+            codexStdoutBuffer += chunk;
+            const lines = codexStdoutBuffer.split('\n');
+            codexStdoutBuffer = lines.pop() ?? '';
 
-              for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed) {
-                  continue;
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) {
+                continue;
+              }
+
+              try {
+                const event = JSON.parse(trimmed) as {
+                  type?: string;
+                  thread_id?: string;
+                  item?: { type?: string; text?: string };
+                };
+                if (typeof event.thread_id === 'string' && event.thread_id.trim()) {
+                  codexThreadId = event.thread_id.trim();
                 }
+                const text =
+                  event.type === 'item.completed'
+                  && event.item?.type === 'agent_message'
+                  && typeof event.item.text === 'string'
+                    ? event.item.text
+                    : null;
 
-                try {
-                  const event = JSON.parse(trimmed) as {
-                    type?: string;
-                    thread_id?: string;
-                    item?: { type?: string; text?: string };
+                if (text) {
+                  codexResolvedText = text;
+                  void options.streamCallbacks?.onStdoutChunk?.(text);
+                }
+              } catch {
+                void options.streamCallbacks?.onStdoutChunk?.(trimmed);
+              }
+            }
+          },
+          onStderrChunk: options.streamCallbacks?.onStderrChunk,
+        }
+      : options.harnessType === 'claude'
+      ? {
+          onStdoutChunk: (chunk: string) => {
+            claudeStdoutBuffer += chunk;
+            const lines = claudeStdoutBuffer.split('\n');
+            claudeStdoutBuffer = lines.pop() ?? '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) {
+                continue;
+              }
+
+              try {
+                const event = JSON.parse(trimmed) as {
+                  type?: string;
+                  session_id?: string;
+                  message?: {
+                    content?: Array<{ type?: string; text?: string }>;
                   };
-                  if (typeof event.thread_id === 'string' && event.thread_id.trim()) {
-                    codexThreadId = event.thread_id.trim();
-                  }
-                  const text =
-                    event.type === 'item.completed'
-                    && event.item?.type === 'agent_message'
-                    && typeof event.item.text === 'string'
-                      ? event.item.text
-                      : null;
+                  result?: string;
+                };
+                if (typeof event.session_id === 'string' && event.session_id.trim()) {
+                  claudeSessionId = event.session_id.trim();
+                }
+                if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
+                  const text = event.message.content
+                    .filter((item) => item.type === 'text' && typeof item.text === 'string')
+                    .map((item) => item.text as string)
+                    .join('');
 
                   if (text) {
-                    codexResolvedText = text;
+                    claudeResolvedText = text;
                     void options.streamCallbacks?.onStdoutChunk?.(text);
                   }
-                } catch {
-                  void options.streamCallbacks?.onStdoutChunk?.(trimmed);
-                }
-              }
-            },
-            onStderrChunk: options.streamCallbacks?.onStderrChunk,
-          }
-        : options.harnessType === 'claude'
-        ? {
-            onStdoutChunk: (chunk) => {
-              claudeStdoutBuffer += chunk;
-              const lines = claudeStdoutBuffer.split('\n');
-              claudeStdoutBuffer = lines.pop() ?? '';
-
-              for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed) {
                   continue;
                 }
-
-                try {
-                  const event = JSON.parse(trimmed) as {
-                    type?: string;
-                    session_id?: string;
-                    message?: {
-                      content?: Array<{ type?: string; text?: string }>;
-                    };
-                    result?: string;
-                  };
-                  if (typeof event.session_id === 'string' && event.session_id.trim()) {
-                    claudeSessionId = event.session_id.trim();
-                  }
-                  if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
-                    const text = event.message.content
-                      .filter((item) => item.type === 'text' && typeof item.text === 'string')
-                      .map((item) => item.text as string)
-                      .join('');
-
-                    if (text) {
-                      claudeResolvedText = text;
-                      void options.streamCallbacks?.onStdoutChunk?.(text);
-                    }
-                    continue;
-                  }
-                  if (event.type === 'result' && typeof event.result === 'string') {
-                    claudeResolvedText = event.result;
-                  }
-                } catch {
-                  void options.streamCallbacks?.onStdoutChunk?.(trimmed);
+                if (event.type === 'result' && typeof event.result === 'string') {
+                  claudeResolvedText = event.result;
                 }
+              } catch {
+                void options.streamCallbacks?.onStdoutChunk?.(trimmed);
               }
-            },
-            onStderrChunk: options.streamCallbacks?.onStderrChunk,
-          }
-        : options.streamCallbacks,
-    onSpawn: options.onSpawn,
-    onProgress: options.onProgress,
-  });
+            }
+          },
+          onStderrChunk: options.streamCallbacks?.onStderrChunk,
+        }
+      : options.streamCallbacks;
+
+  let stdout: string;
+  let stderr: string;
+  let timing: {
+    sshStartMs: number;
+    remoteCommandStartMs?: number;
+    firstStdoutMs?: number;
+    firstStderrMs?: number;
+    totalMs: number;
+  };
+
+  try {
+    console.log(
+      `[Remote SSH] Starting ${options.harnessType} run on ${options.host.label} (${options.host.host}) via unix shell`
+    );
+    ({ stdout, stderr, timing } = await runRemoteSshCommand({
+      timeout: options.timeout,
+      host: options.host,
+      command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId, 'unix'),
+      stdin: prompt,
+      streamCallbacks,
+      onSpawn: options.onSpawn,
+      onProgress: options.onProgress,
+    }));
+  } catch (error) {
+    const retryWithPowerShell = shouldRetryWithPowerShell(error);
+    console.warn(
+      `[Remote SSH] Unix shell failed for ${options.harnessType} on ${options.host.label} (${options.host.host}); ` +
+      `retryWithPowerShell=${retryWithPowerShell}; error=${JSON.stringify(toErrorMessage(error))}`
+    );
+
+    if (!retryWithPowerShell) {
+      throw error;
+    }
+
+    try {
+      console.log(
+        `[Remote SSH] Retrying ${options.harnessType} run on ${options.host.label} (${options.host.host}) via powershell shell`
+      );
+      ({ stdout, stderr, timing } = await runRemoteSshCommand({
+        timeout: options.timeout,
+        host: options.host,
+        command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId, 'powershell'),
+        stdin: prompt,
+        streamCallbacks,
+        onSpawn: options.onSpawn,
+        onProgress: options.onProgress,
+      }));
+    } catch (retryError) {
+      console.warn(
+        `[Remote SSH] PowerShell retry failed for ${options.harnessType} on ${options.host.label} (${options.host.host}); ` +
+        `error=${JSON.stringify(toErrorMessage(retryError))}`
+      );
+      throw retryError;
+    }
+  }
 
   if (options.harnessType === 'codex' && codexStdoutBuffer.trim()) {
     try {
@@ -338,8 +480,8 @@ const runRemoteSshCommand = async ({
     '-o',
     'UserKnownHostsFile=/dev/null',
     `${host.sshUser}@${host.host}`,
-    command,
   ];
+  sshArgs.push(command);
 
   try {
     return await new Promise<{
@@ -476,23 +618,42 @@ export const probeRemoteSshHost = async (
   timeout = 15_000
 ): Promise<RemoteSshProbeResult> => {
   const startedAt = Date.now();
-  const supported = host.supportedHarnesses;
-  const cwdSnippet = host.workingDirectory ? `cd ${shellQuote(host.workingDirectory)} && ` : '';
-  const probeScript = [
-    `${cwdSnippet}printf 'whoami=%s\\n' \"$(whoami)\"`,
-    `${cwdSnippet}printf 'hostname=%s\\n' \"$(hostname)\"`,
-    `${cwdSnippet}printf 'pwd=%s\\n' \"$(pwd)\"`,
-    ...supported.map(
-      (harness) =>
-        `${cwdSnippet}if command -v ${harness} >/dev/null 2>&1; then printf '${harness}=ok '; ${harness} --version | head -n 1; else printf '${harness}=missing\\n'; fi`
-    ),
-  ].join('; ');
+  let stdout: string;
+  let stderr: string;
 
-  const { stdout, stderr } = await runRemoteSshCommand({
-    timeout,
-    host,
-    command: `bash -lc ${shellQuote(probeScript)}`,
-  });
+  try {
+    console.log(`[Remote SSH Probe] Starting probe for ${host.label} (${host.host}) via unix shell`);
+    ({ stdout, stderr } = await runRemoteSshCommand({
+      timeout,
+      host,
+      command: buildProbeCommand(host, 'unix'),
+    }));
+  } catch (error) {
+    const retryWithPowerShell = shouldRetryWithPowerShell(error);
+    console.warn(
+      `[Remote SSH Probe] Unix shell failed for ${host.label} (${host.host}); ` +
+      `retryWithPowerShell=${retryWithPowerShell}; error=${JSON.stringify(toErrorMessage(error))}`
+    );
+
+    if (!retryWithPowerShell) {
+      throw error;
+    }
+
+    try {
+      console.log(`[Remote SSH Probe] Retrying probe for ${host.label} (${host.host}) via powershell shell`);
+      ({ stdout, stderr } = await runRemoteSshCommand({
+        timeout,
+        host,
+        command: buildProbeCommand(host, 'powershell'),
+      }));
+    } catch (retryError) {
+      console.warn(
+        `[Remote SSH Probe] PowerShell retry failed for ${host.label} (${host.host}); ` +
+        `error=${JSON.stringify(toErrorMessage(retryError))}`
+      );
+      throw retryError;
+    }
+  }
 
   return {
     success: true,
