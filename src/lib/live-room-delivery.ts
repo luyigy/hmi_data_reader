@@ -22,7 +22,7 @@ import {
 } from '@/lib/live-room';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
-import type { AcpxPermissionConfig } from '@/lib/acpx/types';
+import type { AcpxPermissionConfig, HarnessStreamCallbacks } from '@/lib/acpx/types';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const ALL_REPLY_STAGGER_MS = 750;
@@ -43,6 +43,8 @@ const INVALID_CLAUDE_CONTINUATION_PATTERNS = [
 const INVALID_CODEX_CONTINUATION_PATTERNS = [
   /(session|thread|conversation).*(not found|does not exist|invalid)/i,
   /resume.*(failed|error)/i,
+  /timeout waiting for child process to exit/i,
+  /failed to refresh available models/i,
 ];
 const CODEX_EPHEMERAL_RETRY_PATTERNS = [
   /Codex local state error:/i,
@@ -295,6 +297,42 @@ const shouldRetryCodexEphemeral = ({
   && CODEX_EPHEMERAL_RETRY_PATTERNS.some((pattern) => pattern.test(message))
 );
 
+const shouldPreferTranscriptContinuation = ({
+  executionBackend,
+  harnessType,
+}: {
+  executionBackend: string | null;
+  harnessType: string | null;
+}) => executionBackend === 'platform_local' && harnessType === 'codex';
+
+const LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS = 8000;
+const LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS = 220;
+
+const normalizeProgressPreview = (chunk: string) => {
+  const trimmed = normalizeLiveRoomExecutionError(chunk)
+    .replace(/<p><\/p>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/\r/g, '')
+    .trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^[{\[]/.test(trimmed)) {
+    return null;
+  }
+
+  const singleLine = trimmed.replace(/\s+/g, ' ').trim();
+  if (!singleLine) {
+    return null;
+  }
+
+  return singleLine.length > LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS
+    ? `${singleLine.slice(0, LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS - 3)}...`
+    : singleLine;
+};
+
 const markParticipantContinuationStale = async ({
   participantId,
   reason,
@@ -419,6 +457,7 @@ const runLiveRoomAcpxAttempt = async ({
   latestSession,
   useFreshSession,
   forceEphemeral = false,
+  streamCallbacks,
 }: {
   sourceTask: NonNullable<Awaited<ReturnType<typeof syncLiveRoomSourceTask>>>;
   room: DeliveryRoom & {
@@ -439,10 +478,15 @@ const runLiveRoomAcpxAttempt = async ({
   latestSession: Awaited<ReturnType<typeof findLatestParticipantSession>>;
   useFreshSession: boolean;
   forceEphemeral?: boolean;
+  streamCallbacks?: HarnessStreamCallbacks;
 }) => {
   const shouldUseContinuation =
     !useFreshSession
     && !forceEphemeral
+    && !shouldPreferTranscriptContinuation({
+      executionBackend: participant.executionBackend,
+      harnessType: participant.harnessType,
+    })
     && Boolean(latestSession?.continuationSessionId);
 
   const watchdogConfig =
@@ -470,6 +514,7 @@ const runLiveRoomAcpxAttempt = async ({
     workingDirectory: sourceTask.workingDirectory || process.cwd(),
     permissionConfig,
     watchdogConfig,
+    streamCallbacks,
   });
 };
 
@@ -562,6 +607,72 @@ const executeLiveRoomReplyViaAcpx = async ({
     return (Object.keys(parsed).length > 0 ? parsed : DEFAULT_ACPX_PERMISSION_CONFIG) as AcpxPermissionConfig;
   })();
 
+  await postLiveRoomMessage({
+    roomId: room.id,
+    content: `系统提示：${targetMember.displayName} 已开始处理这条消息。`,
+    messageType: 'system',
+    metadata: resolveLiveRoomMessageMetadata({
+      senderKind: 'system',
+      targetMemberId: targetMember.id,
+      extras: {
+        systemEvent: 'member_reply_started',
+      },
+    }),
+  });
+
+  let lastProgressPreview = '';
+  let lastProgressPostedAt = 0;
+  let progressFlushPromise: Promise<void> = Promise.resolve();
+
+  const enqueueProgressUpdate = (stream: 'stdout' | 'stderr', chunk: string) => {
+    const preview = normalizeProgressPreview(chunk);
+    if (!preview) {
+      return;
+    }
+
+    const now = Date.now();
+    if (preview === lastProgressPreview && now - lastProgressPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+      return;
+    }
+
+    if (now - lastProgressPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+      return;
+    }
+
+    lastProgressPreview = preview;
+    lastProgressPostedAt = now;
+
+    progressFlushPromise = progressFlushPromise
+      .then(async () => {
+        await postLiveRoomMessage({
+          roomId: room.id,
+          content: `系统提示：${targetMember.displayName} 正在处理中${stream === 'stderr' ? '（stderr）' : ''}：${preview}`,
+          messageType: 'system',
+          metadata: resolveLiveRoomMessageMetadata({
+            senderKind: 'system',
+            targetMemberId: targetMember.id,
+            extras: {
+              systemEvent: 'member_reply_progress',
+              stream,
+              preview,
+            },
+          }),
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to post live room progress update:', error);
+      });
+  };
+
+  const liveRoomStreamCallbacks = {
+    onStdoutChunk: (chunk: string) => {
+      enqueueProgressUpdate('stdout', chunk);
+    },
+    onStderrChunk: (chunk: string) => {
+      enqueueProgressUpdate('stderr', chunk);
+    },
+  };
+
   let acpxResult = await runLiveRoomAcpxAttempt({
     sourceTask,
     room,
@@ -570,6 +681,7 @@ const executeLiveRoomReplyViaAcpx = async ({
     permissionConfig,
     latestSession,
     useFreshSession: false,
+    streamCallbacks: liveRoomStreamCallbacks,
   });
 
   let participantResult = acpxResult.participants[0];
@@ -613,6 +725,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       permissionConfig,
       latestSession,
       useFreshSession: true,
+      streamCallbacks: liveRoomStreamCallbacks,
     });
     participantResult = acpxResult.participants[0];
     finalStatus =
@@ -649,6 +762,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       latestSession,
       useFreshSession: true,
       forceEphemeral: true,
+      streamCallbacks: liveRoomStreamCallbacks,
     });
     participantResult = acpxResult.participants[0];
     finalStatus =
@@ -697,8 +811,11 @@ const executeLiveRoomReplyViaAcpx = async ({
   }
 
   if (acpxResult.status === 'failed') {
+    await progressFlushPromise.catch(() => undefined);
     throw new Error(participantResult?.error || 'Live room ACPX execution failed');
   }
+
+  await progressFlushPromise.catch(() => undefined);
 
   const refreshedParticipantSession = await findLatestParticipantSession(sourceTask.id, participant);
 

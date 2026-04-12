@@ -9,7 +9,7 @@ import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-ag
 import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
-import { buildTaskRoomPromptContext } from '@/lib/task-room';
+import { buildTaskRoomPromptContext, countTaskRoomMessages } from '@/lib/task-room';
 import { getHarnessCapabilities } from './capabilities';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, getLocalHarnessPermissionSupport } from './permissions';
 import { publishTaskRunEvent } from './event-bus';
@@ -672,6 +672,41 @@ const stripLeadingMention = (content: string): string => {
   return stripped;
 };
 
+// --- Context watermark heuristics ---
+const CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD = 40;
+const CONTEXT_WARN_EVENT_THRESHOLD = 200;
+const CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT = 3800; // 4000 char limit in task-room.ts
+
+const checkContextWatermark = async (
+  taskId: string,
+  taskName: string,
+  taskRoomContext: { transcript: string }
+): Promise<string | null> => {
+  const reasons: string[] = [];
+
+  if (taskRoomContext.transcript.length >= CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT) {
+    reasons.push('对话记录已满');
+  }
+
+  const [roomMessageCount, eventCount] = await Promise.all([
+    countTaskRoomMessages(taskId, taskName),
+    prisma.taskRunEvent.count({ where: { taskRun: { taskId } } }),
+  ]);
+
+  if (roomMessageCount >= CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD) {
+    reasons.push(`任务室已有 ${roomMessageCount} 条消息`);
+  }
+
+  if (eventCount >= CONTEXT_WARN_EVENT_THRESHOLD) {
+    reasons.push(`已累计 ${eventCount} 条运行事件`);
+  }
+
+  if (reasons.length === 0) return null;
+
+  return `[系统提示] 当前 session 上下文已接近阈值（${reasons.join('、')}），建议执行 /ap handover 后切换新 session。`;
+};
+// ------------------------------------
+
 const buildHarnessPrompt = (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
@@ -685,7 +720,8 @@ const buildHarnessPrompt = (
       targetType: string;
       targetParticipantLabel: string | null;
     } | null;
-  }
+  },
+  contextWarning?: string | null
 ) => {
   // 双重保险：确保最新指令不包含开头的 @提及
   const latestInstructionContent = taskRoomContext.latestUserMessage
@@ -716,6 +752,8 @@ const buildHarnessPrompt = (
           .join('\n')}`
       : '';
 
+  const warningSection = contextWarning ? `\n\n${contextWarning}` : '';
+
   return `Task: ${request.taskName}
 
 Role: ${participant.role}
@@ -725,7 +763,7 @@ Execution Backend: ${participant.executionBackend}
 
 You are being launched from a chat-first task room.
 Use the latest task-room instruction as the primary direction for this run.
-Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}
+Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}${warningSection}
 
 Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.`;
 };
@@ -743,7 +781,8 @@ const executeViaGateway = async (
       targetType: string;
       targetParticipantLabel: string | null;
     } | null;
-  }
+  },
+  contextWarning?: string | null
 ): Promise<{
   output: string;
   filesModified: string[];
@@ -760,7 +799,7 @@ const executeViaGateway = async (
   }
 
   const response = await createOpenClawResponse(config, {
-    input: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext),
+    input: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
     agentId: participant.agentId,
     model: participant.agentId ? `openclaw:${participant.agentId}` : undefined,
     sessionKey: `task:${request.taskId}:gateway:${participant.gatewayId}`,
@@ -792,7 +831,8 @@ const executeViaLocalHarness = async (
       targetParticipantLabel: string | null;
     } | null;
   },
-  onSpawn?: (child: { pid?: number }) => void
+  onSpawn?: (child: { pid?: number }) => void,
+  contextWarning?: string | null
 ): Promise<{
   output: string;
   filesModified: string[];
@@ -805,7 +845,7 @@ const executeViaLocalHarness = async (
   const task = {
     id: request.taskId,
     name: request.taskName,
-    description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext),
+    description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
   };
 
   if (participant.harnessType === 'codex') {
@@ -934,7 +974,8 @@ const executeViaRemoteSshHarness = async (
       targetParticipantLabel: string | null;
     } | null;
   },
-  onSpawn?: (child: { pid?: number }) => void
+  onSpawn?: (child: { pid?: number }) => void,
+  contextWarning?: string | null
 ): Promise<{
   output: string;
   filesModified: string[];
@@ -960,7 +1001,7 @@ const executeViaRemoteSshHarness = async (
     {
       id: request.taskId,
       name: request.taskName,
-      description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext),
+      description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
     },
     {
       timeout: resolveHarnessTimeout(
@@ -1274,6 +1315,14 @@ const executeParticipant = async (
       } else {
         await clearWaitingForInputIfNeeded(taskRunId, participantId);
       }
+
+      if (request.streamCallbacks?.onStdoutChunk) {
+        try {
+          await request.streamCallbacks.onStdoutChunk(chunk);
+        } catch (error) {
+          console.error('[ACPX] request stdout stream callback failed:', error);
+        }
+      }
     },
     onStderrChunk: async (chunk) => {
       const now = new Date();
@@ -1305,11 +1354,20 @@ const executeParticipant = async (
       } else {
         await clearWaitingForInputIfNeeded(taskRunId, participantId);
       }
+
+      if (request.streamCallbacks?.onStderrChunk) {
+        try {
+          await request.streamCallbacks.onStderrChunk(chunk);
+        } catch (error) {
+          console.error('[ACPX] request stderr stream callback failed:', error);
+        }
+      }
     },
   };
 
   try {
     const taskRoomContext = await buildTaskRoomPromptContext(request.taskId, request.taskName, 30);
+    const contextWarning = await checkContextWatermark(request.taskId, request.taskName, taskRoomContext);
     const localSpawnHandler = (child: { pid?: number }) => {
       if (participant.executionBackend === 'platform_local') {
         void persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
@@ -1326,7 +1384,8 @@ const executeParticipant = async (
             callbacks,
             previousSummaries,
             taskRoomContext,
-            localSpawnHandler
+            localSpawnHandler,
+            contextWarning
           )
         : participant.executionBackend === 'remote_ssh'
         ? await executeViaRemoteSshHarness(
@@ -1337,9 +1396,10 @@ const executeParticipant = async (
             callbacks,
             previousSummaries,
             taskRoomContext,
-            localSpawnHandler
+            localSpawnHandler,
+            contextWarning
           )
-        : await executeViaGateway(request, participant, previousSummaries, taskRoomContext);
+        : await executeViaGateway(request, participant, previousSummaries, taskRoomContext, contextWarning);
 
     clearRunningProcess(registryParticipantId);
 

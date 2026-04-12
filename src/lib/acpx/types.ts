@@ -105,6 +105,7 @@ export interface AcpxRunRequest {
   workingDirectory?: string;
   permissionConfig?: AcpxPermissionConfig;
   watchdogConfig?: WatchdogConfig;
+  streamCallbacks?: HarnessStreamCallbacks;
 }
 
 export interface AcpxLiveEventPayload {
