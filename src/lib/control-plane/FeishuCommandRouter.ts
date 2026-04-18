@@ -51,7 +51,7 @@ export class FeishuCommandRouter {
       const task = {
         id: `task-${Date.now()}`,
         type: 'custom',
-        description: taskDescription,
+        description: String(taskDescription),
         payload: { command: command.rawMessage },
         priority: command.options['priority'] ? Number(command.options['priority']) : 5,
       };
@@ -141,7 +141,7 @@ export class FeishuCommandRouter {
       const task = {
         id: `assign-${Date.now()}`,
         type: 'agent-task',
-        description: taskDescription,
+        description: String(taskDescription),
         payload: { 
           command: command.rawMessage,
           agentMention,
@@ -172,7 +172,7 @@ export class FeishuCommandRouter {
       const gateways = await this.gatewayManager.getAllGateways();
 
       const listText = gateways
-        .map((g, i) => `${i + 1}. **${g.id}** - ${g.name || 'Unnamed'} (${g.status})`)
+        .map((g, i) => `${i + 1}. **${g.id}** (${g.status})`)
         .join('\n');
 
       return {
@@ -235,7 +235,7 @@ export class FeishuCommandRouter {
     }
 
     // 提取命令部分
-    const commandMatch = content.match(/@(?:Agent Platform|Control Plane)\s+(\w+)(?:\s+(.*))?/s);
+    const commandMatch = content.match(/@(?:Agent Platform|Control Plane)\s+(\w+)(?:\s+([\s\S]*))?/);
     
     if (!commandMatch) {
       return null;

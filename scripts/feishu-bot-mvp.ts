@@ -59,16 +59,16 @@ class FeishuClient {
       throw new Error(`Failed to get tenant access token: ${data.msg}`);
     }
 
-    this.tenantAccessToken = data.tenant_access_token;
+    this.tenantAccessToken = data.tenant_access_token ?? null;
     this.tokenExpireTime = Date.now() + (data.expire - 100) * 1000; // 提前 100 秒刷新
-    return this.tenantAccessToken;
+    return this.tenantAccessToken!;
   }
 
   // 发送消息到群聊
   async sendTextMessage(chatId: string, text: string): Promise<void> {
     const token = await this.getTenantAccessToken();
     
-    const response = await fetch(`https://open.feishu.cn/open-apis/im/v1/messages`, {
+    const response = await fetch(`https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,7 +79,6 @@ class FeishuClient {
         msg_type: 'text',
         content: JSON.stringify({ text }),
       }),
-      searchParams: { receive_id_type: 'chat_id' },
     });
 
     const data = await response.json();
@@ -94,7 +93,7 @@ class FeishuClient {
   async replyMessage(chatId: string, messageId: string, text: string): Promise<void> {
     const token = await this.getTenantAccessToken();
     
-    const response = await fetch(`https://open.feishu.cn/open-apis/im/v1/messages`, {
+    const response = await fetch(`https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -106,7 +105,6 @@ class FeishuClient {
         content: JSON.stringify({ text }),
         reply_id: messageId,
       }),
-      searchParams: { receive_id_type: 'chat_id' },
     });
 
     const data = await response.json();

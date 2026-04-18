@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 import { normalizeAcpxPermissionConfig, DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
 import { findLatestParticipantSession } from '@/lib/acpx/session-tracking';
-import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { executeAcpxTaskRunWithContinuationFallback } from '@/lib/acpx/continuation-retry';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import { buildLiveRoomAcpxParticipant } from '@/lib/live-room';
@@ -237,32 +237,35 @@ export async function grantRightsForRoom(args: {
   });
 
   const latestSession = await findLatestParticipantSession(room.sourceTask.id, participant);
-  const runResult = await executeAcpxTaskRun({
-    taskId: room.sourceTask.id,
-    taskSessionId: room.sourceTask.currentTaskSession?.id || undefined,
-    taskName: room.sourceTask.name,
-    taskDescription: room.sourceTask.description || undefined,
-    orchestrationMode: 'single',
-    workingDirectory: room.sourceTask.workingDirectory || undefined,
-    permissionConfig: nextPermissionConfig,
-    participants: [
-      latestSession?.continuationSessionId
-        ? {
-            ...participant,
-            resumeSessionId: latestSession.continuationSessionId,
-            resumeThreadId:
-              latestSession.continuationSessionKind === 'codex_thread'
-                ? latestSession.continuationSessionId
-                : undefined,
-            continuationSessionKind: latestSession.continuationSessionKind || undefined,
-            continuationMessage,
-          }
-        : {
-            ...participant,
-            continuationMessage,
-            ephemeralSession: true,
-          },
-    ],
+  const runResult = await executeAcpxTaskRunWithContinuationFallback({
+    staleParticipantId: latestSession?.participant?.id || null,
+    request: {
+      taskId: room.sourceTask.id,
+      taskSessionId: room.sourceTask.currentTaskSession?.id || undefined,
+      taskName: room.sourceTask.name,
+      taskDescription: room.sourceTask.description || undefined,
+      orchestrationMode: 'single',
+      workingDirectory: room.sourceTask.workingDirectory || undefined,
+      permissionConfig: nextPermissionConfig,
+      participants: [
+        latestSession?.continuationSessionId
+          ? {
+              ...participant,
+              resumeSessionId: latestSession.continuationSessionId,
+              resumeThreadId:
+                latestSession.continuationSessionKind === 'codex_thread'
+                  ? latestSession.continuationSessionId
+                  : undefined,
+              continuationSessionKind: latestSession.continuationSessionKind || undefined,
+              continuationMessage,
+            }
+          : {
+              ...participant,
+              continuationMessage,
+              ephemeralSession: true,
+            },
+      ],
+    },
   });
 
   return {

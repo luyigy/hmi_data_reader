@@ -395,6 +395,7 @@ model LiveRoom {
   status                 String                  @default("active") // active, archived
   createdBy              String                  @default("user")
   currentSpeakerMemberId String?
+  workingDirectory       String?
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   sourceTask             Task?                   @relation(fields: [sourceTaskId], references: [id], onDelete: SetNull)

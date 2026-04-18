@@ -580,10 +580,10 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
       const gatewayLabel = agent.gatewayId || 'local';
       const status = agent.effectiveStatus;
       const catalog = catalogAgents.find((c) =>
-        c.harnessType === (agent.harnessType || agent.name?.toLowerCase()) &&
+        c.harnessType === (agent.type || agent.name?.toLowerCase()) &&
         (c.gatewayId === agent.gatewayId || (c.gatewayId === 'platform-local' && !agent.gatewayId))
       );
-      const catalogId = catalog?.id ?? `platform_local:${gatewayLabel}:${agent.harnessType || agent.name}`;
+      const catalogId = catalog?.id ?? `platform_local:${gatewayLabel}:${agent.type || agent.name}`;
       const nickname = agent.userNickname ? ` "${agent.userNickname}"` : '';
       return `- ${agent.name}${nickname} | ${status}\n  --agents=${catalogId}`;
     }),

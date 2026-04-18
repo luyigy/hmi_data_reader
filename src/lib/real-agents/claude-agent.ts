@@ -5,6 +5,7 @@
  */
 
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { getToolEmoji, buildToolPreview } from '@/lib/acpx/tool-emojis';
 import type { ChildProcess } from 'child_process';
 
 export interface ClaudeConfig {
@@ -325,6 +326,18 @@ Take your time and be thorough.`;
               resolvedOutput = text;
               void options.streamCallbacks?.onStdoutChunk?.(text);
             }
+
+            for (const item of event.message.content) {
+              if ((item as { type?: string }).type === 'tool_use') {
+                const toolItem = item as { type: string; name?: string; input?: unknown };
+                const toolName = toolItem.name || 'unknown';
+                const preview = buildToolPreview(toolItem.input);
+                const emoji = getToolEmoji(toolName);
+                console.log(`[Claude] tool_use detected: ${toolName} | preview="${preview}" | hasCallback=${!!options.streamCallbacks?.onToolEvent}`);
+                void options.streamCallbacks?.onToolEvent?.({ toolName, preview, emoji });
+              }
+            }
+
             continue;
           }
 

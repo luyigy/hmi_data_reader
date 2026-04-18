@@ -21,6 +21,9 @@ type FeishuTokenResponse = {
 type FeishuSendMessageResponse = {
   code: number;
   msg?: string;
+  data?: {
+    message_id?: string;
+  };
 };
 
 type FeishuMessageResourceDownloadResult = {
@@ -228,5 +231,180 @@ export async function removeTypingReaction(
     );
   } catch {
     // silent — typing cleanup is best-effort
+  }
+}
+
+export async function sendFeishuTextMessageAndReturnId(args: {
+  receiveId: string;
+  text: string;
+  receiveIdType?: 'chat_id' | 'open_id';
+}): Promise<string> {
+  const token = await getFeishuTenantAccessToken();
+  const receiveIdType = args.receiveIdType || 'chat_id';
+  const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
+  url.searchParams.set('receive_id_type', receiveIdType);
+
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      receive_id: args.receiveId,
+      msg_type: 'text',
+      content: JSON.stringify({ text: args.text }),
+    }),
+  });
+
+  const data = (await response.json()) as FeishuSendMessageResponse;
+  if (!response.ok || data.code !== 0) {
+    throw new Error(data.msg || `Failed to send Feishu message: HTTP ${response.status}`);
+  }
+
+  const messageId = data.data?.message_id;
+  if (!messageId) {
+    throw new Error('Feishu send message response missing message_id');
+  }
+
+  return messageId;
+}
+
+export async function editFeishuMessage(messageId: string, text: string): Promise<void> {
+  const token = await getFeishuTenantAccessToken();
+
+  const response = await fetch(
+    `${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(messageId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        msg_type: 'text',
+        content: JSON.stringify({ text }),
+      }),
+    }
+  );
+
+  const data = (await response.json()) as FeishuSendMessageResponse;
+  if (!response.ok || data.code !== 0) {
+    throw new Error(data.msg || `Failed to edit Feishu message: HTTP ${response.status}`);
+  }
+}
+
+function buildApprovalCardButton(
+  label: string,
+  cmdValue: string,
+  type: 'primary' | 'danger' | 'default' = 'default'
+) {
+  return {
+    tag: 'button',
+    text: { tag: 'plain_text', content: label },
+    type,
+    value: { cmd: cmdValue },
+  };
+}
+
+export async function sendFeishuApprovalCard(args: {
+  chatId: string;
+  interactionRequestId: string;
+  command: string;
+  kind: string;
+}): Promise<string> {
+  const token = await getFeishuTenantAccessToken();
+  const receiveIdType = 'chat_id';
+  const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
+  url.searchParams.set('receive_id_type', receiveIdType);
+
+  const commandPreview = args.command.slice(0, 800);
+  const card = {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { content: '⚠️ Agent 请求权限确认', tag: 'plain_text' },
+      template: 'orange',
+    },
+    elements: [
+      {
+        tag: 'markdown',
+        content: `**类型**：${args.kind}\n\`\`\`\n${commandPreview}\n\`\`\``,
+      },
+      {
+        tag: 'action',
+        actions: [
+          buildApprovalCardButton('✅ 批准', `approve:${args.interactionRequestId}`, 'primary'),
+          buildApprovalCardButton('❌ 拒绝', `deny:${args.interactionRequestId}`, 'danger'),
+        ],
+      },
+    ],
+  };
+
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      receive_id: args.chatId,
+      msg_type: 'interactive',
+      content: JSON.stringify(card),
+    }),
+  });
+
+  const data = (await response.json()) as FeishuSendMessageResponse;
+  if (!response.ok || data.code !== 0) {
+    throw new Error(data.msg || `Failed to send Feishu approval card: HTTP ${response.status}`);
+  }
+
+  const messageId = data.data?.message_id;
+  if (!messageId) {
+    throw new Error('Feishu send interactive message response missing message_id');
+  }
+
+  return messageId;
+}
+
+export async function updateFeishuApprovalCardResolved(args: {
+  messageId: string;
+  approved: boolean;
+  actorName: string;
+}): Promise<void> {
+  const token = await getFeishuTenantAccessToken();
+  const status = args.approved ? '✅ 已批准' : '❌ 已拒绝';
+
+  const card = {
+    config: { wide_screen_mode: true },
+    header: {
+      title: { content: `${status} by ${args.actorName}`, tag: 'plain_text' },
+      template: args.approved ? 'green' : 'red',
+    },
+    elements: [
+      {
+        tag: 'markdown',
+        content: `操作人：**${args.actorName}**`,
+      },
+    ],
+  };
+
+  const response = await fetch(
+    `${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(args.messageId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        msg_type: 'interactive',
+        content: JSON.stringify(card),
+      }),
+    }
+  );
+
+  const data = (await response.json()) as FeishuSendMessageResponse;
+  if (!response.ok || data.code !== 0) {
+    throw new Error(data.msg || `Failed to update Feishu approval card: HTTP ${response.status}`);
   }
 }

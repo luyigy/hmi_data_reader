@@ -131,9 +131,16 @@ export interface AcpxLiveEventPayload {
   createdAt: string;
 }
 
+export interface HarnessToolEvent {
+  toolName: string;
+  preview: string;
+  emoji: string;
+}
+
 export interface HarnessStreamCallbacks {
   onStdoutChunk?: (chunk: string) => Promise<void> | void;
   onStderrChunk?: (chunk: string) => Promise<void> | void;
+  onToolEvent?: (event: HarnessToolEvent) => Promise<void> | void;
 }
 
 export interface HarnessInteractionRequest {

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { executeAcpxTaskRun } from './runner';
+import { executeAcpxTaskRunWithContinuationFallback } from './continuation-retry';
 import { publishTaskRunEvent } from './event-bus';
 import { getContinuationSession } from './session-tracking';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from './permissions';
@@ -239,31 +239,34 @@ export const resolveInteractionRequestWithContinuation = async (args: {
 
   if (continuation.sessionId && continuationMessage) {
     try {
-      const result = await executeAcpxTaskRun({
-        taskId: request.task.id,
-        taskSessionId: request.taskRun.taskSessionId || request.task.currentTaskSessionId || undefined,
-        taskName: request.task.name,
-        taskDescription: request.task.description || undefined,
-        orchestrationMode: 'single',
-        workingDirectory: request.task.workingDirectory || undefined,
-        permissionConfig,
-        participants: [
-          {
-            gatewayId: participant.gatewayId || 'local',
-            gatewayName: participant.gatewayNameSnapshot,
-            executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
-            harnessType: participant.harnessType,
-            harnessLabel: participant.harnessNameSnapshot || undefined,
-            role: participant.role,
-            agentId: participant.agentId || undefined,
-            agentName: participant.agentNameSnapshot || undefined,
-            resumeSessionId: continuation.sessionId,
-            continuationSessionKind: continuation.sessionKind || undefined,
-            resumeThreadId:
-              continuation.sessionKind === 'codex_thread' ? continuation.sessionId : undefined,
-            continuationMessage,
-          },
-        ],
+      const result = await executeAcpxTaskRunWithContinuationFallback({
+        staleParticipantId: participant.id,
+        request: {
+          taskId: request.task.id,
+          taskSessionId: request.taskRun.taskSessionId || request.task.currentTaskSessionId || undefined,
+          taskName: request.task.name,
+          taskDescription: request.task.description || undefined,
+          orchestrationMode: 'single',
+          workingDirectory: request.task.workingDirectory || undefined,
+          permissionConfig,
+          participants: [
+            {
+              gatewayId: participant.gatewayId || 'local',
+              gatewayName: participant.gatewayNameSnapshot,
+              executionBackend: participant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
+              harnessType: participant.harnessType,
+              harnessLabel: participant.harnessNameSnapshot || undefined,
+              role: participant.role,
+              agentId: participant.agentId || undefined,
+              agentName: participant.agentNameSnapshot || undefined,
+              resumeSessionId: continuation.sessionId,
+              continuationSessionKind: continuation.sessionKind || undefined,
+              resumeThreadId:
+                continuation.sessionKind === 'codex_thread' ? continuation.sessionId : undefined,
+              continuationMessage,
+            },
+          ],
+        },
       });
 
       continuationRunId = result.taskRunId;

@@ -21,6 +21,7 @@ import {
 import { getParticipantContinuationKey } from './session-tracking';
 import { ensureTaskSession, setTaskSessionActiveRun } from './session';
 import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } from './interactions';
+import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import type {
   AcpxLiveEventPayload,
   AcpxParticipantRequest,
@@ -549,6 +550,24 @@ const handleHarnessInteractionRequest = async ({
         excerpt: request.rawContent.slice(0, 600),
       },
     });
+
+    // Push an approval card to the Feishu chat bound to this task's live room
+    if (isWaitingUser) {
+      prisma.feishuConversationBinding.findFirst({
+        where: { liveRoom: { sourceTaskId: taskId } },
+        select: { chatId: true },
+      }).then(async (binding) => {
+        if (!binding) return;
+        await sendFeishuApprovalCard({
+          chatId: binding.chatId,
+          interactionRequestId: persistedRequest.id,
+          command: request.rawContent.slice(0, 800),
+          kind: request.kind,
+        });
+      }).catch((err) => {
+        console.error('[runner] failed to send feishu approval card:', err);
+      });
+    }
   }
 
   await publishTaskRunEvent({
@@ -1384,6 +1403,9 @@ const executeParticipant = async (
         }
       }
     },
+    onToolEvent: request.streamCallbacks?.onToolEvent
+      ? (event) => { void request.streamCallbacks!.onToolEvent!(event); }
+      : undefined,
   };
 
   try {

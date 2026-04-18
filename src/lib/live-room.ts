@@ -931,9 +931,8 @@ export const postLiveRoomMessage = async ({
           });
         }
       } else {
-        // 降级方案：使用正则表达式（可能不准确，但作为后备）
-        // 改进的正则：贪婪匹配，支持多词名称
-        const greedyMatch = created.content.match(/^[@$].+\s+([\s\S]+)$/);
+        // 降级方案：使用正则表达式剥离首个 @/$ 提及 token
+        const greedyMatch = created.content.match(/^[@$]\S+\s+([\s\S]+)$/);
         if (greedyMatch && greedyMatch[1].trim()) {
           contentForTaskRoom = greedyMatch[1].trim();
           if (process.env.DEBUG_MENTION_DETECTION === 'true') {

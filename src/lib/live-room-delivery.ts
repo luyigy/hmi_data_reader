@@ -23,6 +23,7 @@ import {
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import type { AcpxPermissionConfig, HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { FeishuProgressTracker } from '@/lib/feishu-progress';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const ALL_REPLY_STAGGER_MS = 750;
@@ -623,6 +624,13 @@ const executeLiveRoomReplyViaAcpx = async ({
     }),
   });
 
+  const feishuBinding = await prisma.feishuConversationBinding.findFirst({
+    where: { liveRoomId: room.id },
+    select: { chatId: true },
+  }).catch(() => null);
+  console.log(`[delivery] feishuBinding for room ${room.id}: ${feishuBinding ? feishuBinding.chatId : 'null'}`);
+  const feishuTracker = feishuBinding ? new FeishuProgressTracker(feishuBinding.chatId) : null;
+
   let lastProgressPreview = '';
   let lastProgressPostedAt = 0;
   let progressFlushPromise: Promise<void> = Promise.resolve();
@@ -667,13 +675,16 @@ const executeLiveRoomReplyViaAcpx = async ({
       });
   };
 
-  const liveRoomStreamCallbacks = {
+  const liveRoomStreamCallbacks: HarnessStreamCallbacks = {
     onStdoutChunk: (chunk: string) => {
       enqueueProgressUpdate('stdout', chunk);
     },
     onStderrChunk: (chunk: string) => {
       enqueueProgressUpdate('stderr', chunk);
     },
+    onToolEvent: feishuTracker
+      ? (event) => { feishuTracker.onToolEvent(event.toolName, event.preview, event.emoji); }
+      : undefined,
   };
 
   let acpxResult = await runLiveRoomAcpxAttempt({
@@ -783,6 +794,10 @@ const executeLiveRoomReplyViaAcpx = async ({
       staleReason: 'codex_local_state_error',
       staleParticipantId: latestSession?.participant?.id || null,
     });
+  }
+
+  if (feishuTracker) {
+    await feishuTracker.flush().catch(() => {});
   }
 
   await prisma.task.update({

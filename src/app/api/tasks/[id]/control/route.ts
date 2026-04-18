@@ -4,7 +4,7 @@ import { createTaskRunControlMessage } from '@/lib/acpx/control';
 import { requestRunControl } from '@/lib/acpx/process-registry';
 import { publishTaskRunEvent } from '@/lib/acpx/event-bus';
 import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
-import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { executeAcpxTaskRunWithContinuationFallback } from '@/lib/acpx/continuation-retry';
 import { getContinuationSession } from '@/lib/acpx/session-tracking';
 import {
   ensureTaskChatRoom,
@@ -368,31 +368,34 @@ export async function POST(
         },
       });
 
-      const continuationResult = await executeAcpxTaskRun({
-        taskId: task.id,
-        taskSessionId: targetRun.taskSessionId || task.currentTaskSession?.id || undefined,
-        taskName: task.name,
-        taskDescription: task.description || undefined,
-        orchestrationMode: 'single',
-        workingDirectory: task.workingDirectory || undefined,
-        permissionConfig,
-        participants: [
-          {
-            gatewayId: selectedParticipant.gatewayId || 'local',
-            gatewayName: selectedParticipant.gatewayNameSnapshot,
-            executionBackend: selectedParticipant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
-            harnessType: selectedParticipant.harnessType,
-            harnessLabel: selectedParticipant.harnessNameSnapshot || undefined,
-            role: selectedParticipant.role,
-            agentId: selectedParticipant.agentId || undefined,
-            agentName: selectedParticipant.agentNameSnapshot || undefined,
-            resumeSessionId: continuationSessionId,
-            continuationSessionKind: continuationSessionKind || undefined,
-            resumeThreadId:
-              continuationSessionKind === 'codex_thread' ? continuationSessionId : undefined,
-            continuationMessage: content,
-          },
-        ],
+      const continuationResult = await executeAcpxTaskRunWithContinuationFallback({
+        staleParticipantId: selectedParticipant.id,
+        request: {
+          taskId: task.id,
+          taskSessionId: targetRun.taskSessionId || task.currentTaskSession?.id || undefined,
+          taskName: task.name,
+          taskDescription: task.description || undefined,
+          orchestrationMode: 'single',
+          workingDirectory: task.workingDirectory || undefined,
+          permissionConfig,
+          participants: [
+            {
+              gatewayId: selectedParticipant.gatewayId || 'local',
+              gatewayName: selectedParticipant.gatewayNameSnapshot,
+              executionBackend: selectedParticipant.executionBackend as 'platform_local' | 'gateway_openclaw' | 'remote_ssh',
+              harnessType: selectedParticipant.harnessType,
+              harnessLabel: selectedParticipant.harnessNameSnapshot || undefined,
+              role: selectedParticipant.role,
+              agentId: selectedParticipant.agentId || undefined,
+              agentName: selectedParticipant.agentNameSnapshot || undefined,
+              resumeSessionId: continuationSessionId,
+              continuationSessionKind: continuationSessionKind || undefined,
+              resumeThreadId:
+                continuationSessionKind === 'codex_thread' ? continuationSessionId : undefined,
+              continuationMessage: content,
+            },
+          ],
+        },
       });
 
       const sourceRunTracking = readTrackingObject(parseMetadata(targetRun.controlMetadata));

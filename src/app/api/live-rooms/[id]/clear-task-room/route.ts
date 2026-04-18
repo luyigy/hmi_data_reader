@@ -16,9 +16,8 @@ export async function POST(
       where: { id: params.id },
       select: {
         id: true,
-        name: true,
-        taskId: true,
-        taskName: true,
+        title: true,
+        sourceTaskId: true,
       },
     });
 
@@ -26,14 +25,14 @@ export async function POST(
       return NextResponse.json({ error: 'Live room not found' }, { status: 404 });
     }
 
-    if (!liveRoom.taskId) {
+    if (!liveRoom.sourceTaskId) {
       return NextResponse.json(
         { error: 'Live room is not associated with a task' },
         { status: 400 }
       );
     }
 
-    const result = await clearTaskRoomMessages(liveRoom.taskId, liveRoom.taskName || liveRoom.name);
+    const result = await clearTaskRoomMessages(liveRoom.sourceTaskId, liveRoom.title);
 
     if (!result.success) {
       return NextResponse.json(
@@ -46,7 +45,7 @@ export async function POST(
       success: true,
       message: result.message,
       liveRoomId: liveRoom.id,
-      taskId: liveRoom.taskId,
+      taskId: liveRoom.sourceTaskId,
       taskRoomId: result.roomId,
       deletedCount: result.deletedCount,
     });

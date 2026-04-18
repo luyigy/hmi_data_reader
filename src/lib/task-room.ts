@@ -90,6 +90,12 @@ export const ensureTaskChatRoom = async (taskId: string, taskName: string) => {
   });
 };
 
+export const countTaskRoomMessages = async (taskId: string, taskName: string) => {
+  const room = await findTaskChatRoom(taskId, taskName);
+  if (!room) return 0;
+  return prisma.message.count({ where: { roomId: room.id } });
+};
+
 export const getTaskRoomMessages = async (taskId: string, taskName: string, limit = 50) => {
   const room = await ensureTaskChatRoom(taskId, taskName);
   const messages = await prisma.message.findMany({

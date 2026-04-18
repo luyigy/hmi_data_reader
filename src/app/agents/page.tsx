@@ -86,7 +86,7 @@ export default function AgentsPage() {
       emojiIcon: agent.emojiIcon || '🤖',
       colorTag: agent.colorTag || '#4A90E2',
     });
-    setSaveStatus({ ...saveStatus, [agent.id]: undefined });
+    setSaveStatus((prev) => { const next = { ...prev }; delete next[agent.id]; return next; });
   };
 
   const cancelEdit = () => {
@@ -121,7 +121,7 @@ export default function AgentsPage() {
 
       setSaveStatus({ ...saveStatus, [agentId]: 'saved' });
       setTimeout(() => {
-        setSaveStatus(prev => ({ ...prev, [agentId]: undefined }));
+        setSaveStatus(prev => { const next = { ...prev }; delete next[agentId]; return next; });
       }, 2000);
 
       setEditingId(null);
