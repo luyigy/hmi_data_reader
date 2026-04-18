@@ -159,3 +159,40 @@ export const findLatestParticipantSession = async (
       }
     : null;
 };
+
+export const markParticipantContinuationStale = async ({
+  participantId,
+  reason,
+}: {
+  participantId: string;
+  reason: string;
+}) => {
+  const participant = await prisma.taskRunParticipant.findUnique({
+    where: { id: participantId },
+    select: {
+      controlMetadata: true,
+    },
+  });
+
+  if (!participant) {
+    return;
+  }
+
+  const metadata = parseAcpxMetadata(participant.controlMetadata);
+  delete metadata.lastSessionId;
+  delete metadata.lastSessionKind;
+  delete metadata.lastSessionThreadId;
+  delete metadata.codexThreadId;
+  delete metadata.claudeSessionId;
+
+  await prisma.taskRunParticipant.update({
+    where: { id: participantId },
+    data: {
+      controlMetadata: JSON.stringify({
+        ...metadata,
+        continuationStaleAt: new Date().toISOString(),
+        continuationStaleReason: reason,
+      }),
+    },
+  });
+};

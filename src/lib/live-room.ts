@@ -700,6 +700,14 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
     return null;
   }
 
+  const workingDirectoryRows = await prisma.$queryRaw<Array<{ workingDirectory: string | null }>>`
+    SELECT "workingDirectory"
+    FROM "LiveRoom"
+    WHERE "id" = ${roomId}
+    LIMIT 1
+  `;
+  const workingDirectory = workingDirectoryRows[0]?.workingDirectory || null;
+
   const participants = room.members
     .filter((member) => member.canReply)
     .map((member) => buildLiveRoomAcpxParticipant({
@@ -727,7 +735,7 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
     description: taskDescription,
     executionMode: 'acpx',
     acpxParticipants: JSON.stringify(participants),
-    workingDirectory: process.cwd(),
+    workingDirectory: workingDirectory || process.cwd(),
     result: JSON.stringify({
       executionMode: 'acpx',
       source: 'live_room',

@@ -10,7 +10,7 @@ import type { ChildProcess } from 'child_process';
 export interface ClaudeConfig {
   apiKey?: string;
   model?: string;
-  timeout?: number;
+  timeout?: number | null;
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
@@ -42,7 +42,7 @@ export const executeClaudeTask = async (
 ): Promise<ClaudeResult> => {
   const startTime = Date.now();
   const {
-    timeout = 60000,
+    timeout = null,
     workingDirectory = process.cwd(),
     streamCallbacks,
   } = config;
@@ -87,7 +87,7 @@ export const resumeClaudeSession = async ({
 }: {
   sessionId: string;
   prompt: string;
-  timeout: number;
+  timeout: number | null;
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
@@ -135,7 +135,7 @@ export const resumeClaudeSession = async ({
 const executeClaudeCLI = async (
   task: ClaudeTask,
   options: {
-    timeout: number;
+    timeout: number | null;
     workingDirectory: string;
     streamCallbacks?: HarnessStreamCallbacks;
     onSpawn?: (child: ChildProcess) => void;
@@ -292,11 +292,23 @@ Take your time and be thorough.`;
             is_error?: boolean;
             errors?: unknown;
             session_id?: string;
+            apiKeySource?: string;
+            model?: string;
+            permissionMode?: string;
             message?: {
               content?: Array<{ type?: string; text?: string }>;
             };
             result?: string;
           };
+
+          if (event.type === 'system' && event.subtype === 'init') {
+            console.log('[Claude] Init event:', {
+              sessionId: event.session_id || null,
+              apiKeySource: event.apiKeySource || null,
+              model: event.model || null,
+              permissionMode: event.permissionMode || null,
+            });
+          }
 
           if (typeof event.session_id === 'string' && event.session_id.trim()) {
             sessionId = event.session_id.trim();
@@ -394,15 +406,17 @@ Take your time and be thorough.`;
       reject(err);
     });
 
-    // Handle timeout
-    setTimeout(() => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      child.kill('SIGTERM');
-      reject(new Error(`Claude execution timed out after ${options.timeout}ms`));
-    }, options.timeout);
+    // Handle timeout (null = no timeout)
+    if (options.timeout !== null) {
+      setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        child.kill('SIGTERM');
+        reject(new Error(`Claude execution timed out after ${options.timeout}ms`));
+      }, options.timeout);
+    }
   });
 };
 

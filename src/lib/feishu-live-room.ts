@@ -212,6 +212,7 @@ export async function ensureFeishuConversationBinding(args: {
   selectedAgentIds?: string[];
   title?: string;
   topic?: string;
+  workingDirectory?: string;
 }) {
   const scopeKey = buildFeishuBindingScopeKey(args.context);
   const selectedAgentIds = args.selectedAgentIds || [];
@@ -247,6 +248,15 @@ export async function ensureFeishuConversationBinding(args: {
       await syncLiveRoomSourceTask(existing.liveRoomId);
     }
 
+    const requestedWorkingDirectory = args.workingDirectory?.trim();
+    if (requestedWorkingDirectory) {
+      await prisma.$executeRaw`
+        UPDATE "LiveRoom"
+        SET "workingDirectory" = ${requestedWorkingDirectory}
+        WHERE "id" = ${existing.liveRoomId}
+      `;
+    }
+
     await prisma.$executeRaw`
       UPDATE "FeishuConversationBinding"
       SET "latestMessageId" = ${args.context.messageId}, "updatedAt" = CURRENT_TIMESTAMP
@@ -276,6 +286,15 @@ export async function ensureFeishuConversationBinding(args: {
       createdBy: 'feishu',
     },
   });
+
+  const requestedWorkingDirectory = args.workingDirectory?.trim();
+  if (requestedWorkingDirectory) {
+    await prisma.$executeRaw`
+      UPDATE "LiveRoom"
+      SET "workingDirectory" = ${requestedWorkingDirectory}
+      WHERE "id" = ${room.id}
+    `;
+  }
 
   const userMember = await ensureLiveRoomUserMember(room.id);
   const createdMembers = await addAgentsToLiveRoom(room.id, selectedAgentIds);

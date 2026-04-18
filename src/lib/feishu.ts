@@ -24,7 +24,7 @@ import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@
 import { normalizeAcpxPermissionConfig, DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
 import { buildTaskRoomPromptContext, ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
-import { buildLiveRoomAcpxParticipant } from '@/lib/live-room';
+import { buildLiveRoomAcpxParticipant, listLiveRoomCatalogAgents } from '@/lib/live-room';
 const DEFAULT_HELP_TEXT = [
   'Agent Platform Feishu Bot',
   '',
@@ -51,6 +51,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap grant <dev|full> [--agent=<name>] [message]',
   '/ap rights [--agent=<name>]',
   '/ap handover [agentName|idSuffix] [--title="handover title"]',
+  '/ap workspace [/path/to/dir]',
   '/ap new-session --handover="docs/xx.md" [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
 
@@ -106,7 +107,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'new-session';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
   args: string[];
   options: Record<string, string>;
 };
@@ -453,7 +454,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const command = rawCommand.toLowerCase();
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'new-session'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
     return null;
   }
 
@@ -547,7 +548,7 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
   await ensurePlatformLocalAgents();
   const gatewayId = command.args[0];
   const currentHostname = getServerHostname();
-  const [agents, localStatus] = await Promise.all([
+  const [agents, localStatus, catalogAgents] = await Promise.all([
     prisma.agent.findMany({
       where: gatewayId ? { gatewayId } : undefined,
       orderBy: [
@@ -557,6 +558,7 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
       take: 40,
     }),
     getRealAgentsStatus(),
+    listLiveRoomCatalogAgents(),
   ]);
 
   if (agents.length === 0) {
@@ -573,11 +575,17 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
     .filter((agent) => !agent.hostname || agent.hostname === currentHostname || agent.effectiveStatus !== 'offline');
 
   return [
-    gatewayId ? `Agents for ${gatewayId}` : 'Agents',
+    gatewayId ? `Agents for ${gatewayId}` : 'Agents (用 --agents=<id> 指定)',
     ...normalizedAgents.map((agent) => {
-      const runtimeId = agent.runtimeAgentId || agent.id;
       const gatewayLabel = agent.gatewayId || 'local';
-      return `- ${agent.name} (${runtimeId}) | ${gatewayLabel} | ${agent.effectiveStatus}`;
+      const status = agent.effectiveStatus;
+      const catalog = catalogAgents.find((c) =>
+        c.harnessType === (agent.harnessType || agent.name?.toLowerCase()) &&
+        (c.gatewayId === agent.gatewayId || (c.gatewayId === 'platform-local' && !agent.gatewayId))
+      );
+      const catalogId = catalog?.id ?? `platform_local:${gatewayLabel}:${agent.harnessType || agent.name}`;
+      const nickname = agent.userNickname ? ` "${agent.userNickname}"` : '';
+      return `- ${agent.name}${nickname} | ${status}\n  --agents=${catalogId}`;
     }),
   ].join('\n');
 }
@@ -1681,6 +1689,36 @@ async function handleApproveLikeCommand(args: {
   ].join('\n');
 }
 
+async function handleWorkspaceCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const newDir = command.args.join(' ').trim() || command.options['path'] || '';
+  if (!newDir) {
+    const rows = await prisma.$queryRaw<Array<{ workingDirectory: string | null }>>`
+      SELECT "workingDirectory"
+      FROM "LiveRoom"
+      WHERE "id" = ${roomId}
+      LIMIT 1
+    `;
+    return `当前工作目录：${rows[0]?.workingDirectory || process.cwd()}\n如需修改：/ap workspace /your/path`;
+  }
+
+  await prisma.$executeRaw`
+    UPDATE "LiveRoom"
+    SET "workingDirectory" = ${newDir}
+    WHERE "id" = ${roomId}
+  `;
+  const room = await prisma.liveRoom.findUnique({ where: { id: roomId }, select: { sourceTaskId: true } });
+  if (room?.sourceTaskId) {
+    await prisma.task.update({ where: { id: room.sourceTaskId }, data: { workingDirectory: newDir } });
+  }
+
+  return `✅ 工作目录已更新为：${newDir}`;
+}
+
 async function handleRoomCommand(
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext
@@ -1696,6 +1734,7 @@ async function handleRoomCommand(
     selectedAgentIds,
     title,
     topic: command.options['topic'],
+    workingDirectory: command.options['workdir'] || undefined,
   });
 
   return [
@@ -1754,6 +1793,8 @@ export async function handleFeishuCommand(args: {
       return handleRightsCommand(args);
     case 'handover':
       return handleHandoverCommand(args.command, args.context);
+    case 'workspace':
+      return handleWorkspaceCommand(args.command, args.context);
     case 'new-session':
       return handleNewSessionCommand(args.command, args.context);
     default:

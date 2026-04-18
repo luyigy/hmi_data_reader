@@ -676,16 +676,20 @@ const stripLeadingMention = (content: string): string => {
 const CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD = 40;
 const CONTEXT_WARN_EVENT_THRESHOLD = 200;
 const CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT = 3800; // 4000 char limit in task-room.ts
+// Hard limits: beyond these thresholds the agent should compact NOW, not just warn.
+const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
+const CONTEXT_HARD_EVENT_THRESHOLD = 400;
 
 const checkContextWatermark = async (
   taskId: string,
   taskName: string,
   taskRoomContext: { transcript: string }
 ): Promise<string | null> => {
-  const reasons: string[] = [];
+  const softReasons: string[] = [];
+  const hardReasons: string[] = [];
 
   if (taskRoomContext.transcript.length >= CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT) {
-    reasons.push('对话记录已满');
+    softReasons.push('对话记录已满');
   }
 
   const [roomMessageCount, eventCount] = await Promise.all([
@@ -693,17 +697,33 @@ const checkContextWatermark = async (
     prisma.taskRunEvent.count({ where: { taskRun: { taskId } } }),
   ]);
 
-  if (roomMessageCount >= CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD) {
-    reasons.push(`任务室已有 ${roomMessageCount} 条消息`);
+  if (roomMessageCount >= CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD) {
+    hardReasons.push(`任务室已有 ${roomMessageCount} 条消息`);
+  } else if (roomMessageCount >= CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD) {
+    softReasons.push(`任务室已有 ${roomMessageCount} 条消息`);
   }
 
-  if (eventCount >= CONTEXT_WARN_EVENT_THRESHOLD) {
-    reasons.push(`已累计 ${eventCount} 条运行事件`);
+  if (eventCount >= CONTEXT_HARD_EVENT_THRESHOLD) {
+    hardReasons.push(`已累计 ${eventCount} 条运行事件`);
+  } else if (eventCount >= CONTEXT_WARN_EVENT_THRESHOLD) {
+    softReasons.push(`已累计 ${eventCount} 条运行事件`);
   }
 
-  if (reasons.length === 0) return null;
+  if (hardReasons.length > 0) {
+    return [
+      `[系统警告] 当前 session 上下文已严重超载（${hardReasons.join('、')}）。`,
+      `请在完成本次任务后立即执行以下操作：`,
+      `1. 用 2-3 句话总结你到目前为止完成的工作和关键发现`,
+      `2. 告知用户需要通过 /ap new-session 开始新 session 以避免上下文丢失`,
+      `不要继续累积新的上下文，先完成当前指令，然后输出总结。`,
+    ].join('\n');
+  }
 
-  return `[系统提示] 当前 session 上下文已接近阈值（${reasons.join('、')}），建议执行 /ap handover 后切换新 session。`;
+  if (softReasons.length > 0) {
+    return `[系统提示] 当前 session 上下文已接近阈值（${softReasons.join('、')}），建议在合适时机执行 /ap new-session 切换新 session。`;
+  }
+
+  return null;
 };
 // ------------------------------------
 
@@ -917,11 +937,12 @@ const executeViaLocalHarness = async (
       onSpawn?.(child);
     };
 
+    const claudeTimeout = resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_CLAUDE_MAX_RUNTIME_MS);
     const result = participant.resumeSessionId && participant.continuationMessage
       ? await resumeClaudeSession({
           sessionId: participant.resumeSessionId,
           prompt: participant.continuationMessage,
-          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CLAUDE_MAX_RUNTIME_MS,
+          timeout: claudeTimeout,
           workingDirectory: request.workingDirectory,
           streamCallbacks: callbacks,
           onSpawn: registerSpawn,
@@ -930,7 +951,7 @@ const executeViaLocalHarness = async (
           },
         })
       : await executeClaudeTask(task, {
-          timeout: request.watchdogConfig?.maxRuntimeMs ?? DEFAULT_CLAUDE_MAX_RUNTIME_MS,
+          timeout: claudeTimeout,
           workingDirectory: request.workingDirectory,
           streamCallbacks: callbacks,
           onSpawn: registerSpawn,

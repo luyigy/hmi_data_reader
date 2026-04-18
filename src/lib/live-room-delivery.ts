@@ -297,13 +297,13 @@ const shouldRetryCodexEphemeral = ({
   && CODEX_EPHEMERAL_RETRY_PATTERNS.some((pattern) => pattern.test(message))
 );
 
-const shouldPreferTranscriptContinuation = ({
-  executionBackend,
-  harnessType,
-}: {
+// Codex thread continuation is now enabled — transcript-only mode was removed because
+// it silently discarded all session history on every message. Stale thread fallback
+// is handled by INVALID_CODEX_CONTINUATION_PATTERNS + shouldRetryWithFreshSession.
+const shouldPreferTranscriptContinuation = (_args: {
   executionBackend: string | null;
   harnessType: string | null;
-}) => executionBackend === 'platform_local' && harnessType === 'codex';
+}) => false;
 
 const LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS = 8000;
 const LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS = 220;
@@ -489,8 +489,11 @@ const runLiveRoomAcpxAttempt = async ({
     })
     && Boolean(latestSession?.continuationSessionId);
 
+  // Live room agents run interactively and may take longer than a fixed cap.
+  // Disable the hard timeout for all platform_local agents (both claude and codex).
+  // Remote SSH agents keep the default timeout since they run on external machines.
   const watchdogConfig =
-    participant.executionBackend === 'platform_local' && participant.harnessType === 'codex'
+    participant.executionBackend === 'platform_local'
       ? { maxRuntimeMs: null }
       : undefined;
 
