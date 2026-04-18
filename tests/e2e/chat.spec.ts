@@ -69,7 +69,7 @@ test.describe('Chat', () => {
       await page.waitForTimeout(500);
       
       // Add message text
-      await chatInput.pressSequential(' Test message for agent');
+      await chatInput.pressSequentially(' Test message for agent');
       
       // Send message
       const sendButton = page.getByRole('button', { name: /send/i });
