@@ -83,20 +83,24 @@ export const executeRealAgentTask = async (
 export const getRealAgentsStatus = async (): Promise<{
   codex: { available: boolean; version?: string };
   claude: { available: boolean; version?: string };
+  'claude-haha': { available: boolean; version?: string };
 }> => {
-  const [codexAvailable, claudeAvailable] = await Promise.all([
+  const [codexAvailable, claudeAvailable, claudeHahaAvailable] = await Promise.all([
     isCodexAvailable(),
-    isClaudeAvailable(),
+    isClaudeAvailable('claude'),
+    isClaudeAvailable('claude-haha'),
   ]);
 
-  const [codexVersion, claudeVersion] = await Promise.all([
+  const [codexVersion, claudeVersion, claudeHahaVersion] = await Promise.all([
     codexAvailable ? getCodexVersion() : Promise.resolve(undefined),
-    claudeAvailable ? getClaudeVersion() : Promise.resolve(undefined),
+    claudeAvailable ? getClaudeVersion('claude') : Promise.resolve(undefined),
+    claudeHahaAvailable ? getClaudeVersion('claude-haha') : Promise.resolve(undefined),
   ]);
 
   return {
     codex: { available: codexAvailable, version: codexVersion },
     claude: { available: claudeAvailable, version: claudeVersion },
+    'claude-haha': { available: claudeHahaAvailable, version: claudeHahaVersion },
   };
 };
 
@@ -105,7 +109,7 @@ export const getRealAgentsStatus = async (): Promise<{
  */
 export const registerRealAgent = async (
   name: string,
-  type: 'codex' | 'claude',
+  type: 'codex' | 'claude' | 'claude-haha',
   location: 'local' | 'remote' | 'cloud' = 'local'
 ): Promise<{
   id: string;
@@ -120,7 +124,7 @@ export const registerRealAgent = async (
   const agent = await prisma.agent.create({
     data: {
       name,
-      type: type === 'codex' ? 'coding' : 'coding',
+      type,
       location,
       capabilities: JSON.stringify(['coding', 'analysis', 'review']),
       status: 'online',

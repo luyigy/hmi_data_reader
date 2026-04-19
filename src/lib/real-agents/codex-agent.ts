@@ -6,6 +6,7 @@
 
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import type { ChildProcess } from 'child_process';
+import { processCodexJsonLine } from './codex-event-parser';
 
 export interface CodexConfig {
   apiKey?: string;
@@ -103,19 +104,6 @@ interface CodexExecutionOptions {
 interface CodexCliResult {
   output: string;
   threadId: string | null;
-}
-
-interface CodexJsonEvent {
-  type?: string;
-  thread_id?: string;
-  message?: string;
-  error?: {
-    message?: string;
-  };
-  item?: {
-    type?: string;
-    text?: string;
-  };
 }
 
 const buildCodexChildEnv = () => {
@@ -333,26 +321,17 @@ const runCodexJsonCommand = async ({
         }
 
         try {
-          const event = JSON.parse(trimmed) as CodexJsonEvent;
-          if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
-            threadId = event.thread_id;
-            options.onThreadStarted?.(event.thread_id);
+          const parsed = processCodexJsonLine(trimmed, options.streamCallbacks);
+          if (parsed.threadId) {
+            threadId = parsed.threadId;
+            options.onThreadStarted?.(parsed.threadId);
           }
-
-          if (event.type === 'turn.failed') {
-            turnFailureMessage = event.error?.message || event.message || 'Codex turn failed';
+          if (parsed.turnFailureMessage) {
+            turnFailureMessage = parsed.turnFailureMessage;
           }
-
-          const text =
-            event.type === 'item.completed'
-            && event.item?.type === 'agent_message'
-            && typeof event.item.text === 'string'
-              ? event.item.text
-              : null;
-
-          if (text) {
-            resolvedText = text;
-            void options.streamCallbacks?.onStdoutChunk?.(text);
+          if (parsed.resolvedText) {
+            resolvedText = parsed.resolvedText;
+            void options.streamCallbacks?.onStdoutChunk?.(parsed.resolvedText);
           }
         } catch {
           plainStdout += `${trimmed}\n`;
@@ -381,25 +360,16 @@ const runCodexJsonCommand = async ({
 
       if (stdoutBuffer.trim()) {
         try {
-          const event = JSON.parse(stdoutBuffer.trim()) as CodexJsonEvent;
-          if (event.type === 'thread.started' && typeof event.thread_id === 'string') {
-            threadId = event.thread_id;
-            options.onThreadStarted?.(event.thread_id);
+          const parsed = processCodexJsonLine(stdoutBuffer.trim(), options.streamCallbacks);
+          if (parsed.threadId) {
+            threadId = parsed.threadId;
+            options.onThreadStarted?.(parsed.threadId);
           }
-
-          if (event.type === 'turn.failed') {
-            turnFailureMessage = event.error?.message || event.message || 'Codex turn failed';
+          if (parsed.turnFailureMessage) {
+            turnFailureMessage = parsed.turnFailureMessage;
           }
-
-          const text =
-            event.type === 'item.completed'
-            && event.item?.type === 'agent_message'
-            && typeof event.item.text === 'string'
-              ? event.item.text
-              : null;
-
-          if (text) {
-            resolvedText = text;
+          if (parsed.resolvedText) {
+            resolvedText = parsed.resolvedText;
           }
         } catch {
           if (!resolvedText && stdoutBuffer.trim()) {

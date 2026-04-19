@@ -97,6 +97,101 @@ const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
 const getMessageMetadataValue = (message: LiveRoomMessage, key: string) =>
   (message.metadata && typeof message.metadata[key] !== 'undefined') ? message.metadata[key] : null;
 
+const getLiveRoomSystemEvent = (message: LiveRoomMessage) => {
+  const value = getMessageMetadataValue(message, 'systemEvent');
+  return typeof value === 'string' ? value : null;
+};
+
+const renderLiveRoomSystemMessage = (
+  message: LiveRoomMessage,
+  room: LiveRoomDetail | null
+) => {
+  const systemEvent = getLiveRoomSystemEvent(message);
+  if (!systemEvent || !['member_reply_started', 'member_reply_progress', 'member_reply_tool'].includes(systemEvent)) {
+    return null;
+  }
+
+  const targetMemberId = getMessageMetadataValue(message, 'primaryTargetMemberId');
+  const targetMember =
+    typeof targetMemberId === 'string'
+      ? room?.members.find((member) => member.id === targetMemberId) || null
+      : null;
+  const targetLabel = targetMember?.displayName || message.senderLabel || message.senderName || 'Agent';
+  const preview = typeof getMessageMetadataValue(message, 'preview') === 'string'
+    ? String(getMessageMetadataValue(message, 'preview'))
+    : '';
+  const stream = typeof getMessageMetadataValue(message, 'stream') === 'string'
+    ? String(getMessageMetadataValue(message, 'stream'))
+    : null;
+  const toolName = typeof getMessageMetadataValue(message, 'toolName') === 'string'
+    ? String(getMessageMetadataValue(message, 'toolName'))
+    : null;
+  const toolEmoji = typeof getMessageMetadataValue(message, 'toolEmoji') === 'string'
+    ? String(getMessageMetadataValue(message, 'toolEmoji'))
+    : '⚙️';
+  const isTool = systemEvent === 'member_reply_tool';
+  const isStarted = systemEvent === 'member_reply_started';
+  const isStderr = stream === 'stderr';
+
+  const toneClass = isTool
+    ? 'border-sky-200 bg-sky-50/80 text-sky-900'
+    : isStderr
+    ? 'border-rose-200 bg-rose-50/80 text-rose-900'
+    : 'border-emerald-200 bg-emerald-50/80 text-emerald-900';
+  const pillClass = isTool
+    ? 'bg-sky-100 text-sky-700'
+    : isStderr
+    ? 'bg-rose-100 text-rose-700'
+    : 'bg-emerald-100 text-emerald-700';
+  const barClass = isTool
+    ? 'bg-sky-400'
+    : isStderr
+    ? 'bg-rose-400'
+    : 'bg-emerald-400';
+  const title = isTool
+    ? `${toolEmoji} ${targetLabel} 正在调用 ${toolName || 'Tool'}`
+    : isStarted
+    ? `${targetLabel} 已开始处理`
+    : `${targetLabel} 正在处理中`;
+  const detail = isTool
+    ? (preview || message.content)
+    : !isStarted && preview
+    ? preview
+    : message.content;
+
+  return (
+    <div className={`mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${toneClass}`}>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-base shadow-sm">
+        {isTool ? toolEmoji : isStderr ? '!' : '...'}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.12em]">
+          <span>{title}</span>
+          {toolName ? (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] normal-case tracking-normal ${pillClass}`}>
+              {toolName}
+            </span>
+          ) : null}
+          {stream ? (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] normal-case tracking-normal ${pillClass}`}>
+              {stream}
+            </span>
+          ) : null}
+          <span className="text-[10px] font-normal normal-case tracking-normal opacity-70">
+            {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
+          </span>
+        </div>
+        <div className="mb-2 whitespace-pre-wrap break-words text-sm leading-6">
+          {detail}
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-white/80">
+          <div className={`h-full w-2/5 animate-pulse rounded-full ${barClass}`} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const getComposerModeLabel = ({
   draftMentionAll,
   draftMentionMemberIds,
@@ -1359,6 +1454,11 @@ export function LiveRoomWorkspace({
                     const isSystem = message.messageType === 'system' || message.messageType === 'topic';
 
                     if (isSystem) {
+                      const customSystemMessage = renderLiveRoomSystemMessage(message, selectedRoom);
+                      if (customSystemMessage) {
+                        return <div key={message.id}>{customSystemMessage}</div>;
+                      }
+
                       return (
                         <div key={message.id} className="mx-auto max-w-2xl rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
                           {message.content}

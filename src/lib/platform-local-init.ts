@@ -42,6 +42,12 @@ export async function ensurePlatformLocalAgents(): Promise<PlatformLocalAgent[]>
       colorTag: '#4A90E2',
     },
     {
+      name: 'claude-haha',
+      type: 'claude-haha',
+      emojiIcon: '😄',
+      colorTag: '#F5A623',
+    },
+    {
       name: 'codex',
       type: 'codex',
       emojiIcon: '💻',

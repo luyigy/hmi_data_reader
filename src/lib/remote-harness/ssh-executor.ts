@@ -3,6 +3,7 @@ import { join } from 'path';
 import { promises as fs } from 'fs';
 import type { ChildProcess } from 'child_process';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { processCodexJsonLine } from '@/lib/real-agents/codex-event-parser';
 import type { RemoteHarnessHostRecord } from './hosts';
 
 interface RemoteHarnessTask {
@@ -232,24 +233,13 @@ export const executeRemoteSshTask = async (
               }
 
               try {
-                const event = JSON.parse(trimmed) as {
-                  type?: string;
-                  thread_id?: string;
-                  item?: { type?: string; text?: string };
-                };
-                if (typeof event.thread_id === 'string' && event.thread_id.trim()) {
-                  codexThreadId = event.thread_id.trim();
+                const parsed = processCodexJsonLine(trimmed, options.streamCallbacks);
+                if (parsed.threadId) {
+                  codexThreadId = parsed.threadId;
                 }
-                const text =
-                  event.type === 'item.completed'
-                  && event.item?.type === 'agent_message'
-                  && typeof event.item.text === 'string'
-                    ? event.item.text
-                    : null;
-
-                if (text) {
-                  codexResolvedText = text;
-                  void options.streamCallbacks?.onStdoutChunk?.(text);
+                if (parsed.resolvedText) {
+                  codexResolvedText = parsed.resolvedText;
+                  void options.streamCallbacks?.onStdoutChunk?.(parsed.resolvedText);
                 }
               } catch {
                 void options.streamCallbacks?.onStdoutChunk?.(trimmed);
@@ -365,20 +355,12 @@ export const executeRemoteSshTask = async (
 
   if (options.harnessType === 'codex' && codexStdoutBuffer.trim()) {
     try {
-      const event = JSON.parse(codexStdoutBuffer.trim()) as {
-        type?: string;
-        thread_id?: string;
-        item?: { type?: string; text?: string };
-      };
-      if (typeof event.thread_id === 'string' && event.thread_id.trim()) {
-        codexThreadId = event.thread_id.trim();
+      const parsed = processCodexJsonLine(codexStdoutBuffer.trim(), options.streamCallbacks);
+      if (parsed.threadId) {
+        codexThreadId = parsed.threadId;
       }
-      if (
-        event.type === 'item.completed'
-        && event.item?.type === 'agent_message'
-        && typeof event.item.text === 'string'
-      ) {
-        codexResolvedText = event.item.text;
+      if (parsed.resolvedText) {
+        codexResolvedText = parsed.resolvedText;
       }
     } catch {
       void options.streamCallbacks?.onStdoutChunk?.(codexStdoutBuffer.trim());

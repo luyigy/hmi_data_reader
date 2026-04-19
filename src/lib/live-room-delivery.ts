@@ -634,6 +634,8 @@ const executeLiveRoomReplyViaAcpx = async ({
   let lastProgressPreview = '';
   let lastProgressPostedAt = 0;
   let progressFlushPromise: Promise<void> = Promise.resolve();
+  let lastToolSignature = '';
+  let lastToolPostedAt = 0;
 
   const enqueueProgressUpdate = (stream: 'stdout' | 'stderr', chunk: string) => {
     const preview = normalizeProgressPreview(chunk);
@@ -675,6 +677,41 @@ const executeLiveRoomReplyViaAcpx = async ({
       });
   };
 
+  const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }) => {
+    const preview = event.preview.trim();
+    const signature = `${event.toolName}:${preview}`;
+    const now = Date.now();
+
+    if (signature === lastToolSignature && now - lastToolPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+      return;
+    }
+
+    lastToolSignature = signature;
+    lastToolPostedAt = now;
+
+    progressFlushPromise = progressFlushPromise
+      .then(async () => {
+        await postLiveRoomMessage({
+          roomId: room.id,
+          content: `系统提示：${targetMember.displayName} 正在使用 ${event.toolName}${preview ? `：${preview}` : ''}`,
+          messageType: 'system',
+          metadata: resolveLiveRoomMessageMetadata({
+            senderKind: 'system',
+            targetMemberId: targetMember.id,
+            extras: {
+              systemEvent: 'member_reply_tool',
+              toolName: event.toolName,
+              toolEmoji: event.emoji,
+              preview,
+            },
+          }),
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to post live room tool update:', error);
+      });
+  };
+
   const liveRoomStreamCallbacks: HarnessStreamCallbacks = {
     onStdoutChunk: (chunk: string) => {
       enqueueProgressUpdate('stdout', chunk);
@@ -683,8 +720,13 @@ const executeLiveRoomReplyViaAcpx = async ({
       enqueueProgressUpdate('stderr', chunk);
     },
     onToolEvent: feishuTracker
-      ? (event) => { feishuTracker.onToolEvent(event.toolName, event.preview, event.emoji); }
-      : undefined,
+      ? (event) => {
+          feishuTracker.onToolEvent(event.toolName, event.preview, event.emoji);
+          enqueueToolUpdate(event);
+        }
+      : (event) => {
+          enqueueToolUpdate(event);
+        },
   };
 
   let acpxResult = await runLiveRoomAcpxAttempt({

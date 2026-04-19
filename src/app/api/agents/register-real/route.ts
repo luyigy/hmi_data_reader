@@ -14,10 +14,12 @@ export async function GET() {
       available: {
         codex: status.codex.available,
         claude: status.claude.available,
+        'claude-haha': status['claude-haha'].available,
       },
       versions: {
         codex: status.codex.version,
         claude: status.claude.version,
+        'claude-haha': status['claude-haha'].version,
       },
     });
   } catch (error) {
@@ -37,11 +39,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, name } = body as { type: 'codex' | 'claude'; name?: string };
+    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha'; name?: string };
 
-    if (!type || (type !== 'codex' && type !== 'claude')) {
+    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha')) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "codex" or "claude"' },
+        { error: 'Invalid type. Must be "codex", "claude", or "claude-haha"' },
         { status: 400 }
       );
     }
@@ -66,17 +68,26 @@ export async function POST(request: NextRequest) {
       const execAsync = promisify(exec);
       
       try {
-        await execAsync('claude --version', { timeout: 5000 });
+        const command = type === 'claude-haha'
+          ? '/data1/code/cc-haha-oc/bin/claude-haha --version'
+          : 'claude --version';
+        await execAsync(command, { timeout: 5000 });
       } catch {
         return NextResponse.json(
-          { error: 'Claude Code is not available. Please ensure it\'s installed and configured.' },
+          { error: `${type} is not available. Please ensure it is installed and configured.` },
           { status: 400 }
         );
       }
     }
 
     // 注册 Agent
-    const agentName = name || (type === 'codex' ? 'Codex Agent' : 'Claude Code Agent');
+    const agentName = name || (
+      type === 'codex'
+        ? 'Codex Agent'
+        : type === 'claude-haha'
+        ? 'Claude Haha Agent'
+        : 'Claude Code Agent'
+    );
     
     const agent = await registerRealAgent(agentName, type, 'local');
 
