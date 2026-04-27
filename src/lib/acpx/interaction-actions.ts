@@ -2,7 +2,15 @@ import { prisma } from '@/lib/prisma';
 import { executeAcpxTaskRunWithContinuationFallback } from './continuation-retry';
 import { publishTaskRunEvent } from './event-bus';
 import { getContinuationSession } from './session-tracking';
-import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from './permissions';
+import {
+  DEFAULT_ACPX_PERMISSION_CONFIG,
+  buildAcpxPermissionConfigForProfile,
+  normalizeAcpxPermissionConfig,
+} from './permissions';
+import {
+  resolveTaskSessionPermissionConfig,
+  setTaskSessionPermissionOverride,
+} from './session';
 import type { AcpxPermissionConfig, TaskRunInteractionRequestStatus } from './types';
 
 const parseMetadata = (value: string | null | undefined): Record<string, unknown> => {
@@ -19,6 +27,16 @@ const parseMetadata = (value: string | null | undefined): Record<string, unknown
 };
 
 const stringifyMetadata = (value: Record<string, unknown>) => JSON.stringify(value);
+
+const readTaskPermissionConfig = (value: string | null | undefined) => {
+  try {
+    return normalizeAcpxPermissionConfig(
+      JSON.parse(value || 'null') as AcpxPermissionConfig | null
+    );
+  } catch {
+    return DEFAULT_ACPX_PERMISSION_CONFIG;
+  }
+};
 
 const toParticipantEventPayload = (participant: {
   gatewayId?: string | null;
@@ -217,15 +235,25 @@ export const resolveInteractionRequestWithContinuation = async (args: {
   }
 
   const continuation = getContinuationSession(participant);
-  const permissionConfig = (() => {
-    try {
-      return normalizeAcpxPermissionConfig(
-        JSON.parse(request.task.acpxPermissionConfig || 'null') as AcpxPermissionConfig | null
-      );
-    } catch {
-      return DEFAULT_ACPX_PERMISSION_CONFIG;
-    }
-  })();
+  const taskPermissionConfig = readTaskPermissionConfig(request.task.acpxPermissionConfig);
+  const shouldEscalateSessionPermission =
+    args.action === 'approve'
+    && (request.requestKind === 'permission_request' || request.requestKind === 'workspace_issue');
+  const sessionPermissionConfig = resolveTaskSessionPermissionConfig({
+    taskSession: request.taskSession,
+    fallback: taskPermissionConfig,
+  });
+  const permissionConfig = shouldEscalateSessionPermission
+    ? buildAcpxPermissionConfigForProfile('full_access', sessionPermissionConfig.writableRoots)
+    : sessionPermissionConfig;
+
+  if (request.taskSessionId && shouldEscalateSessionPermission) {
+    await setTaskSessionPermissionOverride({
+      taskSessionId: request.taskSessionId,
+      permissionConfig,
+      source: 'interaction_approve',
+    });
+  }
 
   const continuationMessage = buildContinuationMessage({
     requestKind: request.requestKind,
@@ -279,14 +307,16 @@ export const resolveInteractionRequestWithContinuation = async (args: {
         participant: participantPayload,
         eventType: 'session_continuation_started',
         content: `${participant.role} 正在继续同一个 ${participant.harnessType} 会话。`,
-        metadata: {
-          sourceRunId: request.taskRunId,
-          interactionRequestId: request.id,
-          sessionId: continuation.sessionId,
-          sessionKind: continuation.sessionKind,
-          actor: args.actor,
-        },
-      });
+      metadata: {
+        sourceRunId: request.taskRunId,
+        interactionRequestId: request.id,
+        sessionId: continuation.sessionId,
+        sessionKind: continuation.sessionKind,
+        actor: args.actor,
+        sessionPermissionOverrideApplied: shouldEscalateSessionPermission,
+        permissionProfile: permissionConfig.profile,
+      },
+    });
     } catch (error) {
       resumeError = error instanceof Error ? error.message : String(error);
     }
@@ -304,6 +334,8 @@ export const resolveInteractionRequestWithContinuation = async (args: {
         resumed,
         continuationRunId,
         resumeError,
+        sessionPermissionOverrideApplied: shouldEscalateSessionPermission,
+        permissionConfig,
       }),
       resolvedAt: new Date(),
     },
@@ -319,16 +351,18 @@ export const resolveInteractionRequestWithContinuation = async (args: {
       resumed
         ? '交互请求已处理，平台已继续当前会话。'
         : '交互请求已处理，但当前未能自动继续会话。',
-    metadata: {
-      interactionRequestId: request.id,
-      requestKind: request.requestKind,
-      requestStatus: updated.status,
-      resumed,
-      continuationRunId,
-      resumeError,
-      actor: args.actor,
-    },
-  });
+      metadata: {
+        interactionRequestId: request.id,
+        requestKind: request.requestKind,
+        requestStatus: updated.status,
+        resumed,
+        continuationRunId,
+        resumeError,
+        actor: args.actor,
+        sessionPermissionOverrideApplied: shouldEscalateSessionPermission,
+        permissionProfile: permissionConfig.profile,
+      },
+    });
 
   return {
     requestId: updated.id,

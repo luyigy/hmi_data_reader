@@ -22,6 +22,10 @@ import type {
 } from '@/lib/acpx/types';
 import type { ChatMessageTargetType } from '@/lib/chat-types';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
+import {
+  resolveTaskSessionPermissionConfig,
+  setTaskSessionPermissionOverride,
+} from '@/lib/acpx/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,7 +156,7 @@ export async function POST(
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    const permissionConfig = (() => {
+    const taskPermissionConfig = (() => {
       try {
         return normalizeAcpxPermissionConfig(
           JSON.parse(task.acpxPermissionConfig || 'null') as AcpxPermissionConfig | null
@@ -161,6 +165,10 @@ export async function POST(
         return DEFAULT_ACPX_PERMISSION_CONFIG;
       }
     })();
+    const permissionConfig = resolveTaskSessionPermissionConfig({
+      taskSession: task.currentTaskSession,
+      fallback: taskPermissionConfig,
+    });
 
     const acpxParticipants = parseParticipants(task.acpxParticipants);
     const targetParticipantSpec = targetType === 'participant'
@@ -367,6 +375,14 @@ export async function POST(
           error: null,
         },
       });
+
+      if (targetRun.taskSessionId || task.currentTaskSession?.id) {
+        await setTaskSessionPermissionOverride({
+          taskSessionId: targetRun.taskSessionId || task.currentTaskSession!.id,
+          permissionConfig,
+          source: 'control_continue',
+        });
+      }
 
       const continuationResult = await executeAcpxTaskRunWithContinuationFallback({
         staleParticipantId: selectedParticipant.id,

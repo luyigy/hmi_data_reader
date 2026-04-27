@@ -1,7 +1,15 @@
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
-import { normalizeAcpxPermissionConfig, DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
+import {
+  normalizeAcpxPermissionConfig,
+  DEFAULT_ACPX_PERMISSION_CONFIG,
+  buildAcpxPermissionConfigForProfile,
+} from '@/lib/acpx/permissions';
+import {
+  resolveTaskSessionPermissionConfig,
+  setTaskSessionPermissionOverride,
+} from '@/lib/acpx/session';
 import { findLatestParticipantSession } from '@/lib/acpx/session-tracking';
 import { executeAcpxTaskRunWithContinuationFallback } from '@/lib/acpx/continuation-retry';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
@@ -91,13 +99,7 @@ export function buildGrantPermissionConfig(
   profile: GrantProfile,
   currentWritableRoots: string[]
 ): AcpxPermissionConfig {
-  return {
-    profile,
-    sandboxMode: profile === 'full_access' ? 'danger-full-access' : 'workspace-write',
-    networkAccess: 'enabled',
-    approvalPolicy: 'on-request',
-    writableRoots: currentWritableRoots,
-  };
+  return buildAcpxPermissionConfigForProfile(profile, currentWritableRoots);
 }
 
 const resolveRoomMember = (room: {
@@ -193,27 +195,31 @@ export async function grantRightsForRoom(args: {
     runtimeAgentId: member.runtimeAgentId,
   });
 
-  const currentPermissionConfig = (() => {
-    try {
-      return normalizeAcpxPermissionConfig(
-        JSON.parse(room.sourceTask.acpxPermissionConfig || 'null')
-      );
-    } catch {
-      return DEFAULT_ACPX_PERMISSION_CONFIG;
-    }
-  })();
+  const currentPermissionConfig = resolveTaskSessionPermissionConfig({
+    taskSession: room.sourceTask.currentTaskSession,
+    fallback: (() => {
+      try {
+        return normalizeAcpxPermissionConfig(
+          JSON.parse(room.sourceTask.acpxPermissionConfig || 'null')
+        );
+      } catch {
+        return DEFAULT_ACPX_PERMISSION_CONFIG;
+      }
+    })(),
+  });
 
   const nextPermissionConfig = buildGrantPermissionConfig(
     args.profile,
     currentPermissionConfig.writableRoots
   );
 
-  await prisma.task.update({
-    where: { id: room.sourceTask.id },
-    data: {
-      acpxPermissionConfig: JSON.stringify(nextPermissionConfig),
-    },
-  });
+  if (room.sourceTask.currentTaskSession?.id) {
+    await setTaskSessionPermissionOverride({
+      taskSessionId: room.sourceTask.currentTaskSession.id,
+      permissionConfig: nextPermissionConfig,
+      source: 'grant',
+    });
+  }
 
   const taskRoom = await ensureTaskChatRoom(room.sourceTask.id, room.sourceTask.name);
   const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);

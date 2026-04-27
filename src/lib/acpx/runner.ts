@@ -7,6 +7,7 @@ import {
 } from '@/lib/openclaw-client';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
+import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { buildTaskRoomPromptContext, countTaskRoomMessages } from '@/lib/task-room';
@@ -944,7 +945,7 @@ const executeViaLocalHarness = async (
     };
   }
 
-  if (participant.harnessType === 'claude') {
+  if (isClaudeHarnessType(participant.harnessType)) {
     const registerSpawn = (child: ChildProcess) => {
       registerRunningProcess({
         taskRunId,
@@ -1046,10 +1047,10 @@ const executeViaRemoteSshHarness = async (
     {
       timeout: resolveHarnessTimeout(
         request.watchdogConfig?.maxRuntimeMs,
-        participant.harnessType === 'claude'
+        isClaudeHarnessType(participant.harnessType)
           ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
           : DEFAULT_CODEX_MAX_RUNTIME_MS
-      ) ?? (participant.harnessType === 'claude'
+      ) ?? (isClaudeHarnessType(participant.harnessType)
         ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
         : DEFAULT_CODEX_MAX_RUNTIME_MS),
       harnessType: participant.harnessType,

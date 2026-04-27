@@ -3,7 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { executeTaskBatch } from '@/lib/agent-executor';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import type { AcpxParticipantRequest, AcpxOrchestrationMode, AcpxPermissionConfig } from '@/lib/acpx/types';
-import { ensureTaskSession } from '@/lib/acpx/session';
+import {
+  ensureTaskSession,
+  resolveTaskSessionPermissionConfig,
+  setTaskSessionPermissionOverride,
+} from '@/lib/acpx/session';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import {
   getTaskRoomParticipantTargetKey,
@@ -67,12 +71,13 @@ export async function POST(
           }
         })()
       : [];
-    const acpxPermissionConfig = isAcpxTask
+    const requestedAcpxPermissionConfig = isAcpxTask && body?.acpxPermissionConfig
       ? (() => {
-          if (body?.acpxPermissionConfig) {
-            return normalizeAcpxPermissionConfig(body.acpxPermissionConfig as AcpxPermissionConfig);
-          }
-
+          return normalizeAcpxPermissionConfig(body.acpxPermissionConfig as AcpxPermissionConfig);
+        })()
+      : null;
+    const taskPermissionConfig = isAcpxTask
+      ? (() => {
           try {
             return normalizeAcpxPermissionConfig(
               JSON.parse(task.acpxPermissionConfig || 'null') as AcpxPermissionConfig | null
@@ -170,8 +175,9 @@ export async function POST(
         status: 'running',
         startedAt: task.startedAt || new Date(),
         ...(isAcpxTask && body?.persistAcpxPermissionConfig
+          && requestedAcpxPermissionConfig
           ? {
-              acpxPermissionConfig: JSON.stringify(acpxPermissionConfig),
+              acpxPermissionConfig: JSON.stringify(requestedAcpxPermissionConfig),
             }
           : {}),
       },
@@ -184,6 +190,19 @@ export async function POST(
           executionMode: 'acpx',
         },
       });
+      const acpxPermissionConfig = requestedAcpxPermissionConfig
+        || resolveTaskSessionPermissionConfig({
+          taskSession,
+          fallback: taskPermissionConfig,
+        });
+
+      if (requestedAcpxPermissionConfig) {
+        await setTaskSessionPermissionOverride({
+          taskSessionId: taskSession.id,
+          permissionConfig: acpxPermissionConfig,
+          source: 'execute',
+        });
+      }
 
       const runResult = await executeAcpxTaskRun({
         taskId: task.id,

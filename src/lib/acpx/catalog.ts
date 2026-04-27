@@ -27,7 +27,10 @@ const normalizeHarnessType = (value?: string | null) => {
   if (normalized.includes('codex')) {
     return 'codex';
   }
-  if (normalized.includes('claude')) {
+  if (normalized === 'claude-haha') {
+    return 'claude-haha';
+  }
+  if (normalized === 'claude') {
     return 'claude';
   }
   if (normalized.includes('gemini')) {
@@ -114,6 +117,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
     // Check if this harness type is available locally
     const isAvailable = harnessType === 'codex' ? localStatus.codex.available
       : harnessType === 'claude' ? localStatus.claude.available
+      : harnessType === 'claude-haha' ? localStatus['claude-haha'].available
       : true;
 
     if (!isAvailable) {

@@ -70,6 +70,27 @@ export const normalizeAcpxPermissionConfig = (
   };
 };
 
+export const buildAcpxPermissionConfigForProfile = (
+  profile: 'safe_local' | 'dev_local' | 'full_access',
+  currentWritableRoots: string[]
+): AcpxPermissionConfig =>
+  normalizeAcpxPermissionConfig({
+    profile,
+    sandboxMode:
+      profile === 'full_access'
+        ? 'danger-full-access'
+        : 'workspace-write',
+    networkAccess:
+      profile === 'safe_local'
+        ? 'restricted'
+        : 'enabled',
+    approvalPolicy:
+      profile === 'safe_local'
+        ? 'never'
+        : 'on-request',
+    writableRoots: currentWritableRoots,
+  });
+
 export const getPermissionProfileLabel = (profile: AcpxPermissionConfig['profile']) =>
   profile === 'safe_local'
     ? 'Safe Local'

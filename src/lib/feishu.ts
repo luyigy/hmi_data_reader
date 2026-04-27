@@ -35,7 +35,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap agents [gatewayId]',
   '/ap hosts',
   '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
-  '/ap run --host=<hostId|label> --harness=<codex|claude> <prompt>',
+  '/ap run --host=<hostId|label> --harness=<codex|claude|claude-haha> <prompt>',
   '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [title]',
   '/ap members',
   '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
@@ -147,10 +147,13 @@ function decryptFeishuPayload(encryptedContent: string, encryptKey: string): Fei
 
 function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
   const normalized = agentName.trim().toLowerCase();
+  if (normalized === 'claude-haha') {
+    return localStatus['claude-haha'].available ? 'online' : 'offline';
+  }
   if (normalized.includes('codex')) {
     return localStatus.codex.available ? 'online' : 'offline';
   }
-  if (normalized.includes('claude')) {
+  if (normalized === 'claude') {
     return localStatus.claude.available ? 'online' : 'offline';
   }
   return 'offline';
@@ -976,7 +979,7 @@ async function handleGrantCommand(command: ParsedFeishuCommand, context?: Feishu
       '请指定授权档位。',
       '示例：/ap grant full',
       '示例：/ap grant dev --agent=codex',
-      '说明：这会更新下一次 continuation / new run 的权限；不会热切换当前已运行进程。',
+      '说明：这会立刻更新当前 task session 的有效权限，并用于随后的 continuation；不会原地热切换已经卡住的旧进程 stdin。',
     ].join('\n');
   }
 
@@ -995,7 +998,7 @@ async function handleGrantCommand(command: ParsedFeishuCommand, context?: Feishu
     `Task: ${result.room.sourceTask!.name}`,
     `运行方式：${result.usedContinuation ? '继续原会话' : '启动新 run'}`,
     `新 run：${result.taskRunId}`,
-    '说明：权限变更会在这次 continuation / new run 生效，不会原地热切换旧进程。',
+    '说明：权限已写入当前 task session，并已用于这次 continuation / run；不会原地热切换旧进程。',
   ].join('\n');
 }
 
@@ -1050,8 +1053,8 @@ async function handleRightsCommand(args: {
           tag: 'markdown',
           content: [
             `**Task**: ${room.sourceTask.name}`,
-            '点击按钮后会立刻更新权限，并自动 continuation 或启动新的 run。',
-            '说明：不会热切换当前已经运行中的旧进程。',
+            '点击按钮后会立刻更新当前 task session 的有效权限，并自动 continuation 或启动新的 run。',
+            '说明：不会直接把许可写回已经阻塞中的旧进程 stdin。',
           ].join('\n'),
         },
         {

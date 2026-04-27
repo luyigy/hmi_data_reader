@@ -7,6 +7,7 @@
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { getToolEmoji, buildToolPreview } from '@/lib/acpx/tool-emojis';
 import type { ChildProcess } from 'child_process';
+import { resolveClaudeInstallation } from './claude-installations';
 
 export interface ClaudeConfig {
   apiKey?: string;
@@ -17,6 +18,8 @@ export interface ClaudeConfig {
   onSpawn?: (child: ChildProcess) => void;
   resumeSessionId?: string;
   onSessionStarted?: (sessionId: string) => void;
+  /** Claude installation to use: 'claude' (default) or 'claude-haha' */
+  harnessType?: string;
 }
 
 export interface ClaudeTask {
@@ -46,6 +49,7 @@ export const executeClaudeTask = async (
     timeout = null,
     workingDirectory = process.cwd(),
     streamCallbacks,
+    harnessType = 'claude',
   } = config;
 
   try {
@@ -56,6 +60,7 @@ export const executeClaudeTask = async (
       timeout,
       workingDirectory,
       streamCallbacks,
+      harnessType,
       onSpawn: config.onSpawn,
       onSessionStarted: config.onSessionStarted,
     });
@@ -85,6 +90,7 @@ export const resumeClaudeSession = async ({
   streamCallbacks,
   onSpawn,
   onSessionStarted,
+  harnessType = 'claude',
 }: {
   sessionId: string;
   prompt: string;
@@ -93,6 +99,7 @@ export const resumeClaudeSession = async ({
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   onSessionStarted?: (sessionId: string) => void;
+  harnessType?: string;
 }): Promise<ClaudeResult> => {
   const startTime = Date.now();
 
@@ -111,6 +118,7 @@ export const resumeClaudeSession = async ({
         resumeSessionId: sessionId,
         onSessionStarted,
         rawPrompt: prompt,
+        harnessType,
       }
     );
 
@@ -143,54 +151,46 @@ const executeClaudeCLI = async (
     resumeSessionId?: string;
     onSessionStarted?: (sessionId: string) => void;
     rawPrompt?: string;
+    harnessType: string;
   }
 ): Promise<{ output: string; filesModified?: string[]; sessionId?: string }> => {
   const { spawn } = await import('child_process');
+  const installation = resolveClaudeInstallation(options.harnessType);
 
   const buildClaudeChildEnv = () => {
     const env = { ...process.env } as NodeJS.ProcessEnv;
 
-    // Ensure nvm-managed node/claude binaries are findable even when
-    // the parent process was started without a full login shell PATH.
-    // Include ALL nvm node version bin dirs so claude is found regardless
-    // of which node version the app itself is running under.
+    // Ensure nvm-managed node/claude binaries are findable
     const nvmDir = process.env.NVM_DIR || `${process.env.HOME}/.nvm`;
     const nvmVersionsDir = `${nvmDir}/versions/node`;
     let nvmBinPaths: string[] = [];
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { readdirSync } = require('fs') as typeof import('fs');
       nvmBinPaths = readdirSync(nvmVersionsDir).map((v) => `${nvmVersionsDir}/${v}/bin`);
     } catch {
-      // fallback to current node version only
       nvmBinPaths = [`${nvmVersionsDir}/${process.version}/bin`];
     }
-    const extraPaths = [...nvmBinPaths, `${process.env.HOME}/.local/bin`].join(':');
+    // Always include the installation home dir .local/bin
+    const installationBinDir = `${installation.homeDir}/.local/bin`;
+    const extraPaths = [...nvmBinPaths, installationBinDir].join(':');
     env.PATH = env.PATH ? `${extraPaths}:${env.PATH}` : extraPaths;
+
+    // Apply installation-specific HOME and config dir
+    if (installation.homeDir) env.HOME = installation.homeDir;
+    if (installation.configDir) env.CLAUDE_CONFIG_DIR = installation.configDir;
+
+    // Proxy settings
     const httpProxy = process.env.FEISHU_RUNTIME_CODEX_HTTP_PROXY?.trim();
     const httpsProxy = process.env.FEISHU_RUNTIME_CODEX_HTTPS_PROXY?.trim();
     const allProxy = process.env.FEISHU_RUNTIME_CODEX_ALL_PROXY?.trim();
     const noProxy = process.env.FEISHU_RUNTIME_CODEX_NO_PROXY?.trim();
+    if (httpProxy) { env.http_proxy = httpProxy; env.HTTP_PROXY = httpProxy; }
+    if (httpsProxy) { env.https_proxy = httpsProxy; env.HTTPS_PROXY = httpsProxy; }
+    if (allProxy) { env.all_proxy = allProxy; env.ALL_PROXY = allProxy; }
+    if (noProxy) { env.no_proxy = noProxy; env.NO_PROXY = noProxy; }
 
-    if (httpProxy) {
-      env.http_proxy = httpProxy;
-      env.HTTP_PROXY = httpProxy;
-    }
-
-    if (httpsProxy) {
-      env.https_proxy = httpsProxy;
-      env.HTTPS_PROXY = httpsProxy;
-    }
-
-    if (allProxy) {
-      env.all_proxy = allProxy;
-      env.ALL_PROXY = allProxy;
-    }
-
-    if (noProxy) {
-      env.no_proxy = noProxy;
-      env.NO_PROXY = noProxy;
-    }
+    // Apply any additional installation env vars
+    Object.assign(env, installation.env || {});
 
     return env;
   };
@@ -264,7 +264,7 @@ Take your time and be thorough.`;
     // On Windows, need to use shell: true to find .cmd files
     // On Unix/Linux, use shell: false for better security and performance
     const shell = process.platform === 'win32';
-    const child = spawn('claude', args, {
+    const child = spawn(installation.binaryPath, args, {
       cwd: options.workingDirectory,
       env: buildClaudeChildEnv(),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -450,16 +450,17 @@ const extractModifiedFiles = (output: string): string[] => {
 
 /**
  * Check if Claude Code is available
+ * @param harnessType - 'claude' or 'claude-haha' (defaults to 'claude')
  */
-export const isClaudeAvailable = async (): Promise<boolean> => {
+export const isClaudeAvailable = async (harnessType: string = 'claude'): Promise<boolean> => {
   try {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
     const shellPath = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+    const installation = resolveClaudeInstallation(harnessType);
 
-    // On Windows, use shell option to ensure .cmd files are found
-    await execAsync('claude --version', {
+    await execAsync(`"${installation.binaryPath}" --version`, {
       timeout: 5000,
       shell: shellPath,
     });
@@ -471,15 +472,17 @@ export const isClaudeAvailable = async (): Promise<boolean> => {
 
 /**
  * Get Claude Code version
+ * @param harnessType - 'claude' or 'claude-haha' (defaults to 'claude')
  */
-export const getClaudeVersion = async (): Promise<string> => {
+export const getClaudeVersion = async (harnessType: string = 'claude'): Promise<string> => {
   try {
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
     const shellPath = process.platform === 'win32' ? 'cmd.exe' : '/bin/sh';
+    const installation = resolveClaudeInstallation(harnessType);
 
-    const { stdout } = await execAsync('claude --version', {
+    const { stdout } = await execAsync(`"${installation.binaryPath}" --version`, {
       timeout: 5000,
       shell: shellPath,
     });
