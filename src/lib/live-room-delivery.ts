@@ -47,6 +47,10 @@ const INVALID_CODEX_CONTINUATION_PATTERNS = [
   /timeout waiting for child process to exit/i,
   /failed to refresh available models/i,
 ];
+const INVALID_DEEPSEEK_CONTINUATION_PATTERNS = [
+  /thread not found/i,
+  /turn .* failed/i,
+];
 const CODEX_EPHEMERAL_RETRY_PATTERNS = [
   /Codex local state error:/i,
   /failed to open state db/i,
@@ -262,6 +266,8 @@ const isInvalidContinuationError = (harnessType: string | null, message: string)
     ? INVALID_CLAUDE_CONTINUATION_PATTERNS
     : harnessType === 'codex'
     ? INVALID_CODEX_CONTINUATION_PATTERNS
+    : harnessType === 'deepseek'
+    ? INVALID_DEEPSEEK_CONTINUATION_PATTERNS
     : [];
 
   return patterns.some((pattern) => pattern.test(message));

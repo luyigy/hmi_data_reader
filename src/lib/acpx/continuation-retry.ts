@@ -18,12 +18,19 @@ const INVALID_CODEX_CONTINUATION_PATTERNS = [
   /failed to refresh available models/i,
 ];
 
+const INVALID_DEEPSEEK_CONTINUATION_PATTERNS = [
+  /thread not found/i,
+  /turn .* failed/i,
+];
+
 const isInvalidContinuationError = (participant: AcpxParticipantRequest, message: string) => {
   const patterns =
     participant.harnessType === 'claude'
       ? INVALID_CLAUDE_CONTINUATION_PATTERNS
       : participant.harnessType === 'codex'
       ? INVALID_CODEX_CONTINUATION_PATTERNS
+      : participant.harnessType === 'deepseek'
+      ? INVALID_DEEPSEEK_CONTINUATION_PATTERNS
       : [];
 
   return patterns.some((pattern) => pattern.test(message));

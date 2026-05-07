@@ -7,7 +7,7 @@ import {
 } from '@/lib/openclaw-client';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
-import { executeDeepSeekTask } from '@/lib/real-agents/deepseek-agent';
+import { executeDeepSeekTask, resumeDeepSeekSession } from '@/lib/real-agents/deepseek-agent';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
@@ -341,6 +341,102 @@ const persistClaudeSessionMetadata = async (
             sameSessionConfirmed:
               typeof existingParticipantTracking.rootSessionId === 'string'
                 ? existingParticipantTracking.rootSessionId === sessionId
+                : true,
+          },
+        }),
+      },
+    }),
+  ]);
+};
+
+const persistDeepSeekThreadMetadata = async (
+  taskRunId: string,
+  participantId: string,
+  threadId: string | undefined
+) => {
+  if (!threadId) {
+    return;
+  }
+
+  const [taskRun, participant] = await Promise.all([
+    prisma.taskRun.findUnique({
+      where: { id: taskRunId },
+      select: { controlMetadata: true },
+    }),
+    prisma.taskRunParticipant.findUnique({
+      where: { id: participantId },
+      select: { controlMetadata: true },
+    }),
+  ]);
+
+  const now = new Date().toISOString();
+  const taskRunMetadata = parseJsonObject(taskRun?.controlMetadata);
+  const participantMetadata = parseJsonObject(participant?.controlMetadata);
+  const existingRunTracking =
+    taskRunMetadata.sessionTracking && typeof taskRunMetadata.sessionTracking === 'object'
+      ? taskRunMetadata.sessionTracking as Record<string, unknown>
+      : {};
+  const existingParticipantTracking =
+    participantMetadata.sessionTracking && typeof participantMetadata.sessionTracking === 'object'
+      ? participantMetadata.sessionTracking as Record<string, unknown>
+      : {};
+
+  await Promise.all([
+    prisma.taskRun.update({
+      where: { id: taskRunId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...taskRunMetadata,
+          deepseekThreadId: threadId,
+          lastSessionId: threadId,
+          lastSessionKind: 'deepseek_thread',
+          sessionTracking: {
+            ...existingRunTracking,
+            rootRunId:
+              typeof existingRunTracking.rootRunId === 'string'
+                ? existingRunTracking.rootRunId
+                : taskRunId,
+            latestRunId: taskRunId,
+            rootSessionId:
+              typeof existingRunTracking.rootSessionId === 'string'
+                ? existingRunTracking.rootSessionId
+                : threadId,
+            latestSessionId: threadId,
+            latestSessionKind: 'deepseek_thread',
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingRunTracking.rootSessionId === 'string'
+                ? existingRunTracking.rootSessionId === threadId
+                : true,
+          },
+        }),
+      },
+    }),
+    prisma.taskRunParticipant.update({
+      where: { id: participantId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...participantMetadata,
+          deepseekThreadId: threadId,
+          lastSessionId: threadId,
+          lastSessionKind: 'deepseek_thread',
+          sessionTracking: {
+            ...existingParticipantTracking,
+            rootParticipantId:
+              typeof existingParticipantTracking.rootParticipantId === 'string'
+                ? existingParticipantTracking.rootParticipantId
+                : participantId,
+            latestParticipantId: participantId,
+            rootSessionId:
+              typeof existingParticipantTracking.rootSessionId === 'string'
+                ? existingParticipantTracking.rootSessionId
+                : threadId,
+            latestSessionId: threadId,
+            latestSessionKind: 'deepseek_thread',
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingParticipantTracking.rootSessionId === 'string'
+                ? existingParticipantTracking.rootSessionId === threadId
                 : true,
           },
         }),
@@ -1003,23 +1099,27 @@ const executeViaLocalHarness = async (
   }
 
   if (participant.harnessType === 'deepseek') {
-    const registerSpawn = (child: ChildProcess) => {
-      registerRunningProcess({
-        taskRunId,
-        participantId,
-        child,
-        executionBackend: participant.executionBackend,
-        harnessType: participant.harnessType,
-      });
-      onSpawn?.(child);
-    };
-
-    const result = await executeDeepSeekTask(task, {
-      timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
-      workingDirectory: request.workingDirectory,
-      streamCallbacks: callbacks,
-      onSpawn: registerSpawn,
-    });
+    const result = participant.resumeSessionId && participant.continuationMessage
+      ? await resumeDeepSeekSession({
+          threadId: participant.resumeSessionId,
+          prompt: participant.continuationMessage,
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
+          workingDirectory: request.workingDirectory,
+          streamCallbacks: callbacks,
+          onSpawn: onSpawn as ((child: ChildProcess) => void) | undefined,
+          onThreadStarted: (threadId) => {
+            void persistDeepSeekThreadMetadata(taskRunId, participantId, threadId);
+          },
+        })
+      : await executeDeepSeekTask(task, {
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
+          workingDirectory: request.workingDirectory,
+          streamCallbacks: callbacks,
+          onSpawn: onSpawn as ((child: ChildProcess) => void) | undefined,
+          onThreadStarted: (threadId) => {
+            void persistDeepSeekThreadMetadata(taskRunId, participantId, threadId);
+          },
+        });
 
     if (!result.success) {
       throw new Error(result.error || 'DeepSeek execution failed');
@@ -1030,9 +1130,9 @@ const executeViaLocalHarness = async (
       filesModified: result.filesModified ?? [],
       executionTime: result.executionTime,
       liveStreaming: false,
-      sessionId: undefined,
-      sessionKind: undefined,
-      threadId: undefined,
+      sessionId: result.threadId,
+      sessionKind: result.threadId ? 'deepseek_thread' : undefined,
+      threadId: result.threadId,
     };
   }
 
@@ -1525,6 +1625,10 @@ const executeParticipant = async (
 
     if (result.sessionKind === 'claude_session' && result.sessionId) {
       await persistClaudeSessionMetadata(taskRunId, participantId, result.sessionId);
+    }
+
+    if (result.sessionKind === 'deepseek_thread' && result.sessionId) {
+      await persistDeepSeekThreadMetadata(taskRunId, participantId, result.sessionId);
     }
 
     if (result.filesModified?.length) {

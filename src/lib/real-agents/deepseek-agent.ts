@@ -1,17 +1,21 @@
 /**
  * DeepSeek-TUI Agent Integration
  *
- * Executes tasks using DeepSeek-TUI via its non-interactive JSON mode.
+ * Phase 2A uses the local HTTP runtime so ACPX/live-room can reuse a stable
+ * DeepSeek thread across follow-up messages.
  */
 
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import type { ChildProcess } from 'child_process';
+import { runDeepSeekRuntimeTurn } from './deepseek-runtime';
 
 export interface DeepSeekConfig {
   timeout?: number | null;
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
+  resumeThreadId?: string;
+  onThreadStarted?: (threadId: string) => void;
 }
 
 export interface DeepSeekTask {
@@ -26,6 +30,7 @@ export interface DeepSeekResult {
   error?: string;
   executionTime: number;
   filesModified?: string[];
+  threadId?: string;
 }
 
 const buildPrompt = (task: DeepSeekTask) => `Task: ${task.name}
@@ -38,44 +43,6 @@ Please complete this task step by step. When you're done, provide a summary of:
 3. Any issues you encountered
 
 Take your time and be thorough.`;
-
-const parseDeepSeekExecOutput = (stdout: string) => {
-  const trimmed = stdout.trim();
-
-  if (!trimmed) {
-    return {
-      output: '',
-      filesModified: [] as string[],
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed) as {
-      output?: unknown;
-      success?: unknown;
-      error?: unknown;
-    };
-
-    if (parsed.success === false) {
-      throw new Error(typeof parsed.error === 'string' ? parsed.error : 'DeepSeek execution failed');
-    }
-
-    const output = typeof parsed.output === 'string' ? parsed.output.trim() : trimmed;
-    return {
-      output,
-      filesModified: [] as string[],
-    };
-  } catch (error) {
-    if (error instanceof Error && error.message === 'DeepSeek execution failed') {
-      throw error;
-    }
-
-    return {
-      output: trimmed,
-      filesModified: [] as string[],
-    };
-  }
-};
 
 export const executeDeepSeekTask = async (
   task: DeepSeekTask,
@@ -90,17 +57,20 @@ export const executeDeepSeekTask = async (
   } = config;
 
   try {
-    const result = await executeDeepSeekCLI(task, {
+    const result = await executeDeepSeekTurn(task, {
       timeout,
       workingDirectory,
       streamCallbacks,
       onSpawn,
+      resumeThreadId: config.resumeThreadId,
+      onThreadStarted: config.onThreadStarted,
     });
 
     return {
       success: true,
       output: result.output,
       filesModified: result.filesModified,
+      threadId: result.threadId,
       executionTime: Date.now() - startTime,
     };
   } catch (error) {
@@ -112,89 +82,91 @@ export const executeDeepSeekTask = async (
   }
 };
 
-const executeDeepSeekCLI = async (
+export const resumeDeepSeekSession = async ({
+  threadId,
+  prompt,
+  timeout,
+  workingDirectory = process.cwd(),
+  streamCallbacks,
+  onSpawn,
+  onThreadStarted,
+}: {
+  threadId: string;
+  prompt: string;
+  timeout: number | null;
+  workingDirectory?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+  onThreadStarted?: (threadId: string) => void;
+}): Promise<DeepSeekResult> => {
+  const startTime = Date.now();
+
+  try {
+    const result = await executeDeepSeekTurn(
+      {
+        id: 'continuation',
+        name: 'DeepSeek continuation',
+        description: prompt,
+      },
+      {
+        timeout,
+        workingDirectory,
+        streamCallbacks,
+        onSpawn,
+        resumeThreadId: threadId,
+        onThreadStarted,
+        rawPrompt: prompt,
+      }
+    );
+
+    return {
+      success: true,
+      output: result.output,
+      filesModified: result.filesModified,
+      threadId: result.threadId,
+      executionTime: Date.now() - startTime,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      executionTime: Date.now() - startTime,
+    };
+  }
+};
+
+const executeDeepSeekTurn = async (
   task: DeepSeekTask,
   options: {
     timeout: number | null;
     workingDirectory: string;
     streamCallbacks?: HarnessStreamCallbacks;
     onSpawn?: (child: ChildProcess) => void;
+    resumeThreadId?: string;
+    onThreadStarted?: (threadId: string) => void;
+    rawPrompt?: string;
   }
-): Promise<{ output: string; filesModified: string[] }> => {
-  const { spawn } = await import('child_process');
-  const prompt = buildPrompt(task);
-
-  return new Promise((resolve, reject) => {
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-
-    const child = spawn('deepseek', ['exec', '--', '--json', prompt], {
-      cwd: options.workingDirectory,
-      env: { ...process.env },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
-    });
-    options.onSpawn?.(child);
-
-    const timeoutId = typeof options.timeout === 'number' && options.timeout > 0
-      ? setTimeout(() => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-          child.kill('SIGTERM');
-          reject(new Error(`DeepSeek execution timed out after ${options.timeout}ms`));
-        }, options.timeout)
-      : null;
-
-    child.stdout.on('data', (data) => {
-      const chunk = data.toString();
-      stdout += chunk;
-    });
-
-    child.stderr.on('data', (data) => {
-      const chunk = data.toString();
-      stderr += chunk;
-      void options.streamCallbacks?.onStderrChunk?.(chunk);
-    });
-
-    child.on('close', (code) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-
-      if (code !== 0 && !stdout.trim()) {
-        reject(new Error(stderr.trim() || `DeepSeek exited with code ${code}`));
-        return;
-      }
-
-      try {
-        const parsed = parseDeepSeekExecOutput(stdout);
-        if (parsed.output) {
-          void options.streamCallbacks?.onStdoutChunk?.(parsed.output);
-        }
-        resolve(parsed);
-      } catch (error) {
-        reject(error);
-      }
-    });
-
-    child.on('error', (error) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      reject(error);
-    });
+): Promise<{ output: string; filesModified: string[]; threadId?: string }> => {
+  const prompt = options.rawPrompt ?? buildPrompt(task);
+  const result = await runDeepSeekRuntimeTurn({
+    prompt,
+    threadId: options.resumeThreadId,
+    workingDirectory: options.workingDirectory,
+    timeoutMs: options.timeout,
   });
+
+  if (result.threadId) {
+    options.onThreadStarted?.(result.threadId);
+  }
+  if (result.output) {
+    void options.streamCallbacks?.onStdoutChunk?.(result.output);
+  }
+
+  return {
+    output: result.output,
+    filesModified: [],
+    threadId: result.threadId,
+  };
 };
 
 export const isDeepSeekAvailable = async (): Promise<boolean> => {

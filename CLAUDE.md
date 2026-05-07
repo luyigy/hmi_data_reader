@@ -158,3 +158,35 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Collaboration Workflow
+
+These project-specific collaboration rules apply before implementation, not after.
+
+### 1. Assess Scope Before Coding
+
+Before making code changes:
+- Evaluate task difficulty, implementation scope, regression risk, and blast radius.
+- If the work is large, high-risk, cross-cutting, or has unclear acceptance criteria, do not jump straight into implementation.
+- In those cases, first produce a short implementation plan covering scope, main changes, risks, and verification approach, then wait for user confirmation before proceeding.
+- Only skip the plan when the change is genuinely small, low-risk, and locally verifiable.
+
+### 2. Align on Acceptance Criteria
+
+Before implementation, align with the user on how the change will be tested and what outcome counts as success.
+
+This alignment must include:
+- what the agent will test locally
+- what the user will test manually
+- the exact observable behavior that should be considered "passed"
+
+For conversational/runtime features, define the acceptance standard in product terms, not only code terms. Example: "the agent can continue the same conversation across follow-up messages in Feishu" is a better acceptance target than "session id is persisted".
+
+### 3. Re-Align After Each Meaningful Batch
+
+After each meaningful batch of changes:
+- restate what was implemented
+- state what should be tested next
+- state what result is expected if the batch is correct
+
+Do not assume the agent-side verification and user-side verification are implicitly aligned. Make the shared pass/fail criteria explicit each round.

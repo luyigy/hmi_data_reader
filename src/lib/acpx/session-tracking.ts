@@ -68,6 +68,18 @@ export const getContinuationSession = (participant: {
     }
   }
 
+  if (participant.harnessType === 'deepseek') {
+    const sessionId = typeof metadata.deepseekThreadId === 'string' && metadata.deepseekThreadId.trim()
+      ? metadata.deepseekThreadId.trim()
+      : null;
+    if (sessionId) {
+      return {
+        sessionId,
+        sessionKind: 'deepseek_thread',
+      };
+    }
+  }
+
   return {
     sessionId: null,
     sessionKind: null,
@@ -188,6 +200,7 @@ export const markParticipantContinuationStale = async ({
   delete metadata.lastSessionThreadId;
   delete metadata.codexThreadId;
   delete metadata.claudeSessionId;
+  delete metadata.deepseekThreadId;
 
   await prisma.taskRunParticipant.update({
     where: { id: participantId },
