@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process';
+import { buildDeepSeekToolEvent, extractDeepSeekStatusText } from './deepseek-event-parser';
 
 const DEFAULT_DEEPSEEK_RUNTIME_HOST = process.env.DEEPSEEK_RUNTIME_HOST?.trim() || '127.0.0.1';
 const DEFAULT_DEEPSEEK_RUNTIME_PORT = Number(process.env.DEEPSEEK_RUNTIME_PORT?.trim() || '7788');
@@ -29,6 +30,12 @@ type DeepSeekThreadReadResponse = {
   thread?: DeepSeekRuntimeThread;
   turns?: DeepSeekRuntimeTurn[];
   items?: DeepSeekRuntimeItem[];
+};
+
+type DeepSeekRuntimeStreamCallbacks = {
+  onStdoutChunk?: (chunk: string) => Promise<void> | void;
+  onStderrChunk?: (chunk: string) => Promise<void> | void;
+  onToolEvent?: (event: { toolName: string; preview: string; emoji: string }) => Promise<void> | void;
 };
 
 let runtimeProcess: ChildProcess | null = null;
@@ -151,8 +158,14 @@ export const ensureDeepSeekRuntime = async () => {
 
 export const createDeepSeekRuntimeThread = async ({
   workingDirectory,
+  allowShell,
+  trustMode,
+  autoApprove,
 }: {
   workingDirectory?: string;
+  allowShell?: boolean;
+  trustMode?: boolean;
+  autoApprove?: boolean;
 }) => {
   const baseUrl = await ensureDeepSeekRuntime();
 
@@ -164,6 +177,9 @@ export const createDeepSeekRuntimeThread = async ({
     body: JSON.stringify({
       mode: 'agent',
       workspace: workingDirectory || process.cwd(),
+      ...(typeof allowShell === 'boolean' ? { allow_shell: allowShell } : {}),
+      ...(typeof trustMode === 'boolean' ? { trust_mode: trustMode } : {}),
+      ...(typeof autoApprove === 'boolean' ? { auto_approve: autoApprove } : {}),
     }),
   });
 };
@@ -188,14 +204,31 @@ export const runDeepSeekRuntimeTurn = async ({
   threadId,
   workingDirectory,
   timeoutMs,
+  streamCallbacks,
+  threadConfig,
 }: {
   prompt: string;
   threadId?: string;
   workingDirectory?: string;
   timeoutMs?: number | null;
+  streamCallbacks?: DeepSeekRuntimeStreamCallbacks;
+  threadConfig?: {
+    allowShell?: boolean;
+    trustMode?: boolean;
+    autoApprove?: boolean;
+  };
 }) => {
   const baseUrl = await ensureDeepSeekRuntime();
-  const resolvedThreadId = threadId || (await createDeepSeekRuntimeThread({ workingDirectory })).id;
+  const resolvedThreadId =
+    threadId ||
+    (
+      await createDeepSeekRuntimeThread({
+        workingDirectory,
+        allowShell: threadConfig?.allowShell,
+        trustMode: threadConfig?.trustMode,
+        autoApprove: threadConfig?.autoApprove,
+      })
+    ).id;
 
   const turnResponse = await fetchJson<{
     thread?: DeepSeekRuntimeThread;
@@ -216,10 +249,37 @@ export const runDeepSeekRuntimeTurn = async ({
   }
 
   const startedAt = Date.now();
+  const seenItemIds = new Set<string>();
 
   while (true) {
     const threadState = await readDeepSeekRuntimeThread(resolvedThreadId);
     const turn = (threadState.turns || []).find((candidate) => candidate.id === turnId);
+    const turnItems = (threadState.items || []).filter((item) => item.turn_id === turnId);
+
+    for (const item of turnItems) {
+      if (!item.id || seenItemIds.has(item.id)) {
+        continue;
+      }
+
+      seenItemIds.add(item.id);
+
+      const toolEvent = buildDeepSeekToolEvent(item);
+      if (toolEvent) {
+        void streamCallbacks?.onToolEvent?.(toolEvent);
+      }
+
+      const statusText = extractDeepSeekStatusText(item);
+      if (statusText) {
+        void streamCallbacks?.onStdoutChunk?.(`[DeepSeek] ${statusText}`);
+      }
+
+      if (item.kind === 'command_execution' && item.status === 'failed') {
+        const message = item.detail?.trim() || item.summary?.trim();
+        if (message) {
+          void streamCallbacks?.onStderrChunk?.(`[DeepSeek] ${message}`);
+        }
+      }
+    }
 
     if (turn?.status === 'completed') {
       return {

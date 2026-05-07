@@ -13,6 +13,8 @@ export interface DeepSeekConfig {
   timeout?: number | null;
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
+  sandboxMode?: string;
+  approvalPolicy?: 'never' | 'on-request';
   onSpawn?: (child: ChildProcess) => void;
   resumeThreadId?: string;
   onThreadStarted?: (threadId: string) => void;
@@ -44,6 +46,35 @@ Please complete this task step by step. When you're done, provide a summary of:
 
 Take your time and be thorough.`;
 
+const resolveDeepSeekThreadConfig = (
+  sandboxMode: string,
+  approvalPolicy: 'never' | 'on-request'
+) => {
+  const normalizedSandboxMode = sandboxMode.trim().toLowerCase();
+
+  if (normalizedSandboxMode === 'danger-full-access' && approvalPolicy === 'on-request') {
+    return {
+      allowShell: true,
+      trustMode: true,
+      autoApprove: true,
+    };
+  }
+
+  if (normalizedSandboxMode === 'workspace-write' && approvalPolicy === 'on-request') {
+    return {
+      allowShell: true,
+      trustMode: false,
+      autoApprove: false,
+    };
+  }
+
+  return {
+    allowShell: false,
+    trustMode: false,
+    autoApprove: false,
+  };
+};
+
 export const executeDeepSeekTask = async (
   task: DeepSeekTask,
   config: DeepSeekConfig = {}
@@ -53,6 +84,8 @@ export const executeDeepSeekTask = async (
     timeout = 30000,
     workingDirectory = process.cwd(),
     streamCallbacks,
+    sandboxMode = 'workspace-write',
+    approvalPolicy = 'never',
     onSpawn,
   } = config;
 
@@ -61,6 +94,7 @@ export const executeDeepSeekTask = async (
       timeout,
       workingDirectory,
       streamCallbacks,
+      threadConfig: resolveDeepSeekThreadConfig(sandboxMode, approvalPolicy),
       onSpawn,
       resumeThreadId: config.resumeThreadId,
       onThreadStarted: config.onThreadStarted,
@@ -90,6 +124,8 @@ export const resumeDeepSeekSession = async ({
   streamCallbacks,
   onSpawn,
   onThreadStarted,
+  sandboxMode = 'workspace-write',
+  approvalPolicy = 'never',
 }: {
   threadId: string;
   prompt: string;
@@ -98,6 +134,8 @@ export const resumeDeepSeekSession = async ({
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
+  sandboxMode?: string;
+  approvalPolicy?: 'never' | 'on-request';
 }): Promise<DeepSeekResult> => {
   const startTime = Date.now();
 
@@ -115,6 +153,7 @@ export const resumeDeepSeekSession = async ({
         onSpawn,
         resumeThreadId: threadId,
         onThreadStarted,
+        threadConfig: resolveDeepSeekThreadConfig(sandboxMode, approvalPolicy),
         rawPrompt: prompt,
       }
     );
@@ -141,6 +180,11 @@ const executeDeepSeekTurn = async (
     timeout: number | null;
     workingDirectory: string;
     streamCallbacks?: HarnessStreamCallbacks;
+    threadConfig: {
+      allowShell: boolean;
+      trustMode: boolean;
+      autoApprove: boolean;
+    };
     onSpawn?: (child: ChildProcess) => void;
     resumeThreadId?: string;
     onThreadStarted?: (threadId: string) => void;
@@ -153,6 +197,8 @@ const executeDeepSeekTurn = async (
     threadId: options.resumeThreadId,
     workingDirectory: options.workingDirectory,
     timeoutMs: options.timeout,
+    streamCallbacks: options.streamCallbacks,
+    threadConfig: options.threadConfig,
   });
 
   if (result.threadId) {

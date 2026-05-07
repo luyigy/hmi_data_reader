@@ -128,6 +128,18 @@ export const getLocalHarnessPermissionSupport = (
     };
   }
 
+  if (executionBackend === 'platform_local' && harnessType === 'deepseek') {
+    return {
+      scope: 'next_run_or_continuation',
+      hotReloadSupported: false,
+      summary: '当前会在新建 DeepSeek thread 时映射 shell/auto-approve 权限；已有 thread 不会热更新，network 和 writable roots 仍先记录到 run metadata。',
+      sandboxMode: 'partially_applied',
+      approvalPolicy: 'partially_applied',
+      networkAccess: 'recorded_only',
+      writableRoots: 'recorded_only',
+    };
+  }
+
   return {
     scope: 'next_run_or_continuation',
     hotReloadSupported: false,

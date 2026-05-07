@@ -1099,6 +1099,7 @@ const executeViaLocalHarness = async (
   }
 
   if (participant.harnessType === 'deepseek') {
+    const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
     const result = participant.resumeSessionId && participant.continuationMessage
       ? await resumeDeepSeekSession({
           threadId: participant.resumeSessionId,
@@ -1106,6 +1107,8 @@ const executeViaLocalHarness = async (
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
           workingDirectory: request.workingDirectory,
           streamCallbacks: callbacks,
+          sandboxMode: permissionConfig.sandboxMode,
+          approvalPolicy: permissionConfig.approvalPolicy,
           onSpawn: onSpawn as ((child: ChildProcess) => void) | undefined,
           onThreadStarted: (threadId) => {
             void persistDeepSeekThreadMetadata(taskRunId, participantId, threadId);
@@ -1115,6 +1118,8 @@ const executeViaLocalHarness = async (
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
           workingDirectory: request.workingDirectory,
           streamCallbacks: callbacks,
+          sandboxMode: permissionConfig.sandboxMode,
+          approvalPolicy: permissionConfig.approvalPolicy,
           onSpawn: onSpawn as ((child: ChildProcess) => void) | undefined,
           onThreadStarted: (threadId) => {
             void persistDeepSeekThreadMetadata(taskRunId, participantId, threadId);
