@@ -95,13 +95,17 @@ const readContinuationKeyFromMetadata = (controlMetadata?: string | null) => {
 
 export const findLatestParticipantSession = async (
   taskId: string,
-  participant: Pick<AcpxParticipantRequest, 'continuationKey' | 'executionBackend' | 'gatewayId' | 'harnessType' | 'role' | 'agentId'>
+  participant: Pick<AcpxParticipantRequest, 'continuationKey' | 'executionBackend' | 'gatewayId' | 'harnessType' | 'role' | 'agentId'>,
+  options?: {
+    taskSessionId?: string | null;
+  }
 ) => {
   const expectedContinuationKey = getParticipantContinuationKey(participant);
   const candidates = await prisma.taskRunParticipant.findMany({
     where: {
       taskRun: {
         taskId,
+        ...(options?.taskSessionId ? { taskSessionId: options.taskSessionId } : {}),
       },
       executionBackend: participant.executionBackend,
       gatewayId: participant.gatewayId || null,

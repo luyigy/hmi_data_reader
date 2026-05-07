@@ -4,6 +4,7 @@ import type { ChatMessageTargetType } from '@/lib/chat-types';
 import { formatTaskRoomMessageTargetPrefix } from './task-room-targets';
 
 const TASK_ROOM_MARKER_PREFIX = 'TASK_ROOM:';
+const TASK_ROOM_SESSION_RESET_PREFIX = 'TASK_ROOM_SESSION_RESET:';
 const TASK_ROOM_PROMPT_MESSAGE_LIMIT = 12;
 const TASK_ROOM_PROMPT_CHAR_LIMIT = 4000;
 
@@ -40,6 +41,19 @@ const trimTaskRoomTranscript = (value: string) =>
   value.length > TASK_ROOM_PROMPT_CHAR_LIMIT
     ? value.slice(value.length - TASK_ROOM_PROMPT_CHAR_LIMIT)
     : value;
+
+const isTaskRoomSessionResetMarker = (message: { userId: string; content: string }) =>
+  message.userId === 'system' && message.content.startsWith(TASK_ROOM_SESSION_RESET_PREFIX);
+
+const sliceMessagesAfterLatestSessionReset = <T extends { userId: string; content: string }>(messages: T[]) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (isTaskRoomSessionResetMarker(messages[index])) {
+      return messages.slice(index + 1);
+    }
+  }
+
+  return messages;
+};
 
 export const getTaskRoomName = (taskName: string) => `任务：${taskName}`;
 
@@ -93,7 +107,16 @@ export const ensureTaskChatRoom = async (taskId: string, taskName: string) => {
 export const countTaskRoomMessages = async (taskId: string, taskName: string) => {
   const room = await findTaskChatRoom(taskId, taskName);
   if (!room) return 0;
-  return prisma.message.count({ where: { roomId: room.id } });
+  const messages = await prisma.message.findMany({
+    where: { roomId: room.id },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      userId: true,
+      content: true,
+    },
+  });
+
+  return sliceMessagesAfterLatestSessionReset(messages).length;
 };
 
 export const getTaskRoomMessages = async (taskId: string, taskName: string, limit = 50) => {
@@ -116,7 +139,8 @@ export const getTaskRoomMessages = async (taskId: string, taskName: string, limi
 
 export const buildTaskRoomContext = async (taskId: string, taskName: string, limit = 20) => {
   const { messages } = await getTaskRoomMessages(taskId, taskName, limit);
-  const contextMessages = messages.filter(shouldIncludeTaskRoomPromptMessage);
+  const contextMessages = sliceMessagesAfterLatestSessionReset(messages)
+    .filter(shouldIncludeTaskRoomPromptMessage);
 
   if (contextMessages.length === 0) {
     return '';
@@ -137,7 +161,8 @@ export const buildTaskRoomContext = async (taskId: string, taskName: string, lim
 
 export const buildTaskRoomPromptContext = async (taskId: string, taskName: string, limit = 20) => {
   const { messages } = await getTaskRoomMessages(taskId, taskName, limit);
-  const promptCandidates = messages.filter(shouldIncludeTaskRoomPromptMessage);
+  const promptCandidates = sliceMessagesAfterLatestSessionReset(messages)
+    .filter(shouldIncludeTaskRoomPromptMessage);
   const contextMessages = promptCandidates.slice(-TASK_ROOM_PROMPT_MESSAGE_LIMIT);
 
   const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
@@ -244,6 +269,21 @@ export const postTaskRoomMessage = async ({
 
   return message;
 };
+
+export const postTaskRoomSessionResetMarker = async ({
+  roomId,
+  sessionId,
+  reason,
+}: {
+  roomId: string;
+  sessionId: string;
+  reason: string;
+}) => postTaskRoomMessage({
+  roomId,
+  content: `${TASK_ROOM_SESSION_RESET_PREFIX}${sessionId}:${reason}`,
+  userId: 'system',
+  userName: '系统',
+});
 
 /**
  * 清空 Task Room 的所有历史消息

@@ -131,6 +131,38 @@ export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessi
   return session;
 };
 
+export const rotateTaskSession = async (taskId: string, options: EnsureTaskSessionOptions = {}) => {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { name: true },
+  });
+
+  if (!task) {
+    throw new Error(`Task "${taskId}" not found`);
+  }
+
+  const session = await prisma.taskSession.create({
+    data: {
+      taskId,
+      status: 'active',
+      attentionState: 'normal',
+      metadata: stringifyMetadata({
+        taskName: options.taskName ?? task.name,
+        ...(options.metadata ?? {}),
+      }),
+    },
+  });
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      currentTaskSessionId: session.id,
+    },
+  });
+
+  return session;
+};
+
 export const setTaskSessionActiveRun = async (taskSessionId: string, taskRunId: string | null) =>
   prisma.taskSession.update({
     where: { id: taskSessionId },

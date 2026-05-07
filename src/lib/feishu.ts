@@ -20,9 +20,15 @@ import {
 import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { rotateTaskSession } from '@/lib/acpx/session';
 import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
 import { normalizeAcpxPermissionConfig, DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
-import { buildTaskRoomPromptContext, ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
+import {
+  buildTaskRoomPromptContext,
+  ensureTaskChatRoom,
+  postTaskRoomMessage,
+  postTaskRoomSessionResetMarker,
+} from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import { buildLiveRoomAcpxParticipant, listLiveRoomCatalogAgents } from '@/lib/live-room';
 const DEFAULT_HELP_TEXT = [
@@ -1197,6 +1203,44 @@ function resolveHandoverPath(input: string) {
   };
 }
 
+function buildNewSessionPrompt(args: {
+  handoverPath?: string | null;
+  handoverContent?: string | null;
+  latestUserMessage?: string | null;
+  transcript?: string | null;
+  memberName: string;
+  taskName: string;
+}) {
+  if (args.handoverPath && args.handoverContent) {
+    return [
+      `Read the handover file at ${args.handoverPath} first.`,
+      'Then do exactly these three things:',
+      '1. Summarize the current state.',
+      '2. Confirm the next step.',
+      '3. Continue the work in a fresh session.',
+      '',
+      'Handover content:',
+      args.handoverContent,
+    ].join('\n');
+  }
+
+  return [
+    `Start a fresh session for ${args.memberName} on task "${args.taskName}".`,
+    'There is no explicit handover file for this restart.',
+    'Use the current room/task state below as the bootstrap context.',
+    'Then do exactly these three things:',
+    '1. Summarize the current state.',
+    '2. Confirm the next step.',
+    '3. Continue the work in a fresh session.',
+    '',
+    'Latest user message:',
+    args.latestUserMessage || '(none)',
+    '',
+    'Recent task-room transcript:',
+    args.transcript || '(no transcript available)',
+  ].join('\n');
+}
+
 function parseNewSessionProfile(value: string | null | undefined): 'safe_local' | 'dev_local' | 'full_access' | null {
   const normalized = value?.trim().toLowerCase() || '';
   if (!normalized) {
@@ -1274,10 +1318,6 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
   }
 
   const handoverOption = (command.options['handover'] || command.options['from-handover'] || '').trim();
-  if (!handoverOption) {
-    return '请指定 handover 文件。\n示例：/ap new-session --handover="docs/20260405_xxx_HANDOVER.md" --profile=full "codex"';
-  }
-
   const memberQuery = (command.options['agent'] || command.args.join(' ') || '').trim();
   const member = resolveRoomMemberQuery({ room, query: memberQuery });
   if (!member) {
@@ -1287,17 +1327,20 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
   }
 
   const handoverPath = resolveHandoverPath(handoverOption);
-  if (!handoverPath) {
-    return 'handover 路径为空。';
-  }
+  let handoverContent: string | null = null;
+  if (handoverOption) {
+    if (!handoverPath) {
+      return 'handover 路径为空。';
+    }
 
-  try {
-    await fs.access(handoverPath.absolutePath);
-  } catch {
-    return `找不到 handover 文件：${handoverPath.relativePath}`;
-  }
+    try {
+      await fs.access(handoverPath.absolutePath);
+    } catch {
+      return `找不到 handover 文件：${handoverPath.relativePath}`;
+    }
 
-  const handoverContent = await fs.readFile(handoverPath.absolutePath, 'utf8');
+    handoverContent = await fs.readFile(handoverPath.absolutePath, 'utf8');
+  }
   const participant = buildLiveRoomAcpxParticipant({
     id: member.id,
     displayName: member.displayName,
@@ -1334,23 +1377,38 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
     });
   }
 
-  const prompt = [
-    `Read the handover file at ${handoverPath.relativePath} first.`,
-    'Then do exactly these three things:',
-    '1. Summarize the current state.',
-    '2. Confirm the next step.',
-    '3. Continue the work in a fresh session.',
-    '',
-    'Handover content:',
-    handoverContent,
-  ].join('\n');
-
   const taskRoom = await ensureTaskChatRoom(room.sourceTask.id, room.sourceTask.name);
+  const promptContext = await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
+  const prompt = buildNewSessionPrompt({
+    handoverPath: handoverPath?.relativePath || null,
+    handoverContent,
+    latestUserMessage: promptContext.latestUserMessage?.content || null,
+    transcript: promptContext.transcript,
+    memberName: member.userNickname || member.displayName,
+    taskName: room.sourceTask.name,
+  });
+
+  const freshTaskSession = await rotateTaskSession(room.sourceTask.id, {
+    taskName: room.sourceTask.name,
+    metadata: {
+      source: 'feishu_new_session',
+      handoverPath: handoverPath?.relativePath || null,
+      targetMemberId: member.id,
+      targetMemberName: member.userNickname || member.displayName,
+    },
+  });
+  await postTaskRoomSessionResetMarker({
+    roomId: taskRoom.id,
+    sessionId: freshTaskSession.id,
+    reason: `new-session:${member.id}`,
+  });
   const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
   const targetParticipantLabel = getTaskRoomParticipantTargetLabel(participant);
   await postTaskRoomMessage({
     roomId: taskRoom.id,
-    content: `[new-session] ${member.userNickname || member.displayName} <- ${handoverPath.relativePath}`,
+    content: handoverPath
+      ? `[new-session] ${member.userNickname || member.displayName} <- ${handoverPath.relativePath}`
+      : `[new-session] ${member.userNickname || member.displayName} <- room-state bootstrap`,
     userId: 'task-room-user',
     userName: '用户',
     targetType: 'participant',
@@ -1370,7 +1428,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
 
   const result = await executeAcpxTaskRun({
     taskId: room.sourceTask.id,
-    taskSessionId: room.sourceTask.currentTaskSession?.id || undefined,
+    taskSessionId: freshTaskSession.id,
     taskName: room.sourceTask.name,
     taskDescription: room.sourceTask.description || undefined,
     orchestrationMode: 'single',
@@ -1395,7 +1453,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
 
   return [
     `✅ 已为 ${member.userNickname || member.displayName} 启动 fresh session`,
-    `Handover：${handoverPath.relativePath}`,
+    `Handover：${handoverPath?.relativePath || '未指定（使用当前 room/task 状态）'}`,
     `请求权限：${requestedPermissionLabel}`,
     `实际落库权限：${recordedPermissionLabel}`,
     ...(recordedPermissionConfig && recordedPermissionConfig.profile !== permissionConfig.profile

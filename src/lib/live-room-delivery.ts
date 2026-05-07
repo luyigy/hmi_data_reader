@@ -573,7 +573,9 @@ const executeLiveRoomReplyViaAcpx = async ({
     runtimeAgentId: targetMember.runtimeAgentId || targetMember.agentRecord?.runtimeAgentId || null,
   });
 
-  const latestSession = await findLatestParticipantSession(sourceTask.id, participant);
+  const latestSession = await findLatestParticipantSession(sourceTask.id, participant, {
+    taskSessionId: sourceTask.currentTaskSession?.id || null,
+  });
   const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
   const shouldInjectLatestInstruction = sourceMessage.senderMember?.memberType !== 'user';
 
@@ -877,7 +879,9 @@ const executeLiveRoomReplyViaAcpx = async ({
 
   await progressFlushPromise.catch(() => undefined);
 
-  const refreshedParticipantSession = await findLatestParticipantSession(sourceTask.id, participant);
+  const refreshedParticipantSession = await findLatestParticipantSession(sourceTask.id, participant, {
+    taskSessionId: sourceTask.currentTaskSession?.id || null,
+  });
 
   return {
     output: participantResult?.summary || acpxResult.summary || `${targetMember.displayName} completed`,

@@ -705,7 +705,8 @@ const CONTEXT_HARD_EVENT_THRESHOLD = 400;
 const checkContextWatermark = async (
   taskId: string,
   taskName: string,
-  taskRoomContext: { transcript: string }
+  taskRoomContext: { transcript: string },
+  taskSessionId?: string
 ): Promise<string | null> => {
   const softReasons: string[] = [];
   const hardReasons: string[] = [];
@@ -716,7 +717,11 @@ const checkContextWatermark = async (
 
   const [roomMessageCount, eventCount] = await Promise.all([
     countTaskRoomMessages(taskId, taskName),
-    prisma.taskRunEvent.count({ where: { taskRun: { taskId } } }),
+    prisma.taskRunEvent.count({
+      where: taskSessionId
+        ? { taskRun: { taskSessionId } }
+        : { taskRun: { taskId } },
+    }),
   ]);
 
   if (roomMessageCount >= CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD) {
@@ -1447,7 +1452,12 @@ const executeParticipant = async (
 
   try {
     const taskRoomContext = await buildTaskRoomPromptContext(request.taskId, request.taskName, 30);
-    const contextWarning = await checkContextWatermark(request.taskId, request.taskName, taskRoomContext);
+    const contextWarning = await checkContextWatermark(
+      request.taskId,
+      request.taskName,
+      taskRoomContext,
+      request.taskSessionId
+    );
     const localSpawnHandler = (child: { pid?: number }) => {
       if (participant.executionBackend === 'platform_local') {
         void persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
