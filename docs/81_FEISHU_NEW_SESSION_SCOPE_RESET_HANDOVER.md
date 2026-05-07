@@ -159,18 +159,58 @@ Current assessment:
 - despite that, a later live-room reply path is still finding or reusing a stale
   Codex thread id
 
+Later analysis strongly suggests an additional design mismatch:
+
+- `/ap new-session` was launching the fresh run with `ephemeralSession: true`
+- that means the bootstrap run was effectively treated like a one-shot fresh run
+- but later room replies still expected to resume a persistent Codex thread from
+  that new session
+- in practice this can lead to `thread/resume failed: no rollout found for thread
+  id ...`
+- because the thread captured from the bootstrap run is not guaranteed to be
+  resumable in the later live-room continuation path
+
 Most likely remaining causes:
 
 1. `sourceTask.currentTaskSession` seen by delivery code is not always the same
    fresh session created by `/ap new-session` at the moment later replies run
 2. `LiveRoomMemberSession.threadId` is still carrying an old Codex thread and is
    being reused indirectly after the fresh session bootstrap
-3. a fresh `/ap new-session` run may still persist a resumable Codex thread that
-   is not actually valid for later room-driven `thread/resume`
+3. `/ap new-session` bootstrap may create a non-resumable or effectively
+   one-shot Codex run if launched as `ephemeral`
 4. there may be another continuation path outside `findLatestParticipantSession`
    that still falls back to stale state
 
-## Recommended Debug Plan For The Unresolved Codex Resume Error
+## Additional Fix Applied After This Analysis
+
+Updated:
+
+- `src/lib/feishu.ts`
+
+Change:
+
+- `/ap new-session` no longer launches the target participant as
+  `ephemeralSession: true`
+- it now starts a fresh **persistent** session for the target agent
+- at the same time, matching `LiveRoomMemberSession.threadId` is cleared for that
+  room/member to avoid indirect reuse of stale member-level thread state
+
+Expected effect:
+
+- the bootstrap run created by `/ap new-session` should now be a valid new
+  continuation root for later room replies
+- later replies should no longer try to resume an old or one-shot Codex thread
+
+Latest observed result after applying this fix and restarting the Feishu/runtime
+service:
+
+- `/ap new-session` succeeded
+- a normal follow-up message in the same room no longer reproduced
+  `thread/resume failed: no rollout found for thread id ...`
+
+So this specific stale Codex resume failure now appears resolved in real usage.
+
+## Recommended Debug Plan If The Codex Resume Error Reappears
 
 1. Log the current `taskSessionId` at `/ap new-session` creation time and again
    inside `executeLiveRoomReplyViaAcpx()` before continuation lookup.
@@ -186,6 +226,11 @@ Most likely remaining causes:
      room/member
    - and/or temporarily force the first follow-up room reply to run without
      resume
+
+Note:
+
+- the first half of step 5 has now been implemented: member-level stored
+  `threadId` is cleared when `/ap new-session` rotates to a fresh session
 
 ## Files Changed
 

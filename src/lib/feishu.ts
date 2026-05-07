@@ -1402,6 +1402,18 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
     sessionId: freshTaskSession.id,
     reason: `new-session:${member.id}`,
   });
+  await prisma.liveRoomMemberSession.updateMany({
+    where: {
+      roomId: room.id,
+      memberId: member.id,
+    },
+    data: {
+      threadId: null,
+      status: 'online',
+      lastError: 'reset_by_new_session',
+      lastHeartbeatAt: new Date(),
+    },
+  }).catch(() => undefined);
   const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
   const targetParticipantLabel = getTaskRoomParticipantTargetLabel(participant);
   await postTaskRoomMessage({
@@ -1441,7 +1453,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
         resumeSessionId: undefined,
         resumeThreadId: undefined,
         continuationSessionKind: undefined,
-        ephemeralSession: true,
+        ephemeralSession: false,
       },
     ],
   });
