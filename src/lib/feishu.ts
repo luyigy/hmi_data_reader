@@ -150,6 +150,9 @@ function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnTyp
   if (normalized === 'claude-haha') {
     return localStatus['claude-haha'].available ? 'online' : 'offline';
   }
+  if (normalized.includes('deepseek')) {
+    return localStatus.deepseek.available ? 'online' : 'offline';
+  }
   if (normalized.includes('codex')) {
     return localStatus.codex.available ? 'online' : 'offline';
   }

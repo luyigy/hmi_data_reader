@@ -53,6 +53,12 @@ export async function ensurePlatformLocalAgents(): Promise<PlatformLocalAgent[]>
       emojiIcon: '💻',
       colorTag: '#50E3C2',
     },
+    {
+      name: 'deepseek',
+      type: 'deepseek',
+      emojiIcon: '🧠',
+      colorTag: '#2F855A',
+    },
   ];
 
   for (const def of agentDefinitions) {

@@ -32,6 +32,16 @@ export const getHarnessCapabilities = (
     };
   }
 
+  if (executionBackend === 'platform_local' && harnessType === 'deepseek') {
+    return {
+      supportsQueuedUserMessages: false,
+      supportsImmediateInterrupt: false,
+      supportsResumeAfterInterrupt: false,
+      supportsLiveSessionControl: false,
+      supportsSoftStop: true,
+    };
+  }
+
   if (executionBackend === 'gateway_openclaw') {
     return {
       supportsQueuedUserMessages: true,

@@ -7,6 +7,7 @@ import {
 } from '@/lib/openclaw-client';
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
+import { executeDeepSeekTask } from '@/lib/real-agents/deepseek-agent';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
@@ -40,6 +41,7 @@ const parseModifiedFiles = (filesModified?: string[] | null) =>
 
 const DEFAULT_CODEX_MAX_RUNTIME_MS = 10 * 60 * 1000;
 const DEFAULT_CLAUDE_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_DEEPSEEK_MAX_RUNTIME_MS = 10 * 60 * 1000;
 
 const resolveHarnessTimeout = (
   configuredTimeout: number | null | undefined,
@@ -991,6 +993,40 @@ const executeViaLocalHarness = async (
       liveStreaming: true,
       sessionId: result.sessionId,
       sessionKind: result.sessionId ? 'claude_session' : undefined,
+      threadId: undefined,
+    };
+  }
+
+  if (participant.harnessType === 'deepseek') {
+    const registerSpawn = (child: ChildProcess) => {
+      registerRunningProcess({
+        taskRunId,
+        participantId,
+        child,
+        executionBackend: participant.executionBackend,
+        harnessType: participant.harnessType,
+      });
+      onSpawn?.(child);
+    };
+
+    const result = await executeDeepSeekTask(task, {
+      timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
+      workingDirectory: request.workingDirectory,
+      streamCallbacks: callbacks,
+      onSpawn: registerSpawn,
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'DeepSeek execution failed');
+    }
+
+    return {
+      output: result.output || 'DeepSeek completed',
+      filesModified: result.filesModified ?? [],
+      executionTime: result.executionTime,
+      liveStreaming: false,
+      sessionId: undefined,
+      sessionKind: undefined,
       threadId: undefined,
     };
   }

@@ -15,11 +15,13 @@ export async function GET() {
         codex: status.codex.available,
         claude: status.claude.available,
         'claude-haha': status['claude-haha'].available,
+        deepseek: status.deepseek.available,
       },
       versions: {
         codex: status.codex.version,
         claude: status.claude.version,
         'claude-haha': status['claude-haha'].version,
+        deepseek: status.deepseek.version,
       },
     });
   } catch (error) {
@@ -39,11 +41,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha'; name?: string };
+    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek'; name?: string };
 
-    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha')) {
+    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek')) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "codex", "claude", or "claude-haha"' },
+        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", or "deepseek"' },
         { status: 400 }
       );
     }
@@ -68,7 +70,9 @@ export async function POST(request: NextRequest) {
       const execAsync = promisify(exec);
       
       try {
-        const command = type === 'claude-haha'
+        const command = type === 'deepseek'
+          ? 'deepseek --version'
+          : type === 'claude-haha'
           ? '/data1/code/cc-haha-oc/bin/claude-haha --version'
           : 'claude --version';
         await execAsync(command, { timeout: 5000 });
@@ -84,6 +88,8 @@ export async function POST(request: NextRequest) {
     const agentName = name || (
       type === 'codex'
         ? 'Codex Agent'
+        : type === 'deepseek'
+        ? 'DeepSeek Agent'
         : type === 'claude-haha'
         ? 'Claude Haha Agent'
         : 'Claude Code Agent'

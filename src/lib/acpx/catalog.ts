@@ -36,6 +36,9 @@ const normalizeHarnessType = (value?: string | null) => {
   if (normalized.includes('gemini')) {
     return 'gemini-cli';
   }
+  if (normalized.includes('deepseek')) {
+    return 'deepseek';
+  }
 
   return normalized;
 };
@@ -118,6 +121,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
     const isAvailable = harnessType === 'codex' ? localStatus.codex.available
       : harnessType === 'claude' ? localStatus.claude.available
       : harnessType === 'claude-haha' ? localStatus['claude-haha'].available
+      : harnessType === 'deepseek' ? localStatus.deepseek.available
       : true;
 
     if (!isAvailable) {
@@ -169,6 +173,20 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         agentId: 'platform-local:claude',
         agentName: 'Platform Local Claude',
         runtimeAgentId: 'claude',
+        status: 'online',
+      });
+    }
+
+    if (localStatus.deepseek.available) {
+      options.push({
+        gatewayId: 'platform-local',
+        gatewayName: 'Platform Local',
+        executionBackend: 'platform_local',
+        harnessType: 'deepseek',
+        harnessLabel: 'Platform Local / DeepSeek TUI',
+        agentId: 'platform-local:deepseek',
+        agentName: 'Platform Local DeepSeek',
+        runtimeAgentId: 'deepseek',
         status: 'online',
       });
     }

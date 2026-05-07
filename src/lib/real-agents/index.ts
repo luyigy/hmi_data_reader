@@ -6,9 +6,11 @@
 
 export * from './codex-agent';
 export * from './claude-agent';
+export * from './deepseek-agent';
 
 import { executeCodexTask, isCodexAvailable, getCodexVersion } from './codex-agent';
 import { executeClaudeTask, isClaudeAvailable, getClaudeVersion } from './claude-agent';
+import { executeDeepSeekTask, isDeepSeekAvailable, getDeepSeekVersion } from './deepseek-agent';
 
 export interface RealAgentTask {
   id: string;
@@ -17,7 +19,7 @@ export interface RealAgentTask {
 }
 
 export interface RealAgentResult {
-  agentType: 'codex' | 'claude';
+  agentType: 'codex' | 'claude' | 'deepseek';
   success: boolean;
   output?: string;
   error?: string;
@@ -30,24 +32,27 @@ export interface RealAgentResult {
  */
 export const executeRealAgentTask = async (
   task: RealAgentTask,
-  agentType: 'codex' | 'claude' | 'auto'
+  agentType: 'codex' | 'claude' | 'deepseek' | 'auto'
 ): Promise<RealAgentResult> => {
   if (agentType === 'auto') {
     // Auto-select best available agent
-    const [codexAvailable, claudeAvailable] = await Promise.all([
+    const [codexAvailable, claudeAvailable, deepSeekAvailable] = await Promise.all([
       isCodexAvailable(),
       isClaudeAvailable(),
+      isDeepSeekAvailable(),
     ]);
 
     if (claudeAvailable) {
       agentType = 'claude';
     } else if (codexAvailable) {
       agentType = 'codex';
+    } else if (deepSeekAvailable) {
+      agentType = 'deepseek';
     } else {
       return {
         agentType: 'claude',
         success: false,
-        error: 'No real agents available. Please install Codex or Claude Code.',
+        error: 'No real agents available. Please install Codex, Claude Code, or DeepSeek-TUI.',
         executionTime: 0,
       };
     }
@@ -58,6 +63,12 @@ export const executeRealAgentTask = async (
       const result = await executeCodexTask(task);
       return {
         agentType: 'codex',
+        ...result,
+      };
+    } else if (agentType === 'deepseek') {
+      const result = await executeDeepSeekTask(task);
+      return {
+        agentType: 'deepseek',
         ...result,
       };
     } else {
@@ -84,23 +95,27 @@ export const getRealAgentsStatus = async (): Promise<{
   codex: { available: boolean; version?: string };
   claude: { available: boolean; version?: string };
   'claude-haha': { available: boolean; version?: string };
+  deepseek: { available: boolean; version?: string };
 }> => {
-  const [codexAvailable, claudeAvailable, claudeHahaAvailable] = await Promise.all([
+  const [codexAvailable, claudeAvailable, claudeHahaAvailable, deepSeekAvailable] = await Promise.all([
     isCodexAvailable(),
     isClaudeAvailable('claude'),
     isClaudeAvailable('claude-haha'),
+    isDeepSeekAvailable(),
   ]);
 
-  const [codexVersion, claudeVersion, claudeHahaVersion] = await Promise.all([
+  const [codexVersion, claudeVersion, claudeHahaVersion, deepSeekVersion] = await Promise.all([
     codexAvailable ? getCodexVersion() : Promise.resolve(undefined),
     claudeAvailable ? getClaudeVersion('claude') : Promise.resolve(undefined),
     claudeHahaAvailable ? getClaudeVersion('claude-haha') : Promise.resolve(undefined),
+    deepSeekAvailable ? getDeepSeekVersion() : Promise.resolve(undefined),
   ]);
 
   return {
     codex: { available: codexAvailable, version: codexVersion },
     claude: { available: claudeAvailable, version: claudeVersion },
     'claude-haha': { available: claudeHahaAvailable, version: claudeHahaVersion },
+    deepseek: { available: deepSeekAvailable, version: deepSeekVersion },
   };
 };
 
@@ -109,7 +124,7 @@ export const getRealAgentsStatus = async (): Promise<{
  */
 export const registerRealAgent = async (
   name: string,
-  type: 'codex' | 'claude' | 'claude-haha',
+  type: 'codex' | 'claude' | 'claude-haha' | 'deepseek',
   location: 'local' | 'remote' | 'cloud' = 'local'
 ): Promise<{
   id: string;
