@@ -318,17 +318,117 @@ Related previous handover:
 
 - `docs/80_DEEPSEEK_PLATFORM_LOCAL_PHASE1_HANDOVER.md`
 
+## DeepSeek Phase 2 Next Move
+
+The next meaningful DeepSeek integration step is **not** prompt tuning.
+It is runtime architecture work so DeepSeek can behave like Codex/Claude in
+live room and Feishu chat instead of acting like a one-shot subprocess.
+
+Target behavior:
+
+- a DeepSeek member can join a room and keep continuity across messages
+- later replies resume the same session/thread identity instead of spawning a
+  brand new one-shot run every time
+- progress can stream back into live room / Feishu
+- if the runtime supports it, interrupt / stop / continue semantics should work
+
+Recommended implementation direction:
+
+1. Add a persistent DeepSeek runtime layer instead of only `deepseek exec`.
+2. Prefer an HTTP/service mode if the CLI/runtime supports stable thread reuse.
+3. Introduce per-room/per-member session identity for DeepSeek, analogous to how
+   Codex/Claude continuation is tracked.
+4. Extend ACPX participant/session tracking so DeepSeek can store:
+   - session id
+   - thread id if the runtime uses one
+   - session kind
+   - stale/expired markers
+5. Add live streaming event mapping:
+   - stdout/progress preview
+   - tool-use events if available
+   - final summary output
+6. Add continuation retry/fresh-session fallback rules similar to Codex/Claude.
+
+Minimum concrete Phase 2 deliverables:
+
+- persistent DeepSeek runtime client
+- DeepSeek session/thread continuation
+- live-room delivery integration with reusable session state
+- stale-session detection and fresh-session fallback
+
+Without those changes, DeepSeek will continue to behave like a one-shot worker,
+which is why it currently feels repetitive and unlike Codex in chat.
+
+## Context Level / Window Visibility Next Move
+
+There is still no proper user-facing visibility feature for:
+
+- current room context load
+- each agent's own session/thread context state
+- whether a reply is using fresh session vs continuation
+
+Current implementation only has heuristic watermarking based on:
+
+- task-room message count
+- task-run event count
+- transcript length
+
+That is useful internally, but it is **not** the same as showing actual context
+window/session health to the user.
+
+Recommended feature scope:
+
+1. Show room-level scoped context state.
+2. Show per-agent continuation state.
+3. Show whether the next reply will use:
+   - fresh session
+   - continuation
+   - stale/expired fallback
+
+Recommended room-level fields:
+
+- current `taskSessionId`
+- scoped task-room message count
+- scoped task-run event count
+- transcript character length
+- current working directory
+
+Recommended per-agent fields:
+
+- member name
+- harness type
+- latest continuation session/thread id
+- live-room member session `threadId`
+- last error
+- session status: online / busy / expired / stale
+- last delivery time
+
+Recommended implementation shape:
+
+1. Add a backend status endpoint or extend existing room/task status payloads.
+2. Surface the above state in the web UI room panel.
+3. Optionally add a lightweight Feishu command such as:
+   - `/ap status`
+   - `/ap room-status`
+   - `/ap context`
+4. Make the status clearly distinguish:
+   - task-session scope
+   - room-member scope
+   - agent continuation scope
+
+This feature is still pending and should be treated as a separate workstream
+after the new-session/session-continuity fixes.
+
 ## Next Recommended Step
 
 1. Restart the Feishu/runtime service.
 2. Run the `/ap new-session` test using this handover file.
-3. Instrument the remaining Codex resume path and trace which stale thread id is
-   being selected after the fresh session is already active.
-4. If needed, clear or ignore member-level thread state for the first post-reset
-   reply.
-5. After Codex session continuity is stable, start Phase 2 for DeepSeek:
+3. Consider the Feishu `/ap new-session` stale Codex resume issue resolved unless
+   it reproduces again under new evidence.
+4. Start DeepSeek Phase 2:
    persistent runtime, session continuation, and live-room streaming/control.
-6. A useful supporting improvement after that is a small status readout for:
+5. Start the context visibility feature so room/session health is inspectable.
+6. A useful first cut is a small status readout for:
    - current `taskSessionId`
    - scoped room message count
    - scoped event count
