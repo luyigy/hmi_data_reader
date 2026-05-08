@@ -37,6 +37,10 @@ export const CLAUDE_INSTALLATIONS: Record<string, ClaudeInstallation> = {
     configDir: '/home/hello/.claude-haha',
     env: {
       'CLAUDE_CONFIG_DIR': '/home/hello/.claude-haha',
+      // Platform-local child runs must keep .env loading enabled so model/provider
+      // selection continues to follow cc-haha-oc/.env rather than the parent
+      // runtime environment.
+      'CC_HAHA_SKIP_DOTENV': '0',
     },
   },
 };
