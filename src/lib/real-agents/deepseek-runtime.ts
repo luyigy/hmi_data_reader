@@ -15,6 +15,7 @@ type DeepSeekRuntimeThread = {
 type DeepSeekRuntimeTurn = {
   id: string;
   status: string;
+  error?: string;
 };
 
 type DeepSeekRuntimeItem = {
@@ -199,6 +200,15 @@ const extractTurnOutput = (payload: DeepSeekThreadReadResponse, turnId: string) 
   return latestItem?.detail?.trim() || latestItem?.summary?.trim() || '';
 };
 
+const extractTurnError = (payload: DeepSeekThreadReadResponse, turnId: string) => {
+  const errorItems = (payload.items || []).filter((item) =>
+    item.turn_id === turnId
+    && item.kind === 'error'
+  );
+  const latestItem = errorItems[errorItems.length - 1];
+  return latestItem?.detail?.trim() || latestItem?.summary?.trim() || '';
+};
+
 export const runDeepSeekRuntimeTurn = async ({
   prompt,
   threadId,
@@ -279,6 +289,13 @@ export const runDeepSeekRuntimeTurn = async ({
           void streamCallbacks?.onStderrChunk?.(`[DeepSeek] ${message}`);
         }
       }
+
+      if (item.kind === 'error') {
+        const message = item.detail?.trim() || item.summary?.trim();
+        if (message) {
+          void streamCallbacks?.onStderrChunk?.(`[DeepSeek] ${message}`);
+        }
+      }
     }
 
     if (turn?.status === 'completed') {
@@ -290,7 +307,12 @@ export const runDeepSeekRuntimeTurn = async ({
     }
 
     if (turn?.status === 'failed' || turn?.status === 'cancelled') {
-      throw new Error(`DeepSeek turn ${turnId} ${turn.status}`);
+      const detail = turn.error?.trim() || extractTurnError(threadState, turnId);
+      throw new Error(
+        detail
+          ? `DeepSeek turn ${turnId} ${turn.status}: ${detail}`
+          : `DeepSeek turn ${turnId} ${turn.status}`
+      );
     }
 
     if (typeof timeoutMs === 'number' && timeoutMs > 0 && Date.now() - startedAt >= timeoutMs) {

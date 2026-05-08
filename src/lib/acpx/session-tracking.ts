@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
+import { normalizeAcpxPermissionConfig } from './permissions';
 import type { AcpxParticipantRequest } from './types';
+import type { AcpxPermissionConfig } from './types';
 
 export const parseAcpxMetadata = (value: string | null | undefined): Record<string, unknown> => {
   if (!value) {
@@ -110,6 +112,7 @@ export const findLatestParticipantSession = async (
   participant: Pick<AcpxParticipantRequest, 'continuationKey' | 'executionBackend' | 'gatewayId' | 'harnessType' | 'role' | 'agentId'>,
   options?: {
     taskSessionId?: string | null;
+    permissionConfig?: AcpxPermissionConfig | null;
   }
 ) => {
   const expectedContinuationKey = getParticipantContinuationKey(participant);
@@ -144,6 +147,10 @@ export const findLatestParticipantSession = async (
     return typeof metadata.continuationStaleAt === 'string' && metadata.continuationStaleAt.trim().length > 0;
   };
 
+  const expectedPermissionConfig = options?.permissionConfig
+    ? normalizeAcpxPermissionConfig(options.permissionConfig)
+    : null;
+
   const viableCandidates = candidates.filter((candidate) => {
     if (readContinuationKeyFromMetadata(candidate.controlMetadata) !== expectedContinuationKey) {
       return false;
@@ -159,6 +166,20 @@ export const findLatestParticipantSession = async (
 
     if (candidate.taskRun.status === 'failed' || candidate.taskRun.status === 'stopped') {
       return false;
+    }
+
+    if (expectedPermissionConfig) {
+      const metadata = parseAcpxMetadata(candidate.controlMetadata);
+      const candidatePermissionConfig = metadata.permissionConfig && typeof metadata.permissionConfig === 'object'
+        ? normalizeAcpxPermissionConfig(metadata.permissionConfig as Partial<AcpxPermissionConfig>)
+        : null;
+      if (!candidatePermissionConfig) {
+        return false;
+      }
+
+      if (JSON.stringify(candidatePermissionConfig) !== JSON.stringify(expectedPermissionConfig)) {
+        return false;
+      }
     }
 
     return Boolean(getContinuationSession(candidate).sessionId);

@@ -22,7 +22,11 @@ import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interactio
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { rotateTaskSession } from '@/lib/acpx/session';
 import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
-import { normalizeAcpxPermissionConfig, DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
+import {
+  buildAcpxPermissionConfigForProfile,
+  normalizeAcpxPermissionConfig,
+  DEFAULT_ACPX_PERMISSION_CONFIG,
+} from '@/lib/acpx/permissions';
 import {
   buildTaskRoomPromptContext,
   ensureTaskChatRoom,
@@ -42,7 +46,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap hosts',
   '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
   '/ap run --host=<hostId|label> --harness=<codex|claude|claude-haha> <prompt>',
-  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [title]',
+  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [--profile=safe|dev|full] [title]',
   '/ap members',
   '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
   '/ap speaker [memberName|idSuffix]',
@@ -1805,18 +1809,28 @@ async function handleRoomCommand(
 
   const selectedAgentIds = parseFeishuSelectedAgentIds(command.options['agents']);
   const title = command.args.join(' ').trim() || command.options['title'];
+  const requestedProfile =
+    parseNewSessionProfile(command.options['profile'])
+    || parseNewSessionProfile(command.options['rights'])
+    || parseNewSessionProfile(command.options['permission'])
+    || parseNewSessionProfile(command.options['access']);
+  const permissionConfig = requestedProfile
+    ? buildAcpxPermissionConfigForProfile(requestedProfile, [])
+    : undefined;
   const result = await ensureFeishuConversationBinding({
     context,
     selectedAgentIds,
     title,
     topic: command.options['topic'],
     workingDirectory: command.options['workdir'] || undefined,
+    permissionConfig,
   });
 
   return [
     result.created ? '已创建 Feishu 绑定房间。' : '已复用现有 Feishu 绑定房间。',
     `Live Room: ${result.roomTitle} (${result.liveRoomId})`,
     `新增成员数：${result.addedAgentCount}`,
+    `权限：${permissionConfig ? formatPermissionProfileLabel(permissionConfig.profile) : 'Safe Local（默认）'}`,
     '接下来可以直接发送：/ap chat 你的消息',
   ].join('\n');
 }

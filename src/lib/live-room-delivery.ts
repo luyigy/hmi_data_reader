@@ -579,8 +579,14 @@ const executeLiveRoomReplyViaAcpx = async ({
     runtimeAgentId: targetMember.runtimeAgentId || targetMember.agentRecord?.runtimeAgentId || null,
   });
 
+  const permissionConfig = (() => {
+    const parsed = parseAcpxMetadata(sourceTask.acpxPermissionConfig);
+    return (Object.keys(parsed).length > 0 ? parsed : DEFAULT_ACPX_PERMISSION_CONFIG) as AcpxPermissionConfig;
+  })();
+
   const latestSession = await findLatestParticipantSession(sourceTask.id, participant, {
     taskSessionId: sourceTask.currentTaskSession?.id || null,
+    permissionConfig,
   });
   const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
   const shouldInjectLatestInstruction = sourceMessage.senderMember?.memberType !== 'user';
@@ -613,11 +619,6 @@ const executeLiveRoomReplyViaAcpx = async ({
       error: null,
     },
   });
-
-  const permissionConfig = (() => {
-    const parsed = parseAcpxMetadata(sourceTask.acpxPermissionConfig);
-    return (Object.keys(parsed).length > 0 ? parsed : DEFAULT_ACPX_PERMISSION_CONFIG) as AcpxPermissionConfig;
-  })();
 
   await postLiveRoomMessage({
     roomId: room.id,
@@ -887,6 +888,7 @@ const executeLiveRoomReplyViaAcpx = async ({
 
   const refreshedParticipantSession = await findLatestParticipantSession(sourceTask.id, participant, {
     taskSessionId: sourceTask.currentTaskSession?.id || null,
+    permissionConfig,
   });
 
   return {

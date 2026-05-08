@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
+import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 import {
   buildLiveRoomRosterText,
@@ -213,6 +214,7 @@ export async function ensureFeishuConversationBinding(args: {
   title?: string;
   topic?: string;
   workingDirectory?: string;
+  permissionConfig?: AcpxPermissionConfig;
 }) {
   const scopeKey = buildFeishuBindingScopeKey(args.context);
   const selectedAgentIds = args.selectedAgentIds || [];
@@ -246,6 +248,21 @@ export async function ensureFeishuConversationBinding(args: {
     const createdMembers = await addAgentsToLiveRoom(existing.liveRoomId, selectedAgentIds);
     if (createdMembers.length > 0) {
       await syncLiveRoomSourceTask(existing.liveRoomId);
+    }
+
+    if (args.permissionConfig) {
+      const roomWithTask = await prisma.liveRoom.findUnique({
+        where: { id: existing.liveRoomId },
+        select: { sourceTaskId: true },
+      });
+      if (roomWithTask?.sourceTaskId) {
+        await prisma.task.update({
+          where: { id: roomWithTask.sourceTaskId },
+          data: {
+            acpxPermissionConfig: JSON.stringify(args.permissionConfig),
+          },
+        });
+      }
     }
 
     const requestedWorkingDirectory = args.workingDirectory?.trim();
@@ -325,6 +342,21 @@ export async function ensureFeishuConversationBinding(args: {
   `;
 
   await syncLiveRoomSourceTask(room.id);
+
+  if (args.permissionConfig) {
+    const roomWithTask = await prisma.liveRoom.findUnique({
+      where: { id: room.id },
+      select: { sourceTaskId: true },
+    });
+    if (roomWithTask?.sourceTaskId) {
+      await prisma.task.update({
+        where: { id: roomWithTask.sourceTaskId },
+        data: {
+          acpxPermissionConfig: JSON.stringify(args.permissionConfig),
+        },
+      });
+    }
+  }
 
   const rosterMembers = await prisma.liveRoomMember.findMany({
     where: { roomId: room.id },
