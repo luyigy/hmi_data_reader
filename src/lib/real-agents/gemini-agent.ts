@@ -315,6 +315,7 @@ const runGeminiCommand = async ({
     let stderr = '';
     let stdoutBuffer = '';
     let settled = false;
+    let closed = false;
     const state: {
       output: string;
       sessionId?: string;
@@ -344,19 +345,26 @@ const runGeminiCommand = async ({
     };
 
     let timeoutHandle: NodeJS.Timeout | undefined;
+    let forceKillHandle: NodeJS.Timeout | undefined;
     if (typeof timeout === 'number' && timeout > 0) {
       timeoutHandle = setTimeout(() => {
+        state.structuredError = `Gemini execution timed out after ${timeout}ms`;
         child.kill('SIGTERM');
-        setTimeout(() => {
-          if (!settled) {
+        forceKillHandle = setTimeout(() => {
+          if (!closed) {
             child.kill('SIGKILL');
           }
-        }, 2000).unref();
-        finishReject(`Gemini execution timed out after ${timeout}ms`);
+        }, 2000);
+        forceKillHandle.unref();
+        finishReject(state.structuredError);
       }, timeout);
     }
 
     child.stdout.on('data', (data) => {
+      if (settled) {
+        return;
+      }
+
       const chunk = data.toString();
       stdout += chunk;
       stdoutBuffer += chunk;
@@ -385,6 +393,10 @@ const runGeminiCommand = async ({
     });
 
     child.stderr.on('data', (data) => {
+      if (settled) {
+        return;
+      }
+
       const chunk = data.toString();
       stderr += chunk;
       void streamCallbacks?.onStderrChunk?.(chunk);
@@ -394,20 +406,30 @@ const runGeminiCommand = async ({
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
       }
+      if (forceKillHandle) {
+        clearTimeout(forceKillHandle);
+      }
       finishReject(`Failed to start Gemini CLI: ${error.message}`);
     });
 
     child.on('close', (code) => {
+      closed = true;
+
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
       }
+      if (forceKillHandle) {
+        clearTimeout(forceKillHandle);
+      }
 
-      flushGeminiStdoutBuffer({
-        buffer: stdoutBuffer,
-        state,
-        streamCallbacks,
-        onSessionStarted,
-      });
+      if (!settled) {
+        flushGeminiStdoutBuffer({
+          buffer: stdoutBuffer,
+          state,
+          streamCallbacks,
+          onSessionStarted,
+        });
+      }
 
       if (code === 0 && !state.structuredError) {
         finishResolve();
