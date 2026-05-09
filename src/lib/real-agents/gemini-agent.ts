@@ -98,7 +98,7 @@ export const executeGeminiTask = async (
   try {
     const result = await runGeminiCommand({
       prompt: buildPrompt(task),
-      timeout: config.timeout ?? 30000,
+      timeout: config.timeout === null ? null : (config.timeout ?? 30000),
       workingDirectory: config.workingDirectory || process.cwd(),
       streamCallbacks: config.streamCallbacks,
       sandboxMode: config.sandboxMode || 'workspace-write',
