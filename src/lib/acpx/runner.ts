@@ -8,6 +8,7 @@ import {
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
 import { executeDeepSeekTask, resumeDeepSeekSession } from '@/lib/real-agents/deepseek-agent';
+import { executeGeminiTask, resumeGeminiSession } from '@/lib/real-agents/gemini-agent';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
@@ -42,6 +43,7 @@ const parseModifiedFiles = (filesModified?: string[] | null) =>
 const DEFAULT_CODEX_MAX_RUNTIME_MS = 10 * 60 * 1000;
 const DEFAULT_CLAUDE_MAX_RUNTIME_MS = 10 * 60 * 1000;
 const DEFAULT_DEEPSEEK_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_GEMINI_MAX_RUNTIME_MS = 10 * 60 * 1000;
 
 const resolveHarnessTimeout = (
   configuredTimeout: number | null | undefined,
@@ -437,6 +439,102 @@ const persistDeepSeekThreadMetadata = async (
             sameSessionConfirmed:
               typeof existingParticipantTracking.rootSessionId === 'string'
                 ? existingParticipantTracking.rootSessionId === threadId
+                : true,
+          },
+        }),
+      },
+    }),
+  ]);
+};
+
+const persistGeminiSessionMetadata = async (
+  taskRunId: string,
+  participantId: string,
+  sessionId: string | undefined
+) => {
+  if (!sessionId) {
+    return;
+  }
+
+  const [taskRun, participant] = await Promise.all([
+    prisma.taskRun.findUnique({
+      where: { id: taskRunId },
+      select: { controlMetadata: true },
+    }),
+    prisma.taskRunParticipant.findUnique({
+      where: { id: participantId },
+      select: { controlMetadata: true },
+    }),
+  ]);
+
+  const now = new Date().toISOString();
+  const taskRunMetadata = parseJsonObject(taskRun?.controlMetadata);
+  const participantMetadata = parseJsonObject(participant?.controlMetadata);
+  const existingRunTracking =
+    taskRunMetadata.sessionTracking && typeof taskRunMetadata.sessionTracking === 'object'
+      ? taskRunMetadata.sessionTracking as Record<string, unknown>
+      : {};
+  const existingParticipantTracking =
+    participantMetadata.sessionTracking && typeof participantMetadata.sessionTracking === 'object'
+      ? participantMetadata.sessionTracking as Record<string, unknown>
+      : {};
+
+  await Promise.all([
+    prisma.taskRun.update({
+      where: { id: taskRunId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...taskRunMetadata,
+          geminiSessionId: sessionId,
+          lastSessionId: sessionId,
+          lastSessionKind: 'gemini_session',
+          sessionTracking: {
+            ...existingRunTracking,
+            rootRunId:
+              typeof existingRunTracking.rootRunId === 'string'
+                ? existingRunTracking.rootRunId
+                : taskRunId,
+            latestRunId: taskRunId,
+            rootSessionId:
+              typeof existingRunTracking.rootSessionId === 'string'
+                ? existingRunTracking.rootSessionId
+                : sessionId,
+            latestSessionId: sessionId,
+            latestSessionKind: 'gemini_session',
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingRunTracking.rootSessionId === 'string'
+                ? existingRunTracking.rootSessionId === sessionId
+                : true,
+          },
+        }),
+      },
+    }),
+    prisma.taskRunParticipant.update({
+      where: { id: participantId },
+      data: {
+        controlMetadata: stringifyJson({
+          ...participantMetadata,
+          geminiSessionId: sessionId,
+          lastSessionId: sessionId,
+          lastSessionKind: 'gemini_session',
+          sessionTracking: {
+            ...existingParticipantTracking,
+            rootParticipantId:
+              typeof existingParticipantTracking.rootParticipantId === 'string'
+                ? existingParticipantTracking.rootParticipantId
+                : participantId,
+            latestParticipantId: participantId,
+            rootSessionId:
+              typeof existingParticipantTracking.rootSessionId === 'string'
+                ? existingParticipantTracking.rootSessionId
+                : sessionId,
+            latestSessionId: sessionId,
+            latestSessionKind: 'gemini_session',
+            checkedAt: now,
+            sameSessionConfirmed:
+              typeof existingParticipantTracking.rootSessionId === 'string'
+                ? existingParticipantTracking.rootSessionId === sessionId
                 : true,
           },
         }),
@@ -1141,6 +1239,61 @@ const executeViaLocalHarness = async (
     };
   }
 
+  if (participant.harnessType === 'gemini-cli') {
+    const registerSpawn = (child: ChildProcess) => {
+      registerRunningProcess({
+        taskRunId,
+        participantId,
+        child,
+        executionBackend: participant.executionBackend,
+        harnessType: participant.harnessType,
+      });
+      onSpawn?.(child);
+    };
+
+    const geminiTimeout = resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_GEMINI_MAX_RUNTIME_MS);
+    const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
+    const result = participant.resumeSessionId && participant.continuationMessage
+      ? await resumeGeminiSession({
+          sessionId: participant.resumeSessionId,
+          prompt: participant.continuationMessage,
+          timeout: geminiTimeout,
+          workingDirectory: request.workingDirectory,
+          streamCallbacks: callbacks,
+          sandboxMode: permissionConfig.sandboxMode,
+          approvalPolicy: permissionConfig.approvalPolicy,
+          onSpawn: registerSpawn,
+          onSessionStarted: (sessionId) => {
+            void persistGeminiSessionMetadata(taskRunId, participantId, sessionId);
+          },
+        })
+      : await executeGeminiTask(task, {
+          timeout: geminiTimeout,
+          workingDirectory: request.workingDirectory,
+          streamCallbacks: callbacks,
+          sandboxMode: permissionConfig.sandboxMode,
+          approvalPolicy: permissionConfig.approvalPolicy,
+          onSpawn: registerSpawn,
+          onSessionStarted: (sessionId) => {
+            void persistGeminiSessionMetadata(taskRunId, participantId, sessionId);
+          },
+        });
+
+    if (!result.success) {
+      throw new Error(result.error || 'Gemini execution failed');
+    }
+
+    return {
+      output: result.output || 'Gemini completed',
+      filesModified: result.filesModified ?? [],
+      executionTime: result.executionTime,
+      liveStreaming: true,
+      sessionId: result.sessionId,
+      sessionKind: result.sessionId ? 'gemini_session' : undefined,
+      threadId: undefined,
+    };
+  }
+
   throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
 };
 
@@ -1634,6 +1787,10 @@ const executeParticipant = async (
 
     if (result.sessionKind === 'deepseek_thread' && result.sessionId) {
       await persistDeepSeekThreadMetadata(taskRunId, participantId, result.sessionId);
+    }
+
+    if (result.sessionKind === 'gemini_session' && result.sessionId) {
+      await persistGeminiSessionMetadata(taskRunId, participantId, result.sessionId);
     }
 
     if (result.filesModified?.length) {

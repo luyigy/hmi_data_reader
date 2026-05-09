@@ -94,6 +94,7 @@ export function CreateAgentForm({ onSuccess }: CreateAgentFormProps) {
             <option value="specialized">专用</option>
             <option value="claude">Claude</option>
             <option value="codex">Codex</option>
+            <option value="gemini">Gemini</option>
           </select>
         </div>
 

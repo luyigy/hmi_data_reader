@@ -23,6 +23,12 @@ const INVALID_DEEPSEEK_CONTINUATION_PATTERNS = [
   /turn .* failed/i,
 ];
 
+const INVALID_GEMINI_CONTINUATION_PATTERNS = [
+  /Invalid session identifier/i,
+  /Error resuming session/i,
+  /Use --list-sessions/i,
+];
+
 const isInvalidContinuationError = (participant: AcpxParticipantRequest, message: string) => {
   const patterns =
     participant.harnessType === 'claude'
@@ -31,6 +37,8 @@ const isInvalidContinuationError = (participant: AcpxParticipantRequest, message
       ? INVALID_CODEX_CONTINUATION_PATTERNS
       : participant.harnessType === 'deepseek'
       ? INVALID_DEEPSEEK_CONTINUATION_PATTERNS
+      : participant.harnessType === 'gemini-cli'
+      ? INVALID_GEMINI_CONTINUATION_PATTERNS
       : [];
 
   return patterns.some((pattern) => pattern.test(message));

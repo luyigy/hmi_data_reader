@@ -16,12 +16,14 @@ export async function GET() {
         claude: status.claude.available,
         'claude-haha': status['claude-haha'].available,
         deepseek: status.deepseek.available,
+        gemini: status.gemini.available,
       },
       versions: {
         codex: status.codex.version,
         claude: status.claude.version,
         'claude-haha': status['claude-haha'].version,
         deepseek: status.deepseek.version,
+        gemini: status.gemini.version,
       },
     });
   } catch (error) {
@@ -41,11 +43,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek'; name?: string };
+    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini'; name?: string };
 
-    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek')) {
+    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini')) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", or "deepseek"' },
+        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", "deepseek", or "gemini"' },
         { status: 400 }
       );
     }
@@ -72,6 +74,8 @@ export async function POST(request: NextRequest) {
       try {
         const command = type === 'deepseek'
           ? 'deepseek --version'
+          : type === 'gemini'
+          ? 'gemini --version'
           : type === 'claude-haha'
           ? '/data1/code/cc-haha-oc/bin/claude-haha --version'
           : 'claude --version';
@@ -90,6 +94,8 @@ export async function POST(request: NextRequest) {
         ? 'Codex Agent'
         : type === 'deepseek'
         ? 'DeepSeek Agent'
+        : type === 'gemini'
+        ? 'Gemini Agent'
         : type === 'claude-haha'
         ? 'Claude Haha Agent'
         : 'Claude Code Agent'

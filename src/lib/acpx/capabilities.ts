@@ -42,6 +42,16 @@ export const getHarnessCapabilities = (
     };
   }
 
+  if (executionBackend === 'platform_local' && harnessType === 'gemini-cli') {
+    return {
+      supportsQueuedUserMessages: true,
+      supportsImmediateInterrupt: true,
+      supportsResumeAfterInterrupt: true,
+      supportsLiveSessionControl: false,
+      supportsSoftStop: true,
+    };
+  }
+
   if (executionBackend === 'gateway_openclaw') {
     return {
       supportsQueuedUserMessages: true,

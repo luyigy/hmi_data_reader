@@ -168,6 +168,8 @@ export const generateDefaultEmojiIcon = (harnessType: string): string => {
   const emojiMap: Record<string, string> = {
     'claude': '🤖',
     'codex': '💻',
+    'gemini': '✨',
+    'gemini-cli': '✨',
     'main': '🧠',
     'gpt': '🔮',
     'llama': '🦙',

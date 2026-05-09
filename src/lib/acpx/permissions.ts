@@ -140,6 +140,18 @@ export const getLocalHarnessPermissionSupport = (
     };
   }
 
+  if (executionBackend === 'platform_local' && harnessType === 'gemini-cli') {
+    return {
+      scope: 'next_run_or_continuation',
+      hotReloadSupported: false,
+      summary: '当前 Gemini 先使用固定的非交互 headless 启动参数；ACPX 权限设置会记录到 run metadata，但还没有和 Gemini CLI 的 sandbox/approval 语义做精确映射。',
+      sandboxMode: 'recorded_only',
+      approvalPolicy: 'recorded_only',
+      networkAccess: 'recorded_only',
+      writableRoots: 'recorded_only',
+    };
+  }
+
   return {
     scope: 'next_run_or_continuation',
     hotReloadSupported: false,

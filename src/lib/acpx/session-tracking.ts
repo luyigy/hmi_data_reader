@@ -82,6 +82,18 @@ export const getContinuationSession = (participant: {
     }
   }
 
+  if (participant.harnessType === 'gemini-cli') {
+    const sessionId = typeof metadata.geminiSessionId === 'string' && metadata.geminiSessionId.trim()
+      ? metadata.geminiSessionId.trim()
+      : null;
+    if (sessionId) {
+      return {
+        sessionId,
+        sessionKind: 'gemini_session',
+      };
+    }
+  }
+
   return {
     sessionId: null,
     sessionKind: null,
@@ -222,6 +234,7 @@ export const markParticipantContinuationStale = async ({
   delete metadata.codexThreadId;
   delete metadata.claudeSessionId;
   delete metadata.deepseekThreadId;
+  delete metadata.geminiSessionId;
 
   await prisma.taskRunParticipant.update({
     where: { id: participantId },

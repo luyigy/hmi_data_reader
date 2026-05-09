@@ -59,6 +59,10 @@ const pidLooksLikeHarness = async (pid: number, harnessType: string) => {
       return normalized.includes('claude');
     }
 
+    if (harnessType === 'gemini-cli') {
+      return normalized.includes('gemini');
+    }
+
     return normalized.includes(harnessType.toLowerCase());
   } catch {
     return true;

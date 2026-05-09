@@ -122,6 +122,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
       : harnessType === 'claude' ? localStatus.claude.available
       : harnessType === 'claude-haha' ? localStatus['claude-haha'].available
       : harnessType === 'deepseek' ? localStatus.deepseek.available
+      : harnessType === 'gemini-cli' ? localStatus.gemini.available
       : true;
 
     if (!isAvailable) {
@@ -187,6 +188,20 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         agentId: 'platform-local:deepseek',
         agentName: 'Platform Local DeepSeek',
         runtimeAgentId: 'deepseek',
+        status: 'online',
+      });
+    }
+
+    if (localStatus.gemini.available) {
+      options.push({
+        gatewayId: 'platform-local',
+        gatewayName: 'Platform Local',
+        executionBackend: 'platform_local',
+        harnessType: 'gemini-cli',
+        harnessLabel: 'Platform Local / Gemini CLI',
+        agentId: 'platform-local:gemini',
+        agentName: 'Platform Local Gemini',
+        runtimeAgentId: 'gemini-cli',
         status: 'online',
       });
     }

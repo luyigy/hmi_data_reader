@@ -1,7 +1,7 @@
 /**
  * Platform Local Agents Initialization
  *
- * Ensures that platform local agents (Claude, Codex) exist in the database
+ * Ensures that platform local agents (Claude, Codex, Gemini, DeepSeek) exist in the database
  * with the current server's hostname for differentiation across multiple servers.
  */
 
@@ -58,6 +58,12 @@ export async function ensurePlatformLocalAgents(): Promise<PlatformLocalAgent[]>
       type: 'deepseek',
       emojiIcon: '🧠',
       colorTag: '#2F855A',
+    },
+    {
+      name: 'gemini',
+      type: 'gemini',
+      emojiIcon: '✨',
+      colorTag: '#D97706',
     },
   ];
 

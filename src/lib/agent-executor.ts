@@ -7,6 +7,7 @@
  * 真实 Agent 支持:
  * - Codex (OpenAI)
  * - Claude Code (Anthropic)
+ * - Gemini CLI (Google)
  */
 
 import { executeRealAgentTask, getRealAgentsStatus } from './real-agents';
@@ -101,7 +102,7 @@ const executeLocalAgent = async (
 ): Promise<any> => {
   console.log(`[Local Agent] Executing task "${task.name}" on ${agent.name} (${agent.type})`);
   
-  // 检查是否是真实 Agent (Codex 或 Claude Code)
+  // 检查是否是真实 Agent (Codex / Claude / Gemini)
   const agentNameLower = agent.name.toLowerCase();
   
   if (agentNameLower.includes('codex')) {
@@ -110,6 +111,8 @@ const executeLocalAgent = async (
   } else if (agentNameLower.includes('claude')) {
     // 使用真实的 Claude Code 执行
     return await executeRealClaudeTask(task, agent);
+  } else if (agentNameLower.includes('gemini')) {
+    return await executeRealGeminiTask(task, agent);
   }
   
   // 否则使用模拟处理器
@@ -464,16 +467,49 @@ const executeRealClaudeTask = async (
   }
 };
 
+const executeRealGeminiTask = async (
+  task: AgentTask,
+  agent: AgentTask['assignedAgents'][0]
+): Promise<any> => {
+  console.log(`[Real Gemini] Executing task "${task.name}"`);
+
+  try {
+    const result = await executeRealAgentTask(
+      {
+        id: task.id,
+        name: task.name,
+        description: task.description,
+      },
+      'gemini'
+    );
+
+    return {
+      message: result.output || 'Task completed',
+      agentType: 'real-gemini',
+      location: 'local',
+      timestamp: new Date().toISOString(),
+      executionTime: result.executionTime,
+      success: result.success,
+      error: result.error,
+      taskType: 'real-gemini',
+    };
+  } catch (error) {
+    throw new Error(`Real Gemini execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
 /**
  * 检查真实 Agent 是否可用
  */
 export const checkRealAgentsAvailability = async (): Promise<{
   codex: boolean;
   claude: boolean;
+  gemini: boolean;
 }> => {
   const status = await getRealAgentsStatus();
   return {
     codex: status.codex.available,
     claude: status.claude.available,
+    gemini: status.gemini.available,
   };
 };
