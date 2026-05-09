@@ -84,10 +84,7 @@ Please complete this task step by step. When you're done, provide a summary of:
 
 Take your time and be thorough.`;
 
-const resolveGeminiApprovalMode = (
-  _sandboxMode: string,
-  _approvalPolicy: 'never' | 'on-request'
-) => 'yolo';
+const resolveGeminiApprovalMode = () => 'yolo';
 
 export const executeGeminiTask = async (
   task: GeminiTask,
@@ -98,7 +95,7 @@ export const executeGeminiTask = async (
   try {
     const result = await runGeminiCommand({
       prompt: buildPrompt(task),
-      timeout: config.timeout === null ? null : (config.timeout ?? 30000),
+      timeout: config.timeout === null ? null : (config.timeout ?? 300000),
       workingDirectory: config.workingDirectory || process.cwd(),
       streamCallbacks: config.streamCallbacks,
       sandboxMode: config.sandboxMode || 'workspace-write',
