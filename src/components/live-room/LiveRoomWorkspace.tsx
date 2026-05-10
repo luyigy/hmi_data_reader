@@ -6,21 +6,21 @@ import { useRouter } from 'next/navigation';
 import { ensureSocketServerReady, getSocketClient } from '@/lib/websocket-client';
 import type {
   LiveRoomCatalogAgent,
-  LiveRoomDetail,
   LiveRoomMessage,
-  LiveRoomSummary,
+  WorkspaceDetail,
+  WorkspaceSummary,
 } from '@/types';
 
-interface LiveRoomsResponse {
-  rooms: LiveRoomSummary[];
+interface WorkspacesResponse {
+  workspaces: WorkspaceSummary[];
   availableAgents: LiveRoomCatalogAgent[];
 }
 
-type PendingReply = NonNullable<LiveRoomDetail['pendingReplies']>[number];
+type PendingReply = NonNullable<WorkspaceDetail['pendingReplies']>[number];
 
 type MentionCandidate =
   | { kind: 'all'; id: '__all__'; label: '$all'; subtitle: string }
-  | { kind: 'member'; member: LiveRoomDetail['members'][number] };
+  | { kind: 'member'; member: WorkspaceDetail['members'][number] };
 
 const ROOMS_PANEL_KEY = 'live-room-left-panel-open';
 const DETAILS_PANEL_KEY = 'live-room-right-panel-open';
@@ -31,7 +31,7 @@ const getAgentLabel = (agent: LiveRoomCatalogAgent) =>
     agent.backend === 'remote_ssh' ? `Remote SSH · ${agent.gatewayName}` : agent.gatewayName
   } / ${agent.harnessType}`;
 
-const getMemberLabel = (member: LiveRoomDetail['members'][number]) =>
+const getMemberLabel = (member: WorkspaceDetail['members'][number]) =>
   member.memberType === 'user'
     ? member.displayName
     : `${member.displayName} · ${
@@ -42,7 +42,7 @@ const getMemberLabel = (member: LiveRoomDetail['members'][number]) =>
           : (member.gatewayName || 'Gateway')
       } / ${member.harnessType || 'agent'}`;
 
-const getMemberSubtitle = (member: LiveRoomDetail['members'][number]) =>
+const getMemberSubtitle = (member: WorkspaceDetail['members'][number]) =>
   member.memberType === 'user'
     ? '你'
     : `${
@@ -92,6 +92,21 @@ const getPendingReplyStatusLabel = (reply: PendingReply) => {
   return `${progress}（${formatPendingAge(reply.newestPendingAgeSeconds)}）${queueSuffix}`;
 };
 
+const getWorkspaceStatusLabel = (status: WorkspaceSummary['workspaceStatus']) => {
+  if (status === 'waiting_for_you') return 'waiting';
+  if (status === 'failed') return 'failed';
+  if (status === 'running') return 'running';
+  if (status === 'archived') return 'archived';
+  return 'idle';
+};
+
+const getAttentionLabel = (attentionState: WorkspaceSummary['attentionState']) => {
+  if (attentionState === 'waiting_for_you') return 'needs you';
+  if (attentionState === 'failed') return 'failed';
+  if (attentionState === 'new_updates') return 'updates';
+  return 'quiet';
+};
+
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
 
 const getMessageMetadataValue = (message: LiveRoomMessage, key: string) =>
@@ -104,7 +119,7 @@ const getLiveRoomSystemEvent = (message: LiveRoomMessage) => {
 
 const renderLiveRoomSystemMessage = (
   message: LiveRoomMessage,
-  room: LiveRoomDetail | null
+  room: WorkspaceDetail | null
 ) => {
   const systemEvent = getLiveRoomSystemEvent(message);
   if (!systemEvent || !['member_reply_started', 'member_reply_progress', 'member_reply_tool'].includes(systemEvent)) {
@@ -209,13 +224,15 @@ const getComposerModeLabel = ({
 
 export function LiveRoomWorkspace({
   initialRoomId,
+  basePath = '/workspaces',
 }: {
   initialRoomId?: string;
+  basePath?: string;
 }) {
   const router = useRouter();
-  const [rooms, setRooms] = useState<LiveRoomSummary[]>([]);
+  const [rooms, setRooms] = useState<WorkspaceSummary[]>([]);
   const [availableAgents, setAvailableAgents] = useState<LiveRoomCatalogAgent[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<LiveRoomDetail | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<WorkspaceDetail | null>(null);
   const [messages, setMessages] = useState<LiveRoomMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [draftMentionAll, setDraftMentionAll] = useState(false);
@@ -260,8 +277,8 @@ export function LiveRoomWorkspace({
   );
 
   const mentionQuery = useMemo(() => getMentionQuery(messageInput), [messageInput]);
-  const activeRooms = useMemo(() => rooms.filter((room) => room.status === 'active'), [rooms]);
-  const archivedRooms = useMemo(() => rooms.filter((room) => room.status === 'archived'), [rooms]);
+  const activeRooms = useMemo(() => rooms.filter((room) => room.lifecycleStatus === 'active'), [rooms]);
+  const archivedRooms = useMemo(() => rooms.filter((room) => room.lifecycleStatus === 'archived'), [rooms]);
   const pendingSummaryText = useMemo(() => {
     if (!selectedRoom?.pendingReplies?.length) {
       return null;
@@ -335,14 +352,14 @@ export function LiveRoomWorkspace({
     }
 
     try {
-      const response = await fetch('/api/live-rooms');
-      const data: LiveRoomsResponse = await response.json();
-      setRooms(Array.isArray(data.rooms) ? data.rooms : []);
+      const response = await fetch('/api/workspaces');
+      const data: WorkspacesResponse = await response.json();
+      setRooms(Array.isArray(data.workspaces) ? data.workspaces : []);
       setAvailableAgents(Array.isArray(data.availableAgents) ? data.availableAgents : []);
     } catch (fetchError) {
-      console.error('Failed to fetch live rooms:', fetchError);
+      console.error('Failed to fetch workspaces:', fetchError);
       if (!background) {
-        setError('加载 live rooms 失败');
+        setError('加载 workspaces 失败');
       }
     } finally {
       if (!background) {
@@ -367,7 +384,7 @@ export function LiveRoomWorkspace({
 
     try {
       const [roomResponse, messagesResponse] = await Promise.all([
-        fetch(`/api/live-rooms/${roomId}`),
+        fetch(`/api/workspaces/${roomId}`),
         fetch(`/api/live-rooms/${roomId}/messages?limit=120`),
       ]);
       const roomData = await roomResponse.json();
@@ -377,21 +394,21 @@ export function LiveRoomWorkspace({
         throw new Error(roomData.error || '加载房间详情失败');
       }
 
-      setSelectedRoom(roomData.room || null);
+      setSelectedRoom(roomData.workspace || null);
       setMessages(Array.isArray(messagesData.messages) ? messagesData.messages : []);
-      setTopicDraft(roomData.room?.currentTopic || '');
-      setRoomTitleDraft(roomData.room?.title || '');
-      setRoomDescriptionDraft(roomData.room?.description || '');
-      setRoomModeDraft(roomData.room?.mode || 'discussion');
+      setTopicDraft(roomData.workspace?.currentTopic || '');
+      setRoomTitleDraft(roomData.workspace?.title || '');
+      setRoomDescriptionDraft(roomData.workspace?.description || '');
+      setRoomModeDraft(roomData.workspace?.mode || 'discussion');
       if (!preserveComposerState) {
         setSelectedTargetMemberId('');
         setDraftMentionAll(false);
         setDraftMentionMemberIds([]);
       }
     } catch (fetchError) {
-      console.error('Failed to fetch live room detail:', fetchError);
+      console.error('Failed to fetch workspace detail:', fetchError);
       if (!background) {
-        setError(fetchError instanceof Error ? fetchError.message : '加载房间详情失败');
+        setError(fetchError instanceof Error ? fetchError.message : '加载 workspace 详情失败');
       }
     } finally {
       if (!background) {
@@ -505,7 +522,7 @@ export function LiveRoomWorkspace({
       setMessages((prev) => prev.some((item) => item.id === message.id) ? prev : [...prev, message]);
     };
 
-    const handleRoomUpdated = (summary: LiveRoomSummary) => {
+    const handleRoomUpdated = (summary: WorkspaceSummary) => {
       setRooms((prev) => {
         const next = prev.some((room) => room.id === summary.id)
           ? prev.map((room) => room.id === summary.id ? summary : room)
@@ -541,7 +558,7 @@ export function LiveRoomWorkspace({
       if (roomId === initialRoomId) {
         setSelectedRoom(null);
         setMessages([]);
-        router.push('/rooms');
+        router.push(basePath);
       }
     };
 
@@ -586,7 +603,7 @@ export function LiveRoomWorkspace({
       socket.off('live-room:updated', handleRoomUpdated);
       socket.off('live-room:deleted', handleRoomDeleted);
     };
-  }, [initialRoomId, router]);
+  }, [basePath, initialRoomId, router]);
 
   useEffect(() => {
     if (DISABLE_LIVE_ROOM_SOCKET_AND_POLLING) {
@@ -638,7 +655,7 @@ export function LiveRoomWorkspace({
 
   const handleCreateRoom = async () => {
     if (!newRoomTitle.trim()) {
-      setError('请先输入 room title');
+      setError('请先输入 workspace title');
       return;
     }
 
@@ -664,10 +681,10 @@ export function LiveRoomWorkspace({
       setNewRoomTitle('');
       setNewRoomTopic('');
       setSelectedAgentIds([]);
-      setNotice('新 live room 已创建。');
+      setNotice('新 workspace 已创建。');
       await refreshRooms();
       if (data.room?.id) {
-        router.push(`/rooms/${data.room.id}`);
+        router.push(`${basePath}/${data.room.id}`);
       }
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : '创建房间失败');
@@ -871,7 +888,7 @@ export function LiveRoomWorkspace({
     }
 
     if (!roomTitleDraft.trim()) {
-      setError('请先输入 room title');
+      setError('请先输入 workspace title');
       return;
     }
 
@@ -914,7 +931,7 @@ export function LiveRoomWorkspace({
       return;
     }
 
-    router.push(`/rooms/${roomId}`);
+    router.push(`${basePath}/${roomId}`);
   };
 
   const handleArchiveRoomById = async (roomId: string, roomTitle: string) => {
@@ -993,7 +1010,7 @@ export function LiveRoomWorkspace({
       setRoomDescriptionDraft('');
       setRoomModeDraft('discussion');
       await refreshRooms();
-      router.push('/rooms');
+      router.push(basePath);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : '永久删除房间失败');
     } finally {
@@ -1159,8 +1176,8 @@ export function LiveRoomWorkspace({
           <div className="border-b border-slate-200 px-4 py-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Live Rooms</div>
-                <div className="mt-2 text-lg font-semibold text-slate-900">多 Agent 实时协作</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Workspaces</div>
+                <div className="mt-2 text-lg font-semibold text-slate-900">项目工作空间</div>
               </div>
               <button
                 onClick={() => setIsRoomsPanelOpen(false)}
@@ -1172,18 +1189,18 @@ export function LiveRoomWorkspace({
           </div>
 
           <div className="border-b border-slate-200 px-4 py-4">
-            <div className="text-sm font-medium text-slate-900">新建房间</div>
+            <div className="text-sm font-medium text-slate-900">新建 Workspace</div>
             <input
               value={newRoomTitle}
               onChange={(event) => setNewRoomTitle(event.target.value)}
-              placeholder="例如：跨网关 OCR 讨论室"
+              placeholder="例如：跨网关 OCR 工作空间"
               className="mt-3 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500"
             />
             <textarea
               value={newRoomTopic}
               onChange={(event) => setNewRoomTopic(event.target.value)}
               rows={2}
-              placeholder="给这个房间一个当前 topic / task..."
+              placeholder="给这个 workspace 一个当前 topic / task..."
               className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500"
             />
             <div className="mt-2 max-h-36 space-y-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2">
@@ -1215,15 +1232,15 @@ export function LiveRoomWorkspace({
               disabled={isCreating}
               className="mt-3 w-full rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:bg-slate-400"
             >
-              {isCreating ? '创建中...' : '创建 Live Room'}
+              {isCreating ? '创建中...' : '创建 Workspace'}
             </button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
             {isLoadingRooms ? (
-              <div className="px-3 py-4 text-sm text-slate-500">加载房间中...</div>
+              <div className="px-3 py-4 text-sm text-slate-500">加载 workspaces 中...</div>
             ) : rooms.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-slate-500">还没有 live room，先创建一个。</div>
+              <div className="px-3 py-4 text-sm text-slate-500">还没有 workspace，先创建一个。</div>
             ) : (
               <div className="space-y-3">
                 <div className="space-y-1">
@@ -1238,11 +1255,24 @@ export function LiveRoomWorkspace({
                       >
                         <div className="flex items-start gap-2">
                           <Link
-                            href={`/rooms/${room.id}`}
+                            href={`${basePath}/${room.id}`}
                             className="min-w-0 flex-1"
                           >
                             <div className="truncate text-sm font-medium text-slate-900">{room.title}</div>
                             <div className="mt-1 truncate text-xs text-slate-500">{room.currentTopic || '暂未设置 topic'}</div>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                                {getWorkspaceStatusLabel(room.workspaceStatus)}
+                              </span>
+                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                                {getAttentionLabel(room.attentionState)}
+                              </span>
+                              {room.linkedChannels.some((channel) => channel.kind === 'feishu_chat') ? (
+                                <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+                                  Feishu
+                                </span>
+                              ) : null}
+                            </div>
                             <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-slate-400">
                               <span>{room.memberCount} members</span>
                               <span className="truncate">{room.currentSpeakerName || '无 speaker'}</span>
@@ -1292,7 +1322,7 @@ export function LiveRoomWorkspace({
                     className="flex w-full items-center justify-between px-3 py-2 text-left"
                   >
                     <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      Archived Rooms
+                      Archived Workspaces
                     </span>
                     <span className="text-xs text-slate-500">
                       {archivedRooms.length} {showArchivedRooms ? 'hide' : 'show'}
@@ -1300,7 +1330,7 @@ export function LiveRoomWorkspace({
                   </button>
                   {showArchivedRooms ? (
                     archivedRooms.length === 0 ? (
-                      <div className="px-3 pb-3 text-sm text-slate-500">还没有 archived rooms。</div>
+                      <div className="px-3 pb-3 text-sm text-slate-500">还没有 archived workspaces。</div>
                     ) : (
                       <div className="space-y-1 px-2 pb-2">
                         {archivedRooms.map((room) => {
@@ -1314,7 +1344,7 @@ export function LiveRoomWorkspace({
                             >
                               <div className="flex items-start gap-2">
                                 <Link
-                                  href={`/rooms/${room.id}`}
+                                  href={`${basePath}/${room.id}`}
                                   className="min-w-0 flex-1"
                                 >
                                   <div className="truncate text-sm font-medium text-slate-700">{room.title}</div>
@@ -1380,18 +1410,18 @@ export function LiveRoomWorkspace({
         {!selectedRoom && !initialRoomId ? (
           <div className="flex h-full items-center justify-center px-10">
             <div className="max-w-2xl text-center">
-              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Live Agent Room</div>
-              <h1 className="mt-4 text-4xl font-semibold text-slate-900">像 ChatGPT 一样进入持续协作房间</h1>
+              <div className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Workspace</div>
+              <h1 className="mt-4 text-4xl font-semibold text-slate-900">像 Codex Desktop 一样进入持续协作项目</h1>
               <p className="mt-4 text-base leading-7 text-slate-600">
-                先创建房间、邀请来自任意 gateway 的 agent，然后在中间持续讨论 topic。
-                这里的主语义是房间和对话，不再被 task run 控制台绑住。
+                先创建 workspace、邀请来自任意 gateway 的 agent，然后在中间持续推进 topic。
+                这里的主语义是项目、线程和同步入口，不再只是 run 控制台。
               </p>
               {!isRoomsPanelOpen ? (
                 <button
                   onClick={() => setIsRoomsPanelOpen(true)}
                   className="mt-6 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
-                  显示 Live Rooms
+                  显示 Workspaces
                 </button>
               ) : null}
             </div>
@@ -1401,7 +1431,7 @@ export function LiveRoomWorkspace({
             <header className="border-b border-slate-200 bg-white px-6 py-3">
               <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Live Collaboration Room</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Workspace Thread</div>
                   <div className="mt-1 flex flex-wrap items-center gap-3">
                     <h1 className="truncate text-[24px] font-semibold text-slate-950">{selectedRoom?.title || '加载中...'}</h1>
                     <span className="max-w-full truncate text-sm text-slate-600">
@@ -1415,12 +1445,22 @@ export function LiveRoomWorkspace({
                 <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-slate-500">
                   <span className="rounded-full bg-slate-100 px-3 py-1">{selectedRoom?.mode || 'discussion'}</span>
                   <span className="rounded-full bg-slate-100 px-3 py-1">{selectedRoom?.memberCount || 0} members</span>
+                  {selectedRoom ? (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                      {getAttentionLabel(selectedRoom.attentionState)}
+                    </span>
+                  ) : null}
+                  {selectedRoom?.linkedChannels.some((channel) => channel.kind === 'feishu_chat') ? (
+                    <span className="rounded-full bg-sky-50 px-3 py-1 text-sky-700">
+                      Feishu linked
+                    </span>
+                  ) : null}
                   {!isRoomsPanelOpen ? (
                     <button
                       onClick={() => setIsRoomsPanelOpen(true)}
                       className="rounded-full border border-slate-300 bg-white px-3 py-1 font-medium text-slate-600 transition hover:bg-slate-50"
                     >
-                      显示 Live Rooms
+                      显示 Workspaces
                     </button>
                   ) : null}
                   {!isDetailsPanelOpen ? (

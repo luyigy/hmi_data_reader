@@ -7,5 +7,5 @@ export default function LiveRoomDetailPage({
 }: {
   params: { id: string };
 }) {
-  return <LiveRoomWorkspace initialRoomId={params.id} />;
+  return <LiveRoomWorkspace initialRoomId={params.id} basePath="/rooms" />;
 }

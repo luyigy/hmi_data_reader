@@ -84,7 +84,7 @@ Please complete this task step by step. When you're done, provide a summary of:
 
 Take your time and be thorough.`;
 
-const resolveGeminiApprovalMode = () => 'yolo';
+const resolveGeminiApprovalMode = (sandboxMode?: string, approvalPolicy?: string) => 'yolo';
 
 export const executeGeminiTask = async (
   task: GeminiTask,

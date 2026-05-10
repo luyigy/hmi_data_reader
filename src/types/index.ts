@@ -127,6 +127,24 @@ export interface LiveRoomSummary {
   lastMessageAt?: string | null;
 }
 
+export interface WorkspaceChannel {
+  id: string;
+  workspaceId: string;
+  kind: 'web_room' | 'feishu_chat';
+  label: string;
+  externalId?: string | null;
+  status: 'connected' | 'disconnected';
+}
+
+export interface WorkspaceSummary extends LiveRoomSummary {
+  workspaceStatus: 'idle' | 'running' | 'waiting_for_you' | 'failed' | 'archived';
+  attentionState: 'quiet' | 'new_updates' | 'waiting_for_you' | 'failed';
+  unreadCount: number;
+  lastActivityAt: string;
+  lifecycleStatus: 'active' | 'archived';
+  linkedChannels: WorkspaceChannel[];
+}
+
 export interface LiveRoomDetail extends LiveRoomSummary {
   sourceTask?: {
     id: string;
@@ -153,4 +171,14 @@ export interface LiveRoomDetail extends LiveRoomSummary {
     status: 'queued' | 'running' | 'stalled';
   }>;
   members: LiveRoomMember[];
+}
+
+export interface WorkspaceDetail extends LiveRoomDetail {
+  workspaceStatus: 'idle' | 'running' | 'waiting_for_you' | 'failed' | 'archived';
+  attentionState: 'quiet' | 'new_updates' | 'waiting_for_you' | 'failed';
+  unreadCount: number;
+  lastActivityAt: string;
+  lifecycleStatus: 'active' | 'archived';
+  linkedChannels: WorkspaceChannel[];
+  pendingActionCount: number;
 }

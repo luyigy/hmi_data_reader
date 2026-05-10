@@ -4,6 +4,34 @@
 
 2026-05-09
 
+## 2026-05-10 实施状态更新
+
+本轮已完成第一阶段落地，当前状态可以概括为：
+
+- 已新增 `workspace` 投影视图层，对现有 `live room + task + Feishu binding` 做统一主视角聚合
+- 已新增 `/api/workspaces` 与 `/api/workspaces/:id`，Web 已优先通过 workspace API 读取列表与详情
+- 已新增 `/workspaces` 与 `/workspaces/:id` 页面，同时保留 `/rooms` 兼容入口
+- 左栏主文案已从 `Live Rooms` 收敛到 `Workspaces`
+- 左栏已展示基础 `workspaceStatus / attentionState / Feishu` 标记
+- Feishu 绑定已投影为 `WorkspaceChannel`
+- 原有 live-room 的消息收发链路仍可用，workspace 详情页继续复用现有会话线程与消息 API
+- E2E smoke/checklist 测试已覆盖：入口、列表投影、新建、详情跳转、发消息、Feishu 标记、`/rooms` 兼容
+
+本轮明确已完成的设计项：
+
+- [x] 先统一一个可用的 `Workspace` 主模型
+- [x] Web 端已有统一的项目列表和会话入口
+- [x] Feishu / Web 已共享同一个 workspace 视图入口
+- [x] 左栏已具备基础 attention 展示和按 attention 排序能力
+
+本轮仍未完成或只完成第一版的部分：
+
+- [ ] `unreadCount` 仍未做真正的按用户未读持久化
+- [ ] `waiting_for_you` 还只是基于 pending interaction request 的第一版推导
+- [ ] 右栏虽然已有现成房间信息，但还没有完全收敛成文档里定义的 workspace context/control panel
+- [ ] `WorkspaceMessage` 目前仍主要复用 live-room message 模型，而不是完全独立的新消息表
+- [ ] canonical workspace 持久化目前仍是“投影式主模型”，尚未落成独立 `Workspace` 表
+
 ## 背景
 
 当前系统在 Feishu 集成侧已经取得了明显进展：

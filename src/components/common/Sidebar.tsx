@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 
 const menuItems = [
   { href: '/', label: 'Dashboard', icon: '📊' },
-  { href: '/rooms', label: 'Live Rooms', icon: '🧠' },
+  { href: '/workspaces', label: 'Workspaces', icon: '🧠' },
   { href: '/chat', label: 'Chat Room', icon: '💬' },
   { href: '/gateway-tools', label: 'Gateway Tools', icon: '🛠️' },
   { href: '/remote-ssh-tools', label: 'Remote SSH', icon: '🧷' },
