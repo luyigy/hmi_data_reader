@@ -122,7 +122,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
       : harnessType === 'claude' ? localStatus.claude.available
       : harnessType === 'claude-haha' ? localStatus['claude-haha'].available
       : harnessType === 'deepseek' ? localStatus.deepseek.available
-      : harnessType === 'gemini-cli' ? localStatus.gemini.available
+      : harnessType === 'gemini-cli' ? localStatus['gemini-cli'].available
       : true;
 
     if (!isAvailable) {
@@ -192,7 +192,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
       });
     }
 
-    if (localStatus.gemini.available) {
+    if (localStatus['gemini-cli'].available) {
       options.push({
         gatewayId: 'platform-local',
         gatewayName: 'Platform Local',

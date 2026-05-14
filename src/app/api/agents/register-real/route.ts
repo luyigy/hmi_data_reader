@@ -16,14 +16,14 @@ export async function GET() {
         claude: status.claude.available,
         'claude-haha': status['claude-haha'].available,
         deepseek: status.deepseek.available,
-        gemini: status.gemini.available,
+        'gemini-cli': status['gemini-cli'].available,
       },
       versions: {
         codex: status.codex.version,
         claude: status.claude.version,
         'claude-haha': status['claude-haha'].version,
         deepseek: status.deepseek.version,
-        gemini: status.gemini.version,
+        'gemini-cli': status['gemini-cli'].version,
       },
     });
   } catch (error) {
@@ -43,11 +43,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini'; name?: string };
+    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli'; name?: string };
 
-    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini')) {
+    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini-cli')) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", "deepseek", or "gemini"' },
+        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", "deepseek", or "gemini-cli"' },
         { status: 400 }
       );
     }
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       try {
         const command = type === 'deepseek'
           ? 'deepseek --version'
-          : type === 'gemini'
+          : type === 'gemini-cli'
           ? 'gemini --version'
           : type === 'claude-haha'
           ? '/data1/code/cc-haha-oc/bin/claude-haha --version'
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
         ? 'Codex Agent'
         : type === 'deepseek'
         ? 'DeepSeek Agent'
-        : type === 'gemini'
+        : type === 'gemini-cli'
         ? 'Gemini Agent'
         : type === 'claude-haha'
         ? 'Claude Haha Agent'

@@ -480,18 +480,18 @@ const executeRealGeminiTask = async (
         name: task.name,
         description: task.description,
       },
-      'gemini'
+      'gemini-cli'
     );
 
     return {
       message: result.output || 'Task completed',
-      agentType: 'real-gemini',
+      agentType: 'real-gemini-cli',
       location: 'local',
       timestamp: new Date().toISOString(),
       executionTime: result.executionTime,
       success: result.success,
       error: result.error,
-      taskType: 'real-gemini',
+      taskType: 'real-gemini-cli',
     };
   } catch (error) {
     throw new Error(`Real Gemini execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -504,12 +504,12 @@ const executeRealGeminiTask = async (
 export const checkRealAgentsAvailability = async (): Promise<{
   codex: boolean;
   claude: boolean;
-  gemini: boolean;
+  'gemini-cli': boolean;
 }> => {
   const status = await getRealAgentsStatus();
   return {
     codex: status.codex.available,
     claude: status.claude.available,
-    gemini: status.gemini.available,
+    'gemini-cli': status['gemini-cli'].available,
   };
 };

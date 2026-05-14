@@ -8,7 +8,7 @@ import {
 import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
 import { executeDeepSeekTask, resumeDeepSeekSession } from '@/lib/real-agents/deepseek-agent';
-import { executeGeminiTask, resumeGeminiSession } from '@/lib/real-agents/gemini-agent';
+import { executeGeminiTask, resumeGeminiSession } from '@/lib/real-agents/gemini-cli-agent';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';

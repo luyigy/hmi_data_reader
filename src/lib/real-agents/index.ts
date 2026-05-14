@@ -7,12 +7,12 @@
 export * from './codex-agent';
 export * from './claude-agent';
 export * from './deepseek-agent';
-export * from './gemini-agent';
+export * from './gemini-cli-agent';
 
 import { executeCodexTask, isCodexAvailable, getCodexVersion } from './codex-agent';
 import { executeClaudeTask, isClaudeAvailable, getClaudeVersion } from './claude-agent';
 import { executeDeepSeekTask, isDeepSeekAvailable, getDeepSeekVersion } from './deepseek-agent';
-import { executeGeminiTask, isGeminiAvailable, getGeminiVersion } from './gemini-agent';
+import { executeGeminiTask, isGeminiAvailable, getGeminiVersion } from './gemini-cli-agent';
 
 export interface RealAgentTask {
   id: string;
@@ -21,7 +21,7 @@ export interface RealAgentTask {
 }
 
 export interface RealAgentResult {
-  agentType: 'codex' | 'claude' | 'deepseek' | 'gemini';
+  agentType: 'codex' | 'claude' | 'deepseek' | 'gemini-cli';
   success: boolean;
   output?: string;
   error?: string;
@@ -34,7 +34,7 @@ export interface RealAgentResult {
  */
 export const executeRealAgentTask = async (
   task: RealAgentTask,
-  agentType: 'codex' | 'claude' | 'deepseek' | 'gemini' | 'auto'
+  agentType: 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'auto'
 ): Promise<RealAgentResult> => {
   if (agentType === 'auto') {
     // Auto-select best available agent
@@ -50,7 +50,7 @@ export const executeRealAgentTask = async (
     } else if (codexAvailable) {
       agentType = 'codex';
     } else if (geminiAvailable) {
-      agentType = 'gemini';
+      agentType = 'gemini-cli';
     } else if (deepSeekAvailable) {
       agentType = 'deepseek';
     } else {
@@ -70,10 +70,10 @@ export const executeRealAgentTask = async (
         agentType: 'codex',
         ...result,
       };
-    } else if (agentType === 'gemini') {
+    } else if (agentType === 'gemini-cli') {
       const result = await executeGeminiTask(task);
       return {
-        agentType: 'gemini',
+        agentType: 'gemini-cli',
         ...result,
       };
     } else if (agentType === 'deepseek') {
@@ -107,7 +107,7 @@ export const getRealAgentsStatus = async (): Promise<{
   claude: { available: boolean; version?: string };
   'claude-haha': { available: boolean; version?: string };
   deepseek: { available: boolean; version?: string };
-  gemini: { available: boolean; version?: string };
+  'gemini-cli': { available: boolean; version?: string };
 }> => {
   const [codexAvailable, claudeAvailable, claudeHahaAvailable, deepSeekAvailable, geminiAvailable] = await Promise.all([
     isCodexAvailable(),
@@ -130,7 +130,7 @@ export const getRealAgentsStatus = async (): Promise<{
     claude: { available: claudeAvailable, version: claudeVersion },
     'claude-haha': { available: claudeHahaAvailable, version: claudeHahaVersion },
     deepseek: { available: deepSeekAvailable, version: deepSeekVersion },
-    gemini: { available: geminiAvailable, version: geminiVersion },
+    'gemini-cli': { available: geminiAvailable, version: geminiVersion },
   };
 };
 
@@ -139,7 +139,7 @@ export const getRealAgentsStatus = async (): Promise<{
  */
 export const registerRealAgent = async (
   name: string,
-  type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini',
+  type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli',
   location: 'local' | 'remote' | 'cloud' = 'local'
 ): Promise<{
   id: string;

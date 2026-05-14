@@ -60,8 +60,8 @@ export async function ensurePlatformLocalAgents(): Promise<PlatformLocalAgent[]>
       colorTag: '#2F855A',
     },
     {
-      name: 'gemini',
-      type: 'gemini',
+      name: 'gemini-cli',
+      type: 'gemini-cli',
       emojiIcon: '✨',
       colorTag: '#D97706',
     },
