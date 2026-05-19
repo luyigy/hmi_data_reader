@@ -166,6 +166,9 @@ function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnTyp
   if (normalized.includes('gemini')) {
     return localStatus['gemini-cli'].available ? 'online' : 'offline';
   }
+  if (normalized.includes('pi-agent') || normalized === 'pi') {
+    return localStatus['pi-agent'].available ? 'online' : 'offline';
+  }
   if (normalized.includes('codex')) {
     return localStatus.codex.available ? 'online' : 'offline';
   }

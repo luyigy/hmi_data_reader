@@ -1,0 +1,290 @@
+import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import type { ChildProcess } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+
+export interface PiAgentConfig {
+  timeout?: number | null;
+  workingDirectory?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+  sessionDir?: string;
+  continueSession?: boolean;
+}
+
+export interface PiAgentTask {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface PiAgentResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  executionTime: number;
+  filesModified?: string[];
+  sessionDir?: string;
+}
+
+const DEFAULT_PI_AGENT_BIN = process.env.PI_AGENT_BIN?.trim() || '/data1/code/pi-mono/pi-test.sh';
+const DEFAULT_PI_PROVIDER = process.env.PI_AGENT_PROVIDER?.trim();
+const DEFAULT_PI_MODEL = process.env.PI_AGENT_MODEL?.trim();
+const DEFAULT_PI_THINKING = process.env.PI_AGENT_THINKING?.trim();
+const DEFAULT_PI_EXTENSIONS = (process.env.PI_AGENT_EXTENSIONS || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+const DEFAULT_PI_SESSION_ROOT = process.env.PI_AGENT_SESSION_ROOT?.trim()
+  || path.join(os.homedir(), '.acpx', 'pi-agent-sessions');
+
+const buildPrompt = (task: PiAgentTask) => `Task: ${task.name}
+
+${task.description ? `Description: ${task.description}` : 'Please complete this task.'}
+
+Please complete this task step by step. When you're done, provide a summary of:
+1. What you did
+2. Any findings or results
+3. Any issues you encountered
+
+Take your time and be thorough.`;
+
+const slugify = (value: string) =>
+  value
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 120) || 'default';
+
+export const resolvePiAgentSessionDir = (sessionKey: string) =>
+  path.join(DEFAULT_PI_SESSION_ROOT, slugify(sessionKey));
+
+const buildPiArgs = ({
+  prompt,
+  sessionDir,
+  continueSession,
+}: {
+  prompt: string;
+  sessionDir?: string;
+  continueSession?: boolean;
+}) => {
+  const args = ['--print'];
+
+  if (DEFAULT_PI_PROVIDER) {
+    args.push('--provider', DEFAULT_PI_PROVIDER);
+  }
+
+  if (DEFAULT_PI_MODEL) {
+    args.push('--model', DEFAULT_PI_MODEL);
+  }
+
+  if (DEFAULT_PI_THINKING) {
+    args.push('--thinking', DEFAULT_PI_THINKING);
+  }
+
+  for (const extensionPath of DEFAULT_PI_EXTENSIONS) {
+    args.push('--extension', extensionPath);
+  }
+
+  if (sessionDir) {
+    args.push('--session-dir', sessionDir);
+  }
+
+  if (continueSession) {
+    args.push('--continue');
+  }
+
+  args.push('--tools', 'read,bash,edit,write,grep,find,ls');
+  args.push(prompt);
+  return args;
+};
+
+const runPiAgentCommand = async ({
+  prompt,
+  timeout,
+  workingDirectory,
+  streamCallbacks,
+  onSpawn,
+  sessionDir,
+  continueSession,
+}: {
+  prompt: string;
+  timeout: number | null;
+  workingDirectory: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+  sessionDir?: string;
+  continueSession?: boolean;
+}): Promise<string> => {
+  const { spawn } = await import('child_process');
+
+  if (sessionDir) {
+    fs.mkdirSync(sessionDir, { recursive: true });
+  }
+
+  const child = spawn(DEFAULT_PI_AGENT_BIN, buildPiArgs({ prompt, sessionDir, continueSession }), {
+    cwd: workingDirectory,
+    env: { ...process.env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  onSpawn?.(child);
+
+  return new Promise<string>((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timeoutHandle: NodeJS.Timeout | undefined;
+
+    const settle = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+      fn();
+    };
+
+    if (timeout !== null) {
+      timeoutHandle = setTimeout(() => {
+        child.kill('SIGTERM');
+        settle(() => reject(new Error(`Pi Agent execution timed out after ${timeout}ms`)));
+      }, timeout);
+    }
+
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      const text = chunk.toString();
+      stdout += text;
+      void streamCallbacks?.onStdoutChunk?.(text);
+    });
+
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      const text = chunk.toString();
+      stderr += text;
+      void streamCallbacks?.onStderrChunk?.(text);
+    });
+
+    child.on('error', (error) => {
+      settle(() => reject(error));
+    });
+
+    child.on('close', (code) => {
+      const combined = `${stdout}`.trim();
+      const normalizedStderr = stderr.trim();
+      if (code === 0) {
+        settle(() => resolve(combined || normalizedStderr || 'Pi Agent completed'));
+        return;
+      }
+
+      const errorMessage = normalizedStderr || combined || `Pi Agent exited with code ${code ?? 'unknown'}`;
+      settle(() => reject(new Error(errorMessage)));
+    });
+  });
+};
+
+export const executePiAgentTask = async (
+  task: PiAgentTask,
+  config: PiAgentConfig = {}
+): Promise<PiAgentResult> => {
+  const startTime = Date.now();
+
+  try {
+    const output = await runPiAgentCommand({
+      prompt: buildPrompt(task),
+      timeout: config.timeout ?? null,
+      workingDirectory: config.workingDirectory || process.cwd(),
+      streamCallbacks: config.streamCallbacks,
+      onSpawn: config.onSpawn,
+      sessionDir: config.sessionDir,
+      continueSession: config.continueSession,
+    });
+
+    return {
+      success: true,
+      output,
+      filesModified: [],
+      sessionDir: config.sessionDir,
+      executionTime: Date.now() - startTime,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      sessionDir: config.sessionDir,
+      executionTime: Date.now() - startTime,
+    };
+  }
+};
+
+export const resumePiAgentSession = async ({
+  sessionDir,
+  prompt,
+  timeout,
+  workingDirectory = process.cwd(),
+  streamCallbacks,
+  onSpawn,
+}: {
+  sessionDir: string;
+  prompt: string;
+  timeout: number | null;
+  workingDirectory?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+}): Promise<PiAgentResult> => {
+  const startTime = Date.now();
+
+  try {
+    const output = await runPiAgentCommand({
+      prompt,
+      timeout,
+      workingDirectory,
+      streamCallbacks,
+      onSpawn,
+      sessionDir,
+      continueSession: true,
+    });
+
+    return {
+      success: true,
+      output,
+      filesModified: [],
+      sessionDir,
+      executionTime: Date.now() - startTime,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      sessionDir,
+      executionTime: Date.now() - startTime,
+    };
+  }
+};
+
+export const isPiAgentAvailable = async (): Promise<boolean> => {
+  try {
+    await fs.promises.access(DEFAULT_PI_AGENT_BIN, fs.constants.X_OK);
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const execFileAsync = promisify(execFile);
+    await execFileAsync(DEFAULT_PI_AGENT_BIN, ['--version'], { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const getPiAgentVersion = async (): Promise<string> => {
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const execFileAsync = promisify(execFile);
+    const { stdout } = await execFileAsync(DEFAULT_PI_AGENT_BIN, ['--version'], { timeout: 5000 });
+    return stdout.trim();
+  } catch {
+    return 'unknown';
+  }
+};

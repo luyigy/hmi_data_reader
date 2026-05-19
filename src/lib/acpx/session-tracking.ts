@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getHarnessAdapter } from '@/lib/harness';
 import { normalizeAcpxPermissionConfig } from './permissions';
 import type { AcpxParticipantRequest } from './types';
 import type { AcpxPermissionConfig } from './types';
@@ -34,6 +35,7 @@ export const getContinuationSession = (participant: {
   harnessType: string;
 }) => {
   const metadata = parseAcpxMetadata(participant.controlMetadata);
+  const adapter = getHarnessAdapter(participant.harnessType);
   const explicitSessionId = typeof metadata.lastSessionId === 'string' && metadata.lastSessionId.trim()
     ? metadata.lastSessionId.trim()
     : null;
@@ -46,6 +48,11 @@ export const getContinuationSession = (participant: {
       sessionId: explicitSessionId,
       sessionKind: explicitSessionKind ?? (participant.harnessType === 'codex' ? 'codex_thread' : 'generic_session'),
     };
+  }
+
+  const adapterContinuation = adapter?.readContinuation?.(metadata);
+  if (adapterContinuation?.sessionId) {
+    return adapterContinuation;
   }
 
   if (participant.harnessType === 'codex') {
@@ -235,6 +242,7 @@ export const markParticipantContinuationStale = async ({
   delete metadata.claudeSessionId;
   delete metadata.deepseekThreadId;
   delete metadata.geminiSessionId;
+  delete metadata.piSessionDir;
 
   await prisma.taskRunParticipant.update({
     where: { id: participantId },

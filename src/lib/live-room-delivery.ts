@@ -3,6 +3,7 @@ import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { findLatestParticipantSession, parseAcpxMetadata } from '@/lib/acpx/session-tracking';
 import { requestRunControl } from '@/lib/acpx/process-registry';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
+import { getHarnessAdapter } from '@/lib/harness';
 import {
   clearLiveRoomRunningProcess,
   enqueueLiveRoomMemberExecution,
@@ -33,28 +34,6 @@ const SSH_WARNING_PATTERNS = [
   /^Warning: Permanently added .*known hosts\.\s*$/gim,
   // WSL startup message (UTF-16LE encoded, sent as stderr by Windows SSH+WSL)
   /^wsl:.*$/gim,
-];
-const INVALID_CLAUDE_CONTINUATION_PATTERNS = [
-  /No conversation found with session ID/i,
-  // 403 from the API when a resumed session is no longer accessible
-  // (e.g. session created under a different auth context / key)
-  /403.*forbidden|forbidden.*403|Request not allowed/i,
-  /Failed to authenticate/i,
-];
-const INVALID_CODEX_CONTINUATION_PATTERNS = [
-  /(session|thread|conversation).*(not found|does not exist|invalid)/i,
-  /resume.*(failed|error)/i,
-  /timeout waiting for child process to exit/i,
-  /failed to refresh available models/i,
-];
-const INVALID_DEEPSEEK_CONTINUATION_PATTERNS = [
-  /thread not found/i,
-  /turn .* failed/i,
-];
-const INVALID_GEMINI_CONTINUATION_PATTERNS = [
-  /Invalid session identifier/i,
-  /Error resuming session/i,
-  /Use --list-sessions/i,
 ];
 const CODEX_EPHEMERAL_RETRY_PATTERNS = [
   /Codex local state error:/i,
@@ -267,17 +246,7 @@ const stripLeadingMentionForTarget = ({
 };
 
 const isInvalidContinuationError = (harnessType: string | null, message: string) => {
-  const patterns = harnessType === 'claude'
-    ? INVALID_CLAUDE_CONTINUATION_PATTERNS
-    : harnessType === 'codex'
-    ? INVALID_CODEX_CONTINUATION_PATTERNS
-    : harnessType === 'deepseek'
-    ? INVALID_DEEPSEEK_CONTINUATION_PATTERNS
-    : harnessType === 'gemini-cli'
-    ? INVALID_GEMINI_CONTINUATION_PATTERNS
-    : [];
-
-  return patterns.some((pattern) => pattern.test(message));
+  return getHarnessAdapter(harnessType)?.isInvalidContinuationError?.(message) ?? false;
 };
 
 const shouldRetryWithFreshSession = ({

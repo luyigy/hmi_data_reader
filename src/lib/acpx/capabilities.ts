@@ -1,4 +1,5 @@
 import type { AcpxExecutionBackend, AcpxHarnessType, HarnessCapability } from './types';
+import { getHarnessAdapter } from '@/lib/harness';
 
 const DEFAULT_CAPABILITIES: HarnessCapability = {
   supportsQueuedUserMessages: false,
@@ -12,6 +13,11 @@ export const getHarnessCapabilities = (
   harnessType: AcpxHarnessType,
   executionBackend: AcpxExecutionBackend
 ): HarnessCapability => {
+  const adapter = getHarnessAdapter(harnessType);
+  if (adapter) {
+    return adapter.getCapabilities(executionBackend);
+  }
+
   if (executionBackend === 'platform_local' && harnessType === 'codex') {
     return {
       supportsQueuedUserMessages: true,

@@ -102,7 +102,7 @@ const executeLocalAgent = async (
 ): Promise<any> => {
   console.log(`[Local Agent] Executing task "${task.name}" on ${agent.name} (${agent.type})`);
   
-  // 检查是否是真实 Agent (Codex / Claude / Gemini)
+  // 检查是否是真实 Agent (Codex / Claude / Gemini / Pi)
   const agentNameLower = agent.name.toLowerCase();
   
   if (agentNameLower.includes('codex')) {
@@ -113,6 +113,8 @@ const executeLocalAgent = async (
     return await executeRealClaudeTask(task, agent);
   } else if (agentNameLower.includes('gemini')) {
     return await executeRealGeminiTask(task, agent);
+  } else if (agentNameLower.includes('pi-agent') || agentNameLower === 'pi') {
+    return await executeRealPiTask(task, agent);
   }
   
   // 否则使用模拟处理器
@@ -498,6 +500,38 @@ const executeRealGeminiTask = async (
   }
 };
 
+const executeRealPiTask = async (
+  task: AgentTask,
+  agent: AgentTask['assignedAgents'][0]
+): Promise<any> => {
+  console.log(`[Real Pi] Executing task "${task.name}"`);
+
+  try {
+    const { executeRealAgentTask } = await import('./real-agents');
+    const result = await executeRealAgentTask(
+      {
+        id: task.id,
+        name: task.name,
+        description: task.description,
+      },
+      'pi-agent'
+    );
+
+    return {
+      message: result.output || 'Task completed',
+      agentType: 'real-pi-agent',
+      location: 'local',
+      timestamp: new Date().toISOString(),
+      executionTime: result.executionTime,
+      success: result.success,
+      error: result.error,
+      taskType: 'real-pi-agent',
+    };
+  } catch (error) {
+    throw new Error(`Real Pi execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
 /**
  * 检查真实 Agent 是否可用
  */
@@ -505,11 +539,13 @@ export const checkRealAgentsAvailability = async (): Promise<{
   codex: boolean;
   claude: boolean;
   'gemini-cli': boolean;
+  'pi-agent': boolean;
 }> => {
   const status = await getRealAgentsStatus();
   return {
     codex: status.codex.available,
     claude: status.claude.available,
     'gemini-cli': status['gemini-cli'].available,
+    'pi-agent': status['pi-agent'].available,
   };
 };

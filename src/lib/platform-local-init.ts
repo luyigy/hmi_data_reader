@@ -65,6 +65,12 @@ export async function ensurePlatformLocalAgents(): Promise<PlatformLocalAgent[]>
       emojiIcon: '✨',
       colorTag: '#D97706',
     },
+    {
+      name: 'pi-agent',
+      type: 'pi-agent',
+      emojiIcon: '🛰️',
+      colorTag: '#0F766E',
+    },
   ];
 
   for (const def of agentDefinitions) {

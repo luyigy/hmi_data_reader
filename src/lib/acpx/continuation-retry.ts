@@ -1,47 +1,10 @@
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
+import { getHarnessAdapter } from '@/lib/harness';
 import { markParticipantContinuationStale } from '@/lib/acpx/session-tracking';
 import type { AcpxParticipantRequest, AcpxRunRequest } from '@/lib/acpx/types';
 
-const INVALID_CLAUDE_CONTINUATION_PATTERNS = [
-  /No conversation found with session ID/i,
-  /403.*forbidden|forbidden.*403|Request not allowed/i,
-  /Failed to authenticate/i,
-];
-
-const INVALID_CODEX_CONTINUATION_PATTERNS = [
-  /(session|thread|conversation).*(not found|does not exist|invalid)/i,
-  /resume.*(failed|error)/i,
-  /stream disconnected/i,
-  /connection.*closed/i,
-  /timed out after \d+ms/i,
-  /timeout waiting for child process to exit/i,
-  /failed to refresh available models/i,
-];
-
-const INVALID_DEEPSEEK_CONTINUATION_PATTERNS = [
-  /thread not found/i,
-  /turn .* failed/i,
-];
-
-const INVALID_GEMINI_CONTINUATION_PATTERNS = [
-  /Invalid session identifier/i,
-  /Error resuming session/i,
-  /Use --list-sessions/i,
-];
-
 const isInvalidContinuationError = (participant: AcpxParticipantRequest, message: string) => {
-  const patterns =
-    participant.harnessType === 'claude'
-      ? INVALID_CLAUDE_CONTINUATION_PATTERNS
-      : participant.harnessType === 'codex'
-      ? INVALID_CODEX_CONTINUATION_PATTERNS
-      : participant.harnessType === 'deepseek'
-      ? INVALID_DEEPSEEK_CONTINUATION_PATTERNS
-      : participant.harnessType === 'gemini-cli'
-      ? INVALID_GEMINI_CONTINUATION_PATTERNS
-      : [];
-
-  return patterns.some((pattern) => pattern.test(message));
+  return getHarnessAdapter(participant.harnessType)?.isInvalidContinuationError?.(message) ?? false;
 };
 
 const shouldRetryWithFreshSession = (participant: AcpxParticipantRequest, message: string) => {

@@ -17,6 +17,7 @@ export async function GET() {
         'claude-haha': status['claude-haha'].available,
         deepseek: status.deepseek.available,
         'gemini-cli': status['gemini-cli'].available,
+        'pi-agent': status['pi-agent'].available,
       },
       versions: {
         codex: status.codex.version,
@@ -24,6 +25,7 @@ export async function GET() {
         'claude-haha': status['claude-haha'].version,
         deepseek: status.deepseek.version,
         'gemini-cli': status['gemini-cli'].version,
+        'pi-agent': status['pi-agent'].version,
       },
     });
   } catch (error) {
@@ -43,11 +45,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli'; name?: string };
+    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent'; name?: string };
 
-    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini-cli')) {
+    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini-cli' && type !== 'pi-agent')) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", "deepseek", or "gemini-cli"' },
+        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", "deepseek", "gemini-cli", or "pi-agent"' },
         { status: 400 }
       );
     }
@@ -76,6 +78,8 @@ export async function POST(request: NextRequest) {
           ? 'deepseek --version'
           : type === 'gemini-cli'
           ? 'gemini --version'
+          : type === 'pi-agent'
+          ? '/data1/code/pi-mono/pi-test.sh --version'
           : type === 'claude-haha'
           ? '/data1/code/cc-haha-oc/bin/claude-haha --version'
           : 'claude --version';
@@ -96,6 +100,8 @@ export async function POST(request: NextRequest) {
         ? 'DeepSeek Agent'
         : type === 'gemini-cli'
         ? 'Gemini Agent'
+        : type === 'pi-agent'
+        ? 'Pi Agent'
         : type === 'claude-haha'
         ? 'Claude Haha Agent'
         : 'Claude Code Agent'

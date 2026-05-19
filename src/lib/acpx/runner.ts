@@ -5,10 +5,7 @@ import {
   extractOpenClawText,
   getOpenClawGatewayConfig,
 } from '@/lib/openclaw-client';
-import { executeCodexTask, resumeCodexSession } from '@/lib/real-agents/codex-agent';
-import { executeClaudeTask, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
-import { executeDeepSeekTask, resumeDeepSeekSession } from '@/lib/real-agents/deepseek-agent';
-import { executeGeminiTask, resumeGeminiSession } from '@/lib/real-agents/gemini-cli-agent';
+import { getHarnessAdapter } from '@/lib/harness';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
@@ -541,6 +538,98 @@ const persistGeminiSessionMetadata = async (
       },
     }),
   ]);
+};
+
+const persistPlatformLocalSessionMetadata = async (
+  taskRunId: string,
+  participantId: string,
+  sessionKind: string | undefined,
+  sessionId: string | undefined,
+  threadId?: string
+) => {
+  if (sessionKind === 'codex_thread') {
+    await persistCodexThreadMetadata(taskRunId, participantId, threadId || sessionId);
+    return;
+  }
+
+  if (sessionKind === 'claude_session') {
+    await persistClaudeSessionMetadata(taskRunId, participantId, sessionId);
+    return;
+  }
+
+  if (sessionKind === 'deepseek_thread') {
+    await persistDeepSeekThreadMetadata(taskRunId, participantId, threadId || sessionId);
+    return;
+  }
+
+  if (sessionKind === 'gemini_session') {
+    await persistGeminiSessionMetadata(taskRunId, participantId, sessionId);
+    return;
+  }
+
+  if (sessionKind === 'pi_session_dir' && sessionId) {
+    const [taskRun, participant] = await Promise.all([
+      prisma.taskRun.findUnique({
+        where: { id: taskRunId },
+        select: { controlMetadata: true },
+      }),
+      prisma.taskRunParticipant.findUnique({
+        where: { id: participantId },
+        select: { controlMetadata: true },
+      }),
+    ]);
+
+    const now = new Date().toISOString();
+    const taskRunMetadata = parseJsonObject(taskRun?.controlMetadata);
+    const participantMetadata = parseJsonObject(participant?.controlMetadata);
+    const existingRunTracking =
+      taskRunMetadata.sessionTracking && typeof taskRunMetadata.sessionTracking === 'object'
+        ? taskRunMetadata.sessionTracking as Record<string, unknown>
+        : {};
+    const existingParticipantTracking =
+      participantMetadata.sessionTracking && typeof participantMetadata.sessionTracking === 'object'
+        ? participantMetadata.sessionTracking as Record<string, unknown>
+        : {};
+
+    await Promise.all([
+      prisma.taskRun.update({
+        where: { id: taskRunId },
+        data: {
+          controlMetadata: stringifyJson({
+            ...taskRunMetadata,
+            piSessionDir: sessionId,
+            lastSessionId: sessionId,
+            lastSessionKind: 'pi_session_dir',
+            sessionTracking: {
+              ...existingRunTracking,
+              latestRunId: taskRunId,
+              latestSessionId: sessionId,
+              latestSessionKind: 'pi_session_dir',
+              checkedAt: now,
+            },
+          }),
+        },
+      }),
+      prisma.taskRunParticipant.update({
+        where: { id: participantId },
+        data: {
+          controlMetadata: stringifyJson({
+            ...participantMetadata,
+            piSessionDir: sessionId,
+            lastSessionId: sessionId,
+            lastSessionKind: 'pi_session_dir',
+            sessionTracking: {
+              ...existingParticipantTracking,
+              latestParticipantId: participantId,
+              latestSessionId: sessionId,
+              latestSessionKind: 'pi_session_dir',
+              checkedAt: now,
+            },
+          }),
+        },
+      }),
+    ]);
+  }
 };
 
 const mapControlActionToRunStatus = (action: RunControlAction): TaskRunStatus =>
@@ -1088,213 +1177,106 @@ const executeViaLocalHarness = async (
     name: request.taskName,
     description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
   };
+  const adapter = getHarnessAdapter(participant.harnessType);
+  if (!adapter) {
+    throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
+  }
 
-  if (participant.harnessType === 'codex') {
-    const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
-    const registerSpawn = (child: ChildProcess) => {
-      registerRunningProcess({
-        taskRunId,
-        participantId,
-        child,
-        executionBackend: participant.executionBackend,
-        harnessType: participant.harnessType,
-      });
-      onSpawn?.(child);
-    };
+  const registerSpawn = (child: ChildProcess) => {
+    registerRunningProcess({
+      taskRunId,
+      participantId,
+      child,
+      executionBackend: participant.executionBackend,
+      harnessType: participant.harnessType,
+    });
+    onSpawn?.(child);
+  };
 
-    const result = participant.resumeThreadId && participant.continuationMessage
-      ? (() => resumeCodexSession({
-          threadId: participant.resumeThreadId,
-          prompt: participant.continuationMessage,
-          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_CODEX_MAX_RUNTIME_MS),
+  const defaultTimeout =
+    participant.harnessType === 'codex'
+      ? DEFAULT_CODEX_MAX_RUNTIME_MS
+      : participant.harnessType === 'deepseek'
+      ? DEFAULT_DEEPSEEK_MAX_RUNTIME_MS
+      : participant.harnessType === 'gemini-cli'
+      ? DEFAULT_GEMINI_MAX_RUNTIME_MS
+      : DEFAULT_CLAUDE_MAX_RUNTIME_MS;
+
+  const result = participant.continuationMessage && adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
+    ? await adapter.resume({
+        task,
+        sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
+        continuationMessage: participant.continuationMessage,
+        context: {
           workingDirectory: request.workingDirectory || process.cwd(),
+          executionBackend: participant.executionBackend,
+          permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
+          ephemeralSession: participant.ephemeralSession,
+          sessionKey: getParticipantContinuationKey({
+            continuationKey: participant.continuationKey,
+            executionBackend: participant.executionBackend,
+            gatewayId: participant.gatewayId,
+            harnessType: participant.harnessType,
+            role: participant.role,
+            agentId: participant.agentId,
+          }),
           streamCallbacks: callbacks,
-          sandboxMode: permissionConfig.sandboxMode,
-          approvalPolicy: permissionConfig.approvalPolicy,
           onSpawn: registerSpawn,
-          onThreadStarted: (threadId) => {
-            void persistCodexThreadMetadata(taskRunId, participantId, threadId);
+          onSessionStarted: (session) => {
+            void persistPlatformLocalSessionMetadata(
+              taskRunId,
+              participantId,
+              session.sessionKind,
+              session.sessionId,
+              session.threadId
+            );
           },
-        }))()
-      : (() => executeCodexTask(task, {
-          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_CODEX_MAX_RUNTIME_MS),
-          workingDirectory: request.workingDirectory,
-          ephemeral: participant.ephemeralSession,
+        },
+      })
+    : await adapter.execute({
+        task,
+        context: {
+          workingDirectory: request.workingDirectory || process.cwd(),
+          executionBackend: participant.executionBackend,
+          permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
+          ephemeralSession: participant.ephemeralSession,
+          sessionKey: getParticipantContinuationKey({
+            continuationKey: participant.continuationKey,
+            executionBackend: participant.executionBackend,
+            gatewayId: participant.gatewayId,
+            harnessType: participant.harnessType,
+            role: participant.role,
+            agentId: participant.agentId,
+          }),
           streamCallbacks: callbacks,
-          sandboxMode: permissionConfig.sandboxMode,
-          approvalPolicy: permissionConfig.approvalPolicy,
           onSpawn: registerSpawn,
-          onThreadStarted: (threadId) => {
-            void persistCodexThreadMetadata(taskRunId, participantId, threadId);
+          onSessionStarted: (session) => {
+            void persistPlatformLocalSessionMetadata(
+              taskRunId,
+              participantId,
+              session.sessionKind,
+              session.sessionId,
+              session.threadId
+            );
           },
-        }))();
-
-    const resolved = await result;
-
-    if ('success' in resolved && !resolved.success) {
-      throw new Error(resolved.error || 'Codex execution failed');
-    }
-
-    return {
-      output: resolved.output || 'Codex completed',
-      filesModified: 'filesModified' in resolved ? (resolved.filesModified ?? []) : [],
-      executionTime: 'executionTime' in resolved ? resolved.executionTime : 0,
-      liveStreaming: true,
-      sessionId: resolved.threadId || undefined,
-      sessionKind: resolved.threadId ? 'codex_thread' : undefined,
-      threadId: resolved.threadId || undefined,
-    };
-  }
-
-  if (isClaudeHarnessType(participant.harnessType)) {
-    const registerSpawn = (child: ChildProcess) => {
-      registerRunningProcess({
-        taskRunId,
-        participantId,
-        child,
-        executionBackend: participant.executionBackend,
-        harnessType: participant.harnessType,
+        },
       });
-      onSpawn?.(child);
-    };
 
-    const claudeTimeout = resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_CLAUDE_MAX_RUNTIME_MS);
-    const result = participant.resumeSessionId && participant.continuationMessage
-      ? await resumeClaudeSession({
-          sessionId: participant.resumeSessionId,
-          prompt: participant.continuationMessage,
-          timeout: claudeTimeout,
-          workingDirectory: request.workingDirectory,
-          streamCallbacks: callbacks,
-          onSpawn: registerSpawn,
-          onSessionStarted: (sessionId) => {
-            void persistClaudeSessionMetadata(taskRunId, participantId, sessionId);
-          },
-        })
-      : await executeClaudeTask(task, {
-          timeout: claudeTimeout,
-          workingDirectory: request.workingDirectory,
-          streamCallbacks: callbacks,
-          onSpawn: registerSpawn,
-          onSessionStarted: (sessionId) => {
-            void persistClaudeSessionMetadata(taskRunId, participantId, sessionId);
-          },
-        });
-
-    if (!result.success) {
-      throw new Error(result.error || 'Claude execution failed');
-    }
-
-    return {
-      output: result.output || 'Claude completed',
-      filesModified: result.filesModified ?? [],
-      executionTime: result.executionTime,
-      liveStreaming: true,
-      sessionId: result.sessionId,
-      sessionKind: result.sessionId ? 'claude_session' : undefined,
-      threadId: undefined,
-    };
+  if (!result.success) {
+    throw new Error(result.error || `${adapter.displayName} execution failed`);
   }
 
-  if (participant.harnessType === 'deepseek') {
-    const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
-    const result = participant.resumeSessionId && participant.continuationMessage
-      ? await resumeDeepSeekSession({
-          threadId: participant.resumeSessionId,
-          prompt: participant.continuationMessage,
-          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
-          workingDirectory: request.workingDirectory,
-          streamCallbacks: callbacks,
-          sandboxMode: permissionConfig.sandboxMode,
-          approvalPolicy: permissionConfig.approvalPolicy,
-          onSpawn: onSpawn as ((child: ChildProcess) => void) | undefined,
-          onThreadStarted: (threadId) => {
-            void persistDeepSeekThreadMetadata(taskRunId, participantId, threadId);
-          },
-        })
-      : await executeDeepSeekTask(task, {
-          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_DEEPSEEK_MAX_RUNTIME_MS),
-          workingDirectory: request.workingDirectory,
-          streamCallbacks: callbacks,
-          sandboxMode: permissionConfig.sandboxMode,
-          approvalPolicy: permissionConfig.approvalPolicy,
-          onSpawn: onSpawn as ((child: ChildProcess) => void) | undefined,
-          onThreadStarted: (threadId) => {
-            void persistDeepSeekThreadMetadata(taskRunId, participantId, threadId);
-          },
-        });
-
-    if (!result.success) {
-      throw new Error(result.error || 'DeepSeek execution failed');
-    }
-
-    return {
-      output: result.output || 'DeepSeek completed',
-      filesModified: result.filesModified ?? [],
-      executionTime: result.executionTime,
-      liveStreaming: false,
-      sessionId: result.threadId,
-      sessionKind: result.threadId ? 'deepseek_thread' : undefined,
-      threadId: result.threadId,
-    };
-  }
-
-  if (participant.harnessType === 'gemini-cli') {
-    const registerSpawn = (child: ChildProcess) => {
-      registerRunningProcess({
-        taskRunId,
-        participantId,
-        child,
-        executionBackend: participant.executionBackend,
-        harnessType: participant.harnessType,
-      });
-      onSpawn?.(child);
-    };
-
-    const geminiTimeout = resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, DEFAULT_GEMINI_MAX_RUNTIME_MS);
-    const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
-    const result = participant.resumeSessionId && participant.continuationMessage
-      ? await resumeGeminiSession({
-          sessionId: participant.resumeSessionId,
-          prompt: participant.continuationMessage,
-          timeout: geminiTimeout,
-          workingDirectory: request.workingDirectory,
-          streamCallbacks: callbacks,
-          sandboxMode: permissionConfig.sandboxMode,
-          approvalPolicy: permissionConfig.approvalPolicy,
-          onSpawn: registerSpawn,
-          onSessionStarted: (sessionId) => {
-            void persistGeminiSessionMetadata(taskRunId, participantId, sessionId);
-          },
-        })
-      : await executeGeminiTask(task, {
-          timeout: geminiTimeout,
-          workingDirectory: request.workingDirectory,
-          streamCallbacks: callbacks,
-          sandboxMode: permissionConfig.sandboxMode,
-          approvalPolicy: permissionConfig.approvalPolicy,
-          onSpawn: registerSpawn,
-          onSessionStarted: (sessionId) => {
-            void persistGeminiSessionMetadata(taskRunId, participantId, sessionId);
-          },
-        });
-
-    if (!result.success) {
-      throw new Error(result.error || 'Gemini execution failed');
-    }
-
-    return {
-      output: result.output || 'Gemini completed',
-      filesModified: result.filesModified ?? [],
-      executionTime: result.executionTime,
-      liveStreaming: true,
-      sessionId: result.sessionId,
-      sessionKind: result.sessionId ? 'gemini_session' : undefined,
-      threadId: undefined,
-    };
-  }
-
-  throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
+  return {
+    output: result.output || `${adapter.displayName} completed`,
+    filesModified: result.filesModified ?? [],
+    executionTime: result.executionTime,
+    liveStreaming: result.liveStreaming ?? false,
+    sessionId: result.sessionId,
+    sessionKind: result.sessionKind,
+    threadId: result.threadId,
+  };
 };
 
 const executeViaRemoteSshHarness = async (
@@ -1777,21 +1759,13 @@ const executeParticipant = async (
       },
     });
 
-    if (result.threadId) {
-      await persistCodexThreadMetadata(taskRunId, participantId, result.threadId);
-    }
-
-    if (result.sessionKind === 'claude_session' && result.sessionId) {
-      await persistClaudeSessionMetadata(taskRunId, participantId, result.sessionId);
-    }
-
-    if (result.sessionKind === 'deepseek_thread' && result.sessionId) {
-      await persistDeepSeekThreadMetadata(taskRunId, participantId, result.sessionId);
-    }
-
-    if (result.sessionKind === 'gemini_session' && result.sessionId) {
-      await persistGeminiSessionMetadata(taskRunId, participantId, result.sessionId);
-    }
+    await persistPlatformLocalSessionMetadata(
+      taskRunId,
+      participantId,
+      result.sessionKind,
+      result.sessionId,
+      result.threadId
+    );
 
     if (result.filesModified?.length) {
       await publishTaskRunEvent({

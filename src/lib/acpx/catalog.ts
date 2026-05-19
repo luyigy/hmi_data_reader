@@ -36,6 +36,9 @@ const normalizeHarnessType = (value?: string | null) => {
   if (normalized.includes('gemini')) {
     return 'gemini-cli';
   }
+  if (normalized.includes('pi-agent') || normalized === 'pi') {
+    return 'pi-agent';
+  }
   if (normalized.includes('deepseek')) {
     return 'deepseek';
   }
@@ -103,6 +106,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
 
   const options: HarnessOption[] = [];
   let currentHostPlatformLocalCount = 0;
+  const availabilityByHarness = localStatus as Record<string, { available: boolean; version?: string }>;
 
   // Platform local agents from database (with hostname)
   for (const agent of platformLocalAgents) {
@@ -118,12 +122,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
     }
 
     // Check if this harness type is available locally
-    const isAvailable = harnessType === 'codex' ? localStatus.codex.available
-      : harnessType === 'claude' ? localStatus.claude.available
-      : harnessType === 'claude-haha' ? localStatus['claude-haha'].available
-      : harnessType === 'deepseek' ? localStatus.deepseek.available
-      : harnessType === 'gemini-cli' ? localStatus['gemini-cli'].available
-      : true;
+    const isAvailable = availabilityByHarness[harnessType]?.available ?? true;
 
     if (!isAvailable) {
       continue;
@@ -202,6 +201,20 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         agentId: 'platform-local:gemini',
         agentName: 'Platform Local Gemini',
         runtimeAgentId: 'gemini-cli',
+        status: 'online',
+      });
+    }
+
+    if (localStatus['pi-agent'].available) {
+      options.push({
+        gatewayId: 'platform-local',
+        gatewayName: 'Platform Local',
+        executionBackend: 'platform_local',
+        harnessType: 'pi-agent',
+        harnessLabel: 'Platform Local / Pi Agent',
+        agentId: 'platform-local:pi-agent',
+        agentName: 'Platform Local Pi Agent',
+        runtimeAgentId: 'pi-agent',
         status: 'online',
       });
     }
