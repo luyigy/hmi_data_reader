@@ -16,6 +16,7 @@ import {
   resolveLiveRoomMessageMetadata,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
+import { getFeishuChatInfo } from '@/lib/feishu-api';
 
 export type FeishuConversationContext = {
   chatId: string;
@@ -103,9 +104,16 @@ function normalizeSelectedAgentIds(value?: string): string[] {
     .filter(Boolean);
 }
 
-function buildDefaultRoomTitle(context: FeishuConversationContext, fallbackTitle?: string) {
+async function buildDefaultRoomTitle(context: FeishuConversationContext, fallbackTitle?: string) {
   if (fallbackTitle?.trim()) {
     return fallbackTitle.trim();
+  }
+
+  if (context.chatType === 'group') {
+    const info = await getFeishuChatInfo(context.chatId);
+    if (info?.name) {
+      return info.name;
+    }
   }
 
   if (context.chatType === 'p2p') {
@@ -295,7 +303,7 @@ export async function ensureFeishuConversationBinding(args: {
 
   const room = await prisma.liveRoom.create({
     data: {
-      title: buildDefaultRoomTitle(args.context, args.title),
+      title: await buildDefaultRoomTitle(args.context, args.title),
       description: `Bound to Feishu ${args.context.chatType} chat ${args.context.chatId}`,
       currentTopic: args.topic?.trim() || null,
       mode: 'discussion',
@@ -486,6 +494,8 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
         source: 'feishu',
         feishuChatId: args.context.chatId,
         feishuMessageId: args.context.messageId,
+        targetLocked: explicitMentionMemberIds.length === 1 && !mentionedAll,
+        targetResolutionSource: explicitMentionMemberIds.length > 0 ? 'feishu_structured_mention' : null,
       },
     }),
   });

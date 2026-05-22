@@ -408,3 +408,27 @@ export async function updateFeishuApprovalCardResolved(args: {
     throw new Error(data.msg || `Failed to update Feishu approval card: HTTP ${response.status}`);
   }
 }
+
+export async function getFeishuChatInfo(chatId: string): Promise<{ name: string } | null> {
+  try {
+    const token = await getFeishuTenantAccessToken();
+    const response = await fetch(
+      `${FEISHU_API_BASE}/im/v1/chats/${encodeURIComponent(chatId)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+    if (data.code === 0 && data.data) {
+      return { name: data.data.name };
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to get Feishu chat info:', error);
+    return null;
+  }
+}

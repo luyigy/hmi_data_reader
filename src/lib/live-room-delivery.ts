@@ -120,6 +120,23 @@ const getPrimaryReplyTarget = ({
     sourceSenderMemberId: sourceMessageSenderMemberId,
   });
 
+  const targetLocked = sourceMetadata?.targetLocked === true;
+  if (targetLocked) {
+    const lockedCandidates = [
+      requestedTargetMemberId || null,
+      sourceMetadata?.primaryTargetMemberId || null,
+    ].filter(Boolean) as string[];
+
+    for (const candidate of lockedCandidates) {
+      const found = eligibleMembers.find((member: DeliveryRoomMember) => member.id === candidate);
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
   const baseCandidates = [
     sourceMetadata?.deliveryIntent === 'handoff' ? sourceMetadata.handoffToMemberId : null,
     sourceMetadata?.primaryTargetMemberId || null,
@@ -156,6 +173,19 @@ const getTargetMemberIdsForMessage = ({
     room,
     sourceSenderMemberId: sourceMessageSenderMemberId,
   });
+
+  const targetLocked = sourceMetadata?.targetLocked === true;
+  if (targetLocked) {
+    const lockedTargets = [
+      requestedTargetMemberId || null,
+      sourceMetadata?.primaryTargetMemberId || null,
+    ]
+      .filter((memberId): memberId is string => typeof memberId === 'string' && memberId.trim().length > 0)
+      .filter((memberId, index, list) => list.indexOf(memberId) === index)
+      .filter((memberId) => eligibleMembers.some((member: DeliveryRoomMember) => member.id === memberId));
+
+    return lockedTargets;
+  }
 
   if (sourceMetadata?.deliveryIntent === 'mention_all' || sourceMetadata?.mentionedAll) {
     const expectedIds = (sourceMetadata.expectedResponderMemberIds || []).filter(Boolean) as string[];

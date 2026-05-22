@@ -280,7 +280,7 @@ export default function RemoteSshToolsPage() {
           </div>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Remote Harness Console</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            这里用于配置 WireGuard 后可达的 SSH 主机，并测试远端 `codex` / `claude`
+            这里用于配置 WireGuard 后可达的 SSH 主机，并测试远端 `codex` / `claude` / `pi-agent`
             是否真的可以从平台侧直连执行。
           </p>
         </div>
@@ -375,7 +375,7 @@ export default function RemoteSshToolsPage() {
             <div>
               <div className="mb-2 text-sm font-medium text-slate-700">Supported Harnesses</div>
               <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700">
-                {['codex', 'claude'].map((harness) => (
+                {['codex', 'claude', 'pi-agent'].map((harness) => (
                   <label key={harness} className="inline-flex items-center gap-2">
                     <input
                       type="checkbox"

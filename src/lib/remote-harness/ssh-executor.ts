@@ -72,22 +72,87 @@ Please complete this task step by step. When you're done, provide a concise summ
 3. Any issues you encountered
 `;
 
+const DEFAULT_REMOTE_PI_BIN = process.env.REMOTE_PI_AGENT_BIN?.trim() || 'pi';
+const DEFAULT_REMOTE_PI_SESSION_DIR = process.env.REMOTE_PI_AGENT_SESSION_DIR?.trim()
+  || '$HOME/.pi/agent/sessions';
+
+const slugify = (value: string) =>
+  value
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 120) || 'default';
+
+const resolveRemotePiSessionDir = (taskId: string, resumeSessionId?: string) =>
+  resumeSessionId?.trim() || `${DEFAULT_REMOTE_PI_SESSION_DIR}/acpx-${slugify(taskId)}`;
+
+const toUnixShellPathExpr = (value: string) => {
+  if (value.startsWith('~/')) {
+    return `"${'$'}HOME/${value.slice(2)}"`;
+  }
+
+  if (value === '~') {
+    return `"${'$'}HOME"`;
+  }
+
+  if (value.startsWith('$HOME/')) {
+    return `"${'$'}HOME/${value.slice('$HOME/'.length)}"`;
+  }
+
+  if (value === '$HOME') {
+    return `"${'$'}HOME"`;
+  }
+
+  return shellQuote(value);
+};
+
+const toPowerShellPathExpr = (value: string) => {
+  if (value.startsWith('~/')) {
+    return `"${'$'}HOME/${value.slice(2)}"`;
+  }
+
+  if (value === '~') {
+    return '$HOME';
+  }
+
+  if (value.startsWith('$HOME/')) {
+    return `"${'$'}HOME/${value.slice('$HOME/'.length)}"`;
+  }
+
+  if (value === '$HOME') {
+    return '$HOME';
+  }
+
+  return powerShellQuote(value);
+};
+
+const getRemoteExecutableName = (harnessType: string) => {
+  if (harnessType === 'pi-agent') {
+    return DEFAULT_REMOTE_PI_BIN;
+  }
+
+  return harnessType;
+};
+
 const buildRemoteCommand = (
   harnessType: string,
   workingDirectory?: string | null,
+  taskId = 'default',
   resumeSessionId?: string,
   shellMode: 'unix' | 'powershell' = 'unix'
 ) => {
   if (shellMode === 'powershell') {
-    return buildRemotePowerShellCommand(harnessType, workingDirectory, resumeSessionId);
+    return buildRemotePowerShellCommand(harnessType, workingDirectory, taskId, resumeSessionId);
   }
 
   const quotedCwd = workingDirectory ? `cd ${shellQuote(workingDirectory)} && ` : '';
+  const executable = getRemoteExecutableName(harnessType);
+  const remotePiSessionDir = resolveRemotePiSessionDir(taskId, resumeSessionId);
   const preflight = [
     'echo __ACPX_REMOTE_COMMAND_START__ >&2',
     `${quotedCwd}echo "__ACPX_PREFLIGHT_PWD__=$(pwd)" >&2`,
     `${quotedCwd}echo "__ACPX_PREFLIGHT_PATH__=$PATH" >&2`,
-    `${quotedCwd}echo "__ACPX_PREFLIGHT_WHICH__=$(command -v ${harnessType} 2>/dev/null || echo missing)" >&2`,
+    `${quotedCwd}echo "__ACPX_PREFLIGHT_WHICH__=$(command -v ${shellQuote(executable)} 2>/dev/null || echo missing)" >&2`,
   ].join('; ');
   let command: string;
 
@@ -99,6 +164,10 @@ const buildRemoteCommand = (
     command = resumeSessionId
       ? `${preflight}; ${quotedCwd}PROMPT=$(cat) && claude --resume ${shellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`
       : `${preflight}; ${quotedCwd}PROMPT=$(cat) && claude --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`;
+  } else if (harnessType === 'pi-agent') {
+    command = resumeSessionId
+      ? `${preflight}; ${quotedCwd}export PATH="$HOME/.local/node/bin:$PATH"; PROMPT=$(cat) && ${shellQuote(executable)} --session-dir ${toUnixShellPathExpr(remotePiSessionDir)} --continue "$PROMPT"`
+      : `${preflight}; ${quotedCwd}export PATH="$HOME/.local/node/bin:$PATH"; PROMPT=$(cat) && ${shellQuote(executable)} --session-dir ${toUnixShellPathExpr(remotePiSessionDir)} -p "$PROMPT"`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -112,6 +181,7 @@ const powerShellQuote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
 const buildRemotePowerShellCommand = (
   harnessType: string,
   workingDirectory?: string | null,
+  taskId?: string,
   resumeSessionId?: string
 ) => {
   const prelude = [
@@ -121,6 +191,8 @@ const buildRemotePowerShellCommand = (
   ].filter(Boolean).join('; ');
 
   let script: string;
+  const executable = getRemoteExecutableName(harnessType);
+  const remotePiSessionDir = resolveRemotePiSessionDir(taskId || 'default', resumeSessionId);
   if (harnessType === 'codex') {
     script = resumeSessionId
       ? `${prelude}; & codex exec resume ${powerShellQuote(resumeSessionId)} --json --skip-git-repo-check -`
@@ -129,6 +201,10 @@ const buildRemotePowerShellCommand = (
     script = resumeSessionId
       ? `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --resume ${powerShellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`
       : `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`;
+  } else if (harnessType === 'pi-agent') {
+    script = resumeSessionId
+      ? `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} --continue $prompt`
+      : `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} -p $prompt`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -160,10 +236,12 @@ const buildProbeCommand = (
       host.workingDirectory ? `Set-Location -LiteralPath ${powerShellQuote(host.workingDirectory)}` : null,
     ].filter(Boolean).join('; ');
     const harnessChecks = host.supportedHarnesses.map(
-      (harness) =>
-        `if (Get-Command ${powerShellQuote(harness)} -ErrorAction SilentlyContinue) { ` +
-        `$version = (& ${harness} --version | Select-Object -First 1); ` +
-        `Write-Output "${harness}=ok $version" } else { Write-Output "${harness}=missing" }`
+      (harness) => {
+        const executable = getRemoteExecutableName(harness);
+        return `if (Get-Command ${powerShellQuote(executable)} -ErrorAction SilentlyContinue) { ` +
+        `$version = (& ${powerShellQuote(executable)} --version | Select-Object -First 1); ` +
+        `Write-Output "${harness}=ok $version" } else { Write-Output "${harness}=missing" }`;
+      }
     );
     const script = [
       prelude,
@@ -183,8 +261,10 @@ const buildProbeCommand = (
     `${cwdSnippet}echo hostname=\"$(hostname)\"`,
     `${cwdSnippet}echo pwd=\"$(pwd)\"`,
     ...host.supportedHarnesses.map(
-      (harness) =>
-        `${cwdSnippet}if command -v ${harness} >/dev/null 2>&1; then echo '${harness}=ok' && ${harness} --version | head -n 1; else echo '${harness}=missing'; fi`
+      (harness) => {
+        const executable = getRemoteExecutableName(harness);
+        return `${cwdSnippet}export PATH="$HOME/.local/node/bin:$PATH"; if command -v ${shellQuote(executable)} >/dev/null 2>&1; then echo '${harness}=ok' && ${shellQuote(executable)} --version | head -n 1; else echo '${harness}=missing'; fi`;
+      }
     ),
   ].join('; ');
 
@@ -314,7 +394,7 @@ export const executeRemoteSshTask = async (
     ({ stdout, stderr, timing } = await runRemoteSshCommand({
       timeout: options.timeout,
       host: options.host,
-      command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId, 'unix'),
+      command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'unix'),
       stdin: prompt,
       streamCallbacks,
       onSpawn: options.onSpawn,
@@ -338,7 +418,7 @@ export const executeRemoteSshTask = async (
       ({ stdout, stderr, timing } = await runRemoteSshCommand({
         timeout: options.timeout,
         host: options.host,
-        command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, options.resumeSessionId, 'powershell'),
+        command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'powershell'),
         stdin: prompt,
         streamCallbacks,
         onSpawn: options.onSpawn,
@@ -402,12 +482,16 @@ export const executeRemoteSshTask = async (
         ? codexThreadId
         : options.harnessType === 'claude'
         ? claudeSessionId
+        : options.harnessType === 'pi-agent'
+        ? resolveRemotePiSessionDir(task.id, options.resumeSessionId)
         : undefined,
     sessionKind:
       options.harnessType === 'codex'
         ? 'codex_thread'
         : options.harnessType === 'claude'
         ? 'claude_session'
+        : options.harnessType === 'pi-agent'
+        ? 'pi_session_dir'
         : undefined,
     timing,
   };
