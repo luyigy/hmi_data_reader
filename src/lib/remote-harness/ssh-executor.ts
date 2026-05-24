@@ -3,6 +3,7 @@ import { join } from 'path';
 import { promises as fs } from 'fs';
 import type { ChildProcess } from 'child_process';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { processCodexJsonLine } from '@/lib/real-agents/codex-event-parser';
 import type { RemoteHarnessHostRecord } from './hosts';
 
@@ -62,6 +63,19 @@ export interface RemoteSshProbeResult {
   executionTime: number;
 }
 
+interface PiJsonEvent {
+  type?: string;
+  toolName?: string;
+  args?: unknown;
+  message?: {
+    role?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+    }>;
+  };
+}
+
 const createPrompt = (task: RemoteHarnessTask) => `Task: ${task.name}
 
 ${task.description ? `Description: ${task.description}` : 'Please complete this task.'}
@@ -75,6 +89,8 @@ Please complete this task step by step. When you're done, provide a concise summ
 const DEFAULT_REMOTE_PI_BIN = process.env.REMOTE_PI_AGENT_BIN?.trim() || 'pi';
 const DEFAULT_REMOTE_PI_SESSION_DIR = process.env.REMOTE_PI_AGENT_SESSION_DIR?.trim()
   || '$HOME/.pi/agent/sessions';
+const DEFAULT_REMOTE_PI_TOOLS = process.env.REMOTE_PI_AGENT_TOOLS?.trim()
+  || 'read,bash,edit,write,grep,find,ls';
 
 const slugify = (value: string) =>
   value
@@ -166,8 +182,8 @@ const buildRemoteCommand = (
       : `${preflight}; ${quotedCwd}PROMPT=$(cat) && claude --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`;
   } else if (harnessType === 'pi-agent') {
     command = resumeSessionId
-      ? `${preflight}; ${quotedCwd}export PATH="$HOME/.local/node/bin:$PATH"; PROMPT=$(cat) && ${shellQuote(executable)} --session-dir ${toUnixShellPathExpr(remotePiSessionDir)} --continue "$PROMPT"`
-      : `${preflight}; ${quotedCwd}export PATH="$HOME/.local/node/bin:$PATH"; PROMPT=$(cat) && ${shellQuote(executable)} --session-dir ${toUnixShellPathExpr(remotePiSessionDir)} -p "$PROMPT"`;
+      ? `${preflight}; ${quotedCwd}export PATH="$HOME/.local/node/bin:$PATH"; PROMPT=$(cat) && ${shellQuote(executable)} --mode json --tools ${shellQuote(DEFAULT_REMOTE_PI_TOOLS)} --session-dir ${toUnixShellPathExpr(remotePiSessionDir)} --continue "$PROMPT"`
+      : `${preflight}; ${quotedCwd}export PATH="$HOME/.local/node/bin:$PATH"; PROMPT=$(cat) && ${shellQuote(executable)} --mode json --tools ${shellQuote(DEFAULT_REMOTE_PI_TOOLS)} -p --session-dir ${toUnixShellPathExpr(remotePiSessionDir)} "$PROMPT"`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -177,6 +193,82 @@ const buildRemoteCommand = (
 
 const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`;
 const powerShellQuote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
+
+const normalizePiToolName = (toolName?: string | null) => {
+  const normalized = (toolName || '').trim().toLowerCase();
+  if (!normalized) {
+    return 'Task';
+  }
+
+  const knownNames: Record<string, string> = {
+    bash: 'Bash',
+    read: 'Read',
+    write: 'Write',
+    edit: 'Edit',
+    grep: 'Grep',
+    find: 'Glob',
+    ls: 'Read',
+  };
+
+  return knownNames[normalized] || normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
+const sanitizePiResolvedText = (text: string) =>
+  text
+    .trim()
+    .replace(/^<\|channel\>thought\s*/i, '')
+    .replace(/^<channel\|>/i, '')
+    .trim();
+
+const extractPiAssistantText = (event: PiJsonEvent): string | null => {
+  if (event.message?.role !== 'assistant' || !Array.isArray(event.message.content)) {
+    return null;
+  }
+
+  const text = event.message.content
+    .filter((item) => item.type === 'text' && typeof item.text === 'string')
+    .map((item) => item.text as string)
+    .join('');
+
+  const normalized = sanitizePiResolvedText(text);
+  return normalized || null;
+};
+
+const processPiJsonLine = (line: string, callbacks?: HarnessStreamCallbacks) => {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return { resolvedText: undefined as string | undefined, plainText: undefined as string | undefined };
+  }
+
+  try {
+    const event = JSON.parse(trimmed) as PiJsonEvent;
+    if (event.type === 'tool_execution_start') {
+      const toolName = normalizePiToolName(event.toolName);
+      void callbacks?.onToolEvent?.({
+        toolName,
+        preview: buildToolPreview(event.args),
+        emoji: getToolEmoji(toolName),
+      });
+    }
+
+    return {
+      resolvedText:
+        event.type === 'message_end' || event.type === 'turn_end'
+          ? extractPiAssistantText(event) || undefined
+          : undefined,
+      plainText: undefined as string | undefined,
+    };
+  } catch {
+    const plainText = sanitizePiResolvedText(trimmed);
+    return {
+      resolvedText: undefined as string | undefined,
+      plainText: plainText || undefined,
+    };
+  }
+};
+
+const isLegacyPiTextToolCall = (output: string) =>
+  /^call:[a-z0-9_-]+\{[\s\S]*\}$/i.test(output.trim());
 
 const buildRemotePowerShellCommand = (
   harnessType: string,
@@ -203,8 +295,8 @@ const buildRemotePowerShellCommand = (
       : `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`;
   } else if (harnessType === 'pi-agent') {
     script = resumeSessionId
-      ? `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} --continue $prompt`
-      : `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} -p $prompt`;
+      ? `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --mode json --tools ${powerShellQuote(DEFAULT_REMOTE_PI_TOOLS)} --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} --continue $prompt`
+      : `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --mode json --tools ${powerShellQuote(DEFAULT_REMOTE_PI_TOOLS)} -p --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} $prompt`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -298,6 +390,8 @@ export const executeRemoteSshTask = async (
   let claudeResolvedText = '';
   let claudeStdoutBuffer = '';
   let claudeSessionId: string | undefined;
+  let piResolvedText = '';
+  let piStdoutBuffer = '';
   const streamCallbacks =
     options.harnessType === 'codex'
       ? {
@@ -370,6 +464,24 @@ export const executeRemoteSshTask = async (
                 }
               } catch {
                 void options.streamCallbacks?.onStdoutChunk?.(trimmed);
+              }
+            }
+          },
+          onStderrChunk: options.streamCallbacks?.onStderrChunk,
+        }
+      : options.harnessType === 'pi-agent'
+      ? {
+          onStdoutChunk: (chunk: string) => {
+            piStdoutBuffer += chunk;
+            const lines = piStdoutBuffer.split('\n');
+            piStdoutBuffer = lines.pop() ?? '';
+
+            for (const line of lines) {
+              const parsed = processPiJsonLine(line, options.streamCallbacks);
+              if (parsed.resolvedText) {
+                piResolvedText = parsed.resolvedText;
+              } else if (parsed.plainText) {
+                void options.streamCallbacks?.onStdoutChunk?.(parsed.plainText);
               }
             }
           },
@@ -464,12 +576,29 @@ export const executeRemoteSshTask = async (
     }
   }
 
+  if (options.harnessType === 'pi-agent' && piStdoutBuffer.trim()) {
+    const parsed = processPiJsonLine(piStdoutBuffer.trim(), options.streamCallbacks);
+    if (parsed.resolvedText) {
+      piResolvedText = parsed.resolvedText;
+    } else if (parsed.plainText) {
+      void options.streamCallbacks?.onStdoutChunk?.(parsed.plainText);
+    }
+  }
+
   const output =
     options.harnessType === 'codex'
       ? codexResolvedText || stdout || stderr || 'Remote codex completed'
       : options.harnessType === 'claude'
       ? claudeResolvedText || stdout || stderr || 'Remote claude completed'
+      : options.harnessType === 'pi-agent'
+      ? piResolvedText || sanitizePiResolvedText(stdout) || stderr || 'Remote pi-agent completed'
       : stdout || stderr || `Remote ${options.harnessType} completed`;
+
+  if (options.harnessType === 'pi-agent' && isLegacyPiTextToolCall(output)) {
+    throw new Error(
+      `Remote pi-agent returned a legacy textual tool call instead of executing tools: ${output.trim()}`
+    );
+  }
 
   return {
     output,
