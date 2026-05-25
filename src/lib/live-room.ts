@@ -88,6 +88,7 @@ export interface LiveRoomMessagePayload {
 
 export type LiveRoomDeliveryIntent =
   | 'broadcast'
+  | 'directed_visible'
   | 'user_target'
   | 'mention'
   | 'ask'
@@ -99,6 +100,7 @@ export interface LiveRoomMessageMetadata {
   mentionedMemberIds?: string[];
   primaryTargetMemberId?: string | null;
   deliveryIntent?: LiveRoomDeliveryIntent;
+  visibilityMode?: 'room' | 'directed_visible';
   inReplyToMessageId?: string | null;
   handoffToMemberId?: string | null;
   mentionedAll?: boolean;
@@ -323,19 +325,6 @@ const findBestPlainMentionMatch = (content: string, aliases: string[]): MentionM
   }
 
   return bestMatch;
-};
-
-// 保留旧函数签名以兼容，但标记为废弃
-/** @deprecated 使用 findBestExplicitMentionMatch 替代 */
-const findEarliestExplicitMentionIndex = (content: string, aliases: string[]) => {
-  const result = findBestExplicitMentionMatch(content, aliases);
-  return result?.index ?? Number.POSITIVE_INFINITY;
-};
-
-/** @deprecated 使用 findBestPlainMentionMatch 替代 */
-const findEarliestPlainMentionIndex = (content: string, aliases: string[]) => {
-  const result = findBestPlainMentionMatch(content, aliases);
-  return result?.index ?? Number.POSITIVE_INFINITY;
 };
 
 const toCatalogAgentId = (agent: Awaited<ReturnType<typeof deriveGatewayHarnessOptions>>[number]) =>
@@ -1114,6 +1103,7 @@ export const resolveLiveRoomMessageMetadata = ({
   targetMemberId,
   mentionedMemberIds,
   mentionedAll,
+  visibilityMode,
   expectedResponderMemberIds,
   requiredResponseMode,
   replyToMessageId,
@@ -1124,6 +1114,7 @@ export const resolveLiveRoomMessageMetadata = ({
   targetMemberId?: string | null;
   mentionedMemberIds?: string[];
   mentionedAll?: boolean;
+  visibilityMode?: 'room' | 'directed_visible';
   expectedResponderMemberIds?: string[];
   requiredResponseMode?: 'none' | 'any_one' | 'all';
   replyToMessageId?: string | null;
@@ -1139,6 +1130,8 @@ export const resolveLiveRoomMessageMetadata = ({
     deliveryIntent = 'handoff';
   } else if (mentionedAll) {
     deliveryIntent = 'mention_all';
+  } else if (visibilityMode === 'directed_visible' && primaryTargetMemberId) {
+    deliveryIntent = 'directed_visible';
   } else if (targetMemberId) {
     // 有明确目标时，用户消息触发 user_target，agent 消息触发 ask
     deliveryIntent = senderKind === 'user' ? 'user_target' : 'ask';
@@ -1157,6 +1150,7 @@ export const resolveLiveRoomMessageMetadata = ({
     mentionedMemberIds: uniqueMentionedMemberIds,
     primaryTargetMemberId,
     deliveryIntent,
+    visibilityMode: visibilityMode || 'room',
     inReplyToMessageId: replyToMessageId || null,
     handoffToMemberId: handoffToMemberId || null,
     mentionedAll: Boolean(mentionedAll),

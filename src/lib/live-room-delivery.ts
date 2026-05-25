@@ -46,6 +46,10 @@ type DeliveryRoomMember = {
   id: string;
   canReply: boolean;
   displayName: string;
+  memberType?: string;
+  userNickname?: string | null;
+  shortAlias?: string | null;
+  agentNameSnapshot?: string | null;
   backend: string | null;
   harnessType: string | null;
   runtimeAgentId: string | null;
@@ -77,6 +81,11 @@ const normalizeLiveRoomExecutionError = (message: string) => {
 };
 
 const getSessionKey = (roomId: string, memberId: string) => `live-room:${roomId}:member:${memberId}`;
+
+const getPreferredDirectedAlias = (member: DeliveryRoomMember) =>
+  member.userNickname
+  || member.shortAlias
+  || member.displayName;
 
 const parseJsonObject = (value?: string | null) => {
   if (!value) {
@@ -275,6 +284,48 @@ const stripLeadingMentionForTarget = ({
   return content;
 };
 
+const inferDirectedVisibleRelayTarget = ({
+  room,
+  sourceMessage,
+  currentTargetMember,
+}: {
+  room: DeliveryRoom;
+  sourceMessage: {
+    content: string;
+    senderMember?: {
+      id: string;
+      displayName: string;
+      memberType: string;
+    } | null;
+  };
+  currentTargetMember: DeliveryRoomMember;
+}) => {
+  if (sourceMessage.senderMember?.memberType !== 'user') {
+    return null;
+  }
+
+  const stripped = stripLeadingMentionForTarget({
+    content: sourceMessage.content,
+    targetDisplayName: currentTargetMember.displayName,
+  });
+
+  if (!stripped || stripped === sourceMessage.content) {
+    return null;
+  }
+
+  const detection = detectMentionedLiveRoomMembers({
+    content: stripped,
+    members: room.members.filter((member) => member.canReply && member.id !== currentTargetMember.id),
+    senderMemberId: sourceMessage.senderMember?.id || null,
+  });
+
+  if (detection.memberIds.length !== 1) {
+    return null;
+  }
+
+  return room.members.find((member) => member.id === detection.memberIds[0]) || null;
+};
+
 const isInvalidContinuationError = (harnessType: string | null, message: string) => {
   return getHarnessAdapter(harnessType)?.isInvalidContinuationError?.(message) ?? false;
 };
@@ -313,10 +364,7 @@ const shouldRetryCodexEphemeral = ({
 // Codex thread continuation is now enabled — transcript-only mode was removed because
 // it silently discarded all session history on every message. Stale thread fallback
 // is handled by INVALID_CODEX_CONTINUATION_PATTERNS + shouldRetryWithFreshSession.
-const shouldPreferTranscriptContinuation = (_args: {
-  executionBackend: string | null;
-  harnessType: string | null;
-}) => false;
+const shouldPreferTranscriptContinuation = () => false;
 
 const LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS = 8000;
 const LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS = 220;
@@ -466,6 +514,7 @@ const runLiveRoomAcpxAttempt = async ({
   room,
   participant,
   contentForAgent,
+  desiredDirectedTarget,
   permissionConfig,
   latestSession,
   useFreshSession,
@@ -487,6 +536,7 @@ const runLiveRoomAcpxAttempt = async ({
   };
   participant: ReturnType<typeof buildLiveRoomAcpxParticipant>;
   contentForAgent: string;
+  desiredDirectedTarget?: DeliveryRoomMember | null;
   permissionConfig: AcpxPermissionConfig;
   latestSession: Awaited<ReturnType<typeof findLatestParticipantSession>>;
   useFreshSession: boolean;
@@ -496,10 +546,7 @@ const runLiveRoomAcpxAttempt = async ({
   const shouldUseContinuation =
     !useFreshSession
     && !forceEphemeral
-    && !shouldPreferTranscriptContinuation({
-      executionBackend: participant.executionBackend,
-      harnessType: participant.harnessType,
-    })
+    && !shouldPreferTranscriptContinuation()
     && Boolean(latestSession?.continuationSessionId);
 
   // Live room agents run interactively and may take longer than a fixed cap.
@@ -510,11 +557,32 @@ const runLiveRoomAcpxAttempt = async ({
       ? { maxRuntimeMs: null }
       : undefined;
 
+  const replyableMemberLabels = room.members
+    .filter((member) => member.canReply)
+    .map((member) => member.displayName);
+  const directedTargetAlias = desiredDirectedTarget ? getPreferredDirectedAlias(desiredDirectedTarget) : null;
+  const directedVisibleProtocol = [
+    sourceTask.description || '',
+    '',
+    'Live room directed-visible protocol:',
+    '- If the user asks you to contact another room member, do not answer on their behalf.',
+    '- Instead, reply with exactly one directed message that starts with a single $member alias and then the message body.',
+    '- Example: $pi 请回复一句 can hear you，并告诉我你的名字',
+    '- The platform will treat that as a room-visible directed message: the operator can still see it, but only the mentioned member will act on it.',
+    '- Use $member only for this protocol. Do not use @member.',
+    '- Do not mention multiple members when using this protocol.',
+    '- If you are contacting another member, do not add explanation, summary, or extra prose before or after the $member message.',
+    directedTargetAlias
+      ? `- For this turn, the intended member to contact is ${desiredDirectedTarget?.displayName}. Your reply should start with $${directedTargetAlias}.`
+      : '- If no other member needs to be contacted, answer normally.',
+    `- Available replyable members: ${replyableMemberLabels.join(', ') || '(none)'}`,
+  ].join('\n').trim();
+
   return executeAcpxTaskRun({
     taskId: sourceTask.id,
     taskSessionId: sourceTask.currentTaskSession?.id || undefined,
     taskName: sourceTask.name,
-    taskDescription: sourceTask.description || undefined,
+    taskDescription: directedVisibleProtocol || undefined,
     orchestrationMode: 'single',
     participants: [{
       ...participant,
@@ -602,6 +670,11 @@ const executeLiveRoomReplyViaAcpx = async ({
   const contentForAgent = stripLeadingMentionForTarget({
     content: sourceMessage.content,
     targetDisplayName: targetMember.displayName,
+  });
+  const desiredDirectedTarget = inferDirectedVisibleRelayTarget({
+    room,
+    sourceMessage,
+    currentTargetMember: targetMember,
   });
 
   if (shouldInjectLatestInstruction && contentForAgent) {
@@ -749,6 +822,7 @@ const executeLiveRoomReplyViaAcpx = async ({
     room,
     participant,
     contentForAgent,
+    desiredDirectedTarget,
     permissionConfig,
     latestSession,
     useFreshSession: false,
@@ -793,6 +867,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       room,
       participant,
       contentForAgent,
+      desiredDirectedTarget,
       permissionConfig,
       latestSession,
       useFreshSession: true,
@@ -829,6 +904,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       room,
       participant,
       contentForAgent,
+      desiredDirectedTarget,
       permissionConfig,
       latestSession,
       useFreshSession: true,
@@ -1194,20 +1270,35 @@ const processLiveRoomDelivery = async ({
       },
     });
 
+    const mentionDetection = detectMentionedLiveRoomMembers({
+      content: output,
+      members: room.members,
+      senderMemberId: targetMember.id,
+    });
+    const startsWithExplicitMention = /^[\s]*[@$][^\s]+/.test(output);
+    const isDirectedVisibleReply =
+      startsWithExplicitMention
+      && mentionDetection.matchType === 'explicit'
+      && mentionDetection.memberIds.length === 1
+      && !detectLiveRoomMentionAll(output);
+    const directedTargetMemberId = isDirectedVisibleReply ? mentionDetection.memberIds[0] : null;
+    const directedTargetMember = directedTargetMemberId
+      ? room.members.find((member) => member.id === directedTargetMemberId) || null
+      : null;
+
     const replyMessage = await postLiveRoomMessage({
       roomId: room.id,
       senderMemberId: targetMember.id,
       content: output,
       messageType: 'assistant',
+      visibility: isDirectedVisibleReply ? 'directed_visible' : 'room',
       replyToMessageId: sourceMessage.id,
       metadata: resolveLiveRoomMessageMetadata({
         senderKind: 'assistant',
+        targetMemberId: directedTargetMemberId,
+        visibilityMode: isDirectedVisibleReply ? 'directed_visible' : 'room',
         replyToMessageId: sourceMessage.id,
-        mentionedMemberIds: detectMentionedLiveRoomMembers({
-          content: output,
-          members: room.members,
-          senderMemberId: targetMember.id,
-        }).memberIds,
+        mentionedMemberIds: mentionDetection.memberIds,
         mentionedAll: detectLiveRoomMentionAll(output),
         expectedResponderMemberIds: detectLiveRoomMentionAll(output)
           ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
@@ -1218,6 +1309,8 @@ const processLiveRoomDelivery = async ({
           harnessType: targetMember.harnessType,
           chainDepth,
           remoteTiming,
+          targetLocked: isDirectedVisibleReply,
+          targetMemberName: directedTargetMember?.displayName || null,
         },
       }),
     });
@@ -1228,6 +1321,7 @@ const processLiveRoomDelivery = async ({
       // 只有明确的 handoff 或 ask 模式才会触发连锁回复
       // agent 消息中的普通 @提及 (broadcast) 不会触发
       const shouldChain = replyMetadata?.deliveryIntent === 'handoff' ||
+                         replyMetadata?.deliveryIntent === 'directed_visible' ||
                          replyMetadata?.deliveryIntent === 'ask' ||
                          replyMetadata?.mentionedAll;
 

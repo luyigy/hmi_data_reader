@@ -15,7 +15,6 @@ import {
 import {
   downloadFeishuMessageResource,
   sendFeishuInteractiveMessage,
-  sendFeishuTextMessage,
 } from '@/lib/feishu-api';
 import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
@@ -34,7 +33,14 @@ import {
   postTaskRoomSessionResetMarker,
 } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
-import { buildLiveRoomAcpxParticipant, listLiveRoomCatalogAgents } from '@/lib/live-room';
+import {
+  buildLiveRoomAcpxParticipant,
+  listLiveRoomCatalogAgents,
+  listLiveRoomPendingReplies,
+  postLiveRoomMessage,
+  resolveLiveRoomMessageMetadata,
+} from '@/lib/live-room';
+import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 const DEFAULT_HELP_TEXT = [
   'Agent Platform Feishu Bot',
   '',
@@ -53,6 +59,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap add --agents=<agentId>',
   '/ap kick <memberName>',
   '/ap chat [--agents=<agentId1,agentId2>] <message>',
+  '/ap chat --from-member=<memberName> --to-member=<memberName> <message>',
   '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',
   '/ap approvals',
   '/ap approve <approvalId>',
@@ -715,6 +722,33 @@ async function handleRunCommand(command: ParsedFeishuCommand) {
   return lines.join('\n');
 }
 
+const resolveLiveRoomMemberByQuery = <T extends {
+  id: string;
+  memberType: string;
+  displayName: string;
+  userNickname?: string | null;
+  shortAlias?: string | null;
+}>(
+  members: T[],
+  query: string
+) => {
+  const normalizedQuery = query.trim().replace(/^[@$]/, '').toLowerCase();
+  if (!normalizedQuery) {
+    return null;
+  }
+
+  return members.find((member) =>
+    member.memberType !== 'user' && (
+      `${member.displayName} [${member.id.slice(-8)}]`.toLowerCase() === normalizedQuery ||
+      member.displayName.toLowerCase() === normalizedQuery ||
+      (member.userNickname || '').toLowerCase() === normalizedQuery ||
+      (member.shortAlias || '').toLowerCase() === normalizedQuery ||
+      member.displayName.toLowerCase().includes(normalizedQuery) ||
+      member.id.endsWith(normalizedQuery)
+    )
+  ) || null;
+};
+
 async function handleChatCommand(
   command: ParsedFeishuCommand,
   baseUrl: string,
@@ -782,17 +816,90 @@ async function handleChatCommand(
       'chat 命令参数不足。',
       '示例：',
       '/ap chat --agents=<agentId1,agentId2> 先建立一个房间并开始讨论',
+      '/ap chat --from-member=codex --to-member=claude 请确认远端状态',
       '/ap chat 继续讨论这个问题',
     ].join('\n');
   }
 
   const selectedAgentIds = parseFeishuSelectedAgentIds(command.options['agents']);
-  await ensureFeishuConversationBinding({
+  const binding = await ensureFeishuConversationBinding({
     context,
     selectedAgentIds,
     title: command.options['title'],
     topic: command.options['topic'],
   });
+
+  const fromMemberQuery = (command.options['from-member'] || '').trim();
+  const toMemberQuery = (command.options['to-member'] || '').trim();
+  if (fromMemberQuery || toMemberQuery) {
+    if (!fromMemberQuery || !toMemberQuery) {
+      return [
+        '定向 chat 需要同时指定 from-member 和 to-member。',
+        '示例：',
+        '/ap chat --from-member=codex --to-member=claude 请确认远端状态',
+      ].join('\n');
+    }
+
+    const roomMembers = await prisma.liveRoomMember.findMany({
+      where: { roomId: binding.liveRoomId },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const fromMember = resolveLiveRoomMemberByQuery(roomMembers, fromMemberQuery);
+    const toMember = resolveLiveRoomMemberByQuery(roomMembers, toMemberQuery);
+
+    if (!fromMember) {
+      const names = roomMembers
+        .filter((member) => member.memberType !== 'user')
+        .map((member) => `${member.userNickname || member.displayName} [${member.id.slice(-8)}]`)
+        .join(', ');
+      return `找不到 from-member：${fromMemberQuery}\n当前成员：${names || '(none)'}`;
+    }
+
+    if (!toMember) {
+      const names = roomMembers
+        .filter((member) => member.memberType !== 'user')
+        .map((member) => `${member.userNickname || member.displayName} [${member.id.slice(-8)}]`)
+        .join(', ');
+      return `找不到 to-member：${toMemberQuery}\n当前成员：${names || '(none)'}`;
+    }
+
+    if (!toMember.canReply) {
+      return `${toMember.userNickname || toMember.displayName} 当前不可回复，不能作为定向消息目标。`;
+    }
+
+    const message = await postLiveRoomMessage({
+      roomId: binding.liveRoomId,
+      senderMemberId: fromMember.id,
+      content: prompt,
+      messageType: 'assistant',
+      visibility: 'directed_visible',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'assistant',
+        targetMemberId: toMember.id,
+        visibilityMode: 'directed_visible',
+        extras: {
+          targetMemberName: toMember.userNickname || toMember.displayName,
+          source: 'feishu_directed_chat_command',
+          targetResolutionSource: 'feishu_chat_from_to_member',
+        },
+      }),
+    });
+
+    await triggerLiveRoomMessageReplies({
+      roomId: binding.liveRoomId,
+      roomMessageId: message.id,
+      requestedTargetMemberId: toMember.id,
+    });
+
+    const pendingReplies = await listLiveRoomPendingReplies(binding.liveRoomId);
+    return [
+      `消息已写入 Live Room ${binding.liveRoomId}`,
+      `定向可见通信：${fromMember.userNickname || fromMember.displayName} -> ${toMember.userNickname || toMember.displayName}`,
+      pendingReplies.length > 0
+        ? `房间待回复成员：${pendingReplies.map((reply) => reply.displayName).join(', ')}`
+        : '当前没有待回复成员。',
+    ].join('\n');
+  }
 
   const result = await postFeishuMessageToBoundLiveRoom({
     context,

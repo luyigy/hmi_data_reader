@@ -63,6 +63,7 @@ export async function POST(
       : [];
     const explicitMentionAll = body.explicitMentionAll === true;
     const autoReply = body.autoReply !== false;
+    const visibilityMode = typeof body.visibilityMode === 'string' ? body.visibilityMode.trim() : '';
 
     if (!content) {
       return NextResponse.json(
@@ -110,18 +111,32 @@ export async function POST(
     });
     // If the message carries a structured mention, route by mention first.
     const resolvedTargetMemberId = mentionedAll ? '' : (mentionedMemberIds[0] || targetMemberId || '');
+    const resolvedVisibilityMode =
+      !mentionedAll
+      && mentionedMemberIds.length === 0
+      && resolvedTargetMemberId
+      && visibilityMode === 'directed_visible'
+        ? 'directed_visible'
+        : 'room';
     const message = await postLiveRoomMessage({
       roomId: params.id,
       senderMemberId: userMember.id,
       content,
       messageType: 'user',
+      visibility: resolvedVisibilityMode,
       matchedAlias: detectedMatchedAlias, // 传递匹配的别名用于正确剥离
       metadata: resolveLiveRoomMessageMetadata({
         senderKind: 'user',
         targetMemberId: resolvedTargetMemberId || null,
         mentionedMemberIds,
         mentionedAll,
+        visibilityMode: resolvedVisibilityMode === 'directed_visible' ? 'directed_visible' : 'room',
         expectedResponderMemberIds,
+        extras: resolvedVisibilityMode === 'directed_visible'
+          ? {
+              targetResolutionSource: 'composer_target',
+            }
+          : undefined,
       }),
     });
 

@@ -117,6 +117,18 @@ const getLiveRoomSystemEvent = (message: LiveRoomMessage) => {
   return typeof value === 'string' ? value : null;
 };
 
+const getDirectedTargetMember = (
+  message: LiveRoomMessage,
+  room: WorkspaceDetail | null
+) => {
+  const targetMemberId = getMessageMetadataValue(message, 'primaryTargetMemberId');
+  if (typeof targetMemberId !== 'string') {
+    return null;
+  }
+
+  return room?.members.find((member) => member.id === targetMemberId) || null;
+};
+
 const renderLiveRoomSystemMessage = (
   message: LiveRoomMessage,
   room: WorkspaceDetail | null
@@ -126,11 +138,7 @@ const renderLiveRoomSystemMessage = (
     return null;
   }
 
-  const targetMemberId = getMessageMetadataValue(message, 'primaryTargetMemberId');
-  const targetMember =
-    typeof targetMemberId === 'string'
-      ? room?.members.find((member) => member.id === targetMemberId) || null
-      : null;
+  const targetMember = getDirectedTargetMember(message, room);
   const targetLabel = targetMember?.displayName || message.senderLabel || message.senderName || 'Agent';
   const preview = typeof getMessageMetadataValue(message, 'preview') === 'string'
     ? String(getMessageMetadataValue(message, 'preview'))
@@ -703,6 +711,7 @@ export function LiveRoomWorkspace({
     setError(null);
     try {
       const hasStructuredMention = draftMentionAll || draftMentionMemberIds.length > 0;
+      const visibilityMode = !hasStructuredMention && selectedTargetMemberId ? 'directed_visible' : 'room';
       const response = await fetch(`/api/live-rooms/${selectedRoom.id}/messages`, {
         method: 'POST',
         headers: {
@@ -711,6 +720,7 @@ export function LiveRoomWorkspace({
         body: JSON.stringify({
           content: messageInput.trim(),
           targetMemberId: hasStructuredMention ? undefined : (selectedTargetMemberId || undefined),
+          visibilityMode,
           explicitMentionAll: draftMentionAll,
           explicitMentionMemberIds: draftMentionMemberIds,
           autoReply: true,
@@ -742,7 +752,7 @@ export function LiveRoomWorkspace({
         : hasStructuredMention && selectedRoom
         ? `消息已发送，这条消息会优先按 mention 路由给 ${draftMentionMemberIds.map((memberId) => selectedRoom.members.find((member) => member.id === memberId)?.displayName).filter(Boolean).join('、')}。`
         : selectedTargetMemberId
-        ? '消息已发送，这条消息会优先由你在 dropdown 里选中的 agent 回复。'
+        ? '消息已发送，这是一条房间内可见的定向消息，只有你在 dropdown 里选中的 agent 会把它当作直接输入。'
         : '消息已发送，这是一条面向整个房间的公开消息，当前 speaker 会优先接话。';
       setNotice(
         pendingReplyCount > 0
@@ -1492,6 +1502,9 @@ export function LiveRoomWorkspace({
                     const isUser = message.senderType === 'user';
                     const isAssistant = message.messageType === 'assistant';
                     const isSystem = message.messageType === 'system' || message.messageType === 'topic';
+                    const deliveryIntent = getMessageMetadataValue(message, 'deliveryIntent');
+                    const isDirectedVisible = deliveryIntent === 'directed_visible' || message.visibility === 'directed_visible';
+                    const directedTargetMember = getDirectedTargetMember(message, selectedRoom);
 
                     if (isSystem) {
                       const customSystemMessage = renderLiveRoomSystemMessage(message, selectedRoom);
@@ -1515,16 +1528,27 @@ export function LiveRoomWorkspace({
                             ? 'bg-white text-slate-900 ring-1 ring-slate-200'
                             : 'bg-slate-100 text-slate-900'
                         }`}>
-                          <div className={`mb-1 text-[10px] ${isUser ? 'text-slate-300' : 'text-slate-500'}`}>
-                            {message.senderLabel || message.senderName} · {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                          <div className={`mb-1 flex flex-wrap items-center gap-1.5 text-[10px] ${isUser ? 'text-slate-300' : 'text-slate-500'}`}>
+                            <span>
+                              {message.senderLabel || message.senderName}
+                              {isDirectedVisible && directedTargetMember ? ` -> ${directedTargetMember.displayName}` : ''}
+                            </span>
+                            <span>· {new Date(message.createdAt).toLocaleString('zh-CN', { hour12: false })}</span>
                           </div>
                           {Array.isArray(getMessageMetadataValue(message, 'mentionedMemberIds')) || getMessageMetadataValue(message, 'primaryTargetMemberId') || getMessageMetadataValue(message, 'mentionedAll') ? (
                             <div className="mb-2 flex flex-wrap gap-1.5">
-                              {typeof getMessageMetadataValue(message, 'deliveryIntent') === 'string' ? (
+                              {typeof deliveryIntent === 'string' ? (
                                 <span className={`rounded-full px-2 py-0.5 text-[10px] ${
                                   isUser ? 'bg-white/10 text-slate-200' : 'bg-slate-100 text-slate-600'
                                 }`}>
-                                  {String(getMessageMetadataValue(message, 'deliveryIntent'))}
+                                  {String(deliveryIntent)}
+                                </span>
+                              ) : null}
+                              {isDirectedVisible ? (
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] ${
+                                  isUser ? 'bg-emerald-400/20 text-emerald-100' : 'bg-emerald-100 text-emerald-700'
+                                }`}>
+                                  room-visible direct
                                 </span>
                               ) : null}
                               {getMessageMetadataValue(message, 'mentionedAll') ? (
@@ -1603,7 +1627,7 @@ export function LiveRoomWorkspace({
                       : draftMentionMemberIds.length > 0
                       ? '这条消息包含结构化 mention，本次会优先按 mention 路由。'
                       : selectedTargetMemberId
-                      ? '这条消息会优先投递给你在 dropdown 里选中的 agent。'
+                      ? '这是一条房间可见的定向消息，只有 dropdown 里选中的 agent 会把它作为直接输入。'
                       : '这是一条面向整个房间的公开消息，当前 speaker 会优先回复。'}
                   </div>
                 </div>

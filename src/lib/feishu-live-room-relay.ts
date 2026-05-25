@@ -26,6 +26,18 @@ const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
 
 const formatRelayText = (message: LiveRoomMessagePayload) => {
   if (message.messageType === 'assistant') {
+    const targetMemberName =
+      typeof message.metadata?.targetMemberName === 'string'
+        ? message.metadata.targetMemberName
+        : null;
+    const isDirectedVisible =
+      message.visibility === 'directed_visible'
+      || message.metadata?.deliveryIntent === 'directed_visible';
+
+    if (isDirectedVisible && targetMemberName) {
+      return `${message.senderName} -> ${targetMemberName}:\n${message.content}`;
+    }
+
     return `${message.senderName}:\n${message.content}`;
   }
 
