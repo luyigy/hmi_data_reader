@@ -40,7 +40,7 @@ import {
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
 } from '@/lib/live-room';
-import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
+import { interruptLiveRoomMemberReplies, triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 const DEFAULT_HELP_TEXT = [
   'Agent Platform Feishu Bot',
   '',
@@ -69,7 +69,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap rights [--agent=<name>]',
   '/ap handover [agentName|idSuffix] [--title="handover title"]',
   '/ap workspace [/path/to/dir]',
-  '/ap new-session --handover="docs/xx.md" [--profile=safe|dev|full] [agentName|idSuffix]',
+  '/ap new [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
+  '/ap new-session [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
 
 type FeishuMessageMention = {
@@ -482,7 +483,8 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const normalizedTokens = tokenizeCommandText(commandText);
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
-  const command = rawCommand.toLowerCase();
+  const commandAlias = rawCommand.toLowerCase();
+  const command = commandAlias === 'new' ? 'new-session' : commandAlias;
   if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
     return null;
   }
@@ -1303,7 +1305,7 @@ async function handleHandoverCommand(command: ParsedFeishuCommand, context?: Fei
     `文件：${relativePath}`,
     '',
     '下一步可发送：',
-    `/ap new-session --handover="${relativePath}" --profile=full "${member.userNickname || member.displayName}"`,
+    `/ap new --handover="${relativePath}" --profile=full "${member.userNickname || member.displayName}"`,
   ].join('\n');
 }
 
@@ -1327,6 +1329,7 @@ function buildNewSessionPrompt(args: {
   transcript?: string | null;
   memberName: string;
   taskName: string;
+  blankBootstrap?: boolean;
 }) {
   if (args.handoverPath && args.handoverContent) {
     return [
@@ -1338,6 +1341,14 @@ function buildNewSessionPrompt(args: {
       '',
       'Handover content:',
       args.handoverContent,
+    ].join('\n');
+  }
+
+  if (args.blankBootstrap) {
+    return [
+      `Start a fresh blank session for ${args.memberName} on task "${args.taskName}".`,
+      'Do not assume prior room/task transcript unless the user provides it again.',
+      'Wait for the next user instruction and only act on that new instruction.',
     ].join('\n');
   }
 
@@ -1356,6 +1367,15 @@ function buildNewSessionPrompt(args: {
     'Recent task-room transcript:',
     args.transcript || '(no transcript available)',
   ].join('\n');
+}
+
+function isTruthyFeishuOption(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return ['true', '1', 'yes', 'y', 'on'].includes(normalized);
 }
 
 function parseNewSessionProfile(value: string | null | undefined): 'safe_local' | 'dev_local' | 'full_access' | null {
@@ -1444,6 +1464,10 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
   }
 
   const handoverPath = resolveHandoverPath(handoverOption);
+  const blankBootstrap =
+    isTruthyFeishuOption(command.options['blank'])
+    || isTruthyFeishuOption(command.options['no-bootstrap'])
+    || isTruthyFeishuOption(command.options['no_bootstrap']);
   let handoverContent: string | null = null;
   if (handoverOption) {
     if (!handoverPath) {
@@ -1484,6 +1508,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
     || parseNewSessionProfile(command.options['permission'])
     || parseNewSessionProfile(command.options['access']);
   const permissionConfig = buildNewSessionPermissionConfig(currentPermissionConfig, requestedProfile);
+  let interruptedPreviousReplies = false;
 
   if (requestedProfile && permissionConfig.profile !== currentPermissionConfig.profile) {
     await prisma.task.update({
@@ -1495,7 +1520,9 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
   }
 
   const taskRoom = await ensureTaskChatRoom(room.sourceTask.id, room.sourceTask.name);
-  const promptContext = await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
+  const promptContext = blankBootstrap
+    ? { transcript: '', latestUserMessage: null }
+    : await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
   const prompt = buildNewSessionPrompt({
     handoverPath: handoverPath?.relativePath || null,
     handoverContent,
@@ -1503,7 +1530,21 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
     transcript: promptContext.transcript,
     memberName: member.userNickname || member.displayName,
     taskName: room.sourceTask.name,
+    blankBootstrap,
   });
+
+  if (member.backend === 'remote_ssh') {
+    try {
+      const interruption = await interruptLiveRoomMemberReplies({
+        roomId: room.id,
+        memberId: member.id,
+      });
+      interruptedPreviousReplies =
+        interruption.interruptedRunningCount > 0 || interruption.cancelledQueuedCount > 0;
+    } catch (error) {
+      console.warn('Failed to interrupt previous live room replies before new session:', error);
+    }
+  }
 
   const freshTaskSession = await rotateTaskSession(room.sourceTask.id, {
     taskName: room.sourceTask.name,
@@ -1537,6 +1578,8 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
     roomId: taskRoom.id,
     content: handoverPath
       ? `[new-session] ${member.userNickname || member.displayName} <- ${handoverPath.relativePath}`
+      : blankBootstrap
+      ? `[new-session] ${member.userNickname || member.displayName} <- blank bootstrap`
       : `[new-session] ${member.userNickname || member.displayName} <- room-state bootstrap`,
     userId: 'task-room-user',
     userName: '用户',
@@ -1582,14 +1625,19 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
 
   return [
     `✅ 已为 ${member.userNickname || member.displayName} 启动 fresh session`,
-    `Handover：${handoverPath?.relativePath || '未指定（使用当前 room/task 状态）'}`,
+    `Bootstrap：${handoverPath?.relativePath ? `handover ${handoverPath.relativePath}` : blankBootstrap ? 'blank' : 'room/task state'}`,
     `请求权限：${requestedPermissionLabel}`,
     `实际落库权限：${recordedPermissionLabel}`,
     ...(recordedPermissionConfig && recordedPermissionConfig.profile !== permissionConfig.profile
       ? [`警告：请求权限与实际落库权限不一致，请检查运行中的 Feishu runtime 是否已重启到最新代码。`]
       : []),
     `Run：${result.taskRunId}`,
-    '说明：本次会以新 session 先读取 handover，再继续执行。',
+    ...(interruptedPreviousReplies ? ['说明：启动新 session 前，已中断该成员旧的 live-room 回复与排队消息。'] : []),
+    handoverPath
+      ? '说明：本次会以新 session 先读取 handover，再继续执行。'
+      : blankBootstrap
+      ? '说明：本次会以空白新 session 启动，不注入旧 room/task transcript。'
+      : '说明：本次会以新 session 继承当前 room/task 状态继续执行。',
   ].join('\n');
 }
 

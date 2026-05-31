@@ -121,15 +121,16 @@ export const countTaskRoomMessages = async (taskId: string, taskName: string) =>
 
 export const getTaskRoomMessages = async (taskId: string, taskName: string, limit = 50) => {
   const room = await ensureTaskChatRoom(taskId, taskName);
-  const messages = await prisma.message.findMany({
+  const newestFirst = await prisma.message.findMany({
     where: {
       roomId: room.id,
     },
     orderBy: {
-      createdAt: 'asc',
+      createdAt: 'desc',
     },
     take: limit,
   });
+  const messages = [...newestFirst].reverse();
 
   return {
     room,
