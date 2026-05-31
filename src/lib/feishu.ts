@@ -8,7 +8,7 @@ import { getRealAgentsStatus } from '@/lib/real-agents';
 import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
 import {
   ensureFeishuConversationBinding,
-  parseFeishuSelectedAgentIds,
+  resolveFeishuSelectedAgentIds,
   postFeishuMessageToBoundLiveRoom,
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
@@ -52,11 +52,11 @@ const DEFAULT_HELP_TEXT = [
   '/ap hosts',
   '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
   '/ap run --host=<hostId|label> --harness=<codex|claude|claude-haha> <prompt>',
-  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [--profile=safe|dev|full] [title]',
+  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [--profile=safe|dev|full] [title]  支持短写：TX-server:claude',
   '/ap members',
   '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
   '/ap speaker [memberName|idSuffix]',
-  '/ap add --agents=<agentId>',
+  '/ap add --agents=<agentId>  支持短写：TX-server:claude',
   '/ap kick <memberName>',
   '/ap chat [--agents=<agentId1,agentId2>] <message>',
   '/ap chat --from-member=<memberName> --to-member=<memberName> <message>',
@@ -823,7 +823,7 @@ async function handleChatCommand(
     ].join('\n');
   }
 
-  const selectedAgentIds = parseFeishuSelectedAgentIds(command.options['agents']);
+  const selectedAgentIds = await resolveFeishuSelectedAgentIds(command.options['agents']);
   const binding = await ensureFeishuConversationBinding({
     context,
     selectedAgentIds,
@@ -1837,11 +1837,11 @@ async function handleAddCommand(command: ParsedFeishuCommand, context?: FeishuCo
     return '当前 Feishu 会话尚未绑定 Live Room。';
   }
 
-  const agentIds = (command.options['agents'] || command.args.join(','))
-    .split(',').map((s) => s.trim()).filter(Boolean);
+  const agentSelectorValue = command.options['agents'] || command.args.join(',');
+  const agentIds = await resolveFeishuSelectedAgentIds(agentSelectorValue);
 
   if (agentIds.length === 0) {
-    return '请指定要添加的 agent ID。\n示例：/ap add --agents=platform_local:platform-local:codex';
+    return '请指定要添加的 agent。\n示例：/ap add --agents=TX-server:claude\n也支持完整 agent ID。';
   }
 
   // Re-use the existing room binding add path
@@ -1968,7 +1968,7 @@ async function handleRoomCommand(
     return '当前 room 命令需要来自 Feishu webhook 的会话上下文。';
   }
 
-  const selectedAgentIds = parseFeishuSelectedAgentIds(command.options['agents']);
+  const selectedAgentIds = await resolveFeishuSelectedAgentIds(command.options['agents']);
   const title = command.args.join(' ').trim() || command.options['title'];
   const requestedProfile =
     parseNewSessionProfile(command.options['profile'])

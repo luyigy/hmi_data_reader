@@ -104,6 +104,67 @@ function normalizeSelectedAgentIds(value?: string): string[] {
     .filter(Boolean);
 }
 
+function normalizeAgentSelector(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function buildAgentSelectorAliases(agent: {
+  id: string;
+  backend: string;
+  gatewayId: string;
+  gatewayName: string;
+  harnessType: string;
+  label: string;
+  agentName?: string;
+  userNickname?: string | null;
+  runtimeAgentId?: string;
+  hostname?: string | null;
+}) {
+  const aliases = new Set<string>();
+  const add = (value?: string | null) => {
+    const normalized = value ? normalizeAgentSelector(value) : '';
+    if (normalized) {
+      aliases.add(normalized);
+    }
+  };
+
+  add(agent.id);
+  add(agent.label);
+  add(agent.agentName);
+  add(agent.userNickname);
+  add(agent.runtimeAgentId);
+
+  if (agent.backend === 'remote_ssh') {
+    add(`${agent.gatewayName}:${agent.harnessType}`);
+    add(`${agent.gatewayName}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayName}`);
+    add(`${agent.gatewayId}:${agent.harnessType}`);
+    add(`${agent.gatewayId}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayId}`);
+  }
+
+  if (agent.backend === 'platform_local') {
+    add(`local:${agent.harnessType}`);
+    add(`platform-local:${agent.harnessType}`);
+    if (agent.hostname) {
+      add(`${agent.hostname}:${agent.harnessType}`);
+      add(`${agent.hostname}/${agent.harnessType}`);
+      add(`${agent.harnessType}@${agent.hostname}`);
+    }
+  }
+
+  if (agent.backend === 'gateway_openclaw') {
+    add(`${agent.gatewayName}:${agent.harnessType}`);
+    add(`${agent.gatewayName}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayName}`);
+    add(`${agent.gatewayId}:${agent.harnessType}`);
+    add(`${agent.gatewayId}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayId}`);
+  }
+
+  return aliases;
+}
+
 async function buildDefaultRoomTitle(context: FeishuConversationContext, fallbackTitle?: string) {
   if (fallbackTitle?.trim()) {
     return fallbackTitle.trim();
@@ -533,6 +594,65 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
 
 export function parseFeishuSelectedAgentIds(value?: string) {
   return normalizeSelectedAgentIds(value);
+}
+
+export async function resolveFeishuSelectedAgentIds(value?: string): Promise<string[]> {
+  const selectors = normalizeSelectedAgentIds(value);
+  if (selectors.length === 0) {
+    return [];
+  }
+
+  const agents = await listLiveRoomCatalogAgents();
+  const aliasMap = new Map<string, string[]>();
+
+  for (const agent of agents) {
+    for (const alias of buildAgentSelectorAliases(agent)) {
+      const existing = aliasMap.get(alias) || [];
+      existing.push(agent.id);
+      aliasMap.set(alias, existing);
+    }
+  }
+
+  const resolvedIds: string[] = [];
+  const unknown: string[] = [];
+  const ambiguous: Array<{ selector: string; matches: string[] }> = [];
+
+  for (const selector of selectors) {
+    const normalized = normalizeAgentSelector(selector);
+    const matches = Array.from(new Set(aliasMap.get(normalized) || []));
+
+    if (matches.length === 1) {
+      resolvedIds.push(matches[0]);
+      continue;
+    }
+
+    if (matches.length > 1) {
+      ambiguous.push({ selector, matches });
+      continue;
+    }
+
+    unknown.push(selector);
+  }
+
+  if (unknown.length > 0 || ambiguous.length > 0) {
+    const parts: string[] = [];
+
+    if (unknown.length > 0) {
+      parts.push(`Unknown agent selectors: ${unknown.join(', ')}`);
+    }
+
+    if (ambiguous.length > 0) {
+      parts.push(
+        ...ambiguous.map((item) => `Ambiguous agent selector "${item.selector}": ${item.matches.join(', ')}`)
+      );
+    }
+
+    parts.push('可用短写示例：TX-server:claude, TX-server/claude, claude@TX-server');
+    parts.push('也可以先发送 /ap agents 查看完整 agent ID。');
+    throw new Error(parts.join('\n'));
+  }
+
+  return resolvedIds;
 }
 
 /**

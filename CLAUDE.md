@@ -10,6 +10,7 @@ npm run build         # Production build
 npm start             # Production server
 npm run lint          # ESLint
 npm run feishu:runtime  # Start standalone Feishu WebSocket monitor
+systemctl --user restart agent-platform-dev.service agent-platform-feishu.service  # Restart both runtime services
 ```
 
 Database:
@@ -92,6 +93,17 @@ FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_VERIFICATION_TOKEN / FEISHU_ENCRYPT_K
 ### Utility Scripts (`scripts/`)
 
 - `feishu-standalone-monitor.js` — background Feishu WebSocket listener (run separately)
+
+Troubleshooting notes:
+- Both `agent-platform-dev.service` and `agent-platform-feishu.service` should start with the same repo-local Feishu env fallback.
+- Shared fallback loader: `scripts/load-local-env.sh`
+- Startup scripts normalize `DATABASE_URL` to the canonical SQLite file: `/data1/code/agent-platform-v2/prisma/dev.db`
+- If Feishu replies disappear after cleanup/restart, check for:
+  - `Missing required environment variable: FEISHU_APP_ID`
+  - `attempt to write a readonly database`
+- Then verify:
+  - `curl http://127.0.0.1:3010/api/health`
+  - `curl http://127.0.0.1:3010/api/feishu/connection`
 - `register-remote-gateway.js` — register an SSH-based gateway
 ---
 

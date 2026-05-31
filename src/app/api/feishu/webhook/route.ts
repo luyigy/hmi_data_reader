@@ -13,6 +13,7 @@ import {
 import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 import { tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
+import { listLiveRoomCatalogAgents } from '@/lib/live-room';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,24 @@ function resolveBaseUrl(request: NextRequest): string {
   }
 
   return request.nextUrl.origin;
+}
+
+async function buildUnboundLiveRoomHint(): Promise<string> {
+  try {
+    const agents = await listLiveRoomCatalogAgents();
+    const suggestedAgent =
+      agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'codex')
+      || agents.find((agent) => agent.backend === 'platform_local')
+      || agents[0];
+
+    if (suggestedAgent) {
+      return `当前会话还没有绑定到 live room，所以普通消息不会转发给 agent。先发送 \`/ap room --agents=${suggestedAgent.id}\` 创建绑定，也可以先发送 \`/ap agents\` 查看可用 agent ID，或发送 \`/ap help\` 查看可用命令。`;
+    }
+  } catch (error) {
+    console.error('Failed to build Feishu live-room binding hint:', error);
+  }
+
+  return '当前会话还没有绑定到 live room，所以普通消息不会转发给 agent。先发送 `/ap agents` 查看可用 agent ID，再用 `/ap room --agents=<agentId>` 创建绑定，或发送 `/ap help` 查看可用命令。';
 }
 
 export async function POST(request: NextRequest) {
@@ -84,6 +103,14 @@ export async function POST(request: NextRequest) {
       if (!relayed && relayTypingReactionId) {
         await removeTypingReaction(message.messageId, relayTypingReactionId);
       }
+      if (!relayed && message.chatType === 'p2p') {
+        await sendFeishuTextMessage({
+          receiveId: message.chatId,
+          receiveIdType: 'chat_id',
+          replyId: message.messageId,
+          text: await buildUnboundLiveRoomHint(),
+        });
+      }
       if (relayed) {
         await maybeSendFeishuSessionWatermarkWarning({
           context: {
@@ -134,8 +161,10 @@ export async function POST(request: NextRequest) {
     try {
       const rawPayload = await request.json().catch(() => null);
       const payload =
-        rawPayload && typeof rawPayload === 'object' ? normalizeFeishuPayload(rawPayload as any) : null;
-      const message = payload ? parseFeishuMessage(payload as any) : null;
+        rawPayload && typeof rawPayload === 'object'
+          ? normalizeFeishuPayload(rawPayload as Parameters<typeof normalizeFeishuPayload>[0])
+          : null;
+      const message = payload ? parseFeishuMessage(payload) : null;
       if (message) {
         await sendFeishuTextMessage({
           receiveId: message.chatId,
