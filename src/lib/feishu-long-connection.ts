@@ -8,7 +8,7 @@ import {
 } from '@/lib/feishu';
 import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage, updateFeishuApprovalCardResolved } from '@/lib/feishu-api';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
-import { tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
+import { ensureFeishuConversationBinding, tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
 import {
   createFeishuRuntimeStatus,
   readFeishuRuntimeStatus,
@@ -231,12 +231,13 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
         console.log(`${prefix} ignored self message`, { messageId: message.messageId });
         return;
       }
-
       const command = parseFeishuCommand(message);
       if (!command) {
         // Not a /ap command — check if the chat is bound to a live room and relay
         const relayTypingReactionId = await addTypingReaction(message.messageId);
-        const relayed = await tryRelayNonCommandToLiveRoom({
+        let autoBound = false;
+        let autoBoundRoomId: string | null = null;
+        let relayed = await tryRelayNonCommandToLiveRoom({
           context: {
             chatId: message.chatId,
             chatType: message.chatType,
@@ -250,6 +251,40 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
           console.error(`${prefix} relay non-command failed`, { error: err });
           return false;
         });
+        if (!relayed && message.chatType === 'group') {
+          const autoBinding = await ensureFeishuConversationBinding({
+            context: {
+              chatId: message.chatId,
+              chatType: message.chatType,
+              senderOpenId: message.senderOpenId,
+              messageId: message.messageId,
+              mentionNames: message.mentionNames,
+            },
+            allowDefaultAgent: true,
+          }).catch((err) => {
+            console.error(`${prefix} auto-bind failed`, { error: err });
+            return null;
+          });
+
+          if (autoBinding) {
+            autoBound = autoBinding.created;
+            autoBoundRoomId = autoBinding.liveRoomId;
+            relayed = await tryRelayNonCommandToLiveRoom({
+              context: {
+                chatId: message.chatId,
+                chatType: message.chatType,
+                senderOpenId: message.senderOpenId,
+                messageId: message.messageId,
+                mentionNames: message.mentionNames,
+              },
+              content: message.text,
+              typingReactionId: relayTypingReactionId ?? undefined,
+            }).catch((err) => {
+              console.error(`${prefix} relay after auto-bind failed`, { error: err });
+              return false;
+            });
+          }
+        }
         if (!relayed) {
           // No binding found — clean up the typing reaction we already added
           if (relayTypingReactionId) {
@@ -260,6 +295,19 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
             text: message.text,
           });
         } else {
+          if (autoBound && autoBoundRoomId) {
+            await sendFeishuTextMessage({
+              receiveId: message.chatId,
+              receiveIdType: 'chat_id',
+              replyId: message.messageId,
+              text: `已自动绑定到 Live Room ${autoBoundRoomId}，默认成员已加入（优先使用本机 pi-agent，本机 codex 作为托底）。现在可以直接继续聊，也可以用 /ap add 拉其他 agent。`,
+            }).catch((replyError) => {
+              console.error(`${prefix} auto-bind confirmation failed`, {
+                messageId: message.messageId,
+                error: replyError instanceof Error ? replyError.message : String(replyError),
+              });
+            });
+          }
           await maybeSendFeishuSessionWatermarkWarning({
             context: {
               chatId: message.chatId,

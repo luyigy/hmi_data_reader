@@ -13,6 +13,14 @@ npm run feishu:runtime  # Start standalone Feishu WebSocket monitor
 systemctl --user restart agent-platform-dev.service agent-platform-feishu.service  # Restart both runtime services
 ```
 
+Important runtime rule:
+- This repo is operated with user-level `systemd` services, not `nohup`, ad-hoc background shells, or manual long-running `npm run dev`.
+- For runtime restarts, always use:
+  - `systemctl --user restart agent-platform-dev.service agent-platform-feishu.service`
+- If `deploy/systemd-user/*.service` changed, run:
+  - `systemctl --user daemon-reload`
+  - `systemctl --user restart agent-platform-dev.service agent-platform-feishu.service`
+
 Database:
 ```bash
 npx prisma migrate dev   # Apply migrations + regenerate client

@@ -9,6 +9,7 @@ import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-loc
 import {
   ensureFeishuConversationBinding,
   resolveFeishuSelectedAgentIds,
+  resolveDefaultFeishuBindingAgentIds,
   postFeishuMessageToBoundLiveRoom,
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
@@ -1693,13 +1694,7 @@ async function handleMembersCommand(context?: FeishuConversationContext) {
   const lines = members.map((m) => {
     const tag = m.memberType === 'user' ? '(you)' : m.presenceStatus;
     const watermark = m.contextWatermark
-      ? ` | 水位 ${m.contextWatermark.percentage}% ${
-          m.contextWatermark.status === 'critical'
-            ? '!'
-            : m.contextWatermark.status === 'warning'
-            ? '⚠'
-            : 'ok'
-        } ${m.contextWatermark.dominantLabel}`
+      ? ` | 用量 ${m.contextWatermark.usagePercentage}% (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
       : '';
     const permission = m.permissionLabel ? ` | ${m.permissionLabel}` : '';
     return `- ${m.displayName} [${m.id.slice(-8)}] | ${m.backend || 'local'}${permission} | ${tag}${watermark}`;
@@ -2000,6 +1995,9 @@ async function handleRoomCommand(
   }
 
   const selectedAgentIds = await resolveFeishuSelectedAgentIds(command.options['agents']);
+  const effectiveAgentIds = selectedAgentIds.length > 0
+    ? selectedAgentIds
+    : await resolveDefaultFeishuBindingAgentIds();
   const title = command.args.join(' ').trim() || command.options['title'];
   const requestedProfile =
     parseNewSessionProfile(command.options['profile'])
@@ -2011,7 +2009,7 @@ async function handleRoomCommand(
     : undefined;
   const result = await ensureFeishuConversationBinding({
     context,
-    selectedAgentIds,
+    selectedAgentIds: effectiveAgentIds,
     title,
     topic: command.options['topic'],
     workingDirectory: command.options['workdir'] || undefined,

@@ -60,27 +60,36 @@ const getPermissionBadgeTone = (profile?: string | null) => {
   return 'bg-slate-100 text-slate-600';
 };
 
-const getWatermarkBarTone = (percentage?: number) => {
-  if ((percentage || 0) > 80) return 'bg-rose-500';
-  if ((percentage || 0) >= 60) return 'bg-amber-500';
-  return 'bg-teal-500';
+const getWatermarkUsageBarTone = (usageStatus?: string | null) => {
+  if (usageStatus === 'high') return 'bg-amber-500';
+  if (usageStatus === 'elevated') return 'bg-sky-500';
+  return 'bg-slate-400';
 };
 
-const getWatermarkStatusLabel = (member: WorkspaceDetail['members'][number]) => {
+const getWatermarkPolicyTone = (policyStatus?: string | null) => {
+  if (policyStatus === 'critical') return 'bg-rose-100 text-rose-700';
+  if (policyStatus === 'warning') return 'bg-amber-100 text-amber-700';
+  return 'bg-emerald-100 text-emerald-700';
+};
+
+const getWatermarkPolicyLabel = (member: WorkspaceDetail['members'][number]) => {
   const watermark = member.contextWatermark;
   if (!watermark) {
     return null;
   }
 
-  if (watermark.status === 'critical') {
-    return `! ${watermark.dominantLabel}`;
+  if (watermark.policyStatus === 'critical') return 'Reset now';
+  if (watermark.policyStatus === 'warning') return 'Warning';
+  return 'Within policy';
+};
+
+const getWatermarkUsageLabel = (member: WorkspaceDetail['members'][number]) => {
+  const watermark = member.contextWatermark;
+  if (!watermark) {
+    return null;
   }
 
-  if (watermark.status === 'warning') {
-    return `⚠ ${watermark.dominantLabel}`;
-  }
-
-  return 'ok';
+  return `Used ${watermark.usagePercentage}%`;
 };
 
 const getWatermarkTooltip = (member: WorkspaceDetail['members'][number]) => {
@@ -90,10 +99,11 @@ const getWatermarkTooltip = (member: WorkspaceDetail['members'][number]) => {
   }
 
   return [
+    `usage: ${watermark.usagePercentage}% (${watermark.dominantLabel})`,
+    `policy: ${watermark.policyLabel}`,
     `${watermark.messageCount}/60 messages`,
     `${watermark.eventCount}/400 events`,
     `${watermark.transcriptChars}/4000 transcript chars`,
-    `dominant: ${watermark.dominantLabel}`,
     watermark.recommendedAction,
   ].join(' | ');
 };
@@ -1945,9 +1955,14 @@ export function LiveRoomWorkspace({
                             </span>
                           ) : null}
                           {member.contextWatermark ? (
-                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                              {member.contextWatermark.percentage}% {getWatermarkStatusLabel(member)}
-                            </span>
+                            <>
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                                {getWatermarkUsageLabel(member)}
+                              </span>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${getWatermarkPolicyTone(member.contextWatermark.policyStatus)}`}>
+                                {getWatermarkPolicyLabel(member)}
+                              </span>
+                            </>
                           ) : null}
                         </div>
                       </div>
@@ -1958,12 +1973,12 @@ export function LiveRoomWorkspace({
                         <div className="mt-2" title={getWatermarkTooltip(member)}>
                           <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
                             <div
-                              className={`h-full rounded-full ${getWatermarkBarTone(member.contextWatermark.percentage)}`}
-                              style={{ width: `${Math.min(100, Math.max(0, member.contextWatermark.percentage))}%` }}
+                              className={`h-full rounded-full ${getWatermarkUsageBarTone(member.contextWatermark.usageStatus)}`}
+                              style={{ width: `${Math.min(100, Math.max(0, member.contextWatermark.usagePercentage))}%` }}
                             />
                           </div>
                           <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
-                            <span>{getWatermarkStatusLabel(member)}</span>
+                            <span>{getWatermarkUsageLabel(member)}</span>
                             <span>{member.contextWatermark.dominantLabel}</span>
                           </div>
                         </div>

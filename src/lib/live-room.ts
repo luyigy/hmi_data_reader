@@ -25,6 +25,8 @@ const CONTEXT_WARN_EVENT_THRESHOLD = 200;
 const CONTEXT_HARD_EVENT_THRESHOLD = 400;
 const CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT = 3800;
 const CONTEXT_HARD_TRANSCRIPT_LIMIT = 4000;
+const CONTEXT_USAGE_ELEVATED_PERCENTAGE = 60;
+const CONTEXT_USAGE_HIGH_PERCENTAGE = 85;
 
 export interface LiveRoomCatalogAgent {
   id: string;
@@ -91,8 +93,10 @@ export interface LiveRoomMemberPayload {
 }
 
 export interface LiveRoomMemberContextWatermarkPayload {
-  percentage: number;
-  status: 'normal' | 'warning' | 'critical';
+  usagePercentage: number;
+  usageStatus: 'light' | 'elevated' | 'high';
+  policyStatus: 'normal' | 'warning' | 'critical';
+  policyLabel: string;
   dominantReason: 'messages' | 'events' | 'transcript';
   dominantLabel: string;
   recommendedAction: string;
@@ -103,6 +107,12 @@ export interface LiveRoomMemberContextWatermarkPayload {
   remainingEvents: number;
   remainingTranscriptChars: number;
 }
+
+export const LIVE_ROOM_CONTEXT_POLICY_STATUS_PRIORITY = {
+  normal: 0,
+  warning: 1,
+  critical: 2,
+} as const;
 
 export interface LiveRoomMessagePayload {
   id: string;
@@ -435,7 +445,7 @@ export const serializeLiveRoomMember = (member: {
   };
 };
 
-const getContextWatermarkStatus = ({
+const getContextWatermarkPolicyStatus = ({
   messageCount,
   eventCount,
   transcriptChars,
@@ -443,7 +453,7 @@ const getContextWatermarkStatus = ({
   messageCount: number;
   eventCount: number;
   transcriptChars: number;
-}): LiveRoomMemberContextWatermarkPayload['status'] => {
+}): LiveRoomMemberContextWatermarkPayload['policyStatus'] => {
   if (
     messageCount >= CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD
     || eventCount >= CONTEXT_HARD_EVENT_THRESHOLD
@@ -461,6 +471,34 @@ const getContextWatermarkStatus = ({
   }
 
   return 'normal';
+};
+
+const getContextWatermarkUsageStatus = (
+  usagePercentage: number
+): LiveRoomMemberContextWatermarkPayload['usageStatus'] => {
+  if (usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE) {
+    return 'high';
+  }
+
+  if (usagePercentage >= CONTEXT_USAGE_ELEVATED_PERCENTAGE) {
+    return 'elevated';
+  }
+
+  return 'light';
+};
+
+const getContextWatermarkPolicyLabel = (
+  policyStatus: LiveRoomMemberContextWatermarkPayload['policyStatus']
+) => {
+  if (policyStatus === 'critical') {
+    return 'reset now';
+  }
+
+  if (policyStatus === 'warning') {
+    return 'warning';
+  }
+
+  return 'within policy';
 };
 
 const getPermissionProfileSummary = (sourceTask?: { acpxPermissionConfig?: string | null } | null) => {
@@ -585,17 +623,24 @@ export const getLiveRoomMemberContextWatermark = async ({
       : dominantReason === 'events'
       ? 'events'
       : 'messages';
-  const status = getContextWatermarkStatus({ messageCount, eventCount, transcriptChars });
+  const usagePercentage = Math.max(
+    0,
+    Math.min(100, Math.round(Math.max(messageRatio, eventRatio, transcriptRatio) * 100))
+  );
+  const policyStatus = getContextWatermarkPolicyStatus({ messageCount, eventCount, transcriptChars });
+  const usageStatus = getContextWatermarkUsageStatus(usagePercentage);
 
   return {
-    percentage: Math.max(0, Math.min(100, Math.round(Math.max(messageRatio, eventRatio, transcriptRatio) * 100))),
-    status,
+    usagePercentage,
+    usageStatus,
+    policyStatus,
+    policyLabel: getContextWatermarkPolicyLabel(policyStatus),
     dominantReason,
     dominantLabel,
     recommendedAction:
-      status === 'critical'
+      policyStatus === 'critical'
         ? 'Finish the current step, then reset now with /ap new-session.'
-        : status === 'warning'
+        : policyStatus === 'warning'
         ? 'Consider /ap new-session soon.'
         : 'No action needed.',
     messageCount,

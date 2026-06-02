@@ -1,5 +1,17 @@
 # Systemd User Commands
 
+## 重要约定
+
+本项目运行态由用户级 `systemd` 服务管理。
+
+- 要重启，请使用 `systemctl --user ...`
+- 不要用 `nohup`
+- 不要用手工后台常驻 `npm run dev` / `npm run feishu:runtime`
+- 修改了 service 文件后，先 `systemctl --user daemon-reload`，再重启
+- 默认应一起管理这两个服务：
+  - `agent-platform-dev.service`
+  - `agent-platform-feishu.service`
+
 ## 适用服务
 
 - `agent-platform-dev.service`

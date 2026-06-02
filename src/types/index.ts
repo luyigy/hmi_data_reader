@@ -95,8 +95,10 @@ export interface LiveRoomMember {
   permissionProfile?: string | null;
   permissionLabel?: string | null;
   contextWatermark?: {
-    percentage: number;
-    status: 'normal' | 'warning' | 'critical';
+    usagePercentage: number;
+    usageStatus: 'light' | 'elevated' | 'high';
+    policyStatus: 'normal' | 'warning' | 'critical';
+    policyLabel: string;
     dominantReason: 'messages' | 'events' | 'transcript';
     dominantLabel: string;
     recommendedAction: string;

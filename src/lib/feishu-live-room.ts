@@ -108,6 +108,14 @@ function normalizeAgentSelector(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function pickDefaultFeishuBindingAgent(agents: Awaited<ReturnType<typeof listLiveRoomCatalogAgents>>) {
+  return agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'pi-agent')
+    || agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'codex')
+    || agents.find((agent) => agent.backend === 'platform_local')
+    || agents[0]
+    || null;
+}
+
 function buildAgentSelectorAliases(agent: {
   id: string;
   backend: string;
@@ -284,9 +292,16 @@ export async function ensureFeishuConversationBinding(args: {
   topic?: string;
   workingDirectory?: string;
   permissionConfig?: AcpxPermissionConfig;
+  allowDefaultAgent?: boolean;
 }) {
   const scopeKey = buildFeishuBindingScopeKey(args.context);
-  const selectedAgentIds = args.selectedAgentIds || [];
+  let selectedAgentIds = args.selectedAgentIds || [];
+
+  if (selectedAgentIds.length === 0 && args.allowDefaultAgent) {
+    const agents = await listLiveRoomCatalogAgents();
+    const defaultAgent = pickDefaultFeishuBindingAgent(agents);
+    selectedAgentIds = defaultAgent ? [defaultAgent.id] : [];
+  }
 
   const existingRows = await prisma.$queryRaw<FeishuConversationBindingRow[]>`
     SELECT
@@ -594,6 +609,12 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
 
 export function parseFeishuSelectedAgentIds(value?: string) {
   return normalizeSelectedAgentIds(value);
+}
+
+export async function resolveDefaultFeishuBindingAgentIds(): Promise<string[]> {
+  const agents = await listLiveRoomCatalogAgents();
+  const defaultAgent = pickDefaultFeishuBindingAgent(agents);
+  return defaultAgent ? [defaultAgent.id] : [];
 }
 
 export async function resolveFeishuSelectedAgentIds(value?: string): Promise<string[]> {
