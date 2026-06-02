@@ -42,6 +42,17 @@ const trimTaskRoomTranscript = (value: string) =>
     ? value.slice(value.length - TASK_ROOM_PROMPT_CHAR_LIMIT)
     : value;
 
+export type TaskRoomContextMessageLike = {
+  id?: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: Date;
+  targetType?: string | null;
+  targetParticipantKey?: string | null;
+  targetParticipantLabel?: string | null;
+};
+
 const isTaskRoomSessionResetMarker = (message: { userId: string; content: string }) =>
   message.userId === 'system' && message.content.startsWith(TASK_ROOM_SESSION_RESET_PREFIX);
 
@@ -53,6 +64,106 @@ const sliceMessagesAfterLatestSessionReset = <T extends { userId: string; conten
   }
 
   return messages;
+};
+
+export const parseTaskRoomSessionResetMarker = (content?: string | null) => {
+  if (!content?.startsWith(TASK_ROOM_SESSION_RESET_PREFIX)) {
+    return null;
+  }
+
+  const payload = content.slice(TASK_ROOM_SESSION_RESET_PREFIX.length);
+  const separatorIndex = payload.indexOf(':');
+  if (separatorIndex < 0) {
+    return {
+      sessionId: payload.trim() || null,
+      reason: null,
+      memberId: null,
+    };
+  }
+
+  const sessionId = payload.slice(0, separatorIndex).trim() || null;
+  const reason = payload.slice(separatorIndex + 1).trim() || null;
+  const memberId = reason?.startsWith('new-session:') ? reason.slice('new-session:'.length).trim() || null : null;
+
+  return {
+    sessionId,
+    reason,
+    memberId,
+  };
+};
+
+export const isTaskRoomMessageVisibleToParticipant = (
+  message: Pick<TaskRoomContextMessageLike, 'userId' | 'targetType' | 'targetParticipantKey'>,
+  participantKey: string,
+  participantUserId?: string | null
+) => {
+  const targetType = message.targetType || 'task';
+  if (targetType === 'task' || targetType === 'all') {
+    return true;
+  }
+
+  if (targetType === 'participant') {
+    return message.targetParticipantKey === participantKey || (
+      !!participantUserId && message.userId === participantUserId
+    );
+  }
+
+  return true;
+};
+
+export const sliceTaskRoomMessagesForParticipant = <T extends TaskRoomContextMessageLike>(
+  messages: T[],
+  participantKey: string,
+  participantMemberId?: string | null,
+  participantUserId?: string | null
+) => {
+  let startIndex = 0;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!isTaskRoomSessionResetMarker(message)) {
+      continue;
+    }
+
+    const resetMarker = parseTaskRoomSessionResetMarker(message.content);
+    if (!resetMarker) {
+      startIndex = index + 1;
+      break;
+    }
+
+    if (!resetMarker.memberId || resetMarker.memberId === participantMemberId) {
+      startIndex = index + 1;
+      break;
+    }
+  }
+
+  return messages
+    .slice(startIndex)
+    .filter((message) => !isTaskRoomSessionResetMarker(message))
+    .filter((message) => isTaskRoomMessageVisibleToParticipant(message, participantKey, participantUserId));
+};
+
+export const buildTaskRoomTranscriptFromMessages = (messages: TaskRoomContextMessageLike[]) => {
+  const promptCandidates = messages.filter(shouldIncludeTaskRoomPromptMessage);
+  const contextMessages = promptCandidates.slice(-TASK_ROOM_PROMPT_MESSAGE_LIMIT);
+
+  const transcript = trimTaskRoomTranscript(contextMessages
+    .map((message) => {
+      const timestamp = message.createdAt.toLocaleString('zh-CN', { hour12: false });
+      const targetPrefix = formatTaskRoomMessageTargetPrefix({
+        targetType: message.targetType || 'task',
+        targetParticipantLabel: message.targetParticipantLabel,
+      });
+
+      return `[${timestamp}] ${message.userName}: ${targetPrefix}${message.content}`;
+    })
+    .join('\n'));
+
+  return {
+    transcript,
+    promptCandidates,
+    promptMessages: contextMessages,
+  };
 };
 
 export const getTaskRoomName = (taskName: string) => `任务：${taskName}`;

@@ -92,6 +92,21 @@ export interface LiveRoomMember {
   gatewayId?: string | null;
   gatewayName?: string | null;
   agentRecordId?: string | null;
+  permissionProfile?: string | null;
+  permissionLabel?: string | null;
+  contextWatermark?: {
+    percentage: number;
+    status: 'normal' | 'warning' | 'critical';
+    dominantReason: 'messages' | 'events' | 'transcript';
+    dominantLabel: string;
+    recommendedAction: string;
+    messageCount: number;
+    eventCount: number;
+    transcriptChars: number;
+    remainingMessages: number;
+    remainingEvents: number;
+    remainingTranscriptChars: number;
+  } | null;
 }
 
 export interface LiveRoomMessage {

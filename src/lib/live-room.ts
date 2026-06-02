@@ -2,12 +2,29 @@ import { prisma } from '@/lib/prisma';
 import { getSocketServer } from '@/lib/websocket';
 import { deriveGatewayHarnessOptions } from '@/lib/acpx/catalog';
 import { ensureTaskSession } from '@/lib/acpx/session';
-import { DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
-import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
+import {
+  DEFAULT_ACPX_PERMISSION_CONFIG,
+  getPermissionProfileLabel,
+  normalizeAcpxPermissionConfig,
+} from '@/lib/acpx/permissions';
+import {
+  buildTaskRoomTranscriptFromMessages,
+  ensureTaskChatRoom,
+  parseTaskRoomSessionResetMarker,
+  postTaskRoomMessage,
+  sliceTaskRoomMessagesForParticipant,
+} from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import { getMentionAliases, type LiveRoomMemberWithAgent } from '@/lib/agent-identity';
 import type { AcpxExecutionBackend, AcpxParticipantRequest } from '@/lib/acpx/types';
 import { relayLiveRoomMessageToFeishu } from '@/lib/feishu-live-room-relay';
+
+const CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD = 40;
+const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
+const CONTEXT_WARN_EVENT_THRESHOLD = 200;
+const CONTEXT_HARD_EVENT_THRESHOLD = 400;
+const CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT = 3800;
+const CONTEXT_HARD_TRANSCRIPT_LIMIT = 4000;
 
 export interface LiveRoomCatalogAgent {
   id: string;
@@ -68,6 +85,23 @@ export interface LiveRoomMemberPayload {
   gatewayId: string | null;
   gatewayName: string | null;
   agentRecordId: string | null;
+  permissionProfile: string | null;
+  permissionLabel: string | null;
+  contextWatermark?: LiveRoomMemberContextWatermarkPayload | null;
+}
+
+export interface LiveRoomMemberContextWatermarkPayload {
+  percentage: number;
+  status: 'normal' | 'warning' | 'critical';
+  dominantReason: 'messages' | 'events' | 'transcript';
+  dominantLabel: string;
+  recommendedAction: string;
+  messageCount: number;
+  eventCount: number;
+  transcriptChars: number;
+  remainingMessages: number;
+  remainingEvents: number;
+  remainingTranscriptChars: number;
 }
 
 export interface LiveRoomMessagePayload {
@@ -395,8 +429,220 @@ export const serializeLiveRoomMember = (member: {
       member.gateway?.name
       || (member.backend === 'remote_ssh' ? extractRemoteHostIdFromRoleLabel(member.roleLabel) : null),
     agentRecordId: member.agentRecordId,
+    permissionProfile: null,
+    permissionLabel: null,
+    contextWatermark: null,
   };
 };
+
+const getContextWatermarkStatus = ({
+  messageCount,
+  eventCount,
+  transcriptChars,
+}: {
+  messageCount: number;
+  eventCount: number;
+  transcriptChars: number;
+}): LiveRoomMemberContextWatermarkPayload['status'] => {
+  if (
+    messageCount >= CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD
+    || eventCount >= CONTEXT_HARD_EVENT_THRESHOLD
+    || transcriptChars >= CONTEXT_HARD_TRANSCRIPT_LIMIT
+  ) {
+    return 'critical';
+  }
+
+  if (
+    messageCount >= CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD
+    || eventCount >= CONTEXT_WARN_EVENT_THRESHOLD
+    || transcriptChars >= CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT
+  ) {
+    return 'warning';
+  }
+
+  return 'normal';
+};
+
+const getPermissionProfileSummary = (sourceTask?: { acpxPermissionConfig?: string | null } | null) => {
+  if (!sourceTask?.acpxPermissionConfig) {
+    return {
+      permissionProfile: null,
+      permissionLabel: null,
+    };
+  }
+
+  try {
+    const config = normalizeAcpxPermissionConfig(JSON.parse(sourceTask.acpxPermissionConfig));
+    return {
+      permissionProfile: config.profile,
+      permissionLabel: getPermissionProfileLabel(config.profile),
+    };
+  } catch {
+    return {
+      permissionProfile: null,
+      permissionLabel: null,
+    };
+  }
+};
+
+export const getLiveRoomMemberContextWatermark = async ({
+  member,
+  sourceTask,
+}: {
+  member: {
+    id: string;
+    displayName: string;
+    backend?: string | null;
+    harnessType?: string | null;
+    gatewayId?: string | null;
+    roleLabel?: string | null;
+    runtimeAgentId?: string | null;
+    gateway?: { id?: string | null; name?: string | null } | null;
+  };
+  sourceTask?: {
+    id: string;
+    name: string;
+  } | null;
+}): Promise<LiveRoomMemberContextWatermarkPayload | null> => {
+  if (!sourceTask || member.backend == null || member.harnessType == null) {
+    return null;
+  }
+
+  const participant = buildLiveRoomAcpxParticipant({
+    id: member.id,
+    displayName: member.displayName,
+    backend: member.backend,
+    harnessType: member.harnessType,
+    gatewayId: member.backend === 'remote_ssh'
+      ? extractRemoteHostIdFromRoleLabel(member.roleLabel) || member.gateway?.id || member.gatewayId
+      : member.gatewayId,
+    gatewayName: member.gateway?.name || null,
+    runtimeAgentId: member.runtimeAgentId,
+  });
+  const participantKey = getTaskRoomParticipantTargetKey(participant);
+  const participantUserId = `${getLiveRoomParticipantContinuationKey(member.id)}:speaker`;
+  const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
+  const taskRoomMessages = await prisma.message.findMany({
+    where: { roomId: taskRoom.id },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      userId: true,
+      userName: true,
+      content: true,
+      createdAt: true,
+      targetType: true,
+      targetParticipantKey: true,
+      targetParticipantLabel: true,
+    },
+  });
+  const visibleMessages = sliceTaskRoomMessagesForParticipant(
+    taskRoomMessages,
+    participantKey,
+    member.id,
+    participantUserId
+  );
+  const { transcript, promptCandidates } = buildTaskRoomTranscriptFromMessages(visibleMessages);
+  const latestResetAt = [...taskRoomMessages]
+    .reverse()
+    .find((message) => {
+      const resetMarker = parseTaskRoomSessionResetMarker(message.content);
+      return resetMarker && (!resetMarker.memberId || resetMarker.memberId === member.id);
+    })
+    ?.createdAt || null;
+  const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
+  const eventCount = await prisma.taskRunEvent.count({
+    where: {
+      taskRun: {
+        taskId: sourceTask.id,
+      },
+      participant: {
+        is: {
+          controlMetadata: {
+            contains: `"continuationKey":"${continuationKey}"`,
+          },
+        },
+      },
+      ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
+    },
+  });
+
+  const messageCount = promptCandidates.length;
+  const transcriptChars = transcript.length;
+  const messageRatio = messageCount / CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD;
+  const eventRatio = eventCount / CONTEXT_HARD_EVENT_THRESHOLD;
+  const transcriptRatio = transcriptChars / CONTEXT_HARD_TRANSCRIPT_LIMIT;
+  const dominantReason = (
+    transcriptRatio >= messageRatio && transcriptRatio >= eventRatio
+      ? 'transcript'
+      : eventRatio >= messageRatio
+      ? 'events'
+      : 'messages'
+  ) as LiveRoomMemberContextWatermarkPayload['dominantReason'];
+  const dominantLabel =
+    dominantReason === 'transcript'
+      ? 'transcript'
+      : dominantReason === 'events'
+      ? 'events'
+      : 'messages';
+  const status = getContextWatermarkStatus({ messageCount, eventCount, transcriptChars });
+
+  return {
+    percentage: Math.max(0, Math.min(100, Math.round(Math.max(messageRatio, eventRatio, transcriptRatio) * 100))),
+    status,
+    dominantReason,
+    dominantLabel,
+    recommendedAction:
+      status === 'critical'
+        ? 'Finish the current step, then reset now with /ap new-session.'
+        : status === 'warning'
+        ? 'Consider /ap new-session soon.'
+        : 'No action needed.',
+    messageCount,
+    eventCount,
+    transcriptChars,
+    remainingMessages: Math.max(0, CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD - messageCount),
+    remainingEvents: Math.max(0, CONTEXT_HARD_EVENT_THRESHOLD - eventCount),
+    remainingTranscriptChars: Math.max(0, CONTEXT_HARD_TRANSCRIPT_LIMIT - transcriptChars),
+  };
+};
+
+export const serializeLiveRoomMemberWithContext = async ({
+  member,
+  sourceTask,
+}: {
+  member: Parameters<typeof serializeLiveRoomMember>[0];
+  sourceTask?: {
+    id: string;
+    name: string;
+    acpxPermissionConfig?: string | null;
+  } | null;
+}): Promise<LiveRoomMemberPayload> => {
+  const base = serializeLiveRoomMember(member);
+  const permissionSummary = getPermissionProfileSummary(sourceTask);
+  const contextWatermark = await getLiveRoomMemberContextWatermark({
+    member,
+    sourceTask,
+  });
+
+  return {
+    ...base,
+    ...permissionSummary,
+    contextWatermark,
+  };
+};
+
+export const serializeLiveRoomMembersWithContext = async ({
+  members,
+  sourceTask,
+}: {
+  members: Parameters<typeof serializeLiveRoomMember>[0][];
+  sourceTask?: {
+    id: string;
+    name: string;
+    acpxPermissionConfig?: string | null;
+  } | null;
+}) => Promise.all(members.map((member) => serializeLiveRoomMemberWithContext({ member, sourceTask })));
 
 export const buildLiveRoomAcpxParticipant = (member: {
   id: string;

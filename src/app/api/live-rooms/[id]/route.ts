@@ -5,7 +5,7 @@ import {
   emitLiveRoomUpdated,
   listLiveRoomCatalogAgents,
   listLiveRoomPendingReplies,
-  serializeLiveRoomMember,
+  serializeLiveRoomMembersWithContext,
   serializeLiveRoomSummary,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
@@ -29,6 +29,7 @@ export async function GET(
           select: {
             id: true,
             name: true,
+            acpxPermissionConfig: true,
           },
         },
         members: {
@@ -57,6 +58,11 @@ export async function GET(
     const availableAgents = await listLiveRoomCatalogAgents();
     const pendingReplies = await listLiveRoomPendingReplies(params.id);
 
+    const members = await serializeLiveRoomMembersWithContext({
+      members: room.members,
+      sourceTask: room.sourceTask,
+    });
+
     return NextResponse.json({
       room: {
         ...serializeLiveRoomSummary(room),
@@ -64,7 +70,7 @@ export async function GET(
         pendingReplyCount: pendingReplies.reduce((total, reply) => total + reply.pendingCount, 0),
         pendingReplyTargetNames: pendingReplies.map((reply) => reply.displayName),
         pendingReplies,
-        members: room.members.map(serializeLiveRoomMember),
+        members,
       },
       availableAgents,
     });
@@ -142,6 +148,7 @@ export async function PATCH(
           select: {
             id: true,
             name: true,
+            acpxPermissionConfig: true,
           },
         },
         members: {
@@ -166,6 +173,11 @@ export async function PATCH(
 
     const pendingReplies = await listLiveRoomPendingReplies(params.id);
 
+    const members = await serializeLiveRoomMembersWithContext({
+      members: updated.members,
+      sourceTask: updated.sourceTask,
+    });
+
     return NextResponse.json({
       room: {
         ...serializeLiveRoomSummary(updated),
@@ -173,7 +185,7 @@ export async function PATCH(
         pendingReplyCount: pendingReplies.reduce((total, reply) => total + reply.pendingCount, 0),
         pendingReplyTargetNames: pendingReplies.map((reply) => reply.displayName),
         pendingReplies,
-        members: updated.members.map(serializeLiveRoomMember),
+        members,
       },
     });
   } catch (error) {

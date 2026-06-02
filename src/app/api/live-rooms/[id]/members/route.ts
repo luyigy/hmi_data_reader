@@ -7,7 +7,7 @@ import {
   listLiveRoomCatalogAgents,
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
-  serializeLiveRoomMember,
+  serializeLiveRoomMemberWithContext,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 
@@ -63,10 +63,24 @@ export async function POST(
     );
 
     if (duplicate) {
+      const sourceTask = room.sourceTaskId
+        ? await prisma.task.findUnique({
+            where: { id: room.sourceTaskId },
+            select: {
+              id: true,
+              name: true,
+              acpxPermissionConfig: true,
+            },
+          })
+        : null;
+
       return NextResponse.json({
-        member: serializeLiveRoomMember({
-          ...duplicate,
-          gateway: null,
+        member: await serializeLiveRoomMemberWithContext({
+          member: {
+            ...duplicate,
+            gateway: null,
+          },
+          sourceTask,
         }),
         duplicate: true,
       });
@@ -117,7 +131,7 @@ export async function POST(
       });
     }
 
-    await syncLiveRoomSourceTask(room.id);
+    const sourceTask = await syncLiveRoomSourceTask(room.id);
 
     const rosterMembers = await prisma.liveRoomMember.findMany({
       where: { roomId: room.id },
@@ -144,7 +158,10 @@ export async function POST(
     });
 
     return NextResponse.json({
-      member: serializeLiveRoomMember(created),
+      member: await serializeLiveRoomMemberWithContext({
+        member: created,
+        sourceTask,
+      }),
       duplicate: false,
     }, { status: 201 });
   } catch (error) {

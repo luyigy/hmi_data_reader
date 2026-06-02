@@ -53,6 +53,51 @@ const getMemberSubtitle = (member: WorkspaceDetail['members'][number]) =>
           : (member.gatewayName || 'Gateway')
       } / ${member.harnessType || 'agent'}`;
 
+const getPermissionBadgeTone = (profile?: string | null) => {
+  if (profile === 'full_access') return 'bg-rose-100 text-rose-700';
+  if (profile === 'dev_local') return 'bg-amber-100 text-amber-700';
+  if (profile === 'safe_local') return 'bg-emerald-100 text-emerald-700';
+  return 'bg-slate-100 text-slate-600';
+};
+
+const getWatermarkBarTone = (percentage?: number) => {
+  if ((percentage || 0) > 80) return 'bg-rose-500';
+  if ((percentage || 0) >= 60) return 'bg-amber-500';
+  return 'bg-teal-500';
+};
+
+const getWatermarkStatusLabel = (member: WorkspaceDetail['members'][number]) => {
+  const watermark = member.contextWatermark;
+  if (!watermark) {
+    return null;
+  }
+
+  if (watermark.status === 'critical') {
+    return `! ${watermark.dominantLabel}`;
+  }
+
+  if (watermark.status === 'warning') {
+    return `⚠ ${watermark.dominantLabel}`;
+  }
+
+  return 'ok';
+};
+
+const getWatermarkTooltip = (member: WorkspaceDetail['members'][number]) => {
+  const watermark = member.contextWatermark;
+  if (!watermark) {
+    return '';
+  }
+
+  return [
+    `${watermark.messageCount}/60 messages`,
+    `${watermark.eventCount}/400 events`,
+    `${watermark.transcriptChars}/4000 transcript chars`,
+    `dominant: ${watermark.dominantLabel}`,
+    watermark.recommendedAction,
+  ].join(' | ');
+};
+
 const getMentionQuery = (value: string) => value.match(/@([\w\u4e00-\u9fa5-]*)$/)?.[1] ?? '';
 const hasMentionAll = (value: string) => /(^|[\s(])[@$]all\b/i.test(value);
 
@@ -1891,10 +1936,38 @@ export function LiveRoomWorkspace({
                 <div className="mt-3 space-y-2">
                   {selectedRoom.members.map((member) => (
                     <div key={member.id} className="rounded-2xl bg-slate-50 px-3 py-2">
-                      <div className="truncate text-sm font-medium text-slate-800">{member.displayName}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="truncate text-sm font-medium text-slate-800">{member.displayName}</div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          {member.permissionLabel ? (
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${getPermissionBadgeTone(member.permissionProfile)}`}>
+                              {member.permissionLabel}
+                            </span>
+                          ) : null}
+                          {member.contextWatermark ? (
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                              {member.contextWatermark.percentage}% {getWatermarkStatusLabel(member)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
                       <div className="mt-1 text-[11px] text-slate-500">
                         {getMemberSubtitle(member)}
                       </div>
+                      {member.contextWatermark ? (
+                        <div className="mt-2" title={getWatermarkTooltip(member)}>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                            <div
+                              className={`h-full rounded-full ${getWatermarkBarTone(member.contextWatermark.percentage)}`}
+                              style={{ width: `${Math.min(100, Math.max(0, member.contextWatermark.percentage))}%` }}
+                            />
+                          </div>
+                          <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
+                            <span>{getWatermarkStatusLabel(member)}</span>
+                            <span>{member.contextWatermark.dominantLabel}</span>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>

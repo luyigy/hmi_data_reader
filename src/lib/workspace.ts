@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import {
   listLiveRoomPendingReplies,
-  serializeLiveRoomMember,
+  serializeLiveRoomMembersWithContext,
   serializeLiveRoomSummary,
   type LiveRoomPendingReplyPayload,
 } from '@/lib/live-room';
@@ -196,6 +196,7 @@ export async function listWorkspaceSummaries(): Promise<WorkspaceSummary[]> {
       sourceTask: {
         select: {
           status: true,
+          acpxPermissionConfig: true,
           interactionRequests: {
             where: {
               status: 'pending',
@@ -262,6 +263,7 @@ export async function getWorkspaceDetail(workspaceId: string): Promise<Workspace
           id: true,
           name: true,
           status: true,
+          acpxPermissionConfig: true,
           interactionRequests: {
             where: {
               status: 'pending',
@@ -312,6 +314,11 @@ export async function getWorkspaceDetail(workspaceId: string): Promise<Workspace
       request.status === 'pending' && USER_ACTION_REQUEST_KINDS.has(request.requestKind)
     ).length || 0;
 
+  const members = await serializeLiveRoomMembersWithContext({
+    members: room.members,
+    sourceTask: room.sourceTask,
+  });
+
   return {
     ...summary,
     sourceTask: room.sourceTask
@@ -323,7 +330,7 @@ export async function getWorkspaceDetail(workspaceId: string): Promise<Workspace
     pendingReplyCount: pendingReplies.reduce((total, reply) => total + reply.pendingCount, 0),
     pendingReplyTargetNames: pendingReplies.map((reply) => reply.displayName),
     pendingReplies,
-    members: room.members.map(serializeLiveRoomMember),
+    members,
     pendingActionCount,
   };
 }

@@ -39,6 +39,7 @@ import {
   listLiveRoomPendingReplies,
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
+  serializeLiveRoomMembersWithContext,
 } from '@/lib/live-room';
 import { interruptLiveRoomMemberReplies, triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 const DEFAULT_HELP_TEXT = [
@@ -1660,18 +1661,48 @@ async function handleMembersCommand(context?: FeishuConversationContext) {
     return '当前 Feishu 会话尚未绑定 Live Room。请先使用 /ap room --agents=<agentId> 创建绑定。';
   }
 
-  const members = await prisma.liveRoomMember.findMany({
-    where: { roomId },
-    orderBy: { sortOrder: 'asc' },
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      sourceTask: {
+        select: {
+          id: true,
+          name: true,
+          acpxPermissionConfig: true,
+        },
+      },
+      members: {
+        include: {
+          gateway: true,
+          agentRecord: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+    },
   });
 
-  if (members.length === 0) {
+  if (!room || room.members.length === 0) {
     return `Live Room ${roomId} 没有成员。`;
   }
 
+  const members = await serializeLiveRoomMembersWithContext({
+    members: room.members,
+    sourceTask: room.sourceTask,
+  });
+
   const lines = members.map((m) => {
     const tag = m.memberType === 'user' ? '(you)' : m.presenceStatus;
-    return `- ${m.displayName} [${m.id.slice(-8)}] | ${m.backend || 'local'} | ${tag}`;
+    const watermark = m.contextWatermark
+      ? ` | 水位 ${m.contextWatermark.percentage}% ${
+          m.contextWatermark.status === 'critical'
+            ? '!'
+            : m.contextWatermark.status === 'warning'
+            ? '⚠'
+            : 'ok'
+        } ${m.contextWatermark.dominantLabel}`
+      : '';
+    const permission = m.permissionLabel ? ` | ${m.permissionLabel}` : '';
+    return `- ${m.displayName} [${m.id.slice(-8)}] | ${m.backend || 'local'}${permission} | ${tag}${watermark}`;
   });
 
   return [`Live Room 成员列表 (${roomId.slice(-8)})`, ...lines].join('\n');
