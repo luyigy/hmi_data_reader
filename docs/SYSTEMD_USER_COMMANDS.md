@@ -11,6 +11,8 @@
 - 默认应一起管理这两个服务：
   - `agent-platform-dev.service`
   - `agent-platform-feishu.service`
+- 通过 agent harness 操作时，`restart` 和 `status` 不要串成一条命令
+- 通过 agent harness 操作时，两个 service 的 `restart` 也优先分开执行
 
 ## 适用服务
 

@@ -3,16 +3,16 @@ import { prisma } from '@/lib/prisma';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 import {
+  addCatalogAgentsToLiveRoom,
   buildLiveRoomRosterText,
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
-  encodeLiveRoomRoleLabel,
-  extractRemoteHostIdFromRoleLabel,
   ensureLiveRoomUserMember,
   listLiveRoomCatalogAgents,
   listLiveRoomPendingReplies,
   mergeLiveRoomMentionedMemberIds,
   postLiveRoomMessage,
+  resolveLiveRoomAgentSelectors,
   resolveLiveRoomMessageMetadata,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
@@ -104,73 +104,12 @@ function normalizeSelectedAgentIds(value?: string): string[] {
     .filter(Boolean);
 }
 
-function normalizeAgentSelector(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 function pickDefaultFeishuBindingAgent(agents: Awaited<ReturnType<typeof listLiveRoomCatalogAgents>>) {
-  return agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'pi-agent')
-    || agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'codex')
+  return agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'codex')
+    || agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'pi-agent')
     || agents.find((agent) => agent.backend === 'platform_local')
     || agents[0]
     || null;
-}
-
-function buildAgentSelectorAliases(agent: {
-  id: string;
-  backend: string;
-  gatewayId: string;
-  gatewayName: string;
-  harnessType: string;
-  label: string;
-  agentName?: string;
-  userNickname?: string | null;
-  runtimeAgentId?: string;
-  hostname?: string | null;
-}) {
-  const aliases = new Set<string>();
-  const add = (value?: string | null) => {
-    const normalized = value ? normalizeAgentSelector(value) : '';
-    if (normalized) {
-      aliases.add(normalized);
-    }
-  };
-
-  add(agent.id);
-  add(agent.label);
-  add(agent.agentName);
-  add(agent.userNickname);
-  add(agent.runtimeAgentId);
-
-  if (agent.backend === 'remote_ssh') {
-    add(`${agent.gatewayName}:${agent.harnessType}`);
-    add(`${agent.gatewayName}/${agent.harnessType}`);
-    add(`${agent.harnessType}@${agent.gatewayName}`);
-    add(`${agent.gatewayId}:${agent.harnessType}`);
-    add(`${agent.gatewayId}/${agent.harnessType}`);
-    add(`${agent.harnessType}@${agent.gatewayId}`);
-  }
-
-  if (agent.backend === 'platform_local') {
-    add(`local:${agent.harnessType}`);
-    add(`platform-local:${agent.harnessType}`);
-    if (agent.hostname) {
-      add(`${agent.hostname}:${agent.harnessType}`);
-      add(`${agent.hostname}/${agent.harnessType}`);
-      add(`${agent.harnessType}@${agent.hostname}`);
-    }
-  }
-
-  if (agent.backend === 'gateway_openclaw') {
-    add(`${agent.gatewayName}:${agent.harnessType}`);
-    add(`${agent.gatewayName}/${agent.harnessType}`);
-    add(`${agent.harnessType}@${agent.gatewayName}`);
-    add(`${agent.gatewayId}:${agent.harnessType}`);
-    add(`${agent.gatewayId}/${agent.harnessType}`);
-    add(`${agent.harnessType}@${agent.gatewayId}`);
-  }
-
-  return aliases;
 }
 
 async function buildDefaultRoomTitle(context: FeishuConversationContext, fallbackTitle?: string) {
@@ -190,99 +129,6 @@ async function buildDefaultRoomTitle(context: FeishuConversationContext, fallbac
   }
 
   return `Feishu Group ${context.chatId.slice(-6)}`;
-}
-
-async function addAgentsToLiveRoom(roomId: string, selectedAgentIds: string[]) {
-  if (selectedAgentIds.length === 0) {
-    return [];
-  }
-
-  const availableAgents = await listLiveRoomCatalogAgents();
-  const selectedAgents = availableAgents.filter((agent) => selectedAgentIds.includes(agent.id));
-
-  if (selectedAgents.length !== selectedAgentIds.length) {
-    const foundIds = new Set(selectedAgents.map((agent) => agent.id));
-    const missingIds = selectedAgentIds.filter((id) => !foundIds.has(id));
-    throw new Error(`Unknown agent ids: ${missingIds.join(', ')}`);
-  }
-
-  const existingMembers = await prisma.liveRoomMember.findMany({
-    where: { roomId },
-  });
-
-  const maxSort = await prisma.liveRoomMember.aggregate({
-    where: { roomId },
-    _max: { sortOrder: true },
-  });
-  let nextSortOrder = (maxSort._max.sortOrder || 0) + 1;
-
-  const createdMembers = [] as Awaited<ReturnType<typeof prisma.liveRoomMember.create>>[];
-
-  for (const agent of selectedAgents) {
-    const existing = existingMembers.find((member) => {
-      if (member.agentRecordId !== (agent.agentRecordId || null)) return false;
-      if (member.backend !== agent.backend) return false;
-      if (member.harnessType !== agent.harnessType) return false;
-      if (member.runtimeAgentId !== (agent.runtimeAgentId || null)) return false;
-      if (agent.backend === 'remote_ssh') {
-        return extractRemoteHostIdFromRoleLabel(member.roleLabel) === agent.gatewayId;
-      }
-      return member.gatewayId === (agent.gatewayId === 'platform-local' ? null : agent.gatewayId);
-    });
-
-    if (existing) {
-      continue;
-    }
-
-    const created = await prisma.liveRoomMember.create({
-      data: {
-        roomId,
-        agentRecordId: agent.agentRecordId || null,
-        gatewayId:
-          agent.backend === 'gateway_openclaw'
-            ? (agent.gatewayId === 'platform-local' ? null : agent.gatewayId)
-            : null,
-        memberType:
-          agent.backend === 'gateway_openclaw'
-            ? 'gateway_agent'
-            : agent.backend === 'remote_ssh'
-            ? 'remote_agent'
-            : 'local_agent',
-        displayName: agent.userNickname || agent.agentName || agent.label,
-        agentNameSnapshot: agent.userNickname || agent.agentName || agent.label,
-        harnessType: agent.harnessType,
-        backend: agent.backend,
-        runtimeAgentId: agent.runtimeAgentId || null,
-        roleLabel: encodeLiveRoomRoleLabel({
-          backend: agent.backend,
-          label: agent.label,
-          remoteHostId: agent.backend === 'remote_ssh' ? agent.gatewayId : null,
-        }),
-        joinStatus: 'joined',
-        presenceStatus: agent.status === 'online' ? 'online' : 'idle',
-        canReply: true,
-        sortOrder: nextSortOrder++,
-      },
-    });
-
-    createdMembers.push(created);
-  }
-
-  const room = await prisma.liveRoom.findUnique({
-    where: { id: roomId },
-    select: { currentSpeakerMemberId: true },
-  });
-
-  if (createdMembers.length > 0 && room && !room.currentSpeakerMemberId) {
-    await prisma.liveRoom.update({
-      where: { id: roomId },
-      data: {
-        currentSpeakerMemberId: createdMembers[0].id,
-      },
-    });
-  }
-
-  return createdMembers;
 }
 
 export async function ensureFeishuConversationBinding(args: {
@@ -329,7 +175,7 @@ export async function ensureFeishuConversationBinding(args: {
       throw new Error(`Bound live room not found: ${existing.liveRoomId}`);
     }
 
-    const createdMembers = await addAgentsToLiveRoom(existing.liveRoomId, selectedAgentIds);
+    const createdMembers = await addCatalogAgentsToLiveRoom(existing.liveRoomId, selectedAgentIds);
     if (createdMembers.length > 0) {
       await syncLiveRoomSourceTask(existing.liveRoomId);
     }
@@ -398,7 +244,7 @@ export async function ensureFeishuConversationBinding(args: {
   }
 
   const userMember = await ensureLiveRoomUserMember(room.id);
-  const createdMembers = await addAgentsToLiveRoom(room.id, selectedAgentIds);
+  const createdMembers = await addCatalogAgentsToLiveRoom(room.id, selectedAgentIds);
 
   const bindingId = crypto.randomUUID();
   await prisma.$executeRaw`
@@ -618,62 +464,7 @@ export async function resolveDefaultFeishuBindingAgentIds(): Promise<string[]> {
 }
 
 export async function resolveFeishuSelectedAgentIds(value?: string): Promise<string[]> {
-  const selectors = normalizeSelectedAgentIds(value);
-  if (selectors.length === 0) {
-    return [];
-  }
-
-  const agents = await listLiveRoomCatalogAgents();
-  const aliasMap = new Map<string, string[]>();
-
-  for (const agent of agents) {
-    for (const alias of buildAgentSelectorAliases(agent)) {
-      const existing = aliasMap.get(alias) || [];
-      existing.push(agent.id);
-      aliasMap.set(alias, existing);
-    }
-  }
-
-  const resolvedIds: string[] = [];
-  const unknown: string[] = [];
-  const ambiguous: Array<{ selector: string; matches: string[] }> = [];
-
-  for (const selector of selectors) {
-    const normalized = normalizeAgentSelector(selector);
-    const matches = Array.from(new Set(aliasMap.get(normalized) || []));
-
-    if (matches.length === 1) {
-      resolvedIds.push(matches[0]);
-      continue;
-    }
-
-    if (matches.length > 1) {
-      ambiguous.push({ selector, matches });
-      continue;
-    }
-
-    unknown.push(selector);
-  }
-
-  if (unknown.length > 0 || ambiguous.length > 0) {
-    const parts: string[] = [];
-
-    if (unknown.length > 0) {
-      parts.push(`Unknown agent selectors: ${unknown.join(', ')}`);
-    }
-
-    if (ambiguous.length > 0) {
-      parts.push(
-        ...ambiguous.map((item) => `Ambiguous agent selector "${item.selector}": ${item.matches.join(', ')}`)
-      );
-    }
-
-    parts.push('可用短写示例：TX-server:claude, TX-server/claude, claude@TX-server');
-    parts.push('也可以先发送 /ap agents 查看完整 agent ID。');
-    throw new Error(parts.join('\n'));
-  }
-
-  return resolvedIds;
+  return resolveLiveRoomAgentSelectors(normalizeSelectedAgentIds(value));
 }
 
 /**

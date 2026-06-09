@@ -11,6 +11,7 @@ import {
   interruptLiveRoomRunningProcess,
 } from '@/lib/live-room-process-registry';
 import {
+  addCatalogAgentsToLiveRoom,
   buildLiveRoomAcpxParticipant,
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
@@ -18,6 +19,7 @@ import {
   getLiveRoomParticipantContinuationKey,
   parseLiveRoomMessageMetadata,
   postLiveRoomMessage,
+  resolveLiveRoomAgentSelectors,
   resolveLiveRoomMessageMetadata,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
@@ -67,6 +69,12 @@ type DeliveryRoom = {
   members: DeliveryRoomMember[];
 };
 
+type LiveRoomControlAction =
+  | {
+      action: 'add_members';
+      agents: string[];
+    };
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const normalizeLiveRoomExecutionError = (message: string) => {
@@ -102,6 +110,122 @@ const parseJsonObject = (value?: string | null) => {
 
 const stringifyJson = (value?: Record<string, unknown> | null) =>
   value ? JSON.stringify(value) : null;
+
+const LIVE_ROOM_CONTROL_BLOCK_PATTERN = /^\s*<room-control>\s*([\s\S]*?)\s*<\/room-control>\s*/i;
+
+const parseLiveRoomControlAction = (output: string): {
+  action: LiveRoomControlAction;
+  remainingOutput: string;
+} | null => {
+  const match = output.match(LIVE_ROOM_CONTROL_BLOCK_PATTERN);
+  if (!match) {
+    return null;
+  }
+
+  const remainingOutput = output.slice(match[0].length).trim();
+  const parsed = parseJsonObject(match[1]);
+  if (parsed.action !== 'add_members' || !Array.isArray(parsed.agents)) {
+    throw new Error('Invalid room-control payload. Supported action: add_members.');
+  }
+
+  const agents = parsed.agents
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter((value): value is string => value.length > 0);
+
+  if (agents.length === 0) {
+    throw new Error('room-control add_members requires a non-empty agents array.');
+  }
+
+  return {
+    action: {
+      action: 'add_members',
+      agents,
+    },
+    remainingOutput,
+  };
+};
+
+const executeLiveRoomControlAction = async ({
+  roomId,
+  actorDisplayName,
+  action,
+}: {
+  roomId: string;
+  actorDisplayName: string;
+  action: LiveRoomControlAction;
+}) => {
+  const agentIds = await resolveLiveRoomAgentSelectors(action.agents);
+  const createdMembers = await addCatalogAgentsToLiveRoom(roomId, agentIds);
+  if (createdMembers.length > 0) {
+    await syncLiveRoomSourceTask(roomId);
+  }
+
+  const addedNames = createdMembers.map((member) => member.displayName);
+  const duplicateCount = agentIds.length - createdMembers.length;
+  const duplicateSuffix = duplicateCount > 0 ? `；已存在 ${duplicateCount} 个` : '';
+
+  await postLiveRoomMessage({
+    roomId,
+    content:
+      createdMembers.length > 0
+        ? `系统提示：${actorDisplayName} 已执行房间控制，新增成员：${addedNames.join('、')}${duplicateSuffix}。`
+        : `系统提示：${actorDisplayName} 请求添加的成员均已在房间中。`,
+    messageType: 'system',
+    metadata: resolveLiveRoomMessageMetadata({
+      senderKind: 'system',
+      extras: {
+        systemEvent: 'room_control_add_members',
+        actorDisplayName,
+        requestedAgentSelectors: action.agents,
+        addedCount: createdMembers.length,
+        duplicateCount,
+      },
+    }),
+  });
+};
+
+const buildLiveRoomControlManual = ({
+  replyableMemberLabels,
+  directedTargetAlias,
+  directedTargetDisplayName,
+}: {
+  replyableMemberLabels: string[];
+  directedTargetAlias?: string | null;
+  directedTargetDisplayName?: string | null;
+}) => [
+  'AP live-room operator manual:',
+  '- You are operating inside an Agent Platform live room.',
+  '- When the user asks to add a member/agent into the current room, do not describe the plan. Emit a room-control action immediately.',
+  '- The room-control action must be the first block in your reply.',
+  '- Exact format:',
+  '- <room-control>{"action":"add_members","agents":["local:codex","TX-server:claude"]}</room-control>',
+  '- `action` is currently limited to `add_members`.',
+  '- `agents` is an array of Agent Platform selectors, using the same selector style as `/ap add --agents=...`.',
+  '- Valid selector examples:',
+  '- `local:codex`',
+  '- `local:pi-agent`',
+  '- `TX-server:claude`',
+  '- `TX-server/claude`',
+  '- `claude@TX-server`',
+  '- If the user asks to add exactly one member, emit exactly one selector in `agents`.',
+  '- If the user names multiple members, emit them all in the same `agents` array.',
+  '- Do not invent chat commands. Do not output fake `/ap add` text as the control contract.',
+  '- After the room-control block, you may add one short visible sentence for the operator, but it is optional.',
+  '- If you do not know the exact selector, make the best selector guess from the room and server names already mentioned by the user.',
+  '',
+  'Live room directed-visible protocol:',
+  '- If the user asks you to contact another room member, do not answer on their behalf.',
+  '- Instead, reply with exactly one directed message that starts with a single $member alias and then the message body.',
+  '- Example: $pi 请回复一句 can hear you，并告诉我你的名字',
+  '- The platform will treat that as a room-visible directed message: the operator can still see it, but only the mentioned member will act on it.',
+  '- Use $member only for this protocol. Do not use @member.',
+  '- Do not mention multiple members when using this protocol.',
+  '- If you are contacting another member, do not add explanation, summary, or extra prose before or after the $member message.',
+  directedTargetAlias
+    ? `- For this turn, the intended member to contact is ${directedTargetDisplayName}. Your reply should start with $${directedTargetAlias}.`
+    : '- If no other member needs to be contacted, answer normally.',
+  `- Available replyable members: ${replyableMemberLabels.join(', ') || '(none)'}`,
+].join('\n');
 
 const getReplyEligibleMembers = ({
   room,
@@ -549,11 +673,12 @@ const runLiveRoomAcpxAttempt = async ({
     && !shouldPreferTranscriptContinuation()
     && Boolean(latestSession?.continuationSessionId);
 
-  // Live room agents run interactively and may take longer than a fixed cap.
-  // Disable the hard timeout for all platform_local agents (both claude and codex).
-  // Remote SSH agents keep the default timeout since they run on external machines.
+  // Live room local codex/claude runs can be legitimately long-lived.
+  // Keep the watchdog disabled only for those harnesses; pi-agent should still
+  // retain the default timeout so a stuck local process doesn't look like a silent room.
   const watchdogConfig =
     participant.executionBackend === 'platform_local'
+      && (participant.harnessType === 'codex' || participant.harnessType === 'claude')
       ? { maxRuntimeMs: null }
       : undefined;
 
@@ -564,18 +689,11 @@ const runLiveRoomAcpxAttempt = async ({
   const directedVisibleProtocol = [
     sourceTask.description || '',
     '',
-    'Live room directed-visible protocol:',
-    '- If the user asks you to contact another room member, do not answer on their behalf.',
-    '- Instead, reply with exactly one directed message that starts with a single $member alias and then the message body.',
-    '- Example: $pi 请回复一句 can hear you，并告诉我你的名字',
-    '- The platform will treat that as a room-visible directed message: the operator can still see it, but only the mentioned member will act on it.',
-    '- Use $member only for this protocol. Do not use @member.',
-    '- Do not mention multiple members when using this protocol.',
-    '- If you are contacting another member, do not add explanation, summary, or extra prose before or after the $member message.',
-    directedTargetAlias
-      ? `- For this turn, the intended member to contact is ${desiredDirectedTarget?.displayName}. Your reply should start with $${directedTargetAlias}.`
-      : '- If no other member needs to be contacted, answer normally.',
-    `- Available replyable members: ${replyableMemberLabels.join(', ') || '(none)'}`,
+    buildLiveRoomControlManual({
+      replyableMemberLabels,
+      directedTargetAlias,
+      directedTargetDisplayName: desiredDirectedTarget?.displayName || null,
+    }),
   ].join('\n').trim();
 
   return executeAcpxTaskRun({
@@ -1229,7 +1347,7 @@ const processLiveRoomDelivery = async ({
       },
     });
 
-    const output = acpxResult.output;
+    let output = acpxResult.output;
     const threadId = acpxResult.threadId;
     const remoteTiming = acpxResult.remoteTiming;
 
@@ -1270,52 +1388,81 @@ const processLiveRoomDelivery = async ({
       },
     });
 
-    const mentionDetection = detectMentionedLiveRoomMembers({
-      content: output,
-      members: room.members,
-      senderMemberId: targetMember.id,
-    });
-    const startsWithExplicitMention = /^[\s]*[@$][^\s]+/.test(output);
-    const isDirectedVisibleReply =
-      startsWithExplicitMention
-      && mentionDetection.matchType === 'explicit'
-      && mentionDetection.memberIds.length === 1
-      && !detectLiveRoomMentionAll(output);
-    const directedTargetMemberId = isDirectedVisibleReply ? mentionDetection.memberIds[0] : null;
-    const directedTargetMember = directedTargetMemberId
-      ? room.members.find((member) => member.id === directedTargetMemberId) || null
-      : null;
+    try {
+      const roomControl = parseLiveRoomControlAction(output);
+      if (roomControl) {
+        await executeLiveRoomControlAction({
+          roomId: room.id,
+          actorDisplayName: targetMember.displayName,
+          action: roomControl.action,
+        });
+        output = roomControl.remainingOutput;
+      }
+    } catch (roomControlError) {
+      await postLiveRoomMessage({
+        roomId: room.id,
+        content: `系统提示：${targetMember.displayName} 的 room-control 动作执行失败：${roomControlError instanceof Error ? roomControlError.message : 'unknown error'}`,
+        messageType: 'system',
+        metadata: resolveLiveRoomMessageMetadata({
+          senderKind: 'system',
+          extras: {
+            systemEvent: 'room_control_failed',
+            actorDisplayName: targetMember.displayName,
+          },
+        }),
+      });
+      output = output.replace(LIVE_ROOM_CONTROL_BLOCK_PATTERN, '').trim();
+    }
 
-    const replyMessage = await postLiveRoomMessage({
-      roomId: room.id,
-      senderMemberId: targetMember.id,
-      content: output,
-      messageType: 'assistant',
-      visibility: isDirectedVisibleReply ? 'directed_visible' : 'room',
-      replyToMessageId: sourceMessage.id,
-      metadata: resolveLiveRoomMessageMetadata({
-        senderKind: 'assistant',
-        targetMemberId: directedTargetMemberId,
-        visibilityMode: isDirectedVisibleReply ? 'directed_visible' : 'room',
+    let replyMessage: Awaited<ReturnType<typeof postLiveRoomMessage>> | null = null;
+    if (output) {
+      const mentionDetection = detectMentionedLiveRoomMembers({
+        content: output,
+        members: room.members,
+        senderMemberId: targetMember.id,
+      });
+      const startsWithExplicitMention = /^[\s]*[@$][^\s]+/.test(output);
+      const isDirectedVisibleReply =
+        startsWithExplicitMention
+        && mentionDetection.matchType === 'explicit'
+        && mentionDetection.memberIds.length === 1
+        && !detectLiveRoomMentionAll(output);
+      const directedTargetMemberId = isDirectedVisibleReply ? mentionDetection.memberIds[0] : null;
+      const directedTargetMember = directedTargetMemberId
+        ? room.members.find((member) => member.id === directedTargetMemberId) || null
+        : null;
+
+      replyMessage = await postLiveRoomMessage({
+        roomId: room.id,
+        senderMemberId: targetMember.id,
+        content: output,
+        messageType: 'assistant',
+        visibility: isDirectedVisibleReply ? 'directed_visible' : 'room',
         replyToMessageId: sourceMessage.id,
-        mentionedMemberIds: mentionDetection.memberIds,
-        mentionedAll: detectLiveRoomMentionAll(output),
-        expectedResponderMemberIds: detectLiveRoomMentionAll(output)
-          ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
-          : [],
-        extras: {
-          deliveryId: delivery.id,
-          backend: targetMember.backend,
-          harnessType: targetMember.harnessType,
-          chainDepth,
-          remoteTiming,
-          targetLocked: isDirectedVisibleReply,
-          targetMemberName: directedTargetMember?.displayName || null,
-        },
-      }),
-    });
+        metadata: resolveLiveRoomMessageMetadata({
+          senderKind: 'assistant',
+          targetMemberId: directedTargetMemberId,
+          visibilityMode: isDirectedVisibleReply ? 'directed_visible' : 'room',
+          replyToMessageId: sourceMessage.id,
+          mentionedMemberIds: mentionDetection.memberIds,
+          mentionedAll: detectLiveRoomMentionAll(output),
+          expectedResponderMemberIds: detectLiveRoomMentionAll(output)
+            ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
+            : [],
+          extras: {
+            deliveryId: delivery.id,
+            backend: targetMember.backend,
+            harnessType: targetMember.harnessType,
+            chainDepth,
+            remoteTiming,
+            targetLocked: isDirectedVisibleReply,
+            targetMemberName: directedTargetMember?.displayName || null,
+          },
+        }),
+      });
+    }
 
-    if (allowChainedMentions && chainDepth < 2) {
+    if (replyMessage && allowChainedMentions && chainDepth < 2) {
       const replyMetadata = parseLiveRoomMessageMetadata(JSON.stringify(replyMessage.metadata || null));
 
       // 只有明确的 handoff 或 ask 模式才会触发连锁回复

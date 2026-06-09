@@ -235,6 +235,209 @@ export const buildLiveRoomRosterText = (members: Array<{
   canReply?: boolean;
 }>) => members.map((member) => `- ${getLiveRoomMemberRosterLabel(member)}`).join('\n');
 
+function normalizeLiveRoomAgentSelector(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function buildLiveRoomAgentSelectorAliases(agent: LiveRoomCatalogAgent) {
+  const aliases = new Set<string>();
+  const add = (value?: string | null) => {
+    const normalized = value ? normalizeLiveRoomAgentSelector(value) : '';
+    if (normalized) {
+      aliases.add(normalized);
+    }
+  };
+
+  add(agent.id);
+  add(agent.label);
+  add(agent.agentName);
+  add(agent.userNickname);
+  add(agent.runtimeAgentId);
+
+  if (agent.backend === 'remote_ssh') {
+    add(`${agent.gatewayName}:${agent.harnessType}`);
+    add(`${agent.gatewayName}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayName}`);
+    add(`${agent.gatewayId}:${agent.harnessType}`);
+    add(`${agent.gatewayId}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayId}`);
+  }
+
+  if (agent.backend === 'platform_local') {
+    add(`local:${agent.harnessType}`);
+    add(`platform-local:${agent.harnessType}`);
+    if (agent.hostname) {
+      add(`platform-local:${agent.hostname}:${agent.harnessType}`);
+      add(`platform_local:${agent.hostname}:${agent.harnessType}`);
+      add(`${agent.hostname}:${agent.harnessType}`);
+      add(`${agent.hostname}/${agent.harnessType}`);
+      add(`${agent.harnessType}@${agent.hostname}`);
+    }
+  }
+
+  if (agent.backend === 'gateway_openclaw') {
+    add(`${agent.gatewayName}:${agent.harnessType}`);
+    add(`${agent.gatewayName}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayName}`);
+    add(`${agent.gatewayId}:${agent.harnessType}`);
+    add(`${agent.gatewayId}/${agent.harnessType}`);
+    add(`${agent.harnessType}@${agent.gatewayId}`);
+  }
+
+  return aliases;
+}
+
+export async function resolveLiveRoomAgentSelectors(selectors: string[]): Promise<string[]> {
+  if (selectors.length === 0) {
+    return [];
+  }
+
+  const agents = await listLiveRoomCatalogAgents();
+  const aliasMap = new Map<string, string[]>();
+
+  for (const agent of agents) {
+    for (const alias of Array.from(buildLiveRoomAgentSelectorAliases(agent))) {
+      const existing = aliasMap.get(alias) || [];
+      existing.push(agent.id);
+      aliasMap.set(alias, existing);
+    }
+  }
+
+  const resolvedIds: string[] = [];
+  const unknown: string[] = [];
+  const ambiguous: Array<{ selector: string; matches: string[] }> = [];
+
+  for (const selector of selectors) {
+    const normalized = normalizeLiveRoomAgentSelector(selector);
+    const matches = Array.from(new Set(aliasMap.get(normalized) || []));
+
+    if (matches.length === 1) {
+      resolvedIds.push(matches[0]);
+      continue;
+    }
+
+    if (matches.length > 1) {
+      ambiguous.push({ selector, matches });
+      continue;
+    }
+
+    unknown.push(selector);
+  }
+
+  if (unknown.length > 0 || ambiguous.length > 0) {
+    const parts: string[] = [];
+
+    if (unknown.length > 0) {
+      parts.push(`Unknown agent selectors: ${unknown.join(', ')}`);
+    }
+
+    if (ambiguous.length > 0) {
+      parts.push(
+        ...ambiguous.map((item) => `Ambiguous agent selector "${item.selector}": ${item.matches.join(', ')}`)
+      );
+    }
+
+    parts.push('可用短写示例：local:codex, platform-local:hello:claude, TX-server:claude, TX-server/claude, claude@TX-server');
+    parts.push('也可以先发送 /ap agents 查看完整 agent ID。');
+    throw new Error(parts.join('\n'));
+  }
+
+  return Array.from(new Set(resolvedIds));
+}
+
+export async function addCatalogAgentsToLiveRoom(roomId: string, selectedAgentIds: string[]) {
+  if (selectedAgentIds.length === 0) {
+    return [];
+  }
+
+  const availableAgents = await listLiveRoomCatalogAgents();
+  const selectedAgents = availableAgents.filter((agent) => selectedAgentIds.includes(agent.id));
+
+  if (selectedAgents.length !== selectedAgentIds.length) {
+    const foundIds = new Set(selectedAgents.map((agent) => agent.id));
+    const missingIds = selectedAgentIds.filter((id) => !foundIds.has(id));
+    throw new Error(`Unknown agent ids: ${missingIds.join(', ')}`);
+  }
+
+  const existingMembers = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+  });
+
+  const maxSort = await prisma.liveRoomMember.aggregate({
+    where: { roomId },
+    _max: { sortOrder: true },
+  });
+  let nextSortOrder = (maxSort._max.sortOrder || 0) + 1;
+
+  const createdMembers = [] as Awaited<ReturnType<typeof prisma.liveRoomMember.create>>[];
+
+  for (const agent of selectedAgents) {
+    const existing = existingMembers.find((member) => {
+      if (member.agentRecordId !== (agent.agentRecordId || null)) return false;
+      if (member.backend !== agent.backend) return false;
+      if (member.harnessType !== agent.harnessType) return false;
+      if (member.runtimeAgentId !== (agent.runtimeAgentId || null)) return false;
+      if (agent.backend === 'remote_ssh') {
+        return extractRemoteHostIdFromRoleLabel(member.roleLabel) === agent.gatewayId;
+      }
+      return member.gatewayId === (agent.gatewayId === 'platform-local' ? null : agent.gatewayId);
+    });
+
+    if (existing) {
+      continue;
+    }
+
+    const created = await prisma.liveRoomMember.create({
+      data: {
+        roomId,
+        agentRecordId: agent.agentRecordId || null,
+        gatewayId:
+          agent.backend === 'gateway_openclaw'
+            ? (agent.gatewayId === 'platform-local' ? null : agent.gatewayId)
+            : null,
+        memberType:
+          agent.backend === 'gateway_openclaw'
+            ? 'gateway_agent'
+            : agent.backend === 'remote_ssh'
+            ? 'remote_agent'
+            : 'local_agent',
+        displayName: agent.userNickname || agent.agentName || agent.label,
+        agentNameSnapshot: agent.userNickname || agent.agentName || agent.label,
+        harnessType: agent.harnessType,
+        backend: agent.backend,
+        runtimeAgentId: agent.runtimeAgentId || null,
+        roleLabel: encodeLiveRoomRoleLabel({
+          backend: agent.backend,
+          label: agent.label,
+          remoteHostId: agent.backend === 'remote_ssh' ? agent.gatewayId : null,
+        }),
+        joinStatus: 'joined',
+        presenceStatus: agent.status === 'online' ? 'online' : 'idle',
+        canReply: true,
+        sortOrder: nextSortOrder++,
+      },
+    });
+
+    createdMembers.push(created);
+  }
+
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    select: { currentSpeakerMemberId: true },
+  });
+
+  if (createdMembers.length > 0 && room && !room.currentSpeakerMemberId) {
+    await prisma.liveRoom.update({
+      where: { id: roomId },
+      data: {
+        currentSpeakerMemberId: createdMembers[0].id,
+      },
+    });
+  }
+
+  return createdMembers;
+}
+
 export const parseLiveRoomMessageMetadata = (value?: string | null): LiveRoomMessageMetadata | null => {
   if (!value) {
     return null;

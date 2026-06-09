@@ -300,7 +300,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
               receiveId: message.chatId,
               receiveIdType: 'chat_id',
               replyId: message.messageId,
-              text: `已自动绑定到 Live Room ${autoBoundRoomId}，默认成员已加入（优先使用本机 pi-agent，本机 codex 作为托底）。现在可以直接继续聊，也可以用 /ap add 拉其他 agent。`,
+              text: `已自动绑定到 Live Room ${autoBoundRoomId}，默认成员已加入（优先使用本机 codex，本机 pi-agent 作为后备）。现在可以直接继续聊，也可以用 /ap add 拉其他 agent。`,
             }).catch((replyError) => {
               console.error(`${prefix} auto-bind confirmation failed`, {
                 messageId: message.messageId,

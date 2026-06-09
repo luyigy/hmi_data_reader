@@ -10,16 +10,20 @@ npm run build         # Production build
 npm start             # Production server
 npm run lint          # ESLint
 npm run feishu:runtime  # Start standalone Feishu WebSocket monitor
-systemctl --user restart agent-platform-dev.service agent-platform-feishu.service  # Restart both runtime services
+systemctl --user restart agent-platform-dev.service
+systemctl --user restart agent-platform-feishu.service
 ```
 
 Important runtime rule:
 - This repo is operated with user-level `systemd` services, not `nohup`, ad-hoc background shells, or manual long-running `npm run dev`.
-- For runtime restarts, always use:
-  - `systemctl --user restart agent-platform-dev.service agent-platform-feishu.service`
+- For runtime restarts, prefer separate commands:
+  - `systemctl --user restart agent-platform-dev.service`
+  - `systemctl --user restart agent-platform-feishu.service`
+- Do not chain `restart` and `status` in one shell command when operating through the agent harness; run them as separate commands.
 - If `deploy/systemd-user/*.service` changed, run:
   - `systemctl --user daemon-reload`
-  - `systemctl --user restart agent-platform-dev.service agent-platform-feishu.service`
+  - `systemctl --user restart agent-platform-dev.service`
+  - `systemctl --user restart agent-platform-feishu.service`
 
 Database:
 ```bash
