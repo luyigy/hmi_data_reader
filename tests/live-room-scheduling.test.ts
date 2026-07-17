@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import {
   orderMembersByRole,
+  parseLiveRoomMode,
   shouldRunRoleQueue,
 } from '../src/lib/live-room-scheduling';
 
+assert.equal(parseLiveRoomMode(' HYBRID '), 'hybrid');
+assert.equal(parseLiveRoomMode('invalid'), null);
 assert.equal(shouldRunRoleQueue('discussion', '/run build it'), false);
 assert.equal(shouldRunRoleQueue('execution', 'build it'), true);
 assert.equal(shouldRunRoleQueue('hybrid', 'build it'), false);

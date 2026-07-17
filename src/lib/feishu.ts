@@ -11,8 +11,10 @@ import {
   resolveFeishuSelectedAgentIds,
   resolveDefaultFeishuBindingAgentIds,
   postFeishuMessageToBoundLiveRoom,
+  setFeishuBoundRoomMode,
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
+import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
 import {
   downloadFeishuMessageResource,
   sendFeishuInteractiveMessage,
@@ -54,7 +56,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap hosts',
   '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
   '/ap run --host=<hostId|label> --harness=<codex|claude|claude-haha> <prompt>',
-  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [--profile=safe|dev|full] [title]  支持短写：TX-server:claude',
+  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [title]',
+  '/ap mode <discussion|execution|hybrid>',
   '/ap members',
   '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
   '/ap speaker [memberName|idSuffix]',
@@ -127,7 +130,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
   args: string[];
   options: Record<string, string>;
 };
@@ -490,7 +493,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const commandAlias = rawCommand.toLowerCase();
   const command = commandAlias === 'new' ? 'new-session' : commandAlias;
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
     return null;
   }
 
@@ -2010,6 +2013,11 @@ async function handleRoomCommand(
   const permissionConfig = requestedProfile
     ? buildAcpxPermissionConfigForProfile(requestedProfile, [])
     : undefined;
+  const requestedModeValue = command.options['mode'];
+  const mode = requestedModeValue ? parseLiveRoomMode(requestedModeValue) : null;
+  if (requestedModeValue && !mode) {
+    return '无效 mode。可选值：discussion、execution、hybrid。';
+  }
   const result = await ensureFeishuConversationBinding({
     context,
     selectedAgentIds: effectiveAgentIds,
@@ -2017,6 +2025,7 @@ async function handleRoomCommand(
     topic: command.options['topic'],
     workingDirectory: command.options['workdir'] || undefined,
     permissionConfig,
+    mode: mode || undefined,
   });
 
   return [
@@ -2024,8 +2033,33 @@ async function handleRoomCommand(
     `Live Room: ${result.roomTitle} (${result.liveRoomId})`,
     `新增成员数：${result.addedAgentCount}`,
     `权限：${permissionConfig ? formatPermissionProfileLabel(permissionConfig.profile) : 'Safe Local（默认）'}`,
+    `模式：${result.roomMode}`,
     '接下来可以直接发送：/ap chat 你的消息',
   ].join('\n');
+}
+
+async function handleModeCommand(
+  command: ParsedFeishuCommand,
+  context?: FeishuConversationContext
+) {
+  if (!context) {
+    return '当前 mode 命令需要来自 Feishu webhook 的会话上下文。';
+  }
+
+  const requested = command.args[0] || command.options['mode'];
+  const mode = parseLiveRoomMode(requested);
+  if (!mode) {
+    return '用法：/ap mode <discussion|execution|hybrid>';
+  }
+
+  const room = await setFeishuBoundRoomMode(context, mode);
+  const behavior =
+    mode === 'execution'
+      ? '无显式目标的消息会按成员角色顺序执行。'
+      : mode === 'hybrid'
+      ? '普通消息按 discussion 路由；发送 /run ... 启动角色队列。'
+      : '显式目标优先；无目标时仅 current speaker 回复。';
+  return `✅ ${room.title} 已切换为 ${mode}。\n${behavior}`;
 }
 
 export async function handleFeishuCommand(args: {
@@ -2050,6 +2084,8 @@ export async function handleFeishuCommand(args: {
       return handleRegisterCommand(args.command);
     case 'room':
       return handleRoomCommand(args.command, args.context);
+    case 'mode':
+      return handleModeCommand(args.command, args.context);
     case 'members':
       return handleMembersCommand(args.context);
     case 'nick':

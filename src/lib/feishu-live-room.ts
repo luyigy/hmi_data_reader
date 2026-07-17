@@ -17,6 +17,7 @@ import {
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 import { getFeishuChatInfo } from '@/lib/feishu-api';
+import type { LiveRoomMode } from '@/lib/live-room-scheduling';
 
 export type FeishuConversationContext = {
   chatId: string;
@@ -138,6 +139,7 @@ export async function ensureFeishuConversationBinding(args: {
   topic?: string;
   workingDirectory?: string;
   permissionConfig?: AcpxPermissionConfig;
+  mode?: LiveRoomMode;
   allowDefaultAgent?: boolean;
 }) {
   const scopeKey = buildFeishuBindingScopeKey(args.context);
@@ -169,10 +171,17 @@ export async function ensureFeishuConversationBinding(args: {
   if (existing) {
     const room = await prisma.liveRoom.findUnique({
       where: { id: existing.liveRoomId },
-      select: { title: true },
+      select: { title: true, mode: true },
     });
     if (!room) {
       throw new Error(`Bound live room not found: ${existing.liveRoomId}`);
+    }
+
+    if (args.mode) {
+      await prisma.liveRoom.update({
+        where: { id: existing.liveRoomId },
+        data: { mode: args.mode },
+      });
     }
 
     const createdMembers = await addCatalogAgentsToLiveRoom(existing.liveRoomId, selectedAgentIds);
@@ -214,6 +223,7 @@ export async function ensureFeishuConversationBinding(args: {
       bindingId: existing.id,
       liveRoomId: existing.liveRoomId,
       roomTitle: room.title,
+      roomMode: args.mode || room.mode,
       created: false,
       addedAgentCount: createdMembers.length,
     };
@@ -228,7 +238,7 @@ export async function ensureFeishuConversationBinding(args: {
       title: await buildDefaultRoomTitle(args.context, args.title),
       description: `Bound to Feishu ${args.context.chatType} chat ${args.context.chatId}`,
       currentTopic: args.topic?.trim() || null,
-      mode: 'discussion',
+      mode: args.mode || 'discussion',
       status: 'active',
       createdBy: 'feishu',
     },
@@ -332,9 +342,29 @@ export async function ensureFeishuConversationBinding(args: {
     bindingId: scopeKey,
     liveRoomId: room.id,
     roomTitle: room.title,
+    roomMode: room.mode,
     created: true,
     addedAgentCount: createdMembers.length,
   };
+}
+
+export async function setFeishuBoundRoomMode(
+  context: FeishuConversationContext,
+  mode: LiveRoomMode
+) {
+  const binding = await prisma.feishuConversationBinding.findUnique({
+    where: { scopeKey: buildFeishuBindingScopeKey(context) },
+  });
+  if (!binding) {
+    throw new Error('当前 Feishu 会话尚未绑定 Live Room。请先使用 /ap room 创建绑定。');
+  }
+
+  const room = await prisma.liveRoom.update({
+    where: { id: binding.liveRoomId },
+    data: { mode },
+    select: { id: true, title: true, mode: true },
+  });
+  return room;
 }
 
 export async function postFeishuMessageToBoundLiveRoom(args: {

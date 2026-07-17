@@ -7,6 +7,15 @@ const ROLE_ORDER: Record<string, number> = {
   custom: 5,
 };
 
+export type LiveRoomMode = 'discussion' | 'execution' | 'hybrid';
+
+export const parseLiveRoomMode = (value?: string | null): LiveRoomMode | null => {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === 'discussion' || normalized === 'execution' || normalized === 'hybrid'
+    ? normalized
+    : null;
+};
+
 export const shouldRunRoleQueue = (mode: string, content: string) =>
   mode === 'execution' || (mode === 'hybrid' && /^\/run(?:\s|$)/i.test(content.trim()));
 
