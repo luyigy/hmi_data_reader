@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agent Platform v2
 
-## Getting Started
+Agent Platform v2 is a Next.js-based control surface for running and coordinating local, remote, and chat-integrated AI agents. It includes ACPX task execution, live rooms, Feishu/Lark messaging integration, remote SSH harness support, and workspace-oriented task views.
 
-First, run the development server:
+## Features
+
+- ACPX task runner for local and remote agent execution.
+- Live rooms with user, system, and assistant messages.
+- Feishu/Lark long-connection and webhook integration.
+- Platform-local harnesses for tools such as Codex, Claude, Gemini CLI, DeepSeek, and pi-agent.
+- Remote SSH harness hosts for running agents on other machines.
+- Per-member live-room context watermarking and permission display.
+- Basic gateway registration and control-plane APIs.
+
+## Tech Stack
+
+- Next.js 14
+- React 18
+- Prisma 5
+- SQLite for local development
+- Socket.IO for task and live-room updates
+- Feishu/Lark OpenAPI SDK
+- Playwright for browser tests
+
+## Requirements
+
+- Node.js 20+
+- npm
+- A local SQLite-compatible environment
+- Optional: Feishu/Lark app credentials
+- Optional: installed agent CLIs such as `codex` or `claude`
+
+## Setup
 
 ```bash
+npm ci
+cp .env.example .env
+npx prisma migrate dev
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The development server defaults to:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Web app: `http://localhost:3010`
+- Socket.IO: `3101`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment
 
-## Learn More
+Start from `.env.example`. Do not commit `.env` or other local env files.
 
-To learn more about Next.js, take a look at the following resources:
+Important variables:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `DATABASE_URL`: local database URL, usually `file:./dev.db`.
+- `SOCKET_PORT` and `NEXT_PUBLIC_SOCKET_PORT`: Socket.IO port configuration.
+- `FEISHU_CONNECTION_MODE`: `long_connection` or `webhook`.
+- `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_VERIFICATION_TOKEN`, `FEISHU_ENCRYPT_KEY`: Feishu/Lark app credentials.
+- `ACPX_CODEX_SANDBOX_MODE`: Codex sandbox setting for local harness execution.
+- `LINUX_GATEWAY_*`: optional smoke-test target for remote gateway checks.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+```bash
+npm run dev             # Start Next.js development server
+npm run build           # Build production bundle
+npm start               # Start production server
+npm run lint            # Run Next.js lint
+npm run feishu:runtime  # Start Feishu long-connection runtime
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Repository Hygiene
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Generated artifacts and local secrets should stay out of git:
+
+- `.env` and `.env.*`
+- `prisma/dev.db`
+- `.next/`
+- `.codegraph/`
+- `playwright-report/`
+- `test-results/`
+
+If credentials were ever committed, rotate them before publishing and clean git history before pushing to a public remote.
+
+## Development Notes
+
+- Prefer focused modules over very large source files. Treat 1000 lines as a soft upper bound.
+- Keep Feishu/Lark credentials, gateway tokens, SSH keys, and provider API keys out of the repository.
+- Use `.env.example` for documented configuration and local `.env` for real values.
+- Run lint/build before opening a PR when possible.
+
+## License
+
+No open-source license has been selected yet. Choose and add a `LICENSE` file before publishing.
