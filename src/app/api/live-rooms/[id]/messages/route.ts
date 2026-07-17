@@ -135,6 +135,7 @@ export async function POST(
         extras: resolvedVisibilityMode === 'directed_visible'
           ? {
               targetResolutionSource: 'composer_target',
+              targetLocked: true,
             }
           : undefined,
       }),

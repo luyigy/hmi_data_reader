@@ -693,7 +693,10 @@ export function LiveRoomWorkspace({
 
       void refreshRooms();
       if (initialRoomId) {
-        void refreshSelectedRoom(initialRoomId);
+        void refreshSelectedRoom(initialRoomId, {
+          background: true,
+          preserveComposerState: true,
+        });
       }
     }, 5000);
 
@@ -1937,6 +1940,9 @@ export function LiveRoomWorkspace({
                       <option value="execution">execution</option>
                       <option value="hybrid">hybrid</option>
                     </select>
+                    <div className="mt-2 text-[11px] leading-5 text-slate-500">
+                      discussion：仅定向成员或当前 speaker 回复；execution：按 planner → researcher → implementer → reviewer → tester 顺序；hybrid：平时 discussion，发送 `/run ...` 时启动角色队列。
+                    </div>
                   </label>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">

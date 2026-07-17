@@ -27,6 +27,7 @@ import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import type { AcpxPermissionConfig, HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { FeishuProgressTracker } from '@/lib/feishu-progress';
+import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduling';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const ALL_REPLY_STAGGER_MS = 750;
@@ -57,6 +58,8 @@ type DeliveryRoomMember = {
   runtimeAgentId: string | null;
   gatewayId: string | null;
   roleLabel?: string | null;
+  role?: string | null;
+  sortOrder?: number;
   acpxPermissionConfig?: string | null;
   gateway?: { name: string } | null;
   agentRecord?: { runtimeAgentId: string | null } | null;
@@ -66,6 +69,7 @@ type DeliveryRoom = {
   id: string;
   title: string;
   currentTopic: string | null;
+  mode: string;
   currentSpeakerMemberId: string | null;
   members: DeliveryRoomMember[];
 };
@@ -297,11 +301,13 @@ const getTargetMemberIdsForMessage = ({
   sourceMessageSenderMemberId,
   sourceMetadata,
   requestedTargetMemberId,
+  sourceContent,
 }: {
   room: DeliveryRoom;
   sourceMessageSenderMemberId?: string | null;
   sourceMetadata: ReturnType<typeof parseLiveRoomMessageMetadata>;
   requestedTargetMemberId?: string | null;
+  sourceContent: string;
 }) => {
   const eligibleMembers = getReplyEligibleMembers({
     room,
@@ -328,6 +334,15 @@ const getTargetMemberIdsForMessage = ({
       .filter((memberId: string) => eligibleMembers.some((member: DeliveryRoomMember) => member.id === memberId));
 
     return targets;
+  }
+
+  const hasExplicitTarget = Boolean(
+    requestedTargetMemberId
+    || sourceMetadata?.primaryTargetMemberId
+    || sourceMetadata?.mentionedMemberIds?.length
+  );
+  if (!hasExplicitTarget && shouldRunRoleQueue(room.mode, sourceContent)) {
+    return orderMembersByRole(eligibleMembers).map((member) => member.id);
   }
 
   const primaryTarget = getPrimaryReplyTarget({
@@ -1479,6 +1494,7 @@ const processLiveRoomDelivery = async ({
           sourceMessageSenderMemberId: targetMember.id,
           sourceMetadata: replyMetadata,
           requestedTargetMemberId: null,
+          sourceContent: replyMessage.content,
         });
 
         for (const nextTargetMemberId of nextTargetMemberIds) {
@@ -1870,6 +1886,7 @@ export const triggerLiveRoomMessageReplies = async ({
     sourceMessageSenderMemberId: sourceMessage.senderMemberId,
     sourceMetadata,
     requestedTargetMemberId,
+    sourceContent: sourceMessage.content,
   });
 
   if (targetMemberIds.length === 0) {
@@ -1877,6 +1894,10 @@ export const triggerLiveRoomMessageReplies = async ({
   }
 
   const isMentionAll = sourceMetadata?.deliveryIntent === 'mention_all' || sourceMetadata?.mentionedAll;
+  const isRoleQueue =
+    !isMentionAll
+    && targetMemberIds.length > 1
+    && shouldRunRoleQueue(room.mode, sourceMessage.content);
   if (isMentionAll) {
     await postLiveRoomMessage({
       roomId,
@@ -1892,9 +1913,24 @@ export const triggerLiveRoomMessageReplies = async ({
         },
       }),
     });
+  } else if (isRoleQueue) {
+    await postLiveRoomMessage({
+      roomId,
+      content: `系统提示：${room.mode} role queue 已启动：${targetMemberIds
+        .map((memberId) => room.members.find((member) => member.id === memberId)?.displayName)
+        .filter(Boolean)
+        .join(' → ')}`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        expectedResponderMemberIds: targetMemberIds,
+        requiredResponseMode: 'all',
+        extras: { systemEvent: 'role_queue_started' },
+      }),
+    });
   }
 
-  const allowChainedMentions = !isMentionAll;
+  const allowChainedMentions = !isMentionAll && !isRoleQueue;
   for (let index = 0; index < targetMemberIds.length; index += 1) {
     const targetMemberId = targetMemberIds[index];
     if (index > 0 && isMentionAll) {
