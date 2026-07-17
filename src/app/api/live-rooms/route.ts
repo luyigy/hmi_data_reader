@@ -69,6 +69,10 @@ export async function POST(request: NextRequest) {
     const selectedAgentIds = Array.isArray(body.selectedAgentIds)
       ? body.selectedAgentIds.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
       : [];
+    const selectedAgentRoles =
+      body.selectedAgentRoles && typeof body.selectedAgentRoles === 'object'
+        ? body.selectedAgentRoles as Record<string, unknown>
+        : {};
 
     if (!title) {
       return NextResponse.json(
@@ -115,6 +119,9 @@ export async function POST(request: NextRequest) {
             harnessType: agent.harnessType,
             backend: agent.backend,
             runtimeAgentId: agent.runtimeAgentId || null,
+            role: typeof selectedAgentRoles[agent.id] === 'string'
+              ? (selectedAgentRoles[agent.id] as string).trim() || 'custom'
+              : 'custom',
             roleLabel: encodeLiveRoomRoleLabel({
               backend: agent.backend,
               label: agent.label,

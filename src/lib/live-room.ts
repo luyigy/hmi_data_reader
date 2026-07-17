@@ -80,6 +80,7 @@ export interface LiveRoomMemberPayload {
   backend: string | null;
   runtimeAgentId: string | null;
   roleLabel: string | null;
+  role: string;
   joinStatus: string;
   presenceStatus: string;
   canReply: boolean;
@@ -606,6 +607,7 @@ export const serializeLiveRoomMember = (member: {
   backend: string | null;
   runtimeAgentId: string | null;
   roleLabel: string | null;
+  role: string;
   joinStatus: string;
   presenceStatus: string;
   canReply: boolean;
@@ -633,6 +635,7 @@ export const serializeLiveRoomMember = (member: {
     backend: member.backend,
     runtimeAgentId: member.runtimeAgentId,
     roleLabel: member.roleLabel,
+    role: member.role,
     joinStatus: member.joinStatus,
     presenceStatus: member.presenceStatus,
     canReply: member.canReply,
@@ -737,6 +740,7 @@ export const getLiveRoomMemberContextWatermark = async ({
     harnessType?: string | null;
     gatewayId?: string | null;
     roleLabel?: string | null;
+    role?: string | null;
     runtimeAgentId?: string | null;
     gateway?: { id?: string | null; name?: string | null } | null;
   };
@@ -759,6 +763,7 @@ export const getLiveRoomMemberContextWatermark = async ({
       : member.gatewayId,
     gatewayName: member.gateway?.name || null,
     runtimeAgentId: member.runtimeAgentId,
+    role: member.role,
   });
   const participantKey = getTaskRoomParticipantTargetKey(participant);
   const participantUserId = `${getLiveRoomParticipantContinuationKey(member.id)}:speaker`;
@@ -900,6 +905,7 @@ export const buildLiveRoomAcpxParticipant = (member: {
   gatewayId?: string | null;
   gatewayName?: string | null;
   runtimeAgentId?: string | null;
+  role?: string | null;
 }): AcpxParticipantRequest => ({
   gatewayId:
     member.backend === 'platform_local'
@@ -912,7 +918,7 @@ export const buildLiveRoomAcpxParticipant = (member: {
   executionBackend: (member.backend || 'platform_local') as AcpxExecutionBackend,
   harnessType: member.harnessType || 'codex',
   harnessLabel: member.harnessType || 'agent',
-  role: member.displayName,
+  role: member.role || 'custom',
   agentId: member.runtimeAgentId || undefined,
   agentName: member.displayName,
   continuationKey: getLiveRoomParticipantContinuationKey(member.id),
@@ -1203,6 +1209,7 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
         : member.gatewayId,
       gatewayName: member.gateway?.name || null,
       runtimeAgentId: member.runtimeAgentId,
+      role: member.role,
     }));
 
   if (participants.length === 0) {
@@ -1386,6 +1393,7 @@ export const postLiveRoomMessage = async ({
             : targetMember.gatewayId,
           gatewayName: targetMember.gateway?.name || null,
           runtimeAgentId: targetMember.runtimeAgentId,
+          role: targetMember.role,
         })
       : null;
 

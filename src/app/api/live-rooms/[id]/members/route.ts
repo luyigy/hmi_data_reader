@@ -20,6 +20,7 @@ export async function POST(
   try {
     const body = await request.json().catch(() => ({}));
     const selectedAgentId = typeof body.agentId === 'string' ? body.agentId.trim() : '';
+    const role = typeof body.role === 'string' ? body.role.trim() || 'custom' : 'custom';
 
     if (!selectedAgentId) {
       return NextResponse.json(
@@ -106,6 +107,7 @@ export async function POST(
         harnessType: agent.harnessType,
         backend: agent.backend,
         runtimeAgentId: agent.runtimeAgentId || null,
+        role,
         roleLabel: encodeLiveRoomRoleLabel({
           backend: agent.backend,
           label: agent.label,

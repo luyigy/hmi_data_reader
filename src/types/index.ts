@@ -85,6 +85,7 @@ export interface LiveRoomMember {
   backend?: string | null;
   runtimeAgentId?: string | null;
   roleLabel?: string | null;
+  role: string;
   joinStatus: string;
   presenceStatus: string;
   canReply: boolean;

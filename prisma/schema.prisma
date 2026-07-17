@@ -439,6 +439,7 @@ model LiveRoomMember {
   backend              String?                 // platform_local, gateway_openclaw
   runtimeAgentId       String?
   roleLabel            String?
+  role                 String                  @default("custom")
 
   // Agent Identity Management fields
   userNickname         String?                 // 房间专属昵称（覆盖 Agent 级别的昵称）

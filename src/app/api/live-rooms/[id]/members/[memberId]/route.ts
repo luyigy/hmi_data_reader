@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateShortAlias } from '@/lib/agent-identity';
-import { postLiveRoomMessage, resolveLiveRoomMessageMetadata } from '@/lib/live-room';
+import { postLiveRoomMessage, resolveLiveRoomMessageMetadata, syncLiveRoomSourceTask } from '@/lib/live-room';
 
 /**
  * DELETE /api/live-rooms/[id]/members/[memberId]
@@ -70,6 +70,7 @@ export async function PATCH(
   try {
     const body = await request.json();
     const { userNickname, shortAlias } = body;
+    const role = typeof body.role === 'string' ? body.role.trim() || 'custom' : undefined;
 
     // 验证成员存在
     const member = await prisma.liveRoomMember.findUnique({
@@ -87,6 +88,9 @@ export async function PATCH(
         { error: 'Member not found' },
         { status: 404 }
       );
+    }
+    if (member.roomId !== params.id) {
+      return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
 
     // 如果设置了昵称但未提供 shortAlias，自动生成
@@ -106,8 +110,10 @@ export async function PATCH(
       data: {
         userNickname: userNickname ?? undefined,
         shortAlias: generatedShortAlias ?? undefined,
+        role,
       },
     });
+    await syncLiveRoomSourceTask(params.id);
 
     return NextResponse.json({
       success: true,
@@ -116,6 +122,7 @@ export async function PATCH(
         displayName: updated.displayName,
         userNickname: updated.userNickname,
         shortAlias: updated.shortAlias,
+        role: updated.role,
       },
     });
   } catch (error) {

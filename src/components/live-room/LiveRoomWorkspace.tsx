@@ -25,6 +25,7 @@ type MentionCandidate =
 const ROOMS_PANEL_KEY = 'live-room-left-panel-open';
 const DETAILS_PANEL_KEY = 'live-room-right-panel-open';
 const DISABLE_LIVE_ROOM_SOCKET_AND_POLLING = true;
+const MEMBER_ROLES = ['planner', 'implementer', 'reviewer', 'tester', 'researcher', 'custom'] as const;
 
 const getAgentLabel = (agent: LiveRoomCatalogAgent) =>
   `${agent.agentName || agent.label} · ${
@@ -304,12 +305,14 @@ export function LiveRoomWorkspace({
   const [newRoomTopic, setNewRoomTopic] = useState('');
   const [newRoomWorkingDirectory, setNewRoomWorkingDirectory] = useState('');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [selectedAgentRoles, setSelectedAgentRoles] = useState<Record<string, string>>({});
   const [selectedTargetMemberId, setSelectedTargetMemberId] = useState('');
   const [topicDraft, setTopicDraft] = useState('');
   const [roomTitleDraft, setRoomTitleDraft] = useState('');
   const [roomDescriptionDraft, setRoomDescriptionDraft] = useState('');
   const [roomModeDraft, setRoomModeDraft] = useState('discussion');
   const [memberToAdd, setMemberToAdd] = useState('');
+  const [memberRoleToAdd, setMemberRoleToAdd] = useState('custom');
   const [isRoomsPanelOpen, setIsRoomsPanelOpen] = useState(true);
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
@@ -736,6 +739,7 @@ export function LiveRoomWorkspace({
           currentTopic: newRoomTopic.trim() || undefined,
           workingDirectory: newRoomWorkingDirectory.trim() || undefined,
           selectedAgentIds,
+          selectedAgentRoles,
         }),
       });
       const data = await response.json();
@@ -747,6 +751,7 @@ export function LiveRoomWorkspace({
       setNewRoomTopic('');
       setNewRoomWorkingDirectory('');
       setSelectedAgentIds([]);
+      setSelectedAgentRoles({});
       setNotice('新 workspace 已创建。');
       await refreshRooms();
       if (data.room?.id) {
@@ -1132,6 +1137,7 @@ export function LiveRoomWorkspace({
         },
         body: JSON.stringify({
           agentId: memberToAdd,
+          role: memberRoleToAdd,
         }),
       });
       const data = await response.json();
@@ -1139,12 +1145,30 @@ export function LiveRoomWorkspace({
         throw new Error(data.error || '添加成员失败');
       }
       setMemberToAdd('');
+      setMemberRoleToAdd('custom');
       setNotice(data.duplicate ? '该 agent 已在房间里。' : '成员已加入房间。');
       await refreshSelectedRoom(selectedRoom.id);
       await refreshRooms();
     } catch (memberError) {
       setError(memberError instanceof Error ? memberError.message : '添加成员失败');
     }
+  };
+
+  const handleUpdateMemberRole = async (memberId: string, role: string) => {
+    if (!selectedRoom) return;
+
+    const response = await fetch(`/api/live-rooms/${selectedRoom.id}/members/${memberId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error || '更新成员角色失败');
+      return;
+    }
+    setNotice('成员角色已更新。');
+    await refreshSelectedRoom(selectedRoom.id);
   };
 
   const handleSetSpeaker = async (memberId: string) => {
@@ -1281,7 +1305,7 @@ export function LiveRoomWorkspace({
               {availableAgents.map((agent) => {
                 const checked = selectedAgentIds.includes(agent.id);
                 return (
-                  <label key={agent.id} className="flex cursor-pointer items-start gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-50">
+                  <div key={agent.id} className="flex items-start gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-50">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -1297,7 +1321,16 @@ export function LiveRoomWorkspace({
                       <div className="truncate text-xs font-medium text-slate-800">{agent.agentName || agent.label}</div>
                       <div className="text-[11px] text-slate-500">{agent.gatewayName} / {agent.harnessType}</div>
                     </div>
-                  </label>
+                    {checked ? (
+                      <select
+                        value={selectedAgentRoles[agent.id] || 'custom'}
+                        onChange={(event) => setSelectedAgentRoles((roles) => ({ ...roles, [agent.id]: event.target.value }))}
+                        className="ml-auto rounded-lg border border-slate-300 px-2 py-1 text-[11px]"
+                      >
+                        {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                      </select>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -1978,6 +2011,15 @@ export function LiveRoomWorkspace({
                       <div className="mt-1 text-[11px] text-slate-500">
                         {getMemberSubtitle(member)}
                       </div>
+                      {member.memberType !== 'user' ? (
+                        <select
+                          value={member.role}
+                          onChange={(event) => void handleUpdateMemberRole(member.id, event.target.value)}
+                          className="mt-2 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
+                        >
+                          {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                        </select>
+                      ) : null}
                       {member.contextWatermark ? (
                         <div className="mt-2" title={getWatermarkTooltip(member)}>
                           <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
@@ -2009,6 +2051,13 @@ export function LiveRoomWorkspace({
                         {getAgentLabel(agent)}
                       </option>
                     ))}
+                  </select>
+                  <select
+                    value={memberRoleToAdd}
+                    onChange={(event) => setMemberRoleToAdd(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                  >
+                    {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
                   </select>
                   <button
                     onClick={() => void handleAddMember()}
