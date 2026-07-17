@@ -17,3 +17,18 @@ assert.deepEqual(parsed, {
   args: ['hybrid'],
   options: {},
 });
+
+assert.deepEqual(parseFeishuCommand({
+  chatId: 'chat',
+  chatType: 'p2p',
+  messageId: 'message',
+  senderOpenId: 'user',
+  messageType: 'text',
+  text: '/ap role --member=lcc --role=implementor',
+  mentions: [],
+  mentionNames: [],
+}), {
+  command: 'role',
+  args: [],
+  options: { member: 'lcc', role: 'implementor' },
+});

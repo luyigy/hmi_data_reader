@@ -56,10 +56,11 @@ const DEFAULT_HELP_TEXT = [
   '/ap hosts',
   '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
   '/ap run --host=<hostId|label> --harness=<codex|claude|claude-haha> <prompt>',
-  '/ap room --agents=<agentId1,agentId2> [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [title]',
+  '/ap room --agents=<local:codex,local:claude> [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [title]',
   '/ap mode <discussion|execution|hybrid>',
   '/ap members',
   '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
+  '/ap role --member=<memberName|idSuffix> --role=<planner|researcher|implementer|reviewer|tester|custom>',
   '/ap speaker [memberName|idSuffix]',
   '/ap add --agents=<agentId>  支持短写：TX-server:claude',
   '/ap kick <memberName>',
@@ -130,7 +131,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
   args: string[];
   options: Record<string, string>;
 };
@@ -493,7 +494,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const commandAlias = rawCommand.toLowerCase();
   const command = commandAlias === 'new' ? 'new-session' : commandAlias;
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
     return null;
   }
 
@@ -622,7 +623,9 @@ async function handleAgentsCommand(command: ParsedFeishuCommand) {
         c.harnessType === (agent.type || agent.name?.toLowerCase()) &&
         (c.gatewayId === agent.gatewayId || (c.gatewayId === 'platform-local' && !agent.gatewayId))
       );
-      const catalogId = catalog?.id ?? `platform_local:${gatewayLabel}:${agent.type || agent.name}`;
+      const catalogId = catalog?.backend === 'platform_local'
+        ? `local:${catalog.harnessType}`
+        : catalog?.id ?? `platform_local:${gatewayLabel}:${agent.type || agent.name}`;
       const nickname = agent.userNickname ? ` "${agent.userNickname}"` : '';
       return `- ${agent.name}${nickname} | ${status}\n  --agents=${catalogId}`;
     }),
@@ -1771,6 +1774,54 @@ async function handleNickCommand(command: ParsedFeishuCommand, context?: FeishuC
   return `✅ 已将 ${target.displayName} 重命名为 ${updated.userNickname}。\n后续可直接使用 $${updated.userNickname} 进行 mention。`;
 }
 
+async function handleRoleCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const memberQuery = (command.options['member'] || command.args[0] || '').trim().replace(/^[@$]/, '');
+  const requestedRole = (command.options['role'] || command.args[1] || '').trim().toLowerCase();
+  const role = requestedRole === 'implementor' ? 'implementer' : requestedRole;
+  const validRoles = ['planner', 'researcher', 'implementer', 'reviewer', 'tester', 'custom'];
+  if (!memberQuery || !validRoles.includes(role)) {
+    return [
+      '请指定成员和有效角色。',
+      '角色：planner、researcher、implementer、reviewer、tester、custom',
+      '示例：/ap role --member=lcc --role=implementer',
+    ].join('\n');
+  }
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const normalizedQuery = memberQuery.toLowerCase();
+  const target = members.find((member) =>
+    member.memberType !== 'user' && (
+      member.displayName.toLowerCase() === normalizedQuery ||
+      (member.userNickname || '').toLowerCase() === normalizedQuery ||
+      (member.shortAlias || '').toLowerCase() === normalizedQuery ||
+      member.displayName.toLowerCase().includes(normalizedQuery) ||
+      member.id.endsWith(memberQuery)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((member) => member.memberType !== 'user')
+      .map((member) => member.userNickname || member.displayName)
+      .join(', ');
+    return `找不到成员：${memberQuery}\n当前成员：${names || '(none)'}`;
+  }
+
+  await prisma.liveRoomMember.update({
+    where: { id: target.id },
+    data: { role },
+  });
+  return `✅ 已将 ${target.userNickname || target.displayName} 的角色设为 ${role}。`;
+}
+
 async function handleSpeakerCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
   const roomId = await getBoundLiveRoomId(context);
   if (!roomId) {
@@ -2090,6 +2141,8 @@ export async function handleFeishuCommand(args: {
       return handleMembersCommand(args.context);
     case 'nick':
       return handleNickCommand(args.command, args.context);
+    case 'role':
+      return handleRoleCommand(args.command, args.context);
     case 'speaker':
       return handleSpeakerCommand(args.command, args.context);
     case 'kick':
