@@ -24,6 +24,9 @@ const normalizeHarnessType = (value?: string | null) => {
     return null;
   }
 
+  if (normalized.includes('antigravity') || normalized === 'agy') {
+    return 'antigravity';
+  }
   if (normalized.includes('codex')) {
     return 'codex';
   }
@@ -149,6 +152,20 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
 
   // Fallback: If no platform local agents in DB, add defaults (for backwards compatibility)
   if (currentHostPlatformLocalCount === 0) {
+    if (localStatus.antigravity.available) {
+      options.push({
+        gatewayId: 'platform-local',
+        gatewayName: 'Platform Local',
+        executionBackend: 'platform_local',
+        harnessType: 'antigravity',
+        harnessLabel: 'Platform Local / Antigravity CLI',
+        agentId: 'platform-local:antigravity',
+        agentName: 'Platform Local Antigravity',
+        runtimeAgentId: 'antigravity',
+        status: 'online',
+      });
+    }
+
     if (localStatus.codex.available) {
       options.push({
         gatewayId: 'platform-local',

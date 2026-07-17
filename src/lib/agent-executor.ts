@@ -102,10 +102,12 @@ const executeLocalAgent = async (
 ): Promise<any> => {
   console.log(`[Local Agent] Executing task "${task.name}" on ${agent.name} (${agent.type})`);
   
-  // 检查是否是真实 Agent (Codex / Claude / Gemini / Pi)
+  // 检查是否是真实 Agent
   const agentNameLower = agent.name.toLowerCase();
   
-  if (agentNameLower.includes('codex')) {
+  if (agentNameLower.includes('antigravity') || agentNameLower === 'agy') {
+    return await executeRealAntigravityTask(task, agent);
+  } else if (agentNameLower.includes('codex')) {
     // 使用真实的 Codex 执行
     return await executeRealCodexTask(task, agent);
   } else if (agentNameLower.includes('claude')) {
@@ -398,6 +400,27 @@ export const getAgentStatus = async (agentId: string): Promise<string | null> =>
 
 // ==================== 真实 Agent 执行函数 ====================
 
+const executeRealAntigravityTask = async (
+  task: AgentTask,
+  agent: AgentTask['assignedAgents'][0]
+): Promise<any> => {
+  const result = await executeRealAgentTask(
+    { id: task.id, name: task.name, description: task.description },
+    'antigravity'
+  );
+
+  return {
+    taskType: 'real-antigravity',
+    agentName: agent.name,
+    taskName: task.name,
+    status: result.success ? 'completed' : 'failed',
+    output: result.output,
+    error: result.error,
+    executionTime: result.executionTime,
+    timestamp: new Date().toISOString(),
+  };
+};
+
 /**
  * 执行真实的 Codex 任务
  */
@@ -536,6 +559,7 @@ const executeRealPiTask = async (
  * 检查真实 Agent 是否可用
  */
 export const checkRealAgentsAvailability = async (): Promise<{
+  antigravity: boolean;
   codex: boolean;
   claude: boolean;
   'gemini-cli': boolean;
@@ -543,6 +567,7 @@ export const checkRealAgentsAvailability = async (): Promise<{
 }> => {
   const status = await getRealAgentsStatus();
   return {
+    antigravity: status.antigravity.available,
     codex: status.codex.available,
     claude: status.claude.available,
     'gemini-cli': status['gemini-cli'].available,

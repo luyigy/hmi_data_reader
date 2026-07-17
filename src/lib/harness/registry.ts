@@ -1,4 +1,5 @@
 import type { HarnessAdapter, HarnessAvailability } from './types';
+import { antigravityHarnessAdapter } from './adapters/antigravity';
 import { claudeHahaHarnessAdapter, claudeHarnessAdapter } from './adapters/claude';
 import { codexHarnessAdapter } from './adapters/codex';
 import { deepSeekHarnessAdapter } from './adapters/deepseek';
@@ -6,6 +7,7 @@ import { geminiCliHarnessAdapter } from './adapters/gemini-cli';
 import { piAgentHarnessAdapter } from './adapters/pi-agent';
 
 const harnessAdapters = [
+  antigravityHarnessAdapter,
   codexHarnessAdapter,
   claudeHarnessAdapter,
   claudeHahaHarnessAdapter,

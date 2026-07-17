@@ -7,7 +7,7 @@ Agent Platform v2 is a Next.js-based control surface for running and coordinatin
 - ACPX task runner for local and remote agent execution.
 - Live rooms with user, system, and assistant messages.
 - Feishu/Lark long-connection and webhook integration.
-- Platform-local harnesses for tools such as Codex, Claude, Gemini CLI, DeepSeek, and pi-agent.
+- Platform-local harnesses for tools such as Codex, Claude, Antigravity CLI, Gemini CLI, DeepSeek, and pi-agent.
 - Remote SSH harness hosts for running agents on other machines.
 - Per-member live-room context watermarking and permission display.
 - Basic gateway registration and control-plane APIs.
@@ -55,6 +55,7 @@ Important variables:
 - `FEISHU_CONNECTION_MODE`: `long_connection` or `webhook`.
 - `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_VERIFICATION_TOKEN`, `FEISHU_ENCRYPT_KEY`: Feishu/Lark app credentials.
 - `ACPX_CODEX_SANDBOX_MODE`: Codex sandbox setting for local harness execution.
+- `ANTIGRAVITY_CLI_PATH`: optional path to the Antigravity `agy` executable.
 - `LINUX_GATEWAY_*`: optional smoke-test target for remote gateway checks.
 
 ## Scripts

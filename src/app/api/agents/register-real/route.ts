@@ -12,6 +12,7 @@ export async function GET() {
     
     return NextResponse.json({
       available: {
+        antigravity: status.antigravity.available,
         codex: status.codex.available,
         claude: status.claude.available,
         'claude-haha': status['claude-haha'].available,
@@ -20,6 +21,7 @@ export async function GET() {
         'pi-agent': status['pi-agent'].available,
       },
       versions: {
+        antigravity: status.antigravity.version,
         codex: status.codex.version,
         claude: status.claude.version,
         'claude-haha': status['claude-haha'].version,
@@ -45,56 +47,28 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, name } = body as { type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent'; name?: string };
+    const { type, name } = body as { type: 'antigravity' | 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent'; name?: string };
 
-    if (!type || (type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini-cli' && type !== 'pi-agent')) {
+    if (!type || (type !== 'antigravity' && type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini-cli' && type !== 'pi-agent')) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "codex", "claude", "claude-haha", "deepseek", "gemini-cli", or "pi-agent"' },
+        { error: 'Invalid real agent type' },
         { status: 400 }
       );
     }
 
-    // 检查对应的 Agent 是否可用
-    if (type === 'codex') {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-      
-      try {
-        await execAsync('codex --version', { timeout: 5000 });
-      } catch {
-        return NextResponse.json(
-          { error: 'Codex is not available. Please ensure it\'s installed and configured.' },
-          { status: 400 }
-        );
-      }
-    } else {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-      
-      try {
-        const command = type === 'deepseek'
-          ? 'deepseek --version'
-          : type === 'gemini-cli'
-          ? 'gemini --version'
-          : type === 'pi-agent'
-          ? '/data1/code/pi-mono/pi-test.sh --version'
-          : type === 'claude-haha'
-          ? '/data1/code/cc-haha-oc/bin/claude-haha --version'
-          : 'claude --version';
-        await execAsync(command, { timeout: 5000 });
-      } catch {
-        return NextResponse.json(
-          { error: `${type} is not available. Please ensure it is installed and configured.` },
-          { status: 400 }
-        );
-      }
+    const status = await getRealAgentsStatus();
+    if (!status[type].available) {
+      return NextResponse.json(
+        { error: `${type} is not available. Please ensure it is installed and configured.` },
+        { status: 400 }
+      );
     }
 
     // 注册 Agent
     const agentName = name || (
-      type === 'codex'
+      type === 'antigravity'
+        ? 'Antigravity Agent'
+        : type === 'codex'
         ? 'Codex Agent'
         : type === 'deepseek'
         ? 'DeepSeek Agent'

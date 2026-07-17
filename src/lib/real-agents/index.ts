@@ -8,6 +8,7 @@ export * from './codex-agent';
 export * from './claude-agent';
 export * from './deepseek-agent';
 export * from './gemini-cli-agent';
+export * from './antigravity-agent';
 export * from './pi-agent';
 
 import { getLocalHarnessStatusMap } from '@/lib/harness';
@@ -15,6 +16,7 @@ import { executeCodexTask, isCodexAvailable, getCodexVersion } from './codex-age
 import { executeClaudeTask, isClaudeAvailable, getClaudeVersion } from './claude-agent';
 import { executeDeepSeekTask, isDeepSeekAvailable, getDeepSeekVersion } from './deepseek-agent';
 import { executeGeminiTask, isGeminiAvailable, getGeminiVersion } from './gemini-cli-agent';
+import { executeAntigravityTask, getAntigravityVersion, isAntigravityAvailable } from './antigravity-agent';
 import { executePiAgentTask, isPiAgentAvailable, getPiAgentVersion } from './pi-agent';
 
 export interface RealAgentTask {
@@ -24,7 +26,7 @@ export interface RealAgentTask {
 }
 
 export interface RealAgentResult {
-  agentType: 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent';
+  agentType: 'antigravity' | 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent';
   success: boolean;
   output?: string;
   error?: string;
@@ -37,11 +39,12 @@ export interface RealAgentResult {
  */
 export const executeRealAgentTask = async (
   task: RealAgentTask,
-  agentType: 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent' | 'auto'
+  agentType: 'antigravity' | 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent' | 'auto'
 ): Promise<RealAgentResult> => {
   if (agentType === 'auto') {
     // Auto-select best available agent
-    const [codexAvailable, claudeAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable] = await Promise.all([
+    const [antigravityAvailable, codexAvailable, claudeAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable] = await Promise.all([
+      isAntigravityAvailable(),
       isCodexAvailable(),
       isClaudeAvailable(),
       isDeepSeekAvailable(),
@@ -53,6 +56,8 @@ export const executeRealAgentTask = async (
       agentType = 'claude';
     } else if (codexAvailable) {
       agentType = 'codex';
+    } else if (antigravityAvailable) {
+      agentType = 'antigravity';
     } else if (geminiAvailable) {
       agentType = 'gemini-cli';
     } else if (deepSeekAvailable) {
@@ -63,14 +68,20 @@ export const executeRealAgentTask = async (
       return {
         agentType: 'claude',
         success: false,
-        error: 'No real agents available. Please install Codex, Claude Code, or DeepSeek-TUI.',
+        error: 'No supported real agent CLI is available.',
         executionTime: 0,
       };
     }
   }
 
   try {
-    if (agentType === 'codex') {
+    if (agentType === 'antigravity') {
+      const result = await executeAntigravityTask(task);
+      return {
+        agentType: 'antigravity',
+        ...result,
+      };
+    } else if (agentType === 'codex') {
       const result = await executeCodexTask(task);
       return {
         agentType: 'codex',
@@ -116,6 +127,7 @@ export const executeRealAgentTask = async (
  */
 export const getRealAgentsStatus = async (): Promise<{
   codex: { available: boolean; version?: string };
+  antigravity: { available: boolean; version?: string };
   claude: { available: boolean; version?: string };
   'claude-haha': { available: boolean; version?: string };
   deepseek: { available: boolean; version?: string };
@@ -124,9 +136,10 @@ export const getRealAgentsStatus = async (): Promise<{
 }> => {
   const adapterStatusMap = await getLocalHarnessStatusMap();
 
-  if (adapterStatusMap.codex && adapterStatusMap.claude && adapterStatusMap['claude-haha']
+  if (adapterStatusMap.antigravity && adapterStatusMap.codex && adapterStatusMap.claude && adapterStatusMap['claude-haha']
     && adapterStatusMap.deepseek && adapterStatusMap['gemini-cli'] && adapterStatusMap['pi-agent']) {
     return {
+      antigravity: adapterStatusMap.antigravity,
       codex: adapterStatusMap.codex,
       claude: adapterStatusMap.claude,
       'claude-haha': adapterStatusMap['claude-haha'],
@@ -136,7 +149,8 @@ export const getRealAgentsStatus = async (): Promise<{
     };
   }
 
-  const [codexAvailable, claudeAvailable, claudeHahaAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable] = await Promise.all([
+  const [antigravityAvailable, codexAvailable, claudeAvailable, claudeHahaAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable] = await Promise.all([
+    isAntigravityAvailable(),
     isCodexAvailable(),
     isClaudeAvailable('claude'),
     isClaudeAvailable('claude-haha'),
@@ -145,7 +159,8 @@ export const getRealAgentsStatus = async (): Promise<{
     isPiAgentAvailable(),
   ]);
 
-  const [codexVersion, claudeVersion, claudeHahaVersion, deepSeekVersion, geminiVersion, piAgentVersion] = await Promise.all([
+  const [antigravityVersion, codexVersion, claudeVersion, claudeHahaVersion, deepSeekVersion, geminiVersion, piAgentVersion] = await Promise.all([
+    antigravityAvailable ? getAntigravityVersion() : Promise.resolve(undefined),
     codexAvailable ? getCodexVersion() : Promise.resolve(undefined),
     claudeAvailable ? getClaudeVersion('claude') : Promise.resolve(undefined),
     claudeHahaAvailable ? getClaudeVersion('claude-haha') : Promise.resolve(undefined),
@@ -155,6 +170,7 @@ export const getRealAgentsStatus = async (): Promise<{
   ]);
 
   return {
+    antigravity: { available: antigravityAvailable, version: antigravityVersion },
     codex: { available: codexAvailable, version: codexVersion },
     claude: { available: claudeAvailable, version: claudeVersion },
     'claude-haha': { available: claudeHahaAvailable, version: claudeHahaVersion },
@@ -169,7 +185,7 @@ export const getRealAgentsStatus = async (): Promise<{
  */
 export const registerRealAgent = async (
   name: string,
-  type: 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent',
+  type: 'antigravity' | 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent',
   location: 'local' | 'remote' | 'cloud' = 'local'
 ): Promise<{
   id: string;

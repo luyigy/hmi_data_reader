@@ -63,6 +63,10 @@ const pidLooksLikeHarness = async (pid: number, harnessType: string) => {
       return normalized.includes('gemini');
     }
 
+    if (harnessType === 'antigravity') {
+      return normalized.includes('agy');
+    }
+
     return normalized.includes(harnessType.toLowerCase());
   } catch {
     return true;

@@ -166,6 +166,7 @@ export const generateDefaultColorTag = (
 export const generateDefaultEmojiIcon = (harnessType: string): string => {
   const type = harnessType.toLowerCase();
   const emojiMap: Record<string, string> = {
+    'antigravity': '🪐',
     'claude': '🤖',
     'codex': '💻',
     'gemini': '✨',

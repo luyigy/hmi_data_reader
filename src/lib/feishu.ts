@@ -167,6 +167,9 @@ function decryptFeishuPayload(encryptedContent: string, encryptKey: string): Fei
 
 function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
   const normalized = agentName.trim().toLowerCase();
+  if (normalized.includes('antigravity') || normalized === 'agy') {
+    return localStatus.antigravity.available ? 'online' : 'offline';
+  }
   if (normalized === 'claude-haha') {
     return localStatus['claude-haha'].available ? 'online' : 'offline';
   }
