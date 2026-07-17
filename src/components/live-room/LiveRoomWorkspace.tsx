@@ -302,6 +302,7 @@ export function LiveRoomWorkspace({
   const [draftMentionMemberIds, setDraftMentionMemberIds] = useState<string[]>([]);
   const [newRoomTitle, setNewRoomTitle] = useState('');
   const [newRoomTopic, setNewRoomTopic] = useState('');
+  const [newRoomWorkingDirectory, setNewRoomWorkingDirectory] = useState('');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [selectedTargetMemberId, setSelectedTargetMemberId] = useState('');
   const [topicDraft, setTopicDraft] = useState('');
@@ -733,6 +734,7 @@ export function LiveRoomWorkspace({
         body: JSON.stringify({
           title: newRoomTitle.trim(),
           currentTopic: newRoomTopic.trim() || undefined,
+          workingDirectory: newRoomWorkingDirectory.trim() || undefined,
           selectedAgentIds,
         }),
       });
@@ -743,6 +745,7 @@ export function LiveRoomWorkspace({
 
       setNewRoomTitle('');
       setNewRoomTopic('');
+      setNewRoomWorkingDirectory('');
       setSelectedAgentIds([]);
       setNotice('新 workspace 已创建。');
       await refreshRooms();
@@ -1266,6 +1269,12 @@ export function LiveRoomWorkspace({
               onChange={(event) => setNewRoomTopic(event.target.value)}
               rows={2}
               placeholder="给这个 workspace 一个当前 topic / task..."
+              className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500"
+            />
+            <input
+              value={newRoomWorkingDirectory}
+              onChange={(event) => setNewRoomWorkingDirectory(event.target.value)}
+              placeholder="工作目录，例如 /data1/code/defects-detection"
               className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none ring-0 transition focus:border-slate-500"
             />
             <div className="mt-2 max-h-36 space-y-2 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2">

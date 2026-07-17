@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
     const title = typeof body.title === 'string' ? body.title.trim() : '';
     const description = typeof body.description === 'string' ? body.description.trim() : '';
     const currentTopic = typeof body.currentTopic === 'string' ? body.currentTopic.trim() : '';
+    const workingDirectory = typeof body.workingDirectory === 'string' ? body.workingDirectory.trim() : '';
     const mode = body.mode === 'execution' || body.mode === 'hybrid' ? body.mode : 'discussion';
     const selectedAgentIds = Array.isArray(body.selectedAgentIds)
       ? body.selectedAgentIds.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
         title,
         description: description || null,
         currentTopic: currentTopic || null,
+        workingDirectory: workingDirectory || null,
         mode,
         status: 'active',
         createdBy: 'user',
