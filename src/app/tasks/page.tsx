@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import TaskList from '@/components/tasks/TaskList';
 import TaskForm from '@/components/tasks/TaskForm';
+import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 import TaskStats from '@/components/tasks/TaskStats';
 
 interface Task {
@@ -162,6 +163,7 @@ export default function TasksPage() {
       agentId?: string;
       agentName?: string;
     }>;
+    acpxPermissionConfig?: AcpxPermissionConfig;
     workingDirectory?: string;
     assignedAgentIds?: string[];
   }) => {

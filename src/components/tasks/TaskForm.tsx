@@ -1,6 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import {
+  buildAcpxPermissionConfigForProfile,
+  getPermissionProfileLabel,
+} from '@/lib/acpx/permissions';
+import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 
 interface Agent {
   id: string;
@@ -49,6 +54,7 @@ interface TaskFormProps {
       agentId?: string;
       agentName?: string;
     }>;
+    acpxPermissionConfig?: AcpxPermissionConfig;
     workingDirectory?: string;
     assignedAgentIds?: string[];
   }) => void;
@@ -81,6 +87,8 @@ export default function TaskForm({
   const [description, setDescription] = useState('');
   const [executionMode, setExecutionMode] = useState<'standard' | 'acpx'>('standard');
   const [workingDirectory, setWorkingDirectory] = useState('');
+  const [permissionProfile, setPermissionProfile] =
+    useState<'safe_local' | 'dev_local' | 'full_access'>('safe_local');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [participants, setParticipants] = useState<AcpxParticipantDraft[]>([createDraft(0)]);
 
@@ -171,6 +179,10 @@ export default function TaskForm({
       orchestrationMode:
         executionMode === 'acpx' && acpxParticipants.length > 1 ? 'staged' : 'single',
       acpxParticipants: executionMode === 'acpx' ? acpxParticipants : undefined,
+      acpxPermissionConfig:
+        executionMode === 'acpx'
+          ? buildAcpxPermissionConfigForProfile(permissionProfile, [])
+          : undefined,
       workingDirectory:
         executionMode === 'acpx' && hasLocalParticipant && workingDirectory.trim()
           ? workingDirectory.trim()
@@ -375,6 +387,29 @@ export default function TaskForm({
                     当前未选择本地 harness，这个工作目录在本次任务里不会生效。
                   </p>
                 ) : null}
+              </div>
+
+              <div className="mb-4">
+                <label className="mb-2 block text-sm font-medium text-gray-700">权限</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['safe_local', 'dev_local', 'full_access'] as const).map((profile) => (
+                    <button
+                      key={profile}
+                      type="button"
+                      onClick={() => setPermissionProfile(profile)}
+                      className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        permissionProfile === profile
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {getPermissionProfileLabel(profile)}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  Antigravity 的 Full Access 会使用 --dangerously-skip-permissions；权限仅对新 run 生效。
+                </p>
               </div>
             </>
           )}
