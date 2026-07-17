@@ -26,6 +26,9 @@ const ROOMS_PANEL_KEY = 'live-room-left-panel-open';
 const DETAILS_PANEL_KEY = 'live-room-right-panel-open';
 const DISABLE_LIVE_ROOM_SOCKET_AND_POLLING = true;
 const MEMBER_ROLES = ['planner', 'implementer', 'reviewer', 'tester', 'researcher', 'custom'] as const;
+const PERMISSION_PROFILES = ['safe_local', 'dev_local', 'full_access'] as const;
+const getPermissionProfileLabel = (profile: string) =>
+  profile === 'full_access' ? 'Full Access' : profile === 'dev_local' ? 'Dev Local' : 'Safe Local';
 
 const getAgentLabel = (agent: LiveRoomCatalogAgent) =>
   `${agent.agentName || agent.label} · ${
@@ -306,6 +309,7 @@ export function LiveRoomWorkspace({
   const [newRoomWorkingDirectory, setNewRoomWorkingDirectory] = useState('');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [selectedAgentRoles, setSelectedAgentRoles] = useState<Record<string, string>>({});
+  const [selectedAgentPermissions, setSelectedAgentPermissions] = useState<Record<string, string>>({});
   const [selectedTargetMemberId, setSelectedTargetMemberId] = useState('');
   const [topicDraft, setTopicDraft] = useState('');
   const [roomTitleDraft, setRoomTitleDraft] = useState('');
@@ -313,6 +317,7 @@ export function LiveRoomWorkspace({
   const [roomModeDraft, setRoomModeDraft] = useState('discussion');
   const [memberToAdd, setMemberToAdd] = useState('');
   const [memberRoleToAdd, setMemberRoleToAdd] = useState('custom');
+  const [memberPermissionToAdd, setMemberPermissionToAdd] = useState('safe_local');
   const [isRoomsPanelOpen, setIsRoomsPanelOpen] = useState(true);
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
@@ -740,6 +745,7 @@ export function LiveRoomWorkspace({
           workingDirectory: newRoomWorkingDirectory.trim() || undefined,
           selectedAgentIds,
           selectedAgentRoles,
+          selectedAgentPermissions,
         }),
       });
       const data = await response.json();
@@ -752,6 +758,7 @@ export function LiveRoomWorkspace({
       setNewRoomWorkingDirectory('');
       setSelectedAgentIds([]);
       setSelectedAgentRoles({});
+      setSelectedAgentPermissions({});
       setNotice('新 workspace 已创建。');
       await refreshRooms();
       if (data.room?.id) {
@@ -1138,6 +1145,7 @@ export function LiveRoomWorkspace({
         body: JSON.stringify({
           agentId: memberToAdd,
           role: memberRoleToAdd,
+          permissionProfile: memberPermissionToAdd,
         }),
       });
       const data = await response.json();
@@ -1146,6 +1154,7 @@ export function LiveRoomWorkspace({
       }
       setMemberToAdd('');
       setMemberRoleToAdd('custom');
+      setMemberPermissionToAdd('safe_local');
       setNotice(data.duplicate ? '该 agent 已在房间里。' : '成员已加入房间。');
       await refreshSelectedRoom(selectedRoom.id);
       await refreshRooms();
@@ -1168,6 +1177,23 @@ export function LiveRoomWorkspace({
       return;
     }
     setNotice('成员角色已更新。');
+    await refreshSelectedRoom(selectedRoom.id);
+  };
+
+  const handleUpdateMemberPermission = async (memberId: string, permissionProfile: string) => {
+    if (!selectedRoom) return;
+
+    const response = await fetch(`/api/live-rooms/${selectedRoom.id}/members/${memberId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permissionProfile }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error || '更新成员权限失败');
+      return;
+    }
+    setNotice('成员权限已更新，将在下一次 run / continuation 生效。');
     await refreshSelectedRoom(selectedRoom.id);
   };
 
@@ -1322,13 +1348,24 @@ export function LiveRoomWorkspace({
                       <div className="text-[11px] text-slate-500">{agent.gatewayName} / {agent.harnessType}</div>
                     </div>
                     {checked ? (
-                      <select
-                        value={selectedAgentRoles[agent.id] || 'custom'}
-                        onChange={(event) => setSelectedAgentRoles((roles) => ({ ...roles, [agent.id]: event.target.value }))}
-                        className="ml-auto rounded-lg border border-slate-300 px-2 py-1 text-[11px]"
-                      >
-                        {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
-                      </select>
+                      <div className="ml-auto flex gap-1">
+                        <select
+                          value={selectedAgentRoles[agent.id] || 'custom'}
+                          onChange={(event) => setSelectedAgentRoles((roles) => ({ ...roles, [agent.id]: event.target.value }))}
+                          className="rounded-lg border border-slate-300 px-2 py-1 text-[11px]"
+                        >
+                          {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                        </select>
+                        <select
+                          value={selectedAgentPermissions[agent.id] || 'safe_local'}
+                          onChange={(event) => setSelectedAgentPermissions((permissions) => ({ ...permissions, [agent.id]: event.target.value }))}
+                          className="rounded-lg border border-slate-300 px-2 py-1 text-[11px]"
+                        >
+                          {PERMISSION_PROFILES.map((profile) => (
+                            <option key={profile} value={profile}>{getPermissionProfileLabel(profile)}</option>
+                          ))}
+                        </select>
+                      </div>
                     ) : null}
                   </div>
                 );
@@ -2012,13 +2049,24 @@ export function LiveRoomWorkspace({
                         {getMemberSubtitle(member)}
                       </div>
                       {member.memberType !== 'user' ? (
-                        <select
-                          value={member.role}
-                          onChange={(event) => void handleUpdateMemberRole(member.id, event.target.value)}
-                          className="mt-2 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
-                        >
-                          {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
-                        </select>
+                        <div className="mt-2 flex gap-2">
+                          <select
+                            value={member.role}
+                            onChange={(event) => void handleUpdateMemberRole(member.id, event.target.value)}
+                            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
+                          >
+                            {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                          </select>
+                          <select
+                            value={member.permissionProfile || 'safe_local'}
+                            onChange={(event) => void handleUpdateMemberPermission(member.id, event.target.value)}
+                            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
+                          >
+                            {PERMISSION_PROFILES.map((profile) => (
+                              <option key={profile} value={profile}>{getPermissionProfileLabel(profile)}</option>
+                            ))}
+                          </select>
+                        </div>
                       ) : null}
                       {member.contextWatermark ? (
                         <div className="mt-2" title={getWatermarkTooltip(member)}>
@@ -2058,6 +2106,15 @@ export function LiveRoomWorkspace({
                     className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
                   >
                     {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+                  </select>
+                  <select
+                    value={memberPermissionToAdd}
+                    onChange={(event) => setMemberPermissionToAdd(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                  >
+                    {PERMISSION_PROFILES.map((profile) => (
+                      <option key={profile} value={profile}>{getPermissionProfileLabel(profile)}</option>
+                    ))}
                   </select>
                   <button
                     onClick={() => void handleAddMember()}

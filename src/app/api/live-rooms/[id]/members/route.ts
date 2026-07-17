@@ -10,6 +10,10 @@ import {
   serializeLiveRoomMemberWithContext,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
+import {
+  permissionConfigForProfile,
+  type LiveRoomPermissionProfile,
+} from '@/lib/live-room-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +25,9 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const selectedAgentId = typeof body.agentId === 'string' ? body.agentId.trim() : '';
     const role = typeof body.role === 'string' ? body.role.trim() || 'custom' : 'custom';
+    const permissionProfile = (['safe_local', 'dev_local', 'full_access'].includes(body.permissionProfile)
+      ? body.permissionProfile
+      : 'safe_local') as LiveRoomPermissionProfile;
 
     if (!selectedAgentId) {
       return NextResponse.json(
@@ -108,6 +115,7 @@ export async function POST(
         backend: agent.backend,
         runtimeAgentId: agent.runtimeAgentId || null,
         role,
+        acpxPermissionConfig: JSON.stringify(permissionConfigForProfile(permissionProfile)),
         roleLabel: encodeLiveRoomRoleLabel({
           backend: agent.backend,
           label: agent.label,

@@ -5,8 +5,8 @@ import { ensureTaskSession } from '@/lib/acpx/session';
 import {
   DEFAULT_ACPX_PERMISSION_CONFIG,
   getPermissionProfileLabel,
-  normalizeAcpxPermissionConfig,
 } from '@/lib/acpx/permissions';
+import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import {
   buildTaskRoomTranscriptFromMessages,
   ensureTaskChatRoom,
@@ -88,6 +88,7 @@ export interface LiveRoomMemberPayload {
   gatewayId: string | null;
   gatewayName: string | null;
   agentRecordId: string | null;
+  acpxPermissionConfig?: string | null;
   permissionProfile: string | null;
   permissionLabel: string | null;
   contextWatermark?: LiveRoomMemberContextWatermarkPayload | null;
@@ -614,6 +615,7 @@ export const serializeLiveRoomMember = (member: {
   sortOrder: number;
   gatewayId: string | null;
   agentRecordId: string | null;
+  acpxPermissionConfig?: string | null;
   gateway?: { name: string } | null;
   agentRecord?: {
     userNickname: string | null;
@@ -707,26 +709,18 @@ const getContextWatermarkPolicyLabel = (
   return 'within policy';
 };
 
-const getPermissionProfileSummary = (sourceTask?: { acpxPermissionConfig?: string | null } | null) => {
-  if (!sourceTask?.acpxPermissionConfig) {
-    return {
-      permissionProfile: null,
-      permissionLabel: null,
-    };
-  }
-
-  try {
-    const config = normalizeAcpxPermissionConfig(JSON.parse(sourceTask.acpxPermissionConfig));
-    return {
-      permissionProfile: config.profile,
-      permissionLabel: getPermissionProfileLabel(config.profile),
-    };
-  } catch {
-    return {
-      permissionProfile: null,
-      permissionLabel: null,
-    };
-  }
+const getPermissionProfileSummary = (
+  member: { acpxPermissionConfig?: string | null },
+  sourceTask?: { acpxPermissionConfig?: string | null } | null
+) => {
+  const config = resolveLiveRoomMemberPermission(
+    member.acpxPermissionConfig,
+    sourceTask?.acpxPermissionConfig
+  );
+  return {
+    permissionProfile: config.profile,
+    permissionLabel: getPermissionProfileLabel(config.profile),
+  };
 };
 
 export const getLiveRoomMemberContextWatermark = async ({
@@ -872,7 +866,7 @@ export const serializeLiveRoomMemberWithContext = async ({
   } | null;
 }): Promise<LiveRoomMemberPayload> => {
   const base = serializeLiveRoomMember(member);
-  const permissionSummary = getPermissionProfileSummary(sourceTask);
+  const permissionSummary = getPermissionProfileSummary(member, sourceTask);
   const contextWatermark = await getLiveRoomMemberContextWatermark({
     member,
     sourceTask,

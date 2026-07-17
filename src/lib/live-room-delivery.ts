@@ -2,8 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { findLatestParticipantSession, parseAcpxMetadata } from '@/lib/acpx/session-tracking';
 import { requestRunControl } from '@/lib/acpx/process-registry';
-import { DEFAULT_ACPX_PERMISSION_CONFIG } from '@/lib/acpx/permissions';
 import { getHarnessAdapter } from '@/lib/harness';
+import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import {
   clearLiveRoomRunningProcess,
   enqueueLiveRoomMemberExecution,
@@ -57,6 +57,7 @@ type DeliveryRoomMember = {
   runtimeAgentId: string | null;
   gatewayId: string | null;
   roleLabel?: string | null;
+  acpxPermissionConfig?: string | null;
   gateway?: { name: string } | null;
   agentRecord?: { runtimeAgentId: string | null } | null;
 };
@@ -771,10 +772,10 @@ const executeLiveRoomReplyViaAcpx = async ({
     runtimeAgentId: targetMember.runtimeAgentId || targetMember.agentRecord?.runtimeAgentId || null,
   });
 
-  const permissionConfig = (() => {
-    const parsed = parseAcpxMetadata(sourceTask.acpxPermissionConfig);
-    return (Object.keys(parsed).length > 0 ? parsed : DEFAULT_ACPX_PERMISSION_CONFIG) as AcpxPermissionConfig;
-  })();
+  const permissionConfig = resolveLiveRoomMemberPermission(
+    targetMember.acpxPermissionConfig,
+    sourceTask.acpxPermissionConfig
+  );
 
   const latestSession = await findLatestParticipantSession(sourceTask.id, participant, {
     taskSessionId: sourceTask.currentTaskSession?.id || null,

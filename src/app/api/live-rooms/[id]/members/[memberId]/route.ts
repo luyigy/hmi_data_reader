@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateShortAlias } from '@/lib/agent-identity';
 import { postLiveRoomMessage, resolveLiveRoomMessageMetadata, syncLiveRoomSourceTask } from '@/lib/live-room';
+import {
+  setLiveRoomMemberPermission,
+  type LiveRoomPermissionProfile,
+} from '@/lib/live-room-permissions';
 
 /**
  * DELETE /api/live-rooms/[id]/members/[memberId]
@@ -71,6 +75,9 @@ export async function PATCH(
     const body = await request.json();
     const { userNickname, shortAlias } = body;
     const role = typeof body.role === 'string' ? body.role.trim() || 'custom' : undefined;
+    const permissionProfile = (['safe_local', 'dev_local', 'full_access'].includes(body.permissionProfile)
+      ? body.permissionProfile
+      : undefined) as LiveRoomPermissionProfile | undefined;
 
     // 验证成员存在
     const member = await prisma.liveRoomMember.findUnique({
@@ -113,6 +120,9 @@ export async function PATCH(
         role,
       },
     });
+    if (permissionProfile) {
+      await setLiveRoomMemberPermission(params.id, params.memberId, permissionProfile);
+    }
     await syncLiveRoomSourceTask(params.id);
 
     return NextResponse.json({
@@ -123,6 +133,7 @@ export async function PATCH(
         userNickname: updated.userNickname,
         shortAlias: updated.shortAlias,
         role: updated.role,
+        permissionProfile,
       },
     });
   } catch (error) {

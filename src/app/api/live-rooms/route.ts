@@ -10,6 +10,10 @@ import {
   serializeLiveRoomSummary,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
+import {
+  permissionConfigForProfile,
+  type LiveRoomPermissionProfile,
+} from '@/lib/live-room-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +77,10 @@ export async function POST(request: NextRequest) {
       body.selectedAgentRoles && typeof body.selectedAgentRoles === 'object'
         ? body.selectedAgentRoles as Record<string, unknown>
         : {};
+    const selectedAgentPermissions =
+      body.selectedAgentPermissions && typeof body.selectedAgentPermissions === 'object'
+        ? body.selectedAgentPermissions as Record<string, unknown>
+        : {};
 
     if (!title) {
       return NextResponse.json(
@@ -122,6 +130,11 @@ export async function POST(request: NextRequest) {
             role: typeof selectedAgentRoles[agent.id] === 'string'
               ? (selectedAgentRoles[agent.id] as string).trim() || 'custom'
               : 'custom',
+            acpxPermissionConfig: JSON.stringify(permissionConfigForProfile(
+              (['safe_local', 'dev_local', 'full_access'].includes(String(selectedAgentPermissions[agent.id]))
+                ? selectedAgentPermissions[agent.id]
+                : 'safe_local') as LiveRoomPermissionProfile
+            )),
             roleLabel: encodeLiveRoomRoleLabel({
               backend: agent.backend,
               label: agent.label,

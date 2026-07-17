@@ -2,14 +2,9 @@ import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
 import {
-  normalizeAcpxPermissionConfig,
-  DEFAULT_ACPX_PERMISSION_CONFIG,
   buildAcpxPermissionConfigForProfile,
 } from '@/lib/acpx/permissions';
-import {
-  resolveTaskSessionPermissionConfig,
-  setTaskSessionPermissionOverride,
-} from '@/lib/acpx/session';
+import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import { findLatestParticipantSession } from '@/lib/acpx/session-tracking';
 import { executeAcpxTaskRunWithContinuationFallback } from '@/lib/acpx/continuation-retry';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
@@ -118,6 +113,7 @@ const resolveRoomMember = (room: {
       name: string;
     } | null;
     runtimeAgentId?: string | null;
+    acpxPermissionConfig?: string | null;
   }>;
   currentSpeakerMemberId: string | null;
 }, args: { memberId?: string | null; query?: string | null }) => {
@@ -195,31 +191,20 @@ export async function grantRightsForRoom(args: {
     runtimeAgentId: member.runtimeAgentId,
   });
 
-  const currentPermissionConfig = resolveTaskSessionPermissionConfig({
-    taskSession: room.sourceTask.currentTaskSession,
-    fallback: (() => {
-      try {
-        return normalizeAcpxPermissionConfig(
-          JSON.parse(room.sourceTask.acpxPermissionConfig || 'null')
-        );
-      } catch {
-        return DEFAULT_ACPX_PERMISSION_CONFIG;
-      }
-    })(),
-  });
+  const currentPermissionConfig = resolveLiveRoomMemberPermission(
+    member.acpxPermissionConfig,
+    room.sourceTask.acpxPermissionConfig
+  );
 
   const nextPermissionConfig = buildGrantPermissionConfig(
     args.profile,
     currentPermissionConfig.writableRoots
   );
 
-  if (room.sourceTask.currentTaskSession?.id) {
-    await setTaskSessionPermissionOverride({
-      taskSessionId: room.sourceTask.currentTaskSession.id,
-      permissionConfig: nextPermissionConfig,
-      source: 'grant',
-    });
-  }
+  await prisma.liveRoomMember.update({
+    where: { id: member.id },
+    data: { acpxPermissionConfig: JSON.stringify(nextPermissionConfig) },
+  });
 
   const taskRoom = await ensureTaskChatRoom(room.sourceTask.id, room.sourceTask.name);
   const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
