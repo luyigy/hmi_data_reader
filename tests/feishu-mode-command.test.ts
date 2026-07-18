@@ -32,3 +32,18 @@ assert.deepEqual(parseFeishuCommand({
   args: [],
   options: { member: 'lcc', role: 'implementor' },
 });
+
+assert.deepEqual(parseFeishuCommand({
+  chatId: 'chat',
+  chatType: 'p2p',
+  messageId: 'message',
+  senderOpenId: 'user',
+  messageType: 'text',
+  text: '/ap new-session --all',
+  mentions: [],
+  mentionNames: [],
+}), {
+  command: 'new-session',
+  args: [],
+  options: { all: 'true' },
+});

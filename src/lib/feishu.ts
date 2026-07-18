@@ -75,8 +75,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap rights [--agent=<name>]',
   '/ap handover [agentName|idSuffix] [--title="handover title"]',
   '/ap workspace [/path/to/dir]',
-  '/ap new [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
-  '/ap new-session [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
+  '/ap new [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
+  '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
 
 type FeishuMessageMention = {
@@ -1341,7 +1341,21 @@ function buildNewSessionPrompt(args: {
   memberName: string;
   taskName: string;
   blankBootstrap?: boolean;
+  initializeOnly?: boolean;
 }) {
+  if (args.initializeOnly) {
+    return [
+      `Start a fresh session for ${args.memberName} on task "${args.taskName}".`,
+      args.handoverPath
+        ? `Read ${args.handoverPath} as context.`
+        : 'Use the supplied room/task state only as context.',
+      'Briefly confirm the fresh session is ready.',
+      'Do not continue the task, run tools, or modify files until the user sends a new instruction.',
+      ...(args.handoverContent ? ['', 'Handover content:', args.handoverContent] : []),
+      ...(!args.handoverContent && args.transcript ? ['', 'Recent task-room transcript:', args.transcript] : []),
+    ].join('\n');
+  }
+
   if (args.handoverPath && args.handoverContent) {
     return [
       `Read the handover file at ${args.handoverPath} first.`,
@@ -1464,15 +1478,20 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
   if (!room || !room.sourceTask) {
     return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法启动 new session。';
   }
+  const sourceTask = room.sourceTask;
 
   const handoverOption = (command.options['handover'] || command.options['from-handover'] || '').trim();
   const memberQuery = (command.options['agent'] || command.args.join(' ') || '').trim();
-  const member = resolveRoomMemberQuery({ room, query: memberQuery });
-  if (!member) {
+  const allMembers = isTruthyFeishuOption(command.options['all']) || memberQuery.toLowerCase() === 'all';
+  const members = allMembers
+    ? room.members.filter((member) => member.memberType !== 'user' && member.canReply)
+    : [resolveRoomMemberQuery({ room, query: memberQuery })].filter((member) => member !== null);
+  if (!members.length) {
     return memberQuery
       ? `找不到目标成员：${memberQuery}`
       : '当前房间没有可启动 new session 的 agent 成员。';
   }
+  const member = members[0];
 
   const handoverPath = resolveHandoverPath(handoverOption);
   const blankBootstrap =
@@ -1493,17 +1512,17 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
 
     handoverContent = await fs.readFile(handoverPath.absolutePath, 'utf8');
   }
-  const participant = buildLiveRoomAcpxParticipant({
-    id: member.id,
-    displayName: member.displayName,
-    backend: member.backend,
-    harnessType: member.harnessType,
-    gatewayId: member.backend === 'remote_ssh'
-      ? (member.gateway?.id || member.gatewayId)
-      : member.gatewayId,
-    gatewayName: member.gateway?.name || null,
-    runtimeAgentId: member.runtimeAgentId,
-  });
+  const participants = members.map((targetMember) => buildLiveRoomAcpxParticipant({
+    id: targetMember.id,
+    displayName: targetMember.displayName,
+    backend: targetMember.backend,
+    harnessType: targetMember.harnessType,
+    gatewayId: targetMember.backend === 'remote_ssh'
+      ? (targetMember.gateway?.id || targetMember.gatewayId)
+      : targetMember.gatewayId,
+    gatewayName: targetMember.gateway?.name || null,
+    runtimeAgentId: targetMember.runtimeAgentId,
+  }));
   const currentPermissionConfig = (() => {
     try {
       return normalizeAcpxPermissionConfig(
@@ -1534,24 +1553,16 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
   const promptContext = blankBootstrap
     ? { transcript: '', latestUserMessage: null }
     : await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
-  const prompt = buildNewSessionPrompt({
-    handoverPath: handoverPath?.relativePath || null,
-    handoverContent,
-    latestUserMessage: promptContext.latestUserMessage?.content || null,
-    transcript: promptContext.transcript,
-    memberName: member.userNickname || member.displayName,
-    taskName: room.sourceTask.name,
-    blankBootstrap,
-  });
-
-  if (member.backend === 'remote_ssh') {
+  for (const targetMember of members.filter((candidate) => candidate.backend === 'remote_ssh')) {
     try {
       const interruption = await interruptLiveRoomMemberReplies({
         roomId: room.id,
-        memberId: member.id,
+        memberId: targetMember.id,
       });
       interruptedPreviousReplies =
-        interruption.interruptedRunningCount > 0 || interruption.cancelledQueuedCount > 0;
+        interruptedPreviousReplies
+        || interruption.interruptedRunningCount > 0
+        || interruption.cancelledQueuedCount > 0;
     } catch (error) {
       console.warn('Failed to interrupt previous live room replies before new session:', error);
     }
@@ -1562,19 +1573,19 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
     metadata: {
       source: 'feishu_new_session',
       handoverPath: handoverPath?.relativePath || null,
-      targetMemberId: member.id,
-      targetMemberName: member.userNickname || member.displayName,
+      targetMemberId: allMembers ? null : member.id,
+      targetMemberName: allMembers ? 'all' : member.userNickname || member.displayName,
     },
   });
   await postTaskRoomSessionResetMarker({
     roomId: taskRoom.id,
     sessionId: freshTaskSession.id,
-    reason: `new-session:${member.id}`,
+    reason: allMembers ? 'new-session' : `new-session:${member.id}`,
   });
   await prisma.liveRoomMemberSession.updateMany({
     where: {
       roomId: room.id,
-      memberId: member.id,
+      memberId: { in: members.map((targetMember) => targetMember.id) },
     },
     data: {
       threadId: null,
@@ -1583,66 +1594,73 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
       lastHeartbeatAt: new Date(),
     },
   }).catch(() => undefined);
-  const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
-  const targetParticipantLabel = getTaskRoomParticipantTargetLabel(participant);
-  await postTaskRoomMessage({
-    roomId: taskRoom.id,
-    content: handoverPath
-      ? `[new-session] ${member.userNickname || member.displayName} <- ${handoverPath.relativePath}`
-      : blankBootstrap
-      ? `[new-session] ${member.userNickname || member.displayName} <- blank bootstrap`
-      : `[new-session] ${member.userNickname || member.displayName} <- room-state bootstrap`,
-    userId: 'task-room-user',
-    userName: '用户',
-    targetType: 'participant',
-    targetParticipantKey,
-    targetParticipantLabel,
-  });
-
-  await postTaskRoomMessage({
-    roomId: taskRoom.id,
-    content: prompt,
-    userId: 'task-room-user',
-    userName: '用户',
-    targetType: 'participant',
-    targetParticipantKey,
-    targetParticipantLabel,
-  });
-
-  const result = await executeAcpxTaskRun({
-    taskId: room.sourceTask.id,
-    taskSessionId: freshTaskSession.id,
-    taskName: room.sourceTask.name,
-    taskDescription: room.sourceTask.description || undefined,
-    orchestrationMode: 'single',
-    workingDirectory: room.sourceTask.workingDirectory || undefined,
-    permissionConfig,
-    participants: [
-      {
+  const results = await Promise.all(members.map(async (targetMember, index) => {
+    const participant = participants[index];
+    const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
+    const targetParticipantLabel = getTaskRoomParticipantTargetLabel(participant);
+    const prompt = buildNewSessionPrompt({
+      handoverPath: handoverPath?.relativePath || null,
+      handoverContent,
+      latestUserMessage: promptContext.latestUserMessage?.content || null,
+      transcript: promptContext.transcript,
+      memberName: targetMember.userNickname || targetMember.displayName,
+      taskName: sourceTask.name,
+      blankBootstrap,
+      initializeOnly: allMembers,
+    });
+    for (const content of [
+      handoverPath
+        ? `[new-session] ${targetMember.userNickname || targetMember.displayName} <- ${handoverPath.relativePath}`
+        : blankBootstrap
+        ? `[new-session] ${targetMember.userNickname || targetMember.displayName} <- blank bootstrap`
+        : `[new-session] ${targetMember.userNickname || targetMember.displayName} <- room-state bootstrap`,
+      prompt,
+    ]) {
+      await postTaskRoomMessage({
+        roomId: taskRoom.id,
+        content,
+        userId: 'task-room-user',
+        userName: '用户',
+        targetType: 'participant',
+        targetParticipantKey,
+        targetParticipantLabel,
+      });
+    }
+    const result = await executeAcpxTaskRun({
+      taskId: sourceTask.id,
+      taskSessionId: freshTaskSession.id,
+      taskName: sourceTask.name,
+      taskDescription: sourceTask.description || undefined,
+      orchestrationMode: 'single',
+      workingDirectory: sourceTask.workingDirectory || undefined,
+      permissionConfig,
+      participants: [{
         ...participant,
         continuationMessage: undefined,
         resumeSessionId: undefined,
         resumeThreadId: undefined,
         continuationSessionKind: undefined,
         ephemeralSession: false,
-      },
-    ],
-  });
-  const recordedPermissionConfig = await readRecordedRunPermissionConfig(result.taskRunId);
+      }],
+    });
+    return result;
+  }));
+  const runIds = results.map((result) => result.taskRunId);
+  const recordedPermissionConfig = await readRecordedRunPermissionConfig(runIds[0]);
   const requestedPermissionLabel = formatPermissionProfileLabel(permissionConfig.profile);
   const recordedPermissionLabel = recordedPermissionConfig
     ? formatPermissionProfileLabel(recordedPermissionConfig.profile)
     : '未知';
 
   return [
-    `✅ 已为 ${member.userNickname || member.displayName} 启动 fresh session`,
+    `✅ 已为 ${allMembers ? `全部 ${members.length} 个 agent` : member.userNickname || member.displayName} 启动 fresh session`,
     `Bootstrap：${handoverPath?.relativePath ? `handover ${handoverPath.relativePath}` : blankBootstrap ? 'blank' : 'room/task state'}`,
     `请求权限：${requestedPermissionLabel}`,
     `实际落库权限：${recordedPermissionLabel}`,
     ...(recordedPermissionConfig && recordedPermissionConfig.profile !== permissionConfig.profile
       ? [`警告：请求权限与实际落库权限不一致，请检查运行中的 Feishu runtime 是否已重启到最新代码。`]
       : []),
-    `Run：${result.taskRunId}`,
+    `Run：${runIds.join(', ')}`,
     ...(interruptedPreviousReplies ? ['说明：启动新 session 前，已中断该成员旧的 live-room 回复与排队消息。'] : []),
     handoverPath
       ? '说明：本次会以新 session 先读取 handover，再继续执行。'
