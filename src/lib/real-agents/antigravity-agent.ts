@@ -27,6 +27,14 @@ const AGY_BIN = process.env.ANTIGRAVITY_CLI_PATH?.trim() || 'agy';
 
 const childEnv = () => {
   const env = { ...process.env };
+  const httpProxy = env.HTTP_PROXY || env.http_proxy || env.FEISHU_RUNTIME_CODEX_HTTP_PROXY;
+  const httpsProxy = env.HTTPS_PROXY || env.https_proxy || env.FEISHU_RUNTIME_CODEX_HTTPS_PROXY;
+  const allProxy = env.ALL_PROXY || env.all_proxy || env.FEISHU_RUNTIME_CODEX_ALL_PROXY;
+  const noProxy = env.NO_PROXY || env.no_proxy || env.FEISHU_RUNTIME_CODEX_NO_PROXY;
+  if (httpProxy) env.HTTP_PROXY = env.http_proxy = httpProxy;
+  if (httpsProxy) env.HTTPS_PROXY = env.https_proxy = httpsProxy;
+  if (allProxy) env.ALL_PROXY = env.all_proxy = allProxy;
+  if (noProxy) env.NO_PROXY = env.no_proxy = noProxy;
   const localBin = `${env.HOME || '/home/hello'}/.local/bin`;
   if (!env.PATH?.split(':').includes(localBin)) {
     env.PATH = env.PATH ? `${localBin}:${env.PATH}` : localBin;
