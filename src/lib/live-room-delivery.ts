@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
-import { findLatestParticipantSession, parseAcpxMetadata } from '@/lib/acpx/session-tracking';
-import { requestRunControl } from '@/lib/acpx/process-registry';
+import { findLatestParticipantSession } from '@/lib/acpx/session-tracking';
 import { getHarnessAdapter } from '@/lib/harness';
 import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import {
@@ -28,6 +27,10 @@ import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } fr
 import type { AcpxPermissionConfig, HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { FeishuProgressTracker } from '@/lib/feishu-progress';
 import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduling';
+import {
+  parseLiveRoomWorkflowCommand,
+  runLiveRoomWorkflow,
+} from '@/lib/live-room-workflows';
 import {
   buildLiveRoomContinuationMessage,
   buildLiveRoomControlManual,
@@ -1493,181 +1496,7 @@ const processLiveRoomDelivery = async ({
   }
 };
 
-export const interruptLiveRoomMemberReplies = async ({
-  roomId,
-  memberId,
-}: {
-  roomId: string;
-  memberId: string;
-}) => {
-  const room = await prisma.liveRoom.findUnique({
-    where: { id: roomId },
-    include: {
-      sourceTask: {
-        include: {
-          currentTaskSession: true,
-        },
-      },
-    },
-  });
-
-  if (!room) {
-    throw new Error('Live room not found');
-  }
-
-  const member = await prisma.liveRoomMember.findFirst({
-    where: {
-      id: memberId,
-      roomId,
-    },
-    select: {
-      id: true,
-      displayName: true,
-      backend: true,
-      canReply: true,
-    },
-  });
-
-  if (!member) {
-    throw new Error('Live room member not found');
-  }
-
-  if (!member.canReply) {
-    throw new Error('Selected member cannot reply');
-  }
-
-  if (member.backend !== 'remote_ssh') {
-    throw new Error('Only remote SSH live room replies can be interrupted in Phase 1');
-  }
-
-  const runningDeliveries = await prisma.liveRoomDelivery.findMany({
-    where: {
-      targetMemberId: member.id,
-      roomMessage: {
-        roomId,
-      },
-      deliveryStatus: 'running',
-    },
-    orderBy: {
-      attemptedAt: 'desc',
-    },
-  });
-
-  const queuedDeliveries = await prisma.liveRoomDelivery.findMany({
-    where: {
-      targetMemberId: member.id,
-      roomMessage: {
-        roomId,
-      },
-      deliveryStatus: 'pending',
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-  });
-
-  const activeRun = room.sourceTask?.currentTaskSession?.activeRunId
-    ? await prisma.taskRun.findUnique({
-        where: { id: room.sourceTask.currentTaskSession.activeRunId },
-        include: {
-          participants: true,
-        },
-      })
-    : null;
-  const runningParticipant = activeRun?.participants.find((participant) => {
-    const metadata = parseAcpxMetadata(participant.controlMetadata);
-    return metadata.continuationKey === getLiveRoomParticipantContinuationKey(member.id);
-  }) || null;
-
-  if (activeRun && runningParticipant) {
-    requestRunControl(activeRun.id, runningParticipant.id, 'interrupt_now');
-  } else {
-    const runningRegistry = getLiveRoomRunningProcess(member.id);
-    if (runningRegistry) {
-      interruptLiveRoomRunningProcess(member.id, 'SIGTERM');
-    }
-  }
-
-  const interruptedAt = new Date();
-
-  if (runningDeliveries.length > 0) {
-    await prisma.liveRoomDelivery.updateMany({
-      where: {
-        id: {
-          in: runningDeliveries.map((delivery) => delivery.id),
-        },
-      },
-      data: {
-        deliveryStatus: 'failed',
-        fallbackReason: 'Interrupted by user',
-        acknowledgedAt: interruptedAt,
-      },
-    });
-  }
-
-  if (queuedDeliveries.length > 0) {
-    await prisma.liveRoomDelivery.updateMany({
-      where: {
-        id: {
-          in: queuedDeliveries.map((delivery) => delivery.id),
-        },
-      },
-      data: {
-        deliveryStatus: 'superseded',
-        fallbackReason: 'Cancelled by user before execution',
-        acknowledgedAt: interruptedAt,
-      },
-    });
-  }
-
-  const latestSession = await prisma.liveRoomMemberSession.findFirst({
-    where: {
-      roomId,
-      memberId: member.id,
-    },
-    orderBy: {
-      updatedAt: 'desc',
-    },
-  });
-
-  if (latestSession) {
-    await prisma.liveRoomMemberSession.update({
-      where: { id: latestSession.id },
-      data: {
-        status: 'online',
-        lastError: runningDeliveries.length > 0 ? 'Interrupted by user' : 'Cancelled by user before execution',
-      },
-    });
-  }
-
-  await prisma.liveRoomMember.update({
-    where: { id: member.id },
-    data: {
-      presenceStatus: 'online',
-    },
-  });
-
-  await postLiveRoomMessage({
-    roomId,
-    content: `系统提示：已中断 ${member.displayName} 的远端回复${queuedDeliveries.length > 0 ? `，并清理 ${queuedDeliveries.length} 条排队消息` : ''}。`,
-    messageType: 'system',
-    metadata: resolveLiveRoomMessageMetadata({
-      senderKind: 'system',
-      targetMemberId: member.id,
-      extras: {
-        systemEvent: 'remote_reply_interrupted',
-        interruptedDeliveryIds: runningDeliveries.map((delivery) => delivery.id),
-        supersededDeliveryIds: queuedDeliveries.map((delivery) => delivery.id),
-      },
-    }),
-  });
-
-  return {
-    interruptedRunningCount: runningDeliveries.length,
-    cancelledQueuedCount: queuedDeliveries.length,
-  };
-};
-
+export { interruptLiveRoomMemberReplies } from '@/lib/live-room-interrupt';
 export const triggerLiveRoomAgentReply = async ({
   roomId,
   roomMessageId,
@@ -1810,6 +1639,21 @@ export const triggerLiveRoomMessageReplies = async ({
   });
 
   if (!sourceMessage) {
+    return;
+  }
+
+  const workflow = parseLiveRoomWorkflowCommand(sourceMessage.content);
+  if (
+    workflow
+    && !requestedTargetMemberId
+    && shouldRunRoleQueue(room.mode, sourceMessage.content)
+  ) {
+    await runLiveRoomWorkflow({
+      roomId,
+      sourceMessageId: roomMessageId,
+      name: workflow.name,
+      task: workflow.task,
+    });
     return;
   }
 

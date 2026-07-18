@@ -1555,7 +1555,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
   const promptContext = blankBootstrap
     ? { transcript: '', latestUserMessage: null }
     : await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
-  for (const targetMember of members.filter((candidate) => candidate.backend === 'remote_ssh')) {
+  for (const targetMember of members) {
     try {
       const interruption = await interruptLiveRoomMemberReplies({
         roomId: room.id,
@@ -1596,7 +1596,7 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
       lastHeartbeatAt: new Date(),
     },
   }).catch(() => undefined);
-  const results = await Promise.all(members.map(async (targetMember, index) => {
+  const preparedMembers = await Promise.all(members.map(async (targetMember, index) => {
     const participant = participants[index];
     const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
     const targetParticipantLabel = getTaskRoomParticipantTargetLabel(participant);
@@ -1628,6 +1628,20 @@ async function handleNewSessionCommand(command: ParsedFeishuCommand, context?: F
         targetParticipantLabel,
       });
     }
+    return { participant };
+  }));
+
+  if (allMembers) {
+    return [
+      `✅ 已为全部 ${members.length} 个 agent 重置 session`,
+      `Bootstrap：${handoverPath?.relativePath ? `handover ${handoverPath.relativePath}` : blankBootstrap ? 'blank' : 'room/task state'}`,
+      `请求权限：${formatPermissionProfileLabel(permissionConfig.profile)}`,
+      '说明：各 Agent 会在下一条真实指令到来时启动新 session，不再等待逐个启动确认。',
+      ...(interruptedPreviousReplies ? ['说明：已中断未完成的旧运行和排队消息。'] : []),
+    ].join('\n');
+  }
+
+  const results = await Promise.all(preparedMembers.map(async ({ participant }) => {
     const result = await executeAcpxTaskRun({
       taskId: sourceTask.id,
       taskSessionId: freshTaskSession.id,
