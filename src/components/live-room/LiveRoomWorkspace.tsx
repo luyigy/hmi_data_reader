@@ -27,6 +27,7 @@ const DETAILS_PANEL_KEY = 'live-room-right-panel-open';
 const DISABLE_LIVE_ROOM_SOCKET_AND_POLLING = true;
 const MEMBER_ROLES = ['planner', 'implementer', 'reviewer', 'tester', 'researcher', 'custom'] as const;
 const PERMISSION_PROFILES = ['safe_local', 'dev_local', 'full_access'] as const;
+const CODEX_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
 const getPermissionProfileLabel = (profile: string) =>
   profile === 'full_access' ? 'Full Access' : profile === 'dev_local' ? 'Dev Local' : 'Safe Local';
 
@@ -1200,6 +1201,26 @@ export function LiveRoomWorkspace({
     await refreshSelectedRoom(selectedRoom.id);
   };
 
+  const handleUpdateCodexSettings = async (
+    memberId: string,
+    settings: { codexModel?: string; codexReasoningEffort?: string }
+  ) => {
+    if (!selectedRoom) return;
+
+    const response = await fetch(`/api/live-rooms/${selectedRoom.id}/members/${memberId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setError(data.error || '更新 Codex 模型设置失败');
+      return;
+    }
+    setNotice('Codex 模型设置已更新，将在下一次 run / continuation 生效。');
+    await refreshSelectedRoom(selectedRoom.id);
+  };
+
   const handleSetSpeaker = async (memberId: string) => {
     if (!selectedRoom) {
       return;
@@ -2055,7 +2076,7 @@ export function LiveRoomWorkspace({
                         {getMemberSubtitle(member)}
                       </div>
                       {member.memberType !== 'user' ? (
-                        <div className="mt-2 flex gap-2">
+                        <div className="mt-2 flex flex-wrap gap-2">
                           <select
                             value={member.role}
                             onChange={(event) => void handleUpdateMemberRole(member.id, event.target.value)}
@@ -2072,6 +2093,33 @@ export function LiveRoomWorkspace({
                               <option key={profile} value={profile}>{getPermissionProfileLabel(profile)}</option>
                             ))}
                           </select>
+                          {member.harnessType === 'codex' ? (
+                            <>
+                              <input
+                                key={`${member.id}:${member.codexModel || ''}`}
+                                defaultValue={member.codexModel || ''}
+                                placeholder="Model (inherit)"
+                                onBlur={(event) => {
+                                  if (event.target.value.trim() !== (member.codexModel || '')) {
+                                    void handleUpdateCodexSettings(member.id, { codexModel: event.target.value });
+                                  }
+                                }}
+                                className="w-36 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
+                              />
+                              <select
+                                value={member.codexReasoningEffort || ''}
+                                onChange={(event) => void handleUpdateCodexSettings(member.id, {
+                                  codexReasoningEffort: event.target.value,
+                                })}
+                                className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
+                              >
+                                <option value="">Thinking (inherit)</option>
+                                {CODEX_REASONING_EFFORTS.map((effort) => (
+                                  <option key={effort} value={effort}>{effort}</option>
+                                ))}
+                              </select>
+                            </>
+                          ) : null}
                         </div>
                       ) : null}
                       {member.contextWatermark ? (

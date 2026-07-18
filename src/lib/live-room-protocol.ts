@@ -45,3 +45,28 @@ export const buildLiveRoomControlManual = ({
 
 export const buildLiveRoomContinuationMessage = (manual: string, content: string) =>
   `${manual}\n\nLatest user message:\n${content}`;
+
+export const stripLeadingMentionForTarget = ({
+  content,
+  targetDisplayName,
+}: {
+  content: string;
+  targetDisplayName?: string | null;
+}) => {
+  if (!/^[@$]/.test(content)) return content;
+
+  if (targetDisplayName) {
+    const exactPrefix = `${content[0]}${targetDisplayName}`;
+    if (content.startsWith(exactPrefix)) {
+      const stripped = content.slice(exactPrefix.length).trim();
+      if (stripped) return stripped;
+    }
+  }
+
+  if (/^[@$]all\b/i.test(content)) {
+    const strippedAll = content.replace(/^[@$]all\b/i, '').trim();
+    if (strippedAll) return strippedAll;
+  }
+
+  return content.match(/^[@$]\S+\s+([\s\S]*)$/)?.[1].trim() || content;
+};

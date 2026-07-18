@@ -31,6 +31,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
       streamCallbacks: context.streamCallbacks,
       sandboxMode: context.permissionConfig?.sandboxMode,
       approvalPolicy: context.permissionConfig?.approvalPolicy,
+      model: context.model,
+      reasoningEffort: context.reasoningEffort,
       onSpawn: context.onSpawn,
       onThreadStarted: (threadId) => {
         context.onSessionStarted?.({
@@ -66,6 +68,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
         streamCallbacks: context.streamCallbacks,
         sandboxMode: context.permissionConfig?.sandboxMode,
         approvalPolicy: context.permissionConfig?.approvalPolicy,
+        model: context.model,
+        reasoningEffort: context.reasoningEffort,
         onSpawn: context.onSpawn,
         onThreadStarted: (threadId) => {
           context.onSessionStarted?.({

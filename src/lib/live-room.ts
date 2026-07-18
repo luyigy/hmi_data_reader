@@ -89,6 +89,8 @@ export interface LiveRoomMemberPayload {
   gatewayName: string | null;
   agentRecordId: string | null;
   acpxPermissionConfig?: string | null;
+  codexModel?: string | null;
+  codexReasoningEffort?: string | null;
   permissionProfile: string | null;
   permissionLabel: string | null;
   contextWatermark?: LiveRoomMemberContextWatermarkPayload | null;
@@ -616,6 +618,8 @@ export const serializeLiveRoomMember = (member: {
   gatewayId: string | null;
   agentRecordId: string | null;
   acpxPermissionConfig?: string | null;
+  codexModel?: string | null;
+  codexReasoningEffort?: string | null;
   gateway?: { name: string } | null;
   agentRecord?: {
     userNickname: string | null;
@@ -647,6 +651,8 @@ export const serializeLiveRoomMember = (member: {
       member.gateway?.name
       || (member.backend === 'remote_ssh' ? extractRemoteHostIdFromRoleLabel(member.roleLabel) : null),
     agentRecordId: member.agentRecordId,
+    codexModel: member.codexModel,
+    codexReasoningEffort: member.codexReasoningEffort,
     permissionProfile: null,
     permissionLabel: null,
     contextWatermark: null,
@@ -736,6 +742,8 @@ export const getLiveRoomMemberContextWatermark = async ({
     roleLabel?: string | null;
     role?: string | null;
     runtimeAgentId?: string | null;
+    codexModel?: string | null;
+    codexReasoningEffort?: string | null;
     gateway?: { id?: string | null; name?: string | null } | null;
   };
   sourceTask?: {
@@ -758,6 +766,8 @@ export const getLiveRoomMemberContextWatermark = async ({
     gatewayName: member.gateway?.name || null,
     runtimeAgentId: member.runtimeAgentId,
     role: member.role,
+    codexModel: member.codexModel,
+    codexReasoningEffort: member.codexReasoningEffort,
   });
   const participantKey = getTaskRoomParticipantTargetKey(participant);
   const participantUserId = `${getLiveRoomParticipantContinuationKey(member.id)}:speaker`;
@@ -900,6 +910,8 @@ export const buildLiveRoomAcpxParticipant = (member: {
   gatewayName?: string | null;
   runtimeAgentId?: string | null;
   role?: string | null;
+  codexModel?: string | null;
+  codexReasoningEffort?: string | null;
 }): AcpxParticipantRequest => ({
   gatewayId:
     member.backend === 'platform_local'
@@ -916,6 +928,8 @@ export const buildLiveRoomAcpxParticipant = (member: {
   agentId: member.runtimeAgentId || undefined,
   agentName: member.displayName,
   continuationKey: getLiveRoomParticipantContinuationKey(member.id),
+  model: member.codexModel || undefined,
+  reasoningEffort: member.codexReasoningEffort || undefined,
 });
 
 export const serializeLiveRoomMessage = (message: {
@@ -1204,6 +1218,8 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
       gatewayName: member.gateway?.name || null,
       runtimeAgentId: member.runtimeAgentId,
       role: member.role,
+      codexModel: member.codexModel,
+      codexReasoningEffort: member.codexReasoningEffort,
     }));
 
   if (participants.length === 0) {
@@ -1388,6 +1404,8 @@ export const postLiveRoomMessage = async ({
           gatewayName: targetMember.gateway?.name || null,
           runtimeAgentId: targetMember.runtimeAgentId,
           role: targetMember.role,
+          codexModel: targetMember.codexModel,
+          codexReasoningEffort: targetMember.codexReasoningEffort,
         })
       : null;
 

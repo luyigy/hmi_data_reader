@@ -441,6 +441,8 @@ model LiveRoomMember {
   roleLabel            String?
   role                 String                  @default("custom")
   acpxPermissionConfig String?                 // JSON object; null inherits the source task permission
+  codexModel           String?
+  codexReasoningEffort String?
 
   // Agent Identity Management fields
   userNickname         String?                 // 房间专属昵称（覆盖 Agent 级别的昵称）

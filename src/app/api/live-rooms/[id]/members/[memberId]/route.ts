@@ -6,6 +6,7 @@ import {
   setLiveRoomMemberPermission,
   type LiveRoomPermissionProfile,
 } from '@/lib/live-room-permissions';
+import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
 
 /**
  * DELETE /api/live-rooms/[id]/members/[memberId]
@@ -78,6 +79,7 @@ export async function PATCH(
     const permissionProfile = (['safe_local', 'dev_local', 'full_access'].includes(body.permissionProfile)
       ? body.permissionProfile
       : undefined) as LiveRoomPermissionProfile | undefined;
+    const hasCodexSettings = 'codexModel' in body || 'codexReasoningEffort' in body;
 
     // 验证成员存在
     const member = await prisma.liveRoomMember.findUnique({
@@ -99,6 +101,17 @@ export async function PATCH(
     if (member.roomId !== params.id) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
+    const codexSettings = hasCodexSettings
+      ? normalizeCodexMemberSettings({
+          model: 'codexModel' in body ? body.codexModel : member.codexModel,
+          reasoningEffort: 'codexReasoningEffort' in body
+            ? body.codexReasoningEffort
+            : member.codexReasoningEffort,
+        })
+      : null;
+    if (codexSettings && member.harnessType !== 'codex') {
+      return NextResponse.json({ error: 'Model settings are only supported for Codex members' }, { status: 400 });
+    }
 
     // 如果设置了昵称但未提供 shortAlias，自动生成
     let generatedShortAlias = shortAlias;
@@ -118,6 +131,8 @@ export async function PATCH(
         userNickname: userNickname ?? undefined,
         shortAlias: generatedShortAlias ?? undefined,
         role,
+        codexModel: codexSettings?.model,
+        codexReasoningEffort: codexSettings?.reasoningEffort,
       },
     });
     if (permissionProfile) {
@@ -134,13 +149,13 @@ export async function PATCH(
         shortAlias: updated.shortAlias,
         role: updated.role,
         permissionProfile,
+        codexModel: updated.codexModel,
+        codexReasoningEffort: updated.codexReasoningEffort,
       },
     });
   } catch (error) {
     console.error('Failed to update member:', error);
-    return NextResponse.json(
-      { error: 'Failed to update member' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Failed to update member';
+    return NextResponse.json({ error: message }, { status: message.startsWith('Invalid Codex') ? 400 : 500 });
   }
 }

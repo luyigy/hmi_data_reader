@@ -15,6 +15,7 @@ import {
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
 import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
+import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
 import {
   downloadFeishuMessageResource,
   sendFeishuInteractiveMessage,
@@ -61,6 +62,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap members',
   '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
   '/ap role --member=<memberName|idSuffix> --role=<planner|researcher|implementer|reviewer|tester|custom>',
+  '/ap codex-config --agent=<memberName|idSuffix> [--model=<model|inherit>] [--thinking=<level|inherit>]',
   '/ap speaker [memberName|idSuffix]',
   '/ap add --agents=<agentId>  支持短写：TX-server:claude',
   '/ap kick <memberName>',
@@ -131,7 +133,7 @@ type ParsedFeishuMessage = {
 };
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
+  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
   args: string[];
   options: Record<string, string>;
 };
@@ -494,7 +496,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const commandAlias = rawCommand.toLowerCase();
   const command = commandAlias === 'new' ? 'new-session' : commandAlias;
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
+  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
     return null;
   }
 
@@ -1840,6 +1842,52 @@ async function handleRoleCommand(command: ParsedFeishuCommand, context?: FeishuC
   return `✅ 已将 ${target.userNickname || target.displayName} 的角色设为 ${role}。`;
 }
 
+async function handleCodexConfigCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const room = await getBoundLiveRoom(context);
+  if (!room) return '当前 Feishu 会话尚未绑定 Live Room。';
+
+  const memberQuery = (command.options['agent'] || command.options['member'] || command.args[0] || '').trim();
+  const member = resolveRoomMemberQuery({ room, query: memberQuery });
+  if (!member) return memberQuery ? `找不到目标成员：${memberQuery}` : '当前房间没有可配置的 agent 成员。';
+  if (member.harnessType !== 'codex') return `${member.userNickname || member.displayName} 不是 Codex 成员。`;
+
+  const hasModel = 'model' in command.options;
+  const hasThinking = 'thinking' in command.options || 'reasoning' in command.options;
+  if (!hasModel && !hasThinking) {
+    return [
+      `${member.userNickname || member.displayName} Codex 配置`,
+      `Model: ${member.codexModel || 'inherit'}`,
+      `Thinking: ${member.codexReasoningEffort || 'inherit'}`,
+    ].join('\n');
+  }
+
+  const requestedModel = command.options['model'];
+  const requestedThinking = command.options['thinking'] ?? command.options['reasoning'];
+  const settings = normalizeCodexMemberSettings({
+    model: hasModel && requestedModel !== 'inherit' ? requestedModel : member.codexModel,
+    reasoningEffort: hasThinking && requestedThinking !== 'inherit'
+      ? requestedThinking
+      : member.codexReasoningEffort,
+  });
+  if (hasModel && requestedModel === 'inherit') settings.model = null;
+  if (hasThinking && requestedThinking === 'inherit') settings.reasoningEffort = null;
+
+  const updated = await prisma.liveRoomMember.update({
+    where: { id: member.id },
+    data: {
+      codexModel: settings.model,
+      codexReasoningEffort: settings.reasoningEffort,
+    },
+  });
+
+  return [
+    `✅ 已更新 ${updated.userNickname || updated.displayName} 的 Codex 配置`,
+    `Model: ${updated.codexModel || 'inherit'}`,
+    `Thinking: ${updated.codexReasoningEffort || 'inherit'}`,
+    '将在下一次 run / continuation 生效。',
+  ].join('\n');
+}
+
 async function handleSpeakerCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
   const roomId = await getBoundLiveRoomId(context);
   if (!roomId) {
@@ -2161,6 +2209,8 @@ export async function handleFeishuCommand(args: {
       return handleNickCommand(args.command, args.context);
     case 'role':
       return handleRoleCommand(args.command, args.context);
+    case 'codex-config':
+      return handleCodexConfigCommand(args.command, args.context);
     case 'speaker':
       return handleSpeakerCommand(args.command, args.context);
     case 'kick':

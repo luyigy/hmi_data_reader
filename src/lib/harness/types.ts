@@ -25,6 +25,8 @@ export interface HarnessExecutionContext {
   permissionConfig?: AcpxPermissionConfig;
   timeout: number | null;
   ephemeralSession?: boolean;
+  model?: string;
+  reasoningEffort?: string;
   sessionKey?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;

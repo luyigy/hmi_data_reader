@@ -1213,6 +1213,8 @@ const executeViaLocalHarness = async (
           permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
           ephemeralSession: participant.ephemeralSession,
+          model: participant.model,
+          reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
             continuationKey: participant.continuationKey,
             executionBackend: participant.executionBackend,
@@ -1242,6 +1244,8 @@ const executeViaLocalHarness = async (
           permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
           ephemeralSession: participant.ephemeralSession,
+          model: participant.model,
+          reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
             continuationKey: participant.continuationKey,
             executionBackend: participant.executionBackend,
@@ -1338,6 +1342,8 @@ const executeViaRemoteSshHarness = async (
       host: remoteHost,
       resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
       continuationMessage: participant.resumeSessionId ? participant.continuationMessage : undefined,
+      model: participant.model,
+      reasoningEffort: participant.reasoningEffort,
       streamCallbacks: callbacks,
       onSpawn: (child) => {
         registerRunningProcess({

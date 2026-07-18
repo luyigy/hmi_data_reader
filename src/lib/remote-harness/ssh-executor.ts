@@ -19,6 +19,8 @@ interface RemoteSshExecutionOptions {
   host: RemoteHarnessHostRecord;
   resumeSessionId?: string;
   continuationMessage?: string;
+  model?: string;
+  reasoningEffort?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   onProgress?: (event: {
@@ -155,10 +157,12 @@ const buildRemoteCommand = (
   workingDirectory?: string | null,
   taskId = 'default',
   resumeSessionId?: string,
-  shellMode: 'unix' | 'powershell' = 'unix'
+  shellMode: 'unix' | 'powershell' = 'unix',
+  model?: string,
+  reasoningEffort?: string
 ) => {
   if (shellMode === 'powershell') {
-    return buildRemotePowerShellCommand(harnessType, workingDirectory, taskId, resumeSessionId);
+    return buildRemotePowerShellCommand(harnessType, workingDirectory, taskId, resumeSessionId, model, reasoningEffort);
   }
 
   const quotedCwd = workingDirectory ? `cd ${shellQuote(workingDirectory)} && ` : '';
@@ -173,9 +177,10 @@ const buildRemoteCommand = (
   let command: string;
 
   if (harnessType === 'codex') {
+    const overrides = `${model ? ` --model ${shellQuote(model)}` : ''}${reasoningEffort ? ` --config ${shellQuote(`model_reasoning_effort="${reasoningEffort}"`)}` : ''}`;
     command = resumeSessionId
-      ? `${preflight}; ${quotedCwd}codex exec resume ${shellQuote(resumeSessionId)} --json --skip-git-repo-check -`
-      : `${preflight}; ${quotedCwd}codex exec --json --skip-git-repo-check -`;
+      ? `${preflight}; ${quotedCwd}codex exec resume ${shellQuote(resumeSessionId)} --json${overrides} --skip-git-repo-check -`
+      : `${preflight}; ${quotedCwd}codex exec --json${overrides} --skip-git-repo-check -`;
   } else if (harnessType === 'claude') {
     command = resumeSessionId
       ? `${preflight}; ${quotedCwd}PROMPT=$(cat) && claude --resume ${shellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions "$PROMPT"`
@@ -274,7 +279,9 @@ const buildRemotePowerShellCommand = (
   harnessType: string,
   workingDirectory?: string | null,
   taskId?: string,
-  resumeSessionId?: string
+  resumeSessionId?: string,
+  model?: string,
+  reasoningEffort?: string
 ) => {
   const prelude = [
     `$ErrorActionPreference = 'Stop'`,
@@ -286,9 +293,10 @@ const buildRemotePowerShellCommand = (
   const executable = getRemoteExecutableName(harnessType);
   const remotePiSessionDir = resolveRemotePiSessionDir(taskId || 'default', resumeSessionId);
   if (harnessType === 'codex') {
+    const overrides = `${model ? ` --model ${powerShellQuote(model)}` : ''}${reasoningEffort ? ` --config ${powerShellQuote(`model_reasoning_effort="${reasoningEffort}"`)}` : ''}`;
     script = resumeSessionId
-      ? `${prelude}; & codex exec resume ${powerShellQuote(resumeSessionId)} --json --skip-git-repo-check -`
-      : `${prelude}; & codex exec --json --skip-git-repo-check -`;
+      ? `${prelude}; & codex exec resume ${powerShellQuote(resumeSessionId)} --json${overrides} --skip-git-repo-check -`
+      : `${prelude}; & codex exec --json${overrides} --skip-git-repo-check -`;
   } else if (harnessType === 'claude') {
     script = resumeSessionId
       ? `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --resume ${powerShellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`
@@ -506,7 +514,7 @@ export const executeRemoteSshTask = async (
     ({ stdout, stderr, timing } = await runRemoteSshCommand({
       timeout: options.timeout,
       host: options.host,
-      command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'unix'),
+      command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'unix', options.model, options.reasoningEffort),
       stdin: prompt,
       streamCallbacks,
       onSpawn: options.onSpawn,
@@ -530,7 +538,7 @@ export const executeRemoteSshTask = async (
       ({ stdout, stderr, timing } = await runRemoteSshCommand({
         timeout: options.timeout,
         host: options.host,
-        command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'powershell'),
+        command: buildRemoteCommand(options.harnessType, options.host.workingDirectory, task.id, options.resumeSessionId, 'powershell', options.model, options.reasoningEffort),
         stdin: prompt,
         streamCallbacks,
         onSpawn: options.onSpawn,

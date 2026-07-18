@@ -95,6 +95,8 @@ export interface LiveRoomMember {
   agentRecordId?: string | null;
   permissionProfile?: string | null;
   permissionLabel?: string | null;
+  codexModel?: string | null;
+  codexReasoningEffort?: string | null;
   contextWatermark?: {
     usagePercentage: number;
     usageStatus: 'light' | 'elevated' | 'high';

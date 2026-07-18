@@ -31,6 +31,7 @@ import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduli
 import {
   buildLiveRoomContinuationMessage,
   buildLiveRoomControlManual,
+  stripLeadingMentionForTarget,
 } from '@/lib/live-room-protocol';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -65,6 +66,8 @@ type DeliveryRoomMember = {
   role?: string | null;
   sortOrder?: number;
   acpxPermissionConfig?: string | null;
+  codexModel?: string | null;
+  codexReasoningEffort?: string | null;
   gateway?: { name: string } | null;
   agentRecord?: { runtimeAgentId: string | null } | null;
 };
@@ -347,42 +350,6 @@ const ensureMemberSession = async (roomId: string, member: {
       supportsInterrupt: member.harnessType === 'codex' || member.backend === 'remote_ssh',
     },
   });
-};
-
-const stripLeadingMentionForTarget = ({
-  content,
-  targetDisplayName,
-}: {
-  content: string;
-  targetDisplayName?: string | null;
-}) => {
-  if (!content.startsWith('@')) {
-    return content;
-  }
-
-  if (targetDisplayName) {
-    const exactPrefix = `@${targetDisplayName}`;
-    if (content.startsWith(exactPrefix)) {
-      const stripped = content.slice(exactPrefix.length).trim();
-      if (stripped) {
-        return stripped;
-      }
-    }
-  }
-
-  if (/^[@$]all\b/i.test(content)) {
-    const strippedAll = content.replace(/^[@$]all\b/i, '').trim();
-    if (strippedAll) {
-      return strippedAll;
-    }
-  }
-
-  const nonGreedyMatch = content.match(/^@\S+\s+([\s\S]*)$/);
-  if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
-    return nonGreedyMatch[1].trim();
-  }
-
-  return content;
 };
 
 const inferDirectedVisibleRelayTarget = ({
@@ -749,6 +716,8 @@ const executeLiveRoomReplyViaAcpx = async ({
       : targetMember.gatewayId,
     gatewayName: targetMember.gateway?.name || null,
     runtimeAgentId: targetMember.runtimeAgentId || targetMember.agentRecord?.runtimeAgentId || null,
+    codexModel: targetMember.codexModel,
+    codexReasoningEffort: targetMember.codexReasoningEffort,
   });
 
   const permissionConfig = resolveLiveRoomMemberPermission(

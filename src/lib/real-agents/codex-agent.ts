@@ -11,6 +11,7 @@ import { processCodexJsonLine } from './codex-event-parser';
 export interface CodexConfig {
   apiKey?: string;
   model?: string;
+  reasoningEffort?: string;
   timeout?: number | null;
   workingDirectory?: string;
   ephemeral?: boolean;
@@ -53,6 +54,8 @@ export const executeCodexTask = async (
     skipGitRepoCheck = true,
     sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
     approvalPolicy = process.env.ACPX_CODEX_APPROVAL_POLICY === 'on-request' ? 'on-request' : 'never',
+    model,
+    reasoningEffort,
   } = config;
 
   try {
@@ -66,6 +69,8 @@ export const executeCodexTask = async (
       skipGitRepoCheck,
       sandboxMode,
       approvalPolicy,
+      model,
+      reasoningEffort,
       onSpawn: config.onSpawn,
       onThreadStarted: config.onThreadStarted,
     });
@@ -97,6 +102,8 @@ interface CodexExecutionOptions {
   skipGitRepoCheck: boolean;
   sandboxMode: string;
   approvalPolicy: 'never' | 'on-request';
+  model?: string;
+  reasoningEffort?: string;
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }
@@ -157,7 +164,9 @@ Take your time and be thorough.`;
       options.skipGitRepoCheck,
       options.sandboxMode,
       options.approvalPolicy,
-      Boolean(options.ephemeral)
+      Boolean(options.ephemeral),
+      options.model,
+      options.reasoningEffort
     ),
     prompt,
     options,
@@ -173,6 +182,8 @@ export const resumeCodexSession = async ({
   skipGitRepoCheck = true,
   sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
   approvalPolicy = process.env.ACPX_CODEX_APPROVAL_POLICY === 'on-request' ? 'on-request' : 'never',
+  model,
+  reasoningEffort,
   onSpawn,
   onThreadStarted,
 }: {
@@ -184,11 +195,13 @@ export const resumeCodexSession = async ({
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
   approvalPolicy?: 'never' | 'on-request';
+  model?: string;
+  reasoningEffort?: string;
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }): Promise<CodexCliResult> => {
   return runCodexJsonCommand({
-    args: buildResumeArgs(threadId, skipGitRepoCheck, sandboxMode, approvalPolicy),
+    args: buildResumeArgs(threadId, skipGitRepoCheck, sandboxMode, approvalPolicy, model, reasoningEffort),
     prompt,
     options: {
       timeout,
@@ -197,6 +210,8 @@ export const resumeCodexSession = async ({
       skipGitRepoCheck,
       sandboxMode,
       approvalPolicy,
+      model,
+      reasoningEffort,
       onSpawn,
       onThreadStarted,
     },
@@ -207,10 +222,14 @@ const buildExecArgs = (
   skipGitRepoCheck: boolean,
   sandboxMode: string,
   approvalPolicy: 'never' | 'on-request',
-  ephemeral: boolean
+  ephemeral: boolean,
+  model?: string,
+  reasoningEffort?: string
 ) => {
   const normalizedSandboxMode = sandboxMode.trim().toLowerCase();
   const args = ['exec', '--json'];
+  if (model) args.push('--model', model);
+  if (reasoningEffort) args.push('--config', `model_reasoning_effort="${reasoningEffort}"`);
 
   if (normalizedSandboxMode === 'workspace-write' && approvalPolicy === 'on-request') {
     args.push('--full-auto');
@@ -234,10 +253,14 @@ const buildResumeArgs = (
   threadId: string,
   skipGitRepoCheck: boolean,
   sandboxMode: string,
-  approvalPolicy: 'never' | 'on-request'
+  approvalPolicy: 'never' | 'on-request',
+  model?: string,
+  reasoningEffort?: string
 ) => {
   const normalizedSandboxMode = sandboxMode.trim().toLowerCase();
   const args = ['exec', 'resume', threadId, '--json'];
+  if (model) args.push('--model', model);
+  if (reasoningEffort) args.push('--config', `model_reasoning_effort="${reasoningEffort}"`);
 
   if (normalizedSandboxMode === 'workspace-write' && approvalPolicy === 'on-request') {
     args.push('--full-auto');
