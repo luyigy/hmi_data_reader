@@ -151,50 +151,44 @@ function markRuntimeStatus(
 }
 
 function buildCardActionHandler(prefix: string) {
-  return new Lark.CardActionHandler(
-    {
-      encryptKey: process.env.FEISHU_ENCRYPT_KEY?.trim(),
-      verificationToken: process.env.FEISHU_VERIFICATION_TOKEN?.trim(),
-    },
-    async (data: Lark.InteractiveCardActionEvent) => {
-      const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
-      if (!cmd) {
-        return {};
-      }
-
-      const openId = data.open_id;
-      const messageId = data.open_message_id;
-      const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
-
-      const approveMatch = /^approve:(.+)$/.exec(cmd);
-      const denyMatch = /^deny:(.+)$/.exec(cmd);
-
-      if (!approveMatch && !denyMatch) {
-        return {};
-      }
-
-      const requestId = (approveMatch ?? denyMatch)![1];
-      const approved = !!approveMatch;
-
-      try {
-        await resolveInteractionRequestWithContinuation({
-          requestId,
-          action: approved ? 'approve' : 'deny',
-          actor: { id: openId || 'feishu_card', name: actorName, channel: 'feishu' },
-        });
-
-        if (messageId) {
-          await updateFeishuApprovalCardResolved({ messageId, approved, actorName }).catch(() => {});
-        }
-
-        console.log(`${prefix} card action resolved`, { requestId, approved, actorName });
-      } catch (err) {
-        console.error(`${prefix} card action resolution failed`, { requestId, err });
-      }
-
+  return async (data: Lark.InteractiveCardActionEvent) => {
+    const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
+    if (!cmd) {
       return {};
     }
-  );
+
+    const openId = data.open_id;
+    const messageId = data.open_message_id;
+    const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
+
+    const approveMatch = /^approve:(.+)$/.exec(cmd);
+    const denyMatch = /^deny:(.+)$/.exec(cmd);
+
+    if (!approveMatch && !denyMatch) {
+      return {};
+    }
+
+    const requestId = (approveMatch ?? denyMatch)![1];
+    const approved = !!approveMatch;
+
+    try {
+      await resolveInteractionRequestWithContinuation({
+        requestId,
+        action: approved ? 'approve' : 'deny',
+        actor: { id: openId || 'feishu_card', name: actorName, channel: 'feishu' },
+      });
+
+      if (messageId) {
+        await updateFeishuApprovalCardResolved({ messageId, approved, actorName }).catch(() => {});
+      }
+
+      console.log(`${prefix} card action resolved`, { requestId, approved, actorName });
+    } catch (err) {
+      console.error(`${prefix} card action resolution failed`, { requestId, err });
+    }
+
+    return {};
+  };
 }
 
 function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
@@ -205,6 +199,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
     verificationToken: process.env.FEISHU_VERIFICATION_TOKEN?.trim(),
     loggerLevel: Lark.LoggerLevel.info,
   }).register({
+    'card.action.trigger': buildCardActionHandler(prefix),
     'im.message.receive_v1': async (data) => {
       const parsedMessage = parseWsIncomingMessage(data as FeishuWsMessagePayload);
       const message = parsedMessage
@@ -485,8 +480,6 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
     const appId = getRequiredEnv('FEISHU_APP_ID');
     const appSecret = getRequiredEnv('FEISHU_APP_SECRET');
     const eventDispatcher = attachRuntimeHandlers(prefix, host);
-    const cardActionHandler = buildCardActionHandler(prefix);
-
     const wsClient = new Lark.WSClient({
       appId,
       appSecret,
@@ -501,8 +494,7 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
       host,
     });
 
-    // SDK types are incomplete — cardActionHandler is supported at runtime
-    await (wsClient.start as (params: { eventDispatcher: Lark.EventDispatcher; cardActionHandler?: Lark.CardActionHandler }) => Promise<void>)({ eventDispatcher, cardActionHandler });
+    await wsClient.start({ eventDispatcher });
 
     state.status = 'running';
     state.startedAt = new Date().toISOString();
