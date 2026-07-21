@@ -57,14 +57,14 @@
 - IP: 192.168.1.4 (局域网直连)
 - 端口：18790
 - 端点：`/api/messages/incoming`
-- Token: `21FGUgEmv3vTMlkCO811z3pwyc2kywyMQrb3YW7l_mY`
+- Token: `<redacted; set LINUX_GATEWAY_TOKEN in the environment>`
 
 ### 2026-03-21 当前状态
 
 - IP: 10.0.8.4 (WireGuard)
 - 端口：18789 (18790 关闭)
 - 端点：`/api/messages/incoming` 返回 404
-- Token: 相同
+- Token: 通过环境变量 `LINUX_GATEWAY_TOKEN` 配置
 
 **变化分析**:
 1. Linux Gateway 可能已重启或更新
@@ -140,7 +140,7 @@ Agent Platform v2 (Windows)
 
 2. **更新 Agent Platform 数据库**
    - 修正 Gateway URL 格式 (`http://10.0.8.4:18789`)
-   - 配置 Token (`21FGUgEmv3vTMlkCO811z3pwyc2kywyMQrb3YW7l_mY`)
+   - 通过环境变量配置 Token (`LINUX_GATEWAY_TOKEN`)
 
 ### 等待 Linux-Agent 确认
 

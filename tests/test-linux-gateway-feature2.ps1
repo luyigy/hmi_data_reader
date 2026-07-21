@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 # Linux Gateway Config
 $linuxGatewayUrl = "http://10.0.8.4:18789"
-$linuxGatewayToken = "21FGUgEmv3vTMlkCO811z3pwyc2kywyMQrb3YW7l_mY"
+$linuxGatewayToken = $env:LINUX_GATEWAY_TOKEN
 $testMessage = "Feature 2 Test - Agent Platform v2 to Linux Gateway - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
 Write-Host "========================================"

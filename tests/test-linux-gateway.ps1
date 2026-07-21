@@ -1,6 +1,6 @@
 # Test Linux Gateway Connection
 $uri = "http://192.168.1.4:18790/api/messages/incoming"
-$token = "21FGUgEmv3vTMlkCO811z3pwyc2kywyMQrb3YW7l_mY"
+$token = $env:LINUX_GATEWAY_TOKEN
 
 $headers = @{
     "Authorization" = "Bearer $token"

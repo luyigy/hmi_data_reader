@@ -2,9 +2,9 @@
 
 const http = require('http');
 
-const LINUX_GATEWAY_HOST = '10.0.8.4';
-const LINUX_GATEWAY_PORT = 18789;
-const LINUX_GATEWAY_TOKEN = '21FGUgEmv3vTMlkCO811z3pwyc2kywyMQrb3YW7l_mY';
+const LINUX_GATEWAY_HOST = process.env.LINUX_GATEWAY_HOST || '127.0.0.1';
+const LINUX_GATEWAY_PORT = Number(process.env.LINUX_GATEWAY_PORT || '18789');
+const LINUX_GATEWAY_TOKEN = process.env.LINUX_GATEWAY_TOKEN || '';
 
 function makeRequest(path, method = 'GET', body = null) {
   return new Promise((resolve, reject) => {
@@ -20,7 +20,9 @@ function makeRequest(path, method = 'GET', body = null) {
     };
 
     if (body) {
-      options.headers['Authorization'] = `Bearer ${LINUX_GATEWAY_TOKEN}`;
+      if (LINUX_GATEWAY_TOKEN) {
+        options.headers['Authorization'] = `Bearer ${LINUX_GATEWAY_TOKEN}`;
+      }
       options.headers['Content-Length'] = Buffer.byteLength(body);
     }
 

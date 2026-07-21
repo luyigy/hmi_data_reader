@@ -1,6 +1,6 @@
 # Test Linux Gateway Connection (via WireGuard)
 $uri = "http://10.0.8.4:18789/api/health"
-$token = "21FGUgEmv3vTMlkCO811z3pwyc2kywyMQrb3YW7l_mY"
+$token = $env:LINUX_GATEWAY_TOKEN
 
 $headers = @{
     "Authorization" = "Bearer $token"
