@@ -8,6 +8,9 @@ import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import type { ChildProcess } from 'child_process';
 import { processCodexJsonLine } from './codex-event-parser';
 
+const isMissingCustomToolOutputWarning = (text: string) =>
+  text.includes('Custom tool call output is missing for call id:');
+
 export interface CodexConfig {
   apiKey?: string;
   model?: string;
@@ -366,7 +369,9 @@ const runCodexJsonCommand = async ({
     child.stderr.on('data', (data) => {
       const chunk = data.toString();
       stderr += chunk;
-      void options.streamCallbacks?.onStderrChunk?.(chunk);
+      if (!isMissingCustomToolOutputWarning(chunk)) {
+        void options.streamCallbacks?.onStderrChunk?.(chunk);
+      }
     });
 
     child.on('close', (code) => {

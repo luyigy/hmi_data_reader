@@ -432,10 +432,10 @@ const shouldRetryCodexEphemeral = ({
   && CODEX_EPHEMERAL_RETRY_PATTERNS.some((pattern) => pattern.test(message))
 );
 
-// Codex thread continuation is now enabled — transcript-only mode was removed because
-// it silently discarded all session history on every message. Stale thread fallback
-// is handled by INVALID_CODEX_CONTINUATION_PATTERNS + shouldRetryWithFreshSession.
-const shouldPreferTranscriptContinuation = () => false;
+// Local Codex receives the task-room transcript, so avoid reusing CLI threads that
+// may retain incomplete tool calls after an interruption.
+const shouldPreferTranscriptContinuation = (participant: ReturnType<typeof buildLiveRoomAcpxParticipant>) =>
+  participant.executionBackend === 'platform_local' && participant.harnessType === 'codex';
 
 const LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS = 8000;
 const LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS = 220;
@@ -617,7 +617,7 @@ const runLiveRoomAcpxAttempt = async ({
   const shouldUseContinuation =
     !useFreshSession
     && !forceEphemeral
-    && !shouldPreferTranscriptContinuation()
+    && !shouldPreferTranscriptContinuation(participant)
     && Boolean(latestSession?.continuationSessionId);
 
   // Live room local codex/claude runs can be legitimately long-lived.
