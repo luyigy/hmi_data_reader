@@ -1,9 +1,14 @@
-export function extractFeishuPostText(value: unknown): string {
+export function extractFeishuPostContent(value: unknown): { text: string; imageKeys: string[] } {
+  const imageKeys: string[] = [];
   const extract = (nodeValue: unknown): string[] => {
     if (Array.isArray(nodeValue)) return nodeValue.flatMap(extract);
     if (!nodeValue || typeof nodeValue !== 'object') return [];
 
     const node = nodeValue as Record<string, unknown>;
+    if (node.tag === 'img' && typeof node.image_key === 'string' && node.image_key.trim()) {
+      imageKeys.push(node.image_key.trim());
+      return [];
+    }
     if (node.tag === 'at' && typeof node.user_name === 'string') return [`@${node.user_name}`];
     if (typeof node.text === 'string') return [node.text];
 
@@ -15,5 +20,10 @@ export function extractFeishuPostText(value: unknown): string {
     ];
   };
 
-  return extract(value).map((part) => part.trim()).filter(Boolean).join('\n');
+  const text = extract(value).map((part) => part.trim()).filter(Boolean).join('\n');
+  return { text, imageKeys: Array.from(new Set(imageKeys)) };
+}
+
+export function extractFeishuPostText(value: unknown): string {
+  return extractFeishuPostContent(value).text;
 }

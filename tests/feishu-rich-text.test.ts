@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { extractFeishuPostText } from '../src/lib/feishu-post-text';
+import { extractFeishuPostContent, extractFeishuPostText } from '../src/lib/feishu-post-text';
 
 assert.equal(
   extractFeishuPostText({
@@ -18,4 +18,17 @@ assert.equal(
     post: { zh_cn: { title: '', content: [[{ tag: 'text', text: '兼容多语言外层' }]] } },
   }),
   '兼容多语言外层',
+);
+
+assert.deepEqual(
+  extractFeishuPostContent({
+    title: '图文消息',
+    content: [[
+      { tag: 'text', text: '请看两张图' },
+      { tag: 'img', image_key: 'img_1' },
+      { tag: 'img', image_key: 'img_2' },
+      { tag: 'img', image_key: 'img_1' },
+    ]],
+  }),
+  { text: '图文消息\n请看两张图', imageKeys: ['img_1', 'img_2'] },
 );

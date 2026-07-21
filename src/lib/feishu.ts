@@ -15,12 +15,14 @@ import {
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
 import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
-import { extractFeishuPostText } from '@/lib/feishu-post-text';
 import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
+import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 import {
-  downloadFeishuMessageResource,
-  sendFeishuInteractiveMessage,
-} from '@/lib/feishu-api';
+  hydrateFeishuMessageResources,
+  parseFeishuMessageContent,
+  type ParsedFeishuMessage,
+} from '@/lib/feishu-message-content';
+export { hydrateFeishuMessageResources, parseFeishuMessageContent } from '@/lib/feishu-message-content';
 import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
@@ -120,18 +122,6 @@ type FeishuIncomingEvent = {
 type FeishuWebhookHeaders =
   | Headers
   | Record<string, string | string[] | undefined>;
-
-type ParsedFeishuMessage = {
-  chatId: string;
-  chatType: string;
-  messageId: string;
-  senderOpenId: string;
-  messageType: string;
-  text: string;
-  fileKey?: string | null;
-  mentions: string[];
-  mentionNames: string[];
-};
 
 type ParsedFeishuCommand = {
   command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
@@ -309,6 +299,7 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
     messageType: parsedContent.messageType,
     text: parsedContent.text,
     fileKey: parsedContent.fileKey,
+    fileKeys: parsedContent.fileKeys,
     mentions: (message.mentions || [])
       .map((mention) => mention.id?.open_id)
       .filter((value): value is string => !!value),
@@ -316,110 +307,6 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
       .map((mention) => mention.name?.trim())
       .filter((value): value is string => !!value),
   };
-}
-
-export function parseFeishuMessageContent(
-  messageType: string | undefined,
-  rawContent: string
-): { text: string | null; messageType: string; fileKey?: string | null } | null {
-  let content: Record<string, unknown>;
-  try {
-    content = JSON.parse(rawContent) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-
-  const normalizedType = (messageType || 'text').trim().toLowerCase();
-  if (normalizedType === 'text') {
-    const text = typeof content.text === 'string' ? content.text.trim() : '';
-    return {
-      text: text || null,
-      messageType: normalizedType,
-    };
-  }
-
-  if (normalizedType === 'image') {
-    const imageKey = typeof content.image_key === 'string' ? content.image_key.trim() : '';
-    return {
-      text: imageKey ? `[图片消息] image_key=${imageKey}` : '[图片消息]',
-      messageType: normalizedType,
-      fileKey: imageKey || null,
-    };
-  }
-
-  if (normalizedType === 'file') {
-    const fileKey = typeof content.file_key === 'string' ? content.file_key.trim() : '';
-    const fileName = typeof content.file_name === 'string' ? content.file_name.trim() : '';
-    const suffix = [fileName, fileKey ? `file_key=${fileKey}` : ''].filter(Boolean).join(' ');
-    return {
-      text: suffix ? `[文件消息] ${suffix}` : '[文件消息]',
-      messageType: normalizedType,
-      fileKey: fileKey || null,
-    };
-  }
-
-  if (normalizedType === 'post') {
-    const text = extractFeishuPostText(content);
-    return { text: text || '[富文本消息]', messageType: normalizedType };
-  }
-
-  if (normalizedType === 'audio') {
-    const fileKey = typeof content.file_key === 'string' ? content.file_key.trim() : '';
-    return { text: '[语音消息]', messageType: normalizedType, fileKey: fileKey || null };
-  }
-
-  if (normalizedType === 'media') {
-    const fileKey = typeof content.file_key === 'string' ? content.file_key.trim() : '';
-    return { text: '[视频消息]', messageType: normalizedType, fileKey: fileKey || null };
-  }
-
-  if (normalizedType === 'sticker') {
-    return { text: '[表情消息]', messageType: normalizedType };
-  }
-
-  return { text: `[${normalizedType} 消息]`, messageType: normalizedType };
-}
-
-export async function hydrateFeishuMessageResources(
-  message: ParsedFeishuMessage
-): Promise<ParsedFeishuMessage> {
-  const downloadableType =
-    message.messageType === 'image'
-      ? 'image'
-      : message.messageType === 'file'
-      ? 'file'
-      : message.messageType === 'audio'
-      ? 'audio'
-      : message.messageType === 'media'
-      ? 'media'
-      : null;
-
-  if (!downloadableType || !message.fileKey) {
-    return message;
-  }
-
-  try {
-    const downloaded = await downloadFeishuMessageResource({
-      messageId: message.messageId,
-      fileKey: message.fileKey,
-      type: downloadableType,
-    });
-
-    return {
-      ...message,
-      text: [
-        message.text,
-        `local_path=${downloaded.filePath}`,
-        downloaded.contentType ? `content_type=${downloaded.contentType}` : '',
-        `size_bytes=${downloaded.sizeBytes}`,
-      ].filter(Boolean).join(' '),
-    };
-  } catch (error) {
-    return {
-      ...message,
-      text: `${message.text} [资源下载失败: ${error instanceof Error ? error.message : 'unknown error'}]`,
-    };
-  }
 }
 
 function stripBotMention(text: string): string {

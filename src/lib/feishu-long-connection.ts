@@ -117,6 +117,7 @@ function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
     messageType: parsedContent.messageType,
     text: parsedContent.text,
     fileKey: parsedContent.fileKey,
+    fileKeys: parsedContent.fileKeys,
     mentions: (message.mentions || [])
       .map((mention) => mention.id?.open_id)
       .filter((value): value is string => !!value),
