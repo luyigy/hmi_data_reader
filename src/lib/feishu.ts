@@ -15,6 +15,7 @@ import {
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
 import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
+import { extractFeishuPostText } from '@/lib/feishu-post-text';
 import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
 import {
   downloadFeishuMessageResource,
@@ -358,7 +359,8 @@ export function parseFeishuMessageContent(
   }
 
   if (normalizedType === 'post') {
-    return { text: '[富文本消息]', messageType: normalizedType };
+    const text = extractFeishuPostText(content);
+    return { text: text || '[富文本消息]', messageType: normalizedType };
   }
 
   if (normalizedType === 'audio') {
