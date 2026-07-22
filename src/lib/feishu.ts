@@ -17,6 +17,7 @@ import {
 import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
 import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
 import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
+import { readFeishuRuntimeStatus } from '@/lib/feishu-runtime-status';
 import {
   hydrateFeishuMessageResources,
   parseFeishuMessageContent,
@@ -437,11 +438,24 @@ async function handleStatusCommand() {
       prisma.crossGatewayChatSession.count().catch(() => 0),
     ]);
 
+  const runtime = readFeishuRuntimeStatus();
+  const runtimeLines = runtime?.metrics
+    ? [
+        `Feishu runtime: ${runtime.metrics.health} (PID ${runtime.pid})`,
+        `Threads: ${runtime.metrics.threads}`,
+        `File descriptors: ${runtime.metrics.openFileDescriptors}`,
+        `SQLite descriptors: ${runtime.metrics.sqliteFileDescriptors}`,
+        `RSS: ${runtime.metrics.rssMb} MB`,
+      ]
+    : [`Feishu runtime: ${runtime?.status ?? 'unavailable'} (metrics unavailable)`];
+
   return [
     'Agent Platform 状态',
     `Gateways: ${onlineGatewayCount}/${gatewayCount} online`,
     `Agents: ${onlineAgentCount}/${agentCount} online`,
     `Cross-gateway sessions: ${sessionCount}`,
+    '',
+    ...runtimeLines,
   ].join('\n');
 }
 

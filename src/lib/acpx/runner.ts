@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { ensureSqlitePragmas, prisma } from '@/lib/prisma';
 import type { ChildProcess } from 'child_process';
 import {
   createOpenClawResponse,
@@ -22,6 +22,7 @@ import { getParticipantContinuationKey } from './session-tracking';
 import { ensureTaskSession, setTaskSessionActiveRun } from './session';
 import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } from './interactions';
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
+import { createStreamWriteBuffer } from './stream-write-buffer';
 import type {
   AcpxLiveEventPayload,
   AcpxParticipantRequest,
@@ -29,7 +30,6 @@ import type {
   HarnessInteractionRequest,
   HarnessStreamCallbacks,
   RunControlAction,
-  RunActivityState,
   TaskRunStatus,
   WatchdogConfig,
 } from './types';
@@ -66,38 +66,6 @@ const parseJsonObject = (value?: string | null) => {
   } catch {
     return {} as Record<string, unknown>;
   }
-};
-
-const updateRunActivity = async (
-  taskRunId: string,
-  activityState: RunActivityState,
-  fields?: Partial<{
-    lastActivityAt: Date;
-    lastStdoutAt: Date;
-    lastStderrAt: Date;
-  }>
-) => {
-  await prisma.taskRun.update({
-    where: { id: taskRunId },
-    data: {
-      activityState,
-      ...fields,
-    },
-  });
-};
-
-const updateParticipantActivity = async (
-  participantId: string,
-  activityState: RunActivityState,
-  lastActivityAt?: Date
-) => {
-  await prisma.taskRunParticipant.update({
-    where: { id: participantId },
-    data: {
-      activityState,
-      lastActivityAt,
-    },
-  });
 };
 
 const persistSpawnedHarnessMetadata = async (
@@ -1612,26 +1580,46 @@ const executeParticipant = async (
     content: `${participant.role} 开始执行 (${participantPayload.gatewayName} / ${participant.harnessType})`,
   });
 
-  const callbacks: HarnessStreamCallbacks = {
-    onStdoutChunk: async (chunk) => {
-      const now = new Date();
-      await updateRunActivity(taskRunId, 'streaming', {
-        lastActivityAt: now,
-        lastStdoutAt: now,
-      });
-      await updateParticipantActivity(participantId, 'streaming', now);
-
+  const streamWrites = createStreamWriteBuffer(async (writes) => {
+    await ensureSqlitePragmas();
+    const now = new Date();
+    const hasStdout = writes.some(({ stream }) => stream === 'stdout');
+    const hasStderr = writes.some(({ stream }) => stream === 'stderr');
+    await prisma.$transaction([
+      prisma.taskRun.update({
+        where: { id: taskRunId },
+        data: {
+          activityState: 'streaming',
+          lastActivityAt: now,
+          lastStdoutAt: hasStdout ? now : undefined,
+          lastStderrAt: hasStderr ? now : undefined,
+        },
+      }),
+      prisma.taskRunParticipant.update({
+        where: { id: participantId },
+        data: { activityState: 'streaming', lastActivityAt: now },
+      }),
+    ]);
+    for (const write of writes) {
       await publishTaskRunEvent({
         taskId: request.taskId,
         taskRunId,
         participantId,
         participant: participantPayload,
-        eventType: 'stdout_chunk',
-        stream: 'stdout',
-        content: chunk,
+        eventType: `${write.stream}_chunk`,
+        stream: write.stream,
+        content: write.content,
       });
+    }
+    if (writes.some(({ interactionDetected }) => !interactionDetected)) {
+      await clearWaitingForInputIfNeeded(taskRunId, participantId);
+    }
+  });
 
+  const callbacks: HarnessStreamCallbacks = {
+    onStdoutChunk: async (chunk) => {
       const interactionRequest = detectHarnessInteractionRequest(chunk);
+      streamWrites.push({ stream: 'stdout', content: chunk, interactionDetected: Boolean(interactionRequest) });
       if (interactionRequest) {
         await handleHarnessInteractionRequest({
           request: interactionRequest,
@@ -1640,8 +1628,6 @@ const executeParticipant = async (
           participantId,
           participant: participantPayload,
         });
-      } else {
-        await clearWaitingForInputIfNeeded(taskRunId, participantId);
       }
 
       if (request.streamCallbacks?.onStdoutChunk) {
@@ -1653,24 +1639,8 @@ const executeParticipant = async (
       }
     },
     onStderrChunk: async (chunk) => {
-      const now = new Date();
-      await updateRunActivity(taskRunId, 'streaming', {
-        lastActivityAt: now,
-        lastStderrAt: now,
-      });
-      await updateParticipantActivity(participantId, 'streaming', now);
-
-      await publishTaskRunEvent({
-        taskId: request.taskId,
-        taskRunId,
-        participantId,
-        participant: participantPayload,
-        eventType: 'stderr_chunk',
-        stream: 'stderr',
-        content: chunk,
-      });
-
       const interactionRequest = detectHarnessInteractionRequest(chunk);
+      streamWrites.push({ stream: 'stderr', content: chunk, interactionDetected: Boolean(interactionRequest) });
       if (interactionRequest) {
         await handleHarnessInteractionRequest({
           request: interactionRequest,
@@ -1679,8 +1649,6 @@ const executeParticipant = async (
           participantId,
           participant: participantPayload,
         });
-      } else {
-        await clearWaitingForInputIfNeeded(taskRunId, participantId);
       }
 
       if (request.streamCallbacks?.onStderrChunk) {
@@ -1736,6 +1704,8 @@ const executeParticipant = async (
             contextWarning
           )
         : await executeViaGateway(request, participant, previousSummaries, taskRoomContext, contextWarning);
+
+    await streamWrites.drain();
 
     clearRunningProcess(registryParticipantId);
 
@@ -1824,6 +1794,11 @@ const executeParticipant = async (
       executionTime: result.executionTime,
     };
   } catch (error) {
+    try {
+      await streamWrites.drain();
+    } catch (streamError) {
+      console.error('[ACPX] Failed to persist buffered stream output:', streamError);
+    }
     clearRunningProcess(registryParticipantId);
     const message = error instanceof Error ? error.message : 'Unknown error';
     const requestedControl = consumeRunControlRequest(registryParticipantId);

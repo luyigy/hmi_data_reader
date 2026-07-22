@@ -9,6 +9,7 @@ import {
 import { Agent, DashboardStats, Gateway } from '@/types';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { FeishuRuntimeMonitor } from '@/components/dashboard/FeishuRuntimeMonitor';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,6 +100,8 @@ export default function DashboardPage() {
       </header>
 
       <DashboardStatsView stats={stats} />
+
+      <FeishuRuntimeMonitor />
 
       <section className="mb-10 grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

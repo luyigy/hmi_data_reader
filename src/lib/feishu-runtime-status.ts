@@ -10,6 +10,15 @@ export type FeishuRuntimeStatus = {
   lastHeartbeatAt: string | null;
   lastError: string | null;
   updatedAt: string;
+  metrics?: FeishuRuntimeMetrics | null;
+};
+
+export type FeishuRuntimeMetrics = {
+  threads: number;
+  openFileDescriptors: number;
+  sqliteFileDescriptors: number;
+  rssMb: number;
+  health: 'healthy' | 'warning' | 'critical';
 };
 
 const STATUS_DIR = path.join(process.cwd(), '.runtime');
@@ -36,6 +45,40 @@ function isProcessAlive(pid: number | null) {
         ? error.code
         : '';
     return code === 'EPERM';
+  }
+}
+
+export function classifyFeishuRuntimeMetrics(threads: number, sqliteFileDescriptors: number) {
+  if (threads >= 250 || sqliteFileDescriptors >= 100) return 'critical' as const;
+  if (threads >= 100 || sqliteFileDescriptors >= 25) return 'warning' as const;
+  return 'healthy' as const;
+}
+
+function readProcessMetrics(pid: number): FeishuRuntimeMetrics | null {
+  try {
+    const procDir = `/proc/${pid}`;
+    const status = fs.readFileSync(path.join(procDir, 'status'), 'utf8');
+    const threads = Number(/^Threads:\s+(\d+)/m.exec(status)?.[1]);
+    const rssKb = Number(/^VmRSS:\s+(\d+)/m.exec(status)?.[1]);
+    const descriptors = fs.readdirSync(path.join(procDir, 'fd'));
+    const sqliteFileDescriptors = descriptors.reduce((count, descriptor) => {
+      try {
+        const target = fs.readlinkSync(path.join(procDir, 'fd', descriptor));
+        return count + (/\.(?:db|sqlite)(?:-(?:wal|shm))?(?: \(deleted\))?$/.test(target) ? 1 : 0);
+      } catch {
+        return count;
+      }
+    }, 0);
+    if (!Number.isFinite(threads) || !Number.isFinite(rssKb)) return null;
+    return {
+      threads,
+      openFileDescriptors: descriptors.length,
+      sqliteFileDescriptors,
+      rssMb: Math.round(rssKb / 1024),
+      health: classifyFeishuRuntimeMetrics(threads, sqliteFileDescriptors),
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -70,7 +113,10 @@ export function readFeishuRuntimeStatus(): FeishuRuntimeStatus | null {
         updatedAt: getNowIsoString(),
       });
     }
-    return parsed;
+    return {
+      ...parsed,
+      metrics: parsed.pid ? readProcessMetrics(parsed.pid) : null,
+    };
   } catch {
     return null;
   }
