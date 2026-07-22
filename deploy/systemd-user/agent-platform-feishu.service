@@ -6,6 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/data1/code/agent-platform-v2
+Environment=TOKIO_WORKER_THREADS=8
 ExecStart=/data1/code/agent-platform-v2/scripts/run-feishu-runtime.sh
 Restart=always
 RestartSec=5
