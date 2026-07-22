@@ -1,5 +1,7 @@
 # 215_PLAN_20260722_PostgreSQL迁移
 
+> 2026-07-22 状态：Phase 0–3 已完成隔离验证；Phase 4 等待生产维护窗口。证据见 [218_REPORT_20260722_PostgreSQL迁移基线](./218_REPORT_20260722_PostgreSQL迁移基线.md)，操作见 [219_GUIDE_20260722_PostgreSQL切换回滚](./219_GUIDE_20260722_PostgreSQL切换回滚.md)，交接见 [220_HANDOVER_20260722_PostgreSQL迁移](./220_HANDOVER_20260722_PostgreSQL迁移.md)。
+
 ## 目标
 
 把 Agent Platform 的主数据从本机 SQLite 迁移到 PostgreSQL，改善多 Agent 并发、流式事件写入、多个服务进程共享数据库时的可靠性；保持现有 Prisma 数据模型和业务行为不变。

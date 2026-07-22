@@ -20,6 +20,9 @@ interface CodexJsonEvent {
       tool?: string;
       arguments?: unknown;
     };
+    server?: string;
+    tool?: string;
+    arguments?: unknown;
     changes?: unknown;
     query?: string;
   };
@@ -67,6 +70,24 @@ const summarizePatchChanges = (changes: unknown): string => {
 };
 
 const buildCodexToolEvent = (event: CodexJsonEvent): HarnessToolEvent | null => {
+  if (event.type === 'item.started') {
+    if (event.item?.type === 'command_execution') {
+      return {
+        toolName: 'Bash',
+        preview: buildToolPreview(event.item),
+        emoji: getToolEmoji('Bash'),
+      };
+    }
+
+    if (event.item?.type === 'mcp_tool_call') {
+      const toolName = event.item.tool?.trim() || 'Task';
+      const preview =
+        buildToolPreview(event.item.arguments)
+        || [event.item.server, event.item.tool].filter(Boolean).join(' / ');
+      return { toolName, preview, emoji: getToolEmoji(toolName) };
+    }
+  }
+
   switch (event.type) {
     case 'exec_command_begin': {
       const preview = buildToolPreview({

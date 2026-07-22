@@ -51,13 +51,16 @@ load_local_env_fallbacks() {
 
 normalize_database_url() {
   if [[ -z "${DATABASE_URL:-}" ]]; then
-    export DATABASE_URL="file:/data1/code/agent-platform-v2/prisma/dev.db"
-    return
+    echo "DATABASE_URL is required (expected postgresql://...)" >&2
+    return 1
   fi
 
   case "$DATABASE_URL" in
-    file:./dev.db|file:dev.db|file:./prisma/dev.db)
-      export DATABASE_URL="file:/data1/code/agent-platform-v2/prisma/dev.db"
+    postgresql://*|postgres://*)
+      ;;
+    *)
+      echo "DATABASE_URL must use PostgreSQL" >&2
+      return 1
       ;;
   esac
 }

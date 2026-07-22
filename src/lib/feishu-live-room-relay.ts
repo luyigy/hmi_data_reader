@@ -26,9 +26,7 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
       return true;
     }
 
-    return message.metadata.harnessType === 'codex'
-      && message.metadata.stream === 'stdout'
-      && message.metadata.aggregated === true;
+    return message.metadata.progressKind === 'heartbeat';
   }
 
   return false;

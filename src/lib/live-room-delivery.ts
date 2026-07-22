@@ -437,32 +437,7 @@ const shouldPreferTranscriptContinuation = (participant: ReturnType<typeof build
   participant.executionBackend === 'platform_local' && participant.harnessType === 'codex';
 
 const LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS = 8000;
-const LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS = 220;
-
-const normalizeProgressPreview = (chunk: string) => {
-  const trimmed = normalizeLiveRoomExecutionError(chunk)
-    .replace(/<p><\/p>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/\r/g, '')
-    .trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  if (/^[{\[]/.test(trimmed)) {
-    return null;
-  }
-
-  const singleLine = trimmed.replace(/\s+/g, ' ').trim();
-  if (!singleLine) {
-    return null;
-  }
-
-  return singleLine.length > LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS
-    ? `${singleLine.slice(0, LIVE_ROOM_PROGRESS_MAX_PREVIEW_CHARS - 3)}...`
-    : singleLine;
-};
+const LIVE_ROOM_HEARTBEAT_INTERVAL_MS = 45_000;
 
 const markParticipantContinuationStale = async ({
   participantId,
@@ -785,49 +760,18 @@ const executeLiveRoomReplyViaAcpx = async ({
     }),
   });
 
-  let lastProgressPreview = '';
-  let lastProgressPostedAt = 0;
-  let codexProgressStartedAt = 0;
-  let pendingCodexStdout = '';
   let progressFlushPromise: Promise<void> = Promise.resolve();
   let lastToolSignature = '';
   let lastToolPostedAt = 0;
+  let lastVisibleActivityAt = Date.now();
 
-  const enqueueProgressUpdate = (stream: 'stdout' | 'stderr', chunk: string, force = false) => {
-    const isAggregatedCodexStdout = targetMember.harnessType === 'codex' && stream === 'stdout';
-    if (isAggregatedCodexStdout) {
-      codexProgressStartedAt ||= Date.now();
-      pendingCodexStdout += chunk;
-      if (!force && Date.now() - codexProgressStartedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
-        return;
-      }
-      chunk = pendingCodexStdout;
-      pendingCodexStdout = '';
-      codexProgressStartedAt = 0;
-    }
-
-    const preview = normalizeProgressPreview(chunk);
-    if (!preview) {
-      return;
-    }
-
-    const now = Date.now();
-    if (preview === lastProgressPreview && now - lastProgressPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
-      return;
-    }
-
-    if (!force && now - lastProgressPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
-      return;
-    }
-
-    lastProgressPreview = preview;
-    lastProgressPostedAt = now;
-
+  const enqueueHeartbeatUpdate = () => {
+    lastVisibleActivityAt = Date.now();
     progressFlushPromise = progressFlushPromise
       .then(async () => {
         await postLiveRoomMessage({
           roomId: room.id,
-          content: `系统提示：${targetMember.displayName} 正在处理中${stream === 'stderr' ? '（stderr）' : ''}：${preview}`,
+          content: `系统提示：${targetMember.displayName} 仍在处理中，当前步骤耗时较长。`,
           messageType: 'system',
           metadata: resolveLiveRoomMessageMetadata({
             senderKind: 'system',
@@ -835,9 +779,8 @@ const executeLiveRoomReplyViaAcpx = async ({
             extras: {
               systemEvent: 'member_reply_progress',
               harnessType: targetMember.harnessType,
-              stream,
-              aggregated: isAggregatedCodexStdout,
-              preview,
+              progressKind: 'heartbeat',
+              preview: '当前步骤耗时较长',
             },
           }),
         });
@@ -847,13 +790,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       });
   };
 
-  const flushCodexProgress = () => {
-    if (!pendingCodexStdout) return;
-    enqueueProgressUpdate('stdout', '', true);
-  };
-
   const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }) => {
-    flushCodexProgress();
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
     const now = Date.now();
@@ -864,6 +801,7 @@ const executeLiveRoomReplyViaAcpx = async ({
 
     lastToolSignature = signature;
     lastToolPostedAt = now;
+    lastVisibleActivityAt = now;
 
     progressFlushPromise = progressFlushPromise
       .then(async () => {
@@ -889,14 +827,17 @@ const executeLiveRoomReplyViaAcpx = async ({
   };
 
   const liveRoomStreamCallbacks: HarnessStreamCallbacks = {
-    onStdoutChunk: (chunk: string) => {
-      enqueueProgressUpdate('stdout', chunk);
-    },
-    onStderrChunk: (chunk: string) => {
-      enqueueProgressUpdate('stderr', chunk);
-    },
     onToolEvent: enqueueToolUpdate,
   };
+
+  const heartbeatTimer = setInterval(() => {
+    if (Date.now() - lastVisibleActivityAt >= LIVE_ROOM_HEARTBEAT_INTERVAL_MS) {
+      enqueueHeartbeatUpdate();
+    }
+  }, LIVE_ROOM_HEARTBEAT_INTERVAL_MS);
+  heartbeatTimer.unref();
+
+  try {
 
   let acpxResult = await runLiveRoomAcpxAttempt({
     sourceTask,
@@ -1030,7 +971,7 @@ const executeLiveRoomReplyViaAcpx = async ({
     },
   });
 
-  flushCodexProgress();
+  clearInterval(heartbeatTimer);
   await progressFlushPromise.catch(() => undefined);
 
   if (acpxResult.status === 'interrupted') {
@@ -1055,6 +996,9 @@ const executeLiveRoomReplyViaAcpx = async ({
     threadId: refreshedParticipantSession?.continuationSessionId || session.threadId,
     remoteTiming: null,
   };
+  } finally {
+    clearInterval(heartbeatTimer);
+  }
 };
 
 const markRemoteDeliverySuperseded = async (deliveryId: string, reason: string) => {

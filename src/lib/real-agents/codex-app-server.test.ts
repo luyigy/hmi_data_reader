@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildCodexApprovalResponse,
   isSuccessfulCodexAppServerExit,
+  toCodexToolEvent,
   toCodexApprovalRequest,
 } from './codex-app-server';
 import { resolveInProcessApproval, waitForInProcessApproval } from '../acpx/in-process-approvals';
@@ -19,6 +20,13 @@ assert.deepEqual(buildCodexApprovalResponse('deny'), { decision: 'decline' });
 assert.equal(isSuccessfulCodexAppServerExit(0, 'partial response'), true);
 assert.equal(isSuccessfulCodexAppServerExit(0, ''), false);
 assert.equal(isSuccessfulCodexAppServerExit(1, 'partial response'), false);
+assert.deepEqual(toCodexToolEvent({ type: 'commandExecution', command: 'npm test' }), {
+  toolName: 'Bash', preview: 'npm test', emoji: '💻',
+});
+assert.deepEqual(toCodexToolEvent({
+  type: 'mcpToolCall', tool: 'impact', arguments: { target: 'runCodexAppServer' },
+}), { toolName: 'impact', preview: 'runCodexAppServer', emoji: '⚙️' });
+assert.equal(toCodexToolEvent({ type: 'agentMessage', text: 'hello' }), null);
 
 void (async () => {
   const approved = waitForInProcessApproval('approve');

@@ -19,12 +19,15 @@ assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress
 })), false);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
   harnessType: 'codex', stream: 'stdout', aggregated: true,
-})), true);
+})), false);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
   harnessType: 'codex', stream: 'stderr', aggregated: true,
 })), false);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
   harnessType: 'claude', stream: 'stdout', aggregated: true,
 })), false);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
+  harnessType: 'claude', progressKind: 'heartbeat',
+})), true);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_started')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('assistant')), true);

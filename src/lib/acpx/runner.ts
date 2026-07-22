@@ -1,4 +1,4 @@
-import { ensureSqlitePragmas, prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import type { ChildProcess } from 'child_process';
 import {
   createOpenClawResponse,
@@ -1602,7 +1602,6 @@ const executeParticipant = async (
   });
 
   const streamWrites = createStreamWriteBuffer(async (writes) => {
-    await ensureSqlitePragmas();
     const now = new Date();
     const hasStdout = writes.some(({ stream }) => stream === 'stdout');
     const hasStderr = writes.some(({ stream }) => stream === 'stderr');

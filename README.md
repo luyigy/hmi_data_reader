@@ -50,7 +50,7 @@ Start from `.env.example`. Do not commit `.env` or other local env files.
 
 Important variables:
 
-- `DATABASE_URL`: local database URL, usually `file:./dev.db`.
+- `DATABASE_URL`: PostgreSQL connection URL. See `.env.example` and the migration runbook.
 - `SOCKET_PORT` and `NEXT_PUBLIC_SOCKET_PORT`: Socket.IO port configuration.
 - `FEISHU_CONNECTION_MODE`: `long_connection` or `webhook`.
 - `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_VERIFICATION_TOKEN`, `FEISHU_ENCRYPT_KEY`: Feishu/Lark app credentials.
@@ -66,6 +66,8 @@ npm run build           # Build production bundle
 npm start               # Start production server
 npm run lint            # Run Next.js lint
 npm run feishu:runtime  # Start Feishu long-connection runtime
+npm run db:migrate:sqlite -- /path/to/dev.db  # One-time SQLite data import
+npm run db:verify:migration -- /path/to/dev.db # Full migration verification
 ```
 
 ## Repository Hygiene

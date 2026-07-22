@@ -97,6 +97,18 @@ function pruneSeenMessageIds(state: FeishuLongConnectionState) {
   }
 }
 
+type FeishuCardActionIdentity = {
+  open_id?: string;
+  open_message_id?: string;
+  operator?: { open_id?: string };
+  context?: { open_message_id?: string };
+};
+
+export const resolveFeishuCardActionIdentity = (data: FeishuCardActionIdentity) => ({
+  openId: data.operator?.open_id || data.open_id,
+  messageId: data.context?.open_message_id || data.open_message_id,
+});
+
 function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
   const message = payload.message;
   const senderOpenId = payload.sender?.sender_id?.open_id;
@@ -158,8 +170,7 @@ function buildCardActionHandler(prefix: string) {
       return {};
     }
 
-    const openId = data.open_id;
-    const messageId = data.open_message_id;
+    const { openId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
 
     const approveMatch = /^approve:(.+)$/.exec(cmd);

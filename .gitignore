@@ -37,6 +37,7 @@ yarn-error.log*
 # local runtime database
 prisma/dev.db
 prisma/dev.db-*
+prisma/dev.db.*
 
 # local tooling indexes
 /.codegraph/

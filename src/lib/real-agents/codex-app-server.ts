@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'child_process';
 import type { HarnessInteractionRequest, HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 
 type JsonRpcId = string | number;
 type JsonRpcMessage = {
@@ -63,6 +64,22 @@ export const buildCodexApprovalResponse = (decision: 'approve' | 'deny') => ({
 
 export const isSuccessfulCodexAppServerExit = (code: number | null, output: string) =>
   code === 0 && output.length > 0;
+
+export const toCodexToolEvent = (item: Record<string, any> | undefined) => {
+  if (!item) return null;
+
+  const tool = item.type === 'commandExecution'
+    ? { toolName: 'Bash', preview: buildToolPreview(item) }
+    : item.type === 'fileChange'
+    ? { toolName: 'Edit', preview: buildToolPreview(item.changes?.[0]) }
+    : item.type === 'mcpToolCall' || item.type === 'dynamicToolCall'
+    ? { toolName: item.tool || 'Task', preview: buildToolPreview(item.arguments) }
+    : item.type === 'webSearch'
+    ? { toolName: 'WebSearch', preview: buildToolPreview(item) }
+    : null;
+
+  return tool && { ...tool, emoji: getToolEmoji(tool.toolName) };
+};
 
 export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   const { spawn } = await import('child_process');
@@ -130,7 +147,10 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       void handleServerRequest(message);
       return;
     }
-    if (message.method === 'item/agentMessage/delta' && typeof message.params?.delta === 'string') {
+    if (message.method === 'item/started') {
+      const toolEvent = toCodexToolEvent(message.params?.item);
+      if (toolEvent) void options.streamCallbacks?.onToolEvent?.(toolEvent);
+    } else if (message.method === 'item/agentMessage/delta' && typeof message.params?.delta === 'string') {
       output += message.params.delta;
       void options.streamCallbacks?.onStdoutChunk?.(message.params.delta);
     } else if (message.method === 'turn/completed') {

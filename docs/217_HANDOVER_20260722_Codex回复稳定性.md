@@ -55,3 +55,9 @@ Codex app-server 的 `item/agentMessage/delta` 是 token 增量，旧链路将�
 1. 先观察至少一次完整的长 Codex run，确认 final reply 和末尾 flush。
 2. 执行 [215_PLAN_20260722_PostgreSQL迁移](./215_PLAN_20260722_PostgreSQL迁移.md)。
 3. 数据库切换稳定后，从 [216_PLAN_20260722_功能内聚重构](./216_PLAN_20260722_功能内聚重构.md) Phase 1 开始。
+
+## 2026-07-22 后续修正
+
+- 不再把任何 harness 的 stdout/回答正文当作过程消息转发，避免按时间窗口切断句子以及最终回复重复。
+- Live Room 共享层现在只展示开始、结构化工具事件和 45 秒静默 heartbeat；最终回答仍只发送一次。
+- Codex app-server 的 `item/started` 会按 item 类型转换为统一 `onToolEvent`，具体协议解析留在 Codex 执行器，公共投递层不再特判 Codex stdout。
