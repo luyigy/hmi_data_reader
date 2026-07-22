@@ -74,6 +74,16 @@ export async function getFeishuTenantAccessToken(): Promise<string> {
   return cachedToken.value;
 }
 
+export async function getFeishuUserDisplayName(openId: string): Promise<string | null> {
+  const token = await getFeishuTenantAccessToken();
+  const url = new URL(`${FEISHU_API_BASE}/contact/v3/users/${encodeURIComponent(openId)}`);
+  url.searchParams.set('user_id_type', 'open_id');
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await response.json() as { code?: number; msg?: string; data?: { user?: { name?: string } } };
+  if (!response.ok || data.code !== 0) throw new Error(data.msg || `Failed to get Feishu user: HTTP ${response.status}`);
+  return data.data?.user?.name?.trim() || null;
+}
+
 export async function sendFeishuTextMessage(args: {
   receiveId: string;
   text: string;

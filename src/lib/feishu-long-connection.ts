@@ -15,6 +15,7 @@ import {
   updateFeishuRuntimeStatus,
 } from '@/lib/feishu-runtime-status';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
+import { checkFeishuDirectMessageAccess, isFeishuAdmin, resolveFeishuAdminApproval } from '@/lib/feishu-access-approval';
 
 type FeishuLongConnectionState = {
   status: 'idle' | 'disabled' | 'starting' | 'running' | 'error';
@@ -163,9 +164,23 @@ function buildCardActionHandler(prefix: string) {
 
     const approveMatch = /^approve:(.+)$/.exec(cmd);
     const denyMatch = /^deny:(.+)$/.exec(cmd);
+    const adminMatch = /^admin-approval:(approve|deny):(.+)$/.exec(cmd);
+
+    if (adminMatch) {
+      try {
+        await resolveFeishuAdminApproval({ approvalId: adminMatch[2], approved: adminMatch[1] === 'approve', actorOpenId: openId, cardMessageId: messageId });
+      } catch (err) {
+        console.error(`${prefix} admin approval resolution failed`, { approvalId: adminMatch[2], err });
+      }
+      return {};
+    }
 
     if (!approveMatch && !denyMatch) {
       return {};
+    }
+    if (!isFeishuAdmin(openId)) {
+      const access = openId ? await prisma.feishuUserAccess.findUnique({ where: { openId }, select: { status: true } }) : null;
+      if (access?.status !== 'approved') return {};
     }
 
     const requestId = (approveMatch ?? denyMatch)![1];
@@ -200,6 +215,8 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
     loggerLevel: Lark.LoggerLevel.info,
   }).register({
     'card.action.trigger': buildCardActionHandler(prefix),
+    'im.message.reaction.created_v1': () => {},
+    'im.message.reaction.deleted_v1': () => {},
     'im.message.receive_v1': async (data) => {
       const parsedMessage = parseWsIncomingMessage(data as FeishuWsMessagePayload);
       const message = parsedMessage
@@ -227,6 +244,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
         console.log(`${prefix} ignored self message`, { messageId: message.messageId });
         return;
       }
+      if (!await checkFeishuDirectMessageAccess(message)) return;
       const command = parseFeishuCommand(message);
       if (!command) {
         // Not a /ap command — check if the chat is bound to a live room and relay

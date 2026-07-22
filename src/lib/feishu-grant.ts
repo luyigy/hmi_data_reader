@@ -145,10 +145,14 @@ const resolveRoomMember = (room: {
 export async function grantRightsForRoom(args: {
   roomId: string;
   profile: GrantProfile;
+  fullAccessApproved?: boolean;
   memberId?: string | null;
   memberQuery?: string | null;
   message?: string | null;
 }) {
+  if (args.profile === 'full_access' && !args.fullAccessApproved) {
+    throw new Error('Full Access requires Feishu administrator approval.');
+  }
   const room = await prisma.liveRoom.findUnique({
     where: { id: args.roomId },
     include: {

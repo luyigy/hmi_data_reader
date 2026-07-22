@@ -14,6 +14,7 @@ import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 import { ensureFeishuConversationBinding, tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
 import { listLiveRoomCatalogAgents } from '@/lib/live-room';
+import { checkFeishuDirectMessageAccess } from '@/lib/feishu-access-approval';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +81,9 @@ export async function POST(request: NextRequest) {
     const selfOpenId = process.env.FEISHU_BOT_OPEN_ID?.trim();
     if (selfOpenId && message.senderOpenId === selfOpenId) {
       return NextResponse.json({ success: true, ignored: true, reason: 'self_message' });
+    }
+    if (!await checkFeishuDirectMessageAccess(message)) {
+      return NextResponse.json({ success: true, ignored: true, reason: 'access_pending' });
     }
 
     const command = parseFeishuCommand(message);

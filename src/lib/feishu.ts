@@ -29,6 +29,7 @@ import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interactio
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { rotateTaskSession } from '@/lib/acpx/session';
 import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
+import { commandRequestsFullAccess, handleFeishuUserManagementCommand, isFeishuAdmin, requestFullAccessApproval } from '@/lib/feishu-access-approval';
 import {
   buildAcpxPermissionConfigForProfile,
   normalizeAcpxPermissionConfig,
@@ -56,6 +57,8 @@ const DEFAULT_HELP_TEXT = [
   '可用命令：',
   '/ap help',
   '/ap status',
+  '/ap users [--status=approved|pending|denied|revoked|blocked]  (管理员)',
+  '/ap user <approve|revoke|block|unblock> <open_id>  (管理员)',
   '/ap gateways',
   '/ap agents [gatewayId]',
   '/ap hosts',
@@ -125,7 +128,7 @@ type FeishuWebhookHeaders =
   | Record<string, string | string[] | undefined>;
 
 type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
+  command: 'help' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
   args: string[];
   options: Record<string, string>;
 };
@@ -386,7 +389,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const commandAlias = rawCommand.toLowerCase();
   const command = commandAlias === 'new' ? 'new-session' : commandAlias;
-  if (!['help', 'status', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
+  if (!['help', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
     return null;
   }
 
@@ -1008,7 +1011,7 @@ function resolveRoomMemberQuery(args: {
   ) || null;
 }
 
-async function handleGrantCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+async function handleGrantCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext, fullAccessApproved = false) {
   const roomId = await getBoundLiveRoomId(context);
   if (!roomId) {
     return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法授权。';
@@ -1035,6 +1038,7 @@ async function handleGrantCommand(command: ParsedFeishuCommand, context?: Feishu
     profile,
     memberQuery,
     message,
+    fullAccessApproved,
   });
 
   return [
@@ -2100,12 +2104,22 @@ export async function handleFeishuCommand(args: {
   command: ParsedFeishuCommand;
   baseUrl: string;
   context?: FeishuConversationContext;
+  adminApproved?: boolean;
 }) {
+  if (args.context && commandRequestsFullAccess(args.command) && !args.adminApproved) {
+    if (args.command.command === 'rights' || !isFeishuAdmin(args.context.senderOpenId)) {
+      return requestFullAccessApproval({ command: args.command, baseUrl: args.baseUrl, context: args.context });
+    }
+    args.adminApproved = true;
+  }
   switch (args.command.command) {
     case 'help':
       return DEFAULT_HELP_TEXT;
     case 'status':
       return handleStatusCommand();
+    case 'users':
+    case 'user':
+      return handleFeishuUserManagementCommand({ command: args.command, senderOpenId: args.context?.senderOpenId });
     case 'gateways':
       return handleGatewaysCommand();
     case 'agents':
@@ -2145,7 +2159,7 @@ export async function handleFeishuCommand(args: {
     case 'answer':
       return handleApproveLikeCommand({ command: args.command, context: args.context, action: 'answer' });
     case 'grant':
-      return handleGrantCommand(args.command, args.context);
+      return handleGrantCommand(args.command, args.context, args.adminApproved);
     case 'rights':
       return handleRightsCommand(args);
     case 'handover':

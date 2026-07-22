@@ -427,6 +427,38 @@ model FeishuConversationBinding {
   @@index([liveRoomId])
 }
 
+model FeishuUserAccess {
+  openId        String    @id
+  status        String    @default("pending") // pending, approved, denied, revoked, blocked
+  chatId        String?
+  displayName   String?
+  nameUpdatedAt DateTime?
+  decidedBy     String?
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+}
+
+model FeishuAdminApproval {
+  id             String    @id @default(cuid())
+  kind           String    // user_pairing, full_access
+  status         String    @default("pending") // pending, processing, approved, denied, expired
+  requesterOpenId String
+  requesterChatId String
+  payloadJson    String?
+  cardMessageId  String?
+  expiresAt      DateTime?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([requesterOpenId, kind, status])
+  @@index([status, expiresAt])
+}
+
 model LiveRoomMember {
   id                   String                  @id @default(cuid())
   roomId               String

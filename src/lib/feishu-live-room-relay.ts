@@ -12,13 +12,14 @@ type FeishuConversationBindingRow = {
   liveRoomId: string;
 };
 
-const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
+export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   if (message.messageType === 'assistant') {
     return true;
   }
 
   if (message.messageType === 'system') {
-    return message.content.startsWith('系统提示：');
+    return message.content.startsWith('系统提示：')
+      && message.metadata?.systemEvent !== 'member_reply_progress';
   }
 
   return false;
