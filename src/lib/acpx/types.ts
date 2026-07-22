@@ -93,6 +93,7 @@ export interface AcpxParticipantRequest {
   resumeThreadId?: string;
   continuationMessage?: string;
   ephemeralSession?: boolean;
+  codexHome?: string;
   model?: string;
   reasoningEffort?: string;
 }
@@ -143,6 +144,9 @@ export interface HarnessStreamCallbacks {
   onStdoutChunk?: (chunk: string) => Promise<void> | void;
   onStderrChunk?: (chunk: string) => Promise<void> | void;
   onToolEvent?: (event: HarnessToolEvent) => Promise<void> | void;
+  onInteractionRequest?: (
+    request: HarnessInteractionRequest
+  ) => Promise<'approve' | 'deny'>;
 }
 
 export interface HarnessInteractionRequest {

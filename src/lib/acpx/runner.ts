@@ -22,6 +22,7 @@ import { getParticipantContinuationKey } from './session-tracking';
 import { ensureTaskSession, setTaskSessionActiveRun } from './session';
 import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } from './interactions';
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
+import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
 import type {
   AcpxLiveEventPayload,
@@ -695,7 +696,7 @@ const handleHarnessInteractionRequest = async ({
   taskRunId: string;
   participantId: string;
   participant: NonNullable<AcpxLiveEventPayload['participant']>;
-}) => {
+}): Promise<'approve' | 'deny' | void> => {
   const isWaitingUser =
     request.kind === 'permission_request'
     || request.kind === 'input_request'
@@ -740,6 +741,9 @@ const handleHarnessInteractionRequest = async ({
     })) ?? [],
     defaultAnswer: request.defaultOptionId ?? null,
   });
+  const inProcessDecision = request.resumeStrategy === 'in_process'
+    ? waitForInProcessApproval(persistedRequest.id)
+    : null;
 
   await prisma.taskRun.update({
     where: { id: taskRunId },
@@ -840,6 +844,21 @@ const handleHarnessInteractionRequest = async ({
       excerpt: request.rawContent.slice(0, 600),
     },
   });
+
+  if (inProcessDecision) {
+    try {
+      const result = await inProcessDecision;
+      if (result.timedOut) {
+        await prisma.taskRunInteractionRequest.updateMany({
+          where: { id: persistedRequest.id, status: 'pending' },
+          data: { status: 'expired', resolvedAt: new Date() },
+        });
+      }
+      return result.decision;
+    } finally {
+      cancelInProcessApproval(persistedRequest.id);
+    }
+  }
 };
 
 const clearWaitingForInputIfNeeded = async (taskRunId: string, participantId: string) => {
@@ -1181,6 +1200,7 @@ const executeViaLocalHarness = async (
           permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
           ephemeralSession: participant.ephemeralSession,
+          codexHome: participant.codexHome,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
@@ -1212,6 +1232,7 @@ const executeViaLocalHarness = async (
           permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
           ephemeralSession: participant.ephemeralSession,
+          codexHome: participant.codexHome,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
@@ -1661,6 +1682,19 @@ const executeParticipant = async (
     },
     onToolEvent: request.streamCallbacks?.onToolEvent
       ? (event) => { void request.streamCallbacks!.onToolEvent!(event); }
+      : undefined,
+    onInteractionRequest: participant.executionBackend === 'platform_local'
+      && participant.harnessType === 'codex'
+      ? async (interactionRequest) => {
+          const decision = await handleHarnessInteractionRequest({
+            request: interactionRequest,
+            taskId: request.taskId,
+            taskRunId,
+            participantId,
+            participant: participantPayload,
+          });
+          return decision || 'deny';
+        }
       : undefined,
   };
 

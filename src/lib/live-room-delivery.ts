@@ -662,6 +662,10 @@ const runLiveRoomAcpxAttempt = async ({
         ? buildLiveRoomContinuationMessage(liveRoomControlManual, contentForAgent)
         : undefined,
       ephemeralSession: forceEphemeral,
+      codexHome:
+        participant.executionBackend === 'platform_local' && participant.harnessType === 'codex'
+          ? `/data1/.agent-platform/codex-rooms/${room.id}`
+          : undefined,
     }],
     workingDirectory: sourceTask.workingDirectory || process.cwd(),
     permissionConfig,

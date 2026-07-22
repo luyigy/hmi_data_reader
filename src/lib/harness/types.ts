@@ -25,6 +25,7 @@ export interface HarnessExecutionContext {
   permissionConfig?: AcpxPermissionConfig;
   timeout: number | null;
   ephemeralSession?: boolean;
+  codexHome?: string;
   model?: string;
   reasoningEffort?: string;
   sessionKey?: string;

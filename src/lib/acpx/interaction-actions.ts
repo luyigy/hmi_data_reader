@@ -12,6 +12,8 @@ import {
   setTaskSessionPermissionOverride,
 } from './session';
 import type { AcpxPermissionConfig, TaskRunInteractionRequestStatus } from './types';
+import { resolveInProcessApproval } from './in-process-approvals';
+import { getRunningProcess } from './process-registry';
 
 const parseMetadata = (value: string | null | undefined): Record<string, unknown> => {
   if (!value) {
@@ -128,6 +130,75 @@ export const resolveInteractionRequestWithContinuation = async (args: {
       ? 'denied'
       : 'answered';
 
+  const runningProcess = participant ? getRunningProcess(participant.id) : null;
+  const canResolveInProcess = request.requestKind === 'permission_request'
+    && participant?.executionBackend === 'platform_local'
+    && participant.harnessType === 'codex'
+    && (args.action === 'approve' || args.action === 'deny')
+    && runningProcess?.child.exitCode === null
+    && !runningProcess.child.killed;
+
+  if (canResolveInProcess && participant) {
+    const claimed = await prisma.taskRunInteractionRequest.updateMany({
+      where: { id: request.id, status: 'pending' },
+      data: {
+        status: resolvedStatus,
+        responseText: args.responseText ?? null,
+        responseMetadata: stringifyMetadata({ actor: args.actor, resumed: true, resumeStrategy: 'in_process' }),
+        resolvedAt: new Date(),
+      },
+    });
+    if (claimed.count === 0) {
+      throw new Error('Interaction request is already resolved');
+    }
+    if (!resolveInProcessApproval(request.id, args.action === 'approve' ? 'approve' : 'deny')) {
+      await prisma.taskRunInteractionRequest.update({
+        where: { id: request.id },
+        data: {
+          status: 'cancelled',
+          responseMetadata: stringifyMetadata({ actor: args.actor, resumed: false, reason: 'process_exited' }),
+        },
+      });
+      throw new Error('Interaction request is already resolved or the Codex process exited');
+    }
+
+    await Promise.all([
+      prisma.taskRun.update({
+        where: { id: request.taskRunId },
+        data: { status: 'running', activityState: 'streaming', error: null },
+      }),
+      prisma.taskRunParticipant.update({
+        where: { id: participant.id },
+        data: { status: 'running', activityState: 'streaming', error: null },
+      }),
+      request.taskSessionId
+        ? prisma.taskSession.update({
+            where: { id: request.taskSessionId },
+            data: { status: 'active', attentionState: 'normal' },
+          })
+        : Promise.resolve(),
+    ]);
+
+    await publishTaskRunEvent({
+      taskId: request.taskId,
+      taskRunId: request.taskRunId,
+      participantId: participant.id,
+      participant: participantPayload,
+      eventType: 'interaction_request_resolved',
+      content: args.action === 'approve' ? 'Codex 权限请求已批准，原进程正在继续。' : 'Codex 权限请求已拒绝，原进程正在继续。',
+      metadata: {
+        interactionRequestId: request.id,
+        requestKind: request.requestKind,
+        requestStatus: resolvedStatus,
+        resumed: true,
+        resumeStrategy: 'in_process',
+        actor: args.actor,
+      },
+    });
+
+    return { requestId: request.id, status: resolvedStatus, resumed: true, continuationRunId: null };
+  }
+
   if (!participant) {
     const updated = await prisma.taskRunInteractionRequest.update({
       where: { id: request.id },
@@ -238,7 +309,8 @@ export const resolveInteractionRequestWithContinuation = async (args: {
   const taskPermissionConfig = readTaskPermissionConfig(request.task.acpxPermissionConfig);
   const shouldEscalateSessionPermission =
     args.action === 'approve'
-    && (request.requestKind === 'permission_request' || request.requestKind === 'workspace_issue');
+    && (request.requestKind === 'permission_request' || request.requestKind === 'workspace_issue')
+    && participant.harnessType !== 'codex';
   const sessionPermissionConfig = resolveTaskSessionPermissionConfig({
     taskSession: request.taskSession,
     fallback: taskPermissionConfig,

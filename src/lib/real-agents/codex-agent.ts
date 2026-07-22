@@ -7,6 +7,8 @@
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import type { ChildProcess } from 'child_process';
 import { processCodexJsonLine } from './codex-event-parser';
+import { runCodexAppServer } from './codex-app-server';
+import { prepareCodexHome } from './codex-home';
 
 const isMissingCustomToolOutputWarning = (text: string) =>
   text.includes('Custom tool call output is missing for call id:');
@@ -18,6 +20,7 @@ export interface CodexConfig {
   timeout?: number | null;
   workingDirectory?: string;
   ephemeral?: boolean;
+  codexHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
@@ -68,6 +71,7 @@ export const executeCodexTask = async (
       timeout,
       workingDirectory,
       ephemeral,
+      codexHome: config.codexHome,
       streamCallbacks,
       skipGitRepoCheck,
       sandboxMode,
@@ -101,6 +105,7 @@ interface CodexExecutionOptions {
   timeout: number | null;
   workingDirectory: string;
   ephemeral?: boolean;
+  codexHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck: boolean;
   sandboxMode: string;
@@ -116,8 +121,13 @@ interface CodexCliResult {
   threadId: string | null;
 }
 
-const buildCodexChildEnv = () => {
+const buildCodexChildEnv = (codexHome?: string) => {
   const env = { ...process.env } as NodeJS.ProcessEnv;
+
+  if (codexHome) {
+    prepareCodexHome(codexHome);
+    env.CODEX_HOME = codexHome;
+  }
 
   const httpProxy = process.env.FEISHU_RUNTIME_CODEX_HTTP_PROXY?.trim();
   const httpsProxy = process.env.FEISHU_RUNTIME_CODEX_HTTPS_PROXY?.trim();
@@ -162,6 +172,10 @@ Please complete this task step by step. When you're done, provide a summary of:
 
 Take your time and be thorough.`;
 
+  if (options.approvalPolicy === 'on-request') {
+    return runCodexAppServer({ prompt, ...options, env: buildCodexChildEnv(options.codexHome) });
+  }
+
   return runCodexJsonCommand({
     args: buildExecArgs(
       options.skipGitRepoCheck,
@@ -181,6 +195,7 @@ export const resumeCodexSession = async ({
   prompt,
   timeout,
   workingDirectory,
+  codexHome,
   streamCallbacks,
   skipGitRepoCheck = true,
   sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
@@ -194,6 +209,7 @@ export const resumeCodexSession = async ({
   prompt: string;
   timeout: number | null;
   workingDirectory: string;
+  codexHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
@@ -203,6 +219,23 @@ export const resumeCodexSession = async ({
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
 }): Promise<CodexCliResult> => {
+  if (approvalPolicy === 'on-request') {
+    return runCodexAppServer({
+      prompt,
+      threadId,
+      timeout,
+      workingDirectory,
+      sandboxMode,
+      approvalPolicy,
+      model,
+      reasoningEffort,
+      streamCallbacks,
+      onSpawn,
+      onThreadStarted,
+      env: buildCodexChildEnv(codexHome),
+    });
+  }
+
   return runCodexJsonCommand({
     args: buildResumeArgs(threadId, skipGitRepoCheck, sandboxMode, approvalPolicy, model, reasoningEffort),
     prompt,
@@ -215,6 +248,7 @@ export const resumeCodexSession = async ({
       approvalPolicy,
       model,
       reasoningEffort,
+      codexHome,
       onSpawn,
       onThreadStarted,
     },
@@ -301,7 +335,7 @@ const runCodexJsonCommand = async ({
 
     const child = spawn('codex', args, {
       cwd: options.workingDirectory,
-      env: buildCodexChildEnv(),
+      env: buildCodexChildEnv(options.codexHome),
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
     });
