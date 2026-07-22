@@ -18,8 +18,17 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   }
 
   if (message.messageType === 'system') {
-    return message.content.startsWith('系统提示：')
-      && message.metadata?.systemEvent !== 'member_reply_progress';
+    if (!message.content.startsWith('系统提示：')) {
+      return false;
+    }
+
+    if (message.metadata?.systemEvent !== 'member_reply_progress') {
+      return true;
+    }
+
+    return message.metadata.harnessType === 'codex'
+      && message.metadata.stream === 'stdout'
+      && message.metadata.aggregated === true;
   }
 
   return false;

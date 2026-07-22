@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { buildCodexApprovalResponse, toCodexApprovalRequest } from './codex-app-server';
+import {
+  buildCodexApprovalResponse,
+  isSuccessfulCodexAppServerExit,
+  toCodexApprovalRequest,
+} from './codex-app-server';
 import { resolveInProcessApproval, waitForInProcessApproval } from '../acpx/in-process-approvals';
 
 const request = toCodexApprovalRequest('item/commandExecution/requestApproval', {
@@ -12,6 +16,9 @@ assert.equal(request?.resumeStrategy, 'in_process');
 assert.match(request?.rawContent || '', /git push/);
 assert.deepEqual(buildCodexApprovalResponse('approve'), { decision: 'accept' });
 assert.deepEqual(buildCodexApprovalResponse('deny'), { decision: 'decline' });
+assert.equal(isSuccessfulCodexAppServerExit(0, 'partial response'), true);
+assert.equal(isSuccessfulCodexAppServerExit(0, ''), false);
+assert.equal(isSuccessfulCodexAppServerExit(1, 'partial response'), false);
 
 void (async () => {
   const approved = waitForInProcessApproval('approve');

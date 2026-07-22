@@ -7,7 +7,7 @@ type JsonRpcMessage = {
   method?: string;
   params?: Record<string, any>;
   result?: any;
-  error?: { message?: string };
+  error?: { code?: number; message?: string };
 };
 
 export interface CodexAppServerOptions {
@@ -61,6 +61,9 @@ export const buildCodexApprovalResponse = (decision: 'approve' | 'deny') => ({
   decision: decision === 'approve' ? 'accept' : 'decline',
 });
 
+export const isSuccessfulCodexAppServerExit = (code: number | null, output: string) =>
+  code === 0 && output.length > 0;
+
 export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   const { spawn } = await import('child_process');
   const child = spawn('codex', ['app-server', '--stdio'], {
@@ -101,7 +104,9 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       ? toCodexApprovalRequest(message.method, message.params)
       : null;
     if (!approval || message.id === undefined) {
-      if (message.id !== undefined) send({ id: message.id, error: { message: 'Unsupported server request' } });
+      if (message.id !== undefined) {
+        send({ id: message.id, error: { code: -32601, message: 'Unsupported server request' } });
+      }
       return;
     }
     try {
@@ -152,7 +157,10 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     const error = new Error(`Codex app-server exited with code ${code}`);
     pending.forEach((waiter) => waiter.reject(error));
     pending.clear();
-    if (!completed) failTurn(error);
+    if (!completed) {
+      if (isSuccessfulCodexAppServerExit(code, output)) finishTurn();
+      else failTurn(error);
+    }
   });
 
   const timeoutId = typeof options.timeout === 'number' && options.timeout > 0

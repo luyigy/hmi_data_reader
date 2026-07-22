@@ -25,7 +25,6 @@ import {
 import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import type { AcpxPermissionConfig, HarnessStreamCallbacks } from '@/lib/acpx/types';
-import { FeishuProgressTracker } from '@/lib/feishu-progress';
 import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduling';
 import {
   parseLiveRoomWorkflowCommand,
@@ -786,20 +785,27 @@ const executeLiveRoomReplyViaAcpx = async ({
     }),
   });
 
-  const feishuBinding = await prisma.feishuConversationBinding.findFirst({
-    where: { liveRoomId: room.id },
-    select: { chatId: true },
-  }).catch(() => null);
-  console.log(`[delivery] feishuBinding for room ${room.id}: ${feishuBinding ? feishuBinding.chatId : 'null'}`);
-  const feishuTracker = feishuBinding ? new FeishuProgressTracker(feishuBinding.chatId) : null;
-
   let lastProgressPreview = '';
   let lastProgressPostedAt = 0;
+  let codexProgressStartedAt = 0;
+  let pendingCodexStdout = '';
   let progressFlushPromise: Promise<void> = Promise.resolve();
   let lastToolSignature = '';
   let lastToolPostedAt = 0;
 
-  const enqueueProgressUpdate = (stream: 'stdout' | 'stderr', chunk: string) => {
+  const enqueueProgressUpdate = (stream: 'stdout' | 'stderr', chunk: string, force = false) => {
+    const isAggregatedCodexStdout = targetMember.harnessType === 'codex' && stream === 'stdout';
+    if (isAggregatedCodexStdout) {
+      codexProgressStartedAt ||= Date.now();
+      pendingCodexStdout += chunk;
+      if (!force && Date.now() - codexProgressStartedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+        return;
+      }
+      chunk = pendingCodexStdout;
+      pendingCodexStdout = '';
+      codexProgressStartedAt = 0;
+    }
+
     const preview = normalizeProgressPreview(chunk);
     if (!preview) {
       return;
@@ -810,7 +816,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       return;
     }
 
-    if (now - lastProgressPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+    if (!force && now - lastProgressPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
       return;
     }
 
@@ -828,7 +834,9 @@ const executeLiveRoomReplyViaAcpx = async ({
             targetMemberId: targetMember.id,
             extras: {
               systemEvent: 'member_reply_progress',
+              harnessType: targetMember.harnessType,
               stream,
+              aggregated: isAggregatedCodexStdout,
               preview,
             },
           }),
@@ -839,7 +847,13 @@ const executeLiveRoomReplyViaAcpx = async ({
       });
   };
 
+  const flushCodexProgress = () => {
+    if (!pendingCodexStdout) return;
+    enqueueProgressUpdate('stdout', '', true);
+  };
+
   const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }) => {
+    flushCodexProgress();
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
     const now = Date.now();
@@ -881,14 +895,7 @@ const executeLiveRoomReplyViaAcpx = async ({
     onStderrChunk: (chunk: string) => {
       enqueueProgressUpdate('stderr', chunk);
     },
-    onToolEvent: feishuTracker
-      ? (event) => {
-          feishuTracker.onToolEvent(event.toolName, event.preview, event.emoji);
-          enqueueToolUpdate(event);
-        }
-      : (event) => {
-          enqueueToolUpdate(event);
-        },
+    onToolEvent: enqueueToolUpdate,
   };
 
   let acpxResult = await runLiveRoomAcpxAttempt({
@@ -1003,10 +1010,6 @@ const executeLiveRoomReplyViaAcpx = async ({
     });
   }
 
-  if (feishuTracker) {
-    await feishuTracker.flush().catch(() => {});
-  }
-
   await prisma.task.update({
     where: { id: sourceTask.id },
     data: {
@@ -1027,6 +1030,9 @@ const executeLiveRoomReplyViaAcpx = async ({
     },
   });
 
+  flushCodexProgress();
+  await progressFlushPromise.catch(() => undefined);
+
   if (acpxResult.status === 'interrupted') {
     throw new Error('Interrupted by user');
   }
@@ -1036,11 +1042,8 @@ const executeLiveRoomReplyViaAcpx = async ({
   }
 
   if (acpxResult.status === 'failed') {
-    await progressFlushPromise.catch(() => undefined);
     throw new Error(participantResult?.error || 'Live room ACPX execution failed');
   }
-
-  await progressFlushPromise.catch(() => undefined);
 
   const refreshedParticipantSession = await findLatestParticipantSession(sourceTask.id, participant, {
     taskSessionId: sourceTask.currentTaskSession?.id || null,
