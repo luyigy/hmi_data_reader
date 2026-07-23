@@ -8,12 +8,15 @@ import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { getToolEmoji, buildToolPreview } from '@/lib/acpx/tool-emojis';
 import type { ChildProcess } from 'child_process';
 import { resolveClaudeInstallation } from './claude-installations';
+import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 export interface ClaudeConfig {
   apiKey?: string;
   model?: string;
   timeout?: number | null;
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   resumeSessionId?: string;
@@ -59,6 +62,8 @@ export const executeClaudeTask = async (
     const result = await executeClaudeCLI(task, {
       timeout,
       workingDirectory,
+      workspaceRoot: config.workspaceRoot,
+      networkAccess: config.networkAccess,
       streamCallbacks,
       harnessType,
       onSpawn: config.onSpawn,
@@ -87,6 +92,8 @@ export const resumeClaudeSession = async ({
   prompt,
   timeout,
   workingDirectory = process.cwd(),
+  workspaceRoot,
+  networkAccess,
   streamCallbacks,
   onSpawn,
   onSessionStarted,
@@ -96,6 +103,8 @@ export const resumeClaudeSession = async ({
   prompt: string;
   timeout: number | null;
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   onSessionStarted?: (sessionId: string) => void;
@@ -113,6 +122,8 @@ export const resumeClaudeSession = async ({
       {
         timeout,
         workingDirectory,
+        workspaceRoot,
+        networkAccess,
         streamCallbacks,
         onSpawn,
         resumeSessionId: sessionId,
@@ -146,6 +157,8 @@ const executeClaudeCLI = async (
   options: {
     timeout: number | null;
     workingDirectory: string;
+    workspaceRoot?: string;
+    networkAccess?: 'restricted' | 'enabled';
     streamCallbacks?: HarnessStreamCallbacks;
     onSpawn?: (child: ChildProcess) => void;
     resumeSessionId?: string;
@@ -264,9 +277,11 @@ Take your time and be thorough.`;
     // On Windows, need to use shell: true to find .cmd files
     // On Unix/Linux, use shell: false for better security and performance
     const shell = process.platform === 'win32';
-    const child = spawn(installation.binaryPath, args, {
+    const env = buildClaudeChildEnv();
+    const wrapped = wrapWithBubblewrap({ command: installation.binaryPath, commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, networkAccess: options.networkAccess, env, configPaths: installation.configDir ? [installation.configDir] : [] });
+    const child = spawn(wrapped.command, wrapped.args, {
       cwd: options.workingDirectory,
-      env: buildClaudeChildEnv(),
+      env,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell,
     });

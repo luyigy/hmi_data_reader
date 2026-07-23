@@ -23,6 +23,8 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
     const result = await executeClaudeTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
+      workspaceRoot: context.workspaceRoot,
+      networkAccess: context.networkAccess,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
       harnessType,
@@ -52,6 +54,8 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
       prompt: continuationMessage,
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
+      workspaceRoot: context.workspaceRoot,
+      networkAccess: context.networkAccess,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
       harnessType,

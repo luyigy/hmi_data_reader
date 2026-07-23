@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { getFeishuUserDisplayName, sendFeishuInteractiveMessage, sendFeishuTextMessage, updateFeishuApprovalCardResolved } from '@/lib/feishu-api';
 import { ensureFeishuConversationBinding } from '@/lib/feishu-live-room';
+import { resolveWorkspaceDirectory, resolveWorkspaceRoot } from '@/lib/feishu-workspace';
+import { interruptLiveRoomRunningProcess } from '@/lib/live-room-process-registry';
 
 type StoredCommand = {
   command: Parameters<typeof import('@/lib/feishu').handleFeishuCommand>[0]['command'];
@@ -13,7 +15,7 @@ const fallbackDisplayName = (openId: string) => `openid:...${openId.slice(-6)}`;
 
 export const isFeishuAdmin = (openId: string | null | undefined) => !!openId && openId === adminOpenId();
 
-async function sendAdminCard(args: { id: string; title: string; detail: string }) {
+async function sendAdminCard(args: { id: string; title: string; detail: string; workspaceRootInput?: boolean }) {
   const admin = adminOpenId();
   if (!admin) throw new Error('Missing required environment variable: FEISHU_ADMIN_OPEN_ID');
   await sendFeishuInteractiveMessage({
@@ -24,8 +26,9 @@ async function sendAdminCard(args: { id: string; title: string; detail: string }
       header: { template: 'orange', title: { tag: 'plain_text', content: args.title } },
       elements: [
         { tag: 'markdown', content: args.detail },
+        ...(args.workspaceRootInput ? [{ tag: 'input', name: 'workspaceRoot', required: true, placeholder: { tag: 'plain_text', content: '/absolute/workspace/root' } }] : []),
         { tag: 'action', actions: [
-          { tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '批准' }, value: { cmd: `admin-approval:approve:${args.id}` } },
+          { tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '批准' }, value: { cmd: `admin-approval:approve:${args.id}` }, ...(args.workspaceRootInput ? { form_action_type: 'submit' } : {}) },
           { tag: 'button', type: 'danger', text: { tag: 'plain_text', content: '拒绝' }, value: { cmd: `admin-approval:deny:${args.id}` } },
         ] },
       ],
@@ -41,11 +44,15 @@ export async function checkFeishuDirectMessageAccess(args: {
 }) {
   if (args.chatType !== 'p2p' || isFeishuAdmin(args.senderOpenId)) return true;
   const access = await prisma.feishuUserAccess.findUnique({ where: { openId: args.senderOpenId } });
-  if (access?.status === 'approved') {
+  if (access?.status === 'approved' && access.workspaceRoot) {
     const binding = await prisma.feishuConversationBinding.findFirst({
       where: { chatId: args.chatId, chatType: 'p2p', senderOpenId: args.senderOpenId },
     });
     return !!binding && access.chatId === args.chatId;
+  }
+  if (access?.status === 'approved') {
+    await sendFeishuTextMessage({ receiveId: args.chatId, receiveIdType: 'chat_id', replyId: args.messageId, text: '你的账号已批准，但尚未配置授权根目录。请联系管理员执行 /ap user workspace。' });
+    return false;
   }
   if (access?.status === 'blocked') {
     await sendFeishuTextMessage({
@@ -75,6 +82,7 @@ export async function checkFeishuDirectMessageAccess(args: {
       id: approval.id,
       title: 'Feishu 用户准入审批',
       detail: `姓名：${resolvedName}\nopen_id：\`${args.senderOpenId}\`\n来源 chatId：\`${args.chatId}\``,
+      workspaceRootInput: true,
     });
   }
 
@@ -125,6 +133,7 @@ export async function resolveFeishuAdminApproval(args: {
   approved: boolean;
   actorOpenId: string | null | undefined;
   cardMessageId?: string;
+  workspaceRoot?: string;
 }) {
   if (!isFeishuAdmin(args.actorOpenId)) throw new Error('Only the configured Feishu administrator may resolve this approval.');
   const now = new Date();
@@ -141,17 +150,22 @@ export async function resolveFeishuAdminApproval(args: {
       if (args.approved) {
         const access = await prisma.feishuUserAccess.findUnique({ where: { openId: approval.requesterOpenId } });
         if (!access || access.status !== 'pending') throw new Error('This access request is no longer pending.');
+        const workspaceRoot = await resolveWorkspaceRoot(args.workspaceRoot || '');
         await ensureFeishuConversationBinding({
           context: { chatId: approval.requesterChatId, chatType: 'p2p', senderOpenId: approval.requesterOpenId, messageId: `approval:${approval.id}`, mentionNames: [] },
           allowDefaultAgent: true,
+          workingDirectory: workspaceRoot,
+          workspaceRoot,
+          permissionConfig: { profile: 'safe_local', sandboxMode: 'workspace-write', networkAccess: 'enabled', approvalPolicy: 'never', writableRoots: [workspaceRoot] },
         });
+        await prisma.feishuUserAccess.update({ where: { openId: approval.requesterOpenId }, data: { workspaceRoot } });
       }
       const accessUpdated = await prisma.feishuUserAccess.updateMany({
         where: { openId: approval.requesterOpenId, status: 'pending' },
         data: { status: args.approved ? 'approved' : 'denied', decidedBy: args.actorOpenId, decidedAt: now },
       });
       if (accessUpdated.count !== 1) throw new Error('This access request is no longer pending.');
-      responseText = args.approved ? '准入已批准，已创建默认 Safe Local 会话。请重新发送消息。' : '准入申请已被拒绝。';
+      responseText = args.approved ? '准入已批准，已创建受限 Safe Local 会话。请重新发送消息。' : '准入申请已被拒绝。';
     } else if (args.approved && approval.payloadJson) {
       const stored = JSON.parse(approval.payloadJson) as StoredCommand;
       const { handleFeishuCommand } = await import('@/lib/feishu');
@@ -196,23 +210,48 @@ export async function handleFeishuUserManagementCommand(args: {
       user.displayName || fallbackDisplayName(user.openId),
       user.openId,
       user.status,
+      user.workspaceRoot || '(未设置)',
       user.updatedAt.toISOString(),
     ].join(' | ')).join('\n') : '没有匹配的 Feishu 用户。';
   }
 
   const [action, openId] = args.command.args;
-  if (!['approve', 'revoke', 'block', 'unblock'].includes(action || '') || !openId) {
-    return '用法：/ap user <approve|revoke|block|unblock> <open_id>';
+  if (!['approve', 'workspace', 'revoke', 'block', 'unblock'].includes(action || '') || !openId) {
+    return '用法：/ap user approve <open_id> --workspace-root=/absolute/path | /ap user workspace <open_id> <absolute_root> | /ap user <revoke|block|unblock> <open_id>';
   }
   const user = await prisma.feishuUserAccess.findUnique({ where: { openId } });
   if (!user) return `找不到 Feishu 用户：${openId}`;
+  if (action === 'workspace') {
+    const workspaceRoot = await resolveWorkspaceRoot(args.command.args.slice(2).join(' ') || args.command.options['workspace-root'] || '');
+    const bindings = await prisma.feishuConversationBinding.findMany({
+      where: { OR: [{ senderOpenId: openId }, ...(user.chatId ? [{ chatId: user.chatId, chatType: 'p2p' }] : [])] },
+      select: { liveRoomId: true },
+    });
+    await prisma.feishuUserAccess.update({ where: { openId }, data: { workspaceRoot, decidedBy: args.senderOpenId, decidedAt: new Date() } });
+    for (const binding of bindings) {
+      const room = await prisma.liveRoom.findUnique({ where: { id: binding.liveRoomId }, select: { workingDirectory: true, sourceTaskId: true, members: { select: { id: true } } } });
+      if (!room) continue;
+      let workingDirectory = room.workingDirectory;
+      try { await resolveWorkspaceDirectory(workspaceRoot, workingDirectory || undefined); }
+      catch { workingDirectory = workspaceRoot; }
+      await prisma.liveRoom.update({ where: { id: binding.liveRoomId }, data: { workingDirectory } });
+      if (room.sourceTaskId) await prisma.task.update({ where: { id: room.sourceTaskId }, data: { workingDirectory, acpxPermissionConfig: JSON.stringify({ profile: 'safe_local', sandboxMode: 'workspace-write', networkAccess: 'enabled', approvalPolicy: 'never', writableRoots: [workspaceRoot] }) } });
+      room.members.forEach((member) => interruptLiveRoomRunningProcess(member.id));
+    }
+    return `✅ ${user.displayName || fallbackDisplayName(openId)} 的授权根目录已更新为：${workspaceRoot}`;
+  }
   if (action === 'approve') {
     if (user.status === 'blocked') return '该用户已被封禁，请先 unblock。';
     if (!user.chatId) return '该用户没有可用的 P2P chatId，无法批准。';
+    const workspaceRoot = await resolveWorkspaceRoot(args.command.options['workspace-root'] || '');
     await ensureFeishuConversationBinding({
       context: { chatId: user.chatId, chatType: 'p2p', senderOpenId: openId, messageId: `admin:${Date.now()}`, mentionNames: [] },
       allowDefaultAgent: true,
+      workingDirectory: workspaceRoot,
+      workspaceRoot,
+      permissionConfig: { profile: 'safe_local', sandboxMode: 'workspace-write', networkAccess: 'enabled', approvalPolicy: 'never', writableRoots: [workspaceRoot] },
     });
+    await prisma.feishuUserAccess.update({ where: { openId }, data: { workspaceRoot } });
   }
   const status = action === 'unblock' ? 'revoked' : action === 'approve' ? 'approved' : action === 'revoke' ? 'revoked' : 'blocked';
   await prisma.$transaction([

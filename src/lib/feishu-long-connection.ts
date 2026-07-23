@@ -179,7 +179,8 @@ function buildCardActionHandler(prefix: string) {
 
     if (adminMatch) {
       try {
-        await resolveFeishuAdminApproval({ approvalId: adminMatch[2], approved: adminMatch[1] === 'approve', actorOpenId: openId, cardMessageId: messageId });
+        const formValue = (data.action as unknown as { form_value?: Record<string, unknown> }).form_value;
+        await resolveFeishuAdminApproval({ approvalId: adminMatch[2], approved: adminMatch[1] === 'approve', actorOpenId: openId, cardMessageId: messageId, workspaceRoot: typeof formValue?.workspaceRoot === 'string' ? formValue.workspaceRoot : undefined });
       } catch (err) {
         console.error(`${prefix} admin approval resolution failed`, { approvalId: adminMatch[2], err });
       }

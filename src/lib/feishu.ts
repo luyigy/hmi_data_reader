@@ -30,6 +30,7 @@ import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { rotateTaskSession } from '@/lib/acpx/session';
 import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
 import { commandRequestsFullAccess, handleFeishuUserManagementCommand, isFeishuAdmin, requestFullAccessApproval } from '@/lib/feishu-access-approval';
+import { resolveWorkspaceDirectory } from '@/lib/feishu-workspace';
 import {
   buildAcpxPermissionConfigForProfile,
   normalizeAcpxPermissionConfig,
@@ -58,7 +59,9 @@ const DEFAULT_HELP_TEXT = [
   '/ap help',
   '/ap status',
   '/ap users [--status=approved|pending|denied|revoked|blocked]  (管理员)',
-  '/ap user <approve|revoke|block|unblock> <open_id>  (管理员)',
+  '/ap user approve <open_id> --workspace-root=/absolute/path  (管理员)',
+  '/ap user workspace <open_id> <absolute_root>  (管理员)',
+  '/ap user <revoke|block|unblock> <open_id>  (管理员)',
   '/ap gateways',
   '/ap agents [gatewayId]',
   '/ap hosts',
@@ -83,7 +86,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap grant <dev|full> [--agent=<name>] [message]',
   '/ap rights [--agent=<name>]',
   '/ap handover [agentName|idSuffix] [--title="handover title"]',
-  '/ap workspace [/path/to/dir]',
+  '/ap workspace [root 内的绝对或相对路径]',
   '/ap new [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
@@ -2006,6 +2009,10 @@ async function handleWorkspaceCommand(command: ParsedFeishuCommand, context?: Fe
     return '当前 Feishu 会话尚未绑定 Live Room。';
   }
 
+  if (!context?.senderOpenId) return '无法识别当前 Feishu 用户。';
+  const access = await prisma.feishuUserAccess.findUnique({ where: { openId: context.senderOpenId }, select: { workspaceRoot: true } });
+  if (!isFeishuAdmin(context.senderOpenId) && !access?.workspaceRoot) return '当前用户尚未配置授权根目录，请联系管理员。';
+  const workspaceRoot = access?.workspaceRoot;
   const newDir = command.args.join(' ').trim() || command.options['path'] || '';
   if (!newDir) {
     const rows = await prisma.$queryRaw<Array<{ workingDirectory: string | null }>>`
@@ -2014,20 +2021,23 @@ async function handleWorkspaceCommand(command: ParsedFeishuCommand, context?: Fe
       WHERE "id" = ${roomId}
       LIMIT 1
     `;
-    return `当前工作目录：${rows[0]?.workingDirectory || process.cwd()}\n如需修改：/ap workspace /your/path`;
+    return `授权根目录：${workspaceRoot || '管理员不受用户根目录限制'}\n当前工作目录：${rows[0]?.workingDirectory || process.cwd()}\n如需修改：/ap workspace <root 内路径>`;
   }
+
+  if (!workspaceRoot) return '管理员请通过房间命令的 --workdir 设置目录；/ap workspace 仅用于受授权用户。';
+  const resolvedDir = await resolveWorkspaceDirectory(workspaceRoot, newDir);
 
   await prisma.$executeRaw`
     UPDATE "LiveRoom"
-    SET "workingDirectory" = ${newDir}
+    SET "workingDirectory" = ${resolvedDir}
     WHERE "id" = ${roomId}
   `;
   const room = await prisma.liveRoom.findUnique({ where: { id: roomId }, select: { sourceTaskId: true } });
   if (room?.sourceTaskId) {
-    await prisma.task.update({ where: { id: room.sourceTaskId }, data: { workingDirectory: newDir } });
+    await prisma.task.update({ where: { id: room.sourceTaskId }, data: { workingDirectory: resolvedDir } });
   }
 
-  return `✅ 工作目录已更新为：${newDir}`;
+  return `✅ 工作目录已更新为：${resolvedDir}`;
 }
 
 async function handleRoomCommand(

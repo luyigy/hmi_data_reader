@@ -432,6 +432,7 @@ model FeishuUserAccess {
   status        String    @default("pending") // pending, approved, denied, revoked, blocked
   chatId        String?
   displayName   String?
+  workspaceRoot String?
   nameUpdatedAt DateTime?
   decidedBy     String?
   decidedAt     DateTime?

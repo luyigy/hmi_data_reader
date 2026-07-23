@@ -27,6 +27,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
     const result = await executeCodexTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
+      workspaceRoot: context.workspaceRoot,
+      networkAccess: context.networkAccess,
       ephemeral: context.ephemeralSession,
       codexHome: context.codexHome,
       streamCallbacks: context.streamCallbacks,
@@ -66,6 +68,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
         prompt: continuationMessage,
         timeout: context.timeout,
         workingDirectory: context.workingDirectory,
+        workspaceRoot: context.workspaceRoot,
+        networkAccess: context.networkAccess,
         codexHome: context.codexHome,
         streamCallbacks: context.streamCallbacks,
         sandboxMode: context.permissionConfig?.sandboxMode,

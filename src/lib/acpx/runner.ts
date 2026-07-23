@@ -1168,6 +1168,14 @@ const executeViaLocalHarness = async (
   if (!adapter) {
     throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
   }
+  const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
+  const workspaceRoot = permissionConfig.profile === 'full_access' ? undefined : permissionConfig.writableRoots[0];
+  if (workspaceRoot && !['codex', 'claude', 'claude-haha'].includes(participant.harnessType)) {
+    throw new Error(`受限 Feishu 工作区暂不支持 harness: ${participant.harnessType}`);
+  }
+  if (workspaceRoot && participant.harnessType === 'codex' && permissionConfig.approvalPolicy === 'on-request') {
+    throw new Error('受限 Feishu 工作区暂不支持 Codex on-request app-server 模式。');
+  }
 
   const registerSpawn = (child: ChildProcess) => {
     registerRunningProcess({
@@ -1196,8 +1204,10 @@ const executeViaLocalHarness = async (
         continuationMessage: participant.continuationMessage,
         context: {
           workingDirectory: request.workingDirectory || process.cwd(),
+          workspaceRoot,
+          networkAccess: permissionConfig.networkAccess,
           executionBackend: participant.executionBackend,
-          permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+          permissionConfig,
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
           ephemeralSession: participant.ephemeralSession,
           codexHome: participant.codexHome,
@@ -1228,8 +1238,10 @@ const executeViaLocalHarness = async (
         task,
         context: {
           workingDirectory: request.workingDirectory || process.cwd(),
+          workspaceRoot,
+          networkAccess: permissionConfig.networkAccess,
           executionBackend: participant.executionBackend,
-          permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+          permissionConfig,
           timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
           ephemeralSession: participant.ephemeralSession,
           codexHome: participant.codexHome,

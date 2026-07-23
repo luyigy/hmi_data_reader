@@ -9,6 +9,7 @@ import type { ChildProcess } from 'child_process';
 import { processCodexJsonLine } from './codex-event-parser';
 import { runCodexAppServer } from './codex-app-server';
 import { prepareCodexHome } from './codex-home';
+import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 const isMissingCustomToolOutputWarning = (text: string) =>
   text.includes('Custom tool call output is missing for call id:');
@@ -19,6 +20,8 @@ export interface CodexConfig {
   reasoningEffort?: string;
   timeout?: number | null;
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   ephemeral?: boolean;
   codexHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
@@ -70,6 +73,8 @@ export const executeCodexTask = async (
     const result = await executeCodexCLI(task, {
       timeout,
       workingDirectory,
+      workspaceRoot: config.workspaceRoot,
+      networkAccess: config.networkAccess,
       ephemeral,
       codexHome: config.codexHome,
       streamCallbacks,
@@ -104,6 +109,8 @@ export const executeCodexTask = async (
 interface CodexExecutionOptions {
   timeout: number | null;
   workingDirectory: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   ephemeral?: boolean;
   codexHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
@@ -195,6 +202,8 @@ export const resumeCodexSession = async ({
   prompt,
   timeout,
   workingDirectory,
+  workspaceRoot,
+  networkAccess,
   codexHome,
   streamCallbacks,
   skipGitRepoCheck = true,
@@ -209,6 +218,8 @@ export const resumeCodexSession = async ({
   prompt: string;
   timeout: number | null;
   workingDirectory: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   codexHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
@@ -333,9 +344,11 @@ const runCodexJsonCommand = async ({
     let stdoutBuffer = '';
     let turnFailureMessage: string | null = null;
 
-    const child = spawn('codex', args, {
+    const env = buildCodexChildEnv(options.codexHome);
+    const wrapped = wrapWithBubblewrap({ command: 'codex', commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, networkAccess: options.networkAccess, env, configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`] });
+    const child = spawn(wrapped.command, wrapped.args, {
       cwd: options.workingDirectory,
-      env: buildCodexChildEnv(options.codexHome),
+      env,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
     });

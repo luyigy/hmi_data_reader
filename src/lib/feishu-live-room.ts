@@ -138,10 +138,19 @@ export async function ensureFeishuConversationBinding(args: {
   title?: string;
   topic?: string;
   workingDirectory?: string;
+  workspaceRoot?: string;
   permissionConfig?: AcpxPermissionConfig;
   mode?: LiveRoomMode;
   allowDefaultAgent?: boolean;
 }) {
+  const { resolveWorkspaceDirectory } = await import('@/lib/feishu-workspace');
+  const access = args.context.chatType === 'p2p'
+    ? await prisma.feishuUserAccess.findUnique({ where: { openId: args.context.senderOpenId }, select: { workspaceRoot: true } })
+    : null;
+  const workspaceRoot = args.workspaceRoot || access?.workspaceRoot;
+  const requestedWorkingDirectory = workspaceRoot && (args.workingDirectory || args.workspaceRoot)
+    ? await resolveWorkspaceDirectory(workspaceRoot, args.workingDirectory)
+    : args.workingDirectory?.trim();
   const scopeKey = buildFeishuBindingScopeKey(args.context);
   let selectedAgentIds = args.selectedAgentIds || [];
 
@@ -204,7 +213,6 @@ export async function ensureFeishuConversationBinding(args: {
       }
     }
 
-    const requestedWorkingDirectory = args.workingDirectory?.trim();
     if (requestedWorkingDirectory) {
       await prisma.$executeRaw`
         UPDATE "LiveRoom"
@@ -244,11 +252,11 @@ export async function ensureFeishuConversationBinding(args: {
     },
   });
 
-  const requestedWorkingDirectory = args.workingDirectory?.trim();
-  if (requestedWorkingDirectory) {
+  const initialWorkingDirectory = requestedWorkingDirectory || workspaceRoot;
+  if (initialWorkingDirectory) {
     await prisma.$executeRaw`
       UPDATE "LiveRoom"
-      SET "workingDirectory" = ${requestedWorkingDirectory}
+      SET "workingDirectory" = ${initialWorkingDirectory}
       WHERE "id" = ${room.id}
     `;
   }
