@@ -1,5 +1,9 @@
 import { prisma } from '@/lib/prisma';
-import { removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
+import {
+  removeTypingReaction,
+  sendFeishuInteractiveMessage,
+  sendFeishuTextMessage,
+} from '@/lib/feishu-api';
 import type { LiveRoomMessagePayload } from '@/lib/live-room';
 
 type FeishuConversationBindingRow = {
@@ -32,24 +36,28 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   return false;
 };
 
-const formatRelayText = (message: LiveRoomMessagePayload) => {
-  if (message.messageType === 'assistant') {
-    const targetMemberName =
-      typeof message.metadata?.targetMemberName === 'string'
-        ? message.metadata.targetMemberName
-        : null;
-    const isDirectedVisible =
-      message.visibility === 'directed_visible'
-      || message.metadata?.deliveryIntent === 'directed_visible';
+export const buildAssistantRelayCard = (message: LiveRoomMessagePayload) => {
+  const targetMemberName =
+    typeof message.metadata?.targetMemberName === 'string'
+      ? message.metadata.targetMemberName
+      : null;
+  const isDirectedVisible =
+    message.visibility === 'directed_visible'
+    || message.metadata?.deliveryIntent === 'directed_visible';
 
-    if (isDirectedVisible && targetMemberName) {
-      return `${message.senderName} -> ${targetMemberName}:\n${message.content}`;
-    }
-
-    return `${message.senderName}:\n${message.content}`;
-  }
-
-  return message.content;
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      template: 'blue',
+      title: {
+        tag: 'plain_text',
+        content: isDirectedVisible && targetMemberName
+          ? `${message.senderName} → ${targetMemberName}`
+          : message.senderName,
+      },
+    },
+    elements: [{ tag: 'markdown', content: message.content }],
+  };
 };
 
 export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePayload) {
@@ -86,9 +94,17 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
     `;
   }
 
-  await sendFeishuTextMessage({
-    receiveId: binding.chatId,
-    receiveIdType: 'chat_id',
-    text: formatRelayText(message),
-  });
+  if (message.messageType === 'assistant') {
+    await sendFeishuInteractiveMessage({
+      receiveId: binding.chatId,
+      receiveIdType: 'chat_id',
+      card: buildAssistantRelayCard(message),
+    });
+  } else {
+    await sendFeishuTextMessage({
+      receiveId: binding.chatId,
+      receiveIdType: 'chat_id',
+      text: message.content,
+    });
+  }
 }

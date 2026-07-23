@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  appendCodexAgentMessageDelta,
   buildCodexApprovalResponse,
   isSuccessfulCodexAppServerExit,
   toCodexToolEvent,
@@ -27,6 +28,12 @@ assert.deepEqual(toCodexToolEvent({
   type: 'mcpToolCall', tool: 'impact', arguments: { target: 'runCodexAppServer' },
 }), { toolName: 'impact', preview: 'runCodexAppServer', emoji: '⚙️' });
 assert.equal(toCodexToolEvent({ type: 'agentMessage', text: 'hello' }), null);
+assert.equal(appendCodexAgentMessageDelta('', 'First', true), 'First');
+assert.equal(appendCodexAgentMessageDelta('First', ' message', false), 'First message');
+assert.equal(
+  appendCodexAgentMessageDelta('First message', 'Second message', true),
+  'First message\n\nSecond message'
+);
 
 void (async () => {
   const approved = waitForInProcessApproval('approve');

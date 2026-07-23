@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { shouldRelayLiveRoomMessage } from '../src/lib/feishu-live-room-relay';
+import {
+  buildAssistantRelayCard,
+  shouldRelayLiveRoomMessage,
+} from '../src/lib/feishu-live-room-relay';
 import type { LiveRoomMessagePayload } from '../src/lib/live-room';
 
 const message = (
@@ -32,3 +35,21 @@ assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_started')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_queued')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('assistant')), true);
+
+const assistant = message('assistant');
+assistant.content = '**Done**\n\n- one\n- two';
+assert.deepEqual(buildAssistantRelayCard(assistant), {
+  config: { wide_screen_mode: true },
+  header: {
+    template: 'blue',
+    title: { tag: 'plain_text', content: 'codex' },
+  },
+  elements: [{ tag: 'markdown', content: '**Done**\n\n- one\n- two' }],
+});
+
+assistant.visibility = 'directed_visible';
+assistant.metadata = { targetMemberName: 'Claude' };
+assert.equal(
+  (buildAssistantRelayCard(assistant).header.title as { content: string }).content,
+  'codex → Claude'
+);

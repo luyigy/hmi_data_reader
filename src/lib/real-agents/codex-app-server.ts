@@ -81,6 +81,12 @@ export const toCodexToolEvent = (item: Record<string, any> | undefined) => {
   return tool && { ...tool, emoji: getToolEmoji(tool.toolName) };
 };
 
+export const appendCodexAgentMessageDelta = (
+  output: string,
+  delta: string,
+  startsNewMessage: boolean
+) => `${output}${startsNewMessage && output ? '\n\n' : ''}${delta}`;
+
 export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   const { spawn } = await import('child_process');
   const child = spawn('codex', ['app-server', '--stdio'], {
@@ -94,6 +100,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   let nextId = 1;
   let buffer = '';
   let output = '';
+  let startsNewAgentMessage = false;
   let activeThreadId = options.threadId;
   let completed = false;
   const pending = new Map<JsonRpcId, {
@@ -148,11 +155,14 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       return;
     }
     if (message.method === 'item/started') {
+      startsNewAgentMessage = message.params?.item?.type === 'agentMessage';
       const toolEvent = toCodexToolEvent(message.params?.item);
       if (toolEvent) void options.streamCallbacks?.onToolEvent?.(toolEvent);
     } else if (message.method === 'item/agentMessage/delta' && typeof message.params?.delta === 'string') {
-      output += message.params.delta;
-      void options.streamCallbacks?.onStdoutChunk?.(message.params.delta);
+      const chunk = `${startsNewAgentMessage && output ? '\n\n' : ''}${message.params.delta}`;
+      output = appendCodexAgentMessageDelta(output, message.params.delta, startsNewAgentMessage);
+      startsNewAgentMessage = false;
+      void options.streamCallbacks?.onStdoutChunk?.(chunk);
     } else if (message.method === 'turn/completed') {
       completed = true;
       const status = message.params?.turn?.status;
