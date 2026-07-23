@@ -1,3 +1,12 @@
+---
+doc_type: HANDOVER
+doc_status: completed
+plan: null
+slice: codex_reply_stability
+plan_progress: complete
+next_action: none
+---
+
 # 217_HANDOVER_20260722_Codex回复稳定性
 
 ## 任务类型
@@ -61,3 +70,5 @@ Codex app-server 的 `item/agentMessage/delta` 是 token 增量，旧链路将�
 - 不再把任何 harness 的 stdout/回答正文当作过程消息转发，避免按时间窗口切断句子以及最终回复重复。
 - Live Room 共享层现在只展示开始、结构化工具事件和 45 秒静默 heartbeat；最终回答仍只发送一次。
 - Codex app-server 的 `item/started` 会按 item 类型转换为统一 `onToolEvent`，具体协议解析留在 Codex 执行器，公共投递层不再特判 Codex stdout。
+- 同一个 Live Room member 的所有 backend 统一复用已有执行链；新消息先持久化为 pending，并提示“已收到、随后处理”，前一条完成后才真正开始。
+- 当前队列是进程内串行，适用于单 Feishu runtime；若未来多个进程共同消费 Live Room delivery，应升级为数据库 worker 所有权。
