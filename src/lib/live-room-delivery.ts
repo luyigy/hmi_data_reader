@@ -7,6 +7,7 @@ import {
   clearLiveRoomRunningProcess,
   enqueueLiveRoomMemberExecution,
   getLiveRoomRunningProcess,
+  hasLiveRoomMemberExecution,
   interruptLiveRoomRunningProcess,
 } from '@/lib/live-room-process-registry';
 import {
@@ -1518,6 +1519,8 @@ export const triggerLiveRoomAgentReply = async ({
     },
   });
 
+  const queued = hasLiveRoomMemberExecution(targetMember.id);
+
   if (targetMember.backend === 'remote_ssh') {
     await prisma.liveRoomDelivery.updateMany({
       where: {
@@ -1533,27 +1536,33 @@ export const triggerLiveRoomAgentReply = async ({
         acknowledgedAt: new Date(),
       },
     });
-
-    await enqueueLiveRoomMemberExecution(targetMember.id, async () => {
-      await processLiveRoomDelivery({
-        deliveryId: delivery.id,
-        roomId: room.id,
-        roomMessageId,
-        targetMemberId: targetMember.id,
-        chainDepth,
-        allowChainedMentions,
-      });
-    });
-    return;
   }
 
-  await processLiveRoomDelivery({
-    deliveryId: delivery.id,
-    roomId: room.id,
-    roomMessageId,
-    targetMemberId: targetMember.id,
-    chainDepth,
-    allowChainedMentions,
+  if (queued) {
+    await postLiveRoomMessage({
+      roomId: room.id,
+      content: `系统提示：已收到这条消息，${targetMember.displayName} 当前正在处理上一条，将随后处理。`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        targetMemberId: targetMember.id,
+        extras: {
+          systemEvent: 'member_reply_queued',
+          deliveryId: delivery.id,
+        },
+      }),
+    });
+  }
+
+  await enqueueLiveRoomMemberExecution(targetMember.id, async () => {
+    await processLiveRoomDelivery({
+      deliveryId: delivery.id,
+      roomId: room.id,
+      roomMessageId,
+      targetMemberId: targetMember.id,
+      chainDepth,
+      allowChainedMentions,
+    });
   });
 };
 

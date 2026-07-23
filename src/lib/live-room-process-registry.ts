@@ -32,6 +32,11 @@ const getExecutionChainStore = () => {
   return globalRegistry.liveRoomExecutionChains;
 };
 
+// ponytail: process-local serialization; move ownership to a DB-backed worker if
+// more than one process starts consuming Live Room deliveries.
+export const hasLiveRoomMemberExecution = (memberId: string) =>
+  getExecutionChainStore().has(memberId);
+
 export const registerLiveRoomRunningProcess = (entry: LiveRoomRunningProcessEntry) => {
   getProcessStore().set(entry.memberId, entry);
 };

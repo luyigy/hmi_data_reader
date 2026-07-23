@@ -30,4 +30,5 @@ assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress
   harnessType: 'claude', progressKind: 'heartbeat',
 })), true);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_started')), true);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_queued')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('assistant')), true);
