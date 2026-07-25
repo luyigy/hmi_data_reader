@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveFeishuCardActionIdentity } from '../src/lib/feishu-long-connection';
+import { resolveFeishuCardActionIdentity } from '../src/lib/feishu-card-action';
 
 assert.deepEqual(resolveFeishuCardActionIdentity({
   operator: { open_id: 'v2-admin' },

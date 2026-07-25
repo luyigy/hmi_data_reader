@@ -2,6 +2,14 @@ import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { parse } from 'yaml';
+import {
+  sendFeishuWorkflowReviewCard,
+  sendFeishuWorkflowTextMessage,
+} from '../feishu-api';
+import {
+  applyWorkflowReviewDecision,
+  type WorkflowReviewPending,
+} from './workflow-review';
 import type { JobHandler } from './handlers';
 
 type Contract = {
@@ -42,7 +50,7 @@ type Contract = {
   legacy: { cutoff_commit?: string | null; automation_enabled: boolean };
 };
 
-type Pending = {
+type Pending = WorkflowReviewPending & {
   key: string;
   commit: string;
   path: string;
@@ -51,10 +59,8 @@ type Pending = {
   type: string;
   documentCommit: string;
   prompt: string;
-  gate: 'plan_review' | 'workflow_ready';
-  reviewState?: 'review' | 'revision' | 'rejected';
   detectedAt: string;
-  reviewMessageId?: string;
+  reviewExpiresAt?: string;
   expectedMarker?: string;
 };
 
@@ -308,19 +314,31 @@ const idempotencyKey = (eventKey: string, step: string) =>
 const lark = async (signal: AbortSignal, ...args: string[]) =>
   JSON.parse(await exec('lark-cli', args, signal)) as Record<string, unknown>;
 
-const findMessageId = (value: unknown): string | undefined => {
-  if (Array.isArray(value)) return value.map(findMessageId).find(Boolean);
-  if (value && typeof value === 'object') {
-    const object = value as Record<string, unknown>;
-    if (typeof object.message_id === 'string') return object.message_id;
-    return Object.values(object).map(findMessageId).find(Boolean);
-  }
-  return undefined;
-};
+const send = (chatId: string, text: string, eventKey: string, step: string) =>
+  sendFeishuWorkflowTextMessage({
+    chatId,
+    text,
+    idempotencyKey: idempotencyKey(eventKey, step),
+  });
 
-const send = async (chatId: string, text: string, eventKey: string, step: string, signal: AbortSignal) =>
-  findMessageId(await lark(signal, 'im', '+messages-send', '--chat-id', chatId, '--text', text,
-    '--as', 'bot', '--idempotency-key', idempotencyKey(eventKey, step)));
+const reviewExpiry = (contract: Contract) =>
+  new Date(Date.now() + contract.completion_gate.timeout_seconds * 1000).toISOString();
+
+const sendReviewCard = (
+  project: Parameters<JobHandler>[0]['project'],
+  jobId: string,
+  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'reviewExpiresAt'>,
+) => sendFeishuWorkflowReviewCard({
+  chatId: project.feishu.chat_id,
+  projectId: project.id,
+  jobId,
+  pendingKey: pending.key,
+  approverOpenId: project.feishu.approver_open_ids[0],
+  planPath: pending.path,
+  reviewedCommit: pending.documentCommit,
+  expiresAt: pending.reviewExpiresAt!,
+  idempotencyKey: idempotencyKey(pending.key, 'plan_review'),
+});
 
 const messages = async (chatId: string, start: string, signal: AbortSignal) => {
   const result: Message[] = [];
@@ -346,11 +364,11 @@ const execute = async (
   signal: AbortSignal,
 ) => {
   const resetText = `<at user_id="${codingBotOpenId}">本地AI助手</at> /ap new-session all`;
-  await send(chatId, resetText, pending.key, 'reset', signal);
+  await send(chatId, resetText, pending.key, 'reset');
   const resetDone = (await messages(chatId, pending.detectedAt, signal)).some((message) =>
     message.sender?.id === codingBotAppId && message.content?.includes('✅ 已为全部 4 个 agent 重置 session'));
   if (!resetDone) throw new Error('reset confirmation not found; retry is safe');
-  await send(chatId, `<at user_id="${codingBotOpenId}">本地AI助手</at>\n${pending.prompt}`, pending.key, 'prompt', signal);
+  await send(chatId, `<at user_id="${codingBotOpenId}">本地AI助手</at>\n${pending.prompt}`, pending.key, 'prompt');
 };
 
 export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, cursor, signal }) => {
@@ -399,11 +417,13 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
       }
       const commit = await documentCommit(project.path, head, pending.path, signal);
       const key = `${head}:${pending.path}:${blob}:${revised.action}`;
-      const reviewMessageId = mode === 'active' ? await send(project.feishu.chat_id,
-        `<at user_id="${project.feishu.approver_open_ids[0]}">王为</at>\nPLAN_REVIEW\nplan_path: ${pending.path}\n`
-        + `reviewed_commit: ${commit}\ndocument: ${path.posix.basename(pending.path)}\n\n`
-        + '请直接回复本消息：approve、reject，或 revise: <反馈>',
-        key, 'plan_review', signal) : undefined;
+      const reviewExpiresAt = reviewExpiry(contract);
+      const reviewMessageId = mode === 'active' ? await sendReviewCard(project, job.id, {
+        key,
+        path: pending.path,
+        documentCommit: commit,
+        reviewExpiresAt,
+      }) : undefined;
       if (mode === 'active' && !reviewMessageId) throw new Error('plan review request returned no message_id');
       pending = {
         ...pending,
@@ -414,6 +434,7 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
         prompt: revised.prompt,
         reviewState: 'review',
         reviewMessageId,
+        reviewExpiresAt,
         detectedAt: new Date().toISOString(),
       };
       return {
@@ -426,23 +447,34 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
       const decision = chatMessages.find((message) =>
         message.sender?.id === project.feishu.approver_open_ids[0]
         && message.msg_type === 'text'
-        && (message.parent_id === undefined || message.parent_id === pending.reviewMessageId)
+        && message.parent_id === pending.reviewMessageId
         && /^(approve|reject|revise:\s*\S[\s\S]*)$/.test(message.content?.trim() ?? ''));
       const command = decision?.content?.trim() ?? '';
       if (!decision) {
         return { summary: `head=${head} pending=${pending.path} gate=plan_review`, cursor: previous };
       }
-      if (command !== 'approve') {
-        if (command.startsWith('revise:')) {
+      const transition = applyWorkflowReviewDecision({
+        pending,
+        decision: command === 'approve' ? 'approve' : command === 'reject' ? 'reject' : 'revision',
+        actorOpenId: decision.sender?.id,
+        approverOpenId: project.feishu.approver_open_ids[0],
+        messageId: decision.parent_id,
+        pendingKey: pending.key,
+      });
+      if (transition.status !== 'applied') {
+        return { summary: `head=${head} pending=${pending.path} gate=plan_review decision=${transition.status}`, cursor: previous };
+      }
+      pending = { ...pending, ...transition.pending };
+      if (pending.reviewState !== 'approved') {
+        if (pending.reviewState === 'revision') {
           await send(project.feishu.chat_id,
             `<at user_id="${codingBotOpenId}">本地AI助手</at>\nPLAN_REVISE\nplan_path: ${pending.path}\n`
             + `reviewed_commit: ${pending.documentCommit}\nfeedback:\n${command.slice(7).trim()}\n\n`
             + '只修订并提交该 PLAN，不执行任何 Slice。',
-            pending.key, 'plan_revision', signal);
+            pending.key, 'plan_revision');
         }
-        pending = { ...pending, reviewState: command === 'reject' ? 'rejected' : 'revision' };
         return {
-          summary: `head=${head} pending=${pending.path} gate=plan_revision decision=${command === 'reject' ? 'reject' : 'revise'}`,
+          summary: `head=${head} pending=${pending.path} gate=plan_revision decision=${pending.reviewState === 'rejected' ? 'reject' : 'revise'}`,
           cursor: { ...previous, pending },
         };
       }
@@ -519,7 +551,7 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
   if (gate === 'terminal') {
     await send(project.feishu.chat_id,
       `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。`,
-      eventKey, 'terminal', signal);
+      eventKey, 'terminal');
     return { summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=notified`, cursor: { commit: head, eventKey } };
   }
   const detectedAt = new Date().toISOString();
@@ -534,14 +566,11 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
     prompt: document.prompt,
     gate,
     reviewState: gate === 'plan_review' ? 'review' : undefined,
+    reviewExpiresAt: gate === 'plan_review' ? reviewExpiry(contract) : undefined,
     detectedAt,
   };
   if (gate === 'plan_review') {
-    const approver = project.feishu.approver_open_ids[0];
-    pending.reviewMessageId = await send(project.feishu.chat_id,
-      `<at user_id="${approver}">王为</at>\nPLAN_REVIEW\nplan_path: ${candidate.filePath}\nreviewed_commit: ${commit}\n`
-      + `document: ${path.posix.basename(candidate.filePath)}\n\n请直接回复本消息：approve、reject，或 revise: <反馈>`,
-      eventKey, 'plan_review', signal);
+    pending.reviewMessageId = await sendReviewCard(project, job.id, pending);
     if (!pending.reviewMessageId) throw new Error('plan review request returned no message_id');
   } else {
     pending.expectedMarker = contract.completion_gate.marker_template

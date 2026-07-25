@@ -85,7 +85,6 @@ export async function executeScheduledJob(
   const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 60_000;
   let status = 'succeeded';
   let summary: string | undefined;
-  let cursor: unknown;
   let failure: string | undefined;
 
   try {
@@ -95,18 +94,25 @@ export async function executeScheduledJob(
       `;
       if (!locked) return null;
 
-      await tx.scheduledJobState.upsert({
+      const lockedState = await tx.scheduledJobState.upsert({
         where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
         create: { projectId: project.id, jobId: job.id, lastScheduledAt: scheduledFor, lastStartedAt: startedAt },
         update: { lastScheduledAt: scheduledFor, lastStartedAt: startedAt },
       });
-      return withTimeout(timeoutMs, (signal) => handler({
+      const result = await withTimeout(timeoutMs, (signal) => handler({
         project,
         job,
         mode,
-        cursor: state?.cursorJson,
+        cursor: lockedState.cursorJson,
         signal,
       }));
+      if (result.cursor !== undefined) {
+        await tx.scheduledJobState.update({
+          where: { id: lockedState.id },
+          data: { cursorJson: result.cursor as Prisma.InputJsonValue },
+        });
+      }
+      return result;
     }, { maxWait: 5_000, timeout: timeoutMs + 5_000 });
 
     if (!result) {
@@ -114,7 +120,6 @@ export async function executeScheduledJob(
       summary = 'job already running';
     } else {
       summary = result.summary;
-      cursor = result.cursor;
     }
   } catch (error) {
     failure = errorText(error);
@@ -145,7 +150,6 @@ export async function executeScheduledJob(
         lastFinishedAt: finishedAt,
         lastSuccessAt: status === 'succeeded' ? finishedAt : undefined,
         lastError: failure,
-        cursorJson: status === 'succeeded' && cursor !== undefined ? cursor as Prisma.InputJsonValue : undefined,
       },
       update: {
         lastScheduledAt: scheduledFor,
@@ -153,7 +157,6 @@ export async function executeScheduledJob(
         lastFinishedAt: finishedAt,
         lastSuccessAt: status === 'succeeded' ? finishedAt : undefined,
         lastError: failure ?? null,
-        cursorJson: status === 'succeeded' && cursor !== undefined ? cursor as Prisma.InputJsonValue : undefined,
       },
     }),
   ]);

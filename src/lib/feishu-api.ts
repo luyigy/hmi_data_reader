@@ -146,6 +146,96 @@ export async function sendFeishuInteractiveMessage(args: {
   }
 }
 
+async function sendFeishuWorkflowMessage(args: {
+  chatId: string;
+  content: Record<string, unknown>;
+  messageType: 'text' | 'interactive';
+  idempotencyKey: string;
+}): Promise<string> {
+  const token = await getFeishuTenantAccessToken();
+  const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
+  url.searchParams.set('receive_id_type', 'chat_id');
+  url.searchParams.set('uuid', args.idempotencyKey);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      receive_id: args.chatId,
+      msg_type: args.messageType,
+      content: JSON.stringify(args.content),
+    }),
+  });
+  const data = (await response.json()) as FeishuSendMessageResponse;
+  const messageId = data.data?.message_id;
+  if (!response.ok || data.code !== 0 || !messageId) {
+    throw new Error(data.msg || `Failed to send Feishu workflow message: HTTP ${response.status}`);
+  }
+  return messageId;
+}
+
+export const sendFeishuWorkflowTextMessage = (args: {
+  chatId: string;
+  text: string;
+  idempotencyKey: string;
+}) => sendFeishuWorkflowMessage({
+  chatId: args.chatId,
+  content: { text: args.text },
+  messageType: 'text',
+  idempotencyKey: args.idempotencyKey,
+});
+
+export const sendFeishuWorkflowReviewCard = (args: {
+  chatId: string;
+  projectId: string;
+  jobId: string;
+  pendingKey: string;
+  approverOpenId: string;
+  planPath: string;
+  reviewedCommit: string;
+  expiresAt: string;
+  idempotencyKey: string;
+}) => sendFeishuWorkflowMessage({
+  chatId: args.chatId,
+  messageType: 'interactive',
+  idempotencyKey: args.idempotencyKey,
+  content: {
+    config: { wide_screen_mode: true },
+    header: {
+      template: 'orange',
+      title: { tag: 'plain_text', content: 'PLAN 审批' },
+    },
+    elements: [
+      {
+        tag: 'markdown',
+        content: `<at id=${args.approverOpenId}></at>\n**文档**：${path.posix.basename(args.planPath)}\n`
+          + `**路径**：${args.planPath}\n**提交**：${args.reviewedCommit}\n**截止**：${args.expiresAt}`,
+      },
+      {
+        tag: 'action',
+        actions: [
+          ['批准', 'approve', 'primary'],
+          ['拒绝', 'reject', 'danger'],
+          ['修改', 'revise', 'default'],
+        ].map(([label, decision, type]) => ({
+          tag: 'button',
+          text: { tag: 'plain_text', content: label },
+          type,
+          value: {
+            cmd: 'workflow-review',
+            decision,
+            projectId: args.projectId,
+            jobId: args.jobId,
+            pendingKey: args.pendingKey,
+          },
+        })),
+      },
+    ],
+  },
+});
+
 function guessFileExtension(contentType: string | null, fallbackType: string) {
   const normalized = (contentType || '').toLowerCase();
   if (normalized.includes('png')) return 'png';

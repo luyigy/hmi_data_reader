@@ -16,6 +16,15 @@ import {
 } from '@/lib/feishu-runtime-status';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 import { checkFeishuDirectMessageAccess, isFeishuAdmin, resolveFeishuAdminApproval } from '@/lib/feishu-access-approval';
+import {
+  resolveWorkflowReviewCardAction,
+  type WorkflowReviewDecision,
+} from '@/lib/scheduled-jobs/workflow-review';
+import {
+  resolveFeishuCardActionIdentity,
+  type FeishuCardActionIdentity,
+} from '@/lib/feishu-card-action';
+export { resolveFeishuCardActionIdentity } from '@/lib/feishu-card-action';
 
 type FeishuLongConnectionState = {
   status: 'idle' | 'disabled' | 'starting' | 'running' | 'error';
@@ -97,18 +106,6 @@ function pruneSeenMessageIds(state: FeishuLongConnectionState) {
   }
 }
 
-type FeishuCardActionIdentity = {
-  open_id?: string;
-  open_message_id?: string;
-  operator?: { open_id?: string };
-  context?: { open_message_id?: string };
-};
-
-export const resolveFeishuCardActionIdentity = (data: FeishuCardActionIdentity) => ({
-  openId: data.operator?.open_id || data.open_id,
-  messageId: data.context?.open_message_id || data.open_message_id,
-});
-
 function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
   const message = payload.message;
   const senderOpenId = payload.sender?.sender_id?.open_id;
@@ -172,6 +169,44 @@ function buildCardActionHandler(prefix: string) {
 
     const { openId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
+
+    if (cmd === 'workflow-review') {
+      const value = data.action.value as Record<string, unknown>;
+      const decision = value.decision;
+      if (!['approve', 'reject', 'revise'].includes(String(decision))
+        || typeof value.projectId !== 'string'
+        || typeof value.jobId !== 'string'
+        || typeof value.pendingKey !== 'string') return {};
+      try {
+        const result = await resolveWorkflowReviewCardAction({
+          projectId: value.projectId,
+          jobId: value.jobId,
+          pendingKey: value.pendingKey,
+          decision: decision as WorkflowReviewDecision,
+          actorOpenId: openId,
+          messageId,
+        });
+        if (result.status === 'prompt') {
+          return { toast: { type: 'info', content: '请回复原审批消息：revise: <具体反馈>' } };
+        }
+        if (result.status === 'applied' && messageId) {
+          await updateFeishuApprovalCardResolved({
+            messageId,
+            approved: decision === 'approve',
+            actorName,
+          }).catch(() => {});
+        }
+        return {
+          toast: {
+            type: result.status === 'applied' ? 'success' : 'warning',
+            content: result.status === 'applied' ? '审批已记录' : `审批未生效：${result.status}`,
+          },
+        };
+      } catch (err) {
+        console.error(`${prefix} workflow review resolution failed`, { err });
+        return { toast: { type: 'error', content: '审批处理失败，请稍后重试' } };
+      }
+    }
 
     const approveMatch = /^approve:(.+)$/.exec(cmd);
     const denyMatch = /^deny:(.+)$/.exec(cmd);
