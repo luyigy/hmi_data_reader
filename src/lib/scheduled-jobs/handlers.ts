@@ -1,4 +1,5 @@
 import type { JobConfig, JobMode, ProjectConfig } from './project-config';
+import { longFileDetectorHandler } from './long-file-detector';
 
 export type JobHandler = (context: {
   project: ProjectConfig;
@@ -26,4 +27,7 @@ export const noopTestHandler: JobHandler = async ({ cursor, job, signal }) => {
   return { summary: 'noop test completed', cursor: { runs } };
 };
 
-export const jobHandlers = new Map<string, JobHandler>([['noop_test', noopTestHandler]]);
+export const jobHandlers = new Map<string, JobHandler>([
+  ['noop_test', noopTestHandler],
+  ['long_file_detector', longFileDetectorHandler],
+]);

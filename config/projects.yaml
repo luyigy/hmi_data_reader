@@ -17,7 +17,7 @@ projects:
           contract_path: docs/workflow/workflow-contract.yaml
       - id: long-file-detector
         type: long_file_detector
-        schedule: "0 9 * * 1-5"
+        schedule: "*/10 * * * *"
         enabled: true
         mode: shadow
         config:
