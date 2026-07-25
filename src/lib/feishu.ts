@@ -1627,12 +1627,10 @@ export async function runWorkflowInBoundLiveRoom(args: {
       extras: { source: 'workflow_watcher', eventKey: args.eventKey },
     }),
   });
-  void triggerLiveRoomMessageReplies({
+  await triggerLiveRoomMessageReplies({
     roomId: room.id,
     roomMessageId: message.id,
     requestedTargetMemberId: null,
-  }).catch((error) => {
-    console.error('Failed to trigger workflow watcher live room reply:', error);
   });
 }
 
