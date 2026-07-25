@@ -15,7 +15,7 @@ projects:
         mode: active
         config:
           active_side_effects_enabled: true
-          coding_bot_open_id: ou_3c3f67f71b6aad10c583c6a0dbe2f264
+          coding_bot_chat_id: oc_b634823504e29e6220de0cfb5108a216
           coding_bot_app_id: cli_a8e5326f4e7f901c
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: .
@@ -45,7 +45,7 @@ projects:
         mode: active
         config:
           active_side_effects_enabled: true
-          coding_bot_open_id: ou_3c3f67f71b6aad10c583c6a0dbe2f264
+          coding_bot_chat_id: oc_b634823504e29e6220de0cfb5108a216
           coding_bot_app_id: cli_a8e5326f4e7f901c
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: rebuild-postgres-auth-slice

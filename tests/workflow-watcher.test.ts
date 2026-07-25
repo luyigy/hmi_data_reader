@@ -135,7 +135,7 @@ S01 then S02
       branch_space: 'main',
       initial_cursor_commit: base,
       active_side_effects_enabled: true,
-      coding_bot_open_id: 'coding-bot',
+      coding_bot_chat_id: 'coding-bot-chat',
       coding_bot_app_id: 'coding-app',
     },
   };
@@ -279,6 +279,10 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const callbackApproved = JSON.parse(JSON.stringify(reviewCursor));
   callbackApproved.pending.reviewState = 'approved';
   assert.match((await run(callbackApproved)).summary, /result=session_started/);
+  const resetCall = apiCalls.find(({ body }) => body.content === JSON.stringify({ text: '/ap new-session all' }));
+  assert.equal(resetCall?.body.receive_id, 'coding-bot-chat');
+  assert.equal(apiCalls.some(({ body }) =>
+    body.receive_id === project.feishu.chat_id && String(body.content).includes('/ap new-session')), false);
 
   const reviewPending = {
     key: 'key',

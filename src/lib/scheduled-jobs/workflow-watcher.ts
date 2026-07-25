@@ -358,17 +358,15 @@ const messages = async (chatId: string, start: string, signal: AbortSignal) => {
 
 const execute = async (
   pending: Pending,
-  chatId: string,
-  codingBotOpenId: string,
+  codingBotChatId: string,
   codingBotAppId: string,
   signal: AbortSignal,
 ) => {
-  const resetText = `<at user_id="${codingBotOpenId}">本地AI助手</at> /ap new-session all`;
-  await send(chatId, resetText, pending.key, 'reset');
-  const resetDone = (await messages(chatId, pending.detectedAt, signal)).some((message) =>
+  await send(codingBotChatId, '/ap new-session all', pending.key, 'reset');
+  const resetDone = (await messages(codingBotChatId, pending.detectedAt, signal)).some((message) =>
     message.sender?.id === codingBotAppId && message.content?.includes('✅ 已为全部 4 个 agent 重置 session'));
   if (!resetDone) throw new Error('reset confirmation not found; retry is safe');
-  await send(chatId, `<at user_id="${codingBotOpenId}">本地AI助手</at>\n${pending.prompt}`, pending.key, 'prompt');
+  await send(codingBotChatId, pending.prompt, pending.key, 'prompt');
 };
 
 export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, cursor, signal }) => {
@@ -378,9 +376,9 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
   }
   const activeEnabled = job.config.active_side_effects_enabled === true;
   if (mode === 'active' && !activeEnabled) throw new Error('workflow_watcher active side effects require explicit config gate');
-  const codingBotOpenId = String(job.config.coding_bot_open_id || '');
+  const codingBotChatId = String(job.config.coding_bot_chat_id || '');
   const codingBotAppId = String(job.config.coding_bot_app_id || '');
-  if (mode === 'active' && (!codingBotOpenId || !codingBotAppId || project.feishu.approver_open_ids.length !== 1)) {
+  if (mode === 'active' && (!codingBotChatId || !codingBotAppId || project.feishu.approver_open_ids.length !== 1)) {
     throw new Error('workflow_watcher active identity config is incomplete');
   }
 
@@ -470,8 +468,8 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
       }
       if (pending.reviewState !== 'approved') {
         if (pending.reviewState === 'revision') {
-          await send(project.feishu.chat_id,
-            `<at user_id="${codingBotOpenId}">本地AI助手</at>\nPLAN_REVISE\nplan_path: ${pending.path}\n`
+          await send(codingBotChatId,
+            `PLAN_REVISE\nplan_path: ${pending.path}\n`
             + `reviewed_commit: ${pending.documentCommit}\nfeedback:\n${command.slice(7).trim()}\n\n`
             + '只修订并提交该 PLAN，不执行任何 Slice。',
             pending.key, 'plan_revision');
@@ -496,7 +494,7 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
       });
       if (!ready) return { summary: `head=${head} pending=${pending.path} gate=workflow_ready`, cursor: previous };
     }
-    if (mode === 'active') await execute(pending, project.feishu.chat_id, codingBotOpenId, codingBotAppId, signal);
+    if (mode === 'active') await execute(pending, codingBotChatId, codingBotAppId, signal);
     return {
       summary: `head=${head} candidate=${pending.path} action=${pending.action} result=${mode === 'active' ? 'session_started' : 'shadow'}`,
       cursor: { commit: head, eventKey: pending.key },
