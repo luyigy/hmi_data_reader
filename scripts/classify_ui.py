@@ -32,8 +32,11 @@ from pathlib import Path
 UI_FAMILY_KEYWORDS = {
     "TACT": ["TACT", "tact"],
     "FANUC": ["FANUC", "ROBOSHOT", "α-S", "a-S30", "S30iA", "S-iA", "NUC"],
-    "ZizES": ["ZES", "ZizES", "佳明"],
+    "ZizES": ["ZES", "ZizES", "佳明", "广东佳明"],
     "TRD6": ["TRD6", "SPT", "沙迪克", "Sodick"],
+    "BOLE": ["BOLE", "Bole", "Process expert", "PROCESS EXPERT"],  # 伯乐 (BOLE = Bolle/博利)
+    "ARBURG": ["ARBURG", "Arburg", "ARBUR"],  # 阿博格
+    "DEMAG": ["DEMAG", "Demag"],  # 德马格
 }
 
 PAGE_KEYWORDS = {

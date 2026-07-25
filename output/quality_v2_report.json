@@ -1,0 +1,2857 @@
+{
+  "summary": {
+    "total": 113,
+    "green": 36,
+    "yellow": 51,
+    "red": 26
+  },
+  "reports": [
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260724_rec21_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          13,
+          720,
+          451
+        ],
+        "screen_area_ratio": 0.35234375,
+        "perspective_ratio": 1.0,
+        "blur_score": 494.728241503864,
+        "glare_ratio": 0.011845703125,
+        "dark_ratio": 0.044067925347222224
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260724_rec21_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          68,
+          720,
+          488
+        ],
+        "screen_area_ratio": 0.38125,
+        "perspective_ratio": 1.0,
+        "blur_score": 440.79432441389287,
+        "glare_ratio": 0.020419921875,
+        "dark_ratio": 0.12214084201388889
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260724_rec21_监控_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          43,
+          493,
+          677,
+          500
+        ],
+        "screen_area_ratio": 0.3672960069444444,
+        "perspective_ratio": 1.0,
+        "blur_score": 685.0197301275357,
+        "glare_ratio": 0.009586588541666666,
+        "dark_ratio": 0.10280164930555556
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260724_rec21_炮筒_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          29,
+          591,
+          691,
+          500
+        ],
+        "screen_area_ratio": 0.3748914930555556,
+        "perspective_ratio": 1.0,
+        "blur_score": 447.3209619741073,
+        "glare_ratio": 0.02516167534722222,
+        "dark_ratio": 0.12709635416666668
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260724_rec21_射出_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          29,
+          569,
+          691,
+          489
+        ],
+        "screen_area_ratio": 0.36664388020833333,
+        "perspective_ratio": 1.0,
+        "blur_score": 467.9421090737756,
+        "glare_ratio": 0.009348958333333334,
+        "dark_ratio": 0.13747721354166667
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260724_rec21_射出_01.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          27,
+          720,
+          487
+        ],
+        "screen_area_ratio": 0.38046875,
+        "perspective_ratio": 1.0,
+        "blur_score": 454.72574404551176,
+        "glare_ratio": 0.011200086805555556,
+        "dark_ratio": 0.11673068576388888
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260725_rec20_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          226,
+          49,
+          1694,
+          969
+        ],
+        "screen_area_ratio": 0.7916116898148148,
+        "perspective_ratio": 1.0,
+        "blur_score": 202.3480660438895,
+        "glare_ratio": 0.0008362268518518519,
+        "dark_ratio": 0.1898389274691358
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260725_rec20_储料_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          73,
+          49,
+          1847,
+          996
+        ],
+        "screen_area_ratio": 0.8871585648148148,
+        "perspective_ratio": 1.0,
+        "blur_score": 128.2175547452131,
+        "glare_ratio": 0.0016579861111111112,
+        "dark_ratio": 0.0900270061728395
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260725_rec20_监控_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          90,
+          0,
+          1522,
+          977
+        ],
+        "screen_area_ratio": 0.7171074459876543,
+        "perspective_ratio": 1.0,
+        "blur_score": 172.23523084016844,
+        "glare_ratio": 0.000757619598765432,
+        "dark_ratio": 0.19600983796296295
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260725_rec20_炮筒_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          31,
+          9,
+          1474,
+          1045
+        ],
+        "screen_area_ratio": 0.7428288966049382,
+        "perspective_ratio": 1.0,
+        "blur_score": 290.81738836088294,
+        "glare_ratio": 0.0008762538580246914,
+        "dark_ratio": 0.1091333912037037
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260725_rec20_射出_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          116,
+          47,
+          1804,
+          985
+        ],
+        "screen_area_ratio": 0.856934799382716,
+        "perspective_ratio": 1.0,
+        "blur_score": 158.6863261910301,
+        "glare_ratio": 0.0009119405864197531,
+        "dark_ratio": 0.1774508101851852
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "阿博格_A07_TX23053_100-30023_20260725_rec20_射出_01.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          190,
+          32,
+          1730,
+          965
+        ],
+        "screen_area_ratio": 0.8050974151234568,
+        "perspective_ratio": 1.0,
+        "blur_score": 145.4677751267245,
+        "glare_ratio": 0.0009837962962962962,
+        "dark_ratio": 0.1735522762345679
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "伯乐_A01_TX24014_200-19355-2_20260717_rec11_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          522,
+          0,
+          1087,
+          1069
+        ],
+        "screen_area_ratio": 0.5603795331790123,
+        "perspective_ratio": 1.0,
+        "blur_score": 158.29876501698888,
+        "glare_ratio": 0.0007783564814814814,
+        "dark_ratio": 0.05393856095679012
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "伯乐_A01_TX24014_200-19355-2_20260717_rec11_储料_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          557,
+          45,
+          1303,
+          959
+        ],
+        "screen_area_ratio": 0.6026123649691358,
+        "perspective_ratio": 1.0,
+        "blur_score": 137.4957757488299,
+        "glare_ratio": 0.009919463734567901,
+        "dark_ratio": 0.03346739969135802
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "伯乐_A01_TX24014_200-19355-2_20260717_rec11_监控_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          688,
+          24,
+          1182,
+          1016
+        ],
+        "screen_area_ratio": 0.5791435185185185,
+        "perspective_ratio": 1.0,
+        "blur_score": 212.2640133277114,
+        "glare_ratio": 0.0031611689814814814,
+        "dark_ratio": 0.11322193287037037
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "伯乐_A01_TX24014_200-19355-2_20260717_rec11_炮筒_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          801,
+          178,
+          1011,
+          902
+        ],
+        "screen_area_ratio": 0.4397771990740741,
+        "perspective_ratio": 1.0,
+        "blur_score": 141.18545481928234,
+        "glare_ratio": 0.01615017361111111,
+        "dark_ratio": 0.10193479938271605
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "伯乐_A01_TX24014_200-19355-2_20260717_rec11_射出_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          655,
+          81,
+          988,
+          999
+        ],
+        "screen_area_ratio": 0.47598958333333335,
+        "perspective_ratio": 1.0,
+        "blur_score": 122.81646313940855,
+        "glare_ratio": 0.014889564043209876,
+        "dark_ratio": 0.06900993441358025
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec07_波形_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          75,
+          256,
+          621,
+          951
+        ],
+        "screen_area_ratio": 0.640810546875,
+        "perspective_ratio": 1.3,
+        "blur_score": 546.9917979248318,
+        "glare_ratio": 0.0022406684027777776,
+        "dark_ratio": 0.09008680555555555
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec07_储料_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          34,
+          245,
+          634,
+          974
+        ],
+        "screen_area_ratio": 0.6700477430555556,
+        "perspective_ratio": 1.3,
+        "blur_score": 878.4230338022444,
+        "glare_ratio": 0.006465928819444445,
+        "dark_ratio": 0.09872938368055556
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec07_监控_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          7,
+          173,
+          684,
+          1060
+        ],
+        "screen_area_ratio": 0.78671875,
+        "perspective_ratio": 1.3,
+        "blur_score": 1089.7600021680619,
+        "glare_ratio": 0.013207465277777778,
+        "dark_ratio": 0.09843858506944445
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec07_炮筒_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          49,
+          275,
+          580,
+          909
+        ],
+        "screen_area_ratio": 0.5720703125,
+        "perspective_ratio": 1.3,
+        "blur_score": 638.6632092635497,
+        "glare_ratio": 0.009034288194444445,
+        "dark_ratio": 0.04397786458333333
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec07_射出_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          48,
+          253,
+          628,
+          973
+        ],
+        "screen_area_ratio": 0.6630251736111111,
+        "perspective_ratio": 1.3,
+        "blur_score": 855.904795980453,
+        "glare_ratio": 0.010864800347222222,
+        "dark_ratio": 0.08574544270833333
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec09_波形_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          75,
+          256,
+          621,
+          951
+        ],
+        "screen_area_ratio": 0.640810546875,
+        "perspective_ratio": 1.3,
+        "blur_score": 546.9917979248318,
+        "glare_ratio": 0.0022406684027777776,
+        "dark_ratio": 0.09008680555555555
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec09_储料_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          34,
+          245,
+          634,
+          974
+        ],
+        "screen_area_ratio": 0.6700477430555556,
+        "perspective_ratio": 1.3,
+        "blur_score": 878.4230338022444,
+        "glare_ratio": 0.006465928819444445,
+        "dark_ratio": 0.09872938368055556
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec09_监控_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          7,
+          173,
+          684,
+          1060
+        ],
+        "screen_area_ratio": 0.78671875,
+        "perspective_ratio": 1.3,
+        "blur_score": 1089.7600021680619,
+        "glare_ratio": 0.013207465277777778,
+        "dark_ratio": 0.09843858506944445
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec09_炮筒_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          49,
+          275,
+          580,
+          909
+        ],
+        "screen_area_ratio": 0.5720703125,
+        "perspective_ratio": 1.3,
+        "blur_score": 638.6632092635497,
+        "glare_ratio": 0.009034288194444445,
+        "dark_ratio": 0.04397786458333333
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B01_TX25023_200-30133-1_20260724_rec09_射出_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          48,
+          253,
+          628,
+          973
+        ],
+        "screen_area_ratio": 0.6630251736111111,
+        "perspective_ratio": 1.3,
+        "blur_score": 855.904795980453,
+        "glare_ratio": 0.010864800347222222,
+        "dark_ratio": 0.08574544270833333
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_100-30135_20260724_rec06_波形_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          79,
+          315,
+          552,
+          416
+        ],
+        "screen_area_ratio": 0.24916666666666668,
+        "perspective_ratio": 1.0,
+        "blur_score": 156.90359744205708,
+        "glare_ratio": 0.01729275173611111,
+        "dark_ratio": 0.0014029947916666668
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_100-30135_20260724_rec06_储料_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          0,
+          720,
+          305
+        ],
+        "screen_area_ratio": 0.23828125,
+        "perspective_ratio": 1.0,
+        "blur_score": 164.32734343408183,
+        "glare_ratio": 0.022697482638888888,
+        "dark_ratio": 0.0001638454861111111
+      },
+      "reshoot_guidance": [
+        "屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_100-30135_20260724_rec06_监控_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          73,
+          302,
+          531,
+          396
+        ],
+        "screen_area_ratio": 0.2281640625,
+        "perspective_ratio": 1.0,
+        "blur_score": 358.64591697810476,
+        "glare_ratio": 0.03776475694444444,
+        "dark_ratio": 0.007253689236111111
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_100-30135_20260724_rec06_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          0,
+          720,
+          1280
+        ],
+        "screen_area_ratio": 1.0,
+        "perspective_ratio": 1.3,
+        "blur_score": 219.5904025000949,
+        "glare_ratio": 0.05853298611111111,
+        "dark_ratio": 0.005426432291666667
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "伯乐_B02_TX25024_100-30135_20260724_rec06_射出_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          0,
+          720,
+          287
+        ],
+        "screen_area_ratio": 0.22421875,
+        "perspective_ratio": 1.3,
+        "blur_score": 222.56712184430233,
+        "glare_ratio": 0.023741319444444443,
+        "dark_ratio": 0.001091579861111111
+      },
+      "reshoot_guidance": [
+        "屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec08_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          1012,
+          1044,
+          676
+        ],
+        "screen_area_ratio": 0.34034722222222225,
+        "perspective_ratio": 1.0,
+        "blur_score": 83.09884529722657,
+        "glare_ratio": 0.00032455632716049383,
+        "dark_ratio": 0.2001220100308642
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec08_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          1008,
+          1007,
+          784
+        ],
+        "screen_area_ratio": 0.380733024691358,
+        "perspective_ratio": 1.0,
+        "blur_score": 93.83758140817207,
+        "glare_ratio": 0.0004499421296296296,
+        "dark_ratio": 0.20317226080246914
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec08_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          874,
+          998,
+          855
+        ],
+        "screen_area_ratio": 0.4115017361111111,
+        "perspective_ratio": 1.0,
+        "blur_score": 159.84516757367072,
+        "glare_ratio": 0.0004851466049382716,
+        "dark_ratio": 0.22818479938271605
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec08_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          0,
+          1080,
+          616
+        ],
+        "screen_area_ratio": 0.32083333333333336,
+        "perspective_ratio": 1.0,
+        "blur_score": 102.67296875066955,
+        "glare_ratio": 0.0007720871913580247,
+        "dark_ratio": 0.20085744598765432
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec08_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          882,
+          1028,
+          908
+        ],
+        "screen_area_ratio": 0.4501466049382716,
+        "perspective_ratio": 1.0,
+        "blur_score": 106.31230613245829,
+        "glare_ratio": 0.00039544753086419754,
+        "dark_ratio": 0.18562403549382717
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec10_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          1012,
+          1044,
+          676
+        ],
+        "screen_area_ratio": 0.34034722222222225,
+        "perspective_ratio": 1.0,
+        "blur_score": 83.09884529722657,
+        "glare_ratio": 0.00032455632716049383,
+        "dark_ratio": 0.2001220100308642
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec10_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          1008,
+          1007,
+          784
+        ],
+        "screen_area_ratio": 0.380733024691358,
+        "perspective_ratio": 1.0,
+        "blur_score": 93.83758140817207,
+        "glare_ratio": 0.0004499421296296296,
+        "dark_ratio": 0.20317226080246914
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec10_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          874,
+          998,
+          855
+        ],
+        "screen_area_ratio": 0.4115017361111111,
+        "perspective_ratio": 1.0,
+        "blur_score": 159.84516757367072,
+        "glare_ratio": 0.0004851466049382716,
+        "dark_ratio": 0.22818479938271605
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec10_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          0,
+          1080,
+          616
+        ],
+        "screen_area_ratio": 0.32083333333333336,
+        "perspective_ratio": 1.0,
+        "blur_score": 102.67296875066955,
+        "glare_ratio": 0.0007720871913580247,
+        "dark_ratio": 0.20085744598765432
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "伯乐_B02_TX25024_200-30133-2_20260724_rec10_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          882,
+          1028,
+          908
+        ],
+        "screen_area_ratio": 0.4501466049382716,
+        "perspective_ratio": 1.0,
+        "blur_score": 106.31230613245829,
+        "glare_ratio": 0.00039544753086419754,
+        "dark_ratio": 0.18562403549382717
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          0,
+          7,
+          1846,
+          1073
+        ],
+        "screen_area_ratio": 0.9552266589506173,
+        "perspective_ratio": 1.0,
+        "blur_score": 3157.6598374797272,
+        "glare_ratio": 0.03580102237654321,
+        "dark_ratio": 0.07794029706790123
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          328,
+          0,
+          1592,
+          600
+        ],
+        "screen_area_ratio": 0.46064814814814814,
+        "perspective_ratio": 1.3,
+        "blur_score": 2174.5581261031934,
+        "glare_ratio": 0.006655574845679012,
+        "dark_ratio": 0.006039737654320988
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_储料_01.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          0,
+          1080,
+          1920
+        ],
+        "screen_area_ratio": 1.0,
+        "perspective_ratio": 1.3,
+        "blur_score": 2158.7628990471917,
+        "glare_ratio": 0.036018036265432096,
+        "dark_ratio": 0.007619116512345679
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          0,
+          0,
+          1920,
+          1080
+        ],
+        "screen_area_ratio": 1.0,
+        "perspective_ratio": 1.0,
+        "blur_score": 10516.728076476602,
+        "glare_ratio": 0.07811728395061729,
+        "dark_ratio": 0.012473476080246914
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          282,
+          53,
+          1408,
+          795
+        ],
+        "screen_area_ratio": 0.5398148148148149,
+        "perspective_ratio": 1.0,
+        "blur_score": 4337.98120767199,
+        "glare_ratio": 0.03165075231481482,
+        "dark_ratio": 0.025031828703703702
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_射出_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          239,
+          0,
+          1681,
+          888
+        ],
+        "screen_area_ratio": 0.7198726851851852,
+        "perspective_ratio": 1.0,
+        "blur_score": 2171.2073676841433,
+        "glare_ratio": 0.008315007716049382,
+        "dark_ratio": 0.005054012345679012
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_射出_01.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          285,
+          0,
+          1569,
+          624
+        ],
+        "screen_area_ratio": 0.47215277777777775,
+        "perspective_ratio": 1.3,
+        "blur_score": 1171.8605922700108,
+        "glare_ratio": 0.01195119598765432,
+        "dark_ratio": 0.003093653549382716
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A02_TX23030_100-18891_20260722_rec15_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          872,
+          1080,
+          1021
+        ],
+        "screen_area_ratio": 0.5317708333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 204.83737784617497,
+        "glare_ratio": 0.00026089891975308643,
+        "dark_ratio": 0.16189043209876544
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A02_TX23030_100-18891_20260722_rec15_储料_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          52,
+          1080,
+          1478
+        ],
+        "screen_area_ratio": 0.7697916666666667,
+        "perspective_ratio": 1.0,
+        "blur_score": 435.38845695265655,
+        "glare_ratio": 0.00030912422839506174,
+        "dark_ratio": 0.16225501543209878
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A02_TX23030_100-18891_20260722_rec15_监控_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          0,
+          1080,
+          988
+        ],
+        "screen_area_ratio": 0.5145833333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 334.6709753972782,
+        "glare_ratio": 0.0009206211419753086,
+        "dark_ratio": 0.11563802083333333
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A02_TX23030_100-18891_20260722_rec15_炮筒_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          52,
+          0,
+          1028,
+          692
+        ],
+        "screen_area_ratio": 0.34306327160493827,
+        "perspective_ratio": 1.0,
+        "blur_score": 231.1176261645371,
+        "glare_ratio": 0.00018856095679012345,
+        "dark_ratio": 0.19137683256172838
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A02_TX23030_100-18891_20260722_rec15_射出_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          844,
+          1080,
+          745
+        ],
+        "screen_area_ratio": 0.3880208333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 206.07736954755364,
+        "glare_ratio": 0.00023775077160493826,
+        "dark_ratio": 0.138461612654321
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "德马格_A02_TX23030_100-18891_20260722_rec15_射出_01.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          588,
+          1080,
+          1076
+        ],
+        "screen_area_ratio": 0.5604166666666667,
+        "perspective_ratio": 1.0,
+        "blur_score": 191.3456929123677,
+        "glare_ratio": 0.00012393904320987653,
+        "dark_ratio": 0.16552420910493826
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260313_rec01_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          339,
+          720,
+          619
+        ],
+        "screen_area_ratio": 0.48359375,
+        "perspective_ratio": 1.0,
+        "blur_score": 571.4091394669323,
+        "glare_ratio": 0.007253689236111111,
+        "dark_ratio": 0.005434027777777778
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260313_rec01_储料_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          36,
+          0,
+          684,
+          1244
+        ],
+        "screen_area_ratio": 0.92328125,
+        "perspective_ratio": 1.3,
+        "blur_score": 535.8786377976019,
+        "glare_ratio": 0.007264539930555556,
+        "dark_ratio": 2.0616319444444445e-05
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260313_rec01_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          11,
+          0,
+          709,
+          1266
+        ],
+        "screen_area_ratio": 0.9739518229166667,
+        "perspective_ratio": 1.3,
+        "blur_score": 815.5501407684708,
+        "glare_ratio": 0.009054904513888889,
+        "dark_ratio": 0.0032628038194444445
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260313_rec01_炮筒_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          373,
+          720,
+          593
+        ],
+        "screen_area_ratio": 0.46328125,
+        "perspective_ratio": 1.0,
+        "blur_score": 516.1436136817036,
+        "glare_ratio": 0.005205078125,
+        "dark_ratio": 0.0006315104166666666
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260313_rec01_射出_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          349,
+          720,
+          598
+        ],
+        "screen_area_ratio": 0.4671875,
+        "perspective_ratio": 1.0,
+        "blur_score": 500.23556668607796,
+        "glare_ratio": 0.005750868055555556,
+        "dark_ratio": 0.00021158854166666667
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260714_rec00_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          218,
+          84,
+          1243,
+          933
+        ],
+        "screen_area_ratio": 0.5592780671296296,
+        "perspective_ratio": 1.0,
+        "blur_score": 114.97543456653348,
+        "glare_ratio": 0.01009886188271605,
+        "dark_ratio": 0.002361593364197531
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260714_rec00_储料_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          198,
+          0,
+          1635,
+          1043
+        ],
+        "screen_area_ratio": 0.822388599537037,
+        "perspective_ratio": 1.0,
+        "blur_score": 127.29642183380557,
+        "glare_ratio": 0.0012104552469135803,
+        "dark_ratio": 0.018155864197530864
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260714_rec00_监控_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          194,
+          0,
+          1474,
+          1017
+        ],
+        "screen_area_ratio": 0.7229253472222222,
+        "perspective_ratio": 1.0,
+        "blur_score": 139.72411719251522,
+        "glare_ratio": 0.0038425925925925928,
+        "dark_ratio": 0.009361014660493827
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260714_rec00_炮筒_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          347,
+          119,
+          1273,
+          867
+        ],
+        "screen_area_ratio": 0.5322583912037037,
+        "perspective_ratio": 1.0,
+        "blur_score": 96.61243682386305,
+        "glare_ratio": 0.0027647569444444442,
+        "dark_ratio": 0.004813850308641975
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "发那科_A09_TX22058_100-17014_20260714_rec00_射出_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          219,
+          0,
+          1701,
+          1066
+        ],
+        "screen_area_ratio": 0.874453125,
+        "perspective_ratio": 1.0,
+        "blur_score": 115.0660539565256,
+        "glare_ratio": 0.003347800925925926,
+        "dark_ratio": 0.01658323688271605
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec12_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          17,
+          828,
+          1033,
+          802
+        ],
+        "screen_area_ratio": 0.3995302854938272,
+        "perspective_ratio": 1.0,
+        "blur_score": 260.6810353629041,
+        "glare_ratio": 9.162808641975309e-05,
+        "dark_ratio": 0.07219328703703703
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec12_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          20,
+          868,
+          1033,
+          843
+        ],
+        "screen_area_ratio": 0.41995515046296295,
+        "perspective_ratio": 1.0,
+        "blur_score": 294.08725259514085,
+        "glare_ratio": 0.001865354938271605,
+        "dark_ratio": 0.05754195601851852
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec12_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          910,
+          1019,
+          861
+        ],
+        "screen_area_ratio": 0.42310908564814814,
+        "perspective_ratio": 1.0,
+        "blur_score": 247.22672939985594,
+        "glare_ratio": 0.0021518132716049384,
+        "dark_ratio": 0.05180121527777778
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec12_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          767,
+          1046,
+          879
+        ],
+        "screen_area_ratio": 0.44339988425925925,
+        "perspective_ratio": 1.0,
+        "blur_score": 276.10483628177417,
+        "glare_ratio": 0.0002189429012345679,
+        "dark_ratio": 0.05793499228395062
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec16_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          17,
+          828,
+          1033,
+          802
+        ],
+        "screen_area_ratio": 0.3995302854938272,
+        "perspective_ratio": 1.0,
+        "blur_score": 260.6810353629041,
+        "glare_ratio": 9.162808641975309e-05,
+        "dark_ratio": 0.07219328703703703
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec16_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          20,
+          868,
+          1033,
+          843
+        ],
+        "screen_area_ratio": 0.41995515046296295,
+        "perspective_ratio": 1.0,
+        "blur_score": 294.08725259514085,
+        "glare_ratio": 0.001865354938271605,
+        "dark_ratio": 0.05754195601851852
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec16_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          910,
+          1019,
+          861
+        ],
+        "screen_area_ratio": 0.42310908564814814,
+        "perspective_ratio": 1.0,
+        "blur_score": 247.22672939985594,
+        "glare_ratio": 0.0021518132716049384,
+        "dark_ratio": 0.05180121527777778
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-19156_20260605_rec16_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          767,
+          1046,
+          879
+        ],
+        "screen_area_ratio": 0.44339988425925925,
+        "perspective_ratio": 1.0,
+        "blur_score": 276.10483628177417,
+        "glare_ratio": 0.0002189429012345679,
+        "dark_ratio": 0.05793499228395062
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec13_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          339,
+          0,
+          1460,
+          1080
+        ],
+        "screen_area_ratio": 0.7604166666666666,
+        "perspective_ratio": 1.0,
+        "blur_score": 737.1019114885185,
+        "glare_ratio": 0.06610050154320987,
+        "dark_ratio": 0.13615017361111112
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec13_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          258,
+          0,
+          1467,
+          1071
+        ],
+        "screen_area_ratio": 0.7576953125,
+        "perspective_ratio": 1.0,
+        "blur_score": 726.137705735618,
+        "glare_ratio": 0.06681761188271605,
+        "dark_ratio": 0.0642674575617284
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec13_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          247,
+          0,
+          1639,
+          1080
+        ],
+        "screen_area_ratio": 0.8536458333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 839.3623447087008,
+        "glare_ratio": 0.06778404706790124,
+        "dark_ratio": 0.061843171296296295
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec13_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          329,
+          45,
+          1515,
+          1035
+        ],
+        "screen_area_ratio": 0.7561848958333334,
+        "perspective_ratio": 1.0,
+        "blur_score": 1025.6892386044776,
+        "glare_ratio": 0.034986496913580245,
+        "dark_ratio": 0.06109471450617284
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec13_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          258,
+          0,
+          1456,
+          1080
+        ],
+        "screen_area_ratio": 0.7583333333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 1160.9344732212887,
+        "glare_ratio": 0.045208333333333336,
+        "dark_ratio": 0.06080680941358025
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec17_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          339,
+          0,
+          1460,
+          1080
+        ],
+        "screen_area_ratio": 0.7604166666666666,
+        "perspective_ratio": 1.0,
+        "blur_score": 737.1019114885185,
+        "glare_ratio": 0.06610050154320987,
+        "dark_ratio": 0.13615017361111112
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec17_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          258,
+          0,
+          1467,
+          1071
+        ],
+        "screen_area_ratio": 0.7576953125,
+        "perspective_ratio": 1.0,
+        "blur_score": 726.137705735618,
+        "glare_ratio": 0.06681761188271605,
+        "dark_ratio": 0.0642674575617284
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec17_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          247,
+          0,
+          1639,
+          1080
+        ],
+        "screen_area_ratio": 0.8536458333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 839.3623447087008,
+        "glare_ratio": 0.06778404706790124,
+        "dark_ratio": 0.061843171296296295
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec17_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          329,
+          45,
+          1515,
+          1035
+        ],
+        "screen_area_ratio": 0.7561848958333334,
+        "perspective_ratio": 1.0,
+        "blur_score": 1025.6892386044776,
+        "glare_ratio": 0.034986496913580245,
+        "dark_ratio": 0.06109471450617284
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "佳明_B07_TX24013_100-30139_20260604_rec17_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          258,
+          0,
+          1456,
+          1080
+        ],
+        "screen_area_ratio": 0.7583333333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 1160.9344732212887,
+        "glare_ratio": 0.045208333333333336,
+        "dark_ratio": 0.06080680941358025
+      },
+      "reshoot_guidance": [
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "日精_A06_TX25022_100-15545_20260724_rec02_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          110,
+          0,
+          1810,
+          1080
+        ],
+        "screen_area_ratio": 0.9427083333333334,
+        "perspective_ratio": 1.0,
+        "blur_score": 982.8955698956627,
+        "glare_ratio": 0.08734375,
+        "dark_ratio": 0.007566068672839506
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_A06_TX25022_100-15545_20260724_rec02_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          177,
+          0,
+          1723,
+          1080
+        ],
+        "screen_area_ratio": 0.8973958333333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 745.982527423586,
+        "glare_ratio": 0.06543354552469136,
+        "dark_ratio": 0.01625385802469136
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_A06_TX25022_100-15545_20260724_rec02_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          101,
+          0,
+          1819,
+          1068
+        ],
+        "screen_area_ratio": 0.936869212962963,
+        "perspective_ratio": 1.0,
+        "blur_score": 1645.6135270235789,
+        "glare_ratio": 0.0935643325617284,
+        "dark_ratio": 0.018057002314814816
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_A06_TX25022_100-15545_20260724_rec02_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          142,
+          0,
+          1712,
+          1080
+        ],
+        "screen_area_ratio": 0.8916666666666667,
+        "perspective_ratio": 1.0,
+        "blur_score": 322.30062748090904,
+        "glare_ratio": 0.04537229938271605,
+        "dark_ratio": 0.018895640432098765
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_A06_TX25022_100-15545_20260724_rec02_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          41,
+          0,
+          1823,
+          1080
+        ],
+        "screen_area_ratio": 0.9494791666666667,
+        "perspective_ratio": 1.0,
+        "blur_score": 378.18593527171885,
+        "glare_ratio": 0.04548755787037037,
+        "dark_ratio": 0.020752314814814814
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec04_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          245,
+          222,
+          1099,
+          858
+        ],
+        "screen_area_ratio": 0.4547366898148148,
+        "perspective_ratio": 1.0,
+        "blur_score": 187.73117563807918,
+        "glare_ratio": 0.027061149691358026,
+        "dark_ratio": 0.09155864197530864
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec04_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          269,
+          72,
+          1265,
+          1008
+        ],
+        "screen_area_ratio": 0.6149305555555555,
+        "perspective_ratio": 1.0,
+        "blur_score": 263.419524979184,
+        "glare_ratio": 0.02732590663580247,
+        "dark_ratio": 0.16210358796296295
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec04_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          119,
+          0,
+          1427,
+          938
+        ],
+        "screen_area_ratio": 0.6455082947530865,
+        "perspective_ratio": 1.0,
+        "blur_score": 347.6337431986853,
+        "glare_ratio": 0.04656684027777778,
+        "dark_ratio": 0.20209153163580246
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec04_炮筒_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          244,
+          76,
+          1238,
+          1004
+        ],
+        "screen_area_ratio": 0.599417438271605,
+        "perspective_ratio": 1.0,
+        "blur_score": 157.2857275842549,
+        "glare_ratio": 0.019523051697530863,
+        "dark_ratio": 0.2006303047839506
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec04_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          429,
+          126,
+          1146,
+          954
+        ],
+        "screen_area_ratio": 0.5272395833333333,
+        "perspective_ratio": 1.0,
+        "blur_score": 267.84826413462866,
+        "glare_ratio": 0.038188175154320984,
+        "dark_ratio": 0.08254195601851852
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec05_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          717,
+          916,
+          1203
+        ],
+        "screen_area_ratio": 0.5314178240740741,
+        "perspective_ratio": 1.0,
+        "blur_score": 94.46434480231439,
+        "glare_ratio": 0.003882619598765432,
+        "dark_ratio": 0.1948823302469136
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec05_储料_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          30,
+          750,
+          1050,
+          1170
+        ],
+        "screen_area_ratio": 0.5924479166666666,
+        "perspective_ratio": 1.0,
+        "blur_score": 149.28063405586434,
+        "glare_ratio": 0.002111304012345679,
+        "dark_ratio": 0.17974971064814815
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec05_监控_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          0,
+          1080,
+          1769
+        ],
+        "screen_area_ratio": 0.9213541666666667,
+        "perspective_ratio": 1.3,
+        "blur_score": 151.98619955042693,
+        "glare_ratio": 0.00035204475308641976,
+        "dark_ratio": 0.11526089891975308
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec05_炮筒_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          769,
+          1005,
+          1151
+        ],
+        "screen_area_ratio": 0.5578486689814814,
+        "perspective_ratio": 1.0,
+        "blur_score": 86.92066995431456,
+        "glare_ratio": 0.0006447723765432099,
+        "dark_ratio": 0.18528018904320986
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B09_TX23056_100-30087_20260710_rec05_射出_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          63,
+          759,
+          1017,
+          1161
+        ],
+        "screen_area_ratio": 0.5694140625,
+        "perspective_ratio": 1.0,
+        "blur_score": 141.82257003439503,
+        "glare_ratio": 0.0011304012345679012,
+        "dark_ratio": 0.20212577160493828
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "日精_B10_TX22064_100-17018_20260724_rec03_波形_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          30,
+          276,
+          652,
+          739
+        ],
+        "screen_area_ratio": 0.5228168402777778,
+        "perspective_ratio": 1.0,
+        "blur_score": 338.1659239379458,
+        "glare_ratio": 0.031966145833333334,
+        "dark_ratio": 0.14805772569444445
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "日精_B10_TX22064_100-17018_20260724_rec03_储料_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          26,
+          346,
+          638,
+          769
+        ],
+        "screen_area_ratio": 0.5323589409722222,
+        "perspective_ratio": 1.0,
+        "blur_score": 330.57722042355016,
+        "glare_ratio": 0.02362521701388889,
+        "dark_ratio": 0.15513346354166666
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "日精_B10_TX22064_100-17018_20260724_rec03_监控_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          52,
+          341,
+          605,
+          709
+        ],
+        "screen_area_ratio": 0.4654351128472222,
+        "perspective_ratio": 1.0,
+        "blur_score": 512.0683776203567,
+        "glare_ratio": 0.027315538194444444,
+        "dark_ratio": 0.15448784722222222
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "日精_B10_TX22064_100-17018_20260724_rec03_炮筒_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          30,
+          269,
+          629,
+          725
+        ],
+        "screen_area_ratio": 0.4948187934027778,
+        "perspective_ratio": 1.0,
+        "blur_score": 325.5254557249281,
+        "glare_ratio": 0.028307291666666668,
+        "dark_ratio": 0.1201953125
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "日精_B10_TX22064_100-17018_20260724_rec03_射出_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          26,
+          346,
+          638,
+          769
+        ],
+        "screen_area_ratio": 0.5323589409722222,
+        "perspective_ratio": 1.0,
+        "blur_score": 330.57722042355016,
+        "glare_ratio": 0.02362521701388889,
+        "dark_ratio": 0.15513346354166666
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec18_波形_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          87,
+          487,
+          945,
+          750
+        ],
+        "screen_area_ratio": 0.341796875,
+        "perspective_ratio": 1.0,
+        "blur_score": 403.9844867613804,
+        "glare_ratio": 0.04960069444444445,
+        "dark_ratio": 0.18126157407407406
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec18_储料_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          64,
+          411,
+          964,
+          767
+        ],
+        "screen_area_ratio": 0.3565721450617284,
+        "perspective_ratio": 1.0,
+        "blur_score": 370.10676694207825,
+        "glare_ratio": 0.037826967592592596,
+        "dark_ratio": 0.14958381558641975
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec18_监控_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          44,
+          404,
+          993,
+          770
+        ],
+        "screen_area_ratio": 0.3687355324074074,
+        "perspective_ratio": 1.0,
+        "blur_score": 347.3175707825396,
+        "glare_ratio": 0.01791039737654321,
+        "dark_ratio": 0.13060522762345678
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec18_炮筒_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          1,
+          492,
+          981,
+          689
+        ],
+        "screen_area_ratio": 0.3259592013888889,
+        "perspective_ratio": 1.0,
+        "blur_score": 242.54023948256034,
+        "glare_ratio": 0.028740354938271605,
+        "dark_ratio": 0.17214216820987654
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec18_射出_00.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          27,
+          409,
+          991,
+          746
+        ],
+        "screen_area_ratio": 0.3565229552469136,
+        "perspective_ratio": 1.0,
+        "blur_score": 292.2198522276733,
+        "glare_ratio": 0.028875385802469136,
+        "dark_ratio": 0.1576591435185185
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec19_波形_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          0,
+          720,
+          547
+        ],
+        "screen_area_ratio": 0.42734375,
+        "perspective_ratio": 1.0,
+        "blur_score": 789.3436303337194,
+        "glare_ratio": 0.007255859375,
+        "dark_ratio": 0.12415473090277777
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec19_储料_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          19,
+          398,
+          660,
+          524
+        ],
+        "screen_area_ratio": 0.37526041666666665,
+        "perspective_ratio": 1.0,
+        "blur_score": 783.4624435224699,
+        "glare_ratio": 0.027051866319444444,
+        "dark_ratio": 0.12465603298611111
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec19_监控_00.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          374,
+          720,
+          584
+        ],
+        "screen_area_ratio": 0.45625,
+        "perspective_ratio": 1.0,
+        "blur_score": 1631.0979431886983,
+        "glare_ratio": 0.009662543402777777,
+        "dark_ratio": 0.1000412326388889
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec19_炮筒_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          14,
+          274,
+          693,
+          558
+        ],
+        "screen_area_ratio": 0.41958984375,
+        "perspective_ratio": 1.0,
+        "blur_score": 875.3402093886377,
+        "glare_ratio": 0.01759331597222222,
+        "dark_ratio": 0.11942816840277778
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。"
+      ]
+    },
+    {
+      "filename": "沙迪克_A06_TX22057_100-17013_20260703_rec19_射出_00.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL",
+        "DUPLICATE_ATTACHMENT"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          19,
+          398,
+          660,
+          524
+        ],
+        "screen_area_ratio": 0.37526041666666665,
+        "perspective_ratio": 1.0,
+        "blur_score": 783.4624435224699,
+        "glare_ratio": 0.027051866319444444,
+        "dark_ratio": 0.12465603298611111
+      },
+      "reshoot_guidance": [
+        "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+        "当前多个字段使用了同一张照片，请分别拍摄并上传对应页面。"
+      ]
+    }
+  ]
+}
