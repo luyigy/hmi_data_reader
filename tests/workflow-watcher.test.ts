@@ -147,12 +147,16 @@ S01 then S02
     feishu: { chat_id: 'chat', approver_open_ids: ['approver'] },
     jobs: [job],
   };
+  const workflowRuns: Array<{ chatId: string; chatType: 'group' | 'p2p'; prompt: string; eventKey: string }> = [];
   const run = (cursor?: unknown, mode: 'shadow' | 'active' = 'active') => workflowWatcherHandler({
     project,
     job,
     mode,
     cursor,
     signal: new AbortController().signal,
+  }, async (args) => {
+    workflowRuns.push(args);
+    if (process.env.LARK_FAIL_PROMPT === '1') throw new Error('prompt-failed');
   });
 
   assert.match((await run(undefined, 'shadow')).summary, /candidate=none/);
@@ -214,20 +218,18 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
     { sender: { id: 'coding-app' }, msg_type: 'interactive', content: `done\n${pendingCursor.pending.expectedMarker}` },
     { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
   ] } }));
-  const textCallBaseline = apiCalls.filter(({ body }) => body.msg_type === 'text').length;
   process.env.LARK_FAIL_PROMPT = '1';
   await assert.rejects(run(pending.cursor), /prompt-failed/);
-  assert.equal(apiCalls.filter(({ body }) => body.msg_type === 'text').length, textCallBaseline + 2);
 
   process.env.LARK_FAIL_PROMPT = '0';
   const restartedCursor = JSON.parse(JSON.stringify(pending.cursor));
   const completed = await run(restartedCursor);
   assert.match(completed.summary, /result=session_started/);
-  const textCalls = apiCalls.filter(({ body }) => body.msg_type === 'text').slice(textCallBaseline);
-  assert.equal(textCalls.length, 4);
-  const keys = textCalls.map(({ url }) => new URL(url).searchParams.get('uuid'));
-  assert.equal(keys[0], keys[2], 'reset retry must reuse its idempotency key');
-  assert.equal(keys[1], keys[3], 'prompt retry must reuse its idempotency key');
+  assert.equal(workflowRuns.length, 2);
+  assert.deepEqual(workflowRuns[0], workflowRuns[1], 'workflow retry must reuse the same event key and prompt');
+  assert.equal(workflowRuns[0].chatId, 'coding-bot-chat');
+  assert.equal(workflowRuns[0].chatType, 'group');
+  assert.match(workflowRuns[0].prompt, /NEXT PROMPT/);
   assert.match((await run(completed.cursor)).summary, /candidate=none/);
 
   await writeFile(path.join(root, 'docs/branch/main/002_HANDOVER_20260725_terminal.md'), `---
@@ -279,10 +281,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const callbackApproved = JSON.parse(JSON.stringify(reviewCursor));
   callbackApproved.pending.reviewState = 'approved';
   assert.match((await run(callbackApproved)).summary, /result=session_started/);
-  const resetCall = apiCalls.find(({ body }) => body.content === JSON.stringify({ text: '/ap new-session all' }));
-  assert.equal(resetCall?.body.receive_id, 'coding-bot-chat');
-  assert.equal(apiCalls.some(({ body }) =>
-    body.receive_id === project.feishu.chat_id && String(body.content).includes('/ap new-session')), false);
+  assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
 
   const reviewPending = {
     key: 'key',

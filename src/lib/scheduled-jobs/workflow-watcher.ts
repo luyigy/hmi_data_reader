@@ -65,6 +65,12 @@ type Pending = WorkflowReviewPending & {
 };
 
 type Cursor = { commit: string; eventKey?: string; pending?: Pending };
+type WorkflowRunner = (args: {
+  chatId: string;
+  chatType: 'group' | 'p2p';
+  prompt: string;
+  eventKey: string;
+}) => Promise<void>;
 type Message = {
   message_id?: string;
   parent_id?: string;
@@ -359,17 +365,20 @@ const messages = async (chatId: string, start: string, signal: AbortSignal) => {
 const execute = async (
   pending: Pending,
   codingBotChatId: string,
-  codingBotAppId: string,
-  signal: AbortSignal,
+  runWorkflow: WorkflowRunner,
 ) => {
-  await send(codingBotChatId, '/ap new-session all', pending.key, 'reset');
-  const resetDone = (await messages(codingBotChatId, pending.detectedAt, signal)).some((message) =>
-    message.sender?.id === codingBotAppId && message.content?.includes('✅ 已为全部 4 个 agent 重置 session'));
-  if (!resetDone) throw new Error('reset confirmation not found; retry is safe');
-  await send(codingBotChatId, pending.prompt, pending.key, 'prompt');
+  await runWorkflow({
+    chatId: codingBotChatId,
+    chatType: 'group',
+    prompt: pending.prompt,
+    eventKey: pending.key,
+  });
 };
 
-export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, cursor, signal }) => {
+export const workflowWatcherHandler = async (
+  { project, job, mode, cursor, signal }: Parameters<JobHandler>[0],
+  runWorkflow?: WorkflowRunner,
+) => {
   const contractPath = String(job.config.contract_path || '');
   if (!contractPath || path.isAbsolute(contractPath) || contractPath.split('/').includes('..')) {
     throw new Error('contract_path must stay inside the repository');
@@ -494,7 +503,13 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
       });
       if (!ready) return { summary: `head=${head} pending=${pending.path} gate=workflow_ready`, cursor: previous };
     }
-    if (mode === 'active') await execute(pending, codingBotChatId, codingBotAppId, signal);
+    if (mode === 'active') {
+      await execute(
+        pending,
+        codingBotChatId,
+        runWorkflow ?? (await import('../feishu')).runWorkflowInBoundLiveRoom,
+      );
+    }
     return {
       summary: `head=${head} candidate=${pending.path} action=${pending.action} result=${mode === 'active' ? 'session_started' : 'shadow'}`,
       cursor: { commit: head, eventKey: pending.key },
