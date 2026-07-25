@@ -45,7 +45,7 @@ documents:
   automation_types: [PLAN, HANDOVER]
   filename_pattern: "^(?P<number>[0-9]+)_(?P<doc_type>[A-Z]+)_(?P<date>[0-9]{8})_.+\\\\.md$"
   slice_pattern: "\\\\bS[0-9]{2,}\\\\b"
-  statuses: [ready, completed]
+  statuses: [draft, ready, completed]
   common_required_fields: [doc_type, doc_status, next_action]
   plan:
     required_fields: [plan_kind, roadmap, parent_plan, parent_slice, return_to]
@@ -64,7 +64,7 @@ documents:
     resume_action: resume_parent
 actions:
   executable: [start_first_slice, next_slice, resume_parent]
-  terminal: [await_acceptance, blocked, none]
+  terminal: [await_plan_approval, await_acceptance, blocked, none]
 prompt:
   start_marker: "<!-- WORKFLOW_PROMPT_START -->"
   end_marker: "<!-- WORKFLOW_PROMPT_END -->"
@@ -134,6 +134,37 @@ S01 then S02
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(undefined, 'active'), /active side effects require explicit config gate/);
   job.config.active_side_effects_enabled = true;
+
+  await writeFile(path.join(root, 'docs/branch/000_ROADMAP_20260725_root.md'), '# roadmap\n');
+  await writeFile(path.join(root, 'docs/branch/000_PLAN_20260725_root.md'), `---
+doc_type: PLAN
+doc_status: ready
+next_action: none
+plan_kind: phase
+roadmap: 000_ROADMAP_20260725_root.md
+parent_plan: null
+parent_slice: null
+return_to: null
+---
+S01
+`);
+  await writeFile(path.join(root, 'docs/branch/001_HANDOVER_20260725_root.md'), `---
+doc_type: HANDOVER
+doc_status: completed
+next_action: await_acceptance
+plan: 000_PLAN_20260725_root.md
+slice: S01
+plan_progress: complete
+---
+`);
+  git('add', '.');
+  git('commit', '-qm', 'root branch-space handover');
+  const missed = await run();
+  assert.match(missed.summary, /candidate=none/);
+  job.config.branch_space = '.';
+  assert.match((await run(missed.cursor)).summary, /001_HANDOVER_20260725_root.md.*result=notified/);
+  job.config.branch_space = 'main';
+  await writeFile(callsFile, '');
 
   await writeFile(path.join(root, 'docs/branch/main/001_HANDOVER_20260725_test.md'), `---
 doc_type: HANDOVER
@@ -213,7 +244,29 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
     { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
   ] } }));
-  assert.match((await run(reviewCursor)).summary, /result=session_started/);
+  const approved = await run(reviewCursor);
+  assert.match(approved.summary, /result=session_started/);
+
+  await writeFile(path.join(root, 'docs/branch/main/004_PLAN_20260725_approval.md'), `---
+doc_type: PLAN
+doc_status: draft
+next_action: await_plan_approval
+plan_kind: phase
+roadmap: 000_ROADMAP_20260725_test.md
+parent_plan: null
+parent_slice: null
+return_to: null
+---
+S01
+`);
+  git('add', '.');
+  git('commit', '-qm', 'draft plan approval');
+  const approval = await run(approved.cursor);
+  assert.match(approval.summary, /action=await_plan_approval gate=plan_review pending=true/);
+  await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
+    { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
+  ] } }));
+  assert.match((await run(approval.cursor)).summary, /action=await_plan_approval result=approved/);
 
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(terminal.cursor), /active side effects require explicit config gate/);

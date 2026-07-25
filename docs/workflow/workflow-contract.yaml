@@ -137,4 +137,4 @@ large_files:
 
 legacy:
   cutoff_commit: "76534af03d7ed3c7e3e1973c892da439c7b6e6dd"
-  automation_enabled: false
+  automation_enabled: true

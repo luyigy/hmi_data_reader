@@ -446,6 +446,12 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
           cursor: { ...previous, pending },
         };
       }
+      if (!contract.actions.executable.includes(pending.action)) {
+        return {
+          summary: `head=${head} candidate=${pending.path} action=${pending.action} result=approved`,
+          cursor: { commit: head, eventKey: pending.key },
+        };
+      }
     } else {
       const ready = chatMessages.some((message) => {
         const lines = message.content?.split('\n') ?? [];
@@ -463,12 +469,13 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
   }
 
   const branchSpace = String(job.config.branch_space || '');
-  if (!branchSpace || branchSpace.includes('/') || branchSpace === '.' || branchSpace === '..') {
+  if (!branchSpace || branchSpace.includes('/') || branchSpace === '..') {
     throw new Error('workflow_watcher requires a single-directory config.branch_space');
   }
   const watchRoot = path.posix.join(contract.branch_spaces.root, branchSpace);
-  const changed = previous.commit === head ? [] : (await git(
-    project.path, signal, 'diff', '--name-only', '--diff-filter=AMR', previous.commit, head, '--', watchRoot,
+  const scanFrom = previous.eventKey ? previous.commit : String(job.config.initial_cursor_commit);
+  const changed = scanFrom === head ? [] : (await git(
+    project.path, signal, 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot,
   )).trim().split('\n').filter(Boolean);
   const filename = new RegExp(contract.documents.filename_pattern.replace(/\(\?P<[^>]+>/g, '('));
   const candidates = changed.flatMap((filePath) => {
@@ -497,7 +504,8 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
   }
   const gate = !contract.legacy.automation_enabled
     ? 'automation_disabled'
-    : candidate.type === 'PLAN' && document.action === contract.documents.plan.start_action
+    : candidate.type === 'PLAN'
+      && [contract.documents.plan.start_action, 'await_plan_approval'].includes(document.action)
       ? 'plan_review'
       : contract.actions.executable.includes(document.action)
         ? 'workflow_ready'
