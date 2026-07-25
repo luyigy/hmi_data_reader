@@ -1,0 +1,357 @@
+{
+  "summary": {
+    "green": 12,
+    "yellow": 0,
+    "red": 3
+  },
+  "reports": [
+    {
+      "filename": "boletuo_Z001_t1_炮筒.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          788,
+          1059,
+          997
+        ],
+        "screen_area_ratio": 0.509173900462963,
+        "perspective_ratio": 1.0,
+        "blur_score": 292.1115055911133,
+        "glare_ratio": 0.0021527777777777778,
+        "dark_ratio": 0.14582368827160494
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "boletuo_Z001_t2_射出保压.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          762,
+          1080,
+          816
+        ],
+        "screen_area_ratio": 0.425,
+        "perspective_ratio": 1.0,
+        "blur_score": 303.78266685634685,
+        "glare_ratio": 0.002916184413580247,
+        "dark_ratio": 0.10795380015432099
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "boletuo_Z001_t3_储料冷却.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          785,
+          1031,
+          1028
+        ],
+        "screen_area_ratio": 0.5111246141975309,
+        "perspective_ratio": 1.0,
+        "blur_score": 299.460331974985,
+        "glare_ratio": 0.001552854938271605,
+        "dark_ratio": 0.12975790895061728
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "fanake_Z036_t1_炮筒.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          895,
+          1007,
+          825
+        ],
+        "screen_area_ratio": 0.40064380787037035,
+        "perspective_ratio": 1.0,
+        "blur_score": 185.98834120505796,
+        "glare_ratio": 0.003991608796296296,
+        "dark_ratio": 0.04502845293209876
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "fanake_Z036_t2_射出保压.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          830,
+          1080,
+          948
+        ],
+        "screen_area_ratio": 0.49375,
+        "perspective_ratio": 1.0,
+        "blur_score": 236.9175385073541,
+        "glare_ratio": 0.0033858989197530862,
+        "dark_ratio": 0.029565972222222223
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "fanake_Z036_t3_储料冷却.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          895,
+          1007,
+          825
+        ],
+        "screen_area_ratio": 0.40064380787037035,
+        "perspective_ratio": 1.0,
+        "blur_score": 185.98834120505796,
+        "glare_ratio": 0.003991608796296296,
+        "dark_ratio": 0.04502845293209876
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "jiaming_Z052_t1_炮筒.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          694,
+          1064,
+          881
+        ],
+        "screen_area_ratio": 0.4520563271604938,
+        "perspective_ratio": 1.0,
+        "blur_score": 207.6392301240373,
+        "glare_ratio": 0.000388695987654321,
+        "dark_ratio": 0.07950472608024692
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "jiaming_Z052_t2_射出保压.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          737,
+          1057,
+          846
+        ],
+        "screen_area_ratio": 0.43124131944444444,
+        "perspective_ratio": 1.0,
+        "blur_score": 200.7839743601548,
+        "glare_ratio": 0.00047116126543209877,
+        "dark_ratio": 0.07142891589506173
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "jiaming_Z052_t3_储料冷却.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          2,
+          747,
+          1068,
+          812
+        ],
+        "screen_area_ratio": 0.4182175925925926,
+        "perspective_ratio": 1.0,
+        "blur_score": 349.4861776994594,
+        "glare_ratio": 0.0003713348765432099,
+        "dark_ratio": 0.08139853395061729
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "rijing_Z022_t1_炮筒.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          811,
+          1028,
+          855
+        ],
+        "screen_area_ratio": 0.42387152777777776,
+        "perspective_ratio": 1.0,
+        "blur_score": 203.11191565750363,
+        "glare_ratio": 0.003033371913580247,
+        "dark_ratio": 0.04316454475308642
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "rijing_Z022_t2_射出保压.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          762,
+          1080,
+          816
+        ],
+        "screen_area_ratio": 0.425,
+        "perspective_ratio": 1.0,
+        "blur_score": 303.78266685634685,
+        "glare_ratio": 0.002916184413580247,
+        "dark_ratio": 0.10795380015432099
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "rijing_Z022_t3_储料冷却.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          785,
+          1031,
+          1028
+        ],
+        "screen_area_ratio": 0.5111246141975309,
+        "perspective_ratio": 1.0,
+        "blur_score": 299.460331974985,
+        "glare_ratio": 0.001552854938271605,
+        "dark_ratio": 0.12975790895061728
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "shadike_Z020_t1_炮筒.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          80,
+          476,
+          787,
+          557
+        ],
+        "screen_area_ratio": 0.21139998070987653,
+        "perspective_ratio": 1.0,
+        "blur_score": 124.60399428690468,
+        "glare_ratio": 0.03325954861111111,
+        "dark_ratio": 0.0992848186728395
+      },
+      "reshoot_guidance": [
+        "屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "shadike_Z020_t2_射出保压.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          103,
+          482,
+          891,
+          697
+        ],
+        "screen_area_ratio": 0.2994921875,
+        "perspective_ratio": 1.0,
+        "blur_score": 138.3771415582582,
+        "glare_ratio": 0.03216820987654321,
+        "dark_ratio": 0.1372067901234568
+      },
+      "reshoot_guidance": [
+        "屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "shadike_Z020_t3_储料冷却.jpeg",
+      "triage": "red",
+      "reject_codes": [
+        "SCREEN_TOO_SMALL"
+      ],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          62,
+          451,
+          813,
+          636
+        ],
+        "screen_area_ratio": 0.2493576388888889,
+        "perspective_ratio": 1.0,
+        "blur_score": 128.19654688202445,
+        "glare_ratio": 0.02709394290123457,
+        "dark_ratio": 0.12264998070987654
+      },
+      "reshoot_guidance": [
+        "屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    }
+  ]
+}

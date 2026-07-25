@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+
+# Virtual env（1.4GB，不进 git；远程重建 uv venv + pip install）
+.venv/
+
+# OCR 模型缓存（不进 git，每台机器各自下到 ~/.paddleocr/whl/）
+models/
+
+# 系统
+.DS_Store
+*.swp

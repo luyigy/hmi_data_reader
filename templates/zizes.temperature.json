@@ -1,0 +1,94 @@
+{
+  "version": "0.1.0",
+  "ui_family": "ZizES",
+  "page": "temperature",
+  "source": "反推自 jiaming_Z052_t1_炮筒.jpeg OCR 输出（2026-07-25）",
+  "description": "ZizES 屏（佳明机器）温度页（5 段料筒 + 油温）的字段位置模板。所有坐标基于 OCR bbox 的 (x_min, y_min) 像素值，来源样本分辨率 1080x1920。",
+  "sample_resolution": [1080, 1920],
+  "tolerance_px": 20,
+  "fields": {
+    "title": {
+      "expected_text": "温度",
+      "bbox": { "x_min": 4, "y_min": 774, "x_max": 71, "y_max": 812 },
+      "role": "page_title",
+      "validation": {
+        "must_match_text": "温度"
+      }
+    },
+    "heater_labels": {
+      "expected_count": 6,
+      "labels": ["1", "2", "3", "4", "5", "6"],
+      "bbox_row_y_min": 882,
+      "bbox_row_y_max": 904,
+      "x_centers": [279, 389, 499, 604, 710, 916],
+      "role": "column_headers",
+      "notes": "实际为 5 段料筒 + 1 段油温（右侧 '油温' 标签独立）"
+    },
+    "oil_temp_label": {
+      "expected_text": "油温",
+      "bbox": { "x_min": 889, "y_min": 878, "x_max": 943, "y_max": 908 },
+      "role": "column_header_oil"
+    },
+    "current_temp_row": {
+      "expected_label": "现在°C",
+      "label_bbox": { "x_min": 10, "y_min": 909, "x_max": 113, "y_max": 951 },
+      "bbox_row_y_min": 909,
+      "bbox_row_y_max": 951,
+      "x_centers": [160, 278, 387, 496, 601, 920],
+      "role": "data_row",
+      "field_name": "current_temp_C",
+      "unit": "°C",
+      "values_sample": [262.3, 290.0, 289.9, 290.0, 280.0, 30.6]
+    },
+    "set_temp_row": {
+      "expected_label": "设定°C",
+      "label_bbox": { "x_min": 10, "y_min": 980, "x_max": 206, "y_max": 1014 },
+      "bbox_row_y_min": 978,
+      "bbox_row_y_max": 1010,
+      "x_centers": [160, 278, 387, 496, 601, 920],
+      "role": "data_row",
+      "field_name": "set_temp_C",
+      "unit": "°C",
+      "values_sample": [262.0, 290.0, 290.0, 290.0, 280.0, 0.0]
+    },
+    "control_percent_row": {
+      "expected_label": "控制%",
+      "label_bbox": { "x_min": 10, "y_min": 1020, "x_max": 206, "y_max": 1054 },
+      "bbox_row_y_min": 1018,
+      "bbox_row_y_max": 1054,
+      "x_centers": [293, 404, 512, 603, 722, 924],
+      "role": "data_row",
+      "field_name": "control_percent",
+      "unit": "%",
+      "values_sample": [10.6, 9.9, 1.1, 5.1, 58.5, 0.0]
+    },
+    "tab_strip": {
+      "labels": ["监视", "温度", "设定", "预热", "曲线", "返回"],
+      "bbox_row_y_min": 1464,
+      "bbox_row_y_max": 1522,
+      "role": "tab_navigation",
+      "notes": "当前激活 Tab 是 '温度'（可通过文字加粗/反白判断）"
+    }
+  },
+  "validation_rules": {
+    "temperature_range_C": [0, 450],
+    "control_percent_range": [0, 100],
+    "must_have_all_heater_columns": true,
+    "current_set_consistency_tolerance_C": 5
+  },
+  "parse_workflow": {
+    "1": "确认 OCR 输出 ui_family == ZizES, page == temperature",
+    "2": "校验标题 '温度' 出现在 (4,774) 附近 (tol 20px)",
+    "3": "校验 6 个加热器标签 (1/2/3/4/5/6) 出现在 y=882-902 行",
+    "4": "校验 '现在°C' 行 y=909-951 的 6 个数据点",
+    "5": "校验 '设定°C' 行 y=978-1010 的 6 个数据点",
+    "6": "校验 '控制%' 行 y=1018-1054 的 6 个数据点",
+    "7": "字段格式校验：温度 0~450，控制 0~100，列数对齐"
+  },
+  "known_uncertainties": [
+    "样本分辨率 1080x1920，模板坐标硬编码。手机型号/分辨率变化需重新校准。",
+    "当前仅基于 1 张样本（jiaming_Z052_t1），其他机台段数可能不同（5/6/7 段）",
+    "x_centers 列对齐基于 1 张样本，建议用 jiaming t2/t3 多样本平均校准",
+    "标题检测用 OCR 文本匹配，未加视觉特征（颜色/字体大小）"
+  ]
+}

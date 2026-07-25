@@ -1,0 +1,89 @@
+{
+  "report_header": {
+    "report_version": "2026-07-25 v1",
+    "purpose": "等人工填入真值后计算 OCR 准确率（精确匹配 + 字符级）",
+    "ocr_engine": "PaddleOCR 2.7.3 + PP-OCRv4 ch (CPU)",
+    "instruction": "在 ground_truth 列填入人工核对的真值数字，然后跑 verify_accuracy.py 计算精确率",
+    "samples": {
+      "jiaming_Z052_t1_炮筒.jpeg": "ZizES 温度页",
+      "jiaming_Z052_t2_射出保压.jpeg": "ZizES 射出/保压",
+      "jiaming_Z052_t3_储料冷却.jpeg": "ZizES 储料/冷却",
+      "boletuo_Z001_t1_炮筒.jpeg": "TACT(?) 温度",
+      "fanake_Z036_t2_射出保压.jpeg": "FANUC 射出/保压"
+    },
+    "confidence_summary": {
+      "jiaming_Z052_t1_炮筒.jpeg": {
+        "total_lines": 61,
+        "high_confidence (>=0.90)": "59 lines (96.7%)",
+        "mid_confidence (0.70-0.90)": "2 lines (3.3%)",
+        "low_confidence (<0.70)": "0 lines (0.0%)"
+      },
+      "boletuo_Z001_t1_炮筒.jpeg": {
+        "ocr_lines_raw": 31,
+        "ocr_lines_after_rectify": 82,
+        "rectify_improvement": "+165%"
+      },
+      "fanake_Z036_t2_射出保压.jpeg": {
+        "ocr_lines_after_rectify": 187
+      }
+    }
+  },
+  "ground_truth_template": {
+    "file": "jiaming_Z052_t1_炮筒.jpeg",
+    "ui_family_ground_truth": "ZizES",
+    "page_ground_truth": "temperature",
+    "ocr_extracted": {
+      "now_temp_C": [
+        "262.3",
+        "290.0",
+        "289.9",
+        "290.0",
+        "280.0",
+        "30.6"
+      ],
+      "set_temp_C": [
+        "262.0",
+        "290.0",
+        "290.0",
+        "290.0",
+        "280.0",
+        "0.0"
+      ],
+      "control_percent": [
+        "10.6",
+        "9.9",
+        "1.1",
+        "5.1",
+        "58.5",
+        "0.0"
+      ]
+    },
+    "ground_truth_待人工填": {
+      "now_temp_C": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "set_temp_C": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "control_percent": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    "scoring_method": "字符串精确匹配；数值字段允许 ±0.05 容差（OCR 小数点错位常见）"
+  }
+}
