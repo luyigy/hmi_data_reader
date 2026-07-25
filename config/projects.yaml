@@ -11,10 +11,12 @@ projects:
       - id: workflow-watcher
         type: workflow_watcher
         schedule: "*/10 * * * *"
-        enabled: false
+        enabled: true
         mode: shadow
         config:
           contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: rebuild-postgres-auth-slice
+          initial_cursor_commit: ebe9182bebcc8ede4691428459e27c3ad292771e
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
