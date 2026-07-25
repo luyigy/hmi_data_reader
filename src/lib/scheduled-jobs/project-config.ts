@@ -2,7 +2,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parse } from 'yaml';
 
-export const REGISTERED_JOB_TYPES = new Set(['workflow_watcher', 'long_file_detector']);
+export const REGISTERED_JOB_TYPES = new Set(['workflow_watcher', 'long_file_detector', 'noop_test']);
 
 export type JobMode = 'shadow' | 'active';
 
