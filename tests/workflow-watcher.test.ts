@@ -272,6 +272,14 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /修改/);
   assert.equal(new URL(reviewCall.url).searchParams.get('receive_id_type'), 'chat_id');
 
+  git('commit', '--allow-empty', '-qm', 'unrelated head advance');
+  await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
+    { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
+  ] } }));
+  const callbackApproved = JSON.parse(JSON.stringify(reviewCursor));
+  callbackApproved.pending.reviewState = 'approved';
+  assert.match((await run(callbackApproved)).summary, /result=session_started/);
+
   const reviewPending = {
     key: 'key',
     gate: 'plan_review' as const,

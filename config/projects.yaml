@@ -29,3 +29,24 @@ projects:
           threshold_lines: 1000
           extensions: [.py, .js, .ts, .tsx, .jsx, .go, .java, .vue]
           exclude_paths: []
+  - id: mold-data-webpage-tool
+    name: Mold Data Webpage Tool
+    path: /data1/code/mold-data-webpage-tool
+    ref: refs/heads/rebuild-postgres-auth-slice
+    feishu:
+      chat_id: oc_b4d2abbe3c16c3596631c3a9e756bd4f
+      approver_open_ids:
+        - ou_16b82bdefeb4944108d62068e88a2f0c
+    jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "*/10 * * * *"
+        enabled: true
+        mode: active
+        config:
+          active_side_effects_enabled: true
+          coding_bot_open_id: ou_3c3f67f71b6aad10c583c6a0dbe2f264
+          coding_bot_app_id: cli_a8e5326f4e7f901c
+          contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: rebuild-postgres-auth-slice
+          initial_cursor_commit: ebe9182bebcc8ede4691428459e27c3ad292771e

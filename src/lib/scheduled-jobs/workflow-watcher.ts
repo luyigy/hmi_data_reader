@@ -401,7 +401,7 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
       return { summary: `head=${head} pending=${previous.pending.path} gate=automation_disabled`, cursor: previous };
     }
     let pending = previous.pending;
-    if (pending.gate === 'plan_review' && pending.reviewState !== 'review') {
+    if (pending.gate === 'plan_review' && pending.reviewState === 'revision') {
       const content = await git(project.path, signal, 'show', `${head}:${pending.path}`);
       const blob = (await git(project.path, signal, 'rev-parse', `${head}:${pending.path}`)).trim();
       if (blob === pending.blob) {
@@ -444,27 +444,30 @@ export const workflowWatcherHandler: JobHandler = async ({ project, job, mode, c
     }
     const chatMessages = mode === 'active' ? await messages(project.feishu.chat_id, pending.detectedAt, signal) : [];
     if (pending.gate === 'plan_review') {
-      const decision = chatMessages.find((message) =>
-        message.sender?.id === project.feishu.approver_open_ids[0]
-        && message.msg_type === 'text'
-        && message.parent_id === pending.reviewMessageId
-        && /^(approve|reject|revise:\s*\S[\s\S]*)$/.test(message.content?.trim() ?? ''));
-      const command = decision?.content?.trim() ?? '';
-      if (!decision) {
-        return { summary: `head=${head} pending=${pending.path} gate=plan_review`, cursor: previous };
+      let command = '';
+      if (pending.reviewState === 'review') {
+        const decision = chatMessages.find((message) =>
+          message.sender?.id === project.feishu.approver_open_ids[0]
+          && message.msg_type === 'text'
+          && message.parent_id === pending.reviewMessageId
+          && /^(approve|reject|revise:\s*\S[\s\S]*)$/.test(message.content?.trim() ?? ''));
+        command = decision?.content?.trim() ?? '';
+        if (!decision) {
+          return { summary: `head=${head} pending=${pending.path} gate=plan_review`, cursor: previous };
+        }
+        const transition = applyWorkflowReviewDecision({
+          pending,
+          decision: command === 'approve' ? 'approve' : command === 'reject' ? 'reject' : 'revision',
+          actorOpenId: decision.sender?.id,
+          approverOpenId: project.feishu.approver_open_ids[0],
+          messageId: decision.parent_id,
+          pendingKey: pending.key,
+        });
+        if (transition.status !== 'applied') {
+          return { summary: `head=${head} pending=${pending.path} gate=plan_review decision=${transition.status}`, cursor: previous };
+        }
+        pending = { ...pending, ...transition.pending };
       }
-      const transition = applyWorkflowReviewDecision({
-        pending,
-        decision: command === 'approve' ? 'approve' : command === 'reject' ? 'reject' : 'revision',
-        actorOpenId: decision.sender?.id,
-        approverOpenId: project.feishu.approver_open_ids[0],
-        messageId: decision.parent_id,
-        pendingKey: pending.key,
-      });
-      if (transition.status !== 'applied') {
-        return { summary: `head=${head} pending=${pending.path} gate=plan_review decision=${transition.status}`, cursor: previous };
-      }
-      pending = { ...pending, ...transition.pending };
       if (pending.reviewState !== 'approved') {
         if (pending.reviewState === 'revision') {
           await send(project.feishu.chat_id,
