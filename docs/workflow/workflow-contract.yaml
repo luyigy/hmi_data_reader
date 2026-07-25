@@ -1,0 +1,140 @@
+schema_version: 2
+contract_version: "2026.07.25.1"
+
+documents:
+  automation_types:
+    - PLAN
+    - HANDOVER
+
+  allowed_types:
+    - ROADMAP
+    - PLAN
+    - HANDOVER
+    - DECISION
+    - ISSUE
+    - REPORT
+
+  filename_pattern: "^(?P<number>[0-9]+)_(?P<doc_type>[A-Z]+)_(?P<date>[0-9]{8})_.+\\.md$"
+  slice_pattern: "\\bS[0-9]{2,}\\b"
+
+  statuses:
+    - draft
+    - ready
+    - in_progress
+    - completed
+    - paused
+    - blocked
+    - superseded
+
+  common_required_fields:
+    - doc_type
+    - doc_status
+    - next_action
+
+  plan:
+    required_fields:
+      - plan_kind
+      - roadmap
+      - parent_plan
+      - parent_slice
+      - return_to
+    kinds:
+      - phase
+      - interrupt
+    executable_actions:
+      - start_first_slice
+    start_action: start_first_slice
+    start_status: ready
+    interrupt_kind: interrupt
+    phase_kind: phase
+    parent_fields:
+      - parent_plan
+      - parent_slice
+      - return_to
+
+  handover:
+    required_fields:
+      - plan
+      - slice
+      - plan_progress
+    progress_values:
+      - in_progress
+      - complete
+    executable_actions:
+      - next_slice
+      - resume_parent
+    next_action: next_slice
+    resume_action: resume_parent
+
+actions:
+  executable:
+    - start_first_slice
+    - next_slice
+    - resume_parent
+
+  terminal:
+    - await_plan_approval
+    - await_acceptance
+    - blocked
+    - none
+
+prompt:
+  start_marker: "<!-- WORKFLOW_PROMPT_START -->"
+  end_marker: "<!-- WORKFLOW_PROMPT_END -->"
+
+completion_gate:
+  marker_template: "WORKFLOW_READY {document_commit} {document_basename}"
+  final_reply_position: any_line
+  timeout_seconds: 1800
+
+numbering:
+  width: 3
+  scope: branch_space
+  unique: true
+  candidate_selection: highest_changed_number
+
+branch_spaces:
+  root: docs
+
+  unnumbered_branches:
+    - main
+    - master
+    - dev
+
+  numbered_directory_pattern: "^[0-9]{3}_[a-z0-9][a-z0-9._-]*$"
+
+large_files:
+  warning_lines: 800
+  blocking_lines: 1000
+
+  source_extensions:
+    - .py
+    - .js
+    - .jsx
+    - .ts
+    - .tsx
+    - .vue
+    - .java
+    - .go
+    - .rs
+    - .cs
+    - .php
+    - .rb
+
+  ignored_path_parts:
+    - .git
+    - .codex
+    - node_modules
+    - dist
+    - build
+    - coverage
+    - .venv
+    - venv
+    - __pycache__
+    - generated
+    - vendor
+    - migrations
+
+legacy:
+  cutoff_commit: "76534af03d7ed3c7e3e1973c892da439c7b6e6dd"
+  automation_enabled: false

@@ -41,3 +41,11 @@ This project is indexed by GitNexus as **agent-platform-v2** (6772 symbols, 1146
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## 文档工作流
+
+- `docs/workflow/workflow-contract.yaml` 是 PLAN/HANDOVER 自动化的唯一规则源。
+- 新 PLAN/HANDOVER 必须使用合同定义的 YAML frontmatter、动作和 Prompt 标记。
+- 自动化只读取目标 Git ref 中已提交的文档，不消费工作区文件，也不从正文猜测动作。
+- `automation_enabled: false` 时只维护和校验文档，不启动 watcher 或下一 Session。
+- 可执行文档提交后，最终回复最后一行必须使用合同定义的 `WORKFLOW_READY` 标记。

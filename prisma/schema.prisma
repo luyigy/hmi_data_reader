@@ -460,6 +460,41 @@ model FeishuAdminApproval {
   @@index([status, expiresAt])
 }
 
+model ScheduledJobState {
+  id                String   @id @default(cuid())
+  projectId         String
+  jobId             String
+  enabledOverride   Boolean?
+  modeOverride      String?
+  lastScheduledAt   DateTime?
+  lastStartedAt     DateTime?
+  lastFinishedAt    DateTime?
+  lastSuccessAt     DateTime?
+  lastError         String?
+  cursorJson        Json?
+  updatedAt         DateTime @updatedAt
+
+  @@unique([projectId, jobId])
+}
+
+model ScheduledJobRun {
+  id             String   @id @default(cuid())
+  projectId      String
+  jobId          String
+  trigger        String
+  mode           String
+  status         String
+  scheduledFor   DateTime
+  startedAt      DateTime
+  finishedAt     DateTime?
+  summary        String?
+  error          String?
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  @@index([projectId, jobId, startedAt])
+}
+
 model LiveRoomMember {
   id                   String                  @id @default(cuid())
   roomId               String

@@ -1,0 +1,26 @@
+projects:
+  - id: mold-data-webpage-tool
+    name: Mold Data Webpage Tool
+    path: /data1/code/mold-data-webpage-tool
+    ref: refs/heads/rebuild-postgres-auth-slice
+    feishu:
+      chat_id: oc_b4d2abbe3c16c3596631c3a9e756bd4f
+      approver_open_ids:
+        - ou_98a7adb2080847c990466f450943e1a3
+    jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "*/10 * * * *"
+        enabled: false
+        mode: shadow
+        config:
+          contract_path: docs/workflow/workflow-contract.yaml
+      - id: long-file-detector
+        type: long_file_detector
+        schedule: "0 9 * * 1-5"
+        enabled: true
+        mode: shadow
+        config:
+          threshold_lines: 1000
+          extensions: [.py, .js, .ts, .tsx, .jsx, .go, .java, .vue]
+          exclude_paths: []
