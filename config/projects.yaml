@@ -1,10 +1,10 @@
 projects:
-  - id: mold-data-webpage-tool
-    name: Mold Data Webpage Tool
-    path: /data1/code/mold-data-webpage-tool
-    ref: refs/heads/rebuild-postgres-auth-slice
+  - id: agent-platform-v2
+    name: Agent Platform V2
+    path: /data1/code/agent-platform-v2
+    ref: refs/heads/oss-prep
     feishu:
-      chat_id: oc_b4d2abbe3c16c3596631c3a9e756bd4f
+      chat_id: oc_b634823504e29e6220de0cfb5108a216
       approver_open_ids:
         - ou_98a7adb2080847c990466f450943e1a3
     jobs:
@@ -12,11 +12,14 @@ projects:
         type: workflow_watcher
         schedule: "*/10 * * * *"
         enabled: true
-        mode: shadow
+        mode: active
         config:
+          active_side_effects_enabled: true
+          coding_bot_open_id: ou_3c3f67f71b6aad10c583c6a0dbe2f264
+          coding_bot_app_id: cli_a8e5326f4e7f901c
           contract_path: docs/workflow/workflow-contract.yaml
-          branch_space: rebuild-postgres-auth-slice
-          initial_cursor_commit: ebe9182bebcc8ede4691428459e27c3ad292771e
+          branch_space: oss-prep
+          initial_cursor_commit: c8d3ec5b24bc7e0165be31df02397813ff608a95
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
