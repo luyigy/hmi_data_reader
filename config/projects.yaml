@@ -6,7 +6,7 @@ projects:
     feishu:
       chat_id: oc_5ec3cc43833cfa94539abfbc2a7f8b8a
       approver_open_ids:
-        - ou_98a7adb2080847c990466f450943e1a3
+        - ou_16b82bdefeb4944108d62068e88a2f0c
     jobs:
       - id: workflow-watcher
         type: workflow_watcher

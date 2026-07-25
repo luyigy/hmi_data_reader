@@ -62,7 +62,7 @@ export async function resolveWorkflowReviewCardAction(args: {
 
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
-      SELECT pg_advisory_xact_lock(hashtextextended(${`${project.id}:${job.id}`}, 0))
+      SELECT pg_advisory_xact_lock(hashtextextended(${`${project.id}:${job.id}`}, 0))::text
     `;
     const state = await tx.scheduledJobState.findUnique({
       where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
