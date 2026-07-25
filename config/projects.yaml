@@ -4,7 +4,7 @@ projects:
     path: /data1/code/agent-platform-v2
     ref: refs/heads/oss-prep
     feishu:
-      chat_id: oc_b634823504e29e6220de0cfb5108a216
+      chat_id: oc_5ec3cc43833cfa94539abfbc2a7f8b8a
       approver_open_ids:
         - ou_98a7adb2080847c990466f450943e1a3
     jobs:
