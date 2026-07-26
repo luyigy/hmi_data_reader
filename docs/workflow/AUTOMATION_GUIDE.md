@@ -39,25 +39,20 @@ Prompt 标记、编号与阈值的具体值必须在运行时从目标提交中�
    - 只通知；
    - 停止并等待人工操作；
 7. 仅使用合同定义的 Prompt 标记提取 Prompt；
-8. 对可执行 action 保存 `pending`，等待旧 Session 的最终回复完成标记；
-9. 标记精确匹配后才记录 claim、重置 Session 并投递 Prompt；
+8. 对 PLAN 可执行 action 保存 `pending`，等待人工审批；
+9. 对已提交 HANDOVER 的可执行 action 立即记录 claim、重置 Session 并投递 Prompt；
 10. 记录已处理事件，避免重复执行。
 
-## 最终回复完成标记
+## HANDOVER 完成条件
 
 创建可执行 PLAN/HANDOVER 的 Agent 必须：
 
 1. 提交文档并取得该文档最后一次变更的完整 commit SHA；
 2. 完成所有收尾工作；
-3. 把合同 `completion_gate.marker_template` 展开后的文本作为最终回复最后一行：
+3. 确保目标 Git ref 中的文档通过合同校验且 `next_action` 可执行。
 
-```text
-WORKFLOW_READY <document_commit_full_sha> <document_basename>
-```
-
-watcher 必须同时精确匹配完整 SHA、完整文件名、Agent Platform 发送者和最终回复消息
-类型。只看到文档 commit、部分标记、错误发送者或工具过程消息时继续等待，不得 reset。
-等待超时只告警并保留 `pending`，不能用固定延迟代替完成信号。
+watcher 只依据已提交 Git 事实推进，不读取聊天发送者、消息类型、回复时间或旧 SHA。
+正常路径由 TaskRun 完成事件即时唤醒，十分钟定时扫描负责漏事件和服务重启补偿。
 
 ## 安全要求
 
@@ -69,7 +64,8 @@ watcher 必须同时精确匹配完整 SHA、完整文件名、Agent Platform �
 - 元数据无效时停止并报告；
 - 不自动从 ROADMAP 创建下一阶段；
 - 不重复处理同一个工作流事件；
-- 可执行事件先持久化为 `pending`，完成标记出现后再 claim；
+- PLAN 可执行事件先持久化为 `pending`，人工批准后再 claim；
+- HANDOVER 可执行事件在受锁扫描中直接 claim；
 - terminal action 仍在通知前直接 claim，不等待完成标记。
 
 建议使用以下组合标识事件：

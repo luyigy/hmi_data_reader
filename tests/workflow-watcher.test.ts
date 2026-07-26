@@ -94,8 +94,6 @@ prompt:
   start_marker: "<!-- WORKFLOW_PROMPT_START -->"
   end_marker: "<!-- WORKFLOW_PROMPT_END -->"
 completion_gate:
-  marker_template: "WORKFLOW_READY {document_commit} {document_basename}"
-  final_reply_position: any_line
   timeout_seconds: 1800
 branch_spaces:
   root: docs/branch
@@ -209,21 +207,11 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
 `);
   git('add', '.');
   git('commit', '-qm', 'handover');
-  const pending = await run();
-  assert.match(pending.summary, /gate=workflow_ready pending=true/);
-  const pendingCursor = pending.cursor as { pending: { expectedMarker: string; detectedAt: string } };
-  assert.equal((await readFile(callsFile, 'utf8')).trim(), '');
-
-  await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
-    { sender: { id: 'coding-app' }, msg_type: 'interactive', content: `done\n${pendingCursor.pending.expectedMarker}` },
-    { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
-  ] } }));
   process.env.LARK_FAIL_PROMPT = '1';
-  await assert.rejects(run(pending.cursor), /prompt-failed/);
+  await assert.rejects(run(), /prompt-failed/);
 
   process.env.LARK_FAIL_PROMPT = '0';
-  const restartedCursor = JSON.parse(JSON.stringify(pending.cursor));
-  const completed = await run(restartedCursor);
+  const completed = await run();
   assert.match(completed.summary, /result=session_started/);
   assert.equal(workflowRuns.length, 2);
   assert.deepEqual(workflowRuns[0], workflowRuns[1], 'workflow retry must reuse the same event key and prompt');

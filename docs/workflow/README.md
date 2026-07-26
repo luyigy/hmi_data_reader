@@ -10,8 +10,7 @@
 - 当前状态：合同校验可用，自动消费关闭
 
 watcher 只读取配置 ref 中已提交的 PLAN/HANDOVER blob。合同
-`actions.executable` 中的 action 会先持久化为 `pending`，精确看到旧 Session
-最终回复的 `WORKFLOW_READY` 标记后才重置 Session 并投递一次 Prompt；其他 action
-只通知。无效合同停止并通知，不从正文猜测。
+`actions.executable` 中的 HANDOVER action 会立即重置 Session 并投递一次 Prompt；
+PLAN 仍先等待人工审批，其他 action 只通知。无效合同停止并通知，不从正文猜测。
 
-超时只告警并继续等待，不自动 reset。
+审批超时只告警并继续等待，不自动 reset。

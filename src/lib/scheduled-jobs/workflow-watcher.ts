@@ -40,11 +40,7 @@ type Contract = {
   };
   actions: { executable: string[]; terminal: string[] };
   prompt: { start_marker: string; end_marker: string };
-  completion_gate: {
-    marker_template: string;
-    final_reply_position: 'last_line' | 'any_line';
-    timeout_seconds: number;
-  };
+  completion_gate: { timeout_seconds: number };
   branch_spaces: { root: string };
   numbering: { width: number; unique: boolean; candidate_selection: string };
   legacy: { cutoff_commit?: string | null; automation_enabled: boolean };
@@ -61,7 +57,6 @@ type Pending = WorkflowReviewPending & {
   prompt: string;
   detectedAt: string;
   reviewExpiresAt?: string;
-  expectedMarker?: string;
 };
 
 type Cursor = { commit: string; eventKey?: string; pending?: Pending };
@@ -144,9 +139,7 @@ const readContract = async (
   }
   required(contract.prompt?.start_marker, 'prompt.start_marker');
   required(contract.prompt?.end_marker, 'prompt.end_marker');
-  required(contract.completion_gate?.marker_template, 'completion_gate.marker_template');
-  if (!['last_line', 'any_line'].includes(contract.completion_gate.final_reply_position)
-    || !Number.isInteger(contract.completion_gate.timeout_seconds)
+  if (!Number.isInteger(contract.completion_gate?.timeout_seconds)
     || contract.completion_gate.timeout_seconds <= 0) throw new Error('workflow contract has invalid completion_gate');
   required(contract.branch_spaces?.root, 'branch_spaces.root');
   required(contract.numbering?.width, 'numbering.width');
@@ -363,7 +356,7 @@ const messages = async (chatId: string, start: string, signal: AbortSignal) => {
 };
 
 const execute = async (
-  pending: Pending,
+  pending: Pick<Pending, 'key' | 'prompt'>,
   codingBotChatId: string,
   runWorkflow: WorkflowRunner,
 ) => {
@@ -386,8 +379,7 @@ export const workflowWatcherHandler = async (
   const activeEnabled = job.config.active_side_effects_enabled === true;
   if (mode === 'active' && !activeEnabled) throw new Error('workflow_watcher active side effects require explicit config gate');
   const codingBotChatId = String(job.config.coding_bot_chat_id || '');
-  const codingBotAppId = String(job.config.coding_bot_app_id || '');
-  if (mode === 'active' && (!codingBotChatId || !codingBotAppId || project.feishu.approver_open_ids.length !== 1)) {
+  if (mode === 'active' && (!codingBotChatId || project.feishu.approver_open_ids.length !== 1)) {
     throw new Error('workflow_watcher active identity config is incomplete');
   }
 
@@ -449,8 +441,8 @@ export const workflowWatcherHandler = async (
         cursor: { commit: head, eventKey: key, pending },
       };
     }
-    const chatMessages = mode === 'active' ? await messages(project.feishu.chat_id, pending.detectedAt, signal) : [];
     if (pending.gate === 'plan_review') {
+      const chatMessages = mode === 'active' ? await messages(project.feishu.chat_id, pending.detectedAt, signal) : [];
       let command = '';
       if (pending.reviewState === 'review') {
         const decision = chatMessages.find((message) =>
@@ -494,14 +486,6 @@ export const workflowWatcherHandler = async (
           cursor: { commit: head, eventKey: pending.key },
         };
       }
-    } else {
-      const ready = chatMessages.some((message) => {
-        const lines = message.content?.split('\n') ?? [];
-        const matches = lines.map((line) => line.endsWith(pending.expectedMarker ?? ''));
-        return message.sender?.id === codingBotAppId && message.msg_type === 'interactive'
-          && (contract.completion_gate.final_reply_position === 'last_line' ? matches.at(-1) : matches.some(Boolean));
-      });
-      if (!ready) return { summary: `head=${head} pending=${pending.path} gate=workflow_ready`, cursor: previous };
     }
     if (mode === 'active') {
       await execute(
@@ -556,7 +540,7 @@ export const workflowWatcherHandler = async (
       && [contract.documents.plan.start_action, 'await_plan_approval'].includes(document.action)
       ? 'plan_review'
       : contract.actions.executable.includes(document.action)
-        ? 'workflow_ready'
+        ? 'execute'
         : 'terminal';
   if (mode === 'shadow' || gate === 'automation_disabled') {
     return {
@@ -571,30 +555,38 @@ export const workflowWatcherHandler = async (
     return { summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=notified`, cursor: { commit: head, eventKey } };
   }
   const detectedAt = new Date().toISOString();
-  const pending: Pending = {
+  const execution = {
     key: eventKey,
-    commit,
-    path: candidate.filePath,
-    blob,
-    action: document.action,
-    type: candidate.type,
-    documentCommit: commit,
     prompt: document.prompt,
-    gate,
-    reviewState: gate === 'plan_review' ? 'review' : undefined,
-    reviewExpiresAt: gate === 'plan_review' ? reviewExpiry(contract) : undefined,
-    detectedAt,
   };
   if (gate === 'plan_review') {
+    const pending: Pending = {
+      ...execution,
+      commit,
+      path: candidate.filePath,
+      blob,
+      action: document.action,
+      type: candidate.type,
+      documentCommit: commit,
+      gate,
+      reviewState: 'review',
+      reviewExpiresAt: reviewExpiry(contract),
+      detectedAt,
+    };
     pending.reviewMessageId = await sendReviewCard(project, job.id, pending);
     if (!pending.reviewMessageId) throw new Error('plan review request returned no message_id');
-  } else {
-    pending.expectedMarker = contract.completion_gate.marker_template
-      .replace('{document_commit}', commit)
-      .replace('{document_basename}', path.posix.basename(candidate.filePath));
+    return {
+      summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=${gate} pending=true`,
+      cursor: { commit: head, eventKey, pending },
+    };
   }
+  await execute(
+    execution,
+    codingBotChatId,
+    runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
+  );
   return {
-    summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=${gate} pending=true`,
-    cursor: { commit: head, eventKey, pending },
+    summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=session_started`,
+    cursor: { commit: head, eventKey },
   };
 };

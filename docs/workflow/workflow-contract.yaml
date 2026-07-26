@@ -85,8 +85,6 @@ prompt:
   repeat_in_final_reply: true
 
 completion_gate:
-  marker_template: "WORKFLOW_READY {document_commit} {document_basename}"
-  final_reply_position: any_line
   timeout_seconds: 1800
 
 numbering:
