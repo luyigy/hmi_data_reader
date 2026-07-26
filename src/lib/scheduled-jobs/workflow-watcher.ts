@@ -99,16 +99,16 @@ const importPlanDocument: WorkflowDocumentImporter = async ({ content, name, sig
   const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-platform-plan-'));
   const file = path.join(directory, 'plan.md');
   try {
-    await writeFile(file, content);
+    await writeFile(file, `# ${name}\n\n${content}`);
     const result = JSON.parse(await exec('lark-cli', [
-      'drive', '+import', '--as', 'bot', '--type', 'docx',
-      '--file', 'plan.md', '--name', name, '--format', 'json',
+      'docs', '+create', '--as', 'user', '--api-version', 'v2',
+      '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',
     ], signal, directory)) as Record<string, unknown>;
-    const data = result.data as { url?: unknown } | undefined;
-    if (result.ok !== true || typeof data?.url !== 'string' || !data.url) {
-      throw new Error('Feishu PLAN import returned no document URL');
+    const data = result.data as { document?: { url?: unknown } } | undefined;
+    if (result.ok !== true || typeof data?.document?.url !== 'string' || !data.document.url) {
+      throw new Error('Feishu PLAN creation returned no document URL');
     }
-    return data.url;
+    return data.document.url;
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

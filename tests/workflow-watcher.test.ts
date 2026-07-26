@@ -52,6 +52,10 @@ case "$*" in
   *"NEXT PROMPT"*) [ "$LARK_FAIL_PROMPT" = 1 ] && { echo prompt-failed >&2; exit 1; };;
 esac
 case "$*" in
+  "docs +create --as user --api-version v2 --doc-format markdown --content @plan.md --format json")
+    grep -q '^# 005_PLAN_20260725_import_failure$' plan.md || exit 1
+    echo '{"ok":true,"identity":"user","data":{"document":{"url":"https://example.feishu.cn/docx/default-import"}}}'
+    ;;
   *PLAN_REVIEW*) echo '{"data":{"message_id":"review-1"}}';;
   *) echo '{"data":{"message_id":"sent-1"}}';;
 esac
@@ -414,6 +418,15 @@ S01
     throw new Error('fake import failed');
   }), /fake import failed/);
   assert.equal(apiCalls.length, callsBeforeImportFailure, 'failed import must not send a review card');
+  const defaultImport = await workflowWatcherHandler({
+    project,
+    job,
+    mode: 'active',
+    cursor: approvalApproved.cursor,
+    signal: new AbortController().signal,
+  });
+  assert.match(defaultImport.summary, /gate=plan_review document_ready=true/);
+  assert.match(await readFile(callsFile, 'utf8'), /docs \+create --as user/);
 
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(terminal.cursor), /active side effects require explicit config gate/);
