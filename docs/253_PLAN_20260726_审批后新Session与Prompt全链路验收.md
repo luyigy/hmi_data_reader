@@ -31,6 +31,25 @@ return_to: null
 在用户批准后启动的下一 Session 中回报唯一标记，并核对 workflow cursor、审批终态及重复触发情况。
 不得代替用户点击或手工绕过自动化链路。
 
+## S03：用真实常驻 Run 验收跨进程停止
+
+提供一个由现有 systemd 常驻服务承载、且用户能从飞书命令启动的可等待 Run。禁止用临时
+Node 进程、内部 handler 调用或直接写数据库制造 Run；启动回复必须给出 Run ID，并能核对
+承载服务仍为 `active (running)`。
+
+Run 进入 `running` 后停止所有 Agent 代操作，由用户亲自在同一飞书会话依次执行：
+
+```text
+/ap job status <job-id>
+/ap job stop <job-id>
+/ap job status <job-id>
+```
+
+只有用户实际收到 stop 成功，且最后一次 status 显示 `running: false`、对应 Run 持久化为
+`failed + job cancelled by operator`，才算端到端验收通过。若现有命令无法创建这种 Run，
+先补最小的受控测试入口；入口必须复用正式 scheduled-job 执行链路，并默认禁用或限定测试项目，
+不得引入第二套 runner。
+
 ## 验收标准
 
 - 飞书文档可打开，审批卡对应本 PLAN。
@@ -38,6 +57,8 @@ return_to: null
 - 真人批准后，旧 Session 被清空且只启动一个新 Session。
 - 新 Session 的第一条执行回复包含 `WORKFLOW_CHAIN_253_PROMPT_RECEIVED`。
 - workflow cursor 与审批记录进入预期终态，无重复卡片、重复 Session 或重复 Prompt。
+- 用户能通过飞书命令启动由常驻服务实际承载的可等待 Run，并亲自完成
+  `status → stop → status`；临时进程或内部函数调用结果不计入验收。
 
 <!-- WORKFLOW_PROMPT_START -->
 执行 `docs/253_PLAN_20260726_审批后新Session与Prompt全链路验收.md` 的 S01：复现并
