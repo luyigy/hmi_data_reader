@@ -507,7 +507,7 @@ export const workflowWatcherHandler = async (
       await execute(
         pending,
         codingBotChatId,
-        runWorkflow ?? (await import('../feishu')).runWorkflowInBoundLiveRoom,
+        runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
       );
     }
     return {

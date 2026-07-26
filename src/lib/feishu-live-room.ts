@@ -27,6 +27,77 @@ export type FeishuConversationContext = {
   mentionNames?: string[];
 };
 
+export async function getBoundLiveRoomId(context?: FeishuConversationContext): Promise<string | null> {
+  if (!context) return null;
+  const scopeKey = context.chatType === 'p2p'
+    ? `feishu:p2p:${context.chatId}`
+    : `feishu:group:${context.chatId}`;
+  const rows = await prisma.$queryRaw<{ liveRoomId: string }[]>`
+    SELECT "liveRoomId" FROM "FeishuConversationBinding" WHERE "scopeKey" = ${scopeKey} LIMIT 1
+  `;
+  return rows[0]?.liveRoomId ?? null;
+}
+
+export async function getBoundSourceTaskId(context?: FeishuConversationContext): Promise<string | null> {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) return null;
+
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    select: { sourceTaskId: true },
+  });
+
+  return room?.sourceTaskId ?? null;
+}
+
+export async function getBoundLiveRoom(context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) return null;
+
+  return prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      members: {
+        include: {
+          gateway: true,
+          agentRecord: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+      sourceTask: {
+        include: {
+          currentTaskSession: true,
+        },
+      },
+    },
+  });
+}
+
+export function resolveRoomMemberQuery(args: {
+  room: NonNullable<Awaited<ReturnType<typeof getBoundLiveRoom>>>;
+  query?: string | null;
+}) {
+  const normalizedQuery = args.query?.trim().replace(/^[@$]/, '').toLowerCase() || '';
+  const replyableMembers = args.room.members.filter((member) => member.memberType !== 'user' && member.canReply);
+
+  if (!normalizedQuery) {
+    return (
+      replyableMembers.find((member) => member.id === args.room.currentSpeakerMemberId)
+      || replyableMembers[0]
+      || null
+    );
+  }
+
+  return replyableMembers.find((member) =>
+    `${member.displayName} [${member.id.slice(-8)}]`.toLowerCase() === normalizedQuery
+    || member.displayName.toLowerCase() === normalizedQuery
+    || (member.userNickname || '').toLowerCase() === normalizedQuery
+    || (member.shortAlias || '').toLowerCase() === normalizedQuery
+    || member.displayName.toLowerCase().includes(normalizedQuery)
+    || member.id.endsWith(normalizedQuery)
+  ) || null;
+}
+
 type FeishuConversationBindingRow = {
   id: string;
   scopeKey: string;
