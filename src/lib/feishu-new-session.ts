@@ -1,7 +1,6 @@
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { prisma } from '@/lib/prisma';
-import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { rotateTaskSession } from '@/lib/acpx/session';
 import { parseGrantProfile } from '@/lib/feishu-grant';
 import {
@@ -17,6 +16,10 @@ import {
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import { buildLiveRoomAcpxParticipant } from '@/lib/live-room';
 import { interruptLiveRoomMemberReplies } from '@/lib/live-room-delivery';
+import {
+  cancelQueuedLiveRoomMemberExecutions,
+  waitForLiveRoomMemberExecutionStop,
+} from '@/lib/live-room-process-registry';
 import {
   getBoundLiveRoom,
   resolveRoomMemberQuery,
@@ -162,26 +165,6 @@ export function formatPermissionProfileLabel(profile: string) {
     : profile;
 }
 
-async function readRecordedRunPermissionConfig(taskRunId: string) {
-  const taskRun = await prisma.taskRun.findUnique({
-    where: { id: taskRunId },
-    select: { controlMetadata: true },
-  });
-
-  if (!taskRun?.controlMetadata) {
-    return null;
-  }
-
-  try {
-    const metadata = JSON.parse(taskRun.controlMetadata) as {
-      permissionConfig?: Partial<ReturnType<typeof normalizeAcpxPermissionConfig>>;
-    };
-    return normalizeAcpxPermissionConfig(metadata.permissionConfig);
-  } catch {
-    return null;
-  }
-}
-
 export async function handleNewSessionCommand(command: NewSessionCommand, context?: FeishuConversationContext) {
   const room = await getBoundLiveRoom(context);
   if (!room || !room.sourceTask) {
@@ -262,7 +245,8 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
   const promptContext = blankBootstrap
     ? { transcript: '', latestUserMessage: null }
     : await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
-  for (const targetMember of members) {
+  await Promise.all(members.map(async (targetMember) => {
+    cancelQueuedLiveRoomMemberExecutions(targetMember.id);
     try {
       const interruption = await interruptLiveRoomMemberReplies({
         roomId: room.id,
@@ -276,12 +260,15 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
     } catch (error) {
       console.warn('Failed to interrupt previous live room replies before new session:', error);
     }
-  }
+  }));
+  await Promise.all(members.map((targetMember) =>
+    waitForLiveRoomMemberExecutionStop(targetMember.id)));
 
   const freshTaskSession = await rotateTaskSession(room.sourceTask.id, {
     taskName: room.sourceTask.name,
     metadata: {
       source: 'feishu_new_session',
+      workflowEventKey: command.options['workflow-event-key'] || null,
       handoverPath: handoverPath?.relativePath || null,
       targetMemberId: allMembers ? null : member.id,
       targetMemberName: allMembers ? 'all' : member.userNickname || member.displayName,
@@ -304,7 +291,7 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
       lastHeartbeatAt: new Date(),
     },
   }).catch(() => undefined);
-  const preparedMembers = await Promise.all(members.map(async (targetMember, index) => {
+  await Promise.all(members.map(async (targetMember, index) => {
     const participant = participants[index];
     const targetParticipantKey = getTaskRoomParticipantTargetKey(participant);
     const targetParticipantLabel = getTaskRoomParticipantTargetLabel(participant);
@@ -336,60 +323,13 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
         targetParticipantLabel,
       });
     }
-    return { participant };
   }));
-
-  if (allMembers) {
-    return [
-      `✅ 已为全部 ${members.length} 个 agent 重置 session`,
-      `Bootstrap：${handoverPath?.relativePath ? `handover ${handoverPath.relativePath}` : blankBootstrap ? 'blank' : 'room/task state'}`,
-      `请求权限：${formatPermissionProfileLabel(permissionConfig.profile)}`,
-      '说明：各 Agent 会在下一条真实指令到来时启动新 session，不再等待逐个启动确认。',
-      ...(interruptedPreviousReplies ? ['说明：已中断未完成的旧运行和排队消息。'] : []),
-    ].join('\n');
-  }
-
-  const results = await Promise.all(preparedMembers.map(async ({ participant }) => {
-    const result = await executeAcpxTaskRun({
-      taskId: sourceTask.id,
-      taskSessionId: freshTaskSession.id,
-      taskName: sourceTask.name,
-      taskDescription: sourceTask.description || undefined,
-      orchestrationMode: 'single',
-      workingDirectory: sourceTask.workingDirectory || undefined,
-      permissionConfig,
-      participants: [{
-        ...participant,
-        continuationMessage: undefined,
-        resumeSessionId: undefined,
-        resumeThreadId: undefined,
-        continuationSessionKind: undefined,
-        ephemeralSession: false,
-      }],
-    });
-    return result;
-  }));
-  const runIds = results.map((result) => result.taskRunId);
-  const recordedPermissionConfig = await readRecordedRunPermissionConfig(runIds[0]);
-  const requestedPermissionLabel = formatPermissionProfileLabel(permissionConfig.profile);
-  const recordedPermissionLabel = recordedPermissionConfig
-    ? formatPermissionProfileLabel(recordedPermissionConfig.profile)
-    : '未知';
 
   return [
-    `✅ 已为 ${allMembers ? `全部 ${members.length} 个 agent` : member.userNickname || member.displayName} 启动 fresh session`,
+    `✅ 已为 ${allMembers ? `全部 ${members.length} 个 agent` : member.userNickname || member.displayName} 重置 session`,
     `Bootstrap：${handoverPath?.relativePath ? `handover ${handoverPath.relativePath}` : blankBootstrap ? 'blank' : 'room/task state'}`,
-    `请求权限：${requestedPermissionLabel}`,
-    `实际落库权限：${recordedPermissionLabel}`,
-    ...(recordedPermissionConfig && recordedPermissionConfig.profile !== permissionConfig.profile
-      ? [`警告：请求权限与实际落库权限不一致，请检查运行中的 Feishu runtime 是否已重启到最新代码。`]
-      : []),
-    `Run：${runIds.join(', ')}`,
-    ...(interruptedPreviousReplies ? ['说明：启动新 session 前，已中断该成员旧的 live-room 回复与排队消息。'] : []),
-    handoverPath
-      ? '说明：本次会以新 session 先读取 handover，再继续执行。'
-      : blankBootstrap
-      ? '说明：本次会以空白新 session 启动，不注入旧 room/task transcript。'
-      : '说明：本次会以新 session 继承当前 room/task 状态继续执行。',
+    `请求权限：${formatPermissionProfileLabel(permissionConfig.profile)}`,
+    '说明：旧运行和排队消息已停止；Agent 会在下一条真实指令到来时启动新 session。',
+    ...(interruptedPreviousReplies ? ['说明：检测到并中断了未完成的旧运行或排队消息。'] : []),
   ].join('\n');
 }

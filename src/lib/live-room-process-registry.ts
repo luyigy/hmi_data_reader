@@ -14,6 +14,7 @@ interface LiveRoomRunningProcessEntry {
 const globalRegistry = globalThis as unknown as {
   liveRoomRunningProcesses?: Map<string, LiveRoomRunningProcessEntry>;
   liveRoomExecutionChains?: Map<string, Promise<void>>;
+  liveRoomExecutionGenerations?: Map<string, number>;
 };
 
 const getProcessStore = () => {
@@ -30,6 +31,14 @@ const getExecutionChainStore = () => {
   }
 
   return globalRegistry.liveRoomExecutionChains;
+};
+
+const getExecutionGenerationStore = () => {
+  if (!globalRegistry.liveRoomExecutionGenerations) {
+    globalRegistry.liveRoomExecutionGenerations = new Map();
+  }
+
+  return globalRegistry.liveRoomExecutionGenerations;
 };
 
 // ponytail: process-local serialization; move ownership to a DB-backed worker if
@@ -81,16 +90,32 @@ export const interruptLiveRoomRunningProcess = (
   } as const;
 };
 
+export const cancelQueuedLiveRoomMemberExecutions = (memberId: string) => {
+  const generations = getExecutionGenerationStore();
+  generations.set(memberId, (generations.get(memberId) ?? 0) + 1);
+};
+
+export const waitForLiveRoomMemberExecutionStop = async (memberId: string, timeoutMs = 3_000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (hasLiveRoomMemberExecution(memberId) || getLiveRoomRunningProcess(memberId)) {
+    if (Date.now() >= deadline) throw new Error(`${memberId} old session stop timed out`);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+};
+
 export const enqueueLiveRoomMemberExecution = async (
   memberId: string,
-  task: () => Promise<void>
+  task: () => Promise<void>,
+  waitForCompletion = true
 ) => {
   const store = getExecutionChainStore();
+  const generations = getExecutionGenerationStore();
+  const generation = generations.get(memberId) ?? 0;
   const previous = store.get(memberId) ?? Promise.resolve();
 
   const current = previous
     .catch(() => undefined)
-    .then(task)
+    .then(() => (generations.get(memberId) ?? 0) === generation ? task() : undefined)
     .finally(() => {
       if (store.get(memberId) === current) {
         store.delete(memberId);
@@ -98,5 +123,9 @@ export const enqueueLiveRoomMemberExecution = async (
     });
 
   store.set(memberId, current);
-  await current;
+  if (waitForCompletion) {
+    await current;
+  } else {
+    void current.catch(() => undefined);
+  }
 };

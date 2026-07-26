@@ -1456,6 +1456,7 @@ export const triggerLiveRoomAgentReply = async ({
   chainDepth = 0,
   allowChainedMentions = true,
   forceTargetMember = false,
+  waitForCompletion = true,
 }: {
   roomId: string;
   roomMessageId: string;
@@ -1463,6 +1464,7 @@ export const triggerLiveRoomAgentReply = async ({
   chainDepth?: number;
   allowChainedMentions?: boolean;
   forceTargetMember?: boolean;
+  waitForCompletion?: boolean;
 }) => {
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
@@ -1563,17 +1565,19 @@ export const triggerLiveRoomAgentReply = async ({
       chainDepth,
       allowChainedMentions,
     });
-  });
+  }, waitForCompletion);
 };
 
 export const triggerLiveRoomMessageReplies = async ({
   roomId,
   roomMessageId,
   requestedTargetMemberId,
+  waitForCompletion = true,
 }: {
   roomId: string;
   roomMessageId: string;
   requestedTargetMemberId?: string | null;
+  waitForCompletion?: boolean;
 }) => {
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
@@ -1681,6 +1685,7 @@ export const triggerLiveRoomMessageReplies = async ({
       chainDepth: 0,
       allowChainedMentions,
       forceTargetMember: isMentionAll,
+      waitForCompletion,
     });
   }
 };

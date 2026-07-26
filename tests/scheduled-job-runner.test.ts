@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { prisma } from '../src/lib/prisma';
 import { noopTestHandler } from '../src/lib/scheduled-jobs/handlers';
-import { executeScheduledJob, matchesCron, stopScheduledJob } from '../src/lib/scheduled-jobs/runner';
+import {
+  executeScheduledJob,
+  matchesCron,
+  stopScheduledJob,
+  waitForScheduledJobStop,
+} from '../src/lib/scheduled-jobs/runner';
 import type { JobConfig, ProjectConfig } from '../src/lib/scheduled-jobs/project-config';
 
 const suffix = `${process.pid}-${Date.now()}`;
@@ -54,6 +59,7 @@ async function main() {
   const unaffectedRun = executeScheduledJob(prisma, project, unaffectedJob, new Date(), noopTestHandler);
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert(await stopScheduledJob(prisma, project.id, stoppedJob.id));
+  await waitForScheduledJobStop(prisma, project.id, stoppedJob.id);
   assert.equal(await stoppedRun, false);
   assert(!await stopScheduledJob(prisma, project.id, stoppedJob.id), 'repeated stop must report idle');
   assert(!await stopScheduledJob(prisma, project.id, 'missing'));

@@ -57,6 +57,19 @@ export const stopScheduledJob = async (db: PrismaClient, projectId: string, jobI
   return Boolean(controller || requested.count);
 };
 
+export const waitForScheduledJobStop = async (
+  db: PrismaClient,
+  projectId: string,
+  jobId: string,
+  timeoutMs = 5_000,
+) => {
+  const deadline = Date.now() + timeoutMs;
+  while (await db.scheduledJobRun.count({ where: { projectId, jobId, status: 'running' } })) {
+    if (Date.now() >= deadline) throw new Error(`${jobId} 停止超时`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+};
+
 const withTimeout = async <T>(
   milliseconds: number,
   controller: AbortController,

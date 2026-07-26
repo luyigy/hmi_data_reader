@@ -36,10 +36,13 @@ type Pending = WorkflowReviewPending & {
 
 type Cursor = { commit: string; eventKey?: string; pending?: Pending };
 type WorkflowRunner = (args: {
+  projectId: string;
+  jobId: string;
   chatId: string;
   chatType: 'group' | 'p2p';
   prompt: string;
   eventKey: string;
+  signal: AbortSignal;
 }) => Promise<void>;
 type Message = {
   message_id?: string;
@@ -160,15 +163,21 @@ const messages = async (chatId: string, start: string, signal: AbortSignal) => {
 
 const execute = async (
   pending: Pick<Pending, 'key' | 'prompt'>,
+  projectId: string,
+  jobId: string,
   codingBotChatId: string,
   codingBotChatType: 'group' | 'p2p',
   runWorkflow: WorkflowRunner,
+  signal: AbortSignal,
 ) => {
   await runWorkflow({
+    projectId,
+    jobId,
     chatId: codingBotChatId,
     chatType: codingBotChatType,
     prompt: pending.prompt,
     eventKey: pending.key,
+    signal,
   });
 };
 
@@ -310,9 +319,12 @@ export const workflowWatcherHandler = async (
     if (mode === 'active') {
       await execute(
         pending,
+        project.id,
+        job.id,
         codingBotChatId,
         codingBotChatType as 'group' | 'p2p',
         runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
+        signal,
       );
     }
     return {
@@ -403,9 +415,12 @@ export const workflowWatcherHandler = async (
   }
   await execute(
     execution,
+    project.id,
+    job.id,
     codingBotChatId,
     codingBotChatType as 'group' | 'p2p',
     runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
+    signal,
   );
   return {
     summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=session_started`,

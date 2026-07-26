@@ -52,3 +52,25 @@ projects:
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: rebuild-postgres-auth-slice
           initial_cursor_commit: ebe9182bebcc8ede4691428459e27c3ad292771e
+  - id: workflow-test
+    name: Workflow Test
+    path: /data1/code/workflow-test
+    ref: refs/heads/workflow-test
+    feishu:
+      chat_id: oc_0684589953a98e6b17a8d148c6b77756
+      approver_open_ids:
+        - ou_16b82bdefeb4944108d62068e88a2f0c
+    jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "*/10 * * * *"
+        enabled: true
+        mode: active
+        config:
+          active_side_effects_enabled: true
+          coding_bot_chat_id: oc_0684589953a98e6b17a8d148c6b77756
+          coding_bot_chat_type: group
+          coding_bot_app_id: cli_a8e5326f4e7f901c
+          contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: .
+          initial_cursor_commit: 0cb94cd216e8e5ed674007c077d378b1a8beaa1d

@@ -20,10 +20,12 @@ plan_progress: in_progress
    和 agent 排队；
 4. 不重启其他群的 watcher，不把 feature 逻辑继续堆进历史长文件。
 
-## 已完成但尚未提交
+## 已完成、待提交与部署
 
 - `disable workflow-watcher` 已改为先写禁用状态，再复用项目级 `stopScheduledJob`，
   最多等待 5 秒确认该 `(projectId, jobId)` 没有 running run。
+- `stop workflow-watcher` 同样等待停止确认后才返回成功；watcher 的 `AbortSignal` 已贯穿
+  workflow dispatch，并在 Session reset、飞书发送、Live Room 写入和 agent 排队前检查。
 - workflow dispatch 增加数据库幂等状态，按 `(projectId, jobId,eventKey)` 唯一：
   `prepared → session_reset → feishu_posted → prompt_posted → reply_queued`。
 - 新 Session reset 会把 `workflowEventKey` 记录到 `TaskSession.metadata`，失败重试时可
@@ -34,17 +36,19 @@ plan_progress: in_progress
   单纯新增项目配置不需要重启服务。
 - 已增加 migration：
   `prisma/migrations/20260726173000_add_workflow_dispatch/migration.sql`。
+- Live Room 队列增加取消代次；`/ap new-session --all` 清理的旧排队闭包不会在当前运行
+  结束后重新执行。
 
 ## `/ap new-session` 的真实语义
 
 - 当前 `HEAD` 已让 new-session 对目标成员调用 `stop_run`；本地注册的旧 run 会收到
   `SIGKILL`，这比原来的 `interrupt_now` / `SIGINT` 更强。
-- 命令只等待“停止请求已投递”，**不等待旧 OS PID 确认退出**。因此不能把命令回执理解
-  为旧进程退出屏障。
-- 单成员模式随后同步 `await executeAcpxTaskRun(...)`，要等新 bootstrap run 完成才返回；
-  这通常是“new-session 半天不结束”的主要来源，不等于旧 run 仍在停止。
-- `new-session --all` 不立即执行 bootstrap，只写入每个 participant 的 Prompt，等下一条
-  真实用户指令再启动，因此会快速返回。
+- 单成员和 `--all` 现在都并行停止目标成员，取消旧排队执行，并最多等待 3 秒确认
+  process-local execution chain 已退出；超时会明确失败，不会伪报 reset 成功。
+- 两种模式都不再同步执行 bootstrap run，只重置 TaskSession、清空 member thread 并写入
+  bootstrap Prompt；下一条真实用户指令才启动 fresh session，因此命令会快速返回。
+- 队列隔离当前仍是 process-local；若未来有多个进程同时消费 Live Room delivery，需把
+  队列所有权迁移到 DB-backed worker，不能假设跨进程内存 Map 可见。
 - 当前运行中的 Next 服务 PID 为 `385443`，启动于 `2026-07-26 13:15:19`；Scheduled Job
   Runner PID 为 `1374125`，启动于 `2026-07-26 17:00:38`。在部署前必须核对目标服务实际
   加载的 commit，不能仅凭工作区源码断言运行态行为。
@@ -78,8 +82,15 @@ plan_progress: in_progress
 - `tests/live-room-process-registry.test.ts`
 - `tests/scheduled-job-runner.test.ts`
 
-前一 Session 已报告 Prisma generate、scheduled-job、queue、workflow-watcher 回归及
-`tsc --noEmit` 通过；新 Session 必须自行复跑，不能只相信交接结论。
+本 Session 已实际运行并通过：
+
+- `npm run test:live-room-queue`
+- `npm run test:scheduled-jobs`
+- `npm run test:workflow-watcher`
+- `npx tsc --noEmit`
+- `git diff --check`
+
+其中 queue 回归明确覆盖“取消的旧排队 delivery 不得稍后执行”和“不等待 agent 完整回复”。
 
 本 Session 已按仓库要求运行
 `detect_changes(scope=compare, base_ref=master)`：结果为 **CRITICAL**，原因是当前分支
@@ -91,11 +102,11 @@ plan_progress: in_progress
 1. 先读本 HANDOVER、253 PLAN、workflow contract 和完整工作区 diff。
 2. 用 GitNexus `detect_changes(scope=compare, base_ref=master)` 复核已有改动的真实范围；
    HIGH/CRITICAL 必须先报告，不能直接提交。
-3. 运行 Prisma generate、migration 状态检查、相关最小测试、`tsc --noEmit` 和
-   `git diff --check`。
-4. 检查数据库 migration 是否尚未应用；应用 migration、提交、重启或部署都属于独立
-   状态变更，未获当前用户明确授权前不要执行。
-5. 完成后用真实测试群验收：项目级 disable 不影响其他项目；批准事件只 reset 一次、
+3. 当前 `20260726173000_add_workflow_dispatch` 尚未应用；部署 workflow dispatch 前必须
+   获得用户明确授权并运行 migration。
+4. 用户已明确授权提交和重启相关 user systemd 服务；提交后按 migration 前置条件决定
+   可安全重启的服务，禁止让 scheduled-job runner 进入缺表运行态。
+5. 服务加载新提交后用真实测试群验收：项目级 disable 不影响其他项目；批准事件只 reset 一次、
    Prompt 只发送一次、reply 只排队一次。
 6. 不要把手工 `/ap new-session` 当作 workflow 验收的替代路径。
 
