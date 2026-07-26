@@ -1,0 +1,213 @@
+{
+  "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_射出_00.jpeg",
+  "path": "/data1/code/hmi_data_reader/docs/samples_v2/德马格_A01_TX22063_100-17017_20260722_rec14_射出_00.jpeg",
+  "line_count": 29,
+  "merged_rows": [
+    {
+      "text": "射压力",
+      "bbox": {
+        "x_min": 0.0,
+        "x_max": 111.0,
+        "y_min": 23.0,
+        "y_max": 78.0,
+        "avg_y": 23.0
+      },
+      "conf": 0.9832854270935059,
+      "min_conf": 0.9832854270935059,
+      "n_segments": 1
+    },
+    {
+      "text": "2.9bar",
+      "bbox": {
+        "x_min": 0.0,
+        "x_max": 86.0,
+        "y_min": 87.0,
+        "y_max": 131.0,
+        "avg_y": 87.0
+      },
+      "conf": 0.9068596363067627,
+      "min_conf": 0.9068596363067627,
+      "n_segments": 1
+    },
+    {
+      "text": "位适",
+      "bbox": {
+        "x_min": 12.0,
+        "x_max": 90.0,
+        "y_min": 149.0,
+        "y_max": 195.0,
+        "avg_y": 149.0
+      },
+      "conf": 0.8727469444274902,
+      "min_conf": 0.8727469444274902,
+      "n_segments": 1
+    },
+    {
+      "text": "29mm",
+      "bbox": {
+        "x_min": 0.0,
+        "x_max": 106.0,
+        "y_min": 206.0,
+        "y_max": 248.0,
+        "avg_y": 206.0
+      },
+      "conf": 0.9965593814849854,
+      "min_conf": 0.9965593814849854,
+      "n_segments": 1
+    },
+    {
+      "text": "余料鱼",
+      "bbox": {
+        "x_min": 5.0,
+        "x_max": 117.0,
+        "y_min": 261.0,
+        "y_max": 313.0,
+        "avg_y": 261.0
+      },
+      "conf": 0.7761674523353577,
+      "min_conf": 0.7761674523353577,
+      "n_segments": 1
+    },
+    {
+      "text": "50.00mm",
+      "bbox": {
+        "x_min": 1738.0,
+        "x_max": 1900.0,
+        "y_min": 478.0,
+        "y_max": 514.0,
+        "avg_y": 478.0
+      },
+      "conf": 0.9698145985603333,
+      "min_conf": 0.9698145985603333,
+      "n_segments": 1
+    },
+    {
+      "text": "100.0",
+      "bbox": {
+        "x_min": 1668.0,
+        "x_max": 1758.0,
+        "y_min": 554.0,
+        "y_max": 592.0,
+        "avg_y": 554.0
+      },
+      "conf": 0.9959421157836914,
+      "min_conf": 0.9959421157836914,
+      "n_segments": 1
+    },
+    {
+      "text": "压力bar] 65.0",
+      "bbox": {
+        "x_min": 260.0,
+        "x_max": 590.0,
+        "y_min": 576.0,
+        "y_max": 627.0,
+        "avg_y": 581.0
+      },
+      "conf": 0.9290874004364014,
+      "min_conf": 0.8664665818214417,
+      "n_segments": 2
+    },
+    {
+      "text": "0.0 25.0 75.0",
+      "bbox": {
+        "x_min": 1432.0,
+        "x_max": 1756.0,
+        "y_min": 617.0,
+        "y_max": 661.0,
+        "avg_y": 621.0
+      },
+      "conf": 0.9655366738637289,
+      "min_conf": 0.9070890545845032,
+      "n_segments": 3
+    },
+    {
+      "text": "速度[mm/s] 12.0",
+      "bbox": {
+        "x_min": 262.0,
+        "x_max": 596.0,
+        "y_min": 637.0,
+        "y_max": 685.0,
+        "avg_y": 640.0
+      },
+      "conf": 0.9384113550186157,
+      "min_conf": 0.8828766345977783,
+      "n_segments": 2
+    },
+    {
+      "text": "位置[mm] 17.50 0.00 22.50 45.00",
+      "bbox": {
+        "x_min": 268.0,
+        "x_max": 1752.0,
+        "y_min": 687.0,
+        "y_max": 746.0,
+        "avg_y": 695.0
+      },
+      "conf": 0.9695701003074646,
+      "min_conf": 0.883929967880249,
+      "n_segments": 5
+    },
+    {
+      "text": "移动曲线",
+      "bbox": {
+        "x_min": 962.0,
+        "x_max": 1104.0,
+        "y_min": 862.0,
+        "y_max": 897.0,
+        "avg_y": 862.0
+      },
+      "conf": 0.9963983297348022,
+      "min_conf": 0.9963983297348022,
+      "n_segments": 1
+    },
+    {
+      "text": "顶针 0.0mm 46.29m",
+      "bbox": {
+        "x_min": 1266.0,
+        "x_max": 1918.0,
+        "y_min": 939.0,
+        "y_max": 981.0,
+        "avg_y": 942.6666666666666
+      },
+      "conf": 0.9606622457504272,
+      "min_conf": 0.9187889099121094,
+      "n_segments": 3
+    },
+    {
+      "text": "15070717",
+      "bbox": {
+        "x_min": 942.0,
+        "x_max": 1066.0,
+        "y_min": 985.0,
+        "y_max": 1020.0,
+        "avg_y": 985.0
+      },
+      "conf": 0.9979076385498047,
+      "min_conf": 0.9979076385498047,
+      "n_segments": 1
+    },
+    {
+      "text": "名级 多级 多级 动作调书 注射",
+      "bbox": {
+        "x_min": 352.0,
+        "x_max": 1741.0,
+        "y_min": 1052.0,
+        "y_max": 1079.0,
+        "avg_y": 1054.8
+      },
+      "conf": 0.793531060218811,
+      "min_conf": 0.7021783590316772,
+      "n_segments": 5
+    }
+  ],
+  "fix_log": [
+    "  [merge-lines] 29 lines -> 15 merged rows",
+    "  [number-stats] 16 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 29,
+    "n_merged_rows": 15,
+    "n_numbers": 16,
+    "n_numbers_fixed": 0
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "filename": "德马格_A01_TX22063_100-17017_20260722_rec14_储料_01.jpeg",
+  "path": "/data1/code/hmi_data_reader/docs/samples_v2/德马格_A01_TX22063_100-17017_20260722_rec14_储料_01.jpeg",
+  "line_count": 11,
+  "merged_rows": [
+    {
+      "text": "12.0",
+      "bbox": {
+        "x_min": 445.0,
+        "x_max": 529.0,
+        "y_min": 69.0,
+        "y_max": 217.0,
+        "avg_y": 69.0
+      },
+      "conf": 0.9984736442565918,
+      "min_conf": 0.9984736442565918,
+      "n_segments": 1
+    },
+    {
+      "text": "保压 000",
+      "bbox": {
+        "x_min": 304.0,
+        "x_max": 969.0,
+        "y_min": 103.0,
+        "y_max": 305.0,
+        "avg_y": 104.5
+      },
+      "conf": 0.788472980260849,
+      "min_conf": 0.5774645805358887,
+      "n_segments": 2
+    },
+    {
+      "text": "压力 0008",
+      "bbox": {
+        "x_min": 166.0,
+        "x_max": 941.0,
+        "y_min": 469.0,
+        "y_max": 648.0,
+        "avg_y": 472.0
+      },
+      "conf": 0.9893105328083038,
+      "min_conf": 0.9892498850822449,
+      "n_segments": 2
+    },
+    {
+      "text": "速度mm/s]",
+      "bbox": {
+        "x_min": 450.0,
+        "x_max": 532.0,
+        "y_min": 746.0,
+        "y_max": 1076.0,
+        "avg_y": 746.0
+      },
+      "conf": 0.8774186372756958,
+      "min_conf": 0.8774186372756958,
+      "n_segments": 1
+    },
+    {
+      "text": "位置[mm] 压力ban",
+      "bbox": {
+        "x_min": 575.0,
+        "x_max": 799.0,
+        "y_min": 783.0,
+        "y_max": 1071.0,
+        "avg_y": 789.0
+      },
+      "conf": 0.871265709400177,
+      "min_conf": 0.8325690031051636,
+      "n_segments": 2
+    },
+    {
+      "text": "时间月",
+      "bbox": {
+        "x_min": 830.0,
+        "x_max": 930.0,
+        "y_min": 816.0,
+        "y_max": 1066.0,
+        "avg_y": 816.0
+      },
+      "conf": 0.7649665474891663,
+      "min_conf": 0.7649665474891663,
+      "n_segments": 1
+    },
+    {
+      "text": "山",
+      "bbox": {
+        "x_min": 1888.0,
+        "x_max": 1918.0,
+        "y_min": 856.0,
+        "y_max": 891.0,
+        "avg_y": 856.0
+      },
+      "conf": 0.6384698748588562,
+      "min_conf": 0.6384698748588562,
+      "n_segments": 1
+    },
+    {
+      "text": "注射",
+      "bbox": {
+        "x_min": 185.0,
+        "x_max": 269.0,
+        "y_min": 946.0,
+        "y_max": 1079.0,
+        "avg_y": 946.0
+      },
+      "conf": 0.9984918832778931,
+      "min_conf": 0.9984918832778931,
+      "n_segments": 1
+    }
+  ],
+  "fix_log": [
+    "  [merge-lines] 11 lines -> 8 merged rows",
+    "  [number-stats] 3 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 11,
+    "n_merged_rows": 8,
+    "n_numbers": 3,
+    "n_numbers_fixed": 0
+  }
+}
