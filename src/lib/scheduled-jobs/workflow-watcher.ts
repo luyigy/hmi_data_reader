@@ -204,7 +204,8 @@ const exists = (cwd: string, head: string, filePath: string, signal: AbortSignal
   git(cwd, signal, 'cat-file', '-e', `${head}:${filePath}`).then(() => true, () => false);
 
 const slices = (content: string, contract: Contract) =>
-  Array.from(new Set(content.match(new RegExp(contract.documents.slice_pattern, 'g')) ?? []));
+  Array.from(new Set(content.match(new RegExp(contract.documents.slice_pattern, 'g')) ?? []))
+    .sort((left, right) => Number(left.slice(1)) - Number(right.slice(1)));
 
 const validateDocument = async (
   cwd: string,
@@ -358,11 +359,12 @@ const messages = async (chatId: string, start: string, signal: AbortSignal) => {
 const execute = async (
   pending: Pick<Pending, 'key' | 'prompt'>,
   codingBotChatId: string,
+  codingBotChatType: 'group' | 'p2p',
   runWorkflow: WorkflowRunner,
 ) => {
   await runWorkflow({
     chatId: codingBotChatId,
-    chatType: 'group',
+    chatType: codingBotChatType,
     prompt: pending.prompt,
     eventKey: pending.key,
   });
@@ -379,7 +381,12 @@ export const workflowWatcherHandler = async (
   const activeEnabled = job.config.active_side_effects_enabled === true;
   if (mode === 'active' && !activeEnabled) throw new Error('workflow_watcher active side effects require explicit config gate');
   const codingBotChatId = String(job.config.coding_bot_chat_id || '');
-  if (mode === 'active' && (!codingBotChatId || project.feishu.approver_open_ids.length !== 1)) {
+  const codingBotChatType = job.config.coding_bot_chat_type;
+  if (mode === 'active' && (
+    !codingBotChatId
+    || (codingBotChatType !== 'group' && codingBotChatType !== 'p2p')
+    || project.feishu.approver_open_ids.length !== 1
+  )) {
     throw new Error('workflow_watcher active identity config is incomplete');
   }
 
@@ -491,6 +498,7 @@ export const workflowWatcherHandler = async (
       await execute(
         pending,
         codingBotChatId,
+        codingBotChatType as 'group' | 'p2p',
         runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
       );
     }
@@ -516,7 +524,7 @@ export const workflowWatcherHandler = async (
     return [{ filePath, number: Number(match[1]), rawNumber: match[1], type: match[2] }];
   }).sort((left, right) => left.number - right.number || left.filePath.localeCompare(right.filePath));
 
-  if (!candidates.length) return { summary: `head=${head} candidate=none`, cursor: { commit: head } };
+  if (!candidates.length) return { summary: `head=${head} candidate=none`, cursor: { commit: head, eventKey: previous.eventKey } };
   const candidate = candidates.at(-1)!;
   if (candidate.rawNumber.length !== contract.numbering.width) throw new Error('workflow document number has invalid width');
   if (contract.numbering.unique && candidates.filter((item) => item.number === candidate.number).length !== 1) {
@@ -583,6 +591,7 @@ export const workflowWatcherHandler = async (
   await execute(
     execution,
     codingBotChatId,
+    codingBotChatType as 'group' | 'p2p',
     runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
   );
   return {

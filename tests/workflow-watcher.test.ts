@@ -134,6 +134,7 @@ S01 then S02
       initial_cursor_commit: base,
       active_side_effects_enabled: true,
       coding_bot_chat_id: 'coding-bot-chat',
+      coding_bot_chat_type: 'group',
       coding_bot_app_id: 'coding-app',
     },
   };
@@ -218,7 +219,9 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.equal(workflowRuns[0].chatId, 'coding-bot-chat');
   assert.equal(workflowRuns[0].chatType, 'group');
   assert.match(workflowRuns[0].prompt, /NEXT PROMPT/);
-  assert.match((await run(completed.cursor)).summary, /candidate=none/);
+  const unchanged = await run(completed.cursor);
+  assert.match(unchanged.summary, /candidate=none/);
+  assert.equal((unchanged.cursor as { eventKey?: string }).eventKey, (completed.cursor as { eventKey?: string }).eventKey);
 
   await writeFile(path.join(root, 'docs/branch/main/002_HANDOVER_20260725_terminal.md'), `---
 doc_type: HANDOVER
@@ -245,6 +248,7 @@ parent_plan: null
 parent_slice: null
 return_to: null
 ---
+此前阶段 S08 已完成。
 S01
 <!-- WORKFLOW_PROMPT_START -->
 PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
@@ -268,8 +272,10 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   ] } }));
   const callbackApproved = JSON.parse(JSON.stringify(reviewCursor));
   callbackApproved.pending.reviewState = 'approved';
+  job.config.coding_bot_chat_type = 'p2p';
   assert.match((await run(callbackApproved)).summary, /result=session_started/);
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
+  assert.equal(workflowRuns.at(-1)?.chatType, 'p2p');
 
   const reviewPending = {
     key: 'key',

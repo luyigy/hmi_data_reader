@@ -7,4 +7,5 @@ load_local_env_fallbacks
 normalize_database_url
 
 export TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}'
-exec node -r ts-node/register/transpile-only scripts/scheduled-job-runner.ts
+export TS_NODE_BASEURL=.
+exec node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/scheduled-job-runner.ts
