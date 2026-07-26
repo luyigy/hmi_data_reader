@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseFeishuCommand } from '../src/lib/feishu';
+import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
 
 const parsed = parseFeishuCommand({
   chatId: 'chat',

@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { unstable_noStore as noStore } from 'next/cache';
 import {
-  getFeishuChallengeResponse,
   handleFeishuCommand,
   hydrateFeishuMessageResources,
+} from '@/lib/feishu';
+import { parseFeishuCommand } from '@/lib/feishu-command-parser';
+import {
+  getFeishuChallengeResponse,
   normalizeFeishuPayload,
-  parseFeishuCommand,
   parseFeishuMessage,
   validateFeishuRequestSignature,
   validateFeishuVerificationToken,
-} from '@/lib/feishu';
+} from '@/lib/feishu-webhook';
 import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 import { ensureFeishuConversationBinding, tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';

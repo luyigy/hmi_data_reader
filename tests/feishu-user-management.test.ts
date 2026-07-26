@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { parseFeishuCommand } from '../src/lib/feishu';
+import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
 import { handleFeishuUserManagementCommand } from '../src/lib/feishu-access-approval';
 import { prisma } from '../src/lib/prisma';
 

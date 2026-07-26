@@ -1,7 +1,5 @@
-import crypto from 'node:crypto';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
-import { AESCipher } from '@larksuiteoapi/node-sdk';
 import { prisma } from '@/lib/prisma';
 import { generateShortAlias } from '@/lib/agent-identity';
 import { getRealAgentsStatus } from '@/lib/real-agents';
@@ -24,10 +22,21 @@ import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 import { readFeishuRuntimeStatus } from '@/lib/feishu-runtime-status';
 import {
   hydrateFeishuMessageResources,
-  parseFeishuMessageContent,
   type ParsedFeishuMessage,
 } from '@/lib/feishu-message-content';
+import {
+  parseFeishuCommand,
+  type ParsedFeishuCommand,
+} from '@/lib/feishu-command-parser';
+export { parseFeishuCommand } from '@/lib/feishu-command-parser';
 export { hydrateFeishuMessageResources, parseFeishuMessageContent } from '@/lib/feishu-message-content';
+export {
+  getFeishuChallengeResponse,
+  normalizeFeishuPayload,
+  parseFeishuMessage,
+  validateFeishuRequestSignature,
+  validateFeishuVerificationToken,
+} from '@/lib/feishu-webhook';
 import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
@@ -91,84 +100,6 @@ const DEFAULT_HELP_TEXT = [
   '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
 
-type FeishuMessageMention = {
-  id?: {
-    open_id?: string;
-  };
-  key?: string;
-  name?: string;
-};
-
-type FeishuIncomingEvent = {
-  schema?: string;
-  token?: string;
-  type?: string;
-  challenge?: string;
-  encrypt?: string;
-  header?: {
-    event_type?: string;
-    token?: string;
-  };
-  event?: {
-    sender?: {
-      sender_id?: {
-        open_id?: string;
-      };
-    };
-    message?: {
-      chat_id?: string;
-      chat_type?: string;
-      message_id?: string;
-      message_type?: string;
-      content?: string;
-      mentions?: FeishuMessageMention[];
-    };
-  };
-};
-
-type FeishuWebhookHeaders =
-  | Headers
-  | Record<string, string | string[] | undefined>;
-
-type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session';
-  args: string[];
-  options: Record<string, string>;
-};
-
-function getRequiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
-function getOptionalEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value || undefined;
-}
-
-function getHeaderValue(
-  headers: FeishuWebhookHeaders,
-  name: string
-): string | undefined {
-  if (headers instanceof Headers) {
-    return headers.get(name) || undefined;
-  }
-
-  const value = headers[name.toLowerCase()] ?? headers[name];
-  if (Array.isArray(value)) {
-    return value[0];
-  }
-  return value;
-}
-
-function decryptFeishuPayload(encryptedContent: string, encryptKey: string): FeishuIncomingEvent {
-  const decrypted = new AESCipher(encryptKey).decrypt(encryptedContent);
-  return JSON.parse(decrypted) as FeishuIncomingEvent;
-}
-
 function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
   const normalized = agentName.trim().toLowerCase();
   if (normalized.includes('antigravity') || normalized === 'agy') {
@@ -214,212 +145,6 @@ function getEffectiveAgentStatus(
   }
 
   return agent.status;
-}
-
-export function validateFeishuRequestSignature(args: {
-  payload: unknown;
-  headers: FeishuWebhookHeaders;
-}): boolean {
-  const encryptKey = getOptionalEnv('FEISHU_ENCRYPT_KEY');
-  if (!encryptKey) {
-    return true;
-  }
-
-  const payload =
-    args.payload && typeof args.payload === 'object' && !Array.isArray(args.payload)
-      ? (args.payload as Record<string, unknown>)
-      : null;
-  if (!payload) {
-    return false;
-  }
-
-  const timestamp = getHeaderValue(args.headers, 'x-lark-request-timestamp');
-  const nonce = getHeaderValue(args.headers, 'x-lark-request-nonce');
-  const signature = getHeaderValue(args.headers, 'x-lark-signature');
-  if (!timestamp || !nonce || !signature) {
-    return false;
-  }
-
-  const computedSignature = crypto
-    .createHash('sha256')
-    .update(timestamp + nonce + encryptKey + JSON.stringify(payload))
-    .digest('hex');
-
-  return computedSignature === signature;
-}
-
-export function normalizeFeishuPayload(payload: FeishuIncomingEvent): FeishuIncomingEvent {
-  if (!payload.encrypt) {
-    return payload;
-  }
-
-  const encryptKey = getRequiredEnv('FEISHU_ENCRYPT_KEY');
-  return decryptFeishuPayload(payload.encrypt, encryptKey);
-}
-
-export function getFeishuChallengeResponse(
-  payload: FeishuIncomingEvent
-): { challenge: string } | null {
-  if (payload.type === 'url_verification' && typeof payload.challenge === 'string') {
-    return { challenge: payload.challenge };
-  }
-
-  return null;
-}
-
-export function validateFeishuVerificationToken(payload: FeishuIncomingEvent): boolean {
-  const expected = getOptionalEnv('FEISHU_VERIFICATION_TOKEN');
-  if (!expected) {
-    return true;
-  }
-
-  const actual = payload.token || payload.header?.token;
-  return actual === expected;
-}
-
-export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMessage | null {
-  if (payload.type === 'url_verification') {
-    return null;
-  }
-
-  if (payload.header?.event_type !== 'im.message.receive_v1') {
-    return null;
-  }
-
-  const message = payload.event?.message;
-  const senderOpenId = payload.event?.sender?.sender_id?.open_id;
-  if (!message?.chat_id || !message.message_id || !message.content || !senderOpenId) {
-    return null;
-  }
-
-  const parsedContent = parseFeishuMessageContent(message.message_type, message.content);
-
-  if (!parsedContent?.text) {
-    return null;
-  }
-
-  return {
-    chatId: message.chat_id,
-    chatType: message.chat_type || 'group',
-    messageId: message.message_id,
-    senderOpenId,
-    messageType: parsedContent.messageType,
-    text: parsedContent.text,
-    fileKey: parsedContent.fileKey,
-    fileKeys: parsedContent.fileKeys,
-    mentions: (message.mentions || [])
-      .map((mention) => mention.id?.open_id)
-      .filter((value): value is string => !!value),
-    mentionNames: (message.mentions || [])
-      .map((mention) => mention.name?.trim())
-      .filter((value): value is string => !!value),
-  };
-}
-
-function stripBotMention(text: string): string {
-  return text
-    .replace(/<at user_id="[^"]+">[^<]+<\/at>/g, '')
-    .replace(/^@\S+\s*/, '')
-    .trim();
-}
-
-function tokenizeCommandText(input: string) {
-  const tokens: string[] = [];
-  let current = '';
-  let quote: '"' | "'" | null = null;
-
-  for (let index = 0; index < input.length; index += 1) {
-    const char = input[index];
-
-    if (quote) {
-      if (char === quote) {
-        quote = null;
-      } else {
-        current += char;
-      }
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-
-    if (/\s/.test(char)) {
-      if (current) {
-        tokens.push(current);
-        current = '';
-      }
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current) {
-    tokens.push(current);
-  }
-
-  return tokens;
-}
-
-export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCommand | null {
-  const botOpenId = getOptionalEnv('FEISHU_BOT_OPEN_ID');
-  const hasBotMention = botOpenId ? message.mentions.includes(botOpenId) : false;
-  const cleanedText = stripBotMention(message.text);
-  const normalized = cleanedText.replace(/\s+/g, ' ').trim();
-
-  let commandText = normalized;
-  const lower = normalized.toLowerCase();
-  if (lower.startsWith('/ap ')) {
-    commandText = normalized.slice(4).trim();
-  } else if (lower === '/ap') {
-    commandText = 'help';
-  } else if (lower.startsWith('ap ')) {
-    commandText = normalized.slice(3).trim();
-  } else if (hasBotMention) {
-    commandText = normalized || 'help';
-  } else if (message.chatType !== 'p2p') {
-    return null;
-  }
-
-  if (!commandText) {
-    return { command: 'help', args: [], options: {} };
-  }
-
-  const normalizedTokens = tokenizeCommandText(commandText);
-
-  const [rawCommand = 'help', ...rest] = normalizedTokens;
-  const commandAlias = rawCommand.toLowerCase();
-  const command = commandAlias === 'new' ? 'new-session' : commandAlias;
-  if (!['help', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session'].includes(command)) {
-    return null;
-  }
-
-  const args: string[] = [];
-  const options: Record<string, string> = {};
-
-  for (const token of rest) {
-    if (token.startsWith('--')) {
-      const optionText = token.slice(2);
-      const separatorIndex = optionText.indexOf('=');
-      if (separatorIndex > 0) {
-        const key = optionText.slice(0, separatorIndex);
-        const value = optionText.slice(separatorIndex + 1);
-        options[key] = value;
-      } else if (optionText) {
-        options[optionText] = 'true';
-      }
-    } else {
-      args.push(token);
-    }
-  }
-
-  return {
-    command: command as ParsedFeishuCommand['command'],
-    args,
-    options,
-  };
 }
 
 function formatGatewayLine(gateway: {
