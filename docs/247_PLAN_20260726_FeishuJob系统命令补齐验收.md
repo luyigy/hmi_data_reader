@@ -100,15 +100,3 @@ Feishu runtime 作为平台系统命令拦截、执行并回复，不进入 Live
 - 测试可能触发真实 workflow 副作用、创建 Session 或发送消息：改用隔离 job，不在真实
   watcher 上试错。
 - 当前工作区的 `AGENTS.md`、`CLAUDE.md` 属于既有用户修改，不纳入提交。
-
-<!-- WORKFLOW_PROMPT_START -->
-按 `docs/247_PLAN_20260726_FeishuJob系统命令补齐验收.md` 完成 S01—S03。先保留工作区
-既有 `AGENTS.md`、`CLAUDE.md` 修改，并对每个拟修改 symbol 做 GitNexus upstream
-impact；HIGH/CRITICAL 先告警。复用提交 `e8470a7` 的现有实现，重点补 parser →
-`handleFeishuCommand` → scheduled-job handler 的真实系统路由、权限、项目隔离、幂等、
-override、manual run 和预设回复测试。不要修改 CRITICAL 的 `executeScheduledJob`
-返回类型，不新增抽象、依赖、API 或数据库模型。测试不得改变真实 workflow-watcher
-状态或产生 Feishu/Session 副作用。通过 TypeScript、scheduled-jobs、workflow-watcher、
-聚焦测试、`git diff --check` 和 GitNexus `detect_changes()` 后提交，重启 Feishu
-runtime，并在当前 DM 人工验收五条命令；结束时恢复验收前 enabled 状态。
-<!-- WORKFLOW_PROMPT_END -->
