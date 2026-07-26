@@ -24,6 +24,7 @@ import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } 
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
+import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import type {
   AcpxLiveEventPayload,
   AcpxParticipantRequest,
@@ -1565,6 +1566,13 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       summaries: participantResults,
     },
   });
+
+  if (runStatus === 'completed' && request.participants.some(
+    (participant) => participant.executionBackend === 'platform_local'
+  )) {
+    void wakeWorkflowWatcherForTaskRun(prisma, request.taskId, taskRun.id)
+      .catch((error) => console.error('[ACPX] workflow watcher wakeup failed:', error));
+  }
 
   return {
     taskRunId: taskRun.id,

@@ -39,6 +39,13 @@ async function main() {
   });
   assert.deepEqual(successState.cursorJson, { runs: 1 });
 
+  const eventJob = job('event');
+  const [event, duplicateEvent] = await Promise.all([
+    executeScheduledJob(prisma, project, eventJob, new Date(), noopTestHandler, 'task_run_completed', 'run-1'),
+    executeScheduledJob(prisma, project, eventJob, new Date(), noopTestHandler, 'task_run_completed', 'run-1'),
+  ]);
+  assert.equal(Number(event) + Number(duplicateEvent), 1);
+
   await executeScheduledJob(prisma, project, job('failure', { fail: true }), scheduledFor, noopTestHandler);
   await executeScheduledJob(prisma, project, job('timeout', { delay_ms: 100, timeout_ms: 10 }), scheduledFor, noopTestHandler);
   const statuses = await prisma.scheduledJobRun.findMany({
@@ -47,6 +54,7 @@ async function main() {
   });
   assert.deepEqual(Object.fromEntries(statuses.map(({ jobId, status }) => [jobId, status])), {
     success: 'succeeded',
+    event: 'succeeded',
     failure: 'failed',
     timeout: 'timed_out',
   });

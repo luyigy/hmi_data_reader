@@ -1,6 +1,12 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { jobHandlers, type JobHandler } from './handlers';
-import { loadProjectsConfig, type JobConfig, type JobMode, type ProjectConfig } from './project-config';
+import {
+  findProjectByChatId,
+  loadProjectsConfig,
+  type JobConfig,
+  type JobMode,
+  type ProjectConfig,
+} from './project-config';
 
 const ranges = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]] as const;
 
@@ -55,8 +61,10 @@ export async function executeScheduledJob(
   job: JobConfig,
   scheduledFor: Date,
   handler: JobHandler,
+  trigger = 'schedule',
+  eventKey = scheduledFor.toISOString(),
 ) {
-  const idempotencyKey = `schedule:${project.id}:${job.id}:${scheduledFor.toISOString()}`;
+  const idempotencyKey = `${trigger}:${project.id}:${job.id}:${eventKey}`;
   const startedAt = new Date();
   const state = await db.scheduledJobState.findUnique({
     where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
@@ -68,7 +76,7 @@ export async function executeScheduledJob(
       data: {
         projectId: project.id,
         jobId: job.id,
-        trigger: 'schedule',
+        trigger,
         mode,
         status: 'running',
         scheduledFor,
@@ -161,6 +169,33 @@ export async function executeScheduledJob(
     }),
   ]);
   return status === 'succeeded';
+}
+
+export async function wakeWorkflowWatcherForTaskRun(
+  db: PrismaClient,
+  taskId: string,
+  taskRunId: string,
+) {
+  const binding = await db.feishuConversationBinding.findFirst({
+    where: { liveRoom: { sourceTaskId: taskId } },
+    orderBy: { updatedAt: 'desc' },
+    select: { chatId: true },
+  });
+  if (!binding) return false;
+
+  const config = await loadProjectsConfig();
+  const project = findProjectByChatId(config, binding.chatId);
+  const job = project?.jobs.find((candidate) => candidate.type === 'workflow_watcher');
+  const handler = jobHandlers.get('workflow_watcher');
+  if (!project || !job || !handler) return false;
+
+  const state = await db.scheduledJobState.findUnique({
+    where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+    select: { enabledOverride: true },
+  });
+  if (!(state?.enabledOverride ?? job.enabled)) return false;
+
+  return executeScheduledJob(db, project, job, new Date(), handler, 'task_run_completed', taskRunId);
 }
 
 export async function runDueJobs(db: PrismaClient, now = new Date()) {
