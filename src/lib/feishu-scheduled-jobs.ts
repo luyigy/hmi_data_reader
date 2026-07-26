@@ -8,6 +8,17 @@ import { executeScheduledJob } from '@/lib/scheduled-jobs/runner';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 
+export const formatManualRunResult = (
+  jobId: string,
+  run: { status: string; summary?: string | null; error?: string | null } | null,
+) => {
+  if (run?.status === 'succeeded') return `✅ ${jobId} 手动执行完成。`;
+  if (run?.status === 'failed' || run?.status === 'timed_out') {
+    return `❌ ${jobId} 手动执行${run.status === 'timed_out' ? '超时' : '失败'}：${run.error ?? run.summary ?? '未知错误'}`;
+  }
+  return `${jobId} 未执行（${run?.summary ?? '重复或未创建运行记录'}）。`;
+};
+
 export async function handleScheduledJobCommand(
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext,
@@ -70,6 +81,11 @@ export async function handleScheduledJobCommand(
 
   const handler = jobHandlers.get(job.type);
   if (!handler) return `job 类型未注册 handler：${job.type}`;
-  const ran = await executeScheduledJob(prisma, project, job, new Date(), handler, 'manual', crypto.randomUUID());
-  return ran ? `✅ ${job.id} 手动执行完成。` : `${job.id} 未执行（重复、已有运行或执行失败）。`;
+  const eventKey = crypto.randomUUID();
+  await executeScheduledJob(prisma, project, job, new Date(), handler, 'manual', eventKey);
+  const run = await prisma.scheduledJobRun.findUnique({
+    where: { idempotencyKey: `manual:${project.id}:${job.id}:${eventKey}` },
+    select: { status: true, summary: true, error: true },
+  });
+  return formatManualRunResult(job.id, run);
 }
