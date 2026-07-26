@@ -60,7 +60,7 @@ export async function resolveWorkflowReviewCardAction(args: {
   const approverOpenId = project.feishu.approver_open_ids[0];
   if (!approverOpenId) return { status: 'forbidden' as const };
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`
       SELECT pg_advisory_xact_lock(hashtextextended(${`${project.id}:${job.id}`}, 0))::text
     `;
@@ -88,4 +88,16 @@ export async function resolveWorkflowReviewCardAction(args: {
     }
     return result;
   });
+  if (result.status === 'applied' && args.decision === 'approve') {
+    void import('./runner').then(async ({ executeScheduledJob }) => {
+      const { jobHandlers } = await import('./handlers');
+      const handler = jobHandlers.get(job.type);
+      if (handler) {
+        await executeScheduledJob(
+          prisma, project, job, new Date(), handler, 'workflow_review', args.pendingKey,
+        );
+      }
+    }).catch((error) => console.error('[WorkflowReview] failed to start approved workflow', error));
+  }
+  return result;
 }

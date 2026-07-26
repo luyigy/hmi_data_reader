@@ -45,6 +45,7 @@ async function main() {
   await mkdir(bin);
   await writeFile(path.join(bin, 'lark-cli'), `#!/bin/sh
 if [ "$2" = "+chat-messages-list" ]; then
+  [ "$LARK_FAIL_MESSAGES" = 1 ] && { echo messages-forbidden >&2; exit 1; }
   exec /bin/cat "$LARK_MESSAGES_FILE"
 fi
 printf '%s\\n' "$*" >> "$LARK_CALLS_FILE"
@@ -329,7 +330,9 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const callbackApproved = JSON.parse(JSON.stringify(revisedReviewCursor));
   callbackApproved.pending.reviewState = 'approved';
   job.config.coding_bot_chat_type = 'p2p';
+  process.env.LARK_FAIL_MESSAGES = '1';
   assert.match((await run(callbackApproved)).summary, /result=session_started/);
+  process.env.LARK_FAIL_MESSAGES = '0';
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
   assert.equal(workflowRuns.at(-1)?.chatType, 'p2p');
 

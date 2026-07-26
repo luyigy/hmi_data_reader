@@ -262,9 +262,9 @@ export const workflowWatcherHandler = async (
           cursor: { ...previous, pending },
         };
       }
-      const chatMessages = mode === 'active' ? await messages(project.feishu.chat_id, pending.detectedAt, signal) : [];
       let command = '';
       if (pending.reviewState === 'review') {
+        const chatMessages = mode === 'active' ? await messages(project.feishu.chat_id, pending.detectedAt, signal) : [];
         const decision = chatMessages.find((message) =>
           message.sender?.id === project.feishu.approver_open_ids[0]
           && message.msg_type === 'text'
