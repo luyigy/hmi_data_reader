@@ -1,5 +1,5 @@
 schema_version: 2
-contract_version: "2026.07.25.1"
+contract_version: "2026.07.26.1"
 
 documents:
   automation_types:
@@ -81,6 +81,8 @@ actions:
 prompt:
   start_marker: "<!-- WORKFLOW_PROMPT_START -->"
   end_marker: "<!-- WORKFLOW_PROMPT_END -->"
+  required_in_handover: true
+  repeat_in_final_reply: true
 
 completion_gate:
   marker_template: "WORKFLOW_READY {document_commit} {document_basename}"
