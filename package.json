@@ -13,6 +13,7 @@
     "test:long-file-detector": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/long-file-detector.test.ts",
     "test:workflow-watcher": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/workflow-watcher.test.ts",
     "test:workflow-validator": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/workflow-validator.test.ts",
+    "test:workflow-completion-gate": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/workflow-completion-gate.test.ts",
     "workflow:validate": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only scripts/validate-workflow-documents.ts",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3010",

@@ -24,6 +24,7 @@ import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } 
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
+import { assertWorkflowCompletion, getWorkflowCompletionBaseline } from './workflow-completion-gate';
 import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import type {
   AcpxLiveEventPayload,
@@ -1718,6 +1719,9 @@ const executeParticipant = async (
   };
 
   try {
+    const workflowBaseline = participant.executionBackend === 'platform_local'
+      ? await getWorkflowCompletionBaseline(request.workingDirectory || process.cwd())
+      : null;
     const taskRoomContext = await buildTaskRoomPromptContext(request.taskId, request.taskName, 30);
     const contextWarning = await checkContextWatermark(
       request.taskId,
@@ -1775,6 +1779,13 @@ const executeParticipant = async (
           note: 'Gateway OpenClaw execution currently returns final output after completion.',
         },
       });
+    }
+
+    if (workflowBaseline) {
+      await assertWorkflowCompletion(
+        request.workingDirectory || process.cwd(),
+        workflowBaseline,
+      );
     }
 
     await prisma.taskRunParticipant.update({

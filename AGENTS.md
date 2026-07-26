@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **agent-platform-v2** (7213 symbols, 12237 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **agent-platform-v2** (7283 symbols, 12355 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -48,4 +48,5 @@ This project is indexed by GitNexus as **agent-platform-v2** (7213 symbols, 1223
 - 新 PLAN/HANDOVER 必须使用合同定义的 YAML frontmatter、动作和 Prompt 标记。
 - 自动化只读取目标 Git ref 中已提交的文档，不消费工作区文件，也不从正文猜测动作。
 - `automation_enabled: false` 时只维护和校验文档，不启动 watcher 或下一 Session。
+- 合同要求 `prompt.repeat_in_final_reply: true` 时，最终回复必须原样附上工作流文档 Prompt 标记之间的下一 Session Prompt，供用户直接复制。
 - 可执行文档提交后，最终回复最后一行必须使用合同定义的 `WORKFLOW_READY` 标记。
