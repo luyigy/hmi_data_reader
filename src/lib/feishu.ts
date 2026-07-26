@@ -48,6 +48,7 @@ import {
 import {
   buildTaskRoomPromptContext,
 } from '@/lib/task-room';
+import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import {
   listLiveRoomCatalogAgents,
   listLiveRoomPendingReplies,
@@ -96,6 +97,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap rights [--agent=<name>]',
   '/ap handover [agentName|idSuffix] [--title="handover title"]',
   '/ap workspace [root 内的绝对或相对路径]',
+  '/ap jobs',
+  '/ap job <status|enable|disable|run> <job-id>',
   '/ap new [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
@@ -1466,6 +1469,9 @@ export async function handleFeishuCommand(args: {
       return handleHandoverCommand(args.command, args.context);
     case 'workspace':
       return handleWorkspaceCommand(args.command, args.context);
+    case 'jobs':
+    case 'job':
+      return handleScheduledJobCommand(args.command, args.context);
     case 'new-session':
       return handleNewSessionCommand(args.command, args.context);
     default:
