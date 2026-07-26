@@ -52,7 +52,7 @@ case "$*" in
   *"NEXT PROMPT"*) [ "$LARK_FAIL_PROMPT" = 1 ] && { echo prompt-failed >&2; exit 1; };;
 esac
 case "$*" in
-  "docs +create --as user --api-version v2 --doc-format markdown --content @plan.md --format json")
+  "docs +create --as bot --api-version v2 --doc-format markdown --content @plan.md --format json")
     grep -q '^# 005_PLAN_20260725_import_failure$' plan.md || exit 1
     echo '{"ok":true,"identity":"user","data":{"document":{"url":"https://example.feishu.cn/docx/default-import"}}}'
     ;;
@@ -426,7 +426,7 @@ S01
     signal: new AbortController().signal,
   });
   assert.match(defaultImport.summary, /gate=plan_review document_ready=true/);
-  assert.match(await readFile(callsFile, 'utf8'), /docs \+create --as user/);
+  assert.match(await readFile(callsFile, 'utf8'), /docs \+create --as bot/);
 
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(terminal.cursor), /active side effects require explicit config gate/);

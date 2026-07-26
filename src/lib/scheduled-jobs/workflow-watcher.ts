@@ -101,7 +101,7 @@ const importPlanDocument: WorkflowDocumentImporter = async ({ content, name, sig
   try {
     await writeFile(file, `# ${name}\n\n${content}`);
     const result = JSON.parse(await exec('lark-cli', [
-      'docs', '+create', '--as', 'user', '--api-version', 'v2',
+      'docs', '+create', '--as', 'bot', '--api-version', 'v2',
       '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',
     ], signal, directory)) as Record<string, unknown>;
     const data = result.data as { document?: { url?: unknown } } | undefined;
