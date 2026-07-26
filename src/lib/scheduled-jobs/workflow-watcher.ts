@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {
   sendFeishuWorkflowReviewCard,
@@ -26,6 +28,7 @@ type Pending = WorkflowReviewPending & {
   action: string;
   type: string;
   documentCommit: string;
+  documentUrl: string;
   prompt: string;
   detectedAt: string;
   reviewExpiresAt?: string;
@@ -46,6 +49,13 @@ type Message = {
   create_time?: string;
   sender?: { id?: string };
 };
+type WorkflowDocumentImporter = (args: {
+  content: string;
+  name: string;
+  idempotencyKey: string;
+  signal: AbortSignal;
+}) => Promise<string>;
+type WorkflowReviewCardSender = typeof sendFeishuWorkflowReviewCard;
 
 const exec = (file: string, args: string[], signal: AbortSignal, cwd?: string) =>
   new Promise<string>((resolve, reject) => {
@@ -85,6 +95,25 @@ const idempotencyKey = (eventKey: string, step: string) =>
 const lark = async (signal: AbortSignal, ...args: string[]) =>
   JSON.parse(await exec('lark-cli', args, signal)) as Record<string, unknown>;
 
+const importPlanDocument: WorkflowDocumentImporter = async ({ content, name, signal }) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-platform-plan-'));
+  const file = path.join(directory, 'plan.md');
+  try {
+    await writeFile(file, content);
+    const result = JSON.parse(await exec('lark-cli', [
+      'drive', '+import', '--as', 'bot', '--type', 'docx',
+      '--file', 'plan.md', '--name', name, '--format', 'json',
+    ], signal, directory)) as Record<string, unknown>;
+    const data = result.data as { url?: unknown } | undefined;
+    if (result.ok !== true || typeof data?.url !== 'string' || !data.url) {
+      throw new Error('Feishu PLAN import returned no document URL');
+    }
+    return data.url;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+};
+
 const send = (chatId: string, text: string, eventKey: string, step: string) =>
   sendFeishuWorkflowTextMessage({
     chatId,
@@ -98,14 +127,16 @@ const reviewExpiry = (contract: WorkflowContract) =>
 const sendReviewCard = (
   project: Parameters<JobHandler>[0]['project'],
   jobId: string,
-  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'reviewExpiresAt'>,
-) => sendFeishuWorkflowReviewCard({
+  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'documentUrl' | 'reviewExpiresAt'>,
+  sender: WorkflowReviewCardSender,
+) => sender({
   chatId: project.feishu.chat_id,
   projectId: project.id,
   jobId,
   pendingKey: pending.key,
   approverOpenId: project.feishu.approver_open_ids[0],
   planPath: pending.path,
+  planUrl: pending.documentUrl,
   reviewedCommit: pending.documentCommit,
   expiresAt: pending.reviewExpiresAt!,
   idempotencyKey: idempotencyKey(pending.key, 'plan_review'),
@@ -144,6 +175,8 @@ const execute = async (
 export const workflowWatcherHandler = async (
   { project, job, mode, cursor, signal }: Parameters<JobHandler>[0],
   runWorkflow?: WorkflowRunner,
+  importDocument: WorkflowDocumentImporter = importPlanDocument,
+  sendReview: WorkflowReviewCardSender = sendFeishuWorkflowReviewCard,
 ) => {
   const contractPath = String(job.config.contract_path || '');
   if (!contractPath || path.isAbsolute(contractPath) || contractPath.split('/').includes('..')) {
@@ -195,22 +228,22 @@ export const workflowWatcherHandler = async (
       const commit = await documentCommit(project.path, head, pending.path, signal);
       const key = `${head}:${pending.path}:${blob}:${revised.action}`;
       const reviewExpiresAt = reviewExpiry(contract);
-      const reviewMessageId = mode === 'active' ? await sendReviewCard(project, job.id, {
-        key,
-        path: pending.path,
-        documentCommit: commit,
-        reviewExpiresAt,
-      }) : undefined;
-      if (mode === 'active' && !reviewMessageId) throw new Error('plan review request returned no message_id');
+      const documentUrl = mode === 'active' ? await importDocument({
+        content,
+        name: path.posix.basename(pending.path, '.md'),
+        idempotencyKey: idempotencyKey(key, 'plan_document'),
+        signal,
+      }) : '';
       pending = {
         ...pending,
         key,
         commit,
         blob,
         documentCommit: commit,
+        documentUrl,
         prompt: revised.prompt,
-        reviewState: 'review',
-        reviewMessageId,
+        reviewState: undefined,
+        reviewMessageId: undefined,
         reviewExpiresAt,
         detectedAt: new Date().toISOString(),
       };
@@ -220,6 +253,15 @@ export const workflowWatcherHandler = async (
       };
     }
     if (pending.gate === 'plan_review') {
+      if (mode === 'active' && !pending.reviewMessageId) {
+        const reviewMessageId = await sendReviewCard(project, job.id, pending, sendReview);
+        if (!reviewMessageId) throw new Error('plan review request returned no message_id');
+        pending = { ...pending, reviewState: 'review', reviewMessageId };
+        return {
+          summary: `head=${head} pending=${pending.path} gate=plan_review card_sent=true`,
+          cursor: { ...previous, pending },
+        };
+      }
       const chatMessages = mode === 'active' ? await messages(project.feishu.chat_id, pending.detectedAt, signal) : [];
       let command = '';
       if (pending.reviewState === 'review') {
@@ -334,6 +376,12 @@ export const workflowWatcherHandler = async (
     prompt: document.prompt,
   };
   if (gate === 'plan_review') {
+    const documentUrl = await importDocument({
+      content,
+      name: path.posix.basename(candidate.filePath, '.md'),
+      idempotencyKey: idempotencyKey(eventKey, 'plan_document'),
+      signal,
+    });
     const pending: Pending = {
       ...execution,
       commit,
@@ -342,15 +390,14 @@ export const workflowWatcherHandler = async (
       action: document.action,
       type: candidate.type,
       documentCommit: commit,
+      documentUrl,
       gate,
-      reviewState: 'review',
+      reviewState: undefined,
       reviewExpiresAt: reviewExpiry(contract),
       detectedAt,
     };
-    pending.reviewMessageId = await sendReviewCard(project, job.id, pending);
-    if (!pending.reviewMessageId) throw new Error('plan review request returned no message_id');
     return {
-      summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=${gate} pending=true`,
+      summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=${gate} document_ready=true`,
       cursor: { commit: head, eventKey, pending },
     };
   }

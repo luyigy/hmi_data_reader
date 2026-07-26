@@ -39,8 +39,29 @@ export const matchesCron = (schedule: string, date: Date) => {
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-const withTimeout = async <T>(milliseconds: number, handler: (signal: AbortSignal) => Promise<T>) => {
-  const controller = new AbortController();
+const runningJobs = new Map<string, AbortController>();
+const runningJobKey = (projectId: string, jobId: string) => `${projectId}:${jobId}`;
+const stopRequest = 'job cancellation requested by operator';
+
+export const stopScheduledJob = async (db: PrismaClient, projectId: string, jobId: string) => {
+  const key = runningJobKey(projectId, jobId);
+  const controller = runningJobs.get(key);
+  if (controller) {
+    runningJobs.delete(key);
+    controller.abort(new Error('job cancelled by operator'));
+  }
+  const requested = await db.scheduledJobRun.updateMany({
+    where: { projectId, jobId, status: 'running' },
+    data: { error: stopRequest },
+  });
+  return Boolean(controller || requested.count);
+};
+
+const withTimeout = async <T>(
+  milliseconds: number,
+  controller: AbortController,
+  handler: (signal: AbortSignal) => Promise<T>,
+) => {
   let rejectTimeout: (reason: Error) => void = () => undefined;
   const timeout = new Promise<never>((_, reject) => { rejectTimeout = reject; });
   const timer = setTimeout(() => {
@@ -107,13 +128,35 @@ export async function executeScheduledJob(
         create: { projectId: project.id, jobId: job.id, lastScheduledAt: scheduledFor, lastStartedAt: startedAt },
         update: { lastScheduledAt: scheduledFor, lastStartedAt: startedAt },
       });
-      const result = await withTimeout(timeoutMs, (signal) => handler({
-        project,
-        job,
-        mode,
-        cursor: lockedState.cursorJson,
-        signal,
-      }));
+      const key = runningJobKey(project.id, job.id);
+      const controller = new AbortController();
+      runningJobs.set(key, controller);
+      let checkingStop = false;
+      const stopPoll = setInterval(() => {
+        if (checkingStop || controller.signal.aborted) return;
+        checkingStop = true;
+        void db.scheduledJobRun.findUnique({
+          where: { idempotencyKey },
+          select: { error: true },
+        }).then((run) => {
+          if (run?.error === stopRequest) controller.abort(new Error('job cancelled by operator'));
+        }).catch(() => undefined).finally(() => {
+          checkingStop = false;
+        });
+      }, 100);
+      let result;
+      try {
+        result = await withTimeout(timeoutMs, controller, (signal) => handler({
+          project,
+          job,
+          mode,
+          cursor: lockedState.cursorJson,
+          signal,
+        }));
+      } finally {
+        clearInterval(stopPoll);
+        if (runningJobs.get(key) === controller) runningJobs.delete(key);
+      }
       if (result.cursor !== undefined) {
         await tx.scheduledJobState.update({
           where: { id: lockedState.id },

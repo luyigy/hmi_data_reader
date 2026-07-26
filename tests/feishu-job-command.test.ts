@@ -23,6 +23,11 @@ assert.deepEqual(parseFeishuCommand(message('/ap job disable workflow-watcher'))
   args: ['disable', 'workflow-watcher'],
   options: {},
 });
+assert.deepEqual(parseFeishuCommand(message('/ap job stop workflow-watcher')), {
+  command: 'job',
+  args: ['stop', 'workflow-watcher'],
+  options: {},
+});
 handleScheduledJobCommand({ command: 'jobs', args: [], options: {} }).then((response) => {
   assert.equal(response, '当前 job 命令需要来自 Feishu webhook 的会话上下文。');
 });

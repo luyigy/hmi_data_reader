@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: draft
-next_action: await_plan_approval
+doc_status: completed
+next_action: none
 plan_kind: phase
 roadmap: 224_PLAN_20260725_通用项目定时任务平台.md
 parent_plan: null

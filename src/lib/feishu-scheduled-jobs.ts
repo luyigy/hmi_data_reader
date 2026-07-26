@@ -4,7 +4,7 @@ import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 import { jobHandlers } from '@/lib/scheduled-jobs/handlers';
 import { findProjectByChatId, loadProjectsConfig } from '@/lib/scheduled-jobs/project-config';
-import { executeScheduledJob } from '@/lib/scheduled-jobs/runner';
+import { executeScheduledJob, stopScheduledJob } from '@/lib/scheduled-jobs/runner';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 
@@ -30,8 +30,8 @@ export async function handleScheduledJobCommand(
 
   const action = command.command === 'jobs' ? 'list' : command.args[0]?.toLowerCase();
   const jobId = command.args[1];
-  if (action !== 'list' && (!jobId || !['status', 'enable', 'disable', 'run'].includes(action || ''))) {
-    return '用法：/ap jobs | /ap job <status|enable|disable|run> <job-id>';
+  if (action !== 'list' && (!jobId || !['status', 'enable', 'disable', 'run', 'stop'].includes(action || ''))) {
+    return '用法：/ap jobs | /ap job <status|enable|disable|run|stop> <job-id>';
   }
 
   const states = await prisma.scheduledJobState.findMany({ where: { projectId: project.id } });
@@ -77,6 +77,11 @@ export async function handleScheduledJobCommand(
       update: { enabledOverride: enabled },
     });
     return `✅ ${job.id} 已${enabled ? '启用' : '停用'}。${!enabled && running.has(job.id) ? ' 当前执行不会被中断。' : ''}`;
+  }
+  if (action === 'stop') {
+    return await stopScheduledJob(prisma, project.id, job.id)
+      ? `✅ ${job.id} 当前执行已请求停止；启用状态未改变。`
+      : `${job.id} 当前没有可停止的执行。`;
   }
 
   const handler = jobHandlers.get(job.type);
