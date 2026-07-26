@@ -267,6 +267,7 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
       const interruption = await interruptLiveRoomMemberReplies({
         roomId: room.id,
         memberId: targetMember.id,
+        controlAction: 'stop_run',
       });
       interruptedPreviousReplies =
         interruptedPreviousReplies

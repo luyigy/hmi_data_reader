@@ -1,4 +1,5 @@
 import { requestRunControl } from '@/lib/acpx/process-registry';
+import type { RunControlAction } from '@/lib/acpx/types';
 import { parseAcpxMetadata } from '@/lib/acpx/session-tracking';
 import {
   getLiveRoomRunningProcess,
@@ -14,9 +15,11 @@ import { prisma } from '@/lib/prisma';
 export const interruptLiveRoomMemberReplies = async ({
   roomId,
   memberId,
+  controlAction = 'interrupt_now',
 }: {
   roomId: string;
   memberId: string;
+  controlAction?: RunControlAction;
 }) => {
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
@@ -97,7 +100,7 @@ export const interruptLiveRoomMemberReplies = async ({
     const interruption = requestRunControl(
       participant.runId,
       participant.participantId,
-      'interrupt_now'
+      controlAction
     );
     if (!interruption.applied) {
       staleParticipants.push(participant);
