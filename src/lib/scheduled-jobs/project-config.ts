@@ -128,7 +128,8 @@ export async function loadProjectsConfig(
 }
 
 export const findProjectByChatId = (config: ProjectsConfig, chatId: string) =>
-  config.projects.find((project) => project.feishu.chat_id === chatId);
+  config.projects.find((project) => project.feishu.chat_id === chatId
+    || project.jobs.some((job) => job.type === 'workflow_watcher' && job.config.coding_bot_chat_id === chatId));
 
 export const findProjectById = (config: ProjectsConfig, projectId: string) =>
   config.projects.find((project) => project.id === projectId);

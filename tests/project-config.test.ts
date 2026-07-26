@@ -23,6 +23,12 @@ projects:
         enabled: true
         mode: shadow
         config: {}
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "*/10 * * * *"
+        enabled: true
+        mode: shadow
+        config: { coding_bot_chat_id: coding-chat-1 }
 ${overrides}`;
 
   const load = async (source: string) => {
@@ -33,6 +39,7 @@ ${overrides}`;
 
   const valid = await load(config());
   assert.equal(findProjectByChatId(valid, 'chat-1')?.id, 'example');
+  assert.equal(findProjectByChatId(valid, 'coding-chat-1')?.id, 'example');
   assert.equal(findJob(valid, 'example', 'scan')?.type, 'long_file_detector');
 
   for (const [name, source] of [
