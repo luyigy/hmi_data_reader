@@ -266,6 +266,61 @@ export const sendFeishuWorkflowReviewCard = (args: {
   },
 });
 
+export const sendFeishuWorkflowRevisionFeedbackCard = (args: {
+  chatId: string;
+  projectId: string;
+  jobId: string;
+  pendingKey: string;
+  approverOpenId: string;
+  planPath: string;
+  idempotencyKey: string;
+}) => sendFeishuWorkflowMessage({
+  chatId: args.chatId,
+  messageType: 'interactive',
+  idempotencyKey: args.idempotencyKey,
+  content: {
+    config: { wide_screen_mode: true },
+    header: {
+      template: 'orange',
+      title: { tag: 'plain_text', content: 'PLAN 修改意见' },
+    },
+    elements: [
+      {
+        tag: 'markdown',
+        content: `<at id=${args.approverOpenId}></at>\n请填写 **${path.posix.basename(args.planPath)}** 的具体修改意见。提交后才会启动 Coding Agent。`,
+      },
+      {
+        tag: 'form',
+        name: 'workflowRevisionFeedback',
+        elements: [
+          {
+            tag: 'input',
+            name: 'reviewFeedback',
+            required: true,
+            input_type: 'multiline_text',
+            rows: 4,
+            label: { tag: 'plain_text', content: '修改意见' },
+            placeholder: { tag: 'plain_text', content: '请明确说明需要修改的内容' },
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '提交修改意见' },
+            type: 'primary',
+            action_type: 'form_submit',
+            name: 'submitRevisionFeedback',
+            value: {
+              cmd: 'workflow-revision-feedback',
+              projectId: args.projectId,
+              jobId: args.jobId,
+              pendingKey: args.pendingKey,
+            },
+          },
+        ],
+      },
+    ],
+  },
+});
+
 function guessFileExtension(contentType: string | null, fallbackType: string) {
   const normalized = (contentType || '').toLowerCase();
   if (normalized.includes('png')) return 'png';

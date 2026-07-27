@@ -32,7 +32,8 @@ pending。
   `runWorkflowInBoundLiveRoom` 直接投递 Coding Agent；旧 `revision` cursor 会补投一次并
   写入 `revisionDispatched`，后续轮询保持幂等。
 - 空反馈使用 `awaiting_revision_feedback` 状态；watcher 保存询问消息 ID，长连接只接受
-  唯一审批人对该消息的回复，并在事务锁内转为 `revision_requested` 后立即唤醒 watcher。
+  唯一审批人通过必填多行“PLAN 修改意见”卡片提交反馈，并在事务锁内转为
+  `revision_requested` 后立即唤醒 watcher；线程回复监听仅保留为兼容兜底。
 - 同一路径 PLAN 修订并提交后，watcher 通过新 blob 识别变更、重新导入文档并再次发起审批；
   修改循环可重复，直至批准或拒绝。
 - `/ap job cursor workflow-watcher` 展示 pending 路径、gate、action、review state、过期时间
@@ -73,6 +74,7 @@ pending。
 - `tests/feishu-agent-session-command.test.ts`（含真实子进程 PID 核验与 SIGKILL）
 - workflow watcher retry 唯一 event key 与命令解析测试
 - workflow retry 空反馈回退与有反馈重投分支测试
+- 修改意见卡片必填多行输入、form submit action 与 pending key 状态转换测试
 - 当前数据库与 `/proc` 联合实查：`/ap sessions` handler 返回实际存活 Agent 进程 0。
 - 相关文件 ESLint
 - `git diff --check`

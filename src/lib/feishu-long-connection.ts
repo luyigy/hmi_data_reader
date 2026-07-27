@@ -19,6 +19,7 @@ import { checkFeishuDirectMessageAccess, isFeishuAdmin, resolveFeishuAdminApprov
 import {
   resolveWorkflowReviewCardAction,
   resolveWorkflowRevisionFeedback,
+  resolveWorkflowRevisionFeedbackCardAction,
   type WorkflowReviewDecision,
 } from '@/lib/scheduled-jobs/workflow-review';
 import {
@@ -225,6 +226,50 @@ function buildCardActionHandler(prefix: string) {
       } catch (err) {
         console.error(`${prefix} workflow review resolution failed`, { err });
         return { toast: { type: 'error', content: '审批处理失败，请稍后重试' } };
+      }
+    }
+
+    if (cmd === 'workflow-revision-feedback') {
+      const value = data.action.value as Record<string, unknown>;
+      const formValue = (data.action as unknown as { form_value?: Record<string, unknown> }).form_value;
+      const feedback = typeof formValue?.reviewFeedback === 'string'
+        ? formValue.reviewFeedback.trim()
+        : '';
+      if (typeof value.projectId !== 'string'
+        || typeof value.jobId !== 'string'
+        || typeof value.pendingKey !== 'string') return {};
+      if (!feedback) return { toast: { type: 'warning', content: '请填写具体修改意见' } };
+      try {
+        const result = await resolveWorkflowRevisionFeedbackCardAction({
+          projectId: value.projectId,
+          jobId: value.jobId,
+          pendingKey: value.pendingKey,
+          actorOpenId: openId,
+          feedback,
+        });
+        if (result.status === 'applied' && messageId) {
+          await updateFeishuApprovalCardResolved({
+            messageId,
+            resolution: 'revision',
+            actorName,
+          }).catch((error) => console.error(`${prefix} failed to persist revision feedback card result`, error));
+        }
+        if (result.status === 'applied') {
+          await sendFeishuTextMessage({
+            receiveId: result.chatId,
+            receiveIdType: 'chat_id',
+            text: '✏️ 修改意见已提交，正在通知 Coding Agent 只修订 PLAN。',
+          }).catch((error) => console.error(`${prefix} failed to send revision feedback receipt`, error));
+        }
+        return {
+          toast: {
+            type: result.status === 'applied' ? 'success' : 'warning',
+            content: result.status === 'applied' ? '修改意见已提交' : `提交未生效：${result.status}`,
+          },
+        };
+      } catch (err) {
+        console.error(`${prefix} workflow revision feedback failed`, { err });
+        return { toast: { type: 'error', content: '修改意见提交失败，请稍后重试' } };
       }
     }
 

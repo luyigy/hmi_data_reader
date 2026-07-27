@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  sendFeishuWorkflowRevisionFeedbackCard,
   sendFeishuWorkflowReviewCard,
   sendFeishuWorkflowTextMessage,
 } from '../feishu-api';
@@ -239,12 +240,15 @@ export const workflowWatcherHandler = async (
       if (mode !== 'active' || pending.revisionFeedbackMessageId) {
         return { summary: `head=${head} pending=${pending.path} gate=revision_feedback`, cursor: previous };
       }
-      const revisionFeedbackMessageId = await send(
-        project.feishu.chat_id,
-        `<at user_id="${project.feishu.approver_open_ids[0]}"></at> 请回复本消息，说明 ${path.posix.basename(pending.path)} 需要修改的具体内容。`,
-        pending.key,
-        'revision_feedback_request',
-      );
+      const revisionFeedbackMessageId = await sendFeishuWorkflowRevisionFeedbackCard({
+        chatId: project.feishu.chat_id,
+        projectId: project.id,
+        jobId: job.id,
+        pendingKey: pending.key,
+        approverOpenId: project.feishu.approver_open_ids[0],
+        planPath: pending.path,
+        idempotencyKey: idempotencyKey(pending.key, 'revision_feedback_request'),
+      });
       pending = { ...pending, revisionFeedbackMessageId };
       return {
         summary: `head=${head} pending=${pending.path} gate=revision_feedback prompt_sent=true`,

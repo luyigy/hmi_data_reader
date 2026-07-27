@@ -69,12 +69,15 @@ export function applyWorkflowRevisionFeedback(args: {
   pending: WorkflowReviewPending;
   actorOpenId: string;
   approverOpenId: string;
-  parentMessageId: string;
+  parentMessageId?: string;
+  pendingKey?: string;
   feedback: string;
 }) {
   if (args.actorOpenId !== args.approverOpenId
     || args.pending.reviewState !== 'awaiting_revision_feedback'
-    || args.pending.revisionFeedbackMessageId !== args.parentMessageId
+    || (args.pendingKey
+      ? args.pending.key !== args.pendingKey
+      : args.pending.revisionFeedbackMessageId !== args.parentMessageId)
     || !args.feedback.trim()) {
     return { status: 'ignored' as const, pending: args.pending };
   }
@@ -193,4 +196,57 @@ export async function resolveWorkflowRevisionFeedback(args: {
       .catch((error) => console.error('[WorkflowReview] failed to process revision feedback', error));
   }
   return result;
+}
+
+export async function resolveWorkflowRevisionFeedbackCardAction(args: {
+  projectId: string;
+  jobId: string;
+  pendingKey: string;
+  actorOpenId?: string;
+  feedback: string;
+}) {
+  if (!args.actorOpenId || !args.feedback.trim()) return { status: 'ignored' as const };
+  const { projects } = await loadProjectsConfig();
+  const project = projects.find(({ id }) => id === args.projectId);
+  const job = project?.jobs.find(({ id }) => id === args.jobId);
+  if (!project || !job || job.type !== 'workflow_watcher') return { status: 'stale' as const };
+  const approverOpenId = project.feishu.approver_open_ids[0];
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT pg_advisory_xact_lock(hashtextextended(${`${project.id}:${job.id}`}, 0))::text
+    `;
+    const state = await tx.scheduledJobState.findUnique({
+      where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+      select: { cursorJson: true },
+    });
+    const cursor = state?.cursorJson;
+    if (!cursor || typeof cursor !== 'object' || Array.isArray(cursor) || !('pending' in cursor)) {
+      return { status: 'stale' as const };
+    }
+    const pending = (cursor as { pending?: WorkflowReviewPending }).pending;
+    if (!pending) return { status: 'stale' as const };
+    const applied = applyWorkflowRevisionFeedback({
+      pending,
+      actorOpenId: args.actorOpenId!,
+      approverOpenId,
+      pendingKey: args.pendingKey,
+      feedback: args.feedback,
+    });
+    if (applied.status !== 'applied') return { status: applied.status as 'ignored' };
+    await tx.scheduledJobState.update({
+      where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+      data: {
+        cursorJson: {
+          ...(cursor as Record<string, Prisma.JsonValue>),
+          pending: applied.pending,
+        } as Prisma.InputJsonValue,
+      },
+    });
+    return { status: 'applied' as const };
+  });
+  if (result.status === 'applied') {
+    void wakeWorkflowReview(project, job, `${args.pendingKey}:feedback`)
+      .catch((error) => console.error('[WorkflowReview] failed to process revision card feedback', error));
+  }
+  return { ...result, chatId: project.feishu.chat_id };
 }

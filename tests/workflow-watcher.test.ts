@@ -352,10 +352,14 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const waitingForFeedback = await run(emptyRevisionRequestCursor);
   assert.match(waitingForFeedback.summary, /gate=revision_feedback prompt_sent=true/);
   assert.equal(workflowRuns.length, workflowRunCount, 'empty feedback must not start Coding Agent');
+  const feedbackCard = apiCalls.filter(({ body }) => body.msg_type === 'interactive').at(-1);
+  assert.match(String(feedbackCard?.body.content), /workflow-revision-feedback/);
+  assert.match(String(feedbackCard?.body.content), /"required":true/);
+  assert.match(String(feedbackCard?.body.content), /"input_type":"multiline_text"/);
   assert.equal(
     (waitingForFeedback.cursor as { pending: { revisionFeedbackMessageId: string } })
       .pending.revisionFeedbackMessageId,
-    'sent-1',
+    'review-1',
   );
 
   git('commit', '--allow-empty', '-qm', 'unrelated head advance');
@@ -436,6 +440,22 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(feedbackApplied.status, 'applied');
   assert.equal(feedbackApplied.pending.reviewState, 'revision_requested');
   assert.equal(feedbackApplied.pending.reviewFeedback, '请修改第二个 Slice');
+  const cardFeedbackApplied = applyWorkflowRevisionFeedback({
+    pending: revisionWithoutFeedback.pending,
+    actorOpenId: 'approver',
+    approverOpenId: 'approver',
+    pendingKey: 'key',
+    feedback: '请从卡片补充 S03',
+  });
+  assert.equal(cardFeedbackApplied.status, 'applied');
+  assert.equal(cardFeedbackApplied.pending.reviewFeedback, '请从卡片补充 S03');
+  assert.equal(applyWorkflowRevisionFeedback({
+    pending: revisionWithoutFeedback.pending,
+    actorOpenId: 'approver',
+    approverOpenId: 'approver',
+    pendingKey: 'stale-key',
+    feedback: '不应生效',
+  }).status, 'ignored');
   assert.equal(applyWorkflowRevisionFeedback({
     pending: revisionWithoutFeedback.pending,
     actorOpenId: 'someone-else',
