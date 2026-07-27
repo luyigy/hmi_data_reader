@@ -186,23 +186,56 @@ export const validateWorkflowDocument = async (
   signal: AbortSignal,
 ) => {
   const issues: string[] = [];
-  const issue = (location: string, message: string, expected: string, actual?: unknown) => {
-    issues.push(`[${location}] ${message}; expected: ${expected}${actual === undefined ? '' : `; actual: ${JSON.stringify(actual)}`}`);
+  const issue = (location: string, message: string, expected?: string, actual?: unknown) => {
+    issues.push(
+      `[${location}] ${message}`
+      + (expected === undefined ? '' : `；期望：${expected}`)
+      + (actual === undefined ? '' : `；实际：${JSON.stringify(actual)}`),
+    );
   };
-  for (const field of contract.documents.common_required_fields) required(metadata[field], field);
-  if (metadata.doc_type !== type) throw new Error('filename type and doc_type differ');
-  if (!contract.documents.statuses.includes(String(metadata.doc_status))) throw new Error(`invalid doc_status: ${metadata.doc_status}`);
-  const action = String(metadata.next_action);
-  if (![...contract.actions.executable, ...contract.actions.terminal].includes(action)) {
-    throw new Error(`invalid next_action: ${action}`);
+  const has = (field: string) => field in metadata;
+  const hasValue = (field: string) => has(field) && metadata[field] !== null && metadata[field] !== '';
+  for (const field of contract.documents.common_required_fields) {
+    if (!has(field)) issue(`YAML.${field}`, '缺少必填字段');
   }
-  const prompt = promptFrom(content, action, contract);
+  if (has('doc_type') && metadata.doc_type !== type) {
+    issue('YAML.doc_type', '文件名类型与 doc_type 不一致', type, metadata.doc_type);
+  }
+  if (has('doc_status') && !contract.documents.statuses.includes(String(metadata.doc_status))) {
+    issue('YAML.doc_status', '无效的文档状态', contract.documents.statuses.join('、'), metadata.doc_status);
+  }
+  const action = String(metadata.next_action);
+  const validAction = has('next_action')
+    && [...contract.actions.executable, ...contract.actions.terminal].includes(action);
+  if (has('next_action') && !validAction) {
+    issue(
+      'YAML.next_action',
+      '无效的下一步动作',
+      [...contract.actions.executable, ...contract.actions.terminal].join('、'),
+      metadata.next_action,
+    );
+  }
+  let prompt = '';
+  if (validAction) {
+    try {
+      prompt = promptFrom(content, action, contract);
+    } catch (error) {
+      issue(
+        'Prompt',
+        error instanceof Error && error.message === 'executable action requires exactly one prompt marker pair'
+          ? '可执行动作必须包含且只能包含一对 Prompt 标记'
+          : error instanceof Error && error.message === 'automation prompt is empty'
+            ? 'Prompt 标记之间的内容不能为空'
+            : '非可执行动作不得包含自动化 Prompt',
+      );
+    }
+  }
   const requirePromptRefs = (...refs: string[]) => refs.forEach((item) => {
     if (prompt && !prompt.includes(item) && !prompt.includes(path.posix.basename(item))) {
       issue(
-        'prompt',
-        `missing document reference ${path.posix.basename(item)}`,
-        `text between ${contract.prompt.start_marker} and ${contract.prompt.end_marker} names ${path.posix.basename(item)}`,
+        'Prompt',
+        `缺少文档引用 ${path.posix.basename(item)}`,
+        `${contract.prompt.start_marker} 与 ${contract.prompt.end_marker} 之间提及 ${path.posix.basename(item)}`,
       );
     }
   });
@@ -217,83 +250,130 @@ export const validateWorkflowDocument = async (
 
   if (type === 'PLAN') {
     contract.documents.plan.required_fields.forEach((field) => {
-      if (!(field in metadata)) throw new Error(`PLAN missing YAML field: ${field}`);
+      if (!has(field)) issue(`YAML.${field}`, 'PLAN 缺少必填字段');
     });
     if (contract.actions.executable.includes(action) && !contract.documents.plan.executable_actions.includes(action)) {
-      throw new Error(`PLAN cannot execute ${action}`);
+      issue('YAML.next_action', `PLAN 不能执行动作 ${action}`);
     }
-    if (action === contract.documents.plan.start_action && metadata.doc_status !== contract.documents.plan.start_status) {
-      throw new Error(`${action} requires doc_status ${contract.documents.plan.start_status}`);
+    if (action === contract.documents.plan.start_action && has('doc_status')
+      && metadata.doc_status !== contract.documents.plan.start_status) {
+      issue(
+        'YAML.doc_status',
+        `动作 ${action} 要求指定文档状态`,
+        contract.documents.plan.start_status,
+        metadata.doc_status,
+      );
     }
-    const roadmap = normalizeReference(metadata.roadmap, watchRoot);
-    if (!await exists(cwd, ref, roadmap, signal)) throw new Error(`referenced ROADMAP does not exist: ${path.posix.basename(roadmap)}`);
-    if (!contract.documents.plan.kinds.includes(String(metadata.plan_kind))) throw new Error(`invalid plan_kind: ${metadata.plan_kind}`);
+    let roadmap = '';
+    if (hasValue('roadmap')) {
+      try {
+        roadmap = normalizeReference(metadata.roadmap, watchRoot);
+        if (!await exists(cwd, ref, roadmap, signal)) {
+          issue('YAML.roadmap', `引用的 ROADMAP 不存在：${path.posix.basename(roadmap)}`);
+        }
+      } catch (error) {
+        issue('YAML.roadmap', error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (has('plan_kind') && !contract.documents.plan.kinds.includes(String(metadata.plan_kind))) {
+      issue('YAML.plan_kind', '无效的 PLAN 类型', contract.documents.plan.kinds.join('、'), metadata.plan_kind);
+    }
     if (metadata.plan_kind === contract.documents.plan.interrupt_kind) {
-      contract.documents.plan.parent_fields.forEach((field) => required(metadata[field], field));
-      const parent = await readPlan(metadata.parent_plan);
-      if (!slices(parent.planContent, contract).includes(String(metadata.parent_slice))
-        || !slices(parent.planContent, contract).includes(String(metadata.return_to))) {
-        throw new Error('parent_slice or return_to is absent from parent PLAN');
+      if (contract.documents.plan.parent_fields.every(hasValue)) {
+        try {
+          const parent = await readPlan(metadata.parent_plan);
+          if (!slices(parent.planContent, contract).includes(String(metadata.parent_slice))
+            || !slices(parent.planContent, contract).includes(String(metadata.return_to))) {
+            issue('YAML.parent_slice/return_to', '父 PLAN 中不存在 parent_slice 或 return_to');
+          }
+        } catch (error) {
+          issue('YAML.parent_plan', error instanceof Error ? error.message : String(error));
+        }
       }
     } else if (metadata.plan_kind === contract.documents.plan.phase_kind
       && contract.documents.plan.parent_fields.some((field) => metadata[field] !== null)) {
-      throw new Error('phase PLAN parent fields must be null');
+      issue('YAML.parent_plan/parent_slice/return_to', 'phase PLAN 的父级字段必须为 null');
     }
     const planSlices = slices(content, contract);
-    if (prompt && (!planSlices.length || !prompt.includes(planSlices[0]))) throw new Error('start prompt does not name the first Slice');
-    requirePromptRefs(filePath, roadmap);
+    if (!planSlices.length) issue('正文', 'PLAN 至少需要包含一个 Slice');
+    else if (prompt && !prompt.includes(planSlices[0])) issue('Prompt', `启动 Prompt 未提及第一个 Slice ${planSlices[0]}`);
+    requirePromptRefs(filePath, ...(roadmap ? [roadmap] : []));
   } else {
     contract.documents.handover.required_fields.forEach((field) => {
-      if (!(field in metadata)) throw new Error(`HANDOVER missing YAML field: ${field}`);
+      if (!has(field)) issue(`YAML.${field}`, 'HANDOVER 缺少必填字段');
     });
-    if (!contract.documents.handover.progress_values.includes(String(metadata.plan_progress))) {
-      throw new Error(`invalid plan_progress: ${metadata.plan_progress}`);
+    if (has('plan_progress')
+      && !contract.documents.handover.progress_values.includes(String(metadata.plan_progress))) {
+      issue(
+        'YAML.plan_progress',
+        '无效的 PLAN 进度',
+        contract.documents.handover.progress_values.join('、'),
+        metadata.plan_progress,
+      );
     }
     if (contract.actions.executable.includes(action) && !contract.documents.handover.executable_actions.includes(action)) {
-      throw new Error(`HANDOVER cannot execute ${action}`);
+      issue('YAML.next_action', `HANDOVER 不能执行动作 ${action}`);
     }
     if (metadata.plan === null) {
-      if (contract.actions.executable.includes(action)) throw new Error('standalone HANDOVER cannot start a session');
-    } else {
-      const plan = await readPlan(metadata.plan);
-      const planSlices = slices(plan.planContent, contract);
-      if (!planSlices.includes(String(metadata.slice))) throw new Error('HANDOVER slice is absent from owning PLAN');
-      if (prompt) {
-        const roadmap = normalizeReference(plan.planMetadata.roadmap, watchRoot);
-        requirePromptRefs(filePath, plan.planPath, roadmap);
-        if (action === contract.documents.handover.next_action) {
-          const current = planSlices.indexOf(String(metadata.slice));
-          if (current + 1 >= planSlices.length || !prompt.includes(planSlices[current + 1])) {
-            issue(
-              'next_action/prompt',
-              current + 1 >= planSlices.length
-                ? `${action} has no Slice after ${String(metadata.slice)} in ${path.posix.basename(plan.planPath)}`
-                : `prompt does not name the next Slice ${planSlices[current + 1]}`,
-              current + 1 >= planSlices.length
-                ? `use a terminal next_action (${contract.actions.terminal.join(', ')}) or add the next Slice to the PLAN`
-                : `prompt names ${planSlices[current + 1]}`,
-              action,
-            );
-          }
-        } else if (action === contract.documents.handover.resume_action) {
-          if (plan.planMetadata.plan_kind !== contract.documents.plan.interrupt_kind) {
-            throw new Error('resume action requires an interrupt PLAN');
-          }
-          const parent = await readPlan(plan.planMetadata.parent_plan);
-          const returnTo = String(plan.planMetadata.return_to);
-          if (!slices(parent.planContent, contract).includes(returnTo) || !prompt.includes(returnTo)) {
-            throw new Error('resume prompt does not name valid return_to');
-          }
-          requirePromptRefs(parent.planPath);
+      if (contract.actions.executable.includes(action)) {
+        issue('YAML.plan', '独立 HANDOVER 不能启动新 Session');
+      }
+    } else if (hasValue('plan')) {
+      try {
+        const plan = await readPlan(metadata.plan);
+        const planSlices = slices(plan.planContent, contract);
+        if (has('slice') && !planSlices.includes(String(metadata.slice))) {
+          issue('YAML.slice', '所属 PLAN 中不存在该 Slice', planSlices.join('、'), metadata.slice);
         }
+        if (prompt) {
+          let roadmap = '';
+          try {
+            roadmap = normalizeReference(plan.planMetadata.roadmap, watchRoot);
+          } catch (error) {
+            issue('YAML.plan/roadmap', error instanceof Error ? error.message : String(error));
+          }
+          requirePromptRefs(filePath, plan.planPath, ...(roadmap ? [roadmap] : []));
+          if (action === contract.documents.handover.next_action && has('slice')) {
+            const current = planSlices.indexOf(String(metadata.slice));
+            if (current + 1 >= planSlices.length || !prompt.includes(planSlices[current + 1])) {
+              issue(
+                'YAML.next_action/Prompt',
+                current + 1 >= planSlices.length
+                  ? `${path.posix.basename(plan.planPath)} 的 ${String(metadata.slice)} 之后没有下一个 Slice`
+                  : `Prompt 未提及下一个 Slice ${planSlices[current + 1]}`,
+                current + 1 >= planSlices.length
+                  ? `改用终止动作（${contract.actions.terminal.join('、')}），或在 PLAN 中添加下一个 Slice`
+                  : `Prompt 提及 ${planSlices[current + 1]}`,
+                action,
+              );
+            }
+          } else if (action === contract.documents.handover.resume_action) {
+            if (plan.planMetadata.plan_kind !== contract.documents.plan.interrupt_kind) {
+              issue('YAML.next_action', 'resume_parent 动作要求所属 PLAN 为 interrupt 类型');
+            } else {
+              try {
+                const parent = await readPlan(plan.planMetadata.parent_plan);
+                const returnTo = String(plan.planMetadata.return_to);
+                if (!slices(parent.planContent, contract).includes(returnTo) || !prompt.includes(returnTo)) {
+                  issue('Prompt', '恢复 Prompt 未提及有效的 return_to', returnTo);
+                }
+                requirePromptRefs(parent.planPath);
+              } catch (error) {
+                issue('YAML.plan/parent_plan', error instanceof Error ? error.message : String(error));
+              }
+            }
+          }
+        }
+      } catch (error) {
+        issue('YAML.plan', error instanceof Error ? error.message : String(error));
       }
     }
   }
   if (issues.length) {
     throw new Error(
-      `${filePath}: ${issues.length} workflow validation issue(s)\n`
+      `${filePath}：共发现 ${issues.length} 个工作流文档错误\n`
       + issues.map((item, index) => `  ${index + 1}. ${item}`).join('\n')
-      + `\n  Re-run: npm run workflow:validate -- ${ref} ${filePath}`,
+      + `\n  修复后重新运行：npm run workflow:validate -- ${ref} ${filePath}`,
     );
   }
   return { action, prompt };
@@ -330,12 +410,12 @@ export const validateWorkflowDocuments = async ({
   const failures = results.flatMap((result, index) => result.status === 'rejected'
     ? [
       `${candidates[index].filePath}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
-      + `\n   Re-run: npm run workflow:validate -- ${ref} ${candidates[index].filePath}`,
+      + `\n   修复后重新运行：npm run workflow:validate -- ${ref} ${candidates[index].filePath}`,
     ]
     : []);
   if (failures.length) {
     throw new Error(
-      `${failures.length} workflow document(s) failed validation:\n`
+      `共 ${failures.length} 份工作流文档校验失败：\n`
       + failures.map((failure, index) => `${index + 1}) ${failure}`).join('\n'),
     );
   }

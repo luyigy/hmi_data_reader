@@ -37,6 +37,12 @@ ${prompt}`;
   await writeFile(path.join(root, 'docs/001_PLAN_20260726_valid.md'), plan('start_first_slice', validPrompt));
   await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval', validPrompt));
   await writeFile(path.join(root, 'docs/003_PLAN_20260726_missing_prompt.md'), plan('start_first_slice'));
+  await writeFile(path.join(root, 'docs/006_PLAN_20260726_all_errors.md'), `---
+doc_type: PLAN
+doc_status: ready
+next_action: start_first_slice
+---
+`);
   await writeFile(path.join(root, 'docs/004_HANDOVER_20260726_valid.md'), `---
 doc_type: HANDOVER
 doc_status: completed
@@ -65,18 +71,30 @@ plan_progress: complete
 
   await validate('docs/001_PLAN_20260726_valid.md');
   await validate('docs/004_HANDOVER_20260726_valid.md');
-  await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /must not contain an automation prompt/);
-  await assert.rejects(validate('docs/003_PLAN_20260726_missing_prompt.md'), /requires exactly one prompt marker pair/);
+  await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /非可执行动作不得包含自动化 Prompt/);
+  await assert.rejects(validate('docs/003_PLAN_20260726_missing_prompt.md'), /必须包含且只能包含一对 Prompt 标记/);
+  await assert.rejects(
+    validate('docs/006_PLAN_20260726_all_errors.md'),
+    (error: Error) => {
+      assert.match(error.message, /共发现 7 个工作流文档错误/);
+      for (const field of ['plan_kind', 'roadmap', 'parent_plan', 'parent_slice', 'return_to']) {
+        assert.match(error.message, new RegExp(`YAML\\.${field}.*缺少必填字段`));
+      }
+      assert.match(error.message, /Prompt.*必须包含且只能包含一对 Prompt 标记/);
+      assert.match(error.message, /正文.*至少需要包含一个 Slice/);
+      return true;
+    },
+  );
   await assert.rejects(
     validate('docs/005_HANDOVER_20260726_invalid.md'),
     (error: Error) => {
-      assert.match(error.message, /4 workflow validation issue\(s\)/);
-      assert.match(error.message, /missing document reference 005_HANDOVER_20260726_invalid\.md/);
-      assert.match(error.message, /missing document reference 001_PLAN_20260726_valid\.md/);
-      assert.match(error.message, /missing document reference 000_ROADMAP_20260726_test\.md/);
-      assert.match(error.message, /next_slice has no Slice after S01/);
-      assert.match(error.message, /use a terminal next_action/);
-      assert.match(error.message, /npm run workflow:validate/);
+      assert.match(error.message, /共发现 4 个工作流文档错误/);
+      assert.match(error.message, /缺少文档引用 005_HANDOVER_20260726_invalid\.md/);
+      assert.match(error.message, /缺少文档引用 001_PLAN_20260726_valid\.md/);
+      assert.match(error.message, /缺少文档引用 000_ROADMAP_20260726_test\.md/);
+      assert.match(error.message, /S01 之后没有下一个 Slice/);
+      assert.match(error.message, /改用终止动作/);
+      assert.match(error.message, /修复后重新运行：npm run workflow:validate/);
       return true;
     },
   );
@@ -84,7 +102,7 @@ plan_progress: complete
   await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval'));
   await assert.rejects(
     validate('docs/002_PLAN_20260726_terminal_prompt.md'),
-    /must not contain an automation prompt/,
+    /非可执行动作不得包含自动化 Prompt/,
     'validation must read the target ref, not the legal workspace copy',
   );
   console.log('workflow validator contract/ref checks passed');

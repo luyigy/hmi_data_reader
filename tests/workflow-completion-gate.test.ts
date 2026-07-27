@@ -68,7 +68,7 @@ S01
   git('commit', '-qm', 'invalid plan');
   await assert.rejects(
     assertWorkflowCompletion(root, validHead),
-    /workflow completion blocked.*must not contain an automation prompt/,
+    /workflow completion blocked:[\s\S]*非可执行动作不得包含自动化 Prompt/,
   );
 
   console.log('workflow completion gate checks passed');
