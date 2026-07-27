@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readWorkflowContract, selectWorkflowCandidates, validateWorkflowDocuments } from '@/lib/scheduled-jobs/workflow-validator';
 
 const git = (cwd: string, ...args: string[]) =>
@@ -11,10 +12,28 @@ const git = (cwd: string, ...args: string[]) =>
 
 const lines = (value: string) => value.split('\n').filter(Boolean);
 
-type WorkflowCompletionBaseline = {
+export type WorkflowCompletionBaseline = {
   head: string;
   dirty: Record<string, string>;
 };
+
+export class WorkflowCompletionValidationError extends Error {
+  constructor(
+    message: string,
+    readonly head: string,
+    readonly filePaths: string[],
+  ) {
+    super(`workflow completion blocked: ${message}`);
+    Object.setPrototypeOf(this, new.target.prototype);
+    this.name = 'WorkflowCompletionValidationError';
+  }
+
+  get fingerprint() {
+    return createHash('sha256')
+      .update(this.message.replace(/[0-9a-f]{40}/gi, '<commit>').replace(/\s+/g, ' ').trim())
+      .digest('hex');
+  }
+}
 
 export const shouldCheckWorkflowCompletion = (
   enabled: boolean | undefined,
@@ -86,7 +105,35 @@ export const assertWorkflowCompletion = async (cwd: string, baseline: WorkflowCo
     try {
       await validateWorkflowDocuments({ cwd, ref: head, filePaths: changed });
     } catch (error) {
-      throw new Error(`workflow completion blocked: ${error instanceof Error ? error.message : String(error)}`);
+      throw new WorkflowCompletionValidationError(
+        error instanceof Error ? error.message : String(error),
+        head,
+        changed,
+      );
+    }
+  }
+};
+
+export const completeWorkflowWithCorrections = async (
+  cwd: string,
+  baseline: WorkflowCompletionBaseline,
+  correct: (error: WorkflowCompletionValidationError, attempt: number) => Promise<void>,
+) => {
+  let previousFingerprint: string | undefined;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await assertWorkflowCompletion(cwd, baseline);
+      return;
+    } catch (error) {
+      if (!(error instanceof WorkflowCompletionValidationError)) throw error;
+      if (error.fingerprint === previousFingerprint) {
+        throw new Error(`${error.message}\nworkflow correction stopped: validation errors unchanged`);
+      }
+      if (attempt >= 2) {
+        throw new Error(`${error.message}\nworkflow correction stopped: maximum 2 attempts reached`);
+      }
+      previousFingerprint = error.fingerprint;
+      await correct(error, attempt + 1);
     }
   }
 };

@@ -85,6 +85,30 @@ plan_progress: complete
 再次执行 S01。
 <!-- WORKFLOW_PROMPT_END -->
 `);
+  await writeFile(path.join(root, 'docs/008_PLAN_20260726_no_roadmap.md'), `---
+doc_type: PLAN
+doc_status: ready
+next_action: start_first_slice
+plan_kind: phase
+---
+S01
+S02
+<!-- WORKFLOW_PROMPT_START -->
+执行 008_PLAN_20260726_no_roadmap.md 的 S01。
+<!-- WORKFLOW_PROMPT_END -->
+`);
+  await writeFile(path.join(root, 'docs/009_HANDOVER_20260726_no_roadmap.md'), `---
+doc_type: HANDOVER
+doc_status: completed
+next_action: next_slice
+plan: 008_PLAN_20260726_no_roadmap.md
+slice: S01
+plan_progress: in_progress
+---
+<!-- WORKFLOW_PROMPT_START -->
+读取 009_HANDOVER_20260726_no_roadmap.md 和 008_PLAN_20260726_no_roadmap.md，执行 S02。
+<!-- WORKFLOW_PROMPT_END -->
+`);
   git('add', '.');
   git('commit', '-qm', 'fixtures');
   const ref = git('rev-parse', 'HEAD');
@@ -92,6 +116,7 @@ plan_progress: complete
 
   await validate('docs/001_PLAN_20260726_valid.md');
   await validate('docs/004_HANDOVER_20260726_valid.md');
+  await validate('docs/009_HANDOVER_20260726_no_roadmap.md');
   await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /非可执行动作不得包含自动化 Prompt/);
   await assert.rejects(validate('docs/003_PLAN_20260726_missing_prompt.md'), /必须包含且只能包含一对 Prompt 标记/);
   await assert.rejects(
@@ -137,8 +162,8 @@ S01
       assert.match(error.message, /缺少文档引用 000_ROADMAP_20260726_test\.md/);
       assert.match(error.message, /S01 之后没有下一个 Slice/);
       assert.match(error.message, /改用终止动作/);
-      assert.match(error.message, /修复后先校验：npm run workflow:validate/);
-      assert.match(error.message, /校验通过并提交后，在飞书发送：\/ap job run workflow-watcher/);
+      assert.match(error.message, /由平台 completion gate 重新校验/);
+      assert.doesNotMatch(error.message, /npm run workflow:validate/);
       return true;
     },
   );

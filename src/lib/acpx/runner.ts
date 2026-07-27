@@ -24,7 +24,7 @@ import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } 
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
-import { assertWorkflowCompletion, getWorkflowCompletionBaseline, shouldCheckWorkflowCompletion } from './workflow-completion-gate';
+import { completeWorkflowWithCorrections, getWorkflowCompletionBaseline, shouldCheckWorkflowCompletion } from './workflow-completion-gate';
 import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import type {
   AcpxLiveEventPayload,
@@ -1735,7 +1735,7 @@ const executeParticipant = async (
       }
     };
 
-    const result =
+    let result =
       participant.executionBackend === 'platform_local'
         ? await executeViaLocalHarness(
             request,
@@ -1782,10 +1782,33 @@ const executeParticipant = async (
     }
 
     if (workflowBaseline) {
-      await assertWorkflowCompletion(
-        request.workingDirectory || process.cwd(),
-        workflowBaseline,
-      );
+      const cwd = request.workingDirectory || process.cwd();
+      await completeWorkflowWithCorrections(cwd, workflowBaseline, async (validationError, attempt) => {
+        const sessionId = result.sessionId || result.threadId;
+        if (!sessionId) throw new Error(`${validationError.message}\nworkflow correction failed: continuation session unavailable`);
+        result = await executeViaLocalHarness(
+          request,
+          taskRunId,
+          participantId,
+          {
+            ...participant,
+            resumeSessionId: sessionId,
+            resumeThreadId: result.sessionKind === 'codex_thread' ? sessionId : undefined,
+            continuationMessage: [
+              `Workflow completion 校验失败（自动纠错 ${attempt}/2）。`,
+              `目标 HEAD：${validationError.head}`,
+              `失败文档：${validationError.filePaths.join(', ')}`,
+              validationError.message,
+              '只修订上述相关 PLAN/HANDOVER 并提交；不要执行下一 Slice。提交后立即停止，平台会使用原始 baseline 重新校验。',
+            ].join('\n\n'),
+          },
+          callbacks,
+          previousSummaries,
+          taskRoomContext,
+          localSpawnHandler,
+          contextWarning,
+        );
+      });
     }
 
     await prisma.taskRunParticipant.update({

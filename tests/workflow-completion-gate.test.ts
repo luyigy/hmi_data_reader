@@ -5,8 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   assertWorkflowCompletion,
+  completeWorkflowWithCorrections,
   getWorkflowCompletionBaseline,
   shouldCheckWorkflowCompletion,
+  WorkflowCompletionValidationError,
 } from '../src/lib/acpx/workflow-completion-gate';
 
 async function main() {
@@ -84,6 +86,62 @@ S01
     assertWorkflowCompletion(root, validHead),
     /workflow completion blocked:[\s\S]*非可执行动作不得包含自动化 Prompt/,
   );
+
+  let corrections = 0;
+  await completeWorkflowWithCorrections(root, validHead, async (error, attempt) => {
+    corrections += 1;
+    assert.ok(error instanceof WorkflowCompletionValidationError);
+    assert.equal(attempt, 1);
+    assert.equal(error.head, git('rev-parse', 'HEAD'));
+    assert.deepEqual(error.filePaths, ['docs/001_PLAN_20260726_test.md']);
+    await writeFile(planPath, plan('await_plan_approval').replace(
+      /<!-- WORKFLOW_PROMPT_START -->[\s\S]*<!-- WORKFLOW_PROMPT_END -->\n/,
+      '',
+    ));
+    git('add', '.');
+    git('commit', '-qm', 'correct workflow document');
+  });
+  assert.equal(corrections, 1);
+
+  const unchangedBaseline = await getWorkflowCompletionBaseline(root);
+  await writeFile(planPath, plan('await_plan_approval'));
+  git('add', '.');
+  git('commit', '-qm', 'repeat invalid workflow document');
+  corrections = 0;
+  await assert.rejects(
+    completeWorkflowWithCorrections(root, unchangedBaseline, async () => {
+      corrections += 1;
+    }),
+    /workflow correction stopped: validation errors unchanged/,
+  );
+  assert.equal(corrections, 1, 'unchanged error fingerprint must stop before a second continuation');
+
+  await writeFile(planPath, plan('start_first_slice'));
+  git('add', '.');
+  git('commit', '-qm', 'restore valid workflow document');
+  const retryLimitBaseline = await getWorkflowCompletionBaseline(root);
+  await writeFile(planPath, plan('start_first_slice').replace(
+    /<!-- WORKFLOW_PROMPT_START -->[\s\S]*<!-- WORKFLOW_PROMPT_END -->\n/,
+    '',
+  ));
+  git('add', '.');
+  git('commit', '-qm', 'invalid workflow attempt zero');
+  corrections = 0;
+  await assert.rejects(
+    completeWorkflowWithCorrections(root, retryLimitBaseline, async (_error, attempt) => {
+      corrections += 1;
+      await writeFile(
+        planPath,
+        attempt === 1
+          ? plan('await_plan_approval')
+          : plan('start_first_slice').replace('next_action: start_first_slice', 'next_action: nope'),
+      );
+      git('add', '.');
+      git('commit', '-qm', `invalid workflow correction ${attempt}`);
+    }),
+    /workflow correction stopped: maximum 2 attempts reached/,
+  );
+  assert.equal(corrections, 2);
 
   console.log('workflow completion gate checks passed');
 }

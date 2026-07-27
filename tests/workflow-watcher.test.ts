@@ -240,7 +240,8 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.equal(workflowRuns[0].chatId, 'coding-bot-chat');
   assert.equal(workflowRuns[0].chatType, 'group');
   assert.match(workflowRuns[0].prompt, /NEXT PROMPT/);
-  assert.match(workflowRuns[0].prompt, /npm run workflow:validate -- HEAD <文档路径\.\.\.>/);
+  assert.match(workflowRuns[0].prompt, /平台 completion gate 会在 Session 结束后统一校验/);
+  assert.doesNotMatch(workflowRuns[0].prompt, /npm run workflow:validate/);
   const unchanged = await run(completed.cursor);
   assert.match(unchanged.summary, /candidate=none/);
   assert.equal((unchanged.cursor as { eventKey?: string }).eventKey, (completed.cursor as { eventKey?: string }).eventKey);

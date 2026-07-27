@@ -338,11 +338,14 @@ export const validateWorkflowDocument = async (
           issue('YAML.slice', '所属 PLAN 中不存在该 Slice', planSlices.join('、'), metadata.slice);
         }
         if (prompt) {
-          let roadmap = '';
-          try {
-            roadmap = normalizeReference(plan.planMetadata.roadmap, watchRoot);
-          } catch (error) {
-            issue('YAML.plan/roadmap', error instanceof Error ? error.message : String(error));
+          let roadmap: string | undefined;
+          if (plan.planMetadata.roadmap !== undefined && plan.planMetadata.roadmap !== null
+            && plan.planMetadata.roadmap !== '') {
+            try {
+              roadmap = normalizeReference(plan.planMetadata.roadmap, watchRoot);
+            } catch (error) {
+              issue('YAML.plan/roadmap', error instanceof Error ? error.message : String(error));
+            }
           }
           requirePromptRefs(filePath, plan.planPath, ...(roadmap ? [roadmap] : []));
           if (action === contract.documents.handover.next_action && has('slice')) {
@@ -385,8 +388,7 @@ export const validateWorkflowDocument = async (
     throw new Error(
       `${filePath}：共发现 ${issues.length} 个工作流文档错误\n`
       + issues.map((item, index) => `  ${index + 1}. ${item}`).join('\n')
-      + `\n  修复后先校验：npm run workflow:validate -- ${ref} ${filePath}`
-      + '\n  校验通过并提交后，在飞书发送：/ap job run workflow-watcher',
+      + '\n  修复并提交后由平台 completion gate 重新校验。',
     );
   }
   return { action, prompt };

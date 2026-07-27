@@ -175,9 +175,7 @@ const execute = async (
   const validationReminder = [
     '',
     '完成前必须以目标 HEAD 中的 docs/workflow/workflow-contract.yaml 为唯一规则源，',
-    '对本次新增或修改的每份 PLAN/HANDOVER 运行：',
-    'npm run workflow:validate -- HEAD <文档路径...>',
-    '修复命令列出的全部问题并提交后，才能结束本次 Session。',
+    '只修订并提交本次相关 PLAN/HANDOVER；平台 completion gate 会在 Session 结束后统一校验。',
   ].join('\n');
   await runWorkflow({
     projectId,
