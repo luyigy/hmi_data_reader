@@ -12,6 +12,7 @@ export type WorkflowContract = {
     common_required_fields: string[];
     plan: {
       required_fields: string[];
+      required_fields_by_kind: Record<string, string[]>;
       kinds: string[];
       executable_actions: string[];
       start_action: string;
@@ -86,7 +87,14 @@ export const readWorkflowContract = async (
   strings(contract.documents?.statuses, 'documents.statuses');
   strings(contract.documents?.common_required_fields, 'documents.common_required_fields');
   strings(contract.documents?.plan?.required_fields, 'documents.plan.required_fields');
-  strings(contract.documents?.plan?.kinds, 'documents.plan.kinds');
+  const planKinds = strings(contract.documents?.plan?.kinds, 'documents.plan.kinds');
+  const requiredFieldsByKind = contract.documents?.plan?.required_fields_by_kind ?? {};
+  if (typeof requiredFieldsByKind !== 'object' || Array.isArray(requiredFieldsByKind)
+    || Object.entries(requiredFieldsByKind).some(([kind, fields]) =>
+      !planKinds.includes(kind) || !strings(fields, `documents.plan.required_fields_by_kind.${kind}`))) {
+    throw new Error('workflow contract has invalid documents.plan.required_fields_by_kind');
+  }
+  contract.documents.plan.required_fields_by_kind = requiredFieldsByKind;
   strings(contract.documents?.plan?.parent_fields, 'documents.plan.parent_fields');
   strings(contract.documents?.handover?.required_fields, 'documents.handover.required_fields');
   strings(contract.documents?.handover?.progress_values, 'documents.handover.progress_values');
@@ -249,7 +257,11 @@ export const validateWorkflowDocument = async (
   };
 
   if (type === 'PLAN') {
-    contract.documents.plan.required_fields.forEach((field) => {
+    const requiredFields = [
+      ...contract.documents.plan.required_fields,
+      ...(contract.documents.plan.required_fields_by_kind[String(metadata.plan_kind)] ?? []),
+    ];
+    requiredFields.forEach((field) => {
       if (!has(field)) issue(`YAML.${field}`, 'PLAN 缺少必填字段');
     });
     if (contract.actions.executable.includes(action) && !contract.documents.plan.executable_actions.includes(action)) {
@@ -291,7 +303,7 @@ export const validateWorkflowDocument = async (
         }
       }
     } else if (metadata.plan_kind === contract.documents.plan.phase_kind
-      && contract.documents.plan.parent_fields.some((field) => metadata[field] !== null)) {
+      && contract.documents.plan.parent_fields.some((field) => has(field) && metadata[field] !== null)) {
       issue('YAML.parent_plan/parent_slice/return_to', 'phase PLAN 的父级字段必须为 null');
     }
     const planSlices = slices(content, contract);

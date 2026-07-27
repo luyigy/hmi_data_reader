@@ -3,9 +3,33 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { validateWorkflowDocuments } from '../src/lib/scheduled-jobs/workflow-validator';
+import { readWorkflowContract, validateWorkflowDocuments } from '../src/lib/scheduled-jobs/workflow-validator';
 
 async function main() {
+  const legacyRoot = await mkdtemp(path.join(os.tmpdir(), 'workflow-validator-legacy-'));
+  const legacyGit = (...args: string[]) => execFileSync('git', ['-C', legacyRoot, ...args]).toString().trim();
+  legacyGit('init', '-q', '-b', 'main');
+  legacyGit('config', 'user.email', 'test@example.com');
+  legacyGit('config', 'user.name', 'Test');
+  await mkdir(path.join(legacyRoot, 'docs/workflow'), { recursive: true });
+  const currentContract = await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8');
+  await writeFile(
+    path.join(legacyRoot, 'docs/workflow/workflow-contract.yaml'),
+    currentContract.replace(
+      /    required_fields_by_kind:\n      interrupt:\n(?:        - .+\n)+/,
+      '',
+    ),
+  );
+  legacyGit('add', '.');
+  legacyGit('commit', '-qm', 'legacy contract');
+  const legacyContract = await readWorkflowContract(
+    legacyRoot,
+    legacyGit('rev-parse', 'HEAD'),
+    'docs/workflow/workflow-contract.yaml',
+    new AbortController().signal,
+  );
+  assert.deepEqual(legacyContract.documents.plan.required_fields_by_kind, {});
+
   const root = await mkdtemp(path.join(os.tmpdir(), 'workflow-validator-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args]).toString().trim();
   git('init', '-q', '-b', 'main');
@@ -24,9 +48,6 @@ doc_status: ${action === 'start_first_slice' ? 'ready' : 'draft'}
 next_action: ${action}
 plan_kind: phase
 roadmap: 000_ROADMAP_20260726_test.md
-parent_plan: null
-parent_slice: null
-return_to: null
 ---
 S01
 ${prompt}`;
@@ -76,12 +97,34 @@ plan_progress: complete
   await assert.rejects(
     validate('docs/006_PLAN_20260726_all_errors.md'),
     (error: Error) => {
-      assert.match(error.message, /共发现 7 个工作流文档错误/);
-      for (const field of ['plan_kind', 'roadmap', 'parent_plan', 'parent_slice', 'return_to']) {
-        assert.match(error.message, new RegExp(`YAML\\.${field}.*缺少必填字段`));
-      }
+      assert.match(error.message, /共发现 3 个工作流文档错误/);
+      assert.match(error.message, /YAML\.plan_kind.*缺少必填字段/);
       assert.match(error.message, /Prompt.*必须包含且只能包含一对 Prompt 标记/);
       assert.match(error.message, /正文.*至少需要包含一个 Slice/);
+      return true;
+    },
+  );
+  await writeFile(path.join(root, 'docs/007_PLAN_20260726_interrupt.md'), `---
+doc_type: PLAN
+doc_status: draft
+next_action: await_plan_approval
+plan_kind: interrupt
+---
+S01
+`);
+  git('add', '.');
+  git('commit', '-qm', 'interrupt fixture');
+  const interruptRef = git('rev-parse', 'HEAD');
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root,
+      ref: interruptRef,
+      filePaths: ['docs/007_PLAN_20260726_interrupt.md'],
+    }),
+    (error: Error) => {
+      for (const field of ['parent_plan', 'parent_slice', 'return_to']) {
+        assert.match(error.message, new RegExp(`YAML\\.${field}.*缺少必填字段`));
+      }
       return true;
     },
   );

@@ -24,7 +24,7 @@ import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } 
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
-import { assertWorkflowCompletion, getWorkflowCompletionBaseline } from './workflow-completion-gate';
+import { assertWorkflowCompletion, getWorkflowCompletionBaseline, shouldCheckWorkflowCompletion } from './workflow-completion-gate';
 import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import type {
   AcpxLiveEventPayload,
@@ -1719,7 +1719,7 @@ const executeParticipant = async (
   };
 
   try {
-    const workflowBaseline = participant.executionBackend === 'platform_local'
+    const workflowBaseline = shouldCheckWorkflowCompletion(request.workflowCompletionGate, participant.executionBackend)
       ? await getWorkflowCompletionBaseline(request.workingDirectory || process.cwd())
       : null;
     const taskRoomContext = await buildTaskRoomPromptContext(request.taskId, request.taskName, 30);

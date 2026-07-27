@@ -103,6 +103,7 @@ export interface AcpxRunRequest {
   taskSessionId?: string;
   taskName: string;
   taskDescription?: string;
+  workflowCompletionGate?: boolean;
   orchestrationMode: AcpxOrchestrationMode;
   participants: AcpxParticipantRequest[];
   workingDirectory?: string;

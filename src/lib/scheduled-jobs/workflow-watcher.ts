@@ -170,12 +170,19 @@ const execute = async (
   runWorkflow: WorkflowRunner,
   signal: AbortSignal,
 ) => {
+  const validationReminder = [
+    '',
+    '完成前必须以目标 HEAD 中的 docs/workflow/workflow-contract.yaml 为唯一规则源，',
+    '对本次新增或修改的每份 PLAN/HANDOVER 运行：',
+    'npm run workflow:validate -- HEAD <文档路径...>',
+    '修复命令列出的全部问题并提交后，才能结束本次 Session。',
+  ].join('\n');
   await runWorkflow({
     projectId,
     jobId,
     chatId: codingBotChatId,
     chatType: codingBotChatType,
-    prompt: pending.prompt,
+    prompt: `${pending.prompt}\n${validationReminder}`,
     eventKey: pending.key,
     signal,
   });

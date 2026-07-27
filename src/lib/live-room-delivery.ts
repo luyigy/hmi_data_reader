@@ -564,7 +564,7 @@ const runLiveRoomAcpxAttempt = async ({
   permissionConfig,
   latestSession,
   useFreshSession,
-  forceEphemeral = false,
+  forceEphemeral = false, workflowCompletionGate,
   streamCallbacks,
 }: {
   sourceTask: NonNullable<Awaited<ReturnType<typeof syncLiveRoomSourceTask>>>;
@@ -586,7 +586,7 @@ const runLiveRoomAcpxAttempt = async ({
   permissionConfig: AcpxPermissionConfig;
   latestSession: Awaited<ReturnType<typeof findLatestParticipantSession>>;
   useFreshSession: boolean;
-  forceEphemeral?: boolean;
+  forceEphemeral?: boolean; workflowCompletionGate: boolean;
   streamCallbacks?: HarnessStreamCallbacks;
 }) => {
   const shouldUseContinuation =
@@ -624,7 +624,7 @@ const runLiveRoomAcpxAttempt = async ({
     taskSessionId: sourceTask.currentTaskSession?.id || undefined,
     taskName: sourceTask.name,
     taskDescription: directedVisibleProtocol || undefined,
-    orchestrationMode: 'single',
+    workflowCompletionGate, orchestrationMode: 'single',
     participants: [{
       ...participant,
       resumeSessionId: shouldUseContinuation ? latestSession?.continuationSessionId || undefined : undefined,
@@ -649,7 +649,6 @@ const runLiveRoomAcpxAttempt = async ({
   });
 };
 
-
 const executeLiveRoomReplyViaAcpx = async ({
   room,
   sourceMessage,
@@ -670,7 +669,7 @@ const executeLiveRoomReplyViaAcpx = async ({
   };
   sourceMessage: {
     id: string;
-    content: string;
+    content: string; metadata?: string | null;
     senderMember?: {
       id: string;
       displayName: string;
@@ -687,6 +686,7 @@ const executeLiveRoomReplyViaAcpx = async ({
   if (!sourceTask) {
     throw new Error('Live room source ACPX task is unavailable');
   }
+  const workflowCompletionGate = parseLiveRoomMessageMetadata(sourceMessage.metadata)?.source === 'workflow_watcher';
 
   const participant = buildLiveRoomAcpxParticipant({
     id: targetMember.id,
@@ -848,7 +848,7 @@ const executeLiveRoomReplyViaAcpx = async ({
     desiredDirectedTarget,
     permissionConfig,
     latestSession,
-    useFreshSession: false,
+    useFreshSession: false, workflowCompletionGate,
     streamCallbacks: liveRoomStreamCallbacks,
   });
 
@@ -893,7 +893,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       desiredDirectedTarget,
       permissionConfig,
       latestSession,
-      useFreshSession: true,
+      useFreshSession: true, workflowCompletionGate,
       streamCallbacks: liveRoomStreamCallbacks,
     });
     participantResult = acpxResult.participants[0];
@@ -931,7 +931,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       permissionConfig,
       latestSession,
       useFreshSession: true,
-      forceEphemeral: true,
+      forceEphemeral: true, workflowCompletionGate,
       streamCallbacks: liveRoomStreamCallbacks,
     });
     participantResult = acpxResult.participants[0];
@@ -1235,7 +1235,7 @@ const processLiveRoomDelivery = async ({
       room,
       sourceMessage: {
         id: sourceMessage.id,
-        content: sourceMessage.content,
+        content: sourceMessage.content, metadata: sourceMessage.metadata,
         senderMember: sourceMessage.senderMember
           ? {
               id: sourceMessage.senderMember.id,

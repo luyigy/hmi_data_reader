@@ -11,10 +11,53 @@ const git = (cwd: string, ...args: string[]) =>
 
 const lines = (value: string) => value.split('\n').filter(Boolean);
 
-export const getWorkflowCompletionBaseline = (cwd: string) =>
-  git(cwd, 'rev-parse', 'HEAD');
+type WorkflowCompletionBaseline = {
+  head: string;
+  dirty: Record<string, string>;
+};
 
-export const assertWorkflowCompletion = async (cwd: string, baseline: string) => {
+export const shouldCheckWorkflowCompletion = (
+  enabled: boolean | undefined,
+  executionBackend: string,
+) => enabled === true && executionBackend === 'platform_local';
+
+const getDirtyWorkflowDocuments = async (cwd: string, ref: string) => {
+  const contract = await readWorkflowContract(
+    cwd,
+    ref,
+    'docs/workflow/workflow-contract.yaml',
+    new AbortController().signal,
+  );
+  return selectWorkflowCandidates(lines([
+    await git(cwd, 'diff', '--name-only'),
+    await git(cwd, 'diff', '--cached', '--name-only'),
+    await git(cwd, 'ls-files', '--others', '--exclude-standard'),
+  ].join('\n')), contract).map(({ filePath }) => filePath);
+};
+
+const getDirtyWorkflowSnapshot = async (cwd: string, ref: string) =>
+  Object.fromEntries(await Promise.all((await getDirtyWorkflowDocuments(cwd, ref)).map(async (filePath) => [
+    filePath,
+    [
+      await git(cwd, 'diff', '--binary', '--', filePath),
+      await git(cwd, 'diff', '--cached', '--binary', '--', filePath),
+      await git(cwd, 'ls-files', '--others', '--exclude-standard', '--', filePath)
+        ? await git(cwd, 'hash-object', '--', filePath)
+        : '',
+    ].join('\0'),
+  ])));
+
+export const getWorkflowCompletionBaseline = async (cwd: string): Promise<WorkflowCompletionBaseline> => {
+  const head = await git(cwd, 'rev-parse', 'HEAD');
+  try {
+    await git(cwd, 'cat-file', '-e', `${head}:docs/workflow/workflow-contract.yaml`);
+  } catch {
+    return { head, dirty: {} };
+  }
+  return { head, dirty: await getDirtyWorkflowSnapshot(cwd, head) };
+};
+
+export const assertWorkflowCompletion = async (cwd: string, baseline: WorkflowCompletionBaseline) => {
   const head = await git(cwd, 'rev-parse', 'HEAD');
   const contractPath = 'docs/workflow/workflow-contract.yaml';
   try {
@@ -29,14 +72,12 @@ export const assertWorkflowCompletion = async (cwd: string, baseline: string) =>
     new AbortController().signal,
   );
   const changed = selectWorkflowCandidates(
-    lines(await git(cwd, 'diff', '--name-only', '--diff-filter=AM', baseline, head)),
+    lines(await git(cwd, 'diff', '--name-only', '--diff-filter=AM', baseline.head, head)),
     contract,
   ).map(({ filePath }) => filePath);
-  const dirty = selectWorkflowCandidates(lines([
-    await git(cwd, 'diff', '--name-only'),
-    await git(cwd, 'diff', '--cached', '--name-only'),
-    await git(cwd, 'ls-files', '--others', '--exclude-standard'),
-  ].join('\n')), contract).map(({ filePath }) => filePath);
+  const dirtySnapshot = await getDirtyWorkflowSnapshot(cwd, head);
+  const dirty = Object.keys(dirtySnapshot)
+    .filter((filePath) => dirtySnapshot[filePath] !== baseline.dirty[filePath]);
 
   if (dirty.length) {
     throw new Error(`workflow completion blocked: uncommitted workflow document(s): ${dirty.join(', ')}`);

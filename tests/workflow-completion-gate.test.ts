@@ -6,9 +6,15 @@ import path from 'node:path';
 import {
   assertWorkflowCompletion,
   getWorkflowCompletionBaseline,
+  shouldCheckWorkflowCompletion,
 } from '../src/lib/acpx/workflow-completion-gate';
 
 async function main() {
+  assert.equal(shouldCheckWorkflowCompletion(undefined, 'platform_local'), false);
+  assert.equal(shouldCheckWorkflowCompletion(false, 'platform_local'), false);
+  assert.equal(shouldCheckWorkflowCompletion(true, 'gateway_openclaw'), false);
+  assert.equal(shouldCheckWorkflowCompletion(true, 'platform_local'), true);
+
   const plainRoot = await mkdtemp(path.join(os.tmpdir(), 'workflow-completion-gate-plain-'));
   const plainGit = (...args: string[]) => execFileSync('git', ['-C', plainRoot, ...args]).toString().trim();
   plainGit('init', '-q', '-b', 'main');
@@ -55,6 +61,14 @@ S01
   await writeFile(planPath, plan('start_first_slice'));
   await assert.rejects(
     assertWorkflowCompletion(root, baseline),
+    /uncommitted workflow document.*001_PLAN_20260726_test\.md/,
+  );
+
+  const preDirtyBaseline = await getWorkflowCompletionBaseline(root);
+  await assertWorkflowCompletion(root, preDirtyBaseline);
+  await writeFile(planPath, `${plan('start_first_slice')}\nchanged during run\n`);
+  await assert.rejects(
+    assertWorkflowCompletion(root, preDirtyBaseline),
     /uncommitted workflow document.*001_PLAN_20260726_test\.md/,
   );
 

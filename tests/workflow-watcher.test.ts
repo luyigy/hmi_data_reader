@@ -79,6 +79,8 @@ documents:
   common_required_fields: [doc_type, doc_status, next_action]
   plan:
     required_fields: [plan_kind, roadmap, parent_plan, parent_slice, return_to]
+    required_fields_by_kind:
+      interrupt: [parent_plan, parent_slice, return_to]
     kinds: [phase, interrupt]
     executable_actions: [start_first_slice]
     start_action: start_first_slice
@@ -235,6 +237,7 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.equal(workflowRuns[0].chatId, 'coding-bot-chat');
   assert.equal(workflowRuns[0].chatType, 'group');
   assert.match(workflowRuns[0].prompt, /NEXT PROMPT/);
+  assert.match(workflowRuns[0].prompt, /npm run workflow:validate -- HEAD <文档路径\.\.\.>/);
   const unchanged = await run(completed.cursor);
   assert.match(unchanged.summary, /candidate=none/);
   assert.equal((unchanged.cursor as { eventKey?: string }).eventKey, (completed.cursor as { eventKey?: string }).eventKey);

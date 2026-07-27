@@ -1,5 +1,5 @@
 schema_version: 2
-contract_version: "2026.07.26.1"
+contract_version: "2026.07.27.1"
 
 documents:
   automation_types:
@@ -34,10 +34,11 @@ documents:
   plan:
     required_fields:
       - plan_kind
-      - roadmap
-      - parent_plan
-      - parent_slice
-      - return_to
+    required_fields_by_kind:
+      interrupt:
+        - parent_plan
+        - parent_slice
+        - return_to
     kinds:
       - phase
       - interrupt
