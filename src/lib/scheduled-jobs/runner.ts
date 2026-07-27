@@ -6,6 +6,7 @@ import {
   type JobConfig,
   type JobMode,
   type ProjectConfig,
+  type ProjectsConfig,
 } from './project-config';
 
 const ranges = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]] as const;
@@ -271,8 +272,45 @@ export async function runDueJobs(db: PrismaClient, now = new Date()) {
   })));
 }
 
+export async function runRequestedJobs(db: PrismaClient, config?: ProjectsConfig) {
+  const resolvedConfig = config ?? await loadProjectsConfig();
+  const requests = await db.scheduledJobRequest.findMany({
+    where: { status: 'pending' },
+    orderBy: { requestedAt: 'asc' },
+  });
+  for (const request of requests) {
+    const claimed = await db.scheduledJobRequest.updateMany({
+      where: { id: request.id, status: 'pending' },
+      data: { status: 'processing', claimedAt: new Date() },
+    });
+    if (!claimed.count) continue;
+
+    const project = resolvedConfig.projects.find(({ id }) => id === request.projectId);
+    const job = project?.jobs.find(({ id }) => id === request.jobId);
+    const handler = job && jobHandlers.get(job.type);
+    if (!project || !job || !handler) {
+      await db.scheduledJobRequest.update({
+        where: { id: request.id },
+        data: { status: 'failed', finishedAt: new Date(), error: 'project or job handler not found' },
+      });
+      continue;
+    }
+
+    void executeScheduledJob(db, project, job, request.requestedAt, handler, 'manual', request.id)
+      .then(() => db.scheduledJobRequest.update({
+        where: { id: request.id },
+        data: { status: 'completed', finishedAt: new Date() },
+      }))
+      .catch((error) => db.scheduledJobRequest.update({
+        where: { id: request.id },
+        data: { status: 'failed', finishedAt: new Date(), error: errorText(error) },
+      }));
+  }
+}
+
 export async function startScheduledJobRunner(db: PrismaClient, signal: AbortSignal) {
   while (!signal.aborted) {
+    await runRequestedJobs(db).catch((error) => console.error('[ScheduledJobRunner]', error));
     await runDueJobs(db).catch((error) => console.error('[ScheduledJobRunner]', error));
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 15_000);

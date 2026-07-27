@@ -495,6 +495,19 @@ model ScheduledJobRun {
   @@index([projectId, jobId, startedAt])
 }
 
+model ScheduledJobRequest {
+  id          String    @id @default(cuid())
+  projectId   String
+  jobId       String
+  status      String    @default("pending") // pending, processing, completed, failed
+  requestedAt DateTime  @default(now())
+  claimedAt   DateTime?
+  finishedAt  DateTime?
+  error       String?
+
+  @@index([status, requestedAt])
+}
+
 model WorkflowDispatch {
   id        String   @id @default(cuid())
   projectId String

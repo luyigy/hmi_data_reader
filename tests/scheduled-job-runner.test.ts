@@ -4,6 +4,7 @@ import { noopTestHandler } from '../src/lib/scheduled-jobs/handlers';
 import {
   executeScheduledJob,
   matchesCron,
+  runRequestedJobs,
   stopScheduledJob,
   waitForScheduledJobStop,
 } from '../src/lib/scheduled-jobs/runner';
@@ -87,10 +88,33 @@ async function main() {
   });
   assert.equal(statuses.find(({ jobId }) => jobId === 'stopped')?.error, 'job cancelled by operator');
   assert.equal(statuses.find(({ jobId }) => jobId === 'remote-stopped')?.error, 'job cancelled by operator');
+
+  const requestedJob = job('requested', { delay_ms: 10_000 });
+  project.jobs.push(requestedJob);
+  const request = await prisma.scheduledJobRequest.create({
+    data: { projectId: project.id, jobId: requestedJob.id },
+  });
+  await runRequestedJobs(prisma, { projects: [project] });
+  const requestedRun = await (async () => {
+    for (;;) {
+      const run = await prisma.scheduledJobRun.findUnique({
+        where: { idempotencyKey: `manual:${project.id}:${requestedJob.id}:${request.id}` },
+      });
+      if (run) return run;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  })();
+  assert.equal(requestedRun.status, 'running');
+  assert(await stopScheduledJob(prisma, project.id, requestedJob.id));
+  await waitForScheduledJobStop(prisma, project.id, requestedJob.id);
+  while ((await prisma.scheduledJobRequest.findUniqueOrThrow({ where: { id: request.id } })).status === 'processing') {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
   console.log('scheduled job runner checks passed');
 }
 
 const cleanup = () => prisma.$transaction([
+  prisma.scheduledJobRequest.deleteMany({ where: { projectId: project.id } }),
   prisma.scheduledJobRun.deleteMany({ where: { projectId: project.id } }),
   prisma.scheduledJobState.deleteMany({ where: { projectId: project.id } }),
 ]);
