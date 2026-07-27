@@ -290,11 +290,23 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /修改/);
   assert.match(String(reviewCall.body.content), /"decision":"revision"/);
   assert.match(String(reviewCall.body.content), /reviewFeedback/);
-  assert.match(String(reviewCall.body.content), /form_action_type/);
+  assert.match(String(reviewCall.body.content), /"tag":"form"/);
+  assert.match(String(reviewCall.body.content), /"action_type":"form_submit"/);
   assert.match(String(reviewCall.body.content), new RegExp(reviewCursor.pending.documentUrl));
   assert.equal(importedDocuments.length, 1);
   assert.match(importedDocuments[0].content, /PLAN PROMPT/);
   assert.equal(new URL(reviewCall.url).searchParams.get('receive_id_type'), 'chat_id');
+
+  const undispatchedRevisionCursor = JSON.parse(JSON.stringify(reviewCursor));
+  undispatchedRevisionCursor.pending.reviewState = 'revision';
+  undispatchedRevisionCursor.pending.reviewFeedback = '';
+  const recoveredRevision = await run(undispatchedRevisionCursor);
+  assert.match(recoveredRevision.summary, /dispatch_recovered=true/);
+  assert.equal(
+    (recoveredRevision.cursor as { pending: { revisionDispatched: boolean } }).pending.revisionDispatched,
+    true,
+  );
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /请先主动询问审批人需要修改的内容/);
 
   await writeFile(path.join(root, 'docs/branch/main/003_PLAN_20260725_review.md'),
     `${importedDocuments[0].content}\n修订内容\n`);
@@ -325,7 +337,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     'revision',
   );
   assert.match(
-    String(apiCalls.filter(({ body }) => body.msg_type === 'text').at(-1)?.body.content),
+    workflowRuns.at(-1)?.prompt ?? '',
     /请补充风险和验收步骤/,
   );
   const emptyRevisionRequestCursor = JSON.parse(JSON.stringify(revisedReview.cursor));
@@ -333,7 +345,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   emptyRevisionRequestCursor.pending.reviewFeedback = '';
   await run(emptyRevisionRequestCursor);
   assert.match(
-    String(apiCalls.filter(({ body }) => body.msg_type === 'text').at(-1)?.body.content),
+    workflowRuns.at(-1)?.prompt ?? '',
     /请先主动询问审批人需要修改的内容/,
   );
 

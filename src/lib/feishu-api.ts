@@ -216,17 +216,10 @@ export const sendFeishuWorkflowReviewCard = (args: {
           + `**路径**：${args.planPath}\n**提交**：${args.reviewedCommit}\n**截止**：${args.expiresAt}`,
       },
       {
-        tag: 'input',
-        name: 'reviewFeedback',
-        required: false,
-        placeholder: { tag: 'plain_text', content: '可选：填写需要修改的内容' },
-      },
-      {
         tag: 'action',
         actions: [
           ['批准', 'approve', 'primary'],
           ['拒绝', 'reject', 'danger'],
-          ['修改', 'revision', 'default'],
         ].map(([label, decision, type]) => ({
           tag: 'button',
           text: { tag: 'plain_text', content: label },
@@ -238,8 +231,36 @@ export const sendFeishuWorkflowReviewCard = (args: {
             jobId: args.jobId,
             pendingKey: args.pendingKey,
           },
-          ...(decision === 'revision' ? { form_action_type: 'submit' } : {}),
         })),
+      },
+      {
+        tag: 'form',
+        name: 'workflowReviewRevision',
+        elements: [
+          {
+            tag: 'input',
+            name: 'reviewFeedback',
+            required: false,
+            input_type: 'multiline_text',
+            rows: 3,
+            label: { tag: 'plain_text', content: '修改意见（可选）' },
+            placeholder: { tag: 'plain_text', content: '填写具体意见；留空时 Coding Agent 会主动询问' },
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '修改' },
+            type: 'default',
+            action_type: 'form_submit',
+            name: 'submitRevision',
+            value: {
+              cmd: 'workflow-review',
+              decision: 'revision',
+              projectId: args.projectId,
+              jobId: args.jobId,
+              pendingKey: args.pendingKey,
+            },
+          },
+        ],
       },
     ],
   },

@@ -227,15 +227,26 @@ export const workflowWatcherHandler = async (
       return { summary: `head=${head} pending=${previous.pending.path} gate=automation_disabled`, cursor: previous };
     }
     let pending = previous.pending;
-    if (pending.gate === 'plan_review' && pending.reviewState === 'revision_requested') {
+    const revisionPrompt = () => {
       const feedback = pending.reviewFeedback?.trim();
-      await send(codingBotChatId,
-        `PLAN_REVISE\nplan_path: ${pending.path}\n`
+      return `PLAN_REVISE\nplan_path: ${pending.path}\n`
         + `reviewed_commit: ${pending.documentCommit}\nfeedback:\n${feedback || '审批人未填写具体修改意见。'}\n\n`
         + (!feedback ? '请先主动询问审批人需要修改的内容，得到答复后再修订。\n' : '')
-        + '只修订并提交该 PLAN，不执行任何 Slice。',
-        pending.key, 'plan_revision');
-      pending = { ...pending, reviewState: 'revision' };
+        + '只修订并提交该 PLAN，不执行任何 Slice。';
+    };
+    if (pending.gate === 'plan_review' && pending.reviewState === 'revision_requested') {
+      if (mode === 'active') {
+        await execute(
+          { key: pending.key, prompt: revisionPrompt() },
+          project.id,
+          job.id,
+          codingBotChatId,
+          codingBotChatType as 'group' | 'p2p',
+          runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
+          signal,
+        );
+      }
+      pending = { ...pending, reviewState: 'revision', revisionDispatched: mode === 'active' };
       return {
         summary: `head=${head} pending=${pending.path} gate=plan_revision decision=revise`,
         cursor: { ...previous, pending },
@@ -245,7 +256,23 @@ export const workflowWatcherHandler = async (
       const content = await git(project.path, signal, 'show', `${head}:${pending.path}`);
       const blob = (await git(project.path, signal, 'rev-parse', `${head}:${pending.path}`)).trim();
       if (blob === pending.blob) {
-        return { summary: `head=${head} pending=${pending.path} gate=plan_revision`, cursor: previous };
+        if (mode !== 'active' || pending.revisionDispatched) {
+          return { summary: `head=${head} pending=${pending.path} gate=plan_revision`, cursor: previous };
+        }
+        await execute(
+          { key: pending.key, prompt: revisionPrompt() },
+          project.id,
+          job.id,
+          codingBotChatId,
+          codingBotChatType as 'group' | 'p2p',
+          runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
+          signal,
+        );
+        pending = { ...pending, revisionDispatched: true };
+        return {
+          summary: `head=${head} pending=${pending.path} gate=plan_revision dispatch_recovered=true`,
+          cursor: { ...previous, pending },
+        };
       }
       const metadata = workflowFrontMatter(content);
       const revised = await validateWorkflowDocument(
@@ -311,6 +338,7 @@ export const workflowWatcherHandler = async (
           approverOpenId: project.feishu.approver_open_ids[0],
           messageId: decision.parent_id,
           pendingKey: pending.key,
+          reviewFeedback: command.slice(7).trim(),
         });
         if (transition.status !== 'applied') {
           return { summary: `head=${head} pending=${pending.path} gate=plan_review decision=${transition.status}`, cursor: previous };
@@ -323,13 +351,6 @@ export const workflowWatcherHandler = async (
             summary: `head=${head} candidate=${pending.path} action=${pending.action} result=rejected`,
             cursor: { commit: pending.commit, eventKey: pending.key },
           };
-        }
-        if (pending.reviewState === 'revision') {
-          await send(codingBotChatId,
-            `PLAN_REVISE\nplan_path: ${pending.path}\n`
-            + `reviewed_commit: ${pending.documentCommit}\nfeedback:\n${command.slice(7).trim()}\n\n`
-            + '只修订并提交该 PLAN，不执行任何 Slice。',
-            pending.key, 'plan_revision');
         }
         return {
           summary: `head=${head} pending=${pending.path} gate=plan_revision decision=revise`,

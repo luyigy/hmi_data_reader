@@ -9,6 +9,7 @@ export type WorkflowReviewPending = {
   reviewMessageId?: string;
   reviewExpiresAt?: string;
   reviewFeedback?: string;
+  revisionDispatched?: boolean;
 };
 
 export type WorkflowReviewDecision = 'approve' | 'reject' | 'revision' | 'revise';
