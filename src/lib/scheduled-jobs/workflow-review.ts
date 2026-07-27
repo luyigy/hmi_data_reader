@@ -11,6 +11,7 @@ export type WorkflowReviewPending = {
   reviewFeedback?: string;
   revisionFeedbackMessageId?: string;
   revisionDispatched?: boolean;
+  revisionDispatchKey?: string;
 };
 
 export type WorkflowReviewDecision = 'approve' | 'reject' | 'revision' | 'revise';
@@ -48,6 +49,9 @@ export function applyWorkflowReviewDecision(args: {
             ? 'revision_requested' as const
             : 'awaiting_revision_feedback' as const,
       ...(args.decision === 'revision' ? { reviewFeedback: args.reviewFeedback?.trim() ?? '' } : {}),
+      ...(args.decision === 'revision' && args.reviewFeedback?.trim()
+        ? { revisionDispatchKey: `${pending.key}:feedback` }
+        : {}),
     },
   };
 }
@@ -87,6 +91,7 @@ export function applyWorkflowRevisionFeedback(args: {
       ...args.pending,
       reviewState: 'revision_requested' as const,
       reviewFeedback: args.feedback.trim(),
+      revisionDispatchKey: `${args.pending.key}:feedback`,
     },
   };
 }

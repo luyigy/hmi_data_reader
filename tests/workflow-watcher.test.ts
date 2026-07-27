@@ -335,6 +335,8 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const revisionRequestCursor = JSON.parse(JSON.stringify(revisedReview.cursor));
   revisionRequestCursor.pending.reviewState = 'revision_requested';
   revisionRequestCursor.pending.reviewFeedback = '请补充风险和验收步骤。';
+  revisionRequestCursor.pending.revisionDispatchKey = 'key:feedback';
+  revisionRequestCursor.pending.blob = 'stale-before-feedback';
   const revisionRequestedRun = await run(revisionRequestCursor);
   assert.match(revisionRequestedRun.summary, /gate=plan_revision decision=revise/);
   assert.equal(
@@ -345,6 +347,12 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     workflowRuns.at(-1)?.prompt ?? '',
     /请补充风险和验收步骤/,
   );
+  assert.equal(workflowRuns.at(-1)?.eventKey, 'key:feedback');
+  assert.equal(
+    (revisionRequestedRun.cursor as { pending: { blob: string } }).pending.blob,
+    git('rev-parse', `HEAD:${revisionRequestCursor.pending.path}`),
+  );
+  assert.match((await run(revisionRequestedRun.cursor)).summary, /gate=plan_revision$/);
   const emptyRevisionRequestCursor = JSON.parse(JSON.stringify(revisedReview.cursor));
   emptyRevisionRequestCursor.pending.reviewState = 'awaiting_revision_feedback';
   emptyRevisionRequestCursor.pending.reviewFeedback = '';
@@ -420,6 +428,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(revisionRequested.status, 'applied');
   assert.equal(revisionRequested.pending.reviewState, 'revision_requested');
   assert.equal(revisionRequested.pending.reviewFeedback, '请补充回滚步骤');
+  assert.equal(revisionRequested.pending.revisionDispatchKey, 'key:feedback');
   const revisionWithoutFeedback = applyWorkflowReviewDecision({
     pending: reviewPending, decision: 'revision', actorOpenId: 'approver', approverOpenId: 'approver',
     messageId: 'message', pendingKey: 'key',
@@ -449,6 +458,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   });
   assert.equal(cardFeedbackApplied.status, 'applied');
   assert.equal(cardFeedbackApplied.pending.reviewFeedback, '请从卡片补充 S03');
+  assert.equal(cardFeedbackApplied.pending.revisionDispatchKey, 'key:feedback');
   assert.equal(applyWorkflowRevisionFeedback({
     pending: revisionWithoutFeedback.pending,
     actorOpenId: 'approver',

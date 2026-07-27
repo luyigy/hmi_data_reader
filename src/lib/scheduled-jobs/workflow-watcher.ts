@@ -256,6 +256,9 @@ export const workflowWatcherHandler = async (
       };
     }
     if (pending.gate === 'plan_review' && pending.reviewState === 'revision_requested') {
+      const revisionBaseBlob = (await git(
+        project.path, signal, 'rev-parse', `${head}:${pending.path}`,
+      )).trim();
       if (mode === 'active') {
         await execute(
           { key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
@@ -267,7 +270,12 @@ export const workflowWatcherHandler = async (
           signal,
         );
       }
-      pending = { ...pending, reviewState: 'revision', revisionDispatched: mode === 'active' };
+      pending = {
+        ...pending,
+        blob: revisionBaseBlob,
+        reviewState: 'revision',
+        revisionDispatched: mode === 'active',
+      };
       return {
         summary: `head=${head} pending=${pending.path} gate=plan_revision decision=revise`,
         cursor: { ...previous, pending },
