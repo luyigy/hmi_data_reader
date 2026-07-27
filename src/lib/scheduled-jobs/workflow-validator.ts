@@ -373,7 +373,8 @@ export const validateWorkflowDocument = async (
     throw new Error(
       `${filePath}：共发现 ${issues.length} 个工作流文档错误\n`
       + issues.map((item, index) => `  ${index + 1}. ${item}`).join('\n')
-      + `\n  修复后重新运行：npm run workflow:validate -- ${ref} ${filePath}`,
+      + `\n  修复后先校验：npm run workflow:validate -- ${ref} ${filePath}`
+      + '\n  校验通过并提交后，在飞书发送：/ap job run workflow-watcher',
     );
   }
   return { action, prompt };
@@ -409,8 +410,7 @@ export const validateWorkflowDocuments = async ({
   }));
   const failures = results.flatMap((result, index) => result.status === 'rejected'
     ? [
-      `${candidates[index].filePath}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
-      + `\n   修复后重新运行：npm run workflow:validate -- ${ref} ${candidates[index].filePath}`,
+      `${candidates[index].filePath}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
     ]
     : []);
   if (failures.length) {

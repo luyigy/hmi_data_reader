@@ -94,7 +94,8 @@ plan_progress: complete
       assert.match(error.message, /缺少文档引用 000_ROADMAP_20260726_test\.md/);
       assert.match(error.message, /S01 之后没有下一个 Slice/);
       assert.match(error.message, /改用终止动作/);
-      assert.match(error.message, /修复后重新运行：npm run workflow:validate/);
+      assert.match(error.message, /修复后先校验：npm run workflow:validate/);
+      assert.match(error.message, /校验通过并提交后，在飞书发送：\/ap job run workflow-watcher/);
       return true;
     },
   );
