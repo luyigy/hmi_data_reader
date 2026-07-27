@@ -51,7 +51,8 @@ pending。
 - `/ap job retry workflow-watcher` 只对当前 `revision` pending 做一次人工重投：
   watcher 必须已启用且空闲、Coding Agent 的绑定 task 必须可确认，并且该 task 不得存在
   真实存活的本地 harness。每次 retry 使用新的唯一 dispatch key，旧 `reply_queued`
-  不会吞掉重试；定时轮询本身不会自动重投。
+  不会吞掉重试；定时轮询本身不会自动重投。legacy `revision` 若没有具体反馈，retry
+  不启动 Agent，而是转回 `awaiting_revision_feedback` 并重新发送飞书询问。
 - 紧急停止会补查当前 task/member 的历史 participant，因此即使旧 `/ap new-session`
   已把 run 错误标为 interrupted，仍能发现并终止遗留 harness。
 - Prisma 已应用 migration
@@ -71,6 +72,7 @@ pending。
 - `npx tsc --noEmit`
 - `tests/feishu-agent-session-command.test.ts`（含真实子进程 PID 核验与 SIGKILL）
 - workflow watcher retry 唯一 event key 与命令解析测试
+- workflow retry 空反馈回退与有反馈重投分支测试
 - 当前数据库与 `/proc` 联合实查：`/ap sessions` handler 返回实际存活 Agent 进程 0。
 - 相关文件 ESLint
 - `git diff --check`

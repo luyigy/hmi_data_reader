@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
 import {
+  buildWorkflowRetryPending,
   explainWorkflowRun,
   formatManualRunResult,
   formatWorkflowPending,
@@ -99,6 +100,31 @@ assert.deepEqual(formatWorkflowPending({ pending: {
   'review message: message-9',
 ]);
 assert.deepEqual(formatWorkflowPending({ commit: 'abc' }), ['pending: none']);
+assert.deepEqual(buildWorkflowRetryPending({
+  key: 'plan',
+  reviewState: 'revision',
+  reviewFeedback: '',
+  revisionDispatched: true,
+  revisionFeedbackMessageId: 'old-message',
+  revisionDispatchKey: 'old-key',
+}, 'request-1'), {
+  key: 'plan',
+  reviewState: 'awaiting_revision_feedback',
+  reviewFeedback: '',
+  revisionDispatched: false,
+});
+assert.deepEqual(buildWorkflowRetryPending({
+  key: 'plan',
+  reviewState: 'revision',
+  reviewFeedback: '请补充风险',
+  revisionDispatched: true,
+}, 'request-2'), {
+  key: 'plan',
+  reviewState: 'revision',
+  reviewFeedback: '请补充风险',
+  revisionDispatched: false,
+  revisionDispatchKey: 'plan:retry:request-2',
+});
 
 async function testCursor() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'job-cursor-'));

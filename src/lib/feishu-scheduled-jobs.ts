@@ -76,6 +76,22 @@ export const formatWorkflowPending = (cursor: unknown) => {
   ];
 };
 
+export const buildWorkflowRetryPending = (
+  pending: Record<string, unknown>,
+  requestId: string,
+) => {
+  const next: Record<string, unknown> = { ...pending, revisionDispatched: false };
+  delete next.revisionFeedbackMessageId;
+  delete next.revisionDispatchKey;
+  if (typeof pending.reviewFeedback !== 'string' || !pending.reviewFeedback.trim()) {
+    return { ...next, reviewState: 'awaiting_revision_feedback', reviewFeedback: '' };
+  }
+  return {
+    ...next,
+    revisionDispatchKey: `${String(pending.key)}:retry:${requestId}`,
+  };
+};
+
 export async function handleScheduledJobCommand(
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext,
@@ -259,11 +275,7 @@ export async function handleScheduledJobCommand(
       });
       const nextCursor = {
         ...(cursor as Record<string, unknown>),
-        pending: {
-          ...(pending as Record<string, unknown>),
-          revisionDispatched: false,
-          revisionDispatchKey: `${String((pending as Record<string, unknown>).key)}:retry:${created.id}`,
-        },
+        pending: buildWorkflowRetryPending(pending as Record<string, unknown>, created.id),
       };
       await tx.scheduledJobState.update({
         where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
