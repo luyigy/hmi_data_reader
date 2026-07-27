@@ -46,6 +46,18 @@ slice: S01
 plan_progress: complete
 ---
 `);
+  await writeFile(path.join(root, 'docs/005_HANDOVER_20260726_invalid.md'), `---
+doc_type: HANDOVER
+doc_status: completed
+next_action: next_slice
+plan: 001_PLAN_20260726_valid.md
+slice: S01
+plan_progress: complete
+---
+<!-- WORKFLOW_PROMPT_START -->
+再次执行 S01。
+<!-- WORKFLOW_PROMPT_END -->
+`);
   git('add', '.');
   git('commit', '-qm', 'fixtures');
   const ref = git('rev-parse', 'HEAD');
@@ -55,6 +67,19 @@ plan_progress: complete
   await validate('docs/004_HANDOVER_20260726_valid.md');
   await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /must not contain an automation prompt/);
   await assert.rejects(validate('docs/003_PLAN_20260726_missing_prompt.md'), /requires exactly one prompt marker pair/);
+  await assert.rejects(
+    validate('docs/005_HANDOVER_20260726_invalid.md'),
+    (error: Error) => {
+      assert.match(error.message, /4 workflow validation issue\(s\)/);
+      assert.match(error.message, /missing document reference 005_HANDOVER_20260726_invalid\.md/);
+      assert.match(error.message, /missing document reference 001_PLAN_20260726_valid\.md/);
+      assert.match(error.message, /missing document reference 000_ROADMAP_20260726_test\.md/);
+      assert.match(error.message, /next_slice has no Slice after S01/);
+      assert.match(error.message, /use a terminal next_action/);
+      assert.match(error.message, /npm run workflow:validate/);
+      return true;
+    },
+  );
 
   await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval'));
   await assert.rejects(

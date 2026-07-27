@@ -185,6 +185,10 @@ export const validateWorkflowDocument = async (
   watchRoot: string,
   signal: AbortSignal,
 ) => {
+  const issues: string[] = [];
+  const issue = (location: string, message: string, expected: string, actual?: unknown) => {
+    issues.push(`[${location}] ${message}; expected: ${expected}${actual === undefined ? '' : `; actual: ${JSON.stringify(actual)}`}`);
+  };
   for (const field of contract.documents.common_required_fields) required(metadata[field], field);
   if (metadata.doc_type !== type) throw new Error('filename type and doc_type differ');
   if (!contract.documents.statuses.includes(String(metadata.doc_status))) throw new Error(`invalid doc_status: ${metadata.doc_status}`);
@@ -195,7 +199,11 @@ export const validateWorkflowDocument = async (
   const prompt = promptFrom(content, action, contract);
   const requirePromptRefs = (...refs: string[]) => refs.forEach((item) => {
     if (prompt && !prompt.includes(item) && !prompt.includes(path.posix.basename(item))) {
-      throw new Error(`automation prompt does not name ${path.posix.basename(item)}`);
+      issue(
+        'prompt',
+        `missing document reference ${path.posix.basename(item)}`,
+        `text between ${contract.prompt.start_marker} and ${contract.prompt.end_marker} names ${path.posix.basename(item)}`,
+      );
     }
   });
   const readPlan = async (reference: unknown) => {
@@ -256,7 +264,16 @@ export const validateWorkflowDocument = async (
         if (action === contract.documents.handover.next_action) {
           const current = planSlices.indexOf(String(metadata.slice));
           if (current + 1 >= planSlices.length || !prompt.includes(planSlices[current + 1])) {
-            throw new Error('next action prompt does not name the next Slice');
+            issue(
+              'next_action/prompt',
+              current + 1 >= planSlices.length
+                ? `${action} has no Slice after ${String(metadata.slice)} in ${path.posix.basename(plan.planPath)}`
+                : `prompt does not name the next Slice ${planSlices[current + 1]}`,
+              current + 1 >= planSlices.length
+                ? `use a terminal next_action (${contract.actions.terminal.join(', ')}) or add the next Slice to the PLAN`
+                : `prompt names ${planSlices[current + 1]}`,
+              action,
+            );
           }
         } else if (action === contract.documents.handover.resume_action) {
           if (plan.planMetadata.plan_kind !== contract.documents.plan.interrupt_kind) {
@@ -271,6 +288,13 @@ export const validateWorkflowDocument = async (
         }
       }
     }
+  }
+  if (issues.length) {
+    throw new Error(
+      `${filePath}: ${issues.length} workflow validation issue(s)\n`
+      + issues.map((item, index) => `  ${index + 1}. ${item}`).join('\n')
+      + `\n  Re-run: npm run workflow:validate -- ${ref} ${filePath}`,
+    );
   }
   return { action, prompt };
 };
@@ -291,7 +315,7 @@ export const validateWorkflowDocuments = async ({
   const contract = await readWorkflowContract(cwd, ref, contractPath, signal);
   const candidates = selectWorkflowCandidates(filePaths, contract);
   if (candidates.length !== filePaths.length) throw new Error('candidate is not a PLAN/HANDOVER workflow document');
-  return Promise.all(candidates.map(async (candidate) => {
+  const results = await Promise.allSettled(candidates.map(async (candidate) => {
     if (candidate.rawNumber.length !== contract.numbering.width) {
       throw new Error(`${candidate.filePath}: workflow document number has invalid width`);
     }
@@ -303,4 +327,21 @@ export const validateWorkflowDocuments = async ({
     );
     return { filePath: candidate.filePath, ...result };
   }));
+  const failures = results.flatMap((result, index) => result.status === 'rejected'
+    ? [
+      `${candidates[index].filePath}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
+      + `\n   Re-run: npm run workflow:validate -- ${ref} ${candidates[index].filePath}`,
+    ]
+    : []);
+  if (failures.length) {
+    throw new Error(
+      `${failures.length} workflow document(s) failed validation:\n`
+      + failures.map((failure, index) => `${index + 1}) ${failure}`).join('\n'),
+    );
+  }
+  return results.map((result) => (result as PromiseFulfilledResult<{
+    filePath: string;
+    action: string;
+    prompt: string;
+  }>).value);
 };
