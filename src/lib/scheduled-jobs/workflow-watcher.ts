@@ -234,6 +234,22 @@ export const workflowWatcherHandler = async (
         + (!feedback ? '请先主动询问审批人需要修改的内容，得到答复后再修订。\n' : '')
         + '只修订并提交该 PLAN，不执行任何 Slice。';
     };
+    if (pending.gate === 'plan_review' && pending.reviewState === 'awaiting_revision_feedback') {
+      if (mode !== 'active' || pending.revisionFeedbackMessageId) {
+        return { summary: `head=${head} pending=${pending.path} gate=revision_feedback`, cursor: previous };
+      }
+      const revisionFeedbackMessageId = await send(
+        project.feishu.chat_id,
+        `<at user_id="${project.feishu.approver_open_ids[0]}"></at> 请回复本消息，说明 ${path.posix.basename(pending.path)} 需要修改的具体内容。`,
+        pending.key,
+        'revision_feedback_request',
+      );
+      pending = { ...pending, revisionFeedbackMessageId };
+      return {
+        summary: `head=${head} pending=${pending.path} gate=revision_feedback prompt_sent=true`,
+        cursor: { ...previous, pending },
+      };
+    }
     if (pending.gate === 'plan_review' && pending.reviewState === 'revision_requested') {
       if (mode === 'active') {
         await execute(

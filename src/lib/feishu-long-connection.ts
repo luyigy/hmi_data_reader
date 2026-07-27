@@ -18,6 +18,7 @@ import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-con
 import { checkFeishuDirectMessageAccess, isFeishuAdmin, resolveFeishuAdminApproval } from '@/lib/feishu-access-approval';
 import {
   resolveWorkflowReviewCardAction,
+  resolveWorkflowRevisionFeedback,
   type WorkflowReviewDecision,
 } from '@/lib/scheduled-jobs/workflow-review';
 import {
@@ -44,6 +45,7 @@ type FeishuWsMessagePayload = {
     chat_id?: string;
     chat_type?: string;
     message_id?: string;
+    parent_id?: string;
     message_type?: string;
     content?: string;
     mentions?: Array<{
@@ -123,6 +125,7 @@ function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
     chatId: message.chat_id,
     chatType: message.chat_type || 'group',
     messageId: message.message_id,
+    parentId: message.parent_id,
     senderOpenId,
     messageType: parsedContent.messageType,
     text: parsedContent.text,
@@ -207,7 +210,9 @@ function buildCardActionHandler(prefix: string) {
             receiveId: result.chatId,
             receiveIdType: 'chat_id',
             text: decision === 'revision'
-              ? `✏️ PLAN 修改请求已记录，workflow-watcher 已立即通知本地 AI 助手${reviewFeedback ? '按反馈修订计划' : '先询问具体修改意见'}。`
+              ? reviewFeedback
+                ? '✏️ PLAN 修改请求已记录，正在通知 Coding Agent 按反馈修订计划。'
+                : '✏️ PLAN 修改请求已记录，请回复随后发送的询问消息；收到意见后才会启动 Coding Agent。'
               : '❌ PLAN 已拒绝，workflow-watcher 已立即处理，不会启动新的 Session。',
           }).catch((error) => console.error(`${prefix} failed to send workflow review receipt`, error));
         }
@@ -281,6 +286,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
     'im.message.reaction.deleted_v1': () => {},
     'im.message.receive_v1': async (data) => {
       const parsedMessage = parseWsIncomingMessage(data as FeishuWsMessagePayload);
+      const parentMessageId = parsedMessage?.parentId;
       const message = parsedMessage
         ? await hydrateFeishuMessageResources(parsedMessage)
         : null;
@@ -307,6 +313,21 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
         return;
       }
       if (!await checkFeishuDirectMessageAccess(message)) return;
+      const revisionFeedback = await resolveWorkflowRevisionFeedback({
+        chatId: message.chatId,
+        actorOpenId: message.senderOpenId,
+        parentMessageId,
+        feedback: message.text,
+      });
+      if (revisionFeedback.status === 'applied') {
+        await sendFeishuTextMessage({
+          receiveId: message.chatId,
+          receiveIdType: 'chat_id',
+          replyId: message.messageId,
+          text: '✅ 修改意见已收到，正在通知 Coding Agent 修订 PLAN。',
+        });
+        return;
+      }
       const command = parseFeishuCommand(message);
       if (!command) {
         // Not a /ap command — check if the chat is bound to a live room and relay

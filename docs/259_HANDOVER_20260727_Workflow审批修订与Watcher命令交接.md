@@ -26,11 +26,13 @@ pending。
 - 拒绝与修改都有持久群消息回执；重复或旧卡片操作不会重复推进。
 - 修改意见可选：
   - 有意见时，Coding Agent 按反馈只修订并提交该 PLAN。
-  - 无意见时，`PLAN_REVISE` 明确要求 Coding Agent 先向审批人询问具体修改内容。
+  - 无意见时，不启动 Codex；平台先发送固定询问，审批人回复后才投递 Coding Agent。
 - 审批卡的修改意见输入框与修改按钮已放入飞书 `form` 容器，输入框为多行可选项。
 - revision 不再依赖机器人向自身发送普通消息，而是复用
   `runWorkflowInBoundLiveRoom` 直接投递 Coding Agent；旧 `revision` cursor 会补投一次并
   写入 `revisionDispatched`，后续轮询保持幂等。
+- 空反馈使用 `awaiting_revision_feedback` 状态；watcher 保存询问消息 ID，长连接只接受
+  唯一审批人对该消息的回复，并在事务锁内转为 `revision_requested` 后立即唤醒 watcher。
 - 同一路径 PLAN 修订并提交后，watcher 通过新 blob 识别变更、重新导入文档并再次发起审批；
   修改循环可重复，直至批准或拒绝。
 - `/ap job cursor workflow-watcher` 展示 pending 路径、gate、action、review state、过期时间
@@ -66,11 +68,12 @@ GitNexus 对 `applyWorkflowReviewDecision` 的 upstream impact 为 HIGH：3 个�
 
 ## 用户重启后继续
 
-1. 运行 `/ap job cursor workflow-watcher`，确认 011 为 `revision` pending。
-2. 运行 `/ap job run workflow-watcher` 或等待一分钟，确认旧 revision 被补投给 Coding
-   Agent；无反馈时应由 Agent 在群里询问具体修改意见。
-3. 回复修改意见，等待 Agent 只修订并提交 011；确认 watcher 重新生成审批卡。
-4. 真人批准 011，核对 S01 只打印 `hello from S01` 并提交指向 S02 的 HANDOVER；不得在
+1. 011 已由旧实现启动 Codex，不能用于验证新的空反馈快路径；先按实际需要结束或清理该测试。
+2. 使用新的 PLAN 审批卡留空修改意见并点击修改，确认平台立即发送询问，且此时没有新
+   TaskRun/Codex 进程。
+3. 审批人回复该询问，确认随后才出现 `PLAN_REVISE` 和 Coding Agent Run。
+4. 等待 Agent 只修订并提交 PLAN，确认 watcher 重新生成审批卡。
+5. 真人批准后核对只执行当前 Slice 并提交下一 Slice 的 HANDOVER；不得在
    同一 Session 执行 S02。
 
 ## 提交与运行边界
@@ -85,10 +88,10 @@ GitNexus 对 `applyWorkflowReviewDecision` 的 upstream impact 为 HIGH：3 个�
 `docs/224_PLAN_20260725_通用项目定时任务平台.md`，并遵循
 `docs/workflow/workflow-contract.yaml`，继续 S02 真实验收。先确认用户已重启
 `agent-platform-feishu.service` 与 `agent-platform-scheduled-jobs.service`，再用
-`/ap job cursor workflow-watcher` 核对 011 为 revision pending。运行
-`/ap job run workflow-watcher` 或等待一分钟，确认旧 revision 被直接补投给 Coding Agent；
-无反馈时等待 Agent 在群里询问审批人。审批人回复后，确认 Agent 只修订并提交 011，watcher
-重新生成带多行修改意见输入框的审批卡。随后等待用户真人批准，并核对只执行 S01、打印
-`hello from S01`、提交指向 S02 的可执行 HANDOVER；不得代替用户点击按钮、不得在同一
-Session 执行 S02。
+`/ap job cursor workflow-watcher` 核对状态。011 已由旧实现启动 Codex，不用于验证新快
+路径；使用新的 PLAN 审批卡留空修改意见并点击修改，确认平台立即发送询问且不创建
+TaskRun。审批人回复该询问后，确认此时才出现 `PLAN_REVISE` 和 Coding Agent Run，并且
+Agent 只修订并提交 PLAN，watcher 随后重新生成带多行修改意见输入框的审批卡。最后等待
+用户真人批准，核对只执行当前 Slice 并提交下一 Slice 的可执行 HANDOVER；不得代替用户
+点击按钮、不得在同一 Session 执行后续 Slice。
 <!-- WORKFLOW_PROMPT_END -->

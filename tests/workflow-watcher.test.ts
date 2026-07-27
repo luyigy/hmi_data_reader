@@ -4,7 +4,10 @@ import { chmod, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { workflowWatcherHandler } from '../src/lib/scheduled-jobs/workflow-watcher';
-import { applyWorkflowReviewDecision } from '../src/lib/scheduled-jobs/workflow-review';
+import {
+  applyWorkflowReviewDecision,
+  applyWorkflowRevisionFeedback,
+} from '../src/lib/scheduled-jobs/workflow-review';
 import type { JobConfig, ProjectConfig } from '../src/lib/scheduled-jobs/project-config';
 
 async function main() {
@@ -341,12 +344,16 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     /请补充风险和验收步骤/,
   );
   const emptyRevisionRequestCursor = JSON.parse(JSON.stringify(revisedReview.cursor));
-  emptyRevisionRequestCursor.pending.reviewState = 'revision_requested';
+  emptyRevisionRequestCursor.pending.reviewState = 'awaiting_revision_feedback';
   emptyRevisionRequestCursor.pending.reviewFeedback = '';
-  await run(emptyRevisionRequestCursor);
-  assert.match(
-    workflowRuns.at(-1)?.prompt ?? '',
-    /请先主动询问审批人需要修改的内容/,
+  const workflowRunCount = workflowRuns.length;
+  const waitingForFeedback = await run(emptyRevisionRequestCursor);
+  assert.match(waitingForFeedback.summary, /gate=revision_feedback prompt_sent=true/);
+  assert.equal(workflowRuns.length, workflowRunCount, 'empty feedback must not start Coding Agent');
+  assert.equal(
+    (waitingForFeedback.cursor as { pending: { revisionFeedbackMessageId: string } })
+      .pending.revisionFeedbackMessageId,
+    'sent-1',
   );
 
   git('commit', '--allow-empty', '-qm', 'unrelated head advance');
@@ -412,7 +419,28 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     messageId: 'message', pendingKey: 'key',
   });
   assert.equal(revisionWithoutFeedback.status, 'applied');
+  assert.equal(revisionWithoutFeedback.pending.reviewState, 'awaiting_revision_feedback');
   assert.equal(revisionWithoutFeedback.pending.reviewFeedback, '');
+  const feedbackApplied = applyWorkflowRevisionFeedback({
+    pending: {
+      ...revisionWithoutFeedback.pending,
+      revisionFeedbackMessageId: 'feedback-message',
+    },
+    actorOpenId: 'approver',
+    approverOpenId: 'approver',
+    parentMessageId: 'feedback-message',
+    feedback: '请修改第二个 Slice',
+  });
+  assert.equal(feedbackApplied.status, 'applied');
+  assert.equal(feedbackApplied.pending.reviewState, 'revision_requested');
+  assert.equal(feedbackApplied.pending.reviewFeedback, '请修改第二个 Slice');
+  assert.equal(applyWorkflowRevisionFeedback({
+    pending: revisionWithoutFeedback.pending,
+    actorOpenId: 'someone-else',
+    approverOpenId: 'approver',
+    parentMessageId: 'feedback-message',
+    feedback: '不应生效',
+  }).status, 'ignored');
   await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
     { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
     { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
