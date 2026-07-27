@@ -240,8 +240,9 @@ export async function handleScheduledJobCommand(
       ? cursor.pending
       : null;
     if (!pending || typeof pending !== 'object' || Array.isArray(pending)) return `${job.id} 当前没有 pending。`;
-    if (!('reviewState' in pending) || pending.reviewState !== 'revision') {
-      return `${job.id} 当前 pending 不是可重试的 revision 状态。`;
+    if (!('reviewState' in pending)
+      || !['revision', 'awaiting_revision_feedback'].includes(String(pending.reviewState))) {
+      return `${job.id} 当前 pending 不是可重试的 revision/feedback 状态。`;
     }
 
     const codingBotChatId = String(job.config.coding_bot_chat_id || '');

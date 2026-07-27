@@ -115,6 +115,17 @@ assert.deepEqual(buildWorkflowRetryPending({
 });
 assert.deepEqual(buildWorkflowRetryPending({
   key: 'plan',
+  reviewState: 'awaiting_revision_feedback',
+  reviewFeedback: '',
+  revisionFeedbackMessageId: 'legacy-text-message',
+}, 'request-feedback'), {
+  key: 'plan',
+  reviewState: 'awaiting_revision_feedback',
+  reviewFeedback: '',
+  revisionDispatched: false,
+});
+assert.deepEqual(buildWorkflowRetryPending({
+  key: 'plan',
   reviewState: 'revision',
   reviewFeedback: '请补充风险',
   revisionDispatched: true,

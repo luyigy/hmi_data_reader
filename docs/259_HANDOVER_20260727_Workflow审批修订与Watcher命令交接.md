@@ -54,6 +54,8 @@ pending。
   真实存活的本地 harness。每次 retry 使用新的唯一 dispatch key，旧 `reply_queued`
   不会吞掉重试；定时轮询本身不会自动重投。legacy `revision` 若没有具体反馈，retry
   不启动 Agent，而是转回 `awaiting_revision_feedback` 并重新发送飞书询问。
+  已处于 `awaiting_revision_feedback` 的 legacy pending 也可 retry，以清除旧文本询问并
+  改发修改意见卡片。
 - 紧急停止会补查当前 task/member 的历史 participant，因此即使旧 `/ap new-session`
   已把 run 错误标为 interrupted，仍能发现并终止遗留 harness。
 - Prisma 已应用 migration
