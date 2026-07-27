@@ -24,10 +24,7 @@ import {
   hydrateFeishuMessageResources,
   type ParsedFeishuMessage,
 } from '@/lib/feishu-message-content';
-import {
-  parseFeishuCommand,
-  type ParsedFeishuCommand,
-} from '@/lib/feishu-command-parser';
+import { parseFeishuCommand, type ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 export { parseFeishuCommand } from '@/lib/feishu-command-parser';
 export { hydrateFeishuMessageResources, parseFeishuMessageContent } from '@/lib/feishu-message-content';
 export {
@@ -42,13 +39,10 @@ import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interactio
 import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
 import { commandRequestsFullAccess, handleFeishuUserManagementCommand, isFeishuAdmin, requestFullAccessApproval } from '@/lib/feishu-access-approval';
 import { resolveWorkspaceDirectory } from '@/lib/feishu-workspace';
-import {
-  buildAcpxPermissionConfigForProfile,
-} from '@/lib/acpx/permissions';
-import {
-  buildTaskRoomPromptContext,
-} from '@/lib/task-room';
+import { buildAcpxPermissionConfigForProfile } from '@/lib/acpx/permissions';
+import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
+import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
 import {
   listLiveRoomCatalogAgents,
   listLiveRoomPendingReplies,
@@ -99,6 +93,8 @@ const DEFAULT_HELP_TEXT = [
   '/ap workspace [root 内的绝对或相对路径]',
   '/ap jobs',
   '/ap job <status|cursor|schedule|enable|disable|run|stop> <job-id>',
+  '/ap stop [--all|agentName|idSuffix]',
+  '/ap sessions',
   '/ap new [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');
@@ -1474,6 +1470,8 @@ export async function handleFeishuCommand(args: {
       return handleScheduledJobCommand(args.command, args.context);
     case 'new-session':
       return handleNewSessionCommand(args.command, args.context);
+    case 'stop': return handleStopAgentCommand(args.command, args.context);
+    case 'sessions': return handleAgentSessionsCommand();
     default:
       return DEFAULT_HELP_TEXT;
   }

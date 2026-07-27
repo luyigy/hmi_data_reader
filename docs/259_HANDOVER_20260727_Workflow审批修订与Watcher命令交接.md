@@ -11,7 +11,7 @@ plan_progress: in_progress
 
 ## 当前状态
 
-平台侧代码、数据库 migration 和一分钟 watcher 配置已完成，待用户重启
+平台侧代码、数据库 migration、一分钟 watcher 配置和 Agent 紧急停止命令已完成，待用户重启
 `agent-platform-feishu.service` 与 `agent-platform-scheduled-jobs.service` 后继续真实验收。
 本交接不授权 Agent 代替用户重启服务或点击审批卡。
 
@@ -43,6 +43,13 @@ pending。
   当前存在 011 时禁止用它清理 010。
 - `/ap job schedule workflow-watcher --cron="* * * * *"` 可设置运行时周期，
   `--cron=default` 恢复项目配置。
+- `/ap stop [agentName|idSuffix]` 会停止当前房间目标 Agent 的运行并清理排队消息；
+  `/ap stop --all` 停止当前房间全部 Agent。跨进程内存注册表失效时，平台会读取持久化 PID，
+  严格核验 `/proc/<pid>/cmdline` 与 harness 类型后终止真实进程。
+- `/ap sessions` 不依赖可能已错误收口的 run 状态，而是核验最近平台本地 participant 的
+  持久化 PID，显示当前实际存活的 Agent 进程数量、任务、run、PID 和数据库状态。
+- 紧急停止会补查当前 task/member 的历史 participant，因此即使旧 `/ap new-session`
+  已把 run 错误标为 interrupted，仍能发现并终止遗留 harness。
 - Prisma 已应用 migration
   `20260727193000_add_scheduled_job_schedule_override`；schema 当前已是最新。
 
@@ -58,6 +65,8 @@ pending。
 - `tests/feishu-job-command.test.ts`
 - `tests/project-config.test.ts`
 - `npx tsc --noEmit`
+- `tests/feishu-agent-session-command.test.ts`（含真实子进程 PID 核验与 SIGKILL）
+- 当前数据库与 `/proc` 联合实查：`/ap sessions` handler 返回实际存活 Agent 进程 0。
 - 相关文件 ESLint
 - `git diff --check`
 

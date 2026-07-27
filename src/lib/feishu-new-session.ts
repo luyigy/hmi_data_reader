@@ -245,22 +245,19 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
   const promptContext = blankBootstrap
     ? { transcript: '', latestUserMessage: null }
     : await buildTaskRoomPromptContext(room.sourceTask.id, room.sourceTask.name, 30);
-  await Promise.all(members.map(async (targetMember) => {
+  const interruptions = await Promise.all(members.map(async (targetMember) => {
     cancelQueuedLiveRoomMemberExecutions(targetMember.id);
-    try {
-      const interruption = await interruptLiveRoomMemberReplies({
-        roomId: room.id,
-        memberId: targetMember.id,
-        controlAction: 'stop_run',
-      });
-      interruptedPreviousReplies =
-        interruptedPreviousReplies
-        || interruption.interruptedRunningCount > 0
-        || interruption.cancelledQueuedCount > 0;
-    } catch (error) {
-      console.warn('Failed to interrupt previous live room replies before new session:', error);
-    }
+    return interruptLiveRoomMemberReplies({
+      roomId: room.id,
+      memberId: targetMember.id,
+      controlAction: 'stop_run',
+    });
   }));
+  if (interruptions.some((interruption) => interruption.failedRunningCount > 0)) {
+    return '❌ 旧 Agent 运行未能实际终止，已取消 Session 重置。请先运行 /ap sessions 查看，再用 /ap stop 重试。';
+  }
+  interruptedPreviousReplies = interruptions.some((interruption) =>
+    interruption.interruptedRunningCount > 0 || interruption.cancelledQueuedCount > 0);
   await Promise.all(members.map((targetMember) =>
     waitForLiveRoomMemberExecutionStop(targetMember.id)));
 

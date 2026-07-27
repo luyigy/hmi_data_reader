@@ -1,3 +1,4 @@
+import { promises as fs } from 'node:fs';
 import { requestRunControl } from '@/lib/acpx/process-registry';
 import type { RunControlAction } from '@/lib/acpx/types';
 import { parseAcpxMetadata } from '@/lib/acpx/session-tracking';
@@ -11,6 +12,51 @@ import {
   resolveLiveRoomMessageMetadata,
 } from '@/lib/live-room';
 import { prisma } from '@/lib/prisma';
+
+export const parsePersistedChildPid = (controlMetadata: string | null) => {
+  try {
+    const pid = Number(JSON.parse(controlMetadata || '{}').childPid);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+};
+
+export const harnessCommandMatches = (command: string, harnessType: string) => {
+  const normalized = command.toLowerCase();
+  if (harnessType === 'codex') return normalized.includes('codex');
+  if (harnessType === 'claude') return normalized.includes('claude');
+  if (harnessType === 'gemini-cli') return normalized.includes('gemini');
+  if (harnessType === 'antigravity') return normalized.includes('agy');
+  return normalized.includes(harnessType.toLowerCase());
+};
+
+export const getPersistedHarnessPid = async (controlMetadata: string | null, harnessType: string) => {
+  const pid = parsePersistedChildPid(controlMetadata);
+  if (!pid) return null;
+  try {
+    const command = (await fs.readFile(`/proc/${pid}/cmdline`, 'utf8')).replace(/\0/g, ' ');
+    return harnessCommandMatches(command, harnessType) ? pid : null;
+  } catch {
+    return null;
+  }
+};
+
+export const interruptPersistedHarness = async (
+  controlMetadata: string | null,
+  harnessType: string,
+  signal: NodeJS.Signals
+) => {
+  const pid = await getPersistedHarnessPid(controlMetadata, harnessType);
+  if (!pid) return false;
+
+  try {
+    process.kill(pid, signal);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const interruptLiveRoomMemberReplies = async ({
   roomId,
@@ -92,8 +138,14 @@ export const interruptLiveRoomMemberReplies = async ({
   const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
   const runningParticipants = runningRuns.flatMap((run) => run.participants
     .filter((participant) => parseAcpxMetadata(participant.controlMetadata).continuationKey === continuationKey)
-    .map((participant) => ({ runId: run.id, participantId: participant.id })));
+    .map((participant) => ({
+      runId: run.id,
+      participantId: participant.id,
+      controlMetadata: participant.controlMetadata,
+      harnessType: participant.harnessType,
+    })));
   const staleParticipants: Array<{ runId: string; participantId: string }> = [];
+  let interruptedParticipantCount = 0;
   let interruptedRegistryProcess = false;
 
   for (const participant of runningParticipants) {
@@ -103,7 +155,36 @@ export const interruptLiveRoomMemberReplies = async ({
       controlAction
     );
     if (!interruption.applied) {
-      staleParticipants.push(participant);
+      const signal = controlAction === 'stop_run' ? 'SIGKILL' : 'SIGINT';
+      const killed = await interruptPersistedHarness(
+        participant.controlMetadata,
+        participant.harnessType,
+        signal
+      );
+      if (killed) {
+        staleParticipants.push(participant);
+        interruptedParticipantCount += 1;
+      }
+    } else {
+      interruptedParticipantCount += 1;
+    }
+  }
+
+  if (runningParticipants.length === 0 && room.sourceTask) {
+    const recentParticipants = await prisma.taskRunParticipant.findMany({
+      where: {
+        executionBackend: 'platform_local',
+        taskRun: { taskId: room.sourceTask.id },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 100,
+    });
+    for (const participant of recentParticipants) {
+      if (parseAcpxMetadata(participant.controlMetadata).continuationKey !== continuationKey) continue;
+      const signal = controlAction === 'stop_run' ? 'SIGKILL' : 'SIGINT';
+      if (await interruptPersistedHarness(participant.controlMetadata, participant.harnessType, signal)) {
+        interruptedParticipantCount += 1;
+      }
     }
   }
 
@@ -135,7 +216,7 @@ export const interruptLiveRoomMemberReplies = async ({
     });
   }
 
-  if (runningDeliveries.length > 0) {
+  if (runningDeliveries.length > 0 && (interruptedParticipantCount > 0 || interruptedRegistryProcess)) {
     await prisma.liveRoomDelivery.updateMany({
       where: {
         id: {
@@ -192,10 +273,10 @@ export const interruptLiveRoomMemberReplies = async ({
     },
   });
 
-  const interruptedRunningCount = Math.max(
-    runningDeliveries.length,
-    runningParticipants.length,
-    interruptedRegistryProcess ? 1 : 0
+  const interruptedRunningCount = Math.max(interruptedParticipantCount, interruptedRegistryProcess ? 1 : 0);
+  const failedRunningCount = Math.max(
+    0,
+    Math.max(runningDeliveries.length, runningParticipants.length) - interruptedRunningCount
   );
   if (interruptedRunningCount > 0 || queuedDeliveries.length > 0) {
     await postLiveRoomMessage({
@@ -216,6 +297,7 @@ export const interruptLiveRoomMemberReplies = async ({
 
   return {
     interruptedRunningCount,
+    failedRunningCount,
     cancelledQueuedCount: queuedDeliveries.length,
   };
 };

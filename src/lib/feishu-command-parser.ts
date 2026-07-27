@@ -1,7 +1,7 @@
 import type { ParsedFeishuMessage } from '@/lib/feishu-message-content';
 
 export type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session' | 'jobs' | 'job';
+  command: 'help' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job';
   args: string[];
   options: Record<string, string>;
 };
@@ -82,7 +82,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const commandAlias = rawCommand.toLowerCase();
   const command = commandAlias === 'new' ? 'new-session' : commandAlias;
-  if (!['help', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session', 'jobs', 'job'].includes(command)) {
+  if (!['help', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'new-session', 'stop', 'sessions', 'jobs', 'job'].includes(command)) {
     return null;
   }
 
