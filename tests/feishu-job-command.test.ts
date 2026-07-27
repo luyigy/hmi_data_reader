@@ -7,6 +7,7 @@ import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
 import {
   explainWorkflowRun,
   formatManualRunResult,
+  formatWorkflowPending,
   handleScheduledJobCommand,
   inspectWorkflowCursor,
 } from '../src/lib/feishu-scheduled-jobs';
@@ -42,6 +43,16 @@ assert.deepEqual(parseFeishuCommand(message('/ap job cursor workflow-watcher --l
   args: ['cursor', 'workflow-watcher'],
   options: { latest: 'true' },
 });
+assert.deepEqual(parseFeishuCommand(message('/ap job cursor workflow-watcher --clear-pending')), {
+  command: 'job',
+  args: ['cursor', 'workflow-watcher'],
+  options: { 'clear-pending': 'true' },
+});
+assert.deepEqual(parseFeishuCommand(message('/ap job schedule workflow-watcher --cron="*/5 * * * *"')), {
+  command: 'job',
+  args: ['schedule', 'workflow-watcher'],
+  options: { cron: '*/5 * * * *' },
+});
 handleScheduledJobCommand({ command: 'jobs', args: [], options: {} }).then((response) => {
   assert.equal(response, '当前 job 命令需要来自 Feishu webhook 的会话上下文。');
 });
@@ -63,10 +74,26 @@ assert.equal(formatManualRunResult('watcher', {
   summary: 'job already running',
 }), 'watcher 未执行（job already running）。');
 assert.equal(
-  explainWorkflowRun('head=abc candidate=docs/004_PLAN.md gate=plan_review document_ready=true'),
-  'PLAN 已就绪，等待下一次 watcher 发送审批卡片',
+  explainWorkflowRun('head=abc candidate=docs/004_PLAN.md gate=plan_review document_ready=true card_sent=true'),
+  'PLAN 审批卡已发送，等待审批',
 );
 assert.equal(explainWorkflowRun('head=abc candidate=none'), '未发现新的可执行工作流文档');
+assert.deepEqual(formatWorkflowPending({ pending: {
+  path: 'docs/009_PLAN.md',
+  gate: 'plan_review',
+  action: 'start_first_slice',
+  reviewState: 'review',
+  reviewExpiresAt: '2026-07-27T12:00:00.000Z',
+  reviewMessageId: 'message-9',
+} }), [
+  'pending: docs/009_PLAN.md',
+  'pending gate: plan_review',
+  'pending action: start_first_slice',
+  'review state: review',
+  'review expires: 2026-07-27T12:00:00.000Z',
+  'review message: message-9',
+]);
+assert.deepEqual(formatWorkflowPending({ commit: 'abc' }), ['pending: none']);
 
 async function testCursor() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'job-cursor-'));

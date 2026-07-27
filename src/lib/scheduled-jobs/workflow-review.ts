@@ -5,9 +5,10 @@ import { loadProjectsConfig } from './project-config';
 export type WorkflowReviewPending = {
   key: string;
   gate: 'plan_review' | 'workflow_ready';
-  reviewState?: 'review' | 'approved' | 'revision' | 'rejected';
+  reviewState?: 'review' | 'approved' | 'revision_requested' | 'revision' | 'rejected';
   reviewMessageId?: string;
   reviewExpiresAt?: string;
+  reviewFeedback?: string;
 };
 
 export type WorkflowReviewDecision = 'approve' | 'reject' | 'revision' | 'revise';
@@ -19,6 +20,7 @@ export function applyWorkflowReviewDecision(args: {
   approverOpenId: string;
   messageId?: string;
   pendingKey: string;
+  reviewFeedback?: string;
   now?: Date;
 }) {
   const { pending } = args;
@@ -40,7 +42,8 @@ export function applyWorkflowReviewDecision(args: {
         ? 'approved' as const
         : args.decision === 'reject'
           ? 'rejected' as const
-          : 'revision' as const,
+          : 'revision_requested' as const,
+      ...(args.decision === 'revision' ? { reviewFeedback: args.reviewFeedback?.trim() ?? '' } : {}),
     },
   };
 }
@@ -52,6 +55,7 @@ export async function resolveWorkflowReviewCardAction(args: {
   decision: WorkflowReviewDecision;
   actorOpenId?: string;
   messageId?: string;
+  reviewFeedback?: string;
 }) {
   const { projects } = await loadProjectsConfig();
   const project = projects.find(({ id }) => id === args.projectId);
@@ -88,7 +92,7 @@ export async function resolveWorkflowReviewCardAction(args: {
     }
     return result;
   });
-  if (result.status === 'applied' && args.decision === 'approve') {
+  if (result.status === 'applied') {
     void import('./runner').then(async ({ executeScheduledJob }) => {
       const { jobHandlers } = await import('./handlers');
       const handler = jobHandlers.get(job.type);
@@ -97,7 +101,7 @@ export async function resolveWorkflowReviewCardAction(args: {
           prisma, project, job, new Date(), handler, 'workflow_review', args.pendingKey,
         );
       }
-    }).catch((error) => console.error('[WorkflowReview] failed to start approved workflow', error));
+    }).catch((error) => console.error('[WorkflowReview] failed to process review decision', error));
   }
-  return result;
+  return { ...result, chatId: project.feishu.chat_id };
 }

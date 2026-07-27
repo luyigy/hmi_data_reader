@@ -275,21 +275,8 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
 `);
   git('add', '.');
   git('commit', '-qm', 'plan review');
-  const reviewDocument = await run(terminal.cursor);
-  assert.match(reviewDocument.summary, /gate=plan_review document_ready=true/);
-  assert.equal(apiCalls.filter(({ body }) => body.msg_type === 'interactive').length, 0);
-  await assert.rejects(workflowWatcherHandler({
-    project,
-    job,
-    mode: 'active',
-    cursor: reviewDocument.cursor,
-    signal: new AbortController().signal,
-  }, undefined, importDocument, async () => {
-    throw new Error('fake card failed');
-  }), /fake card failed/);
-  assert.equal(importedDocuments.length, 1, 'card retry must reuse the imported document');
-  const review = await run(reviewDocument.cursor);
-  assert.match(review.summary, /gate=plan_review card_sent=true/);
+  const review = await run(terminal.cursor);
+  assert.match(review.summary, /gate=plan_review document_ready=true card_sent=true/);
   const reviewCursor = review.cursor as { pending: {
     detectedAt: string;
     reviewMessageId: string;
@@ -301,6 +288,9 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /批准/);
   assert.match(String(reviewCall.body.content), /拒绝/);
   assert.match(String(reviewCall.body.content), /修改/);
+  assert.match(String(reviewCall.body.content), /"decision":"revision"/);
+  assert.match(String(reviewCall.body.content), /reviewFeedback/);
+  assert.match(String(reviewCall.body.content), /form_action_type/);
   assert.match(String(reviewCall.body.content), new RegExp(reviewCursor.pending.documentUrl));
   assert.equal(importedDocuments.length, 1);
   assert.match(importedDocuments[0].content, /PLAN PROMPT/);
@@ -325,6 +315,28 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(revisedCall?.body.content),
     new RegExp((revisedReview.cursor as { pending: { documentUrl: string } }).pending.documentUrl));
 
+  const revisionRequestCursor = JSON.parse(JSON.stringify(revisedReview.cursor));
+  revisionRequestCursor.pending.reviewState = 'revision_requested';
+  revisionRequestCursor.pending.reviewFeedback = '请补充风险和验收步骤。';
+  const revisionRequestedRun = await run(revisionRequestCursor);
+  assert.match(revisionRequestedRun.summary, /gate=plan_revision decision=revise/);
+  assert.equal(
+    (revisionRequestedRun.cursor as { pending: { reviewState: string } }).pending.reviewState,
+    'revision',
+  );
+  assert.match(
+    String(apiCalls.filter(({ body }) => body.msg_type === 'text').at(-1)?.body.content),
+    /请补充风险和验收步骤/,
+  );
+  const emptyRevisionRequestCursor = JSON.parse(JSON.stringify(revisedReview.cursor));
+  emptyRevisionRequestCursor.pending.reviewState = 'revision_requested';
+  emptyRevisionRequestCursor.pending.reviewFeedback = '';
+  await run(emptyRevisionRequestCursor);
+  assert.match(
+    String(apiCalls.filter(({ body }) => body.msg_type === 'text').at(-1)?.body.content),
+    /请先主动询问审批人需要修改的内容/,
+  );
+
   git('commit', '--allow-empty', '-qm', 'unrelated head advance');
   await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
     { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
@@ -338,6 +350,15 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   process.env.LARK_FAIL_MESSAGES = '0';
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
   assert.equal(workflowRuns.at(-1)?.chatType, 'p2p');
+
+  const callbackRejected = JSON.parse(JSON.stringify(revisedReviewCursor));
+  callbackRejected.pending.reviewState = 'rejected';
+  const rejected = await run(callbackRejected);
+  assert.match(rejected.summary, /result=rejected/);
+  assert.deepEqual(rejected.cursor, {
+    commit: callbackRejected.pending.commit,
+    eventKey: callbackRejected.pending.key,
+  });
 
   const reviewPending = {
     key: 'key',
@@ -367,6 +388,19 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     pending: reviewPending, decision: 'revise', actorOpenId: 'approver', approverOpenId: 'approver',
     messageId: 'message', pendingKey: 'key',
   }).status, 'prompt');
+  const revisionRequested = applyWorkflowReviewDecision({
+    pending: reviewPending, decision: 'revision', actorOpenId: 'approver', approverOpenId: 'approver',
+    messageId: 'message', pendingKey: 'key', reviewFeedback: '请补充回滚步骤',
+  });
+  assert.equal(revisionRequested.status, 'applied');
+  assert.equal(revisionRequested.pending.reviewState, 'revision_requested');
+  assert.equal(revisionRequested.pending.reviewFeedback, '请补充回滚步骤');
+  const revisionWithoutFeedback = applyWorkflowReviewDecision({
+    pending: reviewPending, decision: 'revision', actorOpenId: 'approver', approverOpenId: 'approver',
+    messageId: 'message', pendingKey: 'key',
+  });
+  assert.equal(revisionWithoutFeedback.status, 'applied');
+  assert.equal(revisionWithoutFeedback.pending.reviewFeedback, '');
   await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
     { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
     { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
@@ -390,13 +424,14 @@ S01
   git('add', '.');
   git('commit', '-qm', 'draft plan approval');
   const approvalDocument = await run(approved.cursor);
-  assert.match(approvalDocument.summary, /action=await_plan_approval gate=plan_review document_ready=true/);
-  const approval = await run(approvalDocument.cursor);
-  assert.match(approval.summary, /gate=plan_review card_sent=true/);
+  assert.match(
+    approvalDocument.summary,
+    /action=await_plan_approval gate=plan_review document_ready=true card_sent=true/,
+  );
   await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
     { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
   ] } }));
-  const approvalApproved = await run(approval.cursor);
+  const approvalApproved = await run(approvalDocument.cursor);
   assert.match(approvalApproved.summary, /action=await_plan_approval result=approved/);
 
   await writeFile(path.join(root, 'docs/branch/main/005_PLAN_20260725_import_failure.md'), `---

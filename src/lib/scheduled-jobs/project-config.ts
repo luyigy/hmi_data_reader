@@ -46,7 +46,7 @@ const stringArray = (value: unknown, label: string) => {
   return value as string[];
 };
 
-const validateSchedule = (value: unknown, label: string) => {
+export const validateSchedule = (value: unknown, label: string) => {
   const schedule = string(value, label);
   const fields = schedule.trim().split(/\s+/);
   if (fields.length !== 5 || fields.some((field) => !/^[\d*/?,\-]+$/.test(field))) {

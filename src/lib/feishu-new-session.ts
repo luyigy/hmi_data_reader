@@ -14,7 +14,7 @@ import {
   postTaskRoomSessionResetMarker,
 } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
-import { buildLiveRoomAcpxParticipant } from '@/lib/live-room';
+import { buildLiveRoomAcpxParticipant, postLiveRoomMessage } from '@/lib/live-room';
 import { interruptLiveRoomMemberReplies } from '@/lib/live-room-delivery';
 import {
   cancelQueuedLiveRoomMemberExecutions,
@@ -278,6 +278,12 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
     roomId: taskRoom.id,
     sessionId: freshTaskSession.id,
     reason: allMembers ? 'new-session' : `new-session:${member.id}`,
+  });
+  await postLiveRoomMessage({
+    roomId: room.id,
+    content: '系统提示：当前会话已重置，已启动新的 Session。',
+    messageType: 'system',
+    metadata: { systemEvent: 'session_reset' },
   });
   await prisma.liveRoomMemberSession.updateMany({
     where: {

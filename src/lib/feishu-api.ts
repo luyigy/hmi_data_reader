@@ -216,11 +216,17 @@ export const sendFeishuWorkflowReviewCard = (args: {
           + `**路径**：${args.planPath}\n**提交**：${args.reviewedCommit}\n**截止**：${args.expiresAt}`,
       },
       {
+        tag: 'input',
+        name: 'reviewFeedback',
+        required: false,
+        placeholder: { tag: 'plain_text', content: '可选：填写需要修改的内容' },
+      },
+      {
         tag: 'action',
         actions: [
           ['批准', 'approve', 'primary'],
           ['拒绝', 'reject', 'danger'],
-          ['修改', 'revise', 'default'],
+          ['修改', 'revision', 'default'],
         ].map(([label, decision, type]) => ({
           tag: 'button',
           text: { tag: 'plain_text', content: label },
@@ -232,6 +238,7 @@ export const sendFeishuWorkflowReviewCard = (args: {
             jobId: args.jobId,
             pendingKey: args.pendingKey,
           },
+          ...(decision === 'revision' ? { form_action_type: 'submit' } : {}),
         })),
       },
     ],
@@ -470,17 +477,23 @@ export async function sendFeishuApprovalCard(args: {
 
 export async function updateFeishuApprovalCardResolved(args: {
   messageId: string;
-  approved: boolean;
+  approved?: boolean;
+  resolution?: 'approved' | 'rejected' | 'revision';
   actorName: string;
 }): Promise<void> {
   const token = await getFeishuTenantAccessToken();
-  const status = args.approved ? '✅ 已批准' : '❌ 已拒绝';
+  const resolution = args.resolution || (args.approved ? 'approved' : 'rejected');
+  const status = resolution === 'approved'
+    ? '✅ 已批准'
+    : resolution === 'revision'
+      ? '✏️ 已请求修改'
+      : '❌ 已拒绝';
 
   const card = {
     config: { wide_screen_mode: true },
     header: {
       title: { content: `${status} by ${args.actorName}`, tag: 'plain_text' },
-      template: args.approved ? 'green' : 'red',
+      template: resolution === 'approved' ? 'green' : resolution === 'revision' ? 'orange' : 'red',
     },
     elements: [
       {

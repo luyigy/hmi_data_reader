@@ -466,6 +466,7 @@ model ScheduledJobState {
   jobId             String
   enabledOverride   Boolean?
   modeOverride      String?
+  scheduleOverride  String?
   lastScheduledAt   DateTime?
   lastStartedAt     DateTime?
   lastFinishedAt    DateTime?

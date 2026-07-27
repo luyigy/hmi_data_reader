@@ -3,6 +3,7 @@ import { prisma } from '../src/lib/prisma';
 import { noopTestHandler } from '../src/lib/scheduled-jobs/handlers';
 import {
   executeScheduledJob,
+  effectiveJobSchedule,
   matchesCron,
   runRequestedJobs,
   stopScheduledJob,
@@ -31,6 +32,8 @@ const job = (id: string, config: Record<string, unknown> = {}): JobConfig => ({
 async function main() {
   assert(matchesCron('*/10 * * * *', new Date('2026-07-25T12:20:00Z')));
   assert(!matchesCron('*/10 * * * *', new Date('2026-07-25T12:21:00Z')));
+  assert.equal(effectiveJobSchedule(job('schedule')), '* * * * *');
+  assert.equal(effectiveJobSchedule(job('schedule'), { scheduleOverride: '*/5 * * * *' }), '*/5 * * * *');
 
   const scheduledFor = new Date('2026-07-25T12:20:00Z');
   const successJob = job('success', { delay_ms: 100 });

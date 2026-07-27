@@ -227,6 +227,20 @@ export const workflowWatcherHandler = async (
       return { summary: `head=${head} pending=${previous.pending.path} gate=automation_disabled`, cursor: previous };
     }
     let pending = previous.pending;
+    if (pending.gate === 'plan_review' && pending.reviewState === 'revision_requested') {
+      const feedback = pending.reviewFeedback?.trim();
+      await send(codingBotChatId,
+        `PLAN_REVISE\nplan_path: ${pending.path}\n`
+        + `reviewed_commit: ${pending.documentCommit}\nfeedback:\n${feedback || '审批人未填写具体修改意见。'}\n\n`
+        + (!feedback ? '请先主动询问审批人需要修改的内容，得到答复后再修订。\n' : '')
+        + '只修订并提交该 PLAN，不执行任何 Slice。',
+        pending.key, 'plan_revision');
+      pending = { ...pending, reviewState: 'revision' };
+      return {
+        summary: `head=${head} pending=${pending.path} gate=plan_revision decision=revise`,
+        cursor: { ...previous, pending },
+      };
+    }
     if (pending.gate === 'plan_review' && pending.reviewState === 'revision') {
       const content = await git(project.path, signal, 'show', `${head}:${pending.path}`);
       const blob = (await git(project.path, signal, 'rev-parse', `${head}:${pending.path}`)).trim();
@@ -304,6 +318,12 @@ export const workflowWatcherHandler = async (
         pending = { ...pending, ...transition.pending };
       }
       if (pending.reviewState !== 'approved') {
+        if (pending.reviewState === 'rejected') {
+          return {
+            summary: `head=${head} candidate=${pending.path} action=${pending.action} result=rejected`,
+            cursor: { commit: pending.commit, eventKey: pending.key },
+          };
+        }
         if (pending.reviewState === 'revision') {
           await send(codingBotChatId,
             `PLAN_REVISE\nplan_path: ${pending.path}\n`
@@ -312,7 +332,7 @@ export const workflowWatcherHandler = async (
             pending.key, 'plan_revision');
         }
         return {
-          summary: `head=${head} pending=${pending.path} gate=plan_revision decision=${pending.reviewState === 'rejected' ? 'reject' : 'revise'}`,
+          summary: `head=${head} pending=${pending.path} gate=plan_revision decision=revise`,
           cursor: { ...previous, pending },
         };
       }
@@ -415,9 +435,15 @@ export const workflowWatcherHandler = async (
       reviewExpiresAt: reviewExpiry(contract),
       detectedAt,
     };
+    const reviewMessageId = await sendReviewCard(project, job.id, pending, sendReview);
+    if (!reviewMessageId) throw new Error('plan review request returned no message_id');
     return {
-      summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=${gate} document_ready=true`,
-      cursor: { commit: head, eventKey, pending },
+      summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=${gate} document_ready=true card_sent=true`,
+      cursor: {
+        commit: head,
+        eventKey,
+        pending: { ...pending, reviewState: 'review', reviewMessageId },
+      },
     };
   }
   await execute(

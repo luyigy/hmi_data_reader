@@ -38,6 +38,9 @@ export const matchesCron = (schedule: string, date: Date) => {
   return fields.every((field, index) => matchesField(field, values[index], ranges[index]));
 };
 
+export const effectiveJobSchedule = (job: JobConfig, state?: { scheduleOverride?: string | null } | null) =>
+  state?.scheduleOverride ?? job.schedule;
+
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 const runningJobs = new Map<string, AbortController>();
@@ -262,11 +265,11 @@ export async function runDueJobs(db: PrismaClient, now = new Date()) {
 
   await Promise.all(projects.flatMap((project) => project.jobs.map(async (job) => {
     const handler = jobHandlers.get(job.type);
-    if (!handler || !matchesCron(job.schedule, scheduledFor)) return;
     const state = await db.scheduledJobState.findUnique({
       where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
-      select: { enabledOverride: true },
+      select: { enabledOverride: true, scheduleOverride: true },
     });
+    if (!handler || !matchesCron(effectiveJobSchedule(job, state), scheduledFor)) return;
     if (!(state?.enabledOverride ?? job.enabled)) return;
     await executeScheduledJob(db, project, job, scheduledFor, handler);
   })));

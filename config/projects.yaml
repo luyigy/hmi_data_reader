@@ -10,7 +10,7 @@ projects:
     jobs:
       - id: workflow-watcher
         type: workflow_watcher
-        schedule: "*/10 * * * *"
+        schedule: "* * * * *"
         enabled: true
         mode: active
         config:
@@ -30,6 +30,14 @@ projects:
           threshold_lines: 1000
           extensions: [.py, .js, .ts, .tsx, .jsx, .go, .java, .vue]
           exclude_paths: []
+      - id: stop-acceptance
+        type: noop_test
+        schedule: "0 0 31 2 *"
+        enabled: false
+        mode: shadow
+        config:
+          delay_ms: 600000
+          timeout_ms: 660000
   - id: mold-data-webpage-tool
     name: Mold Data Webpage Tool
     path: /data1/code/mold-data-webpage-tool
@@ -41,7 +49,7 @@ projects:
     jobs:
       - id: workflow-watcher
         type: workflow_watcher
-        schedule: "*/10 * * * *"
+        schedule: "* * * * *"
         enabled: true
         mode: active
         config:
@@ -63,7 +71,7 @@ projects:
     jobs:
       - id: workflow-watcher
         type: workflow_watcher
-        schedule: "*/10 * * * *"
+        schedule: "* * * * *"
         enabled: true
         mode: active
         config:
@@ -73,4 +81,4 @@ projects:
           coding_bot_app_id: cli_a8e5326f4e7f901c
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: .
-          initial_cursor_commit: 0cb94cd216e8e5ed674007c077d378b1a8beaa1d
+          initial_cursor_commit: 8157fc60a8067af781db67d8d807e1f9d62ce474

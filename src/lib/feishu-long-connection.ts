@@ -173,7 +173,11 @@ function buildCardActionHandler(prefix: string) {
     if (cmd === 'workflow-review') {
       const value = data.action.value as Record<string, unknown>;
       const decision = value.decision;
-      if (!['approve', 'reject', 'revise'].includes(String(decision))
+      const formValue = (data.action as unknown as { form_value?: Record<string, unknown> }).form_value;
+      const reviewFeedback = typeof formValue?.reviewFeedback === 'string'
+        ? formValue.reviewFeedback.trim()
+        : '';
+      if (!['approve', 'reject', 'revision'].includes(String(decision))
         || typeof value.projectId !== 'string'
         || typeof value.jobId !== 'string'
         || typeof value.pendingKey !== 'string') return {};
@@ -185,16 +189,27 @@ function buildCardActionHandler(prefix: string) {
           decision: decision as WorkflowReviewDecision,
           actorOpenId: openId,
           messageId,
+          reviewFeedback,
         });
-        if (result.status === 'prompt') {
-          return { toast: { type: 'info', content: '请回复原审批消息：revise: <具体反馈>' } };
-        }
         if (result.status === 'applied' && messageId) {
           await updateFeishuApprovalCardResolved({
             messageId,
-            approved: decision === 'approve',
+            resolution: decision === 'approve'
+              ? 'approved'
+              : decision === 'revision'
+                ? 'revision'
+                : 'rejected',
             actorName,
-          }).catch(() => {});
+          }).catch((error) => console.error(`${prefix} failed to persist workflow review card result`, error));
+        }
+        if (result.status === 'applied' && decision !== 'approve') {
+          await sendFeishuTextMessage({
+            receiveId: result.chatId,
+            receiveIdType: 'chat_id',
+            text: decision === 'revision'
+              ? `✏️ PLAN 修改请求已记录，workflow-watcher 已立即通知本地 AI 助手${reviewFeedback ? '按反馈修订计划' : '先询问具体修改意见'}。`
+              : '❌ PLAN 已拒绝，workflow-watcher 已立即处理，不会启动新的 Session。',
+          }).catch((error) => console.error(`${prefix} failed to send workflow review receipt`, error));
         }
         return {
           toast: {

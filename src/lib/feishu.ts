@@ -98,7 +98,7 @@ const DEFAULT_HELP_TEXT = [
   '/ap handover [agentName|idSuffix] [--title="handover title"]',
   '/ap workspace [root 内的绝对或相对路径]',
   '/ap jobs',
-  '/ap job <status|cursor|enable|disable|run|stop> <job-id> [--latest]',
+  '/ap job <status|cursor|schedule|enable|disable|run|stop> <job-id>',
   '/ap new [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
 ].join('\n');

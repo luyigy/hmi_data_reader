@@ -18,6 +18,7 @@
 
 - `agent-platform-dev.service`
 - `agent-platform-feishu.service`
+- `agent-platform-scheduled-jobs.service`
 
 ## 查看状态
 
@@ -31,6 +32,13 @@ systemctl --user status agent-platform-feishu.service
 ```bash
 systemctl --user restart agent-platform-dev.service
 systemctl --user restart agent-platform-feishu.service
+systemctl --user restart agent-platform-scheduled-jobs.service
+```
+
+也可以同时重启
+
+```bash
+systemctl --user restart agent-platform-dev.service agent-platform-feishu.service agent-platform-scheduled-jobs.service
 ```
 
 ## 停止服务

@@ -34,6 +34,7 @@ assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress
 })), true);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_started')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_queued')), true);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'session_reset')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('assistant')), true);
 
 const assistant = message('assistant');

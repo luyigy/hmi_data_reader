@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isFeishuAdmin } from '@/lib/feishu-access-approval';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 import { jobHandlers } from '@/lib/scheduled-jobs/handlers';
-import { findProjectByChatId, loadProjectsConfig } from '@/lib/scheduled-jobs/project-config';
-import { stopScheduledJob, waitForScheduledJobStop } from '@/lib/scheduled-jobs/runner';
+import { findProjectByChatId, loadProjectsConfig, validateSchedule } from '@/lib/scheduled-jobs/project-config';
+import { effectiveJobSchedule, stopScheduledJob, waitForScheduledJobStop } from '@/lib/scheduled-jobs/runner';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 const execFileAsync = promisify(execFile);
@@ -42,6 +43,9 @@ export const formatManualRunResult = (
 export const explainWorkflowRun = (summary?: string | null) => {
   if (!summary) return '-';
   if (summary.includes('candidate=none')) return '未发现新的可执行工作流文档';
+  if (summary.includes('gate=plan_review') && summary.includes('card_sent=true')) {
+    return 'PLAN 审批卡已发送，等待审批';
+  }
   if (summary.includes('gate=plan_review') && summary.includes('document_ready=true')) {
     return 'PLAN 已就绪，等待下一次 watcher 发送审批卡片';
   }
@@ -50,6 +54,25 @@ export const explainWorkflowRun = (summary?: string | null) => {
   if (summary.includes('result=session_started')) return '已启动新 Session';
   if (summary.includes('duplicate=true')) return '该工作流文档已经处理过';
   return summary;
+};
+
+export const formatWorkflowPending = (cursor: unknown) => {
+  if (!cursor || typeof cursor !== 'object' || Array.isArray(cursor) || !('pending' in cursor)) {
+    return ['pending: none'];
+  }
+  const pending = cursor.pending;
+  if (!pending || typeof pending !== 'object' || Array.isArray(pending)) {
+    return ['pending: none'];
+  }
+  const value = pending as Record<string, unknown>;
+  return [
+    `pending: ${String(value.path || '-')}`,
+    `pending gate: ${String(value.gate || '-')}`,
+    `pending action: ${String(value.action || '-')}`,
+    `review state: ${String(value.reviewState || 'preparing')}`,
+    `review expires: ${String(value.reviewExpiresAt || '-')}`,
+    `review message: ${String(value.reviewMessageId || '-')}`,
+  ];
 };
 
 export async function handleScheduledJobCommand(
@@ -63,8 +86,8 @@ export async function handleScheduledJobCommand(
 
   const action = command.command === 'jobs' ? 'list' : command.args[0]?.toLowerCase();
   const jobId = command.args[1];
-  if (action !== 'list' && (!jobId || !['status', 'cursor', 'enable', 'disable', 'run', 'stop'].includes(action || ''))) {
-    return '用法：/ap jobs | /ap job <status|cursor|enable|disable|run|stop> <job-id> [--latest]';
+  if (action !== 'list' && (!jobId || !['status', 'cursor', 'schedule', 'enable', 'disable', 'run', 'stop'].includes(action || ''))) {
+    return '用法：/ap jobs | /ap job <status|cursor|schedule|enable|disable|run|stop> <job-id>';
   }
 
   const states = await prisma.scheduledJobState.findMany({ where: { projectId: project.id } });
@@ -76,7 +99,7 @@ export async function handleScheduledJobCommand(
   if (action === 'list') {
     return project.jobs.map((job) => {
       const state = stateByJob.get(job.id);
-      return `${job.id}: ${state?.enabledOverride ?? job.enabled ? 'enabled' : 'disabled'} · ${running.has(job.id) ? 'running' : 'idle'} · ${state?.modeOverride ?? job.mode} · ${job.schedule}`;
+      return `${job.id}: ${state?.enabledOverride ?? job.enabled ? 'enabled' : 'disabled'} · ${running.has(job.id) ? 'running' : 'idle'} · ${state?.modeOverride ?? job.mode} · ${effectiveJobSchedule(job, state)}`;
     }).join('\n');
   }
 
@@ -93,7 +116,7 @@ export async function handleScheduledJobCommand(
       `${project.name} / ${job.id}`,
       `repo: ${project.path}`,
       `ref: ${project.ref}`,
-      `schedule: ${job.schedule}`,
+      `schedule: ${effectiveJobSchedule(job, state)}`,
       `enabled: ${state?.enabledOverride ?? job.enabled}`,
       `running: ${running.has(job.id)}`,
       `mode: ${state?.modeOverride ?? job.mode}`,
@@ -109,19 +132,36 @@ export async function handleScheduledJobCommand(
   if (action === 'cursor') {
     if (job.type !== 'workflow_watcher') return `${job.id} 不使用 workflow 游标。`;
     const cursor = await inspectWorkflowCursor(project.path, project.ref, state?.cursorJson);
-    if (!command.options.latest) {
+    const clearPending = command.options['clear-pending'] === 'true';
+    if (!command.options.latest && !clearPending) {
       return [
         `${project.name} / ${job.id}`,
         `cursor: ${cursor.current ?? '-'}`,
         `latest: ${cursor.latest}`,
         `history rewritten: ${cursor.rewritten}`,
         `behind: ${cursor.behind ?? '-'}`,
+        ...formatWorkflowPending(state?.cursorJson),
       ].join('\n');
+    }
+    if (command.options.latest && clearPending) {
+      return '--latest 和 --clear-pending 不能同时使用。';
     }
     if (!isFeishuAdmin(context.senderOpenId) && !project.feishu.approver_open_ids.includes(context.senderOpenId)) {
       return '只有平台管理员或项目审批人可以移动 job 游标。';
     }
     if (running.has(job.id)) return `${job.id} 正在运行，请先停止后再移动游标。`;
+    if (clearPending) {
+      const current = state?.cursorJson;
+      if (!current || typeof current !== 'object' || Array.isArray(current) || !('pending' in current)) {
+        return `${job.id} 当前没有 pending。`;
+      }
+      const { pending: _pending, ...nextCursor } = current;
+      await prisma.scheduledJobState.update({
+        where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+        data: { cursorJson: nextCursor as Prisma.InputJsonValue, lastError: null },
+      });
+      return `✅ ${job.id} pending 已清除；游标仍为 ${String(nextCursor.commit ?? '-')}。`;
+    }
     await prisma.scheduledJobState.upsert({
       where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
       create: { projectId: project.id, jobId: job.id, cursorJson: { commit: cursor.latest } },
@@ -132,6 +172,23 @@ export async function handleScheduledJobCommand(
 
   if (!isFeishuAdmin(context.senderOpenId) && !project.feishu.approver_open_ids.includes(context.senderOpenId)) {
     return '只有平台管理员或项目审批人可以启停或运行 job。';
+  }
+
+  if (action === 'schedule') {
+    const input = (command.options.cron || command.args.slice(2).join(' ')).trim();
+    if (!input) return '用法：/ap job schedule <job-id> --cron="* * * * *"；使用 --cron=default 恢复项目配置。';
+    let scheduleOverride: string | null;
+    try {
+      scheduleOverride = input === 'default' ? null : validateSchedule(input, 'schedule');
+    } catch (error) {
+      return `无效调度表达式：${error instanceof Error ? error.message : String(error)}`;
+    }
+    await prisma.scheduledJobState.upsert({
+      where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+      create: { projectId: project.id, jobId: job.id, scheduleOverride },
+      update: { scheduleOverride },
+    });
+    return `✅ ${job.id} 调度周期已设置为 ${scheduleOverride ?? job.schedule}。`;
   }
 
   if (action === 'enable' || action === 'disable') {
