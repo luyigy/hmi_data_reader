@@ -8,6 +8,7 @@ import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 import { jobHandlers } from '@/lib/scheduled-jobs/handlers';
 import { findProjectByChatId, loadProjectsConfig, validateSchedule } from '@/lib/scheduled-jobs/project-config';
 import { effectiveJobSchedule, stopScheduledJob, waitForScheduledJobStop } from '@/lib/scheduled-jobs/runner';
+import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 const execFileAsync = promisify(execFile);
@@ -86,8 +87,8 @@ export async function handleScheduledJobCommand(
 
   const action = command.command === 'jobs' ? 'list' : command.args[0]?.toLowerCase();
   const jobId = command.args[1];
-  if (action !== 'list' && (!jobId || !['status', 'cursor', 'schedule', 'enable', 'disable', 'run', 'stop'].includes(action || ''))) {
-    return '用法：/ap jobs | /ap job <status|cursor|schedule|enable|disable|run|stop> <job-id>';
+  if (action !== 'list' && (!jobId || !['status', 'cursor', 'schedule', 'enable', 'disable', 'run', 'retry', 'stop'].includes(action || ''))) {
+    return '用法：/ap jobs | /ap job <status|cursor|schedule|enable|disable|run|retry|stop> <job-id>';
   }
 
   const states = await prisma.scheduledJobState.findMany({ where: { projectId: project.id } });
@@ -155,7 +156,8 @@ export async function handleScheduledJobCommand(
       if (!current || typeof current !== 'object' || Array.isArray(current) || !('pending' in current)) {
         return `${job.id} 当前没有 pending。`;
       }
-      const { pending: _pending, ...nextCursor } = current;
+      const nextCursor = { ...current };
+      delete nextCursor.pending;
       await prisma.scheduledJobState.update({
         where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
         data: { cursorJson: nextCursor as Prisma.InputJsonValue, lastError: null },
@@ -212,9 +214,68 @@ export async function handleScheduledJobCommand(
   }
 
   if (!jobHandlers.has(job.type)) return `job 类型未注册 handler：${job.type}`;
-  const request = await prisma.scheduledJobRequest.create({
-    data: { projectId: project.id, jobId: job.id },
-  });
+  let request;
+  if (action === 'retry') {
+    if (job.type !== 'workflow_watcher') return `${job.id} 不支持 workflow retry。`;
+    if (!(state?.enabledOverride ?? job.enabled)) return `${job.id} 当前已停用，请先启用。`;
+    if (running.has(job.id)) return `${job.id} 正在运行，请等待当前执行结束。`;
+    const cursor = state?.cursorJson;
+    const pending = cursor && typeof cursor === 'object' && !Array.isArray(cursor) && 'pending' in cursor
+      ? cursor.pending
+      : null;
+    if (!pending || typeof pending !== 'object' || Array.isArray(pending)) return `${job.id} 当前没有 pending。`;
+    if (!('reviewState' in pending) || pending.reviewState !== 'revision') {
+      return `${job.id} 当前 pending 不是可重试的 revision 状态。`;
+    }
+
+    const codingBotChatId = String(job.config.coding_bot_chat_id || '');
+    const binding = await prisma.feishuConversationBinding.findFirst({
+      where: { chatId: codingBotChatId },
+      orderBy: { updatedAt: 'desc' },
+      select: { liveRoom: { select: { sourceTaskId: true } } },
+    });
+    if (!binding?.liveRoom.sourceTaskId) {
+      return '❌ 无法确认 Coding Agent 绑定的 task，拒绝不安全的重复投递。';
+    }
+    const participants = await prisma.taskRunParticipant.findMany({
+      where: {
+        executionBackend: 'platform_local',
+        controlMetadata: { not: null },
+        taskRun: { taskId: binding.liveRoom.sourceTaskId },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 100,
+    });
+    const active = (await Promise.all(participants.map((participant) =>
+      getPersistedHarnessPid(participant.controlMetadata, participant.harnessType))))
+      .filter((pid) => pid !== null);
+    if (active.length) {
+      return `❌ 检测到 ${active.length} 个实际存活的 Agent 进程，拒绝重复投递。请先用 /ap sessions 查看。`;
+    }
+
+    request = await prisma.$transaction(async (tx) => {
+      const created = await tx.scheduledJobRequest.create({
+        data: { projectId: project.id, jobId: job.id },
+      });
+      const nextCursor = {
+        ...(cursor as Record<string, unknown>),
+        pending: {
+          ...(pending as Record<string, unknown>),
+          revisionDispatched: false,
+          revisionDispatchKey: `${String((pending as Record<string, unknown>).key)}:retry:${created.id}`,
+        },
+      };
+      await tx.scheduledJobState.update({
+        where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+        data: { cursorJson: nextCursor as Prisma.InputJsonValue, lastError: null },
+      });
+      return created;
+    });
+  } else {
+    request = await prisma.scheduledJobRequest.create({
+      data: { projectId: project.id, jobId: job.id },
+    });
+  }
   const idempotencyKey = `manual:${project.id}:${job.id}:${request.id}`;
   const deadline = Date.now() + Number(job.config.timeout_ms ?? 60_000) + 20_000;
   while (Date.now() < deadline) {

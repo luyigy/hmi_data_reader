@@ -48,6 +48,10 @@ pending。
   严格核验 `/proc/<pid>/cmdline` 与 harness 类型后终止真实进程。
 - `/ap sessions` 不依赖可能已错误收口的 run 状态，而是核验最近平台本地 participant 的
   持久化 PID，显示当前实际存活的 Agent 进程数量、任务、run、PID 和数据库状态。
+- `/ap job retry workflow-watcher` 只对当前 `revision` pending 做一次人工重投：
+  watcher 必须已启用且空闲、Coding Agent 的绑定 task 必须可确认，并且该 task 不得存在
+  真实存活的本地 harness。每次 retry 使用新的唯一 dispatch key，旧 `reply_queued`
+  不会吞掉重试；定时轮询本身不会自动重投。
 - 紧急停止会补查当前 task/member 的历史 participant，因此即使旧 `/ap new-session`
   已把 run 错误标为 interrupted，仍能发现并终止遗留 harness。
 - Prisma 已应用 migration
@@ -66,6 +70,7 @@ pending。
 - `tests/project-config.test.ts`
 - `npx tsc --noEmit`
 - `tests/feishu-agent-session-command.test.ts`（含真实子进程 PID 核验与 SIGKILL）
+- workflow watcher retry 唯一 event key 与命令解析测试
 - 当前数据库与 `/proc` 联合实查：`/ap sessions` handler 返回实际存活 Agent 进程 0。
 - 相关文件 ESLint
 - `git diff --check`

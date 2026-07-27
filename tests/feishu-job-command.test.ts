@@ -38,6 +38,11 @@ assert.deepEqual(parseFeishuCommand(message('/ap job stop workflow-watcher')), {
   args: ['stop', 'workflow-watcher'],
   options: {},
 });
+assert.deepEqual(parseFeishuCommand(message('/ap job retry workflow-watcher')), {
+  command: 'job',
+  args: ['retry', 'workflow-watcher'],
+  options: {},
+});
 assert.deepEqual(parseFeishuCommand(message('/ap job cursor workflow-watcher --latest')), {
   command: 'job',
   args: ['cursor', 'workflow-watcher'],

@@ -303,12 +303,14 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const undispatchedRevisionCursor = JSON.parse(JSON.stringify(reviewCursor));
   undispatchedRevisionCursor.pending.reviewState = 'revision';
   undispatchedRevisionCursor.pending.reviewFeedback = '';
+  undispatchedRevisionCursor.pending.revisionDispatchKey = 'revision-key:retry:request-1';
   const recoveredRevision = await run(undispatchedRevisionCursor);
   assert.match(recoveredRevision.summary, /dispatch_recovered=true/);
   assert.equal(
     (recoveredRevision.cursor as { pending: { revisionDispatched: boolean } }).pending.revisionDispatched,
     true,
   );
+  assert.equal(workflowRuns.at(-1)?.eventKey, 'revision-key:retry:request-1');
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /请先主动询问审批人需要修改的内容/);
 
   await writeFile(path.join(root, 'docs/branch/main/003_PLAN_20260725_review.md'),

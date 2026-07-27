@@ -32,6 +32,7 @@ type Pending = WorkflowReviewPending & {
   prompt: string;
   detectedAt: string;
   reviewExpiresAt?: string;
+  revisionDispatchKey?: string;
 };
 
 type Cursor = { commit: string; eventKey?: string; pending?: Pending };
@@ -253,7 +254,7 @@ export const workflowWatcherHandler = async (
     if (pending.gate === 'plan_review' && pending.reviewState === 'revision_requested') {
       if (mode === 'active') {
         await execute(
-          { key: pending.key, prompt: revisionPrompt() },
+          { key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
           project.id,
           job.id,
           codingBotChatId,
@@ -276,7 +277,7 @@ export const workflowWatcherHandler = async (
           return { summary: `head=${head} pending=${pending.path} gate=plan_revision`, cursor: previous };
         }
         await execute(
-          { key: pending.key, prompt: revisionPrompt() },
+          { key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
           project.id,
           job.id,
           codingBotChatId,
