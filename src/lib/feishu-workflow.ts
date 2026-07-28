@@ -159,11 +159,24 @@ export async function runWorkflowInBoundLiveRoom(args: {
   });
   if (!existingDelivery) {
     if (revisionPath) {
-      await runLiveRoomPlan({
+      const claimed = await prisma.workflowDispatch.updateMany({
+        where: { id: dispatch.id, state: 'prompt_posted' },
+        data: { state: 'reply_queued' },
+      });
+      if (!claimed.count) return true;
+      void runLiveRoomPlan({
         roomId: room.id,
         sourceMessageId: dispatch.messageId,
         content: `/plan --revise=${revisionPath} ${args.prompt}`,
+      }).catch(async (error) => {
+        console.error('[workflow] PLAN revision failed to start', error);
+        await postLiveRoomMessage({
+          roomId: room.id,
+          content: `系统提示：PLAN 修订启动失败：${error instanceof Error ? error.message : String(error)}`,
+          messageType: 'system',
+        }).catch(() => undefined);
       });
+      return true;
     } else {
       await triggerLiveRoomMessageReplies({
         roomId: room.id,
