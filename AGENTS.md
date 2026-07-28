@@ -75,3 +75,12 @@ This project is indexed by GitNexus as **agent-platform-v2** (7397 symbols, 1256
 
 - 开工前运行 `npm run check:long-files`，确认当前已达阻断阈值的文件。
 - 这些文件不得增长。workflow completion gate 会在工作流 participant 完成时校验并阻止继续完成；需要新增职责时，先在同一提交中提取明确边界的模块。
+
+## Workflow Git 历史
+
+当 workflow watcher 已启用，或提交已可能被 cursor、PLAN、HANDOVER、审批卡或其他 Agent
+读取后，Git 历史必须只追加：
+
+- 不执行 `git commit --amend`、rebase、reset 或强推改写已提交历史。
+- 对同一文件的后续修正必须创建新的 commit。
+- 发现历史改写时，停止自动化并由人工确认/恢复 watcher cursor；Agent 不得猜测或自动恢复。
