@@ -39,6 +39,7 @@ import { buildAcpxPermissionConfigForProfile } from '@/lib/acpx/permissions';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
+import { formatFeishuHelp } from '@/lib/feishu-help';
 import {
   listLiveRoomCatalogAgents,
   listLiveRoomPendingReplies,
@@ -52,49 +53,6 @@ import {
   handleNewSessionCommand,
   parseNewSessionProfile,
 } from '@/lib/feishu-new-session';
-const DEFAULT_HELP_TEXT = [
-  'Agent Platform Feishu Bot',
-  '',
-  '可用命令：',
-  '/ap help',
-  '/ap status',
-  '/ap users [--status=approved|pending|denied|revoked|blocked]  (管理员)',
-  '/ap user approve <open_id> --workspace-root=/absolute/path  (管理员)',
-  '/ap user workspace <open_id> <absolute_root>  (管理员)',
-  '/ap user <revoke|block|unblock> <open_id>  (管理员)',
-  '/ap gateways',
-  '/ap agents [gatewayId]',
-  '/ap hosts',
-  '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
-  '/ap run --host=<hostId|label> --harness=<codex|claude|claude-haha> <prompt>',
-  '/ap room --agents=<local:codex,local:claude> [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [title]',
-  '/ap mode <discussion|execution|hybrid>',
-  '/ap members',
-  '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
-  '/ap role --member=<memberName|idSuffix> --role=<planner|researcher|implementer|reviewer|tester|custom>',
-  '/ap codex-config --agent=<memberName|idSuffix> [--model=<model|inherit>] [--thinking=<level|inherit>]',
-  '/ap speaker [memberName|idSuffix]',
-  '/ap add --agents=<agentId>  支持短写：TX-server:claude',
-  '/ap kick <memberName>',
-  '/ap chat [--agents=<agentId1,agentId2>] <message>',
-  '/ap chat --from-member=<memberName> --to-member=<memberName> <message>',
-  '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',
-  '/ap approvals',
-  '/ap approve <approvalId>',
-  '/ap deny <approvalId> [reason]',
-  '/ap answer <approvalId> <text>',
-  '/ap grant <dev|full> [--agent=<name>] [message]',
-  '/ap rights [--agent=<name>]',
-  '/ap handover [agentName|idSuffix] [--title="handover title"]',
-  '/ap workspace [root 内的绝对或相对路径]',
-  '/ap jobs',
-  '/ap job <status|cursor|schedule|enable|disable|run|retry|stop> <job-id>',
-  '/ap stop [--all|agentName|idSuffix]',
-  '/ap sessions',
-  '/ap new [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
-  '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
-].join('\n');
-
 function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
   const normalized = agentName.trim().toLowerCase();
   if (normalized.includes('antigravity') || normalized === 'agy') {
@@ -1434,7 +1392,7 @@ export async function handleFeishuCommand(args: {
   }
   switch (args.command.command) {
     case 'help':
-      return DEFAULT_HELP_TEXT;
+      return formatFeishuHelp(args.command);
     case 'status':
       return handleStatusCommand();
     case 'users':
@@ -1494,6 +1452,6 @@ export async function handleFeishuCommand(args: {
     case 'stop': return handleStopAgentCommand(args.command, args.context);
     case 'sessions': return handleAgentSessionsCommand();
     default:
-      return DEFAULT_HELP_TEXT;
+      return formatFeishuHelp(args.command);
   }
 }
