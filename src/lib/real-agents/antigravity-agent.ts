@@ -45,15 +45,18 @@ const childEnv = () => {
 const promptFor = (task: AntigravityTask) =>
   `Task: ${task.name}\n\n${task.description || 'Please complete this task.'}`;
 
+const normalizeOutput = (value: string) => value.trim().replace(/\s+/g, ' ');
+
 export const executeAntigravityTask = (
   task: AntigravityTask,
   config: AntigravityConfig = {}
 ): Promise<AntigravityResult> => {
   const startedAt = Date.now();
   const timeout = config.timeout === null ? null : (config.timeout ?? 300000);
+  const prompt = promptFor(task);
   const args = [
     '-p',
-    promptFor(task),
+    prompt,
     ...(config.sandboxMode === 'danger-full-access'
       ? ['--dangerously-skip-permissions']
       : ['--sandbox']),
@@ -97,10 +100,21 @@ export const executeAntigravityTask = (
       success: false,
       error: `Failed to start Antigravity CLI: ${error.message}`,
     }));
-    child.on('close', (code) => finish(code === 0
-      ? { success: true, output: stdout.trim() || 'Antigravity completed', filesModified: [] }
-      : { success: false, error: stderr.trim() || stdout.trim() || `Antigravity exited with code ${code}` }
-    ));
+    child.on('close', (code) => {
+      const output = stdout.trim();
+      if (code !== 0) {
+        finish({ success: false, error: stderr.trim() || output || `Antigravity exited with code ${code}` });
+      } else if (!output) {
+        finish({
+          success: false,
+          error: `Antigravity returned no final output${stderr.trim() ? `: ${stderr.trim()}` : ''}`,
+        });
+      } else if (normalizeOutput(output) === normalizeOutput(prompt)) {
+        finish({ success: false, error: `Antigravity returned only the input prompt${stderr.trim() ? `: ${stderr.trim()}` : ''}` });
+      } else {
+        finish({ success: true, output, filesModified: [] });
+      }
+    });
   });
 };
 
