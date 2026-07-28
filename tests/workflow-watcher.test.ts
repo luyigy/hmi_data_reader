@@ -598,14 +598,29 @@ S01
 `);
   git('add', '.');
   git('commit', '-qm', 'invalid plan');
+  const runsBeforeInvalid = workflowRuns.length;
+  const noticesBeforeInvalid = apiCalls.length;
   const invalid = await run(beforeInvalid);
-  assert.match(invalid.summary, /validation_failed notified=true dispatched=true/);
-  assert.match(workflowRuns.at(-1)?.prompt ?? '', /PLAN_VALIDATE_REPAIR/);
-  assert.match(workflowRuns.at(-1)?.prompt ?? '', /006_PLAN_20260725_invalid\.md/);
+  assert.match(invalid.summary, /validation_failed notified=true/);
+  assert.equal(workflowRuns.length, runsBeforeInvalid, 'validator failure must not dispatch a repair Session');
+  assert.doesNotMatch(workflowRuns.map(({ prompt }) => prompt).join('\n'), /PLAN_VALIDATE_REPAIR/);
   assert.match(String(apiCalls.at(-1)?.body.content), /workflow validator 未通过/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /不会触发下一 Workflow 动作/);
   const retry = await run(invalid.cursor);
-  assert.match(retry.summary, /validation_failed notified=true dispatched=true/);
-  assert.equal(workflowRuns.filter(({ prompt }) => prompt.includes('PLAN_VALIDATE_REPAIR')).length, 1);
+  assert.match(retry.summary, /validation_failed notified=true/);
+  assert.equal(workflowRuns.length, runsBeforeInvalid, 'same blob must remain notification-idempotent');
+  assert.equal(apiCalls.length, noticesBeforeInvalid + 1, 'same blob must not send another notification');
+
+  await writeFile(
+    path.join(root, 'docs/branch/main/006_PLAN_20260725_invalid.md'),
+    `${git('show', 'HEAD:docs/branch/main/006_PLAN_20260725_invalid.md')}\nchanged invalid blob\n`,
+  );
+  git('add', '.');
+  git('commit', '-qm', 'change invalid plan blob');
+  const changedInvalid = await run(retry.cursor);
+  assert.match(changedInvalid.summary, /validation_failed notified=true/);
+  assert.equal(apiCalls.length, noticesBeforeInvalid + 2, 'new blob must be revalidated and notified');
+  assert.equal(workflowRuns.length, runsBeforeInvalid, 'new invalid blob must still not dispatch a repair Session');
 
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(terminal.cursor), /active side effects require explicit config gate/);

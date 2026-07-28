@@ -24,7 +24,8 @@ import { createTaskRunInteractionRequest, findRecentPendingInteractionRequest } 
 import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
-import { completeWorkflowWithCorrections, getWorkflowCompletionBaseline, shouldCheckWorkflowCompletion } from './workflow-completion-gate';
+import { getWorkflowCompletionBaseline, shouldCheckWorkflowCompletion } from './workflow-completion-gate';
+import { completeWorkflowInOriginalSession } from './workflow-completion-session';
 import { assertLongFileRuntimeContext, getLongFileRuntimeContext, type LongFileRuntimeContext } from './long-file-runtime-context';
 import { buildHarnessPrompt, checkContextWatermark, withLongFileRuntimeContext } from './prompt';
 import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
@@ -1624,32 +1625,21 @@ const executeParticipant = async (
     }
 
     if (workflowBaseline) {
-      const cwd = request.workingDirectory || process.cwd();
-      await completeWorkflowWithCorrections(cwd, workflowBaseline, async (validationError, attempt) => {
-        const sessionId = result.sessionId || result.threadId;
-        if (!sessionId) throw new Error(`${validationError.message}\nworkflow correction failed: continuation session unavailable`);
-        result = await executeViaLocalHarness(
-          request,
-          taskRunId,
-          participantId,
-          {
-            ...participant,
-            resumeSessionId: sessionId,
-            resumeThreadId: result.sessionKind === 'codex_thread' ? sessionId : undefined,
-            continuationMessage: [
-              `Workflow completion 校验失败（自动纠错 ${attempt}/2）。`,
-              `目标 HEAD：${validationError.head}`,
-              `失败文档：${validationError.filePaths.join(', ')}`,
-              validationError.message,
-              '只修订上述相关 PLAN/HANDOVER 并提交；不要执行下一 Slice。提交后立即停止，平台会使用原始 baseline 重新校验。',
-            ].join('\n\n'),
-          },
-          callbacks,
-          previousSummaries,
-          taskRoomContext,
-          localSpawnHandler,
-          contextWarning, longFileContext,
-        );
+      await completeWorkflowInOriginalSession({
+        cwd: request.workingDirectory || process.cwd(),
+        baseline: workflowBaseline,
+        taskId: request.taskId,
+        taskName: request.taskName,
+        sessionId: result.sessionId || result.threadId,
+        sessionKind: result.sessionKind,
+        correct: async (continuation) => {
+          result = await executeViaLocalHarness(
+            request, taskRunId, participantId,
+            { ...participant, ...continuation },
+            callbacks, previousSummaries, taskRoomContext,
+            localSpawnHandler, contextWarning, longFileContext,
+          );
+        },
       });
     }
 

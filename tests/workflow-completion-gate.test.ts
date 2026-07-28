@@ -10,6 +10,7 @@ import {
   shouldCheckWorkflowCompletion,
   WorkflowCompletionValidationError,
 } from '../src/lib/acpx/workflow-completion-gate';
+import { completeWorkflowInOriginalSession } from '../src/lib/acpx/workflow-completion-session';
 
 async function main() {
   assert.equal(shouldCheckWorkflowCompletion(undefined, 'platform_local'), false);
@@ -87,6 +88,21 @@ S01
     /workflow completion blocked:[\s\S]*非可执行动作不得包含自动化 Prompt/,
   );
 
+  let unavailableNotice = '';
+  await assert.rejects(
+    completeWorkflowInOriginalSession({
+      cwd: root,
+      baseline: validHead,
+      taskId: 'task',
+      taskName: 'task',
+      correct: async () => assert.fail('unavailable original session must not run a correction'),
+      notify: async (message) => { unavailableNotice = message; },
+    }),
+    /original continuation session unavailable/,
+  );
+  assert.match(unavailableNotice, /workflow completion blocked:[\s\S]*非可执行动作不得包含自动化 Prompt/);
+  assert.match(unavailableNotice, /original continuation session unavailable/);
+
   let corrections = 0;
   await completeWorkflowWithCorrections(root, validHead, async (error, attempt) => {
     corrections += 1;
@@ -127,21 +143,36 @@ S01
   git('add', '.');
   git('commit', '-qm', 'invalid workflow attempt zero');
   corrections = 0;
+  const correctionSessions: Array<[string, string | undefined]> = [];
   await assert.rejects(
-    completeWorkflowWithCorrections(root, retryLimitBaseline, async (_error, attempt) => {
-      corrections += 1;
-      await writeFile(
-        planPath,
-        attempt === 1
-          ? plan('await_plan_approval')
-          : plan('start_first_slice').replace('next_action: start_first_slice', 'next_action: nope'),
-      );
-      git('add', '.');
-      git('commit', '-qm', `invalid workflow correction ${attempt}`);
+    completeWorkflowInOriginalSession({
+      cwd: root,
+      baseline: retryLimitBaseline,
+      taskId: 'task',
+      taskName: 'task',
+      sessionId: 'original-thread',
+      sessionKind: 'codex_thread',
+      notify: async () => {},
+      correct: async ({ resumeSessionId, resumeThreadId }) => {
+        corrections += 1;
+        correctionSessions.push([resumeSessionId, resumeThreadId]);
+        await writeFile(
+          planPath,
+          corrections === 1
+            ? plan('await_plan_approval')
+            : plan('start_first_slice').replace('next_action: start_first_slice', 'next_action: nope'),
+        );
+        git('add', '.');
+        git('commit', '-qm', `invalid workflow correction ${corrections}`);
+      },
     }),
     /workflow correction stopped: maximum 2 attempts reached/,
   );
   assert.equal(corrections, 2);
+  assert.deepEqual(correctionSessions, [
+    ['original-thread', 'original-thread'],
+    ['original-thread', 'original-thread'],
+  ]);
 
   const longFilePath = path.join(root, 'large.ts');
   await writeFile(longFilePath, 'line\n'.repeat(1000));
