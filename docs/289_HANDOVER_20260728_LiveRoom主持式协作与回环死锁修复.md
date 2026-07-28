@@ -110,6 +110,20 @@ Codex 原任务等待 Antigravity
   单个阶段失败会明确报告 `PLAN 未提交`，不会伪装成功。
 - 本次没有实现通用的无限轮次讨论模式；需要多轮协商时由用户重新发起 `/ap plan`，避免自治循环。
 
+## 2026-07-28 补充：revision dispatch 受控重试
+
+- 旧 PLAN `docs/288_PLAN_20260728_Workflow权限边界与同Session校验修复.md` 已由主持式流程修订并提交为
+  `6827aebce0de238067facb66943c71d10ecb4590`，validator 通过后重新发放审批卡；没有继续启动 Slice。
+- 实际重试暴露出 watcher 60 秒超时期间 `WorkflowDispatch` 长时间停在 `prompt_posted`，下一次调度会再次
+  启动同一修订。提交 `9ca2fc2` 使用条件 `updateMany` 原子占用 dispatch，只有占用成功者异步启动
+  `runLiveRoomPlan`，watcher 随即返回并落盘 `revisionDispatched`。
+- 已重启 `agent-platform-scheduled-jobs.service`。重启后服务为 `active/running`，审批状态保持
+  `review`，没有运行中的重复 TaskRun。
+- 聚焦验证通过：Workflow watcher 幂等测试、Live Room PLAN 测试、Workflow 卡片测试、TypeScript、
+  long-file guard、`git diff --check` 和 GitNexus staged `detect_changes`。
+- watcher 仍会在飞书 OpenAPI 调用上收到独立的 `230027 user_unauthorized`；审批卡已正常发放，说明该错误
+  不是 revision dispatch 失败。后续应单独定位具体 API scope 或租户策略，不要再次重试或重置当前 PLAN。
+
 ## 建议下一会话任务
 
 读取 `docs/289_HANDOVER_20260728_LiveRoom主持式协作与回环死锁修复.md` 和提交
