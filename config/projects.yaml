@@ -28,10 +28,7 @@ projects:
         schedule: "*/10 * * * *"
         enabled: true
         mode: active
-        config:
-          threshold_lines: 1000
-          extensions: [.py, .js, .ts, .tsx, .jsx, .go, .java, .vue]
-          exclude_paths: []
+        config: {}
       - id: stop-acceptance
         type: noop_test
         schedule: "0 0 31 2 *"
@@ -69,10 +66,7 @@ projects:
         schedule: "*/10 * * * *"
         enabled: true
         mode: active
-        config:
-          threshold_lines: 1000
-          extensions: [.py, .js, .ts, .tsx, .jsx, .go, .java, .vue]
-          exclude_paths: [node_modules/, dist/, build/, coverage/]
+        config: {}
   - id: workflow-test
     name: Workflow Test
     path: /data1/code/workflow-test

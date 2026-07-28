@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { sendFeishuTextMessage } from '../feishu-api';
+import { LONG_FILE_CONTRACT_PATH, parseLongFileRules } from '../long-file-guard';
 import type { JobHandler } from './handlers';
 
 type Offender = { path: string; blob: string; head: string; lines: number };
@@ -23,32 +24,13 @@ const lineCount = (content: Buffer) => {
   return lines;
 };
 
-export const parseLongFileDetectorConfig = (config: Record<string, unknown>) => {
-  const threshold = config.threshold_lines;
-  const extensions = config.extensions;
-  const excludes = config.exclude_paths ?? [];
-  if (!Number.isInteger(threshold) || Number(threshold) < 1) throw new Error('threshold_lines must be a positive integer');
-  if (!Array.isArray(extensions) || !extensions.length || extensions.some((item) => typeof item !== 'string' || !item.startsWith('.'))) {
-    throw new Error('extensions must be a non-empty array of file extensions');
-  }
-  if (!Array.isArray(excludes) || excludes.some((item) => typeof item !== 'string')) {
-    throw new Error('exclude_paths must be an array of strings');
-  }
-  return {
-    threshold: Number(threshold),
-    extensions: new Set(extensions.map((item) => item.toLowerCase())),
-    excludes: excludes as string[],
-  };
-};
-
 export async function detectLongFiles(
   cwd: string,
   ref: string,
-  config: Record<string, unknown>,
   signal: AbortSignal,
 ) {
-  const { threshold, extensions, excludes } = parseLongFileDetectorConfig(config);
   const head = (await git(cwd, signal, 'rev-parse', '--verify', `${ref}^{commit}`)).toString().trim();
+  const rules = parseLongFileRules((await git(cwd, signal, 'show', `${head}:${LONG_FILE_CONTRACT_PATH}`)).toString());
   const tree = (await git(cwd, signal, 'ls-tree', '-r', '-z', '--full-tree', head)).toString();
   const offenders: Offender[] = [];
 
@@ -57,13 +39,13 @@ export async function detectLongFiles(
     const match = entry.match(/^\d+ blob ([0-9a-f]+)\t([\s\S]*)$/);
     if (!match) continue;
     const [, blob, filePath] = match;
-    if (excludes.some((prefix) => filePath.startsWith(prefix))) continue;
+    if (filePath.split('/').some((part) => rules.ignored.has(part))) continue;
     const extension = filePath.includes('.') ? filePath.slice(filePath.lastIndexOf('.')).toLowerCase() : '';
-    if (!extensions.has(extension)) continue;
+    if (!rules.extensions.has(extension)) continue;
     const lines = lineCount(await git(cwd, signal, 'cat-file', 'blob', blob));
-    if (lines >= threshold) offenders.push({ path: filePath, blob, head, lines });
+    if (lines >= rules.blocking) offenders.push({ path: filePath, blob, head, lines });
   }
-  return offenders;
+  return { head, threshold: rules.blocking, offenders };
 }
 
 const cursorFiles = (cursor: unknown) => {
@@ -74,8 +56,8 @@ const cursorFiles = (cursor: unknown) => {
     : {};
 };
 
-export const longFileDetectorHandler: JobHandler = async ({ project, job, mode, cursor, signal }) => {
-  const offenders = await detectLongFiles(project.path, project.ref, job.config, signal);
+export const longFileDetectorHandler: JobHandler = async ({ project, mode, cursor, signal }) => {
+  const { head, threshold, offenders } = await detectLongFiles(project.path, project.ref, signal);
   const previous = cursorFiles(cursor);
   const changed = offenders.filter((item) => {
     const prior = previous[item.path];
@@ -84,21 +66,21 @@ export const longFileDetectorHandler: JobHandler = async ({ project, job, mode, 
   const currentPaths = new Set(offenders.map((item) => item.path));
   const cleared = Object.keys(previous).filter((filePath) => !currentPaths.has(filePath));
 
-  if (mode === 'active' && changed.length) {
-    const threshold = Number(job.config.threshold_lines);
+  if (mode === 'active' && (changed.length || cleared.length)) {
     await sendFeishuTextMessage({
       receiveId: project.feishu.chat_id,
       text: [
-        `[long-file-checker] ⚠️ 长文件预警（${project.id} @ ${project.ref}，阈值 ${threshold} 行）`,
-        `命中 ${changed.length} 个文件：`,
-        ...changed.sort((left, right) => right.lines - left.lines).map((item) => `  • \`${item.path}\` — ${item.lines} 行`),
+        `[long-file-checker] ${offenders.length ? '⚠️ 长文件预警' : '✅ 已无超阈值文件'}（${project.id} @ ${head}，阈值 ${threshold} 行）`,
+        `本次变化 ${changed.length + cleared.length} 个（超限变化 ${changed.length}，恢复 ${cleared.length}）；当前超限业务源码总数 ${offenders.length} 个。`,
+        ...(changed.length ? [
+          '超限变化：',
+          ...changed.sort((left, right) => right.lines - left.lines).map((item) => `  • \`${item.path}\` — ${item.lines} 行`),
+        ] : []),
+        ...(cleared.length ? [
+          '已恢复：',
+          ...cleared.sort().map((filePath) => `  • \`${filePath}\``),
+        ] : []),
       ].join('\n'),
-    });
-  }
-  if (mode === 'active' && cleared.length) {
-    await sendFeishuTextMessage({
-      receiveId: project.feishu.chat_id,
-      text: `[long-file-checker] ✅ 已不再超阈值（${project.id}）：\n${cleared.sort().map((filePath) => `  • \`${filePath}\``).join('\n')}`,
     });
   }
 

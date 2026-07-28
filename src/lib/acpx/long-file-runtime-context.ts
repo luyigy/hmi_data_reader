@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { parseLongFileDetectorConfig } from '@/lib/scheduled-jobs/long-file-detector';
+import { LONG_FILE_CONTRACT_PATH, parseLongFileRules } from '@/lib/long-file-guard';
 import { loadProjectsConfig, type ProjectConfig } from '@/lib/scheduled-jobs/project-config';
 import type { AcpxExecutionBackend } from './types';
 
@@ -30,6 +30,13 @@ const gitHead = (cwd: string) => new Promise<string>((resolve, reject) => {
   });
 });
 
+const gitFile = (cwd: string, ref: string, filePath: string) => new Promise<string>((resolve, reject) => {
+  execFile('git', ['-C', cwd, 'show', `${ref}:${filePath}`], { encoding: 'utf8' }, (error, stdout, stderr) => {
+    if (error) reject(new Error(stderr.trim() || error.message));
+    else resolve(stdout);
+  });
+});
+
 const isWithin = (root: string, candidate: string) => {
   const relative = path.relative(root, candidate);
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
@@ -49,7 +56,7 @@ const scan = async (
   for (const entry of (await fs.readdir(directory, { withFileTypes: true })).sort((left, right) => left.name.localeCompare(right.name))) {
     const filePath = path.join(directory, entry.name);
     const relativePath = path.relative(root, filePath).split(path.sep).join('/');
-    if (excludes.some((prefix) => relativePath.startsWith(prefix))) continue;
+    if (relativePath.split('/').some((part) => excludes.includes(part))) continue;
     if (entry.isDirectory()) await scan(root, filePath, extensions, excludes, files);
     else if (entry.isFile() && extensions.has(path.extname(entry.name).toLowerCase())) files[relativePath] = countLines(await fs.readFile(filePath));
   }
@@ -72,19 +79,21 @@ export const getLongFileRuntimeContext = async ({
   const detector = project && detectorFor(project);
   if (!project || !detector) return null;
 
-  const rules = parseLongFileDetectorConfig(detector.config);
-  const baseline = await scan(project.path, project.path, rules.extensions, rules.excludes);
+  const head = await gitHead(project.path);
+  const rules = parseLongFileRules(await gitFile(project.path, head, LONG_FILE_CONTRACT_PATH));
+  const excludes = Array.from(rules.ignored);
+  const baseline = await scan(project.path, project.path, rules.extensions, excludes);
   const offenders = Object.entries(baseline)
-    .filter(([, lines]) => lines >= rules.threshold)
+    .filter(([, lines]) => lines >= rules.blocking)
     .map(([filePath, lines]) => ({ path: filePath, lines }))
     .sort((left, right) => left.path.localeCompare(right.path));
   return {
     projectId: project.id,
     projectPath: project.path,
-    head: await gitHead(project.path),
-    threshold: rules.threshold,
+    head,
+    threshold: rules.blocking,
     extensions: rules.extensions,
-    excludes: rules.excludes,
+    excludes,
     baseline,
     offenders,
   };

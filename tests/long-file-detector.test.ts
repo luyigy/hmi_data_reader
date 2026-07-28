@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { longFileDetectorHandler } from '../src/lib/scheduled-jobs/long-file-detector';
@@ -13,9 +13,19 @@ async function main() {
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'Test');
 
+  await mkdir(path.join(root, 'docs/workflow'), { recursive: true });
+  await mkdir(path.join(root, '.next'), { recursive: true });
+  await mkdir(path.join(root, 'node_modules/example'), { recursive: true });
+  await writeFile(path.join(root, 'docs/workflow/workflow-contract.yaml'), `large_files:
+  blocking_lines: 3
+  source_extensions: [.ts, .js]
+  ignored_path_parts: [.next, node_modules]
+`);
+  await writeFile(path.join(root, '.next/generated.js'), 'one\ntwo\nthree\n');
+  await writeFile(path.join(root, 'node_modules/example/index.js'), 'one\ntwo\nthree\n');
   const source = path.join(root, 'large.ts');
   await writeFile(source, 'one\ntwo\nthree\n');
-  git('add', 'large.ts');
+  git('add', '.');
   git('commit', '-qm', 'initial');
 
   const job: JobConfig = {
@@ -24,7 +34,7 @@ async function main() {
     schedule: '*/10 * * * *',
     enabled: true,
     mode: 'shadow',
-    config: { threshold_lines: 3, extensions: ['.ts'], exclude_paths: [] },
+    config: {},
   };
   const project: ProjectConfig = {
     id: 'example',
@@ -70,6 +80,10 @@ async function main() {
     signal: new AbortController().signal,
   });
   assert.equal(JSON.parse(requests[1].body!).receive_id, 'unused-in-shadow');
+  const notification = JSON.parse(requests[1].body!).content;
+  assert.match(notification, new RegExp(git('rev-parse', 'HEAD').toString().trim()));
+  assert.match(notification, /本次变化 1 个（超限变化 1，恢复 0）；当前超限业务源码总数 1 个/);
+  assert.doesNotMatch(notification, /\.next|node_modules/);
 
   await writeFile(source, 'small\n');
   git('add', 'large.ts');

@@ -5,8 +5,9 @@ import { parse } from 'yaml';
 type Rules = { blocking: number; extensions: Set<string>; ignored: Set<string> };
 export type LongFileBaseline = { rules: Rules; lines: Record<string, number> };
 
-const readRules = async (cwd: string): Promise<Rules> => {
-  const source = await fs.readFile(path.join(cwd, 'docs/workflow/workflow-contract.yaml'), 'utf8');
+export const LONG_FILE_CONTRACT_PATH = 'docs/workflow/workflow-contract.yaml';
+
+export const parseLongFileRules = (source: string): Rules => {
   const value = parse(source) as { large_files?: { blocking_lines?: unknown; source_extensions?: unknown; ignored_path_parts?: unknown } };
   const config = value.large_files;
   if (!config || !Number.isInteger(config.blocking_lines) || Number(config.blocking_lines) < 1
@@ -19,6 +20,9 @@ const readRules = async (cwd: string): Promise<Rules> => {
     ignored: new Set(config.ignored_path_parts.map(String)),
   };
 };
+
+const readRules = async (cwd: string): Promise<Rules> =>
+  parseLongFileRules(await fs.readFile(path.join(cwd, LONG_FILE_CONTRACT_PATH), 'utf8'));
 
 const scan = async (cwd: string, rules: Rules, directory = cwd, files: Record<string, number> = {}) => {
   for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
