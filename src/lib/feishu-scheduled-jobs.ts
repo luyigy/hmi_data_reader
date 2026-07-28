@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import path from 'node:path';
 import { promisify } from 'node:util';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -8,6 +9,7 @@ import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 import { jobHandlers } from '@/lib/scheduled-jobs/handlers';
 import { findProjectByChatId, loadProjectsConfig, validateSchedule } from '@/lib/scheduled-jobs/project-config';
 import { effectiveJobSchedule, stopScheduledJob, waitForScheduledJobStop } from '@/lib/scheduled-jobs/runner';
+import { readWorkflowContract, selectWorkflowCandidates } from '@/lib/scheduled-jobs/workflow-validator';
 import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
@@ -29,6 +31,78 @@ export async function inspectWorkflowCursor(path: string, ref: string, cursor: u
     return { current, latest, rewritten: true, behind: undefined };
   }
 }
+
+export async function inspectWorkflowCandidates(
+  repository: string,
+  head: string,
+  cursor: unknown,
+  config: Record<string, unknown>,
+) {
+  const contractPath = String(config.contract_path || '');
+  const branchSpace = String(config.branch_space || '');
+  const initialCursor = String(config.initial_cursor_commit || '');
+  if (!contractPath || path.isAbsolute(contractPath) || contractPath.split('/').includes('..')) {
+    throw new Error('contract_path must stay inside the repository');
+  }
+  if (!branchSpace || branchSpace.includes('/') || branchSpace === '..') {
+    throw new Error('workflow_watcher requires a single-directory config.branch_space');
+  }
+  const current = cursor && typeof cursor === 'object' && 'commit' in cursor && typeof cursor.commit === 'string'
+    ? cursor.commit
+    : initialCursor;
+  if (!current) throw new Error('workflow_watcher requires config.initial_cursor_commit for first run');
+  const contract = await readWorkflowContract(repository, head, contractPath, new AbortController().signal);
+  const watchRoot = path.posix.join(contract.branch_spaces.root, branchSpace);
+  const scanFrom = cursor && typeof cursor === 'object' && 'eventKey' in cursor ? current : initialCursor;
+  const changed = scanFrom === head ? [] : (await execFileAsync(
+    'git', ['-C', repository, 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot],
+    { encoding: 'utf8' },
+  )).stdout.trim().split('\n').filter(Boolean);
+  return selectWorkflowCandidates(changed, contract, watchRoot).map(({ filePath }) => filePath);
+}
+
+export const formatWorkflowDiagnosis = ({
+  projectName,
+  jobId,
+  enabled,
+  running,
+  mode,
+  schedule,
+  cursor,
+  pending,
+  candidates,
+  lastError,
+  recentFailure,
+}: {
+  projectName: string;
+  jobId: string;
+  enabled: boolean;
+  running: boolean;
+  mode: string;
+  schedule: string;
+  cursor: Awaited<ReturnType<typeof inspectWorkflowCursor>>;
+  pending: unknown;
+  candidates: string[];
+  lastError?: string | null;
+  recentFailure?: { status: string; error?: string | null; summary?: string | null } | null;
+}) => [
+  `${projectName} / ${jobId} diagnosis (read-only)`,
+  `enabled: ${enabled}`,
+  `running: ${running}`,
+  `mode: ${mode}`,
+  `schedule: ${schedule}`,
+  `cursor: ${cursor.current ?? '-'}`,
+  `head: ${cursor.latest}`,
+  `cursor is ancestor of head: ${cursor.current ? !cursor.rewritten : '-'}`,
+  `behind: ${cursor.behind ?? '-'}`,
+  ...formatWorkflowPending(pending),
+  `last error: ${lastError ?? '-'}`,
+  `recent failure: ${recentFailure ? `${recentFailure.status}: ${recentFailure.error ?? recentFailure.summary ?? '-'}` : '-'}`,
+  `workflow candidates: ${candidates.length ? candidates.join(', ') : 'none'}`,
+  cursor.rewritten
+    ? '安全提示: 历史已改写；--latest 会跳过待处理提交，需人工确认恢复基准。'
+    : '安全提示: 本命令只读；不会写数据库、移动 cursor、清除 pending、发送飞书消息或启动 Agent。',
+].join('\n');
 
 export const formatManualRunResult = (
   jobId: string,
@@ -103,8 +177,8 @@ export async function handleScheduledJobCommand(
 
   const action = command.command === 'jobs' ? 'list' : command.args[0]?.toLowerCase();
   const jobId = command.args[1];
-  if (action !== 'list' && (!jobId || !['status', 'cursor', 'schedule', 'enable', 'disable', 'run', 'retry', 'stop'].includes(action || ''))) {
-    return '用法：/ap jobs | /ap job <status|cursor|schedule|enable|disable|run|retry|stop> <job-id>';
+  if (action !== 'list' && (!jobId || !['status', 'cursor', 'diagnose', 'schedule', 'enable', 'disable', 'run', 'retry', 'stop'].includes(action || ''))) {
+    return '用法：/ap jobs | /ap job <status|cursor|diagnose|schedule|enable|disable|run|retry|stop> <job-id>';
   }
 
   const states = await prisma.scheduledJobState.findMany({ where: { projectId: project.id } });
@@ -186,6 +260,38 @@ export async function handleScheduledJobCommand(
       update: { cursorJson: { commit: cursor.latest }, lastError: null },
     });
     return `✅ ${job.id} 游标已移动到 ${cursor.latest}；旧提交不会被执行。`;
+  }
+  if (action === 'diagnose') {
+    if (job.type !== 'workflow_watcher') return `${job.id} 不支持 workflow 诊断。`;
+    const cursor = await inspectWorkflowCursor(project.path, project.ref, state?.cursorJson);
+    const recentFailure = await prisma.scheduledJobRun.findFirst({
+      where: { projectId: project.id, jobId: job.id, status: { in: ['failed', 'timed_out'] } },
+      orderBy: { startedAt: 'desc' },
+      select: { status: true, error: true, summary: true },
+    });
+    let candidates: string[] = [];
+    let diagnosticError: string | null = null;
+    if (!cursor.rewritten) {
+      try {
+        candidates = await inspectWorkflowCandidates(project.path, cursor.latest, state?.cursorJson, job.config);
+      } catch (error) {
+        diagnosticError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    const output = formatWorkflowDiagnosis({
+      projectName: project.name,
+      jobId: job.id,
+      enabled: state?.enabledOverride ?? job.enabled,
+      running: running.has(job.id),
+      mode: state?.modeOverride ?? job.mode,
+      schedule: effectiveJobSchedule(job, state),
+      cursor,
+      pending: state?.cursorJson,
+      candidates,
+      lastError: state?.lastError,
+      recentFailure,
+    });
+    return diagnosticError ? `${output}\ndiagnostic error: ${diagnosticError}` : output;
   }
 
   if (!isFeishuAdmin(context.senderOpenId) && !project.feishu.approver_open_ids.includes(context.senderOpenId)) {
