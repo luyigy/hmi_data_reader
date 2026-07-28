@@ -1,3 +1,23 @@
+## GitNexus Usage
+
+GitNexus is an available code analysis tool, but it should not be executed blindly for every task.
+
+Use GitNexus only when the task requires deeper impact analysis, such as:
+
+- modifying shared modules or public APIs;
+- changing authentication, permission, database schema, workflow, or core architecture;
+- performing large refactoring across multiple features;
+- the dependency impact cannot be understood through normal code navigation.
+
+For small, isolated changes:
+- do not automatically run GitNexus;
+- use normal repository exploration tools first;
+- avoid unnecessary repository-wide analysis.
+
+GitNexus results should support engineering decisions, not replace understanding of the actual code path.
+
+
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 

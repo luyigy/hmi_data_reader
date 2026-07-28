@@ -18,22 +18,38 @@ plan_progress: in_progress
 - 自动纠错最多两次；规范化错误指纹连续不变时立即熔断。
 - 未提交 workflow 文档、不可续接 session、非 validator 错误和普通非 workflow TaskRun
   均保持原有失败或关闭语义。
+- 修复 watcher 启动下一 Session 时 scheduled-job runner 未继承 Codex 代理的问题：
+  `scheduled-jobs:runtime` 现在复用 Feishu runtime 的代理捕获与清理方式，systemd 启动脚本
+  通过交互式 Bash 获取代理；runner 自身不保留通用代理变量，Codex 子进程通过
+  `FEISHU_RUNTIME_CODEX_*` 恢复代理。
+- 已重启 `agent-platform-scheduled-jobs.service`。原卡死 TaskRun 正确收口为
+  `failed/stalled`，新 runner 处于 `active`，代理环境已核验。
+- `AGENTS.md` 补充 GitNexus 使用边界：共享模块、公共 API、认证权限、数据库、workflow、
+  核心架构、大型重构或依赖影响不明确时使用；小型隔离改动优先普通代码导航，不再无条件
+  运行仓库级分析。
 
 ## 验证
 
 - `npm run test:workflow-validator`
 - `npm run test:workflow-watcher`
 - `npm run test:workflow-completion-gate`
+- `npm run test:scheduled-jobs`
+- `bash -n scripts/run-scheduled-job-runner.sh`
+- `package.json` JSON 解析
 - `npx tsc --noEmit`
 - 相关文件 ESLint
 - `git diff --check`
 - GitNexus `detect_changes`
+- systemd 服务状态、旧 Codex 进程退出、新 runner 环境变量只读核验
 
 ## 风险边界
 
 `executeParticipant` upstream impact 为 CRITICAL，completion gate 与 validator 为 HIGH。
 纠错入口继续受 `workflowCompletionGate === true` 和 `platform_local` 双重限制，未新增数据库
 状态、目标仓库脚手架或普通 TaskRun 行为。
+代理修复只影响 scheduled-job runner 启动的本地 Agent；未写死代理值，未修改数据库/API，
+也未把通用代理注入 runner 的其他请求。GitNexus 边界说明不覆盖仓库中针对具体高风险修改
+的强制 impact/detect_changes 要求。
 
 <!-- WORKFLOW_PROMPT_START -->
 读取 `docs/262_HANDOVER_20260727_Workflow自动纠错闭环S01交接.md`、
