@@ -125,6 +125,7 @@ large_files:
   ignored_path_parts:
     - .git
     - .codex
+    - .next
     - node_modules
     - dist
     - build
