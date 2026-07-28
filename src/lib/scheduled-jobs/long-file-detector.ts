@@ -23,7 +23,7 @@ const lineCount = (content: Buffer) => {
   return lines;
 };
 
-const detectorConfig = (config: Record<string, unknown>) => {
+export const parseLongFileDetectorConfig = (config: Record<string, unknown>) => {
   const threshold = config.threshold_lines;
   const extensions = config.extensions;
   const excludes = config.exclude_paths ?? [];
@@ -47,7 +47,7 @@ export async function detectLongFiles(
   config: Record<string, unknown>,
   signal: AbortSignal,
 ) {
-  const { threshold, extensions, excludes } = detectorConfig(config);
+  const { threshold, extensions, excludes } = parseLongFileDetectorConfig(config);
   const head = (await git(cwd, signal, 'rev-parse', '--verify', `${ref}^{commit}`)).toString().trim();
   const tree = (await git(cwd, signal, 'ls-tree', '-r', '-z', '--full-tree', head)).toString();
   const offenders: Offender[] = [];
