@@ -39,7 +39,7 @@ projects:
           delay_ms: 600000
           timeout_ms: 660000
   - id: mold-data-webpage-tool
-    name: Mold Data Webpage Tool
+    name: 科学试模助手
     path: /data1/code/mold-data-webpage-tool
     ref: refs/heads/rebuild-postgres-auth-slice
     feishu:
@@ -60,6 +60,15 @@ projects:
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: rebuild-postgres-auth-slice
           initial_cursor_commit: ebe9182bebcc8ede4691428459e27c3ad292771e
+      - id: long-file-detector
+        type: long_file_detector
+        schedule: "*/10 * * * *"
+        enabled: true
+        mode: shadow
+        config:
+          threshold_lines: 1000
+          extensions: [.py, .js, .ts, .tsx, .jsx, .go, .java, .vue]
+          exclude_paths: [node_modules/, dist/, build/, coverage/]
   - id: workflow-test
     name: Workflow Test
     path: /data1/code/workflow-test
