@@ -125,7 +125,10 @@ const importPlanDocument: WorkflowDocumentImporter = async ({ content, name, sig
   const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-platform-plan-'));
   const file = path.join(directory, 'plan.md');
   try {
-    await writeFile(file, `# ${name}\n\n${content}`);
+    const body = content
+      .replace(/^---\n[\s\S]*?\n---\n*/, '')
+      .replace(/^# [^\n]*\n*/, '');
+    await writeFile(file, `# ${name}\n\n${body}`);
     const result = JSON.parse(await exec('lark-cli', [
       'docs', '+create', '--as', 'bot', '--api-version', 'v2',
       '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',

@@ -57,7 +57,9 @@ case "$*" in
 esac
 case "$*" in
   "docs +create --as bot --api-version v2 --doc-format markdown --content @plan.md --format json")
-    grep -q '^# 005_PLAN_20260725_import_failure$' plan.md || exit 1
+    [ "$(grep -c '^# 005_PLAN_20260725_import_failure$' plan.md)" -eq 1 ] || exit 1
+    ! grep -q '^doc_type:' plan.md || exit 1
+    grep -q '^S01$' plan.md || exit 1
     echo '{"ok":true,"identity":"user","data":{"document":{"url":"https://example.feishu.cn/docx/default-import"}}}'
     ;;
   *PLAN_REVIEW*) echo '{"data":{"message_id":"review-1"}}';;
@@ -197,6 +199,7 @@ parent_plan: null
 parent_slice: null
 return_to: null
 ---
+# 005_PLAN_20260725_import_failure
 S01
 `);
   await writeFile(path.join(root, 'docs/branch/001_HANDOVER_20260725_root.md'), `---
