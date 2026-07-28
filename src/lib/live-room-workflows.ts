@@ -8,11 +8,19 @@ import {
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 import { prisma } from '@/lib/prisma';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { validateWorkflowDocuments } from '@/lib/scheduled-jobs/workflow-validator';
 
 export type LiveRoomWorkflowName = 'feature' | 'debug';
 
+const execFileAsync = promisify(execFile);
+
 type WorkflowMember = {
   id: string;
+  canReply?: boolean;
   displayName: string;
   backend: string | null;
   harnessType: string | null;
@@ -45,6 +53,101 @@ export const parseLiveRoomWorkflowCommand = (content: string) => {
     name: match[1].toLowerCase() as LiveRoomWorkflowName,
     task: match[2]?.trim() || '',
   };
+};
+
+export const parseLiveRoomPlanCommand = (content: string) => {
+  const match = content.trim().match(/^\/plan(?:\s+([\s\S]+))?$/i);
+  if (!match?.[1]) return null;
+  const tokens = match[1].trim().split(/\s+/);
+  const host = tokens[0]?.startsWith('--host=') ? tokens.shift()!.slice(7) : undefined;
+  const task = tokens.join(' ').trim();
+  return task ? { host, task } : null;
+};
+
+export const selectLiveRoomPlanHost = <T extends WorkflowMember>(members: T[], requestedHost?: string) => {
+  const eligible = members.filter((member) => member.canReply && member.harnessType);
+  const query = requestedHost?.trim().replace(/^[@$]/, '').toLowerCase();
+  if (query) {
+    const matches = eligible.filter((member) => member.id.endsWith(query)
+      || member.displayName.toLowerCase() === query);
+    return matches.length === 1 ? { host: matches[0] } : { error: `找不到唯一主持人：${requestedHost}` };
+  }
+  const planners = eligible.filter((member) => member.role === 'planner');
+  return planners.length === 1
+    ? { host: planners[0] }
+    : { error: planners.length ? '存在多个 planner，请使用 --host=<成员> 指定主持人。' : '没有唯一 planner，请使用 --host=<成员> 指定主持人。' };
+};
+
+const planPathFrom = (output: string) => output.match(/^PLAN_PATH:\s*(docs\/[0-9]{3}_PLAN_[^\s]+\.md)\s*$/mi)?.[1] || null;
+
+export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
+  roomId: string;
+  sourceMessageId: string;
+  content: string;
+}) => {
+  const command = parseLiveRoomPlanCommand(content);
+  if (!command) return false;
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: { members: { where: { canReply: true, joinStatus: 'joined' }, include: { gateway: true }, orderBy: { sortOrder: 'asc' } } },
+  });
+  const sourceTask = await syncLiveRoomSourceTask(roomId);
+  if (!room || !sourceTask) throw new Error('Live room plan requires an active room and backing task');
+  const selected = selectLiveRoomPlanHost(room.members as Array<WorkflowMember & { canReply: boolean }>, command.host);
+  if ('error' in selected) {
+    await postLiveRoomMessage({ roomId, content: `系统提示：${selected.error}`, messageType: 'system' });
+    return true;
+  }
+  const host = selected.host;
+  const participants = [host, ...room.members.filter((member) => member.id !== host.id)] as WorkflowMember[];
+  const outputs: Array<{ label: string; member: string; output: string }> = [];
+  const runStage = async (member: WorkflowMember, label: string, instruction: string) => {
+    const result = await executeAcpxTaskRun({
+      taskId: sourceTask.id,
+      taskSessionId: sourceTask.currentTaskSession?.id || undefined,
+      taskName: sourceTask.name,
+      taskDescription: [
+        'Live Room plan discussion only. Do not implement, test, start a Slice, or restart services.',
+        `Requirement: ${command.task}`,
+        `Stage: ${label}. ${instruction}`,
+        outputs.length ? `Prior discussion:\n${formatPriorOutputs(outputs)}` : '',
+      ].filter(Boolean).join('\n\n'),
+      orchestrationMode: 'staged',
+      participants: [{ ...buildLiveRoomAcpxParticipant({ ...member, gatewayName: member.gateway?.name || null }), role: `plan:${label}` }],
+      workingDirectory: sourceTask.workingDirectory || process.cwd(),
+      permissionConfig: resolveLiveRoomMemberPermission(member.acpxPermissionConfig, sourceTask.acpxPermissionConfig),
+    });
+    const stage = result.participants[0];
+    const output = stage?.summary || stage?.error || `${label} 未返回结果`;
+    outputs.push({ label, member: member.displayName, output });
+    await postLiveRoomMessage({ roomId, senderMemberId: member.id, content: `【${label}】\n${output}`, messageType: 'assistant', replyToMessageId: sourceMessageId });
+    if (stage?.status !== 'completed') throw new Error(`${member.displayName} 未完成 ${label}`);
+    return output;
+  };
+  try {
+    await runStage(host, '约束定义', '定义问题、范围、约束、风险和计划验收标准；只讨论，不写文件。');
+    for (const member of participants.slice(1)) {
+      await runStage(member, '成员建议', '基于全部前文给出一次建议，覆盖方案、风险、验证和待确认项；只讨论。');
+    }
+    const finalOutput = await runStage(host, 'PLAN 定稿', [
+      '生成唯一 PLAN：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml。',
+      '写入 docs/ 下合法的三位编号 PLAN 文件，包含范围、方案、风险、验证和待确认项。',
+      'front matter 必须为 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: start_first_slice，并有完整 workflow prompt。',
+      '最后仅输出 PLAN_PATH: docs/<filename>；不要提交，由系统校验后提交。',
+    ].join(' '));
+    const planPath = planPathFrom(finalOutput);
+    if (!planPath || path.posix.dirname(planPath) !== 'docs') throw new Error('主持人未返回合法 PLAN_PATH，未提交。');
+    const planContent = await fs.readFile(path.join(sourceTask.workingDirectory || process.cwd(), planPath), 'utf8');
+    await validateWorkflowDocuments({
+      cwd: sourceTask.workingDirectory || process.cwd(), ref: 'HEAD', filePaths: [planPath], contentOverrides: { [planPath]: planContent },
+    });
+    await execFileAsync('git', ['add', '--', planPath], { cwd: sourceTask.workingDirectory || process.cwd() });
+    await execFileAsync('git', ['commit', '--only', '-m', `docs: add plan for ${command.task.slice(0, 48)}`, '--', planPath], { cwd: sourceTask.workingDirectory || process.cwd() });
+    await postLiveRoomMessage({ roomId, content: `系统提示：PLAN 已校验并提交：${planPath}。后续由既有 workflow watcher 发现并处理。`, messageType: 'system' });
+  } catch (error) {
+    await postLiveRoomMessage({ roomId, content: `系统提示：PLAN 未提交：${error instanceof Error ? error.message : String(error)}`, messageType: 'system' });
+  }
+  return true;
 };
 
 const firstByRole = (members: WorkflowMember[], roles: string[], excludedIds: string[] = []) =>

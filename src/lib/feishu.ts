@@ -39,6 +39,7 @@ import { buildAcpxPermissionConfigForProfile } from '@/lib/acpx/permissions';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
+import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
 import { formatFeishuHelp } from '@/lib/feishu-help';
 import {
   listLiveRoomCatalogAgents,
@@ -78,7 +79,6 @@ function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnTyp
   }
   return 'offline';
 }
-
 function getEffectiveAgentStatus(
   agent: {
     status: string;
@@ -96,10 +96,8 @@ function getEffectiveAgentStatus(
     }
     return getLocalHarnessStatus(agent.name, localStatus);
   }
-
   return agent.status;
 }
-
 function formatGatewayLine(gateway: {
   name: string;
   id: string;
@@ -1428,6 +1426,8 @@ export async function handleFeishuCommand(args: {
       return handleAddCommand(args.command, args.context);
     case 'chat':
       return handleChatCommand(args.command, args.baseUrl, args.context);
+    case 'plan':
+      return handleFeishuPlanCommand(args.command, args.context);
     case 'approvals':
       return handleApprovalsCommand(args.context);
     case 'approve':

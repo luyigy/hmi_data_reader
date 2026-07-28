@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {
   buildLiveRoomWorkflowStages,
+  parseLiveRoomPlanCommand,
   parseLiveRoomWorkflowCommand,
+  selectLiveRoomPlanHost,
 } from '../src/lib/live-room-workflows';
 
 const member = (id: string, role: string) => ({
@@ -28,12 +30,26 @@ assert.deepEqual(parseLiveRoomWorkflowCommand('/RUN DEBUG fix crash'), {
   task: 'fix crash',
 });
 assert.equal(parseLiveRoomWorkflowCommand('/run build login'), null);
+assert.deepEqual(parseLiveRoomPlanCommand('/plan --host=codex design login'), {
+  host: 'codex', task: 'design login',
+});
+assert.equal(parseLiveRoomPlanCommand('/plan'), null);
 
 const members = [
   member('builder', 'implementer'),
   member('reviewer', 'reviewer'),
   member('tester', 'tester'),
 ];
+
+assert.equal(selectLiveRoomPlanHost([{ ...member('planner', 'planner'), canReply: true }]).host?.id, 'planner');
+assert.match(selectLiveRoomPlanHost([
+  { ...member('planner-a', 'planner'), canReply: true },
+  { ...member('planner-b', 'planner'), canReply: true },
+]).error || '', /--host/);
+assert.equal(selectLiveRoomPlanHost([
+  { ...member('planner-a', 'planner'), canReply: true },
+  { ...member('codex', 'custom'), canReply: true },
+], 'codex').host?.id, 'codex');
 
 assert.deepEqual(
   buildLiveRoomWorkflowStages('feature', members).map((stage) => [

@@ -26,15 +26,8 @@ import { ensureTaskChatRoom, postTaskRoomMessage } from '@/lib/task-room';
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import type { AcpxPermissionConfig, HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduling';
-import {
-  parseLiveRoomWorkflowCommand,
-  runLiveRoomWorkflow,
-} from '@/lib/live-room-workflows';
-import {
-  buildLiveRoomContinuationMessage,
-  buildLiveRoomControlManual,
-  stripLeadingMentionForTarget,
-} from '@/lib/live-room-protocol';
+import { parseLiveRoomWorkflowCommand, runLiveRoomPlan, runLiveRoomWorkflow } from '@/lib/live-room-workflows';
+import { buildLiveRoomContinuationMessage, buildLiveRoomControlManual, stripLeadingMentionForTarget } from '@/lib/live-room-protocol';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const ALL_REPLY_STAGGER_MS = 750;
@@ -1625,6 +1618,13 @@ export const triggerLiveRoomMessageReplies = async ({
   if (!sourceMessage) {
     return;
   }
+
+  const planHandled = !requestedTargetMemberId && await runLiveRoomPlan({
+    roomId,
+    sourceMessageId: roomMessageId,
+    content: sourceMessage.content,
+  });
+  if (planHandled) return;
 
   const workflow = parseLiveRoomWorkflowCommand(sourceMessage.content);
   if (

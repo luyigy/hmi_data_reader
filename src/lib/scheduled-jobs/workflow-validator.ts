@@ -400,12 +400,14 @@ export const validateWorkflowDocuments = async ({
   filePaths,
   contractPath = 'docs/workflow/workflow-contract.yaml',
   signal = new AbortController().signal,
+  contentOverrides = {},
 }: {
   cwd: string;
   ref: string;
   filePaths: string[];
   contractPath?: string;
   signal?: AbortSignal;
+  contentOverrides?: Record<string, string>;
 }) => {
   const contract = await readWorkflowContract(cwd, ref, contractPath, signal);
   const candidates = selectWorkflowCandidates(filePaths, contract);
@@ -414,7 +416,8 @@ export const validateWorkflowDocuments = async ({
     if (candidate.rawNumber.length !== contract.numbering.width) {
       throw new Error(`${candidate.filePath}: workflow document number has invalid width`);
     }
-    const content = await git(cwd, signal, 'show', `${ref}:${candidate.filePath}`);
+    const content = contentOverrides[candidate.filePath]
+      ?? await git(cwd, signal, 'show', `${ref}:${candidate.filePath}`);
     const metadata = workflowFrontMatter(content);
     const result = await validateWorkflowDocument(
       cwd, ref, candidate.filePath, candidate.type, content, metadata,
