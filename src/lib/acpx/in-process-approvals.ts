@@ -1,5 +1,5 @@
 type ApprovalDecision = 'approve' | 'deny';
-type ApprovalResult = { decision: ApprovalDecision; timedOut: boolean };
+type ApprovalResult = { decision: ApprovalDecision; timedOut: boolean; cancelled?: boolean };
 
 const pending = new Map<string, (result: ApprovalResult) => void>();
 
@@ -24,5 +24,9 @@ export const resolveInProcessApproval = (requestId: string, decision: ApprovalDe
 };
 
 export const cancelInProcessApproval = (requestId: string) => {
+  const resolve = pending.get(requestId);
+  if (!resolve) return false;
   pending.delete(requestId);
+  resolve({ decision: 'deny', timedOut: false, cancelled: true });
+  return true;
 };

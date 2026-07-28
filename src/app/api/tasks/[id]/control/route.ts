@@ -26,6 +26,7 @@ import {
   resolveTaskSessionPermissionConfig,
   setTaskSessionPermissionOverride,
 } from '@/lib/acpx/session';
+import { finishPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 
 export const dynamic = 'force-dynamic';
 
@@ -533,6 +534,9 @@ export async function POST(
         },
       });
     } else {
+      if (action === 'stop_run') {
+        await finishPendingTaskRunInteractionRequests({ taskRunId: targetRun.id, status: 'cancelled' });
+      }
       await prisma.taskRun.update({
         where: { id: targetRun.id },
         data: {

@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ChildProcess } from 'child_process';
 import type { HarnessInteractionRequest, HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
+import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 type JsonRpcId = string | number;
 type JsonRpcMessage = {
@@ -15,6 +17,10 @@ export interface CodexAppServerOptions {
   prompt: string;
   threadId?: string;
   workingDirectory: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
+  readOnlyPaths?: string[];
+  codexHome?: string;
   sandboxMode: string;
   approvalPolicy: 'never' | 'on-request';
   timeout: number | null;
@@ -89,7 +95,17 @@ export const appendCodexAgentMessageDelta = (
 
 export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   const { spawn } = await import('child_process');
-  const child = spawn('codex', ['app-server', '--stdio'], {
+  const wrapped = wrapWithBubblewrap({
+    command: 'codex',
+    commandArgs: ['app-server', '--stdio'],
+    cwd: options.workingDirectory,
+    workspaceRoot: options.workspaceRoot,
+    networkAccess: options.networkAccess,
+    env: options.env ?? process.env,
+    configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
+    readOnlyPaths: options.readOnlyPaths,
+  });
+  const child = spawn(wrapped.command, wrapped.args, {
     cwd: options.workingDirectory,
     env: options.env ?? process.env,
     stdio: ['pipe', 'pipe', 'pipe'],

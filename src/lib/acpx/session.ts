@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from './permissions';
 import type { AcpxPermissionConfig } from './types';
+import { finishPendingTaskRunInteractionRequests } from './interactions';
 
 interface EnsureTaskSessionOptions {
   taskName?: string;
@@ -134,11 +135,17 @@ export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessi
 export const rotateTaskSession = async (taskId: string, options: EnsureTaskSessionOptions = {}) => {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { name: true },
+    select: { name: true, currentTaskSessionId: true },
   });
 
   if (!task) {
     throw new Error(`Task "${taskId}" not found`);
+  }
+  if (task.currentTaskSessionId) {
+    await finishPendingTaskRunInteractionRequests({
+      taskSessionId: task.currentTaskSessionId,
+      status: 'cancelled',
+    });
   }
 
   const session = await prisma.taskSession.create({

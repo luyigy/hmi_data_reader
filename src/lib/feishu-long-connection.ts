@@ -312,6 +312,12 @@ function buildCardActionHandler(prefix: string) {
       console.log(`${prefix} card action resolved`, { requestId, approved, actorName });
     } catch (err) {
       console.error(`${prefix} card action resolution failed`, { requestId, err });
+      return {
+        toast: {
+          type: 'warning',
+          content: err instanceof Error ? err.message : '权限卡已失效',
+        },
+      };
     }
 
     return {};

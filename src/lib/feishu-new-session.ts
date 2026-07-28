@@ -232,15 +232,6 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
   const permissionConfig = buildNewSessionPermissionConfig(currentPermissionConfig, requestedProfile);
   let interruptedPreviousReplies = false;
 
-  if (requestedProfile && permissionConfig.profile !== currentPermissionConfig.profile) {
-    await prisma.task.update({
-      where: { id: room.sourceTask.id },
-      data: {
-        acpxPermissionConfig: JSON.stringify(permissionConfig),
-      },
-    });
-  }
-
   const taskRoom = await ensureTaskChatRoom(room.sourceTask.id, room.sourceTask.name);
   const promptContext = blankBootstrap
     ? { transcript: '', latestUserMessage: null }
@@ -260,7 +251,6 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
     interruption.interruptedRunningCount > 0 || interruption.cancelledQueuedCount > 0);
   await Promise.all(members.map((targetMember) =>
     waitForLiveRoomMemberExecutionStop(targetMember.id)));
-
   const freshTaskSession = await rotateTaskSession(room.sourceTask.id, {
     taskName: room.sourceTask.name,
     metadata: {
@@ -271,6 +261,12 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
       targetMemberName: allMembers ? 'all' : member.userNickname || member.displayName,
     },
   });
+  if (requestedProfile && permissionConfig.profile !== currentPermissionConfig.profile) {
+    await prisma.task.update({
+      where: { id: room.sourceTask.id },
+      data: { acpxPermissionConfig: JSON.stringify(permissionConfig) },
+    });
+  }
   await postTaskRoomSessionResetMarker({
     roomId: taskRoom.id,
     sessionId: freshTaskSession.id,

@@ -12,6 +12,7 @@ import {
   resolveLiveRoomMessageMetadata,
 } from '@/lib/live-room';
 import { prisma } from '@/lib/prisma';
+import { finishPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 
 export const parsePersistedChildPid = (controlMetadata: string | null) => {
   try {
@@ -131,8 +132,8 @@ export const interruptLiveRoomMemberReplies = async ({
 
   const runningRuns = room.sourceTask
     ? await prisma.taskRun.findMany({
-        where: { taskId: room.sourceTask.id, status: 'running' },
-        include: { participants: { where: { status: 'running' } } },
+        where: { taskId: room.sourceTask.id, status: { in: ['running', 'waiting_for_input'] } },
+        include: { participants: { where: { status: { in: ['running', 'waiting_for_input'] } } } },
       })
     : [];
   const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
@@ -148,6 +149,8 @@ export const interruptLiveRoomMemberReplies = async ({
   let interruptedParticipantCount = 0;
   let interruptedRegistryProcess = false;
 
+  await Promise.all(runningParticipants.map(({ participantId }) =>
+    finishPendingTaskRunInteractionRequests({ participantId, status: 'cancelled' })));
   for (const participant of runningParticipants) {
     const interruption = requestRunControl(
       participant.runId,

@@ -502,19 +502,16 @@ function buildApprovalCardButton(
   };
 }
 
-export async function sendFeishuApprovalCard(args: {
-  chatId: string;
+export const buildFeishuPermissionCard = (args: {
   interactionRequestId: string;
   command: string;
   kind: string;
-}): Promise<string> {
-  const token = await getFeishuTenantAccessToken();
-  const receiveIdType = 'chat_id';
-  const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
-  url.searchParams.set('receive_id_type', receiveIdType);
-
-  const commandPreview = args.command.slice(0, 800);
-  const card = {
+  workdir: string;
+  workspaceBoundary: string;
+  approvalScope: string;
+  expiresAt: string;
+  approvalSupported: boolean;
+}) => ({
     config: { wide_screen_mode: true },
     header: {
       title: { content: '⚠️ Agent 请求权限确认', tag: 'plain_text' },
@@ -523,18 +520,35 @@ export async function sendFeishuApprovalCard(args: {
     elements: [
       {
         tag: 'markdown',
-        content: `**类型**：${args.kind}\n\`\`\`\n${commandPreview}\n\`\`\``,
+        content: [
+          `**类型**：${args.kind}`,
+          `**命令**：\n\`\`\`\n${args.command.slice(0, 800).replaceAll('```', '｀｀｀')}\n\`\`\``,
+          `**当前 workdir**：\`${args.workdir}\``,
+          `**边界**：\`${args.workspaceBoundary}\``,
+          `**范围**：${args.approvalScope}`,
+          `**有效期**：${args.expiresAt}`,
+        ].join('\n'),
       },
       {
         tag: 'action',
         actions: [
-          buildApprovalCardButton('✅ 批准', `approve:${args.interactionRequestId}`, 'primary'),
+          ...(args.approvalSupported
+            ? [buildApprovalCardButton('✅ 仅批准本次操作', `approve:${args.interactionRequestId}`, 'primary')]
+            : []),
           buildApprovalCardButton('❌ 拒绝', `deny:${args.interactionRequestId}`, 'danger'),
         ],
       },
     ],
-  };
+  });
 
+export async function sendFeishuApprovalCard(args: Parameters<typeof buildFeishuPermissionCard>[0] & {
+  chatId: string;
+}): Promise<string> {
+  const token = await getFeishuTenantAccessToken();
+  const receiveIdType = 'chat_id';
+  const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
+  url.searchParams.set('receive_id_type', receiveIdType);
+  const card = buildFeishuPermissionCard(args);
   const response = await fetch(url.toString(), {
     method: 'POST',
     headers: {

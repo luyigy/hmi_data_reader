@@ -6,7 +6,11 @@ import {
   toCodexToolEvent,
   toCodexApprovalRequest,
 } from './codex-app-server';
-import { resolveInProcessApproval, waitForInProcessApproval } from '../acpx/in-process-approvals';
+import {
+  cancelInProcessApproval,
+  resolveInProcessApproval,
+  waitForInProcessApproval,
+} from '../acpx/in-process-approvals';
 
 const request = toCodexApprovalRequest('item/commandExecution/requestApproval', {
   command: 'git push',
@@ -41,5 +45,9 @@ void (async () => {
   assert.deepEqual(await approved, { decision: 'approve', timedOut: false });
   assert.equal(resolveInProcessApproval('approve', 'deny'), false);
   assert.deepEqual(await waitForInProcessApproval('timeout', 1), { decision: 'deny', timedOut: true });
+  const cancelled = waitForInProcessApproval('cancel');
+  assert.equal(cancelInProcessApproval('cancel'), true);
+  assert.deepEqual(await cancelled, { decision: 'deny', timedOut: false, cancelled: true });
+  assert.equal(cancelInProcessApproval('cancel'), false);
   console.log('codex app-server approval checks passed');
 })();

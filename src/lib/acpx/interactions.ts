@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { HarnessInteractionRequestKind } from './types';
+import { cancelInProcessApproval } from './in-process-approvals';
+import path from 'node:path';
 
 const stringifyJson = (value?: Record<string, unknown> | Array<unknown> | null) =>
   value ? JSON.stringify(value) : null;
@@ -28,6 +30,21 @@ const parseJsonArray = (value?: string | null) => {
   } catch {
     return [];
   }
+};
+
+export const isPermissionRequestWithinBoundary = (args: {
+  kind: string;
+  title?: string;
+  rawContent: string;
+  workspaceBoundary?: string;
+}) => {
+  if (args.kind !== 'permission_request'
+    || args.title !== 'Codex 请求修改文件'
+    || !args.workspaceBoundary) return true;
+  const requestedPath = args.rawContent.split('\n')[0];
+  if (!requestedPath?.startsWith('/')) return true;
+  const relative = path.relative(args.workspaceBoundary, path.resolve(requestedPath));
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 };
 
 export type TaskRunInteractionRequestStatus =
@@ -227,5 +244,34 @@ export const expireStaleTaskRunInteractionRequests = async (now = new Date()) =>
     },
   });
 
+  pending.forEach((row) => cancelInProcessApproval(row.id));
   return pending.map(mapInteractionRequest);
+};
+
+export const finishPendingTaskRunInteractionRequests = async (args: {
+  taskRunId?: string;
+  taskSessionId?: string;
+  participantId?: string;
+  status: 'cancelled' | 'expired';
+}) => {
+  if (!args.taskRunId && !args.taskSessionId && !args.participantId) {
+    throw new Error('Interaction cleanup requires a run, session, or participant scope');
+  }
+  const pending = await prisma.taskRunInteractionRequest.findMany({
+    where: {
+      status: 'pending',
+      ...(args.taskRunId ? { taskRunId: args.taskRunId } : {}),
+      ...(args.taskSessionId ? { taskSessionId: args.taskSessionId } : {}),
+      ...(args.participantId ? { participantId: args.participantId } : {}),
+    },
+    select: { id: true },
+  });
+  if (!pending.length) return 0;
+  const resolvedAt = new Date();
+  await prisma.taskRunInteractionRequest.updateMany({
+    where: { id: { in: pending.map(({ id }) => id) }, status: 'pending' },
+    data: { status: args.status, resolvedAt },
+  });
+  pending.forEach(({ id }) => cancelInProcessApproval(id));
+  return pending.length;
 };

@@ -102,28 +102,51 @@ export function commandRequestsFullAccess(command: StoredCommand['command']) {
   return values.some((value) => ['full', 'full_access', 'full-access'].includes(value?.trim().toLowerCase() || ''));
 }
 
+export function buildFullAccessApprovedCommand(command: StoredCommand['command']): StoredCommand['command'] {
+  if (command.command !== 'grant' && command.command !== 'rights') return command;
+  const agent = command.options.agent?.trim();
+  return {
+    command: 'new-session',
+    args: agent ? [agent] : [],
+    options: { ...(agent ? { agent } : {}), profile: 'full_access' },
+  };
+}
+
 export async function requestFullAccessApproval(args: StoredCommand) {
   const existing = await prisma.feishuAdminApproval.findFirst({
     where: { requesterOpenId: args.context.senderOpenId, kind: 'full_access', status: 'pending', expiresAt: { gt: new Date() } },
   });
   if (existing) return '已有待处理的 Full Access 申请，请等待管理员审批。';
 
-  const storedArgs: StoredCommand = args.command.command === 'rights'
-    ? { ...args, command: { command: 'grant', args: ['full'], options: { ...args.command.options } } }
-    : args;
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const storedArgs: StoredCommand = { ...args, command: buildFullAccessApprovedCommand(args.command) };
+  const binding = await prisma.feishuConversationBinding.findFirst({
+    where: { chatId: args.context.chatId },
+    select: { liveRoom: { select: { workingDirectory: true, sourceTask: { select: { workingDirectory: true } } } } },
+  });
+  const workdir = binding?.liveRoom.workingDirectory
+    || binding?.liveRoom.sourceTask?.workingDirectory
+    || '(新房间将在管理员批准的 workspace 中启动)';
   const approval = await prisma.feishuAdminApproval.create({
     data: {
       kind: 'full_access',
       requesterOpenId: args.context.senderOpenId,
       requesterChatId: args.context.chatId,
       payloadJson: JSON.stringify(storedArgs),
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      expiresAt,
     },
   });
   await sendAdminCard({
     id: approval.id,
     title: 'Full Access 审批',
-    detail: `申请人：\`${args.context.senderOpenId}\`\n命令：\`${args.command.command} ${args.command.args.join(' ')}\`\n15 分钟内有效。`,
+    detail: [
+      `申请人：\`${args.context.senderOpenId}\``,
+      `命令：\`${args.command.command} ${args.command.args.join(' ')}\``,
+      `当前 workdir：\`${workdir}\``,
+      '授权范围：Full Access（独立管理员升级；普通 permission card 无法授予）',
+      '生效方式：仅新 Session；不会恢复或热升级旧进程',
+      `有效期：${expiresAt.toISOString()}`,
+    ].join('\n'),
   });
   return 'Full Access 申请已发送给管理员；批准前不会修改权限或启动运行。';
 }

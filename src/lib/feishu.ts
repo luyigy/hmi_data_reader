@@ -1381,10 +1381,7 @@ export async function handleFeishuCommand(args: {
   adminApproved?: boolean;
 }) {
   if (args.context && commandRequestsFullAccess(args.command) && !args.adminApproved) {
-    if (args.command.command === 'rights' || !isFeishuAdmin(args.context.senderOpenId)) {
-      return requestFullAccessApproval({ command: args.command, baseUrl: args.baseUrl, context: args.context });
-    }
-    args.adminApproved = true;
+    return requestFullAccessApproval({ command: args.command, baseUrl: args.baseUrl, context: args.context });
   }
   switch (args.command.command) {
     case 'help':

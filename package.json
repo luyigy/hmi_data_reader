@@ -18,6 +18,7 @@
     "test:live-room-queue": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/live-room-process-registry.test.ts",
     "test:workflow-validator": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/workflow-validator.test.ts",
     "test:workflow-completion-gate": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/workflow-completion-gate.test.ts",
+    "test:feishu-permission-card": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/feishu-permission-card.test.ts",
     "workflow:validate": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only scripts/validate-workflow-documents.ts",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3010",

@@ -4,15 +4,11 @@ import { publishTaskRunEvent } from './event-bus';
 import { getContinuationSession } from './session-tracking';
 import {
   DEFAULT_ACPX_PERMISSION_CONFIG,
-  buildAcpxPermissionConfigForProfile,
   normalizeAcpxPermissionConfig,
 } from './permissions';
-import {
-  resolveTaskSessionPermissionConfig,
-  setTaskSessionPermissionOverride,
-} from './session';
+import { resolveTaskSessionPermissionConfig } from './session';
 import type { AcpxPermissionConfig, TaskRunInteractionRequestStatus } from './types';
-import { resolveInProcessApproval } from './in-process-approvals';
+import { cancelInProcessApproval, resolveInProcessApproval } from './in-process-approvals';
 import { getRunningProcess } from './process-registry';
 
 const parseMetadata = (value: string | null | undefined): Record<string, unknown> => {
@@ -114,6 +110,24 @@ export const resolveInteractionRequestWithContinuation = async (args: {
 
   if (request.status !== 'pending') {
     throw new Error(`Interaction request is already ${request.status}`);
+  }
+  const now = new Date();
+  const ended = !['running', 'waiting_for_input'].includes(request.taskRun.status)
+    || (request.taskSessionId && request.task.currentTaskSessionId !== request.taskSessionId);
+  if (request.expiresAt && request.expiresAt <= now || ended) {
+    const status = request.expiresAt && request.expiresAt <= now ? 'expired' : 'cancelled';
+    await prisma.taskRunInteractionRequest.updateMany({
+      where: { id: request.id, status: 'pending' },
+      data: { status, resolvedAt: now },
+    });
+    cancelInProcessApproval(request.id);
+    throw new Error(`Interaction request is ${status}`);
+  }
+  const requestPayload = parseMetadata(request.rawPayload);
+  if (args.action === 'approve'
+    && request.requestKind === 'permission_request'
+    && requestPayload.approvalSupported !== true) {
+    throw new Error('This harness does not support in-process permission approval');
   }
 
   const participant =
@@ -307,25 +321,11 @@ export const resolveInteractionRequestWithContinuation = async (args: {
 
   const continuation = getContinuationSession(participant);
   const taskPermissionConfig = readTaskPermissionConfig(request.task.acpxPermissionConfig);
-  const shouldEscalateSessionPermission =
-    args.action === 'approve'
-    && (request.requestKind === 'permission_request' || request.requestKind === 'workspace_issue')
-    && participant.harnessType !== 'codex';
   const sessionPermissionConfig = resolveTaskSessionPermissionConfig({
     taskSession: request.taskSession,
     fallback: taskPermissionConfig,
   });
-  const permissionConfig = shouldEscalateSessionPermission
-    ? buildAcpxPermissionConfigForProfile('full_access', sessionPermissionConfig.writableRoots)
-    : sessionPermissionConfig;
-
-  if (request.taskSessionId && shouldEscalateSessionPermission) {
-    await setTaskSessionPermissionOverride({
-      taskSessionId: request.taskSessionId,
-      permissionConfig,
-      source: 'interaction_approve',
-    });
-  }
+  const permissionConfig = sessionPermissionConfig;
 
   const continuationMessage = buildContinuationMessage({
     requestKind: request.requestKind,
@@ -385,7 +385,7 @@ export const resolveInteractionRequestWithContinuation = async (args: {
         sessionId: continuation.sessionId,
         sessionKind: continuation.sessionKind,
         actor: args.actor,
-        sessionPermissionOverrideApplied: shouldEscalateSessionPermission,
+        sessionPermissionOverrideApplied: false,
         permissionProfile: permissionConfig.profile,
       },
     });
@@ -406,7 +406,7 @@ export const resolveInteractionRequestWithContinuation = async (args: {
         resumed,
         continuationRunId,
         resumeError,
-        sessionPermissionOverrideApplied: shouldEscalateSessionPermission,
+        sessionPermissionOverrideApplied: false,
         permissionConfig,
       }),
       resolvedAt: new Date(),
@@ -431,7 +431,7 @@ export const resolveInteractionRequestWithContinuation = async (args: {
         continuationRunId,
         resumeError,
         actor: args.actor,
-        sessionPermissionOverrideApplied: shouldEscalateSessionPermission,
+        sessionPermissionOverrideApplied: false,
         permissionProfile: permissionConfig.profile,
       },
     });

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { publishTaskRunEvent } from './event-bus';
 import { getRunningProcess } from './process-registry';
 import type { TaskRunStatus } from './types';
+import { finishPendingTaskRunInteractionRequests } from './interactions';
 
 const LOCAL_STALE_GRACE_MS = 30 * 1000;
 
@@ -158,6 +159,7 @@ const reconcileTaskRun = async (taskRunId: string) => {
       ? 'Run was interrupted after the local harness process disappeared'
       : 'Run was stopped after the local harness process disappeared';
 
+  await finishPendingTaskRunInteractionRequests({ taskRunId: run.id, status: 'expired' });
   await prisma.$transaction([
     prisma.taskRun.update({
       where: { id: run.id },
