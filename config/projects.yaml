@@ -64,7 +64,7 @@ projects:
         type: long_file_detector
         schedule: "*/10 * * * *"
         enabled: true
-        mode: shadow
+        mode: active
         config:
           threshold_lines: 1000
           extensions: [.py, .js, .ts, .tsx, .jsx, .go, .java, .vue]
