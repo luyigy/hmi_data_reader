@@ -157,6 +157,7 @@ S01 then S02
     jobs: [job],
   };
   const workflowRuns: Array<{ chatId: string; chatType: 'group' | 'p2p'; prompt: string; eventKey: string }> = [];
+  let workflowAvailable = true;
   const importedDocuments: Array<{ content: string; name: string; idempotencyKey: string }> = [];
   const importDocument = async (args: {
     content: string;
@@ -177,6 +178,7 @@ S01 then S02
   }, async (args) => {
     workflowRuns.push(args);
     if (process.env.LARK_FAIL_PROMPT === '1') throw new Error('prompt-failed');
+    return workflowAvailable || false;
   }, importDocument);
 
   assert.match((await run(undefined, 'shadow')).summary, /candidate=none/);
@@ -233,15 +235,22 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   await assert.rejects(run(), /prompt-failed/);
 
   process.env.LARK_FAIL_PROMPT = '0';
-  const completed = await run();
+  workflowAvailable = false;
+  const waiting = await run();
+  assert.match(waiting.summary, /gate=waiting_previous_completion/);
+  assert.deepEqual(waiting.cursor, { commit: base }, 'waiting runner must retain the prior cursor');
+  const waitingEventKey = workflowRuns.at(-1)?.eventKey;
+
+  workflowAvailable = true;
+  const completed = await run(waiting.cursor);
   assert.match(completed.summary, /result=session_started/);
-  assert.equal(workflowRuns.length, 2);
-  assert.deepEqual(workflowRuns[0], workflowRuns[1], 'workflow retry must reuse the same event key and prompt');
-  assert.equal(workflowRuns[0].chatId, 'coding-bot-chat');
-  assert.equal(workflowRuns[0].chatType, 'group');
-  assert.match(workflowRuns[0].prompt, /NEXT PROMPT/);
-  assert.match(workflowRuns[0].prompt, /平台 completion gate 会在 Session 结束后统一校验/);
-  assert.doesNotMatch(workflowRuns[0].prompt, /npm run workflow:validate/);
+  assert.equal(workflowRuns.length, 3);
+  assert.equal(workflowRuns.at(-1)?.eventKey, waitingEventKey, 'retry must reuse the waiting event key');
+  assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
+  assert.equal(workflowRuns.at(-1)?.chatType, 'group');
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /NEXT PROMPT/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /平台 completion gate 会在 Session 结束后统一校验/);
+  assert.doesNotMatch(workflowRuns.at(-1)?.prompt ?? '', /npm run workflow:validate/);
   const unchanged = await run(completed.cursor);
   assert.match(unchanged.summary, /candidate=none/);
   assert.equal((unchanged.cursor as { eventKey?: string }).eventKey, (completed.cursor as { eventKey?: string }).eventKey);
