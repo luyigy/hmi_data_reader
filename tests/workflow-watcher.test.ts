@@ -556,7 +556,11 @@ S01
   }, undefined, async () => {
     throw new Error('fake import failed');
   }), /fake import failed/);
-  assert.equal(apiCalls.length, callsBeforeImportFailure, 'failed import must not send a review card');
+  assert.equal(
+    apiCalls.slice(callsBeforeImportFailure).filter(({ body }) => body.msg_type === 'interactive').length,
+    0,
+    'failed import must not send a review card',
+  );
   const defaultImport = await workflowWatcherHandler({
     project,
     job,
@@ -566,6 +570,30 @@ S01
   });
   assert.match(defaultImport.summary, /gate=plan_review document_ready=true/);
   assert.match(await readFile(callsFile, 'utf8'), /docs \+create --as bot/);
+
+  const beforeInvalid = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-invalid' };
+  await writeFile(path.join(root, 'docs/branch/main/006_PLAN_20260725_invalid.md'), `---
+doc_type: PLAN
+doc_status: ready
+next_action: start_first_slice
+plan_kind: phase
+roadmap: 000_ROADMAP_20260725_test.md
+parent_plan: null
+parent_slice: null
+return_to: null
+---
+S01
+`);
+  git('add', '.');
+  git('commit', '-qm', 'invalid plan');
+  const invalid = await run(beforeInvalid);
+  assert.match(invalid.summary, /validation_failed notified=true dispatched=true/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /PLAN_VALIDATE_REPAIR/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /006_PLAN_20260725_invalid\.md/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /workflow validator 未通过/);
+  const retry = await run(invalid.cursor);
+  assert.match(retry.summary, /validation_failed notified=true dispatched=true/);
+  assert.equal(workflowRuns.filter(({ prompt }) => prompt.includes('PLAN_VALIDATE_REPAIR')).length, 1);
 
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(terminal.cursor), /active side effects require explicit config gate/);

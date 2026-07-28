@@ -37,7 +37,16 @@ type Pending = WorkflowReviewPending & {
   workflowContext: string;
 };
 
-type Cursor = { commit: string; eventKey?: string; pending?: Pending };
+type ValidationFailure = {
+  key: string;
+  path: string;
+  blob: string;
+  error: string;
+  notified?: boolean;
+  dispatched?: boolean;
+};
+
+type Cursor = { commit: string; eventKey?: string; pending?: Pending; validationFailure?: ValidationFailure };
 type WorkflowRunner = (args: {
   projectId: string;
   jobId: string;
@@ -442,12 +451,45 @@ export const workflowWatcherHandler = async (
     throw new Error(`multiple workflow documents use number ${candidate.number}`);
   }
 
-  const content = await git(project.path, signal, 'show', `${head}:${candidate.filePath}`);
-  const metadata = workflowFrontMatter(content);
-  const document = await validateWorkflowDocument(
-    project.path, head, candidate.filePath, candidate.type, content, metadata, contract, watchRoot, signal,
-  );
   const blob = (await git(project.path, signal, 'rev-parse', `${head}:${candidate.filePath}`)).trim();
+  const content = await git(project.path, signal, 'show', `${head}:${candidate.filePath}`);
+  let metadata: Record<string, unknown>;
+  let document: Awaited<ReturnType<typeof validateWorkflowDocument>>;
+  try {
+    metadata = workflowFrontMatter(content);
+    document = await validateWorkflowDocument(
+      project.path, head, candidate.filePath, candidate.type, content, metadata, contract, watchRoot, signal,
+    );
+  } catch (error) {
+    const key = `${candidate.filePath}:${blob}:validation_failed`;
+    let failure = previous.validationFailure?.key === key
+      ? previous.validationFailure
+      : {
+        key,
+        path: candidate.filePath,
+        blob,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    if (mode === 'active' && !failure.notified) {
+      await send(project.feishu.chat_id,
+        `❌ workflow validator 未通过：${candidate.filePath}\ncommit: ${head}\n${failure.error}\n已通知 Coding Agent 仅修订该文档；修复后会自动复验并发送审批卡。`,
+        key, 'validation_failed');
+      failure = { ...failure, notified: true };
+    }
+    if (mode === 'active' && !failure.dispatched) {
+      const started = await execute({
+        key,
+        workflowContext: `**工作流文档**：${candidate.filePath}\n**校验状态**：未通过`,
+        prompt: `PLAN_VALIDATE_REPAIR\npath: ${candidate.filePath}\ncommit: ${head}\n\nvalidator errors:\n${failure.error}\n\n只修订并提交该工作流文档，使其符合目标 HEAD 的 workflow contract。不得执行任何 Slice，不得修改业务代码；若合同与错误矛盾，报告阻塞并停止。`,
+      }, project.id, job.id, codingBotChatId, codingBotChatType as 'group' | 'p2p',
+      runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom, signal);
+      failure = { ...failure, dispatched: started };
+    }
+    return {
+      summary: `head=${head} candidate=${candidate.filePath} validation_failed notified=${failure.notified === true} dispatched=${failure.dispatched === true}`,
+      cursor: { ...previous, validationFailure: failure },
+    };
+  }
   const commit = await documentCommit(project.path, head, candidate.filePath, signal);
   const eventKey = `${head}:${candidate.filePath}:${blob}:${document.action}`;
   if (previous.eventKey === eventKey) {
@@ -467,6 +509,9 @@ export const workflowWatcherHandler = async (
       cursor: { commit: head, eventKey },
     };
   }
+  await send(project.feishu.chat_id,
+    `✅ workflow validator 通过：${candidate.filePath}\ncommit: ${commit}\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
+    eventKey, 'validation_passed');
   if (gate === 'terminal') {
     await send(project.feishu.chat_id,
       `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,

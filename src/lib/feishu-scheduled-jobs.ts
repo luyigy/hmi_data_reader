@@ -55,7 +55,7 @@ export async function inspectWorkflowCandidates(
   const watchRoot = path.posix.join(contract.branch_spaces.root, branchSpace);
   const scanFrom = cursor && typeof cursor === 'object' && 'eventKey' in cursor ? current : initialCursor;
   const changed = scanFrom === head ? [] : (await execFileAsync(
-    'git', ['-C', repository, 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot],
+    'git', ['-C', repository, '-c', 'core.quotepath=false', 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot],
     { encoding: 'utf8' },
   )).stdout.trim().split('\n').filter(Boolean);
   return selectWorkflowCandidates(changed, contract, watchRoot).map(({ filePath }) => filePath);

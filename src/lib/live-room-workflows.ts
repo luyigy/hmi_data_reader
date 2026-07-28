@@ -8,11 +8,9 @@ import {
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 import { prisma } from '@/lib/prisma';
-import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { validateWorkflowDocuments } from '@/lib/scheduled-jobs/workflow-validator';
 
 export type LiveRoomWorkflowName = 'feature' | 'debug';
 
@@ -133,17 +131,13 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
       '生成唯一 PLAN：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml。',
       '写入 docs/ 下合法的三位编号 PLAN 文件，包含范围、方案、风险、验证和待确认项。',
       'front matter 必须为 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: start_first_slice，并有完整 workflow prompt。',
-      '最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>；不要提交，由系统校验后提交。',
+      '最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>；由系统提交，随后由 workflow validator 校验。',
     ].join(' '));
     const planPath = planPathFrom(finalOutput);
     if (!planPath) throw new Error('主持人未返回合法 PLAN_PATH，未提交。');
-    const planContent = await fs.readFile(path.join(sourceTask.workingDirectory || process.cwd(), planPath), 'utf8');
-    await validateWorkflowDocuments({
-      cwd: sourceTask.workingDirectory || process.cwd(), ref: 'HEAD', filePaths: [planPath], contentOverrides: { [planPath]: planContent },
-    });
     await execFileAsync('git', ['add', '--', planPath], { cwd: sourceTask.workingDirectory || process.cwd() });
     await execFileAsync('git', ['commit', '--only', '-m', `docs: add plan for ${command.task.slice(0, 48)}`, '--', planPath], { cwd: sourceTask.workingDirectory || process.cwd() });
-    await postLiveRoomMessage({ roomId, content: `系统提示：PLAN 已校验并提交：${planPath}。后续由既有 workflow watcher 发现并处理。`, messageType: 'system' });
+    await postLiveRoomMessage({ roomId, content: `系统提示：PLAN 已提交：${planPath}。后续由 workflow validator 校验；不合格会自动通知 Agent 修订，合格后才发送审批卡。`, messageType: 'system' });
   } catch (error) {
     await postLiveRoomMessage({ roomId, content: `系统提示：PLAN 未提交：${error instanceof Error ? error.message : String(error)}`, messageType: 'system' });
   }

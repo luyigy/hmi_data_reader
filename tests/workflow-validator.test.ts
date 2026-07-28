@@ -31,6 +31,40 @@ async function main() {
   );
   assert.deepEqual(legacyContract.documents.plan.required_fields_by_kind, {});
 
+  const headingRoot = await mkdtemp(path.join(os.tmpdir(), 'workflow-validator-heading-'));
+  const headingGit = (...args: string[]) => execFileSync('git', ['-C', headingRoot, ...args]).toString().trim();
+  headingGit('init', '-q', '-b', 'main');
+  headingGit('config', 'user.email', 'test@example.com');
+  headingGit('config', 'user.name', 'Test');
+  await mkdir(path.join(headingRoot, 'docs/workflow'), { recursive: true });
+  await writeFile(path.join(headingRoot, 'docs/workflow/workflow-contract.yaml'),
+    (await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8'))
+      .replace('slice_pattern: "\\\\bS[0-9]{2,}\\\\b"', 'slice_pattern: "(?m)^\\\\s*#{2,4}\\\\s+\\\\d+\\\\.?\\\\s+(S[0-9]{2,})\\\\b"'),
+  );
+  await writeFile(path.join(headingRoot, 'docs/000_ROADMAP_20260726_test.md'), '# roadmap\n');
+  await writeFile(path.join(headingRoot, 'docs/001_PLAN_20260726_heading.md'), `---
+doc_type: PLAN
+doc_status: ready
+next_action: start_first_slice
+plan_kind: phase
+roadmap: 000_ROADMAP_20260726_test.md
+parent_plan: null
+parent_slice: null
+return_to: null
+---
+## 4. S01
+<!-- WORKFLOW_PROMPT_START -->
+执行 001_PLAN_20260726_heading.md 的 S01，遵循 000_ROADMAP_20260726_test.md。
+<!-- WORKFLOW_PROMPT_END -->
+`);
+  headingGit('add', '.');
+  headingGit('commit', '-qm', 'heading fixture');
+  await validateWorkflowDocuments({
+    cwd: headingRoot,
+    ref: headingGit('rev-parse', 'HEAD'),
+    filePaths: ['docs/001_PLAN_20260726_heading.md'],
+  });
+
   const root = await mkdtemp(path.join(os.tmpdir(), 'workflow-validator-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args]).toString().trim();
   git('init', '-q', '-b', 'main');

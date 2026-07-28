@@ -180,7 +180,11 @@ const exists = (cwd: string, ref: string, filePath: string, signal: AbortSignal)
 
 const slices = (content: string, contract: WorkflowContract) => {
   const pattern = contract.documents.slice_pattern;
-  return Array.from(new Set(content.match(new RegExp(pattern.replace(/^\(\?m\)/, ''), pattern.startsWith('(?m)') ? 'gm' : 'g')) ?? []))
+  const matches = content.matchAll(new RegExp(
+    pattern.replace(/^\(\?m\)/, ''),
+    pattern.startsWith('(?m)') ? 'gm' : 'g',
+  ));
+  return Array.from(new Set(Array.from(matches, (match) => match[1] ?? match[0].trim())))
     .sort((left, right) => Number(left.slice(1)) - Number(right.slice(1)));
 };
 
