@@ -10,7 +10,10 @@ void (async () => {
   const parent = path.dirname(root);
   const sibling = await mkdtemp(path.join(tmpdir(), 'ap-bwrap-sibling-'));
   const shared = await mkdtemp(path.join(tmpdir(), 'ap-bwrap-config-'));
+  const external = await mkdtemp(path.join(tmpdir(), 'ap-bwrap-external-'));
   const sharedAuth = path.join(shared, 'auth.json');
+  const externalAuth = path.join(external, 'auth.json');
+  const linkedAuth = path.join(shared, 'linked-auth.json');
   const hostTmpSecret = path.join(tmpdir(), `ap-bwrap-host-${process.pid}`);
   const parentSecret = path.join(parent, `ap-bwrap-parent-${process.pid}`);
   const siblingSecret = path.join(sibling, 'secret');
@@ -18,6 +21,8 @@ void (async () => {
   const escape = path.join(root, 'escape');
   await mkdir(path.join(root, 'nested'));
   await writeFile(sharedAuth, '{}');
+  await writeFile(externalAuth, '{"linked":true}');
+  await symlink(externalAuth, linkedAuth);
   await writeFile(hostTmpSecret, 'host');
   await writeFile(parentSecret, 'parent');
   await writeFile(siblingSecret, 'sibling');
@@ -35,6 +40,8 @@ void (async () => {
     'test -r /etc/ssl/certs/ca-certificates.crt',
     `test -r ${JSON.stringify(roomAuth)}`,
     `! echo changed > ${JSON.stringify(roomAuth)}`,
+    `test -r ${JSON.stringify(linkedAuth)}`,
+    `! echo changed > ${JSON.stringify(linkedAuth)}`,
   ].join(' && ');
   const wrapped = wrapWithBubblewrap({ command: '/usr/bin/sh', commandArgs: ['-c', command], cwd: path.join(root, 'nested', '..'), workspaceRoot: root, networkAccess: 'enabled', env: process.env, configPaths: [root], readOnlyPaths: [shared] });
   assert.ok(wrapped.args.includes('--share-net'));

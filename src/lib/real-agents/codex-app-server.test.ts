@@ -6,6 +6,7 @@ import {
   toCodexToolEvent,
   toCodexApprovalRequest,
 } from './codex-app-server';
+import { buildExecArgs, buildResumeArgs } from './codex-agent';
 import {
   cancelInProcessApproval,
   resolveInProcessApproval,
@@ -33,6 +34,14 @@ assert.deepEqual(toCodexToolEvent({
 }), { toolName: 'impact', preview: 'runCodexAppServer', emoji: '⚙️' });
 assert.equal(toCodexToolEvent({ type: 'agentMessage', text: 'hello' }), null);
 assert.equal(appendCodexAgentMessageDelta('', 'First', true), 'First');
+assert.deepEqual(
+  buildExecArgs(false, 'workspace-write', 'never', true, 'enabled'),
+  ['exec', '--json', '--sandbox', 'workspace-write', '--config', 'sandbox_workspace_write.network_access=true', '--ephemeral', '-'],
+);
+assert.deepEqual(
+  buildResumeArgs('thread', false, 'workspace-write', 'never', 'restricted'),
+  ['exec', 'resume', 'thread', '--json', '--config', 'sandbox_workspace_write.network_access=false', '-'],
+);
 assert.equal(appendCodexAgentMessageDelta('First', ' message', false), 'First message');
 assert.equal(
   appendCodexAgentMessageDelta('First message', 'Second message', true),

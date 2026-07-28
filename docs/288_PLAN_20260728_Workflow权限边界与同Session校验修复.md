@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: none
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -121,17 +121,3 @@ validator 同 Session 纠正、原 Session 不可用时降级通知和旧权限�
 宿主 `/tmp` 不可访问；非管理员/非法预设被拒绝，配置与实际执行一致；validator 不新建 Session 且最多
 纠正两次；旧权限卡不可继续。运行相关聚焦测试、TypeScript、ESLint、long-file guard、
 `git diff --check` 和 GitNexus `detect_changes`，创建终态 HANDOVER；不重启服务。
-
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/288_PLAN_20260728_Workflow权限边界与同Session校验修复.md` 的 S01：只实现
-`/ap workflow policy show`、仅管理员可用且有审计记录的
-`/ap workflow policy set --preset=workspace`、与 watcher 共用权威来源的 `execution_policy`
-配置和校验，以及 TaskRun/Workflow 卡片中的 `configured / effective / enforcement / exceptions`
-权限快照。先读取 `docs/workflow/workflow-contract.yaml`、本 PLAN、最新有效 HANDOVER、
-`config/projects.yaml`、现有 `/ap` 命令入口、管理员身份来源、ACPX 权限类型/能力矩阵和 scheduled job
-配置入口；对将修改的每个 symbol 先运行 GitNexus upstream impact，HIGH/CRITICAL 先报告。不得开始
-S02，不接入 Bubblewrap，不改变 watcher validator 派发或 permission card 行为，不修改目标业务仓库。
-完成聚焦测试、TypeScript、相关 ESLint、long-file guard、`git diff --check` 和 GitNexus
-`detect_changes` 后提交，并创建 `plan_progress: in_progress`、`next_action: next_slice` 的 S01
-HANDOVER；提交后立即停止。
-<!-- WORKFLOW_PROMPT_END -->

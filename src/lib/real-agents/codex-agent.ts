@@ -192,6 +192,7 @@ Take your time and be thorough.`;
       options.sandboxMode,
       options.approvalPolicy,
       Boolean(options.ephemeral),
+      options.networkAccess,
       options.model,
       options.reasoningEffort
     ),
@@ -257,7 +258,15 @@ export const resumeCodexSession = async ({
   }
 
   return runCodexJsonCommand({
-    args: buildResumeArgs(threadId, skipGitRepoCheck, sandboxMode, approvalPolicy, model, reasoningEffort),
+    args: buildResumeArgs(
+      threadId,
+      skipGitRepoCheck,
+      sandboxMode,
+      approvalPolicy,
+      networkAccess,
+      model,
+      reasoningEffort,
+    ),
     prompt,
     options: {
       timeout,
@@ -278,11 +287,12 @@ export const resumeCodexSession = async ({
   });
 };
 
-const buildExecArgs = (
+export const buildExecArgs = (
   skipGitRepoCheck: boolean,
   sandboxMode: string,
   approvalPolicy: 'never' | 'on-request',
   ephemeral: boolean,
+  networkAccess?: 'restricted' | 'enabled',
   model?: string,
   reasoningEffort?: string
 ) => {
@@ -298,6 +308,9 @@ const buildExecArgs = (
   } else {
     args.push('--sandbox', normalizedSandboxMode);
   }
+  if (normalizedSandboxMode === 'workspace-write') {
+    args.push('--config', `sandbox_workspace_write.network_access=${networkAccess === 'enabled'}`);
+  }
 
   if (skipGitRepoCheck) {
     args.push('--skip-git-repo-check');
@@ -309,11 +322,12 @@ const buildExecArgs = (
   return args;
 };
 
-const buildResumeArgs = (
+export const buildResumeArgs = (
   threadId: string,
   skipGitRepoCheck: boolean,
   sandboxMode: string,
   approvalPolicy: 'never' | 'on-request',
+  networkAccess?: 'restricted' | 'enabled',
   model?: string,
   reasoningEffort?: string
 ) => {
@@ -326,6 +340,9 @@ const buildResumeArgs = (
     args.push('--full-auto');
   } else if (normalizedSandboxMode === 'danger-full-access') {
     args.push('--dangerously-bypass-approvals-and-sandbox');
+  }
+  if (normalizedSandboxMode === 'workspace-write') {
+    args.push('--config', `sandbox_workspace_write.network_access=${networkAccess === 'enabled'}`);
   }
 
   if (skipGitRepoCheck) {

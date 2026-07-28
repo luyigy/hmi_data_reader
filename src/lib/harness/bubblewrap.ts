@@ -49,7 +49,10 @@ export function wrapWithBubblewrap(args: {
   const executableMount = executable.endsWith('.js') ? path.dirname(path.dirname(executable)) : executable;
   const systemCertificates = '/etc/ssl/certs';
   const configPaths = (args.configPaths || []).filter(existsSync);
-  const explicitReadOnlyPaths = args.readOnlyPaths?.filter(existsSync).map((source) => realpathSync(source));
+  const explicitReadOnlyPaths = args.readOnlyPaths?.filter(existsSync).flatMap((source) => {
+    const resolved = realpathSync(source);
+    return [resolved, ...symlinkTargets(resolved)];
+  });
   const writableMounts = configPaths.map((source) => realpathSync(source))
     .filter((source) => !isWithin(workspaceRoot, source));
   const readOnlyMounts = [
