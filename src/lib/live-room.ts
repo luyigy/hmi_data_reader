@@ -1235,7 +1235,7 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
     description: taskDescription,
     executionMode: 'acpx',
     acpxParticipants: JSON.stringify(participants),
-    workingDirectory: workingDirectory || process.cwd(),
+    workingDirectory: workingDirectory ?? room.sourceTask?.workingDirectory ?? undefined,
     result: JSON.stringify({
       executionMode: 'acpx',
       source: 'live_room',

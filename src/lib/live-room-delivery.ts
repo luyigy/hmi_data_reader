@@ -16,7 +16,6 @@ import {
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
   extractRemoteHostIdFromRoleLabel,
-  getLiveRoomParticipantContinuationKey,
   parseLiveRoomMessageMetadata,
   postLiveRoomMessage,
   resolveLiveRoomAgentSelectors,
@@ -687,6 +686,11 @@ const executeLiveRoomReplyViaAcpx = async ({
     throw new Error('Live room source ACPX task is unavailable');
   }
   const workflowCompletionGate = parseLiveRoomMessageMetadata(sourceMessage.metadata)?.source === 'workflow_watcher';
+  const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const relayOrigin = {
+    feishuBindingId: sourceMetadata?.feishuBindingId,
+    feishuChatId: sourceMetadata?.feishuChatId,
+  };
 
   const participant = buildLiveRoomAcpxParticipant({
     id: targetMember.id,
@@ -756,6 +760,7 @@ const executeLiveRoomReplyViaAcpx = async ({
       senderKind: 'system',
       targetMemberId: targetMember.id,
       extras: {
+        ...relayOrigin,
         systemEvent: 'member_reply_started',
       },
     }),
@@ -778,6 +783,7 @@ const executeLiveRoomReplyViaAcpx = async ({
             senderKind: 'system',
             targetMemberId: targetMember.id,
             extras: {
+              ...relayOrigin,
               systemEvent: 'member_reply_progress',
               harnessType: targetMember.harnessType,
               progressKind: 'heartbeat',
@@ -814,6 +820,7 @@ const executeLiveRoomReplyViaAcpx = async ({
             senderKind: 'system',
             targetMemberId: targetMember.id,
             extras: {
+              ...relayOrigin,
               systemEvent: 'member_reply_tool',
               toolName: event.toolName,
               toolEmoji: event.emoji,
@@ -1160,6 +1167,11 @@ const processLiveRoomDelivery = async ({
   if (!sourceMessage) {
     return;
   }
+  const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const relayOrigin = {
+    feishuBindingId: sourceMetadata?.feishuBindingId,
+    feishuChatId: sourceMetadata?.feishuChatId,
+  };
 
   const targetMember = room.members.find((member) => member.id === targetMemberId);
   if (!targetMember || !targetMember.canReply) {
@@ -1310,6 +1322,7 @@ const processLiveRoomDelivery = async ({
         metadata: resolveLiveRoomMessageMetadata({
           senderKind: 'system',
           extras: {
+            ...relayOrigin,
             systemEvent: 'room_control_failed',
             actorDisplayName: targetMember.displayName,
           },
@@ -1354,6 +1367,7 @@ const processLiveRoomDelivery = async ({
             ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
             : [],
           extras: {
+            ...relayOrigin,
             deliveryId: delivery.id,
             backend: targetMember.backend,
             harnessType: targetMember.harnessType,
@@ -1436,6 +1450,7 @@ const processLiveRoomDelivery = async ({
           senderKind: 'system',
           targetMemberId: targetMember.id,
           extras: {
+            ...relayOrigin,
             error: message,
           },
         }),
@@ -1499,6 +1514,10 @@ export const triggerLiveRoomAgentReply = async ({
   }
 
   const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const relayOrigin = {
+    feishuBindingId: sourceMetadata?.feishuBindingId,
+    feishuChatId: sourceMetadata?.feishuChatId,
+  };
   const targetMember = getPrimaryReplyTarget({
     room,
     sourceMessageSenderMemberId: sourceMessage.senderMemberId,
@@ -1549,6 +1568,7 @@ export const triggerLiveRoomAgentReply = async ({
         senderKind: 'system',
         targetMemberId: targetMember.id,
         extras: {
+          ...relayOrigin,
           systemEvent: 'member_reply_queued',
           deliveryId: delivery.id,
         },
@@ -1622,6 +1642,10 @@ export const triggerLiveRoomMessageReplies = async ({
   }
 
   const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const relayOrigin = {
+    feishuBindingId: sourceMetadata?.feishuBindingId,
+    feishuChatId: sourceMetadata?.feishuChatId,
+  };
   const targetMemberIds = getTargetMemberIdsForMessage({
     room,
     sourceMessageSenderMemberId: sourceMessage.senderMemberId,
@@ -1650,6 +1674,7 @@ export const triggerLiveRoomMessageReplies = async ({
         expectedResponderMemberIds: targetMemberIds,
         requiredResponseMode: 'all',
         extras: {
+          ...relayOrigin,
           systemEvent: 'mention_all_dispatch_started',
         },
       }),
@@ -1666,7 +1691,7 @@ export const triggerLiveRoomMessageReplies = async ({
         senderKind: 'system',
         expectedResponderMemberIds: targetMemberIds,
         requiredResponseMode: 'all',
-        extras: { systemEvent: 'role_queue_started' },
+        extras: { ...relayOrigin, systemEvent: 'role_queue_started' },
       }),
     });
   }

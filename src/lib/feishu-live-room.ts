@@ -397,6 +397,7 @@ export async function ensureFeishuConversationBinding(args: {
       senderKind: 'system',
       extras: {
         source: 'feishu',
+        feishuBindingId: bindingId,
         feishuChatId: args.context.chatId,
         createdBy: userMember.id,
       },
@@ -523,6 +524,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
       expectedResponderMemberIds,
       extras: {
         source: 'feishu',
+        feishuBindingId: binding.id,
         feishuChatId: args.context.chatId,
         feishuMessageId: args.context.messageId,
         targetLocked: explicitMentionMemberIds.length === 1 && !mentionedAll,

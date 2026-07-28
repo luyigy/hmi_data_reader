@@ -16,6 +16,22 @@ type FeishuConversationBindingRow = {
   liveRoomId: string;
 };
 
+export const selectFeishuRelayBinding = (
+  bindings: FeishuConversationBindingRow[],
+  message: LiveRoomMessagePayload
+) => {
+  const bindingId = typeof message.metadata?.feishuBindingId === 'string'
+    ? message.metadata.feishuBindingId
+    : null;
+  const chatId = typeof message.metadata?.feishuChatId === 'string'
+    ? message.metadata.feishuChatId
+    : null;
+
+  return bindings.find((binding) => binding.id === bindingId)
+    || bindings.find((binding) => binding.chatId === chatId)
+    || (bindings.length === 1 ? bindings[0] : null);
+};
+
 export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   if (message.messageType === 'assistant') {
     return true;
@@ -65,7 +81,7 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
     return;
   }
 
-  const bindingRows = await prisma.$queryRaw<FeishuConversationBindingRow[]>`
+  const bindings = await prisma.$queryRaw<FeishuConversationBindingRow[]>`
     SELECT
       "id",
       "chatId",
@@ -76,9 +92,8 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
       "liveRoomId"
     FROM "FeishuConversationBinding"
     WHERE "liveRoomId" = ${message.roomId}
-    LIMIT 1
   `;
-  const binding = bindingRows[0] || null;
+  const binding = selectFeishuRelayBinding(bindings, message);
 
   if (!binding) {
     return;

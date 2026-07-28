@@ -20,11 +20,7 @@ import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
 import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
 import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 import { readFeishuRuntimeStatus } from '@/lib/feishu-runtime-status';
-import {
-  hydrateFeishuMessageResources,
-  type ParsedFeishuMessage,
-} from '@/lib/feishu-message-content';
-import { parseFeishuCommand, type ParsedFeishuCommand } from '@/lib/feishu-command-parser';
+import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 export { parseFeishuCommand } from '@/lib/feishu-command-parser';
 export { hydrateFeishuMessageResources, parseFeishuMessageContent } from '@/lib/feishu-message-content';
 export {
@@ -1304,13 +1300,25 @@ async function handleWorkspaceCommand(command: ParsedFeishuCommand, context?: Fe
   const workspaceRoot = access?.workspaceRoot;
   const newDir = command.args.join(' ').trim() || command.options['path'] || '';
   if (!newDir) {
-    const rows = await prisma.$queryRaw<Array<{ workingDirectory: string | null }>>`
-      SELECT "workingDirectory"
-      FROM "LiveRoom"
-      WHERE "id" = ${roomId}
-      LIMIT 1
-    `;
-    return `授权根目录：${workspaceRoot || '管理员不受用户根目录限制'}\n当前工作目录：${rows[0]?.workingDirectory || process.cwd()}\n如需修改：/ap workspace <root 内路径>`;
+    const room = await prisma.liveRoom.findUnique({
+      where: { id: roomId },
+      select: {
+        id: true,
+        title: true,
+        workingDirectory: true,
+        sourceTask: { select: { workingDirectory: true } },
+      },
+    });
+    if (!room) return '当前 Feishu 会话绑定的 Live Room 不存在。';
+    const actualWorkdir = room.workingDirectory || room.sourceTask?.workingDirectory || process.cwd();
+    return [
+      `Room：${room.title} (${room.id})`,
+      `绑定会话：${context.chatType} ${context.chatId}`,
+      `授权根目录：${workspaceRoot || '管理员不受用户根目录限制'}`,
+      `Room workdir：${room.workingDirectory || '(未设置)'}`,
+      `实际 workdir：${actualWorkdir}${room.workingDirectory ? '' : '（回退值，非群独占 workspace）'}`,
+      '如需修改：/ap workspace <授权根目录内路径>',
+    ].join('\n');
   }
 
   if (!workspaceRoot) return '管理员请通过房间命令的 --workdir 设置目录；/ap workspace 仅用于受授权用户。';
@@ -1364,10 +1372,23 @@ async function handleRoomCommand(
     permissionConfig,
     mode: mode || undefined,
   });
+  const [room, access] = await Promise.all([
+    prisma.liveRoom.findUnique({
+      where: { id: result.liveRoomId },
+      select: { workingDirectory: true, sourceTask: { select: { workingDirectory: true } } },
+    }),
+    prisma.feishuUserAccess.findUnique({
+      where: { openId: context.senderOpenId },
+      select: { workspaceRoot: true },
+    }),
+  ]);
 
   return [
     result.created ? '已创建 Feishu 绑定房间。' : '已复用现有 Feishu 绑定房间。',
     `Live Room: ${result.roomTitle} (${result.liveRoomId})`,
+    `绑定会话：${context.chatType} ${context.chatId}`,
+    `授权根目录：${access?.workspaceRoot || '管理员不受用户根目录限制'}`,
+    `实际 workdir：${room?.workingDirectory || room?.sourceTask?.workingDirectory || process.cwd()}`,
     `新增成员数：${result.addedAgentCount}`,
     `权限：${permissionConfig ? formatPermissionProfileLabel(permissionConfig.profile) : 'Safe Local（默认）'}`,
     `模式：${result.roomMode}`,

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildAssistantRelayCard,
+  selectFeishuRelayBinding,
   shouldRelayLiveRoomMessage,
 } from '../src/lib/feishu-live-room-relay';
 import type { LiveRoomMessagePayload } from '../src/lib/live-room';
@@ -54,3 +55,14 @@ assert.equal(
   (buildAssistantRelayCard(assistant).header.title as { content: string }).content,
   'codex → Claude'
 );
+
+const bindings = [
+  { id: 'binding-a', chatId: 'chat-a', chatType: 'group', latestMessageId: null, typingReactionId: null, typingForMessageId: null, liveRoomId: 'room' },
+  { id: 'binding-b', chatId: 'chat-b', chatType: 'group', latestMessageId: null, typingReactionId: null, typingForMessageId: null, liveRoomId: 'room' },
+];
+const routed = message('assistant');
+routed.metadata = { feishuBindingId: 'binding-b', feishuChatId: 'chat-b' };
+assert.equal(selectFeishuRelayBinding(bindings, routed)?.chatId, 'chat-b');
+routed.metadata = null;
+assert.equal(selectFeishuRelayBinding(bindings, routed), null, 'shared room must not guess a binding');
+assert.equal(selectFeishuRelayBinding(bindings.slice(0, 1), routed)?.chatId, 'chat-a');
