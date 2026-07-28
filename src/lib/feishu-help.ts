@@ -2,7 +2,7 @@ import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 
 const HELP_PAGES = [
   ['房间与 Agent', [
-    '/ap room --agents=<local:codex,local:claude> [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [title]',
+    '/ap room --workdir=<目录> [--agents=<local:codex,local:claude>] [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [title]',
     '/ap mode <discussion|execution|hybrid>',
     '/ap members',
     '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',

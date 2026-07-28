@@ -1328,7 +1328,7 @@ async function handleRoomCommand(
     topic: command.options['topic'],
     workingDirectory: command.options['workdir'] || undefined,
     permissionConfig,
-    mode: mode || undefined,
+    mode: mode || undefined, confirmCreate: true,
   });
   const [room, access] = await Promise.all([
     prisma.liveRoom.findUnique({

@@ -27,6 +27,26 @@ export type FeishuConversationContext = {
   mentionNames?: string[];
 };
 
+export const UNBOUND_FEISHU_LIVE_ROOM_HINT = '当前会话尚未绑定 Live Room，普通消息不会转发给 agent。确认创建独立房间请发送 `/ap room --workdir=<目录>`；该命令会加入默认本机 Codex。也可用 `/ap agents` 指定成员。';
+
+export function resolveNewFeishuRoomWorkingDirectory(args: {
+  chatType: string;
+  confirmCreate?: boolean;
+  requestedWorkingDirectory?: string;
+  workspaceRoot?: string | null;
+}) {
+  if (args.chatType !== 'group') {
+    return args.requestedWorkingDirectory || args.workspaceRoot;
+  }
+  if (!args.confirmCreate) {
+    throw new Error('请先使用 /ap room --workdir=<目录> 明确确认创建该群的独立 Live Room。');
+  }
+  if (!args.requestedWorkingDirectory) {
+    throw new Error('创建群 Live Room 必须通过 /ap room --workdir=<目录> 显式设置工作目录。');
+  }
+  return args.requestedWorkingDirectory;
+}
+
 export async function getBoundLiveRoomId(context?: FeishuConversationContext): Promise<string | null> {
   if (!context) return null;
   const scopeKey = context.chatType === 'p2p'
@@ -213,6 +233,7 @@ export async function ensureFeishuConversationBinding(args: {
   permissionConfig?: AcpxPermissionConfig;
   mode?: LiveRoomMode;
   allowDefaultAgent?: boolean;
+  confirmCreate?: boolean;
 }) {
   const { resolveWorkspaceDirectory } = await import('@/lib/feishu-workspace');
   const access = args.context.chatType === 'p2p'
@@ -312,6 +333,13 @@ export async function ensureFeishuConversationBinding(args: {
     throw new Error('No live room binding exists for this Feishu chat. Create one first with /ap room --agents=<agentId1,agentId2>.');
   }
 
+  const initialWorkingDirectory = resolveNewFeishuRoomWorkingDirectory({
+    chatType: args.context.chatType,
+    confirmCreate: args.confirmCreate,
+    requestedWorkingDirectory,
+    workspaceRoot,
+  });
+
   const room = await prisma.liveRoom.create({
     data: {
       title: await buildDefaultRoomTitle(args.context, args.title),
@@ -323,7 +351,6 @@ export async function ensureFeishuConversationBinding(args: {
     },
   });
 
-  const initialWorkingDirectory = requestedWorkingDirectory || workspaceRoot;
   if (initialWorkingDirectory) {
     await prisma.$executeRaw`
       UPDATE "LiveRoom"

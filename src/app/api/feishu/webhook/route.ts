@@ -14,8 +14,7 @@ import {
 } from '@/lib/feishu-webhook';
 import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
-import { ensureFeishuConversationBinding, tryRelayNonCommandToLiveRoom } from '@/lib/feishu-live-room';
-import { listLiveRoomCatalogAgents } from '@/lib/live-room';
+import { tryRelayNonCommandToLiveRoom, UNBOUND_FEISHU_LIVE_ROOM_HINT } from '@/lib/feishu-live-room';
 import { checkFeishuDirectMessageAccess } from '@/lib/feishu-access-approval';
 
 export const dynamic = 'force-dynamic';
@@ -36,21 +35,7 @@ function resolveBaseUrl(request: NextRequest): string {
 }
 
 async function buildUnboundLiveRoomHint(): Promise<string> {
-  try {
-    const agents = await listLiveRoomCatalogAgents();
-    const suggestedAgent =
-      agents.find((agent) => agent.backend === 'platform_local' && agent.harnessType === 'codex')
-      || agents.find((agent) => agent.backend === 'platform_local')
-      || agents[0];
-
-    if (suggestedAgent) {
-      return `当前会话还没有绑定到 live room，所以普通消息不会转发给 agent。先发送 \`/ap room --agents=${suggestedAgent.id}\` 创建绑定。默认会优先选择本机 pi-agent，本机 codex 作为托底。也可以先发送 \`/ap agents\` 查看可用 agent ID，或发送 \`/ap help\` 查看可用命令。`;
-    }
-  } catch (error) {
-    console.error('Failed to build Feishu live-room binding hint:', error);
-  }
-
-  return '当前会话还没有绑定到 live room，所以普通消息不会转发给 agent。先发送 `/ap agents` 查看可用 agent ID，再用 `/ap room --agents=<agentId>` 创建绑定，或发送 `/ap help` 查看可用命令。';
+  return UNBOUND_FEISHU_LIVE_ROOM_HINT;
 }
 
 export async function POST(request: NextRequest) {
@@ -92,9 +77,7 @@ export async function POST(request: NextRequest) {
     if (!command) {
       // Not a /ap command — check if the chat is bound to a live room and relay
       const relayTypingReactionId = await addTypingReaction(message.messageId);
-      let autoBound = false;
-      let autoBoundRoomId: string | null = null;
-      let relayed = await tryRelayNonCommandToLiveRoom({
+      const relayed = await tryRelayNonCommandToLiveRoom({
         context: {
           chatId: message.chatId,
           chatType: message.chatType,
@@ -108,54 +91,10 @@ export async function POST(request: NextRequest) {
         console.error('Failed to relay non-command to live room:', err);
         return false;
       });
-      if (!relayed && message.chatType === 'group') {
-        const autoBinding = await ensureFeishuConversationBinding({
-          context: {
-            chatId: message.chatId,
-            chatType: message.chatType,
-            senderOpenId: message.senderOpenId,
-            messageId: message.messageId,
-            mentionNames: message.mentionNames,
-          },
-          allowDefaultAgent: true,
-        }).catch((err) => {
-          console.error('Failed to auto-bind Feishu group to live room:', err);
-          return null;
-        });
-
-        if (autoBinding) {
-          autoBound = autoBinding.created;
-          autoBoundRoomId = autoBinding.liveRoomId;
-          relayed = await tryRelayNonCommandToLiveRoom({
-            context: {
-              chatId: message.chatId,
-              chatType: message.chatType,
-              senderOpenId: message.senderOpenId,
-              messageId: message.messageId,
-              mentionNames: message.mentionNames,
-            },
-            content: message.text,
-            typingReactionId: relayTypingReactionId ?? undefined,
-          }).catch((err) => {
-            console.error('Failed to relay non-command after auto-binding live room:', err);
-            return false;
-          });
-        }
-      }
       if (!relayed && relayTypingReactionId) {
         await removeTypingReaction(message.messageId, relayTypingReactionId);
       }
-      if (relayed && autoBound && autoBoundRoomId) {
-        await sendFeishuTextMessage({
-          receiveId: message.chatId,
-          receiveIdType: 'chat_id',
-          replyId: message.messageId,
-          text: `已自动绑定到 Live Room ${autoBoundRoomId}，默认成员已加入（优先使用本机 pi-agent，本机 codex 作为托底）。现在可以直接继续聊，也可以用 /ap add 拉其他 agent。`,
-        }).catch((replyError) => {
-          console.error('Failed to send Feishu auto-bind confirmation:', replyError);
-        });
-      }
-      if (!relayed && message.chatType === 'p2p') {
+      if (!relayed && (message.chatType === 'p2p' || message.chatType === 'group')) {
         await sendFeishuTextMessage({
           receiveId: message.chatId,
           receiveIdType: 'chat_id',
