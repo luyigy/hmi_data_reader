@@ -143,6 +143,15 @@ S01
   );
   assert.equal(corrections, 2);
 
+  const longFilePath = path.join(root, 'large.ts');
+  await writeFile(longFilePath, 'line\n'.repeat(1000));
+  const longFileBaseline = await getWorkflowCompletionBaseline(root);
+  await writeFile(longFilePath, 'line\n'.repeat(1001));
+  await assert.rejects(
+    assertWorkflowCompletion(root, longFileBaseline),
+    /long-file guard blocked growth at 1000 lines:[\s\S]*large\.ts: 1000 -> 1001/,
+  );
+
   console.log('workflow completion gate checks passed');
 }
 
