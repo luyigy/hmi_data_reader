@@ -178,9 +178,11 @@ const promptFrom = (content: string, action: string, contract: WorkflowContract)
 const exists = (cwd: string, ref: string, filePath: string, signal: AbortSignal) =>
   git(cwd, signal, 'cat-file', '-e', `${ref}:${filePath}`).then(() => true, () => false);
 
-const slices = (content: string, contract: WorkflowContract) =>
-  Array.from(new Set(content.match(new RegExp(contract.documents.slice_pattern, 'g')) ?? []))
+const slices = (content: string, contract: WorkflowContract) => {
+  const pattern = contract.documents.slice_pattern;
+  return Array.from(new Set(content.match(new RegExp(pattern.replace(/^\(\?m\)/, ''), pattern.startsWith('(?m)') ? 'gm' : 'g')) ?? []))
     .sort((left, right) => Number(left.slice(1)) - Number(right.slice(1)));
+};
 
 export const validateWorkflowDocument = async (
   cwd: string,

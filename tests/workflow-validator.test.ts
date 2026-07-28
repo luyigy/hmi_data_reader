@@ -12,7 +12,8 @@ async function main() {
   legacyGit('config', 'user.email', 'test@example.com');
   legacyGit('config', 'user.name', 'Test');
   await mkdir(path.join(legacyRoot, 'docs/workflow'), { recursive: true });
-  const currentContract = await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8');
+  const currentContract = (await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8'))
+    .replace('slice_pattern: "\\\\bS[0-9]{2,}\\\\b"', 'slice_pattern: "(?m)\\\\bS[0-9]{2,}\\\\b"');
   await writeFile(
     path.join(legacyRoot, 'docs/workflow/workflow-contract.yaml'),
     currentContract.replace(
