@@ -19,7 +19,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   prompt: string;
   eventKey: string;
   signal: AbortSignal;
-}) {
+}): Promise<boolean> {
   args.signal.throwIfAborted();
   let dispatch = await prisma.workflowDispatch.upsert({
     where: {
@@ -36,7 +36,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
     },
     update: {},
   });
-  if (dispatch.state === 'reply_queued') return;
+  if (dispatch.state === 'reply_queued') return true;
   args.signal.throwIfAborted();
 
   const context: FeishuConversationContext = {
@@ -47,6 +47,15 @@ export async function runWorkflowInBoundLiveRoom(args: {
   };
   const boundRoom = await getBoundLiveRoom(context);
   if (!boundRoom?.sourceTask) throw new Error('bound live room has no source task');
+
+  // A committed HANDOVER can be visible before its agent has emitted its final reply.
+  // Keep the watcher event pending; the task-completion wakeup will retry it.
+  if (dispatch.state === 'prepared') {
+    const active = await prisma.taskRun.count({
+      where: { taskId: boundRoom.sourceTask.id, status: 'running' },
+    });
+    if (active) return false;
+  }
 
   if (dispatch.state === 'prepared') {
     const resetAlreadyCompleted = await prisma.taskSession.findFirst({
@@ -133,4 +142,5 @@ export async function runWorkflowInBoundLiveRoom(args: {
     where: { id: dispatch.id },
     data: { state: 'reply_queued' },
   });
+  return true;
 }

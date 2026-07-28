@@ -45,7 +45,7 @@ type WorkflowRunner = (args: {
   prompt: string;
   eventKey: string;
   signal: AbortSignal;
-}) => Promise<void>;
+}) => Promise<void | boolean>;
 type Message = {
   message_id?: string;
   parent_id?: string;
@@ -177,7 +177,7 @@ const execute = async (
     '完成前必须以目标 HEAD 中的 docs/workflow/workflow-contract.yaml 为唯一规则源，',
     '只修订并提交本次相关 PLAN/HANDOVER；平台 completion gate 会在 Session 结束后统一校验。',
   ].join('\n');
-  await runWorkflow({
+  return (await runWorkflow({
     projectId,
     jobId,
     chatId: codingBotChatId,
@@ -185,7 +185,7 @@ const execute = async (
     prompt: `${pending.prompt}\n${validationReminder}`,
     eventKey: pending.key,
     signal,
-  });
+  })) !== false;
 };
 
 export const workflowWatcherHandler = async (
@@ -392,7 +392,7 @@ export const workflowWatcherHandler = async (
       }
     }
     if (mode === 'active') {
-      await execute(
+      const started = await execute(
         pending,
         project.id,
         job.id,
@@ -401,6 +401,7 @@ export const workflowWatcherHandler = async (
         runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
         signal,
       );
+      if (!started) return { summary: `head=${head} pending=${pending.path} gate=waiting_previous_completion`, cursor: previous };
     }
     return {
       summary: `head=${head} candidate=${pending.path} action=${pending.action} result=${mode === 'active' ? 'session_started' : 'shadow'}`,
@@ -494,7 +495,7 @@ export const workflowWatcherHandler = async (
       },
     };
   }
-  await execute(
+  const started = await execute(
     execution,
     project.id,
     job.id,
@@ -503,6 +504,12 @@ export const workflowWatcherHandler = async (
     runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
     signal,
   );
+  if (!started) {
+    return {
+      summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=waiting_previous_completion`,
+      cursor: previous,
+    };
+  }
   return {
     summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=session_started`,
     cursor: { commit: head, eventKey },

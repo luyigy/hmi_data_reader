@@ -70,3 +70,8 @@ This project is indexed by GitNexus as **agent-platform-v2** (7397 symbols, 1256
 - `automation_enabled: false` 时只维护和校验文档，不启动 watcher 或下一 Session。
 - 合同要求 `prompt.repeat_in_final_reply: true` 时，最终回复必须原样附上工作流文档 Prompt 标记之间的下一 Session Prompt，供用户直接复制。
 - 可执行文档提交后，最终回复最后一行必须使用合同定义的 `WORKFLOW_READY` 标记。
+
+## 长文件守卫
+
+- 开工前运行 `npm run check:long-files`，确认当前已达阻断阈值的文件。
+- 这些文件不得增长。workflow completion gate 会在工作流 participant 完成时校验并阻止继续完成；需要新增职责时，先在同一提交中提取明确边界的模块。

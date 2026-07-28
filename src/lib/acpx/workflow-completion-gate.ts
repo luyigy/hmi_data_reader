@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readWorkflowContract, selectWorkflowCandidates, validateWorkflowDocuments } from '@/lib/scheduled-jobs/workflow-validator';
+import { assertLongFilesDidNotGrow, captureLongFileBaseline, type LongFileBaseline } from '@/lib/long-file-guard';
 
 const git = (cwd: string, ...args: string[]) =>
   new Promise<string>((resolve, reject) => {
@@ -15,6 +16,7 @@ const lines = (value: string) => value.split('\n').filter(Boolean);
 export type WorkflowCompletionBaseline = {
   head: string;
   dirty: Record<string, string>;
+  longFiles?: LongFileBaseline;
 };
 
 export class WorkflowCompletionValidationError extends Error {
@@ -73,10 +75,11 @@ export const getWorkflowCompletionBaseline = async (cwd: string): Promise<Workfl
   } catch {
     return { head, dirty: {} };
   }
-  return { head, dirty: await getDirtyWorkflowSnapshot(cwd, head) };
+  return { head, dirty: await getDirtyWorkflowSnapshot(cwd, head), longFiles: await captureLongFileBaseline(cwd) };
 };
 
 export const assertWorkflowCompletion = async (cwd: string, baseline: WorkflowCompletionBaseline) => {
+  if (baseline.longFiles) await assertLongFilesDidNotGrow(cwd, baseline.longFiles);
   const head = await git(cwd, 'rev-parse', 'HEAD');
   const contractPath = 'docs/workflow/workflow-contract.yaml';
   try {
