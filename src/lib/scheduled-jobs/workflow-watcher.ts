@@ -34,6 +34,7 @@ type Pending = WorkflowReviewPending & {
   detectedAt: string;
   reviewExpiresAt?: string;
   revisionDispatchKey?: string;
+  workflowContext: string;
 };
 
 type Cursor = { commit: string; eventKey?: string; pending?: Pending };
@@ -61,6 +62,16 @@ type WorkflowDocumentImporter = (args: {
   signal: AbortSignal;
 }) => Promise<string>;
 type WorkflowReviewCardSender = typeof sendFeishuWorkflowReviewCard;
+
+const declared = (value: unknown) => typeof value === 'string' && value.trim() ? value : '未声明';
+
+const workflowContext = (metadata: Record<string, unknown>, documentPath: string, type: string) => [
+  `**所属 PLAN**：${type === 'PLAN' ? documentPath : declared(metadata.plan)}`,
+  `**当前或将执行的 Slice**：${declared(metadata.slice)}`,
+  `**计划进度**：${declared(metadata.plan_progress)}`,
+  `**文档状态**：${declared(metadata.doc_status)}`,
+  `**下一动作**：${declared(metadata.next_action)}`,
+].join('\n');
 
 const exec = (file: string, args: string[], signal: AbortSignal, cwd?: string) =>
   new Promise<string>((resolve, reject) => {
@@ -132,7 +143,7 @@ const reviewExpiry = (contract: WorkflowContract) =>
 const sendReviewCard = (
   project: Parameters<JobHandler>[0]['project'],
   jobId: string,
-  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'documentUrl' | 'reviewExpiresAt'>,
+  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'documentUrl' | 'reviewExpiresAt' | 'workflowContext'>,
   sender: WorkflowReviewCardSender,
 ) => sender({
   chatId: project.feishu.chat_id,
@@ -145,6 +156,7 @@ const sendReviewCard = (
   reviewedCommit: pending.documentCommit,
   expiresAt: pending.reviewExpiresAt!,
   idempotencyKey: idempotencyKey(pending.key, 'plan_review'),
+  workflowContext: pending.workflowContext,
 });
 
 const messages = async (chatId: string, start: string, signal: AbortSignal) => {
@@ -164,7 +176,7 @@ const messages = async (chatId: string, start: string, signal: AbortSignal) => {
 };
 
 const execute = async (
-  pending: Pick<Pending, 'key' | 'prompt'>,
+  pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext'>,
   projectId: string,
   jobId: string,
   codingBotChatId: string,
@@ -182,7 +194,7 @@ const execute = async (
     jobId,
     chatId: codingBotChatId,
     chatType: codingBotChatType,
-    prompt: `${pending.prompt}\n${validationReminder}`,
+    prompt: `${pending.workflowContext}\n\n${pending.prompt}\n${validationReminder}`,
     eventKey: pending.key,
     signal,
   })) !== false;
@@ -259,7 +271,7 @@ export const workflowWatcherHandler = async (
       )).trim();
       if (mode === 'active') {
         await execute(
-          { key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
+          { ...pending, key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
           project.id,
           job.id,
           codingBotChatId,
@@ -287,7 +299,7 @@ export const workflowWatcherHandler = async (
           return { summary: `head=${head} pending=${pending.path} gate=plan_revision`, cursor: previous };
         }
         await execute(
-          { key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
+          { ...pending, key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
           project.id,
           job.id,
           codingBotChatId,
@@ -326,6 +338,7 @@ export const workflowWatcherHandler = async (
         documentCommit: commit,
         documentUrl,
         prompt: revised.prompt,
+        workflowContext: workflowContext(metadata, pending.path, 'PLAN'),
         reviewState: undefined,
         reviewMessageId: undefined,
         reviewExpiresAt,
@@ -454,7 +467,7 @@ export const workflowWatcherHandler = async (
   }
   if (gate === 'terminal') {
     await send(project.feishu.chat_id,
-      `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。`,
+      `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
       eventKey, 'terminal');
     return { summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=notified`, cursor: { commit: head, eventKey } };
   }
@@ -462,6 +475,7 @@ export const workflowWatcherHandler = async (
   const execution = {
     key: eventKey,
     prompt: document.prompt,
+    workflowContext: workflowContext(metadata, candidate.filePath, candidate.type),
   };
   if (gate === 'plan_review') {
     const documentUrl = await importDocument({
@@ -483,6 +497,7 @@ export const workflowWatcherHandler = async (
       reviewState: undefined,
       reviewExpiresAt: reviewExpiry(contract),
       detectedAt,
+      workflowContext: execution.workflowContext,
     };
     const reviewMessageId = await sendReviewCard(project, job.id, pending, sendReview);
     if (!reviewMessageId) throw new Error('plan review request returned no message_id');

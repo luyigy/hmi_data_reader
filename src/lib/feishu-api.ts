@@ -198,6 +198,7 @@ export const sendFeishuWorkflowReviewCard = (args: {
   reviewedCommit: string;
   expiresAt: string;
   idempotencyKey: string;
+  workflowContext: string;
 }) => sendFeishuWorkflowMessage({
   chatId: args.chatId,
   messageType: 'interactive',
@@ -213,7 +214,8 @@ export const sendFeishuWorkflowReviewCard = (args: {
         tag: 'markdown',
         content: `<at id=${args.approverOpenId}></at>\n**文档**：${path.posix.basename(args.planPath)}\n`
           + `**查看计划**：[打开飞书文档](${args.planUrl})\n`
-          + `**路径**：${args.planPath}\n**提交**：${args.reviewedCommit}\n**截止**：${args.expiresAt}`,
+          + `**路径**：${args.planPath}\n${args.workflowContext}\n`
+          + `**提交**：${args.reviewedCommit}\n**截止**：${args.expiresAt}`,
       },
       {
         tag: 'action',

@@ -249,6 +249,11 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
   assert.equal(workflowRuns.at(-1)?.chatType, 'group');
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /NEXT PROMPT/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*所属 PLAN\*\*：000_PLAN_20260725_owner.md/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*当前或将执行的 Slice\*\*：S01/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*计划进度\*\*：in_progress/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*文档状态\*\*：completed/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*下一动作\*\*：next_slice/);
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /平台 completion gate 会在 Session 结束后统一校验/);
   assert.doesNotMatch(workflowRuns.at(-1)?.prompt ?? '', /npm run workflow:validate/);
   const unchanged = await run(completed.cursor);
@@ -268,6 +273,12 @@ plan_progress: complete
   git('commit', '-qm', 'terminal');
   const terminal = await run(completed.cursor);
   assert.match(terminal.summary, /result=notified/);
+  const terminalNotice = apiCalls.at(-1);
+  assert.match(String(terminalNotice?.body.content), /\*\*所属 PLAN\*\*：000_PLAN_20260725_owner.md/);
+  assert.match(String(terminalNotice?.body.content), /\*\*当前或将执行的 Slice\*\*：S02/);
+  assert.match(String(terminalNotice?.body.content), /\*\*计划进度\*\*：complete/);
+  assert.match(String(terminalNotice?.body.content), /\*\*文档状态\*\*：completed/);
+  assert.match(String(terminalNotice?.body.content), /\*\*下一动作\*\*：await_acceptance/);
   assert.match((await run(terminal.cursor)).summary, /candidate=none/);
 
   await writeFile(path.join(root, 'docs/branch/main/003_PLAN_20260725_review.md'), `---
@@ -306,6 +317,11 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /"tag":"form"/);
   assert.match(String(reviewCall.body.content), /"action_type":"form_submit"/);
   assert.match(String(reviewCall.body.content), new RegExp(reviewCursor.pending.documentUrl));
+  assert.match(String(reviewCall.body.content), /\*\*所属 PLAN\*\*：docs\/branch\/main\/003_PLAN_20260725_review.md/);
+  assert.match(String(reviewCall.body.content), /\*\*当前或将执行的 Slice\*\*：未声明/);
+  assert.match(String(reviewCall.body.content), /\*\*计划进度\*\*：未声明/);
+  assert.match(String(reviewCall.body.content), /\*\*文档状态\*\*：ready/);
+  assert.match(String(reviewCall.body.content), /\*\*下一动作\*\*：start_first_slice/);
   assert.equal(importedDocuments.length, 1);
   assert.match(importedDocuments[0].content, /PLAN PROMPT/);
   assert.equal(new URL(reviewCall.url).searchParams.get('receive_id_type'), 'chat_id');
