@@ -10,6 +10,8 @@ export type LongFileRuntimeContext = {
   projectPath: string;
   head: string;
   threshold: number;
+  extensions: Set<string>;
+  excludes: string[];
   baseline: Record<string, number>;
   offenders: Array<{ path: string; lines: number }>;
 };
@@ -76,7 +78,27 @@ export const getLongFileRuntimeContext = async ({
     .filter(([, lines]) => lines >= rules.threshold)
     .map(([filePath, lines]) => ({ path: filePath, lines }))
     .sort((left, right) => left.path.localeCompare(right.path));
-  return { projectId: project.id, projectPath: project.path, head: await gitHead(project.path), threshold: rules.threshold, baseline, offenders };
+  return {
+    projectId: project.id,
+    projectPath: project.path,
+    head: await gitHead(project.path),
+    threshold: rules.threshold,
+    extensions: rules.extensions,
+    excludes: rules.excludes,
+    baseline,
+    offenders,
+  };
+};
+
+export const assertLongFileRuntimeContext = async (context: LongFileRuntimeContext) => {
+  const current = await scan(context.projectPath, context.projectPath, context.extensions, context.excludes);
+  const violations = Object.entries(current)
+    .filter(([filePath, lineCount]) => lineCount >= context.threshold && lineCount > (context.baseline[filePath] ?? 0))
+    .map(([filePath, lineCount]) => `${filePath}: ${context.baseline[filePath] ?? 0} -> ${lineCount}`)
+    .sort();
+  if (violations.length) {
+    throw new Error(`long-file runtime guard blocked growth at ${context.threshold} lines:\n${violations.join('\n')}`);
+  }
 };
 
 export const longFileRuntimeNotice = (context: LongFileRuntimeContext, limit = 20) => [

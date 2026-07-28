@@ -25,7 +25,7 @@ import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
 import { completeWorkflowWithCorrections, getWorkflowCompletionBaseline, shouldCheckWorkflowCompletion } from './workflow-completion-gate';
-import { getLongFileRuntimeContext } from './long-file-runtime-context';
+import { assertLongFileRuntimeContext, getLongFileRuntimeContext, type LongFileRuntimeContext } from './long-file-runtime-context';
 import { buildHarnessPrompt, checkContextWatermark, withLongFileRuntimeContext } from './prompt';
 import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import type {
@@ -991,8 +991,7 @@ const executeViaLocalHarness = async (
       targetParticipantLabel: string | null;
     } | null;
   },
-  onSpawn?: (child: { pid?: number }) => void,
-  contextWarning?: string | null
+  onSpawn?: (child: { pid?: number }) => void, contextWarning?: string | null, longFileContext?: LongFileRuntimeContext | null,
 ): Promise<{
   output: string;
   filesModified: string[];
@@ -1002,10 +1001,6 @@ const executeViaLocalHarness = async (
   sessionKind?: string;
   threadId?: string;
 }> => {
-  const longFileContext = await getLongFileRuntimeContext({
-    executionBackend: participant.executionBackend,
-    workingDirectory: request.workingDirectory,
-  });
   const task = {
     id: request.taskId,
     name: request.taskName,
@@ -1315,6 +1310,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   });
 
   const previousSummaries: string[] = [];
+  const longFileContext = request.participants.some((participant) => participant.executionBackend === 'platform_local') ? await getLongFileRuntimeContext({ executionBackend: 'platform_local', workingDirectory: request.workingDirectory }) : null;
   const participantResults: Array<Awaited<ReturnType<typeof executeParticipant>>> = [];
 
   for (let index = 0; index < taskRun.participants.length; index += 1) {
@@ -1325,7 +1321,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       taskRun.id,
       participantRecord.id,
       requestParticipant,
-      previousSummaries
+      previousSummaries, longFileContext,
     );
     participantResults.push(result);
     if (result.summary) {
@@ -1433,7 +1429,7 @@ const executeParticipant = async (
   taskRunId: string,
   participantId: string,
   participant: AcpxParticipantRequest,
-  previousSummaries: string[]
+  previousSummaries: string[], runLongFileContext: LongFileRuntimeContext | null,
 ) => {
   const registryParticipantId = participantId;
 
@@ -1563,6 +1559,7 @@ const executeParticipant = async (
       : undefined,
   };
 
+  const longFileContext = participant.executionBackend === 'platform_local' ? runLongFileContext : null;
   try {
     const workflowBaseline = shouldCheckWorkflowCompletion(request.workflowCompletionGate, participant.executionBackend)
       ? await getWorkflowCompletionBaseline(request.workingDirectory || process.cwd())
@@ -1591,7 +1588,7 @@ const executeParticipant = async (
             previousSummaries,
             taskRoomContext,
             localSpawnHandler,
-            contextWarning
+            contextWarning, longFileContext,
           )
         : participant.executionBackend === 'remote_ssh'
         ? await executeViaRemoteSshHarness(
@@ -1651,10 +1648,12 @@ const executeParticipant = async (
           previousSummaries,
           taskRoomContext,
           localSpawnHandler,
-          contextWarning,
+          contextWarning, longFileContext,
         );
       });
     }
+
+    if (longFileContext) await assertLongFileRuntimeContext(longFileContext);
 
     await prisma.taskRunParticipant.update({
       where: { id: participantId },
@@ -1732,10 +1731,11 @@ const executeParticipant = async (
       console.error('[ACPX] Failed to persist buffered stream output:', streamError);
     }
     clearRunningProcess(registryParticipantId);
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const longFileError = longFileContext && await assertLongFileRuntimeContext(longFileContext).catch((guardError) => guardError);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'; const message = longFileError instanceof Error && longFileError.message !== errorMessage ? `${errorMessage}\n\n${longFileError.message}` : errorMessage;
     const requestedControl = consumeRunControlRequest(registryParticipantId);
 
-    if (requestedControl) {
+    if (requestedControl && !longFileError) {
       const controlledStatus = mapControlActionToRunStatus(requestedControl);
 
       await prisma.taskRunParticipant.update({

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { getLongFileRuntimeContext, longFileRuntimeNotice } from '../src/lib/acpx/long-file-runtime-context';
+import { assertLongFileRuntimeContext, getLongFileRuntimeContext, longFileRuntimeNotice } from '../src/lib/acpx/long-file-runtime-context';
 import { buildHarnessPrompt, withLongFileRuntimeContext } from '../src/lib/acpx/prompt';
 
 async function main() {
@@ -41,6 +41,13 @@ async function main() {
   assert.deepEqual(context?.offenders, [{ path: 'large.ts', lines: 4 }, { path: 'nested/large.py', lines: 3 }]);
   assert.equal(context?.baseline['ignored/large.ts'], undefined);
   assert.match(longFileRuntimeNotice(context!), /example @ [0-9a-f]{40}/);
+  await assertLongFileRuntimeContext(context!);
+  await writeFile(path.join(root, 'large.ts'), 'one\ntwo\nthree\nfour\nfive\n');
+  await writeFile(path.join(root, 'new.py'), 'one\ntwo\nthree\n');
+  await assert.rejects(
+    assertLongFileRuntimeContext(context!),
+    /large\.ts: 4 -> 5[\s\S]*new\.py: 0 -> 3/,
+  );
   const continuation = withLongFileRuntimeContext('Continue the task.', context);
   assert.match(continuation, /Historical over-limit files must not grow/);
   assert.match(continuation, /Continue the task\.$/);
