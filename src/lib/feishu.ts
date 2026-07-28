@@ -40,6 +40,7 @@ import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
 import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
+import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
 import { formatFeishuHelp } from '@/lib/feishu-help';
 import {
   listLiveRoomCatalogAgents,
@@ -109,7 +110,6 @@ function formatGatewayLine(gateway: {
   const tokenStatus = gateway.hasOpenClawToken ? 'OpenClaw ready' : '缺少 token';
   return `${statusIcon} ${gateway.name} (${gateway.id}) | ${gateway.status} | ${tokenStatus} | agents=${gateway.agentCount}`;
 }
-
 async function handleStatusCommand() {
   const [gatewayCount, onlineGatewayCount, agentCount, onlineAgentCount, sessionCount] =
     await Promise.all([
@@ -119,7 +119,6 @@ async function handleStatusCommand() {
       prisma.agent.count({ where: { status: 'online' } }),
       prisma.crossGatewayChatSession.count().catch(() => 0),
     ]);
-
   const runtime = readFeishuRuntimeStatus();
   const runtimeLines = runtime?.metrics
     ? [
@@ -140,7 +139,6 @@ async function handleStatusCommand() {
     ...runtimeLines,
   ].join('\n');
 }
-
 async function handleGatewaysCommand() {
   const gateways = await prisma.gateway.findMany({
     include: {
@@ -1447,6 +1445,8 @@ export async function handleFeishuCommand(args: {
     case 'jobs':
     case 'job':
       return handleScheduledJobCommand(args.command, args.context);
+    case 'workflow':
+      return handleWorkflowPolicyCommand(args.command, args.context);
     case 'new-session':
       return handleNewSessionCommand(args.command, args.context);
     case 'stop': return handleStopAgentCommand(args.command, args.context);

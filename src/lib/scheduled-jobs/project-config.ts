@@ -1,6 +1,7 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parse } from 'yaml';
+import { validateWorkflowExecutionPolicy } from '../workflow-execution-policy';
 
 export const REGISTERED_JOB_TYPES = new Set(['workflow_watcher', 'long_file_detector', 'noop_test']);
 
@@ -63,6 +64,7 @@ const isWithin = (root: string, candidate: string) => {
 export async function loadProjectsConfig(
   file = path.join(process.cwd(), 'config/projects.yaml'),
   workspaceRoots = (process.env.SCHEDULED_JOB_WORKSPACE_ROOTS || '/data1/code').split(path.delimiter),
+  options?: { allowMissingWorkflowPolicy?: boolean },
 ): Promise<ProjectsConfig> {
   const source = object(parse(await readFile(file, 'utf8')), 'config');
   if (!Array.isArray(source.projects)) throw new Error('projects must be an array');
@@ -101,13 +103,21 @@ export async function loadProjectsConfig(
       if (!REGISTERED_JOB_TYPES.has(type)) throw new Error(`unknown job type: ${type}`);
       if (typeof job.enabled !== 'boolean') throw new Error(`job ${id}/${jobId}.enabled must be boolean`);
       if (job.mode !== 'shadow' && job.mode !== 'active') throw new Error(`job ${id}/${jobId}.mode must be shadow or active`);
+      const config = job.config === undefined ? {} : object(job.config, `job ${id}/${jobId}.config`);
+      if (type === 'workflow_watcher'
+        && (!options?.allowMissingWorkflowPolicy || config.execution_policy !== undefined)) {
+        validateWorkflowExecutionPolicy(
+          config.execution_policy,
+          `job ${id}/${jobId}.config.execution_policy`,
+        );
+      }
       return {
         id: jobId,
         type,
         schedule: validateSchedule(job.schedule, `job ${id}/${jobId}.schedule`),
         enabled: job.enabled,
         mode: job.mode,
-        config: job.config === undefined ? {} : object(job.config, `job ${id}/${jobId}.config`),
+        config,
       };
     });
 

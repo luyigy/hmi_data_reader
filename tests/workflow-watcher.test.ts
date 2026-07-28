@@ -148,6 +148,7 @@ S01 then S02
       coding_bot_chat_id: 'coding-bot-chat',
       coding_bot_chat_type: 'group',
       coding_bot_app_id: 'coding-app',
+      execution_policy: { preset: 'workspace' },
     },
   };
   const project: ProjectConfig = {

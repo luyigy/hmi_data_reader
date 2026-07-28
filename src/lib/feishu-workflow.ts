@@ -14,8 +14,25 @@ import {
 } from '@/lib/live-room';
 import { prisma } from '@/lib/prisma';
 import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
+import {
+  findJob,
+  findProjectById,
+  loadProjectsConfig,
+} from '@/lib/scheduled-jobs/project-config';
+import {
+  buildWorkflowPermissionSnapshot,
+  formatWorkflowPermissionSnapshot,
+  validateWorkflowExecutionPolicy,
+  workflowPolicySource,
+  type WorkflowExecutionPolicy,
+  type WorkflowPermissionSnapshot,
+} from '@/lib/workflow-execution-policy';
 
-export const buildWorkflowExecutionCard = (workflowContext: string | undefined, prompt: string) => {
+export const buildWorkflowExecutionCard = (
+  workflowContext: string | undefined,
+  prompt: string,
+  permissionSnapshot?: WorkflowPermissionSnapshot,
+) => {
   const instruction = workflowContext && prompt.startsWith(`${workflowContext}\n\n`)
     ? prompt.slice(workflowContext.length + 2)
     : prompt;
@@ -29,6 +46,9 @@ export const buildWorkflowExecutionCard = (workflowContext: string | undefined, 
       ...(workflowContext ? [{ tag: 'markdown', content: workflowContext }] : []),
       { tag: 'hr' },
       { tag: 'markdown', content: instruction },
+      ...(permissionSnapshot
+        ? [{ tag: 'markdown', content: `**Workflow permissions**\n${formatWorkflowPermissionSnapshot(permissionSnapshot)}` }]
+        : []),
       { tag: 'note', elements: [{ tag: 'plain_text', content: '以上指令已投递给 Coding Agent；请等待本阶段完成后再继续。' }] },
     ],
   };
@@ -41,10 +61,27 @@ export async function runWorkflowInBoundLiveRoom(args: {
   chatType: 'group' | 'p2p';
   prompt: string;
   workflowContext?: string;
+  executionPolicy: WorkflowExecutionPolicy;
   eventKey: string;
   signal: AbortSignal;
 }): Promise<boolean> {
   args.signal.throwIfAborted();
+  const projects = await loadProjectsConfig();
+  const project = findProjectById(projects, args.projectId);
+  const job = findJob(projects, args.projectId, args.jobId);
+  if (!project || !job || job.type !== 'workflow_watcher') {
+    throw new Error(`workflow watcher config not found: ${args.projectId}/${args.jobId}`);
+  }
+  const source = workflowPolicySource(project.id, job.id);
+  const executionPolicy = validateWorkflowExecutionPolicy(job.config.execution_policy, source);
+  if (executionPolicy.preset !== args.executionPolicy.preset) {
+    throw new Error('Workflow execution policy changed before dispatch; retry with current config');
+  }
+  const permissionSnapshot = buildWorkflowPermissionSnapshot({
+    policy: executionPolicy,
+    projectPath: project.path,
+    source,
+  });
   const revisionPath = workflowPlanRevisionPathFrom(args.prompt);
   let dispatch = await prisma.workflowDispatch.upsert({
     where: {
@@ -113,7 +150,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
     const feishuMessageId = await sendFeishuInteractiveMessage({
       receiveId: args.chatId,
       receiveIdType: 'chat_id',
-      card: buildWorkflowExecutionCard(args.workflowContext, args.prompt),
+      card: buildWorkflowExecutionCard(args.workflowContext, args.prompt, permissionSnapshot),
     });
     if (!feishuMessageId) throw new Error('Feishu workflow card response missing message_id');
     dispatch = await prisma.workflowDispatch.update({
@@ -142,7 +179,11 @@ export async function runWorkflowInBoundLiveRoom(args: {
         messageType: 'user',
         metadata: resolveLiveRoomMessageMetadata({
           senderKind: 'user',
-          extras: { source: 'workflow_watcher', eventKey: args.eventKey },
+          extras: {
+            source: 'workflow_watcher',
+            eventKey: args.eventKey,
+            workflowPermissionSnapshot: permissionSnapshot,
+          },
         }),
       });
     dispatch = await prisma.workflowDispatch.update({

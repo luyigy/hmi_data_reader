@@ -21,6 +21,8 @@ projects:
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: .
           initial_cursor_commit: c8d3ec5b24bc7e0165be31df02397813ff608a95
+          execution_policy:
+            preset: workspace
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
@@ -60,6 +62,8 @@ projects:
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: rebuild-postgres-auth-slice
           initial_cursor_commit: ebe9182bebcc8ede4691428459e27c3ad292771e
+          execution_policy:
+            preset: workspace
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
@@ -91,3 +95,5 @@ projects:
           contract_path: docs/workflow/workflow-contract.yaml
           branch_space: .
           initial_cursor_commit: 8157fc60a8067af781db67d8d807e1f9d62ce474
+          execution_policy:
+            preset: workspace

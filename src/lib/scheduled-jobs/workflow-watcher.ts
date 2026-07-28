@@ -14,6 +14,10 @@ import {
 } from './workflow-review';
 import type { JobHandler } from './handlers';
 import {
+  validateWorkflowExecutionPolicy,
+  type WorkflowExecutionPolicy,
+} from '../workflow-execution-policy';
+import {
   readWorkflowContract,
   selectWorkflowCandidates,
   validateWorkflowDocument,
@@ -54,6 +58,7 @@ type WorkflowRunner = (args: {
   chatType: 'group' | 'p2p';
   prompt: string;
   workflowContext?: string;
+  executionPolicy: WorkflowExecutionPolicy;
   eventKey: string;
   signal: AbortSignal;
 }) => Promise<void | boolean>;
@@ -194,6 +199,7 @@ const execute = async (
   jobId: string,
   codingBotChatId: string,
   codingBotChatType: 'group' | 'p2p',
+  executionPolicy: WorkflowExecutionPolicy,
   runWorkflow: WorkflowRunner,
   signal: AbortSignal,
 ) => {
@@ -209,6 +215,7 @@ const execute = async (
     chatType: codingBotChatType,
     prompt: `${pending.workflowContext}\n\n${pending.prompt}\n${validationReminder}`,
     workflowContext: pending.workflowContext,
+    executionPolicy,
     eventKey: pending.key,
     signal,
   })) !== false;
@@ -220,6 +227,10 @@ export const workflowWatcherHandler = async (
   importDocument: WorkflowDocumentImporter = importPlanDocument,
   sendReview: WorkflowReviewCardSender = sendFeishuWorkflowReviewCard,
 ) => {
+  const executionPolicy = validateWorkflowExecutionPolicy(
+    job.config.execution_policy,
+    `job ${project.id}/${job.id}.config.execution_policy`,
+  );
   const contractPath = String(job.config.contract_path || '');
   if (!contractPath || path.isAbsolute(contractPath) || contractPath.split('/').includes('..')) {
     throw new Error('contract_path must stay inside the repository');
@@ -290,6 +301,7 @@ export const workflowWatcherHandler = async (
           job.id,
           codingBotChatId,
           codingBotChatType as 'group' | 'p2p',
+          executionPolicy,
           runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
           signal,
         );
@@ -318,6 +330,7 @@ export const workflowWatcherHandler = async (
           job.id,
           codingBotChatId,
           codingBotChatType as 'group' | 'p2p',
+          executionPolicy,
           runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
           signal,
         );
@@ -425,6 +438,7 @@ export const workflowWatcherHandler = async (
         job.id,
         codingBotChatId,
         codingBotChatType as 'group' | 'p2p',
+        executionPolicy,
         runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
         signal,
       );
@@ -485,6 +499,7 @@ export const workflowWatcherHandler = async (
         workflowContext: `**工作流文档**：${candidate.filePath}\n**校验状态**：未通过`,
         prompt: `PLAN_VALIDATE_REPAIR\npath: ${candidate.filePath}\ncommit: ${head}\n\nvalidator errors:\n${failure.error}\n\n只修订并提交该工作流文档，使其符合目标 HEAD 的 workflow contract。不得执行任何 Slice，不得修改业务代码；若合同与错误矛盾，报告阻塞并停止。`,
       }, project.id, job.id, codingBotChatId, codingBotChatType as 'group' | 'p2p',
+      executionPolicy,
       runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom, signal);
       failure = { ...failure, dispatched: started };
     }
@@ -566,6 +581,7 @@ export const workflowWatcherHandler = async (
     job.id,
     codingBotChatId,
     codingBotChatType as 'group' | 'p2p',
+    executionPolicy,
     runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom,
     signal,
   );

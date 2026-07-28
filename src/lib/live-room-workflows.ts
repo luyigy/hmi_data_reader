@@ -3,6 +3,7 @@ import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import {
   buildLiveRoomAcpxParticipant,
   extractRemoteHostIdFromRoleLabel,
+  parseLiveRoomMessageMetadata,
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
   syncLiveRoomSourceTask,
@@ -11,6 +12,10 @@ import { prisma } from '@/lib/prisma';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import {
+  applyWorkflowPermissionSnapshot,
+  readWorkflowPermissionSnapshot,
+} from '@/lib/workflow-execution-policy';
 
 export type LiveRoomWorkflowName = 'feature' | 'debug';
 
@@ -108,6 +113,14 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
   });
   const sourceTask = await syncLiveRoomSourceTask(roomId);
   if (!room || !sourceTask) throw new Error('Live room plan requires an active room and backing task');
+  const sourceMessage = await prisma.liveRoomMessage.findUnique({
+    where: { id: sourceMessageId },
+    select: { metadata: true },
+  });
+  const workflowPermissionSnapshot = readWorkflowPermissionSnapshot(
+    parseLiveRoomMessageMetadata(sourceMessage?.metadata)?.workflowPermissionSnapshot,
+    sourceTask.workingDirectory || process.cwd(),
+  );
   const selected = selectLiveRoomPlanHost(
     room.members as Array<WorkflowMember & { canReply: boolean }>,
     command.host || (command.revisionPath ? room.currentSpeakerMemberId || undefined : undefined),
@@ -133,7 +146,10 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
       orchestrationMode: 'staged',
       participants: [{ ...buildLiveRoomAcpxParticipant({ ...member, gatewayName: member.gateway?.name || null }), role: `plan:${label}` }],
       workingDirectory: sourceTask.workingDirectory || process.cwd(),
-      permissionConfig: resolveLiveRoomMemberPermission(member.acpxPermissionConfig, sourceTask.acpxPermissionConfig),
+      permissionConfig: applyWorkflowPermissionSnapshot(
+        resolveLiveRoomMemberPermission(member.acpxPermissionConfig, sourceTask.acpxPermissionConfig),
+        workflowPermissionSnapshot,
+      ),
     });
     const stage = result.participants[0];
     const output = stage?.summary || stage?.error || `${label} 未返回结果`;

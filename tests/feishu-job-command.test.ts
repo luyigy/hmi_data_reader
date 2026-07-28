@@ -31,6 +31,11 @@ assert.deepEqual(parseFeishuCommand(message('/ap jobs')), {
   args: [],
   options: {},
 });
+assert.deepEqual(parseFeishuCommand(message('/ap workflow policy set --preset=workspace')), {
+  command: 'workflow',
+  args: ['policy', 'set'],
+  options: { preset: 'workspace' },
+});
 assert.deepEqual(parseFeishuCommand(message('/ap job disable workflow-watcher')), {
   command: 'job',
   args: ['disable', 'workflow-watcher'],

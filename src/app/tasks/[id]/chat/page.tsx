@@ -12,6 +12,7 @@ import {
   type AcpxPermissionSupportSummary,
 } from '@/lib/acpx/permissions';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
+import { WorkflowPermissionSnapshotCard, workflowPermissionSnapshotFrom } from '@/components/tasks/WorkflowPermissionSnapshotCard';
 
 interface AgentInfo {
   id: string;
@@ -22,7 +23,6 @@ interface AgentInfo {
     name: string;
   } | null;
 }
-
 interface AcpxParticipantSpec {
   gatewayId: string;
   gatewayName?: string;
@@ -33,7 +33,6 @@ interface AcpxParticipantSpec {
   agentId?: string;
   agentName?: string;
 }
-
 interface TaskInfo {
   id: string;
   name: string;
@@ -804,6 +803,7 @@ export default function TaskChatPage() {
       ? config as AcpxPermissionConfig
       : null;
   }, [selectedRun?.controlMetadata]);
+  const selectedRunWorkflowPermissionSnapshot = workflowPermissionSnapshotFrom(selectedRunPermissionConfig);
 
   const draftPermissionSupport = useMemo<AcpxPermissionSupportSummary | null>(() => {
     const primaryParticipant = task?.acpxParticipants?.[0];
@@ -1632,7 +1632,9 @@ export default function TaskChatPage() {
                       control {selectedRun.controlState}
                     </span>
                   ) : null}
-                  {selectedRunPermissionConfig ? (
+                  {selectedRunWorkflowPermissionSnapshot ? (
+                    <WorkflowPermissionSnapshotCard snapshot={selectedRunWorkflowPermissionSnapshot} />
+                  ) : selectedRunPermissionConfig ? (
                     <>
                       <span className="rounded-full bg-white px-2.5 py-1 text-[11px] text-slate-600 shadow-sm ring-1 ring-slate-200">
                         run sandbox {selectedRunPermissionConfig.sandboxMode}
@@ -1645,11 +1647,8 @@ export default function TaskChatPage() {
                       </span>
                     </>
                   ) : null}
-                  {selectedRunPermissionStatusItems.map((item) => (
-                    <span
-                      key={item.key}
-                      className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${permissionSupportTone[item.state]}`}
-                    >
+                  {!selectedRunWorkflowPermissionSnapshot && selectedRunPermissionStatusItems.map((item) => (
+                    <span key={item.key} className={`rounded-full px-2.5 py-1 text-[11px] shadow-sm ring-1 ${permissionSupportTone[item.state]}`}>
                       {item.label} {getPermissionSupportLabel(item.state)}
                     </span>
                   ))}

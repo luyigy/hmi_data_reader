@@ -31,6 +31,8 @@ const HELP_PAGES = [
     '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   ]],
   ['Workflow / Jobs', [
+    '/ap workflow policy show',
+    '/ap workflow policy set --preset=workspace  (管理员)',
     '/ap jobs',
     '/ap job <status|cursor|diagnose|schedule|enable|disable|run|retry|stop> <job-id>',
     '/ap job diagnose workflow-watcher',

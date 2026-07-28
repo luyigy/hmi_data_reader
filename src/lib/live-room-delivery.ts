@@ -28,6 +28,7 @@ import type { AcpxPermissionConfig, HarnessStreamCallbacks } from '@/lib/acpx/ty
 import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduling';
 import { parseLiveRoomWorkflowCommand, runLiveRoomPlan, runLiveRoomWorkflow } from '@/lib/live-room-workflows';
 import { buildLiveRoomContinuationMessage, buildLiveRoomControlManual, stripLeadingMentionForTarget } from '@/lib/live-room-protocol';
+import { applyWorkflowPermissionSnapshot, readWorkflowPermissionSnapshot } from '@/lib/workflow-execution-policy';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const ALL_REPLY_STAGGER_MS = 750;
@@ -44,7 +45,6 @@ const CODEX_EPHEMERAL_RETRY_PATTERNS = [
   /failed to initialize state runtime/i,
   /migration\s+\d+\s+was previously applied but is missing in the resolved migrations/i,
 ];
-
 type DeliveryRoomMember = {
   id: string;
   canReply: boolean;
@@ -66,7 +66,6 @@ type DeliveryRoomMember = {
   gateway?: { name: string } | null;
   agentRecord?: { runtimeAgentId: string | null } | null;
 };
-
 type DeliveryRoom = {
   id: string;
   title: string;
@@ -587,9 +586,6 @@ const runLiveRoomAcpxAttempt = async ({
     && !shouldPreferTranscriptContinuation(participant)
     && Boolean(latestSession?.continuationSessionId);
 
-  // Live room local codex/claude runs can be legitimately long-lived.
-  // Keep the watchdog disabled only for those harnesses; pi-agent should still
-  // retain the default timeout so a stuck local process doesn't look like a silent room.
   const watchdogConfig =
     participant.executionBackend === 'platform_local'
       && (participant.harnessType === 'codex' || participant.harnessType === 'claude')
@@ -699,9 +695,13 @@ const executeLiveRoomReplyViaAcpx = async ({
     codexReasoningEffort: targetMember.codexReasoningEffort,
   });
 
-  const permissionConfig = resolveLiveRoomMemberPermission(
-    targetMember.acpxPermissionConfig,
-    sourceTask.acpxPermissionConfig
+  const workflowPermissionSnapshot = readWorkflowPermissionSnapshot(
+    sourceMetadata?.workflowPermissionSnapshot,
+    sourceTask.workingDirectory || process.cwd(),
+  );
+  const permissionConfig = applyWorkflowPermissionSnapshot(
+    resolveLiveRoomMemberPermission(targetMember.acpxPermissionConfig, sourceTask.acpxPermissionConfig),
+    workflowPermissionSnapshot,
   );
 
   const latestSession = await findLatestParticipantSession(sourceTask.id, participant, {
@@ -711,8 +711,6 @@ const executeLiveRoomReplyViaAcpx = async ({
   const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
   const shouldInjectLatestInstruction = sourceMessage.senderMember?.memberType !== 'user';
 
-  // 去掉消息开头的 @提及 部分，避免 Claude CLI 误解析为命令
-  // 使用贪婪匹配：@xxx yyy -> yyy（支持多词名称）
   const contentForAgent = stripLeadingMentionForTarget({
     content: sourceMessage.content,
     targetDisplayName: targetMember.displayName,
