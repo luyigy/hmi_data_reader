@@ -18,6 +18,7 @@ import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } fr
 import { getMentionAliases, type LiveRoomMemberWithAgent } from '@/lib/agent-identity';
 import type { AcpxExecutionBackend, AcpxParticipantRequest } from '@/lib/acpx/types';
 import { relayLiveRoomMessageToFeishu } from '@/lib/feishu-live-room-relay';
+import { redactSensitiveText, redactSensitiveValue } from '@/lib/redact-sensitive';
 
 const CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD = 40;
 const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
@@ -1354,6 +1355,8 @@ export const postLiveRoomMessage = async ({
   /** 匹配到的 @提及 别名，用于正确剥离 @提及 部分 */
   matchedAlias?: string | null;
 }) => {
+  const safeContent = redactSensitiveText(content);
+  const safeMetadata = redactSensitiveValue(metadata) as Record<string, unknown> | null | undefined;
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
     include: {
@@ -1370,12 +1373,12 @@ export const postLiveRoomMessage = async ({
     data: {
       roomId,
       senderMemberId: senderMemberId || null,
-      content,
+      content: safeContent,
       messageType,
       visibility,
       replyToMessageId: replyToMessageId || null,
       topicSnapshot: room?.currentTopic || null,
-      metadata: metadata ? JSON.stringify(metadata) : null,
+      metadata: safeMetadata ? JSON.stringify(safeMetadata) : null,
     },
     include: {
       senderMember: {
@@ -1482,7 +1485,7 @@ export const postLiveRoomMessage = async ({
   const payload = serializeLiveRoomMessage(created);
   emitLiveRoomMessage(payload);
   void relayLiveRoomMessageToFeishu(payload).catch((error) => {
-    console.error('Failed to relay live room message to Feishu:', error);
+    console.error('Failed to relay live room message to Feishu:', redactSensitiveText(String(error)));
   });
   await emitLiveRoomUpdated(roomId);
   return payload;
