@@ -142,8 +142,16 @@ export const readWorkflowPermissionSnapshot = (
   const snapshot = value as Partial<WorkflowPermissionSnapshot>;
   const effective = snapshot.effective;
   const permission = effective?.permissionConfig;
+  const allowedExceptions = [
+    process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex'),
+    path.join(os.homedir(), '.agents'),
+  ];
   if (!permission
     || !Array.isArray(permission.writableRoots)
+    || !Array.isArray(snapshot.exceptions)
+    || snapshot.exceptions.length !== allowedExceptions.length
+    || snapshot.exceptions.some((exception, index) =>
+      exception?.access !== 'read_only' || exception.path !== allowedExceptions[index])
     || snapshot.configured?.preset !== 'workspace'
     || effective?.workdir !== expectedWorkdir
     || effective.filesystem !== 'workspace_write'
@@ -158,6 +166,34 @@ export const readWorkflowPermissionSnapshot = (
     throw new Error('invalid Workflow permission snapshot');
   }
   return snapshot as WorkflowPermissionSnapshot;
+};
+
+export const resolveWorkflowCodexBoundary = (
+  permission: AcpxPermissionConfig | undefined,
+  expectedWorkdir: string,
+  currentCodexHome?: string,
+) => {
+  const snapshot = readWorkflowPermissionSnapshot(
+    (permission as AcpxPermissionConfig & { workflowPermissionSnapshot?: unknown } | undefined)
+      ?.workflowPermissionSnapshot,
+    expectedWorkdir,
+  );
+  if (!snapshot) return null;
+  return {
+    workingDirectory: snapshot.effective.workdir,
+    workspaceRoot: snapshot.effective.workdir,
+    networkAccess: snapshot.effective.network,
+    sandboxMode: snapshot.effective.permissionConfig.sandboxMode,
+    approvalPolicy: snapshot.effective.approval,
+    readOnlyPaths: snapshot.exceptions.map((exception) => exception.path),
+    codexHome: path.join(
+      snapshot.effective.workdir,
+      '.git',
+      'agent-platform',
+      'codex',
+      path.basename(currentCodexHome || 'workflow'),
+    ),
+  } as const;
 };
 
 export const applyWorkflowPermissionSnapshot = (

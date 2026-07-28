@@ -24,6 +24,11 @@ const symlinkTargets = (directory: string) => {
     .map((entry) => realpathSync(entry));
 };
 
+const isWithin = (root: string, candidate: string) => {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+};
+
 export function wrapWithBubblewrap(args: {
   command: string;
   commandArgs: string[];
@@ -32,15 +37,25 @@ export function wrapWithBubblewrap(args: {
   networkAccess?: 'restricted' | 'enabled';
   env: NodeJS.ProcessEnv;
   configPaths?: string[];
+  readOnlyPaths?: string[];
 }) {
   if (!args.workspaceRoot) return { command: args.command, args: args.commandArgs };
   if (!existsSync('/usr/bin/bwrap')) throw new Error('受限 Feishu 用户需要 /usr/bin/bwrap，但当前主机未安装。');
 
+  const workspaceRoot = realpathSync(args.workspaceRoot);
+  const cwd = realpathSync(args.cwd);
+  if (!isWithin(workspaceRoot, cwd)) throw new Error('Bubblewrap cwd is outside the authorized workspace');
   const executable = executablePath(args.command, args.env);
   const executableMount = executable.endsWith('.js') ? path.dirname(path.dirname(executable)) : executable;
   const systemCertificates = '/etc/ssl/certs';
   const configPaths = (args.configPaths || []).filter(existsSync);
-  const mounts = [executableMount, ...configPaths, ...configPaths.flatMap(symlinkTargets)]
+  const explicitReadOnlyPaths = args.readOnlyPaths?.filter(existsSync).map((source) => realpathSync(source));
+  const writableMounts = configPaths.map((source) => realpathSync(source))
+    .filter((source) => !isWithin(workspaceRoot, source));
+  const readOnlyMounts = [
+    executableMount,
+    ...(explicitReadOnlyPaths ?? configPaths.flatMap(symlinkTargets)),
+  ]
     .filter((source, index, all) => !source.startsWith('/usr/') && all.indexOf(source) === index);
   const bwrapArgs = [
     '--die-with-parent', '--new-session', '--unshare-all',
@@ -49,9 +64,10 @@ export function wrapWithBubblewrap(args: {
     '--dir', '/usr', '--ro-bind', '/usr', '/usr',
     '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
     ...(existsSync(systemCertificates) ? [...parentDirs(systemCertificates), '--ro-bind', systemCertificates, systemCertificates] : []),
-    ...parentDirs(args.workspaceRoot), '--bind', args.workspaceRoot, args.workspaceRoot,
-    ...mounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),
-    '--chdir', args.cwd,
+    ...parentDirs(workspaceRoot), '--bind', workspaceRoot, workspaceRoot,
+    ...writableMounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),
+    ...readOnlyMounts.flatMap((source) => [...parentDirs(source), '--ro-bind', source, source]),
+    '--chdir', cwd,
     executable,
     ...args.commandArgs,
   ];

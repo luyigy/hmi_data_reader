@@ -1,5 +1,6 @@
 import type { HarnessAdapter } from '../types';
 import { executeCodexTask, getCodexVersion, isCodexAvailable, resumeCodexSession } from '@/lib/real-agents/codex-agent';
+import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
 
 const INVALID_CODEX_CONTINUATION_PATTERNS = [
   /(session|thread|conversation).*(not found|does not exist|invalid)/i,
@@ -24,6 +25,11 @@ export const codexHarnessAdapter: HarnessAdapter = {
   },
 
   async execute({ task, context }) {
+    const workflowBoundary = resolveWorkflowCodexBoundary(
+      context.permissionConfig,
+      context.workingDirectory,
+      context.codexHome,
+    );
     const result = await executeCodexTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
@@ -37,6 +43,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
       model: context.model,
       reasoningEffort: context.reasoningEffort,
       onSpawn: context.onSpawn,
+      ...workflowBoundary,
       onThreadStarted: (threadId) => {
         context.onSessionStarted?.({
           sessionId: threadId,
@@ -61,6 +68,11 @@ export const codexHarnessAdapter: HarnessAdapter = {
 
   async resume({ context, sessionId, continuationMessage }) {
     const startTime = Date.now();
+    const workflowBoundary = resolveWorkflowCodexBoundary(
+      context.permissionConfig,
+      context.workingDirectory,
+      context.codexHome,
+    );
 
     try {
       const result = await resumeCodexSession({
@@ -77,6 +89,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
         model: context.model,
         reasoningEffort: context.reasoningEffort,
         onSpawn: context.onSpawn,
+        ...workflowBoundary,
         onThreadStarted: (threadId) => {
           context.onSessionStarted?.({
             sessionId: threadId,
@@ -151,11 +164,11 @@ export const codexHarnessAdapter: HarnessAdapter = {
       return {
         scope: 'next_run_or_continuation',
         hotReloadSupported: false,
-        summary: '当前会真实应用 sandbox；approval 会尽量映射到现有 Codex CLI；network 和 writable roots 先记录到 run metadata。',
+        summary: 'Platform Local Codex 通过 Bubblewrap 应用 workspace、网络、隔离临时目录和只读配置例外；非交互 JSON 路径不请求普通运行时审批。',
         sandboxMode: 'applied',
-        approvalPolicy: 'partially_applied',
-        networkAccess: 'recorded_only',
-        writableRoots: 'recorded_only',
+        approvalPolicy: 'applied',
+        networkAccess: 'applied',
+        writableRoots: 'applied',
       };
     }
 

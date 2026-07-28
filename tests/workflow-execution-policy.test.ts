@@ -3,6 +3,7 @@ import {
   applyWorkflowPermissionSnapshot,
   buildWorkflowPermissionSnapshot,
   readWorkflowPermissionSnapshot,
+  resolveWorkflowCodexBoundary,
   validateWorkflowExecutionPolicy,
 } from '../src/lib/workflow-execution-policy';
 import { handleWorkflowPolicyCommand } from '../src/lib/feishu-workflow-policy';
@@ -24,9 +25,17 @@ const snapshot = buildWorkflowPermissionSnapshot({
 });
 assert.equal(snapshot.effective.permissionConfig.writableRoots[0], '/workspace/project');
 assert.equal(snapshot.effective.permissionConfig.approvalPolicy, 'never');
+assert.equal(snapshot.enforcement.level, 'applied');
 assert(snapshot.exceptions.every((exception) => exception.access === 'read_only'));
 assert.deepEqual(readWorkflowPermissionSnapshot(snapshot, '/workspace/project'), snapshot);
 assert.throws(() => readWorkflowPermissionSnapshot(snapshot, '/workspace/other'), /invalid Workflow permission snapshot/);
+assert.throws(
+  () => readWorkflowPermissionSnapshot(
+    { ...snapshot, exceptions: [{ path: '/etc', access: 'read_only', reason: 'tampered' }] },
+    '/workspace/project',
+  ),
+  /invalid Workflow permission snapshot/,
+);
 const roomPermission = {
   profile: 'full_access',
   sandboxMode: 'danger-full-access',
@@ -39,6 +48,19 @@ const workflowPermission = applyWorkflowPermissionSnapshot(roomPermission, snaps
 assert.equal(workflowPermission.sandboxMode, 'workspace-write');
 assert.equal(workflowPermission.approvalPolicy, 'never');
 assert.deepEqual(workflowPermission.writableRoots, ['/workspace/project']);
+assert.deepEqual(
+  resolveWorkflowCodexBoundary(workflowPermission, '/workspace/project', '/runtime/room-1'),
+  {
+    workingDirectory: '/workspace/project',
+    workspaceRoot: '/workspace/project',
+    networkAccess: 'enabled',
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'never',
+    readOnlyPaths: snapshot.exceptions.map((exception) => exception.path),
+    codexHome: '/workspace/project/.git/agent-platform/codex/room-1',
+  },
+);
+assert.equal(resolveWorkflowCodexBoundary(roomPermission, '/workspace/project'), null);
 
 void (async () => {
   const project = (await loadProjectsConfig()).projects[0];
