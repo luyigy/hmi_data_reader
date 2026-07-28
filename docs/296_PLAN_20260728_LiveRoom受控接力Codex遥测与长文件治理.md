@@ -19,7 +19,8 @@ return_to: null
    的受控异步 handoff，同时消除同步递归、重复调度和成员锁悬挂；`@member` 继续只展示。
 2. `docs/291_REPORT_20260728_Codex真实上下文与官方配额评估.md`：在不降低 workspace/network
    隔离、不泄露账户信息的前提下，为 Codex 接入官方 token usage，并把账户 quota 限制在管理员诊断边界。
-3. 修复长文件口径并治理当前 HEAD `428627f` 上 6 个历史超限业务源码，避免继续把职责堆入少数入口。
+3. 修复长文件口径并治理审阅基线 `067ccd878b0aeaf74d5af624e04e40ce85c5d5ff` 上 6 个历史超限业务源码，
+   避免继续把职责堆入少数入口。
 
 重复编号的 `docs/290_HANDOVER_20260728_Workflow权限策略S01交接.md` 属于已完成 PLAN 288 的历史交接，
 不在本 PLAN 中重跑。新 PLAN 使用当前最高编号之后的唯一编号 296。
@@ -45,10 +46,26 @@ return_to: null
 
 - 普通 Live Room 中，`$member` 请求一次 handoff；`@member` 永远只作可见引用。
 - 一条 assistant 回复最多一个目标。多目标、未知目标或不允许 handoff 的流程只记录明确提示，不调度。
-- 同一根用户消息最多 4 次 handoff；4 是本 PLAN 的唯一规则值，不在多个模块散落硬编码。
+- `handoff` 的计数单位是一次被持久化原子 claim 接受、并为下一成员创建 delivery 的接力边；初始
+  用户消息触发首位 Agent 不计数。A→B 消耗 1 次，B→A 再消耗 1 次；同一 delivery 的恢复或重试、
+  重复 watcher 事件以及被拒绝的未知/多目标请求不重复计数。claim 已接受但目标随后离线、停止或失败，
+  仍消耗该次预算，避免失败重试绕过上限。
+- 新建 Live Room 的 `handoffLimit` 默认值为 4，表示同一根消息在首位 Agent 之后最多再调度 4 次，
+  即整条链最多执行“首位 Agent + 4 次后续 Agent”；4 是保守默认值，不是散落在调度代码中的硬编码。
+  该默认值足以覆盖 A→B→A，并给继续转交或返回发起者保留余量，同时限制错误循环的成本。
+- `handoffLimit` 以 Live Room 持久化设置为唯一运行时规则源；`/ap room --handoff-limit=<N>` 在建房时
+  设置，`/ap handoff-limit <N>` 查询或修改当前房间，`N=0` 表示关闭自动 handoff。S07 必须复用现有
+  房间管理权限，拒绝负数、非整数和超出实现所声明安全范围的值，并用系统消息记录变更。Web 与飞书读取
+  同一字段，不各自维护默认值。
+- `docs/workflow/workflow-contract.yaml` 继续只作为 PLAN/HANDOVER 自动化合同，不存放 Live Room 产品
+  运行参数；本 PLAN 不新增第二个 YAML 配置源。若未来需要平台级统一默认值，再单独立项定义配置优先级，
+  不与本次房间级设置混用。
 - `/ap plan`、PLAN revision、`/run` 及其他未显式允许 handoff 的结构化 Workflow 保持既定编排，
   输出中的 `$member` 只展示。
-- 当前 delivery 必须先进入终态并释放成员队列锁，后续 delivery 才能被原子领取；调用栈不等待后续成员。
+- 当前 delivery、TaskRun/participant 必须先进入终态并释放成员执行锁，提交成功后，后续 delivery 才
+  进入可领取状态；B 的开始时间必须晚于 A 的终态提交和锁释放。调用栈不等待后续成员。
+- A→B→A 允许 A 在前一次执行锁已释放后重新领取新 delivery；每一跳都是独立持久化调度，不持有上一跳
+  的锁或调用栈，因此回到 A 不构成循环死锁。是否继续只由剩余 `handoffLimit`、成员状态和停止状态决定。
 - 复用现有 Live Room message、delivery、成员队列、TaskRun 和 Session continuation。只增加满足
   assistant reply 幂等 claim 所需的最小持久化约束，不新增第二套工作流引擎或通用状态机。
 - 停止、离线、超时、重启恢复失败、预算耗尽和超限都必须收敛到现有明确终态、释放锁并发送系统消息；
@@ -66,6 +83,7 @@ return_to: null
 - 长文件 runtime baseline 与飞书通知口径的单一规则源修复。
 - 6 个历史超限业务源码的 feature-based 职责拆分。
 - 普通 Live Room `$member` 受控异步 handoff、幂等、轮次预算、终止和可观察性。
+- 房间级 `handoffLimit` 持久化设置及其 `/ap room --handoff-limit`、`/ap handoff-limit` 管理入口。
 - `platform_local` Codex App Server 隔离等价性、token usage 采集、metadata 持久化和现有水位展示。
 - 管理员限定的账户 quota 诊断能力。
 - Web 与飞书 Live Room 的一致行为和聚焦回归覆盖。
@@ -74,7 +92,8 @@ return_to: null
 
 - 不恢复 `$member`/`@member` 的旧同步递归语义。
 - 不让自由 mention 改写 PLAN、revision、`/run` 或其他结构化 Workflow 顺序。
-- 不新增通用工作流引擎、账户用量历史报表、多厂商 telemetry 抽象或 Prisma 大迁移。
+- 不新增通用工作流引擎、账户用量历史报表、多厂商 telemetry 抽象或与 `handoffLimit` 无关的 Prisma
+  迁移。
 - 不把普通 Codex 执行直接、无回退地全量切换到 App Server。
 - 不扩大 workspace、Session、Room 或账户权限，不把 quota 广播给普通成员。
 - 不在纯拆分 Slice 中顺手修业务行为，不重启服务，不操作生产数据。
@@ -89,7 +108,7 @@ return_to: null
 完成标准：
 
 - Prompt 不再列出 `.next`、`node_modules`、构建产物、迁移或 vendor；
-- 在 HEAD `428627f` 等价输入下，当前超限业务源码总数为 6；
+- 在审阅基线 `067ccd878b0aeaf74d5af624e04e40ce85c5d5ff` 等价输入下，当前超限业务源码总数为 6；
 - 新增达到阻断线或历史超限继续增长仍被拦截；
 - 不改变 workflow completion gate 的状态转换。
 
@@ -142,13 +161,21 @@ continuation/恢复、终止与错误归一化等现有职责；保留当前公�
 ### S07：实现 290 受控异步 handoff
 
 在 S03 的明确边界上解析 assistant reply 的单个 `$member` 意图，以 assistant reply 身份和根消息预算做
-持久化幂等 claim。当前 delivery 先终态并释放锁，再由既有队列领取下一 delivery；复用原 Session
+持久化幂等 claim。为 Live Room 增加最小的 `handoffLimit` 持久化设置：新房默认 4，既有房迁移后也为
+4；运行时只读取房间设置。复用 `/ap room` 参数解析与现有房间管理权限，提供
+`/ap room --handoff-limit=<N>` 和 `/ap handoff-limit <N>` 查询/修改入口，`0` 关闭自动 handoff。
+当前 delivery、TaskRun/participant 先终态并释放锁，事务提交后下一 delivery 才可领取；复用原 Session
 continuation 和权限快照。`@member`、多目标、未知成员、结构化 Workflow、超限和所有终止原因按已定
 产品语义处理。
 
 完成标准：
 
-- A→B 严格先结束再开始，A→B→A 不死锁且总 handoff 不超过 4；
+- A→B 中 B 的开始时间严格晚于 A 的终态提交和锁释放；A→B→A 中第二次 A 使用新 delivery，在没有
+  上一跳锁或嵌套调用栈的情况下运行；
+- 默认 `handoffLimit=4` 时，同一根消息最多产生 4 条已接受 handoff 边；调整房间设置后立即对新 claim
+  生效，已有根链按“创建根链时固定的预算快照”继续，避免中途改值造成竞态；
+- `/ap handoff-limit` 可查询、修改和用 `0` 关闭，非法值或无房间管理权限时不写入；网页、飞书和恢复
+  路径使用同一持久化值，不读取 `workflow-contract.yaml` 或另一份 YAML；
 - 并发 watcher、重复事件或恢复不能为同一 assistant reply 创建两个有效 handoff；
 - stop、离线、超时、中断、重启恢复失败和预算耗尽均释放锁、落明确终态并发送系统消息；
 - 网页与飞书行为一致，Session、workspace 和权限快照不扩大。
@@ -197,7 +224,10 @@ App Server 回调 token usage；Harness/ACPX 将最新值、采集时间和来�
 - **HIGH App Server 影响面：** S08 保留 JSON 回退，不在隔离、resume、审批、中断和 PID 等价性完成前
   切默认路径；任何重复执行风险都按失败阻断处理。
 - **并发与死锁：** handoff 使用数据库原子 claim 和现有 delivery 终态，不使用进程内 Promise 递归；
-  所有退出路径必须先收敛状态和释放成员锁。
+  所有退出路径必须先收敛状态和释放成员锁。下一 delivery 在上一跳终态事务提交前不可领取；返回曾执行
+  成员时只领取新 delivery，不复用旧锁。
+- **预算配置：** `handoffLimit` 是房间级产品设置，不进入 workflow contract；根链创建时保存预算快照，
+  防止运行中改值改变既有链。修改命令复用房间管理权限并写系统审计消息，避免普通成员无限放大运行成本。
 - **权限与隐私：** handoff 继承且不能扩大原 Session 权限；quota 不进入普通房间 payload，不持久化
   认证材料。真实外部写入和重启需再次授权。
 - **结构回归：** 纯拆分 Slice 禁止混入行为变化；每个被修改 symbol 开工前执行 GitNexus upstream
@@ -213,7 +243,7 @@ App Server 回调 token usage；Harness/ACPX 将最新值、采集时间和来�
 | --- | --- |
 | 长文件口径 | 忽略路径、增量/总量、精确 SHA、历史增长、新跨线、6 个源码总量 |
 | 纯结构拆分 | 公共出口、类型检查、原聚焦测试、行数、GitNexus 预期流程 |
-| Handoff | `$member`/`@member`、单/多/未知目标、A→B、A→B→A、4 次上限、重复 claim |
+| Handoff | `$member`/`@member`、单/多/未知目标、A→B 严格时序、A→B→A 回环、边计数、默认 4、0 关闭、修改后新根链生效、重复 claim |
 | 终止恢复 | stop、离线、超时、中断、重启恢复失败、预算耗尽、锁释放、系统消息 |
 | Workflow 隔离 | `/ap plan`、revision、`/run` 不被自由 mention 改序，权限快照不扩大 |
 | App Server | sandbox/network、thread/resume、审批、PID、超时/中断、JSON 回退 |
