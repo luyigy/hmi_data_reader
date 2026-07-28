@@ -44,6 +44,7 @@ type WorkflowRunner = (args: {
   chatId: string;
   chatType: 'group' | 'p2p';
   prompt: string;
+  workflowContext?: string;
   eventKey: string;
   signal: AbortSignal;
 }) => Promise<void | boolean>;
@@ -195,6 +196,7 @@ const execute = async (
     chatId: codingBotChatId,
     chatType: codingBotChatType,
     prompt: `${pending.workflowContext}\n\n${pending.prompt}\n${validationReminder}`,
+    workflowContext: pending.workflowContext,
     eventKey: pending.key,
     signal,
   })) !== false;

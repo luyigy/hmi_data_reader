@@ -9,7 +9,26 @@ import {
   resolveLiveRoomMessageMetadata,
 } from '@/lib/live-room';
 import { prisma } from '@/lib/prisma';
-import { sendFeishuTextMessageAndReturnId } from '@/lib/feishu-api';
+import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
+
+export const buildWorkflowExecutionCard = (workflowContext: string | undefined, prompt: string) => {
+  const instruction = workflowContext && prompt.startsWith(`${workflowContext}\n\n`)
+    ? prompt.slice(workflowContext.length + 2)
+    : prompt;
+  return {
+    config: { wide_screen_mode: true },
+    header: {
+      template: 'blue',
+      title: { tag: 'plain_text', content: 'Workflow · Coding Session' },
+    },
+    elements: [
+      ...(workflowContext ? [{ tag: 'markdown', content: workflowContext }] : []),
+      { tag: 'hr' },
+      { tag: 'markdown', content: instruction },
+      { tag: 'note', elements: [{ tag: 'plain_text', content: '以上指令已投递给 Coding Agent；请等待本阶段完成后再继续。' }] },
+    ],
+  };
+};
 
 export async function runWorkflowInBoundLiveRoom(args: {
   projectId: string;
@@ -17,6 +36,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   chatId: string;
   chatType: 'group' | 'p2p';
   prompt: string;
+  workflowContext?: string;
   eventKey: string;
   signal: AbortSignal;
 }): Promise<boolean> {
@@ -85,11 +105,12 @@ export async function runWorkflowInBoundLiveRoom(args: {
 
   args.signal.throwIfAborted();
   if (dispatch.state === 'session_reset') {
-    const feishuMessageId = await sendFeishuTextMessageAndReturnId({
+    const feishuMessageId = await sendFeishuInteractiveMessage({
       receiveId: args.chatId,
       receiveIdType: 'chat_id',
-      text: args.prompt,
+      card: buildWorkflowExecutionCard(args.workflowContext, args.prompt),
     });
+    if (!feishuMessageId) throw new Error('Feishu workflow card response missing message_id');
     dispatch = await prisma.workflowDispatch.update({
       where: { id: dispatch.id },
       data: { state: 'feishu_posted', feishuMessageId },

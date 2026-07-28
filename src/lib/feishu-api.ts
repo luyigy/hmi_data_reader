@@ -120,7 +120,7 @@ export async function sendFeishuInteractiveMessage(args: {
   card: Record<string, unknown>;
   receiveIdType?: 'chat_id' | 'open_id';
   replyId?: string;
-}) {
+}): Promise<string | undefined> {
   const token = await getFeishuTenantAccessToken();
   const receiveIdType = args.receiveIdType || 'chat_id';
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
@@ -144,6 +144,8 @@ export async function sendFeishuInteractiveMessage(args: {
   if (!response.ok || data.code !== 0) {
     throw new Error(data.msg || `Failed to send Feishu interactive message: HTTP ${response.status}`);
   }
+
+  return data.data?.message_id;
 }
 
 async function sendFeishuWorkflowMessage(args: {
