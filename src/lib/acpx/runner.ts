@@ -9,7 +9,7 @@ import { getHarnessAdapter } from '@/lib/harness';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
-import { buildTaskRoomPromptContext, countTaskRoomMessages } from '@/lib/task-room';
+import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { getHarnessCapabilities } from './capabilities';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, getLocalHarnessPermissionSupport } from './permissions';
 import { publishTaskRunEvent } from './event-bus';
@@ -25,6 +25,8 @@ import { sendFeishuApprovalCard } from '@/lib/feishu-api';
 import { cancelInProcessApproval, waitForInProcessApproval } from './in-process-approvals';
 import { createStreamWriteBuffer } from './stream-write-buffer';
 import { completeWorkflowWithCorrections, getWorkflowCompletionBaseline, shouldCheckWorkflowCompletion } from './workflow-completion-gate';
+import { getLongFileRuntimeContext } from './long-file-runtime-context';
+import { buildHarnessPrompt, checkContextWatermark, withLongFileRuntimeContext } from './prompt';
 import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import type {
   AcpxLiveEventPayload,
@@ -926,167 +928,6 @@ const toParticipantPayload = (participant: {
   agentName: participant.agentNameSnapshot ?? null,
 });
 
-/**
- * 去掉消息开头的 @提及 部分，作为双重保险
- * 例如: "@Platform Local Claude 你好" -> "你好"
- * 例如: "@main hello" -> "hello"
- *
- * 注意：这是最后的安全网，理想情况下 Task Room 中的内容已经被正确剥离
- */
-const stripLeadingMention = (content: string): string => {
-  // 如果不是以 @ 开头，直接返回
-  if (!content.startsWith('@')) {
-    return content;
-  }
-
-  // 使用贪婪匹配：@xxx yyy -> yyy
-  // 贪婪匹配会尽可能多地匹配，直到最后一个空格后的内容
-  const greedyMatch = content.match(/^@.+\s+([\s\S]+)$/);
-
-  // 非贪婪匹配作为后备：@xxx yyy -> yyy (只匹配到第一个空格)
-  const nonGreedyMatch = content.match(/^@\S+\s+([\s\S]*)$/);
-
-  // 优先使用贪婪匹配的结果，但如果结果为空则使用非贪婪匹配
-  let stripped = content;
-  if (greedyMatch && greedyMatch[1].trim()) {
-    stripped = greedyMatch[1].trim();
-  } else if (nonGreedyMatch && nonGreedyMatch[1].trim()) {
-    stripped = nonGreedyMatch[1].trim();
-  }
-
-  const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
-  if (debugLog && stripped !== content) {
-    console.log('[buildHarnessPrompt] Double-insurance stripping @mention:', {
-      original: content,
-      stripped,
-      method: greedyMatch && greedyMatch[1].trim() ? 'greedy' : 'non-greedy',
-    });
-  }
-
-  return stripped;
-};
-
-// --- Context watermark heuristics ---
-const CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD = 40;
-const CONTEXT_WARN_EVENT_THRESHOLD = 200;
-const CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT = 3800; // 4000 char limit in task-room.ts
-// Hard limits: beyond these thresholds the agent should compact NOW, not just warn.
-const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
-const CONTEXT_HARD_EVENT_THRESHOLD = 400;
-
-const checkContextWatermark = async (
-  taskId: string,
-  taskName: string,
-  taskRoomContext: { transcript: string },
-  taskSessionId?: string
-): Promise<string | null> => {
-  const softReasons: string[] = [];
-  const hardReasons: string[] = [];
-
-  if (taskRoomContext.transcript.length >= CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT) {
-    softReasons.push('对话记录已满');
-  }
-
-  const [roomMessageCount, eventCount] = await Promise.all([
-    countTaskRoomMessages(taskId, taskName),
-    prisma.taskRunEvent.count({
-      where: taskSessionId
-        ? { taskRun: { taskSessionId } }
-        : { taskRun: { taskId } },
-    }),
-  ]);
-
-  if (roomMessageCount >= CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD) {
-    hardReasons.push(`任务室已有 ${roomMessageCount} 条消息`);
-  } else if (roomMessageCount >= CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD) {
-    softReasons.push(`任务室已有 ${roomMessageCount} 条消息`);
-  }
-
-  if (eventCount >= CONTEXT_HARD_EVENT_THRESHOLD) {
-    hardReasons.push(`已累计 ${eventCount} 条运行事件`);
-  } else if (eventCount >= CONTEXT_WARN_EVENT_THRESHOLD) {
-    softReasons.push(`已累计 ${eventCount} 条运行事件`);
-  }
-
-  if (hardReasons.length > 0) {
-    return [
-      `[系统警告] 当前 session 上下文已严重超载（${hardReasons.join('、')}）。`,
-      `请在完成本次任务后立即执行以下操作：`,
-      `1. 用 2-3 句话总结你到目前为止完成的工作和关键发现`,
-      `2. 告知用户需要通过 /ap new-session 开始新 session 以避免上下文丢失`,
-      `不要继续累积新的上下文，先完成当前指令，然后输出总结。`,
-    ].join('\n');
-  }
-
-  if (softReasons.length > 0) {
-    return `[系统提示] 当前 session 上下文已接近阈值（${softReasons.join('、')}），建议在合适时机执行 /ap new-session 切换新 session。`;
-  }
-
-  return null;
-};
-// ------------------------------------
-
-const buildHarnessPrompt = (
-  request: AcpxRunRequest,
-  participant: AcpxParticipantRequest,
-  previousSummaries: string[],
-  taskRoomContext: {
-    transcript: string;
-    latestUserMessage: {
-      id: string;
-      content: string;
-      createdAt: string;
-      targetType: string;
-      targetParticipantLabel: string | null;
-    } | null;
-  },
-  contextWarning?: string | null
-) => {
-  // 双重保险：确保最新指令不包含开头的 @提及
-  const latestInstructionContent = taskRoomContext.latestUserMessage
-    ? stripLeadingMention(taskRoomContext.latestUserMessage.content)
-    : '';
-
-  const debugLog = process.env.DEBUG_MENTION_DETECTION === 'true';
-  if (debugLog && taskRoomContext.latestUserMessage) {
-    console.log('[buildHarnessPrompt] Latest user message from Task Room:', {
-      original: taskRoomContext.latestUserMessage.content,
-      stripped: latestInstructionContent,
-    });
-  }
-
-  const latestInstruction = latestInstructionContent
-    ? `\n\nLatest task-room instruction (highest priority for this run):\n${latestInstructionContent}`
-    : '';
-  const taskBackground = request.taskDescription
-    ? `\n\nTask background:\n${request.taskDescription}`
-    : '';
-  const roomTranscript = taskRoomContext.transcript
-    ? `\n\nRecent task-room transcript:\n${taskRoomContext.transcript}`
-    : '';
-  const priorContext =
-    previousSummaries.length > 0
-      ? `\n\nPrevious participant outputs:\n${previousSummaries
-          .map((item, index) => `${index + 1}. ${item}`)
-          .join('\n')}`
-      : '';
-
-  const warningSection = contextWarning ? `\n\n${contextWarning}` : '';
-
-  return `Task: ${request.taskName}
-
-Role: ${participant.role}
-Harness: ${participant.harnessType}
-Target: ${participant.gatewayName || participant.gatewayId}
-Execution Backend: ${participant.executionBackend}
-
-You are being launched from a chat-first task room.
-Use the latest task-room instruction as the primary direction for this run.
-Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}${warningSection}
-
-Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.`;
-};
-
 const executeViaGateway = async (
   request: AcpxRunRequest,
   participant: AcpxParticipantRequest,
@@ -1161,10 +1002,14 @@ const executeViaLocalHarness = async (
   sessionKind?: string;
   threadId?: string;
 }> => {
+  const longFileContext = await getLongFileRuntimeContext({
+    executionBackend: participant.executionBackend,
+    workingDirectory: request.workingDirectory,
+  });
   const task = {
     id: request.taskId,
     name: request.taskName,
-    description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
+    description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning, longFileContext),
   };
   const adapter = getHarnessAdapter(participant.harnessType);
   if (!adapter) {
@@ -1203,7 +1048,7 @@ const executeViaLocalHarness = async (
     ? await adapter.resume({
         task,
         sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
-        continuationMessage: participant.continuationMessage,
+        continuationMessage: withLongFileRuntimeContext(participant.continuationMessage, longFileContext),
         context: {
           workingDirectory: request.workingDirectory || process.cwd(),
           workspaceRoot,

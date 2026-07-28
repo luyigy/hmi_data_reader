@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { getLongFileRuntimeContext, longFileRuntimeNotice } from '../src/lib/acpx/long-file-runtime-context';
+import { buildHarnessPrompt, withLongFileRuntimeContext } from '../src/lib/acpx/prompt';
 
 async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'acpx-long-file-context-'));
@@ -40,6 +41,20 @@ async function main() {
   assert.deepEqual(context?.offenders, [{ path: 'large.ts', lines: 4 }, { path: 'nested/large.py', lines: 3 }]);
   assert.equal(context?.baseline['ignored/large.ts'], undefined);
   assert.match(longFileRuntimeNotice(context!), /example @ [0-9a-f]{40}/);
+  const continuation = withLongFileRuntimeContext('Continue the task.', context);
+  assert.match(continuation, /Historical over-limit files must not grow/);
+  assert.match(continuation, /Continue the task\.$/);
+  assert.equal(withLongFileRuntimeContext('Continue the task.', null), 'Continue the task.');
+  assert.equal(withLongFileRuntimeContext('Continue the task.', { ...context!, offenders: [] }), 'Continue the task.');
+  const prompt = buildHarnessPrompt(
+    { taskName: 'Example', taskDescription: null } as never,
+    { role: 'custom', harnessType: 'codex', gatewayName: 'Local', executionBackend: 'platform_local' } as never,
+    [],
+    { transcript: '', latestUserMessage: null },
+    null,
+    context,
+  );
+  assert.match(prompt, /Long-file baseline: example/);
   assert.equal(await getLongFileRuntimeContext({ ...options, executionBackend: 'remote_ssh' }), null);
   assert.equal(await getLongFileRuntimeContext({ ...options, workingDirectory: os.tmpdir() }), null);
   await writeFile(config, (await readFile(config, 'utf8')).replace('enabled: true', 'enabled: false'));
