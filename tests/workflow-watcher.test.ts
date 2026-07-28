@@ -318,6 +318,9 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /"decision":"revision"/);
   assert.match(String(reviewCall.body.content), /reviewFeedback/);
   assert.match(String(reviewCall.body.content), /"rows":6/);
+  assert.match(String(reviewCall.body.content), /"max_rows":12/);
+  assert.match(String(reviewCall.body.content), /"auto_resize":true/);
+  assert.match(String(reviewCall.body.content), /"width":"fill"/);
   assert.match(String(reviewCall.body.content), /"tag":"form"/);
   assert.match(String(reviewCall.body.content), /"action_type":"form_submit"/);
   assert.match(String(reviewCall.body.content), new RegExp(reviewCursor.pending.documentUrl));
@@ -395,6 +398,9 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(feedbackCard?.body.content), /"required":true/);
   assert.match(String(feedbackCard?.body.content), /"input_type":"multiline_text"/);
   assert.match(String(feedbackCard?.body.content), /"rows":6/);
+  assert.match(String(feedbackCard?.body.content), /"max_rows":12/);
+  assert.match(String(feedbackCard?.body.content), /"auto_resize":true/);
+  assert.match(String(feedbackCard?.body.content), /"width":"fill"/);
   assert.equal(
     (waitingForFeedback.cursor as { pending: { revisionFeedbackMessageId: string } })
       .pending.revisionFeedbackMessageId,
