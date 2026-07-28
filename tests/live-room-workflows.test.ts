@@ -3,6 +3,7 @@ import {
   buildLiveRoomWorkflowStages,
   parseLiveRoomPlanCommand,
   parseLiveRoomWorkflowCommand,
+  planPathFrom,
   selectLiveRoomPlanHost,
 } from '../src/lib/live-room-workflows';
 
@@ -34,6 +35,11 @@ assert.deepEqual(parseLiveRoomPlanCommand('/plan --host=codex design login'), {
   host: 'codex', task: 'design login',
 });
 assert.equal(parseLiveRoomPlanCommand('/plan'), null);
+assert.equal(
+  planPathFrom('PLAN_PATH: docs/codex/rebuild-postgres-auth-slice/178_PLAN_20260728_试模参数页面第三轮测试反馈修复.md'),
+  'docs/codex/rebuild-postgres-auth-slice/178_PLAN_20260728_试模参数页面第三轮测试反馈修复.md'
+);
+assert.equal(planPathFrom('PLAN_PATH: docs/../178_PLAN_bad.md'), null);
 
 const members = [
   member('builder', 'implementer'),

@@ -78,7 +78,7 @@ export const selectLiveRoomPlanHost = <T extends WorkflowMember>(members: T[], r
     : { error: planners.length ? '存在多个 planner，请使用 --host=<成员> 指定主持人。' : '没有唯一 planner，请使用 --host=<成员> 指定主持人。' };
 };
 
-const planPathFrom = (output: string) => output.match(/^PLAN_PATH:\s*(docs\/[0-9]{3}_PLAN_[^\s]+\.md)\s*$/mi)?.[1] || null;
+export const planPathFrom = (output: string) => output.match(/^PLAN_PATH:\s*(docs\/(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\/)*[0-9]{3}_PLAN_[^/\s]+\.md)\s*$/mi)?.[1] || null;
 
 export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
   roomId: string;
@@ -133,10 +133,10 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
       '生成唯一 PLAN：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml。',
       '写入 docs/ 下合法的三位编号 PLAN 文件，包含范围、方案、风险、验证和待确认项。',
       'front matter 必须为 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: start_first_slice，并有完整 workflow prompt。',
-      '最后仅输出 PLAN_PATH: docs/<filename>；不要提交，由系统校验后提交。',
+      '最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>；不要提交，由系统校验后提交。',
     ].join(' '));
     const planPath = planPathFrom(finalOutput);
-    if (!planPath || path.posix.dirname(planPath) !== 'docs') throw new Error('主持人未返回合法 PLAN_PATH，未提交。');
+    if (!planPath) throw new Error('主持人未返回合法 PLAN_PATH，未提交。');
     const planContent = await fs.readFile(path.join(sourceTask.workingDirectory || process.cwd(), planPath), 'utf8');
     await validateWorkflowDocuments({
       cwd: sourceTask.workingDirectory || process.cwd(), ref: 'HEAD', filePaths: [planPath], contentOverrides: { [planPath]: planContent },
