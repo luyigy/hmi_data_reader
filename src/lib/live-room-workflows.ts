@@ -57,9 +57,21 @@ export const parseLiveRoomPlanCommand = (content: string) => {
   const match = content.trim().match(/^\/plan(?:\s+([\s\S]+))?$/i);
   if (!match?.[1]) return null;
   const tokens = match[1].trim().split(/\s+/);
-  const host = tokens[0]?.startsWith('--host=') ? tokens.shift()!.slice(7) : undefined;
+  let host: string | undefined;
+  let revisionPath: string | undefined;
+  while (tokens[0]?.startsWith('--')) {
+    const option = tokens.shift()!;
+    if (option.startsWith('--host=')) host = option.slice(7);
+    else if (option.startsWith('--revise=')) revisionPath = option.slice(9);
+    else return null;
+  }
   const task = tokens.join(' ').trim();
-  return task ? { host, task } : null;
+  if (!task || (revisionPath && !planPathFrom(`PLAN_PATH: ${revisionPath}`))) return null;
+  return {
+    ...(host ? { host } : {}),
+    ...(revisionPath ? { revisionPath } : {}),
+    task,
+  };
 };
 
 export const selectLiveRoomPlanHost = <T extends WorkflowMember>(members: T[], requestedHost?: string) => {
@@ -78,6 +90,11 @@ export const selectLiveRoomPlanHost = <T extends WorkflowMember>(members: T[], r
 
 export const planPathFrom = (output: string) => output.match(/^PLAN_PATH:\s*(docs\/(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\/)*[0-9]{3}_PLAN_[^/\s]+\.md)\s*$/mi)?.[1] || null;
 
+export const workflowPlanRevisionPathFrom = (content: string) =>
+  /(?:^|\n)PLAN_REVISE\s*(?:\n|$)/.test(content)
+    ? content.match(/^plan_path:\s*(docs\/(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\/)*[0-9]{3}_PLAN_[^/\s]+\.md)\s*$/mi)?.[1] || null
+    : null;
+
 export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
   roomId: string;
   sourceMessageId: string;
@@ -91,7 +108,10 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
   });
   const sourceTask = await syncLiveRoomSourceTask(roomId);
   if (!room || !sourceTask) throw new Error('Live room plan requires an active room and backing task');
-  const selected = selectLiveRoomPlanHost(room.members as Array<WorkflowMember & { canReply: boolean }>, command.host);
+  const selected = selectLiveRoomPlanHost(
+    room.members as Array<WorkflowMember & { canReply: boolean }>,
+    command.host || (command.revisionPath ? room.currentSpeakerMemberId || undefined : undefined),
+  );
   if ('error' in selected) {
     await postLiveRoomMessage({ roomId, content: `系统提示：${selected.error}`, messageType: 'system' });
     return true;
@@ -127,17 +147,40 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
     for (const member of participants.slice(1)) {
       await runStage(member, '成员建议', '基于全部前文给出一次建议，覆盖方案、风险、验证和待确认项；只讨论。');
     }
-    const finalOutput = await runStage(host, 'PLAN 定稿', [
-      '生成唯一 PLAN：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml。',
-      '写入 docs/ 下合法的三位编号 PLAN 文件，包含范围、方案、风险、验证和待确认项。',
-      'front matter 必须为 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: start_first_slice，并有完整 workflow prompt。',
-      '最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>；由系统提交，随后由 workflow validator 校验。',
-    ].join(' '));
+    const finalOutput = await runStage(
+      host,
+      command.revisionPath ? 'PLAN 修订' : 'PLAN 定稿',
+      command.revisionPath
+        ? [
+          '先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml 和指定的现有 PLAN。',
+          `只修订 ${command.revisionPath}，综合前述成员意见和审批反馈，不执行任何 Slice。`,
+          `最后仅输出 PLAN_PATH: ${command.revisionPath}；由系统提交，随后由 workflow validator 复验。`,
+        ].join(' ')
+        : [
+          '生成唯一 PLAN：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml。',
+          '写入 docs/ 下合法的三位编号 PLAN 文件，包含范围、方案、风险、验证和待确认项。',
+          'front matter 必须为 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: start_first_slice，并有完整 workflow prompt。',
+          '最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>；由系统提交，随后由 workflow validator 校验。',
+        ].join(' '),
+    );
     const planPath = planPathFrom(finalOutput);
     if (!planPath) throw new Error('主持人未返回合法 PLAN_PATH，未提交。');
+    if (command.revisionPath && planPath !== command.revisionPath) {
+      throw new Error(`主持人返回了其他 PLAN_PATH：${planPath}`);
+    }
     await execFileAsync('git', ['add', '--', planPath], { cwd: sourceTask.workingDirectory || process.cwd() });
-    await execFileAsync('git', ['commit', '--only', '-m', `docs: add plan for ${command.task.slice(0, 48)}`, '--', planPath], { cwd: sourceTask.workingDirectory || process.cwd() });
-    await postLiveRoomMessage({ roomId, content: `系统提示：PLAN 已提交：${planPath}。后续由 workflow validator 校验；不合格会自动通知 Agent 修订，合格后才发送审批卡。`, messageType: 'system' });
+    await execFileAsync('git', [
+      'commit', '--only', '-m',
+      command.revisionPath ? `docs: revise ${path.basename(planPath, '.md')}` : `docs: add plan for ${command.task.slice(0, 48)}`,
+      '--', planPath,
+    ], { cwd: sourceTask.workingDirectory || process.cwd() });
+    await postLiveRoomMessage({
+      roomId,
+      content: command.revisionPath
+        ? `系统提示：PLAN 已修订并提交：${planPath}。workflow validator 将复验该提交。`
+        : `系统提示：PLAN 已提交：${planPath}。后续由 workflow validator 校验；不合格会自动通知 Agent 修订，合格后才发送审批卡。`,
+      messageType: 'system',
+    });
   } catch (error) {
     await postLiveRoomMessage({ roomId, content: `系统提示：PLAN 未提交：${error instanceof Error ? error.message : String(error)}`, messageType: 'system' });
   }

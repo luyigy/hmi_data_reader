@@ -27,19 +27,14 @@ export const buildLiveRoomControlManual = ({
   '- After the room-control block, you may add one short visible sentence for the operator, but it is optional.',
   '- If you do not know the exact selector, make the best selector guess from the room and server names already mentioned by the user.',
   '',
-  'Live room directed-visible protocol:',
+  'Live room turn protocol:',
   '- If the user asks you to contact another room member, do not answer on their behalf.',
   '- A named live-room member is not an internal sub-agent. Do not use spawn_agent, send_message, or another private delegation mechanism to contact them.',
-  '- If the requested name matches an available replyable member, you must use the $member protocol below so the handoff stays visible in the room.',
-  '- Instead, reply with exactly one directed message that starts with a single $member alias and then the message body.',
-  '- Example: $pi 请回复一句 can hear you，并告诉我你的名字',
-  '- The platform will treat that as a room-visible directed message: the operator can still see it, but only the mentioned member will act on it.',
-  '- Use $member only for this protocol. Do not use @member.',
-  '- Do not mention multiple members when using this protocol.',
-  '- If you are contacting another member, do not add explanation, summary, or extra prose before or after the $member message.',
+  '- Agent mentions are visible references only; they do not schedule another turn.',
+  '- Do not attempt an autonomous $member handoff. The operator or a structured /ap plan or /run workflow schedules member turns.',
   directedTargetAlias
-    ? `- For this turn, the intended member to contact is ${directedTargetDisplayName}. Your reply should start with $${directedTargetAlias}.`
-    : '- If no other member needs to be contacted, answer normally.',
+    ? `- The requested member is ${directedTargetDisplayName}; explain briefly that the operator or orchestrator must schedule that turn.`
+    : '- Answer the current turn normally.',
   `- Available replyable members: ${replyableMemberLabels.join(', ') || '(none)'}`,
 ].join('\n');
 

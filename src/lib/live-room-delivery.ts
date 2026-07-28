@@ -1120,14 +1120,12 @@ const processLiveRoomDelivery = async ({
   roomMessageId,
   targetMemberId,
   chainDepth,
-  allowChainedMentions,
 }: {
   deliveryId: string;
   roomId: string;
   roomMessageId: string;
   targetMemberId: string;
   chainDepth: number;
-  allowChainedMentions: boolean;
 }) => {
   const room = await prisma.liveRoom.findUnique({
     where: { id: roomId },
@@ -1324,7 +1322,6 @@ const processLiveRoomDelivery = async ({
       output = output.replace(LIVE_ROOM_CONTROL_BLOCK_PATTERN, '').trim();
     }
 
-    let replyMessage: Awaited<ReturnType<typeof postLiveRoomMessage>> | null = null;
     if (output) {
       const mentionDetection = detectMentionedLiveRoomMembers({
         content: output,
@@ -1342,7 +1339,7 @@ const processLiveRoomDelivery = async ({
         ? room.members.find((member) => member.id === directedTargetMemberId) || null
         : null;
 
-      replyMessage = await postLiveRoomMessage({
+      await postLiveRoomMessage({
         roomId: room.id,
         senderMemberId: targetMember.id,
         content: output,
@@ -1373,36 +1370,8 @@ const processLiveRoomDelivery = async ({
       });
     }
 
-    if (replyMessage && allowChainedMentions && chainDepth < 2) {
-      const replyMetadata = parseLiveRoomMessageMetadata(JSON.stringify(replyMessage.metadata || null));
-
-      // 只有明确的 handoff 或 ask 模式才会触发连锁回复
-      // agent 消息中的普通 @提及 (broadcast) 不会触发
-      const shouldChain = replyMetadata?.deliveryIntent === 'handoff' ||
-                         replyMetadata?.deliveryIntent === 'directed_visible' ||
-                         replyMetadata?.deliveryIntent === 'ask' ||
-                         replyMetadata?.mentionedAll;
-
-      if (shouldChain) {
-        const nextTargetMemberIds = getTargetMemberIdsForMessage({
-          room,
-          sourceMessageSenderMemberId: targetMember.id,
-          sourceMetadata: replyMetadata,
-          requestedTargetMemberId: null,
-          sourceContent: replyMessage.content,
-        });
-
-        for (const nextTargetMemberId of nextTargetMemberIds) {
-          await triggerLiveRoomAgentReply({
-            roomId: room.id,
-            roomMessageId: replyMessage.id,
-            targetMemberId: nextTargetMemberId,
-            chainDepth: chainDepth + 1,
-            allowChainedMentions: !(replyMetadata?.deliveryIntent === 'mention_all' || replyMetadata?.mentionedAll),
-          });
-        }
-      }
-    }
+    // Agent mentions remain visible context. Only user messages and explicit
+    // orchestrators may schedule another turn, avoiding recursive queue cycles.
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Live room delivery failed';
     const message = normalizeLiveRoomExecutionError(rawMessage);
@@ -1462,7 +1431,6 @@ export const triggerLiveRoomAgentReply = async ({
   roomMessageId,
   targetMemberId,
   chainDepth = 0,
-  allowChainedMentions = true,
   forceTargetMember = false,
   waitForCompletion = true,
 }: {
@@ -1470,7 +1438,6 @@ export const triggerLiveRoomAgentReply = async ({
   roomMessageId: string;
   targetMemberId?: string | null;
   chainDepth?: number;
-  allowChainedMentions?: boolean;
   forceTargetMember?: boolean;
   waitForCompletion?: boolean;
 }) => {
@@ -1576,7 +1543,6 @@ export const triggerLiveRoomAgentReply = async ({
       roomMessageId,
       targetMemberId: targetMember.id,
       chainDepth,
-      allowChainedMentions,
     });
   }, waitForCompletion);
 };
@@ -1696,7 +1662,6 @@ export const triggerLiveRoomMessageReplies = async ({
     });
   }
 
-  const allowChainedMentions = !isMentionAll && !isRoleQueue;
   for (let index = 0; index < targetMemberIds.length; index += 1) {
     const targetMemberId = targetMemberIds[index];
     if (index > 0 && isMentionAll) {
@@ -1708,7 +1673,6 @@ export const triggerLiveRoomMessageReplies = async ({
       roomMessageId,
       targetMemberId,
       chainDepth: 0,
-      allowChainedMentions,
       forceTargetMember: isMentionAll,
       waitForCompletion,
     });

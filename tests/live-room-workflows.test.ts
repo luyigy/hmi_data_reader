@@ -5,6 +5,7 @@ import {
   parseLiveRoomWorkflowCommand,
   planPathFrom,
   selectLiveRoomPlanHost,
+  workflowPlanRevisionPathFrom,
 } from '../src/lib/live-room-workflows';
 
 const member = (id: string, role: string) => ({
@@ -34,12 +35,23 @@ assert.equal(parseLiveRoomWorkflowCommand('/run build login'), null);
 assert.deepEqual(parseLiveRoomPlanCommand('/plan --host=codex design login'), {
   host: 'codex', task: 'design login',
 });
+assert.deepEqual(parseLiveRoomPlanCommand('/plan --revise=docs/288_PLAN_20260728_fix.md update it'), {
+  revisionPath: 'docs/288_PLAN_20260728_fix.md',
+  task: 'update it',
+});
+assert.equal(parseLiveRoomPlanCommand('/plan --revise=../outside.md update it'), null);
 assert.equal(parseLiveRoomPlanCommand('/plan'), null);
 assert.equal(
   planPathFrom('PLAN_PATH: docs/codex/rebuild-postgres-auth-slice/178_PLAN_20260728_试模参数页面第三轮测试反馈修复.md'),
   'docs/codex/rebuild-postgres-auth-slice/178_PLAN_20260728_试模参数页面第三轮测试反馈修复.md'
 );
 assert.equal(planPathFrom('PLAN_PATH: docs/../178_PLAN_bad.md'), null);
+assert.equal(
+  workflowPlanRevisionPathFrom('PLAN_REVISE\nplan_path: docs/288_PLAN_20260728_fix.md\nfeedback:\nclarify'),
+  'docs/288_PLAN_20260728_fix.md',
+);
+assert.equal(workflowPlanRevisionPathFrom('PLAN_REVISE\nplan_path: ../outside.md'), null);
+assert.equal(workflowPlanRevisionPathFrom('plan_path: docs/288_PLAN_20260728_fix.md'), null);
 
 const members = [
   member('builder', 'implementer'),

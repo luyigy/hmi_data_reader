@@ -5,6 +5,10 @@ import {
 import { handleNewSessionCommand } from '@/lib/feishu-new-session';
 import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 import {
+  runLiveRoomPlan,
+  workflowPlanRevisionPathFrom,
+} from '@/lib/live-room-workflows';
+import {
   postLiveRoomMessage,
   resolveLiveRoomMessageMetadata,
 } from '@/lib/live-room';
@@ -41,6 +45,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   signal: AbortSignal;
 }): Promise<boolean> {
   args.signal.throwIfAborted();
+  const revisionPath = workflowPlanRevisionPathFrom(args.prompt);
   let dispatch = await prisma.workflowDispatch.upsert({
     where: {
       projectId_jobId_eventKey: {
@@ -78,7 +83,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   }
 
   if (dispatch.state === 'prepared') {
-    const resetAlreadyCompleted = await prisma.taskSession.findFirst({
+    const resetAlreadyCompleted = revisionPath ? true : await prisma.taskSession.findFirst({
       where: {
         taskId: boundRoom.sourceTask.id,
         metadata: { contains: `"workflowEventKey":${JSON.stringify(args.eventKey)}` },
@@ -152,12 +157,22 @@ export async function runWorkflowInBoundLiveRoom(args: {
     where: { roomMessageId: dispatch.messageId },
     select: { id: true },
   });
-  if (!existingDelivery) await triggerLiveRoomMessageReplies({
-    roomId: room.id,
-    roomMessageId: dispatch.messageId,
-    requestedTargetMemberId: null,
-    waitForCompletion: false,
-  });
+  if (!existingDelivery) {
+    if (revisionPath) {
+      await runLiveRoomPlan({
+        roomId: room.id,
+        sourceMessageId: dispatch.messageId,
+        content: `/plan --revise=${revisionPath} ${args.prompt}`,
+      });
+    } else {
+      await triggerLiveRoomMessageReplies({
+        roomId: room.id,
+        roomMessageId: dispatch.messageId,
+        requestedTargetMemberId: null,
+        waitForCompletion: false,
+      });
+    }
+  }
   args.signal.throwIfAborted();
   await prisma.workflowDispatch.update({
     where: { id: dispatch.id },
