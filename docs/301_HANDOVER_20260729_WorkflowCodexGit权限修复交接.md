@@ -63,6 +63,29 @@ plan_progress: complete
 - 命令尚不查询某个已运行 PID 的历史原始参数；需要核对单次运行时，仍以对应日志中的
   `[Codex] Exec args` 和 `[Codex] Sandbox mode` 为最终证据。
 
+## 服务中断后的恢复提示
+
+- 提交 `4a41ead feat: show workflow recovery command after restart` 在 Feishu runtime 的正常关闭和
+  启动时遗留运行清理两条路径中，统一处理状态仍为 `running` 的 delivery：先沿用既有语义将其标记为
+  `failed`，再向该运行最近绑定的飞书会话发送恢复提示。
+- Workflow 指令会从原始消息中提取 PLAN、最新 HANDOVER 和 Slice，生成可直接复制的 `/ap chat`
+  恢复命令；普通非 Workflow 指令则显示通用的重新发送提示。系统不会自动复用已经结束的旧进程。
+- 当前被重启中断的 S06 对应命令为：
+
+  ```text
+  /ap chat 重新执行 docs/296_PLAN_20260728_LiveRoom受控接力Codex遥测与长文件治理.md 的 S06；严格读取 docs/303_HANDOVER_20260729_ACPXRunner长文件S05交接.md 中的 WORKFLOW_PROMPT 并执行，完成后提交并停止。
+  ```
+
+- `/ap job retry workflow-watcher` 只适用于 watcher 已记录的 PLAN 修订或反馈待办，不会恢复一次已经
+  中断并退出的 Codex 执行；此类情况应使用提示中的 `/ap chat` 命令重新触发。
+- 本次新增 `tests/feishu-runtime-recovery.test.ts`，同时验证生成命令能被 Feishu 命令解析器识别为
+  `chat`。`src/lib/feishu-long-connection.ts` 修改后为 755 行，低于合同的 800 行警告阈值。
+- 为加载该功能，仅在确认平台存活 Agent 进程数为 0 后重启了
+  `agent-platform-feishu.service`；服务于 2026-07-29 11:50:22 CST 恢复健康。该功能不在
+  scheduled-jobs 进程中，因此未再次重启 `agent-platform-scheduled-jobs.service`。
+- 重启时没有活动 delivery，所以没有主动制造真实任务中断来做端到端消息验收；正常关闭、启动遗留清理
+  和命令可解析性由聚焦测试覆盖。这是当前唯一未执行的验证。
+
 ## 验证与运行状态
 
 - 通过：
@@ -73,6 +96,9 @@ plan_progress: complete
   - `npm run test:workflow-watcher`
   - `npm run test:workflow-validator`
   - `npm run test:workflow-completion-gate`
+  - `tests/feishu-runtime-recovery.test.ts`
+  - `tests/feishu-live-room-initialization.test.ts`
+  - `tests/feishu-live-room-relay.test.ts`
   - `npx tsc --noEmit`
   - 相关 ESLint、`npm run check:long-files`、`git diff --check`
 - GitNexus pre-edit impact：`resolveWorkflowCodexBoundary` 为 LOW，仅有 Codex execute、resume 和聚焦
@@ -91,9 +117,11 @@ plan_progress: complete
 ## 后续使用
 
 - 可直接从飞书重新发送目标 Workflow 的真实执行指令；不需要再次用 Room Full Access 绕过。
+- 服务中断或重启导致运行停止时，优先复制系统消息中的 `恢复命令`；如果没有收到该消息，则按上述格式
+  从已提交的 PLAN、最新 HANDOVER 和目标 Slice 构造 `/ap chat` 指令。
 - 若仍出现 Git 权限错误，先核对运行是否晚于上述服务重启时间，并检查该次 Codex 启动日志中的 sandbox
   参数和 Bubblewrap workspace；不要放宽 Workflow 外层边界或让其继承 Room Full Access。
-- 本 HANDOVER 为终态记录，不自动启动 PLAN 296 的 S04。
+- 本 HANDOVER 为终态记录，不自动启动或重试 PLAN 296 的任何 Slice。
 
 ## 手动复验提示
 
@@ -103,5 +131,7 @@ plan_progress: complete
 已存在，且 `agent-platform-feishu.service` 和 `agent-platform-scheduled-jobs.service` 的运行起点
 不早于 2026-07-29 11:24 CST。执行 `/ap workflow policy show`，确认输出同时包含
 `outer_boundary=bubblewrap_workspace` 和 `codex_inner_sandbox=danger-full-access`。若需恢复被服务重启
-中断的 S06，只从已提交的 `docs/303_HANDOVER_20260729_ACPXRunner长文件S05交接.md` 重新触发 S06；
-不要放宽外层边界、不要修改 watcher cursor，也不要复用已结束的旧进程。
+中断的 S06，复制“服务中断后的恢复提示”所列 `/ap chat` 命令，从已提交的
+`docs/303_HANDOVER_20260729_ACPXRunner长文件S05交接.md` 重新触发；不要使用
+`/ap job retry workflow-watcher`、不要放宽外层边界、不要修改 watcher cursor，也不要复用已结束的
+旧进程。
