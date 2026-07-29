@@ -54,12 +54,14 @@ plan_progress: complete
 
 - 已有 `/ap workflow policy show`，可显示 `configured`、外层 `effective`、Harness `enforcement`
   和只读 `exceptions`。
-- 该命令当前显示的是 Workflow 的外层有效文件系统边界 `workspace_write`；`enforcement.sandbox`
-  表示 Harness 是否兑现策略，不是 Codex 子进程的原始 CLI sandbox 值。
-- 因此当前没有 `/ap` 命令能直接显示某次 Workflow Codex 实际使用的内层
-  `danger-full-access` / `workspace-write`。现阶段只能查看对应执行日志中的 `[Codex] Exec args` 和
-  `[Codex] Sandbox mode`；修复后的新运行应显示 `danger-full-access`，同时外层 Bubblewrap 仍提供
-  workspace 隔离。
+- 提交 `a030c7b feat: show workflow codex sandbox mode` 复用实际启动边界的同一常量，在该命令和
+  Workflow 卡片中新增：
+  `runtime: outer_boundary=bubblewrap_workspace · codex_inner_sandbox=danger-full-access · approval=never`。
+- 该行显示当前策略对下一次 Workflow Codex 的有效启动模式；`effective.filesystem=workspace_write`
+  仍表示外层 Bubblewrap 边界，`enforcement.sandbox` 仍表示 Harness 是否兑现策略。三者不再混称为
+  同一个 sandbox。
+- 命令尚不查询某个已运行 PID 的历史原始参数；需要核对单次运行时，仍以对应日志中的
+  `[Codex] Exec args` 和 `[Codex] Sandbox mode` 为最终证据。
 
 ## 验证与运行状态
 
@@ -75,12 +77,14 @@ plan_progress: complete
   - 相关 ESLint、`npm run check:long-files`、`git diff --check`
 - GitNexus pre-edit impact：`resolveWorkflowCodexBoundary` 为 LOW，仅有 Codex execute、resume 和聚焦
   测试 3 个直接依赖；staged `detect_changes` 也为 low，只触及该 symbol。
-- `agent-platform-feishu.service` 已于 2026-07-29 10:45:52 CST 重启，长连接 runtime health 为
-  `healthy`；`agent-platform-scheduled-jobs.service` 已于 11:05:02 正确重启并处于
-  `active/running`。没有重启 `agent-platform-dev.service`。
-- S04 已在 scheduled-jobs 正确重启后提交为 `c606708`，completion block 遗留的工作区已收口；但因
-  journal 中没有该提交对应的新 Codex 启动行，仍需用下一次真实 Workflow 的启动日志确认内层 sandbox
-  为 `danger-full-access`，同时外层 Bubblewrap 继续设置项目 `workspaceRoot`。
+- S06 于 11:22:25 启动，真实日志显示
+  `Exec args: exec --json --sandbox danger-full-access --skip-git-repo-check -` 和
+  `Sandbox mode: danger-full-access`，确认修复后的 Workflow 已使用预期内层模式。
+- 为加载 `a030c7b` 的新展示，`agent-platform-feishu.service` 和
+  `agent-platform-scheduled-jobs.service` 于 11:24 重启并恢复 `active/running`；Feishu runtime
+  health 为 `healthy`，没有重启 `agent-platform-dev.service`。
+- 该次重启错误地中断了刚运行约 104 秒的 S06，Codex 退出 code 为 `null`。当时尚未产生 S06 工作区
+  改动，因此没有代码丢失；但 S06 需要由 Workflow 正常重试，不能把服务健康误报为该 Slice 已完成。
 - 没有 API、数据库 Schema、生产数据或 workflow contract 变化。
 - 用户已有的 `AGENTS.md`、`CLAUDE.md` 和 `.codex-tmp/` 改动未修改、未提交。
 
@@ -95,9 +99,9 @@ plan_progress: complete
 
 如需复验 Workflow Codex Git 权限修复，先读取目标 HEAD 的
 `docs/workflow/workflow-contract.yaml`、`docs/288_PLAN_20260728_Workflow权限边界与同Session校验修复.md`
-和 `docs/301_HANDOVER_20260729_WorkflowCodexGit权限修复交接.md`，确认提交 `3c69289` 已存在且
-`agent-platform-scheduled-jobs.service` 的运行起点不早于 2026-07-29 11:05:02 CST。只在用户授权的
-隔离飞书房间重新执行一次需要 `git add` 和 `git commit` 的 Workflow，确认 Codex 内层 sandbox 使用
-`danger-full-access`、外层 Bubblewrap 仍限制在项目 workspace，并确认提交成功且 completion gate
-不再报告未提交 workflow 文档。若复验失败，只收集对应运行日志和权限快照后报告，不放宽外层边界、
-不修改 watcher cursor、不启动 PLAN 296 的 S04。
+和 `docs/301_HANDOVER_20260729_WorkflowCodexGit权限修复交接.md`，确认提交 `3c69289` 与 `a030c7b`
+已存在，且 `agent-platform-feishu.service` 和 `agent-platform-scheduled-jobs.service` 的运行起点
+不早于 2026-07-29 11:24 CST。执行 `/ap workflow policy show`，确认输出同时包含
+`outer_boundary=bubblewrap_workspace` 和 `codex_inner_sandbox=danger-full-access`。若需恢复被服务重启
+中断的 S06，只从已提交的 `docs/303_HANDOVER_20260729_ACPXRunner长文件S05交接.md` 重新触发 S06；
+不要放宽外层边界、不要修改 watcher cursor，也不要复用已结束的旧进程。
