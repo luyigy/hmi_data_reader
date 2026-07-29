@@ -90,6 +90,61 @@ function shouldUseLongConnection() {
   return mode === 'long_connection';
 }
 
+export function buildFeishuRuntimeRecoveryCommand(content: string) {
+  const plan = content.match(/docs\/\d+_PLAN_[^\s`]+\.md/)?.[0];
+  const handover = Array.from(content.matchAll(/docs\/\d+_HANDOVER_[^\s`]+\.md/g)).at(-1)?.[0];
+  const slice = content.match(/的 (S\d{2,})/)?.[1];
+  return plan && handover && slice
+    ? `/ap chat 重新执行 ${plan} 的 ${slice}；严格读取 ${handover} 中的 WORKFLOW_PROMPT 并执行，完成后提交并停止。`
+    : '/ap chat 继续执行刚才因服务中断而停止的任务；先检查并保护现有未提交改动，完成后提交并停止。';
+}
+
+async function failAndNotifyInterruptedDeliveries(reason: string) {
+  const deliveries = await prisma.liveRoomDelivery.findMany({
+    where: { deliveryStatus: 'running' },
+    select: {
+      id: true,
+      targetMember: {
+        select: { displayName: true, userNickname: true },
+      },
+      roomMessage: {
+        select: {
+          content: true,
+          room: {
+            select: {
+              feishuBindings: {
+                orderBy: { updatedAt: 'desc' },
+                take: 1,
+                select: { chatId: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!deliveries.length) return 0;
+  await prisma.liveRoomDelivery.updateMany({
+    where: { id: { in: deliveries.map(({ id }) => id) } },
+    data: { deliveryStatus: 'failed', fallbackReason: reason, acknowledgedAt: new Date() },
+  });
+  await Promise.all(deliveries.map(async (delivery) => {
+    const chatId = delivery.roomMessage.room.feishuBindings[0]?.chatId;
+    if (!chatId) return;
+    const member = delivery.targetMember.userNickname || delivery.targetMember.displayName;
+    await sendFeishuTextMessage({
+      receiveId: chatId,
+      receiveIdType: 'chat_id',
+      text: [
+        `⚠️ 系统提示：服务中断或重启已停止 ${member} 的当前运行。`,
+        `恢复命令：${buildFeishuRuntimeRecoveryCommand(delivery.roomMessage.content)}`,
+        '请等待服务恢复后再发送；系统不会自动复用已结束的旧进程。',
+      ].join('\n'),
+    }).catch((error) => console.warn('[FeishuRuntime] failed to send recovery notice:', error));
+  }));
+  return deliveries.length;
+}
+
 function pruneSeenMessageIds(state: FeishuLongConnectionState) {
   const now = Date.now();
   for (const [messageId, timestamp] of Array.from(state.messageIds.entries())) {
@@ -543,10 +598,7 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
     // On startup, reset any deliveries/members/participants left in a running/busy
     // state from a previous process that was killed mid-execution.
     try {
-      await prisma.liveRoomDelivery.updateMany({
-        where: { deliveryStatus: 'running' },
-        data: { deliveryStatus: 'failed', fallbackReason: 'Stale: runtime restarted', acknowledgedAt: new Date() },
-      });
+      await failAndNotifyInterruptedDeliveries('Stale: runtime restarted');
       await prisma.liveRoomMember.updateMany({
         where: { presenceStatus: 'busy' },
         data: { presenceStatus: 'idle' },
@@ -685,10 +737,7 @@ export async function shutdownFeishuRuntime() {
     // Give child processes a moment to exit and write to DB, then force-clean DB state
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    const r1 = await prisma.liveRoomDelivery.updateMany({
-      where: { deliveryStatus: 'running' },
-      data: { deliveryStatus: 'failed', fallbackReason: 'Stale: runtime shutdown', acknowledgedAt: new Date() },
-    });
+    const interrupted = await failAndNotifyInterruptedDeliveries('Stale: runtime shutdown');
     await prisma.liveRoomMember.updateMany({
       where: { presenceStatus: 'busy' },
       data: { presenceStatus: 'idle' },
@@ -697,8 +746,8 @@ export async function shutdownFeishuRuntime() {
       where: { status: 'busy' },
       data: { status: 'online' },
     });
-    if (r1.count > 0) {
-      console.log(`[FeishuRuntime] cleaned up ${r1.count} in-flight deliveries on shutdown`);
+    if (interrupted > 0) {
+      console.log(`[FeishuRuntime] cleaned up ${interrupted} in-flight deliveries on shutdown`);
     }
   } catch (err) {
     console.error('[FeishuRuntime] shutdown cleanup error:', err);
