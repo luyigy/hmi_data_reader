@@ -183,7 +183,8 @@ export const resolveWorkflowCodexBoundary = (
     workingDirectory: snapshot.effective.workdir,
     workspaceRoot: snapshot.effective.workdir,
     networkAccess: snapshot.effective.network,
-    sandboxMode: snapshot.effective.permissionConfig.sandboxMode,
+    // Bubblewrap is the Workflow filesystem boundary; Codex workspace-write makes .git read-only.
+    sandboxMode: 'danger-full-access',
     approvalPolicy: snapshot.effective.approval,
     readOnlyPaths: snapshot.exceptions.map((exception) => exception.path),
     codexHome: path.join(

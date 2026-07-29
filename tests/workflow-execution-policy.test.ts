@@ -54,7 +54,7 @@ assert.deepEqual(
     workingDirectory: '/workspace/project',
     workspaceRoot: '/workspace/project',
     networkAccess: 'enabled',
-    sandboxMode: 'workspace-write',
+    sandboxMode: 'danger-full-access',
     approvalPolicy: 'never',
     readOnlyPaths: snapshot.exceptions.map((exception) => exception.path),
     codexHome: '/workspace/project/.git/agent-platform/codex/room-1',
