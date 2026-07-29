@@ -45,7 +45,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
       onSpawn: context.onSpawn,
       ...workflowBoundary,
       onThreadStarted: (threadId) => {
-        context.onSessionStarted?.({
+        return context.onSessionStarted?.({
           sessionId: threadId,
           sessionKind: 'codex_thread',
           threadId,
@@ -91,7 +91,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
         onSpawn: context.onSpawn,
         ...workflowBoundary,
         onThreadStarted: (threadId) => {
-          context.onSessionStarted?.({
+          return context.onSessionStarted?.({
             sessionId: threadId,
             sessionKind: 'codex_thread',
             threadId,

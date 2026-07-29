@@ -2,6 +2,7 @@
 import type { ChildProcess } from 'child_process';
 import { realpathSync } from 'node:fs';
 import type { HarnessInteractionRequest, HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { parseCodexTokenUsage } from '@/lib/codex-telemetry';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
@@ -30,7 +31,7 @@ export interface CodexAppServerOptions {
   reasoningEffort?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
-  onThreadStarted?: (threadId: string) => void;
+  onThreadStarted?: (threadId: string) => Promise<void> | void;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -163,6 +164,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   let completed = false;
   let closed = false;
   let turnSubmitted = false;
+  let telemetryCallbacks = Promise.resolve();
   const pending = new Map<JsonRpcId, {
     resolve: (value: any) => void;
     reject: (error: Error) => void;
@@ -179,6 +181,15 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       pending.set(id, { resolve, reject });
       send({ id, method, params });
     });
+  const queueTelemetryCallback = (callback: () => Promise<void> | void) => {
+    telemetryCallbacks = telemetryCallbacks
+      .then(callback)
+      .catch((error) => {
+        void options.streamCallbacks?.onStderrChunk?.(
+          `Codex telemetry callback failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      });
+  };
 
   let finishTurn!: () => void;
   let failTurn!: (error: Error) => void;
@@ -234,6 +245,19 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       output = appendCodexAgentMessageDelta(output, message.params.delta, startsNewAgentMessage);
       startsNewAgentMessage = false;
       void options.streamCallbacks?.onStdoutChunk?.(chunk);
+    } else if (message.method === 'thread/tokenUsage/updated') {
+      const usage = parseCodexTokenUsage(message.params);
+      if (usage && options.streamCallbacks?.onCodexTokenUsage) {
+        queueTelemetryCallback(() => options.streamCallbacks!.onCodexTokenUsage!(usage));
+      }
+    } else if (message.method === 'account/rateLimits/updated' && message.params?.rateLimits) {
+      if (options.streamCallbacks?.onCodexRateLimits) {
+        queueTelemetryCallback(() => options.streamCallbacks!.onCodexRateLimits!({
+          rateLimits: message.params!.rateLimits,
+          snapshot: false,
+          collectedAt: new Date(),
+        }));
+      }
     } else if (message.method === 'turn/completed') {
       completed = true;
       const status = message.params?.turn?.status;
@@ -279,6 +303,17 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       clientInfo: { name: 'agent-platform-v2', title: 'Agent Platform', version: '0.1.0' },
     });
     send({ method: 'initialized', params: {} });
+    const rateLimits = options.streamCallbacks?.onCodexRateLimits
+      ? await request('account/rateLimits/read', {}).catch(() => null)
+      : null;
+    if (rateLimits?.rateLimits) {
+      queueTelemetryCallback(() => options.streamCallbacks!.onCodexRateLimits!({
+        rateLimits: rateLimits.rateLimits,
+        snapshot: true,
+        collectedAt: new Date(),
+      }));
+      await telemetryCallbacks;
+    }
     if (activeThreadId) {
       const resumed = await request('thread/resume', {
         threadId: activeThreadId,
@@ -298,7 +333,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       });
       activeThreadId = started.thread.id;
     }
-    options.onThreadStarted?.(activeThreadId!);
+    await options.onThreadStarted?.(activeThreadId!);
     turnSubmitted = true;
     await request('turn/start', {
       threadId: activeThreadId,
@@ -309,6 +344,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       ...(options.reasoningEffort ? { effort: options.reasoningEffort } : {}),
     });
     await turnDone;
+    await telemetryCallbacks;
     return { output: output || 'Task executed successfully', threadId: activeThreadId! };
   } catch (error) {
     throw new CodexAppServerError(

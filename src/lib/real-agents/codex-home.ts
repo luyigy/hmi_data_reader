@@ -22,3 +22,10 @@ export const prepareCodexHome = (
     }
   }
 };
+
+export const resolvePlatformLocalCodexHome = (
+  workspaceRoot: string | undefined,
+  requestedHome?: string
+) => workspaceRoot
+  ? path.join(workspaceRoot, '.git', 'agent-platform', 'codex', path.basename(requestedHome || 'session'))
+  : requestedHome;

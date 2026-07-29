@@ -4,6 +4,11 @@ import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-loc
 import { readFeishuRuntimeStatus } from '@/lib/feishu-runtime-status';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import { listLiveRoomCatalogAgents } from '@/lib/live-room';
+import { isFeishuAdmin } from '@/lib/feishu-access-approval';
+import { getBoundLiveRoom, resolveRoomMemberQuery, type FeishuConversationContext } from '@/lib/feishu-live-room';
+import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
+import { readCodexQuotaCache } from '@/lib/codex-telemetry';
+import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
 
 function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
   const normalized = agentName.trim().toLowerCase();
@@ -63,7 +68,59 @@ function formatGatewayLine(gateway: {
   return `${statusIcon} ${gateway.name} (${gateway.id}) | ${gateway.status} | ${tokenStatus} | agents=${gateway.agentCount}`;
 }
 
-export async function handleStatusCommand() {
+const formatQuotaWindow = (label: string, window: {
+  usedPercent: number;
+  windowDurationMins: number;
+  resetsAt: number;
+}) => `${label}: used ${window.usedPercent}% | window ${window.windowDurationMins}m | reset ${new Date(window.resetsAt * 1000).toISOString()}`;
+
+const handleCodexQuotaStatus = async (
+  command: ParsedFeishuCommand,
+  context?: FeishuConversationContext
+) => {
+  if (!isFeishuAdmin(context?.senderOpenId)) {
+    return '仅配置的 Feishu 管理员可以查看 Codex quota。';
+  }
+  const room = await getBoundLiveRoom(context);
+  if (!room) return '当前 Feishu 会话尚未绑定 Live Room。';
+  const member = resolveRoomMemberQuery({
+    room,
+    query: command.options.agent || command.args.find((arg) => arg !== 'quota'),
+  });
+  if (!member || member.backend !== 'platform_local' || member.harnessType !== 'codex') {
+    return '请选择当前房间中的 Platform Local Codex 成员：/ap status --quota --agent=<成员>';
+  }
+  const permission = resolveLiveRoomMemberPermission(
+    member.acpxPermissionConfig,
+    room.sourceTask?.acpxPermissionConfig
+  );
+  const workspaceRoot = permission.profile === 'full_access'
+    ? undefined
+    : permission.writableRoots[0] || room.sourceTask?.workingDirectory || process.cwd();
+  const codexHome = resolvePlatformLocalCodexHome(
+    workspaceRoot,
+    `/data1/.agent-platform/codex-rooms/${room.id}`
+  );
+  const quota = readCodexQuotaCache(codexHome);
+  if (!quota) return '当前 Codex 账户暂无新鲜 quota snapshot；请在该成员下一次 App Server 运行后重试。';
+  const windows = [
+    quota.primary ? formatQuotaWindow('primary', quota.primary) : null,
+    quota.secondary ? formatQuotaWindow('secondary', quota.secondary) : null,
+  ].filter((line): line is string => Boolean(line));
+  return [
+    'Codex quota（管理员诊断）',
+    ...(windows.length ? windows : ['No quota windows reported.']),
+    `collected ${quota.collectedAt}`,
+  ].join('\n');
+};
+
+export async function handleStatusCommand(
+  command?: ParsedFeishuCommand,
+  context?: FeishuConversationContext
+) {
+  if (command && (command.options.quota === 'true' || command.args.includes('quota'))) {
+    return handleCodexQuotaStatus(command, context);
+  }
   const [gatewayCount, onlineGatewayCount, agentCount, onlineAgentCount, sessionCount] =
     await Promise.all([
       prisma.gateway.count(),

@@ -98,12 +98,15 @@ export interface LiveRoomMember {
   codexModel?: string | null;
   codexReasoningEffort?: string | null;
   contextWatermark?: {
+    source: 'provider' | 'estimated';
     usagePercentage: number;
     usageStatus: 'light' | 'elevated' | 'high';
     policyStatus: 'normal' | 'warning' | 'critical';
     policyLabel: string;
-    dominantReason: 'messages' | 'events' | 'transcript';
+    dominantReason: 'provider' | 'messages' | 'events' | 'transcript';
     dominantLabel: string;
+    usedTokens?: number;
+    contextWindow?: number;
     recommendedAction: string;
     messageCount: number;
     eventCount: number;

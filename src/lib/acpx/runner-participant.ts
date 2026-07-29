@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { persistCodexTokenUsageMetadata } from '@/lib/codex-telemetry';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
 import { publishTaskRunEvent } from './event-bus';
@@ -112,6 +113,10 @@ export const executeParticipant = async (
   });
 
   const callbacks: HarnessStreamCallbacks = {
+    onCodexTokenUsage: participant.executionBackend === 'platform_local'
+      && participant.harnessType === 'codex'
+      ? (usage) => persistCodexTokenUsageMetadata(participantId, usage)
+      : undefined,
     onStdoutChunk: async (chunk) => {
       const interactionRequest = detectHarnessInteractionRequest(chunk);
       streamWrites.push({ stream: 'stdout', content: chunk, interactionDetected: Boolean(interactionRequest) });

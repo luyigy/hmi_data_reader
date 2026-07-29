@@ -33,7 +33,7 @@ export interface HarnessExecutionContext {
   sessionKey?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
-  onSessionStarted?: (session: HarnessSessionStarted) => void;
+  onSessionStarted?: (session: HarnessSessionStarted) => Promise<void> | void;
 }
 
 export interface HarnessExecuteArgs {

@@ -96,25 +96,31 @@ fi
 [[ -e "$CODEX_FIXTURE_HOST_SECRET" ]] && echo host-visible >> "$CODEX_FIXTURE_LOG" || echo host-hidden >> "$CODEX_FIXTURE_LOG"
 while IFS= read -r line; do
   echo "$line" >> "$CODEX_FIXTURE_LOG"
+  [[ "$line" =~ \\"id\\":([0-9]+) ]] && request_id="\${BASH_REMATCH[1]}"
   if [[ "$CODEX_FIXTURE_MODE" == "preturn-failure" && "$line" == *'"method":"initialize"'* ]]; then
     exit 2
   elif [[ "$line" == *'"method":"initialize"'* ]]; then
-    echo '{"id":1,"result":{}}'
+    echo "{\\"id\\":$request_id,\\"result\\":{}}"
+  elif [[ "$line" == *'"method":"account/rateLimits/read"'* ]]; then
+    echo "{\\"id\\":$request_id,\\"result\\":{\\"rateLimits\\":{\\"primary\\":{\\"usedPercent\\":25,\\"windowDurationMins\\":300,\\"resetsAt\\":1893456000},\\"secondary\\":null}}}"
   elif [[ "$line" == *'"method":"thread/start"'* ]]; then
-    echo '{"id":2,"result":{"thread":{"id":"thread-new"}}}'
+    echo "{\\"id\\":$request_id,\\"result\\":{\\"thread\\":{\\"id\\":\\"thread-new\\"}}}"
   elif [[ "$line" == *'"method":"thread/resume"'* ]]; then
-    echo '{"id":2,"result":{"thread":{"id":"thread-resumed"}}}'
+    echo "{\\"id\\":$request_id,\\"result\\":{\\"thread\\":{\\"id\\":\\"thread-resumed\\"}}}"
   elif [[ "$line" == *'"method":"turn/start"'* ]]; then
-    echo '{"id":3,"result":{"turn":{"id":"turn-1"}}}'
+    echo "{\\"id\\":$request_id,\\"result\\":{\\"turn\\":{\\"id\\":\\"turn-1\\"}}}"
     if [[ "$CODEX_FIXTURE_MODE" == "approval" ]]; then
       echo '{"id":99,"method":"item/commandExecution/requestApproval","params":{"command":"npm test","reason":"test"}}'
     elif [[ "$CODEX_FIXTURE_MODE" != "hang" ]]; then
       echo '{"method":"item/started","params":{"item":{"type":"agentMessage"}}}'
       echo '{"method":"item/agentMessage/delta","params":{"delta":"done"}}'
+      echo '{"method":"thread/tokenUsage/updated","params":{"threadId":"thread-new","turnId":"turn-1","tokenUsage":{"last":{"inputTokens":50000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":52500},"total":{"inputTokens":50000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":52500},"modelContextWindow":100000}}}'
+      echo '{"method":"account/rateLimits/updated","params":{"rateLimits":{"secondary":{"usedPercent":10,"windowDurationMins":10080,"resetsAt":1894060800}}}}'
       echo '{"method":"turn/completed","params":{"turn":{"status":"completed"}}}'
     fi
   elif [[ "$line" == *'"id":99'* ]]; then
     echo '{"method":"item/agentMessage/delta","params":{"delta":"approved"}}'
+    echo '{"method":"thread/tokenUsage/updated","params":{"threadId":"thread-resumed","turnId":"turn-1","tokenUsage":{"last":{"inputTokens":60000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":62500},"total":{"inputTokens":90000,"cachedInputTokens":2000,"outputTokens":3000,"reasoningOutputTokens":800,"totalTokens":95800},"modelContextWindow":100000}}}'
     echo '{"method":"turn/completed","params":{"turn":{"status":"completed"}}}'
   fi
 done
@@ -128,6 +134,9 @@ done
   };
 
   let spawnedPid: number | undefined;
+  const telemetryOrder: string[] = [];
+  const newThreadUsage: Array<{ threadId: string }> = [];
+  const quotaEvents: Array<{ snapshot: boolean }> = [];
   const newThread = await runCodexAppServer({
     prompt: 'new',
     workingDirectory: linkedCwd,
@@ -139,10 +148,24 @@ done
     timeout: 1_000,
     env,
     onSpawn: (child) => { spawnedPid = child.pid; },
+    onThreadStarted: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      telemetryOrder.push('thread');
+    },
+    streamCallbacks: {
+      onCodexTokenUsage: (usage) => {
+        telemetryOrder.push('usage');
+        newThreadUsage.push(usage);
+      },
+      onCodexRateLimits: (event) => { quotaEvents.push(event); },
+    },
   });
   assert.equal(newThread.threadId, 'thread-new');
   assert.equal(newThread.output, 'done');
   assert.ok(spawnedPid && spawnedPid > 0);
+  assert.deepEqual(newThreadUsage.map((usage) => usage.threadId), ['thread-new']);
+  assert.deepEqual(telemetryOrder, ['thread', 'usage']);
+  assert.deepEqual(quotaEvents.map((event) => event.snapshot), [true, false]);
   const newThreadLog = await readFile(log, 'utf8');
   assert.match(newThreadLog, /host-hidden/);
   assert.match(newThreadLog, new RegExp(`"cwd":"${realCwd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
@@ -150,6 +173,7 @@ done
   assert.match(newThreadLog, /"approvalPolicy":"never"/);
 
   await writeFile(log, '');
+  const resumedUsage: Array<{ threadId: string }> = [];
   const resumed = await runCodexAppServer({
     prompt: 'resume',
     threadId: 'thread-old',
@@ -161,10 +185,12 @@ done
     env: { ...env, CODEX_FIXTURE_MODE: 'approval' },
     streamCallbacks: {
       onInteractionRequest: async () => 'approve',
+      onCodexTokenUsage: (usage) => { resumedUsage.push(usage); },
     },
   });
   assert.equal(resumed.threadId, 'thread-resumed');
   assert.equal(resumed.output, 'approved');
+  assert.deepEqual(resumedUsage.map((usage) => usage.threadId), ['thread-resumed']);
   const resumeLog = await readFile(log, 'utf8');
   assert.match(resumeLog, /"method":"thread\/resume"/);
   assert.match(resumeLog, /"threadId":"thread-old"/);
@@ -198,7 +224,7 @@ done
       timeout: 1_000,
       env: { ...env, CODEX_FIXTURE_MODE: 'hang' },
       onSpawn: (child) => { interruptChild = child; },
-      onThreadStarted: () => setImmediate(() => interruptChild?.kill('SIGINT')),
+      onThreadStarted: () => { setImmediate(() => interruptChild?.kill('SIGINT')); },
     }),
     (error) => error instanceof CodexAppServerError && !error.safeToRetryJson,
   );

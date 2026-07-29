@@ -64,7 +64,7 @@ export async function handleFeishuCommand(args: {
     case 'help':
       return formatFeishuHelp(args.command);
     case 'status':
-      return handleStatusCommand();
+      return handleStatusCommand(args.command, args.context);
     case 'users':
     case 'user':
       return handleFeishuUserManagementCommand({ command: args.command, senderOpenId: args.context?.senderOpenId });

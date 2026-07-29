@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getCodexProviderContextUsage } from "@/lib/codex-telemetry";
 import { deriveGatewayHarnessOptions } from "@/lib/acpx/catalog";
 import { ensureTaskSession } from "@/lib/acpx/session";
 import { DEFAULT_ACPX_PERMISSION_CONFIG, getPermissionProfileLabel } from "@/lib/acpx/permissions";
@@ -443,54 +444,81 @@ export const getLiveRoomMemberContextWatermark = async ({
     })
     ?.createdAt || null;
   const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
-  const eventCount = await prisma.taskRunEvent.count({
-    where: {
-      taskRun: {
-        taskId: sourceTask.id,
-      },
-      participant: {
-        is: {
-          controlMetadata: {
-            contains: `"continuationKey":"${continuationKey}"`,
+  const [eventCount, providerParticipant] = await Promise.all([
+    prisma.taskRunEvent.count({
+      where: {
+        taskRun: {
+          taskId: sourceTask.id,
+        },
+        participant: {
+          is: {
+            controlMetadata: {
+              contains: `"continuationKey":"${continuationKey}"`,
+            },
           },
         },
+        ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
       },
-      ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
-    },
-  });
+    }),
+    member.backend === 'platform_local' && member.harnessType === 'codex'
+      ? prisma.taskRunParticipant.findFirst({
+          where: {
+            taskRun: { taskId: sourceTask.id },
+            executionBackend: 'platform_local',
+            harnessType: 'codex',
+            controlMetadata: { contains: `"continuationKey":"${continuationKey}"` },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { controlMetadata: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  const providerUsage = getCodexProviderContextUsage(providerParticipant?.controlMetadata);
 
   const messageCount = promptCandidates.length;
   const transcriptChars = transcript.length;
   const messageRatio = messageCount / CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD;
   const eventRatio = eventCount / CONTEXT_HARD_EVENT_THRESHOLD;
   const transcriptRatio = transcriptChars / CONTEXT_HARD_TRANSCRIPT_LIMIT;
-  const dominantReason = (
+  const estimatedDominantReason = (
     transcriptRatio >= messageRatio && transcriptRatio >= eventRatio
       ? 'transcript'
       : eventRatio >= messageRatio
       ? 'events'
       : 'messages'
-  ) as LiveRoomMemberContextWatermarkPayload['dominantReason'];
-  const dominantLabel =
-    dominantReason === 'transcript'
+  ) as Exclude<LiveRoomMemberContextWatermarkPayload['dominantReason'], 'provider'>;
+  const estimatedDominantLabel =
+    estimatedDominantReason === 'transcript'
       ? 'transcript'
-      : dominantReason === 'events'
+      : estimatedDominantReason === 'events'
       ? 'events'
       : 'messages';
-  const usagePercentage = Math.max(
-    0,
-    Math.min(100, Math.round(Math.max(messageRatio, eventRatio, transcriptRatio) * 100))
-  );
-  const policyStatus = getContextWatermarkPolicyStatus({ messageCount, eventCount, transcriptChars });
+  const usagePercentage = providerUsage
+    ? providerUsage.usagePercentage
+    : Math.max(0, Math.min(100, Math.round(
+        Math.max(messageRatio, eventRatio, transcriptRatio) * 100
+      )));
+  const policyStatus = providerUsage
+    ? usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE
+      ? 'critical'
+      : usagePercentage >= CONTEXT_USAGE_ELEVATED_PERCENTAGE
+      ? 'warning'
+      : 'normal'
+    : getContextWatermarkPolicyStatus({ messageCount, eventCount, transcriptChars });
   const usageStatus = getContextWatermarkUsageStatus(usagePercentage);
 
   return {
+    source: providerUsage ? 'provider' : 'estimated',
     usagePercentage,
     usageStatus,
     policyStatus,
     policyLabel: getContextWatermarkPolicyLabel(policyStatus),
-    dominantReason,
-    dominantLabel,
+    dominantReason: providerUsage ? 'provider' : estimatedDominantReason,
+    dominantLabel: providerUsage ? 'provider' : `estimated · ${estimatedDominantLabel}`,
+    ...(providerUsage ? {
+      usedTokens: providerUsage.usedTokens,
+      contextWindow: providerUsage.contextWindow,
+    } : {}),
     recommendedAction:
       policyStatus === 'critical'
         ? 'Finish the current step, then reset now with /ap new-session.'
@@ -721,4 +749,3 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
     },
   });
 };
-

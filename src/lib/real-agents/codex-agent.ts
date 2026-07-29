@@ -30,7 +30,7 @@ export interface CodexConfig {
   sandboxMode?: string;
   approvalPolicy?: 'never' | 'on-request';
   onSpawn?: (child: ChildProcess) => void;
-  onThreadStarted?: (threadId: string) => void;
+  onThreadStarted?: (threadId: string) => Promise<void> | void;
 }
 
 export interface CodexTask {
@@ -123,7 +123,7 @@ interface CodexExecutionOptions {
   model?: string;
   reasoningEffort?: string;
   onSpawn?: (child: ChildProcess) => void;
-  onThreadStarted?: (threadId: string) => void;
+  onThreadStarted?: (threadId: string) => Promise<void> | void;
 }
 
 interface CodexCliResult {
@@ -242,7 +242,7 @@ export const resumeCodexSession = async ({
   model?: string;
   reasoningEffort?: string;
   onSpawn?: (child: ChildProcess) => void;
-  onThreadStarted?: (threadId: string) => void;
+  onThreadStarted?: (threadId: string) => Promise<void> | void;
 }): Promise<CodexCliResult> => {
   if (approvalPolicy === 'on-request') {
     try {

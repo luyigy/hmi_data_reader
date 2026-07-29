@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'child_process';
-import path from 'node:path';
+import { updateCodexQuotaCache } from '@/lib/codex-telemetry';
 import {
   createOpenClawResponse,
   extractOpenClawText,
@@ -7,6 +7,7 @@ import {
 } from '@/lib/openclaw-client';
 import { getHarnessAdapter } from '@/lib/harness';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
+import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
@@ -117,9 +118,17 @@ export const executeViaLocalHarness = async (
   const workspaceRoot = permissionConfig.profile === 'full_access'
     ? undefined
     : permissionConfig.writableRoots[0] || request.workingDirectory || process.cwd();
-  const codexHome = workspaceRoot && participant.harnessType === 'codex'
-    ? path.join(workspaceRoot, '.git', 'agent-platform', 'codex', path.basename(participant.codexHome || 'session'))
+  const codexHome = participant.harnessType === 'codex'
+    ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
     : participant.codexHome;
+  const harnessCallbacks = participant.harnessType === 'codex'
+    ? {
+        ...callbacks,
+        onCodexRateLimits: (event: Parameters<NonNullable<HarnessStreamCallbacks['onCodexRateLimits']>>[0]) => {
+          updateCodexQuotaCache({ codexHome, ...event });
+        },
+      }
+    : callbacks;
   if (workspaceRoot && !['codex', 'claude', 'claude-haha'].includes(participant.harnessType)) {
     throw new Error(`受限 Feishu 工作区暂不支持 harness: ${participant.harnessType}`);
   }
@@ -167,17 +176,16 @@ export const executeViaLocalHarness = async (
             role: participant.role,
             agentId: participant.agentId,
           }),
-          streamCallbacks: callbacks,
+          streamCallbacks: harnessCallbacks,
           onSpawn: registerSpawn,
-          onSessionStarted: (session) => {
-            void persistPlatformLocalSessionMetadata(
+          onSessionStarted: (session) =>
+            persistPlatformLocalSessionMetadata(
               taskRunId,
               participantId,
               session.sessionKind,
               session.sessionId,
               session.threadId
-            );
-          },
+            ),
         },
       })
     : await adapter.execute({
@@ -201,17 +209,16 @@ export const executeViaLocalHarness = async (
             role: participant.role,
             agentId: participant.agentId,
           }),
-          streamCallbacks: callbacks,
+          streamCallbacks: harnessCallbacks,
           onSpawn: registerSpawn,
-          onSessionStarted: (session) => {
-            void persistPlatformLocalSessionMetadata(
+          onSessionStarted: (session) =>
+            persistPlatformLocalSessionMetadata(
               taskRunId,
               participantId,
               session.sessionKind,
               session.sessionId,
               session.threadId
-            );
-          },
+            ),
         },
       });
 

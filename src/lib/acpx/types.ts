@@ -145,6 +145,12 @@ export interface HarnessStreamCallbacks {
   onStdoutChunk?: (chunk: string) => Promise<void> | void;
   onStderrChunk?: (chunk: string) => Promise<void> | void;
   onToolEvent?: (event: HarnessToolEvent) => Promise<void> | void;
+  onCodexTokenUsage?: (usage: import('@/lib/codex-telemetry').CodexProviderTokenUsage) => Promise<void> | void;
+  onCodexRateLimits?: (event: {
+    rateLimits: unknown;
+    snapshot: boolean;
+    collectedAt: Date;
+  }) => Promise<void> | void;
   onInteractionRequest?: (
     request: HarnessInteractionRequest
   ) => Promise<'approve' | 'deny'>;

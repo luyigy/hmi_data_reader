@@ -20,6 +20,7 @@ const HELP_PAGES = [
   ]],
   ['运行控制', [
     '/ap status',
+    '/ap status --quota [--agent=<成员>]  (管理员)',
     '/ap gateways',
     '/ap agents [gatewayId]',
     '/ap hosts',
