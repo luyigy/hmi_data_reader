@@ -59,11 +59,3 @@ Platform 的安全边界实际由外层 Bubblewrap 决定：
 - `docs/316_HANDOVER_20260729_KimiCodePrompt权限冲突修复.md`
 
 工作区内其他既有改动未修改，也不纳入本次提交。
-
-<!-- WORKFLOW_PROMPT_START -->
-Kimi Code CLI 接入 Platform Local 的 S03 及其 `--prompt` 权限冲突修复已经完成并验证，
-无需启动后续 Session。只读参考
-`docs/312_PLAN_20260729_KimiCodeCLI接入PlatformLocal.md` 和
-`docs/316_HANDOVER_20260729_KimiCodePrompt权限冲突修复.md`；除非用户提出新需求，
-不要修改代码、文档、服务或生产数据。
-<!-- WORKFLOW_PROMPT_END -->
