@@ -43,8 +43,10 @@ plan_progress: complete
   `docs/302_HANDOVER_20260729_Feishu命令入口长文件S04交接.md` 仍未提交。
 - 确认旧运行结束后，已于 11:05:02 重启 `agent-platform-scheduled-jobs.service`。新进程为
   `active/running`，现在会加载 `3c69289`；正常服务重启没有手工修改 watcher cursor。
-- S04 的 4 个源码和 `docs/302_HANDOVER_20260729_Feishu命令入口长文件S04交接.md` 仍保留在工作区，
-  可由新 Session 在复核后直接提交，不应重新拆分或覆盖。
+- S04 的 4 个源码和 `docs/302_HANDOVER_20260729_Feishu命令入口长文件S04交接.md` 随后于 11:09:00
+  提交为 `c606708 refactor(feishu): split command handlers`，相关未提交文件已从工作区消失。
+  scheduled-jobs 重启后的 journal 没有与该提交对应的新 Codex 启动记录，因此该提交只证明 S04 已恢复
+  并成功写入真实 Git，不能单独作为自动 Workflow 内层 sandbox 参数的日志证据。
 - 日志中另有一次包含 `rm -rf` 的 GitNexus 临时安装命令被安全策略拒绝；Codex 最终仍以 code 0 结束，
   它不是本次 completion gate 报错的直接原因。
 
@@ -76,9 +78,9 @@ plan_progress: complete
 - `agent-platform-feishu.service` 已于 2026-07-29 10:45:52 CST 重启，长连接 runtime health 为
   `healthy`；`agent-platform-scheduled-jobs.service` 已于 11:05:02 正确重启并处于
   `active/running`。没有重启 `agent-platform-dev.service`。
-- 尚未在 scheduled-jobs 正确重启后发送新的真实飞书 Workflow 指令，因此仍需一次提交级复验。下一次
-  Workflow 启动日志应显示 Codex 内层 sandbox 为 `danger-full-access`，同时仍由 Bubblewrap 设置项目
-  `workspaceRoot`。
+- S04 已在 scheduled-jobs 正确重启后提交为 `c606708`，completion block 遗留的工作区已收口；但因
+  journal 中没有该提交对应的新 Codex 启动行，仍需用下一次真实 Workflow 的启动日志确认内层 sandbox
+  为 `danger-full-access`，同时外层 Bubblewrap 继续设置项目 `workspaceRoot`。
 - 没有 API、数据库 Schema、生产数据或 workflow contract 变化。
 - 用户已有的 `AGENTS.md`、`CLAUDE.md` 和 `.codex-tmp/` 改动未修改、未提交。
 
