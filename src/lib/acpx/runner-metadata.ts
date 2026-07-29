@@ -486,7 +486,7 @@ export const persistPlatformLocalSessionMetadata = async (
     return;
   }
 
-  if (sessionKind === 'pi_session_dir' && sessionId) {
+  if (sessionKind && sessionId) {
     const [taskRun, participant] = await Promise.all([
       prisma.taskRun.findUnique({
         where: { id: taskRunId },
@@ -516,14 +516,14 @@ export const persistPlatformLocalSessionMetadata = async (
         data: {
           controlMetadata: stringifyJson({
             ...taskRunMetadata,
-            piSessionDir: sessionId,
+            ...(sessionKind === 'pi_session_dir' ? { piSessionDir: sessionId } : {}),
             lastSessionId: sessionId,
-            lastSessionKind: 'pi_session_dir',
+            lastSessionKind: sessionKind,
             sessionTracking: {
               ...existingRunTracking,
               latestRunId: taskRunId,
               latestSessionId: sessionId,
-              latestSessionKind: 'pi_session_dir',
+              latestSessionKind: sessionKind,
               checkedAt: now,
             },
           }),
@@ -534,14 +534,14 @@ export const persistPlatformLocalSessionMetadata = async (
         data: {
           controlMetadata: stringifyJson({
             ...participantMetadata,
-            piSessionDir: sessionId,
+            ...(sessionKind === 'pi_session_dir' ? { piSessionDir: sessionId } : {}),
             lastSessionId: sessionId,
-            lastSessionKind: 'pi_session_dir',
+            lastSessionKind: sessionKind,
             sessionTracking: {
               ...existingParticipantTracking,
               latestParticipantId: participantId,
               latestSessionId: sessionId,
-              latestSessionKind: 'pi_session_dir',
+              latestSessionKind: sessionKind,
               checkedAt: now,
             },
           }),

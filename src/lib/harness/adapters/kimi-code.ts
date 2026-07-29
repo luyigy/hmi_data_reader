@@ -5,6 +5,11 @@ import {
   isKimiCodeAvailable,
 } from '@/lib/real-agents/kimi-code-agent';
 
+const INVALID_KIMI_CONTINUATION_PATTERNS = [
+  /Session ".+" not found\./i,
+  /Session ".+" was created under a different directory\./i,
+];
+
 export const kimiCodeHarnessAdapter: HarnessAdapter = {
   type: 'kimi-code',
   displayName: 'Kimi Code CLI',
@@ -35,7 +40,31 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       onSpawn: context.onSpawn,
       model: context.model,
     });
-    return { ...result, liveStreaming: true };
+    return {
+      ...result,
+      sessionKind: result.sessionId ? 'kimi_session' : undefined,
+      liveStreaming: true,
+    };
+  },
+
+  async resume({ task, context, sessionId, continuationMessage }) {
+    const result = await executeKimiCodeTask(task, {
+      timeout: context.timeout,
+      workingDirectory: context.workingDirectory,
+      workspaceRoot: context.workspaceRoot,
+      networkAccess: context.networkAccess,
+      permissionProfile: context.permissionConfig?.profile,
+      streamCallbacks: context.streamCallbacks,
+      onSpawn: context.onSpawn,
+      model: context.model,
+      prompt: continuationMessage,
+      sessionId,
+    });
+    return {
+      ...result,
+      sessionKind: result.sessionId ? 'kimi_session' : undefined,
+      liveStreaming: true,
+    };
   },
 
   getCapabilities(executionBackend) {
@@ -43,7 +72,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
     return {
       supportsQueuedUserMessages: local,
       supportsImmediateInterrupt: local,
-      supportsResumeAfterInterrupt: false,
+      supportsResumeAfterInterrupt: local,
       supportsLiveSessionControl: false,
       supportsSoftStop: local,
     };
@@ -62,5 +91,20 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       networkAccess: local ? 'applied' : 'recorded_only',
       writableRoots: local ? 'applied' : 'recorded_only',
     };
+  },
+
+  readContinuation(metadata) {
+    const sessionId =
+      typeof metadata.lastSessionId === 'string' && metadata.lastSessionId.trim()
+        ? metadata.lastSessionId.trim()
+        : null;
+    return {
+      sessionId,
+      sessionKind: sessionId ? 'kimi_session' : null,
+    };
+  },
+
+  isInvalidContinuationError(message) {
+    return INVALID_KIMI_CONTINUATION_PATTERNS.some((pattern) => pattern.test(message));
   },
 };

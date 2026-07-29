@@ -14,6 +14,8 @@ export interface KimiCodeConfig {
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   model?: string;
+  prompt?: string;
+  sessionId?: string;
 }
 
 export interface KimiCodeTask {
@@ -28,6 +30,7 @@ export interface KimiCodeResult {
   error?: string;
   executionTime: number;
   filesModified?: string[];
+  sessionId?: string;
 }
 
 const getKimiCodeBinary = () => process.env.KIMI_CODE_CLI_PATH?.trim() || 'kimi';
@@ -47,7 +50,7 @@ Take your time and be thorough.`;
 
 const processKimiCodeJsonLine = (
   line: string,
-  state: { output: string; structuredError?: string },
+  state: { output: string; structuredError?: string; sessionId?: string },
   streamCallbacks?: HarnessStreamCallbacks
 ) => {
   let event: {
@@ -56,6 +59,7 @@ const processKimiCodeJsonLine = (
     content?: string;
     error?: string;
     message?: string;
+    session_id?: string;
   };
 
   try {
@@ -68,6 +72,15 @@ const processKimiCodeJsonLine = (
   if (event.role === 'assistant' && typeof event.content === 'string') {
     state.output += event.content;
     void streamCallbacks?.onStdoutChunk?.(event.content);
+  }
+
+  if (
+    event.role === 'meta'
+    && event.type === 'session.resume_hint'
+    && typeof event.session_id === 'string'
+    && event.session_id.trim()
+  ) {
+    state.sessionId = event.session_id.trim();
   }
 
   if (
@@ -89,6 +102,7 @@ const runKimiCodeCommand = async ({
   streamCallbacks,
   onSpawn,
   model,
+  sessionId,
 }: {
   prompt: string;
   timeout: number | null;
@@ -99,7 +113,8 @@ const runKimiCodeCommand = async ({
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   model?: string;
-}): Promise<string> => {
+  sessionId?: string;
+}): Promise<{ output: string; sessionId?: string }> => {
   if (!workspaceRoot && permissionProfile !== 'full_access') {
     throw new Error('Kimi Code requires Bubblewrap unless full access is explicitly selected.');
   }
@@ -113,6 +128,7 @@ const runKimiCodeCommand = async ({
     permissionProfile === 'full_access' ? '--yolo' : '--auto',
   ];
   if (model) args.push('--model', model);
+  if (sessionId) args.push('--session', sessionId);
 
   const wrapped = wrapWithBubblewrap({
     command: getKimiCodeBinary(),
@@ -138,7 +154,7 @@ const runKimiCodeCommand = async ({
     let closed = false;
     let timeoutHandle: NodeJS.Timeout | undefined;
     let forceKillHandle: NodeJS.Timeout | undefined;
-    const state: { output: string; structuredError?: string } = { output: '' };
+    const state: { output: string; structuredError?: string; sessionId?: string } = { output: '' };
 
     const cleanup = () => {
       if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -195,7 +211,10 @@ const runKimiCodeCommand = async ({
       cleanup();
       if (code === 0 && !state.structuredError) {
         settled = true;
-        resolve(state.output || 'Kimi Code completed');
+        resolve({
+          output: state.output || 'Kimi Code completed',
+          sessionId: state.sessionId,
+        });
         return;
       }
       fail(
@@ -214,8 +233,8 @@ export const executeKimiCodeTask = async (
 ): Promise<KimiCodeResult> => {
   const startTime = Date.now();
   try {
-    const output = await runKimiCodeCommand({
-      prompt: buildPrompt(task),
+    const result = await runKimiCodeCommand({
+      prompt: config.prompt ?? buildPrompt(task),
       timeout: config.timeout === undefined ? 300000 : config.timeout,
       workingDirectory: config.workingDirectory || process.cwd(),
       workspaceRoot: config.workspaceRoot,
@@ -224,10 +243,12 @@ export const executeKimiCodeTask = async (
       streamCallbacks: config.streamCallbacks,
       onSpawn: config.onSpawn,
       model: config.model,
+      sessionId: config.sessionId,
     });
     return {
       success: true,
-      output,
+      output: result.output,
+      sessionId: result.sessionId,
       executionTime: Date.now() - startTime,
       filesModified: [],
     };
