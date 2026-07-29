@@ -49,12 +49,46 @@ assert.deepEqual(buildAssistantRelayCard(assistant), {
   elements: [{ tag: 'markdown', content: '**Done**\n\n- one\n- two' }],
 });
 
-assistant.visibility = 'directed_visible';
-assistant.metadata = { targetMemberName: 'Claude' };
+assistant.metadata = { deliveryIntent: 'directed_visible', targetMemberName: 'Claude' };
 assert.equal(
   (buildAssistantRelayCard(assistant).header.title as { content: string }).content,
   'codex → Claude'
 );
+
+assistant.visibility = 'directed_visible';
+assistant.metadata = { targetMemberName: 'Claude' };
+assert.equal(buildAssistantRelayCard(assistant).header.title.content, 'codex');
+
+assistant.metadata = { deliveryIntent: 'invalid', targetMemberName: 'Claude' };
+assert.equal(buildAssistantRelayCard(assistant).header.title.content, 'codex');
+
+assistant.metadata = { deliveryIntent: 'directed_visible' };
+assert.equal(buildAssistantRelayCard(assistant).header.title.content, 'codex');
+
+assistant.metadata = { deliveryIntent: 'handoff', targetMemberName: 'Claude' };
+assert.deepEqual(buildAssistantRelayCard(assistant), {
+  config: { wide_screen_mode: true },
+  header: {
+    template: 'blue',
+    title: { tag: 'plain_text', content: 'codex' },
+  },
+  elements: [
+    { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
+    {
+      tag: 'note',
+      elements: [{ tag: 'plain_text', content: '下一位：Claude' }],
+    },
+  ],
+});
+
+assistant.metadata = { deliveryIntent: 'handoff' };
+assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
+  { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
+]);
+
+assistant.content = '普通引用 @Claude';
+assistant.metadata = { deliveryIntent: 'broadcast', targetMemberName: 'Claude' };
+assert.equal(buildAssistantRelayCard(assistant).header.title.content, 'codex');
 
 const bindings = [
   { id: 'binding-a', chatId: 'chat-a', chatType: 'group', latestMessageId: null, typingReactionId: null, typingForMessageId: null, liveRoomId: 'room' },

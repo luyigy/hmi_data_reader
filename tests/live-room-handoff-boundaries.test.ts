@@ -31,6 +31,10 @@ assert.ok(
 assert.match(delivery, /claimLiveRoomHandoff/);
 assert.match(delivery, /waitForCompletion: false/);
 assert.match(processing, /delivery\.handoffRootMessageId\s*\?/);
+assert.match(
+  processing,
+  /targetMemberName: handoffIntent\.kind === 'target'[\s\S]*handoffIntent\.targetMemberId/,
+);
 assert.match(interrupt, /deliveryStatus: 'superseded'[\s\S]*Cancelled by user before execution/);
 assert.match(execution, /timed out after \\d\+ms[\s\S]*markLiveRoomSessionExpired[\s\S]*useFreshSession: true/);
 assert.match(processing, /Remote SSH live room delivery became stale before completion[\s\S]*presenceStatus: 'online'/);

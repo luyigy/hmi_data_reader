@@ -437,7 +437,9 @@ export const processLiveRoomDelivery = async ({
             chainDepth,
             remoteTiming,
             targetLocked: isDirectedVisibleReply,
-            targetMemberName: directedTargetMember?.displayName || null,
+            targetMemberName: handoffIntent.kind === 'target'
+              ? room.members.find((member) => member.id === handoffIntent.targetMemberId)?.displayName || null
+              : directedTargetMember?.displayName || null,
             handoffRootMessageId: delivery.handoffRootMessageId,
           },
         }),

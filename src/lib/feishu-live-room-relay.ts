@@ -57,9 +57,17 @@ export const buildAssistantRelayCard = (message: LiveRoomMessagePayload) => {
     typeof message.metadata?.targetMemberName === 'string'
       ? message.metadata.targetMemberName
       : null;
-  const isDirectedVisible =
-    message.visibility === 'directed_visible'
-    || message.metadata?.deliveryIntent === 'directed_visible';
+  const deliveryIntent = message.metadata?.deliveryIntent;
+  const elements: Array<Record<string, unknown>> = [
+    { tag: 'markdown', content: message.content },
+  ];
+
+  if (deliveryIntent === 'handoff' && targetMemberName) {
+    elements.push({
+      tag: 'note',
+      elements: [{ tag: 'plain_text', content: `下一位：${targetMemberName}` }],
+    });
+  }
 
   return {
     config: { wide_screen_mode: true },
@@ -67,12 +75,12 @@ export const buildAssistantRelayCard = (message: LiveRoomMessagePayload) => {
       template: 'blue',
       title: {
         tag: 'plain_text',
-        content: isDirectedVisible && targetMemberName
+        content: deliveryIntent === 'directed_visible' && targetMemberName
           ? `${message.senderName} → ${targetMemberName}`
           : message.senderName,
       },
     },
-    elements: [{ tag: 'markdown', content: message.content }],
+    elements,
   };
 };
 
