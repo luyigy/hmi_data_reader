@@ -4,6 +4,7 @@ import { claudeHahaHarnessAdapter, claudeHarnessAdapter } from './adapters/claud
 import { codexHarnessAdapter } from './adapters/codex';
 import { deepSeekHarnessAdapter } from './adapters/deepseek';
 import { geminiCliHarnessAdapter } from './adapters/gemini-cli';
+import { kimiCodeHarnessAdapter } from './adapters/kimi-code';
 import { piAgentHarnessAdapter } from './adapters/pi-agent';
 
 const harnessAdapters = [
@@ -13,6 +14,7 @@ const harnessAdapters = [
   claudeHahaHarnessAdapter,
   deepSeekHarnessAdapter,
   geminiCliHarnessAdapter,
+  kimiCodeHarnessAdapter,
   piAgentHarnessAdapter,
 ] as const satisfies readonly HarnessAdapter[];
 

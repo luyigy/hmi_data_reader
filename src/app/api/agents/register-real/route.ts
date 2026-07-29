@@ -19,6 +19,7 @@ export async function GET() {
         deepseek: status.deepseek.available,
         'gemini-cli': status['gemini-cli'].available,
         'pi-agent': status['pi-agent'].available,
+        'kimi-code': status['kimi-code'].available,
       },
       versions: {
         antigravity: status.antigravity.version,
@@ -28,6 +29,7 @@ export async function GET() {
         deepseek: status.deepseek.version,
         'gemini-cli': status['gemini-cli'].version,
         'pi-agent': status['pi-agent'].version,
+        'kimi-code': status['kimi-code'].version,
       },
     });
   } catch (error) {
@@ -47,9 +49,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { type, name } = body as { type: 'antigravity' | 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent'; name?: string };
+    const { type, name } = body as { type: 'antigravity' | 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent' | 'kimi-code'; name?: string };
 
-    if (!type || (type !== 'antigravity' && type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini-cli' && type !== 'pi-agent')) {
+    if (!type || (type !== 'antigravity' && type !== 'codex' && type !== 'claude' && type !== 'claude-haha' && type !== 'deepseek' && type !== 'gemini-cli' && type !== 'pi-agent' && type !== 'kimi-code')) {
       return NextResponse.json(
         { error: 'Invalid real agent type' },
         { status: 400 }
@@ -76,6 +78,8 @@ export async function POST(request: NextRequest) {
         ? 'Gemini Agent'
         : type === 'pi-agent'
         ? 'Pi Agent'
+        : type === 'kimi-code'
+        ? 'Kimi Code Agent'
         : type === 'claude-haha'
         ? 'Claude Haha Agent'
         : 'Claude Code Agent'

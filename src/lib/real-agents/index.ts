@@ -10,6 +10,7 @@ export * from './deepseek-agent';
 export * from './gemini-cli-agent';
 export * from './antigravity-agent';
 export * from './pi-agent';
+export * from './kimi-code-agent';
 
 import { getLocalHarnessStatusMap } from '@/lib/harness';
 import { executeCodexTask, isCodexAvailable, getCodexVersion } from './codex-agent';
@@ -18,6 +19,7 @@ import { executeDeepSeekTask, isDeepSeekAvailable, getDeepSeekVersion } from './
 import { executeGeminiTask, isGeminiAvailable, getGeminiVersion } from './gemini-cli-agent';
 import { executeAntigravityTask, getAntigravityVersion, isAntigravityAvailable } from './antigravity-agent';
 import { executePiAgentTask, isPiAgentAvailable, getPiAgentVersion } from './pi-agent';
+import { executeKimiCodeTask, isKimiCodeAvailable, getKimiCodeVersion } from './kimi-code-agent';
 
 export interface RealAgentTask {
   id: string;
@@ -26,7 +28,7 @@ export interface RealAgentTask {
 }
 
 export interface RealAgentResult {
-  agentType: 'antigravity' | 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent';
+  agentType: 'antigravity' | 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent' | 'kimi-code';
   success: boolean;
   output?: string;
   error?: string;
@@ -39,17 +41,18 @@ export interface RealAgentResult {
  */
 export const executeRealAgentTask = async (
   task: RealAgentTask,
-  agentType: 'antigravity' | 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent' | 'auto'
+  agentType: 'antigravity' | 'codex' | 'claude' | 'deepseek' | 'gemini-cli' | 'pi-agent' | 'kimi-code' | 'auto'
 ): Promise<RealAgentResult> => {
   if (agentType === 'auto') {
     // Auto-select best available agent
-    const [antigravityAvailable, codexAvailable, claudeAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable] = await Promise.all([
+    const [antigravityAvailable, codexAvailable, claudeAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable, kimiCodeAvailable] = await Promise.all([
       isAntigravityAvailable(),
       isCodexAvailable(),
       isClaudeAvailable(),
       isDeepSeekAvailable(),
       isGeminiAvailable(),
       isPiAgentAvailable(),
+      isKimiCodeAvailable(),
     ]);
 
     if (claudeAvailable) {
@@ -64,6 +67,8 @@ export const executeRealAgentTask = async (
       agentType = 'deepseek';
     } else if (piAgentAvailable) {
       agentType = 'pi-agent';
+    } else if (kimiCodeAvailable) {
+      agentType = 'kimi-code';
     } else {
       return {
         agentType: 'claude',
@@ -105,6 +110,14 @@ export const executeRealAgentTask = async (
         agentType: 'pi-agent',
         ...result,
       };
+    } else if (agentType === 'kimi-code') {
+      const result = await executeKimiCodeTask(task, {
+        permissionProfile: 'full_access',
+      });
+      return {
+        agentType: 'kimi-code',
+        ...result,
+      };
     } else {
       const result = await executeClaudeTask(task);
       return {
@@ -133,11 +146,13 @@ export const getRealAgentsStatus = async (): Promise<{
   deepseek: { available: boolean; version?: string };
   'gemini-cli': { available: boolean; version?: string };
   'pi-agent': { available: boolean; version?: string };
+  'kimi-code': { available: boolean; version?: string };
 }> => {
   const adapterStatusMap = await getLocalHarnessStatusMap();
 
   if (adapterStatusMap.antigravity && adapterStatusMap.codex && adapterStatusMap.claude && adapterStatusMap['claude-haha']
-    && adapterStatusMap.deepseek && adapterStatusMap['gemini-cli'] && adapterStatusMap['pi-agent']) {
+    && adapterStatusMap.deepseek && adapterStatusMap['gemini-cli'] && adapterStatusMap['pi-agent']
+    && adapterStatusMap['kimi-code']) {
     return {
       antigravity: adapterStatusMap.antigravity,
       codex: adapterStatusMap.codex,
@@ -146,10 +161,11 @@ export const getRealAgentsStatus = async (): Promise<{
       deepseek: adapterStatusMap.deepseek,
       'gemini-cli': adapterStatusMap['gemini-cli'],
       'pi-agent': adapterStatusMap['pi-agent'],
+      'kimi-code': adapterStatusMap['kimi-code'],
     };
   }
 
-  const [antigravityAvailable, codexAvailable, claudeAvailable, claudeHahaAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable] = await Promise.all([
+  const [antigravityAvailable, codexAvailable, claudeAvailable, claudeHahaAvailable, deepSeekAvailable, geminiAvailable, piAgentAvailable, kimiCodeAvailable] = await Promise.all([
     isAntigravityAvailable(),
     isCodexAvailable(),
     isClaudeAvailable('claude'),
@@ -157,9 +173,10 @@ export const getRealAgentsStatus = async (): Promise<{
     isDeepSeekAvailable(),
     isGeminiAvailable(),
     isPiAgentAvailable(),
+    isKimiCodeAvailable(),
   ]);
 
-  const [antigravityVersion, codexVersion, claudeVersion, claudeHahaVersion, deepSeekVersion, geminiVersion, piAgentVersion] = await Promise.all([
+  const [antigravityVersion, codexVersion, claudeVersion, claudeHahaVersion, deepSeekVersion, geminiVersion, piAgentVersion, kimiCodeVersion] = await Promise.all([
     antigravityAvailable ? getAntigravityVersion() : Promise.resolve(undefined),
     codexAvailable ? getCodexVersion() : Promise.resolve(undefined),
     claudeAvailable ? getClaudeVersion('claude') : Promise.resolve(undefined),
@@ -167,6 +184,7 @@ export const getRealAgentsStatus = async (): Promise<{
     deepSeekAvailable ? getDeepSeekVersion() : Promise.resolve(undefined),
     geminiAvailable ? getGeminiVersion() : Promise.resolve(undefined),
     piAgentAvailable ? getPiAgentVersion() : Promise.resolve(undefined),
+    kimiCodeAvailable ? getKimiCodeVersion() : Promise.resolve(undefined),
   ]);
 
   return {
@@ -177,6 +195,7 @@ export const getRealAgentsStatus = async (): Promise<{
     deepseek: { available: deepSeekAvailable, version: deepSeekVersion },
     'gemini-cli': { available: geminiAvailable, version: geminiVersion },
     'pi-agent': { available: piAgentAvailable, version: piAgentVersion },
+    'kimi-code': { available: kimiCodeAvailable, version: kimiCodeVersion },
   };
 };
 
@@ -185,7 +204,7 @@ export const getRealAgentsStatus = async (): Promise<{
  */
 export const registerRealAgent = async (
   name: string,
-  type: 'antigravity' | 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent',
+  type: 'antigravity' | 'codex' | 'claude' | 'claude-haha' | 'deepseek' | 'gemini-cli' | 'pi-agent' | 'kimi-code',
   location: 'local' | 'remote' | 'cloud' = 'local'
 ): Promise<{
   id: string;

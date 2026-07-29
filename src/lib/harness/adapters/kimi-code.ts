@@ -1,0 +1,66 @@
+import type { HarnessAdapter } from '../types';
+import {
+  executeKimiCodeTask,
+  getKimiCodeVersion,
+  isKimiCodeAvailable,
+} from '@/lib/real-agents/kimi-code-agent';
+
+export const kimiCodeHarnessAdapter: HarnessAdapter = {
+  type: 'kimi-code',
+  displayName: 'Kimi Code CLI',
+
+  async checkAvailability() {
+    const available = await isKimiCodeAvailable();
+    return {
+      available,
+      version: available ? await getKimiCodeVersion() : undefined,
+    };
+  },
+
+  async execute({ task, context }) {
+    if (context.executionBackend !== 'platform_local') {
+      return {
+        success: false,
+        error: 'Kimi Code is only supported by platform_local.',
+        executionTime: 0,
+      };
+    }
+    const result = await executeKimiCodeTask(task, {
+      timeout: context.timeout,
+      workingDirectory: context.workingDirectory,
+      workspaceRoot: context.workspaceRoot,
+      networkAccess: context.networkAccess,
+      permissionProfile: context.permissionConfig?.profile,
+      streamCallbacks: context.streamCallbacks,
+      onSpawn: context.onSpawn,
+      model: context.model,
+    });
+    return { ...result, liveStreaming: true };
+  },
+
+  getCapabilities(executionBackend) {
+    const local = executionBackend === 'platform_local';
+    return {
+      supportsQueuedUserMessages: local,
+      supportsImmediateInterrupt: local,
+      supportsResumeAfterInterrupt: false,
+      supportsLiveSessionControl: false,
+      supportsSoftStop: local,
+    };
+  },
+
+  getPermissionSupport(executionBackend) {
+    const local = executionBackend === 'platform_local';
+    return {
+      scope: 'next_run_or_continuation',
+      hotReloadSupported: false,
+      summary: local
+        ? 'Kimi Code 受限模式使用 Bubblewrap；full access 才直接运行。CLI 审批模式在启动时映射。'
+        : 'Kimi Code 当前仅接入 platform-local 执行。',
+      sandboxMode: local ? 'applied' : 'recorded_only',
+      approvalPolicy: local ? 'partially_applied' : 'recorded_only',
+      networkAccess: local ? 'applied' : 'recorded_only',
+      writableRoots: local ? 'applied' : 'recorded_only',
+    };
+  },
+};

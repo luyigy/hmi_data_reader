@@ -117,6 +117,8 @@ const executeLocalAgent = async (
     return await executeRealGeminiTask(task, agent);
   } else if (agentNameLower.includes('pi-agent') || agentNameLower === 'pi') {
     return await executeRealPiTask(task, agent);
+  } else if (agentNameLower.includes('kimi-code') || agentNameLower === 'kimi') {
+    return await executeRealKimiCodeTask(task, agent);
   }
   
   // 否则使用模拟处理器
@@ -555,6 +557,33 @@ const executeRealPiTask = async (
   }
 };
 
+const executeRealKimiCodeTask = async (
+  task: AgentTask,
+  agent: AgentTask['assignedAgents'][0]
+): Promise<Record<string, unknown>> => {
+  console.log(`[Real Kimi Code] Executing task "${task.name}" on ${agent.name}`);
+
+  const result = await executeRealAgentTask(
+    {
+      id: task.id,
+      name: task.name,
+      description: task.description,
+    },
+    'kimi-code'
+  );
+
+  return {
+    message: result.output || 'Task completed',
+    agentType: 'real-kimi-code',
+    location: 'local',
+    timestamp: new Date().toISOString(),
+    executionTime: result.executionTime,
+    success: result.success,
+    error: result.error,
+    taskType: 'real-kimi-code',
+  };
+};
+
 /**
  * 检查真实 Agent 是否可用
  */
@@ -564,6 +593,7 @@ export const checkRealAgentsAvailability = async (): Promise<{
   claude: boolean;
   'gemini-cli': boolean;
   'pi-agent': boolean;
+  'kimi-code': boolean;
 }> => {
   const status = await getRealAgentsStatus();
   return {
@@ -572,5 +602,6 @@ export const checkRealAgentsAvailability = async (): Promise<{
     claude: status.claude.available,
     'gemini-cli': status['gemini-cli'].available,
     'pi-agent': status['pi-agent'].available,
+    'kimi-code': status['kimi-code'].available,
   };
 };

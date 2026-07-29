@@ -77,6 +77,12 @@ export async function ensurePlatformLocalAgents(): Promise<PlatformLocalAgent[]>
       emojiIcon: '🛰️',
       colorTag: '#0F766E',
     },
+    {
+      name: 'kimi-code',
+      type: 'kimi-code',
+      emojiIcon: '🌙',
+      colorTag: '#7C3AED',
+    },
   ];
 
   for (const def of agentDefinitions) {

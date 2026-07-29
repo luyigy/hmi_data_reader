@@ -27,6 +27,9 @@ function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnTyp
   if (normalized.includes('pi-agent') || normalized === 'pi') {
     return localStatus['pi-agent'].available ? 'online' : 'offline';
   }
+  if (normalized.includes('kimi-code') || normalized === 'kimi') {
+    return localStatus['kimi-code'].available ? 'online' : 'offline';
+  }
   if (normalized.includes('codex')) {
     return localStatus.codex.available ? 'online' : 'offline';
   }

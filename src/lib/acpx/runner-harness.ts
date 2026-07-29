@@ -129,7 +129,7 @@ export const executeViaLocalHarness = async (
         },
       }
     : callbacks;
-  if (workspaceRoot && !['codex', 'claude', 'claude-haha'].includes(participant.harnessType)) {
+  if (workspaceRoot && !['codex', 'claude', 'claude-haha', 'kimi-code'].includes(participant.harnessType)) {
     throw new Error(`受限 Feishu 工作区暂不支持 harness: ${participant.harnessType}`);
   }
   const registerSpawn = (child: ChildProcess) => {

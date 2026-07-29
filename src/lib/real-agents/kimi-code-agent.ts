@@ -1,0 +1,261 @@
+import { execFile, spawn, type ChildProcess } from 'child_process';
+import { homedir } from 'os';
+import path from 'path';
+import { promisify } from 'util';
+import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
+
+export interface KimiCodeConfig {
+  timeout?: number | null;
+  workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
+  permissionProfile?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+  model?: string;
+}
+
+export interface KimiCodeTask {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface KimiCodeResult {
+  success: boolean;
+  output?: string;
+  error?: string;
+  executionTime: number;
+  filesModified?: string[];
+}
+
+const getKimiCodeBinary = () => process.env.KIMI_CODE_CLI_PATH?.trim() || 'kimi';
+const getKimiCodeHome = () =>
+  process.env.KIMI_CODE_HOME?.trim() || path.join(homedir(), '.kimi-code');
+
+const buildPrompt = (task: KimiCodeTask) => `Task: ${task.name}
+
+${task.description ? `Description: ${task.description}` : 'Please complete this task.'}
+
+Please complete this task step by step. When you're done, provide a summary of:
+1. What you did
+2. Any findings or results
+3. Any issues you encountered
+
+Take your time and be thorough.`;
+
+const processKimiCodeJsonLine = (
+  line: string,
+  state: { output: string; structuredError?: string },
+  streamCallbacks?: HarnessStreamCallbacks
+) => {
+  let event: {
+    role?: string;
+    type?: string;
+    content?: string;
+    error?: string;
+    message?: string;
+  };
+
+  try {
+    event = JSON.parse(line);
+  } catch {
+    state.structuredError = `Invalid Kimi Code stream-json output: ${line}`;
+    return;
+  }
+
+  if (event.role === 'assistant' && typeof event.content === 'string') {
+    state.output += event.content;
+    void streamCallbacks?.onStdoutChunk?.(event.content);
+  }
+
+  if (
+    typeof event.error === 'string'
+    || ((event.type === 'error' || event.role === 'error') && typeof event.message === 'string')
+  ) {
+    state.structuredError =
+      typeof event.error === 'string' ? event.error : event.message;
+  }
+};
+
+const runKimiCodeCommand = async ({
+  prompt,
+  timeout,
+  workingDirectory,
+  workspaceRoot,
+  networkAccess,
+  permissionProfile,
+  streamCallbacks,
+  onSpawn,
+  model,
+}: {
+  prompt: string;
+  timeout: number | null;
+  workingDirectory: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
+  permissionProfile?: string;
+  streamCallbacks?: HarnessStreamCallbacks;
+  onSpawn?: (child: ChildProcess) => void;
+  model?: string;
+}): Promise<string> => {
+  if (!workspaceRoot && permissionProfile !== 'full_access') {
+    throw new Error('Kimi Code requires Bubblewrap unless full access is explicitly selected.');
+  }
+
+  const env = { ...process.env };
+  const args = [
+    '--prompt',
+    prompt,
+    '--output-format',
+    'stream-json',
+    permissionProfile === 'full_access' ? '--yolo' : '--auto',
+  ];
+  if (model) args.push('--model', model);
+
+  const wrapped = wrapWithBubblewrap({
+    command: getKimiCodeBinary(),
+    commandArgs: args,
+    cwd: workingDirectory,
+    workspaceRoot,
+    networkAccess,
+    env,
+    configPaths: [getKimiCodeHome()],
+  });
+  const child = spawn(wrapped.command, wrapped.args, {
+    cwd: workingDirectory,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  onSpawn?.(child);
+
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let stdoutBuffer = '';
+    let settled = false;
+    let closed = false;
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    let forceKillHandle: NodeJS.Timeout | undefined;
+    const state: { output: string; structuredError?: string } = { output: '' };
+
+    const cleanup = () => {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      if (forceKillHandle) clearTimeout(forceKillHandle);
+    };
+    const fail = (message: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error(message));
+    };
+
+    if (typeof timeout === 'number' && timeout > 0) {
+      timeoutHandle = setTimeout(() => {
+        child.kill('SIGTERM');
+        forceKillHandle = setTimeout(() => {
+          if (!closed) child.kill('SIGKILL');
+        }, 2000);
+        forceKillHandle.unref();
+        if (!settled) {
+          settled = true;
+          reject(new Error(`Kimi Code execution timed out after ${timeout}ms`));
+        }
+      }, timeout);
+    }
+
+    child.stdout.on('data', (data) => {
+      if (settled) return;
+      const chunk = data.toString();
+      stdout += chunk;
+      stdoutBuffer += chunk;
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() ?? '';
+      for (const line of lines) {
+        if (line.trim()) processKimiCodeJsonLine(line.trim(), state, streamCallbacks);
+      }
+    });
+
+    child.stderr.on('data', (data) => {
+      if (settled) return;
+      const chunk = data.toString();
+      stderr += chunk;
+      void streamCallbacks?.onStderrChunk?.(chunk);
+    });
+
+    child.on('error', (error) => fail(`Failed to start Kimi Code CLI: ${error.message}`));
+    child.on('close', (code) => {
+      closed = true;
+      if (forceKillHandle) clearTimeout(forceKillHandle);
+      if (settled) return;
+      if (stdoutBuffer.trim()) {
+        processKimiCodeJsonLine(stdoutBuffer.trim(), state, streamCallbacks);
+      }
+      cleanup();
+      if (code === 0 && !state.structuredError) {
+        settled = true;
+        resolve(state.output || 'Kimi Code completed');
+        return;
+      }
+      fail(
+        state.structuredError
+        || stderr.trim()
+        || stdout.trim()
+        || `Kimi Code exited with code ${code ?? 'unknown'}`
+      );
+    });
+  });
+};
+
+export const executeKimiCodeTask = async (
+  task: KimiCodeTask,
+  config: KimiCodeConfig = {}
+): Promise<KimiCodeResult> => {
+  const startTime = Date.now();
+  try {
+    const output = await runKimiCodeCommand({
+      prompt: buildPrompt(task),
+      timeout: config.timeout === undefined ? 300000 : config.timeout,
+      workingDirectory: config.workingDirectory || process.cwd(),
+      workspaceRoot: config.workspaceRoot,
+      networkAccess: config.networkAccess,
+      permissionProfile: config.permissionProfile,
+      streamCallbacks: config.streamCallbacks,
+      onSpawn: config.onSpawn,
+      model: config.model,
+    });
+    return {
+      success: true,
+      output,
+      executionTime: Date.now() - startTime,
+      filesModified: [],
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      executionTime: Date.now() - startTime,
+    };
+  }
+};
+
+export const isKimiCodeAvailable = async (): Promise<boolean> => {
+  try {
+    await promisify(execFile)(getKimiCodeBinary(), ['--version'], { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const getKimiCodeVersion = async (): Promise<string> => {
+  try {
+    const { stdout } = await promisify(execFile)(getKimiCodeBinary(), ['--version'], {
+      timeout: 5000,
+    });
+    return stdout.match(/\d+\.\d+\.\d+/)?.[0] || stdout.trim() || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+};

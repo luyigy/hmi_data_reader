@@ -42,6 +42,9 @@ const normalizeHarnessType = (value?: string | null) => {
   if (normalized.includes('pi-agent') || normalized === 'pi') {
     return 'pi-agent';
   }
+  if (normalized.includes('kimi-code') || normalized === 'kimi') {
+    return 'kimi-code';
+  }
   if (normalized.includes('deepseek')) {
     return 'deepseek';
   }
@@ -232,6 +235,20 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         agentId: 'platform-local:pi-agent',
         agentName: 'Platform Local Pi Agent',
         runtimeAgentId: 'pi-agent',
+        status: 'online',
+      });
+    }
+
+    if (localStatus['kimi-code'].available) {
+      options.push({
+        gatewayId: 'platform-local',
+        gatewayName: 'Platform Local',
+        executionBackend: 'platform_local',
+        harnessType: 'kimi-code',
+        harnessLabel: 'Platform Local / Kimi Code CLI',
+        agentId: 'platform-local:kimi-code',
+        agentName: 'Platform Local Kimi Code',
+        runtimeAgentId: 'kimi-code',
         status: 'online',
       });
     }
