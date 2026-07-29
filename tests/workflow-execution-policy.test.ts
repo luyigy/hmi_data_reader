@@ -72,7 +72,7 @@ void (async () => {
       { command: 'workflow', args: ['policy', 'show'], options: {} },
       context,
     ),
-    /configured:[\s\S]*effective:[\s\S]*enforcement:[\s\S]*exceptions:/,
+    /configured:[\s\S]*effective:[\s\S]*runtime: outer_boundary=bubblewrap_workspace · codex_inner_sandbox=danger-full-access · approval=never[\s\S]*enforcement:[\s\S]*exceptions:/,
   );
   assert.equal(
     await handleWorkflowPolicyCommand(

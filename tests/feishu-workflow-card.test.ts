@@ -30,6 +30,7 @@ assert.deepEqual(card, {
         '**Workflow permissions**',
         'configured: preset=workspace · source=config/projects.yaml#example',
         'effective: workdir=/workspace/project · filesystem=workspace_write · temp=isolated_per_run · network=enabled · approval=never',
+        'runtime: outer_boundary=bubblewrap_workspace · codex_inner_sandbox=danger-full-access · approval=never',
         `enforcement: ${permissionSnapshot.enforcement.level} · sandbox=${permissionSnapshot.enforcement.sandboxMode} · approval=${permissionSnapshot.enforcement.approvalPolicy} · network=${permissionSnapshot.enforcement.networkAccess} · writable_roots=${permissionSnapshot.enforcement.writableRoots}`,
         'exceptions:',
         ...permissionSnapshot.exceptions.map((exception) => `- ${exception.path} · read_only · ${exception.reason}`),

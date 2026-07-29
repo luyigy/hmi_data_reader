@@ -11,6 +11,8 @@ export type WorkflowExecutionPolicy = {
   preset: 'workspace';
 };
 
+const WORKFLOW_CODEX_INNER_SANDBOX_MODE = 'danger-full-access';
+
 export type WorkflowPermissionSnapshot = {
   configured: {
     preset: 'workspace';
@@ -184,7 +186,7 @@ export const resolveWorkflowCodexBoundary = (
     workspaceRoot: snapshot.effective.workdir,
     networkAccess: snapshot.effective.network,
     // Bubblewrap is the Workflow filesystem boundary; Codex workspace-write makes .git read-only.
-    sandboxMode: 'danger-full-access',
+    sandboxMode: WORKFLOW_CODEX_INNER_SANDBOX_MODE,
     approvalPolicy: snapshot.effective.approval,
     readOnlyPaths: snapshot.exceptions.map((exception) => exception.path),
     codexHome: path.join(
@@ -207,6 +209,7 @@ export const applyWorkflowPermissionSnapshot = (
 export const formatWorkflowPermissionSnapshot = (snapshot: WorkflowPermissionSnapshot) => [
   `configured: preset=${snapshot.configured.preset} · source=${snapshot.configured.source}`,
   `effective: workdir=${snapshot.effective.workdir} · filesystem=${snapshot.effective.filesystem} · temp=${snapshot.effective.temporaryDirectory} · network=${snapshot.effective.network} · approval=${snapshot.effective.approval}`,
+  `runtime: outer_boundary=bubblewrap_workspace · codex_inner_sandbox=${WORKFLOW_CODEX_INNER_SANDBOX_MODE} · approval=${snapshot.effective.approval}`,
   `enforcement: ${snapshot.enforcement.level} · sandbox=${snapshot.enforcement.sandboxMode} · approval=${snapshot.enforcement.approvalPolicy} · network=${snapshot.enforcement.networkAccess} · writable_roots=${snapshot.enforcement.writableRoots}`,
   'exceptions:',
   ...snapshot.exceptions.map((exception) =>
