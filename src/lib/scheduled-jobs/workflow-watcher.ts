@@ -9,7 +9,6 @@ import {
   sendFeishuWorkflowTextMessage,
 } from '../feishu-api';
 import {
-  applyWorkflowReviewDecision,
   type WorkflowReviewPending,
 } from './workflow-review';
 import type { JobHandler } from './handlers';
@@ -61,14 +60,6 @@ type WorkflowRunner = (args: {
   eventKey: string;
   signal: AbortSignal;
 }) => Promise<void | boolean>;
-type Message = {
-  message_id?: string;
-  parent_id?: string;
-  msg_type?: string;
-  content?: string;
-  create_time?: string;
-  sender?: { id?: string };
-};
 type WorkflowDocumentImporter = (args: {
   content: string;
   name: string;
@@ -122,9 +113,6 @@ const documentCommit = async (cwd: string, head: string, filePath: string, signa
 const idempotencyKey = (eventKey: string, step: string) =>
   createHash('sha256').update(`${eventKey}:${step}`).digest('hex').slice(0, 32);
 
-const lark = async (signal: AbortSignal, ...args: string[]) =>
-  JSON.parse(await exec('lark-cli', args, signal)) as Record<string, unknown>;
-
 const importPlanDocument: WorkflowDocumentImporter = async ({ content, name, signal }) => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-platform-plan-'));
   const file = path.join(directory, 'plan.md');
@@ -175,22 +163,6 @@ const sendReviewCard = (
   idempotencyKey: idempotencyKey(pending.key, 'plan_review'),
   workflowContext: pending.workflowContext,
 });
-
-const messages = async (chatId: string, start: string, signal: AbortSignal) => {
-  const result: Message[] = [];
-  let pageToken: string | undefined;
-  do {
-    const args = ['im', '+chat-messages-list', '--chat-id', chatId, '--as', 'bot',
-      '--page-size', '50', '--order', 'asc', '--start', start, '--no-reactions'];
-    if (pageToken) args.push('--page-token', pageToken);
-    const data = await lark(signal, ...args);
-    const payload = data.data as { messages?: Message[]; has_more?: boolean; page_token?: string } | undefined;
-    result.push(...(payload?.messages ?? []));
-    if (payload?.has_more && !payload.page_token) throw new Error('lark message pagination omitted page_token');
-    pageToken = payload?.has_more ? payload.page_token : undefined;
-  } while (pageToken);
-  return result;
-};
 
 const execute = async (
   pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext'>,
@@ -385,31 +357,8 @@ export const workflowWatcherHandler = async (
           cursor: { ...previous, pending },
         };
       }
-      let command = '';
       if (pending.reviewState === 'review') {
-        const chatMessages = mode === 'active' ? await messages(project.feishu.chat_id, pending.detectedAt, signal) : [];
-        const decision = chatMessages.find((message) =>
-          message.sender?.id === project.feishu.approver_open_ids[0]
-          && message.msg_type === 'text'
-          && message.parent_id === pending.reviewMessageId
-          && /^(approve|reject|revise:\s*\S[\s\S]*)$/.test(message.content?.trim() ?? ''));
-        command = decision?.content?.trim() ?? '';
-        if (!decision) {
-          return { summary: `head=${head} pending=${pending.path} gate=plan_review`, cursor: previous };
-        }
-        const transition = applyWorkflowReviewDecision({
-          pending,
-          decision: command === 'approve' ? 'approve' : command === 'reject' ? 'reject' : 'revision',
-          actorOpenId: decision.sender?.id,
-          approverOpenId: project.feishu.approver_open_ids[0],
-          messageId: decision.parent_id,
-          pendingKey: pending.key,
-          reviewFeedback: command.slice(7).trim(),
-        });
-        if (transition.status !== 'applied') {
-          return { summary: `head=${head} pending=${pending.path} gate=plan_review decision=${transition.status}`, cursor: previous };
-        }
-        pending = { ...pending, ...transition.pending };
+        return { summary: `head=${head} pending=${pending.path} gate=plan_review`, cursor: previous };
       }
       if (pending.reviewState !== 'approved') {
         if (pending.reviewState === 'rejected') {

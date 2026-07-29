@@ -515,7 +515,12 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
     { sender: { id: 'coding-app' }, msg_type: 'text', content: '✅ 已为全部 4 个 agent 重置 session' },
   ] } }));
-  const approved = await run(revisedReviewCursor);
+  process.env.LARK_FAIL_MESSAGES = '1';
+  assert.match((await run(revisedReviewCursor)).summary, /gate=plan_review$/);
+  const approvedCursor = JSON.parse(JSON.stringify(revisedReviewCursor));
+  approvedCursor.pending.reviewState = 'approved';
+  const approved = await run(approvedCursor);
+  process.env.LARK_FAIL_MESSAGES = '0';
   assert.match(approved.summary, /result=session_started/);
   assert.equal(importedDocuments.length, 2, 'pending retry must reuse the revised document');
 
@@ -541,7 +546,9 @@ S01
   await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
     { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
   ] } }));
-  const approvalApproved = await run(approvalDocument.cursor);
+  const approvalApprovedCursor = JSON.parse(JSON.stringify(approvalDocument.cursor));
+  approvalApprovedCursor.pending.reviewState = 'approved';
+  const approvalApproved = await run(approvalApprovedCursor);
   assert.match(approvalApproved.summary, /action=await_plan_approval result=approved/);
 
   await writeFile(path.join(root, 'docs/branch/main/005_PLAN_20260725_import_failure.md'), `---
