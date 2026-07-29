@@ -38,7 +38,3 @@ plan_progress: complete
 - 未重启服务、未发送真实飞书消息、未修改数据库或生产数据。
 - 开工前用户已有的 `AGENTS.md`、`CLAUDE.md` 和 `.codex-tmp/` 未修改、未提交。
 - 本 PLAN 已完成，`next_action: none`，不启动后续 Session。
-
-<!-- WORKFLOW_PROMPT_START -->
-本 PLAN 的 S01 已完成，`next_action: none`。无需启动下一 Session；如需真实飞书验收，须由用户另行明确授权并创建新 PLAN。
-<!-- WORKFLOW_PROMPT_END -->
