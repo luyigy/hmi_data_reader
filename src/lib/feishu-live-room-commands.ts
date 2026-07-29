@@ -13,12 +13,21 @@ import {
 import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
 import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
-import { serializeLiveRoomMembersWithContext } from '@/lib/live-room';
+import {
+  postLiveRoomMessage,
+  resolveLiveRoomMessageMetadata,
+  serializeLiveRoomMembersWithContext,
+} from '@/lib/live-room';
 import {
   formatPermissionProfileLabel,
   parseNewSessionProfile,
 } from '@/lib/feishu-new-session';
 import { buildAcpxPermissionConfigForProfile } from '@/lib/acpx/permissions';
+import {
+  DEFAULT_LIVE_ROOM_HANDOFF_LIMIT,
+  MAX_LIVE_ROOM_HANDOFF_LIMIT,
+  parseLiveRoomHandoffLimit,
+} from '@/lib/live-room-handoff';
 
 export async function handleMembersCommand(context?: FeishuConversationContext) {
   const roomId = await getBoundLiveRoomId(context);
@@ -344,6 +353,13 @@ export async function handleRoomCommand(
   }
 
   const selectedAgentIds = await resolveFeishuSelectedAgentIds(command.options['agents']);
+  const requestedHandoffLimitValue = command.options['handoff-limit'];
+  const requestedHandoffLimit = requestedHandoffLimitValue === undefined
+    ? undefined
+    : parseLiveRoomHandoffLimit(requestedHandoffLimitValue);
+  if (requestedHandoffLimitValue !== undefined && requestedHandoffLimit === null) {
+    return `无效 handoff limit。请输入 0-${MAX_LIVE_ROOM_HANDOFF_LIMIT} 的整数。`;
+  }
   const effectiveAgentIds = selectedAgentIds.length > 0
     ? selectedAgentIds
     : await resolveDefaultFeishuBindingAgentIds();
@@ -370,10 +386,38 @@ export async function handleRoomCommand(
     permissionConfig,
     mode: mode || undefined, confirmCreate: true,
   });
+  if (typeof requestedHandoffLimit === 'number') {
+    const previous = await prisma.liveRoom.findUnique({
+      where: { id: result.liveRoomId },
+      select: { handoffLimit: true },
+    });
+    await prisma.liveRoom.update({
+      where: { id: result.liveRoomId },
+      data: { handoffLimit: requestedHandoffLimit },
+    });
+    await postLiveRoomMessage({
+      roomId: result.liveRoomId,
+      content: `系统提示：handoff limit 已从 ${previous?.handoffLimit ?? DEFAULT_LIVE_ROOM_HANDOFF_LIMIT} 调整为 ${requestedHandoffLimit}。`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        extras: {
+          systemEvent: 'handoff_limit_changed',
+          previousHandoffLimit: previous?.handoffLimit ?? null,
+          handoffLimit: requestedHandoffLimit,
+          changedBy: context.senderOpenId,
+        },
+      }),
+    });
+  }
   const [room, access] = await Promise.all([
     prisma.liveRoom.findUnique({
       where: { id: result.liveRoomId },
-      select: { workingDirectory: true, sourceTask: { select: { workingDirectory: true } } },
+      select: {
+        workingDirectory: true,
+        handoffLimit: true,
+        sourceTask: { select: { workingDirectory: true } },
+      },
     }),
     prisma.feishuUserAccess.findUnique({
       where: { openId: context.senderOpenId },
@@ -390,8 +434,48 @@ export async function handleRoomCommand(
     `新增成员数：${result.addedAgentCount}`,
     `权限：${permissionConfig ? formatPermissionProfileLabel(permissionConfig.profile) : 'Safe Local（默认）'}`,
     `模式：${result.roomMode}`,
+    `Handoff limit：${room?.handoffLimit ?? DEFAULT_LIVE_ROOM_HANDOFF_LIMIT}`,
     '接下来可以直接发送：/ap chat 你的消息',
   ].join('\n');
+}
+
+export async function handleHandoffLimitCommand(
+  command: ParsedFeishuCommand,
+  context?: FeishuConversationContext,
+) {
+  const room = await getBoundLiveRoom(context);
+  if (!room) return '当前 Feishu 会话尚未绑定 Live Room。';
+
+  const requestedValue = command.args[0] ?? command.options['limit'];
+  if (requestedValue === undefined) {
+    return `当前 handoff limit：${room.handoffLimit}。0 表示关闭自动 handoff。`;
+  }
+  const handoffLimit = parseLiveRoomHandoffLimit(requestedValue);
+  if (handoffLimit === null || command.args.length > 1) {
+    return `无效 handoff limit。用法：/ap handoff-limit <0-${MAX_LIVE_ROOM_HANDOFF_LIMIT}>`;
+  }
+
+  await prisma.liveRoom.update({
+    where: { id: room.id },
+    data: { handoffLimit },
+  });
+  await postLiveRoomMessage({
+    roomId: room.id,
+    content: `系统提示：handoff limit 已从 ${room.handoffLimit} 调整为 ${handoffLimit}。`,
+    messageType: 'system',
+    metadata: resolveLiveRoomMessageMetadata({
+      senderKind: 'system',
+      extras: {
+        systemEvent: 'handoff_limit_changed',
+        previousHandoffLimit: room.handoffLimit,
+        handoffLimit,
+        changedBy: context?.senderOpenId || null,
+      },
+    }),
+  });
+  return handoffLimit === 0
+    ? '✅ 已关闭当前房间的自动 handoff。'
+    : `✅ 当前房间 handoff limit 已设为 ${handoffLimit}。`;
 }
 
 export async function handleModeCommand(

@@ -22,6 +22,7 @@ import {
 import {
   handleAddCommand,
   handleCodexConfigCommand,
+  handleHandoffLimitCommand,
   handleKickCommand,
   handleMembersCommand,
   handleModeCommand,
@@ -79,6 +80,8 @@ export async function handleFeishuCommand(args: {
       return handleRegisterCommand(args.command);
     case 'room':
       return handleRoomCommand(args.command, args.context);
+    case 'handoff-limit':
+      return handleHandoffLimitCommand(args.command, args.context);
     case 'mode':
       return handleModeCommand(args.command, args.context);
     case 'members':

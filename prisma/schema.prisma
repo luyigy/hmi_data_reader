@@ -396,6 +396,7 @@ model LiveRoom {
   createdBy              String                  @default("user")
   currentSpeakerMemberId String?
   workingDirectory       String?
+  handoffLimit           Int                         @default(4)
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   sourceTask             Task?                   @relation(fields: [sourceTaskId], references: [id], onDelete: SetNull)
@@ -575,6 +576,11 @@ model LiveRoomMessage {
   content          String
   topicSnapshot    String?
   metadata         String?
+  handoffRootMessageId  String?
+  handoffLimitSnapshot  Int?
+  handoffCount          Int                @default(0)
+  handoffClaimStatus    String?
+  handoffTargetMemberId String?
   createdAt        DateTime             @default(now())
   room             LiveRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
   senderMember     LiveRoomMember?      @relation("LiveRoomMessageSender", fields: [senderMemberId], references: [id], onDelete: SetNull)
@@ -586,6 +592,8 @@ model LiveRoomMessage {
   @@index([senderMemberId, createdAt])
   @@index([replyToMessageId])
   @@index([messageType, createdAt])
+  @@index([handoffRootMessageId])
+  @@index([handoffClaimStatus])
 }
 
 model LiveRoomMemberSession {
@@ -618,6 +626,7 @@ model LiveRoomDelivery {
   roomMessageId  String
   targetMemberId String
   sessionId      String?
+  handoffRootMessageId String?
   deliveryStatus String                  @default("pending") // pending, delivered, failed, fallback
   fallbackReason String?
   attemptedAt    DateTime                @default(now())
@@ -631,4 +640,5 @@ model LiveRoomDelivery {
   @@index([targetMemberId, attemptedAt])
   @@index([sessionId])
   @@index([deliveryStatus, attemptedAt])
+  @@index([handoffRootMessageId])
 }

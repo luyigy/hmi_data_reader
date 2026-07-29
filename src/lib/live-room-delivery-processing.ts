@@ -21,6 +21,10 @@ import {
   executeLiveRoomReplyViaAcpx,
   normalizeLiveRoomExecutionError,
 } from '@/lib/live-room-delivery-execution';
+import {
+  detectLiveRoomHandoffIntent,
+  recordRejectedLiveRoomHandoff,
+} from '@/lib/live-room-handoff';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const REMOTE_STALE_GRACE_MS = 30 * 1000;
@@ -183,14 +187,13 @@ export const processLiveRoomDelivery = async ({
   }
   const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
   const relayOrigin = {
-    feishuBindingId: sourceMetadata?.feishuBindingId,
-    feishuChatId: sourceMetadata?.feishuChatId,
+    feishuBindingId: typeof sourceMetadata?.feishuBindingId === 'string'
+      ? sourceMetadata.feishuBindingId
+      : undefined,
+    feishuChatId: typeof sourceMetadata?.feishuChatId === 'string'
+      ? sourceMetadata.feishuChatId
+      : undefined,
   };
-
-  const targetMember = room.members.find((member) => member.id === targetMemberId);
-  if (!targetMember || !targetMember.canReply) {
-    return;
-  }
 
   const delivery = await prisma.liveRoomDelivery.findUnique({
     where: { id: deliveryId },
@@ -198,6 +201,43 @@ export const processLiveRoomDelivery = async ({
 
   if (!delivery || delivery.deliveryStatus !== 'pending') {
     return;
+  }
+
+  const targetMember = room.members.find((member) => member.id === targetMemberId);
+  const handoffUnavailableReason = delivery.handoffRootMessageId && targetMember
+    ? targetMember.joinStatus !== 'joined'
+      ? 'Handoff target was removed from the room'
+      : !targetMember.canReply
+      ? 'Handoff target was stopped'
+      : targetMember.presenceStatus === 'offline'
+      ? 'Handoff target is offline'
+      : null
+    : null;
+  if (!targetMember || !targetMember.canReply || handoffUnavailableReason) {
+    const fallbackReason = handoffUnavailableReason || 'Live room target cannot reply';
+    await prisma.liveRoomDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        deliveryStatus: 'failed',
+        fallbackReason,
+        acknowledgedAt: new Date(),
+      },
+    });
+    await postLiveRoomMessage({
+      roomId,
+      content: `系统提示：handoff 目标不可用：${fallbackReason}。`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        targetMemberId,
+        extras: {
+          ...relayOrigin,
+          systemEvent: 'handoff_target_unavailable',
+          deliveryId,
+        },
+      }),
+    });
+    return null;
   }
 
   const session = await ensureMemberSession(room.id, targetMember);
@@ -351,6 +391,13 @@ export const processLiveRoomDelivery = async ({
         members: room.members,
         senderMemberId: targetMember.id,
       });
+      const handoffIntent = delivery.handoffRootMessageId
+        ? detectLiveRoomHandoffIntent({
+            content: output,
+            members: room.members,
+            senderMemberId: targetMember.id,
+          })
+        : { kind: 'none' as const };
       const startsWithExplicitMention = /^[\s]*[@$][^\s]+/.test(output);
       const isDirectedVisibleReply =
         startsWithExplicitMention
@@ -362,7 +409,7 @@ export const processLiveRoomDelivery = async ({
         ? room.members.find((member) => member.id === directedTargetMemberId) || null
         : null;
 
-      await postLiveRoomMessage({
+      const assistantMessage = await postLiveRoomMessage({
         roomId: room.id,
         senderMemberId: targetMember.id,
         content: output,
@@ -379,6 +426,9 @@ export const processLiveRoomDelivery = async ({
           expectedResponderMemberIds: detectLiveRoomMentionAll(output)
             ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
             : [],
+          handoffToMemberId: handoffIntent.kind === 'target'
+            ? handoffIntent.targetMemberId
+            : null,
           extras: {
             ...relayOrigin,
             deliveryId: delivery.id,
@@ -388,13 +438,50 @@ export const processLiveRoomDelivery = async ({
             remoteTiming,
             targetLocked: isDirectedVisibleReply,
             targetMemberName: directedTargetMember?.displayName || null,
+            handoffRootMessageId: delivery.handoffRootMessageId,
           },
         }),
       });
+
+      if (handoffIntent.kind === 'invalid') {
+        const status = handoffIntent.reason === 'multiple_targets'
+          ? 'rejected_multiple_targets'
+          : 'rejected_unknown_target';
+        await recordRejectedLiveRoomHandoff({
+          assistantMessageId: assistantMessage.id,
+          status,
+        });
+        await postLiveRoomMessage({
+          roomId: room.id,
+          content: handoffIntent.reason === 'multiple_targets'
+            ? `系统提示：${targetMember.displayName} 的回复包含多个 $member 目标，本次不接力。`
+            : `系统提示：${targetMember.displayName} 请求的 $member 不属于当前房间，本次不接力。`,
+          messageType: 'system',
+          metadata: resolveLiveRoomMessageMetadata({
+            senderKind: 'system',
+            extras: {
+              ...relayOrigin,
+              systemEvent: status,
+              assistantMessageId: assistantMessage.id,
+            },
+          }),
+        });
+      }
+
+      if (handoffIntent.kind === 'target' && delivery.handoffRootMessageId) {
+        return {
+          assistantMessageId: assistantMessage.id,
+          rootMessageId: delivery.handoffRootMessageId,
+          targetMemberId: handoffIntent.targetMemberId,
+          roomId: room.id,
+          sourceMemberName: targetMember.displayName,
+          chainDepth,
+          relayOrigin,
+        };
+      }
     }
 
-    // Agent mentions remain visible context. Only user messages and explicit
-    // orchestrators may schedule another turn, avoiding recursive queue cycles.
+    return null;
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'Live room delivery failed';
     const message = normalizeLiveRoomExecutionError(rawMessage);
@@ -441,6 +528,7 @@ export const processLiveRoomDelivery = async ({
         }),
       });
     }
+    return null;
   } finally {
     if (targetMember.backend === 'remote_ssh') {
       clearLiveRoomRunningProcess(targetMember.id, delivery.id);

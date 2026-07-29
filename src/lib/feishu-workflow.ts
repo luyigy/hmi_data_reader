@@ -224,6 +224,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
         roomMessageId: dispatch.messageId,
         requestedTargetMemberId: null,
         waitForCompletion: false,
+        allowHandoff: false,
       });
     }
   }

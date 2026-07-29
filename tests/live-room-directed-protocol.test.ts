@@ -12,9 +12,10 @@ const manual = buildLiveRoomControlManual({
 });
 
 assert.match(manual, /Do not use spawn_agent, send_message/);
-assert.match(manual, /mentions are visible references only/);
-assert.match(manual, /structured \/ap plan or \/run workflow/);
-assert.doesNotMatch(manual, /reply should start with \$claude/);
+assert.match(manual, /`@member` is a visible reference only/);
+assert.match(manual, /exactly one `\$member` requests an asynchronous handoff/);
+assert.match(manual, /Structured \/ap plan and \/run workflows keep their orchestrated order/);
+assert.match(manual, /use \$claude once/);
 assert.match(buildLiveRoomContinuationMessage(manual, '让 Claude 测试'), /Live room turn protocol[\s\S]*让 Claude 测试/);
 assert.equal(
   stripLeadingMentionForTarget({

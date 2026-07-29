@@ -16,6 +16,17 @@ assert.deepEqual(page3, { command: 'help', args: [], options: { page: '3' } });
 assert.match(formatFeishuHelp(page3), /Workflow \/ Jobs[\s\S]*diagnose workflow-watcher/);
 
 assert.match(formatFeishuHelp({ args: [], options: {} }), /房间与 Agent[\s\S]*\/ap room[\s\S]*第 1\/4 页/);
+assert.deepEqual(parseFeishuCommand(message('/ap handoff-limit 0')), {
+  command: 'handoff-limit',
+  args: ['0'],
+  options: {},
+});
+assert.deepEqual(parseFeishuCommand(message('/ap room --handoff-limit=4 demo')), {
+  command: 'room',
+  args: ['demo'],
+  options: { 'handoff-limit': '4' },
+});
+assert.match(formatFeishuHelp({ args: [], options: {} }), /\/ap handoff-limit \[0-32\]/);
 assert.equal(formatFeishuHelp({ args: ['0'], options: {} }), '页码无效：0。请使用 /ap help 1-4。');
 assert.equal(formatFeishuHelp({ args: [], options: { page: '5' } }), '页码无效：5。请使用 /ap help 1-4。');
 
