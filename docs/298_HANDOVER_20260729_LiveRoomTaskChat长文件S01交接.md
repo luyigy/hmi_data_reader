@@ -35,8 +35,9 @@ plan_progress: in_progress
 <!-- WORKFLOW_PROMPT_START -->
 执行 `docs/296_PLAN_20260728_LiveRoom受控接力Codex遥测与长文件治理.md` 的 S02：只纯拆分
 `src/components/live-room/LiveRoomWorkspace.tsx`。先读取目标 HEAD 的
-`docs/workflow/workflow-contract.yaml`、本 PLAN、最新有效 HANDOVER、Live Room Workspace 及其直接
-依赖和现有聚焦测试；确认并保护开工前用户的未提交改动，运行 `npm run check:long-files`。对将修改的
+`docs/workflow/workflow-contract.yaml`、本 PLAN、
+`docs/298_HANDOVER_20260729_LiveRoomTaskChat长文件S01交接.md`、Live Room Workspace 及其直接依赖和
+现有聚焦测试；确认并保护开工前用户的未提交改动，运行 `npm run check:long-files`。对将修改的
 每个 symbol 先运行 GitNexus upstream impact，HIGH/CRITICAL 先报告。按现有 feature 责任提取成员/运行
 状态面板、消息时间线、composer/mention、房间控制和纯展示模型；Workspace 仅组合现有 hooks、状态和
 布局。原文件和新增文件均须低于 800 行，Web Live Room 的 payload、轮询、Socket、权限、可见性、发送、

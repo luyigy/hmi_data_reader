@@ -221,4 +221,3 @@ export const buildPermissionConfigFromProfile = (
     writableRoots: currentWritableRoots,
   };
 };
-
