@@ -1,0 +1,419 @@
+import { prisma } from '@/lib/prisma';
+import { generateShortAlias } from '@/lib/agent-identity';
+import {
+  ensureFeishuConversationBinding,
+  getBoundLiveRoom,
+  getBoundLiveRoomId,
+  resolveFeishuSelectedAgentIds,
+  resolveDefaultFeishuBindingAgentIds,
+  resolveRoomMemberQuery,
+  setFeishuBoundRoomMode,
+  type FeishuConversationContext,
+} from '@/lib/feishu-live-room';
+import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
+import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
+import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
+import { serializeLiveRoomMembersWithContext } from '@/lib/live-room';
+import {
+  formatPermissionProfileLabel,
+  parseNewSessionProfile,
+} from '@/lib/feishu-new-session';
+import { buildAcpxPermissionConfigForProfile } from '@/lib/acpx/permissions';
+
+export async function handleMembersCommand(context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。请先使用 /ap room --agents=<agentId> 创建绑定。';
+  }
+
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      sourceTask: {
+        select: {
+          id: true,
+          name: true,
+          acpxPermissionConfig: true,
+        },
+      },
+      members: {
+        include: {
+          gateway: true,
+          agentRecord: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+    },
+  });
+
+  if (!room || room.members.length === 0) {
+    return `Live Room ${roomId} 没有成员。`;
+  }
+
+  const members = await serializeLiveRoomMembersWithContext({
+    members: room.members,
+    sourceTask: room.sourceTask,
+  });
+
+  const lines = members.map((m) => {
+    const tag = m.memberType === 'user' ? '(you)' : m.presenceStatus;
+    const watermark = m.contextWatermark
+      ? ` | 用量 ${m.contextWatermark.usagePercentage}% (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
+      : '';
+    const permission = m.permissionLabel ? ` | ${m.permissionLabel}` : '';
+    return `- ${m.displayName} [${m.id.slice(-8)}] | ${m.backend || 'local'}${permission} | ${tag}${watermark}`;
+  });
+
+  return [`Live Room 成员列表 (${roomId.slice(-8)})`, ...lines].join('\n');
+}
+
+export async function handleNickCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const memberQuery = (command.options['member'] || command.args[0] || '').trim().replace(/^[@$]/, '');
+  const nickname = (command.options['name'] || command.args.slice(1).join(' ') || '').trim();
+
+  if (!memberQuery || !nickname) {
+    return [
+      '请指定成员和新昵称。',
+      '示例：/ap nick --member="hk-vision Claude" --name="hk-vision"',
+      '示例：/ap nick claude local-claude',
+    ].join('\n');
+  }
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    include: {
+      gateway: true,
+    },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const target = members.find((m) =>
+    m.memberType !== 'user' && (
+      `${m.displayName} [${m.id.slice(-8)}]`.toLowerCase() === memberQuery.toLowerCase() ||
+      m.displayName.toLowerCase() === memberQuery.toLowerCase() ||
+      (m.userNickname || '').toLowerCase() === memberQuery.toLowerCase() ||
+      (m.shortAlias || '').toLowerCase() === memberQuery.toLowerCase() ||
+      m.displayName.toLowerCase().includes(memberQuery.toLowerCase()) ||
+      m.id.endsWith(memberQuery)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((m) => m.memberType !== 'user')
+      .map((m) => `${m.displayName} [${m.id.slice(-8)}]`)
+      .join(', ');
+    return `找不到成员：${memberQuery}\n当前成员：${names || '(none)'}`;
+  }
+
+  const shortAlias = generateShortAlias(
+    nickname,
+    target.harnessType || 'unknown',
+    target.gateway?.name || null,
+    target.backend
+  );
+
+  const updated = await prisma.liveRoomMember.update({
+    where: { id: target.id },
+    data: {
+      userNickname: nickname,
+      shortAlias,
+    },
+  });
+
+  return `✅ 已将 ${target.displayName} 重命名为 ${updated.userNickname}。\n后续可直接使用 $${updated.userNickname} 进行 mention。`;
+}
+
+export async function handleRoleCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const memberQuery = (command.options['member'] || command.args[0] || '').trim().replace(/^[@$]/, '');
+  const requestedRole = (command.options['role'] || command.args[1] || '').trim().toLowerCase();
+  const role = requestedRole === 'implementor' ? 'implementer' : requestedRole;
+  const validRoles = ['planner', 'researcher', 'implementer', 'reviewer', 'tester', 'custom'];
+  if (!memberQuery || !validRoles.includes(role)) {
+    return [
+      '请指定成员和有效角色。',
+      '角色：planner、researcher、implementer、reviewer、tester、custom',
+      '示例：/ap role --member=lcc --role=implementer',
+    ].join('\n');
+  }
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const normalizedQuery = memberQuery.toLowerCase();
+  const target = members.find((member) =>
+    member.memberType !== 'user' && (
+      member.displayName.toLowerCase() === normalizedQuery ||
+      (member.userNickname || '').toLowerCase() === normalizedQuery ||
+      (member.shortAlias || '').toLowerCase() === normalizedQuery ||
+      member.displayName.toLowerCase().includes(normalizedQuery) ||
+      member.id.endsWith(memberQuery)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((member) => member.memberType !== 'user')
+      .map((member) => member.userNickname || member.displayName)
+      .join(', ');
+    return `找不到成员：${memberQuery}\n当前成员：${names || '(none)'}`;
+  }
+
+  await prisma.liveRoomMember.update({
+    where: { id: target.id },
+    data: { role },
+  });
+  return `✅ 已将 ${target.userNickname || target.displayName} 的角色设为 ${role}。`;
+}
+
+export async function handleCodexConfigCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const room = await getBoundLiveRoom(context);
+  if (!room) return '当前 Feishu 会话尚未绑定 Live Room。';
+
+  const memberQuery = (command.options['agent'] || command.options['member'] || command.args[0] || '').trim();
+  const member = resolveRoomMemberQuery({ room, query: memberQuery });
+  if (!member) return memberQuery ? `找不到目标成员：${memberQuery}` : '当前房间没有可配置的 agent 成员。';
+  if (member.harnessType !== 'codex') return `${member.userNickname || member.displayName} 不是 Codex 成员。`;
+
+  const hasModel = 'model' in command.options;
+  const hasThinking = 'thinking' in command.options || 'reasoning' in command.options;
+  if (!hasModel && !hasThinking) {
+    return [
+      `${member.userNickname || member.displayName} Codex 配置`,
+      `Model: ${member.codexModel || 'inherit'}`,
+      `Thinking: ${member.codexReasoningEffort || 'inherit'}`,
+    ].join('\n');
+  }
+
+  const requestedModel = command.options['model'];
+  const requestedThinking = command.options['thinking'] ?? command.options['reasoning'];
+  const settings = normalizeCodexMemberSettings({
+    model: hasModel && requestedModel !== 'inherit' ? requestedModel : member.codexModel,
+    reasoningEffort: hasThinking && requestedThinking !== 'inherit'
+      ? requestedThinking
+      : member.codexReasoningEffort,
+  });
+  if (hasModel && requestedModel === 'inherit') settings.model = null;
+  if (hasThinking && requestedThinking === 'inherit') settings.reasoningEffort = null;
+
+  const updated = await prisma.liveRoomMember.update({
+    where: { id: member.id },
+    data: {
+      codexModel: settings.model,
+      codexReasoningEffort: settings.reasoningEffort,
+    },
+  });
+
+  return [
+    `✅ 已更新 ${updated.userNickname || updated.displayName} 的 Codex 配置`,
+    `Model: ${updated.codexModel || 'inherit'}`,
+    `Thinking: ${updated.codexReasoningEffort || 'inherit'}`,
+    '将在下一次 run / continuation 生效。',
+  ].join('\n');
+}
+
+export async function handleSpeakerCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    select: { currentSpeakerMemberId: true },
+  });
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const query = (command.options['member'] || command.args.join(' ') || '').trim().replace(/^[@$]/, '');
+  if (!query) {
+    const current = members.find((member) => member.id === room?.currentSpeakerMemberId) || null;
+    return current
+      ? `当前默认 speaker：${current.userNickname || current.displayName} [${current.id.slice(-8)}]`
+      : '当前房间还没有默认 speaker。';
+  }
+
+  const target = members.find((m) =>
+    m.memberType !== 'user' && (
+      `${m.displayName} [${m.id.slice(-8)}]`.toLowerCase() === query.toLowerCase() ||
+      m.displayName.toLowerCase() === query.toLowerCase() ||
+      (m.userNickname || '').toLowerCase() === query.toLowerCase() ||
+      (m.shortAlias || '').toLowerCase() === query.toLowerCase() ||
+      m.displayName.toLowerCase().includes(query.toLowerCase()) ||
+      m.id.endsWith(query)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((m) => m.memberType !== 'user')
+      .map((m) => `${m.userNickname || m.displayName} [${m.id.slice(-8)}]`)
+      .join(', ');
+    return `找不到成员：${query}\n当前可切换 speaker 的成员：${names || '(none)'}`;
+  }
+
+  await prisma.liveRoom.update({
+    where: { id: roomId },
+    data: {
+      currentSpeakerMemberId: target.id,
+    },
+  });
+
+  return `✅ 默认 speaker 已切换为 ${target.userNickname || target.displayName} [${target.id.slice(-8)}]`;
+}
+
+export async function handleKickCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const nameQuery = command.args.join(' ').trim().replace(/^@/, '');
+  if (!nameQuery) {
+    return '请指定要移除的成员名称。\n示例：/ap kick claude';
+  }
+
+  const members = await prisma.liveRoomMember.findMany({ where: { roomId } });
+  const target = members.find((m) =>
+    m.memberType !== 'user' && (
+      `${m.displayName} [${m.id.slice(-8)}]`.toLowerCase() === nameQuery.toLowerCase() ||
+      m.displayName.toLowerCase() === nameQuery.toLowerCase() ||
+      (m.userNickname || '').toLowerCase() === nameQuery.toLowerCase() ||
+      (m.shortAlias || '').toLowerCase() === nameQuery.toLowerCase() ||
+      m.displayName.toLowerCase().includes(nameQuery.toLowerCase()) ||
+      m.id.endsWith(nameQuery)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((m) => m.memberType !== 'user')
+      .map((m) => m.userNickname || m.displayName)
+      .join(', ');
+    return `找不到成员：${nameQuery}\n当前可踢出的成员：${names || '(none)'}`;
+  }
+
+  await fetch(new URL(
+    `/api/live-rooms/${roomId}/members/${target.id}`,
+    process.env.AGENT_PLATFORM_BASE_URL?.trim() || 'http://127.0.0.1:3010'
+  ).toString(), { method: 'DELETE' });
+
+  return `✅ 已将 ${target.displayName} 从房间移除。`;
+}
+
+export async function handleAddCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const agentSelectorValue = command.options['agents'] || command.args.join(',');
+  const agentIds = await resolveFeishuSelectedAgentIds(agentSelectorValue);
+
+  if (agentIds.length === 0) {
+    return '请指定要添加的 agent。\n示例：/ap add --agents=TX-server:claude\n也支持完整 agent ID。';
+  }
+
+  // Re-use the existing room binding add path
+  const { ensureFeishuConversationBinding } = await import('@/lib/feishu-live-room');
+  if (!context) return '需要 Feishu 会话上下文。';
+  const result = await ensureFeishuConversationBinding({ context, selectedAgentIds: agentIds });
+  return `✅ 已添加 ${result.addedAgentCount} 个成员到 Live Room ${result.liveRoomId.slice(-8)}。\n可使用 /ap members 查看当前成员列表。`;
+}
+
+export async function handleRoomCommand(
+  command: ParsedFeishuCommand,
+  context?: FeishuConversationContext
+) {
+  if (!context) {
+    return '当前 room 命令需要来自 Feishu webhook 的会话上下文。';
+  }
+
+  const selectedAgentIds = await resolveFeishuSelectedAgentIds(command.options['agents']);
+  const effectiveAgentIds = selectedAgentIds.length > 0
+    ? selectedAgentIds
+    : await resolveDefaultFeishuBindingAgentIds();
+  const title = command.args.join(' ').trim() || command.options['title'];
+  const requestedProfile =
+    parseNewSessionProfile(command.options['profile'])
+    || parseNewSessionProfile(command.options['rights'])
+    || parseNewSessionProfile(command.options['permission'])
+    || parseNewSessionProfile(command.options['access']);
+  const permissionConfig = requestedProfile
+    ? buildAcpxPermissionConfigForProfile(requestedProfile, [])
+    : undefined;
+  const requestedModeValue = command.options['mode'];
+  const mode = requestedModeValue ? parseLiveRoomMode(requestedModeValue) : null;
+  if (requestedModeValue && !mode) {
+    return '无效 mode。可选值：discussion、execution、hybrid。';
+  }
+  const result = await ensureFeishuConversationBinding({
+    context,
+    selectedAgentIds: effectiveAgentIds,
+    title,
+    topic: command.options['topic'],
+    workingDirectory: command.options['workdir'] || undefined,
+    permissionConfig,
+    mode: mode || undefined, confirmCreate: true,
+  });
+  const [room, access] = await Promise.all([
+    prisma.liveRoom.findUnique({
+      where: { id: result.liveRoomId },
+      select: { workingDirectory: true, sourceTask: { select: { workingDirectory: true } } },
+    }),
+    prisma.feishuUserAccess.findUnique({
+      where: { openId: context.senderOpenId },
+      select: { workspaceRoot: true },
+    }),
+  ]);
+
+  return [
+    result.created ? '已创建 Feishu 绑定房间。' : '已复用现有 Feishu 绑定房间。',
+    `Live Room: ${result.roomTitle} (${result.liveRoomId})`,
+    `绑定会话：${context.chatType} ${context.chatId}`,
+    `授权根目录：${access?.workspaceRoot || '管理员不受用户根目录限制'}`,
+    `实际 workdir：${room?.workingDirectory || room?.sourceTask?.workingDirectory || process.cwd()}`,
+    `新增成员数：${result.addedAgentCount}`,
+    `权限：${permissionConfig ? formatPermissionProfileLabel(permissionConfig.profile) : 'Safe Local（默认）'}`,
+    `模式：${result.roomMode}`,
+    '接下来可以直接发送：/ap chat 你的消息',
+  ].join('\n');
+}
+
+export async function handleModeCommand(
+  command: ParsedFeishuCommand,
+  context?: FeishuConversationContext
+) {
+  if (!context) {
+    return '当前 mode 命令需要来自 Feishu webhook 的会话上下文。';
+  }
+
+  const requested = command.args[0] || command.options['mode'];
+  const mode = parseLiveRoomMode(requested);
+  if (!mode) {
+    return '用法：/ap mode <discussion|execution|hybrid>';
+  }
+
+  const room = await setFeishuBoundRoomMode(context, mode);
+  const behavior =
+    mode === 'execution'
+      ? '无显式目标的消息会按成员角色顺序执行。'
+      : mode === 'hybrid'
+      ? '普通消息按 discussion 路由；发送 /run ... 启动角色队列。'
+      : '显式目标优先；无目标时仅 current speaker 回复。';
+  return `✅ ${room.title} 已切换为 ${mode}。\n${behavior}`;
+}
