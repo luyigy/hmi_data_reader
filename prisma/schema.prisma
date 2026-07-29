@@ -525,6 +525,13 @@ model WorkflowDispatch {
   @@unique([projectId, jobId, eventKey])
 }
 
+model FeishuProcessedMessage {
+  messageId String   @id
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model LiveRoomMember {
   id                   String                  @id @default(cuid())
   roomId               String

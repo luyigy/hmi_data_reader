@@ -26,6 +26,7 @@ import {
   resolveFeishuCardActionIdentity,
   type FeishuCardActionIdentity,
 } from '@/lib/feishu-card-action';
+import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
 export { resolveFeishuCardActionIdentity } from '@/lib/feishu-card-action';
 
 type FeishuLongConnectionState = {
@@ -392,11 +393,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
     'im.message.reaction.deleted_v1': () => {},
     'im.message.receive_v1': async (data) => {
       const parsedMessage = parseWsIncomingMessage(data as FeishuWsMessagePayload);
-      const parentMessageId = parsedMessage?.parentId;
-      const message = parsedMessage
-        ? await hydrateFeishuMessageResources(parsedMessage)
-        : null;
-      if (!message) {
+      if (!parsedMessage) {
         console.log(`${prefix} ignored event: parse failed`);
         return;
       }
@@ -407,65 +404,53 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
       });
 
       pruneSeenMessageIds(state);
-      if (state.messageIds.has(message.messageId)) {
-        console.log(`${prefix} ignored duplicate`, { messageId: message.messageId });
+      if (state.messageIds.has(parsedMessage.messageId)) {
+        console.log(`${prefix} ignored duplicate`, { messageId: parsedMessage.messageId });
         return;
       }
-      state.messageIds.set(message.messageId, Date.now());
 
       const selfOpenId = process.env.FEISHU_BOT_OPEN_ID?.trim();
-      if (selfOpenId && message.senderOpenId === selfOpenId) {
-        console.log(`${prefix} ignored self message`, { messageId: message.messageId });
+      if (selfOpenId && parsedMessage.senderOpenId === selfOpenId) {
+        console.log(`${prefix} ignored self message`, { messageId: parsedMessage.messageId });
         return;
       }
-      if (!await checkFeishuDirectMessageAccess(message)) return;
-      const revisionFeedback = await resolveWorkflowRevisionFeedback({
-        chatId: message.chatId,
-        actorOpenId: message.senderOpenId,
-        parentMessageId,
-        feedback: message.text,
-      });
-      if (revisionFeedback.status === 'applied') {
-        await sendFeishuTextMessage({
-          receiveId: message.chatId,
-          receiveIdType: 'chat_id',
-          replyId: message.messageId,
-          text: '✅ 修改意见已收到，正在通知 Coding Agent 修订 PLAN。',
-        });
+
+      if (!await claimFeishuMessage(prisma, parsedMessage.messageId)) {
+        state.messageIds.set(parsedMessage.messageId, Date.now());
+        console.log(`${prefix} ignored persisted duplicate`, { messageId: parsedMessage.messageId });
         return;
       }
-      const command = parseFeishuCommand(message);
-      if (!command) {
-        // Not a /ap command — check if the chat is bound to a live room and relay
-        const relayTypingReactionId = await addTypingReaction(message.messageId);
-        const relayed = await tryRelayNonCommandToLiveRoom({
-          context: {
-            chatId: message.chatId,
-            chatType: message.chatType,
-            senderOpenId: message.senderOpenId,
-            messageId: message.messageId,
-            mentionNames: message.mentionNames,
-          },
-          content: message.text,
-          typingReactionId: relayTypingReactionId ?? undefined,
-        }).catch((err) => {
-          console.error(`${prefix} relay non-command failed`, { error: err });
-          return false;
+      state.messageIds.set(parsedMessage.messageId, Date.now());
+
+      void (async () => {
+        const parentMessageId = parsedMessage.parentId;
+        const message = await hydrateFeishuMessageResources(parsedMessage);
+        if (!message) {
+          console.log(`${prefix} ignored event: resource hydration failed`);
+          return;
+        }
+
+        if (!await checkFeishuDirectMessageAccess(message)) return;
+        const revisionFeedback = await resolveWorkflowRevisionFeedback({
+          chatId: message.chatId,
+          actorOpenId: message.senderOpenId,
+          parentMessageId,
+          feedback: message.text,
         });
-        if (!relayed) {
-          // No binding found — clean up the typing reaction we already added
-          if (relayTypingReactionId) {
-            await removeTypingReaction(message.messageId, relayTypingReactionId);
-          }
-          console.log(`${prefix} ignored non-command (no binding)`, {
-            messageId: message.messageId,
-            text: message.text,
+        if (revisionFeedback.status === 'applied') {
+          await sendFeishuTextMessage({
+            receiveId: message.chatId,
+            receiveIdType: 'chat_id',
+            replyId: message.messageId,
+            text: '✅ 修改意见已收到，正在通知 Coding Agent 修订 PLAN。',
           });
-          if (message.chatType === 'group') {
-            await sendFeishuTextMessage({ receiveId: message.chatId, receiveIdType: 'chat_id', replyId: message.messageId, text: UNBOUND_FEISHU_LIVE_ROOM_HINT });
-          }
-        } else {
-          await maybeSendFeishuSessionWatermarkWarning({
+          return;
+        }
+        const command = parseFeishuCommand(message);
+        if (!command) {
+          // Not a /ap command — check if the chat is bound to a live room and relay
+          const relayTypingReactionId = await addTypingReaction(message.messageId);
+          const relayed = await tryRelayNonCommandToLiveRoom({
             context: {
               chatId: message.chatId,
               chatType: message.chatType,
@@ -473,84 +458,124 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
               messageId: message.messageId,
               mentionNames: message.mentionNames,
             },
-            replyId: message.messageId,
-          }).catch((warningError) => {
-            console.error(`${prefix} session watermark warning failed`, { error: warningError });
+            content: message.text,
+            typingReactionId: relayTypingReactionId ?? undefined,
+          }).catch((err) => {
+            console.error(`${prefix} relay non-command failed`, { error: err });
+            return false;
           });
-        }
-        return;
-      }
-
-      console.log(`${prefix} command received`, {
-        messageId: message.messageId,
-        command: command.command,
-        args: command.args,
-        options: command.options,
-      });
-
-      const typingReactionId = await addTypingReaction(message.messageId);
-
-      try {
-        const responseText = await handleFeishuCommand({
-          command,
-          baseUrl: resolveBaseUrl(),
-          context: {
-            chatId: message.chatId,
-            chatType: message.chatType,
-            senderOpenId: message.senderOpenId,
-            messageId: message.messageId,
-            mentionNames: message.mentionNames,
-          },
-        });
-
-        console.log(`${prefix} command handled`, {
-          messageId: message.messageId,
-          responsePreview: responseText.slice(0, 200),
-        });
-
-        if (typingReactionId) {
-          await removeTypingReaction(message.messageId, typingReactionId);
+          if (!relayed) {
+            // No binding found — clean up the typing reaction we already added
+            if (relayTypingReactionId) {
+              await removeTypingReaction(message.messageId, relayTypingReactionId);
+            }
+            console.log(`${prefix} ignored non-command (no binding)`, {
+              messageId: message.messageId,
+              text: message.text,
+            });
+            if (message.chatType === 'group') {
+              await sendFeishuTextMessage({ receiveId: message.chatId, receiveIdType: 'chat_id', replyId: message.messageId, text: UNBOUND_FEISHU_LIVE_ROOM_HINT });
+            }
+          } else {
+            await maybeSendFeishuSessionWatermarkWarning({
+              context: {
+                chatId: message.chatId,
+                chatType: message.chatType,
+                senderOpenId: message.senderOpenId,
+                messageId: message.messageId,
+                mentionNames: message.mentionNames,
+              },
+              replyId: message.messageId,
+            }).catch((warningError) => {
+              console.error(`${prefix} session watermark warning failed`, { error: warningError });
+            });
+          }
+          return;
         }
 
-        await sendFeishuTextMessage({
-          receiveId: message.chatId,
-          receiveIdType: 'chat_id',
-          replyId: message.messageId,
-          text: responseText,
+        console.log(`${prefix} command received`, {
+          messageId: message.messageId,
+          command: command.command,
+          args: command.args,
+          options: command.options,
         });
 
-        console.log(`${prefix} reply sent`, {
-          messageId: message.messageId,
-          chatId: message.chatId,
-        });
-      } catch (error) {
-        const lastError = error instanceof Error ? error.message : String(error);
-        console.error(`${prefix} command failed`, {
-          messageId: message.messageId,
-          error: lastError,
-        });
-        if (typingReactionId) {
-          await removeTypingReaction(message.messageId, typingReactionId);
-        }
+        const typingReactionId = await addTypingReaction(message.messageId);
+
         try {
+          const responseText = await handleFeishuCommand({
+            command,
+            baseUrl: resolveBaseUrl(),
+            context: {
+              chatId: message.chatId,
+              chatType: message.chatType,
+              senderOpenId: message.senderOpenId,
+              messageId: message.messageId,
+              mentionNames: message.mentionNames,
+            },
+          });
+
+          console.log(`${prefix} command handled`, {
+            messageId: message.messageId,
+            responsePreview: responseText.slice(0, 200),
+          });
+
+          if (typingReactionId) {
+            await removeTypingReaction(message.messageId, typingReactionId);
+          }
+
           await sendFeishuTextMessage({
             receiveId: message.chatId,
             receiveIdType: 'chat_id',
             replyId: message.messageId,
-            text: `命令执行失败：${lastError}`,
+            text: responseText,
           });
-        } catch (replyError) {
-          console.error(`${prefix} failed to send error reply`, {
+
+          console.log(`${prefix} reply sent`, {
             messageId: message.messageId,
-            error: replyError instanceof Error ? replyError.message : String(replyError),
+            chatId: message.chatId,
+          });
+        } catch (error) {
+          const lastError = error instanceof Error ? error.message : String(error);
+          console.error(`${prefix} command failed`, {
+            messageId: message.messageId,
+            error: lastError,
+          });
+          if (typingReactionId) {
+            await removeTypingReaction(message.messageId, typingReactionId);
+          }
+          try {
+            await sendFeishuTextMessage({
+              receiveId: message.chatId,
+              receiveIdType: 'chat_id',
+              replyId: message.messageId,
+              text: `命令执行失败：${lastError}`,
+            });
+          } catch (replyError) {
+            console.error(`${prefix} failed to send error reply`, {
+              messageId: message.messageId,
+              error: replyError instanceof Error ? replyError.message : String(replyError),
+            });
+          }
+          markRuntimeStatus(host, {
+            status: 'error',
+            lastError,
+            lastHeartbeatAt: new Date().toISOString(),
           });
         }
+      })().catch((error) => {
+        const lastError = error instanceof Error ? error.message : String(error);
+        console.error(`${prefix} background message handling failed`, {
+          messageId: parsedMessage.messageId,
+          error: lastError,
+        });
         markRuntimeStatus(host, {
           status: 'error',
           lastError,
           lastHeartbeatAt: new Date().toISOString(),
         });
-      }
+      });
+      return;
     },
     'im.message.message_read_v1': async () => {
       markRuntimeStatus(host, {
