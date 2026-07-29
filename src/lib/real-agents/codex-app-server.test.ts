@@ -1,12 +1,18 @@
 import assert from 'node:assert/strict';
+import { chmod, mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
   appendCodexAgentMessageDelta,
   buildCodexApprovalResponse,
+  canRetryCodexAppServerWithJson,
+  CodexAppServerError,
   isSuccessfulCodexAppServerExit,
+  runCodexAppServer,
   toCodexToolEvent,
   toCodexApprovalRequest,
 } from './codex-app-server';
-import { buildExecArgs, buildResumeArgs } from './codex-agent';
+import { buildExecArgs, buildResumeArgs, executeCodexTask } from './codex-agent';
 import {
   cancelInProcessApproval,
   resolveInProcessApproval,
@@ -23,6 +29,25 @@ assert.equal(request?.resumeStrategy, 'in_process');
 assert.match(request?.rawContent || '', /git push/);
 assert.deepEqual(buildCodexApprovalResponse('approve'), { decision: 'accept' });
 assert.deepEqual(buildCodexApprovalResponse('deny'), { decision: 'decline' });
+assert.deepEqual(
+  buildCodexApprovalResponse(
+    'approve',
+    'item/permissions/requestApproval',
+    { permissions: { network: { enabled: true } } },
+  ),
+  { permissions: { network: { enabled: true } }, scope: 'turn' },
+);
+assert.deepEqual(
+  buildCodexApprovalResponse('deny', 'item/permissions/requestApproval', {}),
+  { permissions: {}, scope: 'turn' },
+);
+assert.equal(
+  toCodexApprovalRequest('item/permissions/requestApproval', {
+    reason: 'needs network',
+    permissions: { network: { enabled: true } },
+  })?.resumeStrategy,
+  'in_process',
+);
 assert.equal(isSuccessfulCodexAppServerExit(0, 'partial response'), true);
 assert.equal(isSuccessfulCodexAppServerExit(0, ''), false);
 assert.equal(isSuccessfulCodexAppServerExit(1, 'partial response'), false);
@@ -49,6 +74,185 @@ assert.equal(
 );
 
 void (async () => {
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'codex-app-server-'));
+  const workspace = path.join(fixtureRoot, 'workspace');
+  const realCwd = path.join(workspace, 'real');
+  const linkedCwd = path.join(workspace, 'linked');
+  const bin = path.join(fixtureRoot, 'bin');
+  const fixture = path.join(bin, 'codex');
+  const log = path.join(workspace, 'requests.ndjson');
+  const hostSecret = path.join(tmpdir(), `codex-app-server-host-${process.pid}`);
+  await mkdir(realCwd, { recursive: true });
+  await mkdir(bin);
+  await symlink(realCwd, linkedCwd);
+  await writeFile(hostSecret, 'host');
+  await writeFile(fixture, `#!/usr/bin/env bash
+if [[ "$1" != "app-server" ]]; then
+  echo json-fallback >> "$CODEX_FIXTURE_LOG"
+  echo '{"type":"thread.started","thread_id":"json-fallback"}'
+  echo '{"type":"item.completed","item":{"type":"agent_message","text":"json fallback"}}'
+  exit 0
+fi
+[[ -e "$CODEX_FIXTURE_HOST_SECRET" ]] && echo host-visible >> "$CODEX_FIXTURE_LOG" || echo host-hidden >> "$CODEX_FIXTURE_LOG"
+while IFS= read -r line; do
+  echo "$line" >> "$CODEX_FIXTURE_LOG"
+  if [[ "$CODEX_FIXTURE_MODE" == "preturn-failure" && "$line" == *'"method":"initialize"'* ]]; then
+    exit 2
+  elif [[ "$line" == *'"method":"initialize"'* ]]; then
+    echo '{"id":1,"result":{}}'
+  elif [[ "$line" == *'"method":"thread/start"'* ]]; then
+    echo '{"id":2,"result":{"thread":{"id":"thread-new"}}}'
+  elif [[ "$line" == *'"method":"thread/resume"'* ]]; then
+    echo '{"id":2,"result":{"thread":{"id":"thread-resumed"}}}'
+  elif [[ "$line" == *'"method":"turn/start"'* ]]; then
+    echo '{"id":3,"result":{"turn":{"id":"turn-1"}}}'
+    if [[ "$CODEX_FIXTURE_MODE" == "approval" ]]; then
+      echo '{"id":99,"method":"item/commandExecution/requestApproval","params":{"command":"npm test","reason":"test"}}'
+    elif [[ "$CODEX_FIXTURE_MODE" != "hang" ]]; then
+      echo '{"method":"item/started","params":{"item":{"type":"agentMessage"}}}'
+      echo '{"method":"item/agentMessage/delta","params":{"delta":"done"}}'
+      echo '{"method":"turn/completed","params":{"turn":{"status":"completed"}}}'
+    fi
+  elif [[ "$line" == *'"id":99'* ]]; then
+    echo '{"method":"item/agentMessage/delta","params":{"delta":"approved"}}'
+    echo '{"method":"turn/completed","params":{"turn":{"status":"completed"}}}'
+  fi
+done
+`);
+  await chmod(fixture, 0o755);
+  const env = {
+    ...process.env,
+    PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
+    CODEX_FIXTURE_LOG: log,
+    CODEX_FIXTURE_HOST_SECRET: hostSecret,
+  };
+
+  let spawnedPid: number | undefined;
+  const newThread = await runCodexAppServer({
+    prompt: 'new',
+    workingDirectory: linkedCwd,
+    workspaceRoot: workspace,
+    networkAccess: 'restricted',
+    codexHome: path.join(workspace, '.codex'),
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'never',
+    timeout: 1_000,
+    env,
+    onSpawn: (child) => { spawnedPid = child.pid; },
+  });
+  assert.equal(newThread.threadId, 'thread-new');
+  assert.equal(newThread.output, 'done');
+  assert.ok(spawnedPid && spawnedPid > 0);
+  const newThreadLog = await readFile(log, 'utf8');
+  assert.match(newThreadLog, /host-hidden/);
+  assert.match(newThreadLog, new RegExp(`"cwd":"${realCwd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`));
+  assert.match(newThreadLog, /"sandbox":"workspace-write"/);
+  assert.match(newThreadLog, /"approvalPolicy":"never"/);
+
+  await writeFile(log, '');
+  const resumed = await runCodexAppServer({
+    prompt: 'resume',
+    threadId: 'thread-old',
+    workingDirectory: realCwd,
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'on-request',
+    timeout: 1_000,
+    model: 'gpt-test',
+    env: { ...env, CODEX_FIXTURE_MODE: 'approval' },
+    streamCallbacks: {
+      onInteractionRequest: async () => 'approve',
+    },
+  });
+  assert.equal(resumed.threadId, 'thread-resumed');
+  assert.equal(resumed.output, 'approved');
+  const resumeLog = await readFile(log, 'utf8');
+  assert.match(resumeLog, /"method":"thread\/resume"/);
+  assert.match(resumeLog, /"threadId":"thread-old"/);
+  assert.match(resumeLog, /"model":"gpt-test"/);
+  assert.match(resumeLog, /"id":99,"result":\{"decision":"accept"\}/);
+
+  let timeoutChildPid: number | undefined;
+  await assert.rejects(
+    runCodexAppServer({
+      prompt: 'timeout',
+      workingDirectory: realCwd,
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'on-request',
+      timeout: 10,
+      env: { ...env, CODEX_FIXTURE_MODE: 'hang' },
+      onSpawn: (child) => { timeoutChildPid = child.pid; },
+    }),
+    (error) => error instanceof CodexAppServerError
+      && !error.safeToRetryJson
+      && /timed out/.test(error.message),
+  );
+  assert.ok(timeoutChildPid && timeoutChildPid > 0);
+
+  let interruptChild: import('child_process').ChildProcess | undefined;
+  await assert.rejects(
+    runCodexAppServer({
+      prompt: 'interrupt',
+      workingDirectory: realCwd,
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'on-request',
+      timeout: 1_000,
+      env: { ...env, CODEX_FIXTURE_MODE: 'hang' },
+      onSpawn: (child) => { interruptChild = child; },
+      onThreadStarted: () => setImmediate(() => interruptChild?.kill('SIGINT')),
+    }),
+    (error) => error instanceof CodexAppServerError && !error.safeToRetryJson,
+  );
+
+  const safeFailure = new CodexAppServerError('initialize failed', true);
+  assert.equal(canRetryCodexAppServerWithJson(safeFailure), true);
+  assert.equal(canRetryCodexAppServerWithJson(safeFailure, workspace), false);
+  assert.equal(canRetryCodexAppServerWithJson(new CodexAppServerError('turn failed', false)), false);
+
+  const previousPath = process.env.PATH;
+  const previousMode = process.env.CODEX_FIXTURE_MODE;
+  const previousLog = process.env.CODEX_FIXTURE_LOG;
+  const previousHostSecret = process.env.CODEX_FIXTURE_HOST_SECRET;
+  process.env.PATH = env.PATH;
+  process.env.CODEX_FIXTURE_MODE = 'preturn-failure';
+  process.env.CODEX_FIXTURE_LOG = log;
+  process.env.CODEX_FIXTURE_HOST_SECRET = hostSecret;
+  try {
+    const fallback = await executeCodexTask(
+      { id: 'fallback', name: 'fallback' },
+      {
+        workingDirectory: realCwd,
+        approvalPolicy: 'on-request',
+        timeout: 1_000,
+      },
+    );
+    assert.equal(fallback.success, true);
+    assert.equal(fallback.threadId, 'json-fallback');
+    assert.equal(fallback.output, 'json fallback');
+
+    await writeFile(log, '');
+    const restricted = await executeCodexTask(
+      { id: 'restricted', name: 'restricted' },
+      {
+        workingDirectory: realCwd,
+        workspaceRoot: workspace,
+        codexHome: path.join(workspace, '.codex'),
+        approvalPolicy: 'on-request',
+        timeout: 1_000,
+      },
+    );
+    assert.equal(restricted.success, false);
+    assert.match(restricted.error || '', /app-server exited/);
+    assert.doesNotMatch(await readFile(log, 'utf8'), /json-fallback/);
+  } finally {
+    process.env.PATH = previousPath;
+    if (previousMode === undefined) delete process.env.CODEX_FIXTURE_MODE;
+    else process.env.CODEX_FIXTURE_MODE = previousMode;
+    if (previousLog === undefined) delete process.env.CODEX_FIXTURE_LOG;
+    else process.env.CODEX_FIXTURE_LOG = previousLog;
+    if (previousHostSecret === undefined) delete process.env.CODEX_FIXTURE_HOST_SECRET;
+    else process.env.CODEX_FIXTURE_HOST_SECRET = previousHostSecret;
+  }
+
   const approved = waitForInProcessApproval('approve');
   assert.equal(resolveInProcessApproval('approve', 'approve'), true);
   assert.deepEqual(await approved, { decision: 'approve', timedOut: false });
@@ -58,5 +262,5 @@ void (async () => {
   assert.equal(cancelInProcessApproval('cancel'), true);
   assert.deepEqual(await cancelled, { decision: 'deny', timedOut: false, cancelled: true });
   assert.equal(cancelInProcessApproval('cancel'), false);
-  console.log('codex app-server approval checks passed');
+  console.log('codex app-server isolation and lifecycle checks passed');
 })();

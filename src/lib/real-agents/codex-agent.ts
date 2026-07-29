@@ -7,7 +7,7 @@
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import type { ChildProcess } from 'child_process';
 import { processCodexJsonLine } from './codex-event-parser';
-import { runCodexAppServer } from './codex-app-server';
+import { canRetryCodexAppServerWithJson, runCodexAppServer } from './codex-app-server';
 import { prepareCodexHome } from './codex-home';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
@@ -183,7 +183,15 @@ Please complete this task step by step. When you're done, provide a summary of:
 Take your time and be thorough.`;
 
   if (options.approvalPolicy === 'on-request') {
-    return runCodexAppServer({ prompt, ...options, env: buildCodexChildEnv(options.codexHome) });
+    try {
+      return await runCodexAppServer({
+        prompt,
+        ...options,
+        env: buildCodexChildEnv(options.codexHome),
+      });
+    } catch (error) {
+      if (!canRetryCodexAppServerWithJson(error, options.workspaceRoot)) throw error;
+    }
   }
 
   return runCodexJsonCommand({
@@ -237,24 +245,28 @@ export const resumeCodexSession = async ({
   onThreadStarted?: (threadId: string) => void;
 }): Promise<CodexCliResult> => {
   if (approvalPolicy === 'on-request') {
-    return runCodexAppServer({
-      prompt,
-      threadId,
-      timeout,
-      workingDirectory,
-      workspaceRoot,
-      networkAccess,
-      readOnlyPaths,
-      codexHome,
-      sandboxMode,
-      approvalPolicy,
-      model,
-      reasoningEffort,
-      streamCallbacks,
-      onSpawn,
-      onThreadStarted,
-      env: buildCodexChildEnv(codexHome),
-    });
+    try {
+      return await runCodexAppServer({
+        prompt,
+        threadId,
+        timeout,
+        workingDirectory,
+        workspaceRoot,
+        networkAccess,
+        readOnlyPaths,
+        codexHome,
+        sandboxMode,
+        approvalPolicy,
+        model,
+        reasoningEffort,
+        streamCallbacks,
+        onSpawn,
+        onThreadStarted,
+        env: buildCodexChildEnv(codexHome),
+      });
+    } catch (error) {
+      if (!canRetryCodexAppServerWithJson(error, workspaceRoot)) throw error;
+    }
   }
 
   return runCodexJsonCommand({

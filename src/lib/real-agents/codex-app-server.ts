@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ChildProcess } from 'child_process';
+import { realpathSync } from 'node:fs';
 import type { HarnessInteractionRequest, HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
@@ -33,6 +34,18 @@ export interface CodexAppServerOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+export class CodexAppServerError extends Error {
+  constructor(message: string, readonly safeToRetryJson: boolean) {
+    super(message);
+    this.name = 'CodexAppServerError';
+  }
+}
+
+export const canRetryCodexAppServerWithJson = (
+  error: unknown,
+  workspaceRoot?: string
+) => !workspaceRoot && error instanceof CodexAppServerError && error.safeToRetryJson;
+
 export const toCodexApprovalRequest = (
   method: string,
   params: Record<string, any>
@@ -61,12 +74,30 @@ export const toCodexApprovalRequest = (
       resumeStrategy: 'in_process',
     };
   }
+  if (method === 'item/permissions/requestApproval') {
+    const reason = typeof params.reason === 'string' ? params.reason : '';
+    return {
+      kind: 'permission_request',
+      title: 'Codex 请求临时权限',
+      message: reason || 'Codex 请求本 turn 的临时权限。',
+      rawContent: JSON.stringify(params.permissions ?? {}),
+      responseFormat: 'approve_deny',
+      resumeStrategy: 'in_process',
+    };
+  }
   return null;
 };
 
-export const buildCodexApprovalResponse = (decision: 'approve' | 'deny') => ({
-  decision: decision === 'approve' ? 'accept' : 'decline',
-});
+export const buildCodexApprovalResponse = (
+  decision: 'approve' | 'deny',
+  method?: string,
+  params?: Record<string, any>
+) => method === 'item/permissions/requestApproval'
+  ? {
+      permissions: decision === 'approve' ? params?.permissions ?? {} : {},
+      scope: 'turn',
+    }
+  : { decision: decision === 'approve' ? 'accept' : 'decline' };
 
 export const isSuccessfulCodexAppServerExit = (code: number | null, output: string) =>
   code === 0 && output.length > 0;
@@ -95,22 +126,33 @@ export const appendCodexAgentMessageDelta = (
 
 export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   const { spawn } = await import('child_process');
-  const wrapped = wrapWithBubblewrap({
-    command: 'codex',
-    commandArgs: ['app-server', '--stdio'],
-    cwd: options.workingDirectory,
-    workspaceRoot: options.workspaceRoot,
-    networkAccess: options.networkAccess,
-    env: options.env ?? process.env,
-    configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
-    readOnlyPaths: options.readOnlyPaths,
-  });
-  const child = spawn(wrapped.command, wrapped.args, {
-    cwd: options.workingDirectory,
-    env: options.env ?? process.env,
-    stdio: ['pipe', 'pipe', 'pipe'],
-    shell: false,
-  });
+  const runtimeCwd = options.workspaceRoot
+    ? realpathSync(options.workingDirectory)
+    : options.workingDirectory;
+  let child: ChildProcess;
+  try {
+    const wrapped = wrapWithBubblewrap({
+      command: 'codex',
+      commandArgs: ['app-server', '--stdio'],
+      cwd: runtimeCwd,
+      workspaceRoot: options.workspaceRoot,
+      networkAccess: options.networkAccess,
+      env: options.env ?? process.env,
+      configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
+      readOnlyPaths: options.readOnlyPaths,
+    });
+    child = spawn(wrapped.command, wrapped.args, {
+      cwd: runtimeCwd,
+      env: options.env ?? process.env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+    });
+  } catch (error) {
+    throw new CodexAppServerError(
+      error instanceof Error ? error.message : 'Codex app-server failed to start',
+      true
+    );
+  }
   options.onSpawn?.(child);
 
   let nextId = 1;
@@ -119,12 +161,18 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   let startsNewAgentMessage = false;
   let activeThreadId = options.threadId;
   let completed = false;
+  let closed = false;
+  let turnSubmitted = false;
   const pending = new Map<JsonRpcId, {
     resolve: (value: any) => void;
     reject: (error: Error) => void;
   }>();
 
-  const send = (message: JsonRpcMessage) => child.stdin.write(`${JSON.stringify(message)}\n`);
+  const send = (message: JsonRpcMessage) => {
+    if (!closed && child.stdin!.writable) {
+      child.stdin!.write(`${JSON.stringify(message)}\n`);
+    }
+  };
   const request = (method: string, params: Record<string, unknown>) =>
     new Promise<any>((resolve, reject) => {
       const id = nextId++;
@@ -138,6 +186,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     finishTurn = resolve;
     failTurn = reject;
   });
+  void turnDone.catch(() => {});
 
   const handleServerRequest = async (message: JsonRpcMessage) => {
     const approval = message.method && message.params
@@ -151,9 +200,15 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     }
     try {
       const decision = await options.streamCallbacks?.onInteractionRequest?.(approval) ?? 'deny';
-      send({ id: message.id, result: buildCodexApprovalResponse(decision) });
+      send({
+        id: message.id,
+        result: buildCodexApprovalResponse(decision, message.method, message.params),
+      });
     } catch {
-      send({ id: message.id, result: buildCodexApprovalResponse('deny') });
+      send({
+        id: message.id,
+        result: buildCodexApprovalResponse('deny', message.method, message.params),
+      });
     }
   };
 
@@ -187,7 +242,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     }
   };
 
-  child.stdout.on('data', (data) => {
+  child.stdout!.on('data', (data) => {
     buffer += data.toString();
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
@@ -197,15 +252,18 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       catch { void options.streamCallbacks?.onStderrChunk?.(`Invalid Codex app-server message: ${line}`); }
     }
   });
-  child.stderr.on('data', (data) => void options.streamCallbacks?.onStderrChunk?.(data.toString()));
+  child.stderr!.on('data', (data) => void options.streamCallbacks?.onStderrChunk?.(data.toString()));
   child.on('error', failTurn);
   child.on('close', (code) => {
-    const error = new Error(`Codex app-server exited with code ${code}`);
-    pending.forEach((waiter) => waiter.reject(error));
-    pending.clear();
+    closed = true;
     if (!completed) {
+      const error = new Error(`Codex app-server exited with code ${code}`);
+      pending.forEach((waiter) => waiter.reject(error));
+      pending.clear();
       if (isSuccessfulCodexAppServerExit(code, output)) finishTurn();
       else failTurn(error);
+    } else {
+      pending.clear();
     }
   });
 
@@ -222,11 +280,17 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     });
     send({ method: 'initialized', params: {} });
     if (activeThreadId) {
-      const resumed = await request('thread/resume', { threadId: activeThreadId });
+      const resumed = await request('thread/resume', {
+        threadId: activeThreadId,
+        cwd: runtimeCwd,
+        sandbox: options.sandboxMode,
+        approvalPolicy: options.approvalPolicy,
+        ...(options.model ? { model: options.model } : {}),
+      });
       activeThreadId = resumed.thread?.id || activeThreadId;
     } else {
       const started = await request('thread/start', {
-        cwd: options.workingDirectory,
+        cwd: runtimeCwd,
         sandbox: options.sandboxMode,
         approvalPolicy: options.approvalPolicy,
         ephemeral: Boolean(options.ephemeral),
@@ -235,14 +299,22 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       activeThreadId = started.thread.id;
     }
     options.onThreadStarted?.(activeThreadId!);
+    turnSubmitted = true;
     await request('turn/start', {
       threadId: activeThreadId,
       input: [{ type: 'text', text: options.prompt }],
+      cwd: runtimeCwd,
       approvalPolicy: options.approvalPolicy,
+      ...(options.model ? { model: options.model } : {}),
       ...(options.reasoningEffort ? { effort: options.reasoningEffort } : {}),
     });
     await turnDone;
     return { output: output || 'Task executed successfully', threadId: activeThreadId! };
+  } catch (error) {
+    throw new CodexAppServerError(
+      error instanceof Error ? error.message : 'Codex app-server failed',
+      !turnSubmitted
+    );
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
     child.kill('SIGTERM');
