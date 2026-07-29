@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -154,12 +154,3 @@ metadata 使用通用 `lastSessionId`、`lastSessionKind` 与 `sessionTracking`�
 - Live Room/Feishu 入口复用同一 selector、Session 和 delivery 语义；
 - 既有 Harness 无回归，自动化验证结果记录在终态 HANDOVER；
 - 未获授权的真实外部动作明确列为未执行，不伪称通过。
-
-<!-- WORKFLOW_PROMPT_START -->
-执行 312_PLAN_20260729_KimiCodeCLI接入PlatformLocal.md 的 S01：先保护开工前已有工作区改动，按 AGENTS.md
-对每个将修改的 function/class/method 运行 GitNexus upstream impact 并报告风险；复用现有
-HarnessAdapter、registry、Bubblewrap、Platform Local bootstrap 和 catalog，实现 Kimi Code CLI
-最小可用本地 Harness及 fake CLI 聚焦测试。只完成 S01，不实现 continuation，不修 Claude，不改变
-Live Room handoff。验证通过后运行 GitNexus detect_changes，精确提交 S01 变更，并创建指向 S02 的
-HANDOVER。
-<!-- WORKFLOW_PROMPT_END -->
