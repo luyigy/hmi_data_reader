@@ -1,0 +1,449 @@
+import { prisma } from '@/lib/prisma';
+import {
+  clearLiveRoomRunningProcess,
+  getLiveRoomRunningProcess,
+  interruptLiveRoomRunningProcess,
+} from '@/lib/live-room-process-registry';
+import {
+  detectLiveRoomMentionAll,
+  detectMentionedLiveRoomMembers,
+  parseLiveRoomMessageMetadata,
+  postLiveRoomMessage,
+  resolveLiveRoomMessageMetadata,
+} from '@/lib/live-room';
+import {
+  LIVE_ROOM_CONTROL_BLOCK_PATTERN,
+  ensureMemberSession,
+  executeLiveRoomControlAction,
+  parseLiveRoomControlAction,
+} from '@/lib/live-room-delivery-routing';
+import {
+  executeLiveRoomReplyViaAcpx,
+  normalizeLiveRoomExecutionError,
+} from '@/lib/live-room-delivery-execution';
+
+const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+const REMOTE_STALE_GRACE_MS = 30 * 1000;
+const REMOTE_STALE_AFTER_MS = DEFAULT_TIMEOUT_MS + REMOTE_STALE_GRACE_MS;
+
+const markRemoteDeliverySuperseded = async (deliveryId: string, reason: string) => {
+  const delivery = await prisma.liveRoomDelivery.findUnique({
+    where: { id: deliveryId },
+    include: {
+      targetMember: {
+        select: {
+          id: true,
+        },
+      },
+      session: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!delivery || (delivery.deliveryStatus !== 'pending' && delivery.deliveryStatus !== 'running')) {
+    return false;
+  }
+
+  await prisma.liveRoomDelivery.update({
+    where: { id: deliveryId },
+    data: {
+      deliveryStatus: 'superseded',
+      fallbackReason: reason,
+      acknowledgedAt: new Date(),
+    },
+  });
+
+  if (delivery.sessionId) {
+    await prisma.liveRoomMemberSession.update({
+      where: { id: delivery.sessionId },
+      data: {
+        status: 'online',
+        lastError: reason,
+      },
+    }).catch(() => undefined);
+  }
+
+  await prisma.liveRoomMember.update({
+    where: { id: delivery.targetMemberId },
+    data: {
+      presenceStatus: 'online',
+    },
+  }).catch(() => undefined);
+
+  return true;
+};
+const failStaleRemoteDeliveries = async (memberId: string) => {
+  const staleBefore = new Date(Date.now() - REMOTE_STALE_AFTER_MS);
+  const registryEntry = getLiveRoomRunningProcess(memberId);
+
+  if (registryEntry && Date.now() - registryEntry.startedAt >= REMOTE_STALE_AFTER_MS) {
+    interruptLiveRoomRunningProcess(memberId, 'SIGTERM');
+  }
+
+  const staleDeliveries = await prisma.liveRoomDelivery.findMany({
+    where: {
+      targetMemberId: memberId,
+      deliveryStatus: {
+        in: ['pending', 'running'],
+      },
+      attemptedAt: {
+        lt: staleBefore,
+      },
+    },
+    include: {
+      session: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  for (const delivery of staleDeliveries) {
+    if (registryEntry?.deliveryId === delivery.id) {
+      continue;
+    }
+
+    await prisma.liveRoomDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        deliveryStatus: 'failed',
+        fallbackReason: 'Remote SSH live room delivery became stale before completion',
+        acknowledgedAt: new Date(),
+      },
+    });
+
+    if (delivery.sessionId) {
+      await prisma.liveRoomMemberSession.update({
+        where: { id: delivery.sessionId },
+        data: {
+          status: 'online',
+          lastError: 'Remote SSH live room delivery became stale before completion',
+        },
+      }).catch(() => undefined);
+    }
+  }
+
+  if (staleDeliveries.length > 0) {
+    await prisma.liveRoomMember.update({
+      where: { id: memberId },
+      data: {
+        presenceStatus: 'online',
+      },
+    }).catch(() => undefined);
+  }
+};
+
+export const processLiveRoomDelivery = async ({
+  deliveryId,
+  roomId,
+  roomMessageId,
+  targetMemberId,
+  chainDepth,
+}: {
+  deliveryId: string;
+  roomId: string;
+  roomMessageId: string;
+  targetMemberId: string;
+  chainDepth: number;
+}) => {
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    include: {
+      currentSpeaker: true,
+      sourceTask: true,
+      members: {
+        include: {
+          gateway: true,
+          agentRecord: true,
+        },
+        orderBy: {
+          sortOrder: 'asc',
+        },
+      },
+    },
+  });
+
+  if (!room) {
+    return;
+  }
+
+  const sourceMessage = await prisma.liveRoomMessage.findUnique({
+    where: { id: roomMessageId },
+    include: {
+      senderMember: true,
+    },
+  });
+
+  if (!sourceMessage) {
+    return;
+  }
+  const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const relayOrigin = {
+    feishuBindingId: sourceMetadata?.feishuBindingId,
+    feishuChatId: sourceMetadata?.feishuChatId,
+  };
+
+  const targetMember = room.members.find((member) => member.id === targetMemberId);
+  if (!targetMember || !targetMember.canReply) {
+    return;
+  }
+
+  const delivery = await prisma.liveRoomDelivery.findUnique({
+    where: { id: deliveryId },
+  });
+
+  if (!delivery || delivery.deliveryStatus !== 'pending') {
+    return;
+  }
+
+  const session = await ensureMemberSession(room.id, targetMember);
+
+  if (targetMember.backend === 'remote_ssh') {
+    await failStaleRemoteDeliveries(targetMember.id);
+
+    const newerPendingDelivery = await prisma.liveRoomDelivery.findFirst({
+      where: {
+        targetMemberId: targetMember.id,
+        deliveryStatus: 'pending',
+        createdAt: {
+          gt: delivery.createdAt,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (newerPendingDelivery) {
+      await markRemoteDeliverySuperseded(
+        delivery.id,
+        `Superseded by newer live room delivery ${newerPendingDelivery.id}`
+      );
+      return;
+    }
+  }
+
+  await prisma.liveRoomDelivery.update({
+    where: { id: delivery.id },
+    data: {
+      sessionId: session.id,
+      deliveryStatus: 'running',
+      attemptedAt: new Date(),
+      fallbackReason: null,
+    },
+  });
+
+  await prisma.liveRoomMember.update({
+    where: { id: targetMember.id },
+    data: {
+      presenceStatus: 'busy',
+    },
+  });
+
+  try {
+    await prisma.liveRoomMemberSession.update({
+      where: { id: session.id },
+      data: {
+        status: 'busy',
+        lastHeartbeatAt: new Date(),
+        lastError: 'progress:acpx participant running',
+      },
+    }).catch(() => undefined);
+
+    const acpxResult = await executeLiveRoomReplyViaAcpx({
+      room,
+      sourceMessage: {
+        id: sourceMessage.id,
+        content: sourceMessage.content, metadata: sourceMessage.metadata,
+        senderMember: sourceMessage.senderMember
+          ? {
+              id: sourceMessage.senderMember.id,
+              displayName: sourceMessage.senderMember.displayName,
+              memberType: sourceMessage.senderMember.memberType,
+            }
+          : null,
+      },
+      targetMember,
+      session: {
+        id: session.id,
+        threadId: session.threadId,
+      },
+    });
+
+    let output = acpxResult.output;
+    const threadId = acpxResult.threadId;
+    const remoteTiming = acpxResult.remoteTiming;
+
+    if (threadId !== session.threadId || session.status !== 'online') {
+      await prisma.liveRoomMemberSession.update({
+        where: { id: session.id },
+        data: {
+          threadId,
+          status: 'online',
+          lastDeliveredAt: new Date(),
+          lastHeartbeatAt: new Date(),
+          lastError: null,
+        },
+      });
+    } else {
+      await prisma.liveRoomMemberSession.update({
+        where: { id: session.id },
+        data: {
+          lastDeliveredAt: new Date(),
+          lastHeartbeatAt: new Date(),
+          lastError: null,
+        },
+      });
+    }
+
+    await prisma.liveRoomDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        deliveryStatus: 'delivered',
+        acknowledgedAt: new Date(),
+      },
+    });
+
+    await prisma.liveRoomMember.update({
+      where: { id: targetMember.id },
+      data: {
+        presenceStatus: 'online',
+      },
+    });
+
+    try {
+      const roomControl = parseLiveRoomControlAction(output);
+      if (roomControl) {
+        await executeLiveRoomControlAction({
+          roomId: room.id,
+          actorDisplayName: targetMember.displayName,
+          action: roomControl.action,
+        });
+        output = roomControl.remainingOutput;
+      }
+    } catch (roomControlError) {
+      await postLiveRoomMessage({
+        roomId: room.id,
+        content: `系统提示：${targetMember.displayName} 的 room-control 动作执行失败：${roomControlError instanceof Error ? roomControlError.message : 'unknown error'}`,
+        messageType: 'system',
+        metadata: resolveLiveRoomMessageMetadata({
+          senderKind: 'system',
+          extras: {
+            ...relayOrigin,
+            systemEvent: 'room_control_failed',
+            actorDisplayName: targetMember.displayName,
+          },
+        }),
+      });
+      output = output.replace(LIVE_ROOM_CONTROL_BLOCK_PATTERN, '').trim();
+    }
+
+    if (output) {
+      const mentionDetection = detectMentionedLiveRoomMembers({
+        content: output,
+        members: room.members,
+        senderMemberId: targetMember.id,
+      });
+      const startsWithExplicitMention = /^[\s]*[@$][^\s]+/.test(output);
+      const isDirectedVisibleReply =
+        startsWithExplicitMention
+        && mentionDetection.matchType === 'explicit'
+        && mentionDetection.memberIds.length === 1
+        && !detectLiveRoomMentionAll(output);
+      const directedTargetMemberId = isDirectedVisibleReply ? mentionDetection.memberIds[0] : null;
+      const directedTargetMember = directedTargetMemberId
+        ? room.members.find((member) => member.id === directedTargetMemberId) || null
+        : null;
+
+      await postLiveRoomMessage({
+        roomId: room.id,
+        senderMemberId: targetMember.id,
+        content: output,
+        messageType: 'assistant',
+        visibility: isDirectedVisibleReply ? 'directed_visible' : 'room',
+        replyToMessageId: sourceMessage.id,
+        metadata: resolveLiveRoomMessageMetadata({
+          senderKind: 'assistant',
+          targetMemberId: directedTargetMemberId,
+          visibilityMode: isDirectedVisibleReply ? 'directed_visible' : 'room',
+          replyToMessageId: sourceMessage.id,
+          mentionedMemberIds: mentionDetection.memberIds,
+          mentionedAll: detectLiveRoomMentionAll(output),
+          expectedResponderMemberIds: detectLiveRoomMentionAll(output)
+            ? room.members.filter((member) => member.canReply && member.id !== targetMember.id).map((member) => member.id)
+            : [],
+          extras: {
+            ...relayOrigin,
+            deliveryId: delivery.id,
+            backend: targetMember.backend,
+            harnessType: targetMember.harnessType,
+            chainDepth,
+            remoteTiming,
+            targetLocked: isDirectedVisibleReply,
+            targetMemberName: directedTargetMember?.displayName || null,
+          },
+        }),
+      });
+    }
+
+    // Agent mentions remain visible context. Only user messages and explicit
+    // orchestrators may schedule another turn, avoiding recursive queue cycles.
+  } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : 'Live room delivery failed';
+    const message = normalizeLiveRoomExecutionError(rawMessage);
+
+    await prisma.liveRoomDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        deliveryStatus: 'failed',
+        fallbackReason: message,
+        acknowledgedAt: new Date(),
+      },
+    });
+
+    await prisma.liveRoomMemberSession.update({
+      where: { id: session.id },
+      data: {
+        status: 'online',
+        lastError: message,
+      },
+    });
+
+    await prisma.liveRoomMember.update({
+      where: { id: targetMember.id },
+      data: {
+        presenceStatus: 'idle',
+      },
+    });
+
+    if (message !== 'Interrupted by user') {
+      await postLiveRoomMessage({
+        roomId,
+        content:
+          message === 'Stopped by user'
+            ? `系统提示：${targetMember.displayName} 当前回复已被停止。`
+            : `系统提示：${targetMember.displayName} 本次回复失败：${message}`,
+        messageType: 'system',
+        metadata: resolveLiveRoomMessageMetadata({
+          senderKind: 'system',
+          targetMemberId: targetMember.id,
+          extras: {
+            ...relayOrigin,
+            error: message,
+          },
+        }),
+      });
+    }
+  } finally {
+    if (targetMember.backend === 'remote_ssh') {
+      clearLiveRoomRunningProcess(targetMember.id, delivery.id);
+    }
+  }
+};
