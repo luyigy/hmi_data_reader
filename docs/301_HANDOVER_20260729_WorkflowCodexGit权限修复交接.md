@@ -31,6 +31,34 @@ plan_progress: complete
   的双重沙箱组合。
 - S03 纯拆分已先行验证并提交为 `8835787 refactor: split live room delivery`。
 
+## 首次复验仍失败的原因与处理
+
+- S04 实际由 `agent-platform-scheduled-jobs.service` 于 2026-07-29 10:38:17 CST 启动，而不是由
+  `agent-platform-feishu.service` 执行。该 scheduled-jobs 进程从 08:18:59 起一直运行旧代码，启动
+  日志明确显示 `Exec args: ... --sandbox workspace-write` 和 `Sandbox mode: workspace-write`。
+- 权限修复提交 `3c69289` 创建于 10:43:21；随后只在 10:45:52 重启了 Feishu 长连接服务。这既晚于
+  S04 启动，也没有重载真正承载 Workflow 的 scheduled-jobs 进程，因此无法改变已运行 S04 的权限。
+- 旧 S04 于 10:57:08 结束。它因真实 `.git` 只读，只能使用 `/tmp` 下的替代 index/object directory
+  创建临时校验 commit；该临时对象没有移动真实 HEAD，所以 completion gate 正确报告
+  `docs/302_HANDOVER_20260729_Feishu命令入口长文件S04交接.md` 仍未提交。
+- 确认旧运行结束后，已于 11:05:02 重启 `agent-platform-scheduled-jobs.service`。新进程为
+  `active/running`，现在会加载 `3c69289`；正常服务重启没有手工修改 watcher cursor。
+- S04 的 4 个源码和 `docs/302_HANDOVER_20260729_Feishu命令入口长文件S04交接.md` 仍保留在工作区，
+  可由新 Session 在复核后直接提交，不应重新拆分或覆盖。
+- 日志中另有一次包含 `rm -rf` 的 GitNexus 临时安装命令被安全策略拒绝；Codex 最终仍以 code 0 结束，
+  它不是本次 completion gate 报错的直接原因。
+
+## 当前可见性命令
+
+- 已有 `/ap workflow policy show`，可显示 `configured`、外层 `effective`、Harness `enforcement`
+  和只读 `exceptions`。
+- 该命令当前显示的是 Workflow 的外层有效文件系统边界 `workspace_write`；`enforcement.sandbox`
+  表示 Harness 是否兑现策略，不是 Codex 子进程的原始 CLI sandbox 值。
+- 因此当前没有 `/ap` 命令能直接显示某次 Workflow Codex 实际使用的内层
+  `danger-full-access` / `workspace-write`。现阶段只能查看对应执行日志中的 `[Codex] Exec args` 和
+  `[Codex] Sandbox mode`；修复后的新运行应显示 `danger-full-access`，同时外层 Bubblewrap 仍提供
+  workspace 隔离。
+
 ## 验证与运行状态
 
 - 通过：
@@ -45,11 +73,12 @@ plan_progress: complete
   - 相关 ESLint、`npm run check:long-files`、`git diff --check`
 - GitNexus pre-edit impact：`resolveWorkflowCodexBoundary` 为 LOW，仅有 Codex execute、resume 和聚焦
   测试 3 个直接依赖；staged `detect_changes` 也为 low，只触及该 symbol。
-- `agent-platform-feishu.service` 已于 2026-07-29 10:45:52 CST 重启；长连接恢复，runtime health 为
-  `healthy`。没有重启 `agent-platform-dev.service` 或 `agent-platform-scheduled-jobs.service`，
-  watcher cursor 未被修改。
-- 未发送新的真实飞书 Workflow 指令，因此尚未用外部消息做提交级复验。下一次飞书 Workflow 启动日志
-  应显示 Codex 内层 sandbox 为 `danger-full-access`，同时仍由 Bubblewrap 设置项目 `workspaceRoot`。
+- `agent-platform-feishu.service` 已于 2026-07-29 10:45:52 CST 重启，长连接 runtime health 为
+  `healthy`；`agent-platform-scheduled-jobs.service` 已于 11:05:02 正确重启并处于
+  `active/running`。没有重启 `agent-platform-dev.service`。
+- 尚未在 scheduled-jobs 正确重启后发送新的真实飞书 Workflow 指令，因此仍需一次提交级复验。下一次
+  Workflow 启动日志应显示 Codex 内层 sandbox 为 `danger-full-access`，同时仍由 Bubblewrap 设置项目
+  `workspaceRoot`。
 - 没有 API、数据库 Schema、生产数据或 workflow contract 变化。
 - 用户已有的 `AGENTS.md`、`CLAUDE.md` 和 `.codex-tmp/` 改动未修改、未提交。
 
@@ -65,8 +94,8 @@ plan_progress: complete
 如需复验 Workflow Codex Git 权限修复，先读取目标 HEAD 的
 `docs/workflow/workflow-contract.yaml`、`docs/288_PLAN_20260728_Workflow权限边界与同Session校验修复.md`
 和 `docs/301_HANDOVER_20260729_WorkflowCodexGit权限修复交接.md`，确认提交 `3c69289` 已存在且
-`agent-platform-feishu.service` 的运行起点晚于 2026-07-29 10:45:52 CST。只在用户授权的隔离飞书
-房间重新执行一次需要 `git add` 和 `git commit` 的 Workflow，确认 Codex 内层 sandbox 使用
+`agent-platform-scheduled-jobs.service` 的运行起点不早于 2026-07-29 11:05:02 CST。只在用户授权的
+隔离飞书房间重新执行一次需要 `git add` 和 `git commit` 的 Workflow，确认 Codex 内层 sandbox 使用
 `danger-full-access`、外层 Bubblewrap 仍限制在项目 workspace，并确认提交成功且 completion gate
 不再报告未提交 workflow 文档。若复验失败，只收集对应运行日志和权限快照后报告，不放宽外层边界、
 不修改 watcher cursor、不启动 PLAN 296 的 S04。
