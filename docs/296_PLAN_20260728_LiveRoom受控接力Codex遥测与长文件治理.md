@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: none
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -262,18 +262,3 @@ App Server 回调 token usage；Harness/ACPX 将最新值、采集时间和来�
    JSON 路径和 estimated 水位，不自行升级生产依赖。
 3. S09 管理员 quota 诊断的最终入口选择命令或现有管理员诊断页；默认选复用现有管理员命令，避免新增页面。
 4. S10 是否授权重启相关测试服务和执行真实飞书验收；未授权则记录为未执行，不阻塞自动化验证结果的事实交接。
-
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/296_PLAN_20260728_LiveRoom受控接力Codex遥测与长文件治理.md` 的 S00：只统一长文件 runtime
-baseline 与飞书通知口径。先读取目标 HEAD 的 `docs/workflow/workflow-contract.yaml`、本 PLAN、
-`docs/290_ISSUE_20260728_AgentMention受控异步接力.md`、
-`docs/291_REPORT_20260728_Codex真实上下文与官方配额评估.md`、最新有效 HANDOVER、现有
-long-file runtime context、detector、通知和 completion gate 实现；确认并保护开工前用户的未提交改动。
-运行 `npm run check:long-files` 记录当前 6 个历史超限源码；对将修改的每个 symbol 先运行 GitNexus
-upstream impact，HIGH/CRITICAL 先报告。复用 `workflow-contract.yaml.large_files` 的阈值、扩展名和
-忽略路径，不新建第二套规则；让 Prompt 排除 `.next`、`node_modules` 等忽略项，让飞书通知同时显示本次
-变化数、当前业务源码总数和精确 SHA。不得开始 S01 或其他 Slice，不拆分业务长文件，不实现 handoff 或
-Codex telemetry，不重启服务、不发送真实飞书消息、不修改生产数据。完成聚焦测试、TypeScript、相关
-ESLint、long-file guard、`git diff --check` 和 GitNexus `detect_changes` 后提交，并创建
-`plan_progress: in_progress`、`next_action: next_slice` 的 S00 HANDOVER；提交后立即停止。
-<!-- WORKFLOW_PROMPT_END -->
