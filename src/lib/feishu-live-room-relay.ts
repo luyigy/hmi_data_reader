@@ -76,7 +76,7 @@ export const buildAssistantRelayCard = (message: LiveRoomMessagePayload) => {
       title: {
         tag: 'plain_text',
         content: deliveryIntent === 'directed_visible' && targetMemberName
-          ? `${message.senderName} → ${targetMemberName}`
+          ? `Direct/私聊回复 · ${message.senderName} → ${targetMemberName}`
           : message.senderName,
       },
     },

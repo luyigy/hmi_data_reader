@@ -52,7 +52,7 @@ assert.deepEqual(buildAssistantRelayCard(assistant), {
 assistant.metadata = { deliveryIntent: 'directed_visible', targetMemberName: 'Claude' };
 assert.equal(
   (buildAssistantRelayCard(assistant).header.title as { content: string }).content,
-  'codex → Claude'
+  'Direct/私聊回复 · codex → Claude'
 );
 
 assistant.visibility = 'directed_visible';
