@@ -120,12 +120,12 @@ const runKimiCodeCommand = async ({
   }
 
   const env = { ...process.env };
+  // Prompt mode is implicitly Kimi's fully autonomous `auto` mode; Bubblewrap is the safety boundary.
   const args = [
     '--prompt',
     prompt,
     '--output-format',
     'stream-json',
-    permissionProfile === 'full_access' ? '--yolo' : '--auto',
   ];
   if (model) args.push('--model', model);
   if (sessionId) args.push('--session', sessionId);

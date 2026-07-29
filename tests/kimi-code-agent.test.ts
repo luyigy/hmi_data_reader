@@ -28,6 +28,20 @@ if [ "$1" = "--version" ]; then
   echo "kimi version 0.29.2"
   exit 0
 fi
+has_prompt=0
+has_forbidden=0
+forbidden_arg=""
+for arg in "$@"; do
+  if [ "$arg" = "--prompt" ]; then has_prompt=1; fi
+  if [ "$arg" = "--yolo" ] || [ "$arg" = "--auto" ]; then
+    has_forbidden=1
+    forbidden_arg="$arg"
+  fi
+done
+if [ "$has_prompt" -eq 1 ] && [ "$has_forbidden" -eq 1 ]; then
+  printf 'error: Cannot combine --prompt with %s.\\n' "$forbidden_arg" >&2
+  exit 1
+fi
 case "$KIMI_TEST_CASE" in
   stream)
     printf '{"role":"assistant","content":"Hel'
