@@ -1,0 +1,307 @@
+import type { ChildProcess } from 'child_process';
+import path from 'node:path';
+import {
+  createOpenClawResponse,
+  extractOpenClawText,
+  getOpenClawGatewayConfig,
+} from '@/lib/openclaw-client';
+import { getHarnessAdapter } from '@/lib/harness';
+import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
+import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
+import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
+import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
+import { registerRunningProcess } from './process-registry';
+import { getParticipantContinuationKey } from './session-tracking';
+import { persistPlatformLocalSessionMetadata } from './runner-metadata';
+import { buildHarnessPrompt, withLongFileRuntimeContext } from './prompt';
+import type { LongFileRuntimeContext } from './long-file-runtime-context';
+import type { AcpxParticipantRequest, AcpxRunRequest, HarnessStreamCallbacks } from './types';
+
+const DEFAULT_CODEX_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_CLAUDE_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_DEEPSEEK_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_GEMINI_MAX_RUNTIME_MS = 10 * 60 * 1000;
+
+export const resolveHarnessTimeout = (
+  configuredTimeout: number | null | undefined,
+  defaultTimeout: number
+): number | null =>
+  configuredTimeout === null
+    ? null
+    : typeof configuredTimeout === 'number'
+    ? configuredTimeout
+    : defaultTimeout;
+
+export const executeViaGateway = async (
+  request: AcpxRunRequest,
+  participant: AcpxParticipantRequest,
+  previousSummaries: string[],
+  taskRoomContext: {
+    transcript: string;
+    latestUserMessage: {
+      id: string;
+      content: string;
+      createdAt: string;
+      targetType: string;
+      targetParticipantLabel: string | null;
+    } | null;
+  },
+  contextWarning?: string | null
+): Promise<{
+  output: string;
+  filesModified: string[];
+  executionTime: number;
+  liveStreaming: boolean;
+  sessionId?: string;
+  sessionKind?: string;
+  threadId?: string;
+}> => {
+  const config = await getOpenClawGatewayConfig(participant.gatewayId);
+
+  if (!config) {
+    throw new Error(`Gateway "${participant.gatewayName || participant.gatewayId}" 未配置 OpenClaw`);
+  }
+
+  const response = await createOpenClawResponse(config, {
+    input: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
+    agentId: participant.agentId,
+    model: participant.agentId ? `openclaw:${participant.agentId}` : undefined,
+    sessionKey: `task:${request.taskId}:gateway:${participant.gatewayId}`,
+  });
+
+  return {
+    output: extractOpenClawText(response) || JSON.stringify(response, null, 2),
+    filesModified: [] as string[],
+    executionTime: 0,
+    liveStreaming: false,
+    threadId: undefined,
+  };
+};
+export const executeViaLocalHarness = async (
+  request: AcpxRunRequest,
+  taskRunId: string,
+  participantId: string,
+  participant: AcpxParticipantRequest,
+  callbacks: HarnessStreamCallbacks,
+  previousSummaries: string[],
+  taskRoomContext: {
+    transcript: string;
+    latestUserMessage: {
+      id: string;
+      content: string;
+      createdAt: string;
+      targetType: string;
+      targetParticipantLabel: string | null;
+    } | null;
+  },
+  onSpawn?: (child: { pid?: number }) => void, contextWarning?: string | null, longFileContext?: LongFileRuntimeContext | null,
+): Promise<{
+  output: string;
+  filesModified: string[];
+  executionTime: number;
+  liveStreaming: boolean;
+  sessionId?: string;
+  sessionKind?: string;
+  threadId?: string;
+}> => {
+  const task = {
+    id: request.taskId,
+    name: request.taskName,
+    description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning, longFileContext),
+  };
+  const adapter = getHarnessAdapter(participant.harnessType);
+  if (!adapter) {
+    throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
+  }
+  const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
+  const workspaceRoot = permissionConfig.profile === 'full_access'
+    ? undefined
+    : permissionConfig.writableRoots[0] || request.workingDirectory || process.cwd();
+  const codexHome = workspaceRoot && participant.harnessType === 'codex'
+    ? path.join(workspaceRoot, '.git', 'agent-platform', 'codex', path.basename(participant.codexHome || 'session'))
+    : participant.codexHome;
+  if (workspaceRoot && !['codex', 'claude', 'claude-haha'].includes(participant.harnessType)) {
+    throw new Error(`受限 Feishu 工作区暂不支持 harness: ${participant.harnessType}`);
+  }
+  const registerSpawn = (child: ChildProcess) => {
+    registerRunningProcess({
+      taskRunId,
+      participantId,
+      child,
+      executionBackend: participant.executionBackend,
+      harnessType: participant.harnessType,
+    });
+    onSpawn?.(child);
+  };
+
+  const defaultTimeout =
+    participant.harnessType === 'codex'
+      ? DEFAULT_CODEX_MAX_RUNTIME_MS
+      : participant.harnessType === 'deepseek'
+      ? DEFAULT_DEEPSEEK_MAX_RUNTIME_MS
+      : participant.harnessType === 'gemini-cli'
+      ? DEFAULT_GEMINI_MAX_RUNTIME_MS
+      : DEFAULT_CLAUDE_MAX_RUNTIME_MS;
+
+  const result = participant.continuationMessage && adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
+    ? await adapter.resume({
+        task,
+        sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
+        continuationMessage: withLongFileRuntimeContext(participant.continuationMessage, longFileContext),
+        context: {
+          workingDirectory: request.workingDirectory || process.cwd(),
+          workspaceRoot,
+          networkAccess: permissionConfig.networkAccess,
+          executionBackend: participant.executionBackend,
+          permissionConfig,
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
+          ephemeralSession: participant.ephemeralSession,
+          codexHome,
+          model: participant.model,
+          reasoningEffort: participant.reasoningEffort,
+          sessionKey: getParticipantContinuationKey({
+            continuationKey: participant.continuationKey,
+            executionBackend: participant.executionBackend,
+            gatewayId: participant.gatewayId,
+            harnessType: participant.harnessType,
+            role: participant.role,
+            agentId: participant.agentId,
+          }),
+          streamCallbacks: callbacks,
+          onSpawn: registerSpawn,
+          onSessionStarted: (session) => {
+            void persistPlatformLocalSessionMetadata(
+              taskRunId,
+              participantId,
+              session.sessionKind,
+              session.sessionId,
+              session.threadId
+            );
+          },
+        },
+      })
+    : await adapter.execute({
+        task,
+        context: {
+          workingDirectory: request.workingDirectory || process.cwd(),
+          workspaceRoot,
+          networkAccess: permissionConfig.networkAccess,
+          executionBackend: participant.executionBackend,
+          permissionConfig,
+          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
+          ephemeralSession: participant.ephemeralSession,
+          codexHome,
+          model: participant.model,
+          reasoningEffort: participant.reasoningEffort,
+          sessionKey: getParticipantContinuationKey({
+            continuationKey: participant.continuationKey,
+            executionBackend: participant.executionBackend,
+            gatewayId: participant.gatewayId,
+            harnessType: participant.harnessType,
+            role: participant.role,
+            agentId: participant.agentId,
+          }),
+          streamCallbacks: callbacks,
+          onSpawn: registerSpawn,
+          onSessionStarted: (session) => {
+            void persistPlatformLocalSessionMetadata(
+              taskRunId,
+              participantId,
+              session.sessionKind,
+              session.sessionId,
+              session.threadId
+            );
+          },
+        },
+      });
+
+  if (!result.success) {
+    throw new Error(result.error || `${adapter.displayName} execution failed`);
+  }
+
+  return {
+    output: result.output || `${adapter.displayName} completed`,
+    filesModified: result.filesModified ?? [],
+    executionTime: result.executionTime,
+    liveStreaming: result.liveStreaming ?? false,
+    sessionId: result.sessionId,
+    sessionKind: result.sessionKind,
+    threadId: result.threadId,
+  };
+};
+
+export const executeViaRemoteSshHarness = async (
+  request: AcpxRunRequest,
+  taskRunId: string,
+  participantId: string,
+  participant: AcpxParticipantRequest,
+  callbacks: HarnessStreamCallbacks,
+  previousSummaries: string[],
+  taskRoomContext: {
+    transcript: string;
+    latestUserMessage: {
+      id: string;
+      content: string;
+      createdAt: string;
+      targetType: string;
+      targetParticipantLabel: string | null;
+    } | null;
+  },
+  onSpawn?: (child: { pid?: number }) => void,
+  contextWarning?: string | null
+): Promise<{
+  output: string;
+  filesModified: string[];
+  executionTime: number;
+  liveStreaming: boolean;
+  sessionId?: string;
+  sessionKind?: string;
+  threadId?: string;
+}> => {
+  const remoteHost = await getRemoteHarnessHostById(participant.gatewayId);
+
+  if (!remoteHost) {
+    throw new Error(`Remote SSH host not found: ${participant.gatewayId}`);
+  }
+
+  if (!remoteHost.supportedHarnesses.includes(participant.harnessType.toLowerCase())) {
+    throw new Error(
+      `Remote SSH host "${remoteHost.label}" does not declare harness "${participant.harnessType}"`
+    );
+  }
+
+  return executeRemoteSshTask(
+    {
+      id: request.taskId,
+      name: request.taskName,
+      description: buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
+    },
+    {
+      timeout: resolveHarnessTimeout(
+        request.watchdogConfig?.maxRuntimeMs,
+        isClaudeHarnessType(participant.harnessType)
+          ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
+          : DEFAULT_CODEX_MAX_RUNTIME_MS
+      ) ?? (isClaudeHarnessType(participant.harnessType)
+        ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
+        : DEFAULT_CODEX_MAX_RUNTIME_MS),
+      harnessType: participant.harnessType,
+      host: remoteHost,
+      resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
+      continuationMessage: participant.resumeSessionId ? participant.continuationMessage : undefined,
+      model: participant.model,
+      reasoningEffort: participant.reasoningEffort,
+      streamCallbacks: callbacks,
+      onSpawn: (child) => {
+        registerRunningProcess({
+          taskRunId,
+          participantId,
+          child,
+          executionBackend: participant.executionBackend,
+          harnessType: participant.harnessType,
+        });
+        onSpawn?.(child);
+      },
+    }
+  );
+};
