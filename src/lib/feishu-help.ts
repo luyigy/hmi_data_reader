@@ -94,7 +94,7 @@ const QUICK_ACTIONS = [
   [
     ['用户', '/ap users'],
     ['待审批', '/ap approvals'],
-    ['权限', '/ap rights'],
+    ['权限申请', '/ap rights'],
   ],
 ] as const;
 

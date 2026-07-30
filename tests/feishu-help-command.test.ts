@@ -49,6 +49,7 @@ assert.match(JSON.stringify(cards), /选择一个分类/);
 assert.doesNotMatch(JSON.stringify(cards), /\/ap status/);
 
 const workflowCard = buildFeishuCommandCenterCard('group', 'workflow');
+assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'admin')), /权限申请/);
 for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   const expectedCategory = command === '/ap members'
     ? 'room'
