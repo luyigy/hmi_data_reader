@@ -135,19 +135,19 @@ export async function handleStatusCommand(
   const runtime = readFeishuRuntimeStatus();
   const runtimeLines = runtime?.metrics
     ? [
-        `Feishu runtime: ${runtime.metrics.health} (PID ${runtime.pid})`,
-        `Threads: ${runtime.metrics.threads}`,
-        `File descriptors: ${runtime.metrics.openFileDescriptors}`,
-        `SQLite descriptors: ${runtime.metrics.sqliteFileDescriptors}`,
-        `RSS: ${runtime.metrics.rssMb} MB`,
+        `飞书运行时：${runtime.metrics.health === 'healthy' ? '健康' : runtime.metrics.health}（PID ${runtime.pid}）`,
+        `线程数：${runtime.metrics.threads}`,
+        `文件描述符：${runtime.metrics.openFileDescriptors}`,
+        `SQLite 描述符：${runtime.metrics.sqliteFileDescriptors}`,
+        `内存占用：${runtime.metrics.rssMb} MB`,
       ]
-    : [`Feishu runtime: ${runtime?.status ?? 'unavailable'} (metrics unavailable)`];
+    : [`飞书运行时：${runtime?.status ?? '不可用'}（暂无指标）`];
 
   return [
     'Agent Platform 状态',
-    `Gateways: ${onlineGatewayCount}/${gatewayCount} online`,
-    `Agents: ${onlineAgentCount}/${agentCount} online`,
-    `Cross-gateway sessions: ${sessionCount}`,
+    `网关：${onlineGatewayCount}/${gatewayCount} 在线`,
+    `Agent：${onlineAgentCount}/${agentCount} 在线`,
+    `跨网关会话：${sessionCount}`,
     '',
     ...runtimeLines,
   ].join('\n');

@@ -87,19 +87,19 @@ export const formatWorkflowDiagnosis = ({
   lastError?: string | null;
   recentFailure?: { status: string; error?: string | null; summary?: string | null } | null;
 }) => [
-  `${projectName} / ${jobId} diagnosis (read-only)`,
-  `enabled: ${enabled}`,
-  `running: ${running}`,
-  `mode: ${mode}`,
-  `schedule: ${schedule}`,
-  `cursor: ${cursor.current ?? '-'}`,
-  `head: ${cursor.latest}`,
-  `cursor is ancestor of head: ${cursor.current ? !cursor.rewritten : '-'}`,
-  `behind: ${cursor.behind ?? '-'}`,
+  `${projectName} / ${jobId} 诊断（只读）`,
+  `已启用：${enabled ? '是' : '否'}`,
+  `运行中：${running ? '是' : '否'}`,
+  `模式：${mode}`,
+  `调度：${schedule}`,
+  `游标：${cursor.current ?? '-'}`,
+  `最新提交：${cursor.latest}`,
+  `游标属于当前历史：${cursor.current ? !cursor.rewritten ? '是' : '否' : '-'}`,
+  `落后提交数：${cursor.behind ?? '-'}`,
   ...formatWorkflowPending(pending),
-  `last error: ${lastError ?? '-'}`,
-  `recent failure: ${recentFailure ? `${recentFailure.status}: ${recentFailure.error ?? recentFailure.summary ?? '-'}` : '-'}`,
-  `workflow candidates: ${candidates.length ? candidates.join(', ') : 'none'}`,
+  `最近错误：${lastError ?? '-'}`,
+  `最近失败：${recentFailure ? `${recentFailure.status}: ${recentFailure.error ?? recentFailure.summary ?? '-'}` : '-'}`,
+  `候选工作流文档：${candidates.length ? candidates.join(', ') : '无'}`,
   cursor.rewritten
     ? '安全提示: 历史已改写；--latest 会跳过待处理提交，需人工确认恢复基准。'
     : '安全提示: 本命令只读；不会写数据库、移动 cursor、清除 pending、发送飞书消息或启动 Agent。',
@@ -134,26 +134,26 @@ export const explainWorkflowRun = (summary?: string | null) => {
 
 export const formatWorkflowPending = (cursor: unknown) => {
   if (!cursor || typeof cursor !== 'object' || Array.isArray(cursor) || !('pending' in cursor)) {
-    return ['pending: none'];
+    return ['待处理文档：无'];
   }
   const pending = cursor.pending;
   if (!pending || typeof pending !== 'object' || Array.isArray(pending)) {
-    return ['pending: none'];
+    return ['待处理文档：无'];
   }
   const value = pending as Record<string, unknown>;
   const reviewState = String(value.reviewState || 'preparing');
   return [
-    `pending: ${String(value.path || '-')}`,
-    `pending gate: ${String(value.gate || '-')}`,
-    `pending action: ${String(value.action || '-')}`,
-    `review state: ${reviewState}`,
+    `待处理文档：${String(value.path || '-')}`,
+    `等待节点：${String(value.gate || '-')}`,
+    `待执行动作：${String(value.action || '-')}`,
+    `评审状态：${reviewState}`,
     ...(reviewState === 'review'
       ? [
-        `review expires: ${String(value.reviewExpiresAt || '-')}`,
-        `review message: ${String(value.reviewMessageId || '-')}`,
+        `评审截止：${String(value.reviewExpiresAt || '-')}`,
+        `评审消息：${String(value.reviewMessageId || '-')}`,
       ]
       : ['revision', 'revision_requested'].includes(reviewState)
-        ? [`revision dispatched: ${value.revisionDispatched === true}`]
+        ? [`修改任务已投递：${value.revisionDispatched === true ? '是' : '否'}`]
         : []),
   ];
 };
@@ -299,7 +299,7 @@ export async function handleScheduledJobCommand(
   if (action === 'list') {
     return project.jobs.map((job) => {
       const state = stateByJob.get(job.id);
-      return `${job.id}: ${state?.enabledOverride ?? job.enabled ? 'enabled' : 'disabled'} · ${running.has(job.id) ? 'running' : 'idle'} · ${state?.modeOverride ?? job.mode} · ${effectiveJobSchedule(job, state)}`;
+      return `${job.id}：${state?.enabledOverride ?? job.enabled ? '已启用' : '已停用'} · ${running.has(job.id) ? '运行中' : '空闲'} · 模式 ${state?.modeOverride ?? job.mode} · 调度 ${effectiveJobSchedule(job, state)}`;
     }).join('\n');
   }
 
@@ -344,19 +344,19 @@ export async function handleScheduledJobCommand(
     });
     return [
       `${project.name} / ${job.id}`,
-      `repo: ${project.path}`,
-      `ref: ${project.ref}`,
-      `schedule: ${effectiveJobSchedule(job, state)}`,
-      `enabled: ${state?.enabledOverride ?? job.enabled}`,
-      `running: ${running.has(job.id)}`,
-      `mode: ${state?.modeOverride ?? job.mode}`,
-      `last run: ${date(state?.lastFinishedAt)}`,
-      `last success: ${date(state?.lastSuccessAt)}`,
-      `last error: ${state?.lastError ?? '-'}`,
-      `last status: ${latestRun?.status ?? '-'}`,
-      `last trigger: ${latestRun?.trigger ?? '-'}`,
-      `last result: ${latestRun?.summary ?? '-'}`,
-      `reason: ${job.type === 'workflow_watcher' ? explainWorkflowRun(latestRun?.summary) : latestRun?.summary ?? '-'}`,
+      `仓库：${project.path}`,
+      `Git ref：${project.ref}`,
+      `调度：${effectiveJobSchedule(job, state)}`,
+      `已启用：${state?.enabledOverride ?? job.enabled ? '是' : '否'}`,
+      `运行中：${running.has(job.id) ? '是' : '否'}`,
+      `模式：${state?.modeOverride ?? job.mode}`,
+      `最近执行：${date(state?.lastFinishedAt)}`,
+      `最近成功：${date(state?.lastSuccessAt)}`,
+      `最近错误：${state?.lastError ?? '-'}`,
+      `最近状态：${latestRun?.status ?? '-'}`,
+      `触发方式：${latestRun?.trigger ?? '-'}`,
+      `原始结果：${latestRun?.summary ?? '-'}`,
+      `说明：${job.type === 'workflow_watcher' ? explainWorkflowRun(latestRun?.summary) : latestRun?.summary ?? '-'}`,
     ].join('\n');
   }
   if (action === 'cursor') {
@@ -366,10 +366,10 @@ export async function handleScheduledJobCommand(
     if (!command.options.latest && !clearPending) {
       return [
         `${project.name} / ${job.id}`,
-        `cursor: ${cursor.current ?? '-'}`,
-        `latest: ${cursor.latest}`,
-        `history rewritten: ${cursor.rewritten}`,
-        `behind: ${cursor.behind ?? '-'}`,
+        `游标：${cursor.current ?? '-'}`,
+        `最新提交：${cursor.latest}`,
+        `历史已改写：${cursor.rewritten ? '是' : '否'}`,
+        `落后提交数：${cursor.behind ?? '-'}`,
         ...formatWorkflowPending(state?.cursorJson),
       ].join('\n');
     }

@@ -64,6 +64,6 @@ export async function handleAgentSessionsCommand() {
   })))).filter((entry) => entry.pid !== null);
   if (!active.length) return '平台当前实际存活的 Agent 进程：0';
   const lines = active.map(({ participant, pid }) =>
-    `- ${participant.harnessNameSnapshot || participant.harnessType} · ${participant.taskRun.task.name} · run=${participant.taskRunId} · pid=${pid} · db=${participant.status}`);
+    `- ${participant.harnessNameSnapshot || participant.harnessType} · ${participant.taskRun.task.name} · 任务运行=${participant.taskRunId} · 进程=${pid} · 数据库状态=${participant.status}`);
   return [`平台当前实际存活的 Agent 进程：${active.length}`, ...lines].join('\n');
 }

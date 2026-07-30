@@ -121,14 +121,14 @@ assert.deepEqual(formatWorkflowPending({ pending: {
   reviewExpiresAt: '2026-07-27T12:00:00.000Z',
   reviewMessageId: 'message-9',
 } }), [
-  'pending: docs/009_PLAN.md',
-  'pending gate: plan_review',
-  'pending action: start_first_slice',
-  'review state: review',
-  'review expires: 2026-07-27T12:00:00.000Z',
-  'review message: message-9',
+  '待处理文档：docs/009_PLAN.md',
+  '等待节点：plan_review',
+  '待执行动作：start_first_slice',
+  '评审状态：review',
+  '评审截止：2026-07-27T12:00:00.000Z',
+  '评审消息：message-9',
 ]);
-assert.deepEqual(formatWorkflowPending({ commit: 'abc' }), ['pending: none']);
+assert.deepEqual(formatWorkflowPending({ commit: 'abc' }), ['待处理文档：无']);
 assert.deepEqual(buildWorkflowRetryPending({
   key: 'plan',
   reviewState: 'revision',
@@ -184,11 +184,11 @@ assert.deepEqual(formatWorkflowPending({ pending: {
   reviewExpiresAt: 'stale',
   reviewMessageId: 'stale',
 } }), [
-  'pending: docs/009_PLAN.md',
-  'pending gate: plan_review',
-  'pending action: start_first_slice',
-  'review state: revision',
-  'revision dispatched: true',
+  '待处理文档：docs/009_PLAN.md',
+  '等待节点：plan_review',
+  '待执行动作：start_first_slice',
+  '评审状态：revision',
+  '修改任务已投递：是',
 ]);
 const dashboardCard = buildWorkflowDashboardCard({
   projectId: 'project',
@@ -242,7 +242,7 @@ async function testCursor() {
       candidates: ['docs/001_PLAN.md'],
       lastError: 'old error',
       recentFailure: { status: 'failed', error: 'new error' },
-    }), /diagnosis \(read-only\)[\s\S]*cursor is ancestor of head: true[\s\S]*workflow candidates: docs\/001_PLAN\.md[\s\S]*不会写数据库/);
+    }), /诊断（只读）[\s\S]*游标属于当前历史：是[\s\S]*候选工作流文档：docs\/001_PLAN\.md[\s\S]*不会写数据库/);
 
     mkdirSync(path.join(root, 'docs/workflow'), { recursive: true });
     writeFileSync(

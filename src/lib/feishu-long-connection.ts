@@ -6,7 +6,13 @@ import {
   parseFeishuCommand,
   parseFeishuMessageContent,
 } from '@/lib/feishu';
-import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage, updateFeishuApprovalCardResolved } from '@/lib/feishu-api';
+import {
+  addTypingReaction,
+  removeTypingReaction,
+  sendFeishuInteractiveMessage,
+  sendFeishuTextMessage,
+  updateFeishuApprovalCardResolved,
+} from '@/lib/feishu-api';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import { tryRelayNonCommandToLiveRoom, UNBOUND_FEISHU_LIVE_ROOM_HINT } from '@/lib/feishu-live-room';
 import {
@@ -28,7 +34,13 @@ import {
   type FeishuCardActionIdentity,
 } from '@/lib/feishu-card-action';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
-import { FEISHU_COMMAND_CARD_ACTIONS } from '@/lib/feishu-help';
+import {
+  buildFeishuCommandCenterCard,
+  buildFeishuCommandFromForm,
+  buildFeishuCommandResultCard,
+  FEISHU_COMMAND_CARD_ACTIONS,
+  isFeishuCommandCenterView,
+} from '@/lib/feishu-help';
 export { resolveFeishuCardActionIdentity } from '@/lib/feishu-card-action';
 
 type FeishuLongConnectionState = {
@@ -232,6 +244,18 @@ function buildCardActionHandler(prefix: string) {
     const { openId, chatId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
 
+    if (cmd === 'ap-menu') {
+      const value = data.action.value as Record<string, unknown>;
+      const chatType = value.chatType === 'p2p' ? 'p2p' : 'group';
+      if (!isFeishuCommandCenterView(value.view)) {
+        return { toast: { type: 'warning', content: '命令中心页面已失效，请重新发送 /ap menu' } };
+      }
+      return {
+        toast: { type: 'success', content: '命令中心已切换' },
+        card: buildFeishuCommandCenterCard(chatType, value.view),
+      };
+    }
+
     if (cmd === 'workflow-dashboard') {
       const value = data.action.value as Record<string, unknown>;
       if (typeof value.projectId !== 'string'
@@ -291,21 +315,64 @@ function buildCardActionHandler(prefix: string) {
           senderOpenId: openId,
           messageId: messageId || '',
         },
-      }).then((result) => sendFeishuTextMessage({
+      }).then((result) => sendFeishuInteractiveMessage({
         receiveId: chatId,
         receiveIdType: 'chat_id',
         replyId: messageId,
-        text: result,
+        card: buildFeishuCommandResultCard(commandText, result, chatType),
       })).catch((err) => {
         console.error(`${prefix} AP command card action failed`, { command: commandText, err });
-        return sendFeishuTextMessage({
+        return sendFeishuInteractiveMessage({
           receiveId: chatId,
           receiveIdType: 'chat_id',
           replyId: messageId,
-          text: `❌ 命令执行失败：${err instanceof Error ? err.message : String(err)}`,
+          card: buildFeishuCommandResultCard(
+            commandText,
+            `❌ 命令执行失败：${err instanceof Error ? err.message : String(err)}`,
+            chatType,
+          ),
         });
       });
       return { toast: { type: 'success', content: `${commandText} 已接收，结果稍后回复` } };
+    }
+
+    if (cmd === 'ap-form') {
+      const value = data.action.value as Record<string, unknown>;
+      const chatType = value.chatType === 'p2p' ? 'p2p' : 'group';
+      const formValue = (data.action as unknown as { form_value?: Record<string, unknown> }).form_value;
+      const command = buildFeishuCommandFromForm(value.form, formValue);
+      if (!openId || !chatId || !command) {
+        return { toast: { type: 'warning', content: '请完整填写表单后再提交' } };
+      }
+      const label = command.command === 'job' ? '修改 Workflow 调度' : `执行 /ap ${command.command}`;
+      void handleFeishuCommand({
+        command,
+        baseUrl: resolveBaseUrl(),
+        context: {
+          chatId,
+          chatType,
+          senderOpenId: openId,
+          messageId: messageId || '',
+        },
+      }).then((result) => sendFeishuInteractiveMessage({
+        receiveId: chatId,
+        receiveIdType: 'chat_id',
+        replyId: messageId,
+        card: buildFeishuCommandResultCard(label, result, chatType),
+      })).catch((err) => {
+        console.error(`${prefix} AP command form action failed`, { form: value.form, err });
+        return sendFeishuInteractiveMessage({
+          receiveId: chatId,
+          receiveIdType: 'chat_id',
+          replyId: messageId,
+          card: buildFeishuCommandResultCard(
+            label,
+            `❌ 命令执行失败：${err instanceof Error ? err.message : String(err)}`,
+            chatType,
+          ),
+        });
+      });
+      return { toast: { type: 'success', content: '参数已提交，结果稍后回复' } };
     }
 
     if (cmd === 'workflow-review') {

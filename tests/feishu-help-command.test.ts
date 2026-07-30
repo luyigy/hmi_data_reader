@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
 import {
+  buildFeishuCommandCenterCard,
   buildFeishuCommandCenterCards,
+  buildFeishuCommandFromForm,
+  buildFeishuCommandResultCard,
   FEISHU_COMMAND_CARD_ACTIONS,
   formatFeishuHelp,
 } from '../src/lib/feishu-help';
@@ -38,11 +41,55 @@ assert.equal(parseFeishuCommand(message('Workflow Dashboard 点击后没有反�
 assert.deepEqual(parseFeishuCommand(message('/ap menu')), { command: 'menu', args: [], options: {} });
 
 const cards = buildFeishuCommandCenterCards('group');
-assert.equal(cards.length, 4);
+assert.equal(cards.length, 1);
 assert.ok(cards.every((card) => card.schema === '2.0'));
 assert.match(JSON.stringify(cards), /AP 命令中心/);
+assert.match(JSON.stringify(cards), /选择一个分类/);
+assert.doesNotMatch(JSON.stringify(cards), /\/ap status/);
+
+const workflowCard = buildFeishuCommandCenterCard('group', 'workflow');
 for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
-  assert.match(JSON.stringify(cards), new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  const expectedCategory = command === '/ap members'
+    ? 'room'
+    : ['/ap status', '/ap gateways', '/ap agents', '/ap hosts', '/ap sessions'].includes(command)
+      ? 'runtime'
+      : ['/ap dashboard', '/ap jobs', '/ap workflow policy show', '/ap job diagnose workflow-watcher'].includes(command)
+        ? 'workflow'
+        : 'admin';
+  assert.match(
+    JSON.stringify(buildFeishuCommandCenterCard('group', expectedCategory)),
+    new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  );
 }
+assert.match(JSON.stringify(workflowCard), /修改调度/);
+assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'form-schedule')), /form_action_type/);
+assert.deepEqual(buildFeishuCommandFromForm('form-workspace', { path: ' projects/hmi ' }), {
+  command: 'workspace',
+  args: ['projects/hmi'],
+  options: {},
+});
+assert.deepEqual(buildFeishuCommandFromForm('form-chat', { message: ' 请检查数据 ' }), {
+  command: 'chat',
+  args: ['请检查数据'],
+  options: {},
+});
+assert.deepEqual(buildFeishuCommandFromForm('form-plan', { requirements: ' 做一个薄切片 ' }), {
+  command: 'plan',
+  args: ['做一个薄切片'],
+  options: {},
+});
+assert.deepEqual(buildFeishuCommandFromForm('form-schedule', {
+  jobId: 'workflow-watcher',
+  cron: '*/5 * * * *',
+}), {
+  command: 'job',
+  args: ['schedule', 'workflow-watcher'],
+  options: { cron: '*/5 * * * *' },
+});
+assert.equal(buildFeishuCommandFromForm('form-workspace', { path: '  ' }), null);
+const resultCard = buildFeishuCommandResultCard('/ap status', 'Agent Platform 状态\n网关：1/1 在线', 'group');
+assert.match(JSON.stringify(resultCard), /Agent Platform 状态/);
+assert.match(JSON.stringify(resultCard), /查看详细信息/);
+assert.match(JSON.stringify(resultCard), /返回命令中心/);
 
 console.log('Feishu help command checks passed');
