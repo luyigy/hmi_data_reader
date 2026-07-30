@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -156,15 +156,3 @@ Workflow 审批都能回到明确状态。
 - 两类进程重启和 60 秒 timeout 故障注入均无重复副作用；
 - 无法证明状态、Git 历史重写和审批冲突保持 blocked；
 - P1 状态卡片与 P2 lease/outbox 明确留在本 PLAN 之外。
-
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/319_PLAN_20260730_定时任务与Workflow重启恢复闭环.md` 的 S01：只实现 scheduled-job runner
-启动收口与周期核对。先读取 `AGENTS.md`、`docs/workflow/workflow-contract.yaml`、本 PLAN、当前最新有效
-HANDOVER，以及 scheduled-job runner、ACPX liveness、Feishu admin approval 的现有实现；保留开工前
-工作区所有用户改动。对实际修改的每个 function/class/method 先运行 GitNexus upstream impact，
-HIGH/CRITICAL 必须先报告。不得开始 S02/S03，不修改 Workflow 审批 attempt，不新增 heartbeat、lease、
-outbox、状态卡片或数据库表，不重启服务或发送真实 Feishu 消息。完成聚焦测试、相关回归、TypeScript、
-ESLint、`npm run check:long-files`、`git diff --check` 和 GitNexus
-`detect_changes({scope: "compare", base_ref: "master"})` 后精确提交，并创建
-`plan_progress: in_progress`、`next_action: next_slice` 的 S01 HANDOVER；提交后立即停止。
-<!-- WORKFLOW_PROMPT_END -->
