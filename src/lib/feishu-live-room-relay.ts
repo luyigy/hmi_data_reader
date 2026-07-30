@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { prisma } from '@/lib/prisma';
 import {
   removeTypingReaction,
   sendFeishuInteractiveMessage,
+  sendFeishuLocalImageMessage,
   sendFeishuTextMessage,
 } from '@/lib/feishu-api';
 import type { LiveRoomMessagePayload } from '@/lib/live-room';
@@ -84,6 +86,33 @@ export const buildAssistantRelayCard = (message: LiveRoomMessagePayload) => {
   };
 };
 
+export const extractAssistantRelayImages = (
+  content: string,
+  workspaceRoot = process.cwd()
+) => {
+  const imagePaths: string[] = [];
+  const text = content.replace(
+    /!\[([^\]]*)\]\((<?[^)\s>]+>?)\)/g,
+    (_match, alt: string, rawTarget: string) => {
+      const target = rawTarget.replace(/^<|>$/g, '');
+      if (/^https?:\/\//i.test(target)) {
+        return `[${alt || '图片'}](${target})`;
+      }
+
+      const filePath = path.resolve(workspaceRoot, target);
+      const relativePath = path.relative(workspaceRoot, filePath);
+      if (relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+        return alt ? `${alt}（图片路径不在工作区）` : '图片路径不在工作区';
+      }
+
+      imagePaths.push(filePath);
+      return alt || '';
+    }
+  );
+
+  return { text: text.trim(), imagePaths: Array.from(new Set(imagePaths)) };
+};
+
 export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePayload) {
   if (!shouldRelayLiveRoomMessage(message)) {
     return;
@@ -118,11 +147,30 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
   }
 
   if (message.messageType === 'assistant') {
-    await sendFeishuInteractiveMessage({
-      receiveId: binding.chatId,
-      receiveIdType: 'chat_id',
-      card: buildAssistantRelayCard(message),
-    });
+    const relay = extractAssistantRelayImages(message.content);
+    if (relay.text) {
+      try {
+        await sendFeishuInteractiveMessage({
+          receiveId: binding.chatId,
+          receiveIdType: 'chat_id',
+          card: buildAssistantRelayCard({ ...message, content: relay.text }),
+        });
+      } catch {
+        console.warn('Interactive Live Room relay failed; falling back to text.');
+        await sendFeishuTextMessage({
+          receiveId: binding.chatId,
+          receiveIdType: 'chat_id',
+          text: `${message.senderName}\n\n${relay.text}`,
+        });
+      }
+    }
+    for (const filePath of relay.imagePaths) {
+      await sendFeishuLocalImageMessage({
+        receiveId: binding.chatId,
+        receiveIdType: 'chat_id',
+        filePath,
+      });
+    }
   } else {
     await sendFeishuTextMessage({
       receiveId: binding.chatId,

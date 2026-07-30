@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import {
   buildAssistantRelayCard,
+  extractAssistantRelayImages,
+  relayLiveRoomMessageToFeishu,
   selectFeishuRelayBinding,
   shouldRelayLiveRoomMessage,
 } from '../src/lib/feishu-live-room-relay';
+import * as feishuApiModule from '../src/lib/feishu-api';
+import { prisma } from '../src/lib/prisma';
 import type { LiveRoomMessagePayload } from '../src/lib/live-room';
 
 const message = (
@@ -100,3 +104,57 @@ assert.equal(selectFeishuRelayBinding(bindings, routed)?.chatId, 'chat-b');
 routed.metadata = null;
 assert.equal(selectFeishuRelayBinding(bindings, routed), null, 'shared room must not guess a binding');
 assert.equal(selectFeishuRelayBinding(bindings.slice(0, 1), routed)?.chatId, 'chat-a');
+
+assert.deepEqual(
+  extractAssistantRelayImages(
+    '扫码：\n![登录二维码](/workspace/login.png)\n![远程图片](https://example.com/image.png)',
+    '/workspace'
+  ),
+  {
+    text: '扫码：\n登录二维码\n[远程图片](https://example.com/image.png)',
+    imagePaths: ['/workspace/login.png'],
+  }
+);
+assert.deepEqual(
+  extractAssistantRelayImages('![密钥](/etc/passwd)', '/workspace'),
+  {
+    text: '密钥（图片路径不在工作区）',
+    imagePaths: [],
+  }
+);
+
+const checkInteractiveFallback = async () => {
+  const feishuApi = feishuApiModule as {
+    sendFeishuInteractiveMessage: typeof feishuApiModule.sendFeishuInteractiveMessage;
+    sendFeishuTextMessage: typeof feishuApiModule.sendFeishuTextMessage;
+  };
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalInteractive = feishuApi.sendFeishuInteractiveMessage;
+  const originalText = feishuApi.sendFeishuTextMessage;
+  const sentTexts: string[] = [];
+
+  prisma.$queryRaw = (async () => [bindings[0]]) as typeof prisma.$queryRaw;
+  feishuApi.sendFeishuInteractiveMessage = async () => {
+    throw new Error('card contains unresolved variable');
+  };
+  feishuApi.sendFeishuTextMessage = async ({ text }) => {
+    sentTexts.push(text);
+  };
+
+  try {
+    assistant.content = 'Key: ${cursor}:${head}:${reason}';
+    await relayLiveRoomMessageToFeishu(assistant);
+    assert.deepEqual(sentTexts, ['codex\n\nKey: ${cursor}:${head}:${reason}']);
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    feishuApi.sendFeishuInteractiveMessage = originalInteractive;
+    feishuApi.sendFeishuTextMessage = originalText;
+  }
+};
+
+void checkInteractiveFallback()
+  .then(() => console.log('Feishu Live Room relay checks passed'))
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

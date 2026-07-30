@@ -26,6 +26,14 @@ type FeishuSendMessageResponse = {
   };
 };
 
+type FeishuImageResponse = {
+  code: number;
+  msg?: string;
+  data?: {
+    image_key?: string;
+  };
+};
+
 type FeishuMessageResourceDownloadResult = {
   filePath: string;
   contentType: string | null;
@@ -146,6 +154,69 @@ export async function sendFeishuInteractiveMessage(args: {
   }
 
   return data.data?.message_id;
+}
+
+export async function sendFeishuLocalImageMessage(args: {
+  receiveId: string;
+  filePath: string;
+  receiveIdType?: 'chat_id' | 'open_id';
+}): Promise<string | undefined> {
+  const workspaceRoot = await fs.realpath(process.cwd());
+  const filePath = await fs.realpath(args.filePath);
+  const relativePath = path.relative(workspaceRoot, filePath);
+  if (relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+    throw new Error('Refusing to relay an image outside the workspace');
+  }
+
+  const mimeType = ({
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
+  } as Record<string, string>)[path.extname(filePath).toLowerCase()];
+  if (!mimeType) {
+    throw new Error(`Unsupported Feishu image type: ${path.extname(filePath) || 'unknown'}`);
+  }
+
+  const token = await getFeishuTenantAccessToken();
+  const image = await fs.readFile(filePath);
+  const form = new FormData();
+  form.set('image_type', 'message');
+  form.set('image', new Blob([new Uint8Array(image)], { type: mimeType }), path.basename(filePath));
+
+  const uploadResponse = await fetch(`${FEISHU_API_BASE}/im/v1/images`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const uploadData = await uploadResponse.json() as FeishuImageResponse;
+  const imageKey = uploadData.data?.image_key;
+  if (!uploadResponse.ok || uploadData.code !== 0 || !imageKey) {
+    throw new Error(uploadData.msg || `Failed to upload Feishu image: HTTP ${uploadResponse.status}`);
+  }
+
+  const receiveIdType = args.receiveIdType || 'chat_id';
+  const sendUrl = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
+  sendUrl.searchParams.set('receive_id_type', receiveIdType);
+  const sendResponse = await fetch(sendUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      receive_id: args.receiveId,
+      msg_type: 'image',
+      content: JSON.stringify({ image_key: imageKey }),
+    }),
+  });
+  const sendData = await sendResponse.json() as FeishuSendMessageResponse;
+  if (!sendResponse.ok || sendData.code !== 0) {
+    throw new Error(sendData.msg || `Failed to send Feishu image: HTTP ${sendResponse.status}`);
+  }
+  return sendData.data?.message_id;
 }
 
 async function sendFeishuWorkflowMessage(args: {
