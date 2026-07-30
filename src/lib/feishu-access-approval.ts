@@ -116,7 +116,9 @@ export async function requestFullAccessApproval(args: StoredCommand) {
   const existing = await prisma.feishuAdminApproval.findFirst({
     where: { requesterOpenId: args.context.senderOpenId, kind: 'full_access', status: 'pending', expiresAt: { gt: new Date() } },
   });
-  if (existing) return '已有待处理的 Full Access 申请，请等待管理员审批。';
+  if (existing) {
+    return '已有一项待审批的 Full Access（完全访问）权限申请；批准前不会提升权限或启动新的 Agent 运行。';
+  }
 
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
   const storedArgs: StoredCommand = { ...args, command: buildFullAccessApprovedCommand(args.command) };
@@ -148,7 +150,7 @@ export async function requestFullAccessApproval(args: StoredCommand) {
       `有效期：${expiresAt.toISOString()}`,
     ].join('\n'),
   });
-  return 'Full Access 申请已发送给管理员；批准前不会修改权限或启动运行。';
+  return '🔐 已向管理员提交 Full Access（完全访问）权限申请；批准前不会提升当前权限，也不会启动新的 Agent 运行。';
 }
 
 export async function resolveFeishuAdminApproval(args: {

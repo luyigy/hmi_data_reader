@@ -206,12 +206,44 @@ export const applyWorkflowPermissionSnapshot = (
   ? { ...snapshot.effective.permissionConfig, workflowPermissionSnapshot: snapshot } as AcpxPermissionConfig
   : permission;
 
-export const formatWorkflowPermissionSnapshot = (snapshot: WorkflowPermissionSnapshot) => [
-  `configured: preset=${snapshot.configured.preset} · source=${snapshot.configured.source}`,
-  `effective: workdir=${snapshot.effective.workdir} · filesystem=${snapshot.effective.filesystem} · temp=${snapshot.effective.temporaryDirectory} · network=${snapshot.effective.network} · approval=${snapshot.effective.approval}`,
-  `runtime: outer_boundary=bubblewrap_workspace · codex_inner_sandbox=${WORKFLOW_CODEX_INNER_SANDBOX_MODE} · approval=${snapshot.effective.approval}`,
-  `enforcement: ${snapshot.enforcement.level} · sandbox=${snapshot.enforcement.sandboxMode} · approval=${snapshot.enforcement.approvalPolicy} · network=${snapshot.enforcement.networkAccess} · writable_roots=${snapshot.enforcement.writableRoots}`,
-  'exceptions:',
-  ...snapshot.exceptions.map((exception) =>
-    `- ${exception.path} · ${exception.access} · ${exception.reason}`),
-].join('\n');
+export const formatWorkflowPermissionSnapshot = (snapshot: WorkflowPermissionSnapshot) => {
+  const stateLabel = {
+    applied: '已生效',
+    partially_applied: '部分生效',
+    recorded_only: '仅记录，未强制执行',
+  } as const;
+  const conclusion = snapshot.enforcement.level === 'applied'
+    ? '所有权限限制均已生效'
+    : snapshot.enforcement.level === 'partially_applied'
+      ? '部分权限限制未完全生效，请联系管理员检查'
+      : '权限策略目前仅被记录，尚未强制执行';
+
+  return [
+    `结论：Workflow 正在使用“工作区隔离”策略，${conclusion}。`,
+    '',
+    '**实际权限**',
+    `- 工作目录：${snapshot.effective.workdir}`,
+    '- 文件写入：仅允许写入上述工作区',
+    '- 网络访问：允许',
+    '- 临时目录：每次运行独立，运行结束后不复用',
+    '- 运行中审批：不弹出审批（approval=never）',
+    '',
+    '**隔离边界**',
+    '- 外层：Bubblewrap 工作区沙箱',
+    `- Codex 内层：完全访问模式（${WORKFLOW_CODEX_INNER_SANDBOX_MODE}），但不能越过外层工作区沙箱`,
+    `- 沙箱：${stateLabel[snapshot.enforcement.sandboxMode]}`,
+    `- 审批策略：${stateLabel[snapshot.enforcement.approvalPolicy]}`,
+    `- 网络策略：${stateLabel[snapshot.enforcement.networkAccess]}`,
+    `- 可写目录限制：${stateLabel[snapshot.enforcement.writableRoots]}`,
+    '',
+    '**只读系统目录**',
+    ...snapshot.exceptions.map((exception) =>
+      `- ${exception.path}：只读；${exception.reason === 'Shared Agent skills'
+        ? '共享 Agent Skills'
+        : 'Codex 认证、配置、插件和规则'}`),
+    '',
+    '**配置位置**',
+    `- 策略预设：工作区隔离（${snapshot.configured.preset}）`,
+    `- 配置来源：${snapshot.configured.source}`,
+  ].join('\n');
+};

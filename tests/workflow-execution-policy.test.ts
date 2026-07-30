@@ -72,7 +72,7 @@ void (async () => {
       { command: 'workflow', args: ['policy', 'show'], options: {} },
       context,
     ),
-    /configured:[\s\S]*effective:[\s\S]*runtime: outer_boundary=bubblewrap_workspace · codex_inner_sandbox=danger-full-access · approval=never[\s\S]*enforcement:[\s\S]*exceptions:/,
+    /结论：Workflow 正在使用“工作区隔离”策略，所有权限限制均已生效。[\s\S]*\*\*实际权限\*\*[\s\S]*文件写入：仅允许写入上述工作区[\s\S]*\*\*隔离边界\*\*[\s\S]*Codex 内层：完全访问模式（danger-full-access），但不能越过外层工作区沙箱[\s\S]*\*\*只读系统目录\*\*[\s\S]*\*\*配置位置\*\*/,
   );
   assert.equal(
     await handleWorkflowPolicyCommand(
