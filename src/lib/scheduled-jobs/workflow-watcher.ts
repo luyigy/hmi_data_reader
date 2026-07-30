@@ -24,6 +24,7 @@ import {
   workflowFrontMatter,
   type WorkflowContract,
 } from './workflow-validator';
+import { ensureAppendOnlyGitRef } from './git-history-guard';
 
 type Pending = WorkflowReviewPending & {
   key: string;
@@ -243,6 +244,7 @@ export const workflowWatcherHandler = async (
     throw new Error('workflow_watcher active identity config is incomplete');
   }
 
+  await ensureAppendOnlyGitRef(project.path, project.ref, signal);
   const head = (await git(project.path, signal, 'rev-parse', '--verify', `${project.ref}^{commit}`)).trim();
   const previous = workflowCursor(cursor, job.config.initial_cursor_commit);
   const contract = await readWorkflowContract(project.path, head, contractPath, signal);

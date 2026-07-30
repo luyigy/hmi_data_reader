@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmod, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { workflowWatcherHandler } from '../src/lib/scheduled-jobs/workflow-watcher';
@@ -185,6 +185,10 @@ S01 then S02
   }, importDocument);
 
   assert.match((await run(undefined, 'shadow')).summary, /candidate=none/);
+  assert.throws(
+    () => git('commit', '--amend', '--no-verify', '--allow-empty', '-qm', 'blocked rewrite'),
+    /Agent Platform blocked non-fast-forward update/,
+  );
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(undefined, 'active'), /active side effects require explicit config gate/);
   job.config.active_side_effects_enabled = true;
@@ -691,6 +695,7 @@ S01
   assert.equal(workflowRuns.length, runsBeforeInvalid + 2, 'new invalid blob must dispatch a new repair Session');
 
   const rewriteCursor = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-rewrite' };
+  await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
   git('commit', '--amend', '--allow-empty', '-qm', 'rewrite current head');
   const noticesBeforeRewrite = apiCalls.length;
   const runsBeforeRewrite = workflowRuns.length;
