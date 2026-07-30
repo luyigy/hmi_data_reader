@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
 import {
   buildFeishuCommandCenterCard,
+  buildFeishuCommandCenterCardUpdate,
   buildFeishuCommandCenterCards,
   buildFeishuCommandFromForm,
   buildFeishuCommandResultCard,
@@ -62,7 +63,16 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   );
 }
 assert.match(JSON.stringify(workflowCard), /修改调度/);
-assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'form-schedule')), /form_action_type/);
+const scheduleFormCard = buildFeishuCommandCenterCard('group', 'form-schedule');
+assert.match(JSON.stringify(scheduleFormCard), /form_action_type/);
+assert.match(JSON.stringify(scheduleFormCard), /submitSchedule_group/);
+const scheduleForm = scheduleFormCard.body.elements[0] as {
+  elements: Array<Record<string, unknown>>;
+};
+assert.equal('value' in scheduleForm.elements.at(-1)!, false);
+const workflowUpdate = buildFeishuCommandCenterCardUpdate('group', 'workflow');
+assert.equal(workflowUpdate.type, 'raw');
+assert.deepEqual(workflowUpdate.data, workflowCard);
 assert.deepEqual(buildFeishuCommandFromForm('form-workspace', { path: ' projects/hmi ' }), {
   command: 'workspace',
   args: ['projects/hmi'],

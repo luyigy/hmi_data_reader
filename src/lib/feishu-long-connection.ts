@@ -35,7 +35,7 @@ import {
 } from '@/lib/feishu-card-action';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
 import {
-  buildFeishuCommandCenterCard,
+  buildFeishuCommandCenterCardUpdate,
   buildFeishuCommandFromForm,
   buildFeishuCommandResultCard,
   FEISHU_COMMAND_CARD_ACTIONS,
@@ -236,8 +236,25 @@ function markRuntimeStatus(
 
 function buildCardActionHandler(prefix: string) {
   return async (data: Lark.InteractiveCardActionEvent) => {
+    const action = data.action as unknown as {
+      name?: string;
+      value?: Record<string, unknown>;
+      form_value?: Record<string, unknown>;
+    };
+    const submittedChatType = action.name?.endsWith('_p2p')
+      ? 'p2p'
+      : action.name?.endsWith('_group')
+        ? 'group'
+        : undefined;
+    const submitName = action.name?.replace(/_(p2p|group)$/, '');
+    const submittedForm = ({
+      submitWorkspace: 'form-workspace',
+      submitChat: 'form-chat',
+      submitPlan: 'form-plan',
+      submitSchedule: 'form-schedule',
+    } as const)[submitName as 'submitWorkspace' | 'submitChat' | 'submitPlan' | 'submitSchedule'];
     const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
-    if (!cmd) {
+    if (!cmd && !submittedForm) {
       return {};
     }
 
@@ -252,7 +269,7 @@ function buildCardActionHandler(prefix: string) {
       }
       return {
         toast: { type: 'success', content: '命令中心已切换' },
-        card: buildFeishuCommandCenterCard(chatType, value.view),
+        card: buildFeishuCommandCenterCardUpdate(chatType, value.view),
       };
     }
 
@@ -336,11 +353,10 @@ function buildCardActionHandler(prefix: string) {
       return { toast: { type: 'success', content: `${commandText} 已接收，结果稍后回复` } };
     }
 
-    if (cmd === 'ap-form') {
-      const value = data.action.value as Record<string, unknown>;
-      const chatType = value.chatType === 'p2p' ? 'p2p' : 'group';
-      const formValue = (data.action as unknown as { form_value?: Record<string, unknown> }).form_value;
-      const command = buildFeishuCommandFromForm(value.form, formValue);
+    if (cmd === 'ap-form' || submittedForm) {
+      const value = action.value ?? {};
+      const chatType = submittedChatType ?? (value.chatType === 'p2p' ? 'p2p' : 'group');
+      const command = buildFeishuCommandFromForm(submittedForm ?? value.form, action.form_value);
       if (!openId || !chatId || !command) {
         return { toast: { type: 'warning', content: '请完整填写表单后再提交' } };
       }
@@ -475,6 +491,7 @@ function buildCardActionHandler(prefix: string) {
       }
     }
 
+    if (!cmd) return {};
     const approveMatch = /^approve:(.+)$/.exec(cmd);
     const denyMatch = /^deny:(.+)$/.exec(cmd);
     const adminMatch = /^admin-approval:(approve|deny):(.+)$/.exec(cmd);

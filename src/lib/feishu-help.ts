@@ -107,6 +107,7 @@ const FORM_DEFINITIONS = {
     title: '切换工作区',
     description: '填写 root 范围内的绝对或相对路径。',
     fields: [{ name: 'path', label: '工作区路径', placeholder: '例如：projects/hmi-reader' }],
+    submitName: 'submitWorkspace',
     submitLabel: '应用工作区',
     returnView: 'runtime',
   },
@@ -114,6 +115,7 @@ const FORM_DEFINITIONS = {
     title: '发送 Agent 消息',
     description: '消息会沿用当前会话的成员与权限上下文。',
     fields: [{ name: 'message', label: '消息内容', placeholder: '请输入要发送给 Agent 的消息', multiline: true }],
+    submitName: 'submitChat',
     submitLabel: '发送消息',
     returnView: 'room',
   },
@@ -121,6 +123,7 @@ const FORM_DEFINITIONS = {
     title: '创建 PLAN',
     description: '只讨论需求并提交合格 PLAN，不直接实施。',
     fields: [{ name: 'requirements', label: '需求', placeholder: '请描述目标、范围和验收标准', multiline: true }],
+    submitName: 'submitPlan',
     submitLabel: '提交需求',
     returnView: 'room',
   },
@@ -131,6 +134,7 @@ const FORM_DEFINITIONS = {
       { name: 'jobId', label: 'Job ID', placeholder: 'workflow-watcher', defaultValue: 'workflow-watcher' },
       { name: 'cron', label: 'Cron', placeholder: '*/5 * * * *', defaultValue: '* * * * *' },
     ],
+    submitName: 'submitSchedule',
     submitLabel: '应用调度',
     returnView: 'workflow',
   },
@@ -223,11 +227,10 @@ export const buildFeishuCommandCenterCard = (
           })),
           {
             tag: 'button',
-            name: 'submitApCommand',
+            name: `${form.submitName}_${chatType}`,
             text: { tag: 'plain_text', content: form.submitLabel },
             type: 'primary_filled',
             form_action_type: 'submit',
-            value: { cmd: 'ap-form', form: view, chatType },
           },
         ],
       },
@@ -282,6 +285,14 @@ export const buildFeishuCommandCenterCard = (
 export const buildFeishuCommandCenterCards = (chatType: 'p2p' | 'group') => [
   buildFeishuCommandCenterCard(chatType),
 ];
+
+export const buildFeishuCommandCenterCardUpdate = (
+  chatType: 'p2p' | 'group',
+  view: FeishuCommandCenterView,
+) => ({
+  type: 'raw',
+  data: buildFeishuCommandCenterCard(chatType, view),
+});
 
 export const buildFeishuCommandFromForm = (
   form: unknown,
