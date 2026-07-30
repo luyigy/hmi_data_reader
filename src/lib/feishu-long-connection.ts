@@ -28,6 +28,7 @@ import {
   type FeishuCardActionIdentity,
 } from '@/lib/feishu-card-action';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
+import { FEISHU_COMMAND_CARD_ACTIONS } from '@/lib/feishu-help';
 export { resolveFeishuCardActionIdentity } from '@/lib/feishu-card-action';
 
 type FeishuLongConnectionState = {
@@ -228,7 +229,7 @@ function buildCardActionHandler(prefix: string) {
       return {};
     }
 
-    const { openId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
+    const { openId, chatId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
 
     if (cmd === 'workflow-dashboard') {
@@ -236,18 +237,75 @@ function buildCardActionHandler(prefix: string) {
       if (typeof value.projectId !== 'string'
         || typeof value.jobId !== 'string'
         || typeof value.action !== 'string') return {};
-      try {
-        const result = await handleWorkflowDashboardCardAction({
+      void handleWorkflowDashboardCardAction({
+        projectId: value.projectId,
+        jobId: value.jobId,
+        action: value.action,
+        actorOpenId: openId,
+        cardMessageId: messageId,
+      }).then((result) => {
+        console.log(`${prefix} workflow dashboard action completed`, {
+          action: value.action,
           projectId: value.projectId,
           jobId: value.jobId,
-          action: value.action,
-          actorOpenId: openId,
+          result,
         });
-        return { toast: { type: result.startsWith('✅') || result.includes('刷新') ? 'success' : 'warning', content: result } };
-      } catch (err) {
+      }).catch((err) => {
         console.error(`${prefix} workflow dashboard action failed`, { err });
-        return { toast: { type: 'error', content: 'Dashboard 操作失败，请稍后重试' } };
+        if (chatId) {
+          void sendFeishuTextMessage({
+            receiveId: chatId,
+            receiveIdType: 'chat_id',
+            replyId: messageId,
+            text: '❌ Workflow Dashboard 操作失败，请稍后重试。',
+          }).catch(() => undefined);
+        }
+      });
+      return { toast: { type: 'success', content: '操作已接收；完成后会回复结果并发送最新 Dashboard' } };
+    }
+
+    if (cmd === 'ap-command') {
+      const value = data.action.value as Record<string, unknown>;
+      const commandText = typeof value.command === 'string' ? value.command : '';
+      const chatType = value.chatType === 'p2p' ? 'p2p' : 'group';
+      if (!openId || !chatId || !FEISHU_COMMAND_CARD_ACTIONS.has(commandText)) {
+        return { toast: { type: 'warning', content: '命令卡已失效，请重新发送 /ap menu' } };
       }
+      const command = parseFeishuCommand({
+        chatId,
+        chatType,
+        messageId: messageId || '',
+        senderOpenId: openId,
+        messageType: 'text',
+        text: commandText,
+        mentions: [],
+        mentionNames: [],
+      });
+      if (!command) return { toast: { type: 'warning', content: '命令卡内容无效' } };
+      void handleFeishuCommand({
+        command,
+        baseUrl: resolveBaseUrl(),
+        context: {
+          chatId,
+          chatType,
+          senderOpenId: openId,
+          messageId: messageId || '',
+        },
+      }).then((result) => sendFeishuTextMessage({
+        receiveId: chatId,
+        receiveIdType: 'chat_id',
+        replyId: messageId,
+        text: result,
+      })).catch((err) => {
+        console.error(`${prefix} AP command card action failed`, { command: commandText, err });
+        return sendFeishuTextMessage({
+          receiveId: chatId,
+          receiveIdType: 'chat_id',
+          replyId: messageId,
+          text: `❌ 命令执行失败：${err instanceof Error ? err.message : String(err)}`,
+        });
+      });
+      return { toast: { type: 'success', content: `${commandText} 已接收，结果稍后回复` } };
     }
 
     if (cmd === 'workflow-review') {

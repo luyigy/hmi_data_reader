@@ -1,7 +1,10 @@
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
+import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
+import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 
 const HELP_PAGES = [
   ['房间与 Agent', [
+    '/ap menu  返回分类命令卡片',
     '/ap room --workdir=<目录> [--agents=<local:codex,local:claude>] [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [--handoff-limit=<0-32>] [title]',
     '/ap handoff-limit [0-32]',
     '/ap mode <discussion|execution|hybrid>',
@@ -54,6 +57,121 @@ const HELP_PAGES = [
     '/ap rights [--agent=<name>]',
   ]],
 ] as const;
+
+export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
+  '/ap members',
+  '/ap status',
+  '/ap gateways',
+  '/ap agents',
+  '/ap hosts',
+  '/ap sessions',
+  '/ap dashboard',
+  '/ap jobs',
+  '/ap workflow policy show',
+  '/ap job diagnose workflow-watcher',
+  '/ap users',
+  '/ap approvals',
+  '/ap rights',
+]);
+
+const QUICK_ACTIONS = [
+  [
+    ['成员', '/ap members'],
+  ],
+  [
+    ['状态', '/ap status'],
+    ['网关', '/ap gateways'],
+    ['Agents', '/ap agents'],
+    ['Hosts', '/ap hosts'],
+    ['Sessions', '/ap sessions'],
+  ],
+  [
+    ['Workflow Dashboard', '/ap dashboard'],
+    ['Jobs', '/ap jobs'],
+    ['权限策略', '/ap workflow policy show'],
+    ['诊断', '/ap job diagnose workflow-watcher'],
+  ],
+  [
+    ['用户', '/ap users'],
+    ['待审批', '/ap approvals'],
+    ['权限', '/ap rights'],
+  ],
+] as const;
+
+export const buildFeishuCommandCenterCards = (chatType: 'p2p' | 'group') => HELP_PAGES.map(
+  ([group, commands], pageIndex) => ({
+    schema: '2.0',
+    config: {
+      update_multi: true,
+      width_mode: 'default',
+      summary: { content: `AP 命令中心 · ${group}` },
+    },
+    header: {
+      title: { tag: 'plain_text', content: group },
+      subtitle: { tag: 'plain_text', content: `AP 命令中心 · ${pageIndex + 1}/${HELP_PAGES.length}` },
+      template: pageIndex === 2 ? 'wathet' : 'blue',
+      icon: { tag: 'standard_icon', token: pageIndex === 3 ? 'approval_colorful' : 'lark-logo_colorful' },
+    },
+    body: {
+      direction: 'vertical',
+      padding: '12px 12px 20px 12px',
+      vertical_spacing: '12px',
+      elements: [
+        {
+          tag: 'column_set',
+          flex_mode: 'none',
+          columns: [{
+            tag: 'column',
+            width: 'weighted',
+            weight: 1,
+            background_style: pageIndex === 2 ? 'wathet-50' : 'blue-50',
+            padding: '12px',
+            elements: [{
+              tag: 'markdown',
+              content: '**点击执行常用只读命令**\n带参数或会改变状态的命令仅展示模板，请显式输入。',
+            }],
+          }],
+        },
+        {
+          tag: 'markdown',
+          content: commands.map((command) => `- \`${command}\``).join('\n'),
+          text_size: 'notation',
+        },
+        {
+          tag: 'column_set',
+          flex_mode: 'flow',
+          horizontal_spacing: '8px',
+          columns: QUICK_ACTIONS[pageIndex].map(([label, command], actionIndex) => ({
+            tag: 'column',
+            width: 'auto',
+            elements: [{
+              tag: 'button',
+              text: { tag: 'plain_text', content: label },
+              type: actionIndex === 0 ? 'primary_filled' : 'default',
+              size: 'small',
+              behaviors: [{
+                type: 'callback',
+                value: { cmd: 'ap-command', command, chatType },
+              }],
+            }],
+          })),
+        },
+      ],
+    },
+  }),
+);
+
+export async function sendFeishuCommandCenter(context?: FeishuConversationContext) {
+  if (!context) return '当前命令中心需要来自 Feishu webhook 的会话上下文。';
+  for (const card of buildFeishuCommandCenterCards(context.chatType === 'p2p' ? 'p2p' : 'group')) {
+    await sendFeishuInteractiveMessage({
+      receiveId: context.chatId,
+      receiveIdType: 'chat_id',
+      card,
+    });
+  }
+  return '✅ AP 命令中心已发送；只有以 /ap 开头的消息才会被识别为命令。';
+}
 
 export function formatFeishuHelp(command: Pick<ParsedFeishuCommand, 'args' | 'options'>) {
   const requested = command.options.page ?? command.args[0] ?? '1';

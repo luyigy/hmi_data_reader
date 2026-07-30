@@ -9,7 +9,7 @@ import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
 import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
-import { formatFeishuHelp } from '@/lib/feishu-help';
+import { formatFeishuHelp, sendFeishuCommandCenter } from '@/lib/feishu-help';
 import { handleNewSessionCommand } from '@/lib/feishu-new-session';
 import {
   handleAgentsCommand,
@@ -63,6 +63,8 @@ export async function handleFeishuCommand(args: {
   switch (args.command.command) {
     case 'help':
       return formatFeishuHelp(args.command);
+    case 'menu':
+      return sendFeishuCommandCenter(args.context);
     case 'status':
       return handleStatusCommand(args.command, args.context);
     case 'users':

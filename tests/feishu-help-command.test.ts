@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
-import { formatFeishuHelp } from '../src/lib/feishu-help';
+import {
+  buildFeishuCommandCenterCards,
+  FEISHU_COMMAND_CARD_ACTIONS,
+  formatFeishuHelp,
+} from '../src/lib/feishu-help';
 
 const message = (text: string) => ({
   chatId: 'chat', chatType: 'p2p' as const, messageId: 'message', senderOpenId: 'user',
@@ -29,5 +33,16 @@ assert.deepEqual(parseFeishuCommand(message('/ap room --handoff-limit=4 demo')),
 assert.match(formatFeishuHelp({ args: [], options: {} }), /\/ap handoff-limit \[0-32\]/);
 assert.equal(formatFeishuHelp({ args: ['0'], options: {} }), '页码无效：0。请使用 /ap help 1-4。');
 assert.equal(formatFeishuHelp({ args: [], options: { page: '5' } }), '页码无效：5。请使用 /ap help 1-4。');
+assert.equal(parseFeishuCommand(message('ap status')), null);
+assert.equal(parseFeishuCommand(message('Workflow Dashboard 点击后没有反馈')), null);
+assert.deepEqual(parseFeishuCommand(message('/ap menu')), { command: 'menu', args: [], options: {} });
+
+const cards = buildFeishuCommandCenterCards('group');
+assert.equal(cards.length, 4);
+assert.ok(cards.every((card) => card.schema === '2.0'));
+assert.match(JSON.stringify(cards), /AP 命令中心/);
+for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
+  assert.match(JSON.stringify(cards), new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+}
 
 console.log('Feishu help command checks passed');

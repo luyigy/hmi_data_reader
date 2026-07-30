@@ -11,7 +11,7 @@ import { findProjectByChatId, loadProjectsConfig, validateSchedule } from '@/lib
 import { effectiveJobSchedule, stopScheduledJob, waitForScheduledJobStop } from '@/lib/scheduled-jobs/runner';
 import { readWorkflowContract, selectWorkflowCandidates } from '@/lib/scheduled-jobs/workflow-validator';
 import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
-import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
+import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 const execFileAsync = promisify(execFile);
@@ -594,6 +594,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   jobId: string;
   action: string;
   actorOpenId?: string;
+  cardMessageId?: string;
 }) {
   const config = await loadProjectsConfig();
   const project = config.projects.find(({ id }) => id === args.projectId);
@@ -606,15 +607,21 @@ export async function handleWorkflowDashboardCardAction(args: {
     chatId: project.feishu.chat_id,
     chatType: 'group',
     senderOpenId: args.actorOpenId,
-    messageId: '',
+    messageId: args.cardMessageId || '',
   };
   const result = action === 'refresh'
     ? '状态已刷新。'
     : await handleScheduledJobCommand({
       command: 'job',
       args: [action, args.jobId],
-      options: ['run', 'retry', 'resend'].includes(action) ? { 'no-wait': 'true' } : {},
+      options: {},
     }, context);
+  await sendFeishuTextMessage({
+    receiveId: context.chatId,
+    receiveIdType: 'chat_id',
+    replyId: args.cardMessageId,
+    text: `Workflow Dashboard 操作结果：${result}`,
+  });
   await handleScheduledJobCommand({
     command: 'job',
     args: ['dashboard', args.jobId],

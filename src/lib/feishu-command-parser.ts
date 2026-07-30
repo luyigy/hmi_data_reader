@@ -1,7 +1,7 @@
 import type { ParsedFeishuMessage } from '@/lib/feishu-message-content';
 
 export type ParsedFeishuCommand = {
-  command: 'help' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job';
+  command: 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job';
   args: string[];
   options: Record<string, string>;
 };
@@ -54,22 +54,16 @@ function tokenizeCommandText(input: string) {
 }
 
 export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCommand | null {
-  const botOpenId = process.env.FEISHU_BOT_OPEN_ID?.trim() || undefined;
-  const hasBotMention = botOpenId ? message.mentions.includes(botOpenId) : false;
   const cleanedText = stripBotMention(message.text);
   const normalized = cleanedText.replace(/\s+/g, ' ').trim();
 
-  let commandText = normalized;
   const lower = normalized.toLowerCase();
+  let commandText: string;
   if (lower.startsWith('/ap ')) {
     commandText = normalized.slice(4).trim();
   } else if (lower === '/ap') {
     commandText = 'help';
-  } else if (lower.startsWith('ap ')) {
-    commandText = normalized.slice(3).trim();
-  } else if (hasBotMention) {
-    commandText = normalized || 'help';
-  } else if (message.chatType !== 'p2p') {
+  } else {
     return null;
   }
 
@@ -86,7 +80,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
     : commandAlias === 'dashboard'
       ? 'job'
       : commandAlias;
-  if (!['help', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'new-session', 'stop', 'sessions', 'jobs', 'job'].includes(command)) {
+  if (!['help', 'menu', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'new-session', 'stop', 'sessions', 'jobs', 'job'].includes(command)) {
     return null;
   }
 
