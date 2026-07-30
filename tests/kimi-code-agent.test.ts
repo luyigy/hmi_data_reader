@@ -46,7 +46,8 @@ case "$KIMI_TEST_CASE" in
   stream)
     printf '{"role":"assistant","content":"Hel'
     sleep 0.02
-    printf 'lo"}\\n{"role":"tool","content":"ignored"}\\n'
+    printf 'lo","tool_calls":[{"type":"function","id":"call_1","function":{"name":"Bash","arguments":"{\\"command\\":\\"npm test\\"}"}}]}\\n'
+    printf '{"role":"tool","tool_call_id":"call_1","content":"passed"}\\n'
     printf '{"role":"assistant","content":" world"}\\n'
     printf '{"role":"meta","type":"session.resume_hint","session_id":"ses_first"}\\n'
     ;;
@@ -115,6 +116,7 @@ esac
     assert.equal(adapter?.displayName, 'Kimi Code CLI');
 
     const streamedChunks: string[] = [];
+    const toolEvents: Array<{ toolName: string; preview: string; emoji: string }> = [];
     process.env.KIMI_TEST_CASE = 'stream';
     const participant = {
       gatewayId: 'platform-local',
@@ -145,12 +147,16 @@ esac
         onStdoutChunk: (chunk) => {
           streamedChunks.push(chunk);
         },
+        onToolEvent: (event) => {
+          toolEvents.push(event);
+        },
       },
       [],
       { transcript: '', latestUserMessage: null }
     );
     assert.equal(streamed.output, 'Hello world');
     assert.deepEqual(streamedChunks, ['Hello', ' world']);
+    assert.deepEqual(toolEvents, [{ toolName: 'Bash', preview: 'npm test', emoji: '💻' }]);
     assert.equal(streamed.sessionId, 'ses_first');
     assert.equal(streamed.sessionKind, 'kimi_session');
     clearRunningProcess('participant');

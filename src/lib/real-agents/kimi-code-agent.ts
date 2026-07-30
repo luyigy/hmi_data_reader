@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import path from 'path';
 import { promisify } from 'util';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 export interface KimiCodeConfig {
@@ -60,6 +61,12 @@ const processKimiCodeJsonLine = (
     error?: string;
     message?: string;
     session_id?: string;
+    tool_calls?: Array<{
+      function?: {
+        name?: string;
+        arguments?: string;
+      };
+    }>;
   };
 
   try {
@@ -72,6 +79,25 @@ const processKimiCodeJsonLine = (
   if (event.role === 'assistant' && typeof event.content === 'string') {
     state.output += event.content;
     void streamCallbacks?.onStdoutChunk?.(event.content);
+  }
+  if (event.role === 'assistant' && Array.isArray(event.tool_calls)) {
+    for (const toolCall of event.tool_calls) {
+      const toolName = toolCall.function?.name?.trim() || 'Task';
+      const rawArguments = toolCall.function?.arguments;
+      let input: unknown = rawArguments;
+      if (rawArguments) {
+        try {
+          input = JSON.parse(rawArguments);
+        } catch {
+          // Keep malformed or non-JSON arguments as the best available preview.
+        }
+      }
+      void streamCallbacks?.onToolEvent?.({
+        toolName,
+        preview: buildToolPreview(input) || rawArguments?.trim() || '',
+        emoji: getToolEmoji(toolName),
+      });
+    }
   }
 
   if (
