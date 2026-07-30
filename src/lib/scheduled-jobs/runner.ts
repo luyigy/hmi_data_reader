@@ -8,6 +8,7 @@ import {
   type ProjectConfig,
   type ProjectsConfig,
 } from './project-config';
+import { reconcileScheduledJobRunner } from './reconciliation';
 
 const ranges = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]] as const;
 
@@ -312,9 +313,21 @@ export async function runRequestedJobs(db: PrismaClient, config?: ProjectsConfig
 }
 
 export async function startScheduledJobRunner(db: PrismaClient, signal: AbortSignal) {
+  const bootStartedAt = new Date();
+  await reconcileScheduledJobRunner(db, bootStartedAt)
+    .then((result) => console.info('[ScheduledJobRunner] reconciliation', result))
+    .catch((error) => console.error('[ScheduledJobRunner]', error));
+  let nextReconciliationAt = Date.now() + 60_000;
+
   while (!signal.aborted) {
     await runRequestedJobs(db).catch((error) => console.error('[ScheduledJobRunner]', error));
     await runDueJobs(db).catch((error) => console.error('[ScheduledJobRunner]', error));
+    if (Date.now() >= nextReconciliationAt) {
+      await reconcileScheduledJobRunner(db)
+        .then((result) => console.info('[ScheduledJobRunner] reconciliation', result))
+        .catch((error) => console.error('[ScheduledJobRunner]', error));
+      nextReconciliationAt = Date.now() + 60_000;
+    }
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 15_000);
       signal.addEventListener('abort', () => {
