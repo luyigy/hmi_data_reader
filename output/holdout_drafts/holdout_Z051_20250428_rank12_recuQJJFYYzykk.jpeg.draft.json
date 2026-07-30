@@ -1,0 +1,53 @@
+{
+  "image": "holdout_Z051_20250428_rank12_recuQJJFYYzykk.jpeg",
+  "controller_family": "ZIZES",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": null,
+  "fields": {
+    "barrel_temperature_set_c": [
+      295.0,
+      270.0,
+      265.0,
+      260.0,
+      255.0
+    ],
+    "barrel_temperature_current_c": [
+      319.4,
+      270.6,
+      265.5,
+      261.6,
+      257.0
+    ],
+    "oil_temperature_set_c": 30.0,
+    "oil_temperature_current_c": 32.6,
+    "control_percent": [
+      40.0,
+      9.7,
+      1.3,
+      0.0,
+      22.7
+    ]
+  },
+  "heater_columns": 5,
+  "alarm_status": "normal",
+  "alarm_evidence": "段5段号块为纯红底白字、当前温度框（257.0）下沿有红色填充条，符合预注册口径(a)越限标红（与既有草稿 holdout_Z017_20250418_rank05 同型判定一致）；但段5当前257.0仅高于设定255.0约2.0°C，在警报上下限100.0°C范围内，红底语义存疑，建议人工核验。段1设定295.0上的黑底为编辑高亮（光标态），不计入报警。屏幕无报警字符/图标/报警条。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "",
+    "verified_at": "",
+    "changed_fields": null,
+    "spot_check_by": ""
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbllMVN3qf7AQXGX",
+    "record_id": "recvqRSU8kzUgA",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuQJJFYYzykk"
+  },
+  "notes": "机台 Z051，日期 2025-04-28（文件名 20250428，屏内时钟 25/04/28 16:12:20），rank12；竖屏照片（3468x4624），屏幕轻微倾斜、左侧有细反光带但不遮挡数据区。机身可见 ZizES Logo，标题栏广东佳明机器有限公司，确认 ZizES v1 温度页。段6、7 未启用（当前温度显示 *，设定/控制均 0.0），启用段 1-5 共 5 段。段1设定值 295.0 带黑色编辑高亮（光标态），数值照常读取。注意：油温列设定为 30.0（非常见的 0.0），已经原图放大确认；油温当前 32.6，油温控制 0.0。底部状态栏显示 储料三、上限 490.0 下限 0.0。功能区（防冷时间/射嘴比例 ON 40.0/保温功能 OFF 200.0/自动保温、警报上限/下限 100.0）按口径不提取。全部数字经原图 region 裁切放大逐段核对，无读数不确定处。",
+  "alarm_status_original_vlm": "alarm",
+  "alarm_ruling": "用户 2026-07-30 裁定：段号红底/红框为「加热中」状态指示，非报警（对 holdout 与 legacy rec201 红框同口径）；本图无其他报警证据（无报警字符/图标/报警条，数值无越限），按 normal 处理"
+}

@@ -1,0 +1,816 @@
+{
+  "version": "1.0",
+  "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3",
+  "tolerance": 0.5,
+  "n_images": 18,
+  "metrics": {
+    "controller_classification_accuracy": 0.7778,
+    "page_classification_accuracy": 0.7778,
+    "field_completeness": 0.7745,
+    "numeric_accuracy": 0.7745,
+    "auto_import_ratio": 0.3889,
+    "error_auto_import_rate": 0.0
+  },
+  "gates": {
+    "numeric_accuracy >= 0.95": false,
+    "error_auto_import_rate == 0": true
+  },
+  "poc_pass": false,
+  "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库",
+  "missing_extraction": [
+    "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+    "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+    "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+    "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg"
+  ],
+  "per_image": [
+    {
+      "image": "holdout_Z017_20250418_rank05_recuQJJFYYfrVp.jpeg",
+      "status": "ok",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "status": "reject",
+      "family_truth": "ZIZES",
+      "family_extracted": "",
+      "family_match": false,
+      "page_truth": "temperature",
+      "page_extracted": "",
+      "page_match": false,
+      "n_elements": 17,
+      "n_present": 0,
+      "n_matched": 0
+    },
+    {
+      "image": "holdout_Z017_20250616_rank02_recuQJJQEdzlkp.jpeg",
+      "status": "review",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 16,
+      "n_matched": 16
+    },
+    {
+      "image": "holdout_Z017_20250628_rank03_recuQJJQEdPgyW.jpeg",
+      "status": "ok",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z017_20250721_rank04_recuRABqappVxY.jpeg",
+      "status": "review",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z017_20250917_rank01_recuX0Nn58e9aN.jpeg",
+      "status": "ok",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "status": "reject",
+      "family_truth": "ZIZES",
+      "family_extracted": "",
+      "family_match": false,
+      "page_truth": "temperature",
+      "page_extracted": "",
+      "page_match": false,
+      "n_elements": 17,
+      "n_present": 0,
+      "n_matched": 0
+    },
+    {
+      "image": "holdout_Z051_20250428_rank12_recuQJJFYYzykk.jpeg",
+      "status": "review",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "status": "reject",
+      "family_truth": "ZIZES",
+      "family_extracted": "",
+      "family_match": false,
+      "page_truth": "temperature",
+      "page_extracted": "",
+      "page_match": false,
+      "n_elements": 17,
+      "n_present": 0,
+      "n_matched": 0
+    },
+    {
+      "image": "holdout_Z051_20250820_rank08_recuUsHcMMuIXi.jpeg",
+      "status": "review",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "status": "reject",
+      "family_truth": "ZIZES",
+      "family_extracted": "",
+      "family_match": false,
+      "page_truth": "temperature",
+      "page_extracted": "",
+      "page_match": false,
+      "n_elements": 17,
+      "n_present": 0,
+      "n_matched": 0
+    },
+    {
+      "image": "holdout_Z051_20260131_rank07_recv9SW60NviIq.jpeg",
+      "status": "review",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z052_20251018_rank17_recuZZe1fk1COg.jpeg",
+      "status": "review",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z052_20251212_rank13_recv57TBXJlVks.jpeg",
+      "status": "ok",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z052_20251212_rank14_recv5azHgU9iSS.jpeg",
+      "status": "review",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z052_20260106_rank16_recv7tPHkRS3a7.jpeg",
+      "status": "ok",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z052_20260114_rank18_recv8hxaAsrKy8.jpeg",
+      "status": "ok",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    },
+    {
+      "image": "holdout_Z052_20260324_rank15_recveOcSNyNQiU.jpeg",
+      "status": "ok",
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17
+    }
+  ],
+  "mismatched_elements": [
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 300.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 325.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 300.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 285.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 275.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_current_c[0]",
+      "truth": 300.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_current_c[1]",
+      "truth": 325.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_current_c[2]",
+      "truth": 300.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 285.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "barrel_temperature_current_c[4]",
+      "truth": 275.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "oil_temperature_set_c",
+      "truth": 0.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "oil_temperature_current_c",
+      "truth": 32.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "control_percent[0]",
+      "truth": 18.9,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "control_percent[1]",
+      "truth": 20.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "control_percent[2]",
+      "truth": 4.9,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "control_percent[3]",
+      "truth": 0.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "field": "control_percent[4]",
+      "truth": 51.9,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z017_20250616_rank02_recuQJJQEdzlkp.jpeg",
+      "field": "control_percent[2]",
+      "truth": 2.4,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 310.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 275.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 270.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 255.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_current_c[0]",
+      "truth": 314.7,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_current_c[1]",
+      "truth": 280.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_current_c[2]",
+      "truth": 275.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 269.9,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "barrel_temperature_current_c[4]",
+      "truth": 254.3,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "oil_temperature_set_c",
+      "truth": 30.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "oil_temperature_current_c",
+      "truth": 31.5,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "control_percent[0]",
+      "truth": 40.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "control_percent[1]",
+      "truth": 9.7,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "control_percent[2]",
+      "truth": 0.4,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "control_percent[3]",
+      "truth": 0.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "field": "control_percent[4]",
+      "truth": 12.6,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 300.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 275.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 270.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 255.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_current_c[0]",
+      "truth": 311.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_current_c[1]",
+      "truth": 279.8,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_current_c[2]",
+      "truth": 274.6,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 269.6,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "barrel_temperature_current_c[4]",
+      "truth": 254.3,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "oil_temperature_set_c",
+      "truth": 30.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "oil_temperature_current_c",
+      "truth": 34.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "control_percent[0]",
+      "truth": 40.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "control_percent[1]",
+      "truth": 11.9,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "control_percent[2]",
+      "truth": 3.5,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "control_percent[3]",
+      "truth": 2.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "field": "control_percent[4]",
+      "truth": 13.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 300.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 275.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 270.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 255.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_current_c[0]",
+      "truth": 309.5,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_current_c[1]",
+      "truth": 279.9,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_current_c[2]",
+      "truth": 275.4,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 269.8,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "barrel_temperature_current_c[4]",
+      "truth": 254.6,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "oil_temperature_set_c",
+      "truth": 30.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "oil_temperature_current_c",
+      "truth": 31.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "control_percent[0]",
+      "truth": 40.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "control_percent[1]",
+      "truth": 12.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "control_percent[2]",
+      "truth": 3.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "control_percent[3]",
+      "truth": 4.3,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "field": "control_percent[4]",
+      "truth": 13.9,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    }
+  ]
+}

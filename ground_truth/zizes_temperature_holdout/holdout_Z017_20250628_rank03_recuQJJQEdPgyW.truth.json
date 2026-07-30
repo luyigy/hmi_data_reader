@@ -1,0 +1,52 @@
+{
+  "image": "holdout_Z017_20250628_rank03_recuQJJQEdPgyW.jpeg",
+  "controller_family": "ZIZES",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "alarm_status": "normal",
+  "fields": {
+    "barrel_temperature_set_c": [
+      295.0,
+      310.0,
+      290.0,
+      285.0,
+      275.0
+    ],
+    "barrel_temperature_current_c": [
+      295.1,
+      310.2,
+      290.4,
+      285.2,
+      275.5
+    ],
+    "oil_temperature_set_c": 0.0,
+    "oil_temperature_current_c": 29.8,
+    "control_percent": [
+      23.3,
+      15.8,
+      1.9,
+      0.8,
+      47.7
+    ]
+  },
+  "heater_columns": 5,
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "用户本人（概览核验）",
+    "verified_at": "2026-07-30",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）",
+    "verification_method": "visual_skim_acceptance",
+    "verification_note": "核验人声明图像清晰、均为温度页，免逐字段核验直接接受草稿；此降级已记录，S4 结论须同步注明"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbllMVN3qf7AQXGX",
+    "record_id": "recvqRSM3Qg4cJ",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuQJJQEdPgyW"
+  },
+  "notes": "机台 Z017，日期 2025-06-28（屏幕显示 25/06/28 11:02:55，与文件名一致），rank03；竖屏照片，轻微倾斜、屏幕上方有灯光反光但未遮挡读数区。启用段 1-5，第 6、7 段当前温度显示 *、设定与控制均为 0.0（未启用）。油温：设定 0.0，当前 29.8。第 1 段设定值 295.0 带黑色编辑高亮（光标态），数值照常读取。全部数字经区域裁切放大逐一核对，无读数不确定处。底部「温度」页签为红色高亮，属当前页指示，非报警。生产模数 16454。｜报警态按用户 2026-07-30 裁定为 normal（红底=加热中指示）"
+}

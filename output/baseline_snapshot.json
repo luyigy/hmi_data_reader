@@ -1,0 +1,23 @@
+{
+ "generated_at": "2026-07-30T13:48:24Z",
+ "generator": "kimi-code S1 (009_PLAN)",
+ "git": {
+  "branch": "master",
+  "commit": "7d0bfe2168fb03c3e5d6d5d05191539d17c2c98f",
+  "commit_short": "7d0bfe2",
+  "worktree_note": "仅有两个开工前已存在的未跟踪文件（.tmp_auth_qr.png、scripts/_s1_preannotate_once.py），S1 未触碰；被测文件均无未提交改动"
+ },
+ "frozen_files_sha256": {
+  "templates/zizes.temperature.json": "109ac1bf7198a768d6260128db75b9937f34a003c6721ba64c5631a85e81ad5b",
+  "scripts/classify_ui.py": "fc0a8eabb8c912f9d233c18f7a407d8cbcb9f40128e1e2f91192da650a133fe9",
+  "scripts/rectify.py": "aae406e84880411940832a5b43c609188313a22f243185b0dcdd92222efbe796",
+  "scripts/extract_fields.py": "0c9a5f0bd24b36fea762b01a9c6834ff7a2262a1dc1689fbecb300361c17db08",
+  "scripts/verify_accuracy.py": "32b10375a0f4e87f690545e67402959d6d4293afbf49b4eee91c59fb08dc7681"
+ },
+ "versions": {
+  "template_zizes_temperature": "0.2.0",
+  "paddleocr": "2.7.3",
+  "paddlepaddle": "2.6.2"
+ },
+ "note": "S1 全程未修改以上被测文件；S3 前须复核本快照哈希无漂移"
+}

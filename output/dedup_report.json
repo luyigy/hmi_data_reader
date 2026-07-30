@@ -1,59 +1,15 @@
 {
-  "total_files": 15,
-  "duplicate_groups_within_record": 1,
-  "duplicate_groups_across_records": 2,
-  "duplicate_within_record": [
-    {
-      "sha256": "80c3358b6d79091fbf33c80ffe4b43ba50f56d55ccf5b22541c8785224eac0d1",
-      "files": [
-        "fanake_Z036_t1_炮筒.jpeg",
-        "fanake_Z036_t3_储料冷却.jpeg"
-      ],
-      "tabs": [
-        "t1_炮筒",
-        "t3_储料冷却"
-      ],
-      "issue": "DUPLICATE_ATTACHMENT",
-      "reason": "同一记录 (fanake/Z036) 跨字段挂同一文件"
-    }
-  ],
-  "duplicate_across_records": [
-    {
-      "sha256": "2e5748c9aa4a6ac48c537756df6b4a701ebb13421c7110a580623370cbde2a22",
-      "files": [
-        "boletuo_Z001_t2_射出保压.jpeg",
-        "rijing_Z022_t2_射出保压.jpeg"
-      ],
-      "records": [
-        "boletuo/Z001",
-        "rijing/Z022"
-      ],
-      "issue": "CROSS_RECORD_DUPLICATE",
-      "reason": "跨机台/品牌记录挂同一文件，业务上不应复用"
-    },
-    {
-      "sha256": "49ee8d2773d2f61d71190693e095c9a8669be5045b7201cab47404c62d8dcc39",
-      "files": [
-        "boletuo_Z001_t3_储料冷却.jpeg",
-        "rijing_Z022_t3_储料冷却.jpeg"
-      ],
-      "records": [
-        "boletuo/Z001",
-        "rijing/Z022"
-      ],
-      "issue": "CROSS_RECORD_DUPLICATE",
-      "reason": "跨机台/品牌记录挂同一文件，业务上不应复用"
-    }
-  ],
+  "total_files": 5,
+  "duplicate_groups_within_record": 0,
+  "duplicate_groups_across_records": 0,
+  "duplicate_within_record": [],
+  "duplicate_across_records": [],
   "unique": [
-    "boletuo_Z001_t1_炮筒.jpeg",
-    "fanake_Z036_t2_射出保压.jpeg",
     "jiaming_Z052_t1_炮筒.jpeg",
-    "jiaming_Z052_t2_射出保压.jpeg",
-    "jiaming_Z052_t3_储料冷却.jpeg",
-    "rijing_Z022_t1_炮筒.jpeg",
-    "shadike_Z020_t1_炮筒.jpeg",
-    "shadike_Z020_t2_射出保压.jpeg",
-    "shadike_Z020_t3_储料冷却.jpeg"
-  ]
+    "佳明_B07_TX24013_100-19156_20260605_rec12_炮筒_00.jpeg",
+    "佳明_B07_TX24013_100-30139_20260604_rec13_炮筒_00.jpeg",
+    "佳明_Z017_TXE24008_100-30067_20250928_rec200_炮筒_00.jpeg",
+    "佳明_Z051_TX22001_100-16025_20260201_rec201_炮筒_00.jpeg"
+  ],
+  "skipped_non_representative": {}
 }

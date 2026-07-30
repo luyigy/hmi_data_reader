@@ -1,0 +1,53 @@
+{
+  "image": "holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+  "controller_family": "ZIZES",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": null,
+  "fields": {
+    "barrel_temperature_set_c": [
+      300.0,
+      280.0,
+      275.0,
+      270.0,
+      255.0
+    ],
+    "barrel_temperature_current_c": [
+      311.1,
+      279.8,
+      274.6,
+      269.6,
+      254.3
+    ],
+    "oil_temperature_set_c": 30.0,
+    "oil_temperature_current_c": 34.2,
+    "control_percent": [
+      40.0,
+      11.9,
+      3.5,
+      2.2,
+      13.0
+    ]
+  },
+  "heater_columns": 5,
+  "alarm_status": "normal",
+  "alarm_evidence": "第 2 段当前温度框（含段号头「2」白字红底及框体上下红条）整体带红色背景高亮，符合预注册口径 a) 越限标红。注意：第 2 段当前值 279.8 接近设定 280.0，红色高亮也可能是段选中态，但按口径红色高亮即判 alarm，请人工复核确认。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "",
+    "verified_at": "",
+    "changed_fields": null,
+    "spot_check_by": ""
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbllMVN3qf7AQXGX",
+    "record_id": "recvqRSWE4yhyK",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuUh0i3E1D5i"
+  },
+  "notes": "机台 Z051，2025-08-18，rank11。竖屏（原图 3468x4624），屏幕轻微倾斜，无反光遮挡。启用段 1-5，段 6、7 显示 * 未启用。第 1 段设定值 300.0 带黑色编辑高亮（光标态），数值照常读取为 300.0。油温：当前 34.2，设定 30.0，控制 0.0。所有数字经原图分辨率裁切放大逐段核对，清晰可读，无读数不确定处。",
+  "alarm_status_original_vlm": "alarm",
+  "alarm_ruling": "用户 2026-07-30 裁定：段号红底/红框为「加热中」状态指示，非报警（对 holdout 与 legacy rec201 红框同口径）；本图无其他报警证据（无报警字符/图标/报警条，数值无越限），按 normal 处理"
+}
