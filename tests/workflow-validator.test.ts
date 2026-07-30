@@ -188,6 +188,34 @@ S01
       return true;
     },
   );
+  await writeFile(path.join(root, 'docs/010_PLAN_20260726_bad_return.md'), `---
+doc_type: PLAN
+doc_status: draft
+next_action: await_plan_approval
+plan_kind: interrupt
+parent_plan: 008_PLAN_20260726_no_roadmap.md
+parent_slice: S01
+return_to: 008_PLAN_20260726_no_roadmap.md#S02
+---
+S01
+`);
+  git('add', '.');
+  git('commit', '-qm', 'invalid interrupt return fixture');
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root,
+      ref: git('rev-parse', 'HEAD'),
+      filePaths: ['docs/010_PLAN_20260726_bad_return.md'],
+    }),
+    (error: Error) => {
+      assert.doesNotMatch(error.message, /YAML\.parent_slice/);
+      assert.match(
+        error.message,
+        /YAML\.return_to.*父 PLAN 中不存在 return_to.*期望：S01、S02.*实际："008_PLAN_20260726_no_roadmap\.md#S02"/,
+      );
+      return true;
+    },
+  );
   await assert.rejects(
     validate('docs/005_HANDOVER_20260726_invalid.md'),
     (error: Error) => {

@@ -672,15 +672,14 @@ S01
   const runsBeforeInvalid = workflowRuns.length;
   const noticesBeforeInvalid = apiCalls.length;
   const invalid = await run(beforeInvalid);
-  assert.match(invalid.summary, /validation_failed notified=true dispatched=true/);
-  assert.equal(workflowRuns.length, runsBeforeInvalid + 1, 'validator failure must dispatch one repair Session');
-  assert.match(workflowRuns.at(-1)?.prompt ?? '', /PLAN_VALIDATE_REPAIR/);
-  assert.match(workflowRuns.at(-1)?.prompt ?? '', /document_path: docs\/branch\/main\/006_PLAN/);
+  assert.match(invalid.summary, /validation_failed notified=true/);
+  assert.equal(workflowRuns.length, runsBeforeInvalid, 'validator failure must not dispatch a repair Session');
+  assert.doesNotMatch(workflowRuns.map(({ prompt }) => prompt).join('\n'), /PLAN_VALIDATE_REPAIR/);
   assert.match(String(apiCalls.at(-1)?.body.content), /workflow validator 未通过/);
-  assert.match(String(apiCalls.at(-1)?.body.content), /错误已投递给 Coding Agent/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /原执行 Session.*completion gate.*自动纠正/);
   const retry = await run(invalid.cursor);
-  assert.match(retry.summary, /validation_failed notified=true dispatched=true/);
-  assert.equal(workflowRuns.length, runsBeforeInvalid + 1, 'same blob must remain dispatch-idempotent');
+  assert.match(retry.summary, /validation_failed notified=true/);
+  assert.equal(workflowRuns.length, runsBeforeInvalid, 'same blob must remain notification-idempotent');
   assert.equal(apiCalls.length, noticesBeforeInvalid + 1, 'same blob must not send another notification');
 
   await writeFile(
@@ -690,9 +689,9 @@ S01
   git('add', '.');
   git('commit', '-qm', 'change invalid plan blob');
   const changedInvalid = await run(retry.cursor);
-  assert.match(changedInvalid.summary, /validation_failed notified=true dispatched=true/);
+  assert.match(changedInvalid.summary, /validation_failed notified=true/);
   assert.equal(apiCalls.length, noticesBeforeInvalid + 2, 'new blob must be revalidated and notified');
-  assert.equal(workflowRuns.length, runsBeforeInvalid + 2, 'new invalid blob must dispatch a new repair Session');
+  assert.equal(workflowRuns.length, runsBeforeInvalid, 'new invalid blob must still not dispatch a repair Session');
 
   const rewriteCursor = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-rewrite' };
   await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });

@@ -300,9 +300,16 @@ export const validateWorkflowDocument = async (
       if (contract.documents.plan.parent_fields.every(hasValue)) {
         try {
           const parent = await readPlan(metadata.parent_plan);
-          if (!slices(parent.planContent, contract).includes(String(metadata.parent_slice))
-            || !slices(parent.planContent, contract).includes(String(metadata.return_to))) {
-            issue('YAML.parent_slice/return_to', '父 PLAN 中不存在 parent_slice 或 return_to');
+          const parentSlices = slices(parent.planContent, contract);
+          for (const field of ['parent_slice', 'return_to']) {
+            if (!parentSlices.includes(String(metadata[field]))) {
+              issue(
+                `YAML.${field}`,
+                `父 PLAN 中不存在 ${field}`,
+                parentSlices.join('、'),
+                metadata[field],
+              );
+            }
           }
         } catch (error) {
           issue('YAML.parent_plan', error instanceof Error ? error.message : String(error));

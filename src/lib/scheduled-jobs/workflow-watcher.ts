@@ -48,7 +48,6 @@ type ValidationFailure = {
   blob: string;
   error: string;
   notified?: boolean;
-  dispatched?: boolean;
 };
 
 type WorkflowBlocker = {
@@ -536,28 +535,12 @@ export const workflowWatcherHandler = async (
       };
     if (mode === 'active' && !failure.notified) {
       await send(project.feishu.chat_id,
-        `❌ workflow validator 未通过：${candidate.filePath}\ncommit: ${head}\n${failure.error}\n未通过校验的文档不会触发下一 Workflow 动作；错误已投递给 Coding Agent，修订提交后 watcher 将自动复验。`,
+        `❌ workflow validator 未通过：${candidate.filePath}\ncommit: ${head}\n${failure.error}\n未通过校验的文档不会触发下一 Workflow 动作；原执行 Session 会在 completion gate 中自动纠正，修订提交后 watcher 将自动复验。`,
         key, 'validation_failed');
       failure = { ...failure, notified: true };
     }
-    if (mode === 'active' && !failure.dispatched) {
-      const dispatched = await execute({
-        key,
-        workflowContext: `Workflow validation failure\nproject: ${project.id}\ndocument: ${candidate.filePath}`,
-        prompt: [
-          'PLAN_VALIDATE_REPAIR',
-          `document_path: ${candidate.filePath}`,
-          `commit: ${head}`,
-          `validation_error: ${failure.error}`,
-          '',
-          '请按目标 HEAD 中的 workflow contract 修订并提交该文档，然后停止；不要执行后续 Workflow 动作。',
-        ].join('\n'),
-      }, project.id, job.id, codingBotChatId, codingBotChatType as 'group' | 'p2p',
-      executionPolicy, runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom, signal);
-      failure = { ...failure, dispatched };
-    }
     return {
-      summary: `head=${head} candidate=${candidate.filePath} validation_failed notified=${failure.notified === true} dispatched=${failure.dispatched === true}`,
+      summary: `head=${head} candidate=${candidate.filePath} validation_failed notified=${failure.notified === true}`,
       cursor: { ...previous, validationFailure: failure },
     };
   }
