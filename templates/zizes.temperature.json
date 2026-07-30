@@ -1,94 +1,72 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "ui_family": "ZizES",
   "page": "temperature",
-  "source": "反推自 jiaming_Z052_t1_炮筒.jpeg OCR 输出（2026-07-25）",
-  "description": "ZizES 屏（佳明机器）温度页（5 段料筒 + 油温）的字段位置模板。所有坐标基于 OCR bbox 的 (x_min, y_min) 像素值，来源样本分辨率 1080x1920。",
-  "sample_resolution": [1080, 1920],
-  "tolerance_px": 20,
-  "fields": {
-    "title": {
-      "expected_text": "温度",
-      "bbox": { "x_min": 4, "y_min": 774, "x_max": 71, "y_max": 812 },
-      "role": "page_title",
-      "validation": {
-        "must_match_text": "温度"
-      }
+  "source": "2026-07-30 由 0.1.0 升级：坐标归一化 + 段数动态化 + x_centers 多样本校准",
+  "description": "ZizES 屏（佳明机器）温度页（N 段料筒 + 油温）的字段位置模板。所有坐标为屏幕归一化值（x/screen_width, y/screen_height），基于 scripts/rectify.py 输出的屏幕矫正图。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "5 张 S3 真值图（jiaming_Z052_t1、rec12、rec13、rec200、rec201 炮筒）OCR 实测列头/行位，逐位置算术平均",
+    "calibrated_at": "2026-07-30",
+    "samples": [
+      "jiaming_Z052_t1_炮筒",
+      "佳明_B07_TX24013_100-19156_20260605_rec12_炮筒_00",
+      "佳明_B07_TX24013_100-30139_20260604_rec13_炮筒_00",
+      "佳明_Z017_TXE24008_100-30067_20250928_rec200_炮筒_00",
+      "佳明_Z051_TX22001_100-16025_20260201_rec201_炮筒_00"
+    ]
+  },
+  "layout": {
+    "row_y_centers": {
+      "header": 0.2067,
+      "current": 0.2699,
+      "set": 0.3516,
+      "control": 0.4053
     },
-    "heater_labels": {
-      "expected_count": 6,
-      "labels": ["1", "2", "3", "4", "5", "6"],
-      "bbox_row_y_min": 882,
-      "bbox_row_y_max": 904,
-      "x_centers": [279, 389, 499, 604, 710, 916],
-      "role": "column_headers",
-      "notes": "实际为 5 段料筒 + 1 段油温（右侧 '油温' 标签独立）"
+    "column_x_centers": {
+      "1": 0.1717,
+      "2": 0.2782,
+      "3": 0.3847,
+      "4": 0.4911,
+      "5": 0.5976,
+      "6": 0.7041,
+      "7": 0.8105,
+      "oil": 0.9133
     },
-    "oil_temp_label": {
-      "expected_text": "油温",
-      "bbox": { "x_min": 889, "y_min": 878, "x_max": 943, "y_max": 908 },
-      "role": "column_header_oil"
-    },
-    "current_temp_row": {
-      "expected_label": "现在°C",
-      "label_bbox": { "x_min": 10, "y_min": 909, "x_max": 113, "y_max": 951 },
-      "bbox_row_y_min": 909,
-      "bbox_row_y_max": 951,
-      "x_centers": [160, 278, 387, 496, 601, 920],
-      "role": "data_row",
-      "field_name": "current_temp_C",
-      "unit": "°C",
-      "values_sample": [262.3, 290.0, 289.9, 290.0, 280.0, 30.6]
-    },
-    "set_temp_row": {
-      "expected_label": "设定°C",
-      "label_bbox": { "x_min": 10, "y_min": 980, "x_max": 206, "y_max": 1014 },
-      "bbox_row_y_min": 978,
-      "bbox_row_y_max": 1010,
-      "x_centers": [160, 278, 387, 496, 601, 920],
-      "role": "data_row",
-      "field_name": "set_temp_C",
-      "unit": "°C",
-      "values_sample": [262.0, 290.0, 290.0, 290.0, 280.0, 0.0]
-    },
-    "control_percent_row": {
-      "expected_label": "控制%",
-      "label_bbox": { "x_min": 10, "y_min": 1020, "x_max": 206, "y_max": 1054 },
-      "bbox_row_y_min": 1018,
-      "bbox_row_y_max": 1054,
-      "x_centers": [293, 404, 512, 603, 722, 924],
-      "role": "data_row",
-      "field_name": "control_percent",
-      "unit": "%",
-      "values_sample": [10.6, 9.9, 1.1, 5.1, 58.5, 0.0]
-    },
-    "tab_strip": {
-      "labels": ["监视", "温度", "设定", "预热", "曲线", "返回"],
-      "bbox_row_y_min": 1464,
-      "bbox_row_y_max": 1522,
-      "role": "tab_navigation",
-      "notes": "当前激活 Tab 是 '温度'（可通过文字加粗/反白判断）"
-    }
+    "column_spacing_avg": 0.1065,
+    "col_x_tolerance": 0.05,
+    "row_y_tolerance": 0.025,
+    "notes": "列头数字 1 常被 OCR 漏检（左侧斜角框内），列位用识别到的数字列头线性拟合补齐；屏变体间列位有漂移（rec201 油温列 x≈0.96 vs jiaming x≈0.90），提取时优先用逐图实测列位，本模板值为兜底与合理性校验"
+  },
+  "row_anchors": {
+    "set": "设定",
+    "control": "控制",
+    "oil_header": "油温",
+    "page_title": "温度"
+  },
+  "heater_columns": {
+    "mode": "dynamic",
+    "rule": "列头数字个数决定物理列数（不写死）；启用段数 = 当前值行从第 1 列起连续为数值的列数，当前值为 * 或空缺的列视为未启用；油温列独立于料筒段",
+    "disabled_marks": ["*", "水", "★"]
+  },
+  "field_mapping": {
+    "barrel_temperature_current_c": {"row": "current", "columns": "1..heater_columns", "unit": "°C"},
+    "barrel_temperature_set_c": {"row": "set", "columns": "1..heater_columns", "unit": "°C"},
+    "oil_temperature_current_c": {"row": "current", "columns": "oil", "unit": "°C"},
+    "oil_temperature_set_c": {"row": "set", "columns": "oil", "unit": "°C"},
+    "control_percent": {"row": "control", "columns": "1..heater_columns", "unit": "%"}
   },
   "validation_rules": {
     "temperature_range_C": [0, 450],
     "control_percent_range": [0, 100],
-    "must_have_all_heater_columns": true,
-    "current_set_consistency_tolerance_C": 5
-  },
-  "parse_workflow": {
-    "1": "确认 OCR 输出 ui_family == ZizES, page == temperature",
-    "2": "校验标题 '温度' 出现在 (4,774) 附近 (tol 20px)",
-    "3": "校验 6 个加热器标签 (1/2/3/4/5/6) 出现在 y=882-902 行",
-    "4": "校验 '现在°C' 行 y=909-951 的 6 个数据点",
-    "5": "校验 '设定°C' 行 y=978-1010 的 6 个数据点",
-    "6": "校验 '控制%' 行 y=1018-1054 的 6 个数据点",
-    "7": "字段格式校验：温度 0~450，控制 0~100，列数对齐"
+    "current_set_consistency_tolerance_C": 5,
+    "min_cell_conf": 0.85,
+    "must_have_all_heater_columns": true
   },
   "known_uncertainties": [
-    "样本分辨率 1080x1920，模板坐标硬编码。手机型号/分辨率变化需重新校准。",
-    "当前仅基于 1 张样本（jiaming_Z052_t1），其他机台段数可能不同（5/6/7 段）",
-    "x_centers 列对齐基于 1 张样本，建议用 jiaming t2/t3 多样本平均校准",
-    "标题检测用 OCR 文本匹配，未加视觉特征（颜色/字体大小）"
+    "模板坐标基于 5 张样本平均，屏变体间仍有漂移，提取以逐图实测列位为主、模板为兜底",
+    "设定行首列常与行标签合并为一个 OCR token（如 '设定°C262.0'），按'标签合并数字归属第 1 列'规则处理",
+    "未启用段的 OCR 标记不稳定（*/水/★/空缺），按当前值行判定，设定/控制行的 0.0 不作启用依据",
+    "current vs set 一致性校验（±5°C）会把真实报警态机台（如 rec201 一段 311.6/300）判为 review，这是保守设计而非误报"
   ]
 }

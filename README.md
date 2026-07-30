@@ -16,20 +16,30 @@
 
 把每天每台机台约 3-5 张控制屏拍照图片里的设定参数抽取出来，入库回填到飞书 Base，替代每月 ~6000+ 张图的 vision 手动读取，节省 token 成本。
 
-## 当前状态（2026-07-25）
+## 当前状态（2026-07-30）
 
-**Phase 0 续 — 最小闭环已建立：**
+**S2 record 级控制器识别 + S4 ZizES 温度页端到端薄切片已跑通（PoC）：**
 
 | 模块 | 状态 |
 |---|---|
 | OCR 环境（PaddleOCR 2.7 + PP-OCRv4 ch）| ✅ 已装 |
 | SHA-256 去重 | ✅ `scripts/dedup.py` |
-| 质量门禁（屏幕检测 + 透视/反光/模糊评分 + 三色 triage）| ✅ `scripts/quality.py` |
+| 质量门禁（屏幕检测 + 透视/反光/模糊评分 + 三色 triage）| ✅ `scripts/quality.py`（透视指标已改为四角对边比真实测量）|
 | 单图 OCR → (text, bbox, conf) JSON | ✅ `scripts/ocr_one.py` |
-| UI 家族识别 + 页面识别（基于 OCR 文本关键词）| ✅ `scripts/classify_ui.py` |
-| 主入口流水线（去重 → 质量 → OCR → 分类）| ✅ `scripts/run_pipeline.py` |
-| 模板 | ⏳ 待 ZizES OCR 结果反推 |
-| 入库（lark-cli base +record-upsert）| ⏳ |
+| OCR 后处理（品牌模糊匹配 + 同行合并 + 数字约束）| ✅ `scripts/postprocess.py` v0.1.0 |
+| UI 家族识别 + 页面识别（基于 OCR 文本关键词）| ✅ `scripts/classify_ui.py`（含 `score_all_families` 全向量打分）|
+| S2 record 级控制器识别（离线聚合 + dedup 代表选取）| ✅ `scripts/aggregate_record.py` → `output/record_classify_report.json` |
+| 屏幕四角检测 + 透视矫正 | ✅ `scripts/rectify.py`（检测失败降级 MANUAL_SCREEN_CONFIRM）|
+| S4 字段提取（OCR + 归一化模板，VLM 不进提取链路）| ✅ `scripts/extract_fields.py` |
+| S4 真值比对（6 项指标）| ✅ `scripts/verify_accuracy.py` → `output/accuracy_report.json` |
+| ZizES 温度页模板（归一化坐标，5 样本校准）| ✅ `templates/zizes.temperature.json` v0.2.0 |
+| S1 机器先验（VLM 草稿 + 人工核验）| ✅ `ground_truth/machine_labels.json` |
+| S3 ZizES 温度页真值集（5 张，逐字段核验）| ✅ `ground_truth/zizes_temperature/` |
+| 主入口流水线（去重 → 质量 → 矫正 → OCR → 分类 → 提取 → 比对）| ✅ `scripts/run_pipeline.py` |
+| 其余家族模板（KEBA/弘讯/EST/B&R/KAIMING）| ⏳ 待 ZizES 达标后复制 |
+| 入库（lark-cli base +record-upsert）| ⏳ 扩样验证通过前禁止真实自动入库 |
+
+**S4 PoC 验收（5 张真值，2026-07-30）**：数值准确率 100%（门槛 ≥95%）、错误自动入库率 0（门槛严格 =0）、字段完整率 100%、控制器/页面分类准确率 100%、可自动入库比例 80%（rec201 报警态保守判 review）。达标仅表示允许进入扩样验证，不代表许可生产自动入库。
 
 ## 项目结构
 
@@ -38,23 +48,33 @@ hmi_data_reader/
 ├── README.md
 ├── docs/
 │   ├── 000_INDEX.md
-│   ├── 001_HANDOVER_20260725_5品牌屏模板调研.md
-│   ├── 002_RESEARCH_20260725_HMI图片真值与质量门禁.md
-│   └── samples/                          # 15 张样本图片
+│   ├── 006_REPORT_20260729_架构重新梳理.md
+│   ├── 007_PLAN_20260730_端到端薄切片实施计划.md
+│   └── samples*/                          # 样本图片（samples / samples_v2 / samples_v3）
+├── ground_truth/
+│   ├── machine_labels.json                # S1 机器先验（唯一先验事实源）
+│   └── zizes_temperature/                 # S3 ZizES 温度页字段级真值（5 张）
 ├── scripts/
-│   ├── dedup.py                          # SHA-256 去重
-│   ├── quality.py                        # 质量门禁（屏幕/透视/反光/模糊）
-│   ├── ocr_one.py                        # 单图 PaddleOCR → 结构化 JSON
-│   ├── classify_ui.py                    # 基于 OCR 输出识别 UI 家族 + 页面
-│   └── run_pipeline.py                   # 主入口（去重→质量→OCR→分类）
-├── templates/                            # 待建：UI家族.页面 模板
-├── models/                               # 模型缓存（占位）
+│   ├── dedup.py                           # SHA-256 去重
+│   ├── quality.py                         # 质量门禁（屏幕/透视/反光/模糊）
+│   ├── rectify.py                         # 屏幕四角检测 + 透视矫正
+│   ├── ocr_one.py                         # 单图 PaddleOCR → 结构化 JSON
+│   ├── postprocess.py                     # OCR 后处理（品牌模糊/同行合并/数字约束）
+│   ├── classify_ui.py                     # UI 家族 + 页面识别（含全向量打分）
+│   ├── aggregate_record.py                # S2 record 级控制器识别（离线聚合）
+│   ├── extract_fields.py                  # S4 字段提取（OCR + 归一化模板）
+│   ├── verify_accuracy.py                 # S4 真值比对（6 项指标）
+│   └── run_pipeline.py                    # 主入口（去重→质量→矫正→OCR→分类→提取→比对）
+├── templates/
+│   └── zizes.temperature.json             # ZizES 温度页模板 v0.2.0（归一化坐标）
+├── models/                                # 模型缓存（占位）
 ├── output/
-│   ├── json/                             # 每张图的 OCR JSON
-│   ├── dedup_report.json
-│   ├── quality_report.json
-│   └── classify_report.json
-└── .venv/                                # uv venv（PaddleOCR 2.7 + paddle 2.6）
+│   ├── json/                              # 原图 OCR JSON（含 postprocessed 变体）
+│   ├── rectified/                         # 矫正图 + 其 OCR 产物（批量产物，不进 git）
+│   ├── extracted/                         # 字段提取结果（批量产物，不进 git）
+│   ├── record_classify_report.json        # S2 聚合报告
+│   └── accuracy_report.json               # S4 6 项指标报告
+└── .venv/                                 # uv venv（PaddleOCR 2.7 + paddle 2.6）
 ```
 
 ## 安装与运行
@@ -69,8 +89,13 @@ source .venv/bin/activate
 # 安装依赖（已装好）
 # uv pip install paddleocr==2.7.3 paddlepaddle==2.6.2 numpy opencv-python-headless
 
-# 运行完整流水线
-python scripts/run_pipeline.py docs/samples/ --output output/full_report.json
+# 运行完整流水线（去重 → 质量 → 矫正 → OCR → 分类 → 提取 → 真值比对）
+python scripts/run_pipeline.py docs/samples_v3 --output output/pipeline_report.json \
+    --extract --verify ground_truth/zizes_temperature --verify-output output/accuracy_report.json
+
+# S2 record 级控制器识别（离线聚合，唯一规范输入 *.ocr.postprocessed.json）
+python scripts/aggregate_record.py output/json --labels ground_truth/machine_labels.json \
+    --output output/record_classify_report.json
 
 # 单独跑去重
 python scripts/dedup.py docs/samples/ --output output/dedup.json
@@ -80,6 +105,15 @@ python scripts/quality.py docs/samples/*.jpeg --output output/quality.json
 
 # 单独跑单图 OCR
 python scripts/ocr_one.py docs/samples/jiaming_Z052_t1_炮筒.jpeg --output output/json/jiaming_Z052_t1.ocr.json
+
+# 单独跑透视矫正（输出矫正图 + 屏幕尺寸 meta）
+python scripts/rectify.py docs/samples/jiaming_Z052_t1_炮筒.jpeg output/rectified/jiaming_Z052_t1_炮筒.png \
+    --meta output/rectified/jiaming_Z052_t1_炮筒.rectify.json
+
+# 单独跑字段提取 / 真值比对
+python scripts/extract_fields.py --all --rectified-dir output/rectified --output-dir output/extracted
+python scripts/verify_accuracy.py output/extracted --truth ground_truth/zizes_temperature \
+    --output output/accuracy_report.json
 ```
 
 ## 关键设计决策
@@ -118,7 +152,8 @@ python scripts/ocr_one.py docs/samples/jiaming_Z052_t1_炮筒.jpeg --output outp
 
 ## 下一步
 
-1. ZizES 3 张绿灯样本跑出结构化 OCR → 反推 `templates/zizes.temperature.json`
-2. TACT/FANUC 黄灯样本先做透视矫正 → 重测 → 评估 OCR 可行性
-3. TRD6 红灯样本（沙迪克）→ 出明确重拍指引
-4. 重新从飞书抽独立样本替换重复附件 → 重新评估真实 UI 家族数量
+1. T2 验收：S2 record 级分类与 S1 标签的冲突率/准确率验收（`output/record_classify_report.json` vs `ground_truth/machine_labels.json`）
+2. S2 召回改进：unknown 图片比例 31.7%（远超 ≤5% 门槛），需品牌模糊匹配进分类链路或标题区加权
+3. 扩样验证：ZizES 温度页扩到更多机台/日期，确认 5 张 PoC 结论在更大样本上成立后才允许谈自动入库
+4. 复制模板到其余家族（KEBA/B_AND_R/KAIMING 等，按 006 报告 §3 节奏）
+5. KAIMING 族（佳明 Z030/Z062）模板与真值集新建

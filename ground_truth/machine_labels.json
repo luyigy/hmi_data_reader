@@ -1,0 +1,166 @@
+{
+  "version": "1.0",
+  "notes": "S1 VLM 预标注 + 人工核验产物。来源：飞书 Base Vz2QbZ0lkagmVJsrMZ7cQwbSnZc 表 tblxdrwZD1Auox0z（S1机台核验），核验人王为，2026-07-30 全部通过。伯乐_A01/B01 草稿 UNKNOWN 经核验人修正为 KEBA/B_AND_R，其余 10 台草稿与确认一致。日精_B09/B10 备注：日精新机器。2026-07-30 大表扩样补充：佳明_Z017/Z051 为 ZIZES 族；确认佳明至少有两套 HMI——Z030/Z062 为 KAIMING 族（暂定名，KAI MING 标题栏 + F1…F6PID 菜单，控制器厂商待确认，Z062 面板有仁烨科技贴纸）。",
+  "machines": {
+    "伯乐_A01_KEBA": {
+      "machine_brand": "BOLE",
+      "controller_family": "KEBA",
+      "hmi_variant": "v1",
+      "records": ["rec11"],
+      "evidence": "草稿 UNKNOWN（仅 BOLE Logo + Process expert 标题栏），核验人确认为 KEBA",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "伯乐_B01_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": ["rec07", "rec09"],
+      "evidence": "草稿 UNKNOWN（BOLE Logo + BKS_350 蓝色 UI），核验人确认为 B_AND_R",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "伯乐_B02_KEBA": {
+      "machine_brand": "BOLE",
+      "controller_family": "KEBA",
+      "hmi_variant": "v1",
+      "records": ["rec06", "rec08", "rec10"],
+      "evidence": "机身面板右上角 KEBA 丝印 Logo",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "德马格_A01_DEMAG": {
+      "machine_brand": "DEMAG",
+      "controller_family": "DEMAG",
+      "hmi_variant": "v1",
+      "records": ["rec14"],
+      "evidence": "工艺控制统计页为 Demag NC 系列风格（间接证据，核验通过）",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "德马格_A02_DEMAG": {
+      "machine_brand": "DEMAG",
+      "controller_family": "DEMAG",
+      "hmi_variant": "v1",
+      "records": ["rec15"],
+      "evidence": "机身 Sumitomo SHI DEMAG Logo",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "发那科_A09_FANUC": {
+      "machine_brand": "FANUC",
+      "controller_family": "FANUC",
+      "hmi_variant": "v1",
+      "records": ["rec00", "rec01"],
+      "evidence": "顶部 FANUC ROBOSHOT 机型标识",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "佳明_B07_ZIZES": {
+      "machine_brand": "JIAMING",
+      "controller_family": "ZIZES",
+      "hmi_variant": "v1",
+      "records": ["rec12", "rec13", "rec16", "rec17"],
+      "evidence": "机身 ZizES Logo + 标题栏 广东佳明机器有限公司",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "日精_A06_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": ["rec02"],
+      "evidence": "工程监视/生产情报/经历 菜单为日精 TACT 风格（间接证据，核验通过）",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "日精_B09_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": ["rec04", "rec05"],
+      "evidence": "蓝色按钮 UI 与 TACT5 软件同族（间接证据，核验通过）",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "日精_B10_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": ["rec03"],
+      "evidence": "屏幕面板上方 TACT 5 标识",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "沙迪克_A06_TRD6": {
+      "machine_brand": "SODICK",
+      "controller_family": "TRD6",
+      "hmi_variant": "v1",
+      "records": ["rec18", "rec19"],
+      "evidence": "面板 TRD6 标牌 + SPT(Sodick Plustech) 键盘 Logo",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "阿博格_A07_ARBURG": {
+      "machine_brand": "ARBURG",
+      "controller_family": "ARBURG",
+      "hmi_variant": "v1",
+      "records": ["rec20", "rec21"],
+      "evidence": "SELOGICA 风格黄绿图标栏 + 参数编号体系 t4012/s4062/p4072",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "佳明_Z017_ZIZES": {
+      "machine_brand": "JIAMING",
+      "controller_family": "ZIZES",
+      "hmi_variant": "v1",
+      "records": ["rec200"],
+      "evidence": "机身 ZizES Logo + 广东佳明机器有限公司标题栏（大表扩样图，位置 A05）",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "佳明_Z051_ZIZES": {
+      "machine_brand": "JIAMING",
+      "controller_family": "ZIZES",
+      "hmi_variant": "v1",
+      "records": ["rec201"],
+      "evidence": "机身 ZizES Logo + 广东佳明机器有限公司标题栏（大表扩样图，位置 B05）",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "佳明_Z030_KAIMING": {
+      "machine_brand": "JIAMING",
+      "controller_family": "KAIMING",
+      "hmi_variant": "v1",
+      "records": ["rec203"],
+      "evidence": "KAI MING / Kai Ming Engineering Ltd 标题栏 + F1状态/F2温度/F3模温/F4功能/F5参数/F6PID 菜单，9 段炮筒示意图布局，与 ZizES 不同族（用户确认 Z030 为佳明真机，佳明至少有两套 HMI；控制器厂商待确认，KAIMING 为暂定族名）",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "佳明_Z062_KAIMING": {
+      "machine_brand": "JIAMING",
+      "controller_family": "KAIMING",
+      "hmi_variant": "v1",
+      "records": ["rec202"],
+      "evidence": "KAI MING 标题栏 + F1…F6PID 菜单（同 Z030）；面板上方另有 RENYE 仁烨科技贴纸（疑似改造/贴牌，待确认）",
+      "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    }
+  }
+}

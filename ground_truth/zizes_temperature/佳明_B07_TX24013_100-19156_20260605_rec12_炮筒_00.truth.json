@@ -1,0 +1,29 @@
+{
+  "image": "佳明_B07_TX24013_100-19156_20260605_rec12_炮筒_00.jpeg",
+  "controller_family": "ZIZES",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "acceptable",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_set_c": [260.5, 290.0, 290.0, 290.0, 280.0],
+    "barrel_temperature_current_c": [260.5, 290.0, 293.5, 289.7, 279.8],
+    "oil_temperature_set_c": 0.0,
+    "oil_temperature_current_c": 35.1,
+    "control_percent": [10.1, 8.7, 0.0, 3.1, 49.7]
+  },
+  "heater_columns": 5,
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "王为",
+    "verified_at": "2026-07-30",
+    "changed_fields": 0,
+    "spot_check_by": ""
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblWeLQAYecNONwo",
+    "record_id": "recvqPTK6Us6qv"
+  },
+  "notes": "1段设定值编辑高亮态读数260.5已经核验人确认；6、7段未启用(*)；oil_temperature_current_c 为本次最小闭环核验新增的 schema 字段（原 plan schema 仅有 oil_temperature_set_c）"
+}

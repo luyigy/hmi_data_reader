@@ -13,3 +13,7 @@ models/
 # 系统
 .DS_Store
 *.swp
+
+# S4 批量产物（不进 git；Git 只保留夹具、真值、汇总报告）
+output/rectified/
+output/extracted/

@@ -103,16 +103,94 @@ def detect_screen_bbox(img: np.ndarray) -> tuple[int, int, int, int] | None:
     return best
 
 
-def compute_perspective_ratio(bbox: tuple[int, int, int, int] | None, gray: np.ndarray) -> float:
-    """基于屏幕 bbox 内部边缘密度估计透视畸变。
+def order_points(pts: np.ndarray) -> np.ndarray:
+    """把 4 个点排序为 [左上, 右上, 右下, 左下]。"""
+    pts = np.asarray(pts, dtype=np.float32)
+    s = pts.sum(axis=1)
+    diff = np.diff(pts, axis=1).ravel()
+    return np.array([
+        pts[np.argmin(s)],      # 左上：x+y 最小
+        pts[np.argmin(diff)],   # 右上：y-x 最小
+        pts[np.argmax(s)],      # 右下：x+y 最大
+        pts[np.argmax(diff)],   # 左下：y-x 最大
+    ], dtype=np.float32)
 
-    简化策略：屏幕区域内 Canny 边缘像素数 / 屏幕面积。值越大表示内容越复杂
-    （说明没有大量空白屏幕，间接判断是有效屏幕）。此值只在 1.0~2.0 之间，
-    超过 1.5 视为严重斜拍（屏幕内部空白边缘扭曲）。
 
-    真实透视检测留给后续用四边形最小外接 → 平行边偏离度评估。当前阶段
-    阈值保守，触发 yellow 即可。
+def detect_screen_corners(img: np.ndarray) -> np.ndarray | None:
+    """检测显示屏面板四角，返回 (4,2) 像素坐标 [左上, 右上, 右下, 左下]；失败返回 None。
+
+    启发式：显示屏面板是图中最亮的低饱和区域（浅灰/白），边框与机身明显更暗。
+    在缩略图上做 (V>140 且 S<90) 阈值 → 形态学闭/开 → 最大轮廓 →
+    approxPolyDP 逼近四边形；逼近不出四点则用 minAreaRect 的旋转矩形四角。
+
+    S4（2026-07-30）新增：供 rectify.py 透视矫正与 compute_perspective_ratio 真实测量复用。
     """
+    h, w = img.shape[:2]
+    scale = 800 / max(h, w)
+    small = cv2.resize(img, (int(w * scale), int(h * scale))) if scale < 1 else img.copy()
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+    _, S, V = cv2.split(hsv)
+    mask = ((V > 140) & (S < 90)).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((7, 7), np.uint8))
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    sh, sw = mask.shape
+    best, best_area = None, 0.0
+    for c in contours:
+        area = cv2.contourArea(c)
+        if area < sh * sw * 0.05:  # 至少占图 5%，防噪声
+            continue
+        if area > best_area:
+            best, best_area = c, area
+    if best is None:
+        return None
+
+    inv = 1.0 / scale if scale < 1 else 1.0
+    peri = cv2.arcLength(best, True)
+    approx = cv2.approxPolyDP(best, 0.02 * peri, True)
+    if len(approx) == 4:
+        quad = approx.reshape(-1, 2).astype(np.float32) * inv
+    else:
+        quad = cv2.boxPoints(cv2.minAreaRect(best)).astype(np.float32) * inv
+
+    quad = order_points(quad)
+    # 基本合理性：四边都 > 100px（原图尺度），长宽比不过分离谱
+    widths = [np.linalg.norm(quad[1] - quad[0]), np.linalg.norm(quad[2] - quad[3])]
+    heights = [np.linalg.norm(quad[3] - quad[0]), np.linalg.norm(quad[2] - quad[1])]
+    if min(widths + heights) < 100:
+        return None
+    aspect = max(widths) / max(1.0, min(heights))
+    if not 0.4 <= aspect <= 4.0:
+        return None
+    return quad
+
+
+def compute_perspective_ratio(bbox: tuple[int, int, int, int] | None, gray: np.ndarray,
+                              quad: np.ndarray | None = None) -> float:
+    """估计屏幕透视畸变程度，>=1.0，越大越倾斜。
+
+    S4 起为真实测量（修正此前"名为透视、实为长宽比罚分"的名不副实问题）：
+    有屏幕四角（detect_screen_corners）时取对边长度比
+    max(上/下, 下/上, 左/右, 右/左)——正对屏幕拍摄时平行边等长，比值≈1.0；
+    斜拍时近大远小，比值增大。
+
+    四角不可得时回退旧启发式：屏幕长宽比偏离 [0.7, 2.5] 罚 1.3；屏幕被图像边
+    严重裁切罚 1.5。阈值（THRESHOLD_PERSPECTIVE=1.30）两种口径下语义一致。
+    """
+    if quad is not None:
+        q = order_points(quad)
+        top = float(np.linalg.norm(q[1] - q[0]))
+        bottom = float(np.linalg.norm(q[2] - q[3]))
+        left = float(np.linalg.norm(q[3] - q[0]))
+        right = float(np.linalg.norm(q[2] - q[1]))
+        ratios = []
+        for a, b in ((top, bottom), (left, right)):
+            lo, hi = min(a, b), max(a, b)
+            if lo > 0:
+                ratios.append(hi / lo)
+        return max(ratios) if ratios else 1.0
+
     if bbox is None:
         return 1.0
     x, y, bw, bh = bbox
@@ -231,12 +309,13 @@ def assess(image_path: Path) -> QualityReport:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     bbox = detect_screen_bbox(img)
+    quad = detect_screen_corners(img)
     metrics = QualityMetrics(
         width=w,
         height=h,
         screen_bbox=bbox,
         screen_area_ratio=(bbox[2] * bbox[3] / (w * h)) if bbox else 0.0,
-        perspective_ratio=compute_perspective_ratio(bbox, gray),
+        perspective_ratio=compute_perspective_ratio(bbox, gray, quad),
         blur_score=compute_blur(gray),
         glare_ratio=compute_glare(gray),
         dark_ratio=compute_dark(gray),

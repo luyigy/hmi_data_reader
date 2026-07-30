@@ -1,0 +1,2003 @@
+{
+  "version": "1.0",
+  "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §S2",
+  "input_spec": {
+    "canonical_pattern": "*.ocr.postprocessed.json（排除 *.rectified.* 变体；原始 .ocr.json 不参与）",
+    "json_dir": "output/json",
+    "canonical_files": 99,
+    "participating_images": 82,
+    "excluded_duplicate_images": 17,
+    "dedup_groups_applied": [
+      {
+        "sha256": "80c3358b6d79091fbf33c80ffe4b43ba50f56d55ccf5b22541c8785224eac0d1",
+        "representative": "fanake_Z036_t1_炮筒",
+        "excluded": [
+          "fanake_Z036_t3_储料冷却"
+        ],
+        "source_report": "output/dedup_report.json"
+      },
+      {
+        "sha256": "2e5748c9aa4a6ac48c537756df6b4a701ebb13421c7110a580623370cbde2a22",
+        "representative": "boletuo_Z001_t2_射出保压",
+        "excluded": [
+          "rijing_Z022_t2_射出保压"
+        ],
+        "source_report": "output/dedup_report.json"
+      },
+      {
+        "sha256": "49ee8d2773d2f61d71190693e095c9a8669be5045b7201cab47404c62d8dcc39",
+        "representative": "boletuo_Z001_t3_储料冷却",
+        "excluded": [
+          "rijing_Z022_t3_储料冷却"
+        ],
+        "source_report": "output/dedup_report.json"
+      },
+      {
+        "sha256": "080154b3a640a051f8c5cfc0196a0d2c1679ce7df38305966f8aa7e2d52998d5",
+        "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_储料_00",
+        "excluded": [
+          "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_储料_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "d79525ef487a883ce2d5bd889da95abaf211db3c8995ac89b2f0dea2e88e0958",
+        "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_射出_00",
+        "excluded": [
+          "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_射出_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "cb27b6614a392006df800699284d0ccad636a390539678592959ccd1c8e6886e",
+        "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_波形_00",
+        "excluded": [
+          "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_波形_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "42b0649f8ec3be1627c3526faddc4c161216f4e0800853c6ab83d8cd72174bb6",
+        "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_炮筒_00",
+        "excluded": [
+          "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_炮筒_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "034f34721bc0e797454c1e14de22f6a9b1f9dec6470af2080ff8910b89768eb5",
+        "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_监控_00",
+        "excluded": [
+          "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_监控_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "962ec5cc0b8c9e05d02f172574547cc77b4310aaaf9367ad45dd31f83cc08038",
+        "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_储料_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-19156_20260605_rec16_储料_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "45240453918e61b05b6cf7db5059ff6d26c30cc30b6affe6becfb202bd677894",
+        "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_射出_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-19156_20260605_rec16_射出_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "425763bbbb8842ad1b13385bb75f7851a647e6502a0e97072c96a15b4743fa3d",
+        "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_炮筒_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-19156_20260605_rec16_炮筒_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "9eb47a5f9687fc1e93a05eacb34ffe2e1e5254c2d75916beb2fbfd66d7d0fcce",
+        "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_监控_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-19156_20260605_rec16_监控_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "53b4cb1ebdd72e9c051f27fa25601fe2ca123b4abad37a1d3cc752950c3a72bf",
+        "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_储料_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-30139_20260604_rec17_储料_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "a0a53bce690e7d8fcc9d906617cbf65659d2135d292f4c3a7b600c310148ce49",
+        "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_射出_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-30139_20260604_rec17_射出_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "b9ce2825dbc2528e2dd8122c83af02d499f7206333c83f82bc71e9fca2b8bcbc",
+        "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_波形_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-30139_20260604_rec17_波形_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "bad591476f7357270712094fa77dbdd3f6df977f2cc886810569e17066d76ad4",
+        "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_炮筒_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-30139_20260604_rec17_炮筒_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      },
+      {
+        "sha256": "b6765b3b067a0466c31cc288e18defb06717b0443ec8bbfdc28f807a4eab6f93",
+        "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_监控_00",
+        "excluded": [
+          "v2_佳明_B07_TX24013_100-30139_20260604_rec17_监控_00"
+        ],
+        "source_report": "output/dedup_v2_report.json"
+      }
+    ]
+  },
+  "ocr_snapshot": {
+    "repo_head": "c730a3832bb1d497d61ef1e8b002d20663d61a0d",
+    "ocr_json_last_commit": "1a066152a1420f97b3a1cc6517937e48c3451b7e",
+    "ocr_json_worktree_dirty": false,
+    "postprocess_file": "scripts/postprocess.py",
+    "postprocess_sha256": "eed69c5dcd21b2a887d534a5c477e37b6183c91e8e94e13e72f2140619d33be6",
+    "postprocess_version": "0.1.0"
+  },
+  "labels": {
+    "path": "ground_truth/machine_labels.json",
+    "status": "loaded"
+  },
+  "summary": {
+    "n_records": 23,
+    "n_participating_images": 82,
+    "n_unknown_images": 26,
+    "unknown_image_ratio": 0.3171,
+    "n_unknown_records": 6,
+    "n_conflicts": 3
+  },
+  "unknown_images": [
+    "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_波形_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260313_rec01_波形_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260313_rec01_炮筒_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260313_rec01_监控_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260714_rec00_储料_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260714_rec00_射出_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260714_rec00_波形_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260714_rec00_炮筒_00.ocr.postprocessed.json",
+    "v2_发那科_A09_TX22058_100-17014_20260714_rec00_监控_00.ocr.postprocessed.json",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14_储料_00.ocr.postprocessed.json",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14_储料_01.ocr.postprocessed.json",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14_射出_00.ocr.postprocessed.json",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14_射出_01.ocr.postprocessed.json",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14_波形_00.ocr.postprocessed.json",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14_炮筒_00.ocr.postprocessed.json",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14_监控_00.ocr.postprocessed.json",
+    "v2_德马格_A02_TX23030_100-18891_20260722_rec15_监控_00.ocr.postprocessed.json",
+    "v2_日精_A06_TX25022_100-15545_20260724_rec02_储料_00.ocr.postprocessed.json",
+    "v2_日精_A06_TX25022_100-15545_20260724_rec02_射出_00.ocr.postprocessed.json",
+    "v2_日精_A06_TX25022_100-15545_20260724_rec02_波形_00.ocr.postprocessed.json",
+    "v2_日精_A06_TX25022_100-15545_20260724_rec02_炮筒_00.ocr.postprocessed.json",
+    "v2_日精_A06_TX25022_100-15545_20260724_rec02_监控_00.ocr.postprocessed.json",
+    "v2_日精_B09_TX23056_100-30087_20260710_rec04_储料_00.ocr.postprocessed.json",
+    "v2_日精_B09_TX23056_100-30087_20260710_rec04_监控_00.ocr.postprocessed.json",
+    "v2_日精_B09_TX23056_100-30087_20260710_rec05_监控_00.ocr.postprocessed.json",
+    "v2_阿博格_A07_TX23053_100-30023_20260725_rec20_监控_00.ocr.postprocessed.json"
+  ],
+  "unknown_records": [
+    "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10",
+    "v2_佳明_B07_TX24013_100-19156_20260605_rec16",
+    "v2_佳明_B07_TX24013_100-30139_20260604_rec17",
+    "v2_发那科_A09_TX22058_100-17014_20260714_rec00",
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14",
+    "v2_日精_A06_TX25022_100-15545_20260724_rec02"
+  ],
+  "conflicts": [
+    {
+      "record": "v2_伯乐_A01_TX24014_200-19355-2_20260717_rec11",
+      "machine_id": "伯乐_A01_KEBA",
+      "aggregated_family": "BOLE",
+      "label_family": "KEBA",
+      "action": "人工复核，不以先验覆盖图片证据"
+    },
+    {
+      "record": "v2_伯乐_B02_TX25024_100-30135_20260724_rec06",
+      "machine_id": "伯乐_B02_KEBA",
+      "aggregated_family": "BOLE",
+      "label_family": "KEBA",
+      "action": "人工复核，不以先验覆盖图片证据"
+    },
+    {
+      "record": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08",
+      "machine_id": "伯乐_B02_KEBA",
+      "aggregated_family": "BOLE",
+      "label_family": "KEBA",
+      "action": "人工复核，不以先验覆盖图片证据"
+    }
+  ],
+  "records": {
+    "boletuo_Z001": {
+      "controller_family": "TACT",
+      "family_scores": {
+        "TACT": 2.987,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 3,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "boletuo_Z001_t1_炮筒.ocr.postprocessed.json",
+          "n_lines": 17,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.998,
+          "family_scores": {
+            "TACT": 0.998,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "boletuo_Z001_t2_射出保压.ocr.postprocessed.json",
+          "n_lines": 26,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.993,
+          "family_scores": {
+            "TACT": 0.993,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "boletuo_Z001_t3_储料冷却.ocr.postprocessed.json",
+          "n_lines": 23,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.996,
+          "family_scores": {
+            "TACT": 0.996,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 2.987,
+      "machine_id": null,
+      "label_check": "no_matching_machine"
+    },
+    "fanake_Z036": {
+      "controller_family": "FANUC",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 2.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 2,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "fanake_Z036_t1_炮筒.ocr.postprocessed.json",
+          "n_lines": 32,
+          "ui_family": "FANUC",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 1.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "fanake_Z036_t2_射出保压.ocr.postprocessed.json",
+          "n_lines": 35,
+          "ui_family": "FANUC",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 1.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [
+        {
+          "file": "fanake_Z036_t3_储料冷却.ocr.postprocessed.json",
+          "representative": "fanake_Z036_t1_炮筒.ocr.postprocessed.json"
+        }
+      ],
+      "score_margin": 2.0,
+      "machine_id": null,
+      "label_check": "no_matching_machine"
+    },
+    "jiaming_Z052": {
+      "controller_family": "ZizES",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 2.995,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 3,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "jiaming_Z052_t1_炮筒.ocr.postprocessed.json",
+          "n_lines": 18,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 1.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "jiaming_Z052_t2_射出保压.ocr.postprocessed.json",
+          "n_lines": 23,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 1.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "jiaming_Z052_t3_储料冷却.ocr.postprocessed.json",
+          "n_lines": 19,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.995,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.995,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 2.995,
+      "machine_id": null,
+      "label_check": "no_matching_machine"
+    },
+    "rijing_Z022": {
+      "controller_family": "FANUC",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.972,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 1,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "rijing_Z022_t1_炮筒.ocr.postprocessed.json",
+          "n_lines": 33,
+          "ui_family": "FANUC",
+          "ui_family_confidence": 0.972,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.972,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [
+        {
+          "file": "rijing_Z022_t2_射出保压.ocr.postprocessed.json",
+          "representative": "boletuo_Z001_t2_射出保压.ocr.postprocessed.json"
+        },
+        {
+          "file": "rijing_Z022_t3_储料冷却.ocr.postprocessed.json",
+          "representative": "boletuo_Z001_t3_储料冷却.ocr.postprocessed.json"
+        }
+      ],
+      "score_margin": 0.972,
+      "machine_id": null,
+      "label_check": "no_matching_machine"
+    },
+    "v2_伯乐_A01_TX24014_200-19355-2_20260717_rec11": {
+      "controller_family": "BOLE",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 4.563,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "v2_伯乐_A01_TX24014_200-19355-2_20260717_rec11_储料_00.ocr.postprocessed.json",
+          "n_lines": 25,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.885,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.885,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_A01_TX24014_200-19355-2_20260717_rec11_射出_00.ocr.postprocessed.json",
+          "n_lines": 31,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.904,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.904,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_A01_TX24014_200-19355-2_20260717_rec11_波形_00.ocr.postprocessed.json",
+          "n_lines": 18,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.851,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.851,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_A01_TX24014_200-19355-2_20260717_rec11_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 25,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 1.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_A01_TX24014_200-19355-2_20260717_rec11_监控_00.ocr.postprocessed.json",
+          "n_lines": 32,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.923,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.923,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 4.563,
+      "machine_id": "伯乐_A01_KEBA",
+      "label_controller_family": "KEBA",
+      "label_check": "conflict"
+    },
+    "v2_伯乐_B02_TX25024_100-30135_20260724_rec06": {
+      "controller_family": "BOLE",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.826,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 1,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "v2_伯乐_B02_TX25024_100-30135_20260724_rec06_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 17,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.826,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.826,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 0.826,
+      "machine_id": "伯乐_B02_KEBA",
+      "label_controller_family": "KEBA",
+      "label_check": "conflict"
+    },
+    "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08": {
+      "controller_family": "BOLE",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 3.459,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 1,
+      "images": [
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_储料_00.ocr.postprocessed.json",
+          "n_lines": 20,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.869,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.869,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_射出_00.ocr.postprocessed.json",
+          "n_lines": 27,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.888,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.888,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_波形_00.ocr.postprocessed.json",
+          "n_lines": 22,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 27,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.841,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.841,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_监控_00.ocr.postprocessed.json",
+          "n_lines": 30,
+          "ui_family": "BOLE",
+          "ui_family_confidence": 0.861,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.861,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 3.459,
+      "machine_id": "伯乐_B02_KEBA",
+      "label_controller_family": "KEBA",
+      "label_check": "conflict"
+    },
+    "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10": {
+      "controller_family": "unknown",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 0,
+      "n_unknown_images": 0,
+      "images": [],
+      "excluded_duplicates": [
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_储料_00.ocr.postprocessed.json",
+          "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_储料_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_射出_00.ocr.postprocessed.json",
+          "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_射出_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_波形_00.ocr.postprocessed.json",
+          "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_波形_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_炮筒_00.ocr.postprocessed.json",
+          "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_炮筒_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec10_监控_00.ocr.postprocessed.json",
+          "representative": "v2_伯乐_B02_TX25024_200-30133-2_20260724_rec08_监控_00.ocr.postprocessed.json"
+        }
+      ],
+      "machine_id": "伯乐_B02_KEBA",
+      "label_controller_family": "KEBA",
+      "label_check": "unknown"
+    },
+    "v2_佳明_B07_TX24013_100-19156_20260605_rec12": {
+      "controller_family": "ZizES",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 3.987,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 4,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_储料_00.ocr.postprocessed.json",
+          "n_lines": 20,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.995,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.995,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_射出_00.ocr.postprocessed.json",
+          "n_lines": 24,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 1.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 18,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.995,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.995,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_监控_00.ocr.postprocessed.json",
+          "n_lines": 24,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.997,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.997,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 3.987,
+      "machine_id": "佳明_B07_ZIZES",
+      "label_controller_family": "ZIZES",
+      "label_check": "consistent"
+    },
+    "v2_佳明_B07_TX24013_100-19156_20260605_rec16": {
+      "controller_family": "unknown",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 0,
+      "n_unknown_images": 0,
+      "images": [],
+      "excluded_duplicates": [
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec16_储料_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_储料_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec16_射出_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_射出_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec16_炮筒_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_炮筒_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-19156_20260605_rec16_监控_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-19156_20260605_rec12_监控_00.ocr.postprocessed.json"
+        }
+      ],
+      "machine_id": "佳明_B07_ZIZES",
+      "label_controller_family": "ZIZES",
+      "label_check": "unknown"
+    },
+    "v2_佳明_B07_TX24013_100-30139_20260604_rec13": {
+      "controller_family": "ZizES",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 4.971,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_储料_00.ocr.postprocessed.json",
+          "n_lines": 21,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.992,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.992,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_射出_00.ocr.postprocessed.json",
+          "n_lines": 22,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.988,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.988,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_波形_00.ocr.postprocessed.json",
+          "n_lines": 24,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.995,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.995,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 13,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 0.996,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.996,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_监控_00.ocr.postprocessed.json",
+          "n_lines": 20,
+          "ui_family": "ZizES",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 1.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 4.971,
+      "machine_id": "佳明_B07_ZIZES",
+      "label_controller_family": "ZIZES",
+      "label_check": "consistent"
+    },
+    "v2_佳明_B07_TX24013_100-30139_20260604_rec17": {
+      "controller_family": "unknown",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 0,
+      "n_unknown_images": 0,
+      "images": [],
+      "excluded_duplicates": [
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec17_储料_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_储料_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec17_射出_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_射出_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec17_波形_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_波形_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec17_炮筒_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_炮筒_00.ocr.postprocessed.json"
+        },
+        {
+          "file": "v2_佳明_B07_TX24013_100-30139_20260604_rec17_监控_00.ocr.postprocessed.json",
+          "representative": "v2_佳明_B07_TX24013_100-30139_20260604_rec13_监控_00.ocr.postprocessed.json"
+        }
+      ],
+      "machine_id": "佳明_B07_ZIZES",
+      "label_controller_family": "ZIZES",
+      "label_check": "unknown"
+    },
+    "v2_发那科_A09_TX22058_100-17014_20260313_rec01": {
+      "controller_family": "FANUC",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.964,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 4,
+      "n_unknown_images": 3,
+      "images": [
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260313_rec01_射出_00.ocr.postprocessed.json",
+          "n_lines": 21,
+          "ui_family": "FANUC",
+          "ui_family_confidence": 0.964,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.964,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260313_rec01_波形_00.ocr.postprocessed.json",
+          "n_lines": 19,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260313_rec01_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 18,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260313_rec01_监控_00.ocr.postprocessed.json",
+          "n_lines": 15,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 0.964,
+      "machine_id": "发那科_A09_FANUC",
+      "label_controller_family": "FANUC",
+      "label_check": "consistent"
+    },
+    "v2_发那科_A09_TX22058_100-17014_20260714_rec00": {
+      "controller_family": "unknown",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 5,
+      "images": [
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260714_rec00_储料_00.ocr.postprocessed.json",
+          "n_lines": 33,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260714_rec00_射出_00.ocr.postprocessed.json",
+          "n_lines": 34,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260714_rec00_波形_00.ocr.postprocessed.json",
+          "n_lines": 28,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260714_rec00_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 28,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_发那科_A09_TX22058_100-17014_20260714_rec00_监控_00.ocr.postprocessed.json",
+          "n_lines": 38,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "machine_id": "发那科_A09_FANUC",
+      "label_controller_family": "FANUC",
+      "label_check": "unknown"
+    },
+    "v2_德马格_A01_TX22063_100-17017_20260722_rec14": {
+      "controller_family": "unknown",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 7,
+      "n_unknown_images": 7,
+      "images": [
+        {
+          "file": "v2_德马格_A01_TX22063_100-17017_20260722_rec14_储料_00.ocr.postprocessed.json",
+          "n_lines": 16,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_德马格_A01_TX22063_100-17017_20260722_rec14_储料_01.ocr.postprocessed.json",
+          "n_lines": 8,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_德马格_A01_TX22063_100-17017_20260722_rec14_射出_00.ocr.postprocessed.json",
+          "n_lines": 15,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_德马格_A01_TX22063_100-17017_20260722_rec14_射出_01.ocr.postprocessed.json",
+          "n_lines": 13,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_德马格_A01_TX22063_100-17017_20260722_rec14_波形_00.ocr.postprocessed.json",
+          "n_lines": 23,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_德马格_A01_TX22063_100-17017_20260722_rec14_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 15,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_德马格_A01_TX22063_100-17017_20260722_rec14_监控_00.ocr.postprocessed.json",
+          "n_lines": 20,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "machine_id": "德马格_A01_DEMAG",
+      "label_controller_family": "DEMAG",
+      "label_check": "unknown"
+    },
+    "v2_德马格_A02_TX23030_100-18891_20260722_rec15": {
+      "controller_family": "DEMAG",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 4.66
+      },
+      "n_images": 6,
+      "n_unknown_images": 1,
+      "images": [
+        {
+          "file": "v2_德马格_A02_TX23030_100-18891_20260722_rec15_储料_00.ocr.postprocessed.json",
+          "n_lines": 27,
+          "ui_family": "DEMAG",
+          "ui_family_confidence": 0.963,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.963
+          }
+        },
+        {
+          "file": "v2_德马格_A02_TX23030_100-18891_20260722_rec15_射出_00.ocr.postprocessed.json",
+          "n_lines": 21,
+          "ui_family": "DEMAG",
+          "ui_family_confidence": 0.923,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.923
+          }
+        },
+        {
+          "file": "v2_德马格_A02_TX23030_100-18891_20260722_rec15_射出_01.ocr.postprocessed.json",
+          "n_lines": 19,
+          "ui_family": "DEMAG",
+          "ui_family_confidence": 0.977,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.977
+          }
+        },
+        {
+          "file": "v2_德马格_A02_TX23030_100-18891_20260722_rec15_波形_00.ocr.postprocessed.json",
+          "n_lines": 30,
+          "ui_family": "DEMAG",
+          "ui_family_confidence": 0.913,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.913
+          }
+        },
+        {
+          "file": "v2_德马格_A02_TX23030_100-18891_20260722_rec15_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 25,
+          "ui_family": "DEMAG",
+          "ui_family_confidence": 0.884,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.884
+          }
+        },
+        {
+          "file": "v2_德马格_A02_TX23030_100-18891_20260722_rec15_监控_00.ocr.postprocessed.json",
+          "n_lines": 31,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 4.66,
+      "machine_id": "德马格_A02_DEMAG",
+      "label_controller_family": "DEMAG",
+      "label_check": "consistent"
+    },
+    "v2_日精_A06_TX25022_100-15545_20260724_rec02": {
+      "controller_family": "unknown",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 5,
+      "images": [
+        {
+          "file": "v2_日精_A06_TX25022_100-15545_20260724_rec02_储料_00.ocr.postprocessed.json",
+          "n_lines": 28,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_A06_TX25022_100-15545_20260724_rec02_射出_00.ocr.postprocessed.json",
+          "n_lines": 23,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_A06_TX25022_100-15545_20260724_rec02_波形_00.ocr.postprocessed.json",
+          "n_lines": 25,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_A06_TX25022_100-15545_20260724_rec02_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 15,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_A06_TX25022_100-15545_20260724_rec02_监控_00.ocr.postprocessed.json",
+          "n_lines": 24,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "machine_id": "日精_A06_TACT",
+      "label_controller_family": "TACT",
+      "label_check": "unknown"
+    },
+    "v2_日精_B09_TX23056_100-30087_20260710_rec04": {
+      "controller_family": "TACT",
+      "family_scores": {
+        "TACT": 2.953,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 2,
+      "images": [
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec04_储料_00.ocr.postprocessed.json",
+          "n_lines": 30,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec04_射出_00.ocr.postprocessed.json",
+          "n_lines": 27,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.984,
+          "family_scores": {
+            "TACT": 0.984,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec04_波形_00.ocr.postprocessed.json",
+          "n_lines": 25,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.984,
+          "family_scores": {
+            "TACT": 0.984,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec04_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 17,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.985,
+          "family_scores": {
+            "TACT": 0.985,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec04_监控_00.ocr.postprocessed.json",
+          "n_lines": 24,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 2.953,
+      "machine_id": "日精_B09_TACT",
+      "label_controller_family": "TACT",
+      "label_check": "consistent"
+    },
+    "v2_日精_B09_TX23056_100-30087_20260710_rec05": {
+      "controller_family": "TACT",
+      "family_scores": {
+        "TACT": 3.944,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 1,
+      "images": [
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec05_储料_00.ocr.postprocessed.json",
+          "n_lines": 39,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.986,
+          "family_scores": {
+            "TACT": 0.986,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec05_射出_00.ocr.postprocessed.json",
+          "n_lines": 39,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.987,
+          "family_scores": {
+            "TACT": 0.987,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec05_波形_00.ocr.postprocessed.json",
+          "n_lines": 34,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.984,
+          "family_scores": {
+            "TACT": 0.984,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec05_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 26,
+          "ui_family": "TACT",
+          "ui_family_confidence": 0.987,
+          "family_scores": {
+            "TACT": 0.987,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_日精_B09_TX23056_100-30087_20260710_rec05_监控_00.ocr.postprocessed.json",
+          "n_lines": 49,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 3.944,
+      "machine_id": "日精_B09_TACT",
+      "label_controller_family": "TACT",
+      "label_check": "consistent"
+    },
+    "v2_沙迪克_A06_TX22057_100-17013_20260703_rec18": {
+      "controller_family": "TRD6",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 5.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 5,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "v2_沙迪克_A06_TX22057_100-17013_20260703_rec18_储料_00.ocr.postprocessed.json",
+          "n_lines": 35,
+          "ui_family": "TRD6",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 1.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_沙迪克_A06_TX22057_100-17013_20260703_rec18_射出_00.ocr.postprocessed.json",
+          "n_lines": 32,
+          "ui_family": "TRD6",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 1.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_沙迪克_A06_TX22057_100-17013_20260703_rec18_波形_00.ocr.postprocessed.json",
+          "n_lines": 25,
+          "ui_family": "TRD6",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 1.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_沙迪克_A06_TX22057_100-17013_20260703_rec18_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 24,
+          "ui_family": "TRD6",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 1.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_沙迪克_A06_TX22057_100-17013_20260703_rec18_监控_00.ocr.postprocessed.json",
+          "n_lines": 30,
+          "ui_family": "TRD6",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 1.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 5.0,
+      "machine_id": "沙迪克_A06_TRD6",
+      "label_controller_family": "TRD6",
+      "label_check": "consistent"
+    },
+    "v2_沙迪克_A06_TX22057_100-17013_20260703_rec19": {
+      "controller_family": "TRD6",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 2.0,
+        "BOLE": 0.0,
+        "ARBURG": 0.0,
+        "DEMAG": 0.0
+      },
+      "n_images": 2,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "v2_沙迪克_A06_TX22057_100-17013_20260703_rec19_波形_00.ocr.postprocessed.json",
+          "n_lines": 24,
+          "ui_family": "TRD6",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 1.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_沙迪克_A06_TX22057_100-17013_20260703_rec19_监控_00.ocr.postprocessed.json",
+          "n_lines": 30,
+          "ui_family": "TRD6",
+          "ui_family_confidence": 1.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 1.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 2.0,
+      "machine_id": "沙迪克_A06_TRD6",
+      "label_controller_family": "TRD6",
+      "label_check": "consistent"
+    },
+    "v2_阿博格_A07_TX23053_100-30023_20260724_rec21": {
+      "controller_family": "ARBURG",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 2.558,
+        "DEMAG": 0.0
+      },
+      "n_images": 3,
+      "n_unknown_images": 0,
+      "images": [
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260724_rec21_储料_00.ocr.postprocessed.json",
+          "n_lines": 7,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.807,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.807,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260724_rec21_射出_01.ocr.postprocessed.json",
+          "n_lines": 4,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.84,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.84,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260724_rec21_波形_00.ocr.postprocessed.json",
+          "n_lines": 6,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.911,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.911,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 2.558,
+      "machine_id": "阿博格_A07_ARBURG",
+      "label_controller_family": "ARBURG",
+      "label_check": "consistent"
+    },
+    "v2_阿博格_A07_TX23053_100-30023_20260725_rec20": {
+      "controller_family": "ARBURG",
+      "family_scores": {
+        "TACT": 0.0,
+        "FANUC": 0.0,
+        "ZizES": 0.0,
+        "TRD6": 0.0,
+        "BOLE": 0.0,
+        "ARBURG": 4.457,
+        "DEMAG": 0.0
+      },
+      "n_images": 6,
+      "n_unknown_images": 1,
+      "images": [
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260725_rec20_储料_00.ocr.postprocessed.json",
+          "n_lines": 14,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.893,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.893,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260725_rec20_射出_00.ocr.postprocessed.json",
+          "n_lines": 17,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.896,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.896,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260725_rec20_射出_01.ocr.postprocessed.json",
+          "n_lines": 8,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.795,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.795,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260725_rec20_波形_00.ocr.postprocessed.json",
+          "n_lines": 10,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.931,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.931,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260725_rec20_炮筒_00.ocr.postprocessed.json",
+          "n_lines": 20,
+          "ui_family": "ARBURG",
+          "ui_family_confidence": 0.942,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.942,
+            "DEMAG": 0.0
+          }
+        },
+        {
+          "file": "v2_阿博格_A07_TX23053_100-30023_20260725_rec20_监控_00.ocr.postprocessed.json",
+          "n_lines": 27,
+          "ui_family": "unknown",
+          "ui_family_confidence": 0.0,
+          "family_scores": {
+            "TACT": 0.0,
+            "FANUC": 0.0,
+            "ZizES": 0.0,
+            "TRD6": 0.0,
+            "BOLE": 0.0,
+            "ARBURG": 0.0,
+            "DEMAG": 0.0
+          }
+        }
+      ],
+      "excluded_duplicates": [],
+      "score_margin": 4.457,
+      "machine_id": "阿博格_A07_ARBURG",
+      "label_controller_family": "ARBURG",
+      "label_check": "consistent"
+    }
+  }
+}

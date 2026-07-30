@@ -1,0 +1,115 @@
+{
+  "dedup": {
+    "total_files": 4,
+    "duplicate_groups_within_record": 0,
+    "duplicate_groups_across_records": 0,
+    "duplicate_within_record": [],
+    "duplicate_across_records": [],
+    "unique": [
+      "佳明_Z017_TXE24008_100-30067_20250928_rec200_炮筒_00.jpeg",
+      "佳明_Z030_TX24016_200-30014-3_20260318_rec203_炮筒_00.jpeg",
+      "佳明_Z051_TX22001_100-16025_20260201_rec201_炮筒_00.jpeg",
+      "佳明_Z062_TX22006_100-16029_20260316_rec202_炮筒_00.jpeg"
+    ],
+    "skipped_non_representative": {}
+  },
+  "quality": {
+    "summary": {
+      "green": 3,
+      "yellow": 1,
+      "red": 0
+    },
+    "reports": [
+      {
+        "filename": "佳明_Z017_TXE24008_100-30067_20250928_rec200_炮筒_00.jpeg",
+        "triage": "green",
+        "reject_codes": [],
+        "warn_codes": [],
+        "metrics": {
+          "width": 3072,
+          "height": 4096,
+          "screen_bbox": [
+            0,
+            931,
+            3050,
+            3165
+          ],
+          "screen_area_ratio": 0.7671713829040527,
+          "perspective_ratio": 1.038797331694284,
+          "blur_score": 1409.4996602610124,
+          "glare_ratio": 0.013535261154174805,
+          "dark_ratio": 0.1497631867726644
+        },
+        "reshoot_guidance": []
+      },
+      {
+        "filename": "佳明_Z030_TX24016_200-30014-3_20260318_rec203_炮筒_00.jpeg",
+        "triage": "green",
+        "reject_codes": [],
+        "warn_codes": [],
+        "metrics": {
+          "width": 1080,
+          "height": 1920,
+          "screen_bbox": [
+            0,
+            706,
+            1080,
+            846
+          ],
+          "screen_area_ratio": 0.440625,
+          "perspective_ratio": 1.0000000879553967,
+          "blur_score": 177.2393069768589,
+          "glare_ratio": 0.0,
+          "dark_ratio": 0.40565972222222224
+        },
+        "reshoot_guidance": []
+      },
+      {
+        "filename": "佳明_Z051_TX22001_100-16025_20260201_rec201_炮筒_00.jpeg",
+        "triage": "yellow",
+        "reject_codes": [],
+        "warn_codes": [
+          "MINOR_GLARE"
+        ],
+        "metrics": {
+          "width": 1920,
+          "height": 1080,
+          "screen_bbox": [
+            591,
+            233,
+            1249,
+            847
+          ],
+          "screen_area_ratio": 0.5101769868827161,
+          "perspective_ratio": 1.0420543788958516,
+          "blur_score": 394.1848953382366,
+          "glare_ratio": 0.04029320987654321,
+          "dark_ratio": 0.23255738811728396
+        },
+        "reshoot_guidance": []
+      },
+      {
+        "filename": "佳明_Z062_TX22006_100-16029_20260316_rec202_炮筒_00.jpeg",
+        "triage": "green",
+        "reject_codes": [],
+        "warn_codes": [],
+        "metrics": {
+          "width": 1080,
+          "height": 1920,
+          "screen_bbox": [
+            0,
+            710,
+            1080,
+            887
+          ],
+          "screen_area_ratio": 0.46197916666666666,
+          "perspective_ratio": 1.0,
+          "blur_score": 269.25889564176947,
+          "glare_ratio": 0.0005217978395061729,
+          "dark_ratio": 0.3293094135802469
+        },
+        "reshoot_guidance": []
+      }
+    ]
+  }
+}

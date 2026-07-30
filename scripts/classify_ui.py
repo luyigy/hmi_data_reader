@@ -49,10 +49,14 @@ PAGE_KEYWORDS = {
 }
 
 
-def find_ui_family(lines: list[dict]) -> tuple[str, float]:
-    """返回 (family, confidence)。无匹配 -> (unknown, 0.0)。"""
+def score_all_families(lines: list[dict]) -> dict[str, float]:
+    """返回各 UI 家族的得分的全向量（{family: score}，键序同 UI_FAMILY_KEYWORDS）。
+
+    打分规则与 find_ui_family 一致：每行文本命中某家族任一关键词即加该行 conf；
+    再按 min(1.0, 原始分) 逐家族归一化（单次匹配上限 1.0），保留 3 位小数。
+    供 record 级聚合（scripts/aggregate_record.py）做置信度投票使用。
+    """
     scores: dict[str, float] = {k: 0.0 for k in UI_FAMILY_KEYWORDS}
-    matches: dict[str, list[str]] = {k: [] for k in UI_FAMILY_KEYWORDS}
 
     for line in lines:
         text = line["text"]
@@ -62,17 +66,20 @@ def find_ui_family(lines: list[dict]) -> tuple[str, float]:
                 if kw in text:
                     # 文本包含关键词 -> 加分
                     scores[family] += conf
-                    matches[family].append(text)
                     break
+
+    return {k: round(min(1.0, v), 3) for k, v in scores.items()}
+
+
+def find_ui_family(lines: list[dict]) -> tuple[str, float]:
+    """返回 (family, confidence)。无匹配 -> (unknown, 0.0)。"""
+    scores = score_all_families(lines)
 
     if not any(scores.values()):
         return "unknown", 0.0
 
     best = max(scores, key=scores.get)
-    # 归一化：单次匹配上限 1.0；top score / 1.0
-    raw = scores[best]
-    norm = min(1.0, raw)
-    return best, round(norm, 3)
+    return best, scores[best]
 
 
 def find_page(lines: list[dict]) -> tuple[str, float]:

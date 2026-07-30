@@ -1,0 +1,31 @@
+{
+  "image": "佳明_Z051_TX22001_100-16025_20260201_rec201_炮筒_00.jpeg",
+  "controller_family": "ZIZES",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_set_c": [300.0, 280.0, 275.0, 270.0, 255.0],
+    "barrel_temperature_current_c": [311.6, 279.8, 274.9, 270.1, 255.1],
+    "oil_temperature_set_c": 30.0,
+    "oil_temperature_current_c": 26.1,
+    "control_percent": [40.0, 11.9, 2.7, 2.2, 13.2]
+  },
+  "heater_columns": 5,
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "王为",
+    "verified_at": "2026-07-30",
+    "changed_fields": 0,
+    "spot_check_by": ""
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblWeLQAYecNONwo",
+    "record_id": "recvqQLsNvyS99",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recv9YMv91IvaK"
+  },
+  "notes": "机台 Z051（位置 B05，大表扩样）；1段当前311.6超设定300约+11.6°C（红框报警态，边界样本）；油温设定30.0为真值集中首个非零油温设定；横屏"
+}

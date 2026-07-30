@@ -17,6 +17,9 @@ from pathlib import Path
 from collections import defaultdict
 from difflib import get_close_matches
 
+# 后处理版本号：S2 聚合报告（scripts/aggregate_record.py）固化 OCR 快照时读取
+__version__ = "0.1.0"
+
 OCR_DIR = Path("output/json")
 OUT_DIR = Path("output/json")
 

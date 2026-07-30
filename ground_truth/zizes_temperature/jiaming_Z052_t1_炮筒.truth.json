@@ -1,0 +1,29 @@
+{
+  "image": "jiaming_Z052_t1_炮筒.jpeg",
+  "controller_family": "ZIZES",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "acceptable",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_set_c": [262.0, 290.0, 290.0, 290.0, 280.0],
+    "barrel_temperature_current_c": [262.3, 290.0, 289.9, 290.0, 280.0],
+    "oil_temperature_set_c": 0.0,
+    "oil_temperature_current_c": 30.6,
+    "control_percent": [10.6, 9.9, 1.1, 5.1, 58.5]
+  },
+  "heater_columns": 5,
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "王为",
+    "verified_at": "2026-07-30",
+    "changed_fields": 0,
+    "spot_check_by": ""
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblWeLQAYecNONwo",
+    "record_id": "recvqQ7PN9mIl0"
+  },
+  "notes": "v1样本（templates/zizes.temperature.json 0.1.0 基准图）；1段设定编辑高亮态262.0已经核验人确认；左侧边缘略有裁切（生产模数字段）"
+}
