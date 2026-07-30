@@ -99,6 +99,9 @@ export async function runWorkflowInBoundLiveRoom(args: {
     update: {},
   });
   if (dispatch.state === 'reply_queued') return true;
+  if (dispatch.state === 'blocked') {
+    throw new Error(`workflow dispatch blocked after unconfirmed Feishu side effect: ${args.eventKey}`);
+  }
   args.signal.throwIfAborted();
 
   const context: FeishuConversationContext = {
@@ -147,6 +150,10 @@ export async function runWorkflowInBoundLiveRoom(args: {
 
   args.signal.throwIfAborted();
   if (dispatch.state === 'session_reset') {
+    dispatch = await prisma.workflowDispatch.update({
+      where: { id: dispatch.id },
+      data: { state: 'blocked' },
+    });
     const feishuMessageId = await sendFeishuInteractiveMessage({
       receiveId: args.chatId,
       receiveIdType: 'chat_id',

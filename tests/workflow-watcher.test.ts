@@ -333,6 +333,61 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(importedDocuments.length, 1);
   assert.match(importedDocuments[0].content, /PLAN PROMPT/);
   assert.equal(new URL(reviewCall.url).searchParams.get('receive_id_type'), 'chat_id');
+  assert.match(String(reviewCall.body.content), /"reviewAttempt":1/);
+
+  const expiredReviewCursor = JSON.parse(JSON.stringify(reviewCursor));
+  expiredReviewCursor.pending.reviewExpiresAt = new Date(Date.now() - 1).toISOString();
+  const expiredMessages: string[] = [];
+  const retryCards: Array<{ reviewAttempt: number; idempotencyKey: string }> = [];
+  const renewedReview = await workflowWatcherHandler({
+    project,
+    job,
+    mode: 'active',
+    cursor: expiredReviewCursor,
+    signal: new AbortController().signal,
+  }, async (args) => {
+    workflowRuns.push(args);
+    return true;
+  }, importDocument, async (args) => {
+    retryCards.push(args);
+    return 'review-2';
+  }, async (messageId) => {
+    expiredMessages.push(messageId);
+  });
+  assert.match(renewedReview.summary, /gate=plan_review card_sent=true/);
+  assert.deepEqual(expiredMessages, ['review-1']);
+  assert.equal(retryCards[0].reviewAttempt, 2);
+  assert.equal((renewedReview.cursor as { pending: { reviewAttempt: number } }).pending.reviewAttempt, 2);
+  assert.equal((renewedReview.cursor as { pending: { reviewMessageId: string } }).pending.reviewMessageId, 'review-2');
+  await workflowWatcherHandler({
+    project,
+    job,
+    mode: 'active',
+    cursor: expiredReviewCursor,
+    signal: new AbortController().signal,
+  }, async () => true, importDocument, async (args) => {
+    retryCards.push(args);
+    return 'review-2';
+  }, async (messageId) => {
+    expiredMessages.push(messageId);
+  });
+  assert.equal(retryCards[1].reviewAttempt, 2);
+  assert.equal(retryCards[1].idempotencyKey, retryCards[0].idempotencyKey,
+    'cursor-save retry must reuse the same attempt idempotency key');
+  const renewedRetry = await workflowWatcherHandler({
+    project,
+    job,
+    mode: 'active',
+    cursor: renewedReview.cursor,
+    signal: new AbortController().signal,
+  }, async () => true, importDocument, async (args) => {
+    retryCards.push(args);
+    return 'review-duplicate';
+  }, async (messageId) => {
+    expiredMessages.push(messageId);
+  });
+  assert.match(renewedRetry.summary, /gate=plan_review$/);
+  assert.equal(retryCards.length, 2, 'saved attempt must not send another card');
 
   const undispatchedRevisionCursor = JSON.parse(JSON.stringify(reviewCursor));
   undispatchedRevisionCursor.pending.reviewState = 'revision';
@@ -445,6 +500,11 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(applyWorkflowReviewDecision({
     pending: reviewPending, decision: 'approve', actorOpenId: 'approver', approverOpenId: 'approver',
     messageId: 'old-message', pendingKey: 'key',
+  }).status, 'stale');
+  assert.equal(applyWorkflowReviewDecision({
+    pending: { ...reviewPending, reviewAttempt: 2 }, decision: 'approve',
+    actorOpenId: 'approver', approverOpenId: 'approver', messageId: 'message',
+    pendingKey: 'key', reviewAttempt: 1,
   }).status, 'stale');
   assert.equal(applyWorkflowReviewDecision({
     pending: { ...reviewPending, reviewExpiresAt: new Date(Date.now() - 1).toISOString() },

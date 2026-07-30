@@ -7,6 +7,7 @@ import {
   sendFeishuWorkflowRevisionFeedbackCard,
   sendFeishuWorkflowReviewCard,
   sendFeishuWorkflowTextMessage,
+  updateFeishuApprovalCardResolved,
 } from '../feishu-api';
 import {
   type WorkflowReviewPending,
@@ -81,6 +82,7 @@ type WorkflowDocumentImporter = (args: {
   signal: AbortSignal;
 }) => Promise<string>;
 type WorkflowReviewCardSender = typeof sendFeishuWorkflowReviewCard;
+type WorkflowReviewCardExpirer = (messageId: string) => Promise<void>;
 
 const declared = (value: unknown) => typeof value === 'string' && value.trim() ? value : '未声明';
 
@@ -162,7 +164,7 @@ const reviewExpiry = (contract: WorkflowContract) =>
 const sendReviewCard = (
   project: Parameters<JobHandler>[0]['project'],
   jobId: string,
-  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'documentUrl' | 'reviewExpiresAt' | 'workflowContext'>,
+  pending: Pick<Pending, 'key' | 'path' | 'documentCommit' | 'documentUrl' | 'reviewAttempt' | 'reviewExpiresAt' | 'workflowContext'>,
   sender: WorkflowReviewCardSender,
 ) => sender({
   chatId: project.feishu.chat_id,
@@ -174,7 +176,11 @@ const sendReviewCard = (
   planUrl: pending.documentUrl,
   reviewedCommit: pending.documentCommit,
   expiresAt: pending.reviewExpiresAt!,
-  idempotencyKey: idempotencyKey(pending.key, 'plan_review'),
+  reviewAttempt: pending.reviewAttempt ?? 1,
+  idempotencyKey: idempotencyKey(
+    pending.key,
+    (pending.reviewAttempt ?? 1) === 1 ? 'plan_review' : `plan_review:${pending.reviewAttempt}`,
+  ),
   workflowContext: pending.workflowContext,
 });
 
@@ -211,6 +217,11 @@ export const workflowWatcherHandler = async (
   runWorkflow?: WorkflowRunner,
   importDocument: WorkflowDocumentImporter = importPlanDocument,
   sendReview: WorkflowReviewCardSender = sendFeishuWorkflowReviewCard,
+  expireReview: WorkflowReviewCardExpirer = (messageId) => updateFeishuApprovalCardResolved({
+    messageId,
+    resolution: 'expired',
+    actorName: 'Workflow watcher',
+  }),
 ) => {
   const executionPolicy = validateWorkflowExecutionPolicy(
     job.config.execution_policy,
@@ -403,6 +414,7 @@ export const workflowWatcherHandler = async (
         workflowContext: workflowContext(metadata, pending.path, 'PLAN'),
         reviewState: undefined,
         reviewMessageId: undefined,
+        reviewAttempt: 1,
         reviewExpiresAt,
         detectedAt: new Date().toISOString(),
       };
@@ -412,6 +424,21 @@ export const workflowWatcherHandler = async (
       };
     }
     if (pending.gate === 'plan_review') {
+      if (pending.reviewExpiresAt
+        && new Date(pending.reviewExpiresAt) <= new Date()
+        && pending.reviewState === 'review') {
+        if (mode === 'active' && pending.reviewMessageId) {
+          await expireReview(pending.reviewMessageId)
+            .catch((error) => console.error('[WorkflowReview] failed to expire stale card', error));
+        }
+        pending = {
+          ...pending,
+          reviewAttempt: (pending.reviewAttempt ?? 1) + 1,
+          reviewExpiresAt: reviewExpiry(contract),
+          reviewMessageId: undefined,
+          reviewState: undefined,
+        };
+      }
       if (mode === 'active' && !pending.reviewMessageId) {
         const reviewMessageId = await sendReviewCard(project, job.id, pending, sendReview);
         if (!reviewMessageId) throw new Error('plan review request returned no message_id');
@@ -578,6 +605,7 @@ export const workflowWatcherHandler = async (
       documentUrl,
       gate,
       reviewState: undefined,
+      reviewAttempt: 1,
       reviewExpiresAt: reviewExpiry(contract),
       detectedAt,
       workflowContext: execution.workflowContext,

@@ -199,6 +199,7 @@ export const sendFeishuWorkflowReviewCard = (args: {
   planUrl: string;
   reviewedCommit: string;
   expiresAt: string;
+  reviewAttempt: number;
   idempotencyKey: string;
   workflowContext: string;
 }) => sendFeishuWorkflowMessage({
@@ -234,6 +235,7 @@ export const sendFeishuWorkflowReviewCard = (args: {
             projectId: args.projectId,
             jobId: args.jobId,
             pendingKey: args.pendingKey,
+            reviewAttempt: args.reviewAttempt,
           },
         })),
       },
@@ -578,7 +580,7 @@ export async function sendFeishuApprovalCard(args: Parameters<typeof buildFeishu
 export async function updateFeishuApprovalCardResolved(args: {
   messageId: string;
   approved?: boolean;
-  resolution?: 'approved' | 'rejected' | 'revision';
+  resolution?: 'approved' | 'rejected' | 'revision' | 'expired';
   actorName: string;
 }): Promise<void> {
   const token = await getFeishuTenantAccessToken();
@@ -587,13 +589,15 @@ export async function updateFeishuApprovalCardResolved(args: {
     ? '✅ 已批准'
     : resolution === 'revision'
       ? '✏️ 已请求修改'
+      : resolution === 'expired'
+        ? '⌛ 已失效'
       : '❌ 已拒绝';
 
   const card = {
     config: { wide_screen_mode: true },
     header: {
       title: { content: `${status} by ${args.actorName}`, tag: 'plain_text' },
-      template: resolution === 'approved' ? 'green' : resolution === 'revision' ? 'orange' : 'red',
+      template: resolution === 'approved' ? 'green' : resolution === 'revision' ? 'orange' : resolution === 'expired' ? 'grey' : 'red',
     },
     elements: [
       {

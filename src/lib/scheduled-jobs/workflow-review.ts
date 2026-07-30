@@ -6,6 +6,7 @@ export type WorkflowReviewPending = {
   key: string;
   gate: 'plan_review' | 'workflow_ready';
   reviewState?: 'review' | 'approved' | 'awaiting_revision_feedback' | 'revision_requested' | 'revision' | 'rejected';
+  reviewAttempt?: number;
   reviewMessageId?: string;
   reviewExpiresAt?: string;
   reviewFeedback?: string;
@@ -22,6 +23,7 @@ export function applyWorkflowReviewDecision(args: {
   actorOpenId?: string;
   approverOpenId: string;
   messageId?: string;
+  reviewAttempt?: number;
   pendingKey: string;
   reviewFeedback?: string;
   now?: Date;
@@ -30,6 +32,7 @@ export function applyWorkflowReviewDecision(args: {
   if (args.actorOpenId !== args.approverOpenId) return { status: 'forbidden' as const, pending };
   if (pending.gate !== 'plan_review'
     || pending.key !== args.pendingKey
+    || (pending.reviewAttempt ?? 1) !== (args.reviewAttempt ?? 1)
     || !pending.reviewMessageId
     || pending.reviewMessageId !== args.messageId) return { status: 'stale' as const, pending };
   if (!pending.reviewExpiresAt || (args.now ?? new Date()) >= new Date(pending.reviewExpiresAt)) {
@@ -103,6 +106,7 @@ export async function resolveWorkflowReviewCardAction(args: {
   decision: WorkflowReviewDecision;
   actorOpenId?: string;
   messageId?: string;
+  reviewAttempt?: number;
   reviewFeedback?: string;
 }) {
   const { projects } = await loadProjectsConfig();

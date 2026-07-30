@@ -249,6 +249,7 @@ function buildCardActionHandler(prefix: string) {
           decision: decision as WorkflowReviewDecision,
           actorOpenId: openId,
           messageId,
+          reviewAttempt: typeof value.reviewAttempt === 'number' ? value.reviewAttempt : undefined,
           reviewFeedback,
         });
         if (result.status === 'applied' && messageId) {
