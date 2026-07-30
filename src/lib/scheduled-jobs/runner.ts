@@ -133,6 +133,7 @@ export async function executeScheduledJob(
   let status = 'succeeded';
   let summary: string | undefined;
   let failure: string | undefined;
+  let skippedReason: string | undefined;
 
   try {
     const result = await db.$transaction(async (tx) => {
@@ -146,6 +147,10 @@ export async function executeScheduledJob(
         create: { projectId: project.id, jobId: job.id, lastScheduledAt: scheduledFor, lastStartedAt: startedAt },
         update: { lastScheduledAt: scheduledFor, lastStartedAt: startedAt },
       });
+      if (!(lockedState.enabledOverride ?? job.enabled)) {
+        skippedReason = 'job disabled';
+        return null;
+      }
       const key = runningJobKey(project.id, job.id);
       const controller = new AbortController();
       runningJobs.set(key, controller);
@@ -186,7 +191,7 @@ export async function executeScheduledJob(
 
     if (!result) {
       status = 'skipped';
-      summary = 'job already running';
+      summary = skippedReason ?? 'job already running';
     } else {
       summary = result.summary;
     }

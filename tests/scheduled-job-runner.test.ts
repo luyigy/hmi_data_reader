@@ -92,6 +92,20 @@ async function main() {
   assert.equal(statuses.find(({ jobId }) => jobId === 'stopped')?.error, 'job cancelled by operator');
   assert.equal(statuses.find(({ jobId }) => jobId === 'remote-stopped')?.error, 'job cancelled by operator');
 
+  const disabledJob = job('disabled');
+  await prisma.scheduledJobState.create({
+    data: { projectId: project.id, jobId: disabledJob.id, enabledOverride: false },
+  });
+  assert.equal(
+    await executeScheduledJob(prisma, project, disabledJob, new Date(), noopTestHandler),
+    false,
+  );
+  const disabledRun = await prisma.scheduledJobRun.findFirstOrThrow({
+    where: { projectId: project.id, jobId: disabledJob.id },
+  });
+  assert.equal(disabledRun.status, 'skipped');
+  assert.equal(disabledRun.summary, 'job disabled');
+
   const requestedJob = job('requested', { delay_ms: 10_000 });
   project.jobs.push(requestedJob);
   const request = await prisma.scheduledJobRequest.create({

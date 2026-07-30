@@ -456,16 +456,18 @@ export async function handleScheduledJobCommand(
 
   if (action === 'enable' || action === 'disable') {
     const enabled = action === 'enable';
+    if (!enabled) await stopScheduledJob(prisma, project.id, job.id);
     await prisma.scheduledJobState.upsert({
       where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
       create: { projectId: project.id, jobId: job.id, enabledOverride: enabled },
       update: { enabledOverride: enabled },
     });
     if (!enabled) {
-      await stopScheduledJob(prisma, project.id, job.id);
       await waitForScheduledJobStop(prisma, project.id, job.id);
     }
-    return `✅ ${job.id} 已${enabled ? '启用' : '停用'}。`;
+    return enabled
+      ? `✅ ${job.id} 已启用。`
+      : `✅ ${job.id} 已停用；后续调度和未开始请求将跳过。已投递的 Agent 不会自动终止，请用 /ap sessions 和 /ap stop --all 查看和停止。`;
   }
   if (action === 'stop') {
     const stopped = await stopScheduledJob(prisma, project.id, job.id);
