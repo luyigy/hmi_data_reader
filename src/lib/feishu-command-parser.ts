@@ -81,7 +81,11 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
   const commandAlias = rawCommand.toLowerCase();
-  const command = commandAlias === 'new' ? 'new-session' : commandAlias;
+  const command = commandAlias === 'new'
+    ? 'new-session'
+    : commandAlias === 'dashboard'
+      ? 'job'
+      : commandAlias;
   if (!['help', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'new-session', 'stop', 'sessions', 'jobs', 'job'].includes(command)) {
     return null;
   }
@@ -103,6 +107,11 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
     } else {
       args.push(token);
     }
+  }
+
+  if (commandAlias === 'dashboard') {
+    args.unshift('dashboard');
+    if (args.length === 1) args.push('workflow-watcher');
   }
 
   return {

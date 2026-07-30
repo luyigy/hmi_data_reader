@@ -35,8 +35,9 @@ const HELP_PAGES = [
   ['Workflow / Jobs', [
     '/ap workflow policy show',
     '/ap workflow policy set --preset=workspace  (管理员)',
+    '/ap dashboard [job-id]  返回可点击的 Workflow 状态卡',
     '/ap jobs',
-    '/ap job <status|cursor|diagnose|schedule|enable|disable|run|retry|stop> <job-id>',
+    '/ap job <status|dashboard|cursor|diagnose|schedule|enable|disable|run|retry|resend|stop> <job-id>',
     '/ap job diagnose workflow-watcher',
     '/ap job cursor workflow-watcher [--latest|--clear-pending]',
   ]],

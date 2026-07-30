@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
 import {
+  buildWorkflowDashboardCard,
+  buildWorkflowResendPending,
   buildWorkflowRetryPending,
   explainWorkflowRun,
   formatManualRunResult,
@@ -31,6 +33,16 @@ assert.deepEqual(parseFeishuCommand(message('/ap jobs')), {
   args: [],
   options: {},
 });
+assert.deepEqual(parseFeishuCommand(message('/ap dashboard')), {
+  command: 'job',
+  args: ['dashboard', 'workflow-watcher'],
+  options: {},
+});
+assert.deepEqual(parseFeishuCommand(message('/ap dashboard custom-watcher')), {
+  command: 'job',
+  args: ['dashboard', 'custom-watcher'],
+  options: {},
+});
 assert.deepEqual(parseFeishuCommand(message('/ap workflow policy set --preset=workspace')), {
   command: 'workflow',
   args: ['policy', 'set'],
@@ -49,6 +61,11 @@ assert.deepEqual(parseFeishuCommand(message('/ap job stop workflow-watcher')), {
 assert.deepEqual(parseFeishuCommand(message('/ap job retry workflow-watcher')), {
   command: 'job',
   args: ['retry', 'workflow-watcher'],
+  options: {},
+});
+assert.deepEqual(parseFeishuCommand(message('/ap job resend workflow-watcher')), {
+  command: 'job',
+  args: ['resend', 'workflow-watcher'],
   options: {},
 });
 assert.deepEqual(parseFeishuCommand(message('/ap job diagnose workflow-watcher')), {
@@ -148,6 +165,53 @@ assert.deepEqual(buildWorkflowRetryPending({
   revisionDispatched: false,
   revisionDispatchKey: 'plan:retry:request-2',
 });
+assert.deepEqual(buildWorkflowResendPending({
+  key: 'plan',
+  reviewState: 'review',
+  reviewExpiresAt: 'future',
+}), {
+  key: 'plan',
+  reviewState: 'review',
+  reviewExpiresAt: '1970-01-01T00:00:00.000Z',
+});
+assert.equal(buildWorkflowResendPending({ key: 'plan', reviewState: 'revision' }), null);
+assert.deepEqual(formatWorkflowPending({ pending: {
+  path: 'docs/009_PLAN.md',
+  gate: 'plan_review',
+  action: 'start_first_slice',
+  reviewState: 'revision',
+  revisionDispatched: true,
+  reviewExpiresAt: 'stale',
+  reviewMessageId: 'stale',
+} }), [
+  'pending: docs/009_PLAN.md',
+  'pending gate: plan_review',
+  'pending action: start_first_slice',
+  'review state: revision',
+  'revision dispatched: true',
+]);
+const dashboardCard = buildWorkflowDashboardCard({
+  projectId: 'project',
+  projectName: 'HMI Reader',
+  jobId: 'workflow-watcher',
+  enabled: true,
+  running: false,
+  mode: 'active',
+  schedule: '* * * * *',
+  cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 },
+  pending: {
+    path: 'docs/007_PLAN.md',
+    action: 'start_first_slice',
+    gate: 'plan_review',
+    reviewState: 'revision',
+    revisionDispatched: true,
+    reviewExpiresAt: 'stale-expiry',
+  },
+  lastRun: { status: 'succeeded', summary: 'gate=plan_revision', startedAt: new Date('2026-07-30T00:00:00Z') },
+});
+assert.match(JSON.stringify(dashboardCard), /修改任务已投递，等待 PLAN 提交/);
+assert.match(JSON.stringify(dashboardCard), /恢复修改任务/);
+assert.doesNotMatch(JSON.stringify(dashboardCard), /stale-expiry/);
 
 async function testCursor() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'job-cursor-'));

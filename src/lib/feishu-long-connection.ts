@@ -22,6 +22,7 @@ import {
   resolveWorkflowRevisionFeedbackCardAction,
   type WorkflowReviewDecision,
 } from '@/lib/scheduled-jobs/workflow-review';
+import { handleWorkflowDashboardCardAction } from '@/lib/feishu-scheduled-jobs';
 import {
   resolveFeishuCardActionIdentity,
   type FeishuCardActionIdentity,
@@ -229,6 +230,25 @@ function buildCardActionHandler(prefix: string) {
 
     const { openId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
+
+    if (cmd === 'workflow-dashboard') {
+      const value = data.action.value as Record<string, unknown>;
+      if (typeof value.projectId !== 'string'
+        || typeof value.jobId !== 'string'
+        || typeof value.action !== 'string') return {};
+      try {
+        const result = await handleWorkflowDashboardCardAction({
+          projectId: value.projectId,
+          jobId: value.jobId,
+          action: value.action,
+          actorOpenId: openId,
+        });
+        return { toast: { type: result.startsWith('✅') || result.includes('刷新') ? 'success' : 'warning', content: result } };
+      } catch (err) {
+        console.error(`${prefix} workflow dashboard action failed`, { err });
+        return { toast: { type: 'error', content: 'Dashboard 操作失败，请稍后重试' } };
+      }
+    }
 
     if (cmd === 'workflow-review') {
       const value = data.action.value as Record<string, unknown>;
