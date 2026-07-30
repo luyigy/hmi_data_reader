@@ -91,3 +91,27 @@ projects:
           initial_cursor_commit: 8157fc60a8067af781db67d8d807e1f9d62ce474
           execution_policy:
             preset: workspace
+  - id: hmi-data-reader
+    name: HMI Reader
+    path: /data1/code/hmi_data_reader
+    ref: refs/heads/master
+    feishu:
+      chat_id: oc_5c8067219168958335bfc59d5fbb2b11
+      approver_open_ids:
+        - ou_16b82bdefeb4944108d62068e88a2f0c
+    jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "* * * * *"
+        enabled: true
+        mode: active
+        config:
+          active_side_effects_enabled: true
+          coding_bot_chat_id: oc_5c8067219168958335bfc59d5fbb2b11
+          coding_bot_chat_type: group
+          coding_bot_app_id: cli_a8e5326f4e7f901c
+          contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: .
+          initial_cursor_commit: 1a066152a1420f97b3a1cc6517937e48c3451b7e
+          execution_policy:
+            preset: workspace
