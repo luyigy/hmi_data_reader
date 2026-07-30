@@ -32,73 +32,7 @@ async function main() {
     ],
   });
 
-  const createdGateways = await prisma.gateway.findMany({
-    orderBy: { createdAt: 'asc' },
-  });
-
-  const [localGateway, remoteGatewayA, remoteGatewayB] = createdGateways;
-
-  await prisma.agent.createMany({
-    data: [
-      {
-        name: 'Agent Alpha',
-        type: 'coding',
-        location: '本地',
-        capabilities: JSON.stringify(['代码生成', '代码审查', '重构']),
-        status: 'online',
-        lastHeartbeat: new Date(),
-        gatewayId: localGateway?.id,
-      },
-      {
-        name: 'Agent Beta',
-        type: 'analysis',
-        location: '云端',
-        capabilities: JSON.stringify(['数据分析', '监控', '报告生成']),
-        status: 'online',
-        lastHeartbeat: new Date(Date.now() - 1000 * 60 * 5),
-        gatewayId: remoteGatewayA?.id,
-      },
-      {
-        name: 'Agent Gamma',
-        type: 'communication',
-        location: '本地',
-        capabilities: JSON.stringify(['消息处理', '通知发送', '群聊管理']),
-        status: 'busy',
-        lastHeartbeat: new Date(Date.now() - 1000 * 60 * 2),
-        gatewayId: localGateway?.id,
-      },
-      {
-        name: 'Agent Delta',
-        type: 'coding',
-        location: '远程',
-        capabilities: JSON.stringify(['测试', '部署', 'CI/CD']),
-        status: 'busy',
-        lastHeartbeat: new Date(Date.now() - 1000 * 60 * 12),
-        gatewayId: remoteGatewayA?.id,
-      },
-      {
-        name: 'Agent Epsilon',
-        type: 'monitoring',
-        location: '远程',
-        capabilities: JSON.stringify(['日志采集', '告警', '指标分析']),
-        status: 'offline',
-        lastHeartbeat: new Date(Date.now() - 1000 * 60 * 60 * 6),
-        gatewayId: remoteGatewayB?.id,
-      },
-      {
-        name: 'Agent Zeta',
-        type: 'operations',
-        location: '云端',
-        capabilities: JSON.stringify(['自动化运维', '备份', '恢复']),
-        status: 'offline',
-        lastHeartbeat: new Date(Date.now() - 1000 * 60 * 60 * 24),
-        gatewayId: remoteGatewayB?.id,
-      },
-    ],
-  });
-
   console.log('Gateways created:', gateways.count);
-  console.log('Agents created:', 6);
   console.log('Seeding finished.');
 }
 
