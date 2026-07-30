@@ -9,6 +9,11 @@ import { getBoundLiveRoom, resolveRoomMemberQuery, type FeishuConversationContex
 import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import { readCodexQuotaCache } from '@/lib/codex-telemetry';
 import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
+import { getKimiCodeHome } from '@/lib/real-agents/kimi-code-agent';
+import {
+  getKimiCodeAccountQuota,
+  type KimiCodeQuotaRow,
+} from '@/lib/real-agents/kimi-code-telemetry';
 
 function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
   const normalized = agentName.trim().toLowerCase();
@@ -77,12 +82,20 @@ const formatQuotaWindow = (label: string, window: {
   resetsAt: number;
 }) => `${label}: used ${window.usedPercent}% | window ${window.windowDurationMins}m | reset ${new Date(window.resetsAt * 1000).toISOString()}`;
 
-const handleCodexQuotaStatus = async (
+const formatKimiQuotaRow = (label: string, row: KimiCodeQuotaRow) =>
+  `${label}: used ${row.used}/${row.limit}${row.resetAt ? ` | reset ${row.resetAt}` : ''}`;
+
+const formatKimiQuotaWindow = (row: KimiCodeQuotaRow) => {
+  const suffix = { minute: 'm', hour: 'h', day: 'd', week: 'w' }[row.window.unit];
+  return formatKimiQuotaRow(`${row.window.duration}${suffix}`, row);
+};
+
+const handleProviderQuotaStatus = async (
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext
 ) => {
   if (!isFeishuAdmin(context?.senderOpenId)) {
-    return '仅配置的 Feishu 管理员可以查看 Codex quota。';
+    return '仅配置的 Feishu 管理员可以查看 provider quota。';
   }
   const room = await getBoundLiveRoom(context);
   if (!room) return '当前 Feishu 会话尚未绑定 Live Room。';
@@ -90,8 +103,28 @@ const handleCodexQuotaStatus = async (
     room,
     query: command.options.agent || command.args.find((arg) => arg !== 'quota'),
   });
-  if (!member || member.backend !== 'platform_local' || member.harnessType !== 'codex') {
-    return '请选择当前房间中的 Platform Local Codex 成员：/ap status --quota --agent=<成员>';
+  if (
+    !member
+    || member.backend !== 'platform_local'
+    || !['codex', 'kimi-code', 'antigravity'].includes(member.harnessType || '')
+  ) {
+    return '请选择当前房间中的 Platform Local Codex、Kimi Code 或 Antigravity 成员：/ap status --quota --agent=<成员>';
+  }
+  if (member.harnessType === 'antigravity') {
+    return 'Antigravity quota（管理员诊断）\nstatus: unknown\n当前版本没有稳定、受支持的 headless quota 协议。';
+  }
+  if (member.harnessType === 'kimi-code') {
+    const quota = await getKimiCodeAccountQuota({ home: getKimiCodeHome() });
+    if (quota.status === 'unknown') {
+      return 'Kimi Code quota（管理员诊断）\nstatus: unknown\n当前认证不是 managed:kimi-code、凭证已过期，或 quota 服务暂不可用。';
+    }
+    return [
+      'Kimi Code quota（管理员诊断）',
+      'status: available',
+      ...(quota.summary ? [formatKimiQuotaRow('weekly', quota.summary)] : []),
+      ...quota.limits.map(formatKimiQuotaWindow),
+      `collected ${quota.collectedAt}`,
+    ].join('\n');
   }
   const permission = resolveLiveRoomMemberPermission(
     member.acpxPermissionConfig,
@@ -122,7 +155,7 @@ export async function handleStatusCommand(
   context?: FeishuConversationContext
 ) {
   if (command && (command.options.quota === 'true' || command.args.includes('quota'))) {
-    return handleCodexQuotaStatus(command, context);
+    return handleProviderQuotaStatus(command, context);
   }
   const [gatewayCount, onlineGatewayCount, agentCount, onlineAgentCount, sessionCount] =
     await Promise.all([

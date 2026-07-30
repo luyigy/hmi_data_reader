@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -235,14 +235,3 @@ return_to: null
 - context 与 quota 的缺失、过期或失败均 fail closed，不改变 turn 成败；
 - 普通 payload、metadata、日志、fixture 和 Git 不含凭证或账户敏感信息；
 - 所有实际执行的验证、未执行的真实 smoke、已知限制和提交哈希记录在终态 HANDOVER。
-
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/326_PLAN_20260730_Antigravity与Kimi真实上下文水位及账户Quota.md` 的 S01。
-先读取 workflow contract、本 PLAN、`docs/307_HANDOVER_20260729_CodexProvider遥测与Quota诊断S09交接.md`、
-`docs/312_PLAN_20260729_KimiCodeCLI接入PlatformLocal.md` 和
-`docs/315_HANDOVER_20260729_KimiCodeCLI接入PlatformLocalS03完成.md`，并保护当前工作区已有未提交改动。
-只完成协议静态取证、允许的本地无外部写入验证和停止门禁记录；未经用户另行明确授权，不调用真实
-Antigravity/Kimi provider，不重启服务、不发送飞书消息、不修改生产数据。修改任何代码 symbol 前先运行
-GitNexus upstream impact；完成前运行适用的聚焦验证、long-file guard、`git diff --check` 和
-GitNexus `detect_changes`。S01 完成或命中停止门禁后创建 HANDOVER 并停止，不自动进入 S02。
-<!-- WORKFLOW_PROMPT_END -->
