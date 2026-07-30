@@ -55,7 +55,9 @@ function tokenizeCommandText(input: string) {
 
 export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCommand | null {
   const cleanedText = stripBotMention(message.text);
-  const normalized = cleanedText.replace(/\s+/g, ' ').trim();
+  const firstLine = cleanedText.split(/\r?\n/, 1)[0].trim();
+  const commandSource = /^\/ap\s+add(?:\s|$)/i.test(firstLine) ? firstLine : cleanedText;
+  const normalized = commandSource.replace(/\s+/g, ' ').trim();
 
   const lower = normalized.toLowerCase();
   let commandText: string;

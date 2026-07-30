@@ -21,3 +21,33 @@ assert.equal(parseFeishuCommand({
   mentionNames: [],
 })?.command, 'chat');
 assert.match(buildFeishuRuntimeRecoveryCommand('继续普通任务'), /^\/ap chat 继续执行刚才因服务中断/);
+
+assert.deepEqual(parseFeishuCommand({
+  chatId: 'chat',
+  chatType: 'p2p',
+  messageId: 'message',
+  senderOpenId: 'user',
+  messageType: 'text',
+  text: '/ap add local:kimi\n命令执行失败：旧回复\n/ap agents\n后续说明',
+  mentions: [],
+  mentionNames: [],
+}), {
+  command: 'add',
+  args: ['local:kimi'],
+  options: {},
+});
+
+assert.deepEqual(parseFeishuCommand({
+  chatId: 'chat',
+  chatType: 'p2p',
+  messageId: 'message',
+  senderOpenId: 'user',
+  messageType: 'text',
+  text: '/ap chat 第一行\n第二行',
+  mentions: [],
+  mentionNames: [],
+}), {
+  command: 'chat',
+  args: ['第一行', '第二行'],
+  options: {},
+});
