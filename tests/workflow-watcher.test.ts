@@ -608,14 +608,15 @@ S01
   const runsBeforeInvalid = workflowRuns.length;
   const noticesBeforeInvalid = apiCalls.length;
   const invalid = await run(beforeInvalid);
-  assert.match(invalid.summary, /validation_failed notified=true/);
-  assert.equal(workflowRuns.length, runsBeforeInvalid, 'validator failure must not dispatch a repair Session');
-  assert.doesNotMatch(workflowRuns.map(({ prompt }) => prompt).join('\n'), /PLAN_VALIDATE_REPAIR/);
+  assert.match(invalid.summary, /validation_failed notified=true dispatched=true/);
+  assert.equal(workflowRuns.length, runsBeforeInvalid + 1, 'validator failure must dispatch one repair Session');
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /PLAN_VALIDATE_REPAIR/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /document_path: docs\/branch\/main\/006_PLAN/);
   assert.match(String(apiCalls.at(-1)?.body.content), /workflow validator 未通过/);
-  assert.match(String(apiCalls.at(-1)?.body.content), /不会触发下一 Workflow 动作/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /错误已投递给 Coding Agent/);
   const retry = await run(invalid.cursor);
-  assert.match(retry.summary, /validation_failed notified=true/);
-  assert.equal(workflowRuns.length, runsBeforeInvalid, 'same blob must remain notification-idempotent');
+  assert.match(retry.summary, /validation_failed notified=true dispatched=true/);
+  assert.equal(workflowRuns.length, runsBeforeInvalid + 1, 'same blob must remain dispatch-idempotent');
   assert.equal(apiCalls.length, noticesBeforeInvalid + 1, 'same blob must not send another notification');
 
   await writeFile(
@@ -625,9 +626,25 @@ S01
   git('add', '.');
   git('commit', '-qm', 'change invalid plan blob');
   const changedInvalid = await run(retry.cursor);
-  assert.match(changedInvalid.summary, /validation_failed notified=true/);
+  assert.match(changedInvalid.summary, /validation_failed notified=true dispatched=true/);
   assert.equal(apiCalls.length, noticesBeforeInvalid + 2, 'new blob must be revalidated and notified');
-  assert.equal(workflowRuns.length, runsBeforeInvalid, 'new invalid blob must still not dispatch a repair Session');
+  assert.equal(workflowRuns.length, runsBeforeInvalid + 2, 'new invalid blob must dispatch a new repair Session');
+
+  const rewriteCursor = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-rewrite' };
+  git('commit', '--amend', '--allow-empty', '-qm', 'rewrite current head');
+  const noticesBeforeRewrite = apiCalls.length;
+  const runsBeforeRewrite = workflowRuns.length;
+  const blocked = await run(rewriteCursor);
+  assert.match(blocked.summary, /gate=blocked.*configured Git ref was rewritten/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /Workflow 自动化已暂停/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /建议动作/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /WORKFLOW_BLOCKER/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /configured Git ref was rewritten/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /不得改写 Git 历史或擅自移动 watcher 游标/);
+  const blockedRetry = await run(blocked.cursor);
+  assert.match(blockedRetry.summary, /gate=blocked.*notified=true dispatched=true/);
+  assert.equal(apiCalls.length, noticesBeforeRewrite + 1, 'same blocker must not notify twice');
+  assert.equal(workflowRuns.length, runsBeforeRewrite + 1, 'same blocker must not dispatch twice');
 
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(terminal.cursor), /active side effects require explicit config gate/);

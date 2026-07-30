@@ -46,9 +46,23 @@ type ValidationFailure = {
   blob: string;
   error: string;
   notified?: boolean;
+  dispatched?: boolean;
 };
 
-type Cursor = { commit: string; eventKey?: string; pending?: Pending; validationFailure?: ValidationFailure };
+type WorkflowBlocker = {
+  key: string;
+  error: string;
+  notified?: boolean;
+  dispatched?: boolean;
+};
+
+type Cursor = {
+  commit: string;
+  eventKey?: string;
+  pending?: Pending;
+  validationFailure?: ValidationFailure;
+  blocker?: WorkflowBlocker;
+};
 type WorkflowRunner = (args: {
   projectId: string;
   jobId: string;
@@ -221,13 +235,63 @@ export const workflowWatcherHandler = async (
   const head = (await git(project.path, signal, 'rev-parse', '--verify', `${project.ref}^{commit}`)).trim();
   const previous = workflowCursor(cursor, job.config.initial_cursor_commit);
   const contract = await readWorkflowContract(project.path, head, contractPath, signal);
+  const block = async (reason: string, nextStep: string) => {
+    const key = `${previous.commit}:${head}:${reason}`;
+    const prior = previous.blocker?.key === key ? previous.blocker : { key, error: reason };
+    let notified = prior.notified === true;
+    let dispatched = prior.dispatched === true;
+    if (mode === 'active' && !notified) {
+      await send(project.feishu.chat_id, [
+        '🚧 Workflow 自动化已暂停，需处理后才能继续。',
+        `原因：${reason}`,
+        `watcher 游标：${previous.commit}`,
+        `目标 ref HEAD：${head}`,
+        `建议动作：${nextStep}`,
+        '平台已请求 Coding Agent 分析并推进；涉及移动游标或改写 Git 历史时仍需人工确认。',
+      ].join('\n'), key, 'blocker');
+      notified = true;
+    }
+    if (mode === 'active' && !dispatched) {
+      dispatched = await execute({
+        key,
+        workflowContext: `Workflow blocker\nproject: ${project.id}\nref: ${project.ref}`,
+        prompt: [
+          'WORKFLOW_BLOCKER',
+          `error: ${reason}`,
+          `project_path: ${project.path}`,
+          `target_ref: ${project.ref}`,
+          `watcher_cursor: ${previous.commit}`,
+          `target_head: ${head}`,
+          `suggested_next_step: ${nextStep}`,
+          '',
+          '请检查真实状态并在现有权限内直接推进可安全处理的部分。',
+          '不得改写 Git 历史或擅自移动 watcher 游标；若必须人工确认，请给出明确原因、准确命令和预期影响。',
+        ].join('\n'),
+      }, project.id, job.id, codingBotChatId, codingBotChatType as 'group' | 'p2p',
+      executionPolicy, runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom, signal);
+    }
+    return {
+      summary: `head=${head} gate=blocked error=${reason} notified=${notified} dispatched=${dispatched}`,
+      cursor: { ...previous, blocker: { key, error: reason, notified, dispatched } },
+    };
+  };
   const ancestor = await git(project.path, signal, 'merge-base', '--is-ancestor', previous.commit, head)
     .then(() => true, () => false);
-  if (!ancestor) throw new Error('configured Git ref was rewritten; human review required');
+  if (!ancestor) {
+    return block(
+      'configured Git ref was rewritten; human review required',
+      '确认历史分叉后，将 watcher 游标恢复到需要重新扫描范围之前的安全提交，再手动运行 watcher。',
+    );
+  }
   if (contract.legacy.cutoff_commit) {
     const aboveCutoff = await git(project.path, signal, 'merge-base', '--is-ancestor', contract.legacy.cutoff_commit, previous.commit)
       .then(() => true, () => false);
-    if (!aboveCutoff) throw new Error('cursor precedes contract cutoff; human review required');
+    if (!aboveCutoff) {
+      return block(
+        'cursor precedes contract cutoff; human review required',
+        '核对合同 cutoff 后，将 watcher 游标移动到 cutoff 或其后的安全提交，再手动运行 watcher。',
+      );
+    }
   }
 
   if (previous.pending) {
@@ -437,12 +501,28 @@ export const workflowWatcherHandler = async (
       };
     if (mode === 'active' && !failure.notified) {
       await send(project.feishu.chat_id,
-        `❌ workflow validator 未通过：${candidate.filePath}\ncommit: ${head}\n${failure.error}\n未通过校验的文档不会触发下一 Workflow 动作；请提交修订后的新 commit，watcher 将自动复验。`,
+        `❌ workflow validator 未通过：${candidate.filePath}\ncommit: ${head}\n${failure.error}\n未通过校验的文档不会触发下一 Workflow 动作；错误已投递给 Coding Agent，修订提交后 watcher 将自动复验。`,
         key, 'validation_failed');
       failure = { ...failure, notified: true };
     }
+    if (mode === 'active' && !failure.dispatched) {
+      const dispatched = await execute({
+        key,
+        workflowContext: `Workflow validation failure\nproject: ${project.id}\ndocument: ${candidate.filePath}`,
+        prompt: [
+          'PLAN_VALIDATE_REPAIR',
+          `document_path: ${candidate.filePath}`,
+          `commit: ${head}`,
+          `validation_error: ${failure.error}`,
+          '',
+          '请按目标 HEAD 中的 workflow contract 修订并提交该文档，然后停止；不要执行后续 Workflow 动作。',
+        ].join('\n'),
+      }, project.id, job.id, codingBotChatId, codingBotChatType as 'group' | 'p2p',
+      executionPolicy, runWorkflow ?? (await import('../feishu-workflow')).runWorkflowInBoundLiveRoom, signal);
+      failure = { ...failure, dispatched };
+    }
     return {
-      summary: `head=${head} candidate=${candidate.filePath} validation_failed notified=${failure.notified === true}`,
+      summary: `head=${head} candidate=${candidate.filePath} validation_failed notified=${failure.notified === true} dispatched=${failure.dispatched === true}`,
       cursor: { ...previous, validationFailure: failure },
     };
   }
