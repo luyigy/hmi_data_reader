@@ -53,6 +53,7 @@ const HELP_PAGES = [
     '/ap approve <approvalId>',
     '/ap deny <approvalId> [reason]',
     '/ap answer <approvalId> <text>',
+    '/ap restrict <agent-id|all> <safe|dev>',
     '/ap grant <dev|full> [--agent=<name>] [message]',
     '/ap rights [--agent=<name>]',
   ]],
@@ -101,6 +102,13 @@ const QUICK_ACTIONS = [
 const CATEGORY_VIEWS = ['room', 'runtime', 'workflow', 'admin'] as const;
 const FORM_VIEWS = ['form-workspace', 'form-chat', 'form-plan', 'form-schedule'] as const;
 export type FeishuCommandCenterView = 'home' | typeof CATEGORY_VIEWS[number] | typeof FORM_VIEWS[number];
+export type FeishuRoomControlView = 'permission' | 'role';
+
+export type FeishuRoomControlMember = {
+  id: string;
+  displayName: string;
+  userNickname?: string | null;
+};
 
 const FORM_DEFINITIONS = {
   'form-workspace': {
@@ -249,11 +257,14 @@ export const buildFeishuCommandCenterCard = (
     ? [
       callbackButton('发送消息…', { cmd: 'ap-menu', view: 'form-chat', chatType }),
       callbackButton('创建 PLAN…', { cmd: 'ap-menu', view: 'form-plan', chatType }),
+      callbackButton('设置角色…', { cmd: 'ap-room-control', view: 'role', chatType }),
     ]
     : categoryView === 'runtime'
       ? [callbackButton('切换工作区…', { cmd: 'ap-menu', view: 'form-workspace', chatType })]
       : categoryView === 'workflow'
         ? [callbackButton('修改调度…', { cmd: 'ap-menu', view: 'form-schedule', chatType })]
+        : categoryView === 'admin'
+          ? [callbackButton('权限约束…', { cmd: 'ap-room-control', view: 'permission', chatType })]
         : [];
   return cardShell(group, `AP 命令中心 · ${pageIndex + 1}/${HELP_PAGES.length}`, [
     {
@@ -280,6 +291,91 @@ export const buildFeishuCommandCenterCard = (
     },
     buttonColumns([callbackButton('返回分类', { cmd: 'ap-menu', view: 'home', chatType })]),
   ], pageIndex === 2 ? 'wathet' : 'blue');
+};
+
+export const buildFeishuRoomControlCard = (
+  chatType: 'p2p' | 'group',
+  view: FeishuRoomControlView,
+  members: FeishuRoomControlMember[],
+  workspace: string,
+) => {
+  const memberOptions = members.map((member) => ({
+    text: { tag: 'plain_text', content: member.userNickname || member.displayName },
+    value: member.id,
+  }));
+  const permission = view === 'permission';
+  return cardShell(
+    permission ? '房间权限约束' : '设置 Agent 角色',
+    permission ? '先写入新的工作区边界，再停止目标旧运行' : '角色将在后续调度中生效',
+    [
+      {
+        tag: 'markdown',
+        content: permission
+          ? `**房间工作区**\n\`${workspace || '未配置'}\`\n仅提供工作区受限档位；Full Access 请使用“权限申请”。不支持真实隔离的 Agent 会使本次操作整体拒绝。`
+          : '**选择一个 Agent 和它在当前房间中的角色。**',
+      },
+      {
+        tag: 'form',
+        name: permission ? 'form-room-restriction' : 'form-agent-role',
+        vertical_spacing: '12px',
+        elements: [
+          {
+            tag: 'select_static',
+            name: 'target',
+            required: true,
+            width: 'fill',
+            placeholder: { tag: 'plain_text', content: permission ? '选择全部或指定 Agent' : '选择 Agent' },
+            options: permission
+              ? [
+                { text: { tag: 'plain_text', content: '全部 Agent' }, value: 'all' },
+                ...memberOptions,
+              ]
+              : memberOptions,
+          },
+          {
+            tag: 'select_static',
+            name: permission ? 'profile' : 'role',
+            required: true,
+            width: 'fill',
+            placeholder: {
+              tag: 'plain_text',
+              content: permission ? '选择工作区权限档位' : '选择角色',
+            },
+            options: permission
+              ? [
+                { text: { tag: 'plain_text', content: 'Safe Local · 禁止网络' }, value: 'safe_local' },
+                { text: { tag: 'plain_text', content: 'Dev Local · 允许网络' }, value: 'dev_local' },
+              ]
+              : [
+                ['规划 Planner', 'planner'],
+                ['研究 Researcher', 'researcher'],
+                ['实施 Implementer', 'implementer'],
+                ['审查 Reviewer', 'reviewer'],
+                ['测试 Tester', 'tester'],
+                ['自定义 Custom', 'custom'],
+              ].map(([content, value]) => ({
+                text: { tag: 'plain_text', content },
+                value,
+              })),
+          },
+          {
+            tag: 'button',
+            name: `${permission ? 'submitRoomRestriction' : 'submitAgentRole'}_${chatType}`,
+            text: { tag: 'plain_text', content: permission ? '应用权限约束' : '设置角色' },
+            type: 'primary_filled',
+            width: 'fill',
+            form_action_type: 'submit',
+          },
+        ],
+      },
+      buttonColumns([callbackButton('返回分类', {
+        cmd: 'ap-menu',
+        view: permission ? 'admin' : 'room',
+        chatType,
+      })]),
+    ],
+    'wathet',
+  );
 };
 
 export const buildFeishuCommandCenterCards = (chatType: 'p2p' | 'group') => [
@@ -310,6 +406,12 @@ export const buildFeishuCommandFromForm = (
   }
   if (form === 'form-schedule' && text('jobId') && text('cron')) {
     return { command: 'job', args: ['schedule', text('jobId')], options: { cron: text('cron') } };
+  }
+  if (form === 'form-room-restriction' && text('target') && text('profile')) {
+    return { command: 'restrict', args: [text('target'), text('profile')], options: {} };
+  }
+  if (form === 'form-agent-role' && text('target') && text('role')) {
+    return { command: 'role', args: [], options: { member: text('target'), role: text('role') } };
   }
   return null;
 };

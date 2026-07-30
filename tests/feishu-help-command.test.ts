@@ -6,6 +6,7 @@ import {
   buildFeishuCommandCenterCards,
   buildFeishuCommandFromForm,
   buildFeishuCommandResultCard,
+  buildFeishuRoomControlCard,
   FEISHU_COMMAND_CARD_ACTIONS,
   formatFeishuHelp,
 } from '../src/lib/feishu-help';
@@ -50,6 +51,8 @@ assert.doesNotMatch(JSON.stringify(cards), /\/ap status/);
 
 const workflowCard = buildFeishuCommandCenterCard('group', 'workflow');
 assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'admin')), /权限申请/);
+assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'admin')), /权限约束/);
+assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'room')), /设置角色/);
 for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   const expectedCategory = command === '/ap members'
     ? 'room'
@@ -96,6 +99,39 @@ assert.deepEqual(buildFeishuCommandFromForm('form-schedule', {
   command: 'job',
   args: ['schedule', 'workflow-watcher'],
   options: { cron: '*/5 * * * *' },
+});
+const roomControlMembers = [
+  { id: 'agent-1', displayName: 'Codex', userNickname: '实现 Agent' },
+  { id: 'agent-2', displayName: 'Claude', userNickname: null },
+];
+const permissionCard = buildFeishuRoomControlCard(
+  'group',
+  'permission',
+  roomControlMembers,
+  '/workspace/hmi',
+);
+assert.match(JSON.stringify(permissionCard), /全部 Agent/);
+assert.match(JSON.stringify(permissionCard), /Safe Local/);
+assert.match(JSON.stringify(permissionCard), /submitRoomRestriction_group/);
+assert.deepEqual(buildFeishuCommandFromForm('form-room-restriction', {
+  target: 'all',
+  profile: 'safe_local',
+}), {
+  command: 'restrict',
+  args: ['all', 'safe_local'],
+  options: {},
+});
+const roleCard = buildFeishuRoomControlCard('group', 'role', roomControlMembers, '/workspace/hmi');
+assert.match(JSON.stringify(roleCard), /实现 Agent/);
+assert.match(JSON.stringify(roleCard), /实施 Implementer/);
+assert.match(JSON.stringify(roleCard), /submitAgentRole_group/);
+assert.deepEqual(buildFeishuCommandFromForm('form-agent-role', {
+  target: 'agent-1',
+  role: 'reviewer',
+}), {
+  command: 'role',
+  args: [],
+  options: { member: 'agent-1', role: 'reviewer' },
 });
 assert.equal(buildFeishuCommandFromForm('form-workspace', { path: '  ' }), null);
 const resultCard = buildFeishuCommandResultCard('/ap status', 'Agent Platform 状态\n网关：1/1 在线', 'group');

@@ -14,7 +14,11 @@ import {
   updateFeishuApprovalCardResolved,
 } from '@/lib/feishu-api';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
-import { tryRelayNonCommandToLiveRoom, UNBOUND_FEISHU_LIVE_ROOM_HINT } from '@/lib/feishu-live-room';
+import {
+  getBoundLiveRoom,
+  tryRelayNonCommandToLiveRoom,
+  UNBOUND_FEISHU_LIVE_ROOM_HINT,
+} from '@/lib/feishu-live-room';
 import {
   createFeishuRuntimeStatus,
   readFeishuRuntimeStatus,
@@ -38,6 +42,7 @@ import {
   buildFeishuCommandCenterCardUpdate,
   buildFeishuCommandFromForm,
   buildFeishuCommandResultCard,
+  buildFeishuRoomControlCard,
   FEISHU_COMMAND_CARD_ACTIONS,
   isFeishuCommandCenterView,
 } from '@/lib/feishu-help';
@@ -252,7 +257,14 @@ function buildCardActionHandler(prefix: string) {
       submitChat: 'form-chat',
       submitPlan: 'form-plan',
       submitSchedule: 'form-schedule',
-    } as const)[submitName as 'submitWorkspace' | 'submitChat' | 'submitPlan' | 'submitSchedule'];
+      submitRoomRestriction: 'form-room-restriction',
+      submitAgentRole: 'form-agent-role',
+    } as const)[submitName as 'submitWorkspace'
+      | 'submitChat'
+      | 'submitPlan'
+      | 'submitSchedule'
+      | 'submitRoomRestriction'
+      | 'submitAgentRole'];
     const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
     if (!cmd && !submittedForm) {
       return {};
@@ -260,6 +272,37 @@ function buildCardActionHandler(prefix: string) {
 
     const { openId, chatId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
+
+    if (cmd === 'ap-room-control') {
+      const value = data.action.value as Record<string, unknown>;
+      const view = value.view === 'permission' ? 'permission' : value.view === 'role' ? 'role' : null;
+      const chatType = value.chatType === 'p2p' ? 'p2p' : 'group';
+      if (!openId || !chatId || !view) {
+        return { toast: { type: 'warning', content: '房间控制卡已失效，请重新发送 /ap menu' } };
+      }
+      const room = await getBoundLiveRoom({
+        chatId,
+        chatType,
+        senderOpenId: openId,
+        messageId: messageId || '',
+      });
+      const members = room?.members.filter((member) => member.memberType !== 'user' && member.canReply) || [];
+      if (!room?.sourceTask || !members.length) {
+        return { toast: { type: 'warning', content: '当前会话未绑定含 Agent 的 Live Room' } };
+      }
+      return {
+        toast: { type: 'success', content: view === 'permission' ? '权限约束表单已打开' : '角色设置表单已打开' },
+        card: {
+          type: 'raw',
+          data: buildFeishuRoomControlCard(
+            chatType,
+            view,
+            members,
+            room.workingDirectory || room.sourceTask.workingDirectory || '',
+          ),
+        },
+      };
+    }
 
     if (cmd === 'ap-menu') {
       const value = data.action.value as Record<string, unknown>;
@@ -360,7 +403,13 @@ function buildCardActionHandler(prefix: string) {
       if (!openId || !chatId || !command) {
         return { toast: { type: 'warning', content: '请完整填写表单后再提交' } };
       }
-      const label = command.command === 'job' ? '修改 Workflow 调度' : `执行 /ap ${command.command}`;
+      const label = command.command === 'job'
+        ? '修改 Workflow 调度'
+        : command.command === 'restrict'
+          ? '应用房间权限约束'
+          : command.command === 'role'
+            ? '设置 Agent 角色'
+            : `执行 /ap ${command.command}`;
       void handleFeishuCommand({
         command,
         baseUrl: resolveBaseUrl(),

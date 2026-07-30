@@ -1,7 +1,7 @@
 import type { ParsedFeishuMessage } from '@/lib/feishu-message-content';
 
 export type ParsedFeishuCommand = {
-  command: 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'mode' | 'members' | 'nick' | 'role' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job';
+  command: 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'mode' | 'members' | 'nick' | 'role' | 'restrict' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job';
   args: string[];
   options: Record<string, string>;
 };
@@ -80,7 +80,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
     : commandAlias === 'dashboard'
       ? 'job'
       : commandAlias;
-  if (!['help', 'menu', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'mode', 'members', 'nick', 'role', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'new-session', 'stop', 'sessions', 'jobs', 'job'].includes(command)) {
+  if (!['help', 'menu', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'mode', 'members', 'nick', 'role', 'restrict', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'new-session', 'stop', 'sessions', 'jobs', 'job'].includes(command)) {
     return null;
   }
 

@@ -11,6 +11,7 @@ import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
 import { formatFeishuHelp, sendFeishuCommandCenter } from '@/lib/feishu-help';
 import { handleNewSessionCommand } from '@/lib/feishu-new-session';
+import { handleRoomRestrictionCommand } from '@/lib/feishu-room-controls';
 import {
   handleAgentsCommand,
   handleGatewaysCommand,
@@ -92,6 +93,8 @@ export async function handleFeishuCommand(args: {
       return handleNickCommand(args.command, args.context);
     case 'role':
       return handleRoleCommand(args.command, args.context);
+    case 'restrict':
+      return handleRoomRestrictionCommand(args.command, args.context);
     case 'codex-config':
       return handleCodexConfigCommand(args.command, args.context);
     case 'speaker':

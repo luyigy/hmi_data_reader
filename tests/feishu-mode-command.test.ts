@@ -39,6 +39,21 @@ assert.deepEqual(parseFeishuCommand({
   messageId: 'message',
   senderOpenId: 'user',
   messageType: 'text',
+  text: '/ap restrict all safe',
+  mentions: [],
+  mentionNames: [],
+}), {
+  command: 'restrict',
+  args: ['all', 'safe'],
+  options: {},
+});
+
+assert.deepEqual(parseFeishuCommand({
+  chatId: 'chat',
+  chatType: 'p2p',
+  messageId: 'message',
+  senderOpenId: 'user',
+  messageType: 'text',
   text: '/ap new-session --all',
   mentions: [],
   mentionNames: [],
