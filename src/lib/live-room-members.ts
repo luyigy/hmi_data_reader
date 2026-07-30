@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getCodexProviderContextUsage } from "@/lib/codex-telemetry";
+import { getKimiCodeProviderContextUsage } from "@/lib/real-agents/kimi-code-telemetry";
 import { deriveGatewayHarnessOptions } from "@/lib/acpx/catalog";
 import { ensureTaskSession } from "@/lib/acpx/session";
 import { DEFAULT_ACPX_PERMISSION_CONFIG, getPermissionProfileLabel } from "@/lib/acpx/permissions";
@@ -9,11 +10,8 @@ import { getTaskRoomParticipantTargetKey } from "@/lib/task-room-targets";
 import type { AcpxExecutionBackend, AcpxParticipantRequest } from "@/lib/acpx/types";
 import { encodeLiveRoomRoleLabel, extractRemoteHostIdFromRoleLabel, getLiveRoomParticipantContinuationKey, type LiveRoomCatalogAgent, type LiveRoomMemberContextWatermarkPayload, type LiveRoomMemberPayload } from "@/lib/live-room-types";
 
-const CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD = 40;
 const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
-const CONTEXT_WARN_EVENT_THRESHOLD = 200;
 const CONTEXT_HARD_EVENT_THRESHOLD = 400;
-const CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT = 3800;
 const CONTEXT_HARD_TRANSCRIPT_LIMIT = 4000;
 const CONTEXT_USAGE_ELEVATED_PERCENTAGE = 60;
 const CONTEXT_USAGE_HIGH_PERCENTAGE = 85;
@@ -316,14 +314,6 @@ const getContextWatermarkPolicyStatus = ({
     || eventCount >= CONTEXT_HARD_EVENT_THRESHOLD
     || transcriptChars >= CONTEXT_HARD_TRANSCRIPT_LIMIT
   ) {
-    return 'critical';
-  }
-
-  if (
-    messageCount >= CONTEXT_WARN_ROOM_MESSAGE_THRESHOLD
-    || eventCount >= CONTEXT_WARN_EVENT_THRESHOLD
-    || transcriptChars >= CONTEXT_WARN_TRANSCRIPT_NEAR_LIMIT
-  ) {
     return 'warning';
   }
 
@@ -331,8 +321,11 @@ const getContextWatermarkPolicyStatus = ({
 };
 
 const getContextWatermarkUsageStatus = (
-  usagePercentage: number
+  usagePercentage: number | null,
+  source: LiveRoomMemberContextWatermarkPayload['source']
 ): LiveRoomMemberContextWatermarkPayload['usageStatus'] => {
+  if (source === 'not_applicable') return 'not_applicable';
+  if (usagePercentage == null) return 'unknown';
   if (usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE) {
     return 'high';
   }
@@ -345,8 +338,13 @@ const getContextWatermarkUsageStatus = (
 };
 
 const getContextWatermarkPolicyLabel = (
-  policyStatus: LiveRoomMemberContextWatermarkPayload['policyStatus']
+  policyStatus: LiveRoomMemberContextWatermarkPayload['policyStatus'],
+  source: LiveRoomMemberContextWatermarkPayload['source']
 ) => {
+  if (source === 'not_applicable') return 'not applicable';
+  if (source === 'unknown') {
+    return policyStatus === 'warning' ? 'agent signal warning' : 'context unknown';
+  }
   if (policyStatus === 'critical') {
     return 'reset now';
   }
@@ -444,6 +442,10 @@ export const getLiveRoomMemberContextWatermark = async ({
     })
     ?.createdAt || null;
   const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
+  const providerHarness = member.backend === 'platform_local'
+    && (member.harnessType === 'codex' || member.harnessType === 'kimi-code')
+    ? member.harnessType
+    : null;
   const [eventCount, providerParticipant] = await Promise.all([
     prisma.taskRunEvent.count({
       where: {
@@ -460,20 +462,39 @@ export const getLiveRoomMemberContextWatermark = async ({
         ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
       },
     }),
-    member.backend === 'platform_local' && member.harnessType === 'codex'
+    providerHarness
       ? prisma.taskRunParticipant.findFirst({
           where: {
             taskRun: { taskId: sourceTask.id },
             executionBackend: 'platform_local',
-            harnessType: 'codex',
-            controlMetadata: { contains: `"continuationKey":"${continuationKey}"` },
+            harnessType: providerHarness,
+            AND: [
+              { controlMetadata: { contains: `"continuationKey":"${continuationKey}"` } },
+              {
+                controlMetadata: {
+                  contains: providerHarness === 'codex'
+                    ? '"codexTokenUsage"'
+                    : '"kimiCodeContextUsage"',
+                },
+              },
+            ],
+            ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
           },
           orderBy: { createdAt: 'desc' },
           select: { controlMetadata: true },
         })
       : Promise.resolve(null),
   ]);
-  const providerUsage = getCodexProviderContextUsage(providerParticipant?.controlMetadata);
+  const providerUsage = providerHarness === 'codex'
+    ? getCodexProviderContextUsage(providerParticipant?.controlMetadata)
+    : providerHarness === 'kimi-code'
+    ? getKimiCodeProviderContextUsage(providerParticipant?.controlMetadata)
+    : null;
+  const source: LiveRoomMemberContextWatermarkPayload['source'] = providerUsage
+    ? 'provider'
+    : member.backend === 'platform_local' && member.harnessType === 'antigravity'
+    ? 'not_applicable'
+    : 'unknown';
 
   const messageCount = promptCandidates.length;
   const transcriptChars = transcript.length;
@@ -493,34 +514,42 @@ export const getLiveRoomMemberContextWatermark = async ({
       : estimatedDominantReason === 'events'
       ? 'events'
       : 'messages';
-  const usagePercentage = providerUsage
-    ? providerUsage.usagePercentage
-    : Math.max(0, Math.min(100, Math.round(
-        Math.max(messageRatio, eventRatio, transcriptRatio) * 100
-      )));
+  const usagePercentage = providerUsage?.usagePercentage ?? null;
   const policyStatus = providerUsage
-    ? usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE
+    ? providerUsage.usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE
       ? 'critical'
-      : usagePercentage >= CONTEXT_USAGE_ELEVATED_PERCENTAGE
+      : providerUsage.usagePercentage >= CONTEXT_USAGE_ELEVATED_PERCENTAGE
       ? 'warning'
       : 'normal'
+    : source === 'not_applicable'
+    ? 'normal'
     : getContextWatermarkPolicyStatus({ messageCount, eventCount, transcriptChars });
-  const usageStatus = getContextWatermarkUsageStatus(usagePercentage);
+  const usageStatus = getContextWatermarkUsageStatus(usagePercentage, source);
 
   return {
-    source: providerUsage ? 'provider' : 'estimated',
+    source,
     usagePercentage,
     usageStatus,
     policyStatus,
-    policyLabel: getContextWatermarkPolicyLabel(policyStatus),
+    policyLabel: getContextWatermarkPolicyLabel(policyStatus, source),
     dominantReason: providerUsage ? 'provider' : estimatedDominantReason,
-    dominantLabel: providerUsage ? 'provider' : `estimated · ${estimatedDominantLabel}`,
+    dominantLabel: providerUsage
+      ? 'provider'
+      : source === 'not_applicable'
+      ? 'fresh conversation per turn'
+      : `agent signal · ${estimatedDominantLabel}`,
     ...(providerUsage ? {
       usedTokens: providerUsage.usedTokens,
       contextWindow: providerUsage.contextWindow,
     } : {}),
     recommendedAction:
-      policyStatus === 'critical'
+      source === 'not_applicable'
+        ? 'Each turn starts a fresh conversation; no session reset is needed.'
+        : source === 'unknown'
+        ? policyStatus === 'warning'
+          ? 'Provider context is unknown; inspect agent activity and telemetry.'
+          : 'Provider context is unknown; no context reset recommendation.'
+        : policyStatus === 'critical'
         ? 'Finish the current step, then reset now with /ap new-session.'
         : policyStatus === 'warning'
         ? 'Consider /ap new-session soon.'

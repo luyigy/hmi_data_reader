@@ -77,6 +77,10 @@ export const getWatermarkPolicyLabel = (member: WorkspaceDetail['members'][numbe
     return null;
   }
 
+  if (watermark.source === 'not_applicable') return 'Not applicable';
+  if (watermark.source === 'unknown') {
+    return watermark.policyStatus === 'warning' ? 'Agent signal warning' : 'Context unknown';
+  }
   if (watermark.policyStatus === 'critical') return 'Reset now';
   if (watermark.policyStatus === 'warning') return 'Warning';
   return 'Within policy';
@@ -88,6 +92,8 @@ export const getWatermarkUsageLabel = (member: WorkspaceDetail['members'][number
     return null;
   }
 
+  if (watermark.source === 'not_applicable') return 'Fresh conversation each turn';
+  if (watermark.usagePercentage == null) return 'No provider context telemetry';
   return `Used ${watermark.usagePercentage}%`;
 };
 
@@ -98,7 +104,9 @@ export const getWatermarkTooltip = (member: WorkspaceDetail['members'][number]) 
   }
 
   return [
-    `usage: ${watermark.usagePercentage}% (${watermark.dominantLabel})`,
+    watermark.usagePercentage == null
+      ? `context: ${watermark.source} (${watermark.dominantLabel})`
+      : `usage: ${watermark.usagePercentage}% (${watermark.dominantLabel})`,
     `policy: ${watermark.policyLabel}`,
     `${watermark.messageCount}/60 messages`,
     `${watermark.eventCount}/400 events`,

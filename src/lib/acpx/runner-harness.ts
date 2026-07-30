@@ -8,6 +8,10 @@ import {
 import { getHarnessAdapter } from '@/lib/harness';
 import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
+import {
+  collectKimiCodeProviderContextUsage,
+  persistKimiCodeContextUsageMetadata,
+} from '@/lib/real-agents/kimi-code-telemetry';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
@@ -224,6 +228,18 @@ export const executeViaLocalHarness = async (
 
   if (!result.success) {
     throw new Error(result.error || `${adapter.displayName} execution failed`);
+  }
+  if (participant.harnessType === 'kimi-code' && result.sessionId) {
+    try {
+      const usage = await collectKimiCodeProviderContextUsage({
+        sessionId: result.sessionId,
+      });
+      if (usage) {
+        await persistKimiCodeContextUsageMetadata(participantId, usage);
+      }
+    } catch {
+      // Context telemetry is diagnostic and must not turn a successful Kimi run into a failure.
+    }
   }
 
   return {

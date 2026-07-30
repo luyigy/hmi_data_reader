@@ -69,9 +69,9 @@ export interface LiveRoomMemberPayload {
 }
 
 export interface LiveRoomMemberContextWatermarkPayload {
-  source: 'provider' | 'estimated';
-  usagePercentage: number;
-  usageStatus: 'light' | 'elevated' | 'high';
+  source: 'provider' | 'unknown' | 'not_applicable';
+  usagePercentage: number | null;
+  usageStatus: 'light' | 'elevated' | 'high' | 'unknown' | 'not_applicable';
   policyStatus: 'normal' | 'warning' | 'critical';
   policyLabel: string;
   dominantReason: 'provider' | 'messages' | 'events' | 'transcript';
@@ -213,4 +213,3 @@ export const buildLiveRoomRosterText = (members: Array<{
   harnessType?: string | null;
   canReply?: boolean;
 }>) => members.map((member) => `- ${getLiveRoomMemberRosterLabel(member)}`).join('\n');
-

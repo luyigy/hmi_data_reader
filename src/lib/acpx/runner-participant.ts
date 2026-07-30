@@ -192,8 +192,8 @@ export const executeParticipant = async (
     const contextWarning = await checkContextWatermark(
       request.taskId,
       request.taskName,
-      taskRoomContext,
-      request.taskSessionId
+      request.taskSessionId,
+      participant,
     );
     const localSpawnHandler = (child: { pid?: number }) => {
       if (participant.executionBackend === 'platform_local') {

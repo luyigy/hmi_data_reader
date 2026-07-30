@@ -34,7 +34,7 @@ export interface KimiCodeResult {
 }
 
 const getKimiCodeBinary = () => process.env.KIMI_CODE_CLI_PATH?.trim() || 'kimi';
-const getKimiCodeHome = () =>
+export const getKimiCodeHome = () =>
   process.env.KIMI_CODE_HOME?.trim() || path.join(homedir(), '.kimi-code');
 
 const buildPrompt = (task: KimiCodeTask) => `Task: ${task.name}

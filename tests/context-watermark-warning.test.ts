@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { buildContextWatermarkWarning } from '../src/lib/acpx/prompt';
+
+const warning = (providerUsagePercentage: number | null, hardReasons: string[] = []) =>
+  buildContextWatermarkWarning({
+    providerUsagePercentage,
+    hardReasons,
+  });
+
+assert.equal(warning(29, ['任务室已有 164 条消息']), null);
+assert.match(warning(60) || '', /真实上下文占用已达 60%/);
+assert.match(warning(85) || '', /系统警告.*真实上下文占用已达 85%/);
+assert.equal(warning(null), null);
+assert.match(warning(null, ['已累计 629 条运行事件']) || '', /缺少 provider 上下文遥测.*无法确认/);
+assert.doesNotMatch(warning(null, ['已累计 629 条运行事件']) || '', /严重超载|立即/);
+assert.doesNotMatch(warning(null, ['已累计 629 条运行事件']) || '', /new-session/);
+assert.equal(buildContextWatermarkWarning({
+  providerUsagePercentage: null,
+  hardReasons: ['任务室已有 164 条消息'],
+  contextStatus: 'not_applicable',
+}), null);
+
+console.log('context watermark warning tests passed');

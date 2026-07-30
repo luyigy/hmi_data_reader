@@ -240,12 +240,14 @@ export function LiveRoomDetailsPanel() {
                       ) : null}
                       {member.contextWatermark ? (
                         <div className="mt-2" title={getWatermarkTooltip(member)}>
-                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
-                            <div
-                              className={`h-full rounded-full ${getWatermarkUsageBarTone(member.contextWatermark.usageStatus)}`}
-                              style={{ width: `${Math.min(100, Math.max(0, member.contextWatermark.usagePercentage))}%` }}
-                            />
-                          </div>
+                          {member.contextWatermark.usagePercentage != null ? (
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className={`h-full rounded-full ${getWatermarkUsageBarTone(member.contextWatermark.usageStatus)}`}
+                                style={{ width: `${Math.min(100, Math.max(0, member.contextWatermark.usagePercentage))}%` }}
+                              />
+                            </div>
+                          ) : null}
                           <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
                             <span>{getWatermarkUsageLabel(member)}</span>
                             <span>{member.contextWatermark.dominantLabel}</span>

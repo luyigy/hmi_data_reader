@@ -67,7 +67,9 @@ export async function handleMembersCommand(context?: FeishuConversationContext) 
   const lines = members.map((m) => {
     const tag = m.memberType === 'user' ? '(you)' : m.presenceStatus;
     const watermark = m.contextWatermark
-      ? ` | 用量 ${m.contextWatermark.usagePercentage}% (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
+      ? m.contextWatermark.usagePercentage == null
+        ? ` | 上下文 ${m.contextWatermark.source === 'not_applicable' ? '每轮新 conversation' : '暂无 provider 遥测'} (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
+        : ` | 用量 ${m.contextWatermark.usagePercentage}% (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
       : '';
     const permission = m.permissionLabel ? ` | ${m.permissionLabel}` : '';
     return `- ${m.displayName} [${m.id.slice(-8)}] | ${m.backend || 'local'}${permission} | ${tag}${watermark}`;
