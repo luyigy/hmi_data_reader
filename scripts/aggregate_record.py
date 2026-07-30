@@ -18,7 +18,9 @@
 3. 多数决（累加向量 argmax）得 record 级 controller_family；全零 -> unknown。
 4. 若提供 --labels（S1 的 ground_truth/machine_labels.json）且能匹配到机台，
    与标签不一致 -> 标记 conflict 进人工复核队列，不以先验覆盖图片证据。
-   labels 文件缺失时照常聚合，labels 状态记为 "missing"（准确率验收留待 T2）。
+   例外（T2）：0 图 record（整组 SHA-256 重复被排除、无图片证据）按 labels 的
+   records 映射回填，label_check 标 "prior_filled"，不计 conflict 也不计 consistent。
+   labels 文件缺失时照常聚合，labels 状态记为 "missing"。
 
 报告中固化 OCR 快照：repo HEAD、output/json 最后提交 commit SHA、工作区是否 dirty、
 postprocess.py 版本号与文件 SHA-256（防上游升级导致结论过期）。
@@ -148,6 +150,22 @@ def match_machine_label(record: str, machines: dict) -> tuple[str | None, dict |
     return None, None
 
 
+def match_machine_by_rec_no(record: str, machines: dict) -> tuple[str | None, dict | None]:
+    """按 machine_labels 的 records 映射匹配（先验回填专用，比前缀匹配更强）。
+
+    record key 里的 recNN 必须出现在某机台的 records 列表中（如 rec09 ->
+    伯乐_B01_B_AND_R.records=["rec07","rec09"]）。recNN 全局唯一，不会误配。
+    """
+    m = re.search(r"rec\d+", record)
+    if not m:
+        return None, None
+    rec_no = m.group(0)
+    for machine_id, info in machines.items():
+        if rec_no in info.get("records", []):
+            return machine_id, info
+    return None, None
+
+
 def git_snapshot(json_dir: Path) -> dict:
     """固化 OCR 产物快照：git commit SHA + 工作区状态 + postprocess.py 版本。"""
     snap: dict = {}
@@ -258,7 +276,50 @@ def main():
         labels_data = json.loads(labels_path.read_text())
         machines = labels_data.get("machines", {})
         labels_status = "loaded"
+        # 为"有标签但完全无 OCR 产物"的 record 建 0 图占位：
+        # 如 rec09 全组与 rec07 SHA-256 重复，按 dedup 处置不需要单独 OCR，
+        # 但 record 本身应进报告（先验回填 prior_filled），不能静默缺失。
+        labeled_rec_nos = {rn for info in machines.values() for rn in info.get("records", [])}
+        for rp in [Path(p) for p in args.dedup]:
+            if not rp.is_file():
+                continue
+            d = json.loads(rp.read_text())
+            for g in d.get("duplicate_within_record", []) + d.get("duplicate_across_records", []):
+                for img in g.get("files", []):
+                    for cand in image_stem_candidates(img):
+                        m = re.match(r"^(v2_.+?_rec\d+)_", cand)
+                        if not m:
+                            continue
+                        key = m.group(1)
+                        rec_no = re.search(r"rec\d+", key).group(0)
+                        if key not in records and rec_no in labeled_rec_nos:
+                            records[key] = {
+                                "controller_family": None,
+                                "family_scores": {k: 0.0 for k in UI_FAMILY_KEYWORDS},
+                                "n_images": 0,
+                                "n_unknown_images": 0,
+                                "images": [],
+                                "excluded_duplicates": [],
+                                "stub_note": "无 OCR 产物（整组与兄弟 record 重复，未单独跑 OCR）",
+                            }
         for rec, entry in records.items():
+            # 先验回填（T2，2026-07-30）：仅 0 图 record（整组 SHA-256 重复被排除，
+            # 没有任何图片证据可聚合）用 machine_labels 的 records 映射回填。
+            # prior_filled 与图片证据区分：不计入 conflict，也不计为 consistent。
+            if entry["n_images"] == 0:
+                machine_id, info = match_machine_by_rec_no(rec, machines)
+                if info is None:
+                    machine_id, info = match_machine_label(rec, machines)
+                entry["machine_id"] = machine_id
+                label_family = (info or {}).get("controller_family", "")
+                if label_family:
+                    entry["controller_family"] = label_family
+                    entry["label_controller_family"] = label_family
+                    entry["label_check"] = "prior_filled"
+                    entry["prior_source"] = machine_id
+                else:
+                    entry["label_check"] = "unknown" if info else "no_matching_machine"
+                continue
             machine_id, info = match_machine_label(rec, machines)
             entry["machine_id"] = machine_id
             if info is None:
@@ -266,7 +327,7 @@ def main():
                 continue
             label_family = info.get("controller_family", "")
             entry["label_controller_family"] = label_family
-            # 大小写归一：classify_ui 用 ZizES/BOLE 等历史命名，labels 用 ZIZES/KEBA 全大写
+            # 大小写归一：classify_ui 用 ZizES 等历史命名，labels 用 ZIZES/KEBA 全大写
             same_family = entry["controller_family"].upper() == label_family.upper()
             if label_family and entry["controller_family"] != "unknown" \
                     and not same_family:
@@ -289,6 +350,28 @@ def main():
 
     # 6. 汇总 + OCR 快照固化
     unknown_records = sorted(r for r, e in records.items() if e["controller_family"] == "unknown")
+    check_counts: dict[str, int] = {}
+    for e in records.values():
+        lc = e.get("label_check")
+        if lc:
+            check_counts[lc] = check_counts.get(lc, 0) + 1
+    n_consistent = check_counts.get("consistent", 0)
+    n_prior_filled = check_counts.get("prior_filled", 0)
+    n_labeled = n_consistent + check_counts.get("conflict", 0) \
+        + check_counts.get("unknown", 0) + n_prior_filled
+    n_image_evidence = n_labeled - n_prior_filled  # 有图片证据的有标签 record
+    acceptance = {
+        # T2 验收口径：consistent / 有标签的 record 总数；prior_filled 单列（见下）
+        "record_classification_accuracy": round(n_consistent / n_labeled, 4) if n_labeled else None,
+        "n_labeled_records": n_labeled,
+        "n_consistent": n_consistent,
+        "n_prior_filled": n_prior_filled,
+        # 参考口径：仅对有图片证据的 record（prior_filled 无图片证据，剔除分母）
+        "image_evidence_accuracy": round(n_consistent / n_image_evidence, 4) if n_image_evidence else None,
+        "prior_filled_note": "prior_filled = 整组 SHA-256 重复被排除的 0 图 record，"
+                             "按 machine_labels records 映射回填，不计 consistent/conflict",
+        "label_check_counts": check_counts,
+    }
     report = {
         "version": "1.0",
         "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §S2",
@@ -310,6 +393,7 @@ def main():
             "n_unknown_records": len(unknown_records),
             "n_conflicts": len(conflicts),
         },
+        "acceptance": acceptance,
         "unknown_images": sorted(unknown_images),
         "unknown_records": unknown_records,
         "conflicts": conflicts,
@@ -322,8 +406,14 @@ def main():
 
     print(f"[aggregate] 规范输入 {len(canonical)} 个，参与聚合 {n_participating} 张，"
           f"重复排除 {report['input_spec']['excluded_duplicate_images']} 张")
-    print(f"[aggregate] record 数 {len(records)}，unknown 图片 {len(unknown_images)} 张，"
-          f"unknown record {len(unknown_records)} 个，冲突 {len(conflicts)} 个")
+    print(f"[aggregate] record 数 {len(records)}，unknown 图片 {len(unknown_images)} 张"
+          f"（{report['summary']['unknown_image_ratio']}），unknown record {len(unknown_records)} 个，"
+          f"冲突 {len(conflicts)} 个")
+    print(f"[aggregate] 验收: consistent={n_consistent} conflict={check_counts.get('conflict', 0)} "
+          f"unknown={check_counts.get('unknown', 0)} prior_filled={n_prior_filled} "
+          f"无标签={check_counts.get('no_matching_machine', 0)} | "
+          f"record 分类准确率={acceptance['record_classification_accuracy']} "
+          f"（图片证据口径={acceptance['image_evidence_accuracy']}）")
     print(f"[aggregate] 报告 -> {out_path}")
     for rec, entry in report["records"].items():
         print(f"  {rec}: {entry['controller_family']} "

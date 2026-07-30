@@ -4,11 +4,9 @@
 输出：在 JSON 中追加 ui_family, ui_family_confidence, page, page_confidence
 
 策略：
-- UI 家族：从 OCR 文本中匹配关键词
-    - "TACT": ["TACT", "tact"]
-    - "FANUC": ["FANUC", "ROBOSHOT", "α-S", "α-S30iA"]
-    - "ZizES": ["ZES", "ZizES", "佳明"]
-    - "TRD6": ["TRD6", "SPT", "沙迪克", "Sodick"]
+- UI 家族：从 OCR 文本中匹配关键词（控制器级口径；各词依据见 UI_FAMILY_KEYWORDS 注释）
+    - TACT（日精）/ FANUC（发那科）/ ZizES（佳明）/ TRD6（沙迪克）
+    - KEBA / B_AND_R（伯乐机台的两类控制器）/ ARBURG（阿博格）/ DEMAG（德马格）
 - 页面：从常见 Tab 标题识别
     - "温度" / "炮筒温度" -> temperature
     - "射出" / "保压" / "计量" -> injection_metering
@@ -30,13 +28,46 @@ from pathlib import Path
 
 
 UI_FAMILY_KEYWORDS = {
-    "TACT": ["TACT", "tact"],
-    "FANUC": ["FANUC", "ROBOSHOT", "α-S", "a-S30", "S30iA", "S-iA", "NUC"],
+    # TACT（日精 NISSEI 控制器）：
+    #   TACT/tact — 屏幕左上 "TACT5" 标识（rec03/04/05 各页实测命中）
+    #   成形条件 — NISSEI 拼写（成形 vs 他家成型），rec02 储料/炮筒 "成形条件名称：TX25022"
+    #   充填量补正 / 充填过量防止 — TACT 充填控制功能项（rec02 波形/监控、储料/射出）
+    "TACT": ["TACT", "tact", "成形条件", "充填量补正", "充填过量防止"],
+    # FANUC（发那科 ROBOSHOT）：
+    #   FANUC/ROBOSHOT/α-S 系列/NUC — 品牌与型号（NUC 为 FANUC 漏字 OCR）
+    #   精密计量 — ROBOSHOT 底部 Tab（rec00 储料/射出），仅 FANUC 记录命中
+    #   计量扭矩 — FANUC 监控页特征列（rec00 监控），仅 FANUC 记录命中
+    #   HR模式 — FANUC HR 模式项（rec00 储料/射出），仅 FANUC 记录命中
+    #   低温保持 — FANUC 炮筒页功能项（rec00 炮筒）
+    #   i-MODEL — ROBOSHOT 型号栏 "α-S30iA i-MODEL B"（rec00 波形 OCR "Beries 3li-MODEL B"）
+    "FANUC": ["FANUC", "ROBOSHOT", "α-S", "a-S30", "S30iA", "S-iA", "NUC",
+              "精密计量", "计量扭矩", "HR模式", "低温保持", "i-MODEL"],
     "ZizES": ["ZES", "ZizES", "佳明", "广东佳明"],
     "TRD6": ["TRD6", "SPT", "沙迪克", "Sodick"],
-    "BOLE": ["BOLE", "Bole", "Process expert", "PROCESS EXPERT"],  # 伯乐 (BOLE = Bolle/博利)
+    # KEBA（伯乐 A01/B02 机台的控制器，KePlast 界面）：
+    #   KEBA/KEB — 屏幕 Logo 直读（rec06 炮筒 "KEBA"；rec08 监控 "KEB" 截断）
+    #   Process expert — KePlast 标题栏文字（rec11 监控/炮筒 "Process expert BOLE"）
+    #   ms_data — KePlast 数据路径（rec11 监控 "ocol/ms_data/pdp/default_..."）
+    #   请在条件号 — KePlast 条件号变更提示横幅（rec06/08 多页 "…时，请在条件号。…基础上更改"）
+    #   熔胶同步 — KePlast 储料页功能项（rec08 储料）
+    "KEBA": ["KEBA", "KEB", "Process expert", "PROCESS EXPERT", "ms_data",
+             "请在条件号", "熔胶同步"],
+    # B_AND_R（伯乐 B01 机台的控制器）：
+    #   BKS_350 — B&R 面板型号标识（S1 核验证据）；EKS_350 为 B→E 的 OCR 误读变体，
+    #   KS_350 同时覆盖两种变体（rec07 全部 5 页标题 "BOLE EKS_350"）
+    "B_AND_R": ["BKS_350", "EKS_350", "KS_350"],
     "ARBURG": ["ARBURG", "Arburg", "ARBUR"],  # 阿博格
-    "DEMAG": ["DEMAG", "Demag"],  # 德马格
+    # DEMAG（德马格 NC 系列）：
+    #   DEMAG/Demag — 品牌（rec15）
+    #   工艺控制统计 — NC 监控页标题（rec14 监控；S1 核验提到的 NC 特征）
+    #   SuperUser — NC5 登录级别（rec14 波形 "SuperUser 24 MWE曲线"）
+    #   多级背压 / 移动曲线 / 冷启动保护 / 余料量 — NC 储料/射出/炮筒页术语
+    #   （rec14 各页；全库碰撞检查仅 rec14/rec15 命中）
+    "DEMAG": ["DEMAG", "Demag", "工艺控制统计", "SuperUser", "多级背压",
+              "移动曲线", "冷启动保护", "余料量"],
+    # 注：BOLE（伯乐）是机器品牌而非控制器家族，已从关键词表移除（2026-07-30 T2）。
+    # 伯乐机台的控制器级识别由 KEBA / B_AND_R 承担（S1 标签口径）；
+    # "注射"（DEMAG 也在用）与 "射胶"（KEBA/B_AND_R 混用）无区分度，不收录。
 }
 
 PAGE_KEYWORDS = {
