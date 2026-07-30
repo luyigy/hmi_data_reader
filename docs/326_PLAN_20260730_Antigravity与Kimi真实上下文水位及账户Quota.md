@@ -240,7 +240,7 @@ return_to: null
 执行 `docs/326_PLAN_20260730_Antigravity与Kimi真实上下文水位及账户Quota.md` 的 S01。
 先读取 workflow contract、本 PLAN、`docs/307_HANDOVER_20260729_CodexProvider遥测与Quota诊断S09交接.md`、
 `docs/312_PLAN_20260729_KimiCodeCLI接入PlatformLocal.md` 和
-`docs/315_HANDOVER_20260729_KimiCodeCLI接入PlatformLocalS04交接.md`，并保护当前工作区已有未提交改动。
+`docs/315_HANDOVER_20260729_KimiCodeCLI接入PlatformLocalS03完成.md`，并保护当前工作区已有未提交改动。
 只完成协议静态取证、允许的本地无外部写入验证和停止门禁记录；未经用户另行明确授权，不调用真实
 Antigravity/Kimi provider，不重启服务、不发送飞书消息、不修改生产数据。修改任何代码 symbol 前先运行
 GitNexus upstream impact；完成前运行适用的聚焦验证、long-file guard、`git diff --check` 和
