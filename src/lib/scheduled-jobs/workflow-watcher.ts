@@ -247,8 +247,14 @@ export const workflowWatcherHandler = async (
   const previous = workflowCursor(cursor, job.config.initial_cursor_commit);
   const contract = await readWorkflowContract(project.path, head, contractPath, signal);
   const block = async (reason: string, nextStep: string) => {
-    const key = `${previous.commit}:${head}:${reason}`;
-    const prior = previous.blocker?.key === key ? previous.blocker : { key, error: reason };
+    // Remediation may advance HEAD while the blocked cursor intentionally stays fixed.
+    const key = `${previous.commit}:${reason}`;
+    const legacyKeyPrefix = `${previous.commit}:`;
+    const prior = previous.blocker
+      && (previous.blocker.key === key
+        || (previous.blocker.key.startsWith(legacyKeyPrefix) && previous.blocker.key.endsWith(`:${reason}`)))
+      ? { ...previous.blocker, key }
+      : { key, error: reason };
     let notified = prior.notified === true;
     let dispatched = prior.dispatched === true;
     if (mode === 'active' && !notified) {

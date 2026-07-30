@@ -705,6 +705,19 @@ S01
   assert.match(blockedRetry.summary, /gate=blocked.*notified=true dispatched=true/);
   assert.equal(apiCalls.length, noticesBeforeRewrite + 1, 'same blocker must not notify twice');
   assert.equal(workflowRuns.length, runsBeforeRewrite + 1, 'same blocker must not dispatch twice');
+  assert.ok('blocker' in blockedRetry.cursor);
+  const legacyBlockedCursor = {
+    ...blockedRetry.cursor,
+    blocker: {
+      ...blockedRetry.cursor.blocker,
+      key: `${rewriteCursor.commit}:${git('rev-parse', 'HEAD')}:configured Git ref was rewritten; human review required`,
+    },
+  };
+  git('commit', '--allow-empty', '-qm', 'advance divergent head');
+  const advancedBlockedRetry = await run(legacyBlockedCursor);
+  assert.match(advancedBlockedRetry.summary, /gate=blocked.*notified=true dispatched=true/);
+  assert.equal(apiCalls.length, noticesBeforeRewrite + 1, 'advancing HEAD must not renotify the same blocker');
+  assert.equal(workflowRuns.length, runsBeforeRewrite + 1, 'advancing HEAD must not redispatch the same blocker');
 
   job.config.active_side_effects_enabled = false;
   await assert.rejects(run(terminal.cursor), /active side effects require explicit config gate/);
