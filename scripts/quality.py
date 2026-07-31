@@ -14,12 +14,12 @@ SEVERE_GLARE, SEVERE_BLUR, SEVERE_PERSPECTIVE, PAGE_UNKNOWN
 警告原因码（黄灯）：
 NEEDS_RECTIFICATION, LOW_TEXT_SIZE, MINOR_GLARE, LOW_CLASS_CONFIDENCE
 
-判定策略（保守起步，按实测数据后续校准）：
+判定策略（013 S1 校准集 2026-07-31 第二轮校准）：
 - 用 OpenCV 检测屏幕区域：四边最长的水平/垂直线 + 暗色矩形估计
-- 透视：估计四边形 → 比较最长边比例，长宽比超 1.4 即 SEVERE_PERSPECTIVE
-- 反光：高亮区域比例（>230 像素值）
+- 透视：有屏幕四角时取对边长度比（>1.80 且可矫正仍硬拒；无四角回退启发式 >1.30 硬拒）
+- 反光：高亮区域比例（>230 像素值）>0.15 且画面纹理已破坏（Laplacian 方差 <300）才硬拒
 - 模糊：Laplacian 方差
-- 屏幕太小：屏幕有效宽度 < 700px
+- 屏幕太小：屏幕有效宽度 < 500px 硬拒；屏占比 <30% 仅黄灯（绝对像素宽者不再误杀）
 
 用法：
     python scripts/quality.py <image>... --output <report.json>
@@ -46,6 +46,7 @@ class QualityMetrics:
     blur_score: float = 0.0  # Laplacian variance
     glare_ratio: float = 0.0  # >230 像素比例
     dark_ratio: float = 0.0
+    corners_found: bool = False  # detect_screen_corners 是否命中（命中则透视可被 rectify 矫正）
 
 
 @dataclass
@@ -58,12 +59,17 @@ class QualityReport:
     reshoot_guidance: list[str] = field(default_factory=list)
 
 
-# 阈值（保守起步，后续用实测数据校准）
-THRESHOLD_SCREEN_MIN_WIDTH = 700
-THRESHOLD_SCREEN_MIN_AREA_RATIO = 0.30  # 屏幕至少占图 30%（沙迪克屏占比 21-30%，触发红灯）
+# 阈值（013 S1 校准集 2026-07-31 第二轮校准：按误杀案例分析放宽，见 014 HANDOVER）
+THRESHOLD_SCREEN_MIN_WIDTH = 500  # 绝对像素宽度下限（OCR 可用性取决于绝对像素，不取决于屏占比）
+THRESHOLD_SCREEN_MIN_AREA_RATIO = 0.30  # 屏占比低于此值仅黄灯提示（高分辨率远景照绝对像素仍充足，不再红灯）
 THRESHOLD_BLUR_VARIANCE = 30.0
 THRESHOLD_GLARE_RATIO = 0.05
-THRESHOLD_PERSPECTIVE = 1.30
+THRESHOLD_PERSPECTIVE = 1.30  # 无四角（不可矫正）时的硬拒阈值
+THRESHOLD_PERSPECTIVE_RECTIFIABLE = 1.80  # 有四角（rectify 可矫正）时的硬拒阈值
+# 反光硬拒需同时满足"纹理已被破坏"：白底高亮屏（如佳明过曝图）虽然 >230 比例高，
+# 但 Laplacian 方差大（文字梯度仍在），OCR 可读，不应红灯
+THRESHOLD_GLARE_SEVERE = 0.15
+THRESHOLD_GLARE_BLUR_MAX = 300.0
 
 
 def detect_screen_bbox(img: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -260,7 +266,7 @@ def triage(report: QualityReport) -> None:
                 tri = "yellow"
             reshoot.append("屏幕内的数字太小，请靠近拍摄让数字字符清晰可辨。")
 
-    if m.perspective_ratio > THRESHOLD_PERSPECTIVE:
+    if m.perspective_ratio > (THRESHOLD_PERSPECTIVE_RECTIFIABLE if m.corners_found else THRESHOLD_PERSPECTIVE):
         report.reject_codes.append("SEVERE_PERSPECTIVE")
         tri = "red"
         reshoot.append("请正对屏幕拍摄，四个屏幕边角全部入镜，不要从侧面斜拍。")
@@ -274,7 +280,7 @@ def triage(report: QualityReport) -> None:
         tri = "red"
         reshoot.append("画面模糊：请擦净镜头、保持手机稳定，点击屏幕区域对焦后重拍。")
 
-    if m.glare_ratio > 0.15:
+    if m.glare_ratio > THRESHOLD_GLARE_SEVERE and m.blur_score < THRESHOLD_GLARE_BLUR_MAX:
         report.reject_codes.append("SEVERE_GLARE")
         tri = "red"
         reshoot.append("反光严重：请调整站位或关闭闪光灯，确保反光不覆盖数字区域。")
@@ -287,11 +293,13 @@ def triage(report: QualityReport) -> None:
         if tri == "green":
             tri = "yellow"
 
-    # 屏幕占比过低
+    # 屏幕占比过低：只黄灯提示。OCR 可用性取决于屏幕绝对像素宽度（上方 width 规则），
+    # 高分辨率远景照屏占比低但绝对像素充足（校准集 rank06 2525px / rank11 2366px 宽被误杀）
     if m.screen_bbox is not None and m.screen_area_ratio < THRESHOLD_SCREEN_MIN_AREA_RATIO:
-        report.reject_codes.append("SCREEN_TOO_SMALL")
-        tri = "red"
-        reshoot.append("屏幕太小：请靠近拍摄，让显示屏主体占照片大部分。")
+        report.warn_codes.append("LOW_TEXT_SIZE")
+        if tri == "green":
+            tri = "yellow"
+        reshoot.append("屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。")
 
     report.triage = tri
     report.reshoot_guidance = reshoot
@@ -319,6 +327,7 @@ def assess(image_path: Path) -> QualityReport:
         blur_score=compute_blur(gray),
         glare_ratio=compute_glare(gray),
         dark_ratio=compute_dark(gray),
+        corners_found=quad is not None,
     )
 
     r = QualityReport(filename=image_path.name, metrics=metrics)

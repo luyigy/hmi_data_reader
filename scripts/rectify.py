@@ -30,20 +30,26 @@ from quality import detect_screen_bbox, detect_screen_corners, order_points  # n
 
 # 透视变换后最长边上限（保分辨率利于 OCR，又不让 4K 图拖慢）
 DEFAULT_MAX_SIZE = 2000
+# 小屏幕放大下限：屏幕最长边低于此值时放大（段号小数字低分辨率识别不足的整改，013 S1）
+MIN_OUTPUT_SIZE = 1400
+MAX_UPSCALE = 2.0
 
 
 def warp_to_screen(img: np.ndarray, src_pts: np.ndarray, max_size: int) -> tuple[np.ndarray, list[int]]:
-    """按四角做透视变换，输出尺寸 = 屏幕实际边长（最长边封顶 max_size）。"""
+    """按四角做透视变换，输出尺寸 = 屏幕实际边长（最长边封顶 max_size，低于 MIN_OUTPUT_SIZE 则放大）。"""
     src_pts = order_points(src_pts)
     w = (np.linalg.norm(src_pts[1] - src_pts[0]) + np.linalg.norm(src_pts[2] - src_pts[3])) / 2
     h = (np.linalg.norm(src_pts[3] - src_pts[0]) + np.linalg.norm(src_pts[2] - src_pts[1])) / 2
     scale = min(1.0, max_size / max(w, h))
+    if max(w, h) < MIN_OUTPUT_SIZE:
+        scale = min(MAX_UPSCALE, MIN_OUTPUT_SIZE / max(w, h), max_size / max(w, h))
     new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
     dst_pts = np.array([
         [0, 0], [new_w - 1, 0], [new_w - 1, new_h - 1], [0, new_h - 1],
     ], dtype=np.float32)
     M = cv2.getPerspectiveTransform(src_pts, dst_pts)
-    return cv2.warpPerspective(img, M, (new_w, new_h)), [new_w, new_h]
+    interp = cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA
+    return cv2.warpPerspective(img, M, (new_w, new_h), flags=interp), [new_w, new_h]
 
 
 def rectify(image_path: Path, output_path: Path, meta_path: Path | None = None,
