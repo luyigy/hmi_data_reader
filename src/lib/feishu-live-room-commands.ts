@@ -68,7 +68,11 @@ export async function handleMembersCommand(context?: FeishuConversationContext) 
     const tag = m.memberType === 'user' ? '(you)' : m.presenceStatus;
     const watermark = m.contextWatermark
       ? m.contextWatermark.usagePercentage == null
-        ? ` | 上下文 ${m.contextWatermark.source === 'not_applicable' ? '每轮新 conversation' : '暂无 provider 遥测'} (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
+        ? m.contextWatermark.source === 'not_applicable'
+          ? m.contextWatermark.usedTokens
+            ? ` | 上下文 每轮新 conversation (单次输入: ${m.contextWatermark.usedTokens.toLocaleString()} tokens${m.contextWatermark.contextWindow ? ` / ${m.contextWatermark.contextWindow.toLocaleString()} max, ${Math.round(m.contextWatermark.usedTokens / m.contextWatermark.contextWindow * 100)}%` : ''}) | 策略 ${m.contextWatermark.policyLabel}`
+            : ` | 上下文 每轮新 conversation (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
+          : ` | 上下文 暂无 provider 遥测 (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
         : ` | 用量 ${m.contextWatermark.usagePercentage}% (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
       : '';
     const permission = m.permissionLabel ? ` | ${m.permissionLabel}` : '';

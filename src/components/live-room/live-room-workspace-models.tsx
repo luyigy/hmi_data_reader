@@ -92,7 +92,11 @@ export const getWatermarkUsageLabel = (member: WorkspaceDetail['members'][number
     return null;
   }
 
-  if (watermark.source === 'not_applicable') return 'Fresh conversation each turn';
+  if (watermark.source === 'not_applicable') {
+    return watermark.usedTokens
+      ? `Last run: ${watermark.usedTokens.toLocaleString()} tokens${watermark.contextWindow ? ` / ${watermark.contextWindow.toLocaleString()} max` : ''}`
+      : 'Fresh conversation each turn';
+  }
   if (watermark.usagePercentage == null) return 'No provider context telemetry';
   return `Used ${watermark.usagePercentage}%`;
 };
