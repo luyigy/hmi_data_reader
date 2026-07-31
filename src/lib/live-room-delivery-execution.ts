@@ -275,7 +275,7 @@ const runLiveRoomAcpxAttempt = async ({
 
   const watchdogConfig =
     participant.executionBackend === 'platform_local'
-      && (participant.harnessType === 'codex' || participant.harnessType === 'claude')
+      && ['codex', 'claude', 'kimi-code'].includes(participant.harnessType)
       ? { maxRuntimeMs: null }
       : undefined;
 

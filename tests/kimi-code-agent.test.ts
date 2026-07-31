@@ -16,6 +16,10 @@ const exists = async (file: string) => {
 };
 
 void (async () => {
+  assert.match(
+    await readFile(path.join(process.cwd(), 'src/lib/live-room-delivery-execution.ts'), 'utf8'),
+    /\['codex', 'claude', 'kimi-code'\]\.includes\(participant\.harnessType\)[\s\S]*\? \{ maxRuntimeMs: null \}/,
+  );
   const fixtureDir = await mkdtemp(path.join(tmpdir(), 'kimi-code-test-'));
   const workspace = path.join(fixtureDir, 'workspace');
   const binary = path.join(fixtureDir, 'kimi');
