@@ -10,6 +10,11 @@ import { jobHandlers } from '@/lib/scheduled-jobs/handlers';
 import { findProjectByChatId, loadProjectsConfig, validateSchedule } from '@/lib/scheduled-jobs/project-config';
 import { effectiveJobSchedule, stopScheduledJob, waitForScheduledJobStop } from '@/lib/scheduled-jobs/runner';
 import { readWorkflowContract, selectWorkflowCandidates } from '@/lib/scheduled-jobs/workflow-validator';
+import {
+  formatWorkflowStatus,
+  loadWorkflowStatuses,
+  type WorkflowStatus,
+} from '@/lib/scheduled-jobs/workflow-status';
 import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 
@@ -189,22 +194,14 @@ const pendingValue = (cursor: unknown) => {
 };
 
 export const buildWorkflowDashboardCard = (args: {
-  projectId: string;
-  projectName: string;
-  jobId: string;
-  enabled: boolean;
-  running: boolean;
-  mode: string;
-  schedule: string;
+  status: WorkflowStatus;
   cursor: Awaited<ReturnType<typeof inspectWorkflowCursor>>;
   pending: Record<string, unknown> | null;
-  lastRun?: { status: string; summary?: string | null; startedAt: Date } | null;
-  lastError?: string | null;
 }) => {
   const reviewState = String(args.pending?.reviewState || '');
-  const stage = !args.enabled
+  const stage = !args.status.enabled
     ? '⏸️ 已停用'
-    : args.running
+    : args.status.running
       ? '🔄 正在执行'
       : reviewState === 'review'
         ? '🟠 等待 PLAN 审批'
@@ -214,7 +211,7 @@ export const buildWorkflowDashboardCard = (args: {
             ? `🔵 ${args.pending?.revisionDispatched ? '修改任务已投递，等待 PLAN 提交' : '修改任务待恢复'}`
             : args.pending
               ? `🟡 ${String(args.pending.gate || '处理中')}`
-              : '🟢 空闲';
+              : `🟢 ${args.status.stage}`;
   const action = (label: string, actionName: string, type = 'default') => ({
     tag: 'button',
     text: { tag: 'plain_text', content: label },
@@ -222,45 +219,55 @@ export const buildWorkflowDashboardCard = (args: {
     ...(type === 'danger' ? {
       confirm: {
         title: { tag: 'plain_text', content: `确认${label}` },
-        text: { tag: 'plain_text', content: `确定要${label} ${args.jobId} 吗？` },
+        text: { tag: 'plain_text', content: `确定要${label} ${args.status.jobId} 吗？` },
       },
     } : {}),
     value: {
       cmd: 'workflow-dashboard',
       action: actionName,
-      projectId: args.projectId,
-      jobId: args.jobId,
+      projectId: args.status.projectId,
+      jobId: args.status.jobId,
     },
   });
   const actions = [
     action('刷新', 'refresh'),
-    ...(!args.running && args.enabled ? [action('立即运行', 'run')] : []),
+    ...(!args.status.running && args.status.enabled ? [action('立即运行', 'run')] : []),
     ...(reviewState === 'review' ? [action('重发审批卡', 'resend', 'primary')] : []),
     ...(['revision', 'awaiting_revision_feedback'].includes(reviewState)
       ? [action('恢复修改任务', 'retry', 'primary')]
       : []),
-    ...(args.running ? [action('停止', 'stop', 'danger')] : []),
-    action(args.enabled ? '停用' : '启用', args.enabled ? 'disable' : 'enable', args.enabled ? 'danger' : 'primary'),
+    ...(args.status.running ? [action('停止', 'stop', 'danger')] : []),
+    action(
+      args.status.enabled ? '停用' : '启用',
+      args.status.enabled ? 'disable' : 'enable',
+      args.status.enabled ? 'danger' : 'primary',
+    ),
   ];
   return {
     config: { wide_screen_mode: true },
     header: {
-      template: args.lastError ? 'red' : args.running ? 'blue' : args.enabled ? 'green' : 'grey',
+      template: args.status.lastError !== '-' ? 'red'
+        : args.status.running ? 'blue' : args.status.enabled ? 'green' : 'grey',
       title: { tag: 'plain_text', content: 'Workflow Dashboard' },
     },
     elements: [
       {
         tag: 'markdown',
         content: [
-          `**${args.projectName} / ${args.jobId}**`,
+          `**${args.status.projectName} / ${args.status.jobId}**`,
           `**状态**：${stage}`,
-          `**模式 / 调度**：${args.mode} · \`${args.schedule}\``,
-          `**文档**：${String(args.pending?.path || '无 pending')}`,
-          `**动作**：${String(args.pending?.action || '-')}`,
+          `**项目 / ref / HEAD**：${args.status.projectId} · \`${args.status.ref}\` · \`${args.status.head.slice(0, 8)}\``,
+          `**PLAN / Slice / 动作**：${args.status.plan} · ${args.status.slice} · ${args.status.action}`,
+          `**模式 / 调度**：${args.status.mode} · \`${args.status.schedule}\``,
+          `**审批 / Session**：${args.status.approval} · ${args.status.session}`,
+          `**Validator**：${args.status.validator}`,
           `**游标**：\`${args.cursor.current?.slice(0, 8) || '-'}\` → \`${args.cursor.latest.slice(0, 8)}\`（behind ${args.cursor.behind ?? '-'}）`,
-          `**最近执行**：${args.lastRun ? `${args.lastRun.status} · ${args.lastRun.startedAt.toISOString()}` : '-'}`,
-          `**说明**：${explainWorkflowRun(args.lastRun?.summary)}`,
-          `**错误**：${args.lastError || '-'}`,
+          `**最近成功 / 错误**：${args.status.lastSuccessAt} · ${args.status.lastError}`,
+          `**重试 / 隔离**：${args.status.retry}`,
+          ...(args.status.completion ? [
+            `**完成回执**：commit \`${args.status.completion.commit}\` · 验证 ${args.status.completion.validation} · 入口 ${args.status.completion.entry} · 自动推进 ${args.status.completion.automaticProgression}`,
+          ] : []),
+          `**唯一下一步**：${args.status.nextStep}`,
         ].join('\n'),
       },
       { tag: 'action', actions },
@@ -308,35 +315,29 @@ export async function handleScheduledJobCommand(
   const state = stateByJob.get(job.id);
   if (action === 'dashboard') {
     if (job.type !== 'workflow_watcher') return `${job.id} 不支持 workflow dashboard。`;
-    const [cursor, lastRun] = await Promise.all([
+    const [cursor, workflowStatus] = await Promise.all([
       inspectWorkflowCursor(project.path, project.ref, state?.cursorJson),
-      prisma.scheduledJobRun.findFirst({
-        where: { projectId: project.id, jobId: job.id },
-        orderBy: { startedAt: 'desc' },
-        select: { status: true, summary: true, startedAt: true },
-      }),
+      loadWorkflowStatuses(project.id).then((items) => items.find((item) => item.jobId === job.id)),
     ]);
+    if (!workflowStatus) return `${job.id} Workflow 状态不可用。`;
     await sendFeishuInteractiveMessage({
       receiveId: context.chatId,
       receiveIdType: 'chat_id',
       replyId: context.messageId,
       card: buildWorkflowDashboardCard({
-        projectId: project.id,
-        projectName: project.name,
-        jobId: job.id,
-        enabled: state?.enabledOverride ?? job.enabled,
-        running: running.has(job.id),
-        mode: state?.modeOverride ?? job.mode,
-        schedule: effectiveJobSchedule(job, state),
+        status: workflowStatus,
         cursor,
         pending: pendingValue(state?.cursorJson),
-        lastRun,
-        lastError: state?.lastError,
       }),
     });
     return '✅ Workflow Dashboard 已发送。';
   }
   if (action === 'status') {
+    if (job.type === 'workflow_watcher') {
+      const workflowStatus = (await loadWorkflowStatuses(project.id))
+        .find((item) => item.jobId === job.id);
+      if (workflowStatus) return formatWorkflowStatus(workflowStatus);
+    }
     const latestRun = await prisma.scheduledJobRun.findFirst({
       where: { projectId: project.id, jobId: job.id },
       orderBy: { startedAt: 'desc' },

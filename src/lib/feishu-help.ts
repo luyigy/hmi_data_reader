@@ -36,6 +36,7 @@ const HELP_PAGES = [
     '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   ]],
   ['Workflow / Jobs', [
+    '/ap workflow status',
     '/ap workflow policy show',
     '/ap workflow policy set --preset=workspace  (管理员)',
     '/ap dashboard [job-id]  返回可点击的 Workflow 状态卡',
@@ -68,6 +69,7 @@ export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
   '/ap sessions',
   '/ap dashboard',
   '/ap jobs',
+  '/ap workflow status',
   '/ap workflow policy show',
   '/ap job diagnose workflow-watcher',
   '/ap users',
@@ -88,6 +90,7 @@ const QUICK_ACTIONS = [
   ],
   [
     ['Workflow Dashboard', '/ap dashboard'],
+    ['Workflow 状态', '/ap workflow status'],
     ['Jobs', '/ap jobs'],
     ['权限策略', '/ap workflow policy show'],
     ['诊断', '/ap job diagnose workflow-watcher'],

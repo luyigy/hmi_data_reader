@@ -26,6 +26,10 @@ import {
   type WorkflowContract,
 } from './workflow-validator';
 import { ensureAppendOnlyGitRef } from './git-history-guard';
+import {
+  buildWorkflowCompletionReceipt,
+  extractWorkflowValidationSummary,
+} from './workflow-status';
 
 type Pending = WorkflowReviewPending & {
   key: string;
@@ -594,11 +598,28 @@ export const workflowWatcherHandler = async (
   await send(project.feishu.chat_id,
     `✅ workflow validator 通过：${candidate.filePath}\ncommit: ${commit}\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
     eventKey, 'validation_passed');
-  if (gate === 'terminal') {
+  if (candidate.type === 'HANDOVER') {
     await send(project.feishu.chat_id,
-      `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
-      eventKey, 'terminal');
-    return { summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=notified`, cursor: { commit: head, eventKey } };
+      `${buildWorkflowCompletionReceipt({
+        commit,
+        documentPath: candidate.filePath,
+        action: document.action,
+        validation: extractWorkflowValidationSummary(content),
+        plan: declared(metadata.plan),
+        slice: declared(metadata.slice),
+      })}\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
+      eventKey, 'completion_receipt');
+  }
+  if (gate === 'terminal') {
+    if (candidate.type !== 'HANDOVER') {
+      await send(project.feishu.chat_id,
+        `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
+        eventKey, 'terminal');
+    }
+    return {
+      summary: `head=${head} commit=${commit} candidate=${candidate.filePath} action=${document.action} result=notified`,
+      cursor: { commit: head, eventKey },
+    };
   }
   const detectedAt = new Date().toISOString();
   const execution = {
@@ -657,7 +678,7 @@ export const workflowWatcherHandler = async (
     };
   }
   return {
-    summary: `head=${head} candidate=${candidate.filePath} action=${document.action} result=session_started`,
+    summary: `head=${head} commit=${commit} candidate=${candidate.filePath} action=${document.action} result=session_started`,
     cursor: { commit: head, eventKey },
   };
 };

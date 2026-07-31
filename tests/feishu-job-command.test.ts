@@ -16,6 +16,12 @@ import {
   inspectWorkflowCandidates,
   inspectWorkflowCursor,
 } from '../src/lib/feishu-scheduled-jobs';
+import {
+  buildWorkflowCompletionReceipt,
+  extractWorkflowValidationSummary,
+  formatWorkflowStatus,
+  type WorkflowStatus,
+} from '../src/lib/scheduled-jobs/workflow-status';
 
 const message = (text: string) => ({
   chatId: 'chat',
@@ -47,6 +53,11 @@ assert.deepEqual(parseFeishuCommand(message('/ap workflow policy set --preset=wo
   command: 'workflow',
   args: ['policy', 'set'],
   options: { preset: 'workspace' },
+});
+assert.deepEqual(parseFeishuCommand(message('/ap workflow status')), {
+  command: 'workflow',
+  args: ['status'],
+  options: {},
 });
 assert.deepEqual(parseFeishuCommand(message('/ap job disable workflow-watcher')), {
   command: 'job',
@@ -190,14 +201,38 @@ assert.deepEqual(formatWorkflowPending({ pending: {
   '评审状态：revision',
   '修改任务已投递：是',
 ]);
-const dashboardCard = buildWorkflowDashboardCard({
+const workflowStatus: WorkflowStatus = {
   projectId: 'project',
   projectName: 'HMI Reader',
+  repository: '/repo',
+  ref: 'refs/heads/main',
+  head: 'abcdef1234',
   jobId: 'workflow-watcher',
   enabled: true,
   running: false,
   mode: 'active',
   schedule: '* * * * *',
+  stage: '等待修改提交',
+  documentPath: 'docs/007_PLAN.md',
+  plan: 'docs/007_PLAN.md',
+  slice: 'S02',
+  action: 'start_first_slice',
+  approval: 'revision',
+  session: 'session-1 · waiting_user · needs_review · run -',
+  validator: 'valid：最近一轮 watcher 已成功完成',
+  lastFinishedAt: '2026-07-30T00:00:00.000Z',
+  lastSuccessAt: '2026-07-30T00:00:00.000Z',
+  lastError: '-',
+  retry: 'approval_revision',
+  nextStep: '完成并提交 docs/007_PLAN.md 的修订',
+  lastRun: {
+    status: 'succeeded',
+    summary: 'gate=plan_revision',
+    startedAt: '2026-07-30T00:00:00.000Z',
+  },
+};
+const dashboardCard = buildWorkflowDashboardCard({
+  status: workflowStatus,
   cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 },
   pending: {
     path: 'docs/007_PLAN.md',
@@ -207,11 +242,30 @@ const dashboardCard = buildWorkflowDashboardCard({
     revisionDispatched: true,
     reviewExpiresAt: 'stale-expiry',
   },
-  lastRun: { status: 'succeeded', summary: 'gate=plan_revision', startedAt: new Date('2026-07-30T00:00:00Z') },
 });
 assert.match(JSON.stringify(dashboardCard), /修改任务已投递，等待 PLAN 提交/);
 assert.match(JSON.stringify(dashboardCard), /恢复修改任务/);
 assert.doesNotMatch(JSON.stringify(dashboardCard), /stale-expiry/);
+assert.match(JSON.stringify(dashboardCard), /唯一下一步/);
+assert.match(formatWorkflowStatus(workflowStatus), /项目 \/ ref \/ HEAD：project/);
+assert.match(formatWorkflowStatus(workflowStatus), /唯一下一步：完成并提交/);
+assert.equal(
+  extractWorkflowValidationSummary('# H\n\n## 验证结果\n\n- `npm test`：通过。\n- `npx tsc`：通过。\n\n## 边界\n'),
+  '`npm test`：通过。；`npx tsc`：通过。',
+);
+assert.match(buildWorkflowCompletionReceipt({
+  commit: 'abc123',
+  documentPath: 'docs/009_HANDOVER.md',
+  action: 'await_acceptance',
+  validation: 'npm test：通过',
+}), /PLAN 已完成，等待人工验收[\s\S]*commit：abc123[\s\S]*实际验证：npm test：通过/);
+assert.match(buildWorkflowCompletionReceipt({
+  commit: 'def456',
+  documentPath: 'docs/010_HANDOVER.md',
+  action: 'next_slice',
+  validation: 'npm test：通过',
+  slice: 'S02',
+}), /Slice S02 已完成[\s\S]*将按 next_slice 启动下一 Session/);
 
 async function testCursor() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'job-cursor-'));

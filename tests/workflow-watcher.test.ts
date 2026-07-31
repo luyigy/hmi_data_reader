@@ -282,6 +282,9 @@ plan_progress: complete
   const terminal = await run(completed.cursor);
   assert.match(terminal.summary, /result=notified/);
   const terminalNotice = apiCalls.at(-1);
+  assert.match(String(terminalNotice?.body.content), /Workflow 完成回执/);
+  assert.match(String(terminalNotice?.body.content), /实际验证/);
+  assert.match(String(terminalNotice?.body.content), /自动推进：已停止/);
   assert.match(String(terminalNotice?.body.content), /\*\*所属 PLAN\*\*：000_PLAN_20260725_owner.md/);
   assert.match(String(terminalNotice?.body.content), /\*\*当前或将执行的 Slice\*\*：S02/);
   assert.match(String(terminalNotice?.body.content), /\*\*计划进度\*\*：complete/);

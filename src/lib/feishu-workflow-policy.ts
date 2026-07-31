@@ -15,6 +15,10 @@ import {
   validateWorkflowExecutionPolicy,
   workflowPolicySource,
 } from '@/lib/workflow-execution-policy';
+import {
+  formatWorkflowStatus,
+  loadWorkflowStatusForChat,
+} from '@/lib/scheduled-jobs/workflow-status';
 
 const configFile = () => path.join(process.cwd(), 'config/projects.yaml');
 async function writeWorkflowPolicy(projectId: string, jobId: string) {
@@ -41,9 +45,13 @@ export async function handleWorkflowPolicyCommand(
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext,
 ) {
-  if (!context) return '当前 workflow policy 命令需要来自 Feishu webhook 的会话上下文。';
+  if (!context) return '当前 workflow 命令需要来自 Feishu webhook 的会话上下文。';
+  if (command.args[0] === 'status' && command.args.length === 1 && !Object.keys(command.options).length) {
+    const status = await loadWorkflowStatusForChat(context.chatId);
+    return status ? formatWorkflowStatus(status) : '当前 Feishu 会话未绑定 Workflow 项目。';
+  }
   if (command.args[0] !== 'policy' || !['show', 'set'].includes(command.args[1] || '')) {
-    return '用法：/ap workflow policy show | /ap workflow policy set --preset=workspace';
+    return '用法：/ap workflow status | /ap workflow policy show | /ap workflow policy set --preset=workspace';
   }
   const setting = command.args[1] === 'set';
   const project = findProjectByChatId(

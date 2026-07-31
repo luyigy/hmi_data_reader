@@ -190,6 +190,10 @@ HANDOVER/验收入口、遗留风险，并明确显示“已停止自动推进�
 - 重启、重复 watcher 和重复回调不重复刷屏；
 - 不新增第二套状态机、事件总线或通用通知框架。
 
+实施状态（2026-07-31）：S02 已完成。统一只读投影、飞书命令与卡片、Web 页面、Validator
+分类、唯一下一步和幂等完成回执见
+`docs/336_HANDOVER_20260731_WorkflowStatus可见性S02交接.md`；未开始 S03。
+
 ## S03：自治模式合同、持久化与控制面
 
 1. 增加独立的 `workflowAutonomy = manual | semi_auto | auto`，不修改 Live Room `mode`。
