@@ -18,3 +18,14 @@ models/
 output/rectified/
 output/extracted/
 output/s1_calibration/
+# TACT 校准中间产物（保留验收报告）
+output/tact_calib/*
+!output/tact_calib/accuracy_report_tact_calib.json
+# 009 S3 中间图片副本 / S1 复跑临时件（报告以 accuracy_report_*.json 为准）
+output/s3_holdout_imgs/
+output/s3_legacy_imgs/
+output/s1_calibration_pre_recheck.json
+
+# 本机临时件（沙箱环境重建残留、登录二维码）
+.tools/
+.tmp_auth_qr.png

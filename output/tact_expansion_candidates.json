@@ -1,0 +1,313 @@
+{
+  "generated_at": "2026-07-31T03:28:53+00:00",
+  "generator": "kimi-code S2 (013_PLAN)",
+  "status": "APPROVED",
+  "selection_spec": {
+    "random_seed": 20260731,
+    "pool": "family_prescreen=TACT（位置 A06/B09/B10，机台级人工核验证据）且含炮筒温度设定附件的大表记录",
+    "exclusions": [
+      "疑似重复组（同机台同字节数）中除最早日期代表外的记录",
+      "无已核验家族证据的日精机台（UNKNOWN 单列待裁定，不进入候选）"
+    ],
+    "machine_cap": "单机台最多 6 条（沿用 009 用户批准的 3 台 × 6 张结构）",
+    "ordering": "random.Random(20260731) 按机台字典序逐台 shuffle（输入按日期+record_id 排序保证确定性），每台取前 6 为目标、其后 4 条为候补",
+    "post_download_rules": [
+      "内容级 SHA-256 去重：候选池内部重复、或与本地校准/遗留图片（S1 校准集、samples_v2 rec02–05）重复，均按候补固定顺序（rank 升序）替换，不临时人工挑图",
+      "状态/质量分层在元数据阶段不可执行（全部 unknown），下载后按预注册口径以候补固定顺序替换不合格项"
+    ]
+  },
+  "targets": [
+    {
+      "rank": 1,
+      "record_id": "recv4jWY1SAHhA",
+      "file_token": "PlPlbj4O3ohamUxn6vRcDX2mnch",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2025-12-03",
+      "attachment_size_bytes": 3777304,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 2,
+      "record_id": "recuUyxRt6OCc7",
+      "file_token": "DhflbZcUYoD3C9xwoM9cVoF2nzd",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2025-08-21",
+      "attachment_size_bytes": 3013910,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 3,
+      "record_id": "recuS4ze0XQiDw",
+      "file_token": "NwGpb59h5oeLs4x9zXecP8qln2e",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2025-07-26",
+      "attachment_size_bytes": 4036333,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 4,
+      "record_id": "recv4BuFvVuv8g",
+      "file_token": "M8IQbxI2xoyDRgxMzhXcUh4ynqY",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2025-12-06",
+      "attachment_size_bytes": 3228757,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 5,
+      "record_id": "recv29sTmJQxaQ",
+      "file_token": "ZNtrbkgH8oP5x0xHGNocXMhnnud",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2025-11-10",
+      "attachment_size_bytes": 2599860,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 6,
+      "record_id": "recvaPpmsQN4cA",
+      "file_token": "D46tbxphgoooCIxELxdcHBW6npf",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2026-02-10",
+      "attachment_size_bytes": 576933,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    }
+  ],
+  "alternates": [
+    {
+      "rank": 7,
+      "record_id": "recuWgpEDUE3to",
+      "file_token": "JJh9bgYyqoNrxOx60wEcxcxmnPc",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2025-09-03",
+      "attachment_size_bytes": 3891643,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 8,
+      "record_id": "recuUyxRt6koZe",
+      "file_token": "WQPSbRAJaowIa8xg1ZCc6fsYnLh",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2025-08-21",
+      "attachment_size_bytes": 4282702,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 9,
+      "record_id": "recv9mM77eH6K8",
+      "file_token": "HpFnbygzgoTqg7xFst8cdpKfnId",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2026-01-26",
+      "attachment_size_bytes": 1205325,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 10,
+      "record_id": "recvcU2MPlJdH4",
+      "file_token": "SAXEbfbGcoqU1vxMVQOcLSIznVb",
+      "machine": "Z022",
+      "position": "A06",
+      "date": "2026-03-04",
+      "attachment_size_bytes": 1152809,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 日精_A06_TACT：工程监视/生产情报/经历菜单为日精 TACT 风格，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    }
+  ],
+  "unknown_pending_decision": [
+    {
+      "machine": "Z003",
+      "records": 59,
+      "with_attachment": 59,
+      "positions": [
+        "A01"
+      ],
+      "date_span": [
+        "2025-06-26",
+        "2025-11-07"
+      ]
+    },
+    {
+      "machine": "Z008",
+      "records": 76,
+      "with_attachment": 76,
+      "positions": [
+        "A02"
+      ],
+      "date_span": [
+        "2025-07-10",
+        "2025-11-07"
+      ]
+    },
+    {
+      "machine": "Z009",
+      "records": 149,
+      "with_attachment": 149,
+      "positions": [
+        "A03"
+      ],
+      "date_span": [
+        "2025-04-17",
+        "2026-03-28"
+      ]
+    },
+    {
+      "machine": "Z011",
+      "records": 44,
+      "with_attachment": 44,
+      "positions": [
+        "A03"
+      ],
+      "date_span": [
+        "2025-08-31",
+        "2025-10-27"
+      ]
+    },
+    {
+      "machine": "Z012",
+      "records": 171,
+      "with_attachment": 169,
+      "positions": [
+        "A04"
+      ],
+      "date_span": [
+        "2025-03-21",
+        "2026-04-03"
+      ]
+    },
+    {
+      "machine": "Z014",
+      "records": 7,
+      "with_attachment": 7,
+      "positions": [
+        "A04"
+      ],
+      "date_span": [
+        "2025-08-13",
+        "2025-08-16"
+      ]
+    },
+    {
+      "machine": "Z015",
+      "records": 381,
+      "with_attachment": 362,
+      "positions": [
+        "A04"
+      ],
+      "date_span": [
+        "2025-03-14",
+        "2026-03-29"
+      ]
+    },
+    {
+      "machine": "Z016",
+      "records": 108,
+      "with_attachment": 107,
+      "positions": [
+        "A05"
+      ],
+      "date_span": [
+        "2025-03-18",
+        "2026-02-10"
+      ]
+    },
+    {
+      "machine": "Z019",
+      "records": 221,
+      "with_attachment": 210,
+      "positions": [
+        "A05"
+      ],
+      "date_span": [
+        "2025-03-20",
+        "2026-04-01"
+      ]
+    },
+    {
+      "machine": "Z025",
+      "records": 187,
+      "with_attachment": 187,
+      "positions": [
+        "A07"
+      ],
+      "date_span": [
+        "2025-04-08",
+        "2026-04-02"
+      ]
+    },
+    {
+      "machine": "Z077",
+      "records": 111,
+      "with_attachment": 111,
+      "positions": [
+        "A07"
+      ],
+      "date_span": [
+        "2025-04-12",
+        "2025-11-08"
+      ]
+    },
+    {
+      "machine": "Z078",
+      "records": 32,
+      "with_attachment": 32,
+      "positions": [
+        "A10"
+      ],
+      "date_span": [
+        "2025-06-13",
+        "2025-08-05"
+      ]
+    }
+  ],
+  "pool_summary": {
+    "tact_pool_records": 431,
+    "per_machine_pool": {
+      "Z022": 431
+    },
+    "suspected_duplicate_excess_excluded": 0
+  },
+  "approval": {
+    "approved_by": "用户（Live Room）",
+    "approved_at": "2026-07-31",
+    "decision": "用户对候选清单回复「继续」，按 009 先例视为批准下载",
+    "scope": "批准下载候选清单全部10条（6目标+4候补）的炮筒温度设定附件；不授予基线修改、生产写入权限",
+    "degradation_note": "TACT 候选池仅覆盖 Z022/A06（B09/B10 为日精新机器，大表无记录），样本结构由 3台×6 降级为 1台×6目标+4候补；S2 报告须注明此降级"
+  }
+}

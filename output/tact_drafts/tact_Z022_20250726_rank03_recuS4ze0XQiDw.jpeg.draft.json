@@ -1,0 +1,72 @@
+{
+  "image": "tact_Z022_20250726_rank03_recuS4ze0XQiDw.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "fair",
+  "allow_auto_import": null,
+  "fields": {
+    "barrel_temperature_set_c": [
+      295.0,
+      290.0,
+      270.0,
+      265.0,
+      260.0
+    ],
+    "barrel_temperature_current_c": [
+      295.1,
+      290.7,
+      269.9,
+      264.9,
+      259.8
+    ],
+    "control_percent": [
+      41.1,
+      0.0,
+      8.1,
+      6.3,
+      52.6
+    ],
+    "holding_temperature_c": [
+      150.0,
+      150.0,
+      150.0,
+      150.0,
+      150.0
+    ],
+    "drop_port_temperature_set_c": 50.0,
+    "drop_port_temperature_current_c": 41.2,
+    "drop_port_control_percent": 0.0
+  },
+  "zone_labels": [
+    "喷嘴",
+    "筒头",
+    "前部",
+    "中部",
+    "后部"
+  ],
+  "heater_columns": 5,
+  "page_switches": {
+    "异常时保温": "OFF",
+    "强制保温": "OFF",
+    "滞留监视时间_分": 0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标/报警条；红/绿高亮框按既有裁定视为状态指示（见 notes）。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "",
+    "verified_at": "",
+    "changed_fields": null,
+    "spot_check_by": ""
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblSnjQzDzkpGvD9",
+    "record_id": "recvqVnmNOdKbg",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuS4ze0XQiDw",
+    "file_token": "NwGpb59h5oeLs4x9zXecP8qln2e"
+  },
+  "notes": "机台 Z022（位置 A06）、日期 2025-07-26、rank03。TACT 温度页布局：5 段（喷嘴/筒头/前部/中部/后部）+ 落下口独立列；行=设定温度/现在温度/控制输出/保温温度（落下口无保温行）。屏显 23:13，成形条件 TX21012-zuixin。斜拍+整屏反光，已用原图 region 裁切放大逐段核对，全部可读。落下口设定 50.0（其余图 40.0），裁切图确认非误读。建议人工核验时重点复核本图。"
+}

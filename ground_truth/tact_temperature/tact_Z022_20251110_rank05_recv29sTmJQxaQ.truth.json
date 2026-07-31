@@ -1,0 +1,72 @@
+{
+  "image": "tact_Z022_20251110_rank05_recv29sTmJQxaQ.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_set_c": [
+      305.0,
+      295.0,
+      285.0,
+      275.0,
+      260.0
+    ],
+    "barrel_temperature_current_c": [
+      304.9,
+      294.5,
+      284.9,
+      275.0,
+      259.9
+    ],
+    "control_percent": [
+      41.8,
+      11.6,
+      26.5,
+      12.4,
+      65.8
+    ],
+    "holding_temperature_c": [
+      150.0,
+      150.0,
+      150.0,
+      150.0,
+      150.0
+    ],
+    "drop_port_temperature_set_c": 40.0,
+    "drop_port_temperature_current_c": 36.5,
+    "drop_port_control_percent": 0.0
+  },
+  "zone_labels": [
+    "喷嘴",
+    "筒头",
+    "前部",
+    "中部",
+    "后部"
+  ],
+  "heater_columns": 5,
+  "page_switches": {
+    "异常时保温": "OFF",
+    "强制保温": "OFF",
+    "滞留监视时间_分": 0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标/报警条；红/绿高亮框按既有裁定视为状态指示（见 notes）。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "用户本人（概览核验）",
+    "verified_at": "2026-07-31",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblSnjQzDzkpGvD9",
+    "record_id": "recvqVnrkgzBtA",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recv29sTmJQxaQ",
+    "file_token": "ZNtrbkgH8oP5x0xHGNocXMhnnud"
+  },
+  "notes": "机台 Z022（位置 A06）、日期 2025-11-10、rank05。TACT 温度页布局：5 段（喷嘴/筒头/前部/中部/后部）+ 落下口独立列；行=设定温度/现在温度/控制输出/保温温度（落下口无保温行）。屏显 20:32，成形条件 TX21012。正视清晰。中部现在温度 275.0 框体带绿色高亮（与设定值一致=到温指示？），TACT 色系语义未见于既有裁定，按 normal 处理并建议人工核验确认。 | 核验方式：用户 Live Room 整批口头确认草稿全部无误（2026-07-31），未逐字段粘贴确认列，确认列由脚本按草稿回填；属 2026-07-30 简化降级口径。"
+}

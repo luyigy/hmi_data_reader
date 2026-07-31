@@ -1,0 +1,25 @@
+{
+  "plan": "docs/013_PLAN_20260730_主力家族温度页模板.md",
+  "slice": "S2",
+  "updated_at": "2026-07-31T09:54:42+00:00",
+  "completed_steps": [
+    "大表只读盘点 output/tact_pool_inventory.json（日精1992条，TACT池=Z022/A06×431条）",
+    "候选清单 output/tact_expansion_candidates.json（6目标+4候补，seed 20260731）",
+    "用户批准落盘（Live Room「继续」2026-07-31，status=APPROVED）",
+    "下载10条+SHA-256去重 output/tact_sample_manifest.json（6/6目标，0重复，图片docs/samples_tact/）",
+    "VLM预标注草稿 output/tact_drafts/×6（rank03斜拍反光图已经region裁切复核）",
+    "飞书核验表「TACT温度页字段核验」已建并预填6行草稿+原图附件（tblSnjQzDzkpGvD9，output/tact_verify_table_records.json）",
+    "用户整批确认草稿无误（2026-07-31 Live Room，未逐字段粘贴，降级口径）",
+    "飞书核验表6行回写：确认列=草稿列、核验状态=已核验、verified_by落盘",
+    "真值落盘 ground_truth/tact_temperature/×6（changed_fields=0）",
+    "模板校准+提取器（codex）：templates/tact.temperature.json v0.1.0 + extract_temperature_tact",
+    "首轮跑分 numeric 0.9493 不达标；根因=保温行白底框漏检+落下口列误读",
+    "CLAHE 变体 OCR 修复（ocr_one --clahe-output / extract_fields merge_variant_lines / run_pipeline --ocr-clahe）",
+    "复跑验收 PASS：numeric 1.0、completeness 1.0、error_auto_import 0、auto_import 5/6（output/tact_calib/accuracy_report_tact_calib.json）",
+    "015 HANDOVER 已建，S2 complete，next_action=next_slice(S3 伯乐)"
+  ],
+  "next_step": "S3 伯乐 KEBA/B_AND_R：只读盘点→候选清单→用户批准后下载",
+  "degradation": "TACT池仅Z022/A06：B09/B10为日精新机器大表无记录，样本结构3台×6降级为1台×6；B09/B10真值只能用本地samples_v2 rec03/04/05",
+  "pending_user_decision": "output/tact_expansion_candidates.json 的 unknown_pending_decision（9台无家族证据日精机台）仍待用户裁定",
+  "status": "S2_COMPLETE"
+}

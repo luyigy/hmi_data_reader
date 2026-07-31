@@ -21,6 +21,9 @@ def main():
     ap.add_argument("--output", "-o")
     ap.add_argument("--no-cls", action="store_true", help="禁用方向分类")
     ap.add_argument("--lang", default="ch")
+    ap.add_argument("--clahe-output",
+                    help="同时输出 CLAHE 灰度增强变体的 OCR 结果 JSON"
+                         "（低对比白底框召回补充，供 extract_fields 按需合并）")
     args = ap.parse_args()
 
     img_path = Path(args.image)
@@ -41,26 +44,30 @@ def main():
         lang=args.lang,
         show_log=False,
     )
-    result = ocr.ocr(str(img_path), cls=not args.no_cls)
 
-    lines = []
-    if result and result[0]:
-        for line in result[0]:
-            bbox_pts, (text, conf) = line
-            # bbox 是 4 顶点 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-            xs = [p[0] for p in bbox_pts]
-            ys = [p[1] for p in bbox_pts]
-            lines.append({
-                "text": text,
-                "conf": float(conf),
-                "bbox": {
-                    "points": [[float(p[0]), float(p[1])] for p in bbox_pts],
-                    "x_min": float(min(xs)),
-                    "y_min": float(min(ys)),
-                    "x_max": float(max(xs)),
-                    "y_max": float(max(ys)),
-                },
-            })
+    def run_ocr(path: Path) -> list[dict]:
+        result = ocr.ocr(str(path), cls=not args.no_cls)
+        lines = []
+        if result and result[0]:
+            for line in result[0]:
+                bbox_pts, (text, conf) = line
+                # bbox 是 4 顶点 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+                xs = [p[0] for p in bbox_pts]
+                ys = [p[1] for p in bbox_pts]
+                lines.append({
+                    "text": text,
+                    "conf": float(conf),
+                    "bbox": {
+                        "points": [[float(p[0]), float(p[1])] for p in bbox_pts],
+                        "x_min": float(min(xs)),
+                        "y_min": float(min(ys)),
+                        "x_max": float(max(xs)),
+                        "y_max": float(max(ys)),
+                    },
+                })
+        return lines
+
+    lines = run_ocr(img_path)
 
     out = {
         "filename": img_path.name,
@@ -77,6 +84,26 @@ def main():
         print(f"[ocr_one] {len(lines)} lines -> {args.output}")
     else:
         print(json.dumps(out, ensure_ascii=False, indent=2))
+
+    if args.clahe_output:
+        import cv2
+        img = cv2.imread(str(img_path))
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        tmp = img_path.with_name(img_path.stem + ".clahe_tmp.png")
+        cv2.imwrite(str(tmp), clahe.apply(gray))
+        try:
+            clahe_lines = run_ocr(tmp)
+        finally:
+            tmp.unlink(missing_ok=True)
+        clahe_out = dict(out)
+        clahe_out["model"] += " +CLAHE(clip3.0,tile8x8) variant"
+        clahe_out["line_count"] = len(clahe_lines)
+        clahe_out["lines"] = clahe_lines
+        clahe_path = Path(args.clahe_output)
+        clahe_path.parent.mkdir(parents=True, exist_ok=True)
+        clahe_path.write_text(json.dumps(clahe_out, ensure_ascii=False, indent=2))
+        print(f"[ocr_one] {len(clahe_lines)} clahe lines -> {args.clahe_output}")
 
 
 if __name__ == "__main__":

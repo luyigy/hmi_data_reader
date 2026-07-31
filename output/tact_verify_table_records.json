@@ -1,0 +1,46 @@
+{
+  "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+  "table_id": "tblSnjQzDzkpGvD9",
+  "table_name": "TACT温度页字段核验",
+  "url": "https://ecn6lj2fknte.feishu.cn/base/Vz2QbZ0lkagmVJsrMZ7cQwbSnZc?table=tblSnjQzDzkpGvD9",
+  "verifier": "用户本人（沿用 2026-07-30 简化口径，降级）",
+  "spot_check": "第二人抽检由用户豁免（2026-07-30）",
+  "records": [
+    {
+      "image": "tact_Z022_20250726_rank03_recuS4ze0XQiDw.jpeg",
+      "record_id": "recvqVnmNOdKbg",
+      "table_id": "tblSnjQzDzkpGvD9",
+      "origin_record_id": "recuS4ze0XQiDw"
+    },
+    {
+      "image": "tact_Z022_20250821_rank02_recuUyxRt6OCc7.jpeg",
+      "record_id": "recvqVnp4zMBFi",
+      "table_id": "tblSnjQzDzkpGvD9",
+      "origin_record_id": "recuUyxRt6OCc7"
+    },
+    {
+      "image": "tact_Z022_20251110_rank05_recv29sTmJQxaQ.jpeg",
+      "record_id": "recvqVnrkgzBtA",
+      "table_id": "tblSnjQzDzkpGvD9",
+      "origin_record_id": "recv29sTmJQxaQ"
+    },
+    {
+      "image": "tact_Z022_20251203_rank01_recv4jWY1SAHhA.jpeg",
+      "record_id": "recvqVntfwnbjw",
+      "table_id": "tblSnjQzDzkpGvD9",
+      "origin_record_id": "recv4jWY1SAHhA"
+    },
+    {
+      "image": "tact_Z022_20251206_rank04_recv4BuFvVuv8g.jpeg",
+      "record_id": "recvqVnvioxoDZ",
+      "table_id": "tblSnjQzDzkpGvD9",
+      "origin_record_id": "recv4BuFvVuv8g"
+    },
+    {
+      "image": "tact_Z022_20260210_rank06_recvaPpmsQN4cA.jpeg",
+      "record_id": "recvqVnxq2T6yo",
+      "table_id": "tblSnjQzDzkpGvD9",
+      "origin_record_id": "recvaPpmsQN4cA"
+    }
+  ]
+}

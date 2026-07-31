@@ -26,14 +26,33 @@ TOLERANCE = 0.5
 GATE_NUMERIC_ACCURACY = 0.95
 GATE_ERROR_AUTO_IMPORT_RATE = 0.0
 
-# 真值 schema 的数值字段（oil_temperature_current_c 为 2026-07-30 新增，以真值集为准）
+# 真值 schema 的数值字段（oil_temperature_current_c 为 2026-07-30 新增，
+# holding/drop_port_* 为 2026-07-31 TACT 新增；以真值集为准，家族间取并集，
+# 不属于该家族真值的字段读出来是 None，不会进入分母）
 NUMERIC_FIELDS = [
     "barrel_temperature_set_c",
     "barrel_temperature_current_c",
     "oil_temperature_set_c",
     "oil_temperature_current_c",
     "control_percent",
+    "holding_temperature_c",
+    "drop_port_temperature_set_c",
+    "drop_port_temperature_current_c",
+    "drop_port_control_percent",
 ]
+
+
+def truth_numeric_keys(fields: dict | None) -> list[str]:
+    """真值 fields 里所有数值型（标量或数值数组）键——用于漏算检查。"""
+    keys = []
+    for k, v in (fields or {}).items():
+        if isinstance(v, bool):
+            continue
+        if isinstance(v, (int, float)):
+            keys.append(k)
+        elif isinstance(v, list) and v and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v):
+            keys.append(k)
+    return keys
 
 
 def flatten_numeric(fields: dict | None) -> dict[str, float | None]:
@@ -107,14 +126,23 @@ def main():
 
     per_image = []
     missing_extraction = []
+    uncovered = {}  # 真值数值字段未被 NUMERIC_FIELDS 覆盖 -> 防漏算硬检查
     for tf in truth_files:
         truth = json.loads(tf.read_text())
+        miss = [k for k in truth_numeric_keys(truth.get("fields")) if k not in NUMERIC_FIELDS]
+        if miss:
+            uncovered[truth["image"]] = miss
         stem = Path(truth["image"]).stem
         ef = extracted_dir / f"{stem}.fields.json"
         extracted = json.loads(ef.read_text()) if ef.is_file() else None
         if extracted is None:
             missing_extraction.append(truth["image"])
         per_image.append(compare_one(truth, extracted))
+
+    if uncovered:
+        # 真值含 NUMERIC_FIELDS 之外的数值字段：继续跑会把它漏出分母形成假高分，直接失败
+        sys.exit(f"[verify] ERROR: 真值数值字段未被 NUMERIC_FIELDS 覆盖（会漏算出假高分）: "
+                 f"{json.dumps(uncovered, ensure_ascii=False)}")
 
     n = len(per_image)
     total_elements = sum(p["n_elements"] for p in per_image)

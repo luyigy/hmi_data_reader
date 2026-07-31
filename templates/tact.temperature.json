@@ -1,0 +1,79 @@
+{
+  "version": "0.1.0",
+  "ui_family": "TACT",
+  "page": "temperature",
+  "source": "2026-07-31 首版：6 份用户整批确认真值图（日精 Z022/A06）OCR 实测锚点算术平均",
+  "description": "TACT 屏（日精机器）温度页（5 段料筒：喷嘴/筒头/前部/中部/后部 + 落下口独立列；行=设定温度/现在温度/控制输出/保温温度，落下口无保温行）的字段位置模板。所有坐标为屏幕归一化值（x/screen_width, y/screen_height），基于 scripts/rectify.py 输出的屏幕矫正图。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张 S2 真值图（tact_Z022 rank01-06）rectify 四角矫正后 PaddleOCR 实测区段列头/行标签位置，逐位置算术平均",
+    "calibrated_at": "2026-07-31",
+    "samples": [
+      "tact_Z022_20250726_rank03_recuS4ze0XQiDw",
+      "tact_Z022_20250821_rank02_recuUyxRt6OCc7",
+      "tact_Z022_20251110_rank05_recv29sTmJQxaQ",
+      "tact_Z022_20251203_rank01_recv4jWY1SAHhA",
+      "tact_Z022_20251206_rank04_recv4BuFvVuv8g",
+      "tact_Z022_20260210_rank06_recvaPpmsQN4cA"
+    ]
+  },
+  "layout": {
+    "row_y_centers": {
+      "header": 0.304,
+      "set": 0.3703,
+      "current": 0.4349,
+      "control": 0.4833,
+      "holding": 0.5315
+    },
+    "column_x_centers": {
+      "喷嘴": 0.3511,
+      "筒头": 0.4636,
+      "前部": 0.5764,
+      "中部": 0.6913,
+      "后部": 0.8074,
+      "落下口": 0.9235
+    },
+    "column_spacing_avg": 0.1145,
+    "col_x_tolerance": 0.05,
+    "row_y_tolerance": 0.02,
+    "notes": "行标签在左侧 x≈0.22；区段列头为中文区段名（非 ZizES 的数字列头），提取以逐图实测列头/行标签位置为主，本模板值为兜底与合理性校验；不同长宽比屏幕的行 y 漂移大（0.24~0.60），必须逐图实测"
+  },
+  "row_anchors": {
+    "set": "设定温度",
+    "current": "现在温度",
+    "control": "控制输出",
+    "holding": "保温温度",
+    "drop_port_header": "落下口",
+    "page_title": "温度"
+  },
+  "page_detect_anchors": ["set", "control", "drop_port_header"],
+  "zone_labels": ["喷嘴", "筒头", "前部", "中部", "后部"],
+  "drop_port_label": "落下口",
+  "heater_columns": {
+    "mode": "fixed",
+    "count": 5,
+    "rule": "TACT 温度页固定 5 段料筒（喷嘴/筒头/前部/中部/后部），列头为区段中文名；落下口为独立第 6 列，只有设定/现在/控制三行，无保温行"
+  },
+  "field_mapping": {
+    "barrel_temperature_set_c": {"row": "set", "columns": "zones", "unit": "°C"},
+    "barrel_temperature_current_c": {"row": "current", "columns": "zones", "unit": "°C"},
+    "control_percent": {"row": "control", "columns": "zones", "unit": "%"},
+    "holding_temperature_c": {"row": "holding", "columns": "zones", "unit": "°C"},
+    "drop_port_temperature_set_c": {"row": "set", "columns": "drop_port", "unit": "°C"},
+    "drop_port_temperature_current_c": {"row": "current", "columns": "drop_port", "unit": "°C"},
+    "drop_port_control_percent": {"row": "control", "columns": "drop_port", "unit": "%"}
+  },
+  "validation_rules": {
+    "temperature_range_C": [0, 450],
+    "control_percent_range": [0, 100],
+    "current_set_consistency_tolerance_C": 5,
+    "min_cell_conf": 0.85,
+    "must_have_all_heater_columns": true
+  },
+  "known_uncertainties": [
+    "模板坐标基于 6 张 Z022/A06 样本平均，不同长宽比屏幕行位漂移大，提取以逐图实测锚点为主、模板为兜底",
+    "落下口列无保温行，保温温度仅 5 段料筒；落下口设定 40-50°C 远低于料筒段，不作跨列一致性校验",
+    "单机台（Z022/A06）校准，跨机台/跨 TACT 屏变体泛化未验证",
+    "current vs set 一致性校验（±5°C）会把加热中/报警态机台判为 review，属保守设计而非误报"
+  ]
+}

@@ -52,6 +52,9 @@ def main():
     ap.add_argument("--workdir", default="output", help="中间产物目录")
     ap.add_argument("--ocr-skip", action="store_true", help="跳过 OCR 步骤（去重+质量门禁）")
     ap.add_argument("--extract", action="store_true", help="OCR 后跑字段提取（extract_fields）")
+    ap.add_argument("--ocr-clahe", action="store_true",
+                    help="OCR 时同时输出 CLAHE 变体结果（<stem>.ocr_clahe.json，"
+                         "TACT 低对比白底框召回补充，仅 TACT 提取路径会合并）")
     ap.add_argument("--verify", metavar="TRUTH_DIR", help="提取后跑真值比对（verify_accuracy）")
     ap.add_argument("--verify-output", default="output/accuracy_report.json")
     args = ap.parse_args()
@@ -129,6 +132,9 @@ def main():
                 sys.executable, str(HERE / "ocr_one.py"),
                 str(ocr_target), "--output", str(ocr_json), "--no-cls",
             ]
+            if args.ocr_clahe:
+                cmd += ["--clahe-output",
+                        str(Path(str(ocr_json).replace(".ocr.json", ".ocr_clahe.json")))]
             res = subprocess.run(cmd, capture_output=True, text=True)
             if res.returncode == 0:
                 ocr_outputs.append(ocr_json)

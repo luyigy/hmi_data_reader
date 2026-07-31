@@ -1,0 +1,102 @@
+{
+  "version": "1.0",
+  "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3",
+  "tolerance": 0.5,
+  "n_images": 6,
+  "metrics": {
+    "controller_classification_accuracy": 1.0,
+    "page_classification_accuracy": 1.0,
+    "field_completeness": 1.0,
+    "numeric_accuracy": 1.0,
+    "auto_import_ratio": 0.8333,
+    "error_auto_import_rate": 0.0
+  },
+  "gates": {
+    "numeric_accuracy >= 0.95": true,
+    "error_auto_import_rate == 0": true
+  },
+  "poc_pass": true,
+  "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库",
+  "missing_extraction": [],
+  "per_image": [
+    {
+      "image": "tact_Z022_20250726_rank03_recuS4ze0XQiDw.jpeg",
+      "status": "ok",
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23
+    },
+    {
+      "image": "tact_Z022_20250821_rank02_recuUyxRt6OCc7.jpeg",
+      "status": "ok",
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23
+    },
+    {
+      "image": "tact_Z022_20251110_rank05_recv29sTmJQxaQ.jpeg",
+      "status": "ok",
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23
+    },
+    {
+      "image": "tact_Z022_20251203_rank01_recv4jWY1SAHhA.jpeg",
+      "status": "ok",
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23
+    },
+    {
+      "image": "tact_Z022_20251206_rank04_recv4BuFvVuv8g.jpeg",
+      "status": "review",
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23
+    },
+    {
+      "image": "tact_Z022_20260210_rank06_recvaPpmsQN4cA.jpeg",
+      "status": "ok",
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23
+    }
+  ],
+  "mismatched_elements": []
+}
