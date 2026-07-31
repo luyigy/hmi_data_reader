@@ -1,0 +1,393 @@
+{
+  "tag": "post",
+  "manifest": "output/calibration_set_s1.json",
+  "total": 13,
+  "quality_summary": {
+    "green": 4,
+    "yellow": 9,
+    "red": 0
+  },
+  "quality_red_rate": 0.0,
+  "rectify_summary": {
+    "corners": 13,
+    "bbox_fallback": 0,
+    "failed": 0
+  },
+  "rectify_success_rate": 1.0,
+  "rejected_or_manual": 0,
+  "rows": [
+    {
+      "path": "docs/samples_v4_holdout/holdout_Z017_20250418_rank06_recuQJJFYYCuIG.jpeg",
+      "family": "ZIZES",
+      "challenge": "强反光条纹+中等斜拍，四角检测失败被门禁拒绝",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE",
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 3000,
+        "height": 4000,
+        "screen_bbox": [
+          423,
+          1208,
+          2525,
+          982
+        ],
+        "screen_area_ratio": 0.20662916666666667,
+        "perspective_ratio": 1.0993739421213273,
+        "blur_score": 158.65837108255414,
+        "glare_ratio": 0.0434445,
+        "dark_ratio": 0.09981741666666667,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v4_holdout/holdout_Z051_20250410_rank10_recuQJJFYYx8ny.jpeg",
+      "family": "ZIZES",
+      "challenge": "严重透视（梯形畸变）+屏占比偏低，四角检测失败被门禁拒绝",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          635,
+          244,
+          2450,
+          2025
+        ],
+        "screen_area_ratio": 0.30938139809149795,
+        "perspective_ratio": 1.6277802978082692,
+        "blur_score": 190.62628439872213,
+        "glare_ratio": 0.07830403431472324,
+        "dark_ratio": 0.16994752816656888,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v4_holdout/holdout_Z051_20250818_rank11_recuUh0i3E1D5i.jpeg",
+      "family": "ZIZES",
+      "challenge": "轻中度斜拍，四角检测失败被门禁拒绝",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE",
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          505,
+          537,
+          2366,
+          1744
+        ],
+        "screen_area_ratio": 0.2573145276836564,
+        "perspective_ratio": 1.1636308836855793,
+        "blur_score": 108.76815147714821,
+        "glare_ratio": 0.036464756368657786,
+        "dark_ratio": 0.14919862968594724,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v4_holdout/holdout_Z051_20251030_rank09_recv179eVOESTp.jpeg",
+      "family": "ZIZES",
+      "challenge": "过曝偏色（黄白色偏），四角检测失败被门禁拒绝",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 4032,
+        "height": 3024,
+        "screen_bbox": [
+          0,
+          0,
+          4032,
+          3024
+        ],
+        "screen_area_ratio": 1.0,
+        "perspective_ratio": 1.0,
+        "blur_score": 2057.4092039924526,
+        "glare_ratio": 0.4529982855410683,
+        "dark_ratio": 0.0007572521678424456,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/日精_B09_TX23056_100-30087_20260710_rec04_炮筒_00.jpeg",
+      "family": "TACT",
+      "challenge": "明显斜拍，暗背景，TACT5 蓝白 UI",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          244,
+          76,
+          1238,
+          1004
+        ],
+        "screen_area_ratio": 0.599417438271605,
+        "perspective_ratio": 1.0,
+        "blur_score": 157.2857275842549,
+        "glare_ratio": 0.019523051697530863,
+        "dark_ratio": 0.2006303047839506,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/日精_B10_TX22064_100-17018_20260724_rec03_炮筒_00.jpeg",
+      "family": "TACT",
+      "challenge": "竖拍低分辨率（720x1280）+斜拍，屏占比低",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          30,
+          269,
+          629,
+          725
+        ],
+        "screen_area_ratio": 0.4948187934027778,
+        "perspective_ratio": 1.0000002759753521,
+        "blur_score": 325.5254557249281,
+        "glare_ratio": 0.028307291666666668,
+        "dark_ratio": 0.1201953125,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/伯乐_A01_TX24014_200-19355-2_20260717_rec11_炮筒_00.jpeg",
+      "family": "KEBA",
+      "challenge": "顶部倾斜透视，屏幕右缘被照片边界裁切",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          801,
+          178,
+          1011,
+          902
+        ],
+        "screen_area_ratio": 0.4397771990740741,
+        "perspective_ratio": 1.1689138851036192,
+        "blur_score": 141.18545481928234,
+        "glare_ratio": 0.01615017361111111,
+        "dark_ratio": 0.10193479938271605,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/伯乐_B02_TX25024_100-30135_20260724_rec06_炮筒_00.jpeg",
+      "family": "KEBA",
+      "challenge": "竖拍低分辨率（720x1280），屏幕占比低、字符小",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          0,
+          720,
+          1280
+        ],
+        "screen_area_ratio": 1.0,
+        "perspective_ratio": 1.0434161432093767,
+        "blur_score": 219.5904025000949,
+        "glare_ratio": 0.05853298611111111,
+        "dark_ratio": 0.005426432291666667,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/伯乐_B01_TX25023_200-30133-1_20260724_rec07_炮筒_00.jpeg",
+      "family": "B_AND_R",
+      "challenge": "竖拍低分辨率，深色面板边框、轻度斜拍",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          49,
+          275,
+          580,
+          909
+        ],
+        "screen_area_ratio": 0.5720703125,
+        "perspective_ratio": 1.2297725214269453,
+        "blur_score": 638.6632092635497,
+        "glare_ratio": 0.009034288194444445,
+        "dark_ratio": 0.04397786458333333,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/发那科_A09_TX22058_100-17014_20260714_rec00_炮筒_00.jpeg",
+      "family": "FANUC",
+      "challenge": "镜面反光+斜拍，屏幕与机身对比度低",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          347,
+          119,
+          1273,
+          867
+        ],
+        "screen_area_ratio": 0.5322583912037037,
+        "perspective_ratio": 1.0000000862635627,
+        "blur_score": 96.61243682386305,
+        "glare_ratio": 0.0027647569444444442,
+        "dark_ratio": 0.004813850308641975,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/发那科_A09_TX22058_100-17014_20260313_rec01_炮筒_00.jpeg",
+      "family": "FANUC",
+      "challenge": "竖拍强透视（左侧近右侧远）+反光",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          373,
+          720,
+          593
+        ],
+        "screen_area_ratio": 0.46328125,
+        "perspective_ratio": 1.0000001013286106,
+        "blur_score": 516.1436136817036,
+        "glare_ratio": 0.005205078125,
+        "dark_ratio": 0.0006315104166666666,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/德马格_A01_TX22063_100-17017_20260722_rec14_炮筒_00.jpeg",
+      "family": "DEMAG",
+      "challenge": "近距离满屏拍摄，屏幕四边被照片边界裁切",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          282,
+          53,
+          1408,
+          795
+        ],
+        "screen_area_ratio": 0.5398148148148149,
+        "perspective_ratio": 1.0732294112877456,
+        "blur_score": 4337.98120767199,
+        "glare_ratio": 0.03165075231481482,
+        "dark_ratio": 0.025031828703703702,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    },
+    {
+      "path": "docs/samples_v2/德马格_A02_TX23030_100-18891_20260722_rec15_炮筒_00.jpeg",
+      "family": "DEMAG",
+      "challenge": "竖拍强斜拍，屏幕占下半部、上下边缘被裁切",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          52,
+          0,
+          1028,
+          692
+        ],
+        "screen_area_ratio": 0.34306327160493827,
+        "perspective_ratio": 1.0,
+        "blur_score": 231.1176261645371,
+        "glare_ratio": 0.00018856095679012345,
+        "dark_ratio": 0.19137683256172838,
+        "corners_found": true
+      },
+      "rectify_ok": true,
+      "rectify_method": "corners",
+      "rectify_reason": null
+    }
+  ]
+}
