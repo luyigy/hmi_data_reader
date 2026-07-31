@@ -279,6 +279,47 @@ async function generateCommittedHandover(args: {
   return relativePath;
 }
 
+export async function prepareWorkflowRotationHandover(args: {
+  taskId: string;
+  taskName: string;
+  roomId: string;
+  roomTitle: string;
+  workingDirectory: string;
+  memberIds: string[];
+  memberNames: string[];
+  rotationKey: string;
+  suggestedPath?: string | null;
+}) {
+  if (args.suggestedPath) {
+    const resolved = resolveHandoverPath(args.suggestedPath, args.workingDirectory);
+    if (resolved) {
+      try {
+        await git(args.workingDirectory, 'cat-file', '-e', `HEAD:${resolved.relativePath}`);
+        return resolved.relativePath;
+      } catch {
+        // Fall through to an event-keyed compact checkpoint.
+      }
+    }
+  }
+  const snapshot = await collectNewSessionRisks({
+    taskId: args.taskId,
+    roomId: args.roomId,
+    memberIds: args.memberIds,
+    workingDirectory: args.workingDirectory,
+    hasCommittedHandover: false,
+  });
+  const promptContext = await buildTaskRoomPromptContext(args.taskId, args.taskName, 30);
+  return generateCommittedHandover({
+    workingDirectory: args.workingDirectory,
+    rotationKey: args.rotationKey,
+    roomTitle: args.roomTitle,
+    taskName: args.taskName,
+    memberName: args.memberNames.join(', '),
+    snapshot,
+    transcript: promptContext.transcript,
+  });
+}
+
 function buildNewSessionPrompt(args: {
   handoverPath?: string | null;
   handoverContent?: string | null;
@@ -410,8 +451,12 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
   let handoverOption = (command.options['handover'] || command.options['from-handover'] || '').trim();
   const memberQuery = (command.options['agent'] || command.args.join(' ') || '').trim();
   const allMembers = isTruthyFeishuOption(command.options['all']) || memberQuery.toLowerCase() === 'all';
+  const rotatableOnly = isTruthyFeishuOption(command.options['rotatable-only']);
   const members = allMembers
-    ? room.members.filter((member) => member.memberType !== 'user' && member.canReply)
+    ? room.members.filter((member) =>
+        member.memberType !== 'user'
+        && member.canReply
+        && (!rotatableOnly || member.harnessType !== 'antigravity'))
     : [resolveRoomMemberQuery({ room, query: memberQuery })].filter((member) => member !== null);
   if (!members.length) {
     return memberQuery
@@ -688,6 +733,22 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
   ].join('\n');
 }
 
+async function transitionWorkflowRotationFromCard(
+  command: NewSessionCommand,
+  from: string,
+  to: string,
+) {
+  const projectId = command.options['workflow-project-id'];
+  const jobId = command.options['workflow-job-id'];
+  const eventKey = command.options['workflow-event-key'];
+  if (!projectId || !jobId || !eventKey) return null;
+  const claimed = await prisma.workflowDispatch.updateMany({
+    where: { projectId, jobId, eventKey, state: from },
+    data: { state: to },
+  });
+  return claimed.count > 0;
+}
+
 export async function handleNewSessionConfirmationCardAction(args: {
   value: Record<string, unknown>;
   openId: string | null;
@@ -702,9 +763,6 @@ export async function handleNewSessionConfirmationCardAction(args: {
     || typeof args.value.rotationKey !== 'string') {
     return { toast: { type: 'warning', content: '确认卡已失效或只能由原请求人操作' } };
   }
-  if (decision === 'cancel') {
-    return { toast: { type: 'success', content: '已取消；未停止运行，也未切换 Session' } };
-  }
   let command: NewSessionCommand;
   try {
     const parsed = JSON.parse(args.value.command);
@@ -714,6 +772,25 @@ export async function handleNewSessionConfirmationCardAction(args: {
     command = parsed as NewSessionCommand;
   } catch {
     return { toast: { type: 'warning', content: '确认卡命令无效，请重新发送 /ap new-session' } };
+  }
+  if (decision === 'cancel') {
+    const cancelled = await transitionWorkflowRotationFromCard(
+      command,
+      'rotation_confirmation_required',
+      'rotation_not_required',
+    );
+    if (cancelled === false) {
+      return { toast: { type: 'warning', content: '确认卡已处理或换代正在进行' } };
+    }
+    return { toast: { type: 'success', content: '已取消；未停止运行，也未切换 Session' } };
+  }
+  const claimed = await transitionWorkflowRotationFromCard(
+    command,
+    'rotation_confirmation_required',
+    'rotation_pending',
+  );
+  if (claimed === false) {
+    return { toast: { type: 'warning', content: '确认卡已处理或换代正在进行' } };
   }
   const result = await handleNewSessionCommand({
     ...command,
@@ -735,6 +812,9 @@ export async function handleNewSessionConfirmationCardAction(args: {
     replyId: args.messageId || undefined,
     text: result,
   });
+  if (result.startsWith('✅')) {
+    await transitionWorkflowRotationFromCard(command, 'rotation_pending', 'rotation_completed');
+  }
   return {
     toast: {
       type: result.startsWith('✅') ? 'success' : 'warning',

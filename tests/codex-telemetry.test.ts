@@ -49,6 +49,10 @@ assert.equal(getCodexProviderContextUsage(
   JSON.stringify({ codexThreadId: 'thread-2', codexTokenUsage: usage }),
   new Date('2026-07-29T05:05:00.000Z'),
 ), null);
+assert.equal(getCodexProviderContextUsage(
+  JSON.stringify({ codexTokenUsage: usage }),
+  new Date('2026-07-29T05:05:00.000Z'),
+), null);
 
 const older = parseCodexTokenUsage(payload('thread-1', 40_000), new Date('2026-07-29T04:59:00.000Z'))!;
 const regressed = parseCodexTokenUsage(payload('thread-1', 40_000), new Date('2026-07-29T05:01:00.000Z'))!;

@@ -522,7 +522,9 @@ export const getLiveRoomMemberContextWatermark = async ({
       : estimatedDominantReason === 'events'
       ? 'events'
       : 'messages';
-  const usagePercentage = providerUsage?.usagePercentage ?? null;
+  const usagePercentage = providerUsage?.usagePercentage
+    ?? antigravityRunUsage?.usagePercentage
+    ?? null;
   const policyStatus = providerUsage
     ? providerUsage.usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE
       ? 'critical'
@@ -545,7 +547,9 @@ export const getLiveRoomMemberContextWatermark = async ({
       ? 'provider'
       : member.backend === 'platform_local' && member.harnessType === 'antigravity'
       ? antigravityRunUsage
-        ? `last run usage: ${antigravityRunUsage.lastRunInputTokens} tokens`
+        ? `last run usage: ${antigravityRunUsage.lastRunInputTokens} tokens${
+            antigravityRunUsage.contextWindowAssumed ? ' · 1M assumed' : ''
+          }`
         : 'fresh conversation per turn'
       : source === 'not_applicable'
       ? 'fresh conversation per turn'

@@ -15,11 +15,14 @@ async function main() {
   let dispatch!: Dispatch;
   let messageExists = false;
   let deliveryExists = false;
-  let fault: 'rotation' | 'feishu' | 'prompt' | 'reply' | null = null;
+  let fault: 'rotation' | 'rotation_run' | 'rotation_complete' | 'feishu' | 'prompt' | 'reply' | null = null;
   let feishuPosts = 0;
   let promptPosts = 0;
   let replyQueues = 0;
   let rotationDecisions = 0;
+  let rotationRuns = 0;
+  let rotationAction: 'reuse' | 'prepare_checkpoint' | 'rotation_pending' | 'warning_only' = 'reuse';
+  let workflowAutonomy = 'manual';
   const reset = (state: string): Dispatch => (dispatch = {
     id: 'dispatch',
     projectId: 'project',
@@ -41,6 +44,9 @@ async function main() {
         if (data.state === 'rotation_not_required' && fault === 'rotation') {
           throw new Error('crash after rotation decision');
         }
+        if (data.state === 'rotation_completed' && fault === 'rotation_complete') {
+          throw new Error('crash after rotation completion');
+        }
         return dispatch;
       },
       updateMany: async ({ where, data }: {
@@ -52,6 +58,7 @@ async function main() {
         return { count: 1 };
       },
     },
+    scheduledJobState: { findUnique: async () => null },
     taskRun: { count: async () => 0 },
     liveRoomMessage: {
       findFirst: async () => messageExists ? { id: 'message-1' } : null,
@@ -63,8 +70,30 @@ async function main() {
 
   const room = {
     id: 'room',
-    sourceTask: { id: 'task' },
-    members: [{ id: 'user', memberType: 'user' }],
+    title: 'Room',
+    workingDirectory: '/workspace',
+    sourceTask: { id: 'task', name: 'Task', workingDirectory: '/workspace' },
+    members: [
+      { id: 'user', memberType: 'user' },
+      {
+        id: 'agent',
+        memberType: 'local_agent',
+        displayName: 'Codex',
+        userNickname: 'Codex',
+        backend: 'platform_local',
+        harnessType: 'codex',
+        gatewayId: null,
+        roleLabel: null,
+        role: 'custom',
+        runtimeAgentId: null,
+        codexModel: null,
+        codexReasoningEffort: null,
+        joinStatus: 'joined',
+        presenceStatus: 'online',
+        canReply: true,
+        gateway: null,
+      },
+    ],
   };
   const liveRoomBinding = await import('../src/lib/feishu-live-room') as unknown as Record<string, unknown>;
   liveRoomBinding.getBoundLiveRoom = async () => room;
@@ -94,10 +123,45 @@ async function main() {
     jobs: [{
       id: 'workflow',
       type: 'workflow_watcher',
-      config: { execution_policy: { preset: 'workspace' } },
+      config: {
+        execution_policy: { preset: 'workspace' },
+        get workflow_autonomy() { return workflowAutonomy; },
+      },
     }],
+    feishu: { approver_open_ids: ['approver'] },
   };
   projectConfig.loadProjectsConfig = async () => ({ projects: [project] });
+
+  const rotationModule = await import('../src/lib/workflow-session-rotation') as unknown as Record<string, unknown>;
+  rotationModule.evaluateWorkflowRoomRotation = async () => ({
+    thresholds: {
+      checkpointPreparationPercentage: 65,
+      rotationPendingPercentage: 70,
+      highPriorityPercentage: 85,
+    },
+    decision: {
+      action: rotationAction,
+      maximumUsagePercentage: rotationAction === 'rotation_pending' ? 86 : 40,
+      highPriority: rotationAction === 'rotation_pending',
+      dominant: null,
+      samples: [],
+    },
+  });
+  const newSession = await import('../src/lib/feishu-new-session') as unknown as Record<string, unknown>;
+  newSession.prepareWorkflowRotationHandover = async () => 'docs/001_HANDOVER_20260731_fixture.md';
+  newSession.collectNewSessionRisks = async () => ({
+    risks: [],
+    taskRuns: 0,
+    deliveries: 0,
+    status: '',
+    unfinishedPlan: null,
+    head: 'head',
+  });
+  newSession.handleNewSessionCommand = async () => {
+    rotationRuns += 1;
+    if (fault === 'rotation_run') throw new Error('crash after rotation claim');
+    return '✅ rotated';
+  };
 
   const { runWorkflowInBoundLiveRoom } = await import('../src/lib/feishu-workflow');
   const run = () => runWorkflowInBoundLiveRoom({
@@ -124,6 +188,38 @@ async function main() {
   assert.equal(await run(), true);
   assert.equal(rotationDecisions, 2, 'consecutive slices must record reuse without resetting TaskSession');
 
+  workflowAutonomy = 'auto';
+  rotationAction = 'rotation_pending';
+  reset('prepared');
+  fault = 'rotation_run';
+  await assert.rejects(run(), /crash after rotation claim/);
+  assert.equal(dispatch.state, 'rotation_pending', 'claim must be durable before stop/reset/start');
+  fault = null;
+  assert.equal(await run(), true);
+  assert.equal(dispatch.state, 'reply_queued');
+  assert.equal(rotationRuns, 2, 'rotation_pending retry must reuse the event-keyed reset checkpoints');
+
+  messageExists = false;
+  deliveryExists = false;
+  reset('prepared');
+  fault = 'rotation_complete';
+  await assert.rejects(run(), /crash after rotation completion/);
+  assert.equal(dispatch.state, 'rotation_completed');
+  fault = null;
+  assert.equal(await run(), true);
+  assert.equal(dispatch.state, 'reply_queued');
+
+  workflowAutonomy = 'manual';
+  messageExists = false;
+  deliveryExists = false;
+  reset('prepared');
+  fault = 'feishu';
+  await assert.rejects(run(), /crash after Feishu post/);
+  assert.equal(dispatch.state, 'rotation_confirmation_posting');
+  fault = null;
+  await assert.rejects(run(), /rotation confirmation blocked/);
+
+  rotationAction = 'reuse';
   reset('session_reset');
   const feishuPostsBeforeFault = feishuPosts;
   fault = 'feishu';

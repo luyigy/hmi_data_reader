@@ -114,7 +114,8 @@ export const readCodexTokenUsageMetadata = (
     !Number.isFinite(collectedAt)
     || collectedAt > now.getTime() + 60_000
     || now.getTime() - collectedAt > PROVIDER_USAGE_MAX_AGE_MS
-    || (currentThreadId && currentThreadId !== usage.threadId)
+    || !currentThreadId
+    || currentThreadId !== usage.threadId
     || !Number.isFinite(usage.last?.inputTokens)
     || !Number.isFinite(usage.modelContextWindow)
     || usage.modelContextWindow <= 0

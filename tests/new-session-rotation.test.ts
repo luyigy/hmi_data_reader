@@ -42,6 +42,7 @@ async function main() {
   let resetMarkers = 0;
   let liveResets = 0;
   let threadClears = 0;
+  let threadClearTargets: string[] = [];
   let bootstrapPosts = 0;
   let confirmationCard = '';
   const replies: string[] = [];
@@ -78,9 +79,10 @@ async function main() {
     },
     liveRoomMemberSession: {
       count: async () => threaded ? 1 : 0,
-      updateMany: async () => {
+      updateMany: async ({ where }: { where: { memberId: { in: string[] } } }) => {
         threaded = false;
         threadClears += 1;
+        threadClearTargets = where.memberId.in;
         if (fault === 'thread') throw new Error('crash after thread cleanup');
         return { count: 1 };
       },
@@ -244,6 +246,38 @@ async function main() {
   assert.equal(liveResets, 1);
   assert.equal(threadClears, 1);
   assert.equal(bootstrapPosts, 2);
+
+  room.members.push(
+    {
+      ...room.members[0],
+      id: 'kimi-member',
+      displayName: 'Kimi',
+      userNickname: 'Kimi',
+      harnessType: 'kimi-code',
+    },
+    {
+      ...room.members[0],
+      id: 'antigravity-member',
+      displayName: 'Antigravity',
+      userNickname: 'Antigravity',
+      harnessType: 'antigravity',
+    },
+  );
+  threaded = true;
+  const allResult = await handleNewSessionCommand({
+    ...command,
+    options: {
+      all: 'true',
+      blank: 'true',
+      confirmed: 'true',
+      'rotatable-only': 'true',
+      'rotation-key': 'workflow-event',
+    },
+  }, context);
+  assert.match(allResult, /全部 2 个 agent/);
+  assert.deepEqual(threadClearTargets, ['member', 'kimi-member']);
+  assert.ok(Array.from(taskMessages).some((content) => content.includes('Kimi <- blank bootstrap')));
+  assert.ok(!Array.from(taskMessages).some((content) => content.includes('Antigravity <-')));
 
   const beforeHead = (await runGit('rev-parse', 'HEAD')).stdout.trim();
   await handleNewSessionConfirmationCardAction({

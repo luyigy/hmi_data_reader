@@ -8,6 +8,7 @@ export type AntigravityContextUsage = {
 };
 
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const ANTIGRAVITY_ASSUMED_CONTEXT_WINDOW = 1_048_576;
 
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   'gemini-1.5-pro': 2_097_152,
@@ -59,7 +60,8 @@ export const getAntigravityProviderContextUsage = (
 ): {
   usagePercentage: number | null;
   lastRunInputTokens: number;
-  contextWindow: number | null;
+  contextWindow: number;
+  contextWindowAssumed: boolean;
 } | null => {
   if (!value) return null;
   try {
@@ -71,28 +73,37 @@ export const getAntigravityProviderContextUsage = (
     if (!usage || typeof usage !== 'object') return null;
 
     const lastRunInputTokens = Number(usage.lastRunInputTokens ?? usage.usedTokens);
-    const contextWindow = usage.contextWindow != null ? Number(usage.contextWindow) : null;
+    const suppliedContextWindow = usage.contextWindow != null ? Number(usage.contextWindow) : null;
+    const resolvedContextWindow = suppliedContextWindow
+      && Number.isFinite(suppliedContextWindow)
+      && suppliedContextWindow > 0
+      ? suppliedContextWindow
+      : resolveAntigravityContextWindow(usage.modelAlias);
+    const contextWindow = resolvedContextWindow ?? ANTIGRAVITY_ASSUMED_CONTEXT_WINDOW;
 
     if (!Number.isFinite(lastRunInputTokens) || lastRunInputTokens < 0) {
       return null;
     }
 
-    if (usage.updatedAt) {
-      const updatedAtMs = new Date(usage.updatedAt).getTime();
-      if (Number.isNaN(updatedAtMs) || now.getTime() - updatedAtMs > MAX_AGE_MS) {
-        return null;
-      }
+    const updatedAtMs = new Date(usage.updatedAt || '').getTime();
+    if (
+      Number.isNaN(updatedAtMs)
+      || updatedAtMs > now.getTime() + 60_000
+      || now.getTime() - updatedAtMs > MAX_AGE_MS
+    ) {
+      return null;
     }
 
-    const usagePercentage =
-      contextWindow && Number.isFinite(contextWindow) && contextWindow > 0
-        ? Math.max(0, Math.min(100, Math.round((lastRunInputTokens / contextWindow) * 100)))
-        : null;
+    const usagePercentage = Math.max(
+      0,
+      Math.min(100, Math.round((lastRunInputTokens / contextWindow) * 100)),
+    );
 
     return {
       usagePercentage,
       lastRunInputTokens,
       contextWindow,
+      contextWindowAssumed: resolvedContextWindow === null,
     };
   } catch {
     return null;

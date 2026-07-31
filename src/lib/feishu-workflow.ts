@@ -14,10 +14,21 @@ import {
 import { prisma } from '@/lib/prisma';
 import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 import {
+  buildNewSessionConfirmationCard,
+  collectNewSessionRisks,
+  handleNewSessionCommand,
+  prepareWorkflowRotationHandover,
+} from '@/lib/feishu-new-session';
+import {
   findJob,
   findProjectById,
   loadProjectsConfig,
 } from '@/lib/scheduled-jobs/project-config';
+import { resolveWorkflowAutonomy } from '@/lib/scheduled-jobs/workflow-autonomy';
+import {
+  evaluateWorkflowRoomRotation,
+  formatWorkflowRotationNotice,
+} from '@/lib/workflow-session-rotation';
 import {
   buildWorkflowPermissionSnapshot,
   formatWorkflowPermissionSnapshot,
@@ -31,6 +42,7 @@ export const buildWorkflowExecutionCard = (
   workflowContext: string | undefined,
   prompt: string,
   permissionSnapshot?: WorkflowPermissionSnapshot,
+  rotationNotice?: string,
 ) => {
   const instruction = workflowContext && prompt.startsWith(`${workflowContext}\n\n`)
     ? prompt.slice(workflowContext.length + 2)
@@ -48,6 +60,7 @@ export const buildWorkflowExecutionCard = (
       ...(permissionSnapshot
         ? [{ tag: 'markdown', content: `**Workflow permissions**\n${formatWorkflowPermissionSnapshot(permissionSnapshot)}` }]
         : []),
+      ...(rotationNotice ? [{ tag: 'markdown', content: `**Session 治理**\n${rotationNotice}` }] : []),
       { tag: 'note', elements: [{ tag: 'plain_text', content: '以上指令已投递给 Coding Agent；请等待本阶段完成后再继续。' }] },
     ],
   };
@@ -111,6 +124,21 @@ export async function runWorkflowInBoundLiveRoom(args: {
   };
   const boundRoom = await getBoundLiveRoom(context);
   if (!boundRoom?.sourceTask) throw new Error('bound live room has no source task');
+  const rotatableMembers = boundRoom.members.filter((member) =>
+    member.memberType !== 'user'
+    && member.canReply
+    && member.harnessType !== 'antigravity');
+  const scheduledState = await prisma.scheduledJobState.findUnique({
+    where: {
+      projectId_jobId: {
+        projectId: args.projectId,
+        jobId: args.jobId,
+      },
+    },
+    select: { workflowAutonomy: true },
+  });
+  const autonomy = resolveWorkflowAutonomy(job, scheduledState?.workflowAutonomy).mode;
+  let rotationNotice = '';
 
   // A committed HANDOVER can be visible before its agent has emitted its final reply.
   // Keep the watcher event pending; the task-completion wakeup will retry it.
@@ -121,15 +149,163 @@ export async function runWorkflowInBoundLiveRoom(args: {
     if (active) return false;
   }
 
+  if (dispatch.state === 'rotation_confirmation_posting') {
+    throw new Error(`workflow rotation confirmation blocked after unconfirmed Feishu side effect: ${args.eventKey}`);
+  }
+  if (dispatch.state === 'rotation_confirmation_required') return false;
+
   if (dispatch.state === 'prepared') {
+    const rotation = await evaluateWorkflowRoomRotation({
+      room: boundRoom,
+      config: job.config.session_rotation,
+    });
+    rotationNotice = formatWorkflowRotationNotice(rotation.decision, rotation.thresholds);
+    if (rotation.decision.action !== 'rotation_pending' || !rotatableMembers.length) {
+      dispatch = await prisma.workflowDispatch.update({
+        where: { id: dispatch.id },
+        data: {
+          state: rotation.decision.action === 'prepare_checkpoint'
+            ? 'rotation_checkpoint_prepared'
+            : 'rotation_not_required',
+        },
+      });
+      if (!rotatableMembers.length && rotation.decision.action === 'rotation_pending') {
+        rotationNotice += ' 房间内没有可换代的持久 Session；Antigravity 仅参与房间告警。';
+      }
+    } else if (autonomy !== 'auto') {
+      const suggestedHandover = args.prompt.match(/docs\/\d+_HANDOVER_\d{8}_[^\s`]+\.md/)?.[0] || null;
+      const safety = await collectNewSessionRisks({
+        taskId: boundRoom.sourceTask.id,
+        roomId: boundRoom.id,
+        memberIds: rotatableMembers.map(({ id }) => id),
+        workingDirectory: boundRoom.workingDirectory || boundRoom.sourceTask.workingDirectory || project.path,
+        hasCommittedHandover: Boolean(suggestedHandover),
+      });
+      const command = {
+        args: [],
+        options: {
+          all: 'true',
+          blank: 'true',
+          'rotatable-only': 'true',
+          ...(suggestedHandover ? { handover: suggestedHandover } : {}),
+          'rotation-key': args.eventKey,
+          'workflow-project-id': args.projectId,
+          'workflow-job-id': args.jobId,
+          'workflow-event-key': args.eventKey,
+        },
+      };
+      const claimed = await prisma.workflowDispatch.updateMany({
+        where: { id: dispatch.id, state: 'prepared' },
+        data: { state: 'rotation_confirmation_posting' },
+      });
+      if (!claimed.count) return false;
+      const requesterOpenId = project.feishu.approver_open_ids[0];
+      if (!requesterOpenId) throw new Error(`workflow project has no approver for rotation confirmation: ${project.id}`);
+      const feishuMessageId = await sendFeishuInteractiveMessage({
+        receiveId: args.chatId,
+        receiveIdType: 'chat_id',
+        card: buildNewSessionConfirmationCard({
+          command,
+          requesterOpenId,
+          chatType: args.chatType,
+          rotationKey: args.eventKey,
+          risks: safety.risks,
+          detail: `${rotationNotice}\n自治模式：${autonomy}；确认前不会停止运行或切换 Session。`,
+        }),
+      });
+      if (!feishuMessageId) throw new Error('Feishu rotation confirmation response missing message_id');
+      await prisma.workflowDispatch.update({
+        where: { id: dispatch.id },
+        data: {
+          state: 'rotation_confirmation_required',
+          feishuMessageId,
+        },
+      });
+      return false;
+    } else {
+      const workingDirectory = boundRoom.workingDirectory
+        || boundRoom.sourceTask.workingDirectory
+        || project.path;
+      const handover = await prepareWorkflowRotationHandover({
+        taskId: boundRoom.sourceTask.id,
+        taskName: boundRoom.sourceTask.name,
+        roomId: boundRoom.id,
+        roomTitle: boundRoom.title,
+        workingDirectory,
+        memberIds: rotatableMembers.map(({ id }) => id),
+        memberNames: rotatableMembers.map((member) => member.userNickname || member.displayName),
+        rotationKey: args.eventKey,
+        suggestedPath: args.prompt.match(/docs\/\d+_HANDOVER_\d{8}_[^\s`]+\.md/)?.[0] || null,
+      });
+      const claimed = await prisma.workflowDispatch.updateMany({
+        where: { id: dispatch.id, state: 'prepared' },
+        data: { state: 'rotation_pending' },
+      });
+      if (!claimed.count) return false;
+      dispatch = { ...dispatch, state: 'rotation_pending' };
+      const result = await handleNewSessionCommand({
+        args: [],
+        options: {
+          all: 'true',
+          blank: 'true',
+          confirmed: 'true',
+          'rotatable-only': 'true',
+          handover,
+          'rotation-key': args.eventKey,
+          'workflow-event-key': args.eventKey,
+        },
+      }, context);
+      if (!result.startsWith('✅')) throw new Error(`workflow session rotation failed: ${result}`);
+      dispatch = await prisma.workflowDispatch.update({
+        where: { id: dispatch.id },
+        data: { state: 'rotation_completed' },
+      });
+    }
+  } else if (dispatch.state === 'rotation_pending') {
+    const workingDirectory = boundRoom.workingDirectory
+      || boundRoom.sourceTask.workingDirectory
+      || project.path;
+    const handover = await prepareWorkflowRotationHandover({
+      taskId: boundRoom.sourceTask.id,
+      taskName: boundRoom.sourceTask.name,
+      roomId: boundRoom.id,
+      roomTitle: boundRoom.title,
+      workingDirectory,
+      memberIds: rotatableMembers.map(({ id }) => id),
+      memberNames: rotatableMembers.map((member) => member.userNickname || member.displayName),
+      rotationKey: args.eventKey,
+    });
+    const result = await handleNewSessionCommand({
+      args: [],
+      options: {
+        all: 'true',
+        blank: 'true',
+        confirmed: 'true',
+        'rotatable-only': 'true',
+        handover,
+        'rotation-key': args.eventKey,
+        'workflow-event-key': args.eventKey,
+      },
+    }, context);
+    if (!result.startsWith('✅')) throw new Error(`workflow session rotation failed: ${result}`);
     dispatch = await prisma.workflowDispatch.update({
       where: { id: dispatch.id },
-      data: { state: 'rotation_not_required' },
+      data: { state: 'rotation_completed' },
     });
   }
 
   args.signal.throwIfAborted();
-  if (dispatch.state === 'rotation_not_required' || dispatch.state === 'session_reset') {
+  if ([
+    'rotation_not_required',
+    'rotation_checkpoint_prepared',
+    'rotation_completed',
+    'session_reset',
+  ].includes(dispatch.state)) {
+    rotationNotice ||= dispatch.state === 'rotation_completed'
+      ? 'Session 已按 event key 完成换代并恢复 workflow dispatch。'
+      : dispatch.state === 'rotation_checkpoint_prepared'
+      ? '已记录 checkpoint 准备建议；本次继续复用原 Session。'
+      : 'rotation_not_required：本次继续复用原 Session。';
     dispatch = await prisma.workflowDispatch.update({
       where: { id: dispatch.id },
       data: { state: 'blocked' },
@@ -137,7 +313,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
     const feishuMessageId = await sendFeishuInteractiveMessage({
       receiveId: args.chatId,
       receiveIdType: 'chat_id',
-      card: buildWorkflowExecutionCard(args.workflowContext, args.prompt, permissionSnapshot),
+      card: buildWorkflowExecutionCard(args.workflowContext, args.prompt, permissionSnapshot, rotationNotice),
     });
     if (!feishuMessageId) throw new Error('Feishu workflow card response missing message_id');
     dispatch = await prisma.workflowDispatch.update({

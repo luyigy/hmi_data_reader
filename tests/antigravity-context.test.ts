@@ -25,7 +25,7 @@ describe('antigravity-context', () => {
       assert.equal(getAntigravityProviderContextUsage('{}'), null);
     });
 
-    it('returns usagePercentage null when contextWindow is null (unknown model)', () => {
+    it('uses an explicitly labelled 1M assumed window when the model is unknown', () => {
       const now = new Date();
       const metadata = JSON.stringify({
         antigravityContextUsage: {
@@ -38,8 +38,9 @@ describe('antigravity-context', () => {
       const result = getAntigravityProviderContextUsage(metadata, now);
       assert.notEqual(result, null);
       assert.equal(result?.lastRunInputTokens, 16223);
-      assert.equal(result?.contextWindow, null);
-      assert.equal(result?.usagePercentage, null);
+      assert.equal(result?.contextWindow, 1_048_576);
+      assert.equal(result?.usagePercentage, 2);
+      assert.equal(result?.contextWindowAssumed, true);
     });
 
     it('calculates correct usage percentage when contextWindow is known', () => {
@@ -57,6 +58,22 @@ describe('antigravity-context', () => {
       assert.equal(result?.lastRunInputTokens, 600000);
       assert.equal(result?.contextWindow, 1048576);
       assert.equal(result?.usagePercentage, 57);
+      assert.equal(result?.contextWindowAssumed, false);
+    });
+
+    it('uses the known model mapping when older metadata omitted the window', () => {
+      const now = new Date();
+      const result = getAntigravityProviderContextUsage(JSON.stringify({
+        antigravityContextUsage: {
+          lastRunInputTokens: 100000,
+          contextWindow: null,
+          modelAlias: 'claude-3-5-sonnet',
+          updatedAt: now.toISOString(),
+        },
+      }), now);
+      assert.equal(result?.contextWindow, 200_000);
+      assert.equal(result?.usagePercentage, 50);
+      assert.equal(result?.contextWindowAssumed, false);
     });
 
     it('returns null if usage metadata has expired', () => {
@@ -71,6 +88,15 @@ describe('antigravity-context', () => {
       });
 
       assert.equal(getAntigravityProviderContextUsage(metadata, now), null);
+    });
+
+    it('returns null if usage metadata has no trustworthy collection time', () => {
+      assert.equal(getAntigravityProviderContextUsage(JSON.stringify({
+        antigravityContextUsage: {
+          lastRunInputTokens: 500000,
+          contextWindow: null,
+        },
+      })), null);
     });
 
     it('returns null for negative tokens', () => {
@@ -99,14 +125,15 @@ describe('antigravity-context', () => {
       assert.equal(usage?.lastRunInputTokens, 16223);
       assert.equal(usage?.contextWindow, null);
 
-      // Verify that getAntigravityProviderContextUsage returns usagePercentage null when contextWindow is null
+      // Unknown model metadata is conservatively evaluated against the explicit 1M assumption.
       const formatted = getAntigravityProviderContextUsage(
         JSON.stringify({ antigravityContextUsage: usage })
       );
       assert.notEqual(formatted, null);
       assert.equal(formatted?.lastRunInputTokens, 16223);
-      assert.equal(formatted?.contextWindow, null);
-      assert.equal(formatted?.usagePercentage, null);
+      assert.equal(formatted?.contextWindow, 1_048_576);
+      assert.equal(formatted?.usagePercentage, 2);
+      assert.equal(formatted?.contextWindowAssumed, true);
     });
 
     it('resolves contextWindow when modelAlias is explicitly provided', () => {
