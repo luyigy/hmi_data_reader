@@ -33,6 +33,8 @@ import {
   configuredWorkflowAutonomy,
   workflowAutonomyAllows,
 } from './workflow-autonomy';
+import { loadProjectsConfig, type ProjectsConfig } from './project-config';
+import { proposeNextWorkflowInboxPlan } from './workflow-roadmap-inbox';
 
 type Pending = WorkflowReviewPending & {
   key: string;
@@ -92,6 +94,7 @@ type WorkflowDocumentImporter = (args: {
 }) => Promise<string>;
 type WorkflowReviewCardSender = typeof sendFeishuWorkflowReviewCard;
 type WorkflowReviewCardExpirer = (messageId: string) => Promise<void>;
+type ProjectsConfigLoader = () => Promise<ProjectsConfig>;
 
 const declared = (value: unknown) => typeof value === 'string' && value.trim() ? value : '未声明';
 
@@ -219,6 +222,7 @@ export const workflowWatcherHandler = async (
     resolution: 'expired',
     actorName: 'Workflow watcher',
   }),
+  loadProjectRegistry: ProjectsConfigLoader = loadProjectsConfig,
 ) => {
   const executionPolicy = validateWorkflowExecutionPolicy(
     job.config.execution_policy,
@@ -625,6 +629,53 @@ export const workflowWatcherHandler = async (
     };
   }
   if (gate === 'terminal') {
+    if (
+      candidate.type === 'HANDOVER'
+      && autonomy === 'auto'
+      && document.action === 'await_acceptance'
+      && metadata.plan_progress === 'complete'
+    ) {
+      let proposal;
+      try {
+        proposal = await proposeNextWorkflowInboxPlan({
+          project,
+          job,
+          projects: await loadProjectRegistry(),
+          head,
+          watchRoot,
+          contract,
+          handoverMetadata: metadata,
+          signal,
+        });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        await send(
+          project.feishu.chat_id,
+          `Auto Roadmap/Inbox 提议失败并已停止：${reason}`,
+          eventKey,
+          'auto_plan_failed',
+        );
+        throw error;
+      }
+      if (proposal.status === 'created') {
+        await send(project.feishu.chat_id, [
+          `Auto 已从 Git ${proposal.sourcePath} 生成新的审批 PLAN：${proposal.planPath}`,
+          `候选 event key：${proposal.eventKey}`,
+          `预期 HEAD：${head}`,
+          '下一轮 watcher 将复用现有 PLAN 审批卡；批准前不会实施。',
+        ].join('\n'), eventKey, 'auto_plan_created');
+        return {
+          summary: `head=${head} candidate=${candidate.filePath} auto_plan=${proposal.planPath} result=proposed`,
+          cursor: previous,
+        };
+      }
+      await send(
+        project.feishu.chat_id,
+        `Auto Roadmap/Inbox 已停止：${proposal.reason}`,
+        eventKey,
+        'auto_plan_stopped',
+      );
+    }
     if (candidate.type !== 'HANDOVER') {
       await send(project.feishu.chat_id,
         `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
