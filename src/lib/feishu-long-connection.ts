@@ -39,6 +39,7 @@ import {
 } from '@/lib/feishu-card-action';
 import { handleLiveRoomHandoffPlanCardAction } from '@/lib/live-room-handoff-plan';
 import { handleNewSessionConfirmationCardAction } from '@/lib/feishu-new-session';
+import { openFeishuRoomCreationCard } from '@/lib/feishu-room-create-card';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
 import {
   buildFeishuCommandCenterCardUpdate,
@@ -57,6 +58,12 @@ type FeishuLongConnectionState = {
   startPromise?: Promise<void>;
   messageIds: Map<string, number>;
 };
+
+const AP_COMMAND_FORMS = {
+  submitWorkspace: 'form-workspace', submitChat: 'form-chat', submitPlan: 'form-plan',
+  submitSchedule: 'form-schedule', submitRoom: 'form-room-create',
+  submitRoomRestriction: 'form-room-restriction', submitAgentRole: 'form-agent-role',
+} as const;
 
 type FeishuWsMessagePayload = {
   sender?: {
@@ -254,19 +261,7 @@ function buildCardActionHandler(prefix: string) {
         ? 'group'
         : undefined;
     const submitName = action.name?.replace(/_(p2p|group)$/, '');
-    const submittedForm = ({
-      submitWorkspace: 'form-workspace',
-      submitChat: 'form-chat',
-      submitPlan: 'form-plan',
-      submitSchedule: 'form-schedule',
-      submitRoomRestriction: 'form-room-restriction',
-      submitAgentRole: 'form-agent-role',
-    } as const)[submitName as 'submitWorkspace'
-      | 'submitChat'
-      | 'submitPlan'
-      | 'submitSchedule'
-      | 'submitRoomRestriction'
-      | 'submitAgentRole'];
+    const submittedForm = AP_COMMAND_FORMS[submitName as keyof typeof AP_COMMAND_FORMS];
     const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
     if (!cmd && !submittedForm) {
       return {};
@@ -274,6 +269,12 @@ function buildCardActionHandler(prefix: string) {
 
     const { openId, chatId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
+
+    if (cmd === 'ap-room-create') return openFeishuRoomCreationCard({
+      openId,
+      chatId,
+      chatType: action.value?.chatType === 'p2p' ? 'p2p' : 'group',
+    });
 
     if (cmd === 'ap-room-control') {
       const value = data.action.value as Record<string, unknown>;

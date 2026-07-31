@@ -116,6 +116,11 @@ export type FeishuRoomControlMember = {
   userNickname?: string | null;
 };
 
+export type FeishuRoomCreationAgent = {
+  id: string;
+  label: string;
+};
+
 const FORM_DEFINITIONS = {
   'form-workspace': {
     title: '切换工作区',
@@ -261,6 +266,7 @@ export const buildFeishuCommandCenterCard = (
   const [group, commands] = HELP_PAGES[pageIndex];
   const formButtons = categoryView === 'room'
     ? [
+      callbackButton('创建/配置房间…', { cmd: 'ap-room-create', chatType }),
       callbackButton('发送消息…', { cmd: 'ap-menu', view: 'form-chat', chatType }),
       callbackButton('创建 PLAN…', { cmd: 'ap-menu', view: 'form-plan', chatType }),
       callbackButton('设置角色…', { cmd: 'ap-room-control', view: 'role', chatType }),
@@ -384,6 +390,97 @@ export const buildFeishuRoomControlCard = (
   );
 };
 
+export const buildFeishuRoomCreationCard = (
+  chatType: 'p2p' | 'group',
+  agents: FeishuRoomCreationAgent[],
+  workspaceRoot?: string | null,
+) => cardShell('创建/配置 Live Room', '复用现有 /ap room；已绑定的会话会更新当前房间', [
+  {
+    tag: 'markdown',
+    content: `**选择 Agent 并明确工作目录。**${workspaceRoot ? `\n授权根目录：\`${workspaceRoot}\`` : ''}`,
+  },
+  {
+    tag: 'form',
+    name: 'form-room-create',
+    vertical_spacing: '12px',
+    elements: [
+      {
+        tag: 'input',
+        name: 'workdir',
+        required: true,
+        width: 'fill',
+        label: { tag: 'plain_text', content: '工作目录' },
+        placeholder: { tag: 'plain_text', content: 'root 内的绝对或相对路径' },
+        ...(workspaceRoot ? { default_value: workspaceRoot } : {}),
+      },
+      {
+        tag: 'multi_select_static',
+        name: 'agents',
+        required: true,
+        width: 'fill',
+        placeholder: { tag: 'plain_text', content: '选择一个或多个 Agent' },
+        options: agents.map((agent) => ({
+          text: { tag: 'plain_text', content: agent.label },
+          value: agent.id,
+        })),
+      },
+      {
+        tag: 'input',
+        name: 'title',
+        width: 'fill',
+        label: { tag: 'plain_text', content: '房间标题（可选）' },
+        placeholder: { tag: 'plain_text', content: '默认使用当前飞书会话名称' },
+      },
+      {
+        tag: 'input',
+        name: 'topic',
+        width: 'fill',
+        input_type: 'multiline_text',
+        rows: 2,
+        max_rows: 4,
+        auto_resize: true,
+        label: { tag: 'plain_text', content: 'Topic（可选）' },
+        placeholder: { tag: 'plain_text', content: '本房间当前目标' },
+      },
+      {
+        tag: 'select_static',
+        name: 'profile',
+        required: true,
+        width: 'fill',
+        initial_option: 'safe',
+        placeholder: { tag: 'plain_text', content: '选择权限档位' },
+        options: [
+          { text: { tag: 'plain_text', content: 'Safe Local · 禁止网络' }, value: 'safe' },
+          { text: { tag: 'plain_text', content: 'Dev Local · 允许网络' }, value: 'dev' },
+          { text: { tag: 'plain_text', content: 'Full Access · 需要审批' }, value: 'full' },
+        ],
+      },
+      {
+        tag: 'select_static',
+        name: 'mode',
+        required: true,
+        width: 'fill',
+        initial_option: 'discussion',
+        placeholder: { tag: 'plain_text', content: '选择房间模式' },
+        options: [
+          { text: { tag: 'plain_text', content: 'Discussion · 讨论' }, value: 'discussion' },
+          { text: { tag: 'plain_text', content: 'Execution · 执行' }, value: 'execution' },
+          { text: { tag: 'plain_text', content: 'Hybrid · 混合' }, value: 'hybrid' },
+        ],
+      },
+      {
+        tag: 'button',
+        name: `submitRoom_${chatType}`,
+        text: { tag: 'plain_text', content: '创建/应用房间配置' },
+        type: 'primary_filled',
+        width: 'fill',
+        form_action_type: 'submit',
+      },
+    ],
+  },
+  buttonColumns([callbackButton('返回分类', { cmd: 'ap-menu', view: 'room', chatType })]),
+], 'wathet');
+
 export const buildFeishuCommandCenterCards = (chatType: 'p2p' | 'group') => [
   buildFeishuCommandCenterCard(chatType),
 ];
@@ -401,6 +498,25 @@ export const buildFeishuCommandFromForm = (
   values: Record<string, unknown> | undefined,
 ): ParsedFeishuCommand | null => {
   const text = (name: string) => typeof values?.[name] === 'string' ? values[name].trim() : '';
+  const selected = (name: string) => (Array.isArray(values?.[name])
+    ? values[name]
+    : typeof values?.[name] === 'string' ? values[name].split(',') : [])
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (form === 'form-room-create' && text('workdir') && selected('agents').length && text('profile') && text('mode')) {
+    return {
+      command: 'room',
+      args: text('title') ? [text('title')] : [],
+      options: {
+        workdir: text('workdir'),
+        agents: selected('agents').join(','),
+        profile: text('profile'),
+        mode: text('mode'),
+        ...(text('topic') ? { topic: text('topic') } : {}),
+      },
+    };
+  }
   if (form === 'form-workspace' && text('path')) {
     return { command: 'workspace', args: [text('path')], options: {} };
   }
