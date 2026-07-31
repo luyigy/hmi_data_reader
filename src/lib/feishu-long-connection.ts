@@ -39,7 +39,7 @@ import {
 } from '@/lib/feishu-card-action';
 import { handleLiveRoomHandoffPlanCardAction } from '@/lib/live-room-handoff-plan';
 import { handleNewSessionConfirmationCardAction } from '@/lib/feishu-new-session';
-import { openFeishuRoomCreationCard } from '@/lib/feishu-room-create-card';
+import { openFeishuRoomCreationCard, primeFeishuRoomCreationAgents } from '@/lib/feishu-room-create-card';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
 import {
   buildFeishuCommandCenterCardUpdate,
@@ -891,6 +891,7 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
     });
 
     await wsClient.start({ eventDispatcher });
+    void primeFeishuRoomCreationAgents();
 
     state.status = 'running';
     state.startedAt = new Date().toISOString();
