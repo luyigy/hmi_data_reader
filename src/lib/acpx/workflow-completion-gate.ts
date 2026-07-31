@@ -1,6 +1,11 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readWorkflowContract, selectWorkflowCandidates, validateWorkflowDocuments } from '@/lib/scheduled-jobs/workflow-validator';
+import {
+  readWorkflowContract,
+  selectWorkflowCandidates,
+  validateWorkflowDocuments,
+  WorkflowDocumentValidationError,
+} from '@/lib/scheduled-jobs/workflow-validator';
 import { assertLongFilesDidNotGrow, captureLongFileBaseline, type LongFileBaseline } from '@/lib/long-file-guard';
 
 const git = (cwd: string, ...args: string[]) =>
@@ -102,14 +107,22 @@ export const assertWorkflowCompletion = async (cwd: string, baseline: WorkflowCo
     .filter((filePath) => dirtySnapshot[filePath] !== baseline.dirty[filePath]);
 
   if (dirty.length) {
-    throw new Error(`workflow completion blocked: uncommitted workflow document(s): ${dirty.join(', ')}`);
+    // Dirty workflow documents (e.g. left behind by a hook-rejected commit) go
+    // through the same correction loop as validation failures, so the session
+    // gets a chance to fix and commit them instead of deadlocking the gate.
+    throw new WorkflowCompletionValidationError(
+      `uncommitted workflow document(s): ${dirty.join(', ')}`,
+      head,
+      dirty,
+    );
   }
   if (changed.length) {
     try {
       await validateWorkflowDocuments({ cwd, ref: head, filePaths: changed });
     } catch (error) {
+      if (!(error instanceof WorkflowDocumentValidationError)) throw error;
       throw new WorkflowCompletionValidationError(
-        error instanceof Error ? error.message : String(error),
+        error.message,
         head,
         changed,
       );

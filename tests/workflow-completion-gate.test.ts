@@ -79,6 +79,22 @@ S01
   git('commit', '-qm', 'valid plan');
   await assertWorkflowCompletion(root, baseline);
 
+  // Dirty workflow documents (e.g. left behind by a hook-rejected commit) must
+  // enter the correction loop instead of deadlocking the gate.
+  const hookRejectedBaseline = await getWorkflowCompletionBaseline(root);
+  await writeFile(planPath, `${plan('start_first_slice')}\nhook rejected leftover\n`);
+  let dirtyCorrections = 0;
+  await completeWorkflowWithCorrections(root, hookRejectedBaseline, async (error, attempt) => {
+    dirtyCorrections += 1;
+    assert.ok(error instanceof WorkflowCompletionValidationError);
+    assert.equal(attempt, 1);
+    assert.deepEqual(error.filePaths, ['docs/001_PLAN_20260726_test.md']);
+    assert.match(error.message, /uncommitted workflow document/);
+    git('add', '.');
+    git('commit', '-qm', 'commit hook-rejected leftover');
+  });
+  assert.equal(dirtyCorrections, 1);
+
   const validHead = await getWorkflowCompletionBaseline(root);
   await writeFile(planPath, plan('await_plan_approval'));
   git('add', '.');

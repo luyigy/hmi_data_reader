@@ -1,6 +1,59 @@
-import { validateWorkflowDocuments } from '../src/lib/scheduled-jobs/workflow-validator';
+import { readFile } from 'node:fs/promises';
+import {
+  validateWorkflowDocuments,
+  WorkflowDocumentValidationError,
+} from '../src/lib/scheduled-jobs/workflow-validator';
+
+// Printed next to genuine document validation failures in --hook-batch mode.
+// The Git reference-transaction hook only rejects a commit when this marker is
+// present, so validator runtime crashes (missing node/ts-node, broken contract
+// loading) degrade to a warning instead of blocking every commit.
+export const DOCUMENT_VALIDATION_FAILED_MARKER = 'WORKFLOW_DOCUMENT_VALIDATION_FAILED';
+
+const hookBatchMode = process.argv[2] === '--hook-batch';
 
 async function main() {
+  if (hookBatchMode) {
+    const batchPath = process.argv[3];
+    if (!batchPath) throw new Error('usage: validate-workflow-documents --hook-batch <batch-file>');
+    const groups = new Map<string, {
+      contractRef: string;
+      ref: string;
+      contractPath: string;
+      filePaths: string[];
+    }>();
+    for (const line of (await readFile(batchPath, 'utf8')).split('\n').filter(Boolean)) {
+      const [contractRef, ref, contractPath, filePath, ...extra] = line.split('\t');
+      if (!contractRef || !ref || !contractPath || !filePath || extra.length) {
+        throw new Error('invalid workflow hook batch');
+      }
+      const key = JSON.stringify([contractRef, ref, contractPath]);
+      const group = groups.get(key) ?? { contractRef, ref, contractPath, filePaths: [] };
+      group.filePaths.push(filePath);
+      groups.set(key, group);
+    }
+    let documentFailure = false;
+    let runtimeFailure = false;
+    for (const group of Array.from(groups.values())) {
+      try {
+        await validateWorkflowDocuments({ cwd: process.cwd(), ...group });
+      } catch (error) {
+        if (error instanceof WorkflowDocumentValidationError) {
+          documentFailure = true;
+          console.error(`${DOCUMENT_VALIDATION_FAILED_MARKER}\n${error.message}`);
+        } else {
+          runtimeFailure = true;
+          console.error(
+            `[workflow-guard] validator runtime failure, commit allowed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+    }
+    if (documentFailure) process.exitCode = 1;
+    else if (runtimeFailure) process.exitCode = 2;
+    return;
+  }
+
   const [ref, ...filePaths] = process.argv.slice(2);
   if (!ref || !filePaths.length) {
     throw new Error('usage: npm run workflow:validate -- <git-ref> <PLAN-or-HANDOVER> [...]');
@@ -21,5 +74,8 @@ async function main() {
 
 void main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
+  // In hook-batch mode only genuine document validation failures (exit 1 with
+  // the marker) may reject a commit; anything else is a validator runtime
+  // failure and must not block unrelated commits.
+  process.exitCode = hookBatchMode ? 2 : 1;
 });

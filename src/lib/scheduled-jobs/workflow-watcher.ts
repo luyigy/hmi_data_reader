@@ -21,6 +21,7 @@ import {
   readWorkflowContract,
   selectWorkflowCandidates,
   validateWorkflowDocument,
+  WorkflowDocumentValidationError,
   workflowFrontMatter,
   type WorkflowContract,
 } from './workflow-validator';
@@ -48,6 +49,7 @@ type ValidationFailure = {
   blob: string;
   error: string;
   notified?: boolean;
+  quarantined?: boolean;
 };
 
 type WorkflowBlocker = {
@@ -243,7 +245,7 @@ export const workflowWatcherHandler = async (
     throw new Error('workflow_watcher active identity config is incomplete');
   }
 
-  await ensureAppendOnlyGitRef(project.path, project.ref, signal);
+  await ensureAppendOnlyGitRef(project.path, project.ref, signal, contractPath);
   const head = (await git(project.path, signal, 'rev-parse', '--verify', `${project.ref}^{commit}`)).trim();
   const previous = workflowCursor(cursor, job.config.initial_cursor_commit);
   const contract = await readWorkflowContract(project.path, head, contractPath, signal);
@@ -509,35 +511,61 @@ export const workflowWatcherHandler = async (
 
   if (!candidates.length) return { summary: `head=${head} candidate=none`, cursor: { commit: head, eventKey: previous.eventKey } };
   const candidate = candidates.at(-1)!;
-  if (candidate.rawNumber.length !== contract.numbering.width) throw new Error('workflow document number has invalid width');
-  if (contract.numbering.unique && candidates.filter((item) => item.number === candidate.number).length !== 1) {
-    throw new Error(`multiple workflow documents use number ${candidate.number}`);
-  }
-
   const blob = (await git(project.path, signal, 'rev-parse', `${head}:${candidate.filePath}`)).trim();
   const content = await git(project.path, signal, 'show', `${head}:${candidate.filePath}`);
   let metadata: Record<string, unknown>;
   let document: Awaited<ReturnType<typeof validateWorkflowDocument>>;
   try {
-    metadata = workflowFrontMatter(content);
+    if (candidate.rawNumber.length !== contract.numbering.width) {
+      throw new WorkflowDocumentValidationError('workflow document number has invalid width');
+    }
+    if (contract.numbering.unique && candidates.filter((item) => item.number === candidate.number).length !== 1) {
+      throw new WorkflowDocumentValidationError(`multiple workflow documents use number ${candidate.number}`);
+    }
+    try {
+      metadata = workflowFrontMatter(content);
+    } catch (error) {
+      throw new WorkflowDocumentValidationError(error instanceof Error ? error.message : String(error));
+    }
     document = await validateWorkflowDocument(
       project.path, head, candidate.filePath, candidate.type, content, metadata, contract, watchRoot, signal,
     );
   } catch (error) {
+    if (!(error instanceof WorkflowDocumentValidationError)) throw error;
     const key = `${candidate.filePath}:${blob}:validation_failed`;
-    let failure = previous.validationFailure?.key === key
-      ? previous.validationFailure
-      : {
-        key,
-        path: candidate.filePath,
-        blob,
-        error: error instanceof Error ? error.message : String(error),
-      };
+    const prior = previous.validationFailure?.key === key ? previous.validationFailure : undefined;
+    let failure: ValidationFailure = {
+      key,
+      path: candidate.filePath,
+      blob,
+      error: error instanceof Error ? error.message : String(error),
+      notified: prior?.notified,
+      quarantined: prior?.quarantined,
+    };
     if (mode === 'active' && !failure.notified) {
       await send(project.feishu.chat_id,
         `❌ workflow validator 未通过：${candidate.filePath}\ncommit: ${head}\n${failure.error}\n未通过校验的文档不会触发下一 Workflow 动作；原执行 Session 会在 completion gate 中自动纠正，修订提交后 watcher 将自动复验。`,
         key, 'validation_failed');
       failure = { ...failure, notified: true };
+    }
+    if (prior?.notified) {
+      // Quarantine: alert once, then advance the cursor past the broken document
+      // so it cannot deadlock every later workflow document in the queue.
+      // Re-committing a fixed document produces a new blob/eventKey and is
+      // validated again from the advanced cursor.
+      if (mode === 'active' && !failure.quarantined) {
+        await send(project.feishu.chat_id, [
+          `🗑 workflow 文档复验仍未通过，已进入隔离区：${candidate.filePath}`,
+          `commit: ${head}`,
+          failure.error,
+          'watcher 游标已前移跳过该文档，后续 Workflow 不再被阻塞；修复并重新提交该文档后将自动重新校验。',
+        ].join('\n'), key, 'validation_quarantined');
+      }
+      failure = { ...failure, quarantined: true };
+      return {
+        summary: `head=${head} candidate=${candidate.filePath} validation_failed quarantined=true`,
+        cursor: { commit: head, eventKey: key, validationFailure: failure },
+      };
     }
     return {
       summary: `head=${head} candidate=${candidate.filePath} validation_failed notified=${failure.notified === true}`,

@@ -3,7 +3,11 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readWorkflowContract, validateWorkflowDocuments } from '../src/lib/scheduled-jobs/workflow-validator';
+import {
+  readWorkflowContract,
+  validateWorkflowDocuments,
+  WorkflowDocumentValidationError,
+} from '../src/lib/scheduled-jobs/workflow-validator';
 
 async function main() {
   const legacyRoot = await mkdtemp(path.join(os.tmpdir(), 'workflow-validator-legacy-'));
@@ -152,6 +156,28 @@ plan_progress: in_progress
   await validate('docs/001_PLAN_20260726_valid.md');
   await validate('docs/004_HANDOVER_20260726_valid.md');
   await validate('docs/009_HANDOVER_20260726_no_roadmap.md');
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root,
+      ref: 'refs/heads/missing-runtime-ref',
+      contractRef: ref,
+      filePaths: ['docs/001_PLAN_20260726_valid.md'],
+    }),
+    (error: Error) => !(error instanceof WorkflowDocumentValidationError),
+    'Git/runtime failures must not be classified as document validation failures',
+  );
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root,
+      ref,
+      filePaths: [
+        'docs/002_PLAN_20260726_terminal_prompt.md',
+        'docs/010_PLAN_20260726_missing_runtime_file.md',
+      ],
+    }),
+    (error: Error) => error instanceof WorkflowDocumentValidationError,
+    'a proven document failure must still fail closed when the same batch also has a runtime failure',
+  );
   await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /非可执行动作不得包含自动化 Prompt/);
   await assert.rejects(validate('docs/003_PLAN_20260726_missing_prompt.md'), /必须包含且只能包含一对 Prompt 标记/);
   await assert.rejects(

@@ -57,6 +57,36 @@ async function main() {
 
   await executeScheduledJob(prisma, project, job('failure', { fail: true }), scheduledFor, noopTestHandler);
   await executeScheduledJob(prisma, project, job('timeout', { delay_ms: 100, timeout_ms: 10 }), scheduledFor, noopTestHandler);
+  const feishuCalls: Array<{ body?: string }> = [];
+  process.env.FEISHU_APP_ID = 'test-app';
+  process.env.FEISHU_APP_SECRET = 'test-secret';
+  global.fetch = (async (_input, init) => {
+    feishuCalls.push({ body: init?.body?.toString() });
+    return new Response(JSON.stringify(feishuCalls.length === 1
+      ? { code: 0, tenant_access_token: 'token', expire: 3600 }
+      : { code: 0 }));
+  }) as typeof fetch;
+  const activeFailureJob = { ...job('active-failure', { fail: true }), mode: 'active' as const };
+  assert.equal(
+    await executeScheduledJob(prisma, project, activeFailureJob, scheduledFor, noopTestHandler),
+    false,
+  );
+  const failureNotice = JSON.parse(feishuCalls[1].body!).content;
+  assert.match(failureNotice, /定时任务执行失败：Runner test \/ active-failure/);
+  assert.match(failureNotice, /原因：noop test failure/);
+  assert.match(failureNotice, /影响：本次动作未完成.*其他项目继续运行/);
+  assert.match(failureNotice, /下一步：修复上述运行故障后重新运行/);
+  assert.equal(
+    await executeScheduledJob(
+      prisma,
+      project,
+      activeFailureJob,
+      new Date(scheduledFor.getTime() + 60_000),
+      noopTestHandler,
+    ),
+    false,
+  );
+  assert.equal(feishuCalls.length, 2, 'unchanged consecutive failures must not resend notifications');
   const stoppedJob = job('stopped', { delay_ms: 10_000 });
   const unaffectedJob = job('unaffected', { delay_ms: 20 });
   const stoppedRun = executeScheduledJob(prisma, project, stoppedJob, new Date(), noopTestHandler);
@@ -84,6 +114,7 @@ async function main() {
     success: 'succeeded',
     event: 'succeeded',
     failure: 'failed',
+    'active-failure': 'failed',
     timeout: 'timed_out',
     stopped: 'failed',
     unaffected: 'succeeded',

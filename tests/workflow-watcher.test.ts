@@ -655,6 +655,7 @@ S01
   assert.match(await readFile(callsFile, 'utf8'), /docs \+create --as bot/);
 
   const beforeInvalid = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-invalid' };
+  await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
   await writeFile(path.join(root, 'docs/branch/main/006_PLAN_20260725_invalid.md'), `---
 doc_type: PLAN
 doc_status: ready
@@ -678,19 +679,22 @@ S01
   assert.match(String(apiCalls.at(-1)?.body.content), /workflow validator 未通过/);
   assert.match(String(apiCalls.at(-1)?.body.content), /原执行 Session.*completion gate.*自动纠正/);
   const retry = await run(invalid.cursor);
-  assert.match(retry.summary, /validation_failed notified=true/);
+  assert.match(retry.summary, /validation_failed quarantined=true/);
+  assert.equal((retry.cursor as { commit: string }).commit, git('rev-parse', 'HEAD'));
   assert.equal(workflowRuns.length, runsBeforeInvalid, 'same blob must remain notification-idempotent');
-  assert.equal(apiCalls.length, noticesBeforeInvalid + 1, 'same blob must not send another notification');
+  assert.equal(apiCalls.length, noticesBeforeInvalid + 2, 'same blob must emit one quarantine notification');
+  assert.match(String(apiCalls.at(-1)?.body.content), /复验仍未通过.*隔离区/);
 
   await writeFile(
     path.join(root, 'docs/branch/main/006_PLAN_20260725_invalid.md'),
     `${git('show', 'HEAD:docs/branch/main/006_PLAN_20260725_invalid.md')}\nchanged invalid blob\n`,
   );
+  await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
   git('add', '.');
   git('commit', '-qm', 'change invalid plan blob');
   const changedInvalid = await run(retry.cursor);
   assert.match(changedInvalid.summary, /validation_failed notified=true/);
-  assert.equal(apiCalls.length, noticesBeforeInvalid + 2, 'new blob must be revalidated and notified');
+  assert.equal(apiCalls.length, noticesBeforeInvalid + 3, 'new blob must be revalidated and notified');
   assert.equal(workflowRuns.length, runsBeforeInvalid, 'new invalid blob must still not dispatch a repair Session');
 
   const rewriteCursor = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-rewrite' };

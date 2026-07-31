@@ -2,6 +2,17 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { parse } from 'yaml';
 
+/** Thrown only when workflow documents themselves fail validation; runtime/infra
+ * failures (missing contract, git errors, validator crashes) stay plain Errors so
+ * callers such as the Git reference-transaction hook can tell the two apart. */
+export class WorkflowDocumentValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
+    this.name = 'WorkflowDocumentValidationError';
+  }
+}
+
 export type WorkflowContract = {
   schema_version: number;
   documents: {
@@ -398,7 +409,7 @@ export const validateWorkflowDocument = async (
     }
   }
   if (issues.length) {
-    throw new Error(
+    throw new WorkflowDocumentValidationError(
       `${filePath}：共发现 ${issues.length} 个工作流文档错误\n`
       + issues.map((item, index) => `  ${index + 1}. ${item}`).join('\n')
       + '\n  修复并提交后由平台 completion gate 重新校验。',
@@ -410,6 +421,7 @@ export const validateWorkflowDocument = async (
 export const validateWorkflowDocuments = async ({
   cwd,
   ref,
+  contractRef = ref,
   filePaths,
   contractPath = 'docs/workflow/workflow-contract.yaml',
   signal = new AbortController().signal,
@@ -417,38 +429,47 @@ export const validateWorkflowDocuments = async ({
 }: {
   cwd: string;
   ref: string;
+  contractRef?: string;
   filePaths: string[];
   contractPath?: string;
   signal?: AbortSignal;
   contentOverrides?: Record<string, string>;
 }) => {
-  const contract = await readWorkflowContract(cwd, ref, contractPath, signal);
+  const contract = await readWorkflowContract(cwd, contractRef, contractPath, signal);
   const candidates = selectWorkflowCandidates(filePaths, contract);
   if (candidates.length !== filePaths.length) throw new Error('candidate is not a PLAN/HANDOVER workflow document');
   const results = await Promise.allSettled(candidates.map(async (candidate) => {
     if (candidate.rawNumber.length !== contract.numbering.width) {
-      throw new Error(`${candidate.filePath}: workflow document number has invalid width`);
+      throw new WorkflowDocumentValidationError(`${candidate.filePath}: workflow document number has invalid width`);
     }
     const content = contentOverrides[candidate.filePath]
       ?? await git(cwd, signal, 'show', `${ref}:${candidate.filePath}`);
-    const metadata = workflowFrontMatter(content);
+    let metadata: Record<string, unknown>;
+    try {
+      metadata = workflowFrontMatter(content);
+    } catch (error) {
+      throw new WorkflowDocumentValidationError(error instanceof Error ? error.message : String(error));
+    }
     const result = await validateWorkflowDocument(
       cwd, ref, candidate.filePath, candidate.type, content, metadata,
       contract, path.posix.dirname(candidate.filePath), signal,
     );
     return { filePath: candidate.filePath, ...result };
   }));
-  const failures = results.flatMap((result, index) => result.status === 'rejected'
-    ? [
-      `${candidates[index].filePath}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
-    ]
-    : []);
-  if (failures.length) {
-    throw new Error(
-      `共 ${failures.length} 份工作流文档校验失败：\n`
-      + failures.map((failure, index) => `${index + 1}) ${failure}`).join('\n'),
+  const documentFailures = results.flatMap((result, index) =>
+    result.status === 'rejected' && result.reason instanceof WorkflowDocumentValidationError
+      ? [`${candidates[index].filePath}: ${result.reason.message}`]
+      : []);
+  if (documentFailures.length) {
+    throw new WorkflowDocumentValidationError(
+      `共 ${documentFailures.length} 份工作流文档校验失败：\n`
+      + documentFailures.map((failure, index) => `${index + 1}) ${failure}`).join('\n'),
     );
   }
+  const runtimeFailure = results.find(
+    (result) => result.status === 'rejected',
+  );
+  if (runtimeFailure?.status === 'rejected') throw runtimeFailure.reason;
   return results.map((result) => (result as PromiseFulfilledResult<{
     filePath: string;
     action: string;

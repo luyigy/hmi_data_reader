@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { sendFeishuTextMessage } from '../feishu-api';
 import { jobHandlers, type JobHandler } from './handlers';
 import {
   findProjectByChatId,
@@ -9,6 +11,7 @@ import {
   type ProjectsConfig,
 } from './project-config';
 import { reconcileScheduledJobRunner } from './reconciliation';
+import { ensureAppendOnlyGitRef } from './git-history-guard';
 
 const ranges = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]] as const;
 
@@ -234,6 +237,27 @@ export async function executeScheduledJob(
       },
     }),
   ]);
+  if (
+    failure
+    && mode === 'active'
+    && failure !== 'job cancelled by operator'
+    && state?.lastError !== failure
+  ) {
+    await sendFeishuTextMessage({
+      receiveId: project.feishu.chat_id,
+      text: [
+        `❌ 定时任务执行失败：${project.name} / ${job.id}`,
+        `状态：${status}`,
+        `触发方式：${trigger}`,
+        `原因：${failure}`,
+        '影响：本次动作未完成，已保存失败状态；其他项目继续运行。',
+        '下一步：修复上述运行故障后重新运行该任务，或等待下一次调度自动重试。',
+      ].join('\n'),
+    }).catch((error) => console.error(
+      `[ScheduledJobRunner] failed to notify ${project.id}/${job.id}`,
+      error,
+    ));
+  }
   return status === 'succeeded';
 }
 
@@ -319,6 +343,21 @@ export async function runRequestedJobs(db: PrismaClient, config?: ProjectsConfig
 
 export async function startScheduledJobRunner(db: PrismaClient, signal: AbortSignal) {
   const bootStartedAt = new Date();
+  const { projects } = await loadProjectsConfig();
+  await Promise.all(projects.flatMap((project) => project.jobs
+    .filter((job) => job.type === 'workflow_watcher')
+    .map(async (job) => {
+      try {
+        const contractPath = String(job.config.contract_path || '');
+        if (!contractPath || path.isAbsolute(contractPath) || contractPath.split('/').includes('..')) {
+          throw new Error('contract_path must stay inside the repository');
+        }
+        await ensureAppendOnlyGitRef(project.path, project.ref, signal, contractPath);
+      } catch (error) {
+        // A single broken repository must not take down the whole runner.
+        console.error(`[ScheduledJobRunner] git guard install failed for ${project.id}/${job.id}`, error);
+      }
+    })));
   await reconcileScheduledJobRunner(db, bootStartedAt)
     .then((result) => console.info('[ScheduledJobRunner] reconciliation', result))
     .catch((error) => console.error('[ScheduledJobRunner]', error));
