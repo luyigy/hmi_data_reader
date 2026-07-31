@@ -209,6 +209,10 @@ HANDOVER/验收入口、遗留风险，并明确显示“已停止自动推进�
 - 非管理员、未绑定项目、过期卡片和重复回调 fail closed；
 - 不新增通用工作流引擎；相关检查和 GitNexus 变更核验通过。
 
+实施状态（2026-07-31）：S03 已完成。自治模式合同、项目默认值、持久化 override、HEAD 乐观锁、
+Feishu 命令/Dashboard 控制和 manual 推进门见
+`docs/337_HANDOVER_20260731_Workflow自治模式S03交接.md`；未开始 S04。
+
 ## S04：普通 Handoff 讨论提升为审批 PLAN
 
 复用现有 `/ap plan`、workflow contract、PLAN 审批卡和 watcher：

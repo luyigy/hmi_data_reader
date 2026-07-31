@@ -12,6 +12,7 @@ import {
 } from './project-config';
 import { reconcileScheduledJobRunner } from './reconciliation';
 import { ensureAppendOnlyGitRef } from './git-history-guard';
+import { resolveWorkflowAutonomy } from './workflow-autonomy';
 
 const ranges = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]] as const;
 
@@ -176,6 +177,10 @@ export async function executeScheduledJob(
           project,
           job,
           mode,
+          trigger,
+          workflowAutonomy: job.type === 'workflow_watcher'
+            ? resolveWorkflowAutonomy(job, lockedState.workflowAutonomy).mode
+            : undefined,
           cursor: lockedState.cursorJson,
           signal,
         }));

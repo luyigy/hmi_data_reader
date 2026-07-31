@@ -17,6 +17,7 @@ import {
 } from '@/lib/scheduled-jobs/workflow-status';
 import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
+import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 const execFileAsync = promisify(execFile);
@@ -227,6 +228,7 @@ export const buildWorkflowDashboardCard = (args: {
       action: actionName,
       projectId: args.status.projectId,
       jobId: args.status.jobId,
+      expectedHead: args.status.head,
     },
   });
   const actions = [
@@ -242,6 +244,9 @@ export const buildWorkflowDashboardCard = (args: {
       args.status.enabled ? 'disable' : 'enable',
       args.status.enabled ? 'danger' : 'primary',
     ),
+    action('Manual', 'autonomy_manual', args.status.autonomy === 'manual' ? 'primary' : 'default'),
+    action('Semi-auto', 'autonomy_semi_auto', args.status.autonomy === 'semi_auto' ? 'primary' : 'default'),
+    action('Auto', 'autonomy_auto', args.status.autonomy === 'auto' ? 'primary' : 'default'),
   ];
   return {
     config: { wide_screen_mode: true },
@@ -257,6 +262,7 @@ export const buildWorkflowDashboardCard = (args: {
           `**${args.status.projectName} / ${args.status.jobId}**`,
           `**状态**：${stage}`,
           `**项目 / ref / HEAD**：${args.status.projectId} · \`${args.status.ref}\` · \`${args.status.head.slice(0, 8)}\``,
+          `**自治模式**：${args.status.autonomy}（${args.status.autonomySource}）`,
           `**PLAN / Slice / 动作**：${args.status.plan} · ${args.status.slice} · ${args.status.action}`,
           `**模式 / 调度**：${args.status.mode} · \`${args.status.schedule}\``,
           `**审批 / Session**：${args.status.approval} · ${args.status.session}`,
@@ -598,12 +604,16 @@ export async function handleWorkflowDashboardCardAction(args: {
   action: string;
   actorOpenId?: string;
   cardMessageId?: string;
+  expectedHead?: string;
 }) {
   const config = await loadProjectsConfig();
   const project = config.projects.find(({ id }) => id === args.projectId);
   if (!project || !project.jobs.some(({ id }) => id === args.jobId)) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
-  const action = ['refresh', 'run', 'retry', 'resend', 'stop', 'enable', 'disable'].includes(args.action)
+  const action = [
+    'refresh', 'run', 'retry', 'resend', 'stop', 'enable', 'disable',
+    'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
+  ].includes(args.action)
     ? args.action
     : 'refresh';
   const context: FeishuConversationContext = {
@@ -614,11 +624,19 @@ export async function handleWorkflowDashboardCardAction(args: {
   };
   const result = action === 'refresh'
     ? '状态已刷新。'
-    : await handleScheduledJobCommand({
-      command: 'job',
-      args: [action, args.jobId],
-      options: {},
-    }, context);
+    : action.startsWith('autonomy_')
+      ? args.expectedHead
+        ? await handleWorkflowPolicyCommand({
+          command: 'workflow',
+          args: ['autonomy', 'set', action.slice('autonomy_'.length)],
+          options: { head: args.expectedHead },
+        }, context)
+        : 'Dashboard 已失效，请重新发送 /ap dashboard。'
+      : await handleScheduledJobCommand({
+        command: 'job',
+        args: [action, args.jobId],
+        options: {},
+      }, context);
   await sendFeishuTextMessage({
     receiveId: context.chatId,
     receiveIdType: 'chat_id',

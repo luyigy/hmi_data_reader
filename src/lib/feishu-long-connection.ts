@@ -327,6 +327,7 @@ function buildCardActionHandler(prefix: string) {
         action: value.action,
         actorOpenId: openId,
         cardMessageId: messageId,
+        expectedHead: typeof value.expectedHead === 'string' ? value.expectedHead : undefined,
       }).then((result) => {
         console.log(`${prefix} workflow dashboard action completed`, {
           action: value.action,

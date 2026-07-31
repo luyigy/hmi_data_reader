@@ -58,7 +58,7 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
     ? 'room'
     : ['/ap status', '/ap gateways', '/ap agents', '/ap hosts', '/ap sessions'].includes(command)
       ? 'runtime'
-      : ['/ap dashboard', '/ap jobs', '/ap workflow policy show', '/ap job diagnose workflow-watcher'].includes(command)
+      : ['/ap dashboard', '/ap jobs', '/ap workflow status', '/ap workflow policy show', '/ap job diagnose workflow-watcher'].includes(command)
         ? 'workflow'
         : 'admin';
   assert.match(

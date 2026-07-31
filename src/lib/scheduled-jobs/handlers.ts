@@ -1,4 +1,5 @@
 import type { JobConfig, JobMode, ProjectConfig } from './project-config';
+import type { WorkflowAutonomy } from './workflow-autonomy';
 import { longFileDetectorHandler } from './long-file-detector';
 import { workflowWatcherHandler } from './workflow-watcher';
 
@@ -6,6 +7,8 @@ export type JobHandler = (context: {
   project: ProjectConfig;
   job: JobConfig;
   mode: JobMode;
+  trigger?: string;
+  workflowAutonomy?: WorkflowAutonomy;
   cursor: unknown;
   signal: AbortSignal;
 }) => Promise<{ summary: string; cursor?: unknown }>;

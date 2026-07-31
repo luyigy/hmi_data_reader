@@ -59,6 +59,11 @@ assert.deepEqual(parseFeishuCommand(message('/ap workflow status')), {
   args: ['status'],
   options: {},
 });
+assert.deepEqual(parseFeishuCommand(message('/ap workflow autonomy set manual --head=abcdef')), {
+  command: 'workflow',
+  args: ['autonomy', 'set', 'manual'],
+  options: { head: 'abcdef' },
+});
 assert.deepEqual(parseFeishuCommand(message('/ap job disable workflow-watcher')), {
   command: 'job',
   args: ['disable', 'workflow-watcher'],
@@ -211,6 +216,8 @@ const workflowStatus: WorkflowStatus = {
   enabled: true,
   running: false,
   mode: 'active',
+  autonomy: 'semi_auto',
+  autonomySource: 'config',
   schedule: '* * * * *',
   stage: '等待修改提交',
   documentPath: 'docs/007_PLAN.md',
@@ -247,7 +254,10 @@ assert.match(JSON.stringify(dashboardCard), /修改任务已投递，等待 PLAN
 assert.match(JSON.stringify(dashboardCard), /恢复修改任务/);
 assert.doesNotMatch(JSON.stringify(dashboardCard), /stale-expiry/);
 assert.match(JSON.stringify(dashboardCard), /唯一下一步/);
+assert.match(JSON.stringify(dashboardCard), /autonomy_manual/);
+assert.match(JSON.stringify(dashboardCard), /abcdef1234/);
 assert.match(formatWorkflowStatus(workflowStatus), /项目 \/ ref \/ HEAD：project/);
+assert.match(formatWorkflowStatus(workflowStatus), /自治模式：semi_auto（config）/);
 assert.match(formatWorkflowStatus(workflowStatus), /唯一下一步：完成并提交/);
 assert.equal(
   extractWorkflowValidationSummary('# H\n\n## 验证结果\n\n- `npm test`：通过。\n- `npx tsc`：通过。\n\n## 边界\n'),

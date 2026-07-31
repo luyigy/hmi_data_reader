@@ -474,6 +474,7 @@ model ScheduledJobState {
   lastSuccessAt     DateTime?
   lastError         String?
   cursorJson        Json?
+  workflowAutonomy  Json?
   updatedAt         DateTime @updatedAt
 
   @@unique([projectId, jobId])

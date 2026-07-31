@@ -148,6 +148,7 @@ S01 then S02
       coding_bot_chat_id: 'coding-bot-chat',
       coding_bot_chat_type: 'group',
       coding_bot_app_id: 'coding-app',
+      workflow_autonomy: 'semi_auto',
       execution_policy: { preset: 'workspace' },
     },
   };
@@ -172,10 +173,17 @@ S01 then S02
     importedDocuments.push(args);
     return `https://example.feishu.cn/docx/${args.idempotencyKey}`;
   };
-  const run = (cursor?: unknown, mode: 'shadow' | 'active' = 'active') => workflowWatcherHandler({
+  const run = (
+    cursor?: unknown,
+    mode: 'shadow' | 'active' = 'active',
+    workflowAutonomy?: 'manual' | 'semi_auto' | 'auto',
+    trigger?: string,
+  ) => workflowWatcherHandler({
     project,
     job,
     mode,
+    workflowAutonomy,
+    trigger,
     cursor,
     signal: new AbortController().signal,
   }, async (args) => {
@@ -250,7 +258,11 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   const waitingEventKey = workflowRuns.at(-1)?.eventKey;
 
   workflowAvailable = true;
-  const completed = await run(waiting.cursor);
+  const manualWaiting = await run(waiting.cursor, 'active', 'manual', 'schedule');
+  assert.match(manualWaiting.summary, /gate=autonomy_manual advance=next_slice/);
+  assert.deepEqual(manualWaiting.cursor, waiting.cursor);
+  assert.match(String(apiCalls.at(-1)?.body.content), /自动推进：已停止（manual，使用 \/ap job run 手动推进）/);
+  const completed = await run(waiting.cursor, 'active', 'manual', 'manual');
   assert.match(completed.summary, /result=session_started/);
   assert.equal(workflowRuns.length, 3);
   assert.equal(workflowRuns.at(-1)?.eventKey, waitingEventKey, 'retry must reuse the waiting event key');

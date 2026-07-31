@@ -8,6 +8,7 @@ import {
   type JobConfig,
   type ProjectConfig,
 } from './project-config';
+import { resolveWorkflowAutonomy, type WorkflowAutonomy } from './workflow-autonomy';
 
 const execFileAsync = promisify(execFile);
 
@@ -23,6 +24,8 @@ export type WorkflowStatus = {
   enabled: boolean;
   running: boolean;
   mode: string;
+  autonomy: WorkflowAutonomy;
+  autonomySource: 'config' | 'override' | 'safe_fallback';
   schedule: string;
   stage: string;
   documentPath: string;
@@ -90,6 +93,7 @@ export const buildWorkflowCompletionReceipt = (args: {
   validation: string;
   plan?: string;
   slice?: string;
+  automaticProgression?: string;
 }) => {
   const outcome = args.action === 'next_slice'
     ? `Slice ${args.slice || '-'} 已完成`
@@ -105,9 +109,10 @@ export const buildWorkflowCompletionReceipt = (args: {
     `commit：${args.commit}`,
     `实际验证：${args.validation}`,
     `HANDOVER / 验收入口：${args.documentPath}`,
-    `自动推进：${['next_slice', 'resume_parent', 'start_first_slice'].includes(args.action)
-      ? `将按 ${args.action} 启动下一 Session`
-      : `已停止（${args.action}，不启动新 Session）`}`,
+    `自动推进：${args.automaticProgression
+      ?? (['next_slice', 'resume_parent', 'start_first_slice'].includes(args.action)
+        ? `将按 ${args.action} 启动下一 Session`
+        : `已停止（${args.action}，不启动新 Session）`)}`,
   ].join('\n');
 };
 
@@ -145,6 +150,7 @@ const nextStepFor = (args: {
 }) => {
   if (!args.enabled) return `/ap job enable ${args.jobId}`;
   if (args.running) return '等待本轮执行结束，然后刷新 /ap workflow status';
+  if (args.stage === '等待手动推进') return `/ap job run ${args.jobId}`;
   if (args.stage === '等待审批') return '在现有 PLAN 审批卡中批准或退回修改';
   if (args.stage === '等待修改意见') return `补充修改意见后执行 /ap job retry ${args.jobId}`;
   if (args.stage === '等待修改提交') return `完成并提交 ${args.documentPath} 的修订`;
@@ -221,6 +227,7 @@ const buildWorkflowStatus = async (
       ?? workflowContextValue(pending?.workflowContext, '当前或将执行的 Slice'),
   );
   const reviewState = text(pending?.reviewState, '');
+  const autonomy = resolveWorkflowAutonomy(job, state?.workflowAutonomy);
   const enabled = state?.enabledOverride ?? job.enabled;
   const running = latestRun?.status === 'running';
   const quarantined = validationFailure?.quarantined === true;
@@ -244,11 +251,13 @@ const buildWorkflowStatus = async (
                 ? '等待修改意见'
                 : ['revision', 'revision_requested'].includes(reviewState)
                   ? '等待修改提交'
-                  : terminalComplete
-                    ? '完成'
-                    : latestRun && ['failed', 'timed_out'].includes(latestRun.status)
-                      ? '运行故障'
-                      : '空闲';
+                  : fields.gate === 'autonomy_manual'
+                    ? '等待手动推进'
+                    : terminalComplete
+                      ? '完成'
+                      : latestRun && ['failed', 'timed_out'].includes(latestRun.status)
+                        ? '运行故障'
+                        : '空闲';
   const taskSession = binding?.liveRoom.sourceTask?.currentTaskSession;
   const validator = validationFailure
     ? `document_invalid：${text(validationFailure.error)}`
@@ -277,6 +286,8 @@ const buildWorkflowStatus = async (
     enabled,
     running,
     mode: state?.modeOverride ?? job.mode,
+    autonomy: autonomy.mode,
+    autonomySource: autonomy.source,
     schedule: state?.scheduleOverride ?? job.schedule,
     stage,
     documentPath,
@@ -338,6 +349,7 @@ export const formatWorkflowStatus = (status: WorkflowStatus) => [
   `${status.projectName} / ${status.jobId}`,
   `项目 / ref / HEAD：${status.projectId} · ${status.ref} · ${status.head}`,
   `阶段：${status.stage}`,
+  `自治模式：${status.autonomy}（${status.autonomySource}）`,
   `PLAN / Slice / 动作：${status.plan} · ${status.slice} · ${status.action}`,
   `工作流文档：${status.documentPath}`,
   `审批：${status.approval}`,

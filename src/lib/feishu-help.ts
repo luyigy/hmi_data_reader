@@ -37,6 +37,8 @@ const HELP_PAGES = [
   ]],
   ['Workflow / Jobs', [
     '/ap workflow status',
+    '/ap workflow autonomy show',
+    '/ap workflow autonomy set <manual|semi_auto|auto> --head=<当前HEAD>  (管理员/项目审批人)',
     '/ap workflow policy show',
     '/ap workflow policy set --preset=workspace  (管理员)',
     '/ap dashboard [job-id]  返回可点击的 Workflow 状态卡',

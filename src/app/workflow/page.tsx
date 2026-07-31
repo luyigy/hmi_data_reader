@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 const tone = (stage: string) => {
   if (['文档错误', '运行故障', '运行阻塞'].includes(stage)) return 'border-red-200 bg-red-50 text-red-900';
-  if (['已隔离', '等待审批', '等待修改意见', '等待修改提交'].includes(stage)) {
+  if (['已隔离', '等待审批', '等待修改意见', '等待修改提交', '等待手动推进'].includes(stage)) {
     return 'border-amber-200 bg-amber-50 text-amber-900';
   }
   if (stage === '正在执行') return 'border-blue-200 bg-blue-50 text-blue-900';
@@ -40,6 +40,7 @@ export default async function WorkflowPage() {
 
             <dl className="mt-6 grid gap-4 text-sm md:grid-cols-2">
               <div><dt className="text-slate-500">ref / HEAD</dt><dd className="mt-1 break-all font-mono text-slate-900">{status.ref} / {status.head}</dd></div>
+              <div><dt className="text-slate-500">自治模式</dt><dd className="mt-1 text-slate-900">{status.autonomy}（{status.autonomySource}）</dd></div>
               <div><dt className="text-slate-500">PLAN / Slice / 动作</dt><dd className="mt-1 text-slate-900">{status.plan} / {status.slice} / {status.action}</dd></div>
               <div><dt className="text-slate-500">审批</dt><dd className="mt-1 text-slate-900">{status.approval}</dd></div>
               <div><dt className="text-slate-500">Session</dt><dd className="mt-1 break-all text-slate-900">{status.session}</dd></div>

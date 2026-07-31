@@ -30,6 +30,10 @@ import {
   buildWorkflowCompletionReceipt,
   extractWorkflowValidationSummary,
 } from './workflow-status';
+import {
+  configuredWorkflowAutonomy,
+  workflowAutonomyAllows,
+} from './workflow-autonomy';
 
 type Pending = WorkflowReviewPending & {
   key: string;
@@ -219,7 +223,15 @@ const execute = async (
 };
 
 export const workflowWatcherHandler = async (
-  { project, job, mode, cursor, signal }: Parameters<JobHandler>[0],
+  {
+    project,
+    job,
+    mode,
+    trigger = 'schedule',
+    workflowAutonomy,
+    cursor,
+    signal,
+  }: Parameters<JobHandler>[0],
   runWorkflow?: WorkflowRunner,
   importDocument: WorkflowDocumentImporter = importPlanDocument,
   sendReview: WorkflowReviewCardSender = sendFeishuWorkflowReviewCard,
@@ -233,6 +245,8 @@ export const workflowWatcherHandler = async (
     job.config.execution_policy,
     `job ${project.id}/${job.id}.config.execution_policy`,
   );
+  const autonomy = workflowAutonomy ?? configuredWorkflowAutonomy(job);
+  const allows = (advance: string) => workflowAutonomyAllows(autonomy, advance, trigger);
   const contractPath = String(job.config.contract_path || '');
   if (!contractPath || path.isAbsolute(contractPath) || contractPath.split('/').includes('..')) {
     throw new Error('contract_path must stay inside the repository');
@@ -350,6 +364,9 @@ export const workflowWatcherHandler = async (
       };
     }
     if (pending.gate === 'plan_review' && pending.reviewState === 'revision_requested') {
+      if (!allows('revision')) {
+        return { summary: `head=${head} pending=${pending.path} gate=autonomy_manual advance=revision`, cursor: previous };
+      }
       const revisionBaseBlob = (await git(
         project.path, signal, 'rev-parse', `${head}:${pending.path}`,
       )).trim();
@@ -382,6 +399,9 @@ export const workflowWatcherHandler = async (
       if (blob === pending.blob) {
         if (mode !== 'active' || pending.revisionDispatched) {
           return { summary: `head=${head} pending=${pending.path} gate=plan_revision`, cursor: previous };
+        }
+        if (!allows('revision')) {
+          return { summary: `head=${head} pending=${pending.path} gate=autonomy_manual advance=revision`, cursor: previous };
         }
         await execute(
           { ...pending, key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
@@ -480,6 +500,12 @@ export const workflowWatcherHandler = async (
         return {
           summary: `head=${head} candidate=${pending.path} action=${pending.action} result=approved`,
           cursor: { commit: head, eventKey: pending.key },
+        };
+      }
+      if (!allows(pending.action)) {
+        return {
+          summary: `head=${head} pending=${pending.path} gate=autonomy_manual advance=${pending.action}`,
+          cursor: previous,
         };
       }
     }
@@ -607,8 +633,17 @@ export const workflowWatcherHandler = async (
         validation: extractWorkflowValidationSummary(content),
         plan: declared(metadata.plan),
         slice: declared(metadata.slice),
+        automaticProgression: gate === 'execute' && !allows(document.action)
+          ? '已停止（manual，使用 /ap job run 手动推进）'
+          : undefined,
       })}\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
       eventKey, 'completion_receipt');
+  }
+  if (gate === 'execute' && !allows(document.action)) {
+    return {
+      summary: `head=${head} candidate=${candidate.filePath} gate=autonomy_manual advance=${document.action}`,
+      cursor: previous,
+    };
   }
   if (gate === 'terminal') {
     if (candidate.type !== 'HANDOVER') {
