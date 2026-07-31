@@ -6,12 +6,10 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-export const prepareFeishuMarkdown = (content: string, name: string) => {
-  const body = content
+export const prepareFeishuMarkdown = (content: string) =>
+  content
     .replace(/^---\n[\s\S]*?\n---\n*/, '')
     .replace(/^# [^\n]*\n*/, '');
-  return `# ${name}\n\n${body}`;
-};
 
 export async function importMarkdownAsFeishuDocument(args: {
   content: string;
@@ -22,10 +20,11 @@ export async function importMarkdownAsFeishuDocument(args: {
   try {
     await writeFile(
       path.join(directory, 'plan.md'),
-      prepareFeishuMarkdown(args.content, args.name),
+      prepareFeishuMarkdown(args.content),
     );
     const result = await execFileAsync('lark-cli', [
       'docs', '+create', '--as', 'bot', '--api-version', 'v2',
+      '--title', args.name,
       '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',
     ], {
       cwd: directory,

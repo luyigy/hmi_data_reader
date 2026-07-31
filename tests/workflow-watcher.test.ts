@@ -56,8 +56,8 @@ case "$*" in
   *"NEXT PROMPT"*) [ "$LARK_FAIL_PROMPT" = 1 ] && { echo prompt-failed >&2; exit 1; };;
 esac
 case "$*" in
-  "docs +create --as bot --api-version v2 --doc-format markdown --content @plan.md --format json")
-    [ "$(grep -c '^# 005_PLAN_20260725_import_failure$' plan.md)" -eq 1 ] || exit 1
+  "docs +create --as bot --api-version v2 --title 005_PLAN_20260725_import_failure --doc-format markdown --content @plan.md --format json")
+    ! grep -q '^# 005_PLAN_20260725_import_failure$' plan.md || exit 1
     ! grep -q '^doc_type:' plan.md || exit 1
     grep -q '^S01$' plan.md || exit 1
     echo '{"ok":true,"identity":"user","data":{"document":{"url":"https://example.feishu.cn/docx/default-import"}}}'

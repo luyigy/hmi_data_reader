@@ -10,8 +10,8 @@ assert.equal(normalizeRepositoryMarkdownPath('../secret.md'), null);
 assert.equal(normalizeRepositoryMarkdownPath('/etc/passwd.md'), null);
 assert.equal(normalizeRepositoryMarkdownPath('docs/report.txt'), null);
 assert.equal(
-  prepareFeishuMarkdown('---\ndoc_type: REPORT\n---\n# Old title\n\nBody\n', 'New title'),
-  '# New title\n\nBody\n',
+  prepareFeishuMarkdown('---\ndoc_type: REPORT\n---\n# Old title\n\nBody\n'),
+  'Body\n',
 );
 
 console.log('Feishu document command checks passed');

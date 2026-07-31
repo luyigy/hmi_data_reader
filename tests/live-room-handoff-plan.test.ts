@@ -73,6 +73,7 @@ const checkPromotionIdempotency = async () => {
   };
   const receipts: Array<{ id: string; metadata: string }> = [];
   let runs = 0;
+  let startedNotices = 0;
   const feishuLiveRoom = feishuLiveRoomModule as unknown as {
     getBoundLiveRoom: (...args: unknown[]) => Promise<unknown>;
   };
@@ -187,6 +188,9 @@ const checkPromotionIdempotency = async () => {
       roomId: 'room-1',
       rootMessageId: 'root-1',
       context,
+      onStarted: () => {
+        startedNotices += 1;
+      },
     });
     dispatch.state = 'running';
     dispatch.messageId = null;
@@ -205,6 +209,7 @@ const checkPromotionIdempotency = async () => {
     assert.match(recovered, /已恢复/);
     assert.match(duplicate, /已生成审批 PLAN/);
     assert.equal(runs, 1);
+    assert.equal(startedNotices, 1);
     assert.equal(receipts.length, 1);
     assert.equal((await execFileAsync('git', ['rev-list', '--count', 'HEAD'], {
       cwd: workingDirectory,

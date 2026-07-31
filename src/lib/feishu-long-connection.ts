@@ -351,7 +351,21 @@ function buildCardActionHandler(prefix: string) {
     }
 
     if (cmd === 'handoff-plan') return handleLiveRoomHandoffPlanCardAction({
-      value: data.action.value as Record<string, unknown>, openId, chatId, messageId, prefix,
+      value: data.action.value as Record<string, unknown>,
+      openId,
+      chatId,
+      messageId,
+      prefix,
+      onStarted: () => {
+        void sendFeishuTextMessage({
+          receiveId: chatId!,
+          receiveIdType: 'chat_id',
+          replyId: messageId,
+          text: '⏳ 已接收，正在生成审批 PLAN，通常需要几分钟。完成后本群会自动收到审批卡，请勿重复点击。',
+        }).catch((err) => {
+          console.error(`${prefix} handoff PLAN progress reply failed`, { err });
+        });
+      },
     });
 
     if (cmd === 'ap-command') {

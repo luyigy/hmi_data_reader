@@ -117,6 +117,7 @@ export async function promoteLiveRoomHandoffToPlan(args: {
   roomId: string;
   rootMessageId: string;
   context: FeishuConversationContext;
+  onStarted?: () => void;
 }) {
   const room = await getBoundLiveRoom(args.context);
   if (!room || room.id !== args.roomId || !room.sourceTask) {
@@ -176,6 +177,7 @@ export async function promoteLiveRoomHandoffToPlan(args: {
   if (!claimed.count) {
     return '该 Handoff 的 PLAN 正在生成；重复点击不会创建第二份。';
   }
+  args.onStarted?.();
 
   try {
     const allMessages = await prisma.liveRoomMessage.findMany({
@@ -283,6 +285,7 @@ export function handleLiveRoomHandoffPlanCardAction(args: {
   chatId?: string;
   messageId?: string;
   prefix: string;
+  onStarted?: () => void;
 }) {
   if (!args.openId || !args.chatId
     || typeof args.value.roomId !== 'string'
@@ -298,6 +301,7 @@ export function handleLiveRoomHandoffPlanCardAction(args: {
       senderOpenId: args.openId,
       messageId: args.messageId || '',
     },
+    onStarted: args.onStarted,
   }).catch((err) => {
     console.error(`${args.prefix} handoff PLAN promotion failed`, { err });
   });
