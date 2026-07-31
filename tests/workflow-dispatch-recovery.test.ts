@@ -13,14 +13,13 @@ type Dispatch = {
 
 async function main() {
   let dispatch!: Dispatch;
-  let sessionExists = false;
   let messageExists = false;
   let deliveryExists = false;
-  let fault: 'reset' | 'feishu' | 'prompt' | 'reply' | null = null;
-  let resets = 0;
+  let fault: 'rotation' | 'feishu' | 'prompt' | 'reply' | null = null;
   let feishuPosts = 0;
   let promptPosts = 0;
   let replyQueues = 0;
+  let rotationDecisions = 0;
   const reset = (state: string): Dispatch => (dispatch = {
     id: 'dispatch',
     projectId: 'project',
@@ -38,6 +37,10 @@ async function main() {
       upsert: async () => dispatch,
       update: async ({ data }: { data: Partial<Dispatch> }) => {
         dispatch = { ...dispatch, ...data };
+        if (data.state === 'rotation_not_required') rotationDecisions += 1;
+        if (data.state === 'rotation_not_required' && fault === 'rotation') {
+          throw new Error('crash after rotation decision');
+        }
         return dispatch;
       },
       updateMany: async ({ where, data }: {
@@ -50,7 +53,6 @@ async function main() {
       },
     },
     taskRun: { count: async () => 0 },
-    taskSession: { findFirst: async () => sessionExists ? { id: 'session' } : null },
     liveRoomMessage: {
       findFirst: async () => messageExists ? { id: 'message-1' } : null,
     },
@@ -66,13 +68,6 @@ async function main() {
   };
   const liveRoomBinding = await import('../src/lib/feishu-live-room') as unknown as Record<string, unknown>;
   liveRoomBinding.getBoundLiveRoom = async () => room;
-  const newSession = await import('../src/lib/feishu-new-session') as unknown as Record<string, unknown>;
-  newSession.handleNewSessionCommand = async () => {
-    resets += 1;
-    sessionExists = true;
-    if (fault === 'reset') throw new Error('crash after session reset');
-    return '✅ reset';
-  };
   const feishuApi = await import('../src/lib/feishu-api') as unknown as Record<string, unknown>;
   feishuApi.sendFeishuInteractiveMessage = async () => {
     feishuPosts += 1;
@@ -117,30 +112,37 @@ async function main() {
   });
 
   reset('prepared');
-  fault = 'reset';
-  await assert.rejects(run(), /crash after session reset/);
-  assert.equal(dispatch.state, 'prepared');
+  fault = 'rotation';
+  await assert.rejects(run(), /crash after rotation decision/);
+  assert.equal(dispatch.state, 'rotation_not_required');
   fault = null;
   assert.equal(await run(), true);
-  assert.equal(resets, 1, 'taskSession checkpoint must prevent a second reset');
+  assert.equal(dispatch.state, 'reply_queued');
+  messageExists = false;
+  deliveryExists = false;
+  reset('prepared');
+  assert.equal(await run(), true);
+  assert.equal(rotationDecisions, 2, 'consecutive slices must record reuse without resetting TaskSession');
 
   reset('session_reset');
+  const feishuPostsBeforeFault = feishuPosts;
   fault = 'feishu';
   await assert.rejects(run(), /crash after Feishu post/);
   assert.equal(dispatch.state, 'blocked');
   fault = null;
   await assert.rejects(run(), /dispatch blocked/);
-  assert.equal(feishuPosts, 2, 'an unconfirmed external post must not be retried');
+  assert.equal(feishuPosts, feishuPostsBeforeFault + 1, 'an unconfirmed external post must not be retried');
 
   reset('feishu_posted');
   messageExists = false;
   deliveryExists = false;
+  const promptPostsBeforeFault = promptPosts;
   fault = 'prompt';
   await assert.rejects(run(), /crash after prompt post/);
   assert.equal(dispatch.state, 'feishu_posted');
   fault = null;
   assert.equal(await run(), true);
-  assert.equal(promptPosts, 2, 'eventKey checkpoint must prevent a second prompt post');
+  assert.equal(promptPosts, promptPostsBeforeFault + 1, 'eventKey checkpoint must prevent a second prompt post');
 
   reset('prompt_posted');
   messageExists = true;

@@ -2,7 +2,6 @@ import {
   getBoundLiveRoom,
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
-import { handleNewSessionCommand } from '@/lib/feishu-new-session';
 import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 import {
   runLiveRoomPlan,
@@ -123,33 +122,14 @@ export async function runWorkflowInBoundLiveRoom(args: {
   }
 
   if (dispatch.state === 'prepared') {
-    const resetAlreadyCompleted = revisionPath ? true : await prisma.taskSession.findFirst({
-      where: {
-        taskId: boundRoom.sourceTask.id,
-        metadata: { contains: `"workflowEventKey":${JSON.stringify(args.eventKey)}` },
-      },
-      select: { id: true },
-    });
-    if (!resetAlreadyCompleted) {
-      const reset = await handleNewSessionCommand({
-        command: 'new-session',
-        args: [],
-        options: {
-          all: 'true',
-          blank: 'true',
-          'workflow-event-key': args.eventKey,
-        },
-      }, context);
-      if (!reset.startsWith('✅')) throw new Error(reset);
-    }
     dispatch = await prisma.workflowDispatch.update({
       where: { id: dispatch.id },
-      data: { state: 'session_reset' },
+      data: { state: 'rotation_not_required' },
     });
   }
 
   args.signal.throwIfAborted();
-  if (dispatch.state === 'session_reset') {
+  if (dispatch.state === 'rotation_not_required' || dispatch.state === 'session_reset') {
     dispatch = await prisma.workflowDispatch.update({
       where: { id: dispatch.id },
       data: { state: 'blocked' },

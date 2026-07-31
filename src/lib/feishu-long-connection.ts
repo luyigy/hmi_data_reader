@@ -38,6 +38,7 @@ import {
   type FeishuCardActionIdentity,
 } from '@/lib/feishu-card-action';
 import { handleLiveRoomHandoffPlanCardAction } from '@/lib/live-room-handoff-plan';
+import { handleNewSessionConfirmationCardAction } from '@/lib/feishu-new-session';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
 import {
   buildFeishuCommandCenterCardUpdate,
@@ -366,6 +367,13 @@ function buildCardActionHandler(prefix: string) {
           console.error(`${prefix} handoff PLAN progress reply failed`, { err });
         });
       },
+    });
+
+    if (cmd === 'new-session-confirm') return handleNewSessionConfirmationCardAction({
+      value: data.action.value as Record<string, unknown>,
+      openId: openId || null,
+      chatId: chatId || null,
+      messageId,
     });
 
     if (cmd === 'ap-command') {

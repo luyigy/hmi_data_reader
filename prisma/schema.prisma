@@ -516,7 +516,7 @@ model WorkflowDispatch {
   projectId String
   jobId     String
   eventKey  String
-  state     String   @default("prepared") // prepared, session_reset, feishu_posted, prompt_posted, reply_queued
+  state     String   @default("prepared") // prepared, rotation_not_required, session_reset, feishu_posted, prompt_posted, reply_queued
   roomId    String?
   feishuMessageId String?
   messageId String?

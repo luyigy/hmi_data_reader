@@ -275,7 +275,7 @@ assert.match(buildWorkflowCompletionReceipt({
   action: 'next_slice',
   validation: 'npm test：通过',
   slice: 'S02',
-}), /Slice S02 已完成[\s\S]*将按 next_slice 启动下一 Session/);
+}), /Slice S02 已完成[\s\S]*将按 next_slice 启动下一工作单元（Session 是否换代独立决定）/);
 
 async function testCursor() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'job-cursor-'));

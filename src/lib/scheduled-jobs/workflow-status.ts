@@ -111,7 +111,7 @@ export const buildWorkflowCompletionReceipt = (args: {
     `HANDOVER / 验收入口：${args.documentPath}`,
     `自动推进：${args.automaticProgression
       ?? (['next_slice', 'resume_parent', 'start_first_slice'].includes(args.action)
-        ? `将按 ${args.action} 启动下一 Session`
+        ? `将按 ${args.action} 启动下一工作单元（Session 是否换代独立决定）`
         : `已停止（${args.action}，不启动新 Session）`)}`,
   ].join('\n');
 };
@@ -160,7 +160,7 @@ const nextStepFor = (args: {
   if (args.stage === '运行故障') return `修复运行环境后执行 /ap job run ${args.jobId}`;
   if (args.stage === '完成') {
     return ['next_slice', 'resume_parent', 'start_first_slice'].includes(args.action)
-      ? '等待 watcher 自动启动下一 Session'
+      ? '等待 watcher 自动启动下一工作单元'
       : '查看 HANDOVER / 验收入口并完成人工验收';
   }
   return '等待新的已提交 PLAN/HANDOVER，或刷新 /ap workflow status';
