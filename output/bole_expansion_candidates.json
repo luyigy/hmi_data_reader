@@ -1,0 +1,677 @@
+{
+  "generated_at": "2026-07-31T10:50:09+00:00",
+  "generator": "kimi-code S3 (013_PLAN)",
+  "status": "PENDING_USER_APPROVAL",
+  "selection_spec": {
+    "random_seed": 20260731,
+    "pool": "family_prescreen∈{KEBA,B_AND_R}（位置 A01/B02=KEBA、B01=B_AND_R，机台级人工核验证据）且含炮筒温度设定附件的大表记录",
+    "exclusions": [
+      "疑似重复组（同机台同字节数）中除最早日期代表外的记录",
+      "无已核验家族证据的伯乐机台（UNKNOWN 单列待裁定，不进入候选）"
+    ],
+    "machine_cap": "单机台最多 6 条（沿用 009 用户批准的 3 台 × 6 张结构）",
+    "ordering": "random.Random(20260731) 按机台字典序逐台 shuffle（输入按日期+record_id 排序保证确定性），每台取前 6 为目标、其后 4 条为候补",
+    "post_download_rules": [
+      "内容级 SHA-256 去重：候选池内部重复、或与本地校准/遗留图片（S1 校准集、samples_v2 rec06–11）重复，均按候补固定顺序（rank 升序）替换，不临时人工挑图",
+      "状态/质量分层在元数据阶段不可执行（全部 unknown），下载后按预注册口径以候补固定顺序替换不合格项"
+    ]
+  },
+  "targets": [
+    {
+      "rank": 1,
+      "record_id": "recuRMMGl61hX3",
+      "file_token": "M0KrbfwZQoCGIExd0IXc28MNnng",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2025-07-23",
+      "attachment_size_bytes": 5404007,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 2,
+      "record_id": "recv9BowFSmcvr",
+      "file_token": "Ar60bOk0hoeOtJxEkJ3c4K5Xnsf",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2026-01-28",
+      "attachment_size_bytes": 471631,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 3,
+      "record_id": "recv3L738mIX67",
+      "file_token": "CiOXbBNtmoFE54xT66Jc28s6nFV",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2025-11-27",
+      "attachment_size_bytes": 4420191,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 4,
+      "record_id": "recuSX8WOzVuXr",
+      "file_token": "UW7Tb9XRIoGAlwxEp7qcEN89nxH",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2025-08-04",
+      "attachment_size_bytes": 2413394,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 5,
+      "record_id": "recuQJJQEdHz8T",
+      "file_token": "JLe0bBp0SobSWDxTKObczQKlnsb",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2025-07-06",
+      "attachment_size_bytes": 5044940,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 6,
+      "record_id": "recvfEPC0hJGnx",
+      "file_token": "I2F2b4h3SoZ1erxPVt3csm3An7X",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2026-04-02",
+      "attachment_size_bytes": 1062259,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 7,
+      "record_id": "recuSX8WOzPxqw",
+      "file_token": "U4cHbp1PYoHCyjxhgwTctE1WnMc",
+      "machine": "Z004",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2025-08-04",
+      "attachment_size_bytes": 3391583,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 8,
+      "record_id": "recveU3pcIDnIP",
+      "file_token": "E1T7bgTxsoAkncxoUj7ci4DInRh",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2026-03-25",
+      "attachment_size_bytes": 606937,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 9,
+      "record_id": "recv3NN4TXPlKn",
+      "file_token": "G78kb5nDror5zJxjhCmcVOtDnAb",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2025-11-28",
+      "attachment_size_bytes": 3344351,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 10,
+      "record_id": "recuXFJ2KmqxWR",
+      "file_token": "XvAVbmoHQoe3QlxXnfvcdlNYnsh",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2025-09-24",
+      "attachment_size_bytes": 6636945,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 11,
+      "record_id": "recuSiWBMMR07X",
+      "file_token": "VmedbcY6QoyYaWxPyT3cQLDcngc",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2025-07-29",
+      "attachment_size_bytes": 5244937,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 12,
+      "record_id": "recvef7IKvyC45",
+      "file_token": "DyeUbiNMpo5FKhxQLIuc7IYjnic",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2026-03-18",
+      "attachment_size_bytes": 1013132,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 13,
+      "record_id": "recuTC4vmXJtTP",
+      "file_token": "POuKbqWy8oAY0wxmWqNcCtBznqc",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2025-08-11",
+      "attachment_size_bytes": 4204966,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 14,
+      "record_id": "recv3L738mKFzm",
+      "file_token": "Go2Lb2LupoDQ5sxNd80cNGh6nsg",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-11-27",
+      "attachment_size_bytes": 4637190,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 15,
+      "record_id": "recuXFJ2KmX9qE",
+      "file_token": "UPffbqYApoONghxWYF1crPcCnDb",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-09-24",
+      "attachment_size_bytes": 4144297,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 16,
+      "record_id": "recuQJJFYY4E2G",
+      "file_token": "KpVvbrK6Mo43zhxJaHecwTLKn3d",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-05-16",
+      "attachment_size_bytes": 2421230,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 17,
+      "record_id": "recuZKBBdTiuIi",
+      "file_token": "DP7UbHRd3obgm1xUhjEcNMlbntd",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-10-16",
+      "attachment_size_bytes": 3662089,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 18,
+      "record_id": "recv5s7hAZ5oiH",
+      "file_token": "ZAoLbsgGuoC7AcxeVSdcJQganqe",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-12-15",
+      "attachment_size_bytes": 5724759,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 19,
+      "record_id": "recv5vhFIREnE0",
+      "file_token": "JngAbX7tAoIhVoxCMyNcvANwnvd",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-12-16",
+      "attachment_size_bytes": 1981399,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    }
+  ],
+  "alternates": [
+    {
+      "rank": 20,
+      "record_id": "recvcR7EH9Slr0",
+      "file_token": "BombbBBY4okqtZxgadjcxSD0nhe",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2026-03-04",
+      "attachment_size_bytes": 419471,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 21,
+      "record_id": "recuZfFligGR7J",
+      "file_token": "Q6oRbkoYYoR3B1xwACXcgbaLnph",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2025-10-10",
+      "attachment_size_bytes": 5820955,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 22,
+      "record_id": "recuQJJQEdWqlu",
+      "file_token": "QmCvbDTpPocRBxxSUQscc1iHnRf",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2025-06-05",
+      "attachment_size_bytes": 4781482,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 23,
+      "record_id": "recv9n1csvuGXp",
+      "file_token": "LrQfbD2SPoxlVExAfSbcSVz9nRh",
+      "machine": "Z001",
+      "position": "A01",
+      "family": "KEBA",
+      "date": "2026-01-26",
+      "attachment_size_bytes": 1179284,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_A01_KEBA：仅 BOLE Logo + Process expert 标题栏，核验人确认为 KEBA",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 24,
+      "record_id": "recv3xXosVp85w",
+      "file_token": "QO6pbh5P0on5gnxCRBEcrrrznl2",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2025-11-25",
+      "attachment_size_bytes": 4728315,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 25,
+      "record_id": "recuZKBBdTW9af",
+      "file_token": "PPXPb6PhaoIwpBxg04KciBlfnRE",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2025-10-16",
+      "attachment_size_bytes": 3917385,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 26,
+      "record_id": "recvcihCdjo0tB",
+      "file_token": "Z63qbTKhZoo10zxthm7cXPYFnMd",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2026-02-25",
+      "attachment_size_bytes": 944919,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 27,
+      "record_id": "recv672XwmxHRL",
+      "file_token": "GJP0bsXZqog7BOxnZErcWdLpnGd",
+      "machine": "Z046",
+      "position": "B01",
+      "family": "B_AND_R",
+      "date": "2025-12-22",
+      "attachment_size_bytes": 4988607,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B01_B_AND_R：BOLE Logo + BKS_350 蓝色 UI，核验人确认为 B_AND_R",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 28,
+      "record_id": "recvdhV8HLslky",
+      "file_token": "KHIDb6AUroy64JxKPHiclEqEn2w",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2026-03-08",
+      "attachment_size_bytes": 1016845,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 29,
+      "record_id": "recuTeGwV50tAc",
+      "file_token": "CLPQbxljqobYUkxuX6ecJ7gcnke",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-08-07",
+      "attachment_size_bytes": 4302190,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 30,
+      "record_id": "recvef7IKvpl6k",
+      "file_token": "VTLjbxQmNow9rdxyE2HckXknneb",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2026-03-18",
+      "attachment_size_bytes": 937867,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    },
+    {
+      "rank": 31,
+      "record_id": "recuQJJQEdT3jz",
+      "file_token": "LZvybFTyeoWb4TxfJhXcRDHpnyN",
+      "machine": "Z047",
+      "position": "B02",
+      "family": "KEBA",
+      "date": "2025-06-09",
+      "attachment_size_bytes": 2981318,
+      "attachment_type": "image/jpeg",
+      "family_evidence": "machine_labels.json 伯乐_B02_KEBA：机身面板右上角 KEBA 丝印 Logo，王为核验",
+      "status": "unknown_pending_download",
+      "quality": "unknown_pending_download"
+    }
+  ],
+  "unknown_pending_decision": [
+    {
+      "machine": "Z007",
+      "records": 73,
+      "with_attachment": 69,
+      "positions": [
+        "A02"
+      ],
+      "date_span": [
+        "2025-03-13",
+        "2026-03-23"
+      ]
+    },
+    {
+      "machine": "Z010",
+      "records": 1,
+      "with_attachment": 1,
+      "positions": [
+        "A03"
+      ],
+      "date_span": [
+        "2025-06-24",
+        "2025-06-24"
+      ]
+    },
+    {
+      "machine": "Z023",
+      "records": 235,
+      "with_attachment": 200,
+      "positions": [
+        "A06"
+      ],
+      "date_span": [
+        "2025-03-11",
+        "2025-11-07"
+      ]
+    },
+    {
+      "machine": "Z029",
+      "records": 147,
+      "with_attachment": 139,
+      "positions": [
+        "A08"
+      ],
+      "date_span": [
+        "2025-03-09",
+        "2026-03-12"
+      ]
+    },
+    {
+      "machine": "Z031",
+      "records": 221,
+      "with_attachment": 183,
+      "positions": [
+        "A09"
+      ],
+      "date_span": [
+        "2025-03-09",
+        "2026-03-07"
+      ]
+    },
+    {
+      "machine": "Z034",
+      "records": 11,
+      "with_attachment": 11,
+      "positions": [
+        "B06"
+      ],
+      "date_span": [
+        "2026-03-07",
+        "2026-03-28"
+      ]
+    },
+    {
+      "machine": "Z038",
+      "records": 49,
+      "with_attachment": 49,
+      "positions": [
+        "A11"
+      ],
+      "date_span": [
+        "2025-06-23",
+        "2025-10-27"
+      ]
+    },
+    {
+      "machine": "Z048",
+      "records": 148,
+      "with_attachment": 136,
+      "positions": [
+        "B03"
+      ],
+      "date_span": [
+        "2025-03-10",
+        "2026-04-01"
+      ]
+    },
+    {
+      "machine": "Z049",
+      "records": 56,
+      "with_attachment": 56,
+      "positions": [
+        "B04"
+      ],
+      "date_span": [
+        "2025-04-10",
+        "2026-03-13"
+      ]
+    },
+    {
+      "machine": "Z050",
+      "records": 150,
+      "with_attachment": 140,
+      "positions": [
+        "B04"
+      ],
+      "date_span": [
+        "2025-03-10",
+        "2026-04-01"
+      ]
+    },
+    {
+      "machine": "Z053",
+      "records": 94,
+      "with_attachment": 70,
+      "positions": [
+        "B07"
+      ],
+      "date_span": [
+        "2025-03-10",
+        "2025-11-09"
+      ]
+    },
+    {
+      "machine": "Z055",
+      "records": 36,
+      "with_attachment": 36,
+      "positions": [
+        "B08"
+      ],
+      "date_span": [
+        "2025-05-31",
+        "2026-03-29"
+      ]
+    },
+    {
+      "machine": "Z056",
+      "records": 4,
+      "with_attachment": 4,
+      "positions": [
+        "B09"
+      ],
+      "date_span": [
+        "2025-08-23",
+        "2026-03-01"
+      ]
+    },
+    {
+      "machine": "Z057",
+      "records": 61,
+      "with_attachment": 60,
+      "positions": [
+        "B09"
+      ],
+      "date_span": [
+        "2025-05-29",
+        "2025-12-17"
+      ]
+    },
+    {
+      "machine": "Z058",
+      "records": 2,
+      "with_attachment": 2,
+      "positions": [
+        "B10"
+      ],
+      "date_span": [
+        "2025-08-05",
+        "2026-02-07"
+      ]
+    },
+    {
+      "machine": "Z059",
+      "records": 63,
+      "with_attachment": 54,
+      "positions": [
+        "B10"
+      ],
+      "date_span": [
+        "2025-03-12",
+        "2026-03-31"
+      ]
+    },
+    {
+      "machine": "Z061",
+      "records": 14,
+      "with_attachment": 14,
+      "positions": [
+        "B11"
+      ],
+      "date_span": [
+        "2025-08-04",
+        "2025-12-19"
+      ]
+    }
+  ],
+  "pool_summary": {
+    "in_scope_pool_records": 196,
+    "per_machine_pool": {
+      "Z001": 145,
+      "Z004": 1,
+      "Z046": 25,
+      "Z047": 25
+    },
+    "per_family_pool": {
+      "B_AND_R": 25,
+      "KEBA": 171
+    },
+    "suspected_duplicate_excess_excluded": 0
+  }
+}
