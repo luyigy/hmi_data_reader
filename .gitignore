@@ -42,6 +42,12 @@ prisma/dev.db.*
 # local tooling indexes
 /.codegraph/
 .codex
+/.codex-tmp/
+/.playwright-mcp/
+
+# local authentication artifacts and document scratchpads
+/lark-login-qr.png
+/docs/DRAFT_*.md
 
 # vercel
 .vercel
