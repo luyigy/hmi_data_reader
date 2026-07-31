@@ -37,7 +37,9 @@ async function main() {
   const taskMessages = new Set<string>();
   const liveMarkers = new Set<string>();
   let threaded = true;
-  let fault: 'session' | 'marker' | 'live' | 'thread' | 'bootstrap' | 'complete' | null = null;
+  let fault: 'before_session' | 'session' | 'marker' | 'live' | 'thread' | 'bootstrap' | 'complete' | null = null;
+  let runningReply = true;
+  let stopEffects = 0;
   let rotations = 0;
   let resetMarkers = 0;
   let liveResets = 0;
@@ -118,6 +120,7 @@ async function main() {
 
   const session = await import('../src/lib/acpx/session') as unknown as Record<string, unknown>;
   session.rotateTaskSession = async (_taskId: string, options: { metadata: Record<string, unknown> }) => {
+    if (fault === 'before_session') throw new Error('crash before TaskSession creation');
     rotations += 1;
     const created = {
       id: `session-${rotations}`,
@@ -161,11 +164,14 @@ async function main() {
   };
 
   const interrupt = await import('../src/lib/live-room-interrupt') as unknown as Record<string, unknown>;
-  interrupt.interruptLiveRoomMemberReplies = async () => ({
-    failedRunningCount: 0,
-    interruptedRunningCount: 1,
-    cancelledQueuedCount: 1,
-  });
+  interrupt.interruptLiveRoomMemberReplies = async () => {
+    if (!runningReply) {
+      return { failedRunningCount: 0, interruptedRunningCount: 0, cancelledQueuedCount: 0 };
+    }
+    runningReply = false;
+    stopEffects += 1;
+    return { failedRunningCount: 0, interruptedRunningCount: 1, cancelledQueuedCount: 1 };
+  };
   const registry = await import('../src/lib/live-room-process-registry') as unknown as Record<string, unknown>;
   registry.cancelQueuedLiveRoomMemberExecutions = () => {};
   registry.waitForLiveRoomMemberExecutionStop = async () => {};
@@ -182,6 +188,7 @@ async function main() {
   const {
     handleNewSessionCommand,
     handleNewSessionConfirmationCardAction,
+    prepareWorkflowRotationHandover,
   } = await import('../src/lib/feishu-new-session');
   const context = {
     chatId: 'chat',
@@ -190,6 +197,30 @@ async function main() {
     messageId: 'message',
   };
   const command = { command: 'new-session', args: [], options: {} };
+
+  const preclaimHandover = await prepareWorkflowRotationHandover({
+    taskId: 'task',
+    taskName: 'Task',
+    roomId: 'room',
+    roomTitle: 'Room',
+    workingDirectory: workspace,
+    memberIds: ['member'],
+    memberNames: ['Codex'],
+    rotationKey: 'preclaim-crash',
+  });
+  const preclaimHead = (await runGit('rev-parse', 'HEAD')).stdout.trim();
+  assert.equal(await prepareWorkflowRotationHandover({
+    taskId: 'task',
+    taskName: 'Task',
+    roomId: 'room',
+    roomTitle: 'Room',
+    workingDirectory: workspace,
+    memberIds: ['member'],
+    memberNames: ['Codex'],
+    rotationKey: 'preclaim-crash',
+  }), preclaimHandover);
+  assert.equal((await runGit('rev-parse', 'HEAD')).stdout.trim(), preclaimHead,
+    'retry after pre-claim crash must reuse the committed Handover');
 
   assert.match(await handleNewSessionCommand(command, context), /已发送确认卡/);
   for (const label of [
@@ -229,6 +260,7 @@ async function main() {
     options: { confirmed: 'true', 'rotation-key': 'recover' },
   };
   for (const [checkpoint, error] of [
+    ['before_session', /before TaskSession creation/],
     ['session', /session creation/],
     ['marker', /reset marker/],
     ['live', /live reset/],
@@ -246,6 +278,7 @@ async function main() {
   assert.equal(liveResets, 1);
   assert.equal(threadClears, 1);
   assert.equal(bootstrapPosts, 2);
+  assert.equal(stopEffects, 1, 'retry after a durable stop must not stop the old run twice');
 
   room.members.push(
     {
