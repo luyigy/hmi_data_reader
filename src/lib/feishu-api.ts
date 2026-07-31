@@ -584,10 +584,15 @@ export const buildFeishuPermissionCard = (args: {
   approvalScope: string;
   expiresAt: string;
   approvalSupported: boolean;
-}) => ({
+}) => {
+  const needsAnswer = args.kind === 'input_request' || args.kind === 'choice_request';
+  return {
     config: { wide_screen_mode: true },
     header: {
-      title: { content: '⚠️ Agent 请求权限确认', tag: 'plain_text' },
+      title: {
+        content: needsAnswer ? '⏸️ Agent 等待你的确认' : '⚠️ Agent 请求权限确认',
+        tag: 'plain_text',
+      },
       template: 'orange',
     },
     elements: [
@@ -602,7 +607,38 @@ export const buildFeishuPermissionCard = (args: {
           `**有效期**：${args.expiresAt}`,
         ].join('\n'),
       },
-      {
+      needsAnswer ? {
+        tag: 'form',
+        name: 'interactionAnswer',
+        elements: [
+          {
+            tag: 'input',
+            name: 'responseText',
+            required: true,
+            input_type: 'multiline_text',
+            rows: 4,
+            max_rows: 8,
+            auto_resize: true,
+            width: 'fill',
+            label: {
+              tag: 'plain_text',
+              content: args.kind === 'choice_request' ? '你的选择' : '你的回复',
+            },
+            placeholder: {
+              tag: 'plain_text',
+              content: args.kind === 'choice_request' ? '填写选项或选择结果' : '填写 Agent 继续所需的信息',
+            },
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '提交并继续' },
+            type: 'primary',
+            action_type: 'form_submit',
+            name: 'submitInteractionAnswer',
+            value: { cmd: `answer:${args.interactionRequestId}` },
+          },
+        ],
+      } : {
         tag: 'action',
         actions: [
           ...(args.approvalSupported
@@ -611,8 +647,15 @@ export const buildFeishuPermissionCard = (args: {
           buildApprovalCardButton('❌ 拒绝', `deny:${args.interactionRequestId}`, 'danger'),
         ],
       },
+      ...(needsAnswer ? [{
+        tag: 'action',
+        actions: [
+          buildApprovalCardButton('❌ 拒绝并停止', `deny:${args.interactionRequestId}`, 'danger'),
+        ],
+      }] : []),
     ],
-  });
+  };
+};
 
 export async function sendFeishuApprovalCard(args: Parameters<typeof buildFeishuPermissionCard>[0] & {
   chatId: string;

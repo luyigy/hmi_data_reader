@@ -18,6 +18,7 @@ const HELP_PAGES = [
     '/ap chat [--agents=<agentId1,agentId2>] <message>',
     '/ap chat --from-member=<memberName> --to-member=<memberName> <message>',
     '/ap plan [--host=<memberName|idSuffix>] <需求>  只讨论并提交合格 PLAN',
+    '/ap doc <仓库内已提交的 Markdown 路径>  转为飞书文档',
     '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',
     '/ap handover [agentName|idSuffix] [--title="handover title"]',
   ]],

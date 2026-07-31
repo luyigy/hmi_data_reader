@@ -30,6 +30,14 @@ assert.doesNotMatch(JSON.stringify(buildFeishuPermissionCard({
   approvalSupported: false,
   approvalScope: '当前 adapter 不支持原进程批准',
 })), /approve:request/);
+const inputCard = JSON.stringify(buildFeishuPermissionCard({
+  ...args,
+  kind: 'input_request',
+}));
+assert.match(inputCard, /Agent 等待你的确认/);
+assert.match(inputCard, /responseText/);
+assert.match(inputCard, /answer:request/);
+assert.match(inputCard, /deny:request/);
 
 assert.equal(isPermissionRequestWithinBoundary({
   kind: 'permission_request',

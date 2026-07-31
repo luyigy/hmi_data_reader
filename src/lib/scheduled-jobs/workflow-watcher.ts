@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
+import { importMarkdownAsFeishuDocument } from '../feishu-document-import';
 import {
   sendFeishuWorkflowRevisionFeedbackCard,
   sendFeishuWorkflowReviewCard,
@@ -139,27 +138,7 @@ const documentCommit = async (cwd: string, head: string, filePath: string, signa
 const idempotencyKey = (eventKey: string, step: string) =>
   createHash('sha256').update(`${eventKey}:${step}`).digest('hex').slice(0, 32);
 
-const importPlanDocument: WorkflowDocumentImporter = async ({ content, name, signal }) => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-platform-plan-'));
-  const file = path.join(directory, 'plan.md');
-  try {
-    const body = content
-      .replace(/^---\n[\s\S]*?\n---\n*/, '')
-      .replace(/^# [^\n]*\n*/, '');
-    await writeFile(file, `# ${name}\n\n${body}`);
-    const result = JSON.parse(await exec('lark-cli', [
-      'docs', '+create', '--as', 'bot', '--api-version', 'v2',
-      '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',
-    ], signal, directory)) as Record<string, unknown>;
-    const data = result.data as { document?: { url?: unknown } } | undefined;
-    if (result.ok !== true || typeof data?.document?.url !== 'string' || !data.document.url) {
-      throw new Error('Feishu PLAN creation returned no document URL');
-    }
-    return data.document.url;
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-};
+const importPlanDocument: WorkflowDocumentImporter = importMarkdownAsFeishuDocument;
 
 const send = (chatId: string, text: string, eventKey: string, step: string) =>
   sendFeishuWorkflowTextMessage({

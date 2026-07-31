@@ -13,7 +13,6 @@ import {
   sendFeishuTextMessage,
   updateFeishuApprovalCardResolved,
 } from '@/lib/feishu-api';
-import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import {
   getBoundLiveRoom,
   tryRelayNonCommandToLiveRoom,
@@ -25,7 +24,8 @@ import {
   updateFeishuRuntimeStatus,
 } from '@/lib/feishu-runtime-status';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
-import { checkFeishuDirectMessageAccess, isFeishuAdmin, resolveFeishuAdminApproval } from '@/lib/feishu-access-approval';
+import { checkFeishuDirectMessageAccess, resolveFeishuAdminApproval } from '@/lib/feishu-access-approval';
+import { handleFeishuInteractionCardAction } from '@/lib/feishu-interaction-card-action';
 import {
   resolveWorkflowReviewCardAction,
   resolveWorkflowRevisionFeedback,
@@ -547,8 +547,6 @@ function buildCardActionHandler(prefix: string) {
     }
 
     if (!cmd) return {};
-    const approveMatch = /^approve:(.+)$/.exec(cmd);
-    const denyMatch = /^deny:(.+)$/.exec(cmd);
     const adminMatch = /^admin-approval:(approve|deny):(.+)$/.exec(cmd);
 
     if (adminMatch) {
@@ -561,40 +559,14 @@ function buildCardActionHandler(prefix: string) {
       return {};
     }
 
-    if (!approveMatch && !denyMatch) {
-      return {};
-    }
-    if (!isFeishuAdmin(openId)) {
-      const access = openId ? await prisma.feishuUserAccess.findUnique({ where: { openId }, select: { status: true } }) : null;
-      if (access?.status !== 'approved') return {};
-    }
-
-    const requestId = (approveMatch ?? denyMatch)![1];
-    const approved = !!approveMatch;
-
-    try {
-      await resolveInteractionRequestWithContinuation({
-        requestId,
-        action: approved ? 'approve' : 'deny',
-        actor: { id: openId || 'feishu_card', name: actorName, channel: 'feishu' },
-      });
-
-      if (messageId) {
-        await updateFeishuApprovalCardResolved({ messageId, approved, actorName }).catch(() => {});
-      }
-
-      console.log(`${prefix} card action resolved`, { requestId, approved, actorName });
-    } catch (err) {
-      console.error(`${prefix} card action resolution failed`, { requestId, err });
-      return {
-        toast: {
-          type: 'warning',
-          content: err instanceof Error ? err.message : '权限卡已失效',
-        },
-      };
-    }
-
-    return {};
+    return await handleFeishuInteractionCardAction({
+      cmd,
+      formValue: (data.action as unknown as { form_value?: Record<string, unknown> }).form_value,
+      openId,
+      messageId,
+      actorName,
+      prefix,
+    }) || {};
   };
 }
 

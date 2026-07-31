@@ -35,6 +35,12 @@ assert.deepEqual(parseFeishuCommand(message('/ap room --handoff-limit=4 demo')),
   args: ['demo'],
   options: { 'handoff-limit': '4' },
 });
+assert.deepEqual(parseFeishuCommand(message('/ap doc "docs/338 handover.md"')), {
+  command: 'doc',
+  args: ['docs/338 handover.md'],
+  options: {},
+});
+assert.match(formatFeishuHelp({ args: [], options: {} }), /\/ap doc <仓库内已提交的 Markdown 路径>/);
 assert.match(formatFeishuHelp({ args: [], options: {} }), /\/ap handoff-limit \[0-32\]/);
 assert.equal(formatFeishuHelp({ args: ['0'], options: {} }), '页码无效：0。请使用 /ap help 1-4。');
 assert.equal(formatFeishuHelp({ args: [], options: { page: '5' } }), '页码无效：5。请使用 /ap help 1-4。');

@@ -8,6 +8,7 @@ import {
 import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
 import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
+import { handleFeishuDocumentCommand } from '@/lib/feishu-document-command';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
 import { formatFeishuHelp, sendFeishuCommandCenter } from '@/lib/feishu-help';
 import { handleNewSessionCommand } from '@/lib/feishu-new-session';
@@ -107,6 +108,8 @@ export async function handleFeishuCommand(args: {
       return handleChatCommand(args.command, args.baseUrl, args.context);
     case 'plan':
       return handleFeishuPlanCommand(args.command, args.context);
+    case 'doc':
+      return handleFeishuDocumentCommand(args.command, args.context);
     case 'approvals':
       return handleApprovalsCommand(args.context);
     case 'approve':
