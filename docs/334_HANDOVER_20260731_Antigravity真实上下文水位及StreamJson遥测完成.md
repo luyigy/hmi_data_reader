@@ -19,9 +19,10 @@ plan_progress: complete
 2. **Antigravity 上下文状态维持 `not_applicable`**：
    - 遵照 `docs/326_PLAN_20260730_Antigravity与Kimi真实上下文水位及账户Quota.md:61` 规范，Antigravity 当前在 Platform Local Adapter 中无跨 turn continuation，故 `source` 保持 `not_applicable`；
    - 不参与跨轮 Session 轮换、不冒充 Session 水位、不触发 60%/85% 的 `/ap new-session` 警告 Prompt。
-3. **单次运行 Usage 显式标注为 `last run usage`**：
+3. **单次运行 Usage 显式标注与诊断证据呈现**：
    - 将 `usedTokens` 明确命名并标注为 `lastRunInputTokens`；
-   - 在房间成员卡片与 UI 诊断中明确显示 `last run usage: X tokens`，避免与 Session 跨轮水位混淆。
+   - 飞书指令 `/ap room` 与 `/ap members` 针对 `not_applicable` 成员回显单次运行输入 Token 占用凭证（例：`上下文 每轮新 conversation (单次输入: 16,223 tokens)`）；
+   - Web UI 控制台卡片中明确显示 `Last run: 16,223 tokens`（若模型窗口明确则带上 `max`），既展示真实消耗证据，又避免与 Session 跨轮水位混淆。
 4. **真实 `agy 1.1.8 stream-json` 样本测试与断言**：
    - 提取本机真实运行 `agy -p "hi" --sandbox --output-format stream-json` 产生的无 model 字段原始事件样本写入 `tests/antigravity-context.test.ts`；
    - 断言：无 model 标识的真实事件解析出的 `contextWindow` 必须为 `null`，且 `usagePercentage` 必须为 `null`（不计算百分比）。
@@ -31,6 +32,8 @@ plan_progress: complete
 - `src/lib/real-agents/antigravity-context.ts`
 - `src/lib/real-agents/antigravity-agent.ts`
 - `src/lib/live-room-members.ts`
+- `src/lib/feishu-live-room-commands.ts`
+- `src/components/live-room/live-room-workspace-models.tsx`
 - `src/lib/acpx/prompt.ts`
 - `src/lib/live-room-types.ts`
 - `src/types/index.ts`
@@ -44,8 +47,8 @@ plan_progress: complete
 
 ## 验收方式
 
-在绑定 Live Room 执行 `/ap members`，验证 Antigravity 是否正确保持：
-- 上下文状态为 `not_applicable` / `fresh conversation per turn`；
+在绑定 Live Room 执行 `/ap members`，验证 Antigravity 是否正确：
+- 上下文状态保持 `not_applicable` / `fresh conversation per turn`；
 - 无 /ap new-session 重置警告；
-- 遥测诊断明确标注单次运行输入 Token 占用。
+- 遥测诊断在飞书回显与 Web UI 明确呈现单次运行输入 Token 占用凭证（如 `单次输入: 16,223 tokens` / `Last run: 16,223 tokens`）。
 
