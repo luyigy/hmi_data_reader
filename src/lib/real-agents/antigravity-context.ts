@@ -10,6 +10,23 @@ export type AntigravityContextUsage = {
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW = 1_048_576;
 
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  'gemini-1.5-pro': 2_097_152,
+  'gemini-1.5-flash': 1_048_576,
+  'gemini-2.0-flash': 1_048_576,
+  'claude-3-5-sonnet': 200_000,
+  'gpt-4o': 128_000,
+};
+
+export const resolveAntigravityContextWindow = (modelAlias?: string): number => {
+  if (!modelAlias) return DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW;
+  const key = modelAlias.toLowerCase().trim();
+  for (const [pattern, windowSize] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
+    if (key.includes(pattern)) return windowSize;
+  }
+  return DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW;
+};
+
 export const persistAntigravityContextUsageMetadata = async (
   participantId: string,
   usage: AntigravityContextUsage
@@ -91,12 +108,30 @@ export const parseAntigravityUsageFromText = (
   options: { defaultContextWindow?: number; modelAlias?: string } = {}
 ): AntigravityContextUsage | null => {
   if (!text) return null;
-  const contextWindow = options.defaultContextWindow || DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW;
+  let detectedModel = options.modelAlias;
 
   try {
     // Attempt 1: Parse stream-json / json lines containing token usage
     const lines = text.split('\n');
-    // Traverse backwards to find the latest/final result or step_update usage
+
+    // First pass: extract model if present in init/event JSON
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('{')) continue;
+      try {
+        const obj = JSON.parse(trimmed);
+        if (!detectedModel) {
+          detectedModel = obj.model || obj.init?.model || obj.result?.model;
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    const contextWindow =
+      options.defaultContextWindow || resolveAntigravityContextWindow(detectedModel);
+
+    // Second pass (backwards): find the latest result or step_update usage
     for (let i = lines.length - 1; i >= 0; i--) {
       const trimmed = lines[i].trim();
       if (!trimmed.startsWith('{')) continue;
@@ -117,7 +152,7 @@ export const parseAntigravityUsageFromText = (
               usedTokens: inputTokens,
               contextWindow,
               updatedAt: new Date().toISOString(),
-              ...(options.modelAlias ? { modelAlias: options.modelAlias } : {}),
+              ...(detectedModel ? { modelAlias: detectedModel } : {}),
             };
           }
         }
@@ -125,22 +160,22 @@ export const parseAntigravityUsageFromText = (
         // continue
       }
     }
+
+    // Attempt 2: Match regex patterns in plaintext output
+    const tokenMatch = text.match(/tokens?:\s*(\d+)/i) || text.match(/input_tokens?:\s*(\d+)/i);
+    if (tokenMatch) {
+      const usedTokens = parseInt(tokenMatch[1], 10);
+      if (!Number.isNaN(usedTokens) && usedTokens >= 0) {
+        return {
+          usedTokens,
+          contextWindow,
+          updatedAt: new Date().toISOString(),
+          ...(detectedModel ? { modelAlias: detectedModel } : {}),
+        };
+      }
+    }
   } catch {
     // continue
-  }
-
-  // Attempt 2: Match regex patterns in plaintext output
-  const tokenMatch = text.match(/tokens?:\s*(\d+)/i) || text.match(/input_tokens?:\s*(\d+)/i);
-  if (tokenMatch) {
-    const usedTokens = parseInt(tokenMatch[1], 10);
-    if (!Number.isNaN(usedTokens) && usedTokens >= 0) {
-      return {
-        usedTokens,
-        contextWindow,
-        updatedAt: new Date().toISOString(),
-        ...(options.modelAlias ? { modelAlias: options.modelAlias } : {}),
-      };
-    }
   }
 
   return null;

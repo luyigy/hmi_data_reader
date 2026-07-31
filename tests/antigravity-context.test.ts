@@ -3,10 +3,20 @@ import { describe, it } from 'node:test';
 import {
   getAntigravityProviderContextUsage,
   parseAntigravityUsageFromText,
+  resolveAntigravityContextWindow,
   DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW,
 } from '../src/lib/real-agents/antigravity-context';
 
 describe('antigravity-context', () => {
+  describe('resolveAntigravityContextWindow', () => {
+    it('resolves specific context window by model alias', () => {
+      assert.equal(resolveAntigravityContextWindow('gemini-1.5-pro'), 2_097_152);
+      assert.equal(resolveAntigravityContextWindow('claude-3-5-sonnet'), 200_000);
+      assert.equal(resolveAntigravityContextWindow('gpt-4o'), 128_000);
+      assert.equal(resolveAntigravityContextWindow('unknown-model'), DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW);
+      assert.equal(resolveAntigravityContextWindow(undefined), DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW);
+    });
+  });
   describe('getAntigravityProviderContextUsage', () => {
     it('returns null for empty or invalid metadata', () => {
       assert.equal(getAntigravityProviderContextUsage(null), null);
@@ -83,7 +93,7 @@ describe('antigravity-context', () => {
       const usage = parseAntigravityUsageFromText(sampleOutput);
       assert.notEqual(usage, null);
       assert.equal(usage?.usedTokens, 524288);
-      assert.equal(usage?.contextWindow, DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW);
+      assert.equal(usage?.contextWindow, 2_097_152);
     });
 
     it('parses token usage from regex fallback in plain text', () => {

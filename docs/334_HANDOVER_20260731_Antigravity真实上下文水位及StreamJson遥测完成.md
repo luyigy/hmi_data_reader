@@ -12,7 +12,7 @@ plan_progress: complete
 ## 完成内容
 
 - 新增 `src/lib/real-agents/antigravity-context.ts`：
-  - 支持解析 Antigravity (`agy 1.1.8`) `stream-json` 输出事件中的 `input_tokens` / `contextWindow`；
+  - 支持解析 Antigravity (`agy 1.1.8`) `stream-json` 输出事件中的 `input_tokens` 真实使用量，并基于模型标识与缺省上限（默认 1,048,576）确定 `contextWindow`；
   - 提供 `getAntigravityProviderContextUsage` 用于读取与校验 `controlMetadata` 中 24 小时内的 Antigravity 上下文用量；
   - 提供 `persistAntigravityContextUsageMetadata` 将 `antigravityContextUsage` 持久化至数据库 `TaskRunParticipant.controlMetadata`。
 - 新增 `tests/antigravity-context.test.ts`：
