@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getCodexProviderContextUsage } from "@/lib/codex-telemetry";
 import { getKimiCodeProviderContextUsage } from "@/lib/real-agents/kimi-code-telemetry";
+import { getAntigravityProviderContextUsage } from "@/lib/real-agents/antigravity-context";
 import { deriveGatewayHarnessOptions } from "@/lib/acpx/catalog";
 import { ensureTaskSession } from "@/lib/acpx/session";
 import { DEFAULT_ACPX_PERMISSION_CONFIG, getPermissionProfileLabel } from "@/lib/acpx/permissions";
@@ -443,7 +444,7 @@ export const getLiveRoomMemberContextWatermark = async ({
     ?.createdAt || null;
   const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
   const providerHarness = member.backend === 'platform_local'
-    && (member.harnessType === 'codex' || member.harnessType === 'kimi-code')
+    && (member.harnessType === 'codex' || member.harnessType === 'kimi-code' || member.harnessType === 'antigravity')
     ? member.harnessType
     : null;
   const [eventCount, providerParticipant] = await Promise.all([
@@ -474,7 +475,9 @@ export const getLiveRoomMemberContextWatermark = async ({
                 controlMetadata: {
                   contains: providerHarness === 'codex'
                     ? '"codexTokenUsage"'
-                    : '"kimiCodeContextUsage"',
+                    : providerHarness === 'kimi-code'
+                    ? '"kimiCodeContextUsage"'
+                    : '"antigravityContextUsage"',
                 },
               },
             ],
@@ -489,10 +492,12 @@ export const getLiveRoomMemberContextWatermark = async ({
     ? getCodexProviderContextUsage(providerParticipant?.controlMetadata)
     : providerHarness === 'kimi-code'
     ? getKimiCodeProviderContextUsage(providerParticipant?.controlMetadata)
+    : providerHarness === 'antigravity'
+    ? getAntigravityProviderContextUsage(providerParticipant?.controlMetadata)
     : null;
   const source: LiveRoomMemberContextWatermarkPayload['source'] = providerUsage
     ? 'provider'
-    : member.backend === 'platform_local' && member.harnessType === 'antigravity'
+    : member.backend !== 'platform_local'
     ? 'not_applicable'
     : 'unknown';
 

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getCodexProviderContextUsage } from '@/lib/codex-telemetry';
 import { getKimiCodeProviderContextUsage } from '@/lib/real-agents/kimi-code-telemetry';
+import { getAntigravityProviderContextUsage } from '@/lib/real-agents/antigravity-context';
 import { countTaskRoomMessages } from '@/lib/task-room';
 import { longFileRuntimeNotice, type LongFileRuntimeContext } from './long-file-runtime-context';
 import type { AcpxParticipantRequest, AcpxRunRequest } from './types';
@@ -108,7 +109,7 @@ export const checkContextWatermark = async (
 ): Promise<string | null> => {
   const hardReasons: string[] = [];
   const providerHarness = participant?.executionBackend === 'platform_local'
-    && (participant.harnessType === 'codex' || participant.harnessType === 'kimi-code')
+    && (participant.harnessType === 'codex' || participant.harnessType === 'kimi-code' || participant.harnessType === 'antigravity')
     ? participant.harnessType
     : null;
   const [roomMessageCount, eventCount, providerParticipant] = await Promise.all([
@@ -126,7 +127,9 @@ export const checkContextWatermark = async (
                 controlMetadata: {
                   contains: providerHarness === 'codex'
                     ? '"codexTokenUsage"'
-                    : '"kimiCodeContextUsage"',
+                    : providerHarness === 'kimi-code'
+                    ? '"kimiCodeContextUsage"'
+                    : '"antigravityContextUsage"',
                 },
               },
             ],
@@ -142,14 +145,13 @@ export const checkContextWatermark = async (
     ? getCodexProviderContextUsage(providerParticipant?.controlMetadata)
     : providerHarness === 'kimi-code'
     ? getKimiCodeProviderContextUsage(providerParticipant?.controlMetadata)
+    : providerHarness === 'antigravity'
+    ? getAntigravityProviderContextUsage(providerParticipant?.controlMetadata)
     : null;
   return buildContextWatermarkWarning({
     providerUsagePercentage: providerUsage?.usagePercentage ?? null,
     hardReasons,
-    contextStatus: participant?.executionBackend === 'platform_local'
-      && participant.harnessType === 'antigravity'
-      ? 'not_applicable'
-      : providerUsage
+    contextStatus: providerUsage
       ? 'provider'
       : 'unknown',
   });

@@ -12,6 +12,7 @@ import {
   collectKimiCodeProviderContextUsage,
   persistKimiCodeContextUsageMetadata,
 } from '@/lib/real-agents/kimi-code-telemetry';
+import { persistAntigravityContextUsageMetadata } from '@/lib/real-agents/antigravity-context';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
@@ -239,6 +240,13 @@ export const executeViaLocalHarness = async (
       }
     } catch {
       // Context telemetry is diagnostic and must not turn a successful Kimi run into a failure.
+    }
+  }
+  if (participant.harnessType === 'antigravity' && result.contextUsage) {
+    try {
+      await persistAntigravityContextUsageMetadata(participantId, result.contextUsage);
+    } catch {
+      // Context telemetry is diagnostic and must not turn a successful Antigravity run into a failure.
     }
   }
 

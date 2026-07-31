@@ -48,6 +48,8 @@ export interface HarnessResumeArgs {
   continuationMessage: string;
 }
 
+import type { AntigravityContextUsage } from '@/lib/real-agents/antigravity-context';
+
 export interface HarnessExecuteResult {
   success: boolean;
   output?: string;
@@ -58,6 +60,7 @@ export interface HarnessExecuteResult {
   sessionKind?: string;
   threadId?: string;
   liveStreaming?: boolean;
+  contextUsage?: AntigravityContextUsage;
 }
 
 export interface HarnessAvailability {

@@ -1,6 +1,11 @@
 import { spawn, type ChildProcess } from 'child_process';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 
+import {
+  parseAntigravityUsageFromText,
+  type AntigravityContextUsage,
+} from './antigravity-context';
+
 export interface AntigravityConfig {
   timeout?: number | null;
   workingDirectory?: string;
@@ -21,6 +26,7 @@ export interface AntigravityResult {
   error?: string;
   executionTime: number;
   filesModified?: string[];
+  contextUsage?: AntigravityContextUsage;
 }
 
 const AGY_BIN = process.env.ANTIGRAVITY_CLI_PATH?.trim() || 'agy';
@@ -47,6 +53,40 @@ const promptFor = (task: AntigravityTask) =>
 
 const normalizeOutput = (value: string) => value.trim().replace(/\s+/g, ' ');
 
+const extractAntigravityResponse = (stdout: string): string => {
+  const lines = stdout.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        const obj = JSON.parse(trimmed);
+        if (obj.event === 'result' && typeof obj.result?.response === 'string') {
+          return obj.result.response.trim();
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  let text = '';
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        const obj = JSON.parse(trimmed);
+        if (obj.event === 'step_update' && typeof obj.step_update?.text_delta === 'string') {
+          text += obj.step_update.text_delta;
+        }
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  return text.trim() || stdout.trim();
+};
+
 export const executeAntigravityTask = (
   task: AntigravityTask,
   config: AntigravityConfig = {}
@@ -57,6 +97,8 @@ export const executeAntigravityTask = (
   const args = [
     '-p',
     prompt,
+    '--output-format',
+    'stream-json',
     ...(config.sandboxMode === 'danger-full-access'
       ? ['--dangerously-skip-permissions']
       : ['--sandbox']),
@@ -89,7 +131,22 @@ export const executeAntigravityTask = (
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stdout += text;
-      void config.streamCallbacks?.onStdoutChunk?.(text);
+      // Extract text_delta from stream-json lines if possible
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('{')) {
+          try {
+            const obj = JSON.parse(trimmed);
+            if (obj.event === 'step_update' && typeof obj.step_update?.text_delta === 'string') {
+              void config.streamCallbacks?.onStdoutChunk?.(obj.step_update.text_delta);
+              continue;
+            }
+          } catch {
+            // continue
+          }
+        }
+      }
     });
     child.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
@@ -101,18 +158,20 @@ export const executeAntigravityTask = (
       error: `Failed to start Antigravity CLI: ${error.message}`,
     }));
     child.on('close', (code) => {
-      const output = stdout.trim();
+      const output = extractAntigravityResponse(stdout);
+      const contextUsage = parseAntigravityUsageFromText(stdout) || parseAntigravityUsageFromText(stderr) || undefined;
       if (code !== 0) {
-        finish({ success: false, error: stderr.trim() || output || `Antigravity exited with code ${code}` });
+        finish({ success: false, error: stderr.trim() || output || `Antigravity exited with code ${code}`, contextUsage });
       } else if (!output) {
         finish({
           success: false,
           error: `Antigravity returned no final output${stderr.trim() ? `: ${stderr.trim()}` : ''}`,
+          contextUsage,
         });
       } else if (normalizeOutput(output) === normalizeOutput(prompt)) {
-        finish({ success: false, error: `Antigravity returned only the input prompt${stderr.trim() ? `: ${stderr.trim()}` : ''}` });
+        finish({ success: false, error: `Antigravity returned only the input prompt${stderr.trim() ? `: ${stderr.trim()}` : ''}`, contextUsage });
       } else {
-        finish({ success: true, output, filesModified: [] });
+        finish({ success: true, output, filesModified: [], contextUsage });
       }
     });
   });
