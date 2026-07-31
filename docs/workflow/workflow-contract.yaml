@@ -1,5 +1,5 @@
 schema_version: 2
-contract_version: "2026.07.27.1"
+contract_version: "2026.08.01.1"
 
 documents:
   automation_types:
@@ -84,6 +84,18 @@ prompt:
   end_marker: "<!-- WORKFLOW_PROMPT_END -->"
   required_in_handover: true
   repeat_in_final_reply: true
+
+# Policy checks are enabled by default. Set an individual rule to false when
+# the document convention needs to be relaxed; structural YAML/action checks
+# and referenced-document existence checks always remain enforced.
+validation:
+  rules:
+    plan_must_have_slice: true
+    phase_parent_fields_must_be_null: true
+    referenced_slices_must_exist: true
+    next_slice_must_exist: true
+    prompt_must_reference_documents: true
+    prompt_must_reference_slice: true
 
 completion_gate:
   timeout_seconds: 1800

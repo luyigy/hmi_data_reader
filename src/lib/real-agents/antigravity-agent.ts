@@ -1,4 +1,7 @@
 import { spawn, type ChildProcess } from 'child_process';
+import { readdirSync, readFileSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 
 import {
@@ -30,6 +33,32 @@ export interface AntigravityResult {
 }
 
 const AGY_BIN = process.env.ANTIGRAVITY_CLI_PATH?.trim() || 'agy';
+
+const resolveProjectArgs = (workingDirectory?: string) => {
+  if (!workingDirectory) return [];
+
+  const workspace = realpathSync(workingDirectory);
+  const projectsDir = path.join(process.env.HOME || '/home/hello', '.gemini/config/projects');
+  try {
+    for (const filename of readdirSync(projectsDir)) {
+      if (!filename.endsWith('.json')) continue;
+      try {
+        const project = JSON.parse(readFileSync(path.join(projectsDir, filename), 'utf8'));
+        if (typeof project.id === 'string' && project.projectResources?.resources?.some(
+          (resource: { folderUri?: string }) => resource.folderUri
+            && realpathSync(fileURLToPath(resource.folderUri)) === workspace
+        )) return [`--project=${project.id}`];
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // Missing or stale Antigravity project metadata is repaired by the CLI below.
+  }
+
+  // ponytail: simultaneous first runs may create duplicates; add a per-workspace lock only if observed.
+  return ['--new-project'];
+};
 
 const childEnv = () => {
   const env = { ...process.env };
@@ -97,6 +126,7 @@ export const executeAntigravityTask = (
   const args = [
     '-p',
     prompt,
+    ...resolveProjectArgs(config.workingDirectory),
     '--output-format',
     'stream-json',
     ...(config.sandboxMode === 'danger-full-access'

@@ -257,6 +257,21 @@ S01
     },
   );
 
+  const relaxedContract = (await readFile(
+    path.join(root, 'docs/workflow/workflow-contract.yaml'),
+    'utf8',
+  ))
+    .replace('next_slice_must_exist: true', 'next_slice_must_exist: false')
+    .replace('prompt_must_reference_documents: true', 'prompt_must_reference_documents: false');
+  await writeFile(path.join(root, 'docs/workflow/workflow-contract.yaml'), relaxedContract);
+  git('add', '.');
+  git('commit', '-qm', 'relax configurable validation rules');
+  await validateWorkflowDocuments({
+    cwd: root,
+    ref: git('rev-parse', 'HEAD'),
+    filePaths: ['docs/005_HANDOVER_20260726_invalid.md'],
+  });
+
   await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval'));
   await assert.rejects(
     validate('docs/002_PLAN_20260726_terminal_prompt.md'),

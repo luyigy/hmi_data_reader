@@ -42,6 +42,7 @@ export type WorkflowContract = {
   };
   actions: { executable: string[]; terminal: string[] };
   prompt: { start_marker: string; end_marker: string };
+  validation?: { rules?: Record<string, boolean> };
   completion_gate: { timeout_seconds: number };
   branch_spaces: { root: string };
   numbering: { width: number; unique: boolean; candidate_selection: string };
@@ -211,6 +212,7 @@ export const validateWorkflowDocument = async (
   signal: AbortSignal,
 ) => {
   const issues: string[] = [];
+  const enabled = (rule: string) => contract.validation?.rules?.[rule] !== false;
   const issue = (location: string, message: string, expected?: string, actual?: unknown) => {
     issues.push(
       `[${location}] ${message}`
@@ -256,7 +258,8 @@ export const validateWorkflowDocument = async (
     }
   }
   const requirePromptRefs = (...refs: string[]) => refs.forEach((item) => {
-    if (prompt && !prompt.includes(item) && !prompt.includes(path.posix.basename(item))) {
+    if (enabled('prompt_must_reference_documents')
+      && prompt && !prompt.includes(item) && !prompt.includes(path.posix.basename(item))) {
       issue(
         'Prompt',
         `缺少文档引用 ${path.posix.basename(item)}`,
@@ -313,6 +316,7 @@ export const validateWorkflowDocument = async (
           const parent = await readPlan(metadata.parent_plan);
           const parentSlices = slices(parent.planContent, contract);
           for (const field of ['parent_slice', 'return_to']) {
+            if (!enabled('referenced_slices_must_exist')) continue;
             if (!parentSlices.includes(String(metadata[field]))) {
               issue(
                 `YAML.${field}`,
@@ -326,13 +330,17 @@ export const validateWorkflowDocument = async (
           issue('YAML.parent_plan', error instanceof Error ? error.message : String(error));
         }
       }
-    } else if (metadata.plan_kind === contract.documents.plan.phase_kind
+    } else if (enabled('phase_parent_fields_must_be_null')
+      && metadata.plan_kind === contract.documents.plan.phase_kind
       && contract.documents.plan.parent_fields.some((field) => has(field) && metadata[field] !== null)) {
       issue('YAML.parent_plan/parent_slice/return_to', 'phase PLAN 的父级字段必须为 null');
     }
     const planSlices = slices(content, contract);
-    if (!planSlices.length) issue('正文', 'PLAN 至少需要包含一个 Slice');
-    else if (prompt && !prompt.includes(planSlices[0])) issue('Prompt', `启动 Prompt 未提及第一个 Slice ${planSlices[0]}`);
+    if (!planSlices.length && enabled('plan_must_have_slice')) issue('正文', 'PLAN 至少需要包含一个 Slice');
+    else if (enabled('prompt_must_reference_slice')
+      && prompt && planSlices[0] && !prompt.includes(planSlices[0])) {
+      issue('Prompt', `启动 Prompt 未提及第一个 Slice ${planSlices[0]}`);
+    }
     requirePromptRefs(filePath, ...(roadmap ? [roadmap] : []));
   } else {
     contract.documents.handover.required_fields.forEach((field) => {
@@ -358,7 +366,8 @@ export const validateWorkflowDocument = async (
       try {
         const plan = await readPlan(metadata.plan);
         const planSlices = slices(plan.planContent, contract);
-        if (has('slice') && !planSlices.includes(String(metadata.slice))) {
+        if (enabled('referenced_slices_must_exist')
+          && has('slice') && !planSlices.includes(String(metadata.slice))) {
           issue('YAML.slice', '所属 PLAN 中不存在该 Slice', planSlices.join('、'), metadata.slice);
         }
         if (prompt) {
@@ -374,15 +383,19 @@ export const validateWorkflowDocument = async (
           requirePromptRefs(filePath, plan.planPath, ...(roadmap ? [roadmap] : []));
           if (action === contract.documents.handover.next_action && has('slice')) {
             const current = planSlices.indexOf(String(metadata.slice));
-            if (current + 1 >= planSlices.length || !prompt.includes(planSlices[current + 1])) {
+            const nextSlice = planSlices[current + 1];
+            const missingNext = !nextSlice && enabled('next_slice_must_exist');
+            const missingPromptReference = nextSlice
+              && enabled('prompt_must_reference_slice') && !prompt.includes(nextSlice);
+            if (missingNext || missingPromptReference) {
               issue(
                 'YAML.next_action/Prompt',
-                current + 1 >= planSlices.length
+                missingNext
                   ? `${path.posix.basename(plan.planPath)} 的 ${String(metadata.slice)} 之后没有下一个 Slice`
-                  : `Prompt 未提及下一个 Slice ${planSlices[current + 1]}`,
-                current + 1 >= planSlices.length
+                  : `Prompt 未提及下一个 Slice ${nextSlice}`,
+                missingNext
                   ? `改用终止动作（${contract.actions.terminal.join('、')}），或在 PLAN 中添加下一个 Slice`
-                  : `Prompt 提及 ${planSlices[current + 1]}`,
+                  : `Prompt 提及 ${nextSlice}`,
                 action,
               );
             }
@@ -393,7 +406,11 @@ export const validateWorkflowDocument = async (
               try {
                 const parent = await readPlan(plan.planMetadata.parent_plan);
                 const returnTo = String(plan.planMetadata.return_to);
-                if (!slices(parent.planContent, contract).includes(returnTo) || !prompt.includes(returnTo)) {
+                const missingReturnSlice = enabled('referenced_slices_must_exist')
+                  && !slices(parent.planContent, contract).includes(returnTo);
+                const missingPromptReference = enabled('prompt_must_reference_slice')
+                  && !prompt.includes(returnTo);
+                if (missingReturnSlice || missingPromptReference) {
                   issue('Prompt', '恢复 Prompt 未提及有效的 return_to', returnTo);
                 }
                 requirePromptRefs(parent.planPath);
