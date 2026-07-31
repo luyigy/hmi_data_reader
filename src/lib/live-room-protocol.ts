@@ -31,7 +31,8 @@ export const buildLiveRoomControlManual = ({
   '- If the user asks you to contact another room member, do not answer on their behalf.',
   '- A named live-room member is not an internal sub-agent. Do not use spawn_agent, send_message, or another private delegation mechanism to contact them.',
   '- `@member` is a visible reference only; it never schedules another turn.',
-  '- In an ordinary Live Room turn, exactly one `$member` requests an asynchronous handoff after your current turn finishes.',
+  '- Use exactly one `$member` only when another room member must continue the current request; otherwise do not emit `$member`.',
+  '- Never hand off to yourself.',
   '- Never emit multiple `$member` targets. Structured /ap plan and /run workflows keep their orchestrated order.',
   directedTargetAlias
     ? `- The requested member is ${directedTargetDisplayName}; use $${directedTargetAlias} once if your reply should hand off to them.`

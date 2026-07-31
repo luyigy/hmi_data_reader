@@ -235,6 +235,7 @@ const runLiveRoomAcpxAttempt = async ({
   sourceTask,
   room,
   participant,
+  currentMemberId,
   contentForAgent,
   desiredDirectedTarget,
   permissionConfig,
@@ -257,6 +258,7 @@ const runLiveRoomAcpxAttempt = async ({
     } | null;
   };
   participant: ReturnType<typeof buildLiveRoomAcpxParticipant>;
+  currentMemberId: string;
   contentForAgent: string;
   desiredDirectedTarget?: DeliveryRoomMember | null;
   permissionConfig: AcpxPermissionConfig;
@@ -278,7 +280,7 @@ const runLiveRoomAcpxAttempt = async ({
       : undefined;
 
   const replyableMemberLabels = room.members
-    .filter((member) => member.canReply)
+    .filter((member) => member.canReply && member.id !== currentMemberId)
     .map((member) => member.displayName);
   const directedTargetAlias = desiredDirectedTarget ? getPreferredDirectedAlias(desiredDirectedTarget) : null;
   const liveRoomControlManual = buildLiveRoomControlManual({
@@ -527,6 +529,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     sourceTask,
     room,
     participant,
+    currentMemberId: targetMember.id,
     contentForAgent,
     desiredDirectedTarget,
     permissionConfig,
@@ -572,6 +575,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       sourceTask,
       room,
       participant,
+      currentMemberId: targetMember.id,
       contentForAgent,
       desiredDirectedTarget,
       permissionConfig,
@@ -609,6 +613,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       sourceTask,
       room,
       participant,
+      currentMemberId: targetMember.id,
       contentForAgent,
       desiredDirectedTarget,
       permissionConfig,
