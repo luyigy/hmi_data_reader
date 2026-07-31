@@ -106,7 +106,7 @@ export interface LiveRoomMember {
     dominantReason: 'provider' | 'messages' | 'events' | 'transcript';
     dominantLabel: string;
     usedTokens?: number;
-    contextWindow?: number;
+    contextWindow?: number | null;
     recommendedAction: string;
     messageCount: number;
     eventCount: number;

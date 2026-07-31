@@ -1,14 +1,13 @@
 import { prisma } from '@/lib/prisma';
 
 export type AntigravityContextUsage = {
-  usedTokens: number;
-  contextWindow: number;
+  lastRunInputTokens: number;
+  contextWindow: number | null;
   updatedAt: string;
   modelAlias?: string;
 };
 
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
-export const DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW = 1_048_576;
 
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   'gemini-1.5-pro': 2_097_152,
@@ -18,13 +17,13 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   'gpt-4o': 128_000,
 };
 
-export const resolveAntigravityContextWindow = (modelAlias?: string): number => {
-  if (!modelAlias) return DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW;
+export const resolveAntigravityContextWindow = (modelAlias?: string): number | null => {
+  if (!modelAlias) return null;
   const key = modelAlias.toLowerCase().trim();
   for (const [pattern, windowSize] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
     if (key.includes(pattern)) return windowSize;
   }
-  return DEFAULT_ANTIGRAVITY_CONTEXT_WINDOW;
+  return null;
 };
 
 export const persistAntigravityContextUsageMetadata = async (
@@ -58,26 +57,23 @@ export const getAntigravityProviderContextUsage = (
   value: string | null | undefined,
   now = new Date()
 ): {
-  usagePercentage: number;
-  usedTokens: number;
-  contextWindow: number;
+  usagePercentage: number | null;
+  lastRunInputTokens: number;
+  contextWindow: number | null;
 } | null => {
   if (!value) return null;
   try {
     const metadata = JSON.parse(value);
     if (!metadata || typeof metadata !== 'object') return null;
-    const usage = metadata.antigravityContextUsage as AntigravityContextUsage | undefined;
+    const usage = metadata.antigravityContextUsage as
+      | (AntigravityContextUsage & { usedTokens?: number })
+      | undefined;
     if (!usage || typeof usage !== 'object') return null;
 
-    const usedTokens = Number(usage.usedTokens);
-    const contextWindow = Number(usage.contextWindow);
+    const lastRunInputTokens = Number(usage.lastRunInputTokens ?? usage.usedTokens);
+    const contextWindow = usage.contextWindow != null ? Number(usage.contextWindow) : null;
 
-    if (
-      !Number.isFinite(usedTokens) ||
-      !Number.isFinite(contextWindow) ||
-      usedTokens < 0 ||
-      contextWindow <= 0
-    ) {
+    if (!Number.isFinite(lastRunInputTokens) || lastRunInputTokens < 0) {
       return null;
     }
 
@@ -88,14 +84,14 @@ export const getAntigravityProviderContextUsage = (
       }
     }
 
-    const usagePercentage = Math.max(
-      0,
-      Math.min(100, Math.round((usedTokens / contextWindow) * 100))
-    );
+    const usagePercentage =
+      contextWindow && Number.isFinite(contextWindow) && contextWindow > 0
+        ? Math.max(0, Math.min(100, Math.round((lastRunInputTokens / contextWindow) * 100)))
+        : null;
 
     return {
       usagePercentage,
-      usedTokens,
+      lastRunInputTokens,
       contextWindow,
     };
   } catch {
@@ -129,7 +125,7 @@ export const parseAntigravityUsageFromText = (
     }
 
     const contextWindow =
-      options.defaultContextWindow || resolveAntigravityContextWindow(detectedModel);
+      options.defaultContextWindow ?? resolveAntigravityContextWindow(detectedModel);
 
     // Second pass (backwards): find the latest result or step_update usage
     for (let i = lines.length - 1; i >= 0; i--) {
@@ -149,7 +145,7 @@ export const parseAntigravityUsageFromText = (
           );
           if (Number.isFinite(inputTokens) && inputTokens >= 0) {
             return {
-              usedTokens: inputTokens,
+              lastRunInputTokens: inputTokens,
               contextWindow,
               updatedAt: new Date().toISOString(),
               ...(detectedModel ? { modelAlias: detectedModel } : {}),
@@ -164,10 +160,10 @@ export const parseAntigravityUsageFromText = (
     // Attempt 2: Match regex patterns in plaintext output
     const tokenMatch = text.match(/tokens?:\s*(\d+)/i) || text.match(/input_tokens?:\s*(\d+)/i);
     if (tokenMatch) {
-      const usedTokens = parseInt(tokenMatch[1], 10);
-      if (!Number.isNaN(usedTokens) && usedTokens >= 0) {
+      const lastRunInputTokens = parseInt(tokenMatch[1], 10);
+      if (!Number.isNaN(lastRunInputTokens) && lastRunInputTokens >= 0) {
         return {
-          usedTokens,
+          lastRunInputTokens,
           contextWindow,
           updatedAt: new Date().toISOString(),
           ...(detectedModel ? { modelAlias: detectedModel } : {}),

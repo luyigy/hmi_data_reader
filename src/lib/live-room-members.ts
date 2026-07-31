@@ -488,15 +488,18 @@ export const getLiveRoomMemberContextWatermark = async ({
         })
       : Promise.resolve(null),
   ]);
+  const antigravityRunUsage = member.backend === 'platform_local' && member.harnessType === 'antigravity'
+    ? getAntigravityProviderContextUsage(providerParticipant?.controlMetadata)
+    : null;
   const providerUsage = providerHarness === 'codex'
     ? getCodexProviderContextUsage(providerParticipant?.controlMetadata)
     : providerHarness === 'kimi-code'
     ? getKimiCodeProviderContextUsage(providerParticipant?.controlMetadata)
-    : providerHarness === 'antigravity'
-    ? getAntigravityProviderContextUsage(providerParticipant?.controlMetadata)
     : null;
   const source: LiveRoomMemberContextWatermarkPayload['source'] = providerUsage
     ? 'provider'
+    : member.backend === 'platform_local' && member.harnessType === 'antigravity'
+    ? 'not_applicable'
     : member.backend !== 'platform_local'
     ? 'not_applicable'
     : 'unknown';
@@ -540,13 +543,24 @@ export const getLiveRoomMemberContextWatermark = async ({
     dominantReason: providerUsage ? 'provider' : estimatedDominantReason,
     dominantLabel: providerUsage
       ? 'provider'
+      : member.backend === 'platform_local' && member.harnessType === 'antigravity'
+      ? antigravityRunUsage
+        ? `last run usage: ${antigravityRunUsage.lastRunInputTokens} tokens`
+        : 'fresh conversation per turn'
       : source === 'not_applicable'
       ? 'fresh conversation per turn'
       : `agent signal · ${estimatedDominantLabel}`,
-    ...(providerUsage ? {
-      usedTokens: providerUsage.usedTokens,
-      contextWindow: providerUsage.contextWindow,
-    } : {}),
+    ...(providerUsage
+      ? {
+          usedTokens: providerUsage.usedTokens,
+          contextWindow: providerUsage.contextWindow,
+        }
+      : antigravityRunUsage
+      ? {
+          usedTokens: antigravityRunUsage.lastRunInputTokens,
+          contextWindow: antigravityRunUsage.contextWindow,
+        }
+      : {}),
     recommendedAction:
       source === 'not_applicable'
         ? 'Each turn starts a fresh conversation; no session reset is needed.'
