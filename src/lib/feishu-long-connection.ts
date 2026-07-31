@@ -37,6 +37,7 @@ import {
   resolveFeishuCardActionIdentity,
   type FeishuCardActionIdentity,
 } from '@/lib/feishu-card-action';
+import { handleLiveRoomHandoffPlanCardAction } from '@/lib/live-room-handoff-plan';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
 import {
   buildFeishuCommandCenterCardUpdate,
@@ -348,6 +349,10 @@ function buildCardActionHandler(prefix: string) {
       });
       return { toast: { type: 'success', content: '操作已接收；完成后会回复结果并发送最新 Dashboard' } };
     }
+
+    if (cmd === 'handoff-plan') return handleLiveRoomHandoffPlanCardAction({
+      value: data.action.value as Record<string, unknown>, openId, chatId, messageId, prefix,
+    });
 
     if (cmd === 'ap-command') {
       const value = data.action.value as Record<string, unknown>;

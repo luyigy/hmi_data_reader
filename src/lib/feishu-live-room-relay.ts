@@ -54,7 +54,10 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   return false;
 };
 
-export const buildAssistantRelayCard = (message: LiveRoomMessagePayload) => {
+export const buildAssistantRelayCard = (
+  message: LiveRoomMessagePayload,
+  chatType: 'p2p' | 'group' = 'group',
+) => {
   const targetMemberName =
     typeof message.metadata?.targetMemberName === 'string'
       ? message.metadata.targetMemberName
@@ -68,6 +71,26 @@ export const buildAssistantRelayCard = (message: LiveRoomMessagePayload) => {
     elements.push({
       tag: 'note',
       elements: [{ tag: 'plain_text', content: `下一位：${targetMemberName}` }],
+    });
+  }
+
+  const handoffRootMessageId = typeof message.metadata?.handoffRootMessageId === 'string'
+    ? message.metadata.handoffRootMessageId
+    : null;
+  if (handoffRootMessageId && deliveryIntent !== 'handoff') {
+    elements.push({
+      tag: 'action',
+      actions: [{
+        tag: 'button',
+        type: 'primary',
+        text: { tag: 'plain_text', content: '将本轮讨论生成审批 PLAN' },
+        value: {
+          cmd: 'handoff-plan',
+          roomId: message.roomId,
+          rootMessageId: handoffRootMessageId,
+          chatType,
+        },
+      }],
     });
   }
 
@@ -153,7 +176,10 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
         await sendFeishuInteractiveMessage({
           receiveId: binding.chatId,
           receiveIdType: 'chat_id',
-          card: buildAssistantRelayCard({ ...message, content: relay.text }),
+          card: buildAssistantRelayCard(
+            { ...message, content: relay.text },
+            binding.chatType === 'p2p' ? 'p2p' : 'group',
+          ),
         });
       } catch {
         console.warn('Interactive Live Room relay failed; falling back to text.');

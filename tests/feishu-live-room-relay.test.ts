@@ -91,6 +91,22 @@ assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
   { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
 ]);
 
+assistant.metadata = { deliveryIntent: 'broadcast', handoffRootMessageId: 'root-message' };
+assert.deepEqual(buildAssistantRelayCard(assistant).elements.at(-1), {
+  tag: 'action',
+  actions: [{
+    tag: 'button',
+    type: 'primary',
+    text: { tag: 'plain_text', content: '将本轮讨论生成审批 PLAN' },
+    value: {
+      cmd: 'handoff-plan',
+      roomId: 'room',
+      rootMessageId: 'root-message',
+      chatType: 'group',
+    },
+  }],
+});
+
 assistant.content = '普通引用 @Claude';
 assistant.metadata = { deliveryIntent: 'broadcast', targetMemberName: 'Claude' };
 assert.equal(buildAssistantRelayCard(assistant).header.title.content, 'codex');

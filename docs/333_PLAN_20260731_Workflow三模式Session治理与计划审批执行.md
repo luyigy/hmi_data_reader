@@ -231,6 +231,13 @@ Feishu 命令/Dashboard 控制和 manual 推进门见
 - 不新增 `PlanRegistry`、第二套审批状态机或从自由文本猜执行意图；
 - 普通聊天、directed visible、handoff 和 `/ap plan` 既有行为无回归。
 
+实施状态（2026-07-31）：S04 已完成。普通 Handoff 根链的末条 Agent 回复提供显式提升按钮；唯一主持
+Agent 只综合既有 transcript 一次，生成带来源标记的合同合格 PLAN。幂等 claim、commit 后恢复、现有
+validator/飞书文档导入/审批卡以及 manual、semi_auto、auto 的批准后行为见
+`docs/338_HANDOVER_20260731_WorkflowHandoff审批PLAN_S04交接.md`；未开始 S05。现有审批链以
+`ready + start_first_slice` 表示“等待用户审批的可执行候选”，批准前不会派发；没有新增一套
+`draft → ready` 状态转换。
+
 ## S05：工作流推进与 Session 换代解耦
 
 1. 删除“每个 executable workflow action 都先 blank reset”的无条件绑定。
