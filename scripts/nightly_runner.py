@@ -25,6 +25,7 @@ import importlib.util
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -37,6 +38,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 WALL_CLOCK_LIMIT_S = 60 * 60        # 单切片墙钟上限 60 分钟
 HEARTBEAT_TIMEOUT_S = 10 * 60       # 10 分钟无心跳视为卡死
 INFRA_MAX_RETRIES = 2               # 基础设施失败最多重试 2 次
+
+# 夜间窗口（039 §4，Asia/Shanghai）：23:00 启动，06:30 停领新切片，07:00 强制退出
+WINDOW_CLAIM_OPEN_MIN = 23 * 60
+WINDOW_CLAIM_CLOSE_MIN = 6 * 60 + 30
+WINDOW_HARD_EXIT_MIN = 7 * 60
+FIRST_NIGHT_QUOTA = 3               # 首夜最多 3 个切片（039 §4）
 
 LOCK_PATH = REPO_ROOT / ".git" / "nightly_runner.lock"
 STATE_PATH = REPO_ROOT / "output" / "nightly_runner_state.json"
@@ -354,6 +361,38 @@ class RepoLock:
         self.release()
 
 
+# ---------------------------------------------------------------- 窗口与信号
+
+def window_phase(now=None):
+    """039 §4 窗口判断：claim_open（可领新片）/ grace_no_claim（06:30–07:00
+    只收尾不领新片）/ closed（窗口外，幂等退出）。可注入时间便于演练。"""
+    now = (now or datetime.now(TZ_CST)).astimezone(TZ_CST)
+    t = now.hour * 60 + now.minute
+    if t >= WINDOW_CLAIM_OPEN_MIN or t < WINDOW_CLAIM_CLOSE_MIN:
+        return "claim_open"
+    if t < WINDOW_HARD_EXIT_MIN:
+        return "grace_no_claim"
+    return "closed"
+
+
+_STOP_REQUESTED = False
+
+
+def _on_stop_signal(signo, frame):
+    """信号退出：只置标志，主循环在安全点 checkpoint 后退出（039 §4）。"""
+    global _STOP_REQUESTED
+    _STOP_REQUESTED = True
+
+
+def install_signal_handlers():
+    signal.signal(signal.SIGTERM, _on_stop_signal)
+    signal.signal(signal.SIGINT, _on_stop_signal)
+
+
+def stop_requested():
+    return _STOP_REQUESTED
+
+
 # ---------------------------------------------------------------- 日报骨架
 
 def render_daily_report(state, next_unit, gate_failures, gates):
@@ -370,6 +409,8 @@ def render_daily_report(state, next_unit, gate_failures, gates):
         f"- 验收阈值（verify_accuracy.py 运行时读取）：numeric>={gates['numeric']}、"
         f"error={gates['error']}、容差 ±{gates['tolerance']}",
         f"- 启动门禁：{'通过' if not gate_failures else '失败：' + '；'.join(gate_failures)}",
+        f"- 夜间窗口：{window_phase()}（23:00 领片 / 06:30 停领 / 07:00 强退，Asia/Shanghai）",
+        f"- 首夜配额：最多 {FIRST_NIGHT_QUOTA} 个切片（039 §4，日报无异常后次夜放开）",
         f"- 终态计数：{counts}",
         f"- 下一队首：{next_unit['unit_id'] if next_unit else '（空，幂等退出）'}"
         + (f"（{next_unit['provenance']}）" if next_unit else ""),
@@ -385,6 +426,7 @@ def main(argv=None):
                     help="只读：门禁 + 领片 + 日报骨架，不写任何业务产物")
     args = ap.parse_args(argv)
 
+    install_signal_handlers()
     gates = load_verify_gates()
     failures = startup_gates()
 
