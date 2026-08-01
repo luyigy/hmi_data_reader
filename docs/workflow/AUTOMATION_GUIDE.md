@@ -19,15 +19,26 @@
 
 `docs/workflow/workflow-contract.yaml`
 
+Agent 创建或修复文档时，从合同声明的以下权威模板取最小片段：
+
+- `docs/workflow/templates/PLAN.md`
+- `docs/workflow/templates/HANDOVER.md`
+
+模板只提供合同合格示例；运行时规则仍只来自目标 Git ref 中已提交的合同。缺少合同或模板时应明确报告
+“未初始化”，不得回退到 Agent Platform 安装目录中的隐藏副本。
+
 不得在 watcher、cron、CI 或 Agent Skill 中维护另一套 action、Prompt、目录或
 legacy 规则。
 
 validator 和 watcher 中可以保留校验算法，但文件名、控制字段、状态、动作、
 Prompt 标记、编号与阈值的具体值必须在运行时从目标提交中的合同读取。
 
-`validation.rules` 控制容易因项目约定不同而产生误报的策略校验。规则默认开启，
-需要放宽时只把对应项改为 `false`。字段/动作合法性、引用文件存在性等结构与安全
-校验不受这些开关影响，不能通过策略配置整体关闭。
+`validation.mode` 只允许 `balanced` 或 `strict`。六项 `validation.rules` 仍控制策略校验是否启用：
+启用的策略在 `balanced` 下产生 warning，在 `strict` 下产生 error；设为 `false` 时不检查。字段/动作合法性、
+引用文件存在性、唯一非空 Prompt 等结构与调度安全校验在两种模式下始终是 error，不能通过策略配置关闭。
+
+validator issue 对外提供稳定 `code`、`severity`、`location`、`expected`、`actual` 和最小 `template` 片段；
+现有文本错误消息继续保留，调用方不得解析中文文案判断错误类型。
 
 ## 基本处理流程
 

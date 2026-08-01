@@ -85,10 +85,15 @@ prompt:
   required_in_handover: true
   repeat_in_final_reply: true
 
+templates:
+  plan: docs/workflow/templates/PLAN.md
+  handover: docs/workflow/templates/HANDOVER.md
+
 # Policy checks are enabled by default. Set an individual rule to false when
 # the document convention needs to be relaxed; structural YAML/action checks
 # and referenced-document existence checks always remain enforced.
 validation:
+  mode: balanced
   rules:
     plan_must_have_slice: true
     phase_parent_fields_must_be_null: true

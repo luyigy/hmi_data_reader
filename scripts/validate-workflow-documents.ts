@@ -12,6 +12,14 @@ export const DOCUMENT_VALIDATION_FAILED_MARKER = 'WORKFLOW_DOCUMENT_VALIDATION_F
 
 const hookBatchMode = process.argv[2] === '--hook-batch';
 
+const printWarnings = (results: Awaited<ReturnType<typeof validateWorkflowDocuments>>) => {
+  for (const result of results) {
+    for (const issue of result.issues.filter(({ severity }) => severity === 'warning')) {
+      console.warn(`WARN ${result.filePath} [${issue.code}] [${issue.location}] ${issue.message}\n${issue.template}`);
+    }
+  }
+};
+
 async function main() {
   if (hookBatchMode) {
     const batchPath = process.argv[3];
@@ -36,7 +44,7 @@ async function main() {
     let runtimeFailure = false;
     for (const group of Array.from(groups.values())) {
       try {
-        await validateWorkflowDocuments({ cwd: process.cwd(), ...group });
+        printWarnings(await validateWorkflowDocuments({ cwd: process.cwd(), ...group }));
       } catch (error) {
         if (error instanceof WorkflowDocumentValidationError) {
           documentFailure = true;
@@ -64,6 +72,7 @@ async function main() {
     try {
       const [result] = await validateWorkflowDocuments({ cwd: process.cwd(), ref, filePaths: [filePath] });
       console.log(`PASS ${result.filePath} action=${result.action}`);
+      printWarnings([result]);
     } catch (error) {
       failed = true;
       console.error(`FAIL ${filePath}: ${error instanceof Error ? error.message : String(error)}`);

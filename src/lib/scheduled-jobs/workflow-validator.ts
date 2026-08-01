@@ -5,8 +5,18 @@ import { parse } from 'yaml';
 /** Thrown only when workflow documents themselves fail validation; runtime/infra
  * failures (missing contract, git errors, validator crashes) stay plain Errors so
  * callers such as the Git reference-transaction hook can tell the two apart. */
+export type WorkflowValidationIssue = {
+  code: string;
+  severity: 'error' | 'warning';
+  location: string;
+  message: string;
+  expected?: string;
+  actual?: unknown;
+  template: string;
+};
+
 export class WorkflowDocumentValidationError extends Error {
-  constructor(message: string) {
+  constructor(message: string, public readonly issues: WorkflowValidationIssue[] = []) {
     super(message);
     Object.setPrototypeOf(this, new.target.prototype);
     this.name = 'WorkflowDocumentValidationError';
@@ -42,7 +52,8 @@ export type WorkflowContract = {
   };
   actions: { executable: string[]; terminal: string[] };
   prompt: { start_marker: string; end_marker: string };
-  validation?: { rules?: Record<string, boolean> };
+  templates?: { plan?: string; handover?: string };
+  validation?: { mode?: 'balanced' | 'strict'; rules?: Record<string, boolean> };
   completion_gate: { timeout_seconds: number };
   branch_spaces: { root: string };
   numbering: { width: number; unique: boolean; candidate_selection: string };
@@ -211,31 +222,54 @@ export const validateWorkflowDocument = async (
   watchRoot: string,
   signal: AbortSignal,
 ) => {
-  const issues: string[] = [];
-  const enabled = (rule: string) => contract.validation?.rules?.[rule] !== false;
-  const issue = (location: string, message: string, expected?: string, actual?: unknown) => {
-    issues.push(
-      `[${location}] ${message}`
-      + (expected === undefined ? '' : `；期望：${expected}`)
-      + (actual === undefined ? '' : `；实际：${JSON.stringify(actual)}`),
-    );
+  const issues: WorkflowValidationIssue[] = [];
+  const policySeverity = (rule?: string) => {
+    if (!rule) return 'error' as const;
+    if (contract.validation?.rules?.[rule] === false) return null;
+    return contract.validation?.mode === 'balanced' ? 'warning' as const : 'error' as const;
+  };
+  const issue = (
+    code: string,
+    location: string,
+    message: string,
+    expected?: string,
+    actual?: unknown,
+    rule?: string,
+  ) => {
+    const severity = policySeverity(rule);
+    if (!severity) return;
+    const field = location.startsWith('YAML.') ? location.slice(5).split('/')[0] : '';
+    issues.push({
+      code,
+      severity,
+      location,
+      message,
+      ...(expected === undefined ? {} : { expected }),
+      ...(actual === undefined ? {} : { actual }),
+      template: location === 'Prompt'
+        ? `${contract.prompt.start_marker}\n<下一 Session Prompt>\n${contract.prompt.end_marker}`
+        : location === '正文'
+          ? '## S01：<Slice 标题>'
+          : `${field || location}: <值>`,
+    });
   };
   const has = (field: string) => field in metadata;
   const hasValue = (field: string) => has(field) && metadata[field] !== null && metadata[field] !== '';
   for (const field of contract.documents.common_required_fields) {
-    if (!has(field)) issue(`YAML.${field}`, '缺少必填字段');
+    if (!has(field)) issue('REQUIRED_FIELD_MISSING', `YAML.${field}`, '缺少必填字段');
   }
   if (has('doc_type') && metadata.doc_type !== type) {
-    issue('YAML.doc_type', '文件名类型与 doc_type 不一致', type, metadata.doc_type);
+    issue('DOCUMENT_TYPE_MISMATCH', 'YAML.doc_type', '文件名类型与 doc_type 不一致', type, metadata.doc_type);
   }
   if (has('doc_status') && !contract.documents.statuses.includes(String(metadata.doc_status))) {
-    issue('YAML.doc_status', '无效的文档状态', contract.documents.statuses.join('、'), metadata.doc_status);
+    issue('DOCUMENT_STATUS_INVALID', 'YAML.doc_status', '无效的文档状态', contract.documents.statuses.join('、'), metadata.doc_status);
   }
   const action = String(metadata.next_action);
   const validAction = has('next_action')
     && [...contract.actions.executable, ...contract.actions.terminal].includes(action);
   if (has('next_action') && !validAction) {
     issue(
+      'NEXT_ACTION_INVALID',
       'YAML.next_action',
       '无效的下一步动作',
       [...contract.actions.executable, ...contract.actions.terminal].join('、'),
@@ -248,6 +282,11 @@ export const validateWorkflowDocument = async (
       prompt = promptFrom(content, action, contract);
     } catch (error) {
       issue(
+        error instanceof Error && error.message === 'automation prompt is empty'
+          ? 'PROMPT_EMPTY'
+          : error instanceof Error && error.message === 'executable action requires exactly one prompt marker pair'
+            ? 'PROMPT_MARKERS_INVALID'
+            : 'PROMPT_FORBIDDEN',
         'Prompt',
         error instanceof Error && error.message === 'executable action requires exactly one prompt marker pair'
           ? '可执行动作必须包含且只能包含一对 Prompt 标记'
@@ -258,12 +297,14 @@ export const validateWorkflowDocument = async (
     }
   }
   const requirePromptRefs = (...refs: string[]) => refs.forEach((item) => {
-    if (enabled('prompt_must_reference_documents')
-      && prompt && !prompt.includes(item) && !prompt.includes(path.posix.basename(item))) {
+    if (prompt && !prompt.includes(item) && !prompt.includes(path.posix.basename(item))) {
       issue(
+        'PROMPT_DOCUMENT_REFERENCE_MISSING',
         'Prompt',
         `缺少文档引用 ${path.posix.basename(item)}`,
         `${contract.prompt.start_marker} 与 ${contract.prompt.end_marker} 之间提及 ${path.posix.basename(item)}`,
+        undefined,
+        'prompt_must_reference_documents',
       );
     }
   });
@@ -282,14 +323,15 @@ export const validateWorkflowDocument = async (
       ...(contract.documents.plan.required_fields_by_kind[String(metadata.plan_kind)] ?? []),
     ];
     requiredFields.forEach((field) => {
-      if (!has(field)) issue(`YAML.${field}`, 'PLAN 缺少必填字段');
+      if (!has(field)) issue('PLAN_REQUIRED_FIELD_MISSING', `YAML.${field}`, 'PLAN 缺少必填字段');
     });
     if (contract.actions.executable.includes(action) && !contract.documents.plan.executable_actions.includes(action)) {
-      issue('YAML.next_action', `PLAN 不能执行动作 ${action}`);
+      issue('PLAN_ACTION_INVALID', 'YAML.next_action', `PLAN 不能执行动作 ${action}`);
     }
     if (action === contract.documents.plan.start_action && has('doc_status')
       && metadata.doc_status !== contract.documents.plan.start_status) {
       issue(
+        'PLAN_START_STATUS_INVALID',
         'YAML.doc_status',
         `动作 ${action} 要求指定文档状态`,
         contract.documents.plan.start_status,
@@ -301,14 +343,14 @@ export const validateWorkflowDocument = async (
       try {
         roadmap = normalizeReference(metadata.roadmap, watchRoot);
         if (!await exists(cwd, ref, roadmap, signal)) {
-          issue('YAML.roadmap', `引用的 ROADMAP 不存在：${path.posix.basename(roadmap)}`);
+          issue('ROADMAP_NOT_FOUND', 'YAML.roadmap', `引用的 ROADMAP 不存在：${path.posix.basename(roadmap)}`);
         }
       } catch (error) {
-        issue('YAML.roadmap', error instanceof Error ? error.message : String(error));
+        issue('ROADMAP_REFERENCE_INVALID', 'YAML.roadmap', error instanceof Error ? error.message : String(error));
       }
     }
     if (has('plan_kind') && !contract.documents.plan.kinds.includes(String(metadata.plan_kind))) {
-      issue('YAML.plan_kind', '无效的 PLAN 类型', contract.documents.plan.kinds.join('、'), metadata.plan_kind);
+      issue('PLAN_KIND_INVALID', 'YAML.plan_kind', '无效的 PLAN 类型', contract.documents.plan.kinds.join('、'), metadata.plan_kind);
     }
     if (metadata.plan_kind === contract.documents.plan.interrupt_kind) {
       if (contract.documents.plan.parent_fields.every(hasValue)) {
@@ -316,39 +358,39 @@ export const validateWorkflowDocument = async (
           const parent = await readPlan(metadata.parent_plan);
           const parentSlices = slices(parent.planContent, contract);
           for (const field of ['parent_slice', 'return_to']) {
-            if (!enabled('referenced_slices_must_exist')) continue;
             if (!parentSlices.includes(String(metadata[field]))) {
               issue(
+                'PARENT_SLICE_NOT_FOUND',
                 `YAML.${field}`,
                 `父 PLAN 中不存在 ${field}`,
                 parentSlices.join('、'),
                 metadata[field],
+                'referenced_slices_must_exist',
               );
             }
           }
         } catch (error) {
-          issue('YAML.parent_plan', error instanceof Error ? error.message : String(error));
+          issue('PARENT_PLAN_REFERENCE_INVALID', 'YAML.parent_plan', error instanceof Error ? error.message : String(error));
         }
       }
-    } else if (enabled('phase_parent_fields_must_be_null')
-      && metadata.plan_kind === contract.documents.plan.phase_kind
+    } else if (metadata.plan_kind === contract.documents.plan.phase_kind
       && contract.documents.plan.parent_fields.some((field) => has(field) && metadata[field] !== null)) {
-      issue('YAML.parent_plan/parent_slice/return_to', 'phase PLAN 的父级字段必须为 null');
+      issue('PHASE_PARENT_FIELDS_NON_NULL', 'YAML.parent_plan/parent_slice/return_to', 'phase PLAN 的父级字段必须为 null', undefined, undefined, 'phase_parent_fields_must_be_null');
     }
     const planSlices = slices(content, contract);
-    if (!planSlices.length && enabled('plan_must_have_slice')) issue('正文', 'PLAN 至少需要包含一个 Slice');
-    else if (enabled('prompt_must_reference_slice')
-      && prompt && planSlices[0] && !prompt.includes(planSlices[0])) {
-      issue('Prompt', `启动 Prompt 未提及第一个 Slice ${planSlices[0]}`);
+    if (!planSlices.length) issue('PLAN_SLICE_MISSING', '正文', 'PLAN 至少需要包含一个 Slice', undefined, undefined, 'plan_must_have_slice');
+    else if (prompt && planSlices[0] && !prompt.includes(planSlices[0])) {
+      issue('PROMPT_SLICE_REFERENCE_MISSING', 'Prompt', `启动 Prompt 未提及第一个 Slice ${planSlices[0]}`, undefined, undefined, 'prompt_must_reference_slice');
     }
     requirePromptRefs(filePath, ...(roadmap ? [roadmap] : []));
   } else {
     contract.documents.handover.required_fields.forEach((field) => {
-      if (!has(field)) issue(`YAML.${field}`, 'HANDOVER 缺少必填字段');
+      if (!has(field)) issue('HANDOVER_REQUIRED_FIELD_MISSING', `YAML.${field}`, 'HANDOVER 缺少必填字段');
     });
     if (has('plan_progress')
       && !contract.documents.handover.progress_values.includes(String(metadata.plan_progress))) {
       issue(
+        'HANDOVER_PROGRESS_INVALID',
         'YAML.plan_progress',
         '无效的 PLAN 进度',
         contract.documents.handover.progress_values.join('、'),
@@ -356,19 +398,18 @@ export const validateWorkflowDocument = async (
       );
     }
     if (contract.actions.executable.includes(action) && !contract.documents.handover.executable_actions.includes(action)) {
-      issue('YAML.next_action', `HANDOVER 不能执行动作 ${action}`);
+      issue('HANDOVER_ACTION_INVALID', 'YAML.next_action', `HANDOVER 不能执行动作 ${action}`);
     }
     if (metadata.plan === null) {
       if (contract.actions.executable.includes(action)) {
-        issue('YAML.plan', '独立 HANDOVER 不能启动新 Session');
+        issue('STANDALONE_HANDOVER_EXECUTABLE', 'YAML.plan', '独立 HANDOVER 不能启动新 Session');
       }
     } else if (hasValue('plan')) {
       try {
         const plan = await readPlan(metadata.plan);
         const planSlices = slices(plan.planContent, contract);
-        if (enabled('referenced_slices_must_exist')
-          && has('slice') && !planSlices.includes(String(metadata.slice))) {
-          issue('YAML.slice', '所属 PLAN 中不存在该 Slice', planSlices.join('、'), metadata.slice);
+        if (has('slice') && !planSlices.includes(String(metadata.slice))) {
+          issue('HANDOVER_SLICE_NOT_FOUND', 'YAML.slice', '所属 PLAN 中不存在该 Slice', planSlices.join('、'), metadata.slice, 'referenced_slices_must_exist');
         }
         if (prompt) {
           let roadmap: string | undefined;
@@ -377,18 +418,19 @@ export const validateWorkflowDocument = async (
             try {
               roadmap = normalizeReference(plan.planMetadata.roadmap, watchRoot);
             } catch (error) {
-              issue('YAML.plan/roadmap', error instanceof Error ? error.message : String(error));
+              issue('PLAN_ROADMAP_REFERENCE_INVALID', 'YAML.plan/roadmap', error instanceof Error ? error.message : String(error));
             }
           }
           requirePromptRefs(filePath, plan.planPath, ...(roadmap ? [roadmap] : []));
           if (action === contract.documents.handover.next_action && has('slice')) {
             const current = planSlices.indexOf(String(metadata.slice));
             const nextSlice = planSlices[current + 1];
-            const missingNext = !nextSlice && enabled('next_slice_must_exist');
+            const missingNext = !nextSlice;
             const missingPromptReference = nextSlice
-              && enabled('prompt_must_reference_slice') && !prompt.includes(nextSlice);
+              && !prompt.includes(nextSlice);
             if (missingNext || missingPromptReference) {
               issue(
+                missingNext ? 'NEXT_SLICE_MISSING' : 'PROMPT_SLICE_REFERENCE_MISSING',
                 'YAML.next_action/Prompt',
                 missingNext
                   ? `${path.posix.basename(plan.planPath)} 的 ${String(metadata.slice)} 之后没有下一个 Slice`
@@ -397,42 +439,52 @@ export const validateWorkflowDocument = async (
                   ? `改用终止动作（${contract.actions.terminal.join('、')}），或在 PLAN 中添加下一个 Slice`
                   : `Prompt 提及 ${nextSlice}`,
                 action,
+                missingNext ? 'next_slice_must_exist' : 'prompt_must_reference_slice',
               );
             }
           } else if (action === contract.documents.handover.resume_action) {
             if (plan.planMetadata.plan_kind !== contract.documents.plan.interrupt_kind) {
-              issue('YAML.next_action', 'resume_parent 动作要求所属 PLAN 为 interrupt 类型');
+              issue('RESUME_PARENT_PLAN_KIND_INVALID', 'YAML.next_action', 'resume_parent 动作要求所属 PLAN 为 interrupt 类型');
             } else {
               try {
                 const parent = await readPlan(plan.planMetadata.parent_plan);
                 const returnTo = String(plan.planMetadata.return_to);
-                const missingReturnSlice = enabled('referenced_slices_must_exist')
-                  && !slices(parent.planContent, contract).includes(returnTo);
-                const missingPromptReference = enabled('prompt_must_reference_slice')
-                  && !prompt.includes(returnTo);
+                const missingReturnSlice = !slices(parent.planContent, contract).includes(returnTo);
+                const missingPromptReference = !prompt.includes(returnTo);
                 if (missingReturnSlice || missingPromptReference) {
-                  issue('Prompt', '恢复 Prompt 未提及有效的 return_to', returnTo);
+                  issue(
+                    missingReturnSlice ? 'RETURN_SLICE_NOT_FOUND' : 'PROMPT_SLICE_REFERENCE_MISSING',
+                    'Prompt',
+                    '恢复 Prompt 未提及有效的 return_to',
+                    returnTo,
+                    undefined,
+                    missingReturnSlice ? 'referenced_slices_must_exist' : 'prompt_must_reference_slice',
+                  );
                 }
                 requirePromptRefs(parent.planPath);
               } catch (error) {
-                issue('YAML.plan/parent_plan', error instanceof Error ? error.message : String(error));
+                issue('PARENT_PLAN_REFERENCE_INVALID', 'YAML.plan/parent_plan', error instanceof Error ? error.message : String(error));
               }
             }
           }
         }
       } catch (error) {
-        issue('YAML.plan', error instanceof Error ? error.message : String(error));
+        issue('PLAN_REFERENCE_INVALID', 'YAML.plan', error instanceof Error ? error.message : String(error));
       }
     }
   }
-  if (issues.length) {
+  const errors = issues.filter(({ severity }) => severity === 'error');
+  if (errors.length) {
     throw new WorkflowDocumentValidationError(
-      `${filePath}：共发现 ${issues.length} 个工作流文档错误\n`
-      + issues.map((item, index) => `  ${index + 1}. ${item}`).join('\n')
+      `${filePath}：共发现 ${errors.length} 个工作流文档错误\n`
+      + issues.map((item, index) => `  ${index + 1}. [${item.severity} ${item.code}] [${item.location}] ${item.message}`
+        + (item.expected === undefined ? '' : `；期望：${item.expected}`)
+        + (item.actual === undefined ? '' : `；实际：${JSON.stringify(item.actual)}`)).join('\n')
       + '\n  修复并提交后由平台 completion gate 重新校验。',
+      issues,
     );
   }
-  return { action, prompt };
+  return { action, prompt, issues };
 };
 
 export const validateWorkflowDocuments = async ({
@@ -453,11 +505,35 @@ export const validateWorkflowDocuments = async ({
   contentOverrides?: Record<string, string>;
 }) => {
   const contract = await readWorkflowContract(cwd, contractRef, contractPath, signal);
+  if (contract.validation?.mode && !['balanced', 'strict'].includes(contract.validation.mode)) {
+    throw new Error(`unsupported workflow validation mode: ${contract.validation.mode}`);
+  }
+  const templateIssues = (await Promise.all(Object.entries(contract.templates ?? {}).map(async ([type, filePath]) =>
+    filePath && !await exists(cwd, contractRef, filePath, signal)
+      ? {
+          code: 'TEMPLATE_MISSING',
+          severity: 'warning' as const,
+          location: `templates.${type}`,
+          message: `目标 ref 缺少 ${type.toUpperCase()} 权威模板`,
+          expected: filePath,
+          actual: null,
+          template: `${type}: ${filePath}`,
+        }
+      : null))).filter(Boolean) as WorkflowValidationIssue[];
   const candidates = selectWorkflowCandidates(filePaths, contract);
   if (candidates.length !== filePaths.length) throw new Error('candidate is not a PLAN/HANDOVER workflow document');
   const results = await Promise.allSettled(candidates.map(async (candidate) => {
     if (candidate.rawNumber.length !== contract.numbering.width) {
-      throw new WorkflowDocumentValidationError(`${candidate.filePath}: workflow document number has invalid width`);
+      const issue: WorkflowValidationIssue = {
+        code: 'DOCUMENT_NUMBER_WIDTH_INVALID',
+        severity: 'error',
+        location: '文件名.number',
+        message: 'workflow document number has invalid width',
+        expected: String(contract.numbering.width),
+        actual: candidate.rawNumber.length,
+        template: `${'<编号>'.padStart(contract.numbering.width, '0')}_${candidate.type}_YYYYMMDD_<主题>.md`,
+      };
+      throw new WorkflowDocumentValidationError(`${candidate.filePath}: ${issue.message}`, [issue]);
     }
     const content = contentOverrides[candidate.filePath]
       ?? await git(cwd, signal, 'show', `${ref}:${candidate.filePath}`);
@@ -465,22 +541,34 @@ export const validateWorkflowDocuments = async ({
     try {
       metadata = workflowFrontMatter(content);
     } catch (error) {
-      throw new WorkflowDocumentValidationError(error instanceof Error ? error.message : String(error));
+      const issue: WorkflowValidationIssue = {
+        code: 'FRONT_MATTER_INVALID',
+        severity: 'error',
+        location: 'YAML',
+        message: error instanceof Error ? error.message : String(error),
+        template: '---\ndoc_type: <PLAN|HANDOVER>\ndoc_status: <状态>\nnext_action: <动作>\n---',
+      };
+      throw new WorkflowDocumentValidationError(issue.message, [issue]);
     }
     const result = await validateWorkflowDocument(
       cwd, ref, candidate.filePath, candidate.type, content, metadata,
       contract, path.posix.dirname(candidate.filePath), signal,
     );
-    return { filePath: candidate.filePath, ...result };
+    return { filePath: candidate.filePath, ...result, issues: [...templateIssues, ...result.issues] };
   }));
   const documentFailures = results.flatMap((result, index) =>
     result.status === 'rejected' && result.reason instanceof WorkflowDocumentValidationError
       ? [`${candidates[index].filePath}: ${result.reason.message}`]
       : []);
   if (documentFailures.length) {
+    const issues = results.flatMap((result) =>
+      result.status === 'rejected' && result.reason instanceof WorkflowDocumentValidationError
+        ? result.reason.issues
+        : []);
     throw new WorkflowDocumentValidationError(
       `共 ${documentFailures.length} 份工作流文档校验失败：\n`
       + documentFailures.map((failure, index) => `${index + 1}) ${failure}`).join('\n'),
+      issues,
     );
   }
   const runtimeFailure = results.find(
@@ -491,5 +579,6 @@ export const validateWorkflowDocuments = async ({
     filePath: string;
     action: string;
     prompt: string;
+    issues: WorkflowValidationIssue[];
   }>).value);
 };

@@ -77,7 +77,8 @@ return_to: null
   await mkdir(path.join(root, 'docs/workflow'), { recursive: true });
   await writeFile(
     path.join(root, 'docs/workflow/workflow-contract.yaml'),
-    await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml')),
+    (await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8'))
+      .replace('mode: balanced', 'mode: strict'),
   );
   await writeFile(path.join(root, 'docs/000_ROADMAP_20260726_test.md'), '# roadmap\n');
 
@@ -183,10 +184,17 @@ plan_progress: in_progress
   await assert.rejects(
     validate('docs/006_PLAN_20260726_all_errors.md'),
     (error: Error) => {
+      assert.ok(error instanceof WorkflowDocumentValidationError);
       assert.match(error.message, /共发现 3 个工作流文档错误/);
       assert.match(error.message, /YAML\.plan_kind.*缺少必填字段/);
       assert.match(error.message, /Prompt.*必须包含且只能包含一对 Prompt 标记/);
       assert.match(error.message, /正文.*至少需要包含一个 Slice/);
+      assert.deepEqual(error.issues.map(({ code, severity }) => [code, severity]), [
+        ['PROMPT_MARKERS_INVALID', 'error'],
+        ['PLAN_REQUIRED_FIELD_MISSING', 'error'],
+        ['PLAN_SLICE_MISSING', 'error'],
+      ]);
+      assert.ok(error.issues.every(({ location, template }) => location && template.length < 200));
       return true;
     },
   );
@@ -257,6 +265,44 @@ S01
     },
   );
 
+  const balancedContract = (await readFile(
+    path.join(root, 'docs/workflow/workflow-contract.yaml'),
+    'utf8',
+  )).replace('mode: strict', 'mode: balanced');
+  await writeFile(path.join(root, 'docs/workflow/workflow-contract.yaml'), balancedContract);
+  git('add', '.');
+  git('commit', '-qm', 'use balanced validation');
+  const balancedRef = git('rev-parse', 'HEAD');
+  const [balanced] = await validateWorkflowDocuments({
+    cwd: root,
+    ref: balancedRef,
+    filePaths: ['docs/005_HANDOVER_20260726_invalid.md'],
+  });
+  assert.deepEqual(
+    balanced.issues.filter(({ code }) => code !== 'TEMPLATE_MISSING').map(({ code, severity }) => [code, severity]),
+    [
+      ['PROMPT_DOCUMENT_REFERENCE_MISSING', 'warning'],
+      ['PROMPT_DOCUMENT_REFERENCE_MISSING', 'warning'],
+      ['PROMPT_DOCUMENT_REFERENCE_MISSING', 'warning'],
+      ['NEXT_SLICE_MISSING', 'warning'],
+    ],
+  );
+  assert.equal(balanced.issues.filter(({ code }) => code === 'TEMPLATE_MISSING').length, 2);
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root,
+      ref: balancedRef,
+      filePaths: ['docs/006_PLAN_20260726_all_errors.md'],
+    }),
+    (error: Error) => {
+      assert.ok(error instanceof WorkflowDocumentValidationError);
+      assert.match(error.message, /共发现 2 个工作流文档错误/);
+      assert.equal(error.issues.find(({ code }) => code === 'PLAN_SLICE_MISSING')?.severity, 'warning');
+      return true;
+    },
+    'balanced must not downgrade structural errors',
+  );
+
   const relaxedContract = (await readFile(
     path.join(root, 'docs/workflow/workflow-contract.yaml'),
     'utf8',
@@ -278,6 +324,69 @@ S01
     /非可执行动作不得包含自动化 Prompt/,
     'validation must read the target ref, not the legal workspace copy',
   );
+
+  const planTemplate = await readFile(path.join(process.cwd(), 'docs/workflow/templates/PLAN.md'), 'utf8');
+  const handoverTemplate = await readFile(path.join(process.cwd(), 'docs/workflow/templates/HANDOVER.md'), 'utf8');
+  for (const required of ['## Phase PLAN', '## Interrupt PLAN', 'start_first_slice']) {
+    assert.match(planTemplate, new RegExp(required));
+  }
+  for (const required of ['## 继续下一 Slice', '## 恢复父 PLAN', '## 终止并等待验收', 'next_slice', 'resume_parent', 'await_acceptance']) {
+    assert.match(handoverTemplate, new RegExp(required));
+  }
+  const block = (source: string, heading: string) => {
+    const match = source.match(new RegExp(`## ${heading}\\n\\n\`\`\`markdown\\n([\\s\\S]*?)\\n\`\`\``));
+    assert.ok(match, `missing template block: ${heading}`);
+    return match[1];
+  };
+  await mkdir(path.join(root, 'docs/workflow/templates'), { recursive: true });
+  await writeFile(path.join(root, 'docs/workflow/templates/PLAN.md'), planTemplate);
+  await writeFile(path.join(root, 'docs/workflow/templates/HANDOVER.md'), handoverTemplate);
+  await writeFile(
+    path.join(root, 'docs/workflow/workflow-contract.yaml'),
+    (await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8'))
+      .replace('mode: balanced', 'mode: strict'),
+  );
+  const phasePath = 'docs/011_PLAN_20260801_template.md';
+  const interruptPath = 'docs/012_PLAN_20260801_interrupt.md';
+  const nextPath = 'docs/013_HANDOVER_20260801_next.md';
+  const resumePath = 'docs/014_HANDOVER_20260801_resume.md';
+  const terminalPath = 'docs/015_HANDOVER_20260801_terminal.md';
+  await writeFile(path.join(root, phasePath), block(planTemplate, 'Phase PLAN')
+    .replaceAll('<编号>_PLAN_<日期>_<主题>', '011_PLAN_20260801_template')
+    .replaceAll('<主题>', '模板验证')
+    .replace('<首个 Slice>', '模板验证')
+    .replace('<范围与完成标准>', '验证模板实例。'));
+  await writeFile(path.join(root, interruptPath), block(planTemplate, 'Interrupt PLAN')
+    .replaceAll('<编号>_PLAN_<日期>_<主题>', '012_PLAN_20260801_interrupt')
+    .replaceAll('docs/<父PLAN>.md', 'docs/008_PLAN_20260726_no_roadmap.md')
+    .replace('<阻塞修复主题>', '模板验证')
+    .replace('<修复 Slice>', '模板验证')
+    .replace('<范围与完成标准>', '验证模板实例。'));
+  await writeFile(path.join(root, nextPath), block(handoverTemplate, '继续下一 Slice')
+    .replaceAll('docs/<本HANDOVER>.md', nextPath)
+    .replaceAll('docs/<PLAN>.md', 'docs/008_PLAN_20260726_no_roadmap.md')
+    .replace('<S01 结果>', '模板验证')
+    .replace('<完成内容、验证和遗留事项>', '验证模板实例。'));
+  await writeFile(path.join(root, resumePath), block(handoverTemplate, '恢复父 PLAN')
+    .replaceAll('docs/<本HANDOVER>.md', resumePath)
+    .replaceAll('docs/<Interrupt-PLAN>.md', interruptPath)
+    .replaceAll('docs/<父PLAN>.md', 'docs/008_PLAN_20260726_no_roadmap.md')
+    .replace('<Interrupt PLAN 完成>', '模板验证')
+    .replace('<完成内容与验证>', '验证模板实例。'));
+  await writeFile(path.join(root, terminalPath), block(handoverTemplate, '终止并等待验收')
+    .replaceAll('docs/<PLAN>.md', 'docs/008_PLAN_20260726_no_roadmap.md')
+    .replace('slice: S01', 'slice: S02')
+    .replace('<完成结果>', '模板验证')
+    .replace('<完成内容、验证、验收入口和遗留事项>', '验证模板实例。'));
+  git('add', '.');
+  git('commit', '-qm', 'validate authoritative templates');
+  const templateRef = git('rev-parse', 'HEAD');
+  const templateResults = await validateWorkflowDocuments({
+    cwd: root,
+    ref: templateRef,
+    filePaths: [phasePath, interruptPath, nextPath, resumePath, terminalPath],
+  });
+  assert.ok(templateResults.every(({ issues }) => issues.length === 0));
   console.log('workflow validator contract/ref checks passed');
 }
 
