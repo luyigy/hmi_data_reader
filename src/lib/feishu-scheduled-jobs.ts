@@ -228,6 +228,7 @@ export const buildWorkflowDashboardCard = (args: {
       path: documentPath, label: `HANDOVER · ${title}`,
     })),
   ] : [];
+  const workflowDocuments = documents.filter(({ label }) => !label.startsWith('Inbox ·'));
   return {
     config: { wide_screen_mode: true },
     header: {
@@ -329,6 +330,23 @@ export const buildWorkflowDashboardCard = (args: {
               expectedHead: args.status.head,
             },
           },
+        ],
+      }] : []),
+      ...(workflowDocuments.length ? [{
+        tag: 'form',
+        name: 'workflow-document-validation',
+        elements: [
+          {
+            tag: 'select_static',
+            name: 'selectedDocument',
+            required: true,
+            width: 'fill',
+            placeholder: { tag: 'plain_text', content: '选择要校验的 PLAN 或 HANDOVER' },
+            options: workflowDocuments.map((document) => ({
+              text: { tag: 'plain_text', content: document.label },
+              value: document.path,
+            })),
+          },
           {
             tag: 'button',
             name: 'validateWorkflowDocument',
@@ -342,10 +360,6 @@ export const buildWorkflowDashboardCard = (args: {
               jobId: args.status.jobId,
               expectedHead: args.status.head,
             },
-          },
-          {
-            tag: 'note',
-            elements: [{ tag: 'plain_text', content: 'Inbox 只能查看；校验针对 Git HEAD 中已提交的 PLAN / HANDOVER。' }],
           },
         ],
       }] : []),

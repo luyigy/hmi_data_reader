@@ -332,6 +332,12 @@ assert.match(JSON.stringify(activationCard), /查看飞书文档/);
 assert.match(JSON.stringify(activationCard), /"action":"document"/);
 assert.match(JSON.stringify(activationCard), /校验所选 PLAN \/ HANDOVER/);
 assert.match(JSON.stringify(activationCard), /"action":"document_validate"/);
+const dashboardForms = activationCard.elements.filter(({ tag }) => tag === 'form') as Array<{
+  elements: Array<{ tag: string; action_type?: string }>;
+}>;
+assert(dashboardForms.every((form) => form.elements.filter((element) => (
+  element.tag === 'button' && element.action_type === 'form_submit'
+)).length === 1));
 assert.match(JSON.stringify(activationCard), /Inbox · 待整理事项/);
 assert.match(JSON.stringify(activationCard), /PLAN · 可选计划/);
 assert.match(JSON.stringify(activationCard), /HANDOVER · 交接文档/);
