@@ -21,6 +21,26 @@
 | 016 | 20260731 | HANDOVER | TACT 温度页模板与最小链路支持 | [016_HANDOVER_20260731_TACT温度页模板与最小链路支持.md](./016_HANDOVER_20260731_TACT温度页模板与最小链路支持.md) |
 | 017 | 20260731 | REPORT | Kimi 沙箱虚拟环境与 stdout 溢出 | [017_REPORT_20260731_Kimi沙箱虚拟环境与stdout溢出.md](./017_REPORT_20260731_Kimi沙箱虚拟环境与stdout溢出.md) |
 | 018 | 20260731 | HANDOVER | S2 日精 TACT 模板与真值 | [018_HANDOVER_20260731_S2日精TACT模板与真值.md](./018_HANDOVER_20260731_S2日精TACT模板与真值.md) |
+| 019 | 20260731 | HANDOVER | Session 换代检查点 | [019_HANDOVER_20260731_Session换代_f88b4939.md](./019_HANDOVER_20260731_Session换代_f88b4939.md) |
+| 020 | 20260731 | PLAN | 伯乐 B&R 结构修复与 VLM 兜底 | [020_PLAN_20260731_伯乐B&R结构修复与VLM兜底.md](./020_PLAN_20260731_伯乐B&R结构修复与VLM兜底.md) |
+| 021 | 20260731 | HANDOVER | S1 伯乐真值修正与分家族基线 | [021_HANDOVER_20260731_S1伯乐真值修正与分家族基线.md](./021_HANDOVER_20260731_S1伯乐真值修正与分家族基线.md) |
+| 022 | 20260731 | HANDOVER | S2 伯乐 B&R 行列结构修复 PASS | [022_HANDOVER_20260731_S2伯乐B&R行列结构修复PASS.md](./022_HANDOVER_20260731_S2伯乐B&R行列结构修复PASS.md) |
+| 023 | 20260801 | PLAN | 伯乐 S3 拒识口径与定向收口 | [023_PLAN_20260801_伯乐S3拒识口径与定向收口.md](./023_PLAN_20260801_伯乐S3拒识口径与定向收口.md) |
+| 024 | 20260801 | HANDOVER | S1 拒识口径与 B&R 列修复 | [024_HANDOVER_20260801_S1拒识口径与B&R列修复_KEBA根因交审批.md](./024_HANDOVER_20260801_S1拒识口径与B&R列修复_KEBA根因交审批.md) |
+| 025 | 20260801 | HANDOVER | S2 伯乐 20 图验收 PASS 与 013 S3 收口 | [025_HANDOVER_20260801_S2伯乐20图验收PASS与013S3收口.md](./025_HANDOVER_20260801_S2伯乐20图验收PASS与013S3收口.md) |
+| 026 | 20260801 | PLAN | FANUC/DEMAG 温度页模板细分执行 | [026_PLAN_20260801_FANUC与DEMAG温度页模板细分执行.md](./026_PLAN_20260801_FANUC与DEMAG温度页模板细分执行.md) |
+| 027 | 20260801 | ROADMAP | 全局路线图与自动接力协议 | [027_ROADMAP_20260801_全局路线图与自动接力协议.md](./027_ROADMAP_20260801_全局路线图与自动接力协议.md) |
+| 028 | 20260801 | HANDOVER | S8 验收 FAIL 残差分析与路径交审批 | [028_HANDOVER_20260801_S8验收FAIL_残差分析与路径交审批.md](./028_HANDOVER_20260801_S8验收FAIL_残差分析与路径交审批.md) |
+| 029 | 20260801 | PLAN | UNKNOWN 机台家族裁定 | [029_PLAN_20260801_UNKNOWN机台家族裁定.md](./029_PLAN_20260801_UNKNOWN机台家族裁定.md) |
+| 030 | 20260801 | HANDOVER | UNKNOWN 机台家族裁定完成 | [030_HANDOVER_20260801_UNKNOWN机台家族裁定完成.md](./030_HANDOVER_20260801_UNKNOWN机台家族裁定完成.md) |
+| 031 | 20260801 | PLAN | TACT 第一波扩样 | [031_PLAN_20260801_TACT第一波扩样.md](./031_PLAN_20260801_TACT第一波扩样.md) |
+| 032 | 20260801 | HANDOVER | TACT 泛化验收 FAIL 模板不泛化 | [032_HANDOVER_20260801_TACT泛化验收FAIL_模板不泛化.md](./032_HANDOVER_20260801_TACT泛化验收FAIL_模板不泛化.md) |
+| 033 | 20260801 | HANDOVER | TACT 模板参数化整改 | [033_HANDOVER_20260801_TACT模板参数化整改_设定行检测层残余交审批.md](./033_HANDOVER_20260801_TACT模板参数化整改_设定行检测层残余交审批.md) |
+| 034 | 20260801 | PLAN | B_AND_R 第一波扩样 | [034_PLAN_20260801_B_AND_R第一波扩样.md](./034_PLAN_20260801_B_AND_R第一波扩样.md) |
+| 035 | 20260801 | PLAN | 射出/保压页面线 | [035_PLAN_20260801_射出保压页面线.md](./035_PLAN_20260801_射出保压页面线.md) |
+| 036 | 20260801 | HANDOVER | 射出保压第一波 Z022 验收 PASS | [036_HANDOVER_20260801_射出保压第一波Z022验收PASS.md](./036_HANDOVER_20260801_射出保压第一波Z022验收PASS.md) |
+| 037 | 20260801 | HANDOVER | 射出保压第二波 Z002 验收 FAIL | [037_HANDOVER_20260801_射出保压第二波Z002验收FAIL_段表索引漂移交审批.md](./037_HANDOVER_20260801_射出保压第二波Z002验收FAIL_段表索引漂移交审批.md) |
+| 038 | 20260801 | HANDOVER | 段格检测尝试与段表拒识兜底 | [038_HANDOVER_20260801_段格检测尝试与段表拒识兜底落地.md](./038_HANDOVER_20260801_段格检测尝试与段表拒识兜底落地.md) |
 
 ## 待建文档
 
