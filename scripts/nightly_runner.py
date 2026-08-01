@@ -114,6 +114,18 @@ SEEDED_TERMINAL = {
         "status": "BLOCKED_EXTERNAL",
         "provenance": "043 HANDOVER：同上（第二波需新下载）",
     },
+    "temperature/TACT/generalization": {
+        "status": "SAFE_REJECT",
+        "provenance": "044 HANDOVER：033 一轮整改后 numeric 0.8179 未达门，auto_import_ratio 0 零误放行，整页事实拒识",
+    },
+    "temperature/B_AND_R/expansion": {
+        "status": "BLOCKED_EXTERNAL",
+        "provenance": "044 HANDOVER：034 候选未下载，lark-cli 缺失（同 043 恢复条件）",
+    },
+    "temperature/FANUC_DEMAG/generalization": {
+        "status": "SAFE_REJECT",
+        "provenance": "044 HANDOVER：026 S8 整改尝试后 numeric 0.9093 未达门，error 0.0/rejection 1.0 安全拒识",
+    },
 }
 
 

@@ -1,12 +1,20 @@
 {
   "plan": "docs/034_PLAN_20260801_B_AND_R第一波扩样.md",
   "slice": "S1",
-  "updated_at": "2026-08-01T15:10:00+08:00",
+  "updated_at": "2026-08-02T00:30:42+08:00",
   "completed_steps": [
     "033 路径②裁定：TACT 接受 0.8179 挂起（031 paused）",
     "034 PLAN 立（B_AND_R 第一波：Z050/Z053/Z007 各 6，共 18+12）",
-    "S1 候选清单 output/br_exp_candidates.json（seed 20260801，池 140/70/69 零重复）PENDING_USER_APPROVAL"
+    "S1 候选清单 output/br_exp_candidates.json（seed 20260801，池 140/70/69 零重复）PENDING_USER_APPROVAL",
+    "039 S5 复核：候选 18+12 未下载，唯一下载通道 lark-cli 本环境缺失（043 同源阻塞）→ temperature/B_AND_R/expansion 终态 BLOCKED_EXTERNAL，恢复条件=lark-cli 或等价飞书 API 通道可用（届时候选批准+下载按 039 自治续跑）"
   ],
-  "next_step": "等用户批准下载 → 30条下载+去重 → S2 VLM草稿（每turn≤6张）→ S3核验表 → S4真值 → S5 现模板18图泛化验收 → S6 HANDOVER",
-  "pending_user_decision": ["是否批准下载 18目标+12候补 共30条"]
+  "next_step": "BLOCKED_EXTERNAL（039 S5 裁决）；待 lark-cli 恢复后重领",
+  "pending_user_decision": [],
+  "terminal_states": {
+    "temperature/B_AND_R/expansion": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "044 HANDOVER",
+      "recovery": "lark-cli 或等价飞书 API 通道可用"
+    }
+  }
 }
