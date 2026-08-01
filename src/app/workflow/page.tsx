@@ -32,32 +32,35 @@ export default async function WorkflowPage() {
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">{status.projectName}</h2>
                 <p className="mt-1 text-sm text-slate-500">{status.projectId} / {status.jobId}</p>
+                <p className="mt-2 text-sm text-slate-600">自治模式：{status.autonomy}（{status.autonomySource}）</p>
               </div>
               <span className={`rounded-full border px-3 py-1 text-sm font-medium ${tone(status.stage)}`}>
                 {status.stage}
               </span>
             </div>
 
-            <dl className="mt-6 grid gap-4 text-sm md:grid-cols-2">
-              <div><dt className="text-slate-500">ref / HEAD</dt><dd className="mt-1 break-all font-mono text-slate-900">{status.ref} / {status.head}</dd></div>
-              <div><dt className="text-slate-500">自治模式</dt><dd className="mt-1 text-slate-900">{status.autonomy}（{status.autonomySource}）</dd></div>
-              <div><dt className="text-slate-500">PLAN / Slice / 动作</dt><dd className="mt-1 text-slate-900">{status.plan} / {status.slice} / {status.action}</dd></div>
-              <div><dt className="text-slate-500">审批</dt><dd className="mt-1 text-slate-900">{status.approval}</dd></div>
-              <div><dt className="text-slate-500">Session</dt><dd className="mt-1 break-all text-slate-900">{status.session}</dd></div>
-              <div><dt className="text-slate-500">Validator</dt><dd className="mt-1 text-slate-900">{status.validator}</dd></div>
-              <div><dt className="text-slate-500">重试 / 隔离</dt><dd className="mt-1 text-slate-900">{status.retry}</dd></div>
-              <div><dt className="text-slate-500">最近成功</dt><dd className="mt-1 text-slate-900">{status.lastSuccessAt}</dd></div>
-              <div><dt className="text-slate-500">最近错误</dt><dd className="mt-1 text-slate-900">{status.lastError}</dd></div>
-            </dl>
+            <details className="mt-6 rounded-2xl border border-slate-200 p-4 text-sm">
+              <summary className="cursor-pointer font-semibold text-slate-900">运行详情</summary>
+              <dl className="mt-4 grid gap-4 md:grid-cols-2">
+                <div><dt className="text-slate-500">ref / HEAD</dt><dd className="mt-1 break-all font-mono text-slate-900">{status.ref} / {status.head}</dd></div>
+                <div><dt className="text-slate-500">PLAN / Slice / 动作</dt><dd className="mt-1 text-slate-900">{status.plan} / {status.slice} / {status.action}</dd></div>
+                <div><dt className="text-slate-500">审批</dt><dd className="mt-1 text-slate-900">{status.approval}</dd></div>
+                <div><dt className="text-slate-500">Session</dt><dd className="mt-1 break-all text-slate-900">{status.session}</dd></div>
+                <div><dt className="text-slate-500">Validator</dt><dd className="mt-1 text-slate-900">{status.validator}</dd></div>
+                <div><dt className="text-slate-500">重试 / 隔离</dt><dd className="mt-1 text-slate-900">{status.retry}</dd></div>
+                <div><dt className="text-slate-500">最近成功</dt><dd className="mt-1 text-slate-900">{status.lastSuccessAt}</dd></div>
+                <div><dt className="text-slate-500">最近错误</dt><dd className="mt-1 text-slate-900">{status.lastError}</dd></div>
+              </dl>
+            </details>
 
             {status.completion ? (
-              <section className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-                <h3 className="font-semibold">完成回执</h3>
+              <details className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+                <summary className="cursor-pointer font-semibold">完成回执</summary>
                 <p className="mt-2 break-all">commit：{status.completion.commit}</p>
                 <p className="mt-1">实际验证：{status.completion.validation}</p>
                 <p className="mt-1">HANDOVER / 验收入口：{status.completion.entry}</p>
                 <p className="mt-1">自动推进：{status.completion.automaticProgression}</p>
-              </section>
+              </details>
             ) : null}
 
             {status.overview ? (
@@ -66,17 +69,17 @@ export default async function WorkflowPage() {
                 <p className="mt-2 text-slate-600">
                   Inbox {status.overview.inbox.length} · PLAN {status.overview.plans.length} · HANDOVER {status.overview.handovers.length}
                 </p>
-                <div className="mt-5 grid gap-5 lg:grid-cols-3">
-                  <div>
-                    <h4 className="font-medium">Inbox</h4>
+                <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                  <details className="rounded-xl border border-slate-200 p-3">
+                    <summary className="cursor-pointer font-medium">Inbox（{status.overview.inbox.length}）</summary>
                     {status.overview.inbox.length ? status.overview.inbox.map((item) => (
                       <p key={item.path} className="mt-2 break-all text-slate-600">
                         {item.path} · {item.status} · {item.nextAction}
                       </p>
                     )) : <p className="mt-2 text-slate-600">0</p>}
-                  </div>
-                  <div>
-                    <h4 className="font-medium">未完成 PLAN</h4>
+                  </details>
+                  <details className="rounded-xl border border-slate-200 p-3">
+                    <summary className="cursor-pointer font-medium">未完成 PLAN（{status.overview.plans.length}）</summary>
                     {status.overview.plans.length ? status.overview.plans.map((plan) => (
                       <div key={plan.path} className="mt-2">
                         <p>{plan.number} {plan.title} · {plan.state}</p>
@@ -85,15 +88,15 @@ export default async function WorkflowPage() {
                         </p>
                       </div>
                     )) : <p className="mt-2 text-slate-600">0</p>}
-                  </div>
-                  <div>
-                    <h4 className="font-medium">相关 HANDOVER</h4>
+                  </details>
+                  <details className="rounded-xl border border-slate-200 p-3">
+                    <summary className="cursor-pointer font-medium">相关 HANDOVER（{status.overview.handovers.length}）</summary>
                     {status.overview.handovers.length ? status.overview.handovers.map((handover) => (
                       <p key={handover.path} className="mt-2 break-all text-slate-600">
                         {handover.path} · {handover.plan} · {handover.slice} · {handover.planProgress} · {handover.nextAction}
                       </p>
                     )) : <p className="mt-2 text-slate-600">0</p>}
-                  </div>
+                  </details>
                 </div>
                 {status.overview.warnings.length ? (
                   <div className="mt-5 rounded-xl bg-amber-50 p-3 text-amber-900">

@@ -278,6 +278,8 @@ assert.match(JSON.stringify(dashboardCard), /恢复修改任务/);
 assert.doesNotMatch(JSON.stringify(dashboardCard), /stale-expiry/);
 assert.match(JSON.stringify(dashboardCard), /唯一下一步/);
 assert.match(JSON.stringify(dashboardCard), /autonomy_manual/);
+assert.match(JSON.stringify(dashboardCard), /"tag":"collapsible_panel","expanded":false/);
+assert.match(JSON.stringify(dashboardCard), /自治模式：semi_auto[\s\S]*autonomy_manual[\s\S]*autonomy_auto/);
 const activationCard = buildWorkflowDashboardCard({
   status: {
     ...workflowStatus,

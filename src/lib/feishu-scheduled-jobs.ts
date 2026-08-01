@@ -187,7 +187,7 @@ export const buildWorkflowDashboardCard = (args: {
       expectedHead: args.status.head,
     },
   });
-  const actions = [
+  const runActions = [
     action('刷新', 'refresh'),
     ...(!args.status.running && args.status.enabled ? [action('立即运行', 'run')] : []),
     ...(reviewState === 'review' ? [action('重发审批卡', 'resend', 'primary')] : []),
@@ -200,9 +200,13 @@ export const buildWorkflowDashboardCard = (args: {
       args.status.enabled ? 'disable' : 'enable',
       args.status.enabled ? 'danger' : 'primary',
     ),
+  ];
+  const autonomyActions = [
     action('Manual', 'autonomy_manual', args.status.autonomy === 'manual' ? 'primary' : 'default'),
     action('Semi-auto', 'autonomy_semi_auto', args.status.autonomy === 'semi_auto' ? 'primary' : 'default'),
     action('Auto', 'autonomy_auto', args.status.autonomy === 'auto' ? 'primary' : 'default'),
+  ];
+  const validationActions = [
     action('校验状态', 'validation_show'),
     action('错误模板', 'validation_template'),
     action('Balanced', 'validation_balanced'),
@@ -224,21 +228,31 @@ export const buildWorkflowDashboardCard = (args: {
         content: [
           `**${args.status.projectName} / ${args.status.jobId}**`,
           `**状态**：${stage}`,
-          `**项目 / ref / HEAD**：${args.status.projectId} · \`${args.status.ref}\` · \`${args.status.head.slice(0, 8)}\``,
           `**自治模式**：${args.status.autonomy}（${args.status.autonomySource}）`,
-          `**PLAN / Slice / 动作**：${args.status.plan} · ${args.status.slice} · ${args.status.action}`,
-          `**模式 / 调度**：${args.status.mode} · \`${args.status.schedule}\``,
-          `**审批 / Session**：${args.status.approval} · ${args.status.session}`,
-          `**Validator**：${args.status.validator}`,
-          `**游标**：\`${args.cursor.current?.slice(0, 8) || '-'}\` → \`${args.cursor.latest.slice(0, 8)}\`（behind ${args.cursor.behind ?? '-'}）`,
-          `**最近成功 / 错误**：${args.status.lastSuccessAt} · ${args.status.lastError}`,
-          `**重试 / 隔离**：${args.status.retry}`,
-          ...(args.status.completion ? [
-            `**完成回执**：commit \`${args.status.completion.commit}\` · 验证 ${args.status.completion.validation} · 入口 ${args.status.completion.entry} · 自动推进 ${args.status.completion.automaticProgression}`,
-          ] : []),
-          ...(args.status.overview ? ['', formatWorkflowOverview(args.status.overview)] : []),
           `**唯一下一步**：${args.status.nextStep}`,
         ].join('\n'),
+      },
+      {
+        tag: 'collapsible_panel',
+        expanded: false,
+        header: { title: { tag: 'plain_text', content: '运行与队列详情' } },
+        elements: [{
+          tag: 'markdown',
+          content: [
+            `**项目 / ref / HEAD**：${args.status.projectId} · \`${args.status.ref}\` · \`${args.status.head.slice(0, 8)}\``,
+            `**PLAN / Slice / 动作**：${args.status.plan} · ${args.status.slice} · ${args.status.action}`,
+            `**模式 / 调度**：${args.status.mode} · \`${args.status.schedule}\``,
+            `**审批 / Session**：${args.status.approval} · ${args.status.session}`,
+            `**Validator**：${args.status.validator}`,
+            `**游标**：\`${args.cursor.current?.slice(0, 8) || '-'}\` → \`${args.cursor.latest.slice(0, 8)}\`（behind ${args.cursor.behind ?? '-'}）`,
+            `**最近成功 / 错误**：${args.status.lastSuccessAt} · ${args.status.lastError}`,
+            `**重试 / 隔离**：${args.status.retry}`,
+            ...(args.status.completion ? [
+              `**完成回执**：commit \`${args.status.completion.commit}\` · 验证 ${args.status.completion.validation} · 入口 ${args.status.completion.entry} · 自动推进 ${args.status.completion.automaticProgression}`,
+            ] : []),
+            ...(args.status.overview ? ['', formatWorkflowOverview(args.status.overview)] : []),
+          ].join('\n'),
+        }],
       },
       ...(args.status.overview?.queue.length && !args.status.running && !args.pending ? [{
         tag: 'form',
@@ -272,7 +286,24 @@ export const buildWorkflowDashboardCard = (args: {
           },
         ],
       }] : []),
-      { tag: 'action', actions },
+      {
+        tag: 'collapsible_panel',
+        expanded: false,
+        header: { title: { tag: 'plain_text', content: '运行控制' } },
+        elements: [{ tag: 'action', actions: runActions }],
+      },
+      {
+        tag: 'collapsible_panel',
+        expanded: false,
+        header: { title: { tag: 'plain_text', content: `自治模式：${args.status.autonomy}` } },
+        elements: [{ tag: 'action', actions: autonomyActions }],
+      },
+      {
+        tag: 'collapsible_panel',
+        expanded: false,
+        header: { title: { tag: 'plain_text', content: '文档校验' } },
+        elements: [{ tag: 'action', actions: validationActions }],
+      },
       {
         tag: 'note',
         elements: [{
