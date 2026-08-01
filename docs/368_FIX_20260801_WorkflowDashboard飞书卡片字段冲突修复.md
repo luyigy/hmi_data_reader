@@ -1,13 +1,10 @@
 ---
-doc_type: HANDOVER
+doc_type: FIX
 doc_status: completed
-next_action: await_acceptance
-plan: docs/364_PLAN_20260801_WorkflowDashboard队列与文档按需查看.md
-slice: S03
-plan_progress: complete
+next_action: none
 ---
 
-# HANDOVER · Workflow Dashboard 飞书卡片字段冲突修复
+# FIX · Workflow Dashboard 飞书卡片字段冲突修复
 
 ## 问题与根因
 
@@ -33,8 +30,8 @@ plan_progress: complete
 - GitNexus 修复前影响分析为 LOW：两个修改函数各有 1 个直接调用方，无受影响执行流程。
 - 飞书长连接与定时任务服务已重启；真实 DM 中 Dashboard 已恢复，用户确认问题消失。
 
-## 验收与遗留事项
+## 防止复发与遗留事项
 
 - 本修复不改变“查看文档”、文档校验、审批、watcher cursor 或自治模式的业务语义。
 - 全量 lint 仍有与本修复无关的历史错误；本次已对修改文件执行聚焦 lint。
-- PLAN S03 保持完成状态，终态等待验收，不启动下一 Slice。
+- 回归测试会持续检查 Dashboard 表单字段名的全局唯一性。
