@@ -102,6 +102,18 @@ SEEDED_TERMINAL = {
         "status": "SAFE_REJECT",
         "provenance": "038 HANDOVER：stage 数组整体 null/review，error 0.0，停止段格 CV",
     },
+    "injection_metering/FANUC/wave1": {
+        "status": "BLOCKED_EXTERNAL",
+        "provenance": "043 HANDOVER：lark-cli 缺失无法下载附件；恢复条件=飞书 API 通道可用",
+    },
+    "injection_metering/TACT/wave2": {
+        "status": "BLOCKED_EXTERNAL",
+        "provenance": "043 HANDOVER：同上（第二波需新下载）",
+    },
+    "injection_metering/FANUC/wave2": {
+        "status": "BLOCKED_EXTERNAL",
+        "provenance": "043 HANDOVER：同上（第二波需新下载）",
+    },
 }
 
 
