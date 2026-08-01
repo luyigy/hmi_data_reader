@@ -2,14 +2,21 @@ import { execFile } from 'node:child_process';
 import { appendFile, chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const MARKER = '# agent-platform append-only ref guard v2';
-const LEGACY_MARKER = '# agent-platform append-only ref guard v1';
-const shellQuote = (value: string) => `'${value.replaceAll("'", "'\"'\"'")}'`;
-const hook = (validatorScript: string, tsNodeRegister: string) => `#!/bin/sh
+const MARKER = '# agent-platform append-only ref guard v3';
+const LEGACY_MARKERS = [
+  '# agent-platform append-only ref guard v1',
+  '# agent-platform append-only ref guard v2',
+];
+const VALIDATOR_BUNDLE_SOURCE = path.resolve(
+  process.cwd(),
+  'src/lib/scheduled-jobs/generated/workflow-validator.cjs',
+);
+const hook = () => `#!/bin/sh
 ${MARKER}
 [ "$1" = prepared ] || exit 0
 protected_refs="$(git rev-parse --git-path agent-platform/append-only-refs)" || exit 1
 workflow_contracts="$(git rev-parse --git-path agent-platform/workflow-contracts)" || exit 1
+validator="$(git rev-parse --git-path agent-platform/workflow-validator.cjs)" || exit 1
 [ -f "$protected_refs" ] || exit 0
 batch="$(mktemp "\${TMPDIR:-/tmp}/agent-platform-workflow.XXXXXX")" || exit 1
 changed="$batch.changed"
@@ -61,12 +68,11 @@ do
   done < "$changed"
 done
 if [ -s "$batch" ]; then
-  TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}' \
-    node -r ${shellQuote(tsNodeRegister)} ${shellQuote(validatorScript)} --hook-batch "$batch" >"$output" 2>&1
+  node "$validator" --hook-batch "$batch" >"$output" 2>&1
   validator_status=$?
   cat "$output" >&2
   # Only a genuine document validation failure (signalled by the marker) rejects
-  # the commit. Validator runtime failures (exit 2, node/ts-node crash, missing
+  # the commit. Validator runtime failures (exit 2, node crash, missing
   # dependencies) degrade to a warning so infrastructure outages cannot freeze
   # all commits.
   if [ "$validator_status" -eq 1 ] && grep -q 'WORKFLOW_DOCUMENT_VALIDATION_FAILED' "$output"; then
@@ -95,10 +101,11 @@ export const ensureAppendOnlyGitRef = async (
   if ([ref, contractPath].some((value) => /[\t\r\n]/.test(value))) {
     throw new Error('Git guard ref and contract path must not contain tabs or newlines');
   }
-  const [hookPath, refsPath, contractsPath] = await Promise.all([
+  const [hookPath, refsPath, contractsPath, validatorPath] = await Promise.all([
     gitPath(cwd, signal, 'hooks/reference-transaction'),
     gitPath(cwd, signal, 'agent-platform/append-only-refs'),
     gitPath(cwd, signal, 'agent-platform/workflow-contracts'),
+    gitPath(cwd, signal, 'agent-platform/workflow-validator.cjs'),
   ]);
   await Promise.all([
     mkdir(path.dirname(hookPath), { recursive: true }),
@@ -106,21 +113,25 @@ export const ensureAppendOnlyGitRef = async (
     mkdir(path.dirname(contractsPath), { recursive: true }),
   ]);
 
-  const hookSource = hook(
-    path.resolve(process.cwd(), 'scripts/validate-workflow-documents.ts'),
-    require.resolve('ts-node/register/transpile-only'),
-  );
+  const hookSource = hook();
+  const validatorSource = await readFile(VALIDATOR_BUNDLE_SOURCE);
   const existingHook = await readFile(hookPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return '';
     throw error;
   });
-  if (existingHook && !existingHook.includes(MARKER) && !existingHook.includes(LEGACY_MARKER)) {
+  if (existingHook && !existingHook.includes(MARKER)
+    && !LEGACY_MARKERS.some((marker) => existingHook.includes(marker))) {
     throw new Error(`cannot install append-only Git guard over unmanaged hook: ${hookPath}`);
   }
   if (existingHook !== hookSource) {
     await writeFile(hookPath, hookSource, { mode: 0o755 });
   }
   await chmod(hookPath, 0o755);
+  const existingValidator = await readFile(validatorPath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!existingValidator?.equals(validatorSource)) await writeFile(validatorPath, validatorSource);
 
   const refs = await readFile(refsPath, 'utf8').catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return '';

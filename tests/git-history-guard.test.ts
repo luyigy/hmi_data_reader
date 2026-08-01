@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ensureAppendOnlyGitRef } from '../src/lib/scheduled-jobs/git-history-guard';
@@ -46,7 +46,18 @@ S01
     new AbortController().signal,
     'policy/contract.yaml',
   );
-  assert.match(await readFile(hookPath, 'utf8'), /append-only ref guard v2/);
+  const hookSource = await readFile(hookPath, 'utf8');
+  assert.match(hookSource, /append-only ref guard v3/);
+  assert.doesNotMatch(hookSource, /agent-platform-v2|ts-node|node_modules|validate-workflow-documents\.ts/);
+  const validatorPath = path.resolve(root, git('rev-parse', '--git-path', 'agent-platform/workflow-validator.cjs'));
+  assert.ok((await stat(validatorPath)).size > 0);
+  const validatorSource = await readFile(validatorPath, 'utf8');
+  assert.ok(!validatorSource.includes(process.cwd()));
+  assert.doesNotMatch(validatorSource, /require\(['"]yaml/);
+
+  await writeFile(hookPath, '#!/bin/sh\n# agent-platform append-only ref guard v2\nexit 0\n');
+  await ensureAppendOnlyGitRef(root, 'refs/heads/main', new AbortController().signal, 'policy/contract.yaml');
+  assert.match(await readFile(hookPath, 'utf8'), /append-only ref guard v3/);
 
   await writeFile(path.join(root, 'README.md'), 'ok\n');
   git('add', '.');
@@ -56,7 +67,11 @@ S01
     `${await readFile(path.join(root, 'docs/001_PLAN_20260730_valid.md'), 'utf8')}\n`,
   );
   git('add', '.');
-  git('commit', '--no-verify', '-qm', 'valid workflow change');
+  const valid = spawnSync('git', ['-C', root, 'commit', '--no-verify', '-qm', 'valid workflow change'], {
+    encoding: 'utf8',
+  });
+  assert.equal(valid.status, 0, valid.stderr);
+  assert.doesNotMatch(valid.stderr, /validator (runtime failure|could not run)/);
   const third = git('rev-parse', 'HEAD');
 
   const zero = '0'.repeat(first.length);
@@ -75,13 +90,7 @@ S01
   assert.equal(deleted.status, 1);
   assert.match(deleted.stderr, /blocked deletion/);
 
-  await writeFile(
-    hookPath,
-    (await readFile(hookPath, 'utf8')).replace(
-      path.resolve(process.cwd(), 'scripts/validate-workflow-documents.ts'),
-      path.join(root, 'missing-validator.ts'),
-    ),
-  );
+  await rename(validatorPath, `${validatorPath}.missing`);
   await writeFile(
     path.join(root, 'docs/001_PLAN_20260730_valid.md'),
     `${await readFile(path.join(root, 'docs/001_PLAN_20260730_valid.md'), 'utf8')}\nruntime fallback\n`,
