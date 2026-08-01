@@ -338,7 +338,7 @@ export const buildWorkflowDashboardCard = (args: {
         elements: [
           {
             tag: 'select_static',
-            name: 'selectedDocument',
+            name: 'selectedWorkflowDocument',
             required: true,
             width: 'fill',
             placeholder: { tag: 'plain_text', content: '选择要校验的 PLAN 或 HANDOVER' },
