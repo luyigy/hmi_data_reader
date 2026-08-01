@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: draft
-next_action: await_plan_approval
+doc_status: ready
+next_action: start_first_slice
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -71,7 +71,7 @@ return_to: null
 4. 各选择一种文档并转为飞书文档，确认链接回发当前会话及重复点击幂等。
 5. 验证无权限、HEAD 变化、导入失败时不会改变 workflow 状态。
 
-## 批准后动作
-
-用户批准后，将本 PLAN 更新为 `ready + start_first_slice` 并补入只执行 S01 的自动化 Prompt；未经批准保持
-`draft + await_plan_approval`。
+<!-- WORKFLOW_PROMPT_START -->
+执行 `docs/364_PLAN_20260801_WorkflowDashboard队列与文档按需查看.md` 的 S01；读取目标 HEAD 的
+`AGENTS.md`、`docs/workflow/workflow-contract.yaml` 和本 PLAN。完成验证、创建下一 HANDOVER、提交后停止。
+<!-- WORKFLOW_PROMPT_END -->

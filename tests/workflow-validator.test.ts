@@ -179,7 +179,7 @@ plan_progress: in_progress
     (error: Error) => error instanceof WorkflowDocumentValidationError,
     'a proven document failure must still fail closed when the same batch also has a runtime failure',
   );
-  await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /非可执行动作不得包含自动化 Prompt/);
+  await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /无效的下一步动作/);
   await assert.rejects(validate('docs/003_PLAN_20260726_missing_prompt.md'), /必须包含且只能包含一对 Prompt 标记/);
   await assert.rejects(
     validate('docs/006_PLAN_20260726_all_errors.md'),
@@ -321,7 +321,7 @@ S01
   await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval'));
   await assert.rejects(
     validate('docs/002_PLAN_20260726_terminal_prompt.md'),
-    /非可执行动作不得包含自动化 Prompt/,
+    /无效的下一步动作/,
     'validation must read the target ref, not the legal workspace copy',
   );
 

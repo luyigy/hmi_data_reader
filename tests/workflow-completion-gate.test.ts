@@ -101,7 +101,7 @@ S01
   git('commit', '-qm', 'invalid plan');
   await assert.rejects(
     assertWorkflowCompletion(root, validHead),
-    /workflow completion blocked:[\s\S]*非可执行动作不得包含自动化 Prompt/,
+    /workflow completion blocked:[\s\S]*无效的下一步动作/,
   );
 
   let unavailableNotice = '';
@@ -116,7 +116,7 @@ S01
     }),
     /original continuation session unavailable/,
   );
-  assert.match(unavailableNotice, /workflow completion blocked:[\s\S]*非可执行动作不得包含自动化 Prompt/);
+  assert.match(unavailableNotice, /workflow completion blocked:[\s\S]*无效的下一步动作/);
   assert.match(unavailableNotice, /original continuation session unavailable/);
 
   let corrections = 0;
@@ -126,10 +126,7 @@ S01
     assert.equal(attempt, 1);
     assert.equal(error.head, git('rev-parse', 'HEAD'));
     assert.deepEqual(error.filePaths, ['docs/001_PLAN_20260726_test.md']);
-    await writeFile(planPath, plan('await_plan_approval').replace(
-      /<!-- WORKFLOW_PROMPT_START -->[\s\S]*<!-- WORKFLOW_PROMPT_END -->\n/,
-      '',
-    ));
+    await writeFile(planPath, plan('start_first_slice'));
     git('add', '.');
     git('commit', '-qm', 'correct workflow document');
   });

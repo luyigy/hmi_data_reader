@@ -101,7 +101,7 @@ documents:
     resume_action: resume_parent
 actions:
   executable: [start_first_slice, next_slice, resume_parent]
-  terminal: [await_plan_approval, await_acceptance, blocked, none]
+  terminal: [await_acceptance, blocked, none]
 prompt:
   start_marker: "<!-- WORKFLOW_PROMPT_START -->"
   end_marker: "<!-- WORKFLOW_PROMPT_END -->"
@@ -610,6 +610,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(approved.summary, /result=session_started/);
   assert.equal(importedDocuments.length, 2, 'pending retry must reuse the revised document');
 
+  await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
   await writeFile(path.join(root, 'docs/branch/main/004_PLAN_20260725_approval.md'), `---
 doc_type: PLAN
 doc_status: draft
@@ -625,22 +626,15 @@ S01
   git('add', '.');
   git('commit', '-qm', 'draft plan approval');
   const approvalDocument = await run(approved.cursor);
-  assert.match(
-    approvalDocument.summary,
-    /action=await_plan_approval gate=plan_review document_ready=true card_sent=true/,
-  );
-  await writeFile(messagesFile, JSON.stringify({ data: { has_more: false, messages: [
-    { sender: { id: 'approver' }, msg_type: 'text', content: 'approve', parent_id: 'review-1' },
-  ] } }));
-  const approvalApprovedCursor = JSON.parse(JSON.stringify(approvalDocument.cursor));
-  approvalApprovedCursor.pending.reviewState = 'approved';
-  const approvalApproved = await run(approvalApprovedCursor);
-  assert.match(approvalApproved.summary, /action=await_plan_approval result=approved/);
+  assert.match(approvalDocument.summary, /validation_failed notified=true/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /无效的下一步动作/);
+  const approvalQuarantined = await run(approvalDocument.cursor);
+  assert.match(approvalQuarantined.summary, /validation_failed quarantined=true/);
 
   await writeFile(path.join(root, 'docs/branch/main/005_PLAN_20260725_import_failure.md'), `---
 doc_type: PLAN
-doc_status: draft
-next_action: await_plan_approval
+doc_status: ready
+next_action: start_first_slice
 plan_kind: phase
 roadmap: 000_ROADMAP_20260725_test.md
 parent_plan: null
@@ -648,6 +642,9 @@ parent_slice: null
 return_to: null
 ---
 S01
+<!-- WORKFLOW_PROMPT_START -->
+NEXT PROMPT 005_PLAN_20260725_import_failure.md 000_ROADMAP_20260725_test.md S01
+<!-- WORKFLOW_PROMPT_END -->
 `);
   git('add', '.');
   git('commit', '-qm', 'plan import failure');
@@ -656,7 +653,7 @@ S01
     project,
     job,
     mode: 'active',
-    cursor: approvalApproved.cursor,
+    cursor: approvalQuarantined.cursor,
     signal: new AbortController().signal,
   }, undefined, async () => {
     throw new Error('fake import failed');
@@ -670,7 +667,7 @@ S01
     project,
     job,
     mode: 'active',
-    cursor: approvalApproved.cursor,
+    cursor: approvalQuarantined.cursor,
     signal: new AbortController().signal,
   });
   assert.match(defaultImport.summary, /gate=plan_review document_ready=true/);
