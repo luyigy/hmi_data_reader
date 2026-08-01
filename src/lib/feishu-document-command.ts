@@ -20,11 +20,12 @@ export const normalizeRepositoryMarkdownPath = (value: string) => {
 export async function handleFeishuDocumentCommand(
   command: ParsedFeishuCommand,
   context?: FeishuConversationContext,
+  source?: { workingDirectory: string; ref: string; expectedHead?: string },
 ) {
   const documentPath = normalizeRepositoryMarkdownPath(command.args.join(' '));
   if (!documentPath) return '用法：/ap doc <仓库内已提交的 Markdown 路径>';
-  const room = await getBoundLiveRoom(context);
-  const workingDirectory = room?.sourceTask?.workingDirectory;
+  const room = source ? null : await getBoundLiveRoom(context);
+  const workingDirectory = source?.workingDirectory || room?.sourceTask?.workingDirectory;
   if (!workingDirectory) return '当前飞书会话未绑定带工作目录的 Live Room。';
   if (!isFeishuAdmin(context?.senderOpenId)) {
     const access = context?.senderOpenId
@@ -43,26 +44,29 @@ export async function handleFeishuDocumentCommand(
   }
 
   try {
-    const [{ stdout: content }, { stdout: head }] = await Promise.all([
-      execFileAsync('git', ['-c', 'core.quotepath=false', 'show', `HEAD:${documentPath}`], {
-        cwd: workingDirectory,
-        encoding: 'utf8',
-      }),
-      execFileAsync('git', ['rev-parse', 'HEAD'], {
-        cwd: workingDirectory,
-        encoding: 'utf8',
-      }),
-    ]);
+    const { stdout: headOutput } = await execFileAsync('git', ['rev-parse', source?.ref || 'HEAD'], {
+      cwd: workingDirectory,
+      encoding: 'utf8',
+    });
+    const head = headOutput.trim();
+    if (source?.expectedHead && source.expectedHead !== head) {
+      return '文档版本已更新，请刷新 Dashboard 后重试。';
+    }
+    const { stdout: content } = await execFileAsync(
+      'git', ['-c', 'core.quotepath=false', 'show', `${head}:${documentPath}`],
+      { cwd: workingDirectory, encoding: 'utf8' },
+    );
     const name = path.posix.basename(documentPath, '.md');
     const url = await importMarkdownAsFeishuDocument({
       content,
       name,
+      idempotencyKey: `${workingDirectory}:${head}:${documentPath}`,
       signal: AbortSignal.timeout(120_000),
     });
     return [
       `✅ 已转为飞书文档：[${name}](${url})`,
       `来源：${documentPath}`,
-      `Git HEAD：${head.trim()}`,
+      `Git HEAD：${head}`,
     ].join('\n');
   } catch (error) {
     return `❌ 文档转换失败：${error instanceof Error ? error.message : String(error)}`;

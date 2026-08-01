@@ -285,9 +285,30 @@ const activationCard = buildWorkflowDashboardCard({
     ...workflowStatus,
     stage: '空闲',
     overview: {
-      inbox: [],
-      plans: [],
-      handovers: [],
+      inbox: [{
+        path: 'docs/inbox/009_ISSUE.md',
+        title: '待整理事项',
+        status: 'draft',
+        nextAction: 'none',
+        source: 'docs/inbox/009_ISSUE.md',
+      }],
+      plans: [{
+        path: 'docs/010_PLAN.md',
+        number: 10,
+        title: '可选计划',
+        state: '等待启动（未进入 watcher 队列）',
+        queuePosition: 1,
+        slices: [],
+      }],
+      handovers: [{
+        path: 'docs/011_HANDOVER.md',
+        number: 11,
+        title: '交接文档',
+        plan: 'docs/010_PLAN.md',
+        slice: 'S01',
+        planProgress: 'in_progress',
+        nextAction: 'next_slice',
+      }],
       warnings: [],
       queue: [{
         path: 'docs/010_PLAN.md',
@@ -306,6 +327,12 @@ assert.match(JSON.stringify(activationCard), /select_static/);
 assert.match(JSON.stringify(activationCard), /docs\/010_PLAN\.md/);
 assert.match(JSON.stringify(activationCard), /"action":"activate"/);
 assert.match(JSON.stringify(activationCard), /"action_type":"form_submit"/);
+assert.match(JSON.stringify(activationCard), /selectedDocument/);
+assert.match(JSON.stringify(activationCard), /查看飞书文档/);
+assert.match(JSON.stringify(activationCard), /"action":"document"/);
+assert.match(JSON.stringify(activationCard), /Inbox · 待整理事项/);
+assert.match(JSON.stringify(activationCard), /PLAN · 可选计划/);
+assert.match(JSON.stringify(activationCard), /HANDOVER · 交接文档/);
 assert.match(JSON.stringify(dashboardCard), /validation_show/);
 assert.match(JSON.stringify(dashboardCard), /validation_strict/);
 assert.match(JSON.stringify(dashboardCard), /abcdef1234/);

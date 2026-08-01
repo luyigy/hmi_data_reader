@@ -5,6 +5,25 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+// ponytail: process-local reuse; persist this only if document exports move to multiple service instances.
+const imports = new Map<string, Promise<string>>();
+
+export const reuseFeishuDocumentImport = async (
+  key: string | undefined,
+  create: () => Promise<string>,
+) => {
+  if (!key) return create();
+  const existing = imports.get(key);
+  if (existing) return existing;
+  const pending = create();
+  imports.set(key, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    if (imports.get(key) === pending) imports.delete(key);
+    throw error;
+  }
+};
 
 export const prepareFeishuMarkdown = (content: string) =>
   content
@@ -14,34 +33,37 @@ export const prepareFeishuMarkdown = (content: string) =>
 export async function importMarkdownAsFeishuDocument(args: {
   content: string;
   name: string;
+  idempotencyKey?: string;
   signal?: AbortSignal;
 }) {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-platform-doc-'));
-  try {
-    await writeFile(
-      path.join(directory, 'plan.md'),
-      prepareFeishuMarkdown(args.content),
-    );
-    const result = await execFileAsync('lark-cli', [
-      'docs', '+create', '--as', 'bot', '--api-version', 'v2',
-      '--title', args.name,
-      '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',
-    ], {
-      cwd: directory,
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024,
-      signal: args.signal,
-    });
-    const parsed = JSON.parse(result.stdout) as {
-      ok?: boolean;
-      data?: { document?: { url?: unknown } };
-    };
-    const url = parsed.data?.document?.url;
-    if (parsed.ok !== true || typeof url !== 'string' || !url) {
-      throw new Error('Feishu document creation returned no document URL');
+  return reuseFeishuDocumentImport(args.idempotencyKey, async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'agent-platform-doc-'));
+    try {
+      await writeFile(
+        path.join(directory, 'plan.md'),
+        prepareFeishuMarkdown(args.content),
+      );
+      const result = await execFileAsync('lark-cli', [
+        'docs', '+create', '--as', 'bot', '--api-version', 'v2',
+        '--title', args.name,
+        '--doc-format', 'markdown', '--content', '@plan.md', '--format', 'json',
+      ], {
+        cwd: directory,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+        signal: args.signal,
+      });
+      const parsed = JSON.parse(result.stdout) as {
+        ok?: boolean;
+        data?: { document?: { url?: unknown } };
+      };
+      const url = parsed.data?.document?.url;
+      if (parsed.ok !== true || typeof url !== 'string' || !url) {
+        throw new Error('Feishu document creation returned no document URL');
+      }
+      return url;
+    } finally {
+      await rm(directory, { recursive: true, force: true });
     }
-    return url;
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+  });
 }

@@ -333,6 +333,7 @@ function buildCardActionHandler(prefix: string) {
         cardMessageId: messageId,
         expectedHead: typeof value.expectedHead === 'string' ? value.expectedHead : undefined,
         selectedPlan: typeof formValue?.selectedPlan === 'string' ? formValue.selectedPlan : undefined,
+        selectedDocument: typeof formValue?.selectedDocument === 'string' ? formValue.selectedDocument : undefined,
       }).then((result) => {
         console.log(`${prefix} workflow dashboard action completed`, {
           action: value.action,

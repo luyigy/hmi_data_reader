@@ -14,6 +14,7 @@ import {
 import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
+import { handleFeishuDocumentCommand } from '@/lib/feishu-document-command';
 import {
   buildWorkflowActivateCursor,
   formatWorkflowOverview,
@@ -215,6 +216,17 @@ export const buildWorkflowDashboardCard = (args: {
       ? [action('受控修复', 'validation_repair', 'primary')]
       : []),
   ];
+  const documents = args.status.overview ? [
+    ...args.status.overview.inbox.map(({ path: documentPath, title }) => ({
+      path: documentPath, label: `Inbox · ${title}`,
+    })),
+    ...args.status.overview.plans.map(({ path: documentPath, title }) => ({
+      path: documentPath, label: `PLAN · ${title}`,
+    })),
+    ...args.status.overview.handovers.map(({ path: documentPath, title }) => ({
+      path: documentPath, label: `HANDOVER · ${title}`,
+    })),
+  ] : [];
   return {
     config: { wide_screen_mode: true },
     header: {
@@ -279,6 +291,38 @@ export const buildWorkflowDashboardCard = (args: {
             value: {
               cmd: 'workflow-dashboard',
               action: 'activate',
+              projectId: args.status.projectId,
+              jobId: args.status.jobId,
+              expectedHead: args.status.head,
+            },
+          },
+        ],
+      }] : []),
+      ...(documents.length ? [{
+        tag: 'form',
+        name: 'workflow-document-export',
+        elements: [
+          {
+            tag: 'select_static',
+            name: 'selectedDocument',
+            required: true,
+            width: 'fill',
+            placeholder: { tag: 'plain_text', content: '选择 Inbox、PLAN 或 HANDOVER' },
+            options: documents.map((document) => ({
+              text: { tag: 'plain_text', content: document.label },
+              value: document.path,
+            })),
+          },
+          {
+            tag: 'button',
+            name: 'exportWorkflowDocument',
+            text: { tag: 'plain_text', content: '查看飞书文档' },
+            type: 'primary_filled',
+            width: 'fill',
+            action_type: 'form_submit',
+            value: {
+              cmd: 'workflow-dashboard',
+              action: 'document',
               projectId: args.status.projectId,
               jobId: args.status.jobId,
               expectedHead: args.status.head,
@@ -670,13 +714,14 @@ export async function handleWorkflowDashboardCardAction(args: {
   cardMessageId?: string;
   expectedHead?: string;
   selectedPlan?: string;
+  selectedDocument?: string;
 }) {
   const config = await loadProjectsConfig();
   const project = config.projects.find(({ id }) => id === args.projectId);
   if (!project || !project.jobs.some(({ id }) => id === args.jobId)) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
   const action = [
-    'refresh', 'run', 'activate', 'retry', 'resend', 'stop', 'enable', 'disable',
+    'refresh', 'run', 'activate', 'retry', 'resend', 'stop', 'enable', 'disable', 'document',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
     'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
   ].includes(args.action)
@@ -688,8 +733,28 @@ export async function handleWorkflowDashboardCardAction(args: {
     senderOpenId: args.actorOpenId,
     messageId: args.cardMessageId || '',
   };
+  const workflowStatus = action === 'document'
+    ? (await loadWorkflowStatuses(project.id)).find(({ jobId }) => jobId === args.jobId)
+    : undefined;
+  const documents = workflowStatus?.overview ? [
+    ...workflowStatus.overview.inbox,
+    ...workflowStatus.overview.plans,
+    ...workflowStatus.overview.handovers,
+  ] : [];
   const result = action === 'refresh'
     ? '状态已刷新。'
+    : action === 'document'
+      ? !args.selectedDocument || !documents.some(({ path: documentPath }) => documentPath === args.selectedDocument)
+        ? '所选文档已不在当前队列，请刷新 Dashboard 后重选。'
+        : await handleFeishuDocumentCommand({
+          command: 'doc',
+          args: [args.selectedDocument],
+          options: {},
+        }, context, {
+          workingDirectory: project.path,
+          ref: project.ref,
+          expectedHead: args.expectedHead,
+        })
     : action.startsWith('validation_')
       ? await handleWorkflowPolicyCommand({
         command: 'workflow',
@@ -725,10 +790,12 @@ export async function handleWorkflowDashboardCardAction(args: {
     replyId: args.cardMessageId,
     text: `Workflow Dashboard 操作结果：${result}`,
   });
-  await handleScheduledJobCommand({
-    command: 'job',
-    args: ['dashboard', args.jobId],
-    options: {},
-  }, context);
+  if (action !== 'document') {
+    await handleScheduledJobCommand({
+      command: 'job',
+      args: ['dashboard', args.jobId],
+      options: {},
+    }, context);
+  }
   return result;
 }
