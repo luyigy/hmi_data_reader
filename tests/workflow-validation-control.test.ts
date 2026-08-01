@@ -9,6 +9,7 @@ import {
   formatWorkflowValidationTemplate,
   inspectWorkflowValidation,
   setWorkflowValidationMode,
+  validateSelectedWorkflowDocument,
   workflowValidationRepairKey,
 } from '../src/lib/feishu-workflow-validation';
 import type { JobConfig, ProjectConfig, ProjectsConfig } from '../src/lib/scheduled-jobs/project-config';
@@ -77,6 +78,12 @@ async function main() {
     assert(inspection.issues.some(({ code, severity }) => code === 'PHASE_PARENT_FIELDS_NON_NULL' && severity === 'error'));
     assert.match(formatWorkflowValidationStatus(inspection), /strict[\s\S]*error 1/);
     assert.match(formatWorkflowValidationTemplate(inspection), /parent_plan: <值>/);
+    assert.match(await validateSelectedWorkflowDocument({
+      project,
+      job,
+      documentPath: 'docs/001_PLAN_20260801_invalid.md',
+      expectedHead: initial,
+    }), /❌ 未通过[\s\S]*Git HEAD[\s\S]*修复示例/);
     assert.equal(
       workflowValidationRepairKey({ path: 'docs/001_PLAN_20260801_invalid.md', blob }),
       `validation-repair:docs/001_PLAN_20260801_invalid.md:${blob}`,

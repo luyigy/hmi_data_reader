@@ -337,3 +337,39 @@ export async function handleWorkflowValidationCommand(
     throw error;
   }
 }
+
+export const validateSelectedWorkflowDocument = async ({
+  project,
+  job,
+  documentPath,
+  expectedHead,
+}: {
+  project: ProjectConfig;
+  job: JobConfig;
+  documentPath: string;
+  expectedHead: string;
+}) => {
+  const head = await git(project.path, 'rev-parse', project.ref);
+  if (head !== expectedHead) return `Dashboard 已过期：当前 HEAD 为 ${head}，请刷新后重选文档。`;
+  let issues: WorkflowValidationIssue[] = [];
+  try {
+    const [result] = await validateWorkflowDocuments({
+      cwd: project.path,
+      ref: head,
+      filePaths: [documentPath],
+      contractPath: contractPathFor(job),
+    });
+    issues = result.issues;
+  } catch (error) {
+    if (!(error instanceof WorkflowDocumentValidationError)) throw error;
+    issues = error.issues;
+  }
+  const errors = issues.filter(({ severity }) => severity === 'error');
+  const warnings = issues.filter(({ severity }) => severity === 'warning');
+  return [
+    `${errors.length ? '❌ 未通过' : '✅ 通过'}：${documentPath}`,
+    `校验的是 Git HEAD ${head.slice(0, 8)} 中已提交的内容。`,
+    `诊断：error ${errors.length} / warning ${warnings.length}`,
+    ...issues.map((issue) => `${formatIssue(issue)}\n修复示例：${issue.template}`),
+  ].join('\n');
+};

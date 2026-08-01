@@ -352,7 +352,7 @@ function buildCardActionHandler(prefix: string) {
           }).catch(() => undefined);
         }
       });
-      return { toast: { type: 'success', content: '操作已接收；完成后会回复结果并发送最新 Dashboard' } };
+      return { toast: { type: 'success', content: '操作已接收；完成后会回复结果' } };
     }
 
     if (cmd === 'handoff-plan') return handleLiveRoomHandoffPlanCardAction({

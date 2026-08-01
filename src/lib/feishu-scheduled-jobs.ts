@@ -14,6 +14,7 @@ import {
 import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
+import { validateSelectedWorkflowDocument } from '@/lib/feishu-workflow-validation';
 import { handleFeishuDocumentCommand } from '@/lib/feishu-document-command';
 import {
   buildWorkflowActivateCursor,
@@ -208,10 +209,10 @@ export const buildWorkflowDashboardCard = (args: {
     action('Auto', 'autonomy_auto', args.status.autonomy === 'auto' ? 'primary' : 'default'),
   ];
   const validationActions = [
-    action('校验状态', 'validation_show'),
-    action('错误模板', 'validation_template'),
-    action('Balanced', 'validation_balanced'),
-    action('Strict', 'validation_strict'),
+    action('最近校验结果', 'validation_show'),
+    action('最近错误修复建议', 'validation_template'),
+    action('切换为宽松', 'validation_balanced'),
+    action('切换为严格', 'validation_strict'),
     ...(args.status.stage === '文档错误' || args.status.stage === '已隔离'
       ? [action('受控修复', 'validation_repair', 'primary')]
       : []),
@@ -328,13 +329,37 @@ export const buildWorkflowDashboardCard = (args: {
               expectedHead: args.status.head,
             },
           },
+          {
+            tag: 'button',
+            name: 'validateWorkflowDocument',
+            text: { tag: 'plain_text', content: '校验所选 PLAN / HANDOVER' },
+            width: 'fill',
+            action_type: 'form_submit',
+            value: {
+              cmd: 'workflow-dashboard',
+              action: 'document_validate',
+              projectId: args.status.projectId,
+              jobId: args.status.jobId,
+              expectedHead: args.status.head,
+            },
+          },
+          {
+            tag: 'note',
+            elements: [{ tag: 'plain_text', content: 'Inbox 只能查看；校验针对 Git HEAD 中已提交的 PLAN / HANDOVER。' }],
+          },
         ],
       }] : []),
       {
         tag: 'collapsible_panel',
         expanded: false,
         header: { title: { tag: 'plain_text', content: '运行控制' } },
-        elements: [{ tag: 'action', actions: runActions }],
+        elements: [
+          {
+            tag: 'markdown',
+            content: '控制 workflow watcher：立即运行=马上扫描一次；停止=终止当前这一次；停用=不再按计划自动扫描；启用=恢复自动扫描。',
+          },
+          { tag: 'action', actions: runActions },
+        ],
       },
       {
         tag: 'collapsible_panel',
@@ -346,7 +371,13 @@ export const buildWorkflowDashboardCard = (args: {
         tag: 'collapsible_panel',
         expanded: false,
         header: { title: { tag: 'plain_text', content: '文档校验' } },
-        elements: [{ tag: 'action', actions: validationActions }],
+        elements: [
+          {
+            tag: 'markdown',
+            content: '宽松：内容规范问题记为 warning，不阻断；严格：同类问题记为 error，会阻断后续 workflow。合同/YAML、动作、引用和 Prompt 等安全错误在两种模式下都会阻断。这里的“最近”只指 watcher 最后记录的失败；要检查指定文档，请用上方下拉框。',
+          },
+          { tag: 'action', actions: validationActions },
+        ],
       },
       {
         tag: 'note',
@@ -721,7 +752,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   if (!project || !project.jobs.some(({ id }) => id === args.jobId)) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
   const action = [
-    'refresh', 'run', 'activate', 'retry', 'resend', 'stop', 'enable', 'disable', 'document',
+    'refresh', 'run', 'activate', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
     'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
   ].includes(args.action)
@@ -733,7 +764,7 @@ export async function handleWorkflowDashboardCardAction(args: {
     senderOpenId: args.actorOpenId,
     messageId: args.cardMessageId || '',
   };
-  const workflowStatus = action === 'document'
+  const workflowStatus = ['document', 'document_validate'].includes(action)
     ? (await loadWorkflowStatuses(project.id)).find(({ jobId }) => jobId === args.jobId)
     : undefined;
   const documents = workflowStatus?.overview ? [
@@ -754,6 +785,17 @@ export async function handleWorkflowDashboardCardAction(args: {
           workingDirectory: project.path,
           ref: project.ref,
           expectedHead: args.expectedHead,
+        })
+    : action === 'document_validate'
+      ? !args.selectedDocument || !workflowStatus?.overview
+        || ![...workflowStatus.overview.plans, ...workflowStatus.overview.handovers]
+          .some(({ path: documentPath }) => documentPath === args.selectedDocument)
+        ? '请选择一份当前 Dashboard 中的 PLAN 或 HANDOVER；Inbox 不是 workflow 执行文档。'
+        : await validateSelectedWorkflowDocument({
+          project,
+          job: project.jobs.find(({ id }) => id === args.jobId)!,
+          documentPath: args.selectedDocument,
+          expectedHead: args.expectedHead || '',
         })
     : action.startsWith('validation_')
       ? await handleWorkflowPolicyCommand({
@@ -790,7 +832,7 @@ export async function handleWorkflowDashboardCardAction(args: {
     replyId: args.cardMessageId,
     text: `Workflow Dashboard 操作结果：${result}`,
   });
-  if (action !== 'document') {
+  if (!['document', 'document_validate', 'validation_show', 'validation_template'].includes(action)) {
     await handleScheduledJobCommand({
       command: 'job',
       args: ['dashboard', args.jobId],
