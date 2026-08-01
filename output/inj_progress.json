@@ -1,7 +1,7 @@
 {
   "plan": "docs/035_PLAN_20260801_射出保压页面线.md",
   "slice": "S1",
-  "updated_at": "2026-08-02T00:30:00+08:00",
+  "updated_at": "2026-08-02T00:39:48+08:00",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
     "S1 启动：射出/保压附件分布只读盘点（后台）",
@@ -21,15 +21,69 @@
     "037 方案①执行：三轮段格 CV 尝试（Canny/HSV 填充/锚点网格）短期不可达；按②约束落地 STAGE_REJECT 段表拒识兜底——复验 error 0.0 PASS / numeric 0.4516 FAIL（拒识代价）/ auto_import 0.1667 / 分类双1.0；038 HANDOVER 落盘，安全态收口",
     "039 S1 对账：038 审批悬置按默认裁决关闭，DEMAG 第二波确认 SAFE_REJECT；035 转 superseded（040 HANDOVER）",
     "039 S4 启动：复核 cron 恢复条件（仍 BLOCKED_EXTERNAL）；FANUC 射保第一波（Z036 候选 6+2）需下载大表附件，唯一下载通道 lark-cli 在本环境不存在（全盘 find 无二进制，`lark-cli` 未找到命令），飞书核验表同阻塞",
-    "039 S4 裁决：本地 Z036 仅 029 代表图 1 张且为温度页（非射保页），不满足单机 6 图第一波；injection_metering/FANUC/wave1、injection_metering/TACT/wave2、injection_metering/FANUC/wave2 三单元记 BLOCKED_EXTERNAL（恢复条件：lark-cli 或等价飞书 API 通道可用后重跑 s23/s24 克隆脚本），043 HANDOVER 收口"
+    "039 S4 裁决：本地 Z036 仅 029 代表图 1 张且为温度页（非射保页），不满足单机 6 图第一波；injection_metering/FANUC/wave1、injection_metering/TACT/wave2、injection_metering/FANUC/wave2 三单元记 BLOCKED_EXTERNAL（恢复条件：lark-cli 或等价飞书 API 通道可用后重跑 s23/s24 克隆脚本），043 HANDOVER 收口",
+    "039 S7 覆盖审计补登：射保线其余 7 家族（ZIZES/KEBA/B_AND_R/KAIMING/EST/TRD6/ARBURG）wave1 单元登记 BLOCKED_EXTERNAL（页面存在性已由 035 S1 盘点证实，样本下载被 lark-cli 阻塞）"
   ],
   "next_step": "039 S5 炮筒温度线收敛（043 HANDOVER 派发）；射保线三单元待 lark-cli 恢复后由 runner 队列重新领取",
   "pending_user_decision": [],
   "terminal_states": {
-    "injection_metering/TACT/wave1": {"status": "PASS", "evidence": "036 HANDOVER"},
-    "injection_metering/DEMAG/wave1": {"status": "SAFE_REJECT", "evidence": "038 HANDOVER"},
-    "injection_metering/FANUC/wave1": {"status": "BLOCKED_EXTERNAL", "evidence": "043 HANDOVER", "recovery": "lark-cli 或等价飞书 API 通道可用"},
-    "injection_metering/TACT/wave2": {"status": "BLOCKED_EXTERNAL", "evidence": "043 HANDOVER", "recovery": "lark-cli 或等价飞书 API 通道可用"},
-    "injection_metering/FANUC/wave2": {"status": "BLOCKED_EXTERNAL", "evidence": "043 HANDOVER", "recovery": "lark-cli 或等价飞书 API 通道可用"}
+    "injection_metering/TACT/wave1": {
+      "status": "PASS",
+      "evidence": "036 HANDOVER"
+    },
+    "injection_metering/DEMAG/wave1": {
+      "status": "SAFE_REJECT",
+      "evidence": "038 HANDOVER"
+    },
+    "injection_metering/FANUC/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "043 HANDOVER",
+      "recovery": "lark-cli 或等价飞书 API 通道可用"
+    },
+    "injection_metering/TACT/wave2": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "043 HANDOVER",
+      "recovery": "lark-cli 或等价飞书 API 通道可用"
+    },
+    "injection_metering/FANUC/wave2": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "043 HANDOVER",
+      "recovery": "lark-cli 或等价飞书 API 通道可用"
+    },
+    "injection_metering/ZIZES/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "046 REPORT",
+      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+    },
+    "injection_metering/KEBA/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "046 REPORT",
+      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+    },
+    "injection_metering/B_AND_R/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "046 REPORT",
+      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+    },
+    "injection_metering/KAIMING/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "046 REPORT",
+      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+    },
+    "injection_metering/EST/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "046 REPORT",
+      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+    },
+    "injection_metering/TRD6/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "046 REPORT",
+      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+    },
+    "injection_metering/ARBURG/wave1": {
+      "status": "BLOCKED_EXTERNAL",
+      "evidence": "046 REPORT",
+      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+    }
   }
 }

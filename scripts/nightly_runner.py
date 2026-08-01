@@ -177,6 +177,26 @@ SEEDED_TERMINAL = {
     "mold_temp/FANUC/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-7）"},
 }
 
+# 039 S7（046 REPORT/047 HANDOVER）：覆盖审计补登 wave1 全矩阵。
+# 主力三家族（TACT/DEMAG/FANUC）已显式列出；其余 7 家族 × 6 条页面线统一补登。
+# 射保线页面存在性经 035 S1 盘点（53/53 有附件）；其余五线未盘点——盘点动作本身
+# 被 lark-cli 缺失阻塞（043），故同样只能记 BLOCKED_EXTERNAL，不凭空标 NOT_APPLICABLE。
+# wave2/第三波覆盖审计为 wave1 的后续依赖，不预登记（避免幻影 Backlog），恢复后由
+# runner 按三波规则展开。
+_EXTRA_FAMILIES = ["ZIZES", "KEBA", "B_AND_R", "KAIMING", "EST", "TRD6", "ARBURG"]
+for _page, _prov in [("injection_metering", "039 §2-1 / 035 S1 盘点"),
+                     ("metering_cooling", "039 §2-3"), ("molding_monitor", "039 §2-4"),
+                     ("waveform", "039 §2-5"), ("hot_runner_temp", "039 §2-6"),
+                     ("mold_temp", "039 §2-7")]:
+    for _fam in _EXTRA_FAMILIES:
+        QUEUE.append({"unit_id": f"{_page}/{_fam}/wave1", "page": _page,
+                      "family": _fam, "wave": 1, "provenance": _prov + " / 046 补登"})
+        SEEDED_TERMINAL[QUEUE[-1]["unit_id"]] = {
+            "status": "BLOCKED_EXTERNAL",
+            "provenance": "046/047：lark-cli 缺失，恢复条件同 043",
+        }
+del _page, _prov, _fam
+
 
 # ---------------------------------------------------------------- 基础工具
 
