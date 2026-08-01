@@ -10,6 +10,7 @@ import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu
 import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
 import { handleFeishuDocumentCommand } from '@/lib/feishu-document-command';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
+import { handleWorkflowInboxCommand } from '@/lib/feishu-workflow-inbox';
 import { formatFeishuHelp, sendFeishuCommandCenter } from '@/lib/feishu-help';
 import { handleNewSessionCommand } from '@/lib/feishu-new-session';
 import { handleRoomRestrictionCommand } from '@/lib/feishu-room-controls';
@@ -131,6 +132,8 @@ export async function handleFeishuCommand(args: {
       return handleScheduledJobCommand(args.command, args.context);
     case 'workflow':
       return handleWorkflowPolicyCommand(args.command, args.context);
+    case 'inbox':
+      return handleWorkflowInboxCommand(args.command, args.context);
     case 'new-session':
       return handleNewSessionCommand(args.command, args.context);
     case 'stop': return handleStopAgentCommand(args.command, args.context);

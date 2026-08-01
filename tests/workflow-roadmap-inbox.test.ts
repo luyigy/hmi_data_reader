@@ -3,6 +3,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
+import {
+  addWorkflowInboxIssue,
+  canManageWorkflowInbox,
+  validateWorkflowInboxInput,
+} from '../src/lib/feishu-workflow-inbox';
 import type { JobConfig, ProjectConfig, ProjectsConfig } from '../src/lib/scheduled-jobs/project-config';
 import {
   proposeNextWorkflowInboxPlan,
@@ -84,6 +90,116 @@ const main = async () => {
     }
     return { ok: true, status: 200, json: async () => ({ code: 0, data: { message_id: 'message' } }) };
   }) as typeof fetch;
+
+  assert.deepEqual(parseFeishuCommand({
+    chatId: 'chat', chatType: 'p2p', messageId: 'message', senderOpenId: 'approver',
+    messageType: 'text', text: '/ap inbox add "审计导出" --body="只导出 CSV" --head=0123456789012345678901234567890123456789',
+    mentions: [], mentionNames: [],
+  }), {
+    command: 'inbox',
+    args: ['add', '审计导出'],
+    options: { body: '只导出 CSV', head: '0123456789012345678901234567890123456789' },
+  });
+  assert(canManageWorkflowInbox('approver', false, ['approver']));
+  assert(canManageWorkflowInbox('admin', true, []));
+  assert(!canManageWorkflowInbox('member', false, ['approver']));
+  assert.throws(() => validateWorkflowInboxInput('../escape'), /路径字符/);
+  assert.throws(() => validateWorkflowInboxInput('bad\u0000title'), /控制字符/);
+  assert.throws(() => validateWorkflowInboxInput('secret', 'token=actual-value'), /敏感值/);
+  assert.throws(() => validateWorkflowInboxInput('x'.repeat(121)), /1–120/);
+  assert.throws(() => validateWorkflowInboxInput('valid', 'x'.repeat(4001)), /4000/);
+
+  const command = await fixture();
+  try {
+    const created = await addWorkflowInboxIssue({
+      config: command.projects,
+      project: command.project,
+      job: command.job,
+      expectedHead: command.base,
+      title: '审计导出',
+      body: '只导出 CSV；`rm -rf` 仅作为文本保存。',
+      requestId: 'message-1',
+      now: new Date('2026-08-01T00:00:00Z'),
+    });
+    assert.equal(created.state, 'created');
+    if (created.state !== 'created') throw new Error('expected created inbox issue');
+    assert.match(created.path, /^docs\/inbox\/002_ISSUE_20260801_/);
+    const content = command.git('show', `${created.head}:${created.path}`);
+    assert.match(content, /doc_type: ISSUE\ndoc_status: draft\nnext_action: none/);
+    assert.match(content, /`rm -rf` 仅作为文本保存/);
+    assert.match(content, /WORKFLOW_INBOX_REQUEST/);
+    assert.match(content, /WORKFLOW_INBOX_CONTENT/);
+    assert.equal(command.git('-c', 'core.quotepath=false', 'show', '--format=', '--name-only', created.head), created.path);
+
+    const repeatedMessage = await addWorkflowInboxIssue({
+      config: command.projects,
+      project: command.project,
+      job: command.job,
+      expectedHead: command.base,
+      title: '审计导出',
+      body: '只导出 CSV；`rm -rf` 仅作为文本保存。',
+      requestId: 'message-1',
+    });
+    assert.equal(repeatedMessage.state, 'existing');
+    const repeatedContent = await addWorkflowInboxIssue({
+      config: command.projects,
+      project: command.project,
+      job: command.job,
+      expectedHead: created.head,
+      title: '审计导出',
+      body: '只导出 CSV；`rm -rf` 仅作为文本保存。',
+      requestId: 'message-2',
+    });
+    assert.equal(repeatedContent.state, 'existing');
+    assert.equal((await addWorkflowInboxIssue({
+      config: command.projects,
+      project: command.project,
+      job: command.job,
+      expectedHead: command.base,
+      title: '另一项需求',
+      requestId: 'message-3',
+    })).state, 'stale');
+
+    await assert.rejects(addWorkflowInboxIssue({
+      config: { projects: [command.project, { ...command.project, id: 'duplicate' }] },
+      project: command.project,
+      job: command.job,
+      expectedHead: created.head,
+      title: '唯一 consumer',
+      requestId: 'message-4',
+    }), /consumer 不唯一/);
+    await writeFile(path.join(command.root, 'user-change.txt'), 'keep\n');
+    await assert.rejects(addWorkflowInboxIssue({
+      config: command.projects,
+      project: command.project,
+      job: command.job,
+      expectedHead: created.head,
+      title: 'dirty 检查',
+      requestId: 'message-5',
+    }), /非 clean/);
+    await rm(path.join(command.root, 'user-change.txt'));
+
+    command.git('checkout', '-qb', 'conflict-side');
+    await writeFile(path.join(command.root, 'conflict.txt'), 'side\n');
+    command.git('add', 'conflict.txt');
+    command.git('commit', '-qm', 'side');
+    command.git('checkout', '-q', 'main');
+    await writeFile(path.join(command.root, 'conflict.txt'), 'main\n');
+    command.git('add', 'conflict.txt');
+    command.git('commit', '-qm', 'main');
+    const conflictHead = command.git('rev-parse', 'HEAD');
+    assert.throws(() => command.git('merge', 'conflict-side'), /CONFLICT|conflict/i);
+    await assert.rejects(addWorkflowInboxIssue({
+      config: command.projects,
+      project: command.project,
+      job: command.job,
+      expectedHead: conflictHead,
+      title: 'conflict 检查',
+      requestId: 'message-6',
+    }), /存在冲突/);
+  } finally {
+    await rm(command.root, { recursive: true, force: true });
+  }
 
   const first = await fixture();
   try {
@@ -208,9 +324,16 @@ return_to: null
 
   const integration = await fixture();
   try {
-    await mkdir(path.join(integration.root, 'docs/inbox'));
-    await writeFile(path.join(integration.root, 'docs/inbox/idea.md'), '# Inbox candidate\n');
-    await writeFile(path.join(integration.root, 'docs/002_HANDOVER_20260731_done.md'), `---
+    const inbox = await addWorkflowInboxIssue({
+      config: integration.projects,
+      project: integration.project,
+      job: integration.job,
+      expectedHead: integration.base,
+      title: 'Inbox candidate',
+      requestId: 'integration-message',
+    });
+    assert.equal(inbox.state, 'created');
+    await writeFile(path.join(integration.root, 'docs/003_HANDOVER_20260731_done.md'), `---
 doc_type: HANDOVER
 doc_status: completed
 next_action: await_acceptance
