@@ -321,6 +321,7 @@ function buildCardActionHandler(prefix: string) {
 
     if (cmd === 'workflow-dashboard') {
       const value = data.action.value as Record<string, unknown>;
+      const formValue = action.form_value;
       if (typeof value.projectId !== 'string'
         || typeof value.jobId !== 'string'
         || typeof value.action !== 'string') return {};
@@ -331,6 +332,7 @@ function buildCardActionHandler(prefix: string) {
         actorOpenId: openId,
         cardMessageId: messageId,
         expectedHead: typeof value.expectedHead === 'string' ? value.expectedHead : undefined,
+        selectedPlan: typeof formValue?.selectedPlan === 'string' ? formValue.selectedPlan : undefined,
       }).then((result) => {
         console.log(`${prefix} workflow dashboard action completed`, {
           action: value.action,

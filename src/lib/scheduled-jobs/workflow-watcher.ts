@@ -71,6 +71,7 @@ type WorkflowBlocker = {
 type Cursor = {
   commit: string;
   eventKey?: string;
+  selectedPlan?: string;
   pending?: Pending;
   validationFailure?: ValidationFailure;
   blocker?: WorkflowBlocker;
@@ -517,9 +518,11 @@ export const workflowWatcherHandler = async (
   }
   const watchRoot = path.posix.join(contract.branch_spaces.root, branchSpace);
   const scanFrom = previous.eventKey ? previous.commit : String(job.config.initial_cursor_commit);
-  const changed = scanFrom === head ? [] : (await git(
-    project.path, signal, 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot,
-  )).trim().split('\n').filter(Boolean);
+  const changed = previous.selectedPlan
+    ? [previous.selectedPlan]
+    : scanFrom === head ? [] : (await git(
+      project.path, signal, 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot,
+    )).trim().split('\n').filter(Boolean);
   const candidates = selectWorkflowCandidates(changed, contract, watchRoot);
 
   if (!candidates.length) return { summary: `head=${head} candidate=none`, cursor: { commit: head, eventKey: previous.eventKey } };

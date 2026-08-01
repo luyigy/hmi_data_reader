@@ -218,3 +218,9 @@ export const buildWorkflowSkipCursor = (cursor: unknown, documentPath: string) =
   delete next.pending;
   return next;
 };
+
+export const buildWorkflowActivateCursor = (cursor: unknown, planPath: string) => {
+  const current = record(cursor);
+  if (!current || record(current.pending)) return null;
+  return { ...current, selectedPlan: planPath };
+};

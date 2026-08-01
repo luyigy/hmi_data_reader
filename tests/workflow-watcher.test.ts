@@ -304,6 +304,13 @@ plan_progress: complete
   assert.match(String(terminalNotice?.body.content), /\*\*下一动作\*\*：await_acceptance/);
   assert.match((await run(terminal.cursor)).summary, /candidate=none/);
 
+  const activated = await run({
+    ...(terminal.cursor as Record<string, unknown>),
+    selectedPlan: 'docs/branch/main/000_PLAN_20260725_owner.md',
+  });
+  assert.match(activated.summary, /candidate=docs\/branch\/main\/000_PLAN_20260725_owner\.md.*result=notified/);
+  assert.equal('selectedPlan' in (activated.cursor as Record<string, unknown>), false);
+
   await writeFile(path.join(root, 'docs/branch/main/003_PLAN_20260725_review.md'), `---
 doc_type: PLAN
 doc_status: ready
@@ -322,7 +329,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
 `);
   git('add', '.');
   git('commit', '-qm', 'plan review');
-  const review = await run(terminal.cursor);
+  const review = await run(activated.cursor);
   assert.match(review.summary, /gate=plan_review document_ready=true card_sent=true/);
   const reviewCursor = review.cursor as { pending: {
     detectedAt: string;

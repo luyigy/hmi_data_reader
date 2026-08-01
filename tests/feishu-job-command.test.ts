@@ -22,7 +22,11 @@ import {
   formatWorkflowStatus,
   type WorkflowStatus,
 } from '../src/lib/scheduled-jobs/workflow-status';
-import { formatWorkflowOverview, inspectWorkflowOverview } from '../src/lib/scheduled-jobs/workflow-inspection';
+import {
+  buildWorkflowActivateCursor,
+  formatWorkflowOverview,
+  inspectWorkflowOverview,
+} from '../src/lib/scheduled-jobs/workflow-inspection';
 
 const message = (text: string) => ({
   chatId: 'chat',
@@ -85,6 +89,19 @@ assert.deepEqual(parseFeishuCommand(message('/ap job retry workflow-watcher')), 
   args: ['retry', 'workflow-watcher'],
   options: {},
 });
+assert.deepEqual(parseFeishuCommand(message('/ap job activate workflow-watcher --plan=docs/010_PLAN.md --head=abcdef')), {
+  command: 'job',
+  args: ['activate', 'workflow-watcher'],
+  options: { plan: 'docs/010_PLAN.md', head: 'abcdef' },
+});
+assert.deepEqual(buildWorkflowActivateCursor(
+  { commit: 'abc', eventKey: 'seen' },
+  'docs/010_PLAN.md',
+), { commit: 'abc', eventKey: 'seen', selectedPlan: 'docs/010_PLAN.md' });
+assert.equal(buildWorkflowActivateCursor(
+  { commit: 'abc', pending: { path: 'docs/009_PLAN.md' } },
+  'docs/010_PLAN.md',
+), null);
 assert.deepEqual(parseFeishuCommand(message('/ap job resend workflow-watcher')), {
   command: 'job',
   args: ['resend', 'workflow-watcher'],
@@ -261,6 +278,29 @@ assert.match(JSON.stringify(dashboardCard), /恢复修改任务/);
 assert.doesNotMatch(JSON.stringify(dashboardCard), /stale-expiry/);
 assert.match(JSON.stringify(dashboardCard), /唯一下一步/);
 assert.match(JSON.stringify(dashboardCard), /autonomy_manual/);
+const activationCard = buildWorkflowDashboardCard({
+  status: {
+    ...workflowStatus,
+    stage: '空闲',
+    overview: {
+      plans: [],
+      warnings: [],
+      queue: [{
+        path: 'docs/010_PLAN.md',
+        number: 10,
+        title: '可选计划',
+        state: '等待启动（未进入 watcher 队列）',
+        queuePosition: 1,
+        slices: [],
+      }],
+    },
+  },
+  cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 },
+  pending: null,
+});
+assert.match(JSON.stringify(activationCard), /select_static/);
+assert.match(JSON.stringify(activationCard), /docs\/010_PLAN\.md/);
+assert.match(JSON.stringify(activationCard), /"action":"activate"/);
 assert.match(JSON.stringify(dashboardCard), /validation_show/);
 assert.match(JSON.stringify(dashboardCard), /validation_strict/);
 assert.match(JSON.stringify(dashboardCard), /abcdef1234/);

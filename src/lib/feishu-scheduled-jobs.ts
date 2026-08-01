@@ -15,6 +15,7 @@ import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
 import {
+  buildWorkflowActivateCursor,
   formatWorkflowOverview,
   inspectWorkflowCandidates,
   inspectWorkflowCursor,
@@ -239,6 +240,38 @@ export const buildWorkflowDashboardCard = (args: {
           `**唯一下一步**：${args.status.nextStep}`,
         ].join('\n'),
       },
+      ...(args.status.overview?.queue.length && !args.status.running && !args.pending ? [{
+        tag: 'form',
+        name: 'workflow-plan-activation',
+        elements: [
+          {
+            tag: 'select_static',
+            name: 'selectedPlan',
+            required: true,
+            width: 'fill',
+            placeholder: { tag: 'plain_text', content: '选择要激活的 PLAN' },
+            options: args.status.overview.queue.map((plan) => ({
+              text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` },
+              value: plan.path,
+            })),
+          },
+          {
+            tag: 'button',
+            name: 'activateWorkflowPlan',
+            text: { tag: 'plain_text', content: '激活所选 PLAN' },
+            type: 'primary_filled',
+            width: 'fill',
+            form_action_type: 'submit',
+            value: {
+              cmd: 'workflow-dashboard',
+              action: 'activate',
+              projectId: args.status.projectId,
+              jobId: args.status.jobId,
+              expectedHead: args.status.head,
+            },
+          },
+        ],
+      }] : []),
       { tag: 'action', actions },
       {
         tag: 'note',
@@ -262,8 +295,8 @@ export async function handleScheduledJobCommand(
 
   const action = command.command === 'jobs' ? 'list' : command.args[0]?.toLowerCase();
   const jobId = command.args[1];
-  if (action !== 'list' && (!jobId || !['status', 'dashboard', 'cursor', 'diagnose', 'schedule', 'enable', 'disable', 'run', 'retry', 'resend', 'stop'].includes(action || ''))) {
-    return '用法：/ap jobs | /ap dashboard | /ap job <status|dashboard|cursor|diagnose|schedule|enable|disable|run|retry|resend|stop> <job-id>';
+  if (action !== 'list' && (!jobId || !['status', 'dashboard', 'cursor', 'diagnose', 'schedule', 'enable', 'disable', 'run', 'activate', 'retry', 'resend', 'stop'].includes(action || ''))) {
+    return '用法：/ap jobs | /ap dashboard | /ap job <status|dashboard|cursor|diagnose|schedule|enable|disable|run|activate|retry|resend|stop> <job-id>';
   }
 
   const states = await prisma.scheduledJobState.findMany({ where: { projectId: project.id } });
@@ -448,7 +481,44 @@ export async function handleScheduledJobCommand(
 
   if (!jobHandlers.has(job.type)) return `job 类型未注册 handler：${job.type}`;
   let request;
-  if (action === 'retry') {
+  if (action === 'activate') {
+    if (job.type !== 'workflow_watcher') return `${job.id} 不支持 PLAN 激活。`;
+    if (!(state?.enabledOverride ?? job.enabled)) return `${job.id} 当前已停用，请先启用。`;
+    if (running.has(job.id)) return `${job.id} 正在运行，请等待当前执行结束。`;
+    const selectedPlan = command.options.plan;
+    const expectedHead = command.options.head;
+    const workflowStatus = (await loadWorkflowStatuses(project.id)).find((item) => item.jobId === job.id);
+    if (!workflowStatus || !expectedHead || workflowStatus.head !== expectedHead) {
+      return 'Dashboard 已失效，请刷新后重新选择 PLAN。';
+    }
+    if (!workflowStatus.overview?.queue.some((plan) => plan.path === selectedPlan)) {
+      return '所选 PLAN 已完成、阻塞、重复或不在当前计划清单，请刷新后重选。';
+    }
+    request = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT pg_advisory_xact_lock(hashtextextended(${`${project.id}:${job.id}`}, 0))::text
+      `;
+      const lockedState = await tx.scheduledJobState.findUnique({
+        where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+        select: { cursorJson: true },
+      });
+      const nextCursor = buildWorkflowActivateCursor(
+        lockedState?.cursorJson ?? { commit: String(job.config.initial_cursor_commit || '') },
+        selectedPlan,
+      );
+      if (!nextCursor) return null;
+      const created = await tx.scheduledJobRequest.create({
+        data: { projectId: project.id, jobId: job.id },
+      });
+      await tx.scheduledJobState.upsert({
+        where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+        create: { projectId: project.id, jobId: job.id, cursorJson: nextCursor as Prisma.InputJsonValue },
+        update: { cursorJson: nextCursor as Prisma.InputJsonValue, lastError: null },
+      });
+      return created;
+    });
+    if (!request) return `${job.id} 已有 pending，请先处理当前计划。`;
+  } else if (action === 'retry') {
     if (job.type !== 'workflow_watcher') return `${job.id} 不支持 workflow retry。`;
     if (!(state?.enabledOverride ?? job.enabled)) return `${job.id} 当前已停用，请先启用。`;
     if (running.has(job.id)) return `${job.id} 正在运行，请等待当前执行结束。`;
@@ -568,13 +638,14 @@ export async function handleWorkflowDashboardCardAction(args: {
   actorOpenId?: string;
   cardMessageId?: string;
   expectedHead?: string;
+  selectedPlan?: string;
 }) {
   const config = await loadProjectsConfig();
   const project = config.projects.find(({ id }) => id === args.projectId);
   if (!project || !project.jobs.some(({ id }) => id === args.jobId)) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
   const action = [
-    'refresh', 'run', 'retry', 'resend', 'stop', 'enable', 'disable',
+    'refresh', 'run', 'activate', 'retry', 'resend', 'stop', 'enable', 'disable',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
     'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
   ].includes(args.action)
@@ -613,7 +684,9 @@ export async function handleWorkflowDashboardCardAction(args: {
       : await handleScheduledJobCommand({
         command: 'job',
         args: [action, args.jobId],
-        options: {},
+        options: action === 'activate'
+          ? { plan: args.selectedPlan || '', head: args.expectedHead || '' }
+          : {},
       }, context);
   await sendFeishuTextMessage({
     receiveId: context.chatId,
