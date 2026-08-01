@@ -64,6 +64,7 @@ esac
     );
     const unboundArgs = await readFile(argsFile, 'utf8');
     assert.match(unboundArgs, /^--new-project$/m);
+    assert.equal((await readFile(cwdFile, 'utf8')).trim(), process.cwd());
 
     const noFiles = await executeAntigravityTask({ id: '5', name: 'smoke' });
     assert.equal(noFiles.success, true);
