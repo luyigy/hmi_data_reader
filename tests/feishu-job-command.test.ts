@@ -64,6 +64,11 @@ assert.deepEqual(parseFeishuCommand(message('/ap workflow autonomy set manual --
   args: ['autonomy', 'set', 'manual'],
   options: { head: 'abcdef' },
 });
+assert.deepEqual(parseFeishuCommand(message('/ap workflow validation set strict --head=abcdef')), {
+  command: 'workflow',
+  args: ['validation', 'set', 'strict'],
+  options: { head: 'abcdef' },
+});
 assert.deepEqual(parseFeishuCommand(message('/ap job disable workflow-watcher')), {
   command: 'job',
   args: ['disable', 'workflow-watcher'],
@@ -255,6 +260,8 @@ assert.match(JSON.stringify(dashboardCard), /恢复修改任务/);
 assert.doesNotMatch(JSON.stringify(dashboardCard), /stale-expiry/);
 assert.match(JSON.stringify(dashboardCard), /唯一下一步/);
 assert.match(JSON.stringify(dashboardCard), /autonomy_manual/);
+assert.match(JSON.stringify(dashboardCard), /validation_show/);
+assert.match(JSON.stringify(dashboardCard), /validation_strict/);
 assert.match(JSON.stringify(dashboardCard), /abcdef1234/);
 assert.match(formatWorkflowStatus(workflowStatus), /项目 \/ ref \/ HEAD：project/);
 assert.match(formatWorkflowStatus(workflowStatus), /自治模式：semi_auto（config）/);

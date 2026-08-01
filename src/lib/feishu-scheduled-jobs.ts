@@ -247,6 +247,13 @@ export const buildWorkflowDashboardCard = (args: {
     action('Manual', 'autonomy_manual', args.status.autonomy === 'manual' ? 'primary' : 'default'),
     action('Semi-auto', 'autonomy_semi_auto', args.status.autonomy === 'semi_auto' ? 'primary' : 'default'),
     action('Auto', 'autonomy_auto', args.status.autonomy === 'auto' ? 'primary' : 'default'),
+    action('校验状态', 'validation_show'),
+    action('错误模板', 'validation_template'),
+    action('Balanced', 'validation_balanced'),
+    action('Strict', 'validation_strict'),
+    ...(args.status.stage === '文档错误' || args.status.stage === '已隔离'
+      ? [action('受控修复', 'validation_repair', 'primary')]
+      : []),
   ];
   return {
     config: { wide_screen_mode: true },
@@ -613,6 +620,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   const action = [
     'refresh', 'run', 'retry', 'resend', 'stop', 'enable', 'disable',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
+    'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
   ].includes(args.action)
     ? args.action
     : 'refresh';
@@ -624,6 +632,20 @@ export async function handleWorkflowDashboardCardAction(args: {
   };
   const result = action === 'refresh'
     ? '状态已刷新。'
+    : action.startsWith('validation_')
+      ? await handleWorkflowPolicyCommand({
+        command: 'workflow',
+        args: action === 'validation_show'
+          ? ['validation', 'show']
+          : action === 'validation_template'
+            ? ['validation', 'template']
+            : action === 'validation_repair'
+              ? ['validation', 'repair']
+              : ['validation', 'set', action.slice('validation_'.length)],
+        options: ['validation_show', 'validation_template'].includes(action)
+          ? {}
+          : { head: args.expectedHead || '' },
+      }, context)
     : action.startsWith('autonomy_')
       ? args.expectedHead
         ? await handleWorkflowPolicyCommand({

@@ -27,6 +27,7 @@ import {
   isWorkflowAutonomy,
   resolveWorkflowAutonomy,
 } from '@/lib/scheduled-jobs/workflow-autonomy';
+import { handleWorkflowValidationCommand } from '@/lib/feishu-workflow-validation';
 
 const configFile = () => path.join(process.cwd(), 'config/projects.yaml');
 const execFileAsync = promisify(execFile);
@@ -55,6 +56,7 @@ export async function handleWorkflowPolicyCommand(
   context?: FeishuConversationContext,
 ) {
   if (!context) return '当前 workflow 命令需要来自 Feishu webhook 的会话上下文。';
+  if (command.args[0] === 'validation') return handleWorkflowValidationCommand(command, context);
   if (command.args[0] === 'status' && command.args.length === 1 && !Object.keys(command.options).length) {
     const status = await loadWorkflowStatusForChat(context.chatId);
     return status ? formatWorkflowStatus(status) : '当前 Feishu 会话未绑定 Workflow 项目。';
@@ -136,7 +138,7 @@ export async function handleWorkflowPolicyCommand(
       : `✅ Workflow 自治模式已切换为 ${requested}。HEAD：${result.currentHead}`;
   }
   if (command.args[0] !== 'policy' || !['show', 'set'].includes(command.args[1] || '')) {
-    return '用法：/ap workflow status | /ap workflow autonomy <show|set> | /ap workflow policy <show|set>';
+    return '用法：/ap workflow status | /ap workflow autonomy <show|set> | /ap workflow validation <show|set|template|repair> | /ap workflow policy <show|set>';
   }
   const setting = command.args[1] === 'set';
   const project = findProjectByChatId(
