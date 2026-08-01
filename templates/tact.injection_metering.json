@@ -1,0 +1,47 @@
+{
+  "version": "0.1.0",
+  "ui_family": "TACT",
+  "page": "injection_metering",
+  "source": "2026-08-01 首版：6 份自动整批接受真值图（日精 Z022/A06，TACT 射出·计量蓝 UI）OCR 实测锚点",
+  "description": "TACT 屏射出·计量页（注射/保压参数）字段位置模板。页面结构：充填速度 V1-V6（V4-6 一般未启用）+ 切换位置 Sv1/Sv2/SM；计量 VS1(rpm)/BP1(MPa)；保压 Pp1/Pp2(MPa,1-2 段)+Tp1(s)+限制速度；V-P转换位置；Pv1 限制压力；射出/冷却/中间时间；减压速度/SD。取值规则：标签下方 0.005~0.06 归一化 y 窗口内最近的数值 token（值与标签同列）。螺杆位置/树脂压力/旋转速度为实时值不入真值。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z022 rank01-06）rectify 后 PaddleOCR 实测标签与值位，逐位置算术平均；以逐图实测为准，本值为兜底",
+    "calibrated_at": "2026-08-01",
+    "samples": [
+      "inj_Z022_20250713_rank04_recuQN93uLlFp9",
+      "inj_Z022_20250719_rank06_recuRme5FMfrI9",
+      "inj_Z022_20250920_rank02_recuXikPelFCQR",
+      "inj_Z022_20251209_rank03_recv4T2fW9vdWR",
+      "inj_Z022_20251230_rank05_recv6OTTFiaGbR",
+      "inj_Z022_20260108_rank01_recv7Is13Mrx8h"
+    ]
+  },
+  "value_window": {"dx": 0.06, "dy_lo": 0.005, "dy_hi": 0.06},
+  "field_anchors": {
+    "fill_velocity_v1_mms": {"label": "V1", "range": [0, 500]},
+    "fill_velocity_v2_mms": {"label": "V2", "range": [0, 500]},
+    "fill_velocity_v3_mms": {"label": "V3", "range": [0, 500]},
+    "switch_position_sv1_mm": {"label": "Sv1", "range": [0, 100]},
+    "switch_position_sv2_mm": {"label": "Sv2", "range": [0, 100]},
+    "metering_position_sm_mm": {"label": "SM", "range": [0, 100]},
+    "metering_rpm": {"label": "VS1", "range": [0, 400]},
+    "back_pressure_mpa": {"label": "BP1", "range": [0, 50]},
+    "holding_pressure_p1_mpa": {"label": "Pp1", "range": [0, 300]},
+    "holding_pressure_p2_mpa": {"label": "Pp2", "range": [0, 300]},
+    "holding_time_s": {"label": "Tp1", "range": [0, 60]},
+    "holding_limit_speed_mms": {"label": "限制速度", "range": [0, 200]},
+    "vp_switch_position_mm": {"label": "VP转换位置", "range": [0, 100]},
+    "pressure_limit_mpa": {"label": "Pv1", "range": [0, 400]},
+    "injection_time_s": {"label": "射出", "range": [0, 60]},
+    "cooling_time_s": {"label": "冷却", "range": [0, 300]},
+    "decompress_velocity_mms": {"label": "减压速度", "range": [0, 200]},
+    "sd_position_mm": {"label": "SD", "range": [0, 100]}
+  },
+  "page_detect_anchors": ["充填速度", "保压", "VP转换位置"],
+  "family_detect_groups": [
+    ["充填速度", "V-P转换"],
+    ["保压"],
+    ["限制压力"]
+  ]
+}

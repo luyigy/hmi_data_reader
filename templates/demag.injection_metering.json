@@ -1,0 +1,45 @@
+{
+  "version": "0.1.0",
+  "ui_family": "DEMAG",
+  "page": "injection_metering",
+  "source": "2026-08-01 首版：6 份自动整批接受真值图（德马格 Z002/A01，NC 系列）OCR 实测锚点",
+  "description": "DEMAG 屏射出/保压相关页面字段位置模板，覆盖两种变体：①多级注射曲线页（左列=首段压力限制/速度/位置，右侧段列=后续段速度/压力，深色框为当前段）；②工艺优化页（预塑区：螺杆转速/背压；冷却余料量列；保压列：速度/压力/时间；切换条件列：位置/压力/时间；注射列：速度/压力限制；右侧蓝框为实际值，取左侧设定值）。实时值（注射时间/注射压力/位置/循环时间等）不入真值。坐标为屏幕归一化值，基于 scripts/rectify.py 输出；行/列位以逐图实测为准。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z002 rank01-06）rectify 后 PaddleOCR 实测；行标签截字严重（速度->送度、背压->百压、位置->位质、时间->时网），行位以模板 y 为锚 ±0.03 取数",
+    "calibrated_at": "2026-08-01"
+  },
+  "curve_page": {
+    "detect": ["多级注射"],
+    "row_anchors": {
+      "pressure": ["压力[bar]", "压力"],
+      "velocity": ["速度[mm/s]", "速度", "mm/s"],
+      "position": ["位置[mm]", "位置"]
+    },
+    "row_y_hint": {"pressure": 0.68, "velocity": 0.72, "position": 0.75},
+    "note": "行内数值按 x 排序：首值=首段（pressure_limit/first_velocity/first_position），其余=stage 数组"
+  },
+  "optimization_page": {
+    "detect": ["工艺优化", "切换条件"],
+    "fields": {
+      "plasticizing_speed_rpm": {"row_y": 0.185, "col_x": 0.66, "range": [0, 400]},
+      "back_pressure_bar": {"row_y": 0.262, "col_x": 0.64, "range": [0, 50]},
+      "cushion_mm": {"row_y": 0.556, "col_x": 0.39, "range": [0, 100]},
+      "cooling_time_s": {"row_y": 0.635, "col_x": 0.29, "range": [0, 300]},
+      "holding_velocity_mms": {"row_y": 0.518, "col_x": 0.48, "range": [0, 200]},
+      "holding_pressure_bar": {"row_y": 0.596, "col_x": 0.48, "range": [0, 300]},
+      "holding_time_s": {"row_y": 0.635, "col_x": 0.48, "range": [0, 60]},
+      "switch_position_mm": {"row_y": 0.556, "col_x": 0.68, "range": [0, 100]},
+      "switch_pressure_bar": {"row_y": 0.596, "col_x": 0.68, "range": [0, 300]},
+      "switch_time_s": {"row_y": 0.635, "col_x": 0.68, "range": [0, 60]},
+      "injection_velocity_mms": {"row_y": 0.518, "col_x": 0.84, "range": [0, 200]},
+      "injection_pressure_limit_bar": {"row_y": 0.596, "col_x": 0.84, "range": [0, 300]}
+    },
+    "cell_tolerance": {"dy": 0.03, "dx": 0.06}
+  },
+  "page_detect_anchors": ["多级注射", "工艺优化", "切换条件"],
+  "family_detect_groups": [
+    ["多级注射", "多级保压"],
+    ["工艺优化", "切换条件"]
+  ]
+}

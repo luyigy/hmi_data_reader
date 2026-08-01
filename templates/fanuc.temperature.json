@@ -1,0 +1,78 @@
+{
+  "version": "0.1.0",
+  "ui_family": "FANUC",
+  "page": "temperature",
+  "source": "2026-08-01 首版：6 份自动整批接受真值图（发那科 Z032/A09，ROBOSHOT α-S30iA）OCR 实测锚点",
+  "description": "FANUC 屏（发那科 A09 机台，ROBOSHOT 蓝灰 UI）喷嘴/料筒温度页字段位置模板。加热器图形行 9 段（M1-M4 模具加热未启用：现在显示 *****、设定 0.0，不计入真值；N/B1/B2/B3 料筒 4 段 + H 下料口无小数 ~50°C）。行结构：现在=实际温度（数值常粘连成单 token 需按 \\d+\\.\\d 切分）、输出=加热输出%（5 个独立 token）、上限/设定/下限=表区 9 值行（取最右 5 列 N..H）。低温保持在页面上部（OFF + 设定值 °C）记 holding_temperature_c。所有坐标为屏幕归一化值，基于 scripts/rectify.py 输出的屏幕矫正图；行/列位以逐图实测为准，模板值为兜底。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（fanuc_Z032 rank01-06）rectify 后 PaddleOCR 实测（基础+CLAHE 合并）：行标签（现在/输出/上限/设定/下限）y 锚点 6/6 实测成功；列位取输出行 5 个独立数值 token（N..H），4/6 图实测成功（rank02/rank06 输出行 token 缺失），均值为兜底",
+    "calibrated_at": "2026-08-01",
+    "samples": [
+      "fanuc_Z032_20250817_rank05_recuUb9LOOSxoX",
+      "fanuc_Z032_20260112_rank02_recv85Q78xefjU",
+      "fanuc_Z032_20260209_rank01_recvaGDzeniqZV",
+      "fanuc_Z032_20260210_rank04_recvaMJeBmyEnu",
+      "fanuc_Z032_20260228_rank03_recvcwEOgnjops",
+      "fanuc_Z032_20260301_rank06_recvczzWM9mBXw"
+    ]
+  },
+  "layout_hint": {
+    "row_anchor_y": {
+      "current": 0.4201,
+      "control": 0.4602,
+      "high": 0.5082,
+      "set": 0.5472,
+      "low": 0.588,
+      "holding": 0.05
+    },
+    "column_x_centers": {
+      "N": 0.3819,
+      "B1": 0.4195,
+      "B2": 0.4668,
+      "B3": 0.5278,
+      "H": 0.575
+    },
+    "col_x_tolerance": 0.045,
+    "row_y_tolerance": 0.025,
+    "notes": "屏幕长宽比差异大（竖拍 1080x1920 ~ 横拍 1920x1080），行 y 漂移 0.36~0.65，必须逐图实测锚定；现在行数值常粘连（如 #***#*****339.9335.1335.0335.0）需正则切分后按列序映射；输出行 H 值可能带 %/X 后缀需清洗；页面倾斜明显需按行标签 y 带容差取 token"
+  },
+  "row_anchors": {
+    "current": ["现在"],
+    "control": ["输出"],
+    "high": ["上限"],
+    "set": ["设定"],
+    "low": ["下限"],
+    "holding": ["低温保持"],
+    "column_header": "加热器"
+  },
+  "page_detect_anchors": ["current", "control", "holding"],
+  "family_detect_groups": [
+    ["喷嘴/料筒", "喷咖/料筒"],
+    ["低温保持"],
+    ["加热器"]
+  ],
+  "heater_columns": {
+    "mode": "rightmost5",
+    "count": 5,
+    "rule": "取数据行最右 5 个数值列（N/B1/B2/B3/H）。表区行（上限/设定/下限）OCR 出 9 值（含 M1-M4 的 0.0/10.0）时取最右 5；现在行粘连 token 按 \\d+\\.\\d 切分后取最右 5 值；输出行独立 token 取最右 5；列数不符则告警并回退模板列位。真值只含 N/B1/B2/B3 四段 + H 下料口，M1-M4 不提取"
+  },
+  "field_mapping": {
+    "barrel_temperature_current_c": {"row": "current", "columns": "N..B3", "unit": "°C"},
+    "barrel_temperature_set_c": {"row": "set", "columns": "N..B3", "unit": "°C"},
+    "high_deviation_c": {"row": "high", "columns": "N..B3", "unit": "°C"},
+    "low_deviation_c": {"row": "low", "columns": "N..B3", "unit": "°C"},
+    "control_percent": {"row": "control", "columns": "N..B3", "unit": "%"},
+    "drop_port_temperature_current_c": {"row": "current", "columns": "H", "unit": "°C"},
+    "drop_port_temperature_set_c": {"row": "set", "columns": "H", "unit": "°C"},
+    "drop_port_control_percent": {"row": "control", "columns": "H", "unit": "%"},
+    "holding_temperature_c": {"row": "页面上部 低温保持 标签下方 OFF 同行的 °C 设定值", "columns": "scalar", "unit": "°C"}
+  },
+  "validation_rules": {
+    "temperature_range_C": [0, 400],
+    "deviation_range_C": [0, 60],
+    "control_range_pct": [0, 100],
+    "holding_range_C": [50, 300],
+    "drop_port_range_C": [0, 100]
+  }
+}

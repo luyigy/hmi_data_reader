@@ -17,7 +17,15 @@
 - ZizES：数字列头线性拟合列位 + y 聚类出 当前/设定/控制 3 行（详见 extract_temperature）。
 - TACT：区段中文列头（喷嘴/筒头/前部/中部/后部/落下口）实测列位 + 行标签
   （设定温度/现在温度/控制输出/保温温度）直接锚定 4 行（详见 extract_temperature_tact）。
-两家族共用：单元格 conf/范围/current vs set 一致性校验，任何 warning -> status != ok。
+- KEBA（伯乐灰 UI）：设定温度/温度设置 + 上偏差/下偏差 行标签锚定行带，段数动态
+  （5/6，设定行数值定列位 + 缺列插补/前推），图形行取实际温度与下料口温度
+  （详见 extract_temperature_keba）。
+- B_AND_R（伯乐蓝 UI）：实际温度/设定温度/高、低温偏差/加热输出 行标签锚定 5 行，
+  6 列（NZ/#1~#5）按数值 x 聚类（详见 extract_temperature_b_and_r）。
+各家族共用：单元格 conf/范围/current vs set 一致性校验，任何 warning -> status != ok。
+TACT/KEBA/B_AND_R 提取前合并 CLAHE 变体 OCR（merge_variant_lines 保守规则）。
+家族路由兜底：record/机台先验与单图关键词分类均失败时，按模板
+family_detect_groups 在合并行上判族（detect_family_from_templates）。
 
 status 语义：ok = 全部字段提取且无 warning；review = 有提取结果但有 warning；
 reject = 路由无模板 / 行或列结构识别失败 / 无有效字段。
@@ -59,6 +67,29 @@ def record_key_candidates(stem: str) -> list[str]:
 
 # ---------------------------------------------------------------- 路由
 
+def _anchor_match(anchor, text: str) -> bool:
+    """锚点（字符串或候选字符串列表）是否为 text 的子串。"""
+    return any(a in text for a in (anchor if isinstance(anchor, list) else [anchor]))
+
+
+def detect_family_from_templates(lines: list[dict], templates_dir: Path) -> str | None:
+    """模板 family_detect_groups 判族（最后兜底）：每个 group 内任一候选命中即该组命中，
+    全部组命中则判为该模板的 ui_family。仅在 record/机台/单图分类全部失败时调用，
+    不影响 ZizES/TACT 等既有路由。"""
+    texts = [l["text"] for l in lines]
+    for tpl_path in sorted(Path(templates_dir).glob("*.temperature.json")):
+        try:
+            tpl = json.loads(tpl_path.read_text())
+        except Exception:
+            continue
+        groups = tpl.get("family_detect_groups")
+        if not groups:
+            continue
+        if all(any(_anchor_match(g, t) for t in texts) for g in groups):
+            return tpl.get("ui_family")
+    return None
+
+
 def route_family(stem: str, lines: list[dict],
                  record_report: dict | None, machine_labels: dict | None) -> tuple[str, str]:
     """返回 (controller_family, source)。"""
@@ -94,8 +125,9 @@ def route_page(stem: str, lines: list[dict], family: str,
         anchors = tpl["row_anchors"]
         texts = [l["text"] for l in lines]
         # 模板可声明自己的页面检测锚点（TACT 无油温列头）；缺省保持 ZizES 口径
+        # 锚点值为字符串或候选列表（KEBA 设定温度/温度设置 双子变体）
         keys = tpl.get("page_detect_anchors", ["oil_header", "set", "control"])
-        if all(any(anchors[k] in t for t in texts) for k in keys):
+        if all(any(_anchor_match(anchors[k], t) for t in texts) for k in keys):
             return "temperature", "template_anchors"
     page, _ = find_page(lines)
     if page != "unknown":
@@ -125,6 +157,7 @@ def norm_tokens(ocr_data: dict, screen_size: list[int]) -> list[dict]:
             "conf": float(l["conf"]),
             "x": ((b["x_min"] + b["x_max"]) / 2) / W,
             "y": ((b["y_min"] + b["y_max"]) / 2) / H,
+            "src": l.get("_src"),
         })
     return toks
 
@@ -415,17 +448,44 @@ def extract_temperature_tact(toks: list[dict], template: dict) -> dict:
     drop = template["drop_port_label"]
     row_names = ["set", "current", "control", "holding"]
 
-    # 列位：区段中文列头实测，缺失回退模板坐标
+    # 列位：区段中文列头实测；中间段整列不存在按实际段数提取（变体自适应，033）；
+    # 边缘段（喷嘴/落下口）缺失按实测列距中位数外推（变体布局下模板坐标不可用）
     col_x: dict[str, float] = {}
     header_toks = []
+    missing_labels = []
     for label in zones + [drop]:
         hits = [t for t in toks if label in t["text"]]
         if hits:
             col_x[label] = hits[0]["x"]
             header_toks.append(hits[0])
         else:
-            col_x[label] = layout["column_x_centers"][label]
-            warnings.append(f"ZONE_HEADER_FALLBACK({label})")
+            missing_labels.append(label)
+    mid_missing = [m for m in missing_labels if m in zones[1:-1]]
+    if mid_missing and len(header_toks) >= 4:
+        for m in mid_missing:
+            zones = [z for z in zones if z != m]
+            warnings.append(f"ZONE_VARIANT({len(zones)}段,无{m})")
+        missing_labels = [m for m in missing_labels if m not in mid_missing]
+    if missing_labels and len(col_x) >= 3:
+        xs = sorted(col_x.values())
+        gaps = sorted(b - a for a, b in zip(xs, xs[1:]))
+        gap = gaps[len(gaps) // 2] if gaps else 0.1
+        for m in missing_labels:
+            if m == zones[0]:
+                col_x[m] = xs[0] - gap
+                xs.insert(0, col_x[m])
+                warnings.append(f"ZONE_HEADER_EXTRAPOLATED({m})")
+            elif m == drop:
+                col_x[m] = xs[-1] + gap
+                xs.append(col_x[m])
+                warnings.append(f"ZONE_HEADER_EXTRAPOLATED({m})")
+            else:
+                col_x[m] = layout["column_x_centers"][m]
+                warnings.append(f"ZONE_HEADER_FALLBACK({m})")
+    else:
+        for m in missing_labels:
+            col_x[m] = layout["column_x_centers"][m]
+            warnings.append(f"ZONE_HEADER_FALLBACK({m})")
     if len(header_toks) < 4:
         return {"fields": None, "heater_columns": 0,
                 "warnings": warnings + [f"COLUMN_HEADERS_NOT_FOUND({len(header_toks)})"], "detail": {}}
@@ -444,6 +504,7 @@ def extract_temperature_tact(toks: list[dict], template: dict) -> dict:
     # 行位：行标签实测，缺失回退模板坐标
     row_y: dict[str, float] = {}
     label_toks = []
+    fallback_rows = []
     for name in row_names:
         hits = [t for t in toks if anchors[name] in t["text"]]
         if hits:
@@ -451,6 +512,7 @@ def extract_temperature_tact(toks: list[dict], template: dict) -> dict:
             label_toks.append(hits[0])
         else:
             row_y[name] = layout["row_y_centers"][name]
+            fallback_rows.append(name)
             warnings.append(f"ROW_LABEL_FALLBACK({name})")
     if len(label_toks) < 3:
         return {"fields": None, "heater_columns": 0,
@@ -458,15 +520,16 @@ def extract_temperature_tact(toks: list[dict], template: dict) -> dict:
     if not (row_y["set"] < row_y["current"] < row_y["control"] < row_y["holding"]):
         warnings.append("ROW_ORDER_ABNORMAL")
 
-    spacing = (col_x[drop] - col_x[zones[0]]) / 5
+    spacing = (col_x[drop] - col_x[zones[0]]) / len(zones)
     col_tol = min(layout["col_x_tolerance"], spacing / 2)
     row_tol = layout["row_y_tolerance"]
 
     # 数据区 token：去斜后落在 (列头行, 保温行+tol] 内，排除列头与行标签结构 token
+    # （HSV 设定行旁车 set_cell 不参与通用 band，只在设定行缺格时定点补充）
     header_y = sum(t["y2"] for t in header_toks) / len(header_toks)
     struct_ids = {id(t) for t in header_toks + label_toks}
     band = [t for t in toks if header_y + 0.01 < t["y2"] <= row_y["holding"] + row_tol
-            and id(t) not in struct_ids]
+            and id(t) not in struct_ids and t.get("src") != "set_cell"]
 
     # 单元格填充：cells[row][col_label] = token
     cells: dict[str, dict[str, dict]] = {r: {} for r in row_names}
@@ -487,12 +550,47 @@ def extract_temperature_tact(toks: list[dict], template: dict) -> dict:
                 cells[name][c] = t
                 break
 
+    # 设定行 HSV 旁车补充（033）：基础/CLAHE 对红渐变框整行漏检时，用 set_cell
+    # token 定点补设定行空格；仅数字形态 token、x 吸附列位、4 位无点按 /10 还原小数、
+    # 值域护栏（料筒 [100,450]、落下口 [10,120]）防图形杂值误吸附
+    sc = [t for t in toks if t.get("src") == "set_cell"]
+    if sc and any(c not in cells["set"] for c in zones + [drop]):
+        import re as _re
+        numish = [t for t in sc
+                  if _re.fullmatch(r"[\d.]+[%℃°Cc]*", t["text"].strip())
+                  and sum(ch.isdigit() for ch in t["text"]) >= 2 and t["conf"] >= 0.6]
+        if numish:
+            if "set" in fallback_rows:
+                row_y["set"] = sorted(t["y2"] for t in numish)[len(numish) // 2]
+            for c in zones + [drop]:
+                if c in cells["set"]:
+                    continue
+                near = [t for t in numish if abs(t["x"] - col_x[c]) <= col_tol]
+                if not near:
+                    continue
+                t = min(near, key=lambda t: abs(t["x"] - col_x[c]))
+                raw = NUM_RE.search(t["text"]).group()
+                if "." not in raw and len(raw) == 4:
+                    raw = raw[:3] + "." + raw[3]
+                # 值域护栏：料筒设定 [100,450]，落下口设定 [10,120]，防图形杂值误吸附
+                v = float(raw)
+                lo, hi = (10.0, 120.0) if c == drop else (100.0, 450.0)
+                if not (lo <= v <= hi):
+                    continue
+                cells["set"][c] = {**t, "text": raw, "_from": "set_cell"}
+                warnings.append(f"SET_CELL_RESCUE({c})")
+
     def cell_number(row: str, col: str) -> tuple[float | None, dict | None]:
         t = cells[row].get(col)
         if t is None:
             return None, None
         m = NUM_RE.search(t["text"])
-        return (float(m.group()) if m else None), t
+        if not m:
+            return None, t
+        raw = m.group()
+        if "." not in raw and len(raw) == 4:
+            raw = raw[:3] + "." + raw[3]  # OCR 丢小数点（2718->271.8）
+        return float(raw), t
 
     def row_values(row: str, cols_needed: list[str]) -> tuple[list[float | None], list[str]]:
         vals, ws = [], []
@@ -561,6 +659,15 @@ def extract_temperature_tact(toks: list[dict], template: dict) -> dict:
             "warnings": warnings, "detail": detail}
 
 
+# ---------------------------------------------------------------- 家族提取器（026 S7 拆出）
+from extract_families.keba import extract_temperature_keba  # noqa: E402
+from extract_families.b_and_r import extract_temperature_b_and_r  # noqa: E402
+from extract_families.fanuc import extract_temperature_fanuc  # noqa: E402
+from extract_families.demag import extract_temperature_demag  # noqa: E402
+from extract_families.tact_injection import extract_injection_tact  # noqa: E402
+from extract_families.demag_injection import extract_injection_demag  # noqa: E402
+
+
 # ---------------------------------------------------------------- 主流程
 def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                 machine_labels: dict | None, templates_dir: Path) -> dict:
@@ -579,27 +686,98 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
 
     lines = ocr_data.get("lines", [])
     family, family_src = route_family(stem, lines, record_report, machine_labels)
+    clahe_path = rectified_dir / f"{stem}.ocr_clahe.json"
+    clahe_lines = None
+    if clahe_path.is_file():
+        clahe_lines = json.loads(clahe_path.read_text()).get("lines", [])
+    if family == "unknown":
+        # 伯乐 KEBA/B_AND_R 等无 record/机台先验且单图关键词分类失败的图：
+        # 合并 CLAHE 变体后按各模板的 family_detect_groups 判族（不改既有路由优先级）
+        det_lines = lines
+        if clahe_lines is not None:
+            det_lines, _ = merge_variant_lines(lines, clahe_lines)
+        fam = detect_family_from_templates(det_lines, templates_dir)
+        if fam:
+            family, family_src = fam, "template_keywords"
     page, page_src = route_page(stem, lines, family, templates_dir)
     result["controller_family"] = family
     result["page_type"] = page
     result["hmi_variant"] = "v1"
 
     template = load_template(family, page, templates_dir) if family != "unknown" else None
+    if template is None and family == "DEMAG" and page in ("injection_metering", "monitor_curve"):
+        # DEMAG 多级注射曲线页被分类器记为 monitor_curve，统一走射保模板（035 第二波）
+        template = load_template(family, "injection_metering", templates_dir)
+        if template is not None:
+            page = "injection_metering"
+            result["page_type"] = page
     if template is None:
         result["warnings"].append(f"NO_TEMPLATE({family},{page})")
         return result
 
+    ui = template.get("ui_family")
     toks = norm_tokens(ocr_data, meta["screen_size"])
     clahe_stats = None
-    if template.get("ui_family") == "TACT":
-        # TACT 低对比白底框（保温温度行、落下口列）召回补充：合并 CLAHE 变体 OCR
-        clahe_path = rectified_dir / f"{stem}.ocr_clahe.json"
-        if clahe_path.is_file():
-            variant = json.loads(clahe_path.read_text())
-            merged_lines, clahe_stats = merge_variant_lines(
-                ocr_data.get("lines", []), variant.get("lines", []))
-            toks = norm_tokens({**ocr_data, "lines": merged_lines}, meta["screen_size"])
+    rates_stats = None
+    if ui in ("TACT", "KEBA", "B_AND_R", "FANUC", "DEMAG") and clahe_lines is not None:
+        # 低对比白底框（TACT 保温行/KEBA 白底框）与蓝底白字（B_AND_R 整行漏检）
+        # 召回补充：合并 CLAHE 变体 OCR（只加空位/高置信替换低置信的保守规则）
+        merged_lines, clahe_stats = merge_variant_lines(ocr_data.get("lines", []), clahe_lines)
+        toks = norm_tokens({**ocr_data, "lines": merged_lines}, meta["screen_size"])
+    if ui == "DEMAG":
+        # 列顶速率蓝框召回补充（026 S7c）：HSV 单格识别旁车带 _src 标记直接并入，
+        # 不走 merge_variant_lines 的保守替换（速率格位置精确，由 demag 提取器优先采信）
+        rates_path = rectified_dir / f"{stem}.ocr_rates.json"
+        if rates_path.is_file():
+            rate_lines = json.loads(rates_path.read_text()).get("lines", [])
+            for l in rate_lines:
+                l["_src"] = "rate_cell"
+            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
+            rates_stats = {"rate_cells": len(rate_lines)}
+            toks = norm_tokens({**ocr_data, "lines": base_lines + rate_lines},
+                               meta["screen_size"])
+    if ui == "DEMAG" and page == "injection_metering":
+        # 037 方案①：曲线页段表列网格旁车（带 slot 标记直接并入）
+        stage_path = rectified_dir / f"{stem}.ocr_stage.json"
+        if stage_path.is_file():
+            stage_lines = json.loads(stage_path.read_text()).get("lines", [])
+            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
+            toks = norm_tokens({**ocr_data, "lines": base_lines + stage_lines},
+                               meta["screen_size"])
+    if ui == "FANUC":
+        # 低质图整屏放大 OCR 变体召回补充（026 S7c）
+        zoom_path = rectified_dir / f"{stem}.ocr_zoom.json"
+        if zoom_path.is_file():
+            zoom_lines = json.loads(zoom_path.read_text()).get("lines", [])
+            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
+            merged_zoom, rates_stats = merge_variant_lines(base_lines, zoom_lines)
+            toks = norm_tokens({**ocr_data, "lines": merged_zoom}, meta["screen_size"])
+    if ui == "TACT":
+        # 设定行红框 HSV 旁车（033）：带 _src 标记直接并入，由 TACT 提取器定点使用；
+        # 不写 provenance（保持 Z022 既有产物零 diff）
+        setrow_path = rectified_dir / f"{stem}.ocr_setrow.json"
+        if setrow_path.is_file():
+            set_lines = json.loads(setrow_path.read_text()).get("lines", [])
+            for l in set_lines:
+                l["_src"] = "set_cell"
+            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
+            toks = norm_tokens({**ocr_data, "lines": base_lines + set_lines},
+                               meta["screen_size"])
+    page_key = template.get("page")
+    if page_key == "injection_metering" and ui == "TACT":
+        ext = extract_injection_tact(toks, template)
+    elif page_key == "injection_metering" and ui == "DEMAG":
+        ext = extract_injection_demag(toks, template)
+    elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
+    elif ui == "KEBA":
+        ext = extract_temperature_keba(toks, template)
+    elif ui == "B_AND_R":
+        ext = extract_temperature_b_and_r(toks, template)
+    elif ui == "FANUC":
+        ext = extract_temperature_fanuc(toks, template)
+    elif ui == "DEMAG":
+        ext = extract_temperature_demag(toks, template)
     else:
         ext = extract_temperature(toks, template)
     result["warnings"].extend(ext["warnings"])
@@ -615,6 +793,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     }
     if clahe_stats is not None:
         result["provenance"]["ocr_clahe_merge"] = clahe_stats
+    if rates_stats is not None:
+        result["provenance"]["ocr_rates_merge"] = rates_stats
     result["extraction_detail"] = ext["detail"]
 
     if ext["fields"] is None:

@@ -1,0 +1,83 @@
+{
+  "version": "0.1.0",
+  "ui_family": "KEBA",
+  "page": "temperature",
+  "source": "2026-07-31 首版：13 份用户核验真值图（伯乐 Z001×7 六段 / Z047×6 五段）OCR 实测锚点算术平均",
+  "description": "KEBA 屏（伯乐 A01/B02 机台，KePlast 灰 UI）温度页字段位置模板。页面两种子变体：Z001 风格（页标题「加热段」，行标签「设定温度」，右侧一般设置区有「待机温度」+「油温」）与 Z047 风格（页标题「温度段」，行标签「温度设置」，右侧为「保温温度」，无油温）。布局：上部加热段图形行 = 各段实际温度 + 右侧独立下料口温度值（无小数，~46-60°C）；中部三行 = 设定温度(温度设置)/上偏差/下偏差。所有坐标为屏幕归一化值（x/screen_width, y/screen_height），基于 scripts/rectify.py 输出的屏幕矫正图。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "13 张真值图（bole_Z001 rank01-06/20、bole_Z047 rank14-19）rectify 后 PaddleOCR 实测行标签/数值列位置，逐位置算术平均；行/列位以逐图实测为准，本值为兜底",
+    "calibrated_at": "2026-07-31",
+    "samples": [
+      "bole_Z001_20250706_rank05_recuQJJQEdHz8T",
+      "bole_Z001_20250723_rank01_recuRMMGl61hX3",
+      "bole_Z001_20250804_rank04_recuSX8WOzVuXr",
+      "bole_Z001_20251127_rank03_recv3L738mIX67",
+      "bole_Z001_20260128_rank02_recv9BowFSmcvr",
+      "bole_Z001_20260304_rank20_recvcR7EH9Slr0",
+      "bole_Z001_20260402_rank06_recvfEPC0hJGnx",
+      "bole_Z047_20250516_rank16_recuQJJFYY4E2G",
+      "bole_Z047_20250924_rank15_recuXFJ2KmX9qE",
+      "bole_Z047_20251016_rank17_recuZKBBdTiuIi",
+      "bole_Z047_20251127_rank14_recv3L738mKFzm",
+      "bole_Z047_20251215_rank18_recv5s7hAZ5oiH",
+      "bole_Z047_20251216_rank19_recv5vhFIREnE0"
+    ]
+  },
+  "layout": {
+    "row_y_centers": {
+      "current": 0.245,
+      "set": 0.336,
+      "high": 0.381,
+      "low": 0.425
+    },
+    "row_gap_avg": 0.045,
+    "zone1_x_avg": 0.34,
+    "zone_column_spacing_avg": 0.057,
+    "drop_port_offset_vs_last_zone": 1.1,
+    "set_label_x_avg": 0.235,
+    "holding_label": {"Z001": {"text": "待机温度", "x": 0.38, "y": 0.55}, "Z047": {"text": "保温温度", "x": 0.18, "y": 0.63}},
+    "oil_label": {"text": "油温", "x": 0.37, "y": 0.70},
+    "notes": "屏幕长宽比差异大（2000x1653 横屏 ~ 1728x2000 竖屏），行 y 漂移 0.22~0.48，必须逐图实测锚定；段值列相对行标签右移约 2 倍列距；图形行（实际温度）在设定行上方约 1.5~2.2 倍行距"
+  },
+  "row_anchors": {
+    "set": ["设定温度", "温度设置"],
+    "high": "上偏差",
+    "low": "下偏差",
+    "holding": ["待机温度", "特机温度", "保温温度"],
+    "oil": ["油温", "油疆"],
+    "page_title": ["加热段", "温度段"]
+  },
+  "page_detect_anchors": ["set", "high"],
+  "family_detect_groups": [["设定温度", "温度设置"], ["上偏差"]],
+  "heater_columns": {
+    "mode": "dynamic",
+    "count": "5 或 6",
+    "rule": "段数动态：列位取设定温度行实测数值 x（去斜后 |y2-标签y2|<0.025），相邻列距中位数为列距；相邻列距 >1.5 倍时插补中间缺列；首列与行标签间距 >2.5 倍列距时向左前推缺列（rank16 报警态 z1 喷嘴段「---」热电偶故障即此情形，z1 各行值为 null）；段数合理范围 4-8，超出判 reject"
+  },
+  "field_mapping": {
+    "barrel_temperature_current_c": {"row": "current（加热段图形行，无行标签，位于设定行上方）", "columns": "zones", "unit": "°C"},
+    "barrel_temperature_set_c": {"row": "set", "columns": "zones", "unit": "°C"},
+    "high_deviation_c": {"row": "high", "columns": "zones", "unit": "°C"},
+    "low_deviation_c": {"row": "low", "columns": "zones", "unit": "°C"},
+    "drop_port_temperature_current_c": {"row": "current", "columns": "下料口独立值（最后一段右侧 ~1.1 倍列距，仅图形行有）", "unit": "°C"},
+    "holding_temperature_c": {"row": "右侧一般设置区 待机温度(Z001)/保温温度(Z047) 标签同行的值", "columns": "scalar", "unit": "°C"},
+    "oil_temperature_current_c": {"row": "右侧一般设置区 油温 标签附近的值（仅 Z001 风格页面有；Z047 无油温恒为 null）", "columns": "scalar", "unit": "°C"}
+  },
+  "validation_rules": {
+    "temperature_range_C": [0, 450],
+    "deviation_range_C": [0, 150],
+    "holding_range_C": [80, 300],
+    "oil_range_C": [20, 90],
+    "current_set_consistency_tolerance_C": 5,
+    "min_cell_conf": 0.85
+  },
+  "known_uncertainties": [
+    "模板坐标基于 13 张样本平均，不同长宽比屏幕行位漂移大，提取以逐图实测锚点为主、模板为兜底",
+    "下料口温度（图形行最右，无小数）与料斗温度（右侧一般设置区，带小数）是两个不同物理量，真值取下料口",
+    "Z001 部分图油温模糊（真值 null），提取到也多为低置信 -> review，属保守设计",
+    "rank16（Z047 报警态）z1 段「---」无 OCR 数值，靠前推缺列得 null 并触发 CELL_MISSING -> 不得 status=ok",
+    "current vs set 一致性校验（±5°C）会把加热中/报警态机台（如 Z047 多图）判为 review，属保守设计而非误报",
+    "待机温度标签常被 OCR 误读为「特机温度」，油温误读为「油疆」，锚点已覆盖变体"
+  ]
+}

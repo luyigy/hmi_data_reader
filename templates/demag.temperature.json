@@ -1,0 +1,187 @@
+{
+  "version": "0.1.0",
+  "ui_family": "DEMAG",
+  "page": "temperature",
+  "source": "2026-08-01 首版：12 份自动整批接受真值图（德马格 Z002/A01 ×6、Z005/A02 ×6，Sumitomo SHI DEMAG NC 系列）OCR 实测锚点",
+  "description": "DEMAG 屏（德马格 A01/A02 机台，NC 系列浅色 UI）温度页字段位置模板。加热器图形行下为 5 列（屏幕序 喷嘴1/区3/区2/区1/料口；真值段序 = 屏幕序——用户 2026-08-01 核验裁定：区号从料口侧往喷嘴数，区1 紧邻料口排最后，料口=drop_port）。行结构：实际/设定/上偏差/下偏差/速率[%]/模式——表内速率行恒 0（设定侧）不取；当前速率为各列顶部蓝框整数（料口可为负值=冷却）。左下油块=油温 实际/设定（上偏差10/下偏差9 不在真值 schema 未取）；保温[°C]=holding_temperature_c。所有坐标为屏幕归一化值，基于 scripts/rectify.py 输出；行/列位以逐图实测为准，模板值为兜底。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "12 张真值图（demag_Z002 rank07-12、demag_Z005 rank13-18）rectify 后 PaddleOCR 实测（基础+CLAHE 合并，x 去重保高置信）：实际/设定行标签 12/12 实测；上/下偏差行标签 OCR 截字（差X），部分图两行塌缩同 y 需按 y 序区分；列位取实际行 5 个数值 token，9/12 图 5 列齐全（rank07 运动模糊、rank09/rank11 缺列），均值为兜底",
+    "calibrated_at": "2026-08-01",
+    "samples": [
+      "demag_Z002_20250427_rank07_recuQJJFYYuq6D",
+      "demag_Z002_20250823_rank12_recuWgpEDUq1PQ",
+      "demag_Z002_20251125_rank09_recv3zaMHI2aLF",
+      "demag_Z002_20251211_rank11_recv51O2lNHu3D",
+      "demag_Z002_20260108_rank10_recv7Is13MllsT",
+      "demag_Z002_20260210_rank08_recvaMtZcMiSti",
+      "demag_Z005_20250716_rank16_recuR4VNhdPi8I",
+      "demag_Z005_20250803_rank14_recuSLVXsXGIKz",
+      "demag_Z005_20251031_rank17_recv1bhYoL9wGf",
+      "demag_Z005_20260106_rank13_recv7tPHkRc82D",
+      "demag_Z005_20260120_rank15_recv8QCjzWszUW",
+      "demag_Z005_20260127_rank18_recv9vN6iVaYra"
+    ]
+  },
+  "layout_hint": {
+    "row_anchor_y": {
+      "current": 0.4126,
+      "set": 0.4495,
+      "high": 0.4862,
+      "low": 0.4908,
+      "rate_top_boxes": 0.35,
+      "oil_current": 0.67,
+      "oil_set": 0.7,
+      "holding": 0.72
+    },
+    "column_x_centers": {
+      "喷嘴1": 0.2734,
+      "区3": 0.5772,
+      "区2": 0.6524,
+      "区1": 0.7294,
+      "料口": 0.859
+    },
+    "col_x_tolerance": 0.045,
+    "row_y_tolerance": 0.02,
+    "notes": "Z002 与 Z005 屏幕列位差异大（喷嘴1 列 x 0.15~0.34 随透视漂移），必须逐图实测锚定；行标签 OCR 截字严重（实际->际、设定->设定C、上偏差->上福差/差门、下偏差->差门、速率->速翠附），两个'差'行按 y 顺序定上下；列顶速率蓝框为整数 token（负值如 -15 直接取）；油块行标签同样截字（实际℃]/设定℃）"
+  },
+  "row_anchors": {
+    "current": [
+      "实际",
+      "际"
+    ],
+    "set": [
+      "设定"
+    ],
+    "high": [
+      "上偏差",
+      "上福差"
+    ],
+    "low": [
+      "下偏差"
+    ],
+    "high_low_generic": "差",
+    "column_headers": [
+      "喷嘴",
+      "区3",
+      "区2",
+      "区1",
+      "料口"
+    ],
+    "oil_current": [
+      "实际℃]",
+      "实际[℃]"
+    ],
+    "oil_set": [
+      "设定℃",
+      "设定[℃]"
+    ],
+    "holding": [
+      "保温"
+    ]
+  },
+  "page_detect_anchors": [
+    "current",
+    "column_headers"
+  ],
+  "family_detect_groups": [
+    [
+      "料口"
+    ],
+    [
+      "冷启动保护"
+    ],
+    [
+      "同步加热",
+      "油预热"
+    ]
+  ],
+  "heater_columns": {
+    "mode": "screen_order_5",
+    "count": 5,
+    "rule": "实际行 5 个数值 token 按 x 排序得屏幕序 [喷嘴1,区3,区2,区1,料口]，真值段序 = 屏幕序（用户 2026-08-01 裁定），料口=索引 4 映射 drop_port。缺列时按模板列位最近邻吸附；表内速率[%]行恒 0 不提取，control 取列顶蓝框整数 token（允许负值）"
+  },
+  "field_mapping": {
+    "barrel_temperature_current_c": {
+      "row": "current",
+      "columns": "喷嘴1,区3,区2,区1",
+      "unit": "°C"
+    },
+    "barrel_temperature_set_c": {
+      "row": "set",
+      "columns": "喷嘴1,区3,区2,区1",
+      "unit": "°C"
+    },
+    "high_deviation_c": {
+      "row": "high",
+      "columns": "喷嘴1,区3,区2,区1",
+      "unit": "°C"
+    },
+    "low_deviation_c": {
+      "row": "low",
+      "columns": "喷嘴1,区3,区2,区1",
+      "unit": "°C"
+    },
+    "control_percent": {
+      "row": "列顶蓝框",
+      "columns": "喷嘴1,区3,区2,区1",
+      "unit": "%"
+    },
+    "drop_port_temperature_current_c": {
+      "row": "current",
+      "columns": "料口",
+      "unit": "°C"
+    },
+    "drop_port_temperature_set_c": {
+      "row": "set",
+      "columns": "料口",
+      "unit": "°C"
+    },
+    "drop_port_control_percent": {
+      "row": "列顶蓝框",
+      "columns": "料口",
+      "unit": "%"
+    },
+    "oil_temperature_current_c": {
+      "row": "左下油块 实际 同行的值",
+      "columns": "scalar",
+      "unit": "°C"
+    },
+    "oil_temperature_set_c": {
+      "row": "左下油块 设定 同行的值",
+      "columns": "scalar",
+      "unit": "°C"
+    },
+    "holding_temperature_c": {
+      "row": "保温[°C] 标签右侧/右下方的值",
+      "columns": "scalar",
+      "unit": "°C"
+    }
+  },
+  "validation_rules": {
+    "temperature_range_C": [
+      0,
+      400
+    ],
+    "deviation_range_C": [
+      0,
+      60
+    ],
+    "control_range_pct": [
+      -50,
+      100
+    ],
+    "holding_range_C": [
+      50,
+      300
+    ],
+    "drop_port_range_C": [
+      0,
+      100
+    ],
+    "oil_range_C": [
+      0,
+      60
+    ]
+  }
+}

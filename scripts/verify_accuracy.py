@@ -3,10 +3,15 @@
 指标（公式与 PLAN §3 统一）：
 1. controller_classification_accuracy — |family 一致的图| / |全部图|（大小写归一）
 2. page_classification_accuracy       — |page_type 一致的图| / |全部图|
-3. field_completeness                 — |提取非空的数值字段元素| / |真值非空数值字段元素|
-4. numeric_accuracy                   — |匹配真值(允许误差 ±0.5)的数值字段元素| / |真值非空数值字段元素|，门槛 >= 95%
+3. field_completeness                 — |提取非空的数值字段元素| / |计分真值非空数值字段元素|
+4. numeric_accuracy                   — |匹配真值(允许误差 ±0.5)的数值字段元素| / |计分真值非空数值字段元素|，门槛 >= 95%
 5. auto_import_ratio                  — |status=ok 的图| / |全部图|
 6. error_auto_import_rate             — |误识别但仍 status=ok 的字段元素| / |status=ok 图的字段元素|，门槛严格 = 0
+7. rejection_accuracy                 — |正确拒识(status!=ok)的 allow_auto_import=false 图| / |allow_auto_import=false 图|，门槛严格 = 1，空分母 N/A
+
+计分口径（023 PLAN §3）：仅真值 allow_auto_import=false 且提取 status != ok 的
+正确拒识图片，其数值元素从 3/4 两项的分母、分子中排除；错误放行（status=ok）
+的负样本不排除。报告 scoring 块保留全量/计分计数与排除图片及原因。
 
 数值字段元素 = 标量字段本身或数组字段的单个元素；数组长度不一致时，真值侧超出的
 元素计为"提取缺失"（不完整 + 不匹配）。
@@ -27,7 +32,8 @@ GATE_NUMERIC_ACCURACY = 0.95
 GATE_ERROR_AUTO_IMPORT_RATE = 0.0
 
 # 真值 schema 的数值字段（oil_temperature_current_c 为 2026-07-30 新增，
-# holding/drop_port_* 为 2026-07-31 TACT 新增；以真值集为准，家族间取并集，
+# holding/drop_port_* 为 2026-07-31 TACT 新增；high/low_deviation_c 为
+# 2026-07-31 伯乐 KEBA/B_AND_R 新增；以真值集为准，家族间取并集，
 # 不属于该家族真值的字段读出来是 None，不会进入分母）
 NUMERIC_FIELDS = [
     "barrel_temperature_set_c",
@@ -39,6 +45,42 @@ NUMERIC_FIELDS = [
     "drop_port_temperature_set_c",
     "drop_port_temperature_current_c",
     "drop_port_control_percent",
+    "high_deviation_c",
+    "low_deviation_c",
+    # 035 射出/保压页（TACT injection_metering）新增；以真值集为准取并集
+    "fill_velocity_mms",
+    "fill_stages",
+    "switch_position_sv1_mm",
+    "switch_position_sv2_mm",
+    "metering_position_sm_mm",
+    "metering_rpm",
+    "back_pressure_mpa",
+    "holding_pressure_mpa",
+    "holding_stages",
+    "holding_time_s",
+    "holding_limit_speed_mms",
+    "vp_switch_position_mm",
+    "pressure_limit_mpa",
+    "injection_time_s",
+    "cooling_time_s",
+    "decompress_velocity_mms",
+    "sd_position_mm",
+    # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
+    "pressure_limit_bar",
+    "first_velocity_mms",
+    "first_position_mm",
+    "stage_velocity_mms",
+    "stage_pressure_bar",
+    "plasticizing_speed_rpm",
+    "back_pressure_bar",
+    "holding_pressure_bar",
+    "holding_velocity_mms",
+    "cushion_mm",
+    "switch_position_mm",
+    "switch_pressure_bar",
+    "switch_time_s",
+    "injection_velocity_mms",
+    "injection_pressure_limit_bar",
 ]
 
 
@@ -98,6 +140,7 @@ def compare_one(truth: dict, extracted: dict | None) -> dict:
     return {
         "image": truth["image"],
         "status": status,
+        "allow_auto_import": truth.get("allow_auto_import"),
         "family_truth": t_family,
         "family_extracted": e_family,
         "family_match": bool(t_family) and t_family.upper() == str(e_family).upper(),
@@ -145,9 +188,27 @@ def main():
                  f"{json.dumps(uncovered, ensure_ascii=False)}")
 
     n = len(per_image)
-    total_elements = sum(p["n_elements"] for p in per_image)
-    total_present = sum(p["n_present"] for p in per_image)
-    total_matched = sum(p["n_matched"] for p in per_image)
+
+    # 023 PLAN §3 拒识口径：只有真值 allow_auto_import=false 且提取 status != ok 的
+    # 正确拒识图片，其数值元素才从 field_completeness / numeric_accuracy 计分排除；
+    # 错误放行（status=ok）的负样本不排除。controller/page/auto_import_ratio 仍在
+    # 全量上如实报告；rejection_accuracy 为独立安全指标，空分母记 N/A（不宣称 PASS）
+    for p in per_image:
+        p["correct_reject"] = p["allow_auto_import"] is False and p["status"] != "ok"
+    scored = [p for p in per_image if not p["correct_reject"]]
+    excluded = [p for p in per_image if p["correct_reject"]]
+    neg = [p for p in per_image if p["allow_auto_import"] is False]
+
+    def totals(rows: list[dict]) -> dict:
+        return {
+            "n_images": len(rows),
+            "n_elements": sum(p["n_elements"] for p in rows),
+            "n_present": sum(p["n_present"] for p in rows),
+            "n_matched": sum(p["n_matched"] for p in rows),
+        }
+
+    raw_totals = totals(per_image)
+    scored_totals = totals(scored)
     ok_images = [p for p in per_image if p["status"] == "ok"]
     ok_elements = sum(p["n_elements"] for p in ok_images)
     ok_errors = sum(p["n_elements"] - p["n_matched"] for p in ok_images)
@@ -155,24 +216,41 @@ def main():
     metrics = {
         "controller_classification_accuracy": round(sum(p["family_match"] for p in per_image) / n, 4),
         "page_classification_accuracy": round(sum(p["page_match"] for p in per_image) / n, 4),
-        "field_completeness": round(total_present / total_elements, 4) if total_elements else None,
-        "numeric_accuracy": round(total_matched / total_elements, 4) if total_elements else None,
+        "field_completeness": round(scored_totals["n_present"] / scored_totals["n_elements"], 4)
+            if scored_totals["n_elements"] else None,
+        "numeric_accuracy": round(scored_totals["n_matched"] / scored_totals["n_elements"], 4)
+            if scored_totals["n_elements"] else None,
         "auto_import_ratio": round(len(ok_images) / n, 4),
         "error_auto_import_rate": round(ok_errors / ok_elements, 4) if ok_elements else None,
+        "rejection_accuracy": round(sum(p["status"] != "ok" for p in neg) / len(neg), 4) if neg else None,
     }
     gates = {
-        "numeric_accuracy >= 0.95": (metrics["numeric_accuracy"] or 0) >= GATE_NUMERIC_ACCURACY,
-        "error_auto_import_rate == 0": (metrics["error_auto_import_rate"] or 0) == GATE_ERROR_AUTO_IMPORT_RATE,
+        "numeric_accuracy >= 0.95": (metrics["numeric_accuracy"] is not None
+                                     and metrics["numeric_accuracy"] >= GATE_NUMERIC_ACCURACY),
+        "error_auto_import_rate == 0": (metrics["error_auto_import_rate"] is not None
+                                        and metrics["error_auto_import_rate"] == GATE_ERROR_AUTO_IMPORT_RATE),
+        "rejection_accuracy == 1": ("N/A" if metrics["rejection_accuracy"] is None
+                                    else metrics["rejection_accuracy"] == 1.0),
     }
     report = {
-        "version": "1.0",
-        "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3",
+        "version": "1.1",
+        "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3；拒识口径 docs/023_PLAN_20260801_伯乐S3拒识口径与定向收口.md §3",
         "tolerance": TOLERANCE,
         "n_images": n,
         "metrics": metrics,
         "gates": gates,
-        "poc_pass": all(gates.values()),
-        "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库",
+        "poc_pass": all(v is True or v == "N/A" for v in gates.values()),
+        "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，伯乐批分母应为 1 由验收显式核对）",
+        "scoring": {
+            "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
+            "raw_totals": raw_totals,
+            "scored_totals": scored_totals,
+            "excluded_images": [
+                {"image": p["image"], "n_elements": p["n_elements"],
+                 "reason": f"correct_reject(allow_auto_import=false, status={p['status']})"}
+                for p in excluded
+            ],
+        },
         "missing_extraction": missing_extraction,
         "per_image": [
             {k: v for k, v in p.items() if k != "elements"} for p in per_image
@@ -187,11 +265,12 @@ def main():
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
 
-    print(f"[verify] {n} 张真值图，提取缺失 {len(missing_extraction)} 张")
+    print(f"[verify] {n} 张真值图，提取缺失 {len(missing_extraction)} 张，计分排除 {len(excluded)} 张")
     for k, v in metrics.items():
         print(f"  {k}: {v}")
     for k, v in gates.items():
-        print(f"  gate {k}: {'PASS' if v else 'FAIL'}")
+        mark = "N/A" if v == "N/A" else ("PASS" if v else "FAIL")
+        print(f"  gate {k}: {mark}")
     print(f"[verify] report -> {out_path}")
 
 
