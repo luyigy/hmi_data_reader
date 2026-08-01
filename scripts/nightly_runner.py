@@ -318,7 +318,7 @@ def run_with_double_timeout(cmd, heartbeat_path, wall_limit=WALL_CLOCK_LIMIT_S,
         if time.time() - hb_mtime > heartbeat_timeout:
             proc.kill()
             return "heartbeat_timeout", proc.wait()
-        time.sleep(5)
+        time.sleep(min(5.0, max(0.1, wall_limit / 10.0)))
     return "ok", proc.returncode
 
 
