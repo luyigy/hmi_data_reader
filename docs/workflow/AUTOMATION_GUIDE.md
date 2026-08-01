@@ -1,180 +1,179 @@
-# 工作流自动化接入指南
+# 工作流自动化接入与操作指南
 
-## 目的
+## 1. 文档定位
 
-本仓库使用 PLAN、HANDOVER 和机器可读合同维护连续开发上下文。
+本文解释 Agent Platform 当前已实现的 workflow 自动化。规则值、合法字段、动作、Prompt 标记、编号和阈值
+只以目标 Git ref 中已提交的 [`workflow-contract.yaml`](./workflow-contract.yaml) 为准；本文不复制完整合同。
 
-外部自动化可以定期扫描已提交的工作流文档，并根据文档状态：
+创建或修复 PLAN/HANDOVER 时，必须读取合同声明的
+[`PLAN`](./templates/PLAN.md) / [`HANDOVER`](./templates/HANDOVER.md) 模板。缺少合同或模板时报告
+“未初始化”，不得回退到平台安装目录中的隐藏副本。
 
-- 通知用户；
-- 提取下一任务 Prompt；
-- 启动可用 Agent；
-- 或等待人工批准和验收。
+## 2. 组件与事实边界
 
-本指南不规定必须使用 Hermes、Cursor、Claude、TRAE 或其他特定工具。
+```text
+已提交 PLAN/HANDOVER
+        ↓
+workflow-watcher → validator → 人工 PLAN 审批 / HANDOVER 动作
+        ↓                              ↓
+PostgreSQL cursor、pending、幂等账本   绑定 Live Room 中的新 Session
+        ↓
+TaskRun 完成事件即时唤醒 + 每分钟调度补偿
+```
 
-## 权威规则
+- 仓库保存合同、模板、PLAN/HANDOVER 和需求来源。
+- Agent Platform 保存运行状态、审批状态、失败记录、Session 和外部消息标识。
+- watcher 只读目标 ref 的 committed blob，不读取未提交文件。
+- 自动化候选只包括合同声明的 `PLAN`、`HANDOVER`；REPORT/FIX/DECISION 等不会触发执行。
+- 正常完成事件会即时唤醒 watcher；定时扫描负责漏事件和服务重启后的补偿。
 
-自动化必须读取：
+## 3. 主状态机
 
-`docs/workflow/workflow-contract.yaml`
+### 3.1 PLAN
 
-Agent 创建或修复文档时，从合同声明的以下权威模板取最小片段：
+1. 提交 `doc_status: ready + next_action: start_first_slice` 的 PLAN。
+2. watcher 校验合同、frontmatter、引用、Prompt 和编号。
+3. 校验通过后导入文档并发送审批卡，持久化为 `pending`。
+4. 审批选择：
+   - 批准：按自治模式决定立即执行还是等待人工运行 watcher；
+   - 修改：只启动 PLAN 修订，不执行 Slice；
+   - 拒绝：结束该候选；
+   - 超时：审批卡过期后可重发，不自动批准。
+5. 执行时只把合同标记之间唯一且非空的 Prompt 投递到绑定 Live Room。
 
-- `docs/workflow/templates/PLAN.md`
-- `docs/workflow/templates/HANDOVER.md`
+新 PLAN 永远需要人工审批。`auto` 只负责生成提案，不拥有批准权。
 
-模板只提供合同合格示例；运行时规则仍只来自目标 Git ref 中已提交的合同。缺少合同或模板时应明确报告
-“未初始化”，不得回退到 Agent Platform 安装目录中的隐藏副本。
+### 3.2 HANDOVER
 
-不得在 watcher、cron、CI 或 Agent Skill 中维护另一套 action、Prompt、目录或
-legacy 规则。
+| HANDOVER 动作 | 含义 | 后续 |
+| --- | --- | --- |
+| `next_slice` | 当前 Slice 完成，Phase PLAN 仍在进行 | 投递下一 Slice Prompt |
+| `resume_parent` | Interrupt PLAN 完成 | 恢复父 PLAN 的 `return_to` Slice |
+| `await_acceptance` | Phase PLAN 完成 | 通知验收；`auto` 可继续提议下一 PLAN |
+| `blocked` / `none` | 无可执行推进 | 通知并停止 |
 
-validator 和 watcher 中可以保留校验算法，但文件名、控制字段、状态、动作、
-Prompt 标记、编号与阈值的具体值必须在运行时从目标提交中的合同读取。
+Agent 必须先提交 HANDOVER，取得最后一次变更的 commit SHA，再结束 Session。completion gate 统一检查新增或
+修改的 workflow 文档已提交且通过合同校验，并阻止已达阈值的长文件继续增长。合同与 `AGENTS.md` 还要求：
+最终回复原样重复下一 Session Prompt，并以 `WORKFLOW_READY` 标记结束。
 
-`validation.mode` 只允许 `balanced` 或 `strict`。六项 `validation.rules` 仍控制策略校验是否启用：
-启用的策略在 `balanced` 下产生 warning，在 `strict` 下产生 error；设为 `false` 时不检查。字段/动作合法性、
-引用文件存在性、唯一非空 Prompt 等结构与调度安全校验在两种模式下始终是 error，不能通过策略配置关闭。
+## 4. 自治模式
 
-validator issue 对外提供稳定 `code`、`severity`、`location`、`expected`、`actual` 和最小 `template` 片段；
-现有文本错误消息继续保留，调用方不得解析中文文案判断错误类型。
+`workflow-watcher` 的启停与自治模式是两个独立控制面。watcher disabled 时，任何自治模式都不会定时扫描。
 
-## 基本处理流程
+| 模式 | 已批准 PLAN S01 | `next_slice` | `resume_parent` | Phase 完成后 Roadmap/Inbox |
+| --- | --- | --- | --- | --- |
+| `manual` | 手工运行 watcher | 手工运行 watcher | 手工运行 watcher | 不提议 |
+| `semi_auto` | 自动 | 自动 | 停止，等待人工 | 不提议 |
+| `auto` | 自动 | 自动 | 自动 | 自动生成待审批 PLAN |
 
-自动化每次运行时：
+手工 `/ap job run workflow-watcher` 可以推进当前合法动作，不受自治模式的定时推进限制。任何模式都不会越过
+`blocked`，也不会自动批准 PLAN。
 
-1. 获取目标分支最新的已提交内容；
-2. 读取工作流合同；
-3. 定位合同指定的分支文档空间；
-4. 找出尚未处理的 PLAN/HANDOVER；
-5. 解析 YAML frontmatter；
-6. 根据 `next_action` 判断：
-   - 启动或准备下一任务；
-   - 只通知；
-   - 停止并等待人工操作；
-7. 仅使用合同定义的 Prompt 标记提取 Prompt；
-8. 对 PLAN 可执行 action 保存 `pending`，等待人工审批；
-9. 对已提交 HANDOVER 的可执行 action 立即记录 claim、重置 Session 并投递 Prompt；
-10. 记录已处理事件，避免重复执行。
+项目配置中的模式只是默认值；数据库 override 优先。无效 override 会安全回退为 `manual`。切换模式必须携带
+当前 40 位 HEAD，避免基于过期仓库状态改变执行策略。
 
-## HANDOVER 完成条件
+## 5. Roadmap 与 Git Inbox
 
-创建可执行 PLAN/HANDOVER 的 Agent 必须：
+`auto` 只在以下条件同时成立时提议下一 PLAN：
 
-1. 提交文档并取得该文档最后一次变更的完整 commit SHA；
-2. 完成所有收尾工作；
-3. 确保目标 Git ref 中的文档通过合同校验且 `next_action` 可执行。
+- 当前文档是 `plan_progress: complete + next_action: await_acceptance` 的 HANDOVER；
+- HANDOVER 引用的是 Phase PLAN，不是 Interrupt PLAN；
+- 项目 ref 是本地已检出的 `refs/heads/*`，HEAD 在选择和提交期间未变化；
+- 同一仓库、ref、branch space 只有一个 workflow consumer。
 
-watcher 只依据已提交 Git 事实推进，不读取聊天发送者、消息类型、回复时间或旧 SHA。
-正常路径由 TaskRun 完成事件即时唤醒，十分钟定时扫描负责漏事件和服务重启补偿。
+候选顺序：
 
-## 安全要求
+1. Phase PLAN 的 `roadmap` 非空时，读取该 ROADMAP 第一条未勾选项；Roadmap 没有未完成项就停止，不回退 Inbox。
+2. `roadmap: null` 时，按 Git tree 扫描 `docs/inbox/` 直属 Markdown（忽略 `README.md`）。
+3. 跳过已经被 `WORKFLOW_INBOX_ITEM` 标记认领的条目，取第一个未认领项。
+4. 自动创建并提交一份新的 Phase PLAN；下一轮 watcher 进入正常 PLAN 审批。
 
-自动化必须：
+Inbox 是已提交需求池，不是可执行 PLAN 目录。推荐每项一个 `ISSUE`：
 
-- 只读取已提交 Git 内容；
-- 不消费工作区未提交文件；
-- 不从自然语言标题或正文猜测下一步；
-- 元数据无效时停止并报告；
-- 不自动从 ROADMAP 创建下一阶段；
-- 不重复处理同一个工作流事件；
-- PLAN 可执行事件先持久化为 `pending`，人工批准后再 claim；
-- HANDOVER 可执行事件在受锁扫描中直接 claim；
-- terminal action 仍在通知前直接 claim，不等待完成标记。
+```text
+/ap inbox add "需求标题" --body="范围与验收目标" --head=<当前40位HEAD>
+```
 
-建议使用以下组合标识事件：
+该命令只创建并提交 `draft + next_action: none` 的 ISSUE，不会改变自治模式或立即执行需求。当前消费者不会按
+Inbox frontmatter 状态过滤候选，因此不想被领取的文件应删除、移出 Inbox，或在启用 `auto` 前人工整理；不要
+把草稿、历史说明或正式 PLAN 放在 Inbox。
 
-`commit + document path + blob hash + next_action`
+## 6. Git、cursor 与幂等
 
-## 执行模式
+- 事件身份由 commit、文档路径、blob 和 action 共同确定；相同事件不会重复执行。
+- watcher 扫描本轮变更中编号最高的候选文档。不要在同一提交堆叠多份待执行 PLAN；需求队列使用 Inbox。
+- cursor 记录已消费位置；pending 记录审批或待执行 PLAN。两者都在数据库中，不写入仓库。
+- watcher 已读取或可能读取提交后，Git 历史必须只追加。禁止 amend、rebase、reset 和强推改写历史。
+- 检测到 ref 改写、cursor 早于合同 cutoff、HEAD 竞争或 consumer 冲突时，自动化停止并要求人工判断。
+- 移动 cursor 或清除 pending 会改变恢复语义，只能在 diagnose 后显式执行，Agent 不得猜测恢复点。
 
-### 通知模式
+## 7. 校验、失败与恢复
 
-适用于 Cursor、TRAE 等没有稳定自动调用接口的环境。
+- `balanced`：启用的策略规则产生 warning；结构、动作、引用和调度安全问题仍是 error。
+- `strict`：启用的策略规则也提升为 error。
+- 校验失败时不执行文档；首次通知后仍失败的同一 blob 会被隔离并前移 cursor，修复后重新提交形成新事件再校验。
+- PLAN 审批 pending 可重发；修改意见只修订 PLAN，不开始实施。
+- watcher blocker 会保留 cursor，并可请求 Coding Agent 处理安全范围内的问题；移动 cursor 或修复历史仍需人工确认。
+- 服务重启会对遗留 Scheduled Job / TaskRun 状态做恢复，随后由即时事件或定时扫描继续。
 
-自动化发现任务后：
+常规排查顺序：先看状态，再只读诊断，最后才做恢复写操作。
 
-- 输出或发送 Prompt；
-- 通知用户；
-- 用户把 Prompt 交给自己的编程助手。
+```text
+/ap workflow status
+/ap workflow autonomy show
+/ap dashboard
+/ap job diagnose workflow-watcher
+/ap job run workflow-watcher
+/ap job cursor workflow-watcher --latest
+/ap job cursor workflow-watcher --clear-pending
+```
 
-### CLI 模式
+`--latest` 和 `--clear-pending` 不是常规“重试”按钮，必须先确认 cursor、pending、目标 HEAD 和 Git 历史。
 
-适用于支持命令行启动的 Agent。
+## 8. 常用操作
 
-自动化发现任务后，调用用户配置的 CLI，并传入 Prompt。
+```text
+# 仓库内校验
+npm run workflow:validate -- HEAD docs/<编号>_PLAN_<日期>_<主题>.md [docs/<编号>_HANDOVER_<日期>_<主题>.md]
+npm run check:long-files
 
-具体命令由用户自己的环境决定。
+# watcher
+/ap job enable workflow-watcher
+/ap job disable workflow-watcher
+/ap job run workflow-watcher
+/ap job diagnose workflow-watcher
 
-### 服务模式
+# 自治模式
+/ap workflow autonomy show
+/ap workflow autonomy set manual --head=<当前40位HEAD>
+/ap workflow autonomy set semi_auto --head=<当前40位HEAD>
+/ap workflow autonomy set auto --head=<当前40位HEAD>
+```
 
-适用于 Hermes 或其他常驻 Agent 服务。
+Workflow Dashboard 已覆盖刷新、启停、立即运行、停止、审批卡重发、验证修订和三种自治模式切换。cursor 移动、
+清除 pending 等高影响操作保留为显式命令。
 
-自动化通过 API、消息机器人或其他受控入口提交 Prompt。
+## 9. 维护规则与代码入口
 
-### CI 模式
+更新规则时按职责修改，不重复维护：
 
-可以由 GitHub Actions、GitLab CI 或其他 CI：
+- 合法字段、动作、模板路径、编号、阈值：`docs/workflow/workflow-contract.yaml`
+- 合格示例：`docs/workflow/templates/PLAN.md`、`HANDOVER.md`
+- 人类流程说明：本文与本目录 README
+- 历史决策：`docs/workflow/225_DECISION_20260725_文档自动化状态机.md`
+- 操作验收证据：编号 REPORT；缺陷根因与验证：编号 FIX
 
-- 检查新的工作流事件；
-- 创建 Issue、评论或构建产物；
-- 通知开发者；
-- 调用可用的 Agent 服务。
+主要实现入口：
 
-## 调度方式
+- `src/lib/scheduled-jobs/workflow-watcher.ts`：扫描、校验、审批门、执行与终止动作
+- `src/lib/scheduled-jobs/workflow-autonomy.ts`：自治模式判定
+- `src/lib/scheduled-jobs/workflow-roadmap-inbox.ts`：Roadmap/Inbox 选取与 PLAN 提案
+- `src/lib/scheduled-jobs/workflow-validator.ts`：合同解析与文档校验
+- `src/lib/scheduled-jobs/workflow-status.ts`：状态与唯一下一步
+- `src/lib/scheduled-jobs/workflow-inspection.ts`：Dashboard 队列与文档检查
+- `src/lib/scheduled-jobs/git-history-guard.ts`：只追加历史保护
+- `src/lib/acpx/workflow-completion-gate.ts`：Session 完成门
+- `src/lib/feishu-workflow-policy.ts`：飞书自治模式和权限操作
+- `src/lib/feishu-scheduled-jobs.ts`：Workflow Dashboard 与 Scheduled Job 命令
 
-用户可以根据自己的环境选择：
-
-- Linux cron；
-- systemd timer；
-- Windows Task Scheduler；
-- GitHub Actions；
-- GitLab CI；
-- Jenkins；
-- 常驻 watcher。
-
-调度器只负责定期启动扫描程序，不应包含业务规则。
-
-## 状态与日志
-
-自动化应在仓库外保存：
-
-- 已处理事件；
-- 当前状态；
-- 失败次数；
-- 最后错误；
-- 执行时间；
-- 外部任务或 Session 标识。
-
-不要把运行状态提交到业务仓库。
-
-## 上线建议
-
-按以下顺序启用：
-
-1. 历史审计；
-2. dry-run；
-3. 只通知；
-4. 单次受控执行；
-5. 再启用定时任务。
-
-启用前确认历史 PLAN/HANDOVER 不会被重新执行。
-
-## 实现边界
-
-仓库负责：
-
-- AGENTS 规则；
-- 工作流合同；
-- PLAN/HANDOVER 文档；
-- 自动化接入说明。
-
-使用者负责：
-
-- 选择调度器；
-- 选择 Agent；
-- 编写或配置适配代码；
-- 保存运行状态；
-- 配置通知渠道；
-- 管理凭证和权限。
+修改实现后运行对应的 `test:workflow-*` 聚焦测试；提交前运行 GitNexus `detect_changes()` 核对影响范围。

@@ -70,6 +70,22 @@ npm run db:migrate:sqlite -- /path/to/dev.db  # One-time SQLite data import
 npm run db:verify:migration -- /path/to/dev.db # Full migration verification
 ```
 
+## Workflow Automation
+
+The repository can drive continuous PLAN/HANDOVER execution from committed Git
+documents. The machine-readable contract is the source of truth; the guides explain
+the current lifecycle and operator controls:
+
+- [Workflow entry and document map](docs/workflow/README.md)
+- [Workflow automation guide](docs/workflow/AUTOMATION_GUIDE.md)
+- [Workflow contract](docs/workflow/workflow-contract.yaml)
+- [PLAN template](docs/workflow/templates/PLAN.md) and [HANDOVER template](docs/workflow/templates/HANDOVER.md)
+- [Git Inbox rules](docs/inbox/README.md)
+
+Only committed documents on the configured Git ref are consumed. New PLANs always
+require human approval, including PLANs proposed by `auto` mode from a Roadmap or
+Inbox item.
+
 ## Repository Hygiene
 
 Generated artifacts and local secrets should stay out of git:
