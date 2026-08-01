@@ -1,6 +1,3 @@
-import { execFile } from 'node:child_process';
-import path from 'node:path';
-import { promisify } from 'node:util';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { isFeishuAdmin } from '@/lib/feishu-access-approval';
@@ -9,7 +6,6 @@ import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 import { jobHandlers } from '@/lib/scheduled-jobs/handlers';
 import { findProjectByChatId, loadProjectsConfig, validateSchedule } from '@/lib/scheduled-jobs/project-config';
 import { effectiveJobSchedule, stopScheduledJob, waitForScheduledJobStop } from '@/lib/scheduled-jobs/runner';
-import { readWorkflowContract, selectWorkflowCandidates } from '@/lib/scheduled-jobs/workflow-validator';
 import {
   formatWorkflowStatus,
   loadWorkflowStatuses,
@@ -18,55 +14,14 @@ import {
 import { getPersistedHarnessPid } from '@/lib/live-room-interrupt';
 import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
+import {
+  formatWorkflowOverview,
+  inspectWorkflowCandidates,
+  inspectWorkflowCursor,
+} from '@/lib/scheduled-jobs/workflow-inspection';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
-const execFileAsync = promisify(execFile);
-
-export async function inspectWorkflowCursor(path: string, ref: string, cursor: unknown) {
-  const latest = (await execFileAsync('git', ['-C', path, 'rev-parse', ref], { encoding: 'utf8' })).stdout.trim();
-  const current = cursor && typeof cursor === 'object' && 'commit' in cursor && typeof cursor.commit === 'string'
-    ? cursor.commit
-    : undefined;
-  if (!current) return { current, latest, rewritten: false, behind: undefined };
-  try {
-    await execFileAsync('git', ['-C', path, 'merge-base', '--is-ancestor', current, latest]);
-    const behind = Number((await execFileAsync(
-      'git', ['-C', path, 'rev-list', '--count', `${current}..${latest}`], { encoding: 'utf8' },
-    )).stdout.trim());
-    return { current, latest, rewritten: false, behind };
-  } catch {
-    return { current, latest, rewritten: true, behind: undefined };
-  }
-}
-
-export async function inspectWorkflowCandidates(
-  repository: string,
-  head: string,
-  cursor: unknown,
-  config: Record<string, unknown>,
-) {
-  const contractPath = String(config.contract_path || '');
-  const branchSpace = String(config.branch_space || '');
-  const initialCursor = String(config.initial_cursor_commit || '');
-  if (!contractPath || path.isAbsolute(contractPath) || contractPath.split('/').includes('..')) {
-    throw new Error('contract_path must stay inside the repository');
-  }
-  if (!branchSpace || branchSpace.includes('/') || branchSpace === '..') {
-    throw new Error('workflow_watcher requires a single-directory config.branch_space');
-  }
-  const current = cursor && typeof cursor === 'object' && 'commit' in cursor && typeof cursor.commit === 'string'
-    ? cursor.commit
-    : initialCursor;
-  if (!current) throw new Error('workflow_watcher requires config.initial_cursor_commit for first run');
-  const contract = await readWorkflowContract(repository, head, contractPath, new AbortController().signal);
-  const watchRoot = path.posix.join(contract.branch_spaces.root, branchSpace);
-  const scanFrom = cursor && typeof cursor === 'object' && 'eventKey' in cursor ? current : initialCursor;
-  const changed = scanFrom === head ? [] : (await execFileAsync(
-    'git', ['-C', repository, '-c', 'core.quotepath=false', 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot],
-    { encoding: 'utf8' },
-  )).stdout.trim().split('\n').filter(Boolean);
-  return selectWorkflowCandidates(changed, contract, watchRoot).map(({ filePath }) => filePath);
-}
+export { inspectWorkflowCandidates, inspectWorkflowCursor } from '@/lib/scheduled-jobs/workflow-inspection';
 
 export const formatWorkflowDiagnosis = ({
   projectName,
@@ -280,6 +235,7 @@ export const buildWorkflowDashboardCard = (args: {
           ...(args.status.completion ? [
             `**完成回执**：commit \`${args.status.completion.commit}\` · 验证 ${args.status.completion.validation} · 入口 ${args.status.completion.entry} · 自动推进 ${args.status.completion.automaticProgression}`,
           ] : []),
+          ...(args.status.overview ? ['', formatWorkflowOverview(args.status.overview)] : []),
           `**唯一下一步**：${args.status.nextStep}`,
         ].join('\n'),
       },

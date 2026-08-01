@@ -9,6 +9,11 @@ import {
   type ProjectConfig,
 } from './project-config';
 import { resolveWorkflowAutonomy, type WorkflowAutonomy } from './workflow-autonomy';
+import {
+  formatWorkflowOverview,
+  inspectWorkflowOverview,
+  type WorkflowOverview,
+} from './workflow-inspection';
 
 const execFileAsync = promisify(execFile);
 
@@ -51,6 +56,7 @@ export type WorkflowStatus = {
     entry: string;
     automaticProgression: string;
   };
+  overview?: WorkflowOverview;
 };
 
 const object = (value: unknown): JsonObject | null =>
@@ -324,6 +330,12 @@ const buildWorkflowStatus = async (
         : `stopped：${action}`,
     };
   }
+  status.overview = await inspectWorkflowOverview(project.path, head, state?.cursorJson, job.config, status)
+    .catch((error) => ({
+      queue: [],
+      plans: [],
+      warnings: [`计划清单读取失败：${error instanceof Error ? error.message : String(error)}`],
+    }));
   return status;
 };
 
@@ -366,5 +378,6 @@ export const formatWorkflowStatus = (status: WorkflowStatus) => [
     `- HANDOVER / 验收入口：${status.completion.entry}`,
     `- 自动推进：${status.completion.automaticProgression}`,
   ] : []),
+  ...(status.overview ? ['', formatWorkflowOverview(status.overview)] : []),
   `唯一下一步：${status.nextStep}`,
 ].join('\n');

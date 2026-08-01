@@ -60,6 +60,41 @@ export default async function WorkflowPage() {
               </section>
             ) : null}
 
+            {status.overview ? (
+              <section className="mt-6 rounded-2xl border border-slate-200 p-4 text-sm text-slate-900">
+                <h3 className="font-semibold">全部当前计划与排队序列</h3>
+                <p className="mt-2 text-slate-600">
+                  当前计划 {status.overview.plans.length} 个；排队 {status.overview.queue.length} 个
+                </p>
+                <ol className="mt-3 space-y-1">
+                  {status.overview.queue.length
+                    ? status.overview.queue.map((plan) => (
+                      <li key={plan.path}>{plan.queuePosition}. {plan.number} {plan.title} · {plan.state}</li>
+                    ))
+                    : <li>无</li>}
+                </ol>
+                <div className="mt-5 space-y-4">
+                  {status.overview.plans.map((plan) => (
+                    <div key={plan.path}>
+                      <p className="font-medium">{plan.number} {plan.title} · {plan.state}</p>
+                      <ul className="mt-1 ml-5 list-disc text-slate-600">
+                        {plan.slices.length
+                          ? plan.slices.map((slice) => (
+                            <li key={slice.id}>{slice.id} {slice.state} · {slice.title}</li>
+                          ))
+                          : <li>无可识别的 Slice</li>}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+                {status.overview.warnings.length ? (
+                  <div className="mt-5 rounded-xl bg-amber-50 p-3 text-amber-900">
+                    {status.overview.warnings.map((warning) => <p key={warning}>⚠ {warning}</p>)}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
             <div className="mt-6 rounded-2xl bg-slate-900 p-4 text-sm text-white">
               <span className="font-semibold">唯一下一步：</span>{status.nextStep}
             </div>

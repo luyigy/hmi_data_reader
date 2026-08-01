@@ -22,6 +22,7 @@ import {
   formatWorkflowStatus,
   type WorkflowStatus,
 } from '../src/lib/scheduled-jobs/workflow-status';
+import { formatWorkflowOverview, inspectWorkflowOverview } from '../src/lib/scheduled-jobs/workflow-inspection';
 
 const message = (text: string) => ({
   chatId: 'chat',
@@ -335,7 +336,52 @@ async function testCursor() {
   }
 }
 
-testCursor().catch((error) => {
+async function testWorkflowOverview() {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'workflow-overview-'));
+  try {
+    const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args]).toString().trim();
+    const write = (file: string, content: string) => {
+      mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+      writeFileSync(path.join(root, file), content);
+    };
+    const plan = (status: string, action: string, title: string) => `---\ndoc_type: PLAN\ndoc_status: ${status}\nnext_action: ${action}\nplan_kind: phase\n---\n\n# PLAN · ${title}\n\n### S01：第一步\n`;
+    git('init', '-q');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'user.name', 'Test');
+    write('docs/workflow/workflow-contract.yaml', readFileSync(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8'));
+    git('add', '.');
+    git('commit', '-qm', 'contract');
+    const initial = git('rev-parse', 'HEAD');
+    write('docs/010_PLAN_20260801_approval.md', plan('draft', 'await_plan_approval', '待审批'));
+    write('docs/011_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题'));
+    write('docs/012_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题'));
+    write('docs/013_PLAN_20260801_blocked.md', plan('blocked', 'blocked', '阻塞计划'));
+    write('docs/015_PLAN_20260801_complete.md', plan('ready', 'start_first_slice', '完成计划'));
+    write('docs/016_HANDOVER_20260801_complete.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: await_acceptance\nplan: docs/015_PLAN_20260801_complete.md\nslice: S01\nplan_progress: complete\n---\n\n# HANDOVER\n`);
+    git('add', '.');
+    git('commit', '-qm', 'plans');
+    const head = git('rev-parse', 'HEAD');
+    const overview = await inspectWorkflowOverview(root, head, { commit: head, eventKey: 'seen' }, {
+      contract_path: 'docs/workflow/workflow-contract.yaml',
+      branch_space: '.',
+      initial_cursor_commit: initial,
+    }, { ...workflowStatus, head, documentPath: '-', plan: '-', slice: '-', stage: '空闲' });
+    assert.deepEqual(overview.plans.map(({ number, state }) => [number, state]), [
+      [10, '等待审批'],
+      [11, '等待启动（未进入 watcher 队列）'],
+      [12, '重复计划（同 11）'],
+      [13, '阻塞'],
+      [15, '实施完成，等待人工验收'],
+    ]);
+    assert.deepEqual(overview.queue.map(({ number, queuePosition }) => [number, queuePosition]), [[10, 1], [11, 2]]);
+    assert.equal(overview.plans.at(-1)?.slices[0].state, '已完成');
+    assert.match(formatWorkflowOverview(overview), /排队序列：[\s\S]*1\. 10[\s\S]*全部计划与 Slice：[\s\S]*S01 已完成[\s\S]*异常：/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+Promise.all([testCursor(), testWorkflowOverview()]).catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
