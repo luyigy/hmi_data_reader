@@ -1,0 +1,113 @@
+{
+  "image": "fanuc_Z032_20260112_rank02_recv85Q78xefjU",
+  "status": "review",
+  "warnings": [
+    "CURRENT_ROW_GLUED_SPLIT"
+  ],
+  "controller_family": "FANUC",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": [
+      348.0,
+      334.9,
+      334.9,
+      334.3
+    ],
+    "barrel_temperature_set_c": [
+      340.0,
+      335.0,
+      335.0,
+      335.0
+    ],
+    "high_deviation_c": [
+      30.0,
+      30.0,
+      30.0,
+      30.0
+    ],
+    "low_deviation_c": [
+      30.0,
+      30.0,
+      30.0,
+      30.0
+    ],
+    "control_percent": [
+      35.2,
+      16.2,
+      13.4,
+      100.0
+    ],
+    "holding_temperature_c": 120.0,
+    "drop_port_temperature_current_c": 50.0,
+    "drop_port_temperature_set_c": 50.0,
+    "drop_port_control_percent": 54.8
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "fanuc.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/fanuc_Z032_20260112_rank02_recv85Q78xefjU.ocr.json",
+    "screen_size": [
+      1400,
+      973
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 5,
+      "replaced": 0
+    },
+    "ocr_rates_merge": {
+      "added": 3,
+      "replaced": 1
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.4234,
+      "control": 0.4712,
+      "high": 0.5277,
+      "set": 0.5719,
+      "low": 0.6202
+    },
+    "deskew_slope": 0.0,
+    "rows5": {
+      "current": [
+        348.0,
+        334.9,
+        334.9,
+        334.3,
+        50.0
+      ],
+      "control": [
+        35.2,
+        16.2,
+        13.4,
+        100.0,
+        54.8
+      ],
+      "high": [
+        30.0,
+        30.0,
+        30.0,
+        30.0,
+        10.0
+      ],
+      "set": [
+        340.0,
+        335.0,
+        335.0,
+        335.0,
+        50.0
+      ],
+      "low": [
+        30.0,
+        30.0,
+        30.0,
+        30.0,
+        10.0
+      ]
+    }
+  }
+}

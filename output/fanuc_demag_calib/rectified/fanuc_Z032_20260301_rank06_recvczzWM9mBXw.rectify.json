@@ -1,0 +1,29 @@
+{
+  "filename": "fanuc_Z032_20260301_rank06_recvczzWM9mBXw.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      134.40000915527344,
+      86.4000015258789
+    ],
+    [
+      1749.60009765625,
+      141.60000610351562
+    ],
+    [
+      1684.800048828125,
+      1077.60009765625
+    ],
+    [
+      254.40000915527344,
+      1077.60009765625
+    ]
+  ],
+  "screen_size": [
+    1523,
+    968
+  ],
+  "output_path": "output/fanuc_demag_calib/rectified/fanuc_Z032_20260301_rank06_recvczzWM9mBXw.png",
+  "warnings": []
+}

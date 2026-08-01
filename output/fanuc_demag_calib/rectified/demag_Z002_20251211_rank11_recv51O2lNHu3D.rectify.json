@@ -1,0 +1,29 @@
+{
+  "filename": "demag_Z002_20251211_rank11_recv51O2lNHu3D.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      163.83999633789062,
+      957.4400024414062
+    ],
+    [
+      3066.8798828125,
+      727.0399780273438
+    ],
+    [
+      3066.8798828125,
+      3368.9599609375
+    ],
+    [
+      358.3999938964844,
+      2979.83984375
+    ]
+  ],
+  "screen_size": [
+    2000,
+    1654
+  ],
+  "output_path": "output/fanuc_demag_calib/rectified/demag_Z002_20251211_rank11_recv51O2lNHu3D.png",
+  "warnings": []
+}

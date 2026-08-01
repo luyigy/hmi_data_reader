@@ -1,0 +1,132 @@
+{
+  "image": "demag_Z002_20251125_rank09_recv3zaMHI2aLF",
+  "status": "review",
+  "warnings": [
+    "COLUMN_MISSING(区3)",
+    "CELL_MISSING(区3)",
+    "CELL_MISSING(区3)",
+    "CELL_MISSING(区3)",
+    "CELL_MISSING(区3)",
+    "CELL_MISSING(区2)",
+    "RATE_MISSING(喷嘴1)",
+    "RATE_MISSING(区3)",
+    "RATE_MISSING(区2)",
+    "RATE_MISSING(区1)",
+    "VALUE_OUT_OF_RANGE(high,喷嘴1,1011.0)",
+    "VALUE_OUT_OF_RANGE(low,喷嘴1,1011.0)"
+  ],
+  "controller_family": "DEMAG",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": [
+      220.0,
+      215.0,
+      220.0,
+      null
+    ],
+    "barrel_temperature_set_c": [
+      220.0,
+      215.0,
+      220.0,
+      null
+    ],
+    "high_deviation_c": [
+      null,
+      10.0,
+      10.0,
+      null
+    ],
+    "low_deviation_c": [
+      null,
+      10.0,
+      null,
+      null
+    ],
+    "control_percent": [
+      null,
+      null,
+      null,
+      null
+    ],
+    "drop_port_temperature_current_c": 210.0,
+    "drop_port_temperature_set_c": 210.0,
+    "drop_port_control_percent": 40.0,
+    "oil_temperature_current_c": 31.0,
+    "oil_temperature_set_c": 30.0,
+    "holding_temperature_c": 150.0
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "demag.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/demag_Z002_20251125_rank09_recv3zaMHI2aLF.ocr.json",
+    "screen_size": [
+      2000,
+      1592
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 1,
+      "replaced": 2
+    },
+    "ocr_rates_merge": {
+      "added": 1,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.3954,
+      "set": 0.4331,
+      "high": 0.4714,
+      "low": 0.5091
+    },
+    "deskew_slope": -0.0082,
+    "col_x_screen_order": [
+      0.343,
+      0.5772,
+      0.6575,
+      0.7318,
+      0.809
+    ],
+    "screen_rows": {
+      "current": [
+        220.0,
+        null,
+        220.0,
+        215.0,
+        210.0
+      ],
+      "set": [
+        220.0,
+        null,
+        220.0,
+        215.0,
+        210.0
+      ],
+      "high": [
+        1011.0,
+        null,
+        10.0,
+        10.0,
+        10.0
+      ],
+      "low": [
+        1011.0,
+        null,
+        null,
+        10.0,
+        10.0
+      ],
+      "rate_top": [
+        null,
+        null,
+        null,
+        null,
+        40.0
+      ]
+    }
+  }
+}

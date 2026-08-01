@@ -1,0 +1,117 @@
+{
+  "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+  "table_id": "tblzpMJBLUNuB6ZX",
+  "table_name": "TACT扩样字段核验",
+  "url": "https://ecn6lj2fknte.feishu.cn/base/Vz2QbZ0lkagmVJsrMZ7cQwbSnZc?table=tblzpMJBLUNuB6ZX",
+  "verifier": "自动整批接受（027 自动模式预授权，降级；用户保留事后否决权）",
+  "records": [
+    {
+      "image": "tact_Z015_20250717_rank05_recuRahX7268Nl.jpeg",
+      "record_id": "recvr18noHvpvv",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuRahX7268Nl"
+    },
+    {
+      "image": "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+      "record_id": "recvr18pC6Hljf",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuTTCd49jAZm"
+    },
+    {
+      "image": "tact_Z015_20251013_rank01_recuZxcO7y4JRE.jpeg",
+      "record_id": "recvr18rxqiPg8",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuZxcO7y4JRE"
+    },
+    {
+      "image": "tact_Z015_20251227_rank06_recv6AhHJ41wpO.jpeg",
+      "record_id": "recvr18tMHy8K1",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recv6AhHJ41wpO"
+    },
+    {
+      "image": "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+      "record_id": "recvr18vjZI8Oz",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recv7ATP6jMZTh"
+    },
+    {
+      "image": "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+      "record_id": "recvr18wPPL0CR",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recv86ziPvzroj"
+    },
+    {
+      "image": "tact_Z019_20250416_rank07_recuQJJFYYVIFJ.jpeg",
+      "record_id": "recvr18ytOMuir",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuQJJFYYVIFJ"
+    },
+    {
+      "image": "tact_Z019_20250905_rank09_recuWgpEDUw0Qh.jpeg",
+      "record_id": "recvr18Aw24UYN",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuWgpEDUw0Qh"
+    },
+    {
+      "image": "tact_Z019_20250917_rank11_recuX0Nn58NLnF.jpeg",
+      "record_id": "recvr18Cs1SxSQ",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuX0Nn58NLnF"
+    },
+    {
+      "image": "tact_Z019_20250922_rank08_recuXxroqbG4Qn.jpeg",
+      "record_id": "recvr18EMfyntm",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuXxroqbG4Qn"
+    },
+    {
+      "image": "tact_Z019_20251104_rank12_recv1AnK36j6iJ.jpeg",
+      "record_id": "recvr18GLDG1Qk",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recv1AnK36j6iJ"
+    },
+    {
+      "image": "tact_Z019_20260228_rank23_recvcvra9kKJWS.jpeg",
+      "record_id": "recvr18IElhGkJ",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recvcvra9kKJWS"
+    },
+    {
+      "image": "tact_Z025_20250717_rank18_recuRdHpMSQ0wM.jpeg",
+      "record_id": "recvr18KaiToTA",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuRdHpMSQ0wM"
+    },
+    {
+      "image": "tact_Z025_20250831_rank13_recuWgpEDUBGOd.jpeg",
+      "record_id": "recvr18M3QQvtn",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recuWgpEDUBGOd"
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "record_id": "recvr18O1ixUwn",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recv3wfvikHpDW"
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "record_id": "recvr18QjUvzbE",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recv4bbcWySXZX"
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "record_id": "recvr18SCTZatD",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recv7U93Zz8uog"
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "record_id": "recvr18Uc3le9E",
+      "table_id": "tblzpMJBLUNuB6ZX",
+      "origin_record_id": "recvcihCdjTZeR"
+    }
+  ]
+}

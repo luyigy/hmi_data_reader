@@ -1,0 +1,478 @@
+{
+  "generated_at": "2026-08-01T09:01:47+00:00",
+  "generator": "kimi-code S1 (034_PLAN)",
+  "status": "PENDING_USER_APPROVAL",
+  "selection_spec": {
+    "random_seed": 20260801,
+    "pool": "伯乐 Z050/Z053/Z007 含炮筒温度附件记录（029 裁定 B_AND_R）",
+    "machine_cap": "每台 6 目标 + 4 候补（009 批准结构）"
+  },
+  "pool_summary": {
+    "Z050": {
+      "records_with_att": 140,
+      "pool_after_dedup": 140
+    },
+    "Z053": {
+      "records_with_att": 70,
+      "pool_after_dedup": 70
+    },
+    "Z007": {
+      "records_with_att": 69,
+      "pool_after_dedup": 69
+    }
+  },
+  "targets": [
+    {
+      "rank": 1,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv7Ln9Mqz0bj",
+      "position": "B04",
+      "date": "2026-01-09",
+      "attachment": {
+        "file_token": "GobGb7ff2opTIOxszaDcQfKonDh",
+        "size": 626842,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 2,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv8bGw8L9cDQ",
+      "position": "B04",
+      "date": "2026-01-13",
+      "attachment": {
+        "file_token": "SfnhbY3ZWoSL04x6ClecJ95un2c",
+        "size": 878577,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 3,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYY8ehO",
+      "position": "B04",
+      "date": "2025-05-19",
+      "attachment": {
+        "file_token": "JIzzb59fQoLX1CxKkGzcWGlzn6b",
+        "size": 3876304,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 4,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuWgpEDUfj0D",
+      "position": "B04",
+      "date": "2025-08-29",
+      "attachment": {
+        "file_token": "XmKYbPJ6CoxpYEx9eHkcpFBJnhd",
+        "size": 3630402,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 5,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv7IH75EMrwd",
+      "position": "B04",
+      "date": "2026-01-08",
+      "attachment": {
+        "file_token": "Cf2Pb0pgEo7WXDx45KGcxU4knCh",
+        "size": 889192,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 6,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv61rwULcjb5",
+      "position": "B04",
+      "date": "2025-12-21",
+      "attachment": {
+        "file_token": "EaeGbaVHOoT0srxDMI6c3biAnTg",
+        "size": 4172981,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 7,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYY7THM",
+      "position": "B07",
+      "date": "2025-03-31",
+      "attachment": {
+        "file_token": "NoQ6boaLlo33yZxSYgOcp5b7nrf",
+        "size": 2944705,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 8,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuWxAVKoj581",
+      "position": "B07",
+      "date": "2025-09-10",
+      "attachment": {
+        "file_token": "XvLqbs4PkoGqZqxDRY5cBasVnSj",
+        "size": 3149739,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 9,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJQEdZ5Sv",
+      "position": "B07",
+      "date": "2025-06-07",
+      "attachment": {
+        "file_token": "NJ54bQIA8oxRX3xlwH6cJsPZnfb",
+        "size": 3106021,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 10,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYYxEdG",
+      "position": "B07",
+      "date": "2025-03-31",
+      "attachment": {
+        "file_token": "Jv3KbMKLBot1oAx9PnTcAZe9nZf",
+        "size": 3243402,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 11,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuSaEZdz3upk",
+      "position": "B07",
+      "date": "2025-07-28",
+      "attachment": {
+        "file_token": "AKH1bskqloLbcfx8mmocf1tAn3b",
+        "size": 4213585,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 12,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYYwEDU",
+      "position": "B07",
+      "date": "2025-03-26",
+      "attachment": {
+        "file_token": "VNR0bxkhPoVPJFxDFZmcORDOnze",
+        "size": 4018036,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 13,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv7CQsTRL9ku",
+      "position": "A02",
+      "date": "2026-01-07",
+      "attachment": {
+        "file_token": "J2D4bPtEyoLsD8xfCutclwLKnlb",
+        "size": 1146831,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 14,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYYbzK7",
+      "position": "A02",
+      "date": "2025-05-10",
+      "attachment": {
+        "file_token": "EmnCbXnTMo7poqxA8T7cSRdLnyh",
+        "size": 1469459,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 15,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recvaDIb7fjsf9",
+      "position": "A02",
+      "date": "2026-02-08",
+      "attachment": {
+        "file_token": "WmtDbeJvVoMJ4dx8q34ci5ePnsc",
+        "size": 432191,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 16,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv4Q6R0sUW90",
+      "position": "A02",
+      "date": "2025-12-09",
+      "attachment": {
+        "file_token": "PmkAbt3dmomta2xgDrLczPkln3e",
+        "size": 4373246,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 17,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recvadE3ijpgk0",
+      "position": "A02",
+      "date": "2026-02-04",
+      "attachment": {
+        "file_token": "NvaMbSXYtodfdExcgiKcXEkinQh",
+        "size": 1227218,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 18,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv0sdqVQW4N3",
+      "position": "A02",
+      "date": "2025-10-23",
+      "attachment": {
+        "file_token": "XNfrbL1XZokeulxI3I3czuCinjz",
+        "size": 816628,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    }
+  ],
+  "alternates": [
+    {
+      "rank": 19,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJQEdKCfe",
+      "position": "B04",
+      "date": "2025-07-02",
+      "attachment": {
+        "file_token": "QYccbNOrdoRHUixHOeccoHGQnic",
+        "size": 2980093,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 20,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv672XwmwD83",
+      "position": "B04",
+      "date": "2025-12-22",
+      "attachment": {
+        "file_token": "SShkbLtyJoNUaaxO0FAcOIGrnPe",
+        "size": 4927531,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 21,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuWgpEDUkhvY",
+      "position": "B04",
+      "date": "2025-08-28",
+      "attachment": {
+        "file_token": "Npnqb6V82o4j4xx2IKZc1I6Inkd",
+        "size": 2702927,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 22,
+      "machine": "Z050",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv0dQlF4qiGy",
+      "position": "B04",
+      "date": "2025-10-21",
+      "attachment": {
+        "file_token": "KrX9btklpom5uYxaabLcS5QTnle",
+        "size": 3126286,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 23,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYYArcs",
+      "position": "B07",
+      "date": "2025-04-01",
+      "attachment": {
+        "file_token": "Lclibca4MoTyscxiP1Tcp83wnQf",
+        "size": 3475537,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 24,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYY9RMF",
+      "position": "B07",
+      "date": "2025-03-28",
+      "attachment": {
+        "file_token": "EbAcbl0wooKxV1xVMTRc4PEwnRc",
+        "size": 4093072,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 25,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJQEdY9YH",
+      "position": "B07",
+      "date": "2025-06-08",
+      "attachment": {
+        "file_token": "VTmbbKJFUof1fYxeClqc7XyZnde",
+        "size": 3571806,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 26,
+      "machine": "Z053",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuQJJFYY1u7z",
+      "position": "B07",
+      "date": "2025-04-03",
+      "attachment": {
+        "file_token": "QPRmbvcUkoiV7OxsNnmc61vVnAg",
+        "size": 3740177,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 27,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv0mn2ZKUE8U",
+      "position": "A02",
+      "date": "2025-10-22",
+      "attachment": {
+        "file_token": "AQrQb2BunobVHdxxkQKcf3kOngf",
+        "size": 5369855,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 28,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recv36bmz0AN7W",
+      "position": "A02",
+      "date": "2025-11-20",
+      "attachment": {
+        "file_token": "VJVzbg5Uxo9yn3xgzYzc0pVZnIh",
+        "size": 5577700,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 29,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recvas17HS9dVO",
+      "position": "A02",
+      "date": "2026-02-06",
+      "attachment": {
+        "file_token": "FPatbFMYhoziH4xQKCrcJSfjnSh",
+        "size": 512549,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 30,
+      "machine": "Z007",
+      "brand": "伯乐",
+      "family": "B_AND_R",
+      "record_id": "recuWP6kiT7J3J",
+      "position": "A02",
+      "date": "2025-09-15",
+      "attachment": {
+        "file_token": "GRuyb1sPzoK5r4xCdrccIHDun2b",
+        "size": 7607377,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    }
+  ]
+}

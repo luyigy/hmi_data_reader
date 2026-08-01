@@ -1,0 +1,201 @@
+{
+  "image": "bole_Z001_20251127_rank03_recv3L738mIX67",
+  "status": "review",
+  "warnings": [
+    "DROP_PORT_MISSING",
+    "HOLDING_VALUE_NOT_FOUND",
+    "OIL_VALUE_NOT_FOUND"
+  ],
+  "controller_family": "KEBA",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 6,
+  "fields": {
+    "barrel_temperature_current_c": [
+      220.0,
+      230.0,
+      230.0,
+      220.0,
+      220.0,
+      210.0
+    ],
+    "barrel_temperature_set_c": [
+      220.0,
+      230.0,
+      230.0,
+      220.0,
+      220.0,
+      210.0
+    ],
+    "high_deviation_c": [
+      30.0,
+      50.0,
+      50.0,
+      50.0,
+      50.0,
+      50.0
+    ],
+    "low_deviation_c": [
+      40.0,
+      50.0,
+      50.0,
+      50.0,
+      50.0,
+      50.0
+    ],
+    "drop_port_temperature_current_c": null,
+    "holding_temperature_c": null,
+    "oil_temperature_current_c": null
+  },
+  "provenance": {
+    "family_source": "template_keywords",
+    "page_source": "template_anchors",
+    "template": "keba.temperature.json v0.1.0",
+    "ocr_file": "output/bole_calib/rectified/bole_Z001_20251127_rank03_recv3L738mIX67.ocr.json",
+    "screen_size": [
+      1728,
+      2000
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 3,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "columns_measured": [
+      0.3209,
+      0.3738,
+      0.4277,
+      0.4809,
+      0.533,
+      0.5865
+    ],
+    "row_bands": {
+      "current": [
+        0.1753,
+        0.2717
+      ],
+      "set": [
+        0.2761,
+        0.32
+      ],
+      "high": [
+        0.32,
+        0.364
+      ],
+      "low": [
+        0.364,
+        0.4082
+      ]
+    },
+    "deskew_slope": -0.0073,
+    "sub_variant": "Z001",
+    "cells": {
+      "current": {
+        "0": {
+          "text": "220",
+          "conf": 0.999
+        },
+        "1": {
+          "text": "230",
+          "conf": 0.998
+        },
+        "2": {
+          "text": "230",
+          "conf": 0.998
+        },
+        "3": {
+          "text": "220",
+          "conf": 0.998
+        },
+        "4": {
+          "text": "220",
+          "conf": 0.997
+        },
+        "5": {
+          "text": "210",
+          "conf": 0.853
+        }
+      },
+      "set": {
+        "0": {
+          "text": "220",
+          "conf": 0.999
+        },
+        "1": {
+          "text": "230",
+          "conf": 0.998
+        },
+        "2": {
+          "text": "230",
+          "conf": 0.998
+        },
+        "3": {
+          "text": "220",
+          "conf": 0.998
+        },
+        "4": {
+          "text": "220",
+          "conf": 0.997
+        },
+        "5": {
+          "text": "210",
+          "conf": 0.994
+        }
+      },
+      "high": {
+        "0": {
+          "text": "30",
+          "conf": 0.998
+        },
+        "1": {
+          "text": "50",
+          "conf": 0.999
+        },
+        "2": {
+          "text": "50",
+          "conf": 0.999
+        },
+        "3": {
+          "text": "50",
+          "conf": 0.999
+        },
+        "4": {
+          "text": "50",
+          "conf": 0.997
+        },
+        "5": {
+          "text": "50",
+          "conf": 0.976
+        }
+      },
+      "low": {
+        "0": {
+          "text": "40",
+          "conf": 0.997
+        },
+        "1": {
+          "text": "50",
+          "conf": 0.999
+        },
+        "2": {
+          "text": "50",
+          "conf": 0.999
+        },
+        "3": {
+          "text": "50",
+          "conf": 0.999
+        },
+        "4": {
+          "text": "50",
+          "conf": 0.998
+        },
+        "5": {
+          "text": "50",
+          "conf": 0.997
+        }
+      }
+    }
+  }
+}

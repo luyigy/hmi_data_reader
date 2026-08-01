@@ -1,0 +1,29 @@
+{
+  "filename": "tact_Z015_20251013_rank01_recuZxcO7y4JRE.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      307.44000244140625,
+      574.5599975585938
+    ],
+    [
+      3507.840087890625,
+      564.47998046875
+    ],
+    [
+      3412.080078125,
+      2857.679931640625
+    ],
+    [
+      413.2799987792969,
+      2857.679931640625
+    ]
+  ],
+  "screen_size": [
+    2000,
+    1477
+  ],
+  "output_path": "output/tact_exp_calib/rectified/tact_Z015_20251013_rank01_recuZxcO7y4JRE.png",
+  "warnings": []
+}

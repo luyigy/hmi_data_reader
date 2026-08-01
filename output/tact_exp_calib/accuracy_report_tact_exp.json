@@ -1,0 +1,817 @@
+{
+  "version": "1.1",
+  "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3；拒识口径 docs/023_PLAN_20260801_伯乐S3拒识口径与定向收口.md §3",
+  "tolerance": 0.5,
+  "n_images": 18,
+  "metrics": {
+    "controller_classification_accuracy": 1.0,
+    "page_classification_accuracy": 0.9444,
+    "field_completeness": 0.8497,
+    "numeric_accuracy": 0.8179,
+    "auto_import_ratio": 0.0,
+    "error_auto_import_rate": null,
+    "rejection_accuracy": null
+  },
+  "gates": {
+    "numeric_accuracy >= 0.95": false,
+    "error_auto_import_rate == 0": false,
+    "rejection_accuracy == 1": "N/A"
+  },
+  "poc_pass": false,
+  "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，伯乐批分母应为 1 由验收显式核对）",
+  "scoring": {
+    "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
+    "raw_totals": {
+      "n_images": 18,
+      "n_elements": 346,
+      "n_present": 294,
+      "n_matched": 283
+    },
+    "scored_totals": {
+      "n_images": 18,
+      "n_elements": 346,
+      "n_present": 294,
+      "n_matched": 283
+    },
+    "excluded_images": []
+  },
+  "missing_extraction": [],
+  "per_image": [
+    {
+      "image": "tact_Z015_20250717_rank05_recuRahX7268Nl.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 15,
+      "n_matched": 15,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 14,
+      "n_matched": 13,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z015_20251013_rank01_recuZxcO7y4JRE.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 15,
+      "n_matched": 15,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z015_20251227_rank06_recv6AhHJ41wpO.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 18,
+      "n_matched": 17,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 15,
+      "n_matched": 13,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 16,
+      "n_matched": 13,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z019_20250416_rank07_recuQJJFYYVIFJ.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 18,
+      "n_matched": 18,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z019_20250905_rank09_recuWgpEDUw0Qh.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 16,
+      "n_present": 16,
+      "n_matched": 16,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z019_20250917_rank11_recuX0Nn58NLnF.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 18,
+      "n_matched": 18,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z019_20250922_rank08_recuXxroqbG4Qn.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 18,
+      "n_matched": 18,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z019_20251104_rank12_recv1AnK36j6iJ.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 18,
+      "n_matched": 18,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z019_20260228_rank23_recvcvra9kKJWS.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 18,
+      "n_matched": 18,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z025_20250717_rank18_recuRdHpMSQ0wM.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 22,
+      "n_matched": 22,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z025_20250831_rank13_recuWgpEDUBGOd.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 22,
+      "n_matched": 22,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 16,
+      "n_matched": 16,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 19,
+      "n_matched": 16,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "status": "reject",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "monitor_curve",
+      "page_match": false,
+      "n_elements": 22,
+      "n_present": 0,
+      "n_matched": 0,
+      "correct_reject": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "TACT",
+      "family_extracted": "TACT",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 16,
+      "n_matched": 15,
+      "correct_reject": false
+    }
+  ],
+  "mismatched_elements": [
+    {
+      "image": "tact_Z015_20250717_rank05_recuRahX7268Nl.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 290.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20250717_rank05_recuRahX7268Nl.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20250717_rank05_recuRahX7268Nl.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 55.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 285.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 290.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 270.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 55.0,
+      "extracted": 53.0,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20251013_rank01_recuZxcO7y4JRE.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 275.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20251013_rank01_recuZxcO7y4JRE.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 270.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20251013_rank01_recuZxcO7y4JRE.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 55.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20251227_rank06_recv6AhHJ41wpO.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 55.0,
+      "extracted": 45.6,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 271.0,
+      "extracted": 272.3,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+      "field": "barrel_temperature_current_c[2]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 260.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 55.0,
+      "extracted": 44.7,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+      "field": "drop_port_temperature_current_c",
+      "truth": 44.7,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 271.0,
+      "extracted": 271.8,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 260.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+      "field": "control_percent[2]",
+      "truth": 2.6,
+      "extracted": 26.0,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+      "field": "control_percent[3]",
+      "truth": 41.5,
+      "extracted": 415.0,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 55.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 320.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 290.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 285.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 270.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 30.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 350.0,
+      "extracted": 351.6,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 320.0,
+      "extracted": 319.3,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 315.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 310.0,
+      "extracted": 310.7,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 30.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 365.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 330.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 295.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 285.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 280.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_current_c[0]",
+      "truth": 366.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_current_c[1]",
+      "truth": 329.4,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_current_c[2]",
+      "truth": 295.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 285.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "barrel_temperature_current_c[4]",
+      "truth": 280.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "control_percent[0]",
+      "truth": 26.3,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "control_percent[1]",
+      "truth": 60.3,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "control_percent[2]",
+      "truth": 7.4,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "control_percent[3]",
+      "truth": 17.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "control_percent[4]",
+      "truth": 68.4,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "holding_temperature_c[0]",
+      "truth": 200.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "holding_temperature_c[1]",
+      "truth": 200.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "holding_temperature_c[2]",
+      "truth": 200.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "holding_temperature_c[3]",
+      "truth": 200.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "holding_temperature_c[4]",
+      "truth": 200.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 30.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+      "field": "drop_port_temperature_current_c",
+      "truth": 28.5,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "field": "barrel_temperature_set_c[0]",
+      "truth": 350.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 320.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 315.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 310.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "field": "holding_temperature_c[4]",
+      "truth": 200.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "field": "drop_port_temperature_set_c",
+      "truth": 30.0,
+      "extracted": 36.1,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg",
+      "field": "drop_port_temperature_current_c",
+      "truth": 36.1,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    }
+  ]
+}

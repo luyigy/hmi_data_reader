@@ -1,0 +1,36 @@
+{
+  "image": "inj_Z002_20260312_rank02_recvdBTJTZktd6",
+  "status": "review",
+  "warnings": [
+    "STAGE_REJECT(unverified_grid)"
+  ],
+  "controller_family": "DEMAG",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "pressure_limit_bar": 75.0,
+    "first_velocity_mms": 10.0,
+    "first_position_mm": 14.0,
+    "stage_pressure_bar": [],
+    "stage_velocity_mms": []
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "demag.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z002_calib/rectified/inj_Z002_20260312_rank02_recvdBTJTZktd6.ocr.json",
+    "screen_size": [
+      1917,
+      1077
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 1,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "page_variant": "multi_stage_injection"
+  }
+}

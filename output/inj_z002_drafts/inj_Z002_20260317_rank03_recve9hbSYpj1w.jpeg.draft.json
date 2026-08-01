@@ -1,0 +1,40 @@
+{
+  "image": "inj_Z002_20260317_rank03_recve9hbSYpj1w.jpeg",
+  "controller_family": "DEMAG",
+  "hmi_variant": "v1",
+  "page_type": "injection_metering",
+  "page_variant": "multi_stage_injection",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "pressure_limit_bar": 40.0,
+    "first_velocity_mms": 3.0,
+    "first_position_mm": 13.5,
+    "stage_velocity_mms": [
+      10.0,
+      35.0,
+      100.0
+    ],
+    "stage_pressure_bar": [
+      100.0
+    ]
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null,
+    "verified_at": null,
+    "changed_fields": null,
+    "spot_check_by": "pending"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblWz3Dy6vy7dOzy",
+    "record_id": "recvr3uBbh469g",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recve9hbSYpj1w",
+    "file_token": "L2TPbqe0BovTQUxFleqcnjL9n9s"
+  },
+  "notes": "机台 Z002（DEMAG NC）、日期 2026-03-17、rank03。多级注射页（曲线+段表）：左列=首段压力限制/速度/位置，右列=后续段速度/压力（深色框为当前段）。注射时间/注射压力/位置/余料量为左侧实时值不入真值。"
+}

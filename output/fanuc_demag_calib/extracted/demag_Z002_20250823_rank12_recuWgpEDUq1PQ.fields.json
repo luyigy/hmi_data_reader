@@ -1,0 +1,125 @@
+{
+  "image": "demag_Z002_20250823_rank12_recuWgpEDUq1PQ",
+  "status": "review",
+  "warnings": [
+    "CELL_MISSING(区1)",
+    "CELL_MISSING(区1)",
+    "OIL_CURRENT_NOT_FOUND",
+    "OIL_SET_NOT_FOUND",
+    "VALUE_OUT_OF_RANGE(high,区1,2020.0)",
+    "VALUE_OUT_OF_RANGE(low,区1,2020.0)"
+  ],
+  "controller_family": "DEMAG",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": [
+      225.0,
+      210.0,
+      205.0,
+      195.0
+    ],
+    "barrel_temperature_set_c": [
+      225.0,
+      210.0,
+      205.0,
+      195.0
+    ],
+    "high_deviation_c": [
+      36.0,
+      20.0,
+      20.0,
+      null
+    ],
+    "low_deviation_c": [
+      30.0,
+      20.0,
+      20.0,
+      null
+    ],
+    "control_percent": [
+      9.0,
+      5.0,
+      6.0,
+      24.0
+    ],
+    "drop_port_temperature_current_c": 60.0,
+    "drop_port_temperature_set_c": 60.0,
+    "drop_port_control_percent": -5.0,
+    "oil_temperature_current_c": null,
+    "oil_temperature_set_c": null,
+    "holding_temperature_c": 150.0
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "demag.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/demag_Z002_20250823_rank12_recuWgpEDUq1PQ.ocr.json",
+    "screen_size": [
+      2000,
+      1516
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 3,
+      "replaced": 0
+    },
+    "ocr_rates_merge": {
+      "rate_cells": 6
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.4205,
+      "set": 0.4634,
+      "high": 0.5049,
+      "low": 0.5482
+    },
+    "deskew_slope": 0.011,
+    "col_x_screen_order": [
+      0.2547,
+      0.587,
+      0.6693,
+      0.752,
+      0.886
+    ],
+    "screen_rows": {
+      "current": [
+        225.0,
+        210.0,
+        205.0,
+        195.0,
+        60.0
+      ],
+      "set": [
+        225.0,
+        210.0,
+        205.0,
+        195.0,
+        60.0
+      ],
+      "high": [
+        36.0,
+        20.0,
+        20.0,
+        2020.0,
+        30.0
+      ],
+      "low": [
+        30.0,
+        20.0,
+        20.0,
+        2020.0,
+        30.0
+      ],
+      "rate_top": [
+        9.0,
+        5.0,
+        6.0,
+        24.0,
+        -5.0
+      ]
+    }
+  }
+}

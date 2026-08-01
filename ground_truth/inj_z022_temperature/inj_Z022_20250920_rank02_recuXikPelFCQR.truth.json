@@ -1,0 +1,52 @@
+{
+  "image": "inj_Z022_20250920_rank02_recuXikPelFCQR.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "injection_metering",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "fill_velocity_mms": [
+      60.0,
+      80.0,
+      30.0
+    ],
+    "fill_stages": 3,
+    "switch_position_sv1_mm": 26.0,
+    "switch_position_sv2_mm": 14.0,
+    "metering_position_sm_mm": 28.0,
+    "metering_rpm": 120,
+    "back_pressure_mpa": 2.0,
+    "holding_pressure_mpa": [
+      55.0,
+      25.0
+    ],
+    "holding_stages": 2,
+    "holding_time_s": 1.0,
+    "holding_limit_speed_mms": 12.0,
+    "vp_switch_position_mm": 10.7,
+    "pressure_limit_mpa": 190.0,
+    "injection_time_s": null,
+    "cooling_time_s": 8.6,
+    "decompress_velocity_mms": 20.0,
+    "sd_position_mm": 8.0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "自动整批接受（027 自动模式预授权，visual_skim_acceptance 降级；用户保留事后否决权）",
+    "verified_at": "2026-08-01",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblbQObt5p9yHxuy",
+    "record_id": "recvr2i5y8Q9tq",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuXikPelFCQR",
+    "file_token": "LA58bXVrLoF6SdxEeGZcnhHlngb"
+  },
+  "notes": "机台 Z022（TACT）、日期 2025-09-20、rank02、模具 TX21012。TACT 射出·计量页（蓝 UI）：充填速度 V1-V3（V4-6 未启用）、切换位置 Sv1/Sv2/SM、计量 VS1/BP1、保压 Pp1/Pp2（2 段）、V-P转换位置、Pv1 限制压力、射出/冷却时间、减压速度/SD。螺杆位置/树脂压力/旋转速度为实时值不入真值。射出时间截图左侧出画置 null。 | 2026-08-01 自动整批接受转真值（降级口径；用户保留事后否决权）。"
+}

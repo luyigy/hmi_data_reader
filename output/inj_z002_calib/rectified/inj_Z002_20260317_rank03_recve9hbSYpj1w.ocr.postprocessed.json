@@ -1,0 +1,96 @@
+{
+  "filename": "inj_Z002_20260317_rank03_recve9hbSYpj1w.png",
+  "path": "output/inj_z002_calib/rectified/inj_Z002_20260317_rank03_recve9hbSYpj1w.png",
+  "line_count": 17,
+  "merged_rows": [
+    {
+      "text": "45.00",
+      "bbox": {
+        "x_min": 1819.0,
+        "x_max": 1916.0,
+        "y_min": 455.0,
+        "y_max": 501.0,
+        "avg_y": 455.0
+      },
+      "conf": 0.9910327196121216,
+      "min_conf": 0.9910327196121216,
+      "n_segments": 1
+    },
+    {
+      "text": "bari 40.0 100.0",
+      "bbox": {
+        "x_min": 0.0,
+        "x_max": 1842.0,
+        "y_min": 544.0,
+        "y_max": 612.0,
+        "avg_y": 554.0
+      },
+      "conf": 0.9301767349243164,
+      "min_conf": 0.7970086932182312,
+      "n_segments": 3
+    },
+    {
+      "text": "mm/s] 3.0 10.0 35.0 100.0",
+      "bbox": {
+        "x_min": 2.0,
+        "x_max": 1833.0,
+        "y_min": 628.0,
+        "y_max": 691.0,
+        "avg_y": 632.2
+      },
+      "conf": 0.9631132125854492,
+      "min_conf": 0.8426966667175293,
+      "n_segments": 5
+    },
+    {
+      "text": "[mm] 13.50 14.50 19.00 40.00",
+      "bbox": {
+        "x_min": 2.0,
+        "x_max": 1829.0,
+        "y_min": 717.0,
+        "y_max": 772.0,
+        "avg_y": 721.4
+      },
+      "conf": 0.9935989379882812,
+      "min_conf": 0.9826903939247131,
+      "n_segments": 5
+    },
+    {
+      "text": "移动曲线",
+      "bbox": {
+        "x_min": 823.0,
+        "x_max": 1010.0,
+        "y_min": 936.0,
+        "y_max": 984.0,
+        "avg_y": 936.0
+      },
+      "conf": 0.995993971824646,
+      "min_conf": 0.995993971824646,
+      "n_segments": 1
+    },
+    {
+      "text": "0.0mm -0.58mm",
+      "bbox": {
+        "x_min": 1466.0,
+        "x_max": 1809.0,
+        "y_min": 1043.0,
+        "y_max": 1076.0,
+        "avg_y": 1044.0
+      },
+      "conf": 0.8831806480884552,
+      "min_conf": 0.8353160619735718,
+      "n_segments": 2
+    }
+  ],
+  "fix_log": [
+    "  [merge-lines] 17 lines -> 6 merged rows",
+    "  [number-stats] 13 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 17,
+    "n_merged_rows": 6,
+    "n_numbers": 13,
+    "n_numbers_fixed": 0
+  }
+}

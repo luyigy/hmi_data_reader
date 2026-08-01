@@ -1,0 +1,43 @@
+{
+  "plan": "docs/013_PLAN_20260730_主力家族温度页模板.md",
+  "slice": "S4",
+  "updated_at": "2026-08-01T09:40:00+08:00",
+  "completed_steps": [
+    "013 S3 伯乐收口（025 HANDOVER：numeric 0.9922 / error 0.0 / rejection 1.0 三门禁 PASS）",
+    "用户 2026-08-01 指示：跳过验收，直接启动 S4",
+    "FANUC/DEMAG 只读盘点 output/fanuc_demag_pool_inventory.json（发那科655+德马格506；池580条/3台：发那科Z032 FANUC×81、德马格Z002 DEMAG×359、德马格Z005 DEMAG×140）",
+    "候选清单 output/fanuc_demag_candidates.json（18目标+12候补，seed 20260801）PENDING_USER_APPROVAL",
+    "S3 卡点实证复盘 + 细分执行计划 docs/026_PLAN_20260801_FANUC与DEMAG温度页模板细分执行.md（9 切片，VLM 拆3批后台跑，await_plan_approval）",
+    "全局路线图+自动接力协议 docs/027_ROADMAP（用户 2026-08-01 开启自动模式，026 全切片预授权含30条下载，真值确认降级为自动整批接受+事后否决）",
+    "026 PLAN frontmatter 置 in_progress；候选清单置 APPROVED（自动模式预授权）",
+    "026 S1 启动：scripts/s4_download_fanuc_demag.py 后台下载30条+SHA-256去重（task bash-6x4hvr7o）",
+    "026 S1 完成：下载30条零失败零重复，18目标全 original_target（Z032×6/Z002×6/Z005×6），12候补未动，manifest 落盘",
+    "026 S2 批1完成：Z032×6 VLM 预标注草稿 output/fanuc_demag_drafts/（FANUC 页结构：料筒 N/B1/B2/B3 四段 + H 下料口 + 低温保持120，M1-M4 模具加热未启用不计入；rank02 B1输出18.2 经局部放大确认；rank05 偏差上下限为30 与他图40/30不同，已如实记录）",
+    "026 S2 批2完成：Z002×6 DEMAG 草稿（页结构：喷嘴1/区1/区2/区3+料口，行 实际/设定/上下偏差，列顶蓝框=当前速率%，油块=油温，保温=holding；rank07 运动模糊：喷嘴1全列/区3实际设定/油温 经原生放大仍不可读→null，quality=poor；rank09 偏差10/10、rank10 喷嘴40/30与区3上偏差40 等差异已如实记录）",
+    "026 S2 批3完成：Z005×6 DEMAG 草稿（本机偏差 喷嘴20/20 区50/20 料口10/10，油温设定30，保温200；区1 实际276/设定275 为屏显原值）→ 草稿 18/18 齐",
+    "026 S3 启动：scripts/s5_build_fanuc_demag_verify_table.py 后台建表预填18行+原图（task bash-hd4uai4d）",
+    "预处理启动：18图复制到 output/fanuc_demag_calib_imgs/，run_pipeline（去重→门禁→矫正→两路OCR→分类）后台运行 output/fanuc_demag_calib/（task bash-pfbz7ofr，为 S5/S6 模板校准供 OCR 锚点）",
+    "026 S3 完成：飞书核验表 tbl83A65O5OAPhyU 18行+原图，mapping 落盘",
+    "026 S4 完成：真值×18 落盘 ground_truth/fanuc_demag_temperature/（自动整批接受 changed_fields=0 降级标注），核验表确认列回填",
+    "预处理完成：output/fanuc_demag_calib/（18图两路OCR+rectify）；发现分类缺口：FANUC 6图页面全误判 injection_metering、DEMAG rank13/18 误判 settings → 提取器扩展时需补 FANUC/DEMAG 温度页路由关键词",
+    "026 S5 完成：templates/fanuc.temperature.json v0.1.0（行标签锚点 6/6 实测，列位取输出行独立 token 4/6 实测均值为兜底；现在行粘连切分、rightmost5 列规则、M1-M4 不提取写入模板）；关键词全库碰撞检查 vs ZizES/TACT/KEBA/B_AND_R 零碰撞",
+    "已知风险记录：FANUC 输出行 H 值 OCR 可能误读（rank01 真值31.0 OCR 31.8X），S8 验收时如实报告",
+    "026 S6 完成：templates/demag.temperature.json v0.1.0（行标签 12/12 实测，列位 9/12 图 5 列齐全均值为兜底；屏幕序→物理序映射 [0,3,2,1]、表内速率行恒 0 不取/列顶蓝框为 control、油块、保温 写入模板）；两路 OCR x 去重保高置信修掉喷嘴列丢失问题；关键词全库碰撞检查 vs 5 库（含 FANUC）零碰撞；6 模板全部可加载",
+    "026 S7a 完成：extract_fields.py 1158→719 行（回警告线下），KEBA/B_AND_R 拆至 scripts/extract_families/{keba,b_and_r,common}.py 行为不变；零 diff 回归：伯乐20/TACT6/ZizES21 提取重跑与既有产物全等",
+    "026 S7b 阶段进展：extract_families/{fanuc,demag}.py v1 接线；machine_labels 补 Z002/Z005=DEMAG、Z032=FANUC 路由先验（controller/page 分类达 1.0/1.0，修复 FANUC 6图误判 injection_metering、DEMAG 2图误判 settings）；DEMAG 速率条放大 OCR 旁车 s9（基础/CLAHE 漏检的蓝框速率部分召回）；FANUC 粘连行严格形态切分",
+    "开发基准（非验收）：numeric 0.6667 / error 0.1154 / completeness 0.7383，不匹配 149 个集中：FANUC rank02/05/06 表区行漏检+行串、DEMAG Z002 列缺/速率/油块、rank10 ok 图内有错值（待查）；产物 output/fanuc_demag_calib/{extracted_dev,accuracy_report_dev.json}",
+    "026 S7 完成：extract_families/{fanuc,demag}.py + 页路由修复 + zoom/HSV rate cells 旁车；既有三家族零 diff 复验通过",
+    "026 S8 一次验收：numeric 0.8747 FAIL / error 0.0 PASS / rejection N/A；FANUC 0.9097、DEMAG 0.8581；残差56=A类rank07模糊17+B类OCR物理层~15+C类结构缺漏~24",
+    "026 S9：028 HANDOVER 落盘，三条路径交审批（rank07口径/OCR层手段/接受FAIL挂起）；013 S4 不收口，026 停 await_acceptance——硬门禁 FAIL 即停报，自动接力暂停等待用户",
+    "用户核验裁定（2026-08-01）：DEMAG 段序为屏幕序 喷嘴1/区3/区2/区1（区号从料口侧往喷嘴数）——真值×12 全部重排、demag.py PHYSICAL 改恒等、模板文案同步、飞书 11 行确认列回填（rank12 用户亲手改）；重跑验收指标不变（numeric 0.8747/error 0，此前真值与提取器同错序未暴露）",
+    "路径①执行：rank07 allow_auto_import=false（拒识样本），rejection 1/1 PASS，numeric 0.9093",
+    "用户裁定路径③：接受 FAIL 挂起 FANUC/DEMAG 线（026 doc_status: paused），最终 numeric 0.9093/error 0/rejection 1.0/分类双1.0"
+  ],
+  "next_step": "013 S4 挂起收尾；转 Backlog-B：29 台 UNKNOWN 机台家族裁定（029 PLAN）",
+  "pending_user_decision": [
+    "028 路径①：rank07 真值 allow_auto_import 是否改判 false（rejection 门生效，numeric~0.909）",
+    "028 路径②：是否批准 OCR 层手段攻 B 类残差（016/020 均留待用户决策）",
+    "028 路径③：是否接受 FAIL 挂起 013 S4",
+    "此前挂起：29 台 UNKNOWN 机台裁定（17伯乐+9日精+3发那科）"
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "伯乐/Z007": [
+    "B_AND_R",
+    "BOLE+B&R 蓝UI：NZ/#1-#5 列、实际/设定/高低温偏差/加热输出、保温温度"
+  ],
+  "伯乐/Z010": [
+    "B_AND_R",
+    "同 B&R 蓝UI NZ/#1-#5"
+  ],
+  "伯乐/Z023": [
+    "TACT",
+    "面板 TACT 标 + TACT UI（喷嘴/筒头/前部/中部/后部/落下口）——伯乐机身 TACT 控制器"
+  ],
+  "伯乐/Z029": [
+    "FANUC",
+    "ROBOSHOT UI（Series 31i、喷嘴/料筒、低温保持、上限/设定/下限）——伯乐机身 FANUC 控制器"
+  ],
+  "伯乐/Z031": [
+    "KEBA",
+    "温度段/温度设置/上偏差/下偏差+保温温度（Z047 子变体）"
+  ],
+  "伯乐/Z034": [
+    "KEBA",
+    "同 Z031 KEBA Z047 子变体"
+  ],
+  "伯乐/Z038": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#4 四段变体"
+  ],
+  "伯乐/Z048": [
+    "OTHER",
+    "青绿底「温度设定」蓝块 UI，非已建档五家族"
+  ],
+  "伯乐/Z049": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#4"
+  ],
+  "伯乐/Z050": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#4"
+  ],
+  "伯乐/Z053": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#4"
+  ],
+  "伯乐/Z055": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#4（RENYE 仁泽科技贴牌）"
+  ],
+  "伯乐/Z056": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#5"
+  ],
+  "伯乐/Z057": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#4"
+  ],
+  "伯乐/Z058": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#5"
+  ],
+  "伯乐/Z059": [
+    "B_AND_R",
+    "B&R 蓝UI，操作员栏显示「贝加莱」直接佐证"
+  ],
+  "伯乐/Z061": [
+    "B_AND_R",
+    "B&R 蓝UI NZ/#1-#4"
+  ],
+  "日精/Z003": [
+    "DEMAG",
+    "Sumitomo SHI DEMAG 面板+NC UI（机号15070717）——日精名册实为 DEMAG 机"
+  ],
+  "日精/Z008": [
+    "DEMAG",
+    "Sumitomo SHI DEMAG NC UI（机号15070715）"
+  ],
+  "日精/Z009": [
+    "TACT",
+    "TACT UI（喷嘴/前部/中部/后部1/后部2/落下口）"
+  ],
+  "日精/Z011": [
+    "TACT",
+    "TACT5 面板+新版 TACT UI"
+  ],
+  "日精/Z012": [
+    "TACT",
+    "TACT 面板+TACT UI"
+  ],
+  "日精/Z014": [
+    "TACT",
+    "TACT IV 面板+TACT UI"
+  ],
+  "日精/Z015": [
+    "TACT",
+    "TACT 面板+TACT UI"
+  ],
+  "日精/Z016": [
+    "TACT",
+    "TACT UI（喷嘴/筒头/前部/中部/后部/落下口）"
+  ],
+  "日精/Z019": [
+    "TACT",
+    "TACT 面板+TACT UI"
+  ],
+  "日精/Z025": [
+    "TACT",
+    "TACT 面板+TACT UI"
+  ],
+  "日精/Z077": [
+    "TACT",
+    "TACT 面板+TACT UI"
+  ],
+  "日精/Z078": [
+    "TACT",
+    "TACT5 面板+新版 TACT UI"
+  ],
+  "发那科/Z027": [
+    "FANUC",
+    "ROBOSHOT α-S30iA UI（Series 31i、喷嘴/料筒、低温保持）"
+  ],
+  "发那科/Z035": [
+    "FANUC",
+    "ROBOSHOT α-S30iA UI"
+  ],
+  "发那科/Z036": [
+    "FANUC",
+    "ROBOSHOT α-S30iA UI"
+  ]
+}

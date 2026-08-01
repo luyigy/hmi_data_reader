@@ -1,0 +1,28 @@
+{
+  "total_files": 18,
+  "duplicate_groups_within_record": 0,
+  "duplicate_groups_across_records": 0,
+  "duplicate_within_record": [],
+  "duplicate_across_records": [],
+  "unique": [
+    "tact_Z015_20250717_rank05_recuRahX7268Nl.jpeg",
+    "tact_Z015_20250814_rank02_recuTTCd49jAZm.jpeg",
+    "tact_Z015_20251013_rank01_recuZxcO7y4JRE.jpeg",
+    "tact_Z015_20251227_rank06_recv6AhHJ41wpO.jpeg",
+    "tact_Z015_20260107_rank04_recv7ATP6jMZTh.jpeg",
+    "tact_Z015_20260112_rank03_recv86ziPvzroj.jpeg",
+    "tact_Z019_20250416_rank07_recuQJJFYYVIFJ.jpeg",
+    "tact_Z019_20250905_rank09_recuWgpEDUw0Qh.jpeg",
+    "tact_Z019_20250917_rank11_recuX0Nn58NLnF.jpeg",
+    "tact_Z019_20250922_rank08_recuXxroqbG4Qn.jpeg",
+    "tact_Z019_20251104_rank12_recv1AnK36j6iJ.jpeg",
+    "tact_Z019_20260228_rank23_recvcvra9kKJWS.jpeg",
+    "tact_Z025_20250717_rank18_recuRdHpMSQ0wM.jpeg",
+    "tact_Z025_20250831_rank13_recuWgpEDUBGOd.jpeg",
+    "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+    "tact_Z025_20251202_rank15_recv4bbcWySXZX.jpeg",
+    "tact_Z025_20260110_rank14_recv7U93Zz8uog.jpeg",
+    "tact_Z025_20260225_rank17_recvcihCdjTZeR.jpeg"
+  ],
+  "skipped_non_representative": {}
+}

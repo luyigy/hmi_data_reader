@@ -1,0 +1,24 @@
+{
+  "plan": "docs/013_PLAN_20260730_主力家族温度页模板.md",
+  "slice": "S3",
+  "updated_at": "2026-08-01T01:30:00+08:00",
+  "completed_steps": [
+    "伯乐只读盘点 output/bole_pool_inventory.json（1581条；池196条/4台：Z001 KEBA×145、Z047 KEBA×25、Z046 B_AND_R×25、Z004 KEBA?×1）",
+    "候选清单 output/bole_expansion_candidates.json（19目标+12候补，seed 20260731）",
+    "批准文档 https://ecn6lj2fknte.feishu.cn/docx/TMiZdhHzGo5XnHxpTFnc74w9ngc → 用户 Live Room 批准（2026-07-31，Z004保留）",
+    "下载31条+SHA-256去重 output/bole_sample_manifest.json（零重复零失败，图片docs/samples_bole/）",
+    "抽验：rank07 Z004 家族不一致（预筛KEBA/实拍B_AND_R风格UI EKS_280），按候补固定顺序替换为 rank20（Z001 2026-03-04），Z004归属待用户裁定",
+    "用户裁定 Z004=B_AND_R，已补回目标集（20张=KEBA13+B_AND_R7），machine_labels.json 记录裁定",
+    "VLM 预标注草稿 output/bole_drafts/×20（KEBA13+B_AND_R7；rank16 真实报警态 z1 置空；模糊字段一律 null 不猜数）",
+    "飞书核验表「伯乐温度页字段核验」已建并预填20行+原图（tblGkZGMCcqYjULx，output/bole_verify_table_records.json）",
+    "用户整批确认20行（2026-07-31，未逐字段粘贴，降级口径）；术语裁定「法兰→下料口」，核验表列已改名",
+    "真值落盘 ground_truth/bole_temperature/×20（rank16 报警态 allow_auto_import=false，其余 true；字段 drop_port_temperature_current_c）",
+    "023 S1 拒识计分口径 verify v1.1（正确拒识排除计分+rejection_accuracy 硬门禁，17 项合成检查 PASS）+ B_AND_R rank12 列关联根因修复（align_column 行值域硬约束）",
+    "KEBA rank20/rank03 三项确证为 OCR 层失败，024 HANDOVER 交审批；用户 2026-08-01 裁定接受残留（选一）",
+    "023 S2 冻结口径 20 图一次验收：numeric 0.9922(506/510) / error 0.0(0/147) / rejection 1.0(1/1) 三门禁 PASS，poc_pass=true；分家族 KEBA 0.9898、B_AND_R 0.9954 → 025 HANDOVER，013 S3 收口"
+  ],
+  "next_step": "013 S3 已收口（025 HANDOVER，await_acceptance）；待用户验收后决定 013 S4 及 17 台 UNKNOWN 伯乐机台裁定",
+  "pending_user_decision": [
+    "17台 UNKNOWN 伯乐机台家族裁定（同 S2 的9台日精一起挂起）"
+  ]
+}

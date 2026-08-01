@@ -1,0 +1,151 @@
+{
+  "summary": {
+    "green": 4,
+    "yellow": 2,
+    "red": 0
+  },
+  "reports": [
+    {
+      "filename": "inj_Z022_20250713_rank04_recuQN93uLlFp9.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          28,
+          495,
+          3389,
+          2250
+        ],
+        "screen_area_ratio": 0.47550728259958575,
+        "perspective_ratio": 1.0000000906194053,
+        "blur_score": 175.16570631931629,
+        "glare_ratio": 0.05572849941930772,
+        "dark_ratio": 0.11001524566675847,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z022_20250719_rank06_recuRme5FMfrI9.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3000,
+        "height": 4000,
+        "screen_bbox": [
+          0,
+          859,
+          3000,
+          2195
+        ],
+        "screen_area_ratio": 0.54875,
+        "perspective_ratio": 1.0,
+        "blur_score": 419.93569466237693,
+        "glare_ratio": 0.023778333333333332,
+        "dark_ratio": 0.0923575,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z022_20250920_rank02_recuXikPelFCQR.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 4032,
+        "height": 3024,
+        "screen_bbox": [
+          0,
+          0,
+          4032,
+          3024
+        ],
+        "screen_area_ratio": 1.0,
+        "perspective_ratio": 1.0,
+        "blur_score": 501.6733446697163,
+        "glare_ratio": 0.016411613835348955,
+        "dark_ratio": 0.00789107116612077,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z022_20251209_rank03_recv4T2fW9vdWR.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 3000,
+        "height": 4000,
+        "screen_bbox": [
+          33,
+          1235,
+          2967,
+          1981
+        ],
+        "screen_area_ratio": 0.48980225,
+        "perspective_ratio": 1.0,
+        "blur_score": 970.773593572326,
+        "glare_ratio": 0.005917583333333334,
+        "dark_ratio": 0.17067583333333333,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z022_20251230_rank05_recv6OTTFiaGbR.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          605,
+          1080,
+          860
+        ],
+        "screen_area_ratio": 0.4479166666666667,
+        "perspective_ratio": 1.0,
+        "blur_score": 305.4281685065939,
+        "glare_ratio": 0.003666570216049383,
+        "dark_ratio": 0.17441068672839505,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z022_20260108_rank01_recv7Is13Mrx8h.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          617,
+          1062,
+          1016
+        ],
+        "screen_area_ratio": 0.5203472222222222,
+        "perspective_ratio": 1.0,
+        "blur_score": 315.37136862108565,
+        "glare_ratio": 0.003482349537037037,
+        "dark_ratio": 0.15947579089506173,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "image": "tact_Z019_20250917_rank11_recuX0Nn58NLnF.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_set_c": [
+      315.0,
+      285.0,
+      275.0,
+      270.0
+    ],
+    "barrel_temperature_current_c": [
+      315.1,
+      285.1,
+      275.3,
+      270.0
+    ],
+    "control_percent": [
+      42.5,
+      18.8,
+      0.0,
+      51.5
+    ],
+    "holding_temperature_c": [
+      180.0,
+      180.0,
+      180.0,
+      180.0
+    ],
+    "drop_port_temperature_set_c": 50.0,
+    "drop_port_temperature_current_c": 53.1,
+    "drop_port_control_percent": null
+  },
+  "zone_labels": [
+    "喷嘴",
+    "前部",
+    "中部",
+    "后部"
+  ],
+  "heater_columns": 4,
+  "alarm_status": "normal",
+  "alarm_evidence": "顶栏加脂/脱压类提示为机台维护报警，与温度读数无关。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null,
+    "verified_at": null,
+    "changed_fields": null,
+    "spot_check_by": "pending"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblzpMJBLUNuB6ZX",
+    "record_id": "recvr18Cs1SxSQ",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuX0Nn58NLnF",
+    "file_token": "Pv9NbumnUokNP7x6lH5cP1RlnDg"
+  },
+  "notes": "机台 Z019（TACT，029 裁定）、日期 2025-09-17、rank11。四段变体（喷嘴/前部/中部/后部），落下口无控制输出列→null。"
+}

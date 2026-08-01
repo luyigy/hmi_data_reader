@@ -1,0 +1,131 @@
+{
+  "image": "demag_Z005_20260127_rank18_recv9vN6iVaYra",
+  "status": "review",
+  "warnings": [
+    "CELL_MISSING(喷嘴1)",
+    "CELL_MISSING(区3)",
+    "CELL_MISSING(区2)",
+    "CELL_MISSING(区1)",
+    "CELL_MISSING(料口)",
+    "CELL_MISSING(喷嘴1)",
+    "CELL_MISSING(区3)",
+    "CELL_MISSING(区2)",
+    "CELL_MISSING(区1)",
+    "CELL_MISSING(料口)",
+    "RATE_MISSING(区3)",
+    "OIL_SET_NOT_FOUND"
+  ],
+  "controller_family": "DEMAG",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": [
+      290.0,
+      285.0,
+      280.0,
+      276.0
+    ],
+    "barrel_temperature_set_c": [
+      290.0,
+      285.0,
+      280.0,
+      275.0
+    ],
+    "high_deviation_c": [
+      20.0,
+      50.0,
+      50.0,
+      50.0
+    ],
+    "low_deviation_c": [
+      20.0,
+      20.0,
+      20.0,
+      20.0
+    ],
+    "control_percent": [
+      40.0,
+      null,
+      7.0,
+      41.0
+    ],
+    "drop_port_temperature_current_c": 50.0,
+    "drop_port_temperature_set_c": 50.0,
+    "drop_port_control_percent": -15.0,
+    "oil_temperature_current_c": 30.0,
+    "oil_temperature_set_c": null,
+    "holding_temperature_c": 200.0
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "demag.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/demag_Z005_20260127_rank18_recv9vN6iVaYra.ocr.json",
+    "screen_size": [
+      1640,
+      1079
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 2,
+      "replaced": 0
+    },
+    "ocr_rates_merge": {
+      "rate_cells": 13
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.4069,
+      "set": 0.4495,
+      "high": 0.4912,
+      "low": 0.5334
+    },
+    "deskew_slope": -0.0179,
+    "col_x_screen_order": [
+      0.3134,
+      0.6067,
+      0.678,
+      0.75,
+      0.8704
+    ],
+    "screen_rows": {
+      "current": [
+        290.0,
+        285.0,
+        280.0,
+        276.0,
+        50.0
+      ],
+      "set": [
+        290.0,
+        285.0,
+        280.0,
+        275.0,
+        50.0
+      ],
+      "high": [
+        20.0,
+        50.0,
+        50.0,
+        50.0,
+        10.0
+      ],
+      "low": [
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        10.0
+      ],
+      "rate_top": [
+        40.0,
+        null,
+        7.0,
+        41.0,
+        -15.0
+      ]
+    }
+  }
+}

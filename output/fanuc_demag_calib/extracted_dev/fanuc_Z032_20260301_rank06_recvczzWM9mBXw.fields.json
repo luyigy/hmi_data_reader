@@ -1,0 +1,69 @@
+{
+  "image": "fanuc_Z032_20260301_rank06_recvczzWM9mBXw",
+  "status": "review",
+  "warnings": [
+    "ROW_VALUES_MISSING(high,3/5)",
+    "ROW_VALUES_MISSING(set,0/5)",
+    "ROW_VALUES_MISSING(low,4/5)",
+    "CURRENT_ROW_GLUED_SPLIT",
+    "ROW_VALUES_MISSING(control,1/5)"
+  ],
+  "controller_family": "FANUC",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": [
+      340.1,
+      335.0,
+      335.0,
+      335.4
+    ],
+    "barrel_temperature_set_c": null,
+    "high_deviation_c": null,
+    "low_deviation_c": null,
+    "control_percent": null,
+    "holding_temperature_c": 120.0,
+    "drop_port_temperature_current_c": 45.4,
+    "drop_port_temperature_set_c": null,
+    "drop_port_control_percent": null
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "fanuc.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/fanuc_Z032_20260301_rank06_recvczzWM9mBXw.ocr.json",
+    "screen_size": [
+      1523,
+      968
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 2,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.4174,
+      "control": 0.4669,
+      "high": 0.5258,
+      "set": 0.5744,
+      "low": 0.6224
+    },
+    "deskew_slope": 0.0158,
+    "rows5": {
+      "current": [
+        340.1,
+        335.0,
+        335.0,
+        335.4,
+        45.4
+      ],
+      "control": null,
+      "high": null,
+      "set": null,
+      "low": null
+    }
+  }
+}

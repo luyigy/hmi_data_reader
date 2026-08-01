@@ -1,0 +1,161 @@
+{
+  "image": "tact_Z015_20251227_rank06_recv6AhHJ41wpO",
+  "status": "review",
+  "warnings": [
+    "ZONE_VARIANT(4段,无筒头)",
+    "ZONE_HEADER_EXTRAPOLATED(喷嘴)",
+    "ROW_LABEL_FALLBACK(set)",
+    "SET_CELL_RESCUE(喷嘴)",
+    "SET_CELL_RESCUE(前部)",
+    "SET_CELL_RESCUE(中部)",
+    "SET_CELL_RESCUE(后部)",
+    "SET_CELL_RESCUE(落下口)",
+    "CELL_MISSING(control,落下口)"
+  ],
+  "controller_family": "TACT",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_set_c": [
+      271.2,
+      279.9,
+      280.0,
+      259.5
+    ],
+    "barrel_temperature_current_c": [
+      271.2,
+      279.9,
+      280.0,
+      259.5
+    ],
+    "control_percent": [
+      73.0,
+      22.3,
+      4.8,
+      51.0
+    ],
+    "holding_temperature_c": [
+      270.0,
+      270.0,
+      270.0,
+      260.0
+    ],
+    "drop_port_temperature_set_c": 45.6,
+    "drop_port_temperature_current_c": 45.6,
+    "drop_port_control_percent": null
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "tact.temperature.json v0.1.0",
+    "ocr_file": "output/tact_exp_calib/rectified/tact_Z015_20251227_rank06_recv6AhHJ41wpO.ocr.json",
+    "screen_size": [
+      1163,
+      856
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 1,
+      "replaced": 1
+    }
+  },
+  "extraction_detail": {
+    "columns_measured": {
+      "前部": 0.5886,
+      "中部": 0.7003,
+      "后部": 0.8121,
+      "落下口": 0.9239,
+      "喷嘴": 0.4768
+    },
+    "row_centers": {
+      "set": 0.3769,
+      "current": 0.3714,
+      "control": 0.421,
+      "holding": 0.4701
+    },
+    "deskew_slope": -0.0084,
+    "cells": {
+      "set": {
+        "喷嘴": {
+          "text": "271.2",
+          "conf": 0.98
+        },
+        "前部": {
+          "text": "279.9",
+          "conf": 0.957
+        },
+        "中部": {
+          "text": "280.0",
+          "conf": 0.936
+        },
+        "后部": {
+          "text": "259.5",
+          "conf": 0.965
+        },
+        "落下口": {
+          "text": "45.6",
+          "conf": 0.908
+        }
+      },
+      "current": {
+        "喷嘴": {
+          "text": "271.2",
+          "conf": 0.998
+        },
+        "前部": {
+          "text": "279.9",
+          "conf": 0.998
+        },
+        "中部": {
+          "text": "280.0",
+          "conf": 0.999
+        },
+        "后部": {
+          "text": "259.5",
+          "conf": 0.997
+        },
+        "落下口": {
+          "text": "45.6",
+          "conf": 0.996
+        }
+      },
+      "control": {
+        "喷嘴": {
+          "text": "73.0",
+          "conf": 0.997
+        },
+        "前部": {
+          "text": "22.3",
+          "conf": 0.998
+        },
+        "中部": {
+          "text": "4.8",
+          "conf": 0.997
+        },
+        "后部": {
+          "text": "51.0",
+          "conf": 0.995
+        }
+      },
+      "holding": {
+        "喷嘴": {
+          "text": "270.0",
+          "conf": 0.997
+        },
+        "前部": {
+          "text": "270.0",
+          "conf": 0.997
+        },
+        "中部": {
+          "text": "270.0",
+          "conf": 0.997
+        },
+        "后部": {
+          "text": "260.0",
+          "conf": 0.998
+        }
+      }
+    }
+  }
+}

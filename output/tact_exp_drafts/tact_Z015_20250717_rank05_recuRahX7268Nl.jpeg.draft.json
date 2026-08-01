@@ -1,0 +1,62 @@
+{
+  "image": "tact_Z015_20250717_rank05_recuRahX7268Nl.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_set_c": [
+      285.0,
+      290.0,
+      280.0,
+      270.0
+    ],
+    "barrel_temperature_current_c": [
+      284.6,
+      290.1,
+      280.1,
+      270.0
+    ],
+    "control_percent": [
+      33.3,
+      18.7,
+      0.0,
+      52.8
+    ],
+    "holding_temperature_c": [
+      150.0,
+      150.0,
+      150.0,
+      150.0
+    ],
+    "drop_port_temperature_set_c": 55.0,
+    "drop_port_temperature_current_c": 57.4,
+    "drop_port_control_percent": null
+  },
+  "zone_labels": [
+    "喷嘴",
+    "前部",
+    "中部",
+    "后部"
+  ],
+  "heater_columns": 4,
+  "alarm_status": "normal",
+  "alarm_evidence": "顶栏「加脂1脱压异常」为润滑泵报警，与温度读数无关（同 Z022 先例）。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null,
+    "verified_at": null,
+    "changed_fields": null,
+    "spot_check_by": "pending"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblzpMJBLUNuB6ZX",
+    "record_id": "recvr18noHvpvv",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuRahX7268Nl",
+    "file_token": "YQzgbfO1qoU1ogxQl6CcWLqxnhe"
+  },
+  "notes": "机台 Z015（TACT，029 裁定）、日期 2025-07-17、rank05。Z015 为四段变体：喷嘴/前部/中部/后部（无筒头段），落下口无控制输出列→drop_port_control_percent=null；落下口设定 55.0（Z022 为 50.0）。"
+}

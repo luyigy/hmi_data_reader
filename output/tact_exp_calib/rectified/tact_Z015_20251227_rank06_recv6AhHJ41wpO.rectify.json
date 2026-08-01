@@ -1,0 +1,29 @@
+{
+  "filename": "tact_Z015_20251227_rank06_recv6AhHJ41wpO.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      41.60000228881836,
+      520.0
+    ],
+    [
+      638.4000244140625,
+      510.3999938964844
+    ],
+    [
+      630.4000244140625,
+      944.0
+    ],
+    [
+      64.0,
+      942.4000244140625
+    ]
+  ],
+  "screen_size": [
+    1163,
+    856
+  ],
+  "output_path": "output/tact_exp_calib/rectified/tact_Z015_20251227_rank06_recv6AhHJ41wpO.png",
+  "warnings": []
+}

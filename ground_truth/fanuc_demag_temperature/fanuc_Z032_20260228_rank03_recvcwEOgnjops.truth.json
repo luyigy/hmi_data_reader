@@ -1,0 +1,69 @@
+{
+  "image": "fanuc_Z032_20260228_rank03_recvcwEOgnjops.jpeg",
+  "controller_family": "FANUC",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_current_c": [
+      340.0,
+      335.0,
+      335.0,
+      335.2
+    ],
+    "barrel_temperature_set_c": [
+      340.0,
+      335.0,
+      335.0,
+      335.0
+    ],
+    "high_deviation_c": [
+      40.0,
+      30.0,
+      30.0,
+      30.0
+    ],
+    "low_deviation_c": [
+      40.0,
+      30.0,
+      30.0,
+      30.0
+    ],
+    "control_percent": [
+      38.3,
+      16.3,
+      12.9,
+      84.1
+    ],
+    "holding_temperature_c": 120.0,
+    "drop_port_temperature_current_c": 50.0,
+    "drop_port_temperature_set_c": 50.0,
+    "drop_port_control_percent": 46.4
+  },
+  "zone_labels": [
+    "N",
+    "B1",
+    "B2",
+    "B3"
+  ],
+  "heater_columns": 4,
+  "alarm_status": "normal",
+  "alarm_evidence": "温度控制 ON、无温度相关报警字符/图标；顶栏为开模/冷却等机台状态提示，与温度读数无关。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "自动整批接受（026 自动模式预授权，visual_skim_acceptance 降级；用户保留事后否决权）",
+    "verified_at": "2026-08-01",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbl83A65O5OAPhyU",
+    "record_id": "recvqZF6XGEulT",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recvcwEOgnjops",
+    "file_token": "OAsWbGOJYoGGyJxQIzVcGhkknDd"
+  },
+  "notes": "机台 Z032（位置 A09，FANUC ROBOSHOT α-S30iA）、日期 2026-02-28、rank03。FANUC 喷嘴/料筒页：加热器图形行 M1-M4(模具加热未启用：设定0/现在*****，不计入)+N/B1/B2/B3(料筒4段)+H(下料口50°C无小数)；现在=实际温度，输出=加热输出%，表区 上限/设定/下限。低温保持 OFF（设定120.0 记 holding_temperature_c）。 | 2026-08-01 自动整批接受转真值（026 自动模式预授权，确认列脚本回填，降级口径；用户保留事后否决权）。"
+}

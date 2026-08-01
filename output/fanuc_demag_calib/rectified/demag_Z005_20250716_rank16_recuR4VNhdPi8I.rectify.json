@@ -1,0 +1,29 @@
+{
+  "filename": "demag_Z005_20250716_rank16_recuR4VNhdPi8I.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      0.0,
+      75.13999938964844
+    ],
+    [
+      3103.860107421875,
+      265.8800048828125
+    ],
+    [
+      2768.6201171875,
+      2543.2001953125
+    ],
+    [
+      0.0,
+      2450.719970703125
+    ]
+  ],
+  "screen_size": [
+    2000,
+    1590
+  ],
+  "output_path": "output/fanuc_demag_calib/rectified/demag_Z005_20250716_rank16_recuR4VNhdPi8I.png",
+  "warnings": []
+}

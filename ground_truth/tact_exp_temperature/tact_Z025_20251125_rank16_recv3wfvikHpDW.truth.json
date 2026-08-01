@@ -1,0 +1,67 @@
+{
+  "image": "tact_Z025_20251125_rank16_recv3wfvikHpDW.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_set_c": [
+      320.0,
+      290.0,
+      285.0,
+      280.0,
+      270.0
+    ],
+    "barrel_temperature_current_c": [
+      319.3,
+      289.4,
+      285.1,
+      280.2,
+      270.1
+    ],
+    "control_percent": [
+      22.4,
+      44.6,
+      4.9,
+      16.9,
+      76.0
+    ],
+    "holding_temperature_c": [
+      200.0,
+      200.0,
+      200.0,
+      200.0,
+      200.0
+    ],
+    "drop_port_temperature_set_c": 30.0,
+    "drop_port_temperature_current_c": 31.0,
+    "drop_port_control_percent": null
+  },
+  "zone_labels": [
+    "喷嘴",
+    "筒头",
+    "前部",
+    "中部",
+    "后部"
+  ],
+  "heater_columns": 5,
+  "alarm_status": "normal",
+  "alarm_evidence": "无温度相关报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "自动整批接受（027 自动模式预授权，visual_skim_acceptance 降级；用户保留事后否决权）",
+    "verified_at": "2026-08-01",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblzpMJBLUNuB6ZX",
+    "record_id": "recvr18O1ixUwn",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recv3wfvikHpDW",
+    "file_token": "MURubNsscohfuoxJLlWciMc3n0l"
+  },
+  "notes": "机台 Z025（TACT，029 裁定）、日期 2025-11-25、rank16。五段变体（喷嘴/筒头/前部/中部/后部，与 Z022 同构），落下口设定 30.0，无控制输出列→drop_port_control_percent=null。 | 2026-08-01 自动整批接受转真值（降级口径；用户保留事后否决权）。"
+}

@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-07-31T10:50:09+00:00",
   "generator": "kimi-code S3 (013_PLAN)",
-  "status": "PENDING_USER_APPROVAL",
+  "status": "APPROVED",
   "selection_spec": {
     "random_seed": 20260731,
     "pool": "family_prescreen∈{KEBA,B_AND_R}（位置 A01/B02=KEBA、B01=B_AND_R，机台级人工核验证据）且含炮筒温度设定附件的大表记录",
@@ -673,5 +673,12 @@
       "KEBA": 171
     },
     "suspected_duplicate_excess_excluded": 0
+  },
+  "approval": {
+    "approved_by": "用户（Live Room）",
+    "approved_at": "2026-07-31",
+    "decision": "用户批准下载候选清单全部31条（19目标+12候补）；批准文档 https://ecn6lj2fknte.feishu.cn/docx/TMiZdhHzGo5XnHxpTFnc74w9ngc",
+    "z004_decision": "保留（用户未提出剔除，按推荐执行）",
+    "scope": "批准下载31条炮筒温度设定附件；不授予基线修改、生产写入权限"
   }
 }

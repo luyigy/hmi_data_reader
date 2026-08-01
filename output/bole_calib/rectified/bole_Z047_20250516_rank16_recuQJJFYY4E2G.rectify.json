@@ -1,0 +1,29 @@
+{
+  "filename": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      171.36000061035156,
+      720.719970703125
+    ],
+    [
+      3407.0400390625,
+      670.3200073242188
+    ],
+    [
+      3381.840087890625,
+      2933.280029296875
+    ],
+    [
+      362.8800048828125,
+      3018.9599609375
+    ]
+  ],
+  "screen_size": [
+    2000,
+    1460
+  ],
+  "output_path": "output/bole_calib/rectified/bole_Z047_20250516_rank16_recuQJJFYY4E2G.png",
+  "warnings": []
+}

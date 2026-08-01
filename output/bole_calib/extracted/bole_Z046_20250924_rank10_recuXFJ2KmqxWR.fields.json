@@ -1,0 +1,217 @@
+{
+  "image": "bole_Z046_20250924_rank10_recuXFJ2KmqxWR",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "B_AND_R",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 6,
+  "fields": {
+    "barrel_temperature_current_c": [
+      286.3,
+      280.3,
+      280.1,
+      275.2,
+      275.2,
+      249.9
+    ],
+    "barrel_temperature_set_c": [
+      285.0,
+      280.0,
+      280.0,
+      275.0,
+      275.0,
+      250.0
+    ],
+    "high_deviation_c": [
+      20.0,
+      20.0,
+      20.0,
+      40.0,
+      45.0,
+      40.0
+    ],
+    "low_deviation_c": [
+      20.0,
+      20.0,
+      20.0,
+      40.0,
+      20.0,
+      40.0
+    ],
+    "control_percent": [
+      21.6,
+      61.0,
+      5.6,
+      7.7,
+      11.3,
+      44.1
+    ],
+    "holding_temperature_c": 200.0
+  },
+  "provenance": {
+    "family_source": "template_keywords",
+    "page_source": "template_anchors",
+    "template": "b_and_r.temperature.json v0.1.0",
+    "ocr_file": "output/bole_calib/rectified/bole_Z046_20250924_rank10_recuXFJ2KmqxWR.ocr.json",
+    "screen_size": [
+      1479,
+      2000
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 6,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "columns_measured": [
+      0.2976,
+      0.3961,
+      0.4945,
+      0.593,
+      0.6918,
+      0.7912
+    ],
+    "row_centers": {
+      "current": 0.2498,
+      "set": 0.2951,
+      "high": 0.3364,
+      "low": 0.3795,
+      "control": 0.4196
+    },
+    "deskew_slope": -0.0137,
+    "cells": {
+      "current": {
+        "0": {
+          "text": "286.3",
+          "conf": 0.994
+        },
+        "1": {
+          "text": "280.3",
+          "conf": 0.998
+        },
+        "2": {
+          "text": "280.1",
+          "conf": 0.996
+        },
+        "3": {
+          "text": "275.2",
+          "conf": 0.996
+        },
+        "4": {
+          "text": "275.2",
+          "conf": 0.993
+        },
+        "5": {
+          "text": "249.9",
+          "conf": 0.998
+        }
+      },
+      "set": {
+        "0": {
+          "text": "285.0",
+          "conf": 0.995
+        },
+        "1": {
+          "text": "280.0",
+          "conf": 0.92
+        },
+        "2": {
+          "text": "280.0",
+          "conf": 0.998
+        },
+        "3": {
+          "text": "275.0",
+          "conf": 0.991
+        },
+        "4": {
+          "text": "275.0",
+          "conf": 0.995
+        },
+        "5": {
+          "text": "250.0",
+          "conf": 0.998
+        }
+      },
+      "high": {
+        "0": {
+          "text": "20.0",
+          "conf": 0.997
+        },
+        "1": {
+          "text": "20.0",
+          "conf": 0.998
+        },
+        "2": {
+          "text": "20.0",
+          "conf": 0.998
+        },
+        "3": {
+          "text": "40.0",
+          "conf": 0.998
+        },
+        "4": {
+          "text": "45.0",
+          "conf": 0.997
+        },
+        "5": {
+          "text": "40.0",
+          "conf": 0.999
+        }
+      },
+      "low": {
+        "0": {
+          "text": "20.0",
+          "conf": 0.998
+        },
+        "1": {
+          "text": "20.0",
+          "conf": 0.996
+        },
+        "2": {
+          "text": "20.0",
+          "conf": 0.998
+        },
+        "3": {
+          "text": "40.0",
+          "conf": 0.999
+        },
+        "4": {
+          "text": "20.0",
+          "conf": 0.996
+        },
+        "5": {
+          "text": "40.0",
+          "conf": 0.998
+        }
+      },
+      "control": {
+        "0": {
+          "text": "21.6",
+          "conf": 0.994
+        },
+        "1": {
+          "text": "61.0",
+          "conf": 0.996
+        },
+        "2": {
+          "text": "5.6",
+          "conf": 0.996
+        },
+        "3": {
+          "text": "7.7",
+          "conf": 0.984
+        },
+        "4": {
+          "text": "11.3",
+          "conf": 0.996
+        },
+        "5": {
+          "text": "44.1",
+          "conf": 0.996
+        }
+      }
+    }
+  }
+}

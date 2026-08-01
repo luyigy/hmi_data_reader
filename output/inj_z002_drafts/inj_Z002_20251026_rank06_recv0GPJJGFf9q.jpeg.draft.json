@@ -1,0 +1,40 @@
+{
+  "image": "inj_Z002_20251026_rank06_recv0GPJJGFf9q.jpeg",
+  "controller_family": "DEMAG",
+  "hmi_variant": "v1",
+  "page_type": "injection_metering",
+  "page_variant": "process_optimization",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "plasticizing_speed_rpm": 80,
+    "back_pressure_bar": 5.0,
+    "holding_pressure_bar": 72.0,
+    "holding_velocity_mms": 10.0,
+    "holding_time_s": 1.0,
+    "switch_position_mm": 14.0,
+    "switch_pressure_bar": 33.1,
+    "injection_velocity_mms": 100.0,
+    "injection_pressure_limit_bar": 95.0,
+    "cooling_time_s": 7.0,
+    "cushion_mm": 9.38
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null,
+    "verified_at": null,
+    "changed_fields": null,
+    "spot_check_by": "pending"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblWz3Dy6vy7dOzy",
+    "record_id": "recvr3uvJmtKLJ",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recv0GPJJGFf9q",
+    "file_token": "HfthbfWZGoIn3expRV9cy3C2ntf"
+  },
+  "notes": "机台 Z002（DEMAG NC）、日期 2025-10-26、rank06。工艺优化页：预塑（螺杆转速/背压/位置）+ 保压（压力/速度/时间）+ 保压切换条件（位置/压力/时间）+ 注射（速度/压力限制）。循环时间/位置/预塑时间/注射时间/注射压力为实时值不入真值。 | 更正（2026-08-01 复核原图）：保压时间=1.000s（此前误记为冷却时间 7.000s）；补 cooling_time_s 与 cushion_mm（余料量 9.38）。"
+}

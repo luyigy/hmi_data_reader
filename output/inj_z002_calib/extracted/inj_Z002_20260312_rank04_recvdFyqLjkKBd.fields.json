@@ -1,0 +1,41 @@
+{
+  "image": "inj_Z002_20260312_rank04_recvdFyqLjkKBd",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "DEMAG",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "plasticizing_speed_rpm": 80.0,
+    "back_pressure_bar": 5.0,
+    "cushion_mm": 9.38,
+    "cooling_time_s": 7.0,
+    "holding_velocity_mms": 10.0,
+    "holding_pressure_bar": 75.0,
+    "holding_time_s": 1.0,
+    "switch_position_mm": 14.0,
+    "switch_pressure_bar": 33.1,
+    "switch_time_s": 3.0,
+    "injection_velocity_mms": 100.0,
+    "injection_pressure_limit_bar": 95.0
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "demag.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z002_calib/rectified/inj_Z002_20260312_rank04_recvdFyqLjkKBd.ocr.json",
+    "screen_size": [
+      1400,
+      1065
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 12,
+      "replaced": 1
+    }
+  },
+  "extraction_detail": {
+    "page_variant": "process_optimization"
+  }
+}

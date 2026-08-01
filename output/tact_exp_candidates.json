@@ -1,0 +1,482 @@
+{
+  "generated_at": "2026-08-01T03:55:39+00:00",
+  "generator": "kimi-code S1 (031_PLAN)",
+  "status": "APPROVED",
+  "selection_spec": {
+    "random_seed": 20260801,
+    "pool": "日精 Z015/Z019/Z025 含炮筒温度附件记录（029 裁定 TACT）",
+    "machine_cap": "每台 6 目标 + 4 候补（009 批准结构）"
+  },
+  "pool_summary": {
+    "Z015": {
+      "records_with_att": 362,
+      "pool_after_dedup": 358
+    },
+    "Z019": {
+      "records_with_att": 210,
+      "pool_after_dedup": 205
+    },
+    "Z025": {
+      "records_with_att": 187,
+      "pool_after_dedup": 187
+    }
+  },
+  "targets": [
+    {
+      "rank": 1,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuZxcO7y4JRE",
+      "position": "A04",
+      "date": "2025-10-13",
+      "attachment": {
+        "file_token": "A9CsbHV2PoQqnhx10JZcxxfXnUe",
+        "size": 3445974,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 2,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuTTCd49jAZm",
+      "position": "A04",
+      "date": "2025-08-14",
+      "attachment": {
+        "file_token": "Sk3qbeGcBoA5HExBuq3cNA0cnMc",
+        "size": 3211339,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 3,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv86ziPvzroj",
+      "position": "A04",
+      "date": "2026-01-12",
+      "attachment": {
+        "file_token": "VxFrbKduboXXkpxS1atc8Oz3nDg",
+        "size": 1181888,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 4,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv7ATP6jMZTh",
+      "position": "A04",
+      "date": "2026-01-07",
+      "attachment": {
+        "file_token": "BzOrblk92otyB3xcG5PcUQFbnxc",
+        "size": 547253,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 5,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuRahX7268Nl",
+      "position": "A04",
+      "date": "2025-07-17",
+      "attachment": {
+        "file_token": "YQzgbfO1qoU1ogxQl6CcWLqxnhe",
+        "size": 3469792,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 6,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv6AhHJ41wpO",
+      "position": "A04",
+      "date": "2025-12-27",
+      "attachment": {
+        "file_token": "EveYbau7moFQTcxCxybcuBronXb",
+        "size": 524065,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 7,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuQJJFYYVIFJ",
+      "position": "A05",
+      "date": "2025-04-16",
+      "attachment": {
+        "file_token": "DJp0bae2roZXhCxCNC2c2dIHnOf",
+        "size": 3676530,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 8,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuXxroqbG4Qn",
+      "position": "A05",
+      "date": "2025-09-22",
+      "attachment": {
+        "file_token": "ToXBbFE6zoWpLVxk3x7cSHa2n9b",
+        "size": 3285720,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 9,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuWgpEDUw0Qh",
+      "position": "A05",
+      "date": "2025-09-05",
+      "attachment": {
+        "file_token": "BxThbItP5ofEU9xv6bicBFpYnAe",
+        "size": 3498391,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 10,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuQYAUBt8CrG",
+      "position": "A05",
+      "date": "2025-07-15",
+      "attachment": {
+        "file_token": "AnyNbnkmBoHDKIxlF6scPMzXnxc",
+        "size": 3692265,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 11,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuX0Nn58NLnF",
+      "position": "A05",
+      "date": "2025-09-17",
+      "attachment": {
+        "file_token": "Pv9NbumnUokNP7x6lH5cP1RlnDg",
+        "size": 5467651,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 12,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv1AnK36j6iJ",
+      "position": "A05",
+      "date": "2025-11-04",
+      "attachment": {
+        "file_token": "VbQrbRtVcoBtMyxbfO1cOx8tnce",
+        "size": 2294779,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 13,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuWgpEDUBGOd",
+      "position": "A07",
+      "date": "2025-08-31",
+      "attachment": {
+        "file_token": "Xp1Nb2evWoioinxS1fCc4goDnLd",
+        "size": 3452205,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 14,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv7U93Zz8uog",
+      "position": "A07",
+      "date": "2026-01-10",
+      "attachment": {
+        "file_token": "PwcEbpfatoeaFaxaMkxcsAqnnVd",
+        "size": 1135025,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 15,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv4bbcWySXZX",
+      "position": "A07",
+      "date": "2025-12-02",
+      "attachment": {
+        "file_token": "OT49bpGHJouLG4xYqX9cb8JRnFe",
+        "size": 4686008,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 16,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv3wfvikHpDW",
+      "position": "A07",
+      "date": "2025-11-25",
+      "attachment": {
+        "file_token": "MURubNsscohfuoxJLlWciMc3n0l",
+        "size": 4253521,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 17,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recvcihCdjTZeR",
+      "position": "A07",
+      "date": "2026-02-25",
+      "attachment": {
+        "file_token": "G5Tmb2rW4otnDcxg2gQcTVRcn0d",
+        "size": 1007517,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 18,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuRdHpMSQ0wM",
+      "position": "A07",
+      "date": "2025-07-17",
+      "attachment": {
+        "file_token": "KxenbNGQxo8F8Hx98dWcgZYhnWh",
+        "size": 3165003,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    }
+  ],
+  "alternates": [
+    {
+      "rank": 19,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuQJJQEdX66d",
+      "position": "A04",
+      "date": "2025-06-27",
+      "attachment": {
+        "file_token": "AK2abQMDFoaaxzxyTfUcGs3onbh",
+        "size": 2681478,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 20,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuYcCfnbcU2i",
+      "position": "A04",
+      "date": "2025-09-29",
+      "attachment": {
+        "file_token": "SRf3bkZ7WotXmkxwCTbcXYU3nDc",
+        "size": 4268169,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 21,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv5DOrYFfMOm",
+      "position": "A04",
+      "date": "2025-12-17",
+      "attachment": {
+        "file_token": "SwVobcvAIos9J3xQQkacyfDpnCh",
+        "size": 6059982,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 22,
+      "machine": "Z015",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv6cTBr2qzUJ",
+      "position": "A04",
+      "date": "2025-12-23",
+      "attachment": {
+        "file_token": "DfoKbjNPSor1NZxLjSAcadTMn6c",
+        "size": 4461388,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 23,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recvcvra9kKJWS",
+      "position": "A05",
+      "date": "2026-02-28",
+      "attachment": {
+        "file_token": "FC6Zbg98uoHFzGxH5wZcWHnQnZd",
+        "size": 509889,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 24,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv2OoGzGotmY",
+      "position": "A05",
+      "date": "2025-11-17",
+      "attachment": {
+        "file_token": "CLe1bfGsAoRDARx3bm1cM6OFnpe",
+        "size": 4551875,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 25,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuQJJFYYo5fp",
+      "position": "A05",
+      "date": "2025-05-21",
+      "attachment": {
+        "file_token": "IHX8bh7nkoUkeixgQu9coSOVnsd",
+        "size": 1764662,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 26,
+      "machine": "Z019",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recuUsHcMMRfbe",
+      "position": "A05",
+      "date": "2025-08-20",
+      "attachment": {
+        "file_token": "PYjabpTfLocz04xzqiXcifzpn8c",
+        "size": 2584022,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 27,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv29sTmJCb07",
+      "position": "A07",
+      "date": "2025-11-10",
+      "attachment": {
+        "file_token": "QYisb1xEgojfUPxcwdycjU0fnpc",
+        "size": 2494071,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 28,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv5GYQw6Qrqc",
+      "position": "A07",
+      "date": "2025-12-18",
+      "attachment": {
+        "file_token": "PwRDbz8khozQxbxFWBTc9KS3nne",
+        "size": 2920564,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 29,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recv9SW60N3zTh",
+      "position": "A07",
+      "date": "2026-01-31",
+      "attachment": {
+        "file_token": "TtfmbGZgboWSl2xZcnhc5M9XnOW",
+        "size": 906711,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    },
+    {
+      "rank": 30,
+      "machine": "Z025",
+      "brand": "日精",
+      "family": "TACT",
+      "record_id": "recveqOVfe76O9",
+      "position": "A07",
+      "date": "2026-03-20",
+      "attachment": {
+        "file_token": "ZD2CbtKzLozfO5xg5aYcAR2qnIb",
+        "size": 1078099,
+        "type": "image/jpeg"
+      },
+      "status": "unknown_pending_download"
+    }
+  ],
+  "approval": {
+    "approved_by": "用户（Live Room「继续」）",
+    "approved_at": "2026-08-01"
+  }
+}

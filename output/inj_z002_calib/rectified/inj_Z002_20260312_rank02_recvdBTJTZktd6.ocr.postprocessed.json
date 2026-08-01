@@ -1,0 +1,148 @@
+{
+  "filename": "inj_Z002_20260312_rank02_recvdBTJTZktd6.png",
+  "path": "output/inj_z002_calib/rectified/inj_Z002_20260312_rank02_recvdBTJTZktd6.png",
+  "line_count": 23,
+  "merged_rows": [
+    {
+      "text": "50.00mm",
+      "bbox": {
+        "x_min": 1735.0,
+        "x_max": 1891.0,
+        "y_min": 497.0,
+        "y_max": 533.0,
+        "avg_y": 497.0
+      },
+      "conf": 0.9978572130203247,
+      "min_conf": 0.9978572130203247,
+      "n_segments": 1
+    },
+    {
+      "text": "95.0",
+      "bbox": {
+        "x_min": 1674.0,
+        "x_max": 1758.0,
+        "y_min": 565.0,
+        "y_max": 617.0,
+        "avg_y": 565.0
+      },
+      "conf": 0.9931572079658508,
+      "min_conf": 0.9931572079658508,
+      "n_segments": 1
+    },
+    {
+      "text": "压力[bal] 75.0",
+      "bbox": {
+        "x_min": 152.0,
+        "x_max": 533.0,
+        "y_min": 600.0,
+        "y_max": 657.0,
+        "avg_y": 605.0
+      },
+      "conf": 0.9101656079292297,
+      "min_conf": 0.8234840035438538,
+      "n_segments": 2
+    },
+    {
+      "text": "40.0 30.0 50.0 100.0",
+      "bbox": {
+        "x_min": 1278.0,
+        "x_max": 1751.0,
+        "y_min": 637.0,
+        "y_max": 688.0,
+        "avg_y": 640.5
+      },
+      "conf": 0.9905642420053482,
+      "min_conf": 0.9818990230560303,
+      "n_segments": 4
+    },
+    {
+      "text": "速度[mms] 10.0",
+      "bbox": {
+        "x_min": 151.0,
+        "x_max": 538.0,
+        "y_min": 662.0,
+        "y_max": 725.0,
+        "avg_y": 666.5
+      },
+      "conf": 0.9379059374332428,
+      "min_conf": 0.8789552450180054,
+      "n_segments": 2
+    },
+    {
+      "text": "22.30 19.00 25.00 45.00",
+      "bbox": {
+        "x_min": 1256.0,
+        "x_max": 1749.0,
+        "y_min": 709.0,
+        "y_max": 754.0,
+        "avg_y": 713.5
+      },
+      "conf": 0.9933386743068695,
+      "min_conf": 0.9912044405937195,
+      "n_segments": 4
+    },
+    {
+      "text": "位置[mm] 14.00",
+      "bbox": {
+        "x_min": 155.0,
+        "x_max": 539.0,
+        "y_min": 736.0,
+        "y_max": 794.0,
+        "avg_y": 739.0
+      },
+      "conf": 0.9240179061889648,
+      "min_conf": 0.849639892578125,
+      "n_segments": 2
+    },
+    {
+      "text": "移动曲线",
+      "bbox": {
+        "x_min": 936.0,
+        "x_max": 1093.0,
+        "y_min": 896.0,
+        "y_max": 945.0,
+        "avg_y": 896.0
+      },
+      "conf": 0.9985657930374146,
+      "min_conf": 0.9985657930374146,
+      "n_segments": 1
+    },
+    {
+      "text": "保压 0.0mm -0.26mm 10.68m",
+      "bbox": {
+        "x_min": 1258.0,
+        "x_max": 1915.0,
+        "y_min": 970.0,
+        "y_max": 1020.0,
+        "avg_y": 975.0
+      },
+      "conf": 0.968073844909668,
+      "min_conf": 0.9519824981689453,
+      "n_segments": 4
+    },
+    {
+      "text": "15070717 08275",
+      "bbox": {
+        "x_min": 918.0,
+        "x_max": 1294.0,
+        "y_min": 1029.0,
+        "y_max": 1075.0,
+        "avg_y": 1029.0
+      },
+      "conf": 0.943947046995163,
+      "min_conf": 0.8893311619758606,
+      "n_segments": 2
+    }
+  ],
+  "fix_log": [
+    "  [merge-lines] 23 lines -> 10 merged rows",
+    "  [number-stats] 18 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 23,
+    "n_merged_rows": 10,
+    "n_numbers": 18,
+    "n_numbers_fixed": 0
+  }
+}

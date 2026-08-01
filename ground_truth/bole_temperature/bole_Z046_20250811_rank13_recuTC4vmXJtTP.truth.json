@@ -1,0 +1,78 @@
+{
+  "image": "bole_Z046_20250811_rank13_recuTC4vmXJtTP.jpeg",
+  "controller_family": "B_AND_R",
+  "hmi_variant": "v1",
+  "page_type": "temperature",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "barrel_temperature_current_c": [
+      284.2,
+      279.3,
+      280.0,
+      274.8,
+      275.1,
+      249.6
+    ],
+    "barrel_temperature_set_c": [
+      285.0,
+      280.0,
+      280.0,
+      275.0,
+      275.0,
+      250.0
+    ],
+    "high_deviation_c": [
+      20.0,
+      20.0,
+      20.0,
+      40.0,
+      45.0,
+      40.0
+    ],
+    "low_deviation_c": [
+      20.0,
+      20.0,
+      20.0,
+      40.0,
+      20.0,
+      40.0
+    ],
+    "control_percent": [
+      16.4,
+      74.5,
+      7.7,
+      6.4,
+      13.5,
+      43.3
+    ],
+    "holding_temperature_c": 200.0
+  },
+  "zone_labels": [
+    "NZ",
+    "#1",
+    "#2",
+    "#3",
+    "#4",
+    "#5"
+  ],
+  "heater_columns": 6,
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标/报警条；设定行 NZ 格橙色高亮为编辑光标态（非报警）；实际温度均在高低温偏差内。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "用户本人（概览核验）",
+    "verified_at": "2026-07-31",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblGkZGMCcqYjULx",
+    "record_id": "recvqXemYiAD3M",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuTC4vmXJtTP",
+    "file_token": "POuKbqWy8oAY0wxmWqNcCtBznqc"
+  },
+  "notes": "机台 Z046（位置 B01）、日期 2025-08-11、rank13。B_AND_R 蓝 UI 料筒温度表：列=NZ(喷嘴)/#1-#5，行=实际温度/设定温度/高温偏差/低温偏差/加热输出/启用；保温温度为页底单值。EKS_350/TX21017 zui xin，屏显 25-08-11 22:32:40。清晰。NZ 设定 285.0 橙色编辑高亮。 | 用户 2026-07-31 整批确认（未逐字段粘贴，确认列脚本回填，降级口径）；术语裁定：「法兰温度」实为下料口温度（~50-60°C 独立值），字段定名 drop_port_temperature_current_c，与 TACT 落下口同义。"
+}

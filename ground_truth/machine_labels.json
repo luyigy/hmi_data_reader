@@ -1,12 +1,14 @@
 {
   "version": "1.0",
-  "notes": "S1 VLM 预标注 + 人工核验产物。来源：飞书 Base Vz2QbZ0lkagmVJsrMZ7cQwbSnZc 表 tblxdrwZD1Auox0z（S1机台核验），核验人王为，2026-07-30 全部通过。伯乐_A01/B01 草稿 UNKNOWN 经核验人修正为 KEBA/B_AND_R，其余 10 台草稿与确认一致。日精_B09/B10 备注：日精新机器。2026-07-30 大表扩样补充：佳明_Z017/Z051 为 ZIZES 族；确认佳明至少有两套 HMI——Z030/Z062 为 KAIMING 族（暂定名，KAI MING 标题栏 + F1…F6PID 菜单，控制器厂商待确认，Z062 面板有仁烨科技贴纸）。",
+  "notes": "S1 VLM 预标注 + 人工核验产物。来源：飞书 Base Vz2QbZ0lkagmVJsrMZ7cQwbSnZc 表 tblxdrwZD1Auox0z（S1机台核验），核验人王为，2026-07-30 全部通过。伯乐_A01/B01 草稿 UNKNOWN 经核验人修正为 KEBA/B_AND_R，其余 10 台草稿与确认一致。日精_B09/B10 备注：日精新机器。2026-07-30 大表扩样补充：佳明_Z017/Z051 为 ZIZES 族；确认佳明至少有两套 HMI——Z030/Z062 为 KAIMING 族（暂定名，KAI MING 标题栏 + F1…F6PID 菜单，控制器厂商待确认，Z062 面板有仁烨科技贴纸）。 2026-07-31 补充：Z004（大表注塑机ID，位置 A01，仅 2025-08-04 一条记录）经用户裁定为 B_AND_R——位置→家族推断对该机台失效（实拍 EKS_280 蓝色 UI），机台级证据优先于位置级证据。",
   "machines": {
     "伯乐_A01_KEBA": {
       "machine_brand": "BOLE",
       "controller_family": "KEBA",
       "hmi_variant": "v1",
-      "records": ["rec11"],
+      "records": [
+        "rec11"
+      ],
       "evidence": "草稿 UNKNOWN（仅 BOLE Logo + Process expert 标题栏），核验人确认为 KEBA",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -16,7 +18,10 @@
       "machine_brand": "BOLE",
       "controller_family": "B_AND_R",
       "hmi_variant": "v1",
-      "records": ["rec07", "rec09"],
+      "records": [
+        "rec07",
+        "rec09"
+      ],
       "evidence": "草稿 UNKNOWN（BOLE Logo + BKS_350 蓝色 UI），核验人确认为 B_AND_R",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -26,7 +31,11 @@
       "machine_brand": "BOLE",
       "controller_family": "KEBA",
       "hmi_variant": "v1",
-      "records": ["rec06", "rec08", "rec10"],
+      "records": [
+        "rec06",
+        "rec08",
+        "rec10"
+      ],
       "evidence": "机身面板右上角 KEBA 丝印 Logo",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -36,7 +45,9 @@
       "machine_brand": "DEMAG",
       "controller_family": "DEMAG",
       "hmi_variant": "v1",
-      "records": ["rec14"],
+      "records": [
+        "rec14"
+      ],
       "evidence": "工艺控制统计页为 Demag NC 系列风格（间接证据，核验通过）",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -46,7 +57,9 @@
       "machine_brand": "DEMAG",
       "controller_family": "DEMAG",
       "hmi_variant": "v1",
-      "records": ["rec15"],
+      "records": [
+        "rec15"
+      ],
       "evidence": "机身 Sumitomo SHI DEMAG Logo",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -56,7 +69,10 @@
       "machine_brand": "FANUC",
       "controller_family": "FANUC",
       "hmi_variant": "v1",
-      "records": ["rec00", "rec01"],
+      "records": [
+        "rec00",
+        "rec01"
+      ],
       "evidence": "顶部 FANUC ROBOSHOT 机型标识",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -66,7 +82,12 @@
       "machine_brand": "JIAMING",
       "controller_family": "ZIZES",
       "hmi_variant": "v1",
-      "records": ["rec12", "rec13", "rec16", "rec17"],
+      "records": [
+        "rec12",
+        "rec13",
+        "rec16",
+        "rec17"
+      ],
       "evidence": "机身 ZizES Logo + 标题栏 广东佳明机器有限公司",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -76,7 +97,9 @@
       "machine_brand": "NISSEI",
       "controller_family": "TACT",
       "hmi_variant": "v1",
-      "records": ["rec02"],
+      "records": [
+        "rec02"
+      ],
       "evidence": "工程监视/生产情报/经历 菜单为日精 TACT 风格（间接证据，核验通过）",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -86,7 +109,10 @@
       "machine_brand": "NISSEI",
       "controller_family": "TACT",
       "hmi_variant": "v1",
-      "records": ["rec04", "rec05"],
+      "records": [
+        "rec04",
+        "rec05"
+      ],
       "evidence": "蓝色按钮 UI 与 TACT5 软件同族（间接证据，核验通过）",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -96,7 +122,9 @@
       "machine_brand": "NISSEI",
       "controller_family": "TACT",
       "hmi_variant": "v1",
-      "records": ["rec03"],
+      "records": [
+        "rec03"
+      ],
       "evidence": "屏幕面板上方 TACT 5 标识",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -106,7 +134,10 @@
       "machine_brand": "SODICK",
       "controller_family": "TRD6",
       "hmi_variant": "v1",
-      "records": ["rec18", "rec19"],
+      "records": [
+        "rec18",
+        "rec19"
+      ],
       "evidence": "面板 TRD6 标牌 + SPT(Sodick Plustech) 键盘 Logo",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -116,7 +147,10 @@
       "machine_brand": "ARBURG",
       "controller_family": "ARBURG",
       "hmi_variant": "v1",
-      "records": ["rec20", "rec21"],
+      "records": [
+        "rec20",
+        "rec21"
+      ],
       "evidence": "SELOGICA 风格黄绿图标栏 + 参数编号体系 t4012/s4062/p4072",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -126,7 +160,9 @@
       "machine_brand": "JIAMING",
       "controller_family": "ZIZES",
       "hmi_variant": "v1",
-      "records": ["rec200"],
+      "records": [
+        "rec200"
+      ],
       "evidence": "机身 ZizES Logo + 广东佳明机器有限公司标题栏（大表扩样图，位置 A05）",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -136,7 +172,9 @@
       "machine_brand": "JIAMING",
       "controller_family": "ZIZES",
       "hmi_variant": "v1",
-      "records": ["rec201"],
+      "records": [
+        "rec201"
+      ],
       "evidence": "机身 ZizES Logo + 广东佳明机器有限公司标题栏（大表扩样图，位置 B05）",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -146,7 +184,9 @@
       "machine_brand": "JIAMING",
       "controller_family": "KAIMING",
       "hmi_variant": "v1",
-      "records": ["rec203"],
+      "records": [
+        "rec203"
+      ],
       "evidence": "KAI MING / Kai Ming Engineering Ltd 标题栏 + F1状态/F2温度/F3模温/F4功能/F5参数/F6PID 菜单，9 段炮筒示意图布局，与 ZizES 不同族（用户确认 Z030 为佳明真机，佳明至少有两套 HMI；控制器厂商待确认，KAIMING 为暂定族名）",
       "proposed_by": "vlm",
       "verified_by": "王为",
@@ -156,9 +196,381 @@
       "machine_brand": "JIAMING",
       "controller_family": "KAIMING",
       "hmi_variant": "v1",
-      "records": ["rec202"],
+      "records": [
+        "rec202"
+      ],
       "evidence": "KAI MING 标题栏 + F1…F6PID 菜单（同 Z030）；面板上方另有 RENYE 仁烨科技贴纸（疑似改造/贴牌，待确认）",
       "proposed_by": "vlm",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "demag_Z002_DEMAG": {
+      "machine_brand": "DEMAG",
+      "controller_family": "DEMAG",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "德马格_A01_DEMAG（王为 2026-07-30 核验）+ 大表位置关联 Z002=A01（026 S4 盘点）",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "demag_Z005_DEMAG": {
+      "machine_brand": "DEMAG",
+      "controller_family": "DEMAG",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "德马格_A02_DEMAG（王为 2026-07-30 核验）+ 大表位置关联 Z005=A02（026 S4 盘点）",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "fanuc_Z032_FANUC": {
+      "machine_brand": "FANUC",
+      "controller_family": "FANUC",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "发那科_A09_FANUC（王为 2026-07-30 核验）+ 大表位置关联 Z032=A09（026 S4 盘点）",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "bole_Z007_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260323 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A02']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z010_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20250624 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A03']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z023_TACT": {
+      "machine_brand": "BOLE",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251107 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A06']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z029_FANUC": {
+      "machine_brand": "BOLE",
+      "controller_family": "FANUC",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260312 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A08']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z031_KEBA": {
+      "machine_brand": "BOLE",
+      "controller_family": "KEBA",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260307 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A09']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z034_KEBA": {
+      "machine_brand": "BOLE",
+      "controller_family": "KEBA",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260328 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B06']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z038_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251027 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A11']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z048_EST": {
+      "machine_brand": "BOLE",
+      "controller_family": "EST",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260401 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B03']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z049_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260313 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B04']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z050_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260401 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B04']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z053_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251109 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B07']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z055_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260329 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B08']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z056_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260301 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B09']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z057_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251217 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B09']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z058_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260207 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B10']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z059_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260331 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B10']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "bole_Z061_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251219 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['B11']；名册品牌伯乐",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z003_DEMAG": {
+      "machine_brand": "NISSEI",
+      "controller_family": "DEMAG",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251107 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A01']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z008_DEMAG": {
+      "machine_brand": "NISSEI",
+      "controller_family": "DEMAG",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251107 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A02']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z009_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260328 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A03']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z011_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251027 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A03']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z012_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260403 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A04']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z014_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20250816 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A04']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z015_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260329 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A04']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z016_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260210 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A05']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z019_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260401 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A05']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z025_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260402 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A07']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z077_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20251108 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A07']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "tact_Z078_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20250805 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A10']；名册品牌日精",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "fanuc_Z027_FANUC": {
+      "machine_brand": "FANUC",
+      "controller_family": "FANUC",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260318 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A08']；名册品牌发那科",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "fanuc_Z035_FANUC": {
+      "machine_brand": "FANUC",
+      "controller_family": "FANUC",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260403 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A10']；名册品牌发那科",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "fanuc_Z036_FANUC": {
+      "machine_brand": "FANUC",
+      "controller_family": "FANUC",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "029 PLAN：20260403 代表图 VLM 判族 + 用户 2026-08-01 飞书整批裁定（tblBxWeEE5Y0Cq1Z）；位置 ['A11']；名册品牌发那科",
+      "proposed_by": "vlm",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "inj_Z002_DEMAG": {
+      "machine_brand": "DEMAG",
+      "controller_family": "DEMAG",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "035 射保线命名前缀（inj_Z002_*）路由别名，实体同 demag_Z002_DEMAG",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "inj_Z022_TACT": {
+      "machine_brand": "NISSEI",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "035 射保线命名前缀（inj_Z022_*）路由别名，实体同日精_A06_TACT",
+      "proposed_by": "kimi-code",
       "verified_by": "王为",
       "verified_at": "2026-07-30"
     }

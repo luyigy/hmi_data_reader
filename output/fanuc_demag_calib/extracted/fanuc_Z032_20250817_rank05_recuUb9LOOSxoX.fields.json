@@ -1,0 +1,103 @@
+{
+  "image": "fanuc_Z032_20250817_rank05_recuUb9LOOSxoX",
+  "status": "review",
+  "warnings": [
+    "CURRENT_ROW_GLUED_SPLIT",
+    "ROW_VALUES_MISSING(control,4/5)"
+  ],
+  "controller_family": "FANUC",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": [
+      339.9,
+      335.0,
+      335.0,
+      334.7
+    ],
+    "barrel_temperature_set_c": [
+      340.0,
+      335.0,
+      335.0,
+      335.0
+    ],
+    "high_deviation_c": [
+      30.0,
+      30.0,
+      30.0,
+      30.0
+    ],
+    "low_deviation_c": [
+      30.0,
+      30.0,
+      30.0,
+      30.0
+    ],
+    "control_percent": null,
+    "holding_temperature_c": 120.0,
+    "drop_port_temperature_current_c": 50.0,
+    "drop_port_temperature_set_c": 50.0,
+    "drop_port_control_percent": null
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "fanuc.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/fanuc_Z032_20250817_rank05_recuUb9LOOSxoX.ocr.json",
+    "screen_size": [
+      2000,
+      1617
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 4,
+      "replaced": 0
+    },
+    "ocr_rates_merge": {
+      "added": 1,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.4917,
+      "control": 0.53,
+      "high": 0.5758,
+      "set": 0.6116,
+      "low": 0.6494
+    },
+    "deskew_slope": 0.0,
+    "rows5": {
+      "current": [
+        339.9,
+        335.0,
+        335.0,
+        334.7,
+        50.0
+      ],
+      "control": null,
+      "high": [
+        30.0,
+        30.0,
+        30.0,
+        30.0,
+        10.0
+      ],
+      "set": [
+        340.0,
+        335.0,
+        335.0,
+        335.0,
+        50.0
+      ],
+      "low": [
+        30.0,
+        30.0,
+        30.0,
+        30.0,
+        10.0
+      ]
+    }
+  }
+}

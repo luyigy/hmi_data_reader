@@ -1,0 +1,122 @@
+{
+  "image": "inj_Z022_20250920_rank02_recuXikPelFCQR",
+  "status": "review",
+  "warnings": [
+    "VALUE_MISSING(injection_time_s)"
+  ],
+  "controller_family": "TACT",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "fill_velocity_mms": [
+      60.0,
+      80.0,
+      30.0
+    ],
+    "fill_stages": 3,
+    "switch_position_sv1_mm": 26.0,
+    "switch_position_sv2_mm": 14.0,
+    "metering_position_sm_mm": 28.0,
+    "metering_rpm": 120.0,
+    "back_pressure_mpa": 2.0,
+    "holding_pressure_mpa": [
+      55.0,
+      25.0
+    ],
+    "holding_stages": 2,
+    "holding_time_s": 1.0,
+    "holding_limit_speed_mms": 12.0,
+    "vp_switch_position_mm": 10.7,
+    "pressure_limit_mpa": 190.0,
+    "injection_time_s": null,
+    "cooling_time_s": 8.6,
+    "decompress_velocity_mms": 20.0,
+    "sd_position_mm": 8.0
+  },
+  "provenance": {
+    "family_source": "per_image_classify",
+    "page_source": "find_page",
+    "template": "tact.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z022_calib/rectified/inj_Z022_20250920_rank02_recuXikPelFCQR.ocr.json",
+    "screen_size": [
+      2000,
+      1406
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 8,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "fill_velocity_v1_mms": {
+      "text": "60.0",
+      "conf": 0.989
+    },
+    "fill_velocity_v2_mms": {
+      "text": "80.0",
+      "conf": 0.993
+    },
+    "fill_velocity_v3_mms": {
+      "text": "30.0",
+      "conf": 0.99
+    },
+    "switch_position_sv1_mm": {
+      "text": "26.00",
+      "conf": 0.996
+    },
+    "switch_position_sv2_mm": {
+      "text": "14.00",
+      "conf": 0.991
+    },
+    "metering_position_sm_mm": {
+      "text": "28.00",
+      "conf": 0.997
+    },
+    "metering_rpm": {
+      "text": "120",
+      "conf": 0.997
+    },
+    "back_pressure_mpa": {
+      "text": "2.0",
+      "conf": 0.995
+    },
+    "holding_pressure_p1_mpa": {
+      "text": "55.0",
+      "conf": 0.995
+    },
+    "holding_pressure_p2_mpa": {
+      "text": "25.0",
+      "conf": 0.996
+    },
+    "holding_time_s": {
+      "text": "1.00",
+      "conf": 0.994
+    },
+    "holding_limit_speed_mms": {
+      "text": "12.0",
+      "conf": 0.994
+    },
+    "vp_switch_position_mm": {
+      "text": "10.70",
+      "conf": 0.994
+    },
+    "pressure_limit_mpa": {
+      "text": "190.0",
+      "conf": 0.997
+    },
+    "cooling_time_s": {
+      "text": "8.60",
+      "conf": 0.979
+    },
+    "decompress_velocity_mms": {
+      "text": "20.0",
+      "conf": 0.995
+    },
+    "sd_position_mm": {
+      "text": "8.00",
+      "conf": 0.998
+    }
+  }
+}

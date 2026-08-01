@@ -1,0 +1,129 @@
+{
+  "image": "demag_Z002_20251211_rank11_recv51O2lNHu3D",
+  "status": "review",
+  "warnings": [
+    "CELL_MISSING(喷嘴1)",
+    "CELL_MISSING(喷嘴1)",
+    "CELL_MISSING(喷嘴1)",
+    "CELL_MISSING(区2)",
+    "CELL_MISSING(区1)",
+    "CELL_MISSING(料口)",
+    "CELL_MISSING(喷嘴1)",
+    "CELL_MISSING(喷嘴1)",
+    "CELL_MISSING(区3)",
+    "CELL_MISSING(区2)"
+  ],
+  "controller_family": "DEMAG",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": [
+      355.0,
+      315.0,
+      295.0,
+      295.0
+    ],
+    "barrel_temperature_set_c": [
+      null,
+      315.0,
+      295.0,
+      295.0
+    ],
+    "high_deviation_c": [
+      null,
+      20.0,
+      20.0,
+      20.0
+    ],
+    "low_deviation_c": [
+      null,
+      20.0,
+      20.0,
+      20.0
+    ],
+    "control_percent": [
+      21.0,
+      18.0,
+      14.0,
+      59.0
+    ],
+    "drop_port_temperature_current_c": 50.0,
+    "drop_port_temperature_set_c": 50.0,
+    "drop_port_control_percent": -16.0,
+    "oil_temperature_current_c": 30.0,
+    "oil_temperature_set_c": 30.0,
+    "holding_temperature_c": 200.0
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "demag.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/demag_Z002_20251211_rank11_recv51O2lNHu3D.ocr.json",
+    "screen_size": [
+      2000,
+      1654
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 0,
+      "replaced": 0
+    },
+    "ocr_rates_merge": {
+      "rate_cells": 10
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.3999,
+      "set": 0.4386,
+      "high": 0.4767,
+      "low": 0.5145
+    },
+    "deskew_slope": -0.0038,
+    "col_x_screen_order": [
+      0.3385,
+      0.6605,
+      0.7332,
+      0.8203,
+      0.946
+    ],
+    "screen_rows": {
+      "current": [
+        355.0,
+        315.0,
+        295.0,
+        295.0,
+        50.0
+      ],
+      "set": [
+        null,
+        315.0,
+        295.0,
+        295.0,
+        50.0
+      ],
+      "high": [
+        null,
+        20.0,
+        20.0,
+        20.0,
+        30.0
+      ],
+      "low": [
+        null,
+        20.0,
+        20.0,
+        20.0,
+        30.0
+      ],
+      "rate_top": [
+        21.0,
+        18.0,
+        14.0,
+        59.0,
+        -16.0
+      ]
+    }
+  }
+}

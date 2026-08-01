@@ -1,0 +1,29 @@
+{
+  "filename": "demag_Z005_20260120_rank15_recv8QCjzWszUW.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      0.0,
+      686.4000244140625
+    ],
+    [
+      984.0000610351562,
+      633.6000366210938
+    ],
+    [
+      986.4000244140625,
+      1514.4000244140625
+    ],
+    [
+      0.0,
+      1430.4000244140625
+    ]
+  ],
+  "screen_size": [
+    1400,
+    1151
+  ],
+  "output_path": "output/fanuc_demag_calib/rectified/demag_Z005_20260120_rank15_recv8QCjzWszUW.png",
+  "warnings": []
+}

@@ -1,0 +1,45 @@
+{
+  "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+  "table_id": "tblWz3Dy6vy7dOzy",
+  "table_name": "射出保压字段核验-Z002",
+  "url": "https://ecn6lj2fknte.feishu.cn/base/Vz2QbZ0lkagmVJsrMZ7cQwbSnZc?table=tblWz3Dy6vy7dOzy",
+  "verifier": "自动整批接受（半自动模式，降级；用户保留事后否决权）",
+  "records": [
+    {
+      "image": "inj_Z002_20250516_rank01_recuQJJFYYMldc.jpeg",
+      "record_id": "recvr3ur9NUnRL",
+      "table_id": "tblWz3Dy6vy7dOzy",
+      "origin_record_id": "recuQJJFYYMldc"
+    },
+    {
+      "image": "inj_Z002_20250607_rank05_recuQJJQEdcafG.jpeg",
+      "record_id": "recvr3utfSrqXB",
+      "table_id": "tblWz3Dy6vy7dOzy",
+      "origin_record_id": "recuQJJQEdcafG"
+    },
+    {
+      "image": "inj_Z002_20251026_rank06_recv0GPJJGFf9q.jpeg",
+      "record_id": "recvr3uvJmtKLJ",
+      "table_id": "tblWz3Dy6vy7dOzy",
+      "origin_record_id": "recv0GPJJGFf9q"
+    },
+    {
+      "image": "inj_Z002_20260312_rank02_recvdBTJTZktd6.jpeg",
+      "record_id": "recvr3uxZEQXk3",
+      "table_id": "tblWz3Dy6vy7dOzy",
+      "origin_record_id": "recvdBTJTZktd6"
+    },
+    {
+      "image": "inj_Z002_20260312_rank04_recvdFyqLjkKBd.jpeg",
+      "record_id": "recvr3uzwAIPlq",
+      "table_id": "tblWz3Dy6vy7dOzy",
+      "origin_record_id": "recvdFyqLjkKBd"
+    },
+    {
+      "image": "inj_Z002_20260317_rank03_recve9hbSYpj1w.jpeg",
+      "record_id": "recvr3uBbh469g",
+      "table_id": "tblWz3Dy6vy7dOzy",
+      "origin_record_id": "recve9hbSYpj1w"
+    }
+  ]
+}

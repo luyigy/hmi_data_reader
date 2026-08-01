@@ -1,0 +1,72 @@
+{
+  "image": "fanuc_Z032_20260112_rank02_recv85Q78xefjU",
+  "status": "review",
+  "warnings": [
+    "ROW_VALUES_MISSING(set,3/5)",
+    "ROW_VALUES_MISSING(low,2/5)",
+    "ROW_VALUES_MISSING(current,2/5)",
+    "ROW_VALUES_MISSING(current)",
+    "ROW_VALUES_MISSING(control,2/5)",
+    "VALUE_OUT_OF_RANGE(high[1],335.0)",
+    "VALUE_OUT_OF_RANGE(high[2],335.0)",
+    "VALUE_OUT_OF_RANGE(high[3],335.0)"
+  ],
+  "controller_family": "FANUC",
+  "page_type": "temperature",
+  "hmi_variant": "v1",
+  "heater_columns": 4,
+  "fields": {
+    "barrel_temperature_current_c": null,
+    "barrel_temperature_set_c": null,
+    "high_deviation_c": [
+      10.0,
+      null,
+      null,
+      null
+    ],
+    "low_deviation_c": null,
+    "control_percent": null,
+    "holding_temperature_c": 120.0,
+    "drop_port_temperature_current_c": null,
+    "drop_port_temperature_set_c": null,
+    "drop_port_control_percent": null
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "fanuc.temperature.json v0.1.0",
+    "ocr_file": "output/fanuc_demag_calib/rectified/fanuc_Z032_20260112_rank02_recv85Q78xefjU.ocr.json",
+    "screen_size": [
+      1400,
+      973
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 5,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "row_y": {
+      "current": 0.4234,
+      "control": 0.4712,
+      "high": 0.5277,
+      "set": 0.5719,
+      "low": 0.6202
+    },
+    "deskew_slope": 0.0188,
+    "rows5": {
+      "current": [],
+      "control": null,
+      "high": [
+        10.0,
+        335.0,
+        335.0,
+        335.0,
+        50.0
+      ],
+      "set": null,
+      "low": null
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "image": "inj_Z022_20250719_rank06_recuRme5FMfrI9.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "injection_metering",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "fill_velocity_mms": [
+      100.0,
+      50.0,
+      25.0
+    ],
+    "fill_stages": 3,
+    "switch_position_sv1_mm": 30.0,
+    "switch_position_sv2_mm": 25.0,
+    "metering_position_sm_mm": 45.0,
+    "metering_rpm": 150,
+    "back_pressure_mpa": 8.0,
+    "holding_pressure_mpa": [
+      115.0
+    ],
+    "holding_stages": 1,
+    "holding_time_s": null,
+    "holding_limit_speed_mms": 5.0,
+    "vp_switch_position_mm": 15.0,
+    "pressure_limit_mpa": 220.0,
+    "injection_time_s": 2.0,
+    "cooling_time_s": 7.0,
+    "decompress_velocity_mms": 20.0,
+    "sd_position_mm": 3.0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "自动整批接受（027 自动模式预授权，visual_skim_acceptance 降级；用户保留事后否决权）",
+    "verified_at": "2026-08-01",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblbQObt5p9yHxuy",
+    "record_id": "recvr2i3F3l6uH",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recuRme5FMfrI9",
+    "file_token": "MWOCbYO8ToFcn5xfM3KcAlRMnPb"
+  },
+  "notes": "机台 Z022（TACT）、日期 2025-07-19、rank06、模具 TX23024-ZUIXIN-80DU。TACT 射出·计量页（蓝 UI）：充填速度 V1-V3（V4-6 未启用）、切换位置 Sv1/Sv2/SM、计量 VS1/BP1、保压 Pp1/Pp2（1 段）、V-P转换位置、Pv1 限制压力、射出/冷却时间、减压速度/SD。螺杆位置/树脂压力/旋转速度为实时值不入真值。本图保压 1 段：Pp2/Tp1 为空（非漏读）。 | 2026-08-01 自动整批接受转真值（降级口径；用户保留事后否决权）。"
+}

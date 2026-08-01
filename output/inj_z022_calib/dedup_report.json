@@ -1,0 +1,16 @@
+{
+  "total_files": 6,
+  "duplicate_groups_within_record": 0,
+  "duplicate_groups_across_records": 0,
+  "duplicate_within_record": [],
+  "duplicate_across_records": [],
+  "unique": [
+    "inj_Z022_20250713_rank04_recuQN93uLlFp9.jpeg",
+    "inj_Z022_20250719_rank06_recuRme5FMfrI9.jpeg",
+    "inj_Z022_20250920_rank02_recuXikPelFCQR.jpeg",
+    "inj_Z022_20251209_rank03_recv4T2fW9vdWR.jpeg",
+    "inj_Z022_20251230_rank05_recv6OTTFiaGbR.jpeg",
+    "inj_Z022_20260108_rank01_recv7Is13Mrx8h.jpeg"
+  ],
+  "skipped_non_representative": {}
+}

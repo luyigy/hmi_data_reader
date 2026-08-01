@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-08-01T10:20:16+00:00",
+  "generator": "kimi-code S3 (035_PLAN)",
+  "final_target_count": 6,
+  "final_targets": [
+    {
+      "rank": 1,
+      "role": "original_target",
+      "machine": "Z002",
+      "brand": "德马格",
+      "family": "DEMAG",
+      "local_name": "inj_Z002_20250516_rank01_recuQJJFYYMldc.jpeg",
+      "sha256": "cc1fb9bdb2ec208d610e882f766d2cea7813b55d2ca5549f685aa371a3161f04",
+      "record_id": "recuQJJFYYMldc",
+      "date": "2025-05-16",
+      "file_token": "H6XIbfp1Pomh1jxElsVcGui6nue",
+      "size": 3996584
+    },
+    {
+      "rank": 2,
+      "role": "original_target",
+      "machine": "Z002",
+      "brand": "德马格",
+      "family": "DEMAG",
+      "local_name": "inj_Z002_20260312_rank02_recvdBTJTZktd6.jpeg",
+      "sha256": "f3b430e4273f68f16388e76e70b9a1320db5a361dfc69c8238b0311f42ddb0e7",
+      "record_id": "recvdBTJTZktd6",
+      "date": "2026-03-12",
+      "file_token": "DrrqbT6EfonKMlxvkZMcRc8JnVd",
+      "size": 760007
+    },
+    {
+      "rank": 3,
+      "role": "original_target",
+      "machine": "Z002",
+      "brand": "德马格",
+      "family": "DEMAG",
+      "local_name": "inj_Z002_20260317_rank03_recve9hbSYpj1w.jpeg",
+      "sha256": "64b0d43f1ef85ff69259b46c5053a45b5b45183e481a04baf006a25eff0be5af",
+      "record_id": "recve9hbSYpj1w",
+      "date": "2026-03-17",
+      "file_token": "L2TPbqe0BovTQUxFleqcnjL9n9s",
+      "size": 1016795
+    },
+    {
+      "rank": 4,
+      "role": "original_target",
+      "machine": "Z002",
+      "brand": "德马格",
+      "family": "DEMAG",
+      "local_name": "inj_Z002_20260312_rank04_recvdFyqLjkKBd.jpeg",
+      "sha256": "dc675b0df7f9e7f979b3f83d894f51e573a3fb87e75ed218cfafab1df06feb91",
+      "record_id": "recvdFyqLjkKBd",
+      "date": "2026-03-12",
+      "file_token": "QZxKbRAmRo1w1LxY0bHcAxhMndc",
+      "size": 1213392
+    },
+    {
+      "rank": 5,
+      "role": "original_target",
+      "machine": "Z002",
+      "brand": "德马格",
+      "family": "DEMAG",
+      "local_name": "inj_Z002_20250607_rank05_recuQJJQEdcafG.jpeg",
+      "sha256": "a25aaececa2eb6598574228ad867a56bfb66d2b83c5d91a240ad3c402b817855",
+      "record_id": "recuQJJQEdcafG",
+      "date": "2025-06-07",
+      "file_token": "BKwgbSBBeoGNV7xTDF9coNKgnfb",
+      "size": 6435170
+    },
+    {
+      "rank": 6,
+      "role": "original_target",
+      "machine": "Z002",
+      "brand": "德马格",
+      "family": "DEMAG",
+      "local_name": "inj_Z002_20251026_rank06_recv0GPJJGFf9q.jpeg",
+      "sha256": "93ab5fb461d48ddaf007464b6a619dd57792ec721421ca013472da0994d52bc2",
+      "record_id": "recv0GPJJGFf9q",
+      "date": "2025-10-26",
+      "file_token": "HfthbfWZGoIn3expRV9cy3C2ntf",
+      "size": 4552161
+    }
+  ],
+  "content_duplicates": []
+}

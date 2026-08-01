@@ -1,0 +1,525 @@
+{
+  "version": "1.1",
+  "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3；拒识口径 docs/023_PLAN_20260801_伯乐S3拒识口径与定向收口.md §3",
+  "tolerance": 0.5,
+  "n_images": 20,
+  "metrics": {
+    "controller_classification_accuracy": 1.0,
+    "page_classification_accuracy": 1.0,
+    "field_completeness": 0.9941,
+    "numeric_accuracy": 0.9922,
+    "auto_import_ratio": 0.25,
+    "error_auto_import_rate": 0.0,
+    "rejection_accuracy": 1.0
+  },
+  "gates": {
+    "numeric_accuracy >= 0.95": true,
+    "error_auto_import_rate == 0": true,
+    "rejection_accuracy == 1": true
+  },
+  "poc_pass": true,
+  "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，伯乐批分母应为 1 由验收显式核对）",
+  "scoring": {
+    "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
+    "raw_totals": {
+      "n_images": 20,
+      "n_elements": 528,
+      "n_present": 507,
+      "n_matched": 506
+    },
+    "scored_totals": {
+      "n_images": 19,
+      "n_elements": 510,
+      "n_present": 507,
+      "n_matched": 506
+    },
+    "excluded_images": [
+      {
+        "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+        "n_elements": 18,
+        "reason": "correct_reject(allow_auto_import=false, status=reject)"
+      }
+    ]
+  },
+  "missing_extraction": [],
+  "per_image": [
+    {
+      "image": "bole_Z001_20250706_rank05_recuQJJQEdHz8T.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 27,
+      "n_present": 27,
+      "n_matched": 27,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z001_20250723_rank01_recuRMMGl61hX3.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 27,
+      "n_present": 27,
+      "n_matched": 27,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z001_20250804_rank04_recuSX8WOzVuXr.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 27,
+      "n_present": 27,
+      "n_matched": 27,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z001_20251127_rank03_recv3L738mIX67.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 25,
+      "n_present": 24,
+      "n_matched": 24,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z001_20260128_rank02_recv9BowFSmcvr.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 26,
+      "n_present": 26,
+      "n_matched": 26,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z001_20260304_rank20_recvcR7EH9Slr0.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 26,
+      "n_present": 25,
+      "n_matched": 24,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z001_20260402_rank06_recvfEPC0hJGnx.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 26,
+      "n_present": 26,
+      "n_matched": 26,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z004_20250804_rank07_recuSX8WOzPxqw.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "B_AND_R",
+      "family_extracted": "B_AND_R",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 31,
+      "n_present": 31,
+      "n_matched": 31,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z046_20250729_rank11_recuSiWBMMR07X.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "B_AND_R",
+      "family_extracted": "B_AND_R",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 30,
+      "n_present": 30,
+      "n_matched": 30,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z046_20250811_rank13_recuTC4vmXJtTP.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "B_AND_R",
+      "family_extracted": "B_AND_R",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 31,
+      "n_present": 31,
+      "n_matched": 31,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z046_20250924_rank10_recuXFJ2KmqxWR.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "B_AND_R",
+      "family_extracted": "B_AND_R",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 31,
+      "n_present": 31,
+      "n_matched": 31,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z046_20251128_rank09_recv3NN4TXPlKn.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "B_AND_R",
+      "family_extracted": "B_AND_R",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 31,
+      "n_present": 31,
+      "n_matched": 31,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z046_20260318_rank12_recvef7IKvyC45.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "B_AND_R",
+      "family_extracted": "B_AND_R",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 31,
+      "n_present": 30,
+      "n_matched": 30,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z046_20260325_rank08_recveU3pcIDnIP.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "B_AND_R",
+      "family_extracted": "B_AND_R",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 31,
+      "n_present": 31,
+      "n_matched": 31,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "status": "reject",
+      "allow_auto_import": false,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 18,
+      "n_present": 0,
+      "n_matched": 0,
+      "correct_reject": true
+    },
+    {
+      "image": "bole_Z047_20250924_rank15_recuXFJ2KmX9qE.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 22,
+      "n_matched": 22,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z047_20251016_rank17_recuZKBBdTiuIi.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 22,
+      "n_matched": 22,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z047_20251127_rank14_recv3L738mKFzm.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 22,
+      "n_matched": 22,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z047_20251215_rank18_recv5s7hAZ5oiH.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 22,
+      "n_matched": 22,
+      "correct_reject": false
+    },
+    {
+      "image": "bole_Z047_20251216_rank19_recv5vhFIREnE0.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "temperature",
+      "page_extracted": "temperature",
+      "page_match": true,
+      "n_elements": 22,
+      "n_present": 22,
+      "n_matched": 22,
+      "correct_reject": false
+    }
+  ],
+  "mismatched_elements": [
+    {
+      "image": "bole_Z001_20251127_rank03_recv3L738mIX67.jpeg",
+      "field": "drop_port_temperature_current_c",
+      "truth": 58.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z001_20260304_rank20_recvcR7EH9Slr0.jpeg",
+      "field": "holding_temperature_c",
+      "truth": 180.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z001_20260304_rank20_recvcR7EH9Slr0.jpeg",
+      "field": "drop_port_temperature_current_c",
+      "truth": 48.0,
+      "extracted": 49.0,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "bole_Z046_20260318_rank12_recvef7IKvyC45.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 275.2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_set_c[1]",
+      "truth": 235.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_set_c[2]",
+      "truth": 245.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_set_c[3]",
+      "truth": 235.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_set_c[4]",
+      "truth": 220.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_current_c[1]",
+      "truth": 235.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_current_c[2]",
+      "truth": 245.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_current_c[3]",
+      "truth": 235.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "barrel_temperature_current_c[4]",
+      "truth": 220.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "holding_temperature_c",
+      "truth": 150.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "drop_port_temperature_current_c",
+      "truth": 50.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "high_deviation_c[1]",
+      "truth": 40.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "high_deviation_c[2]",
+      "truth": 45.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "high_deviation_c[3]",
+      "truth": 45.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "high_deviation_c[4]",
+      "truth": 45.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "low_deviation_c[1]",
+      "truth": 30.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "low_deviation_c[2]",
+      "truth": 40.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "low_deviation_c[3]",
+      "truth": 40.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "field": "low_deviation_c[4]",
+      "truth": 40.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    }
+  ]
+}

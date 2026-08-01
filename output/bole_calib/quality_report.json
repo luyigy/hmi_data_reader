@@ -1,0 +1,525 @@
+{
+  "summary": {
+    "green": 2,
+    "yellow": 18,
+    "red": 0
+  },
+  "reports": [
+    {
+      "filename": "bole_Z001_20250706_rank05_recuQJJQEdHz8T.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE",
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          234,
+          1719,
+          3176,
+          1363
+        ],
+        "screen_area_ratio": 0.26994757805422187,
+        "perspective_ratio": 1.4017105566085768,
+        "blur_score": 513.4069022177658,
+        "glare_ratio": 0.023604093581255012,
+        "dark_ratio": 0.07552940777369364,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "bole_Z001_20250723_rank01_recuRMMGl61hX3.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 4624,
+        "height": 3468,
+        "screen_bbox": [
+          0,
+          67,
+          4118,
+          1882
+        ],
+        "screen_area_ratio": 0.48329137781715575,
+        "perspective_ratio": 1.0,
+        "blur_score": 493.7130519521843,
+        "glare_ratio": 0.06775840806503754,
+        "dark_ratio": 0.11333589256993251,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z001_20250804_rank04_recuSX8WOzVuXr.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 4032,
+        "height": 3024,
+        "screen_bbox": [
+          972,
+          807,
+          3059,
+          1208
+        ],
+        "screen_area_ratio": 0.3030708039388595,
+        "perspective_ratio": 1.578652287302465,
+        "blur_score": 122.06473364524916,
+        "glare_ratio": 0.008165660168388343,
+        "dark_ratio": 0.06682731927647602,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z001_20251127_rank03_recv3L738mIX67.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 3072,
+        "height": 4096,
+        "screen_bbox": [
+          871,
+          344,
+          2103,
+          3082
+        ],
+        "screen_area_ratio": 0.515099048614502,
+        "perspective_ratio": 1.7622948417243685,
+        "blur_score": 155.98844924985303,
+        "glare_ratio": 0.0009783109029134114,
+        "dark_ratio": 0.15764784812927246,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z001_20260128_rank02_recv9BowFSmcvr.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          85,
+          383,
+          635,
+          750
+        ],
+        "screen_area_ratio": 0.5167643229166666,
+        "perspective_ratio": 1.4575874925003915,
+        "blur_score": 189.5826970587835,
+        "glare_ratio": 0.004988064236111111,
+        "dark_ratio": 0.17573350694444445,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z001_20260304_rank20_recvcR7EH9Slr0.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          315,
+          720,
+          926
+        ],
+        "screen_area_ratio": 0.7234375,
+        "perspective_ratio": 1.5931538825589264,
+        "blur_score": 102.36134074976412,
+        "glare_ratio": 9.006076388888889e-05,
+        "dark_ratio": 0.10374674479166666,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z001_20260402_rank06_recvfEPC0hJGnx.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          326,
+          462,
+          1447,
+          532
+        ],
+        "screen_area_ratio": 0.3712403549382716,
+        "perspective_ratio": 1.0,
+        "blur_score": 79.77612422119101,
+        "glare_ratio": 2.8935185185185186e-05,
+        "dark_ratio": 0.11162422839506173,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z004_20250804_rank07_recuSX8WOzPxqw.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          325,
+          0,
+          2907,
+          3925
+        ],
+        "screen_area_ratio": 0.7115210920008141,
+        "perspective_ratio": 1.3966873577435104,
+        "blur_score": 124.25426734934734,
+        "glare_ratio": 0.034667366590438335,
+        "dark_ratio": 0.057472696487510126,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z046_20250729_rank11_recuSiWBMMR07X.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3024,
+        "height": 4032,
+        "screen_bbox": [
+          0,
+          46,
+          3024,
+          3986
+        ],
+        "screen_area_ratio": 0.9885912698412699,
+        "perspective_ratio": 1.0,
+        "blur_score": 3634.2598337593868,
+        "glare_ratio": 0.022108843537414966,
+        "dark_ratio": 0.03738297981229529,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z046_20250811_rank13_recuTC4vmXJtTP.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3024,
+        "height": 4032,
+        "screen_bbox": [
+          0,
+          418,
+          3023,
+          3614
+        ],
+        "screen_area_ratio": 0.8960329598660451,
+        "perspective_ratio": 1.0,
+        "blur_score": 2220.183412403378,
+        "glare_ratio": 0.02202075853489544,
+        "dark_ratio": 0.17227827184114386,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z046_20250924_rank10_recuXFJ2KmqxWR.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3456,
+        "height": 4608,
+        "screen_bbox": [
+          26,
+          0,
+          3430,
+          4608
+        ],
+        "screen_area_ratio": 0.9924768518518519,
+        "perspective_ratio": 1.0,
+        "blur_score": 3652.4172396092154,
+        "glare_ratio": 0.10658823021154835,
+        "dark_ratio": 0.08267400294174383,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z046_20251128_rank09_recv3NN4TXPlKn.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          614,
+          0,
+          2830,
+          3552
+        ],
+        "screen_area_ratio": 0.6268483375438513,
+        "perspective_ratio": 1.4849611273566845,
+        "blur_score": 101.46811636142898,
+        "glare_ratio": 0.0439865048909855,
+        "dark_ratio": 0.23600900771462666,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z046_20260318_rank12_recvef7IKvyC45.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          0,
+          469,
+          1045,
+          1451
+        ],
+        "screen_area_ratio": 0.7312379436728395,
+        "perspective_ratio": 1.1239770690510285,
+        "blur_score": 211.9075034278585,
+        "glare_ratio": 1.9290123456790124e-06,
+        "dark_ratio": 0.1805637538580247,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z046_20260325_rank08_recveU3pcIDnIP.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          24,
+          795,
+          1056,
+          516
+        ],
+        "screen_area_ratio": 0.2627777777777778,
+        "perspective_ratio": 1.0060790116139169,
+        "blur_score": 532.279756412308,
+        "glare_ratio": 0.002683738425925926,
+        "dark_ratio": 0.16817322530864198,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "bole_Z047_20250516_rank16_recuQJJFYY4E2G.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 4032,
+        "height": 3024,
+        "screen_bbox": [
+          310,
+          1996,
+          1523,
+          756
+        ],
+        "screen_area_ratio": 0.09443204365079365,
+        "perspective_ratio": 1.0714849087423859,
+        "blur_score": 165.8762765015015,
+        "glare_ratio": 0.018576175647728226,
+        "dark_ratio": 0.2577437707336021,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "bole_Z047_20250924_rank15_recuXFJ2KmX9qE.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE",
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 4608,
+        "height": 3456,
+        "screen_bbox": [
+          666,
+          748,
+          3493,
+          1029
+        ],
+        "screen_area_ratio": 0.2256980236665702,
+        "perspective_ratio": 1.0400986893621489,
+        "blur_score": 132.4581880077724,
+        "glare_ratio": 0.021770524389949846,
+        "dark_ratio": 0.15755836267039608,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "bole_Z047_20251016_rank17_recuZKBBdTiuIi.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE",
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          456,
+          947,
+          2446,
+          1809
+        ],
+        "screen_area_ratio": 0.2759294818069707,
+        "perspective_ratio": 1.0747379010244684,
+        "blur_score": 134.27447767931767,
+        "glare_ratio": 0.09745540542697845,
+        "dark_ratio": 0.4254743318047756,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "bole_Z047_20251127_rank14_recv3L738mKFzm.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 3072,
+        "height": 4096,
+        "screen_bbox": [
+          327,
+          1957,
+          2066,
+          1202
+        ],
+        "screen_area_ratio": 0.1973574956258138,
+        "perspective_ratio": 1.0228845117539465,
+        "blur_score": 164.47780356549745,
+        "glare_ratio": 0.01666108767191569,
+        "dark_ratio": 0.3282725016276042,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "bole_Z047_20251215_rank18_recv5s7hAZ5oiH.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 3072,
+        "height": 4096,
+        "screen_bbox": [
+          135,
+          1526,
+          2378,
+          1795
+        ],
+        "screen_area_ratio": 0.3392306963602702,
+        "perspective_ratio": 1.0636400739726009,
+        "blur_score": 606.3602109745436,
+        "glare_ratio": 0.013516664505004883,
+        "dark_ratio": 0.38967688878377277,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "bole_Z047_20251216_rank19_recv5vhFIREnE0.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 3000,
+        "height": 4000,
+        "screen_bbox": [
+          90,
+          878,
+          2777,
+          860
+        ],
+        "screen_area_ratio": 0.19901833333333332,
+        "perspective_ratio": 1.0,
+        "blur_score": 305.5111906483515,
+        "glare_ratio": 1.625e-05,
+        "dark_ratio": 0.4711119166666667,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    }
+  ]
+}

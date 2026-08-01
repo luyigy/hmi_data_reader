@@ -1,0 +1,17 @@
+{
+  "plan": "docs/029_PLAN_20260801_UNKNOWN机台家族裁定.md",
+  "slice": "S1",
+  "updated_at": "2026-08-01T11:00:00+08:00",
+  "completed_steps": [
+    "026/013 S4 挂起收尾（用户裁定路径③；rank07 改判拒识样本；最终 numeric 0.9093/error 0/rejection 1.0）",
+    "029 PLAN 立：32 台 UNKNOWN 机台（伯乐17+日精12+发那科3，日精实际为12台而非早前记的9台）",
+    "029 S1 启动：每台最新带附件记录下载1张代表图（task 后台）",
+    "029 S1 完成：32/32 代表图下载零失败",
+    "029 S2 完成：32 台 VLM 判族 output/unknown_family_drafts.json——B_AND_R×12(全在伯乐)、TACT×11(日精10+伯乐Z023)、FANUC×4(发那科3+伯乐Z029)、KEBA×2(伯乐Z031/034)、DEMAG×2(日精Z003/008)、OTHER×1(伯乐Z048)；机身品牌与控制器不一致 4 台（伯乐Z023=TACT、Z029=FANUC，日精Z003/Z008=DEMAG）",
+    "029 S3 启动：飞书「UNKNOWN机台家族裁定」表后台建表中（task bash-xq720141）",
+    "029 S3 完成：飞书「UNKNOWN机台家族裁定」tblBxWeEE5Y0Cq1Z 32行+代表图+建议家族",
+    "029 S4 完成：用户整批裁定（Z048 更正为 EST，Z023/Z029/Z003/Z008 确认）→ machine_labels 19→51 回写 → 030 HANDOVER 落盘，029 收口"
+  ],
+  "next_step": "029 完成。Backlog 剩余：扩池（Z036 FANUC×474/日精TACT×10/伯乐B&R×12，另立 PLAN）、沙迪克/阿博格立项——等用户指令",
+  "pending_user_decision": []
+}
