@@ -90,6 +90,37 @@ QUEUE = [
      "family": "TACT", "wave": 2, "provenance": "027 §1 挂起残余 / 031–033"},
     {"unit_id": "temperature/FANUC_DEMAG/generalization", "page": "temperature",
      "family": "FANUC_DEMAG", "wave": 2, "provenance": "039 §2-2 泛化缺口"},
+    # 039 §2 第 3–7 波次：其余页面线（045 登记；主力三家族 wave1，同射保线模式）
+    {"unit_id": "metering_cooling/TACT/wave1", "page": "metering_cooling",
+     "family": "TACT", "wave": 1, "provenance": "039 §2-3 储料/冷却"},
+    {"unit_id": "metering_cooling/DEMAG/wave1", "page": "metering_cooling",
+     "family": "DEMAG", "wave": 1, "provenance": "039 §2-3 储料/冷却"},
+    {"unit_id": "metering_cooling/FANUC/wave1", "page": "metering_cooling",
+     "family": "FANUC", "wave": 1, "provenance": "039 §2-3 储料/冷却"},
+    {"unit_id": "molding_monitor/TACT/wave1", "page": "molding_monitor",
+     "family": "TACT", "wave": 1, "provenance": "039 §2-4 成型监控一/二"},
+    {"unit_id": "molding_monitor/DEMAG/wave1", "page": "molding_monitor",
+     "family": "DEMAG", "wave": 1, "provenance": "039 §2-4 成型监控一/二"},
+    {"unit_id": "molding_monitor/FANUC/wave1", "page": "molding_monitor",
+     "family": "FANUC", "wave": 1, "provenance": "039 §2-4 成型监控一/二"},
+    {"unit_id": "waveform/TACT/wave1", "page": "waveform",
+     "family": "TACT", "wave": 1, "provenance": "039 §2-5 波形图"},
+    {"unit_id": "waveform/DEMAG/wave1", "page": "waveform",
+     "family": "DEMAG", "wave": 1, "provenance": "039 §2-5 波形图"},
+    {"unit_id": "waveform/FANUC/wave1", "page": "waveform",
+     "family": "FANUC", "wave": 1, "provenance": "039 §2-5 波形图"},
+    {"unit_id": "hot_runner_temp/TACT/wave1", "page": "hot_runner_temp",
+     "family": "TACT", "wave": 1, "provenance": "039 §2-6 热流道温控"},
+    {"unit_id": "hot_runner_temp/DEMAG/wave1", "page": "hot_runner_temp",
+     "family": "DEMAG", "wave": 1, "provenance": "039 §2-6 热流道温控"},
+    {"unit_id": "hot_runner_temp/FANUC/wave1", "page": "hot_runner_temp",
+     "family": "FANUC", "wave": 1, "provenance": "039 §2-6 热流道温控"},
+    {"unit_id": "mold_temp/TACT/wave1", "page": "mold_temp",
+     "family": "TACT", "wave": 1, "provenance": "039 §2-7 模温机前/后/行位"},
+    {"unit_id": "mold_temp/DEMAG/wave1", "page": "mold_temp",
+     "family": "DEMAG", "wave": 1, "provenance": "039 §2-7 模温机前/后/行位"},
+    {"unit_id": "mold_temp/FANUC/wave1", "page": "mold_temp",
+     "family": "FANUC", "wave": 1, "provenance": "039 §2-7 模温机前/后/行位"},
 ]
 
 # S1 对账时已确认的终态种子（仅执行状态，出处可审计）；checkpoint 存在时以 checkpoint 为准
@@ -126,6 +157,24 @@ SEEDED_TERMINAL = {
         "status": "SAFE_REJECT",
         "provenance": "044 HANDOVER：026 S8 整改尝试后 numeric 0.9093 未达门，error 0.0/rejection 1.0 安全拒识",
     },
+    # 039 S6（045 HANDOVER）：五条页面线零本地资产、只读盘点亦依赖 lark-cli，
+    # 15 个 wave1 单元统一 BLOCKED_EXTERNAL；恢复条件=lark-cli 或等价飞书 API
+    # 通道可用后先做只读盘点再按三波规则领片
+    "metering_cooling/TACT/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-3）"},
+    "metering_cooling/DEMAG/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-3）"},
+    "metering_cooling/FANUC/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-3）"},
+    "molding_monitor/TACT/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-4）"},
+    "molding_monitor/DEMAG/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-4）"},
+    "molding_monitor/FANUC/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-4）"},
+    "waveform/TACT/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-5）"},
+    "waveform/DEMAG/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-5）"},
+    "waveform/FANUC/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-5）"},
+    "hot_runner_temp/TACT/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-6）"},
+    "hot_runner_temp/DEMAG/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-6）"},
+    "hot_runner_temp/FANUC/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-6）"},
+    "mold_temp/TACT/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-7）"},
+    "mold_temp/DEMAG/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-7）"},
+    "mold_temp/FANUC/wave1": {"status": "BLOCKED_EXTERNAL", "provenance": "045 HANDOVER（039 §2-7）"},
 }
 
 
