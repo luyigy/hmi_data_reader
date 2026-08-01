@@ -261,7 +261,7 @@ export const buildWorkflowDashboardCard = (args: {
             text: { tag: 'plain_text', content: '激活所选 PLAN' },
             type: 'primary_filled',
             width: 'fill',
-            form_action_type: 'submit',
+            action_type: 'form_submit',
             value: {
               cmd: 'workflow-dashboard',
               action: 'activate',

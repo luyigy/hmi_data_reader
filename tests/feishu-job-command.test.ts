@@ -301,6 +301,7 @@ const activationCard = buildWorkflowDashboardCard({
 assert.match(JSON.stringify(activationCard), /select_static/);
 assert.match(JSON.stringify(activationCard), /docs\/010_PLAN\.md/);
 assert.match(JSON.stringify(activationCard), /"action":"activate"/);
+assert.match(JSON.stringify(activationCard), /"action_type":"form_submit"/);
 assert.match(JSON.stringify(dashboardCard), /validation_show/);
 assert.match(JSON.stringify(dashboardCard), /validation_strict/);
 assert.match(JSON.stringify(dashboardCard), /abcdef1234/);
