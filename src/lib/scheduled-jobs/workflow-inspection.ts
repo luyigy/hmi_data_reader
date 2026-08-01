@@ -79,8 +79,18 @@ export type WorkflowPlanInspection = {
 };
 
 export type WorkflowOverview = {
+  inbox: Array<{ path: string; title: string; status: string; nextAction: string; source: string }>;
   queue: WorkflowPlanInspection[];
   plans: WorkflowPlanInspection[];
+  handovers: Array<{
+    path: string;
+    number: number;
+    title: string;
+    plan: string;
+    slice: string;
+    planProgress: string;
+    nextAction: string;
+  }>;
   warnings: string[];
 };
 
@@ -125,8 +135,25 @@ export async function inspectWorkflowOverview(
       };
     }
   }));
-  const documents = parsedDocuments.filter(({ error }) => !error);
+  const documents = parsedDocuments;
   const handovers = documents.filter(({ type }) => type === 'HANDOVER');
+  const inboxRoot = path.posix.join(watchRoot, 'inbox');
+  const parsedInbox = await Promise.all(files
+    .filter((file) => path.posix.dirname(file) === inboxRoot && file.endsWith('.md')
+      && path.posix.basename(file).toLowerCase() !== 'readme.md')
+    .map(async (filePath) => {
+      const content = await git(repository, 'show', `${head}:${filePath}`);
+      try {
+        return { filePath, content, metadata: workflowFrontMatter(content), error: '' };
+      } catch (error) {
+        return {
+          filePath,
+          content,
+          metadata: {} as Record<string, unknown>,
+          error: `${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+        };
+      }
+    }));
   const queuedPlans = new Set((await Promise.all(queuedDocuments.map(async (filePath) => {
     if (/_PLAN_/.test(filePath)) return filePath;
     const content = await git(repository, 'show', `${head}:${filePath}`).catch(() => '');
@@ -142,7 +169,8 @@ export async function inspectWorkflowOverview(
     )));
     const title = plan.content.match(/^#\s+PLAN\s*[·・-]\s*(.+)$/m)?.[1]?.trim()
       ?? path.posix.basename(plan.filePath);
-    const complete = plan.metadata.doc_status === 'completed' || latest?.plan_progress === 'complete';
+    const complete = ['completed', 'superseded'].includes(String(plan.metadata.doc_status))
+      || latest?.plan_progress === 'complete';
     const blocked = plan.metadata.doc_status === 'blocked' || latest?.next_action === 'blocked';
     const planActiveSlice = plan.filePath === currentPlan
       ? activeSlice
@@ -160,11 +188,17 @@ export async function inspectWorkflowOverview(
         : match[1] === planActiveSlice ? blocked ? '阻塞' : status.running && plan.filePath === currentPlan ? '执行中' : '当前 Slice'
           : '未开始',
     }));
-    return { path: plan.filePath, number: plan.number, title, state, slices, complete };
+    return {
+      path: plan.filePath,
+      number: plan.number,
+      title,
+      state,
+      slices: slices.filter(({ state: sliceState }) => sliceState !== '已完成'),
+      complete,
+    };
   });
-  const latestComplete = planRows.filter(({ complete }) => complete).sort((a, b) => b.number - a.number)[0];
   const plans: WorkflowPlanInspection[] = planRows
-    .filter((plan) => !plan.complete || plan === latestComplete || plan.path === currentPlan)
+    .filter((plan) => !plan.complete)
     .sort((a, b) => a.number - b.number)
     .map((plan) => ({
       path: plan.path,
@@ -185,28 +219,60 @@ export async function inspectWorkflowOverview(
     !duplicateOf && !['阻塞', '实施完成，等待人工验收'].includes(state)
   ));
   queue.forEach((plan, index) => { plan.queuePosition = index + 1; });
+  const planPaths = new Set(plans.map(({ path: planPath }) => planPath));
+  const relatedHandovers = handovers
+    .filter(({ metadata, filePath }) => {
+      const reference = planReference(metadata, filePath);
+      return !reference || planPaths.has(reference);
+    })
+    .map(({ filePath, number, content, metadata }) => ({
+      path: filePath,
+      number,
+      title: content.match(/^#\s+HANDOVER\s*[·・-]\s*(.+)$/m)?.[1]?.trim() ?? path.posix.basename(filePath),
+      plan: planReference(metadata, filePath) || '未声明',
+      slice: typeof metadata.slice === 'string' ? metadata.slice : '未声明',
+      planProgress: typeof metadata.plan_progress === 'string' ? metadata.plan_progress : '未声明',
+      nextAction: typeof metadata.next_action === 'string' ? metadata.next_action : '未声明',
+    }));
+  const inbox = parsedInbox.map(({ filePath, content, metadata }) => ({
+    path: filePath,
+    title: content.match(/^#\s+(?:ISSUE\s*[·・-]\s*)?(.+)$/m)?.[1]?.trim() ?? path.posix.basename(filePath),
+    status: typeof metadata.doc_status === 'string' ? metadata.doc_status : '未声明',
+    nextAction: typeof metadata.next_action === 'string' ? metadata.next_action : '未声明',
+    source: filePath,
+  }));
   const warnings = [
+    ...parsedDocuments.filter(({ error }) => error).map(({ error }) => error),
+    ...parsedInbox.filter(({ error }) => error).map(({ error }) => error),
     ...plans.filter(({ state }) => state.includes('未进入 watcher 队列'))
       .map(({ number }) => `${number} 已就绪但未进入 watcher 队列`),
     ...plans.filter(({ duplicateOf }) => duplicateOf)
       .map(({ number, duplicateOf }) => `${number} 与 ${path.posix.basename(duplicateOf!)} 重复`),
   ];
-  return { queue, plans, warnings };
+  return { inbox, queue, plans, handovers: relatedHandovers, warnings };
 }
 
 export const formatWorkflowOverview = (overview: Awaited<ReturnType<typeof inspectWorkflowOverview>>) => [
-  `当前计划：${overview.plans.length} 个；排队：${overview.queue.length} 个`,
-  '排队序列：',
-  ...(overview.queue.length
-    ? overview.queue.map(({ queuePosition, number, title, state }) => `${queuePosition}. ${number} ${title} · ${state}`)
+  `队列分类：Inbox ${overview.inbox.length} · PLAN ${overview.plans.length} · HANDOVER ${overview.handovers.length}`,
+  'Inbox：',
+  ...(overview.inbox.length
+    ? overview.inbox.map(({ path: filePath, title, status, nextAction }) => `- ${path.posix.basename(filePath)} · ${title} · ${status} · ${nextAction}`)
     : ['无']),
-  '全部计划与 Slice：',
+  '未完成 PLAN 与 Slice：',
   ...overview.plans.flatMap((plan) => [
     `- ${plan.number} ${plan.title} · ${plan.state}`,
     ...(plan.slices.length
       ? plan.slices.map(({ id, title, state }) => `  - ${id} ${state} · ${title}`)
-      : ['  - 无可识别的 Slice']),
+      : ['  - 未声明']),
   ]),
+  '相关 HANDOVER：',
+  ...(overview.handovers.length
+    ? overview.handovers.map((handover) => `- ${handover.number} ${handover.title} · ${handover.plan} · ${handover.slice} · ${handover.planProgress} · ${handover.nextAction}`)
+    : ['无']),
+  '排队序列：',
+  ...(overview.queue.length
+    ? overview.queue.map(({ queuePosition, number, title, state }) => `${queuePosition}. ${number} ${title} · ${state}`)
+    : ['无']),
   ...(overview.warnings.length ? ['异常：', ...overview.warnings.map((warning) => `- ${warning}`)] : []),
 ].join('\n');
 

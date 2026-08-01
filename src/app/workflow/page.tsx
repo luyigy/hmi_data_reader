@@ -62,30 +62,38 @@ export default async function WorkflowPage() {
 
             {status.overview ? (
               <section className="mt-6 rounded-2xl border border-slate-200 p-4 text-sm text-slate-900">
-                <h3 className="font-semibold">全部当前计划与排队序列</h3>
+                <h3 className="font-semibold">Workflow 队列</h3>
                 <p className="mt-2 text-slate-600">
-                  当前计划 {status.overview.plans.length} 个；排队 {status.overview.queue.length} 个
+                  Inbox {status.overview.inbox.length} · PLAN {status.overview.plans.length} · HANDOVER {status.overview.handovers.length}
                 </p>
-                <ol className="mt-3 space-y-1">
-                  {status.overview.queue.length
-                    ? status.overview.queue.map((plan) => (
-                      <li key={plan.path}>{plan.queuePosition}. {plan.number} {plan.title} · {plan.state}</li>
-                    ))
-                    : <li>无</li>}
-                </ol>
-                <div className="mt-5 space-y-4">
-                  {status.overview.plans.map((plan) => (
-                    <div key={plan.path}>
-                      <p className="font-medium">{plan.number} {plan.title} · {plan.state}</p>
-                      <ul className="mt-1 ml-5 list-disc text-slate-600">
-                        {plan.slices.length
-                          ? plan.slices.map((slice) => (
-                            <li key={slice.id}>{slice.id} {slice.state} · {slice.title}</li>
-                          ))
-                          : <li>无可识别的 Slice</li>}
-                      </ul>
-                    </div>
-                  ))}
+                <div className="mt-5 grid gap-5 lg:grid-cols-3">
+                  <div>
+                    <h4 className="font-medium">Inbox</h4>
+                    {status.overview.inbox.length ? status.overview.inbox.map((item) => (
+                      <p key={item.path} className="mt-2 break-all text-slate-600">
+                        {item.path} · {item.status} · {item.nextAction}
+                      </p>
+                    )) : <p className="mt-2 text-slate-600">0</p>}
+                  </div>
+                  <div>
+                    <h4 className="font-medium">未完成 PLAN</h4>
+                    {status.overview.plans.length ? status.overview.plans.map((plan) => (
+                      <div key={plan.path} className="mt-2">
+                        <p>{plan.number} {plan.title} · {plan.state}</p>
+                        <p className="text-slate-600">
+                          {plan.slices.map(({ id, title }) => `${id} ${title}`).join('；') || '未声明'}
+                        </p>
+                      </div>
+                    )) : <p className="mt-2 text-slate-600">0</p>}
+                  </div>
+                  <div>
+                    <h4 className="font-medium">相关 HANDOVER</h4>
+                    {status.overview.handovers.length ? status.overview.handovers.map((handover) => (
+                      <p key={handover.path} className="mt-2 break-all text-slate-600">
+                        {handover.path} · {handover.plan} · {handover.slice} · {handover.planProgress} · {handover.nextAction}
+                      </p>
+                    )) : <p className="mt-2 text-slate-600">0</p>}
+                  </div>
                 </div>
                 {status.overview.warnings.length ? (
                   <div className="mt-5 rounded-xl bg-amber-50 p-3 text-amber-900">

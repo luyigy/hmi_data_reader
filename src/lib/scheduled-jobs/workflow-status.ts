@@ -332,8 +332,10 @@ const buildWorkflowStatus = async (
   }
   status.overview = await inspectWorkflowOverview(project.path, head, state?.cursorJson, job.config, status)
     .catch((error) => ({
+      inbox: [],
       queue: [],
       plans: [],
+      handovers: [],
       warnings: [`计划清单读取失败：${error instanceof Error ? error.message : String(error)}`],
     }));
   return status;

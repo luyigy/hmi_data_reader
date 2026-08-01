@@ -283,7 +283,9 @@ const activationCard = buildWorkflowDashboardCard({
     ...workflowStatus,
     stage: '空闲',
     overview: {
+      inbox: [],
       plans: [],
+      handovers: [],
       warnings: [],
       queue: [{
         path: 'docs/010_PLAN.md',
@@ -385,7 +387,7 @@ async function testWorkflowOverview() {
       mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
       writeFileSync(path.join(root, file), content);
     };
-    const plan = (status: string, action: string, title: string) => `---\ndoc_type: PLAN\ndoc_status: ${status}\nnext_action: ${action}\nplan_kind: phase\n---\n\n# PLAN · ${title}\n\n### S01：第一步\n`;
+    const plan = (status: string, action: string, title: string) => `---\ndoc_type: PLAN\ndoc_status: ${status}\nnext_action: ${action}\nplan_kind: phase\n---\n\n# PLAN · ${title}\n\n### S01：第一步\n\n### S02：第二步\n`;
     git('init', '-q');
     git('config', 'user.email', 'test@example.com');
     git('config', 'user.name', 'Test');
@@ -397,8 +399,10 @@ async function testWorkflowOverview() {
     write('docs/011_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题'));
     write('docs/012_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题'));
     write('docs/013_PLAN_20260801_blocked.md', plan('blocked', 'blocked', '阻塞计划'));
+    write('docs/014_HANDOVER_20260801_progress.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: next_slice\nplan: docs/011_PLAN_20260801_duplicate.md\nslice: S01\nplan_progress: in_progress\n---\n\n# HANDOVER · 第一阶段完成\n`);
     write('docs/015_PLAN_20260801_complete.md', plan('ready', 'start_first_slice', '完成计划'));
     write('docs/016_HANDOVER_20260801_complete.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: await_acceptance\nplan: docs/015_PLAN_20260801_complete.md\nslice: S01\nplan_progress: complete\n---\n\n# HANDOVER\n`);
+    write('docs/inbox/009_ISSUE_20260801_candidate.md', `---\ndoc_type: ISSUE\ndoc_status: draft\nnext_action: none\n---\n\n# ISSUE · Inbox candidate\n`);
     git('add', '.');
     git('commit', '-qm', 'plans');
     const head = git('rev-parse', 'HEAD');
@@ -412,11 +416,17 @@ async function testWorkflowOverview() {
       [11, '等待启动（未进入 watcher 队列）'],
       [12, '重复计划（同 11）'],
       [13, '阻塞'],
-      [15, '实施完成，等待人工验收'],
     ]);
     assert.deepEqual(overview.queue.map(({ number, queuePosition }) => [number, queuePosition]), [[10, 1], [11, 2]]);
-    assert.equal(overview.plans.at(-1)?.slices[0].state, '已完成');
-    assert.match(formatWorkflowOverview(overview), /排队序列：[\s\S]*1\. 10[\s\S]*全部计划与 Slice：[\s\S]*S01 已完成[\s\S]*异常：/);
+    assert.deepEqual(overview.inbox.map(({ title, source }) => [title, source]), [
+      ['Inbox candidate', 'docs/inbox/009_ISSUE_20260801_candidate.md'],
+    ]);
+    assert.deepEqual(
+      overview.handovers.map(({ number, slice, planProgress, nextAction }) => [number, slice, planProgress, nextAction]),
+      [[14, 'S01', 'in_progress', 'next_slice']],
+    );
+    assert.deepEqual(overview.plans.find(({ number }) => number === 11)?.slices.map(({ id }) => id), ['S02']);
+    assert.match(formatWorkflowOverview(overview), /队列分类：Inbox 1 · PLAN 4 · HANDOVER 1[\s\S]*未完成 PLAN 与 Slice：[\s\S]*S02[\s\S]*相关 HANDOVER：[\s\S]*next_slice[\s\S]*排队序列：[\s\S]*1\. 10[\s\S]*异常：/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
