@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -51,7 +51,3 @@ return_to: null
 ### S03：服务生效与端到端验证
 - 重启飞书 runtime / 平台服务，保证新 runner 代码生效。
 - 验证任务房间正常接收指令并在正确的工作区中执行。
-
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/347_PLAN_20260801_Antigravity_Workspace_Project_Binding.md` 的 S01：只实现和验证 Antigravity runner 按 `workingDirectory` 检索 Project、传递 `--project=<id>` 与首发 `--new-project` 参数逻辑。先读取 `docs/workflow/workflow-contract.yaml`、本 PLAN、最新有效 HANDOVER、Antigravity runner 模块与相关测试；对将修改的 `executeAntigravityTask` 先运行 GitNexus upstream impact 评估。不得开始 S02/S03，不改变 TaskRun 状态、不重启服务。完成聚焦测试、TypeScript 类型检查、ESLint、long-file guard、`git diff --check` 和 GitNexus `detect_changes` 后提交，并创建 `plan_progress: in_progress`、`next_action: next_slice` 的 S01 HANDOVER；提交后立即停止。
-<!-- WORKFLOW_PROMPT_END -->
