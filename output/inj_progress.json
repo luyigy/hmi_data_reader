@@ -1,7 +1,7 @@
 {
-  "plan": "docs/035_PLAN_20260801_射出保压页面线.md",
+  "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
   "slice": "S1",
-  "updated_at": "2026-08-02T00:39:48+08:00",
+  "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
     "S1 启动：射出/保压附件分布只读盘点（后台）",
@@ -22,9 +22,16 @@
     "039 S1 对账：038 审批悬置按默认裁决关闭，DEMAG 第二波确认 SAFE_REJECT；035 转 superseded（040 HANDOVER）",
     "039 S4 启动：复核 cron 恢复条件（仍 BLOCKED_EXTERNAL）；FANUC 射保第一波（Z036 候选 6+2）需下载大表附件，唯一下载通道 lark-cli 在本环境不存在（全盘 find 无二进制，`lark-cli` 未找到命令），飞书核验表同阻塞",
     "039 S4 裁决：本地 Z036 仅 029 代表图 1 张且为温度页（非射保页），不满足单机 6 图第一波；injection_metering/FANUC/wave1、injection_metering/TACT/wave2、injection_metering/FANUC/wave2 三单元记 BLOCKED_EXTERNAL（恢复条件：lark-cli 或等价飞书 API 通道可用后重跑 s23/s24 克隆脚本），043 HANDOVER 收口",
-    "039 S7 覆盖审计补登：射保线其余 7 家族（ZIZES/KEBA/B_AND_R/KAIMING/EST/TRD6/ARBURG）wave1 单元登记 BLOCKED_EXTERNAL（页面存在性已由 035 S1 盘点证实，样本下载被 lark-cli 阻塞）"
+    "039 S7 覆盖审计补登：射保线其余 7 家族（ZIZES/KEBA/B_AND_R/KAIMING/EST/TRD6/ARBURG）wave1 单元登记 BLOCKED_EXTERNAL（页面存在性已由 035 S1 盘点证实，样本下载被 lark-cli 阻塞）",
+    "039 复盘：61 单元 BLOCKED_EXTERNAL 系沙箱缺 lark-cli，本机环境正常——用户裁定立即续推不等恢复；启动 ①035 第三波 Z036（FANUC 6+2 下载，后台 bash-ivff5aq3）②5 页面线附件盘点（后台 bash-vj1px5y4）",
+    "039 续推盘点完成：5 页面线 output/pages_pool_inventory.json（储料冷却 53台/5515、成型监控 53台/5670、波形图 52台/4834、热流道 21台/1117、模温机前 50台/4621、后模 47台/4190）",
+    "035 第三波 S3 完成：Z036 射保页 6/6 下载零重复",
+    "035 第三波 S4 完成：6 份草稿 output/inj_z036_drafts/（FANUC 射出页：2段射出+2段保压+计量3段结构）",
+    "服务重启后续推：035 第三波 S5 启动——核验表（bash-nngonp5x）+ 6图管线 OCR（bash-uqy92i2a）并行",
+    "035 第三波完成：Z036 FANUC 射保 6 图三门禁 PASS（numeric 1.0 / error 0 / 6ok，156/156 元素）；fanuc.injection_metering 模板 v0.1 + extract_families/fanuc_injection.py 新增；Z002 重提零 diff、Z022 字段零 diff；048 HANDOVER 落盘",
+    "049 PLAN 立：剩余页面线全自动接力（射保 7 家族 wave1 + 5 页面线），单元间不再等用户批准"
   ],
-  "next_step": "039 S5 炮筒温度线收敛（043 HANDOVER 派发）；射保线三单元待 lark-cli 恢复后由 runner 队列重新领取",
+  "next_step": "049 S1 队列固化：算 A1-A7/B1-B5 具体机台+首批候选 -> output/auto_queue_049.json（只读），随后自动进 S2",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -36,9 +43,8 @@
       "evidence": "038 HANDOVER"
     },
     "injection_metering/FANUC/wave1": {
-      "status": "BLOCKED_EXTERNAL",
-      "evidence": "043 HANDOVER",
-      "recovery": "lark-cli 或等价飞书 API 通道可用"
+      "status": "PASS",
+      "evidence": "048 HANDOVER / output/inj_z036_calib/accuracy_report_inj_z036.json（numeric 1.0, error 0, 6/6 ok）"
     },
     "injection_metering/TACT/wave2": {
       "status": "BLOCKED_EXTERNAL",

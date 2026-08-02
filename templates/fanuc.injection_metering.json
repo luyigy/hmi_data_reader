@@ -1,0 +1,39 @@
+{
+  "version": "0.1.0",
+  "ui_family": "FANUC",
+  "page": "injection_metering",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（发那科 Z036/A11，ROBOSHOT α-S30iA）OCR 实测锚点",
+  "description": "FANUC 屏射出页（浅蓝 UI）字段位置模板。结构：射出 2 段（射出速度/最大射出压/射出切换位置/位置切换）；保压 2 段（HR 标准，P1/P2 MPa+秒）；最大射出时间/最大保压速度/射出前停止；射出压力报警；右上单值（手动计量/背压/转速）；计量 3 段（背压/转速/切换位置/冷却时间）；计量位置+减压。取值规则：标签同行右侧 y±0.02 的数值 token（常两格粘连，按 X.X 形态切分）。右侧现在值/最新数据为实时值不入真值。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z036 rank01-06）rectify 后 PaddleOCR 实测标签与值位；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "value_window": {"dy": 0.02, "dx_max": 0.35},
+  "field_anchors": {
+    "injection_velocity_mms": {"label": "射出速度", "count": 2, "range": [0, 500]},
+    "injection_pressure_limit_mpa": {"label": "最大射出压", "count": 2, "range": [0, 400]},
+    "injection_switch_position_mm": {"label": "射出切换位置", "count": 1, "range": [0, 100]},
+    "vp_switch_position_mm": {"label": ["位置切换", "位器切换"], "count": 1, "range": [0, 100]},
+    "holding_pressure_p1_mpa": {"label": "2段", "count": 1, "range": [0, 300], "row_y_hint": 0.40},
+    "holding_time_p1_s": {"label": null, "count": 1, "range": [0, 60], "row_y_hint": 0.40},
+    "holding_pressure_p2_mpa": {"label": "HR模式", "count": 1, "range": [0, 300], "row_y_hint": 0.43},
+    "holding_time_p2_s": {"label": null, "count": 1, "range": [0, 60], "row_y_hint": 0.43},
+    "max_injection_time_s": {"label": "最大射出时间", "count": 1, "range": [0, 60]},
+    "holding_limit_speed_mms": {"label": "最大保压速度", "count": 1, "range": [0, 200]},
+    "injection_alarm_pressure_mpa": {"label": "射出压力报警", "count": 1, "range": [0, 400]},
+    "back_pressure_mpa": {"label": "背压", "count": 1, "range": [0, 50], "x_hint": 0.74},
+    "metering_rpm": {"label": "转速", "count": 1, "range": [0, 400], "x_hint": 0.74},
+    "metering_back_pressure_mpa": {"label": "背压", "count": 3, "range": [0, 50], "row_y_hint": 0.68},
+    "metering_rpm_stages": {"label": "转速", "count": 3, "range": [0, 400], "row_y_hint": 0.71},
+    "metering_switch_positions_mm": {"label": "切换位置", "count": 2, "range": [0, 100], "row_y_hint": 0.74},
+    "cooling_time_s": {"label": "冷却时间", "count": 1, "range": [0, 300]},
+    "decompress_mms": {"label": ["减压", "诚压"], "count": 1, "range": [0, 200]}
+  },
+  "page_detect_anchors": ["射出速度", "最大保压速度", "射出切换位置"],
+  "family_detect_groups": [
+    ["射出切换位置", "最大射出压"],
+    ["最大保压速度"],
+    ["计量位置", "减压"]
+  ]
+}

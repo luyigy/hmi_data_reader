@@ -65,6 +65,16 @@ NUMERIC_FIELDS = [
     "cooling_time_s",
     "decompress_velocity_mms",
     "sd_position_mm",
+    # 035 第三波 FANUC 射出/计量页（Z036）新增；以真值集为准取并集
+    "injection_velocity_mms",
+    "injection_pressure_limit_mpa",
+    "injection_switch_position_mm",
+    "max_injection_time_s",
+    "injection_alarm_pressure_mpa",
+    "metering_back_pressure_mpa",
+    "metering_rpm_stages",
+    "metering_switch_positions_mm",
+    "decompress_mms",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",
