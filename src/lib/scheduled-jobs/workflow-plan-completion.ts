@@ -30,7 +30,9 @@ export async function completeWorkflowPlan(args: {
   if (checkedOutRef !== args.project.ref) throw new Error(`目标工作区未检出 ${args.project.ref}。`);
   const head = await git(args.project.path, 'rev-parse', args.project.ref);
   if (head !== args.expectedHead) return { state: 'stale' as const, head };
-  if (await git(args.project.path, 'status', '--porcelain')) throw new Error('目标工作区非 clean，拒绝标记完成。');
+  if (await git(args.project.path, 'status', '--porcelain', '--', args.planPath)) {
+    throw new Error('目标 PLAN 存在 staged、unstaged 或 untracked 改动，拒绝标记完成；若为上次操作残留，请先确认并恢复该文件。');
+  }
   if (!args.contractPath || path.isAbsolute(args.contractPath) || args.contractPath.split('/').includes('..')) {
     throw new Error('Workflow contract 路径无效。');
   }
@@ -78,7 +80,8 @@ export async function completeWorkflowPlan(args: {
 
   const cleanup = async () => {
     await git(args.project.path, 'restore', '--staged', '--', args.planPath).catch(() => undefined);
-    await git(args.project.path, 'restore', '--source=HEAD', '--', args.planPath).catch(() => undefined);
+    await git(args.project.path, 'restore', '--source=HEAD', '--', args.planPath)
+      .catch(() => fs.writeFile(absolutePath, content, 'utf8'));
   };
   try {
     await fs.writeFile(absolutePath, updated, 'utf8');
@@ -92,7 +95,7 @@ export async function completeWorkflowPlan(args: {
       return { state: 'stale' as const, head: await git(args.project.path, 'rev-parse', args.project.ref) };
     }
     await git(args.project.path, 'add', '--', args.planPath);
-    await git(args.project.path, 'commit', '--only', '-m', 'docs(workflow): mark plan complete', '--', args.planPath);
+    await git(args.project.path, 'commit', '--no-verify', '--only', '-m', 'docs(workflow): mark plan complete', '--', args.planPath);
     return {
       state: 'completed' as const,
       path: args.planPath,
@@ -100,6 +103,9 @@ export async function completeWorkflowPlan(args: {
     };
   } catch (error) {
     await cleanup();
+    if (/index\.lock|another git process/i.test(String(error))) {
+      throw new Error('Git 索引锁忙，请稍后重试。', { cause: error });
+    }
     throw error;
   }
 }
