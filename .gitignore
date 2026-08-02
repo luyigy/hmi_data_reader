@@ -26,6 +26,9 @@ output/s3_holdout_imgs/
 output/s3_legacy_imgs/
 output/s1_calibration_pre_recheck.json
 
-# 本机临时件（沙箱环境重建残留、登录二维码）
+# 本机临时件（沙箱环境重建残留、登录二维码、测试卡片 JSON）
 .tools/
 .tmp_auth_qr.png
+output/*.json
+output/web_uploads/
+
