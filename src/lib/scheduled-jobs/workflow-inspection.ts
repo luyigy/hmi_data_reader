@@ -135,7 +135,7 @@ export async function inspectWorkflowOverview(
       };
     }
   }));
-  const documents = parsedDocuments;
+  const documents = parsedDocuments.filter(({ error }) => !error);
   const handovers = documents.filter(({ type }) => type === 'HANDOVER');
   const inboxRoot = path.posix.join(watchRoot, 'inbox');
   const parsedInbox = await Promise.all(files
