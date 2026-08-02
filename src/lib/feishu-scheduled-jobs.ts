@@ -22,6 +22,7 @@ import {
   inspectWorkflowCandidates,
   inspectWorkflowCursor,
 } from '@/lib/scheduled-jobs/workflow-inspection';
+import { completeWorkflowPlan } from '@/lib/scheduled-jobs/workflow-plan-completion';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 export { inspectWorkflowCandidates, inspectWorkflowCursor } from '@/lib/scheduled-jobs/workflow-inspection';
@@ -300,6 +301,42 @@ export const buildWorkflowDashboardCard = (args: {
           },
         ],
       }] : []),
+      ...(args.status.overview?.plans.length && !args.status.running && !args.pending ? [{
+        tag: 'form',
+        name: 'workflow-plan-completion',
+        elements: [
+          {
+            tag: 'select_static',
+            name: 'selectedCompletionPlan',
+            required: true,
+            width: 'fill',
+            placeholder: { tag: 'plain_text', content: '选择要人工标记完成的 PLAN' },
+            options: args.status.overview.plans.map((plan) => ({
+              text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` },
+              value: plan.path,
+            })),
+          },
+          {
+            tag: 'button',
+            name: 'completeWorkflowPlan',
+            text: { tag: 'plain_text', content: '人工标记所选 PLAN 完成' },
+            type: 'danger',
+            width: 'fill',
+            action_type: 'form_submit',
+            confirm: {
+              title: { tag: 'plain_text', content: '确认人工标记完成' },
+              text: { tag: 'plain_text', content: '这会提交 PLAN 的 completed / await_acceptance 状态，请确认已完成或决定终止剩余工作。' },
+            },
+            value: {
+              cmd: 'workflow-dashboard',
+              action: 'plan_complete',
+              projectId: args.status.projectId,
+              jobId: args.status.jobId,
+              expectedHead: args.status.head,
+            },
+          },
+        ],
+      }] : []),
       ...(documents.length ? [{
         tag: 'form',
         name: 'workflow-document-export',
@@ -351,6 +388,7 @@ export const buildWorkflowDashboardCard = (args: {
             tag: 'button',
             name: 'validateWorkflowDocument',
             text: { tag: 'plain_text', content: '校验所选 PLAN / HANDOVER' },
+            type: 'primary_filled',
             width: 'fill',
             action_type: 'form_submit',
             value: {
@@ -759,6 +797,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   cardMessageId?: string;
   expectedHead?: string;
   selectedPlan?: string;
+  selectedCompletionPlan?: string;
   selectedDocument?: string;
 }) {
   const config = await loadProjectsConfig();
@@ -766,7 +805,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   if (!project || !project.jobs.some(({ id }) => id === args.jobId)) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
   const action = [
-    'refresh', 'run', 'activate', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate',
+    'refresh', 'run', 'activate', 'plan_complete', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
     'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
   ].includes(args.action)
@@ -778,7 +817,7 @@ export async function handleWorkflowDashboardCardAction(args: {
     senderOpenId: args.actorOpenId,
     messageId: args.cardMessageId || '',
   };
-  const workflowStatus = ['document', 'document_validate'].includes(action)
+  const workflowStatus = ['document', 'document_validate', 'plan_complete'].includes(action)
     ? (await loadWorkflowStatuses(project.id)).find(({ jobId }) => jobId === args.jobId)
     : undefined;
   const documents = workflowStatus?.overview ? [
@@ -788,6 +827,29 @@ export async function handleWorkflowDashboardCardAction(args: {
   ] : [];
   const result = action === 'refresh'
     ? '状态已刷新。'
+    : action === 'plan_complete'
+      ? !isFeishuAdmin(args.actorOpenId) && !project.feishu.approver_open_ids.includes(args.actorOpenId)
+        ? '只有平台管理员或项目审批人可以人工标记 PLAN 完成。'
+        : !args.expectedHead || !workflowStatus || workflowStatus.head !== args.expectedHead
+          ? 'Dashboard 已失效，请刷新后重新选择 PLAN。'
+          : workflowStatus.running || pendingValue((await prisma.scheduledJobState.findUnique({
+            where: { projectId_jobId: { projectId: project.id, jobId: args.jobId } },
+            select: { cursorJson: true },
+          }))?.cursorJson)
+            ? '当前仍有运行中或 pending 的 Workflow，不能人工标记完成。'
+            : !args.selectedCompletionPlan
+              || !workflowStatus.overview?.plans.some(({ path: planPath }) => planPath === args.selectedCompletionPlan)
+              ? '所选 PLAN 已完成或不在当前未完成清单，请刷新后重选。'
+              : await completeWorkflowPlan({
+                project,
+                planPath: args.selectedCompletionPlan,
+                expectedHead: args.expectedHead,
+              }).then((completion) => completion.state === 'stale'
+                ? `Dashboard 已失效：当前 HEAD ${completion.head}，请刷新后重选。`
+                : completion.state === 'existing'
+                  ? `✅ ${completion.path} 已是完成状态（幂等，无提交）。`
+                  : `✅ 已人工标记 PLAN 完成并提交：${completion.path}\n新 HEAD：${completion.head}`)
+                .catch((error) => `❌ 人工标记 PLAN 完成失败：${error instanceof Error ? error.message : String(error)}`)
     : action === 'document'
       ? !args.selectedDocument || !documents.some(({ path: documentPath }) => documentPath === args.selectedDocument)
         ? '所选文档已不在当前队列，请刷新 Dashboard 后重选。'

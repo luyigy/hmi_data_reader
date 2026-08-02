@@ -19,6 +19,7 @@
     "test:new-session-rotation": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/new-session-rotation.test.ts",
     "test:workflow-session-rotation": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/workflow-session-rotation.test.ts",
     "test:workflow-roadmap-inbox": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/workflow-roadmap-inbox.test.ts",
+    "test:workflow-plan-completion": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/workflow-plan-completion.test.ts",
     "build:workflow-validator": "node scripts/build-workflow-validator.mjs",
     "test:git-history-guard": "npm run build:workflow-validator && TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/git-history-guard.test.ts",
     "test:live-room-queue": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/live-room-process-registry.test.ts",

@@ -332,6 +332,10 @@ assert.match(JSON.stringify(activationCard), /查看飞书文档/);
 assert.match(JSON.stringify(activationCard), /"action":"document"/);
 assert.match(JSON.stringify(activationCard), /校验所选 PLAN \/ HANDOVER/);
 assert.match(JSON.stringify(activationCard), /"action":"document_validate"/);
+assert.match(JSON.stringify(activationCard), /人工标记所选 PLAN 完成/);
+assert.match(JSON.stringify(activationCard), /"action":"plan_complete"/);
+assert.match(JSON.stringify(activationCard), /"name":"selectedCompletionPlan"/);
+assert.match(JSON.stringify(activationCard), /"name":"validateWorkflowDocument".*?"type":"primary_filled"/);
 const dashboardForms = activationCard.elements.filter(({ tag }) => tag === 'form') as Array<{
   elements: Array<{ tag: string; name?: string; action_type?: string }>;
 }>;
