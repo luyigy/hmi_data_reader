@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0",
+  "ui_family": "FANUC",
+  "page": "mold_temp",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（发那科 Z036 模温机面板）OCR 实测锚点",
+  "description": "模具温度调节机面板数码管/指示灯模板。结构：LED数码管显示 PV（实时温度，不入库）与 SV（设定温度，40.0°C 或关断/黑屏/报警记 null）。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（mt_Z036 rank01-06）rectify 后 PaddleOCR 实测",
+    "calibrated_at": "2026-08-02"
+  },
+  "sv_range": [
+    0,
+    200
+  ],
+  "page_detect_anchors": [
+    "调节机"
+  ],
+  "family_detect_groups": [
+    [
+      "模具温度调节机",
+      "MOLD-THERMOREGULATOR"
+    ]
+  ],
+  "field_mapping": {
+    "set_temperature_c": {
+      "unit": "°C"
+    }
+  }
+}

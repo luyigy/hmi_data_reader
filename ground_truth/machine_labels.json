@@ -661,6 +661,16 @@
       "proposed_by": "kimi-code",
       "verified_by": "用户本人",
       "verified_at": "2026-08-01"
+    },
+    "inj_Z036_FANUC": {
+      "machine_brand": "FANUC",
+      "controller_family": "FANUC",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "049 模温机线命名前缀（inj_Z036_*）路由别名，实体同 fanuc_Z036_FANUC",
+      "proposed_by": "antigravity",
+      "verified_by": "049全自动接力",
+      "verified_at": "2026-08-02"
     }
   }
 }

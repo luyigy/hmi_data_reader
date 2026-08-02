@@ -687,6 +687,7 @@ from extract_families.arburg_injection import extract_injection_arburg  # noqa: 
 from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
 from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
 from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
+from extract_families.fanuc_mold_temp import extract_mold_temp_fanuc  # noqa: E402
 from extract_families.keba_injection import extract_injection_keba  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
@@ -857,6 +858,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_waveform_fanuc(toks, template)
     elif page_key == "hot_runner_temp" and ui == "TACT":
         ext = extract_hot_runner_tact(toks, template)
+    elif page_key == "mold_temp" and ui == "FANUC":
+        ext = extract_mold_temp_fanuc(toks, template)
     elif page_key == "injection_metering" and ui == "KEBA":
         ext = extract_injection_keba(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":

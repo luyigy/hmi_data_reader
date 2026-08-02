@@ -82,9 +82,11 @@
     "049 S11 续：六图全 FANUC 波形页（量程表 最大/最小 4-6 通道+X 轴 rank01 螺杆绝对 26mm/其余时间 0.3-2.0s）；VLM 草稿×6 + 核验表 + s60 真值自动接受×6 -> ground_truth/wv_z036_injection/",
     "049 S11 完成（B3 波形图 Z036）：三门禁 PASS numeric 0.9722/error 0/5ok+1review（表头列锚定+位带 X 轴）；060 HANDOVER+回归全净",
     "049 S12 启动（B4 热流道温控 Z023 TACT，196 附件去重 140）：s61 候选 6+2 下载 6/6 -> docs/samples_hr_z023；hr_Z023 别名预补；管线后台 bash-t8n5ab1l",
-    "049 S12 完成（B4 热流道温控 Z023 TACT）：三门禁 PASS numeric 1.0/error 0/6ok（弱读旁车s64+最优化槽距步长拟合+mid_y拆分）；061 HANDOVER+回归全净"
+    "049 S12 完成（B4 热流道温控 Z023 TACT）：三门禁 PASS numeric 1.0/error 0/6ok（弱读旁车s64+最优化槽距步长拟合+mid_y拆分）；061 HANDOVER+回归全净",
+    "049 S13 启动（B5 模温机 Z036 FANUC，450 附件去重 365）：s65 候选 6+2 下载 6/6 -> docs/samples_mt_z036；管线后台",
+    "049 S13 完成（B5 模温机 Z036 FANUC）：三门禁 PASS numeric 1.0/error 0/6ok（模具温度调节机面板/指示灯模板+set_temperature_c 提取）；062 HANDOVER+回归全净"
   ],
-  "next_step": "049 S13 启动（B5 模温机 Z036 FANUC，450 附件去重 449）：s65 候选 6+2 下载 6/6",
+  "next_step": "049 S14 收口：全矩阵四态对账 + 总 REPORT；frontmatter 更 completed",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -152,6 +154,10 @@
     "hot_runner_temp/TACT/wave1": {
       "status": "PASS",
       "evidence": "061 HANDOVER / output/hr_z023_calib/accuracy_report_hr_z023.json（numeric 1.0, error 0, 6/6 ok）"
+    },
+    "mold_temp/FANUC/wave1": {
+      "status": "PASS",
+      "evidence": "062 HANDOVER / output/mt_z036_calib/accuracy_report_mt_z036.json（numeric 1.0, error 0, 6/6 ok）"
     }
   },
   "consecutive_safe_reject": 0
