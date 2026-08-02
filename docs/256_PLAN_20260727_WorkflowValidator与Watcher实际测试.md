@@ -1,14 +1,13 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: 224_PLAN_20260725_通用项目定时任务平台.md
 parent_plan: null
 parent_slice: null
 return_to: null
 ---
-
 # PLAN · Workflow Validator 与 Watcher 实际测试
 
 ## 目标
@@ -49,20 +48,4 @@ upstream impact，再实施最小根因修复和聚焦回归测试。不得把�
 - 只有合同校验完全通过的文档才进入后续 watcher 流程。
 - 真实测试命令、Run 结果和结论被记录，且不以内部调用冒充端到端测试。
 
-<!-- WORKFLOW_PROMPT_START -->
-读取 `docs/256_PLAN_20260727_WorkflowValidator与Watcher实际测试.md`、
-`docs/253_PLAN_20260726_审批后新Session与Prompt全链路验收.md` 和
-`docs/224_PLAN_20260725_通用项目定时任务平台.md`，并遵循
-`docs/workflow/workflow-contract.yaml`，继续完成 workflow validator 与 watcher 的实际测试。
-执行 S01：先在 `/data1/code/workflow-test` 检查工作区和
-`006_PLAN_20260727_第四轮假任务.md` 的已提交
-状态，保留当前“缺少 Prompt 标记即首错停止”的结果作为基线；随后补齐合同 frontmatter 和
-唯一一对 Prompt 标记，只在 Prompt 内故意留下多个无效或缺失的文档引用。提交测试样本前，
-从 `workflow-test` 目录调用平台仓库现有 validator 并记录完整输出；校验样本提交后，请用户
-亲自执行 `/ap job run workflow-watcher`，再核对 Run 状态、错误汇总、pending 和审批卡状态。
-禁止新增 validator 脚本或伪造 `/ap` 命令，也禁止用内部 handler、临时 Node 进程或直接写
-数据库替代真实 watcher。若只发现测试样本问题，只修改测试文档；若确认平台实现缺陷，修改
-任何 symbol 前必须运行 GitNexus upstream impact，HIGH/CRITICAL 先报告，之后只做最小根因
-修复、聚焦测试、TypeScript、diff-check 和 GitNexus detect_changes。不要宣称实际测试通过，
-直到用户执行 AP 命令且运行证据完整。
-<!-- WORKFLOW_PROMPT_END -->
+
