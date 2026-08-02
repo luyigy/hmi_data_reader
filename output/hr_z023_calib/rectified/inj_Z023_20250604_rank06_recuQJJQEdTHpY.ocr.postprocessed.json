@@ -1,0 +1,226 @@
+{
+  "filename": "inj_Z023_20250604_rank06_recuQJJQEdTHpY.png",
+  "path": "output/hr_z023_calib/rectified/inj_Z023_20250604_rank06_recuQJJQEdTHpY.png",
+  "line_count": 53,
+  "merged_rows": [
+    {
+      "text": "龙昌兴 龙昌兴 龙昌兴 龙昌兴 龙昌兴 龙昌兴",
+      "bbox": {
+        "x_min": 2.0,
+        "x_max": 1786.0,
+        "y_min": 10.0,
+        "y_max": 90.0,
+        "avg_y": 16.166666666666668
+      },
+      "conf": 0.9995016356309255,
+      "min_conf": 0.9991105198860168,
+      "n_segments": 6
+    },
+    {
+      "text": "-mail:dgminhui@126.co HOT E-mail:dgminhui@126.com E-mal:dgminhui@126.com E-mail:dgminhui@126.com E-mal:dgminhul@126.com E-mail:dgminhui@126.com",
+      "bbox": {
+        "x_min": 0.0,
+        "x_max": 1798.0,
+        "y_min": 70.0,
+        "y_max": 129.0,
+        "avg_y": 81.71428571428571
+      },
+      "conf": 0.9534518463271004,
+      "min_conf": 0.9112308621406555,
+      "n_segments": 7
+    },
+    {
+      "text": "310 300 310",
+      "bbox": {
+        "x_min": 735.0,
+        "x_max": 1761.0,
+        "y_min": 117.0,
+        "y_max": 202.0,
+        "avg_y": 122.66666666666667
+      },
+      "conf": 0.9980129400889078,
+      "min_conf": 0.995734453201294,
+      "n_segments": 3
+    },
+    {
+      "text": "310 310",
+      "bbox": {
+        "x_min": 88.0,
+        "x_max": 559.0,
+        "y_min": 138.0,
+        "y_max": 219.0,
+        "avg_y": 138.0
+      },
+      "conf": 0.9988116919994354,
+      "min_conf": 0.9979870319366455,
+      "n_segments": 2
+    },
+    {
+      "text": "2300 2310",
+      "bbox": {
+        "x_min": 1272.0,
+        "x_max": 1734.0,
+        "y_min": 209.0,
+        "y_max": 281.0,
+        "avg_y": 210.0
+      },
+      "conf": 0.9743374884128571,
+      "min_conf": 0.9614995718002319,
+      "n_segments": 2
+    },
+    {
+      "text": "2310 2310 V 10",
+      "bbox": {
+        "x_min": 55.0,
+        "x_max": 865.0,
+        "y_min": 229.0,
+        "y_max": 315.0,
+        "avg_y": 234.25
+      },
+      "conf": 0.8955913484096527,
+      "min_conf": 0.5908686518669128,
+      "n_segments": 4
+    },
+    {
+      "text": "9",
+      "bbox": {
+        "x_min": 746.0,
+        "x_max": 785.0,
+        "y_min": 250.0,
+        "y_max": 276.0,
+        "avg_y": 250.0
+      },
+      "conf": 0.5164728760719299,
+      "min_conf": 0.5164728760719299,
+      "n_segments": 1
+    },
+    {
+      "text": "SOFT AUTO MANU SOFT MANU SOFT AUTO MANU SOFT AUTO MANU",
+      "bbox": {
+        "x_min": 673.0,
+        "x_max": 1721.0,
+        "y_min": 336.0,
+        "y_max": 381.0,
+        "avg_y": 345.6363636363636
+      },
+      "conf": 0.9819804375821893,
+      "min_conf": 0.9588531851768494,
+      "n_segments": 11
+    },
+    {
+      "text": "SOFT AUTO MANU SOFT AUTO MANU",
+      "bbox": {
+        "x_min": 60.0,
+        "x_max": 596.0,
+        "y_min": 363.0,
+        "y_max": 400.0,
+        "avg_y": 373.1666666666667
+      },
+      "conf": 0.9785223305225372,
+      "min_conf": 0.954379677772522,
+      "n_segments": 6
+    },
+    {
+      "text": "SE SE",
+      "bbox": {
+        "x_min": 819.0,
+        "x_max": 1127.0,
+        "y_min": 424.0,
+        "y_max": 447.0,
+        "avg_y": 428.0
+      },
+      "conf": 0.9829404950141907,
+      "min_conf": 0.9685899615287781,
+      "n_segments": 2
+    },
+    {
+      "text": "SE SET CAUTION",
+      "bbox": {
+        "x_min": 229.0,
+        "x_max": 1930.0,
+        "y_min": 447.0,
+        "y_max": 505.0,
+        "avg_y": 452.3333333333333
+      },
+      "conf": 0.9295568068822225,
+      "min_conf": 0.884562075138092,
+      "n_segments": 3
+    },
+    {
+      "text": "SET MODULE SWITCH",
+      "bbox": {
+        "x_min": 1741.0,
+        "x_max": 1924.0,
+        "y_min": 511.0,
+        "y_max": 553.0,
+        "avg_y": 511.0
+      },
+      "conf": 0.9393762350082397,
+      "min_conf": 0.9393762350082397,
+      "n_segments": 1
+    },
+    {
+      "text": "TO\"OERTING OR",
+      "bbox": {
+        "x_min": 1785.0,
+        "x_max": 1922.0,
+        "y_min": 536.0,
+        "y_max": 576.0,
+        "avg_y": 536.0
+      },
+      "conf": 0.9031845927238464,
+      "min_conf": 0.9031845927238464,
+      "n_segments": 1
+    },
+    {
+      "text": "BEFORE REMOVING MODULE",
+      "bbox": {
+        "x_min": 1729.0,
+        "x_max": 1900.0,
+        "y_min": 556.0,
+        "y_max": 593.0,
+        "avg_y": 558.0
+      },
+      "conf": 0.9754726588726044,
+      "min_conf": 0.9580969214439392,
+      "n_segments": 2
+    },
+    {
+      "text": "6",
+      "bbox": {
+        "x_min": 1527.0,
+        "x_max": 1546.0,
+        "y_min": 789.0,
+        "y_max": 811.0,
+        "avg_y": 789.0
+      },
+      "conf": 0.9452741146087646,
+      "min_conf": 0.9452741146087646,
+      "n_segments": 1
+    },
+    {
+      "text": "CE",
+      "bbox": {
+        "x_min": 329.0,
+        "x_max": 358.0,
+        "y_min": 815.0,
+        "y_max": 830.0,
+        "avg_y": 815.0
+      },
+      "conf": 0.9606257677078247,
+      "min_conf": 0.9606257677078247,
+      "n_segments": 1
+    }
+  ],
+  "fix_log": [
+    "  [merge-lines] 53 lines -> 16 merged rows",
+    "  [number-stats] 18 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 53,
+    "n_merged_rows": 16,
+    "n_numbers": 18,
+    "n_numbers_fixed": 0
+  }
+}

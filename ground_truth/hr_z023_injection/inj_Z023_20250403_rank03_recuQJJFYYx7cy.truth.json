@@ -1,0 +1,34 @@
+{
+  "image": "inj_Z023_20250403_rank03_recuQJJFYYx7cy.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "hot_runner_temp",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "sv_c": [
+      300.0,
+      320.0,
+      300.0,
+      320.0,
+      300.0,
+      null
+    ]
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "自动整批接受（049 全自动接力口径，visual_skim_acceptance 降级；用户保留事后否决权）",
+    "verified_at": "2026-08-02",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbla77yMq4ERTXqY",
+    "record_id": "recvr8jpivRohG",
+    "file_token": "RhjKbdt2Lo9p5GxcLEHcCg6Snpf"
+  },
+  "notes": "机台 Z023（伯乐/TACT）热流道温控箱（龙昌兴，6 通道数码管）、日期 20250403、rank03。热流道线（049 B4）：绿字 SV 设定温度 c1-c6，ch[6] 黑屏关断记 null。红字 PV 为实时值不入草稿。 | 2026-08-02 自动整批接受转真值（049 全自动口径；用户保留事后否决权）。"
+}

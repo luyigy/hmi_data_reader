@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-08-02T10:10:38+00:00",
+  "generator": "kimi-code S2 (035_PLAN)",
+  "status": "APPROVED",
+  "approval": {
+    "approved_by": "用户 2026-08-01「拆散小点」指示",
+    "note": "第一波 Z022 单机 6+2"
+  },
+  "selection_spec": {
+    "random_seed": 20260802,
+    "pool": "伯乐 Z023 含成型条件-热流道温控箱温度附件",
+    "cap": "6 目标 + 2 候补（用户小批指示）"
+  },
+  "targets": [
+    {
+      "rank": 1,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuQJJFYYstyk",
+      "date": "2025-04-14",
+      "file_token": "AlSob9Q3EojvYkxMTMhcbezLnIh",
+      "size": 3187836
+    },
+    {
+      "rank": 2,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuQJJQEdz80r",
+      "date": "2025-06-05",
+      "file_token": "DlPTbU876ozx8fx6adncGDPXnOh",
+      "size": 1619261
+    },
+    {
+      "rank": 3,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuQJJFYYx7cy",
+      "date": "2025-04-03",
+      "file_token": "RhjKbdt2Lo9p5GxcLEHcCg6Snpf",
+      "size": 3547721
+    },
+    {
+      "rank": 4,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuQJJQEdsHqM",
+      "date": "2025-07-05",
+      "file_token": "PR3CbcEHyoHx89xIDvocik5fnUc",
+      "size": 1846049
+    },
+    {
+      "rank": 5,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuWS1uieSH99",
+      "date": "2025-09-15",
+      "file_token": "B3MzbKhNJoyqjWx1HZgchCIznAh",
+      "size": 1525849
+    },
+    {
+      "rank": 6,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuQJJQEdTHpY",
+      "date": "2025-06-04",
+      "file_token": "Mdqab2Gqfo8VpHxYju0c4lrznzh",
+      "size": 2883912
+    }
+  ],
+  "alternates": [
+    {
+      "rank": 7,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuWm1KTzTtf0",
+      "date": "2025-09-09",
+      "file_token": "Un8Nb1uNcoQ3hbxsCe2cCVg9nUd",
+      "size": 1556778
+    },
+    {
+      "rank": 8,
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "record_id": "recuQJJQEd17ut",
+      "date": "2025-06-21",
+      "file_token": "QHEfb2o8woS7rIxCsxIcFJfanoe",
+      "size": 2735106
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "image": "inj_Z023_20250909_rank04_recuWm1KTzTtf0.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "hot_runner_temp",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "sv_c": [
+      300.0,
+      310.0,
+      300.0,
+      310.0,
+      310.0,
+      null
+    ]
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbl5KKYuANqGpycE",
+    "record_id": "recuWm1KTzTtf0",
+    "file_token": "Un8Nb1uNcoQ3hbxsCe2cCVg9nUd"
+  },
+  "notes": "机台 Z023（伯乐/TACT）热流道温控箱（YUDO CW301，6 通道）、日期 2025-09-09、rank04（候补换入，原 rank04 斜拍 OCR 全灭剔除；候补 rank08 为模温机错页型剔除）。绿字 SV 设定 [300/310/300/310/310]，ch6 黑屏 null。"
+}

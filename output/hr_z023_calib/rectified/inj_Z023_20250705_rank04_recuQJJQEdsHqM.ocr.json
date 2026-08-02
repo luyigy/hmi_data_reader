@@ -1,0 +1,64 @@
+{
+  "filename": "inj_Z023_20250705_rank04_recuQJJQEdsHqM.png",
+  "path": "output/hr_z023_calib/rectified/inj_Z023_20250705_rank04_recuQJJQEdsHqM.png",
+  "model": "paddleocr-2.7.3 (PP-OCRv4 ch, use_angle_cls=False)",
+  "line_count": 2,
+  "lines": [
+    {
+      "text": "E-18:加线",
+      "conf": 0.8156889081001282,
+      "bbox": {
+        "points": [
+          [
+            788.0,
+            0.0
+          ],
+          [
+            938.0,
+            0.0
+          ],
+          [
+            938.0,
+            32.0
+          ],
+          [
+            788.0,
+            32.0
+          ]
+        ],
+        "x_min": 788.0,
+        "y_min": 0.0,
+        "x_max": 938.0,
+        "y_max": 32.0
+      }
+    },
+    {
+      "text": "加电线",
+      "conf": 0.6732107996940613,
+      "bbox": {
+        "points": [
+          [
+            1051.0,
+            1.0
+          ],
+          [
+            1167.0,
+            0.0
+          ],
+          [
+            1170.0,
+            29.0
+          ],
+          [
+            1054.0,
+            39.0
+          ]
+        ],
+        "x_min": 1051.0,
+        "y_min": 0.0,
+        "x_max": 1170.0,
+        "y_max": 39.0
+      }
+    }
+  ]
+}

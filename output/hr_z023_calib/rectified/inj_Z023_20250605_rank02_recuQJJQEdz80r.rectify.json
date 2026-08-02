@@ -1,0 +1,29 @@
+{
+  "filename": "inj_Z023_20250605_rank02_recuQJJQEdz80r.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      0.00030517578125,
+      1175.0
+    ],
+    [
+      2994.999755859375,
+      1175.0
+    ],
+    [
+      2994.999755859375,
+      2634.999755859375
+    ],
+    [
+      0.00030517578125,
+      2634.999755859375
+    ]
+  ],
+  "screen_size": [
+    2000,
+    974
+  ],
+  "output_path": "output/hr_z023_calib/rectified/inj_Z023_20250605_rank02_recuQJJQEdz80r.png",
+  "warnings": []
+}

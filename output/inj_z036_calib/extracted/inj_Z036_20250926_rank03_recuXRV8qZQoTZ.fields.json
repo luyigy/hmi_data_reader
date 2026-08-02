@@ -46,6 +46,8 @@
       20.0
     ],
     "cooling_time_s": 7.0,
+    "metering_position_mm": 45.0,
+    "decompress_position_mm": 5.0,
     "decompress_mms": 20.0
   },
   "provenance": {

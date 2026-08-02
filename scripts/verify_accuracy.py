@@ -118,6 +118,8 @@ NUMERIC_FIELDS = [
     "y_axis_max_screw_position_mm",
     "y_axis_min_screw_velocity_mms",
     "x_axis_max",
+    # 049 B4 热流道（Z023）新增
+    "sv_c",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",

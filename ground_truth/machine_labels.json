@@ -628,6 +628,39 @@
       "proposed_by": "kimi-code",
       "verified_by": "王为",
       "verified_at": "2026-07-30"
+    },
+    "inj_Z068_ARBURG": {
+      "machine_brand": "ARBURG",
+      "controller_family": "ARBURG",
+      "hmi_variant": "v1",
+      "records": [
+        "rec20",
+        "rec21"
+      ],
+      "evidence": "049 射保线命名前缀（inj_Z068_*）路由别名，实体同 阿博格_A07_ARBURG（大表 Z-id Z068）",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
+    },
+    "hr_Z023_TACT": {
+      "machine_brand": "BOLE",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "049 热流道线命名前缀（hr_Z023_*）路由别名，实体同 bole_Z023_TACT",
+      "proposed_by": "kimi-code",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
+    },
+    "inj_Z023_TACT": {
+      "machine_brand": "BOLE",
+      "controller_family": "TACT",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "049 热流道线命名前缀（inj_Z023_*）路由别名，实体同 bole_Z023_TACT",
+      "proposed_by": "kimi-code",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
     }
   }
 }

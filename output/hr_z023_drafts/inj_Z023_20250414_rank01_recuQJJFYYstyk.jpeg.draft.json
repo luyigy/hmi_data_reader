@@ -1,0 +1,31 @@
+{
+  "image": "inj_Z023_20250414_rank01_recuQJJFYYstyk.jpeg",
+  "controller_family": "TACT",
+  "hmi_variant": "v1",
+  "page_type": "hot_runner_temp",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "sv_c": [
+      310.0,
+      310.0,
+      310.0,
+      null,
+      300.0,
+      310.0
+    ]
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbla77yMq4ERTXqY",
+    "record_id": "recvr8jrhUjcB4",
+    "file_token": "AlSob9Q3EojvYkxMTMhcbezLnIh"
+  },
+  "notes": "机台 Z023（伯乐/TACT）热流道温控箱（龙昌兴，6 通道数码管）、日期 20250414、rank01。热流道线（049 B4）：绿字 SV 设定温度 c1-c6，ch[4] 黑屏关断记 null。红字 PV 为实时值不入草稿。"
+}

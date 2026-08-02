@@ -52,7 +52,7 @@
   },
   "provenance": {
     "family_source": "per_image_classify",
-    "page_source": "find_page",
+    "page_source": "template_anchors",
     "template": "fanuc.injection_metering.json v0.1.0",
     "ocr_file": "output/mc_z036_calib/rectified/inj_Z036_20250511_rank04_recuQJJFYYxREp.ocr.json",
     "screen_size": [

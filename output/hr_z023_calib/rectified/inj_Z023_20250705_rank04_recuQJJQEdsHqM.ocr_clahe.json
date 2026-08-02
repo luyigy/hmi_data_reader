@@ -1,0 +1,7 @@
+{
+  "filename": "inj_Z023_20250705_rank04_recuQJJQEdsHqM.png",
+  "path": "output/hr_z023_calib/rectified/inj_Z023_20250705_rank04_recuQJJQEdsHqM.png",
+  "model": "paddleocr-2.7.3 (PP-OCRv4 ch, use_angle_cls=False) +CLAHE(clip3.0,tile8x8) variant",
+  "line_count": 0,
+  "lines": []
+}

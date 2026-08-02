@@ -686,6 +686,7 @@ from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
 from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
 from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
+from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
 from extract_families.keba_injection import extract_injection_keba  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
@@ -694,6 +695,7 @@ from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
 from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
 from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
+from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
@@ -701,6 +703,7 @@ from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
 from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
 from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
+from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
 
 
 # ---------------------------------------------------------------- 主流程
@@ -818,7 +821,16 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
             toks = norm_tokens({**ocr_data, "lines": base_lines + set_lines},
                                meta["screen_size"])
-    page_key = template.get("page")
+    template_page_key = template.get("page")
+    if template_page_key == "hot_runner_temp":
+        # 热流道 SV 弱读格旁车（049 B4 s64）：带 _src 标记直接并入
+        hr_path = rectified_dir / f"{stem}.ocr_hr.json"
+        if hr_path.is_file():
+            hr_lines = json.loads(hr_path.read_text()).get("lines", [])
+            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
+            toks = norm_tokens({**ocr_data, "lines": base_lines + hr_lines},
+                               meta["screen_size"])
+    page_key = template_page_key
     if page_key == "injection_metering" and ui == "TACT":
         ext = extract_injection_tact(toks, template)
     elif page_key == "injection_metering" and ui == "DEMAG":
@@ -843,6 +855,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_molding_monitor_fanuc(toks, template)
     elif page_key == "waveform" and ui == "FANUC":
         ext = extract_waveform_fanuc(toks, template)
+    elif page_key == "hot_runner_temp" and ui == "TACT":
+        ext = extract_hot_runner_tact(toks, template)
     elif page_key == "injection_metering" and ui == "KEBA":
         ext = extract_injection_keba(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
@@ -859,6 +873,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_molding_monitor_fanuc(toks, template)
     elif page_key == "waveform" and ui == "FANUC":
         ext = extract_waveform_fanuc(toks, template)
+    elif page_key == "hot_runner_temp" and ui == "TACT":
+        ext = extract_hot_runner_tact(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
         ext = extract_injection_b_and_r(toks, template)
     elif page_key == "injection_metering" and ui == "KAIMING":
@@ -873,6 +889,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_molding_monitor_fanuc(toks, template)
     elif page_key == "waveform" and ui == "FANUC":
         ext = extract_waveform_fanuc(toks, template)
+    elif page_key == "hot_runner_temp" and ui == "TACT":
+        ext = extract_hot_runner_tact(toks, template)
     elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
     elif ui == "KEBA":

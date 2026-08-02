@@ -1,0 +1,239 @@
+{
+  "filename": "inj_Z023_20250909_rank04_recuWm1KTzTtf0.png",
+  "path": "output/hr_z023_calib/rectified/inj_Z023_20250909_rank04_recuWm1KTzTtf0.png",
+  "line_count": 47,
+  "merged_rows": [
+    {
+      "text": "5",
+      "bbox": {
+        "x_min": 1446.0,
+        "x_max": 1465.0,
+        "y_min": 8.0,
+        "y_max": 36.0,
+        "avg_y": 8.0
+      },
+      "conf": 0.998603880405426,
+      "min_conf": 0.998603880405426,
+      "n_segments": 1
+    },
+    {
+      "text": "YUDO YUDO YUDO YUDO 本汉石",
+      "bbox": {
+        "x_min": 0.0,
+        "x_max": 1834.0,
+        "y_min": 77.0,
+        "y_max": 171.0,
+        "avg_y": 88.0
+      },
+      "conf": 0.9237692594528198,
+      "min_conf": 0.6596838235855103,
+      "n_segments": 5
+    },
+    {
+      "text": "YUDO",
+      "bbox": {
+        "x_min": 1316.0,
+        "x_max": 1513.0,
+        "y_min": 105.0,
+        "y_max": 159.0,
+        "avg_y": 105.0
+      },
+      "conf": 0.9897682666778564,
+      "min_conf": 0.9897682666778564,
+      "n_segments": 1
+    },
+    {
+      "text": "CW301 CW301 CW301 CW301",
+      "bbox": {
+        "x_min": 10.0,
+        "x_max": 1176.0,
+        "y_min": 137.0,
+        "y_max": 194.0,
+        "avg_y": 145.0
+      },
+      "conf": 0.9927236288785934,
+      "min_conf": 0.992364764213562,
+      "n_segments": 4
+    },
+    {
+      "text": "CW301 CW301",
+      "bbox": {
+        "x_min": 1327.0,
+        "x_max": 1809.0,
+        "y_min": 162.0,
+        "y_max": 215.0,
+        "avg_y": 167.0
+      },
+      "conf": 0.9874433875083923,
+      "min_conf": 0.9858301877975464,
+      "n_segments": 2
+    },
+    {
+      "text": "300.0 PV 3 10.0 PV 300.0 PV 3 10.0 310.0",
+      "bbox": {
+        "x_min": 39.0,
+        "x_max": 1484.0,
+        "y_min": 217.0,
+        "y_max": 317.0,
+        "avg_y": 236.4
+      },
+      "conf": 0.9873107433319092,
+      "min_conf": 0.9263874292373657,
+      "n_segments": 10
+    },
+    {
+      "text": "PV PV",
+      "bbox": {
+        "x_min": 1277.0,
+        "x_max": 1621.0,
+        "y_min": 263.0,
+        "y_max": 295.0,
+        "avg_y": 264.5
+      },
+      "conf": 0.9495711922645569,
+      "min_conf": 0.9218846559524536,
+      "n_segments": 2
+    },
+    {
+      "text": "V300.0 SV 一 10.0 V300.0 10.0 sv310.0",
+      "bbox": {
+        "x_min": 12.0,
+        "x_max": 1470.0,
+        "y_min": 303.0,
+        "y_max": 391.0,
+        "avg_y": 315.57142857142856
+      },
+      "conf": 0.946515006678445,
+      "min_conf": 0.8793061375617981,
+      "n_segments": 7
+    },
+    {
+      "text": "SV",
+      "bbox": {
+        "x_min": 1558.0,
+        "x_max": 1598.0,
+        "y_min": 348.0,
+        "y_max": 375.0,
+        "avg_y": 348.0
+      },
+      "conf": 0.9169894456863403,
+      "min_conf": 0.9169894456863403,
+      "n_segments": 1
+    },
+    {
+      "text": "CAUTIO",
+      "bbox": {
+        "x_min": 1902.0,
+        "x_max": 1998.0,
+        "y_min": 367.0,
+        "y_max": 396.0,
+        "avg_y": 367.0
+      },
+      "conf": 0.8982234001159668,
+      "min_conf": 0.8982234001159668,
+      "n_segments": 1
+    },
+    {
+      "text": "OUT OUT OUT OUT",
+      "bbox": {
+        "x_min": 225.0,
+        "x_max": 1171.0,
+        "y_min": 400.0,
+        "y_max": 432.0,
+        "avg_y": 405.75
+      },
+      "conf": 0.9805219620466232,
+      "min_conf": 0.9674625396728516,
+      "n_segments": 4
+    },
+    {
+      "text": "OUT",
+      "bbox": {
+        "x_min": 1421.0,
+        "x_max": 1465.0,
+        "y_min": 422.0,
+        "y_max": 445.0,
+        "avg_y": 422.0
+      },
+      "conf": 0.988149106502533,
+      "min_conf": 0.988149106502533,
+      "n_segments": 1
+    },
+    {
+      "text": "AUTO AUTO AUTO",
+      "bbox": {
+        "x_min": 67.0,
+        "x_max": 1021.0,
+        "y_min": 438.0,
+        "y_max": 472.0,
+        "avg_y": 442.0
+      },
+      "conf": 0.9770050048828125,
+      "min_conf": 0.9670964479446411,
+      "n_segments": 3
+    },
+    {
+      "text": "ERROR",
+      "bbox": {
+        "x_min": 1879.0,
+        "x_max": 1973.0,
+        "y_min": 470.0,
+        "y_max": 493.0,
+        "avg_y": 470.0
+      },
+      "conf": 0.9916025400161743,
+      "min_conf": 0.9916025400161743,
+      "n_segments": 1
+    },
+    {
+      "text": "SET SET",
+      "bbox": {
+        "x_min": 696.0,
+        "x_max": 1019.0,
+        "y_min": 540.0,
+        "y_max": 558.0,
+        "avg_y": 541.0
+      },
+      "conf": 0.9948495030403137,
+      "min_conf": 0.9940198063850403,
+      "n_segments": 2
+    },
+    {
+      "text": "ODE",
+      "bbox": {
+        "x_min": 979.0,
+        "x_max": 1010.0,
+        "y_min": 624.0,
+        "y_max": 639.0,
+        "avg_y": 624.0
+      },
+      "conf": 0.9624858498573303,
+      "min_conf": 0.9624858498573303,
+      "n_segments": 1
+    },
+    {
+      "text": "IC(J)",
+      "bbox": {
+        "x_min": 1781.0,
+        "x_max": 1900.0,
+        "y_min": 698.0,
+        "y_max": 727.0,
+        "avg_y": 698.0
+      },
+      "conf": 0.901415228843689,
+      "min_conf": 0.901415228843689,
+      "n_segments": 1
+    }
+  ],
+  "fix_log": [
+    "  [merge-lines] 47 lines -> 17 merged rows",
+    "  [number-stats] 19 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 47,
+    "n_merged_rows": 17,
+    "n_numbers": 19,
+    "n_numbers_fixed": 0
+  }
+}

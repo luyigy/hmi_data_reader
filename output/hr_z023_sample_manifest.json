@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-08-02T10:10:48+00:00",
+  "generator": "kimi-code S3 (035_PLAN)",
+  "final_target_count": 6,
+  "final_targets": [
+    {
+      "rank": 1,
+      "role": "original_target",
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "local_name": "inj_Z023_20250414_rank01_recuQJJFYYstyk.jpeg",
+      "sha256": "de87b2ea1183610b58845d9347ed90caa3914d6630f11651f44964a73e599892",
+      "record_id": "recuQJJFYYstyk",
+      "date": "2025-04-14",
+      "file_token": "AlSob9Q3EojvYkxMTMhcbezLnIh",
+      "size": 3187836
+    },
+    {
+      "rank": 2,
+      "role": "original_target",
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "local_name": "inj_Z023_20250605_rank02_recuQJJQEdz80r.jpeg",
+      "sha256": "3db419c106477226d76d9e39b62519cae470067997ad22b588b7b9ed046f4f07",
+      "record_id": "recuQJJQEdz80r",
+      "date": "2025-06-05",
+      "file_token": "DlPTbU876ozx8fx6adncGDPXnOh",
+      "size": 1619261
+    },
+    {
+      "rank": 3,
+      "role": "original_target",
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "local_name": "inj_Z023_20250403_rank03_recuQJJFYYx7cy.jpeg",
+      "sha256": "f2615cc3110d601a5d591fa1a28f09538a899dfe2daa9c02bddd60d6f31f1de1",
+      "record_id": "recuQJJFYYx7cy",
+      "date": "2025-04-03",
+      "file_token": "RhjKbdt2Lo9p5GxcLEHcCg6Snpf",
+      "size": 3547721
+    },
+    {
+      "rank": 4,
+      "role": "original_target",
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "local_name": "inj_Z023_20250705_rank04_recuQJJQEdsHqM.jpeg",
+      "sha256": "d7e2b243ed1eaca8145630119f1dd5bfc0f4ed7cfcd3e406933274a9759ee18d",
+      "record_id": "recuQJJQEdsHqM",
+      "date": "2025-07-05",
+      "file_token": "PR3CbcEHyoHx89xIDvocik5fnUc",
+      "size": 1846049
+    },
+    {
+      "rank": 5,
+      "role": "original_target",
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "local_name": "inj_Z023_20250915_rank05_recuWS1uieSH99.jpeg",
+      "sha256": "790404ff63749065e9047d6d91023ca634271744c04452e007e64cc5567174a2",
+      "record_id": "recuWS1uieSH99",
+      "date": "2025-09-15",
+      "file_token": "B3MzbKhNJoyqjWx1HZgchCIznAh",
+      "size": 1525849
+    },
+    {
+      "rank": 6,
+      "role": "original_target",
+      "machine": "Z023",
+      "brand": "伯乐",
+      "family": "TACT",
+      "local_name": "inj_Z023_20250604_rank06_recuQJJQEdTHpY.jpeg",
+      "sha256": "8af8c62cbe6a7917bb7c95bb2a6addc65809293fc6e26d585cdcc905efc5892e",
+      "record_id": "recuQJJQEdTHpY",
+      "date": "2025-06-04",
+      "file_token": "Mdqab2Gqfo8VpHxYju0c4lrznzh",
+      "size": 2883912
+    }
+  ],
+  "content_duplicates": []
+}

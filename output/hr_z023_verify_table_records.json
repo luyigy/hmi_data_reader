@@ -1,0 +1,52 @@
+{
+  "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+  "table_id": "tbla77yMq4ERTXqY",
+  "table_name": "热流道字段核验-Z023",
+  "url": "https://ecn6lj2fknte.feishu.cn/base/Vz2QbZ0lkagmVJsrMZ7cQwbSnZc?table=tbla77yMq4ERTXqY",
+  "verifier": "自动整批接受（半自动模式，降级；用户保留事后否决权）",
+  "records": [
+    {
+      "image": "inj_Z023_20250403_rank03_recuQJJFYYx7cy.jpeg",
+      "record_id": "recvr8jpivRohG",
+      "table_id": "tbla77yMq4ERTXqY",
+      "origin_record_id": "recuQJJFYYx7cy"
+    },
+    {
+      "image": "inj_Z023_20250414_rank01_recuQJJFYYstyk.jpeg",
+      "record_id": "recvr8jrhUjcB4",
+      "table_id": "tbla77yMq4ERTXqY",
+      "origin_record_id": "recuQJJFYYstyk"
+    },
+    {
+      "image": "inj_Z023_20250604_rank06_recuQJJQEdTHpY.jpeg",
+      "record_id": "recvr8jtcXcq60",
+      "table_id": "tbla77yMq4ERTXqY",
+      "origin_record_id": "recuQJJQEdTHpY"
+    },
+    {
+      "image": "inj_Z023_20250605_rank02_recuQJJQEdz80r.jpeg",
+      "record_id": "recvr8jv5MZVoh",
+      "table_id": "tbla77yMq4ERTXqY",
+      "origin_record_id": "recuQJJQEdz80r"
+    },
+    {
+      "image": "inj_Z023_20250915_rank05_recuWS1uieSH99.jpeg",
+      "record_id": "recvr8jyI6ndis",
+      "table_id": "tbla77yMq4ERTXqY",
+      "origin_record_id": "recuWS1uieSH99"
+    },
+    {
+      "image": "inj_Z023_20250909_rank04_recuWm1KTzTtf0.jpeg",
+      "record_id": "recvr8qoNhdnQf",
+      "table_id": "tbla77yMq4ERTXqY",
+      "origin_record_id": "recuWm1KTzTtf0"
+    }
+  ],
+  "swaps": [
+    {
+      "out": "inj_Z023_20250705_rank04_recuQJJQEdsHqM.jpeg（斜拍全灭）+ 候补rank08模温机错页型剔除",
+      "in": "inj_Z023_20250909_rank04_recuWm1KTzTtf0.jpeg",
+      "at": "2026-08-02"
+    }
+  ]
+}
