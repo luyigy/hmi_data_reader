@@ -1,0 +1,201 @@
+{
+  "filename": "inj_Z068_20260302_rank06_recvcFqBOMmMM4.png",
+  "path": "output/inj_z068_calib/rectified/inj_Z068_20260302_rank06_recvcFqBOMmMM4.png",
+  "line_count": 40,
+  "merged_rows": [
+    {
+      "text": "ARBURG",
+      "bbox": {
+        "x_min": 1160.0,
+        "x_max": 1346.0,
+        "y_min": 53.0,
+        "y_max": 96.0,
+        "avg_y": 53.0
+      },
+      "conf": 0.9647631049156189,
+      "min_conf": 0.9647631049156189,
+      "n_segments": 1
+    },
+    {
+      "text": "循环中断-按按键S882！",
+      "bbox": {
+        "x_min": 111.0,
+        "x_max": 421.0,
+        "y_min": 85.0,
+        "y_max": 113.0,
+        "avg_y": 85.0
+      },
+      "conf": 0.9715366959571838,
+      "min_conf": 0.9715366959571838,
+      "n_segments": 1
+    },
+    {
+      "text": "55.92mm 19.72mm 830bar 35.87",
+      "bbox": {
+        "x_min": 486.0,
+        "x_max": 1340.0,
+        "y_min": 119.0,
+        "y_max": 162.0,
+        "avg_y": 124.75
+      },
+      "conf": 0.9957234859466553,
+      "min_conf": 0.9925661087036133,
+      "n_segments": 4
+    },
+    {
+      "text": "A 口口 口",
+      "bbox": {
+        "x_min": 209.0,
+        "x_max": 1317.0,
+        "y_min": 278.0,
+        "y_max": 311.0,
+        "avg_y": 284.3333333333333
+      },
+      "conf": 0.7592223683993021,
+      "min_conf": 0.5970511436462402,
+      "n_segments": 3
+    },
+    {
+      "text": "0.00 进料位 48.00 mm",
+      "bbox": {
+        "x_min": 398.0,
+        "x_max": 1180.0,
+        "y_min": 410.0,
+        "y_max": 444.0,
+        "avg_y": 413.75
+      },
+      "conf": 0.9938672780990601,
+      "min_conf": 0.9862140417098999,
+      "n_segments": 4
+    },
+    {
+      "text": "192.4 2290",
+      "bbox": {
+        "x_min": 707.0,
+        "x_max": 1193.0,
+        "y_min": 455.0,
+        "y_max": 484.0,
+        "avg_y": 459.5
+      },
+      "conf": 0.9929997026920319,
+      "min_conf": 0.9874395132064819,
+      "n_segments": 2
+    },
+    {
+      "text": "mm/s bar",
+      "bbox": {
+        "x_min": 704.0,
+        "x_max": 1181.0,
+        "y_min": 487.0,
+        "y_max": 513.0,
+        "avg_y": 490.0
+      },
+      "conf": 0.9185010194778442,
+      "min_conf": 0.8398540019989014,
+      "n_segments": 2
+    },
+    {
+      "text": "25",
+      "bbox": {
+        "x_min": 1138.0,
+        "x_max": 1158.0,
+        "y_min": 649.0,
+        "y_max": 666.0,
+        "avg_y": 649.0
+      },
+      "conf": 0.9993001222610474,
+      "min_conf": 0.9993001222610474,
+      "n_segments": 1
+    },
+    {
+      "text": "27.80 56.00mm",
+      "bbox": {
+        "x_min": 769.0,
+        "x_max": 1176.0,
+        "y_min": 698.0,
+        "y_max": 730.0,
+        "avg_y": 702.0
+      },
+      "conf": 0.9856358468532562,
+      "min_conf": 0.9728723764419556,
+      "n_segments": 2
+    },
+    {
+      "text": "0.0 12.0 35.0 65.0 mmfs",
+      "bbox": {
+        "x_min": 806.0,
+        "x_max": 1181.0,
+        "y_min": 803.0,
+        "y_max": 834.0,
+        "avg_y": 808.0
+      },
+      "conf": 0.9795167446136475,
+      "min_conf": 0.9101927876472473,
+      "n_segments": 5
+    },
+    {
+      "text": "795 -104 800 1000 1100 bar",
+      "bbox": {
+        "x_min": 661.0,
+        "x_max": 1159.0,
+        "y_min": 865.0,
+        "y_max": 889.0,
+        "avg_y": 867.6666666666666
+      },
+      "conf": 0.9858095943927765,
+      "min_conf": 0.9260957837104797,
+      "n_segments": 6
+    },
+    {
+      "text": "27.80 55.92 27.80 36.00 45.00 mm",
+      "bbox": {
+        "x_min": 642.0,
+        "x_max": 1162.0,
+        "y_min": 920.0,
+        "y_max": 947.0,
+        "avg_y": 922.1666666666666
+      },
+      "conf": 0.9906539519627889,
+      "min_conf": 0.9613392949104309,
+      "n_segments": 6
+    },
+    {
+      "text": "注射结束（转压）用 行程",
+      "bbox": {
+        "x_min": 567.0,
+        "x_max": 1105.0,
+        "y_min": 975.0,
+        "y_max": 1003.0,
+        "avg_y": 976.0
+      },
+      "conf": 0.9869816303253174,
+      "min_conf": 0.9743693470954895,
+      "n_segments": 2
+    },
+    {
+      "text": "[0.00-35.99]=27.80",
+      "bbox": {
+        "x_min": 19.0,
+        "x_max": 258.0,
+        "y_min": 1070.0,
+        "y_max": 1090.0,
+        "avg_y": 1070.0
+      },
+      "conf": 0.955281138420105,
+      "min_conf": 0.955281138420105,
+      "n_segments": 1
+    }
+  ],
+  "fix_log": [
+    "  [brand-exact] 'ARBURG' -> ARBURG (conf=1.0)",
+    "  [merge-lines] 40 lines -> 14 merged rows",
+    "  [number-stats] 29 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 40,
+    "n_merged_rows": 14,
+    "n_numbers": 29,
+    "n_numbers_fixed": 0
+  }
+}

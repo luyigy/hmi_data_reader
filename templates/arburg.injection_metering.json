@@ -1,0 +1,27 @@
+{
+  "version": "0.1.0",
+  "ui_family": "ARBURG",
+  "page": "injection_metering",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（阿博格 Z068，SELOGICA）OCR 实测锚点",
+  "description": "ARBURG SELOGICA 注射页字段位置模板。结构：段表 v mm/s / p bar / s mm 三行（行锚=行尾单位 token 'mm/s'/'bar'/'mm'，y>0.6 排除图表轴标签）；行内数值按 x 排序取最右 3 个=段3/段2/段1（左侧当前值/绿字实际列排除），数组倒置为段1→段3。进料位=顶部蓝框（y<0.45, x>0.55 的 Xmm 粘连 token）。延迟时间单值（标签右侧）。转压位=最左设定列 s（段3 值）。注射结束（转压）用=行程（文本常量）。顶部仪表与页底 s403/s305 回显为实时值不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z068 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "rows": {
+    "injection_velocity_mms": {"unit": "mm/s", "unit_y_min": 0.6, "dy": 0.02, "take_last": 3, "range": [0, 300]},
+    "injection_pressure_bar": {"unit": "bar", "unit_y_min": 0.6, "dy": 0.02, "take_last": 3, "range": [0, 2500]},
+    "injection_position_mm": {"unit": "mm", "unit_y_min": 0.6, "dy": 0.02, "take_last": 3, "range": [0, 200], "decimal": true}
+  },
+  "singles": {
+    "metering_position_mm": {"rule": "top_mm_token", "y_max": 0.45, "x_min": 0.55, "x_max": 0.8, "decimal": true, "range": [0, 300]},
+    "injection_delay_s": {"label": "延迟时间", "dx": 0.25, "range": [0, 60]}
+  },
+  "switch_mode_constant": "行程",
+  "page_detect_anchors": ["注射结束", "进料位", "行程"],
+  "family_detect_groups": [
+    ["注射结束", "进料位"],
+    ["转压", "行程"]
+  ]
+}

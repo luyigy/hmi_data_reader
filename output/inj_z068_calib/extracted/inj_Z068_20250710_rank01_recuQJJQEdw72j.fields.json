@@ -1,0 +1,43 @@
+{
+  "image": "inj_Z068_20250710_rank01_recuQJJQEdw72j",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "ARBURG",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "injection_velocity_mms": [
+      30.0,
+      25.0,
+      18.0
+    ],
+    "injection_pressure_bar": [
+      1000.0,
+      750.0,
+      650.0
+    ],
+    "injection_position_mm": [
+      20.0,
+      15.0,
+      11.8
+    ],
+    "injection_stages": 3,
+    "metering_position_mm": 27.0,
+    "injection_delay_s": 0.0,
+    "vp_switch_mode": "行程",
+    "vp_switch_position_mm": 11.8
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "none",
+    "template": "arburg.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z068_calib/rectified/inj_Z068_20250710_rank01_recuQJJQEdw72j.ocr.json",
+    "screen_size": [
+      2000,
+      1228
+    ],
+    "rectify_method": "corners"
+  },
+  "extraction_detail": {}
+}

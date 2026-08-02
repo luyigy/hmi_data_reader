@@ -673,15 +673,18 @@ from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
 from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
+from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
 from extract_families.keba_injection import extract_injection_keba  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
 from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
+from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
 from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
+from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
 
 
 # ---------------------------------------------------------------- 主流程
@@ -733,6 +736,12 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         if template is not None:
             page = "injection_metering"
             result["page_type"] = page
+    if template is None and family == "ARBURG" and page in ("injection_metering", "monitor_curve", "unknown"):
+        # ARBURG 注射页含曲线图被记为 monitor_curve/unknown，统一走射保模板（049 A7）
+        template = load_template(family, "injection_metering", templates_dir)
+        if template is not None:
+            page = "injection_metering"
+            result["page_type"] = page
     if template is None:
         result["warnings"].append(f"NO_TEMPLATE({family},{page})")
         return result
@@ -774,6 +783,14 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
             merged_zoom, rates_stats = merge_variant_lines(base_lines, zoom_lines)
             toks = norm_tokens({**ocr_data, "lines": merged_zoom}, meta["screen_size"])
+    if ui == "ARBURG":
+        # 延迟时间灰框旁车（049 A7）：带 _src 标记直接并入
+        delay_path = rectified_dir / f"{stem}.ocr_delay.json"
+        if delay_path.is_file():
+            delay_lines = json.loads(delay_path.read_text()).get("lines", [])
+            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
+            toks = norm_tokens({**ocr_data, "lines": base_lines + delay_lines},
+                               meta["screen_size"])
     if ui == "TACT":
         # 设定行红框 HSV 旁车（033）：带 _src 标记直接并入，由 TACT 提取器定点使用；
         # 不写 provenance（保持 Z022 既有产物零 diff）
@@ -804,6 +821,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_est(toks, template)
     elif page_key == "injection_metering" and ui == "TRD6":
         ext = extract_injection_trd6(toks, template)
+    elif page_key == "injection_metering" and ui == "ARBURG":
+        ext = extract_injection_arburg(toks, template)
     elif page_key == "injection_metering" and ui == "KEBA":
         ext = extract_injection_keba(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
@@ -814,6 +833,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_est(toks, template)
     elif page_key == "injection_metering" and ui == "TRD6":
         ext = extract_injection_trd6(toks, template)
+    elif page_key == "injection_metering" and ui == "ARBURG":
+        ext = extract_injection_arburg(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
         ext = extract_injection_b_and_r(toks, template)
     elif page_key == "injection_metering" and ui == "KAIMING":
@@ -822,6 +843,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_est(toks, template)
     elif page_key == "injection_metering" and ui == "TRD6":
         ext = extract_injection_trd6(toks, template)
+    elif page_key == "injection_metering" and ui == "ARBURG":
+        ext = extract_injection_arburg(toks, template)
     elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
     elif ui == "KEBA":

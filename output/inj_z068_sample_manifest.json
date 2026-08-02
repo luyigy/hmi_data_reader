@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-08-02T08:23:47+00:00",
+  "generator": "kimi-code S3 (035_PLAN)",
+  "final_target_count": 6,
+  "final_targets": [
+    {
+      "rank": 1,
+      "role": "original_target",
+      "machine": "Z068",
+      "brand": "阿博格",
+      "family": "ARBURG",
+      "local_name": "inj_Z068_20250710_rank01_recuQJJQEdw72j.jpeg",
+      "sha256": "bd93d2fd5739c0bed76decadcf061e47e691b0dbd9d6d2b0843040d6b7b94800",
+      "record_id": "recuQJJQEdw72j",
+      "date": "2025-07-10",
+      "file_token": "NrN3bNYmdo4p4qxZc6accjb2nzd",
+      "size": 4198958
+    },
+    {
+      "rank": 2,
+      "role": "original_target",
+      "machine": "Z068",
+      "brand": "阿博格",
+      "family": "ARBURG",
+      "local_name": "inj_Z068_20251123_rank02_recv3ntI5fM42I.jpeg",
+      "sha256": "d8020a677529fd6d47ce8d61dd70111d4aa105cdcf48bf9161caec9fbf7a3cc6",
+      "record_id": "recv3ntI5fM42I",
+      "date": "2025-11-23",
+      "file_token": "N7YCb0tYVo9V8nx8ZBkciuXbnrM",
+      "size": 6914096
+    },
+    {
+      "rank": 3,
+      "role": "original_target",
+      "machine": "Z068",
+      "brand": "阿博格",
+      "family": "ARBURG",
+      "local_name": "inj_Z068_20260108_rank03_recv7FwCzGGQjT.jpeg",
+      "sha256": "fca6579c5cb9abe2e38fe5b09f35b41a4956595faf2c29351ffe393b9bbe9374",
+      "record_id": "recv7FwCzGGQjT",
+      "date": "2026-01-08",
+      "file_token": "XM6bbhPHCo9KXbxRq1DcDcoMnHd",
+      "size": 477168
+    },
+    {
+      "rank": 4,
+      "role": "original_target",
+      "machine": "Z068",
+      "brand": "阿博格",
+      "family": "ARBURG",
+      "local_name": "inj_Z068_20250918_rank04_recuX6DLBS4CRa.jpeg",
+      "sha256": "28a0470bcb59a79aaca4d2fee57a8ab3f6304fa9d4671320f458800a3a22b5b7",
+      "record_id": "recuX6DLBS4CRa",
+      "date": "2025-09-18",
+      "file_token": "EVZmbJ8ZWoJGK5xt1rZcxJNgnIF",
+      "size": 3270606
+    },
+    {
+      "rank": 5,
+      "role": "original_target",
+      "machine": "Z068",
+      "brand": "阿博格",
+      "family": "ARBURG",
+      "local_name": "inj_Z068_20260302_rank05_recvcJ5bdBp1o8.jpeg",
+      "sha256": "f8052726d50a3768225e48ed79d89e680b0f11029ce52873aaa936207a9bb493",
+      "record_id": "recvcJ5bdBp1o8",
+      "date": "2026-03-02",
+      "file_token": "MzavbqBqCowYv5x3YsHcyFsEn7b",
+      "size": 1245768
+    },
+    {
+      "rank": 6,
+      "role": "original_target",
+      "machine": "Z068",
+      "brand": "阿博格",
+      "family": "ARBURG",
+      "local_name": "inj_Z068_20260302_rank06_recvcFqBOMmMM4.jpeg",
+      "sha256": "caf79153c71f5791696e87aa035baf312383acb05081a9595cdd3af455b5cf39",
+      "record_id": "recvcFqBOMmMM4",
+      "date": "2026-03-02",
+      "file_token": "JO9PbICF9ozwyKxnGa3c5SPfnRd",
+      "size": 570752
+    }
+  ],
+  "content_duplicates": []
+}

@@ -1,0 +1,52 @@
+{
+  "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+  "table_id": "tbl1zdSsIFqjWc1Q",
+  "table_name": "射出保压字段核验-Z068",
+  "url": "https://ecn6lj2fknte.feishu.cn/base/Vz2QbZ0lkagmVJsrMZ7cQwbSnZc?table=tbl1zdSsIFqjWc1Q",
+  "verifier": "自动整批接受（半自动模式，降级；用户保留事后否决权）",
+  "records": [
+    {
+      "image": "inj_Z068_20250710_rank01_recuQJJQEdw72j.jpeg",
+      "record_id": "recvr7SkPJ8x0t",
+      "table_id": "tbl1zdSsIFqjWc1Q",
+      "origin_record_id": "recuQJJQEdw72j"
+    },
+    {
+      "image": "inj_Z068_20251123_rank02_recv3ntI5fM42I.jpeg",
+      "record_id": "recvr7SpagwQWc",
+      "table_id": "tbl1zdSsIFqjWc1Q",
+      "origin_record_id": "recv3ntI5fM42I"
+    },
+    {
+      "image": "inj_Z068_20260108_rank03_recv7FwCzGGQjT.jpeg",
+      "record_id": "recvr7SrFHksM1",
+      "table_id": "tbl1zdSsIFqjWc1Q",
+      "origin_record_id": "recv7FwCzGGQjT"
+    },
+    {
+      "image": "inj_Z068_20260302_rank05_recvcJ5bdBp1o8.jpeg",
+      "record_id": "recvr7StefHmie",
+      "table_id": "tbl1zdSsIFqjWc1Q",
+      "origin_record_id": "recvcJ5bdBp1o8"
+    },
+    {
+      "image": "inj_Z068_20260302_rank06_recvcFqBOMmMM4.jpeg",
+      "record_id": "recvr7SuVrzppV",
+      "table_id": "tbl1zdSsIFqjWc1Q",
+      "origin_record_id": "recvcFqBOMmMM4"
+    },
+    {
+      "image": "inj_Z068_20251121_rank04_recv3bMFqt0Lxx.jpeg",
+      "record_id": "recvr7X0ihERwX",
+      "table_id": "tbl1zdSsIFqjWc1Q",
+      "origin_record_id": "recv3bMFqt0Lxx"
+    }
+  ],
+  "swaps": [
+    {
+      "out": "inj_Z068_20250918_rank04_recuX6DLBS4CRa.jpeg（模糊拒识）+ 候补rank07温度页混入剔除",
+      "in": "inj_Z068_20251121_rank04_recv3bMFqt0Lxx.jpeg",
+      "at": "2026-08-02"
+    }
+  ]
+}

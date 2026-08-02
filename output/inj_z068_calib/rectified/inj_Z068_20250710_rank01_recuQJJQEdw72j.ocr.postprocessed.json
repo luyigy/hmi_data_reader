@@ -1,0 +1,201 @@
+{
+  "filename": "inj_Z068_20250710_rank01_recuQJJQEdw72j.png",
+  "path": "output/inj_z068_calib/rectified/inj_Z068_20250710_rank01_recuQJJQEdw72j.png",
+  "line_count": 41,
+  "merged_rows": [
+    {
+      "text": "ARBURG 选择ACTIC",
+      "bbox": {
+        "x_min": 1390.0,
+        "x_max": 1999.0,
+        "y_min": 13.0,
+        "y_max": 51.0,
+        "avg_y": 14.0
+      },
+      "conf": 0.9078355729579926,
+      "min_conf": 0.8511330485343933,
+      "n_segments": 2
+    },
+    {
+      "text": "i循环中断-按按键 S882！",
+      "bbox": {
+        "x_min": 198.0,
+        "x_max": 559.0,
+        "y_min": 34.0,
+        "y_max": 77.0,
+        "avg_y": 34.0
+      },
+      "conf": 0.9142112731933594,
+      "min_conf": 0.9142112731933594,
+      "n_segments": 1
+    },
+    {
+      "text": "34.97mm 7.91mm 471bar 28.043",
+      "bbox": {
+        "x_min": 627.0,
+        "x_max": 1583.0,
+        "y_min": 76.0,
+        "y_max": 130.0,
+        "avg_y": 85.75
+      },
+      "conf": 0.961840808391571,
+      "min_conf": 0.875551164150238,
+      "n_segments": 4
+    },
+    {
+      "text": "排 屯",
+      "bbox": {
+        "x_min": 133.0,
+        "x_max": 279.0,
+        "y_min": 269.0,
+        "y_max": 318.0,
+        "avg_y": 271.0
+      },
+      "conf": 0.7057383060455322,
+      "min_conf": 0.538417398929596,
+      "n_segments": 2
+    },
+    {
+      "text": "时间 0.00 进料位 27.00 mm",
+      "bbox": {
+        "x_min": 17.0,
+        "x_max": 1406.0,
+        "y_min": 424.0,
+        "y_max": 467.0,
+        "avg_y": 429.2
+      },
+      "conf": 0.9673967957496643,
+      "min_conf": 0.8438087105751038,
+      "n_segments": 5
+    },
+    {
+      "text": "192.4 2290",
+      "bbox": {
+        "x_min": 879.0,
+        "x_max": 1419.0,
+        "y_min": 482.0,
+        "y_max": 514.0,
+        "avg_y": 483.0
+      },
+      "conf": 0.9984332919120789,
+      "min_conf": 0.9977606534957886,
+      "n_segments": 2
+    },
+    {
+      "text": "mm/s bar",
+      "bbox": {
+        "x_min": 875.0,
+        "x_max": 1408.0,
+        "y_min": 516.0,
+        "y_max": 548.0,
+        "avg_y": 517.0
+      },
+      "conf": 0.9683696329593658,
+      "min_conf": 0.9386860132217407,
+      "n_segments": 2
+    },
+    {
+      "text": "1.80 35.00 mm",
+      "bbox": {
+        "x_min": 956.0,
+        "x_max": 1396.0,
+        "y_min": 760.0,
+        "y_max": 789.0,
+        "avg_y": 767.3333333333334
+      },
+      "conf": 0.9789398511250814,
+      "min_conf": 0.9522412419319153,
+      "n_segments": 3
+    },
+    {
+      "text": "1.89 0.0 18.0 25.0 30.0 mm/s",
+      "bbox": {
+        "x_min": 827.0,
+        "x_max": 1410.0,
+        "y_min": 883.0,
+        "y_max": 919.0,
+        "avg_y": 889.0
+      },
+      "conf": 0.9305546383062998,
+      "min_conf": 0.636417031288147,
+      "n_segments": 6
+    },
+    {
+      "text": "650 750 1000 bar",
+      "bbox": {
+        "x_min": 1088.0,
+        "x_max": 1383.0,
+        "y_min": 955.0,
+        "y_max": 985.0,
+        "avg_y": 958.25
+      },
+      "conf": 0.9721061289310455,
+      "min_conf": 0.8916840553283691,
+      "n_segments": 4
+    },
+    {
+      "text": "349 11.80 15.00 20.00 mrmi",
+      "bbox": {
+        "x_min": 975.0,
+        "x_max": 1385.0,
+        "y_min": 1023.0,
+        "y_max": 1047.0,
+        "avg_y": 1025.4
+      },
+      "conf": 0.90681072473526,
+      "min_conf": 0.6144794821739197,
+      "n_segments": 5
+    },
+    {
+      "text": "注射结束（转压）用 行程",
+      "bbox": {
+        "x_min": 729.0,
+        "x_max": 1327.0,
+        "y_min": 1081.0,
+        "y_max": 1115.0,
+        "avg_y": 1083.0
+      },
+      "conf": 0.9788661599159241,
+      "min_conf": 0.9581647515296936,
+      "n_segments": 2
+    },
+    {
+      "text": "进料位",
+      "bbox": {
+        "x_min": 42.0,
+        "x_max": 125.0,
+        "y_min": 1151.0,
+        "y_max": 1183.0,
+        "avg_y": 1151.0
+      },
+      "conf": 0.9974964261054993,
+      "min_conf": 0.9974964261054993,
+      "n_segments": 1
+    },
+    {
+      "text": "$403[20.01-112.00 ]=27.00 模具",
+      "bbox": {
+        "x_min": 44.0,
+        "x_max": 1725.0,
+        "y_min": 1170.0,
+        "y_max": 1224.0,
+        "avg_y": 1177.5
+      },
+      "conf": 0.9072286188602448,
+      "min_conf": 0.8948652744293213,
+      "n_segments": 2
+    }
+  ],
+  "fix_log": [
+    "  [brand-exact] 'ARBURG' -> ARBURG (conf=1.0)",
+    "  [merge-lines] 41 lines -> 14 merged rows",
+    "  [number-stats] 27 numbers found, 0 fixed",
+    "  [field-template] 2 families have templates (ZizES + FANUC)"
+  ],
+  "stats": {
+    "n_lines": 41,
+    "n_merged_rows": 14,
+    "n_numbers": 27,
+    "n_numbers_fixed": 0
+  }
+}

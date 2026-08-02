@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S8",
+  "slice": "S9",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -67,9 +67,13 @@
     "049 S7 启动（A6 TRD6/Z020 沙迪克）：s44 候选 104 附件无重复，seed 20260802 取 6+2，下载 6/6；inj_Z020 别名预补；管线后台 bash-jsfuv7kx",
     "049 S7 续：管线完成；读 rank01/02 摸 TRD6 注射设定页结构——S5~S1 位置mm+速度mm/s 段表+计量，保持压 T1-T4秒/P1-P4MPa，上限压/上限时间，V-P切换位置，保压速度，冷却/休止/注射延迟/计量延迟，螺杆旋转rpm/背压，回吸量/速度，清料速度/次数；rank01 为 720x1280 低分图需放大复核",
     "049 S7 续：六图全 TRD6 屏（模具均 TX22057）结构一致；VLM 草稿×6（21 字段含 S5~S1 段表/保持压 T1P1 在前/上限压/回吸/清料）；核验表+s46 真值自动接受×6 -> ground_truth/inj_z020_injection/",
-    "049 S7 完成（A6 TRD6/Z020）：SAFE_REJECT——numeric 0.956 PASS 但 vp 深色框系统性不可读致 6 图全 review；rank03 P1 真值自我修正 35→95；056 HANDOVER；SAFE_REJECT 连续计数=1"
+    "049 S7 完成（A6 TRD6/Z020）：SAFE_REJECT——numeric 0.956 PASS 但 vp 深色框系统性不可读致 6 图全 review；rank03 P1 真值自我修正 35→95；056 HANDOVER；SAFE_REJECT 连续计数=1",
+    "049 S8 启动（A7 ARBURG/Z068 阿博格）：s48 候选 117 附件无重复，seed 20260802 取 6+2，下载 6/6；inj_Z068 别名预补；管线后台 bash-mlt5bvjv",
+    "049 S8 续：六图全 ARBURG SELOGICA 屏（注射 3 段，段1在右，绿字列=实际；转压位=末段 s；rank04/05 有 M001 横幅）；VLM 草稿×6 + 核验表 + s50 真值自动接受×6 -> ground_truth/inj_z068_injection/",
+    "049 S8 续：延迟灰框旁车（s51 ocr_delay.json，6 图 0.00 全召回）+单位择优/进料位 x 窗修复后 5ok；rank04 模糊图管线质量拒识+候补 rank07 为温度页混入均剔除，候补 rank08（清晰注射页）换入；新草稿+管线重跑后台 bash-fl1aqy3c",
+    "049 S8 完成（A7 ARBURG/Z068）：三门禁 PASS numeric 1.0/error 0/6ok（延迟灰框旁车救回+换样）；阶段 A 7/7 闭合：PASS×6 + SAFE_REJECT×1(TRD6)；057 HANDOVER+回归全净"
   ],
-  "next_step": "049 S8（A7 ARBURG/Z068，219 附件）七步流水线：s48 候选+下载 8 张起步",
+  "next_step": "049 S9（阶段 B1 储料/冷却首机，按 auto_queue_049 stageB）七步流水线起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -119,10 +123,9 @@
       "evidence": "056 HANDOVER / output/inj_z020_calib/accuracy_report_inj_z020.json（numeric 0.956 PASS、ok=0 全 review：vp 深色框不可读）"
     },
     "injection_metering/ARBURG/wave1": {
-      "status": "BLOCKED_EXTERNAL",
-      "evidence": "046 REPORT",
-      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+      "status": "PASS",
+      "evidence": "057 HANDOVER / output/inj_z068_calib/accuracy_report_inj_z068.json（numeric 1.0, error 0, 6/6 ok）"
     }
   },
-  "consecutive_safe_reject": 1
+  "consecutive_safe_reject": 0
 }
