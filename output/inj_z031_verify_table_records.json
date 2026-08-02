@@ -36,10 +36,17 @@
       "origin_record_id": "recuQJJQEdaWFP"
     },
     {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "record_id": "recvr79KZXXh7k",
+      "image": "inj_Z031_20250328_rank06_recuQJJFYYBIVm.jpeg",
+      "record_id": "recvr7qYDvvQ5w",
       "table_id": "tblB15cEjFGoJQvc",
-      "origin_record_id": "recvd7VMz02MCt"
+      "origin_record_id": "recuQJJFYYBIVm"
+    }
+  ],
+  "swaps": [
+    {
+      "out": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg（B&R 代屏混入，行 recvr79KZXXh7k 已标注剔除）",
+      "in": "inj_Z031_20250328_rank06_recuQJJFYYBIVm.jpeg",
+      "at": "2026-08-02"
     }
   ]
 }

@@ -1,8 +1,8 @@
 """049_PLAN A2：建飞书「射出保压字段核验-Z031」表并预填 6 行草稿（KEBA）。
 
-克隆 s28 结构。幂等：output/inj_z031_verify_table_records.json 存在即退出。
+克隆 s30 结构。幂等：output/inj_z031_verify_table_records.json 存在即退出。
 
-用法：python3 scripts/s30_build_inj_z031_verify_table.py
+用法：python3 scripts/s33_build_inj_z031_verify_table.py
 """
 import json
 import subprocess

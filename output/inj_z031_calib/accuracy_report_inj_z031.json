@@ -8,14 +8,14 @@
     "page_classification_accuracy": 1.0,
     "field_completeness": 1.0,
     "numeric_accuracy": 1.0,
-    "auto_import_ratio": 0.8333,
+    "auto_import_ratio": 1.0,
     "error_auto_import_rate": 0.0,
-    "rejection_accuracy": 1.0
+    "rejection_accuracy": null
   },
   "gates": {
     "numeric_accuracy >= 0.95": true,
     "error_auto_import_rate == 0": true,
-    "rejection_accuracy == 1": true
+    "rejection_accuracy == 1": "N/A"
   },
   "poc_pass": true,
   "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，伯乐批分母应为 1 由验收显式核对）",
@@ -23,26 +23,35 @@
     "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
     "raw_totals": {
       "n_images": 6,
-      "n_elements": 106,
-      "n_present": 90,
-      "n_matched": 89
+      "n_elements": 108,
+      "n_present": 108,
+      "n_matched": 108
     },
     "scored_totals": {
-      "n_images": 5,
-      "n_elements": 89,
-      "n_present": 89,
-      "n_matched": 89
+      "n_images": 6,
+      "n_elements": 108,
+      "n_present": 108,
+      "n_matched": 108
     },
-    "excluded_images": [
-      {
-        "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-        "n_elements": 17,
-        "reason": "correct_reject(allow_auto_import=false, status=review)"
-      }
-    ]
+    "excluded_images": []
   },
   "missing_extraction": [],
   "per_image": [
+    {
+      "image": "inj_Z031_20250328_rank06_recuQJJFYYBIVm.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17,
+      "correct_reject": false
+    },
     {
       "image": "inj_Z031_20250403_rank04_recuQJJFYYYWGV.jpeg",
       "status": "ok",
@@ -53,9 +62,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 16,
-      "n_present": 16,
-      "n_matched": 16,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17,
       "correct_reject": false
     },
     {
@@ -68,9 +77,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 16,
-      "n_present": 16,
-      "n_matched": 16,
+      "n_elements": 17,
+      "n_present": 17,
+      "n_matched": 17,
       "correct_reject": false
     },
     {
@@ -83,9 +92,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 19,
-      "n_present": 19,
-      "n_matched": 19,
+      "n_elements": 20,
+      "n_present": 20,
+      "n_matched": 20,
       "correct_reject": false
     },
     {
@@ -98,9 +107,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 19,
-      "n_present": 19,
-      "n_matched": 19,
+      "n_elements": 20,
+      "n_present": 20,
+      "n_matched": 20,
       "correct_reject": false
     },
     {
@@ -113,163 +122,11 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 19,
-      "n_present": 19,
-      "n_matched": 19,
-      "correct_reject": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "status": "review",
-      "allow_auto_import": false,
-      "family_truth": "KEBA",
-      "family_extracted": "KEBA",
-      "family_match": true,
-      "page_truth": "injection_metering",
-      "page_extracted": "injection_metering",
-      "page_match": true,
       "n_elements": 17,
-      "n_present": 1,
-      "n_matched": 0,
-      "correct_reject": true
+      "n_present": 17,
+      "n_matched": 17,
+      "correct_reject": false
     }
   ],
-  "mismatched_elements": [
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "holding_stages",
-      "truth": 2,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "holding_time_s[0]",
-      "truth": 1.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "holding_time_s[1]",
-      "truth": 0.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "vp_switch_position_mm",
-      "truth": 21.0,
-      "extracted": 20.28,
-      "present": true,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_pressure_bar[0]",
-      "truth": 120.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_pressure_bar[1]",
-      "truth": 120.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_pressure_bar[2]",
-      "truth": 100.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_velocity_pct[0]",
-      "truth": 85.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_velocity_pct[1]",
-      "truth": 75.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_velocity_pct[2]",
-      "truth": 20.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_position_mm[0]",
-      "truth": 42.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_position_mm[1]",
-      "truth": 25.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "injection_stages",
-      "truth": 3,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "holding_pressure_bar[0]",
-      "truth": 55.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "holding_pressure_bar[1]",
-      "truth": 0.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "holding_velocity_pct[0]",
-      "truth": 10.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    },
-    {
-      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
-      "field": "holding_velocity_pct[1]",
-      "truth": 0.0,
-      "extracted": null,
-      "present": false,
-      "matched": false
-    }
-  ]
+  "mismatched_elements": []
 }

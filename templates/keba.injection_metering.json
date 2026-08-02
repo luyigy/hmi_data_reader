@@ -2,41 +2,40 @@
   "version": "0.1.0",
   "ui_family": "KEBA",
   "page": "injection_metering",
-  "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z031，KEBA KePlast 灰 UI）OCR 实测锚点",
-  "description": "KEBA KePlast 灰 UI 射出页字段位置模板。结构：射出区 6 段表（列头 六段~一段 从右往左，行为 压力bar/速度%/终止位置mm；射出时间单值 s；蓝色「时间」行为实际值不入）；转保压方式（文本下拉不入数值）+ 保压位置 mm；保压区 5 段表（列头 五段~一段，行为 压力bar/速度%/时间s）。段数无显式字段：按从一段起非零压力列数推断并置 STAGES_INFERRED 告警（review）。顶部实时行（螺杆位置/压力/RPM/秒表）与页底说明文字一律不取。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z031，KEBA 蓝 UI）OCR 实测锚点",
+  "description": "KEBA 屏射出页字段位置模板。结构：射出 6 段表（行=压力bar/速度%/终止位置mm，列=段，一段在最右）+射出时间单值（段一列下方）+转保压方式（时间/位置|位置|时间 下拉文本）+保压位置mm；保压 5 段表（行=压力/速度/时间，同列序）。蓝底「时间」行（射出表内）与顶部仪表为实际值不入。有效段判定：射出=压力或速度非零的最末段，保压=时间>0 的最末段。取值规则：行标签锚行 y（射出行 x<0.12，保压行 0.15<x<0.35），列按段头（X段）实测 x 中心归列（一段常只剩'段'字，取最右列）；数组按段号 1→N 即 x 降序。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
   "coordinate_system": "normalized_screen",
   "calibration": {
     "method": "6 张真值图（inj_Z031 rank01-06）rectify 后 PaddleOCR 实测标签与值位；以逐图实测为准",
     "calibrated_at": "2026-08-02"
   },
-  "injection": {
-    "header_y": [0.24, 0.30],
-    "stages": ["一段", "二段", "三段", "四段", "五段", "六段"],
-    "row_labels": {"压力": "bar", "速度": "pct", "终止位置": "mm"},
-    "row_label_x_max": 0.15,
-    "row_y": [0.28, 0.42],
-    "col_tol": 0.06,
-    "row_band": 0.02
-  },
-  "holding": {
-    "header_y": [0.63, 0.71],
-    "stages": ["一段", "二段", "三段", "四段", "五段"],
-    "row_labels": {"压力": "bar", "速度": "pct", "时间": "s"},
-    "row_label_x": [0.15, 0.35],
-    "row_y": [0.66, 0.84],
-    "col_tol": 0.06,
-    "row_band": 0.02
+  "tables": {
+    "injection": {
+      "header_y": [0.22, 0.30], "max_stages": 6,
+      "row_labels": {"pressure": "压力", "velocity": "速度", "end_position": "终止位置"},
+      "row_label_x_max": 0.12,
+      "default_centers": [0.90, 0.76, 0.63, 0.51, 0.39, 0.25]
+    },
+    "holding": {
+      "header_y": [0.62, 0.72], "max_stages": 5,
+      "row_labels": {"pressure": "压力", "velocity": "速度", "time": "时间"},
+      "row_label_x_range": [0.15, 0.35],
+      "default_centers": [0.90, 0.77, 0.63, 0.50, 0.38]
+    },
+    "row_band": 0.03, "col_tol": 0.07
   },
   "singles": {
-    "injection_time_s": {"label": "射出时间", "range": [0, 60]},
-    "vp_switch_position_mm": {"label": "保压位置", "range": [0, 200]}
+    "injection_time_s": {"label": "射出时间", "range": [0, 60],
+                         "note": "值在标签右上方段一列（dy±0.025, x>0.8），单位 s 粘连"},
+    "holding_switch_mode": {"label": "转保压方式", "x_range": [0.2, 0.6],
+                            "values": ["时间/位置", "位置", "时间"]},
+    "vp_switch_position_mm": {"label": "保压位置", "range": [0, 200],
+                              "note": "标签同行右侧（dx<0.3），单位 mm 粘连"}
   },
-  "value_ranges": {
-    "bar": [0, 400], "pct": [0, 100], "mm": [0, 200], "s": [0, 60]
-  },
-  "page_detect_anchors": ["转保压方式", "保压位置", "终止位置"],
+  "value_ranges": {"bar": [0, 400], "pct": [0, 100], "mm": [0, 200], "s": [0, 60]},
+  "page_detect_anchors": ["转保压方式", "终止位置", "保压位置"],
   "family_detect_groups": [
     ["转保压方式", "终止位置"],
-    ["保压位置", "转保压方式"]
+    ["射出时间", "保压位置"]
   ]
 }

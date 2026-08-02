@@ -3,7 +3,6 @@
   "controller_family": "KEBA",
   "hmi_variant": "v1",
   "page_type": "injection_metering",
-  "page_variant": "keplast_gray",
   "quality_grade": "good",
   "allow_auto_import": true,
   "fields": {
@@ -17,13 +16,14 @@
       55.0,
       45.0
     ],
-    "injection_position_mm": [
+    "injection_end_position_mm": [
       25.0,
       16.0,
       0.0
     ],
     "injection_stages": 3,
     "injection_time_s": 2.0,
+    "holding_switch_mode": "位置",
     "vp_switch_position_mm": 11.0,
     "holding_pressure_bar": [
       70.0
@@ -47,11 +47,9 @@
   },
   "source": {
     "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
-    "origin_table": "tbl5KKYuANqGpycE",
-    "origin_record_id": "recuQJJFYYYWGV",
-    "file_token": "JOLxbEHjLo639zxUH3Uc33ownfb",
-    "table_id": "tblB15cEjFGoJQvc",
-    "record_id": "recvr79AlLzInG"
+    "table_id": "tbl5KKYuANqGpycE",
+    "record_id": "recuQJJFYYYWGV",
+    "file_token": "JOLxbEHjLo639zxUH3Uc33ownfb"
   },
-  "notes": "同 v1，模具 TXE24007。射出 3 段；转保压=位置；保压位置 11.0mm；保压 1 段。 | 2026-08-02 自动整批接受转真值（049 全自动口径；用户保留事后否决权）。"
+  "notes": "机台 Z031（伯乐/KEBA）、模具 TXE24007、日期 20250403、rank04。KEBA 射出页（蓝 UI）：射出 6 段表（压力bar/速度%/终止位置mm，一段在最右，数组按段号 1→N）+射出时间+转保压方式+保压位置；保压 5 段表（压力/速度/时间），有效段=时间>0 的最末段。蓝底时间行与顶部仪表为实际值不入草稿。 | 2026-08-02 自动整批接受转真值（049 全自动口径；用户保留事后否决权）。"
 }

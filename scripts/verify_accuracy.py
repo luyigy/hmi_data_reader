@@ -87,6 +87,8 @@ NUMERIC_FIELDS = [
     "holding_switch_mode",
     "pressure_upper_limit_bar",
     "pressure_lower_limit_bar",
+    # 049 A2 KEBA 射出页（Z031）新增
+    "injection_end_position_mm",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",
@@ -150,7 +152,11 @@ def compare_one(truth: dict, extracted: dict | None) -> dict:
         if t_val is None:
             continue  # 真值空缺不计入分母
         e_val = e_flat.get(key)
-        matched = e_val is not None and abs(e_val - t_val) <= TOLERANCE
+        if isinstance(t_val, str) or isinstance(e_val, str):
+            # 文本型字段（如 KEBA 转保压方式 时间/位置）：等值比对
+            matched = e_val is not None and e_val == t_val
+        else:
+            matched = e_val is not None and abs(e_val - t_val) <= TOLERANCE
         elements.append({
             "field": key,
             "truth": t_val,

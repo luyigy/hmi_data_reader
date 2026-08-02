@@ -1,7 +1,7 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S3",
-  "updated_at": "2026-08-02T13:51:49+08:00",
+  "slice": "S4",
+  "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
     "S1 启动：射出/保压附件分布只读盘点（后台）",
@@ -39,9 +39,22 @@
     "049 S3 A2 核验表 tblB15cEjFGoJQvc + 真值×6 ground_truth/inj_z031_injection/（s33/s34 自动整批接受降级口径）",
     "049 S3 A2 模板+提取：templates/keba.injection_metering.json v0.1.0 + extract_families/keba_injection.py + dispatch + inj_Z031_KEBA 路由别名（labels 54 键）；两轮定向修复（行带标签/值跨图偏移→逐行消耗+单位互斥护栏；段数推断改无歧义才免告警；射出时间蓝行粘连→'s'优先）",
     "049 S3 A2 验收：6图 numeric 1.0 / error 0.0 / rejection 1.0（rank06 正确拒识）/ 分类双1.0 / completeness 1.0，5 ok+1 review 三门禁 PASS",
-    "049 S3 A2 回归：inj_z002/z036/z017 零 diff；inj_z022 仅 family_source provenance 差（037 alias 基线差，同 051 记录，提取值零 diff）；新模板关键词零碰撞"
+    "049 S3 A2 回归：inj_z002/z036/z017 零 diff；inj_z022 仅 family_source provenance 差（037 alias 基线差，同 051 记录，提取值零 diff）；新模板关键词零碰撞",
+    "049 S4 A3 下载：Z050 候选 140→去重140，seed 20260802 下载 6/6 零重复（s35；lark-cli 配置随会话重置，FEISHU_APP_ID/SECRET 重配即用）",
+    "049 S4 A3 草稿×6：B_AND_R BKS_170 射胶页全同构（曲线+射胶段表 速度/压力/位置 + 保压段表 速度/压力/时间 + 保压切换 位置/时间；蓝字实际与实时行不入）",
+    "049 S4 A3 核验表 tblNT15qet0PklAf + 真值×6 ground_truth/inj_z050_injection/（s36/s37）",
+    "049 S4 A3 模板+提取：templates/b_and_r.injection_metering.json v0.1.0 + extract_families/b_and_r_injection.py + dispatch + inj_Z050_B_AND_R 别名（55 键）；一轮定向整改：固定y区域在倾斜/裁剪下失效（初验 numeric 0.3496）→ 节标题锚定+y聚类成行+x降序右对齐归段",
+    "049 S4 A3 真值复核更正：rank03 保压速度一段 6.0→5.0（全分辨率原图复核，020 S1 先例；核验表标有改动）",
+    "049 S4 A3 验收：6图 numeric 1.0 / error 0.0 / rejection N/A（无负样本 PoC 口径）/ 分类双1.0 / completeness 1.0 / 6ok 三门禁 PASS",
+    "049 S4 A3 回归：inj_z002/z036/z017/z031 零 diff；新模板关键词零碰撞",
+    "049 S3 启动（A2 KEBA/Z031）：s32 候选 184 附件去重 162，seed 20260802 取 6+2，下载 6/6 零重复 -> docs/samples_inj_z031/",
+    "049 S3 续：Z031 管线 6/6 injection_metering；读 rank01/02 摸清 KEBA 射保页结构——射出 6 段表（压力bar/速度%/终止位置mm，一段在最右）+射出时间单值+转保压方式+保压位置；保压 5 段表（压力/速度/时间）；蓝底时间行与顶部仪表为实际值不入",
+    "049 S3 续：rank06 为 B&R 代屏（注射段数9/位置模式 UI）混入，按候补替换 recuQJJFYYBIVm(2025-03-28,TXE24006) 并留档 output/inj_z031_rejected/；六图读毕（rank01-05+新rank06），KEBA 页结构一致",
+    "049 S3 续：换样管线重跑完成；VLM 草稿×6 落 output/inj_z031_drafts/（KEBA schema：射出3段 bar/%/终止位置mm +射出时间+转保压方式+保压位置；保压有效段=时间>0 最末段，rank03 二段时间0判不生效）",
+    "049 S3 续：核验表 tblB15cEjFGoJQvc（前一轮次已建）换样对齐——旧 rank06 行标注剔除、新 rank06(recuQJJFYYBIVm) 建行传图；s34 真值自动整批接受×6 -> ground_truth/inj_z031_injection/",
+    "049 S3 验收（A2 KEBA/Z031）：三门禁 PASS numeric 1.0/error 0/6ok；keba.injection 模板 v0.1+keba_injection 提取器（段列序一段在右/值行聚类保序配对/玉力误识候选/9.09%截断）；回归 z017/z002/z036 零 diff、z022 仅 provenance；verify_accuracy 文本字段等值比对修复"
   ],
-  "next_step": "049 S4 A3 B_AND_R（Z050，140 附件）七步流水线（052 HANDOVER 派发）",
+  "next_step": "049 S4（A3 B_AND_R/Z050，140 附件）七步流水线：s35 候选+下载 8 张起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -72,12 +85,11 @@
     },
     "injection_metering/KEBA/wave1": {
       "status": "PASS",
-      "evidence": "052 HANDOVER（numeric 1.0/error 0/rejection 1.0）"
+      "evidence": "052 HANDOVER / output/inj_z031_calib/accuracy_report_inj_z031.json（numeric 1.0, error 0, 6/6 ok）"
     },
     "injection_metering/B_AND_R/wave1": {
-      "status": "BLOCKED_EXTERNAL",
-      "evidence": "046 REPORT",
-      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+      "status": "PASS",
+      "evidence": "053 HANDOVER（numeric 1.0/error 0，PoC 口径）"
     },
     "injection_metering/KAIMING/wave1": {
       "status": "BLOCKED_EXTERNAL",
