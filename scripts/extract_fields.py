@@ -667,6 +667,7 @@ from extract_families.demag import extract_temperature_demag  # noqa: E402
 from extract_families.tact_injection import extract_injection_tact  # noqa: E402
 from extract_families.demag_injection import extract_injection_demag  # noqa: E402
 from extract_families.fanuc_injection import extract_injection_fanuc  # noqa: E402
+from extract_families.zizes_injection import extract_injection_zizes  # noqa: E402
 
 
 # ---------------------------------------------------------------- 主流程
@@ -771,6 +772,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_demag(toks, template)
     elif page_key == "injection_metering" and ui == "FANUC":
         ext = extract_injection_fanuc(toks, template)
+    elif page_key == "injection_metering" and ui == "ZIZES":
+        ext = extract_injection_zizes(toks, template)
     elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
     elif ui == "KEBA":

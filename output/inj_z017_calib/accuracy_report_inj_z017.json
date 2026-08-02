@@ -1,0 +1,132 @@
+{
+  "version": "1.1",
+  "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3；拒识口径 docs/023_PLAN_20260801_伯乐S3拒识口径与定向收口.md §3",
+  "tolerance": 0.5,
+  "n_images": 6,
+  "metrics": {
+    "controller_classification_accuracy": 1.0,
+    "page_classification_accuracy": 1.0,
+    "field_completeness": 1.0,
+    "numeric_accuracy": 1.0,
+    "auto_import_ratio": 0.8333,
+    "error_auto_import_rate": 0.0,
+    "rejection_accuracy": null
+  },
+  "gates": {
+    "numeric_accuracy >= 0.95": true,
+    "error_auto_import_rate == 0": true,
+    "rejection_accuracy == 1": "N/A"
+  },
+  "poc_pass": true,
+  "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，伯乐批分母应为 1 由验收显式核对）",
+  "scoring": {
+    "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
+    "raw_totals": {
+      "n_images": 6,
+      "n_elements": 165,
+      "n_present": 165,
+      "n_matched": 165
+    },
+    "scored_totals": {
+      "n_images": 6,
+      "n_elements": 165,
+      "n_present": 165,
+      "n_matched": 165
+    },
+    "excluded_images": []
+  },
+  "missing_extraction": [],
+  "per_image": [
+    {
+      "image": "inj_Z017_20250411_rank04_recuQJJFYYLerG.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 25,
+      "n_present": 25,
+      "n_matched": 25,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z017_20250628_rank06_recuQJJQEdAoGo.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 28,
+      "n_present": 28,
+      "n_matched": 28,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z017_20250702_rank05_recuQJJQEdxw2h.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 28,
+      "n_present": 28,
+      "n_matched": 28,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z017_20250721_rank01_recuRABqappVxY.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 28,
+      "n_present": 28,
+      "n_matched": 28,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z017_20250722_rank02_recuRGrXkovnHn.jpeg",
+      "status": "review",
+      "allow_auto_import": true,
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 28,
+      "n_present": 28,
+      "n_matched": 28,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z017_20250802_rank03_recuSFQkmwsJEJ.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "ZIZES",
+      "family_extracted": "ZizES",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 28,
+      "n_present": 28,
+      "n_matched": 28,
+      "correct_reject": false
+    }
+  ],
+  "mismatched_elements": []
+}

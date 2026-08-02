@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S1",
+  "slice": "S3",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -29,9 +29,12 @@
     "035 第三波 S4 完成：6 份草稿 output/inj_z036_drafts/（FANUC 射出页：2段射出+2段保压+计量3段结构）",
     "服务重启后续推：035 第三波 S5 启动——核验表（bash-nngonp5x）+ 6图管线 OCR（bash-uqy92i2a）并行",
     "035 第三波完成：Z036 FANUC 射保 6 图三门禁 PASS（numeric 1.0 / error 0 / 6ok，156/156 元素）；fanuc.injection_metering 模板 v0.1 + extract_families/fanuc_injection.py 新增；Z002 重提零 diff、Z022 字段零 diff；048 HANDOVER 落盘",
-    "049 PLAN 立：剩余页面线全自动接力（射保 7 家族 wave1 + 5 页面线），单元间不再等用户批准"
+    "049 PLAN 立：剩余页面线全自动接力（射保 7 家族 wave1 + 5 页面线），单元间不再等用户批准",
+    "049 S2 启动（A1 ZIZES/Z017）：s29 候选 219 附件去重 191，seed 20260802 取 6+2，下载 6/6 零重复 -> docs/samples_inj_z017/ + output/inj_z017_candidates.json/sample_manifest.json",
+    "049 S2 续：管线 6/6 injection_metering 分类；抽验发现 rank05 为 BOLE 贝加莱 BKS_230 屏混入（同 Z019 先例），按候补固定顺序替换为 recuQJJQEdxw2h(2025-07-02) 并记录 output/inj_z017_rejected/；VLM 草稿×6 落 output/inj_z017_drafts/（ZIZES 页结构：射出5段 bar/%/mm 黑设定，保压≤2段，红字=实时不入）",
+    "049 S2 完成（A1 ZIZES/Z017）：三门禁 PASS numeric 1.0/error 0/5ok+1review（STAGES_INFERRED 安全态）；rank05 BOLE 屏混入换样；zizes.injection_metering 模板 v0.1+zizes_injection 提取器；051 HANDOVER"
   ],
-  "next_step": "049 S1 队列固化：算 A1-A7/B1-B5 具体机台+首批候选 -> output/auto_queue_049.json（只读），随后自动进 S2",
+  "next_step": "049 S3（A2 KEBA/Z031，184 附件）七步流水线：s32 候选+下载 8 张起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -57,9 +60,8 @@
       "recovery": "lark-cli 或等价飞书 API 通道可用"
     },
     "injection_metering/ZIZES/wave1": {
-      "status": "BLOCKED_EXTERNAL",
-      "evidence": "046 REPORT",
-      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+      "status": "PASS",
+      "evidence": "051 HANDOVER / output/inj_z017_calib/accuracy_report_inj_z017.json（numeric 1.0, error 0, 5ok+1review）"
     },
     "injection_metering/KEBA/wave1": {
       "status": "BLOCKED_EXTERNAL",

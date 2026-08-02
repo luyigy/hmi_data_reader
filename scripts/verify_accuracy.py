@@ -75,6 +75,18 @@ NUMERIC_FIELDS = [
     "metering_rpm_stages",
     "metering_switch_positions_mm",
     "decompress_mms",
+    # 049 A1 ZIZES 射出页（Z017）新增；以真值集为准取并集
+    "injection_pressure_bar",
+    "injection_velocity_pct",
+    "injection_position_mm",
+    "injection_stages",
+    "injection_time_s",
+    "injection_delay_s",
+    "holding_pressure_bar",
+    "holding_velocity_pct",
+    "holding_switch_mode",
+    "pressure_upper_limit_bar",
+    "pressure_lower_limit_bar",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",

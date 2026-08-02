@@ -1,0 +1,43 @@
+{
+  "version": "0.1.0",
+  "ui_family": "ZIZES",
+  "page": "injection_metering",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（佳明 Z017，ZizES）OCR 实测锚点",
+  "description": "ZIZES 屏射出页（广东佳明，灰绿 UI）字段位置模板。结构：射出 6 段表（列 bar/%/mm/s，s 列红字为实际值不入）；右侧 射出时间/射出延时/射出段数/螺杆位置(实时)/射出速度(实时)/射出压力(实时)；保压 5 段表（列 bar/%/s/s，第 3 列黑字设定秒、第 4 列红字实际秒）；右侧 保压切换(0=位置 1=时间 2=时间+位置)/保压段数/射出终点(实时)；底部 上限/下限。取值规则：行标签（射出一~六 x<0.12、保压一~五 x<0.12）锚行 y，列按表头 bar/%/mm 实测 x 中心归列；红字列与右侧实时值一律不取。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z017 rank01-06）rectify 后 PaddleOCR 实测标签与值位；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "columns": {
+    "injection": {"bar": 0.18, "pct": 0.29, "mm": 0.40, "s_actual": 0.51},
+    "holding": {"bar": 0.19, "pct": 0.31, "s_set": 0.40, "s_actual": 0.51},
+    "assign_tol": 0.055,
+    "row_band": 0.022
+  },
+  "row_labels": {
+    "injection": {"prefix": "射出", "x_max": 0.12, "y_range": [0.15, 0.52], "max_rows": 6},
+    "holding": {"prefix": "保压", "x_max": 0.12, "y_range": [0.55, 0.92], "max_rows": 5}
+  },
+  "singles": {
+    "injection_time_s": {"label": "射出时间", "range": [0, 60]},
+    "injection_delay_s": {"label": "射出延时", "range": [0, 60]},
+    "injection_stages": {"label": "射出段数", "range": [1, 9], "integer": true},
+    "holding_switch_mode": {"label": "保压切换", "range": [0, 9], "integer": true,
+                            "note": "值常与图例粘连如 '20=位置1=时间'，取首位数字"},
+    "holding_stages": {"label": "保压段数", "range": [1, 9], "integer": true}
+  },
+  "limits": {
+    "upper_label": "上限",
+    "note": "上限值常与「下限」标签粘连如 '160.0下限'；下限值为其右侧数值 token",
+    "range": [0, 500]
+  },
+  "value_ranges": {
+    "bar": [0, 400], "pct": [0, 100], "mm": [0, 200], "s": [0, 60]
+  },
+  "page_detect_anchors": ["射出时间", "保压切换", "射出段数"],
+  "family_detect_groups": [
+    ["广东佳明", "射出段数"],
+    ["保压切换", "射出延时"]
+  ]
+}

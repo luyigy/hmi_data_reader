@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-08-02T04:40:10+00:00",
+  "generator": "kimi-code S3 (035_PLAN)",
+  "final_target_count": 6,
+  "final_targets": [
+    {
+      "rank": 1,
+      "role": "original_target",
+      "machine": "Z017",
+      "brand": "佳明",
+      "family": "ZIZES",
+      "local_name": "inj_Z017_20250721_rank01_recuRABqappVxY.jpeg",
+      "sha256": "b997ebf5b430b4dc3644bcedbe8582cd2ecc78a7e05a1a4cbd41f19107d4190d",
+      "record_id": "recuRABqappVxY",
+      "date": "2025-07-21",
+      "file_token": "Dw96bZqQhoDlIMxAVFHcrsPJnWh",
+      "size": 2106921
+    },
+    {
+      "rank": 2,
+      "role": "original_target",
+      "machine": "Z017",
+      "brand": "佳明",
+      "family": "ZIZES",
+      "local_name": "inj_Z017_20250722_rank02_recuRGrXkovnHn.jpeg",
+      "sha256": "bfece00466f10dc0466375a157f014aa02cce76d5e129f5bb4b18213bdf11ddb",
+      "record_id": "recuRGrXkovnHn",
+      "date": "2025-07-22",
+      "file_token": "Gbw3bijHkozzdExMA9kcoAuCnEf",
+      "size": 3493503
+    },
+    {
+      "rank": 3,
+      "role": "original_target",
+      "machine": "Z017",
+      "brand": "佳明",
+      "family": "ZIZES",
+      "local_name": "inj_Z017_20250802_rank03_recuSFQkmwsJEJ.jpeg",
+      "sha256": "a68b93d8c50085b0f59e8f9f1a2bd42903832387935fda5e07c80f61a3c2644f",
+      "record_id": "recuSFQkmwsJEJ",
+      "date": "2025-08-02",
+      "file_token": "XGxxb75GloiSMexBPUhcyCOwnzb",
+      "size": 4407051
+    },
+    {
+      "rank": 4,
+      "role": "original_target",
+      "machine": "Z017",
+      "brand": "佳明",
+      "family": "ZIZES",
+      "local_name": "inj_Z017_20250411_rank04_recuQJJFYYLerG.jpeg",
+      "sha256": "7a839fce7a40fe53a93ed71c76c412da8ad1464766baaddf0bb87f90236dda82",
+      "record_id": "recuQJJFYYLerG",
+      "date": "2025-04-11",
+      "file_token": "VxXYbAA8Cob1sjxauXUcHDxxnRX",
+      "size": 2743194
+    },
+    {
+      "rank": 5,
+      "role": "original_target",
+      "machine": "Z017",
+      "brand": "佳明",
+      "family": "ZIZES",
+      "local_name": "inj_Z017_20250921_rank05_recuXobt3BAppx.jpeg",
+      "sha256": "fcef9aaa801af113f947122d4c9133d267fd1aedf94e3a162293a98823a6f52d",
+      "record_id": "recuXobt3BAppx",
+      "date": "2025-09-21",
+      "file_token": "GQkEbExFSoIrboxY42lcQJ8Gnxb",
+      "size": 4093511
+    },
+    {
+      "rank": 6,
+      "role": "original_target",
+      "machine": "Z017",
+      "brand": "佳明",
+      "family": "ZIZES",
+      "local_name": "inj_Z017_20250628_rank06_recuQJJQEdAoGo.jpeg",
+      "sha256": "65713b99ce464b9f6aa4133d115c8b5a2856b9e0965694cb00dce68df5e08814",
+      "record_id": "recuQJJQEdAoGo",
+      "date": "2025-06-28",
+      "file_token": "CTyhbNQ3Qo73JzxTmPicUqkun0b",
+      "size": 2917190
+    }
+  ],
+  "content_duplicates": []
+}

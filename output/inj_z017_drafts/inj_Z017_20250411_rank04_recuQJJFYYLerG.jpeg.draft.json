@@ -1,0 +1,60 @@
+{
+  "image": "inj_Z017_20250411_rank04_recuQJJFYYLerG.jpeg",
+  "controller_family": "ZIZES",
+  "hmi_variant": "v1",
+  "page_type": "injection_metering",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "injection_pressure_bar": [
+      120.0,
+      75.0,
+      130.0,
+      100.0,
+      135.0
+    ],
+    "injection_velocity_pct": [
+      23.0,
+      5.0,
+      85.0,
+      30.0,
+      65.0
+    ],
+    "injection_position_mm": [
+      85.0,
+      80.0,
+      46.0,
+      38.0,
+      26.0
+    ],
+    "injection_stages": 5,
+    "injection_time_s": 6.0,
+    "injection_delay_s": 0.0,
+    "holding_pressure_bar": [
+      33.0
+    ],
+    "holding_velocity_pct": [
+      5.0
+    ],
+    "holding_time_s": [
+      1.9
+    ],
+    "holding_stages": 1,
+    "holding_switch_mode": 2,
+    "pressure_upper_limit_bar": 100.0,
+    "pressure_lower_limit_bar": 0.0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblXuLLtZkfCYzbS",
+    "record_id": "recvr72ZZnX6Ue",
+    "file_token": "VxXYbAA8Cob1sjxauXUcHDxxnRX"
+  },
+  "notes": "机台 Z017（佳明/ZizES，广东佳明）、日期 20250411、rank04。ZIZES 射出页：射出 5 段（bar/%/mm 黑字设定，红 s 列为实际值不入）、射出时间/延时/段数；保压 2 段（bar/%/s 黑字设定，红 s 实际）；保压切换 2=时间+位置、保压段数；页面上限/下限。红字（时间/螺杆位置/射出速度/射出压力/射出终点）为实时值不入草稿。"
+}
