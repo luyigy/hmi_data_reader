@@ -1,0 +1,24 @@
+{
+  "image": "inj_Z036_20250808_rank01_recuTkx2rgouLW",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "FANUC",
+  "page_type": "mold_temp",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "set_temperature_c": 40.0
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "template_anchors",
+    "template": "fanuc.mold_temp.json v0.1.0",
+    "ocr_file": "output/rectified/inj_Z036_20250808_rank01_recuTkx2rgouLW.ocr.json",
+    "screen_size": [
+      596,
+      2000
+    ],
+    "rectify_method": "bbox_fallback"
+  },
+  "extraction_detail": {}
+}

@@ -1,0 +1,24 @@
+{
+  "image": "inj_Z036_20250808_rank01_recuTkx2rgouLW.jpeg",
+  "controller_family": "FANUC",
+  "hmi_variant": "v1",
+  "page_type": "mold_temp",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "set_temperature_c": 40.0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tblz6aR5OIWHDjDq",
+    "record_id": "recvr8MN4uTxC7",
+    "file_token": "T5WcbDQ8VoT4nmx7yFXconnfnpe"
+  },
+  "notes": "机台 Z036（发那科）、日期 2025-08-08 rank01。模温机线（049 B5）：模具温度调节机面板数码管 SV 设定温度 40.0°C。"
+}

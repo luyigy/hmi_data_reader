@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S13",
+  "slice": "S14",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -84,9 +84,10 @@
     "049 S12 启动（B4 热流道温控 Z023 TACT，196 附件去重 140）：s61 候选 6+2 下载 6/6 -> docs/samples_hr_z023；hr_Z023 别名预补；管线后台 bash-t8n5ab1l",
     "049 S12 完成（B4 热流道温控 Z023 TACT）：三门禁 PASS numeric 1.0/error 0/6ok（弱读旁车s64+最优化槽距步长拟合+mid_y拆分）；061 HANDOVER+回归全净",
     "049 S13 启动（B5 模温机 Z036 FANUC，450 附件去重 365）：s65 候选 6+2 下载 6/6 -> docs/samples_mt_z036；管线后台",
-    "049 S13 完成（B5 模温机 Z036 FANUC）：三门禁 PASS numeric 1.0/error 0/6ok（模具温度调节机面板/指示灯模板+set_temperature_c 提取）；062 HANDOVER+回归全净"
+    "049 S13 完成（B5 模温机 Z036 FANUC）：三门禁 PASS numeric 1.0/error 0/6ok（模具温度调节机面板/指示灯模板+set_temperature_c 提取）；062 HANDOVER+回归全净",
+    "049 S14 完成：全矩阵四态对账 + 总 REPORT 063 + frontmatter 更新为 completed"
   ],
-  "next_step": "049 S14 收口：全矩阵四态对账 + 总 REPORT；frontmatter 更 completed",
+  "next_step": "049 计划已完成（completed）",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
