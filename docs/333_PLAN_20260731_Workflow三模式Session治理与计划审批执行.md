@@ -1,14 +1,13 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: null
 parent_plan: null
 parent_slice: null
 return_to: null
 ---
-
 # PLAN · Workflow 三模式、Session 治理与计划审批执行
 
 ## 目标
@@ -357,17 +356,4 @@ validator/飞书文档导入/审批卡以及 manual、semi_auto、auto 的批准
 - **外部动作：** 未经用户在对应 Slice 明确授权，不重启真实服务、不发送真实 Feishu 消息、不修改生产
   数据；S08 真实验收需单独确认。
 
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/333_PLAN_20260731_Workflow三模式Session治理与计划审批执行.md` 的 S01：先读取目标 HEAD 的
-`AGENTS.md`、`docs/workflow/workflow-contract.yaml`、本 PLAN、当前工作区差异，以及 workflow validator、
-watcher、completion gate、scheduled runner、Git history guard 和相关测试。保护所有开工前用户改动，
-运行 `npm run check:long-files`。只辨认、验证并收口 S01 已列的在途安全修复；不得开始 S02 或后续
-Slice，不实现自治模式、Session rotation、Roadmap 自动领取或新审批入口。修改任一
-function/class/method 前先运行 GitNexus upstream impact，HIGH/CRITICAL 必须先报告。完成 validator、
-watcher、completion gate、scheduled runner、Git history guard 聚焦测试；必须证明运行时故障允许普通
-提交但暂停未校验 dispatch、真实文档错误 fail closed、同一坏 blob 隔离后不阻塞后续提交，并验证三类
-结果的去重用户通知。再完成 TypeScript、相关 ESLint、
-long-file guard、`git diff --check` 和 GitNexus
-`detect_changes({scope: "compare", base_ref: "master"})` 后，只精确提交 S01 相关文件，并创建
-`plan_progress: in_progress`、`next_action: next_slice` 的 S01 HANDOVER；提交后立即停止。
-<!-- WORKFLOW_PROMPT_END -->
+
