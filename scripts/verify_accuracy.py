@@ -104,6 +104,13 @@ NUMERIC_FIELDS = [
     "purge_count",
     # 049 B1 储料/冷却（Z036）新增
     "decompress_position_mm",
+    # 049 B2 成型监控（Z036）新增
+    "monitor_upper",
+    "monitor_baseline",
+    "monitor_lower",
+    "cycle_alarm_upper_s",
+    "cycle_alarm_lower_s",
+    "cycle_alarm_delay_s",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",

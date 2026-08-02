@@ -129,6 +129,16 @@ def route_page(stem: str, lines: list[dict], family: str,
         keys = tpl.get("page_detect_anchors", ["oil_header", "set", "control"])
         if all(any(_anchor_match(anchors[k], t) for t in texts) for k in keys):
             return "temperature", "template_anchors"
+        # 非温度页模板锚点路由（049 B2 molding_monitor 等）：全部 page_detect_anchors
+        # 在场即判该页（锚点设计成跨页互斥）
+        for tp in sorted(templates_dir.glob(f"{family.lower()}.*.json")):
+            page_name = tp.stem.split(".", 1)[1]
+            if page_name == "temperature":
+                continue
+            t2 = json.loads(tp.read_text())
+            anchors2 = t2.get("page_detect_anchors")
+            if anchors2 and all(any(_anchor_match(a, t) for t in texts) for a in anchors2):
+                return page_name, "template_anchors"
     page, _ = find_page(lines)
     if page != "unknown":
         return page, "find_page"
@@ -674,17 +684,20 @@ from extract_families.kaiming_injection import extract_injection_kaiming  # noqa
 from extract_families.est_injection import extract_injection_est  # noqa: E402
 from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
+from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
 from extract_families.keba_injection import extract_injection_keba  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
 from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
+from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
 from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
+from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
 
 
 # ---------------------------------------------------------------- 主流程
@@ -823,6 +836,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_trd6(toks, template)
     elif page_key == "injection_metering" and ui == "ARBURG":
         ext = extract_injection_arburg(toks, template)
+    elif page_key == "molding_monitor" and ui == "FANUC":
+        ext = extract_molding_monitor_fanuc(toks, template)
     elif page_key == "injection_metering" and ui == "KEBA":
         ext = extract_injection_keba(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
@@ -835,6 +850,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_trd6(toks, template)
     elif page_key == "injection_metering" and ui == "ARBURG":
         ext = extract_injection_arburg(toks, template)
+    elif page_key == "molding_monitor" and ui == "FANUC":
+        ext = extract_molding_monitor_fanuc(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
         ext = extract_injection_b_and_r(toks, template)
     elif page_key == "injection_metering" and ui == "KAIMING":
@@ -845,6 +862,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_trd6(toks, template)
     elif page_key == "injection_metering" and ui == "ARBURG":
         ext = extract_injection_arburg(toks, template)
+    elif page_key == "molding_monitor" and ui == "FANUC":
+        ext = extract_molding_monitor_fanuc(toks, template)
     elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
     elif ui == "KEBA":

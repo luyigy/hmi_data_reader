@@ -1,0 +1,74 @@
+{
+  "version": "0.1.0",
+  "ui_family": "FANUC",
+  "page": "molding_monitor",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（发那科 Z036，工序监视页）OCR 实测锚点",
+  "description": "FANUC 工序监视页监视设定区模板。结构：监视幅+/基准值/监视幅- 三行（行标签 x<0.15），8 列（射出时间/计量时间/V-P位置/V-P压/最小缓冲/计量开始/峰值压/保压终位），行内值按 x 升序；数值常 '.'->'-' 误识（'0-153'->0.153）先还原。周期报警在右端（上限值带 '+'、下限值带 '='/''、延迟带'秒'粘连）。模次表与统计行为实时数据不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（mon_Z036 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "rows": {
+    "monitor_upper": {
+      "label": "监视幅+",
+      "count": 8,
+      "range": [
+        0,
+        500
+      ]
+    },
+    "monitor_baseline": {
+      "label": "基准值",
+      "count": 8,
+      "range": [
+        0,
+        500
+      ]
+    },
+    "monitor_lower": {
+      "label": "监视幅-",
+      "count": 8,
+      "range": [
+        0,
+        500
+      ]
+    },
+    "first_col_hint": {
+      "monitor_upper": 0.035,
+      "tolerance": 0.05
+    }
+  },
+  "cycle_alarm": {
+    "label": "周期报警",
+    "x_min": 0.7,
+    "x_max": 0.82,
+    "keys": [
+      "cycle_alarm_upper_s",
+      "cycle_alarm_lower_s",
+      "cycle_alarm_delay_s"
+    ],
+    "range": [
+      0,
+      2000
+    ],
+    "upper_values": [
+      170.0,
+      999.0
+    ]
+  },
+  "page_detect_anchors": [
+    "监视幅",
+    "基准值"
+  ],
+  "family_detect_groups": [
+    [
+      "基准值",
+      "周期报警"
+    ],
+    [
+      "监视幅",
+      "工序监视"
+    ]
+  ]
+}

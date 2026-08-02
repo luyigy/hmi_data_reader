@@ -1,0 +1,71 @@
+{
+  "image": "inj_Z036_20250511_rank03_recuQJJFYYxREp",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "FANUC",
+  "page_type": "molding_monitor",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "monitor_upper": [
+      0.035,
+      0.5,
+      0.94,
+      5.5,
+      5.5,
+      0.65,
+      27.5,
+      0.0
+    ],
+    "monitor_baseline": [
+      0.153,
+      2.54,
+      22.6,
+      129.9,
+      18.0,
+      23.18,
+      133.0,
+      18.71
+    ],
+    "monitor_lower": [
+      0.035,
+      0.5,
+      0.94,
+      5.5,
+      5.0,
+      0.65,
+      27.5,
+      0.0
+    ],
+    "cycle_alarm_upper_s": 170.0,
+    "cycle_alarm_lower_s": 30.0,
+    "cycle_alarm_delay_s": 200.0
+  },
+  "provenance": {
+    "family_source": "per_image_classify",
+    "page_source": "template_anchors",
+    "template": "fanuc.molding_monitor.json v0.1.0",
+    "ocr_file": "output/mon_z036_calib/rectified/inj_Z036_20250511_rank03_recuQJJFYYxREp.ocr.json",
+    "screen_size": [
+      2000,
+      1466
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 2,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "col_centers": [
+      0.163,
+      0.258,
+      0.345,
+      0.438,
+      0.519,
+      0.605,
+      0.693,
+      0.778
+    ]
+  }
+}

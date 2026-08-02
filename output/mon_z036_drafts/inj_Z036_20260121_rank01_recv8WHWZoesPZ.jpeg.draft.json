@@ -1,0 +1,56 @@
+{
+  "image": "inj_Z036_20260121_rank01_recv8WHWZoesPZ.jpeg",
+  "controller_family": "FANUC",
+  "hmi_variant": "v1",
+  "page_type": "molding_monitor",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "monitor_upper": [
+      0.035,
+      1.0,
+      0.94,
+      5.5,
+      5.5,
+      0.65,
+      27.5,
+      0.0
+    ],
+    "monitor_baseline": [
+      0.153,
+      3.0,
+      22.6,
+      129.9,
+      18.0,
+      23.18,
+      150.0,
+      18.71
+    ],
+    "monitor_lower": [
+      0.035,
+      1.0,
+      0.94,
+      5.5,
+      5.0,
+      0.65,
+      27.5,
+      0.0
+    ],
+    "cycle_alarm_upper_s": 999.0,
+    "cycle_alarm_lower_s": 30.0,
+    "cycle_alarm_delay_s": 1029.0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbl5KKYuANqGpycE",
+    "record_id": "recv8WHWZoesPZ",
+    "file_token": "EGxYbHaIbo1tWZxRRfvcSpcqnAf"
+  },
+  "notes": "机台 Z036（发那科，模具 TX22049A）、日期 2026-01-21、rank01（候补换入，原 rank01 斜拍遮挡剔除）。FANUC 工序监视页 v1：监视幅+/基准值/监视幅- 各 8 列 + 周期报警（999.0+/30.0-/1029.0秒）。"
+}

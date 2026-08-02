@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S10",
+  "slice": "S11",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -73,9 +73,13 @@
     "049 S8 续：延迟灰框旁车（s51 ocr_delay.json，6 图 0.00 全召回）+单位择优/进料位 x 窗修复后 5ok；rank04 模糊图管线质量拒识+候补 rank07 为温度页混入均剔除，候补 rank08（清晰注射页）换入；新草稿+管线重跑后台 bash-fl1aqy3c",
     "049 S8 完成（A7 ARBURG/Z068）：三门禁 PASS numeric 1.0/error 0/6ok（延迟灰框旁车救回+换样）；阶段 A 7/7 闭合：PASS×6 + SAFE_REJECT×1(TRD6)；057 HANDOVER+回归全净",
     "049 S9 启动（B1 储料/冷却 Z036 FANUC，449 附件）：s52 候选 6+2 下载 6/6（曾误写 inj_z036 路径，已恢复 048 产物并迁移 docs/samples_mc_z036）；管线后台 bash-ow44v8fb",
-    "049 S9 完成（B1 储料/冷却 Z036）：三门禁 PASS numeric 1.0/error 0/5ok+1review——附件=FANUC 射出计量同屏页，复用 048 模板+提取器零新代码，模板增计量位置/减压位置两字段（048 复验仍 PASS）；058 HANDOVER"
+    "049 S9 完成（B1 储料/冷却 Z036）：三门禁 PASS numeric 1.0/error 0/5ok+1review——附件=FANUC 射出计量同屏页，复用 048 模板+提取器零新代码，模板增计量位置/减压位置两字段（048 复验仍 PASS）；058 HANDOVER",
+    "049 S10 启动（B2 成型监控一/二 Z036，451 附件去重 446）：s55 候选 6+2 下载 6/6 -> docs/samples_mon_z036；管线后台 bash-k0qv4av9",
+    "049 S10 续：六图全 FANUC 工序监视页（监视设定 8 列+周期报警，模次表/统计行=实时不入）；VLM 草稿×6 + 核验表 + s57 真值自动接受×6 -> ground_truth/mon_z036_injection/",
+    "049 S10 续：fanuc.molding_monitor 模板+提取器四轮修正（列锚定末三行/行组全有或全无/上限行首列锚点0.035/周期报警值域{170,999}+按上限值定列）后 5ok+error 0；rank01 斜拍线缆遮挡剔除（候补 rank07 为监视上下限页 v2 变体一并剔除），候补 rank08(v1 清晰) 换入+核验表对齐；管线重跑后台 bash-k0g3atox",
+    "049 S10 完成（B2 成型监控 Z036）：三门禁 PASS numeric 1.0/error 0/6ok（列锚定+全有或全无+报警值域定列+模板锚点路由；双换样）；059 HANDOVER+回归全净"
   ],
-  "next_step": "049 S10（B2 成型监控一/二 Z036，452 附件）七步流水线：s55 候选+下载起步",
+  "next_step": "049 S11（B3 波形图 Z036，453 附件）七步流水线：s58 候选+下载起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -131,6 +135,10 @@
     "metering_cooling/FANUC/wave1": {
       "status": "PASS",
       "evidence": "058 HANDOVER / output/mc_z036_calib/accuracy_report_mc_z036.json（numeric 1.0, error 0, 5ok+1review）"
+    },
+    "molding_monitor/FANUC/wave1": {
+      "status": "PASS",
+      "evidence": "059 HANDOVER / output/mon_z036_calib/accuracy_report_mon_z036.json（numeric 1.0, error 0, 6/6 ok）"
     }
   },
   "consecutive_safe_reject": 0

@@ -1,0 +1,56 @@
+{
+  "image": "inj_Z036_20251019_rank05_recv029hxtJ60b.jpeg",
+  "controller_family": "FANUC",
+  "hmi_variant": "v1",
+  "page_type": "molding_monitor",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "monitor_upper": [
+      0.035,
+      1.0,
+      0.94,
+      5.5,
+      5.5,
+      0.65,
+      27.5,
+      0.0
+    ],
+    "monitor_baseline": [
+      0.153,
+      3.0,
+      22.6,
+      129.9,
+      18.0,
+      23.18,
+      133.0,
+      18.71
+    ],
+    "monitor_lower": [
+      0.035,
+      1.0,
+      0.94,
+      5.5,
+      5.0,
+      0.65,
+      27.5,
+      0.0
+    ],
+    "cycle_alarm_upper_s": 999.0,
+    "cycle_alarm_lower_s": 30.0,
+    "cycle_alarm_delay_s": 1029.0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": null
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "table_id": "tbl1SKjrQa5le0Oa",
+    "record_id": "recvr83aZe7JHh",
+    "file_token": "BJxmb9I5OoZjBYxqqOUcRQi9n0d"
+  },
+  "notes": "机台 Z036（发那科 ROBOSHOT α-S30iA，模具 TX22049A）、日期 20251019、rank05。成型监控线（049 B2）：FANUC 工序监视页监视设定区——监视幅+/基准值/监视幅- 各 8 列（射出时间/计量时间/V-P位置/V-P压/最小缓冲/计量开始/峰值压/保压终位）+周期报警（上限/下限/延迟秒）。模次表与统计行（最大/最小/平均/幅/标准偏差）为实时历史数据不入草稿。"
+}

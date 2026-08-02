@@ -1,0 +1,29 @@
+{
+  "filename": "inj_Z036_20251019_rank05_recv029hxtJ60b.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      0.0,
+      716.7200317382812
+    ],
+    [
+      3462.22021484375,
+      1051.9600830078125
+    ],
+    [
+      3248.360107421875,
+      3103.860107421875
+    ],
+    [
+      393.0400085449219,
+      3063.400146484375
+    ]
+  ],
+  "screen_size": [
+    2000,
+    1402
+  ],
+  "output_path": "output/mon_z036_calib/rectified/inj_Z036_20251019_rank05_recv029hxtJ60b.png",
+  "warnings": []
+}
