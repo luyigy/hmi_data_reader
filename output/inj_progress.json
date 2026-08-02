@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S5",
+  "slice": "S6",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -56,9 +56,13 @@
     "049 S4 启动（A3 B_AND_R/Z050）：s35 候选 140 附件去重 140，seed 20260802 取 6+2，下载 6/6 零重复；管线后台 bash-0yx4mmjs",
     "049 S4 续：管线 6/6 injection_metering；读 rank01/02 摸 B&R 射胶页结构——射胶 5 段表（速度%/压力bar/位置mm，段1在最右，蓝字时间=实际不入）+保压 5 段表（速度/压力/时间）+保压切换（位置mm+时间sec 勾选式）；有效段：射胶=速度或压力非零最末段、保压=时间>0最末段",
     "049 S4 续：六图全 B&R 屏结构一致（无换样）；VLM 草稿×6；核验表 tblNT15qet0PklAf（前轮次已建）+s37 真值自动接受×6 -> ground_truth/inj_z050_injection/",
-    "049 S4 完成（A3 B_AND_R/Z050）：三门禁 PASS numeric 1.0/error 0/6ok；053 HANDOVER+回归全净"
+    "049 S4 完成（A3 B_AND_R/Z050）：三门禁 PASS numeric 1.0/error 0/6ok；053 HANDOVER+回归全净",
+    "049 S5 启动（A4 KAIMING/Z062）：s38 候选 36 附件全量无重复，seed 20260802 取 6+2，下载 6/6；管线后台 bash-igjc7e8b",
+    "049 S5 续：读 rank01/02 摸 KAIMING 射出页结构——射出 6 段表（压力Bar/速度%/位置mm，一段在最右，灰底时间行=实际）+转保压（位置|压力选择+位置mm+时间sec）+保压 5 段表（压力/速度/时间，有效段=时间>0最末段，三段 1/1.0/0.00 不生效）；底部射出位置/转换位置/射出终点/射出监测=实时蓝字不入",
+    "049 S5 续：六图全 KAIMING 屏结构一致（无换样）；VLM 草稿×6；核验表+s40 真值自动接受×6 -> ground_truth/inj_z062_injection/（rank03 保压 3 段，其余 2 段；转保压均选位置）",
+    "049 S5 完成（A4 KAIMING/Z062）：三门禁 PASS numeric 1.0/error 0/6ok；054 HANDOVER+回归全净"
   ],
-  "next_step": "049 S5（A4 KAIMING/Z062，36 附件）七步流水线：s38 候选+下载 8 张起步",
+  "next_step": "049 S6（A5 EST/Z048）七步流水线：s41 候选+下载 8 张起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -96,9 +100,8 @@
       "evidence": "053 HANDOVER / output/inj_z050_calib/accuracy_report_inj_z050.json（numeric 1.0, error 0, 6/6 ok）"
     },
     "injection_metering/KAIMING/wave1": {
-      "status": "BLOCKED_EXTERNAL",
-      "evidence": "046 REPORT",
-      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+      "status": "PASS",
+      "evidence": "054 HANDOVER / output/inj_z062_calib/accuracy_report_inj_z062.json（numeric 1.0, error 0, 6/6 ok）"
     },
     "injection_metering/EST/wave1": {
       "status": "BLOCKED_EXTERNAL",

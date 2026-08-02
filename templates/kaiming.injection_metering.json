@@ -1,0 +1,29 @@
+{
+  "version": "0.1.0",
+  "ui_family": "KAIMING",
+  "page": "injection_metering",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（佳明 Z062，KAIMING 开明控制器）OCR 实测锚点",
+  "description": "KAIMING 屏射出页字段位置模板。结构：射出 6 段表（行=压力Bar/速度%/时间sec(灰底实际)/位置mm，列=段，一段在最右）+转保压行（位置|压力 选择+位置mm+时间sec）+保压 5 段表（行=压力/速度/时间）+底部实时行（射出位置/转换位置/射出时间/射出终点/射出监测，蓝字实际不入）。行标签为竖排文字 OCR 合并成「压速时位」等粘连块不可靠——按区段锚点（转保压/射出位置）切分，区内值行 y 聚类上→下=压力/速度/时间(实际跳过)/位置（射出表）、压力/速度/时间（保压表）；每行内值按 x 降序=段1→段N。有效段：射出=压力或速度非零最末段、保压=时间>0最末段。三段射出位置空白记 0.0。转保压方式六图均选「位置」（高亮块 OCR 不可辨，v0.1 按常量+真值集验证；出现压力模式将在验收暴露）。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z062 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "sections": {
+    "injection": {"end_anchor": "转保压", "end_anchor_x_max": 0.2,
+                  "rows": ["pressure", "velocity", "time_actual", "position"], "skip_rows": ["time_actual"]},
+    "holding": {"start_anchor": "转保压", "end_anchor": "射出位置", "end_anchor_x_max": 0.25,
+                "rows": ["pressure", "velocity", "time"], "skip_rows": []},
+    "switch": {"anchor": "转保压", "position_label": "位置", "time_label": "时间",
+               "position_value_x_range": [0.55, 0.75], "time_value_x_range": [0.8, 0.95],
+               "mode_constant": "位置"}
+  },
+  "cluster_gap": 0.025,
+  "max_stages": 6,
+  "value_ranges": {"bar": [0, 400], "pct": [0, 100], "mm": [0, 200], "s": [0, 60]},
+  "page_detect_anchors": ["转保压", "射出监测", "六段"],
+  "family_detect_groups": [
+    ["转保压", "射出监测"],
+    ["六段", "射出终点"]
+  ]
+}

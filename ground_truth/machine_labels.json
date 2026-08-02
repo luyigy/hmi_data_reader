@@ -593,6 +593,18 @@
       "proposed_by": "kimi-code",
       "verified_by": "王为",
       "verified_at": "2026-07-30"
+    },
+    "inj_Z062_KAIMING": {
+      "machine_brand": "JIAMING",
+      "controller_family": "KAIMING",
+      "hmi_variant": "v1",
+      "records": [
+        "rec202"
+      ],
+      "evidence": "049 射保线命名前缀（inj_Z062_*）路由别名，实体同 佳明_Z062_KAIMING",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
     }
   }
 }

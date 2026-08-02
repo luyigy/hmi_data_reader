@@ -1,0 +1,29 @@
+{
+  "filename": "inj_Z062_20260316_rank03_recve3qNedRPuG.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      -7.161971092224121,
+      662.508544921875
+    ],
+    [
+      1017.5846557617188,
+      646.98193359375
+    ],
+    [
+      1029.438232421875,
+      1429.3115234375
+    ],
+    [
+      4.6915283203125,
+      1444.838134765625
+    ]
+  ],
+  "screen_size": [
+    1400,
+    1068
+  ],
+  "output_path": "output/inj_z062_calib/rectified/inj_Z062_20260316_rank03_recve3qNedRPuG.png",
+  "warnings": []
+}
