@@ -1,0 +1,275 @@
+{
+  "version": "1.1",
+  "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3；拒识口径 docs/023_PLAN_20260801_伯乐S3拒识口径与定向收口.md §3",
+  "tolerance": 0.5,
+  "n_images": 6,
+  "metrics": {
+    "controller_classification_accuracy": 1.0,
+    "page_classification_accuracy": 1.0,
+    "field_completeness": 1.0,
+    "numeric_accuracy": 1.0,
+    "auto_import_ratio": 0.8333,
+    "error_auto_import_rate": 0.0,
+    "rejection_accuracy": 1.0
+  },
+  "gates": {
+    "numeric_accuracy >= 0.95": true,
+    "error_auto_import_rate == 0": true,
+    "rejection_accuracy == 1": true
+  },
+  "poc_pass": true,
+  "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，伯乐批分母应为 1 由验收显式核对）",
+  "scoring": {
+    "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
+    "raw_totals": {
+      "n_images": 6,
+      "n_elements": 106,
+      "n_present": 90,
+      "n_matched": 89
+    },
+    "scored_totals": {
+      "n_images": 5,
+      "n_elements": 89,
+      "n_present": 89,
+      "n_matched": 89
+    },
+    "excluded_images": [
+      {
+        "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+        "n_elements": 17,
+        "reason": "correct_reject(allow_auto_import=false, status=review)"
+      }
+    ]
+  },
+  "missing_extraction": [],
+  "per_image": [
+    {
+      "image": "inj_Z031_20250403_rank04_recuQJJFYYYWGV.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 16,
+      "n_present": 16,
+      "n_matched": 16,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z031_20250411_rank02_recuQJJFYYMlsK.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 16,
+      "n_present": 16,
+      "n_matched": 16,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z031_20250510_rank05_recuQJJFYYWVlT.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 19,
+      "n_present": 19,
+      "n_matched": 19,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z031_20250512_rank01_recuQJJFYYhU7v.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 19,
+      "n_present": 19,
+      "n_matched": 19,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z031_20250617_rank03_recuQJJQEdaWFP.jpeg",
+      "status": "ok",
+      "allow_auto_import": true,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 19,
+      "n_present": 19,
+      "n_matched": 19,
+      "correct_reject": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "status": "review",
+      "allow_auto_import": false,
+      "family_truth": "KEBA",
+      "family_extracted": "KEBA",
+      "family_match": true,
+      "page_truth": "injection_metering",
+      "page_extracted": "injection_metering",
+      "page_match": true,
+      "n_elements": 17,
+      "n_present": 1,
+      "n_matched": 0,
+      "correct_reject": true
+    }
+  ],
+  "mismatched_elements": [
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "holding_stages",
+      "truth": 2,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "holding_time_s[0]",
+      "truth": 1.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "holding_time_s[1]",
+      "truth": 0.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "vp_switch_position_mm",
+      "truth": 21.0,
+      "extracted": 20.28,
+      "present": true,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_pressure_bar[0]",
+      "truth": 120.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_pressure_bar[1]",
+      "truth": 120.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_pressure_bar[2]",
+      "truth": 100.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_velocity_pct[0]",
+      "truth": 85.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_velocity_pct[1]",
+      "truth": 75.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_velocity_pct[2]",
+      "truth": 20.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_position_mm[0]",
+      "truth": 42.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_position_mm[1]",
+      "truth": 25.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "injection_stages",
+      "truth": 3,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "holding_pressure_bar[0]",
+      "truth": 55.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "holding_pressure_bar[1]",
+      "truth": 0.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "holding_velocity_pct[0]",
+      "truth": 10.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    },
+    {
+      "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+      "field": "holding_velocity_pct[1]",
+      "truth": 0.0,
+      "extracted": null,
+      "present": false,
+      "matched": false
+    }
+  ]
+}

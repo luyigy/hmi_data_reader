@@ -573,6 +573,16 @@
       "proposed_by": "kimi-code",
       "verified_by": "王为",
       "verified_at": "2026-07-30"
+    },
+    "inj_Z031_KEBA": {
+      "machine_brand": "BOLE",
+      "controller_family": "KEBA",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "049 射保线命名前缀（inj_Z031_*）路由别名，实体同 bole_Z031_KEBA",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
     }
   }
 }

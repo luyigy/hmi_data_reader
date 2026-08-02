@@ -1,0 +1,71 @@
+{
+  "image": "inj_Z031_20250411_rank02_recuQJJFYYMlsK",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "KEBA",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "injection_pressure_bar": [
+      120.0,
+      125.0,
+      120.0
+    ],
+    "injection_velocity_pct": [
+      45.0,
+      55.0,
+      45.0
+    ],
+    "injection_position_mm": [
+      25.0,
+      16.0,
+      0.0
+    ],
+    "injection_stages": 3,
+    "injection_time_s": 2.0,
+    "vp_switch_position_mm": 10.5,
+    "holding_pressure_bar": [
+      70.0
+    ],
+    "holding_velocity_pct": [
+      8.0
+    ],
+    "holding_time_s": [
+      1.5
+    ],
+    "holding_stages": 1
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "keba.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z031_calib/rectified/inj_Z031_20250411_rank02_recuQJJFYYMlsK.ocr.json",
+    "screen_size": [
+      1534,
+      1999
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 0,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "injection_columns": [
+      0.8691873098652758,
+      0.7416340721425466,
+      0.6140808344198174,
+      0.4869621903520209,
+      0.35919165580182527,
+      0.23142112125162972
+    ],
+    "holding_columns": [
+      0.8878748370273793,
+      0.7625488917861799,
+      0.6372229465449804,
+      0.5118970013037809,
+      0.38657105606258146
+    ]
+  }
+}

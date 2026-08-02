@@ -1,0 +1,67 @@
+{
+  "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt",
+  "status": "review",
+  "warnings": [
+    "ROW_LABEL_MISSING(injection,终止位置)",
+    "STAGES_INFERRED(injection,0)",
+    "ROW_LABEL_MISSING(holding,压力)",
+    "ROW_LABEL_MISSING(holding,速度)",
+    "ROW_LABEL_MISSING(holding,时间)",
+    "STAGES_INFERRED(holding,0)",
+    "VALUE_MISSING(injection_time_s)",
+    "ARRAY_INCOMPLETE(injection_pressure_bar)",
+    "ARRAY_INCOMPLETE(injection_velocity_pct)",
+    "ARRAY_INCOMPLETE(injection_position_mm)",
+    "ARRAY_INCOMPLETE(holding_pressure_bar)",
+    "ARRAY_INCOMPLETE(holding_velocity_pct)",
+    "ARRAY_INCOMPLETE(holding_time_s)"
+  ],
+  "controller_family": "KEBA",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "injection_pressure_bar": null,
+    "injection_velocity_pct": null,
+    "injection_position_mm": null,
+    "injection_stages": null,
+    "injection_time_s": null,
+    "vp_switch_position_mm": 20.28,
+    "holding_pressure_bar": null,
+    "holding_velocity_pct": null,
+    "holding_time_s": null,
+    "holding_stages": null
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "keba.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z031_calib/rectified/inj_Z031_20260307_rank06_recvd7VMz02MCt.ocr.json",
+    "screen_size": [
+      1400,
+      990
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 5,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "injection_columns": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "holding_columns": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}

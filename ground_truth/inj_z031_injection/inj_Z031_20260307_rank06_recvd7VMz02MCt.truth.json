@@ -1,0 +1,58 @@
+{
+  "image": "inj_Z031_20260307_rank06_recvd7VMz02MCt.jpeg",
+  "controller_family": "KEBA",
+  "hmi_variant": "keba_classic",
+  "page_type": "injection_metering",
+  "page_variant": "keba_classic_panel",
+  "quality_grade": "good",
+  "allow_auto_import": false,
+  "fields": {
+    "injection_pressure_bar": [
+      120.0,
+      120.0,
+      100.0
+    ],
+    "injection_velocity_pct": [
+      85.0,
+      75.0,
+      20.0
+    ],
+    "injection_position_mm": [
+      42.0,
+      25.0
+    ],
+    "injection_stages": 3,
+    "vp_switch_position_mm": 21.0,
+    "holding_pressure_bar": [
+      55.0,
+      0.0
+    ],
+    "holding_velocity_pct": [
+      10.0,
+      0.0
+    ],
+    "holding_time_s": [
+      1.0,
+      0.0
+    ],
+    "holding_stages": 2
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "自动整批接受（049 全自动接力口径，visual_skim_acceptance 降级；用户保留事后否决权）",
+    "verified_at": "2026-08-02",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recvd7VMz02MCt",
+    "file_token": "NusebF8M0oeThQxrrjzcfZjNnWh",
+    "table_id": "tblB15cEjFGoJQvc",
+    "record_id": "recvr79KZXXh7k"
+  },
+  "notes": "老款 BOLE 面板 UI（白底、F1-F8 硬键、主页/注射/熔胶页签，疑似 KEBA 老款 OP 界面，记 hmi_variant=keba_classic）：结构与 v1 完全不同（列号 3/2/1 右对齐、保压切换双模式行、最小保压位置）。049 不为单张图建专用模板，按 023 负样本口径 allow_auto_import=false 拒识；字段按面板观察值记录但不入计分。保压段数面板示 2（二段 0/0/0.00）。 | 2026-08-02 自动整批接受转真值（049 全自动口径；用户保留事后否决权）。"
+}
