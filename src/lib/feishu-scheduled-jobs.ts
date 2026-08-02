@@ -802,7 +802,8 @@ export async function handleWorkflowDashboardCardAction(args: {
 }) {
   const config = await loadProjectsConfig();
   const project = config.projects.find(({ id }) => id === args.projectId);
-  if (!project || !project.jobs.some(({ id }) => id === args.jobId)) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
+  const job = project?.jobs.find(({ id }) => id === args.jobId);
+  if (!project || !job) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
   const action = [
     'refresh', 'run', 'activate', 'plan_complete', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate',
@@ -843,6 +844,7 @@ export async function handleWorkflowDashboardCardAction(args: {
               : await completeWorkflowPlan({
                 project,
                 planPath: args.selectedCompletionPlan,
+                contractPath: String(job.config.contract_path || ''),
                 expectedHead: args.expectedHead,
               }).then((completion) => completion.state === 'stale'
                 ? `Dashboard 已失效：当前 HEAD ${completion.head}，请刷新后重选。`

@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ProjectConfig } from './project-config';
-import { workflowFrontMatter } from './workflow-validator';
+import { readWorkflowContract, workflowFrontMatter } from './workflow-validator';
 
 const execFileAsync = promisify(execFile);
 const git = async (cwd: string, ...args: string[]) => (await execFileAsync(
@@ -13,6 +13,7 @@ const git = async (cwd: string, ...args: string[]) => (await execFileAsync(
 export async function completeWorkflowPlan(args: {
   project: ProjectConfig;
   planPath: string;
+  contractPath: string;
   expectedHead: string;
 }) {
   if (path.isAbsolute(args.planPath)
@@ -26,6 +27,9 @@ export async function completeWorkflowPlan(args: {
   const head = await git(args.project.path, 'rev-parse', args.project.ref);
   if (head !== args.expectedHead) return { state: 'stale' as const, head };
   if (await git(args.project.path, 'status', '--porcelain')) throw new Error('目标工作区非 clean，拒绝标记完成。');
+  if (!args.contractPath || path.isAbsolute(args.contractPath) || args.contractPath.split('/').includes('..')) {
+    throw new Error('Workflow contract 路径无效。');
+  }
 
   const absolutePath = path.join(args.project.path, args.planPath);
   const content = await fs.readFile(absolutePath, 'utf8');
@@ -36,10 +40,25 @@ export async function completeWorkflowPlan(args: {
   }
   const match = content.match(/^---\s*\n([\s\S]*?)\n---(?:\s*\n|$)/);
   if (!match) throw new Error('PLAN 缺少合法 YAML frontmatter。');
+  const contract = await readWorkflowContract(
+    args.project.path,
+    head,
+    args.contractPath,
+    new AbortController().signal,
+  );
+  const { start_marker: promptStart, end_marker: promptEnd } = contract.prompt;
+  const start = content.indexOf(promptStart);
+  const end = content.indexOf(promptEnd, start + promptStart.length);
+  if (start < 0 || end < 0
+    || content.indexOf(promptStart, start + promptStart.length) >= 0
+    || content.indexOf(promptEnd, end + promptEnd.length) >= 0) {
+    throw new Error('PLAN 必须包含且只能包含一对自动化 Prompt 标记。');
+  }
   const yaml = match[1]
     .replace(/^doc_status:\s*.*$/m, 'doc_status: completed')
     .replace(/^next_action:\s*.*$/m, 'next_action: await_acceptance');
-  const updated = content.replace(match[0], `---\n${yaml}\n---\n`);
+  const withoutPrompt = content.slice(0, start) + content.slice(end + promptEnd.length);
+  const updated = withoutPrompt.replace(match[0], `---\n${yaml}\n---\n`);
   const updatedMetadata = workflowFrontMatter(updated);
   if (updatedMetadata.doc_status !== 'completed' || updatedMetadata.next_action !== 'await_acceptance') {
     throw new Error('无法生成合法的 PLAN 完成状态。');
