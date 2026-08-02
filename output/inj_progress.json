@@ -1,7 +1,7 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
   "slice": "S3",
-  "updated_at": "2026-08-02",
+  "updated_at": "2026-08-02T13:51:49+08:00",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
     "S1 启动：射出/保压附件分布只读盘点（后台）",
@@ -32,9 +32,16 @@
     "049 PLAN 立：剩余页面线全自动接力（射保 7 家族 wave1 + 5 页面线），单元间不再等用户批准",
     "049 S2 启动（A1 ZIZES/Z017）：s29 候选 219 附件去重 191，seed 20260802 取 6+2，下载 6/6 零重复 -> docs/samples_inj_z017/ + output/inj_z017_candidates.json/sample_manifest.json",
     "049 S2 续：管线 6/6 injection_metering 分类；抽验发现 rank05 为 BOLE 贝加莱 BKS_230 屏混入（同 Z019 先例），按候补固定顺序替换为 recuQJJQEdxw2h(2025-07-02) 并记录 output/inj_z017_rejected/；VLM 草稿×6 落 output/inj_z017_drafts/（ZIZES 页结构：射出5段 bar/%/mm 黑设定，保压≤2段，红字=实时不入）",
-    "049 S2 完成（A1 ZIZES/Z017）：三门禁 PASS numeric 1.0/error 0/5ok+1review（STAGES_INFERRED 安全态）；rank05 BOLE 屏混入换样；zizes.injection_metering 模板 v0.1+zizes_injection 提取器；051 HANDOVER"
+    "049 S2 完成（A1 ZIZES/Z017）：三门禁 PASS numeric 1.0/error 0/5ok+1review（STAGES_INFERRED 安全态）；rank05 BOLE 屏混入换样；zizes.injection_metering 模板 v0.1+zizes_injection 提取器；051 HANDOVER",
+    "049 S3 A2 启动：lark-cli 恢复（npm @larksuite/cli 1.0.81 装至 .tools/lark + FEISHU_APP_ID/SECRET 非交互 config init）",
+    "049 S3 A2 下载：Z031 候选 184→去重162，seed 20260802 下载 6/6 零重复（s32）",
+    "049 S3 A2 草稿×6：KEBA KePlast 灰UI v1×5（射出6段表 压力/速度/终止位置 + 射出时间 + 保压位置；保压5段表）；rank06 为老款 BOLE 面板 UI（keba_classic，F1-F8 硬键）记负样本 allow_auto_import=false（049 不为单图建专用模板）",
+    "049 S3 A2 核验表 tblB15cEjFGoJQvc + 真值×6 ground_truth/inj_z031_injection/（s33/s34 自动整批接受降级口径）",
+    "049 S3 A2 模板+提取：templates/keba.injection_metering.json v0.1.0 + extract_families/keba_injection.py + dispatch + inj_Z031_KEBA 路由别名（labels 54 键）；两轮定向修复（行带标签/值跨图偏移→逐行消耗+单位互斥护栏；段数推断改无歧义才免告警；射出时间蓝行粘连→'s'优先）",
+    "049 S3 A2 验收：6图 numeric 1.0 / error 0.0 / rejection 1.0（rank06 正确拒识）/ 分类双1.0 / completeness 1.0，5 ok+1 review 三门禁 PASS",
+    "049 S3 A2 回归：inj_z002/z036/z017 零 diff；inj_z022 仅 family_source provenance 差（037 alias 基线差，同 051 记录，提取值零 diff）；新模板关键词零碰撞"
   ],
-  "next_step": "049 S3（A2 KEBA/Z031，184 附件）七步流水线：s32 候选+下载 8 张起步",
+  "next_step": "049 S4 A3 B_AND_R（Z050，140 附件）七步流水线（052 HANDOVER 派发）",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -64,9 +71,8 @@
       "evidence": "051 HANDOVER / output/inj_z017_calib/accuracy_report_inj_z017.json（numeric 1.0, error 0, 5ok+1review）"
     },
     "injection_metering/KEBA/wave1": {
-      "status": "BLOCKED_EXTERNAL",
-      "evidence": "046 REPORT",
-      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+      "status": "PASS",
+      "evidence": "052 HANDOVER（numeric 1.0/error 0/rejection 1.0）"
     },
     "injection_metering/B_AND_R/wave1": {
       "status": "BLOCKED_EXTERNAL",
