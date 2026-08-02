@@ -1,0 +1,64 @@
+{
+  "image": "inj_Z048_20251027_rank01_recv0PBEEoZlj1",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "EST",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "injection_pressure_bar": [
+      140.0,
+      150.0,
+      155.0,
+      140.0
+    ],
+    "injection_velocity_pct": [
+      65.0,
+      95.0,
+      95.0,
+      85.0
+    ],
+    "injection_end_position_mm": [
+      65.0,
+      55.0,
+      20.0,
+      0.0
+    ],
+    "injection_stages": 4,
+    "injection_time_s": 2.5,
+    "holding_switch_mode": "时间/位置",
+    "vp_switch_position_mm": 16.0,
+    "holding_pressure_bar": [
+      85.0,
+      60.0
+    ],
+    "holding_velocity_pct": [
+      20.0,
+      15.0
+    ],
+    "holding_time_s": [
+      1.0,
+      3.0
+    ],
+    "holding_stages": 2
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "est.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z048_calib/rectified/inj_Z048_20251027_rank01_recv0PBEEoZlj1.ocr.json",
+    "screen_size": [
+      1596,
+      2000
+    ],
+    "rectify_method": "corners"
+  },
+  "extraction_detail": {
+    "anchor_y": {
+      "inj_top": 0.25775,
+      "vp": 0.5155,
+      "note": null
+    }
+  }
+}

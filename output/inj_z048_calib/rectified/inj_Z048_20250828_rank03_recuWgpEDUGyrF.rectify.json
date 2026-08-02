@@ -1,0 +1,29 @@
+{
+  "filename": "inj_Z048_20250828_rank03_recuWgpEDUGyrF.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      216.8895263671875,
+      99.35847473144531
+    ],
+    [
+      2620.02490234375,
+      115.65080261230469
+    ],
+    [
+      2599.90771484375,
+      3082.92724609375
+    ],
+    [
+      196.77243041992188,
+      3066.63525390625
+    ]
+  ],
+  "screen_size": [
+    1619,
+    2000
+  ],
+  "output_path": "output/inj_z048_calib/rectified/inj_Z048_20250828_rank03_recuWgpEDUGyrF.png",
+  "warnings": []
+}

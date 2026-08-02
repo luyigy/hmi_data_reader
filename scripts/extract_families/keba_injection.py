@@ -13,6 +13,7 @@ from .common import _anchor_match  # noqa: F401
 
 NUM = re.compile(r"\d+\.?\d*")
 PCT1 = re.compile(r"^(\d{1,3}\.\d)")
+PCT_STRICT = re.compile(r"^\d{1,3}\.\d+%?$")
 SEG = re.compile(r"^[一二三四五六]?段$")
 
 
@@ -22,7 +23,10 @@ def _first_num(text: str) -> float | None:
 
 
 def _pct_num(text: str) -> float | None:
-    """百分比列：'9.09%'->9.0（OCR 把 '9.0 %' 粘成 '9.09%'），否则常规首数。"""
+    """百分比列：'9.09%'->9.0（OCR 把 '9.0 %' 粘成 '9.09%'）；
+    须含小数点（本页速度值均 X.X 形态）：'9%6'/'96' 类单位误识噪声不取。"""
+    if not PCT_STRICT.match(text.strip()):
+        return None
     t = text.strip().rstrip("%")
     m = PCT1.match(t)
     if m:

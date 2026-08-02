@@ -605,6 +605,16 @@
       "proposed_by": "kimi-code",
       "verified_by": "王为",
       "verified_at": "2026-07-30"
+    },
+    "inj_Z048_EST": {
+      "machine_brand": "BOLE",
+      "controller_family": "EST",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "049 射保线命名前缀（inj_Z048_*）路由别名，实体同 bole_Z048_EST",
+      "proposed_by": "kimi-code",
+      "verified_by": "用户本人",
+      "verified_at": "2026-08-01"
     }
   }
 }
