@@ -47,17 +47,22 @@ export async function completeWorkflowPlan(args: {
     new AbortController().signal,
   );
   const { start_marker: promptStart, end_marker: promptEnd } = contract.prompt;
+  const promptStarts = content.split(promptStart).length - 1;
+  const promptEnds = content.split(promptEnd).length - 1;
+  if (promptStarts !== promptEnds || promptStarts > 1) {
+    throw new Error('PLAN 自动化 Prompt 标记必须成对且最多一对。');
+  }
   const start = content.indexOf(promptStart);
   const end = content.indexOf(promptEnd, start + promptStart.length);
-  if (start < 0 || end < 0
-    || content.indexOf(promptStart, start + promptStart.length) >= 0
-    || content.indexOf(promptEnd, end + promptEnd.length) >= 0) {
-    throw new Error('PLAN 必须包含且只能包含一对自动化 Prompt 标记。');
+  if (promptStarts && end < 0) {
+    throw new Error('PLAN 自动化 Prompt 标记必须成对且顺序正确。');
   }
   const yaml = match[1]
     .replace(/^doc_status:\s*.*$/m, 'doc_status: completed')
     .replace(/^next_action:\s*.*$/m, 'next_action: await_acceptance');
-  const withoutPrompt = content.slice(0, start) + content.slice(end + promptEnd.length);
+  const withoutPrompt = promptStarts
+    ? content.slice(0, start) + content.slice(end + promptEnd.length)
+    : content;
   const updated = withoutPrompt.replace(match[0], `---\n${yaml}\n---\n`);
   const updatedMetadata = workflowFrontMatter(updated);
   if (updatedMetadata.doc_status !== 'completed' || updatedMetadata.next_action !== 'await_acceptance') {

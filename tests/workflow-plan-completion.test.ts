@@ -35,6 +35,20 @@ async function main() {
       '<!-- WORKFLOW_PROMPT_END -->',
       '',
     ].join('\n'));
+    const draftPlanPath = 'docs/002_PLAN_20260802_draft_fixture.md';
+    writeFileSync(path.join(root, draftPlanPath), [
+      '---',
+      'doc_type: PLAN',
+      'doc_status: draft',
+      'next_action: await_plan_approval',
+      'plan_kind: phase',
+      '---',
+      '',
+      '# PLAN · draft fixture',
+      '',
+      '## S01：fixture',
+      '',
+    ].join('\n'));
     git('add', '.');
     git('commit', '-m', 'fixture');
     const ref = git('symbolic-ref', 'HEAD');
@@ -56,7 +70,19 @@ async function main() {
       contractPath,
     }))[0].action, 'await_acceptance');
     assert.equal(git('status', '--porcelain'), '');
-    assert.equal((await completeWorkflowPlan({ project, planPath, contractPath, expectedHead: result.head })).state, 'existing');
+    const draftResult = await completeWorkflowPlan({
+      project, planPath: draftPlanPath, contractPath, expectedHead: result.head,
+    });
+    assert.equal(draftResult.state, 'completed');
+    assert.equal((await validateWorkflowDocuments({
+      cwd: root,
+      ref: draftResult.head,
+      filePaths: [draftPlanPath],
+      contractPath,
+    }))[0].action, 'await_acceptance');
+    assert.equal((await completeWorkflowPlan({
+      project, planPath: draftPlanPath, contractPath, expectedHead: draftResult.head,
+    })).state, 'existing');
     assert.equal((await completeWorkflowPlan({ project, planPath, contractPath, expectedHead: head })).state, 'stale');
   } finally {
     rmSync(root, { recursive: true, force: true });
