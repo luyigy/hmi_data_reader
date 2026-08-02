@@ -1,14 +1,13 @@
 ---
 doc_type: PLAN
-doc_status: draft
-next_action: await_plan_approval
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: null
 parent_plan: null
 parent_slice: null
 return_to: null
 ---
-
 # PLAN · AP 命令中心 Quota Agent 选择
 
 ## 目标
