@@ -583,6 +583,16 @@
       "proposed_by": "kimi-code",
       "verified_by": "王为",
       "verified_at": "2026-07-30"
+    },
+    "inj_Z050_B_AND_R": {
+      "machine_brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "hmi_variant": "v1",
+      "records": [],
+      "evidence": "049 射保线命名前缀（inj_Z050_*）路由别名，实体同 bole_Z050_B_AND_R",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
     }
   }
 }

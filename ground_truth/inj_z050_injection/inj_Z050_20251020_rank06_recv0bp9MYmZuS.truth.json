@@ -1,0 +1,60 @@
+{
+  "image": "inj_Z050_20251020_rank06_recv0bp9MYmZuS.jpeg",
+  "controller_family": "B_AND_R",
+  "hmi_variant": "v1",
+  "page_type": "injection_metering",
+  "page_variant": "br_curve_tables",
+  "quality_grade": "good",
+  "allow_auto_import": true,
+  "fields": {
+    "injection_velocity_pct": [
+      25.0,
+      22.0,
+      12.0
+    ],
+    "injection_pressure_bar": [
+      100.0,
+      110.0,
+      90.0
+    ],
+    "injection_position_mm": [
+      42.0,
+      22.5,
+      0.0
+    ],
+    "injection_stages": 3,
+    "holding_velocity_pct": [
+      1.1,
+      5.0
+    ],
+    "holding_pressure_bar": [
+      38.5,
+      30.8
+    ],
+    "holding_time_s": [
+      2.5,
+      2.0
+    ],
+    "holding_stages": 2,
+    "vp_switch_position_mm": 16.5,
+    "switch_time_s": 5.0
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "vlm",
+    "verified_by": "自动整批接受（049 全自动接力口径，visual_skim_acceptance 降级；用户保留事后否决权）",
+    "verified_at": "2026-08-02",
+    "changed_fields": 0,
+    "spot_check_by": "豁免（用户 2026-07-30）"
+  },
+  "source": {
+    "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+    "origin_table": "tbl5KKYuANqGpycE",
+    "origin_record_id": "recv0bp9MYmZuS",
+    "file_token": "TPmIb5Me7ou2NpxZFVLcAFDfnuh",
+    "table_id": "tblNT15qet0PklAf",
+    "record_id": "recvr7gCzb9N7e"
+  },
+  "notes": "B_AND_R（贝加莱）射胶页：顶部射胶/保压曲线与 实际速度/位置/压力/模穴压力 为实时值不入；射胶段表列 5~1（右=1段），行 速度%/压力bar/位置mm 为设定，时间行蓝字为实际不入；保压段表同构，时间行为设定秒（黑字）入真值；保压切换 位置mm/时间sec 勾选框设定值入，底部 实际切换位置/时间/压力 为实时值不入。第4段速度 0.0（橙底）= 未启用段，段数=3（保压按压力非零推断）。 | 2026-08-02 自动整批接受转真值（049 全自动口径；用户保留事后否决权）。"
+}

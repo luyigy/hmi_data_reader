@@ -1,0 +1,69 @@
+{
+  "image": "inj_Z050_20260129_rank05_recv9Hf3mIJyW5",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "B_AND_R",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "injection_pressure_bar": [
+      120.0,
+      110.0,
+      95.0
+    ],
+    "injection_velocity_pct": [
+      23.0,
+      16.0,
+      11.0
+    ],
+    "injection_position_mm": [
+      42.0,
+      21.5,
+      0.0
+    ],
+    "injection_stages": 3,
+    "vp_switch_position_mm": 18.3,
+    "switch_time_s": 2.5,
+    "holding_pressure_bar": [
+      37.6,
+      30.0,
+      5.0
+    ],
+    "holding_velocity_pct": [
+      1.3,
+      5.0,
+      1.0
+    ],
+    "holding_time_s": [
+      2.95,
+      2.1,
+      2.0
+    ],
+    "holding_stages": 3
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "b_and_r.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z050_calib/rectified/inj_Z050_20260129_rank05_recv9Hf3mIJyW5.ocr.json",
+    "screen_size": [
+      1077,
+      1814
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 6,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "anchors": {
+      "injection": 0.27673649393605293,
+      "holding": 0.5093715545755237,
+      "switch": 0.6772326350606395
+    },
+    "injection_clusters": 3,
+    "holding_clusters": 3
+  }
+}

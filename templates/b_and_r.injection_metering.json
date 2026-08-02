@@ -1,0 +1,90 @@
+{
+  "version": "0.1.0",
+  "ui_family": "B_AND_R",
+  "page": "injection_metering",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z050，B_AND_R BKS_170）OCR 实测锚点",
+  "description": "B_AND_R 射胶页字段位置模板。结构：顶部射胶/保压曲线 + 实际速度/位置/压力/模穴压力（实时，不取）；射胶段表（列 5~1 右=1段，行=速度%/压力bar/位置mm 设定 + 时间sec 蓝字实际不取）；保压段表（行=速度%/压力bar/时间sec 全设定）；保压切换（位置mm/时间sec 勾选框设定，底部实际切换* 实时不取）。以灰色节标题（射胶/保压/保压切换）锚定区域，数值按 y 聚类成行（固定 y 区域在倾斜/裁剪下不可靠，初验已证）；行内值按 x 降序右对齐归段（段1在最右），段表各行格子阶梯错位故不按共享列中心。段数无显式字段：按段1起非零压力列数推断（无歧义规则同 keba_injection）。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z050 rank01-06）rectify 后 PaddleOCR 实测标签与值位；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "injection": {
+    "anchor": "射胶表头（保压表头之上最大 y）",
+    "rows_order": [
+      "pct",
+      "bar",
+      "mm"
+    ],
+    "skip_note": "簇数=4 时末簇为蓝色实际秒行跳过；段头裸数字行排除"
+  },
+  "holding": {
+    "anchor": "保压表头（保压切换之上最大 y）",
+    "rows_order": [
+      "pct",
+      "bar",
+      "s"
+    ]
+  },
+  "singles": {
+    "vp_switch_position_mm": {
+      "anchor": "保压切换",
+      "label": "位置",
+      "label_x": [
+        0.0,
+        0.35
+      ],
+      "range": [
+        0,
+        200
+      ],
+      "region": "保压切换锚点 +0.005~+0.11"
+    },
+    "switch_time_s": {
+      "anchor": "保压切换",
+      "label": "时间",
+      "label_x": [
+        0.45,
+        0.65
+      ],
+      "range": [
+        0,
+        60
+      ],
+      "region": "保压切换锚点 +0.005~+0.11"
+    }
+  },
+  "value_ranges": {
+    "bar": [
+      0,
+      400
+    ],
+    "pct": [
+      0,
+      100
+    ],
+    "mm": [
+      0,
+      200
+    ],
+    "s": [
+      0,
+      60
+    ]
+  },
+  "page_detect_anchors": [
+    "保压切换",
+    "模穴压力",
+    "射胶"
+  ],
+  "family_detect_groups": [
+    [
+      "保压切换",
+      "模穴压力"
+    ],
+    [
+      "射胶",
+      "保压切换"
+    ]
+  ]
+}
