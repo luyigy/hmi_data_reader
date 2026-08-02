@@ -28,6 +28,8 @@
     "metering_rpm_stages": {"label": "转速", "count": 3, "range": [0, 400], "row_y_hint": 0.71},
     "metering_switch_positions_mm": {"label": "切换位置", "count": 2, "range": [0, 100], "row_y_hint": 0.74},
     "cooling_time_s": {"label": "冷却时间", "count": 1, "range": [0, 300]},
+    "metering_position_mm": {"label": "计量位置", "count": 1, "range": [0, 200], "below": [0.015, 0.06], "dx": 0.04},
+    "decompress_position_mm": {"label": ["减压", "诚压"], "count": 1, "range": [0, 200], "below": [0.015, 0.06], "dx": 0.04},
     "decompress_mms": {"label": ["减压", "诚压"], "count": 1, "range": [0, 200]}
   },
   "page_detect_anchors": ["射出速度", "最大保压速度", "射出切换位置"],

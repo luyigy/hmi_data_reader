@@ -1,0 +1,45 @@
+{
+  "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
+  "table_id": "tblnK2duPufulqxq",
+  "table_name": "储料冷却字段核验-Z036",
+  "url": "https://ecn6lj2fknte.feishu.cn/base/Vz2QbZ0lkagmVJsrMZ7cQwbSnZc?table=tblnK2duPufulqxq",
+  "verifier": "自动整批接受（半自动模式，降级；用户保留事后否决权）",
+  "records": [
+    {
+      "image": "inj_Z036_20250511_rank04_recuQJJFYYxREp.jpeg",
+      "record_id": "recvr7ZON2CRwt",
+      "table_id": "tblnK2duPufulqxq",
+      "origin_record_id": "recuQJJFYYxREp"
+    },
+    {
+      "image": "inj_Z036_20250614_rank02_recuQJJQEd89CT.jpeg",
+      "record_id": "recvr7ZR54iBzr",
+      "table_id": "tblnK2duPufulqxq",
+      "origin_record_id": "recuQJJQEd89CT"
+    },
+    {
+      "image": "inj_Z036_20250804_rank06_recuSX8WOzPNf3.jpeg",
+      "record_id": "recvr7ZTadMTFA",
+      "table_id": "tblnK2duPufulqxq",
+      "origin_record_id": "recuSX8WOzPNf3"
+    },
+    {
+      "image": "inj_Z036_20251017_rank01_recuZTnnbiZU3T.jpeg",
+      "record_id": "recvr7ZV7OB6Cm",
+      "table_id": "tblnK2duPufulqxq",
+      "origin_record_id": "recuZTnnbiZU3T"
+    },
+    {
+      "image": "inj_Z036_20260112_rank03_recv85Q78xVmhF.jpeg",
+      "record_id": "recvr7ZX9ZWski",
+      "table_id": "tblnK2duPufulqxq",
+      "origin_record_id": "recv85Q78xVmhF"
+    },
+    {
+      "image": "inj_Z036_20260322_rank05_recveCvXcMop9L.jpeg",
+      "record_id": "recvr7ZYOVF95S",
+      "table_id": "tblnK2duPufulqxq",
+      "origin_record_id": "recveCvXcMop9L"
+    }
+  ]
+}

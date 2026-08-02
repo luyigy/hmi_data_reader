@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-08-02T08:54:07+00:00",
+  "generator": "kimi-code S3 (035_PLAN)",
+  "final_target_count": 6,
+  "final_targets": [
+    {
+      "rank": 1,
+      "role": "original_target",
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "local_name": "inj_Z036_20251017_rank01_recuZTnnbiZU3T.jpeg",
+      "sha256": "b67bcad8ec697099c26a337baecb22383ca373e871b2d4071d32270f999785d8",
+      "record_id": "recuZTnnbiZU3T",
+      "date": "2025-10-17",
+      "file_token": "TmRab7pqboV35Hx4WyqcDJMin4d",
+      "size": 4066853
+    },
+    {
+      "rank": 2,
+      "role": "original_target",
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "local_name": "inj_Z036_20250614_rank02_recuQJJQEd89CT.jpeg",
+      "sha256": "9a11cb652a81595aa56759285a607981a32db0041b345b86acd7f352228e818d",
+      "record_id": "recuQJJQEd89CT",
+      "date": "2025-06-14",
+      "file_token": "FjrHbH5ykoMuPcx4jowcLJtwnue",
+      "size": 4026006
+    },
+    {
+      "rank": 3,
+      "role": "original_target",
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "local_name": "inj_Z036_20260112_rank03_recv85Q78xVmhF.jpeg",
+      "sha256": "afe429ec18c596ef49c88919812d52f1677c318b39ffa222f297090c37e63ed6",
+      "record_id": "recv85Q78xVmhF",
+      "date": "2026-01-12",
+      "file_token": "J8hqbYZjSomyc6xU8ekcL8qLngf",
+      "size": 1024534
+    },
+    {
+      "rank": 4,
+      "role": "original_target",
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "local_name": "inj_Z036_20250511_rank04_recuQJJFYYxREp.jpeg",
+      "sha256": "3c37a3f27ba80db8846375478e5dd068bcf195a918fd5a8439a553ca2bfad981",
+      "record_id": "recuQJJFYYxREp",
+      "date": "2025-05-11",
+      "file_token": "RsurbuJE8o72GWx38bCctZklnpw",
+      "size": 4614726
+    },
+    {
+      "rank": 5,
+      "role": "original_target",
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "local_name": "inj_Z036_20260322_rank05_recveCvXcMop9L.jpeg",
+      "sha256": "3d6780d93c82cc9e9e3cfe4b079e7acc6b038f33b9cf41b600efc6e995593c11",
+      "record_id": "recveCvXcMop9L",
+      "date": "2026-03-22",
+      "file_token": "Xlxybpnz7oahGxxnJnscKwKLnqf",
+      "size": 514184
+    },
+    {
+      "rank": 6,
+      "role": "original_target",
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "local_name": "inj_Z036_20250804_rank06_recuSX8WOzPNf3.jpeg",
+      "sha256": "cdee37b36e6d80fee0364a19fce73cc1b45a806da2ee69c7c6e59168110b115e",
+      "record_id": "recuSX8WOzPNf3",
+      "date": "2025-08-04",
+      "file_token": "Ckv4bGIWQorccTxIqWQcCTjVnYc",
+      "size": 3616081
+    }
+  ],
+  "content_duplicates": []
+}

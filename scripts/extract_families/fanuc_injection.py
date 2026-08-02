@@ -114,6 +114,22 @@ def extract_injection_fanuc(toks: list[dict], template: dict) -> dict:
             if got is None:
                 warnings.append(f"VALUE_MISSING({name})")
             continue
+        if spec.get("below") is not None:
+            # 值在标签下方窗口（计量位置 45.00、减压位置 5.00），取最上一行
+            dy_lo, dy_hi = spec["below"]
+            got = None
+            for lab in sorted(label_hits(spec), key=lambda t: t["y"]):
+                cands = [(t["y"] - lab["y"], v) for t in toks
+                         if dy_lo <= t["y"] - lab["y"] <= dy_hi
+                         and abs(t["x"] - lab["x"]) <= spec.get("dx", 0.04)
+                         for v in _split_nums(t["text"]) if rng[0] <= v <= rng[1]]
+                if cands:
+                    got = [min(cands)[1]]
+                    break
+            raw[name] = got
+            if got is None:
+                warnings.append(f"VALUE_MISSING({name})")
+            continue
         if name in ROW_LABELS:
             row_y = _find_row_y(toks, name, spec.get("row_y_hint"))
             if row_y is None:
@@ -194,6 +210,8 @@ def extract_injection_fanuc(toks: list[dict], template: dict) -> dict:
         "metering_rpm_stages": raw.get("metering_rpm_stages"),
         "metering_switch_positions_mm": raw.get("metering_switch_positions_mm"),
         "cooling_time_s": one("cooling_time_s"),
+        "metering_position_mm": one("metering_position_mm"),
+        "decompress_position_mm": one("decompress_position_mm"),
         "decompress_mms": one("decompress_mms"),
     }
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}

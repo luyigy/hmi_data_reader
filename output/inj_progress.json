@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S9",
+  "slice": "S10",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -71,9 +71,11 @@
     "049 S8 启动（A7 ARBURG/Z068 阿博格）：s48 候选 117 附件无重复，seed 20260802 取 6+2，下载 6/6；inj_Z068 别名预补；管线后台 bash-mlt5bvjv",
     "049 S8 续：六图全 ARBURG SELOGICA 屏（注射 3 段，段1在右，绿字列=实际；转压位=末段 s；rank04/05 有 M001 横幅）；VLM 草稿×6 + 核验表 + s50 真值自动接受×6 -> ground_truth/inj_z068_injection/",
     "049 S8 续：延迟灰框旁车（s51 ocr_delay.json，6 图 0.00 全召回）+单位择优/进料位 x 窗修复后 5ok；rank04 模糊图管线质量拒识+候补 rank07 为温度页混入均剔除，候补 rank08（清晰注射页）换入；新草稿+管线重跑后台 bash-fl1aqy3c",
-    "049 S8 完成（A7 ARBURG/Z068）：三门禁 PASS numeric 1.0/error 0/6ok（延迟灰框旁车救回+换样）；阶段 A 7/7 闭合：PASS×6 + SAFE_REJECT×1(TRD6)；057 HANDOVER+回归全净"
+    "049 S8 完成（A7 ARBURG/Z068）：三门禁 PASS numeric 1.0/error 0/6ok（延迟灰框旁车救回+换样）；阶段 A 7/7 闭合：PASS×6 + SAFE_REJECT×1(TRD6)；057 HANDOVER+回归全净",
+    "049 S9 启动（B1 储料/冷却 Z036 FANUC，449 附件）：s52 候选 6+2 下载 6/6（曾误写 inj_z036 路径，已恢复 048 产物并迁移 docs/samples_mc_z036）；管线后台 bash-ow44v8fb",
+    "049 S9 完成（B1 储料/冷却 Z036）：三门禁 PASS numeric 1.0/error 0/5ok+1review——附件=FANUC 射出计量同屏页，复用 048 模板+提取器零新代码，模板增计量位置/减压位置两字段（048 复验仍 PASS）；058 HANDOVER"
   ],
-  "next_step": "049 S9（阶段 B1 储料/冷却首机，按 auto_queue_049 stageB）七步流水线起步",
+  "next_step": "049 S10（B2 成型监控一/二 Z036，452 附件）七步流水线：s55 候选+下载起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -125,6 +127,10 @@
     "injection_metering/ARBURG/wave1": {
       "status": "PASS",
       "evidence": "057 HANDOVER / output/inj_z068_calib/accuracy_report_inj_z068.json（numeric 1.0, error 0, 6/6 ok）"
+    },
+    "metering_cooling/FANUC/wave1": {
+      "status": "PASS",
+      "evidence": "058 HANDOVER / output/mc_z036_calib/accuracy_report_mc_z036.json（numeric 1.0, error 0, 5ok+1review）"
     }
   },
   "consecutive_safe_reject": 0

@@ -102,6 +102,8 @@ NUMERIC_FIELDS = [
     "suckback_speed_pct",
     "purge_velocity_mms",
     "purge_count",
+    # 049 B1 储料/冷却（Z036）新增
+    "decompress_position_mm",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",
