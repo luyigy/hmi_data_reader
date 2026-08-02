@@ -88,7 +88,9 @@ async function findUnfinishedPlan(workingDirectory: string) {
   for (const file of handoverPaths) {
     const metadata = frontmatter(await git(workingDirectory, 'show', `HEAD:${file}`));
     if (metadata.plan_progress === 'complete' && typeof metadata.plan === 'string') {
-      completedPlans.add(metadata.plan);
+      completedPlans.add(metadata.plan.includes('/')
+        ? metadata.plan
+        : path.posix.join(path.posix.dirname(file), metadata.plan));
     }
   }
   for (const file of planPaths.reverse()) {

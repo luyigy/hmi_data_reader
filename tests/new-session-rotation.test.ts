@@ -26,6 +26,27 @@ async function main() {
     '# PLAN',
     '## S01',
   ].join('\n'));
+  await fs.writeFile(path.join(workspace, 'docs/002_PLAN_20260731_completed.md'), [
+    '---',
+    'doc_type: PLAN',
+    'doc_status: ready',
+    'next_action: start_first_slice',
+    'plan_kind: phase',
+    '---',
+    '# PLAN',
+    '## S01',
+  ].join('\n'));
+  await fs.writeFile(path.join(workspace, 'docs/003_HANDOVER_20260731_completed.md'), [
+    '---',
+    'doc_type: HANDOVER',
+    'doc_status: completed',
+    'next_action: none',
+    'plan: 002_PLAN_20260731_completed.md',
+    'slice: S01',
+    'plan_progress: complete',
+    '---',
+    '# HANDOVER',
+  ].join('\n'));
   await runGit('add', '.');
   await runGit('commit', '-m', 'fixture');
   await fs.writeFile(path.join(workspace, 'dirty.txt'), 'keep me\n');
@@ -223,6 +244,8 @@ async function main() {
     'retry after pre-claim crash must reuse the committed Handover');
 
   assert.match(await handleNewSessionCommand(command, context), /已发送确认卡/);
+  assert.match(confirmationCard, /001_PLAN_20260731_fixture\.md/);
+  assert.doesNotMatch(confirmationCard, /002_PLAN_20260731_completed\.md/);
   for (const label of [
     'running / queued',
     '未提交改动',
