@@ -3,7 +3,11 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ProjectConfig } from './project-config';
-import { readWorkflowContract, workflowFrontMatter } from './workflow-validator';
+import {
+  readWorkflowContract,
+  validateWorkflowDocuments,
+  workflowFrontMatter,
+} from './workflow-validator';
 
 const execFileAsync = promisify(execFile);
 const git = async (cwd: string, ...args: string[]) => (await execFileAsync(
@@ -64,10 +68,13 @@ export async function completeWorkflowPlan(args: {
     ? content.slice(0, start) + content.slice(end + promptEnd.length)
     : content;
   const updated = withoutPrompt.replace(match[0], `---\n${yaml}\n---\n`);
-  const updatedMetadata = workflowFrontMatter(updated);
-  if (updatedMetadata.doc_status !== 'completed' || updatedMetadata.next_action !== 'await_acceptance') {
-    throw new Error('无法生成合法的 PLAN 完成状态。');
-  }
+  await validateWorkflowDocuments({
+    cwd: args.project.path,
+    ref: head,
+    filePaths: [args.planPath],
+    contractPath: args.contractPath,
+    contentOverrides: { [args.planPath]: updated },
+  });
 
   const cleanup = async () => {
     await git(args.project.path, 'restore', '--staged', '--', args.planPath).catch(() => undefined);

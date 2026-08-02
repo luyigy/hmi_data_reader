@@ -49,6 +49,20 @@ async function main() {
       '## S01：fixture',
       '',
     ].join('\n'));
+    const invalidPlanPath = 'docs/003_PLAN_20260802_invalid_fixture.md';
+    writeFileSync(path.join(root, invalidPlanPath), [
+      '---',
+      'doc_type: PLAN',
+      'doc_status: draft',
+      'next_action: await_plan_approval',
+      'plan_kind: invalid',
+      '---',
+      '',
+      '# PLAN · invalid fixture',
+      '',
+      '## S01：fixture',
+      '',
+    ].join('\n'));
     git('add', '.');
     git('commit', '-m', 'fixture');
     const ref = git('symbolic-ref', 'HEAD');
@@ -83,6 +97,14 @@ async function main() {
     assert.equal((await completeWorkflowPlan({
       project, planPath: draftPlanPath, contractPath, expectedHead: draftResult.head,
     })).state, 'existing');
+    await assert.rejects(
+      completeWorkflowPlan({
+        project, planPath: invalidPlanPath, contractPath, expectedHead: draftResult.head,
+      }),
+      /PLAN_KIND_INVALID/,
+    );
+    assert.equal(git('rev-parse', 'HEAD'), draftResult.head);
+    assert.equal(git('status', '--porcelain'), '');
     assert.equal((await completeWorkflowPlan({ project, planPath, contractPath, expectedHead: head })).state, 'stale');
   } finally {
     rmSync(root, { recursive: true, force: true });
