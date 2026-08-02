@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-08-02T09:44:43+00:00",
+  "generator": "kimi-code S2 (035_PLAN)",
+  "status": "APPROVED",
+  "approval": {
+    "approved_by": "用户 2026-08-01「拆散小点」指示",
+    "note": "第一波 Z022 单机 6+2"
+  },
+  "selection_spec": {
+    "random_seed": 20260802,
+    "pool": "发那科 Z036 含成型条件-波形图附件",
+    "cap": "6 目标 + 2 候补（用户小批指示）"
+  },
+  "targets": [
+    {
+      "rank": 1,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recv2wQZGvSIHM",
+      "date": "2025-11-14",
+      "file_token": "IIEsbD3ySoEPBKxbqhbcD0Punec",
+      "size": 2020575
+    },
+    {
+      "rank": 2,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recv1UQzqTjOPC",
+      "date": "2025-11-08",
+      "file_token": "Nqw5bHmP2ostoCx0xmOcBRv0nrd",
+      "size": 5000389
+    },
+    {
+      "rank": 3,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recv82URi9ZLou",
+      "date": "2026-01-12",
+      "file_token": "NFzdbvCxHonemTxlzJQcHr3en7f",
+      "size": 541761
+    },
+    {
+      "rank": 4,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recuQJJFYYxREp",
+      "date": "2025-05-11",
+      "file_token": "ZzKNbODA9o13xPxPUYRcuk1en4c",
+      "size": 3439945
+    },
+    {
+      "rank": 5,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recuQJJQEdX2wn",
+      "date": "2025-07-06",
+      "file_token": "UITPbjcNYoC3R7x1l5wcqdUJn3d",
+      "size": 4165021
+    },
+    {
+      "rank": 6,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recuUEooYKCwA5",
+      "date": "2025-08-23",
+      "file_token": "Gff6bNKkKoBY8SxyyIccJrP7nee",
+      "size": 3465580
+    }
+  ],
+  "alternates": [
+    {
+      "rank": 7,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recuQJJQEdKzIm",
+      "date": "2025-06-25",
+      "file_token": "H5TObwMldo0iUhxsxz9cw8LhnGc",
+      "size": 4898639
+    },
+    {
+      "rank": 8,
+      "machine": "Z036",
+      "brand": "发那科",
+      "family": "FANUC",
+      "record_id": "recv11iA2dZRyk",
+      "date": "2025-10-29",
+      "file_token": "X2pobKZLUo2KHwxnqc4cLYuonKh",
+      "size": 4313582
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "version": "0.1.0",
+  "ui_family": "FANUC",
+  "page": "waveform",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（发那科 Z036，波形页）OCR 实测锚点",
+  "description": "FANUC 波形页显示设定模板。结构：底部量程表（行=最大/最小，列=设定压/射出压/螺杆速度/螺杆位置[/逆流/计量扭矩]，值为 Y 轴量程设定）+ X 轴行（标签 时间 或 螺杆绝对，最右值=轴范围；时间模式 0.3~2.0 秒、螺杆绝对模式 18-26mm）。监视开始=射出开始/监视结束=保压结束/参考波形=非显示（六图一致，不记分）。曲线、现在值、模次表为实时数据不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（wv_Z036 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "rows": {
+    "max": {
+      "labels": [
+        "最大",
+        "大"
+      ],
+      "label_x_max": 0.1,
+      "band": 0.01,
+      "fields": [
+        "y_axis_max_set_pressure_mpa",
+        "y_axis_max_inject_pressure_mpa",
+        "y_axis_max_screw_velocity_mms",
+        "y_axis_max_screw_position_mm"
+      ],
+      "range": [
+        -50,
+        1000
+      ],
+      "band_up": 0.035
+    },
+    "min": {
+      "labels": [
+        "最小",
+        "小"
+      ],
+      "label_x_max": 0.1,
+      "band": 0.01,
+      "fields": [
+        null,
+        null,
+        "y_axis_min_screw_velocity_mms",
+        null
+      ],
+      "range": [
+        -100,
+        100
+      ],
+      "band_up": 0.035
+    }
+  },
+  "x_axis": {
+    "labels": [
+      "时间",
+      "螺杆绝对"
+    ],
+    "label_x_max": 0.1,
+    "band": 0.01,
+    "value_x_min": 0.5,
+    "range": [
+      0,
+      100
+    ],
+    "labels_exact": [
+      "时间",
+      "螺杆绝对"
+    ],
+    "band_up": 0.04
+  },
+  "page_detect_anchors": [
+    "设定压",
+    "螺杆速度"
+  ],
+  "family_detect_groups": [
+    [
+      "设定压",
+      "监视开始"
+    ],
+    [
+      "螺杆速度",
+      "参考波形"
+    ]
+  ]
+}

@@ -111,6 +111,13 @@ NUMERIC_FIELDS = [
     "cycle_alarm_upper_s",
     "cycle_alarm_lower_s",
     "cycle_alarm_delay_s",
+    # 049 B3 波形图（Z036）新增
+    "y_axis_max_set_pressure_mpa",
+    "y_axis_max_inject_pressure_mpa",
+    "y_axis_max_screw_velocity_mms",
+    "y_axis_max_screw_position_mm",
+    "y_axis_min_screw_velocity_mms",
+    "x_axis_max",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",

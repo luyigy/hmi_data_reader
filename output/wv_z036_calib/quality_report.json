@@ -1,0 +1,160 @@
+{
+  "summary": {
+    "green": 1,
+    "yellow": 5,
+    "red": 0
+  },
+  "reports": [
+    {
+      "filename": "inj_Z036_20250511_rank04_recuQJJFYYxREp.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 4032,
+        "height": 3024,
+        "screen_bbox": [
+          0,
+          186,
+          4032,
+          2838
+        ],
+        "screen_area_ratio": 0.9384920634920635,
+        "perspective_ratio": 1.0371056786941348,
+        "blur_score": 564.5856733989139,
+        "glare_ratio": 0.02496110809292853,
+        "dark_ratio": 0.05261061311098514,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z036_20250706_rank05_recuQJJQEdX2wn.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 3468,
+        "height": 4624,
+        "screen_bbox": [
+          335,
+          607,
+          3133,
+          2296
+        ],
+        "screen_area_ratio": 0.4485753084054709,
+        "perspective_ratio": 1.142737322182615,
+        "blur_score": 231.15714509529386,
+        "glare_ratio": 0.029599716438580316,
+        "dark_ratio": 0.10831501209276709,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z036_20250823_rank06_recuUEooYKCwA5.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 4032,
+        "height": 3024,
+        "screen_bbox": [
+          255,
+          719,
+          3777,
+          2305
+        ],
+        "screen_area_ratio": 0.7140285946554548,
+        "perspective_ratio": 1.1151533339940558,
+        "blur_score": 528.6361985043972,
+        "glare_ratio": 0.025151056757579573,
+        "dark_ratio": 0.02612491273515579,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z036_20251108_rank02_recv1UQzqTjOPC.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 3072,
+        "height": 4096,
+        "screen_bbox": [
+          41,
+          1337,
+          3031,
+          2316
+        ],
+        "screen_area_ratio": 0.5578832626342773,
+        "perspective_ratio": 1.0682191542666708,
+        "blur_score": 357.1057088354501,
+        "glare_ratio": 0.0035905043284098306,
+        "dark_ratio": 0.05652594566345215,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z036_20251114_rank01_recv2wQZGvSIHM.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION"
+      ],
+      "metrics": {
+        "width": 3000,
+        "height": 4000,
+        "screen_bbox": [
+          0,
+          1091,
+          2685,
+          2276
+        ],
+        "screen_area_ratio": 0.509255,
+        "perspective_ratio": 1.4377050869014987,
+        "blur_score": 476.054243063989,
+        "glare_ratio": 0.016480083333333333,
+        "dark_ratio": 0.039203666666666664,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z036_20260112_rank03_recv82URi9ZLou.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "NEEDS_RECTIFICATION",
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1920,
+        "height": 1080,
+        "screen_bbox": [
+          278,
+          149,
+          1579,
+          931
+        ],
+        "screen_area_ratio": 0.7089356674382716,
+        "perspective_ratio": 1.1378202448206003,
+        "blur_score": 311.3899810197222,
+        "glare_ratio": 0.03224874614197531,
+        "dark_ratio": 0.008103780864197531,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    }
+  ]
+}

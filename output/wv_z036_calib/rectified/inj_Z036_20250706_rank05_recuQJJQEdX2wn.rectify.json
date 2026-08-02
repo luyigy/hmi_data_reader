@@ -1,0 +1,29 @@
+{
+  "filename": "inj_Z036_20250706_rank05_recuQJJQEdX2wn.jpeg",
+  "ok": true,
+  "method": "corners",
+  "screen_quad": [
+    [
+      0.0,
+      485.52001953125
+    ],
+    [
+      3462.22021484375,
+      398.82000732421875
+    ],
+    [
+      3387.080078125,
+      2907.340087890625
+    ],
+    [
+      358.3600158691406,
+      2797.52001953125
+    ]
+  ],
+  "screen_size": [
+    1999,
+    1493
+  ],
+  "output_path": "output/wv_z036_calib/rectified/inj_Z036_20250706_rank05_recuQJJQEdX2wn.png",
+  "warnings": []
+}

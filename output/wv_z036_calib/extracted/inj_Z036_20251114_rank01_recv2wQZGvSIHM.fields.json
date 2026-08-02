@@ -1,0 +1,54 @@
+{
+  "image": "inj_Z036_20251114_rank01_recv2wQZGvSIHM",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "FANUC",
+  "page_type": "waveform",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "y_axis_max_set_pressure_mpa": 0.0,
+    "y_axis_max_inject_pressure_mpa": 0.0,
+    "y_axis_max_screw_velocity_mms": 15.0,
+    "y_axis_min_screw_velocity_mms": -15.0,
+    "y_axis_max_screw_position_mm": 50.0,
+    "x_axis_max": 26.0
+  },
+  "provenance": {
+    "family_source": "per_image_classify",
+    "page_source": "template_anchors",
+    "template": "fanuc.waveform.json v0.1.0",
+    "ocr_file": "output/wv_z036_calib/rectified/inj_Z036_20251114_rank01_recv2wQZGvSIHM.ocr.json",
+    "screen_size": [
+      2000,
+      1530
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 2,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {
+    "设定压": [
+      0.0,
+      0.0,
+      8.5
+    ],
+    "射出压": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "螺杆速度": [
+      15.0,
+      -15.0,
+      -4.9
+    ],
+    "螺杆位置": [
+      50.0,
+      0.0,
+      23.67
+    ]
+  }
+}

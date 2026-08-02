@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S11",
+  "slice": "S12",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -77,9 +77,12 @@
     "049 S10 启动（B2 成型监控一/二 Z036，451 附件去重 446）：s55 候选 6+2 下载 6/6 -> docs/samples_mon_z036；管线后台 bash-k0qv4av9",
     "049 S10 续：六图全 FANUC 工序监视页（监视设定 8 列+周期报警，模次表/统计行=实时不入）；VLM 草稿×6 + 核验表 + s57 真值自动接受×6 -> ground_truth/mon_z036_injection/",
     "049 S10 续：fanuc.molding_monitor 模板+提取器四轮修正（列锚定末三行/行组全有或全无/上限行首列锚点0.035/周期报警值域{170,999}+按上限值定列）后 5ok+error 0；rank01 斜拍线缆遮挡剔除（候补 rank07 为监视上下限页 v2 变体一并剔除），候补 rank08(v1 清晰) 换入+核验表对齐；管线重跑后台 bash-k0g3atox",
-    "049 S10 完成（B2 成型监控 Z036）：三门禁 PASS numeric 1.0/error 0/6ok（列锚定+全有或全无+报警值域定列+模板锚点路由；双换样）；059 HANDOVER+回归全净"
+    "049 S10 完成（B2 成型监控 Z036）：三门禁 PASS numeric 1.0/error 0/6ok（列锚定+全有或全无+报警值域定列+模板锚点路由；双换样）；059 HANDOVER+回归全净",
+    "049 S11 启动（B3 波形图 Z036，452 附件）：s58 候选 6+2 下载 6/6 -> docs/samples_wv_z036；管线后台 bash-q4dn14nl",
+    "049 S11 续：六图全 FANUC 波形页（量程表 最大/最小 4-6 通道+X 轴 rank01 螺杆绝对 26mm/其余时间 0.3-2.0s）；VLM 草稿×6 + 核验表 + s60 真值自动接受×6 -> ground_truth/wv_z036_injection/",
+    "049 S11 完成（B3 波形图 Z036）：三门禁 PASS numeric 0.9722/error 0/5ok+1review（表头列锚定+位带 X 轴）；060 HANDOVER+回归全净"
   ],
-  "next_step": "049 S11（B3 波形图 Z036，453 附件）七步流水线：s58 候选+下载起步",
+  "next_step": "049 S12（B4 热流道温控 Z023 TACT，196 附件）七步流水线：s61 候选+下载起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -139,6 +142,10 @@
     "molding_monitor/FANUC/wave1": {
       "status": "PASS",
       "evidence": "059 HANDOVER / output/mon_z036_calib/accuracy_report_mon_z036.json（numeric 1.0, error 0, 6/6 ok）"
+    },
+    "waveform/FANUC/wave1": {
+      "status": "PASS",
+      "evidence": "060 HANDOVER / output/wv_z036_calib/accuracy_report_wv_z036.json（numeric 0.9722, error 0, 5ok+1review）"
     }
   },
   "consecutive_safe_reject": 0
