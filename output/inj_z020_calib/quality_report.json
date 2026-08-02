@@ -1,0 +1,156 @@
+{
+  "summary": {
+    "green": 3,
+    "yellow": 3,
+    "red": 0
+  },
+  "reports": [
+    {
+      "filename": "inj_Z020_20250428_rank04_recuQJJFYYoL7p.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 3000,
+        "height": 4000,
+        "screen_bbox": [
+          165,
+          1385,
+          2696,
+          2054
+        ],
+        "screen_area_ratio": 0.46146533333333334,
+        "perspective_ratio": 1.0218752954089891,
+        "blur_score": 234.70471724988855,
+        "glare_ratio": 0.00196275,
+        "dark_ratio": 0.08779833333333334,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z020_20251110_rank02_recv29sTmJY2MJ.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 3000,
+        "height": 4000,
+        "screen_bbox": [
+          0,
+          1292,
+          2766,
+          2191
+        ],
+        "screen_area_ratio": 0.5050255,
+        "perspective_ratio": 1.0,
+        "blur_score": 449.1009028990884,
+        "glare_ratio": 0.004901416666666667,
+        "dark_ratio": 0.18061741666666667,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z020_20251208_rank03_recv4KvBfFqFrI.jpeg",
+      "triage": "green",
+      "reject_codes": [],
+      "warn_codes": [],
+      "metrics": {
+        "width": 3072,
+        "height": 4096,
+        "screen_bbox": [
+          0,
+          0,
+          3072,
+          4096
+        ],
+        "screen_area_ratio": 1.0,
+        "perspective_ratio": 1.0000001003341226,
+        "blur_score": 1398.6035734600628,
+        "glare_ratio": 0.008801460266113281,
+        "dark_ratio": 0.09745550155639648,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z020_20260228_rank01_recvctJy9P9jkM.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 720,
+        "height": 1280,
+        "screen_bbox": [
+          0,
+          0,
+          720,
+          389
+        ],
+        "screen_area_ratio": 0.30390625,
+        "perspective_ratio": 1.0,
+        "blur_score": 807.1126734131942,
+        "glare_ratio": 0.02451931423611111,
+        "dark_ratio": 0.14276041666666667,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    },
+    {
+      "filename": "inj_Z020_20260301_rank05_recvcCZAGnB8dB.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE",
+        "LOW_TEXT_SIZE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          95,
+          362,
+          906,
+          680
+        ],
+        "screen_area_ratio": 0.2971064814814815,
+        "perspective_ratio": 1.0000001806683918,
+        "blur_score": 325.1293517210324,
+        "glare_ratio": 0.02885271990740741,
+        "dark_ratio": 0.11710792824074075,
+        "corners_found": true
+      },
+      "reshoot_guidance": [
+        "屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。"
+      ]
+    },
+    {
+      "filename": "inj_Z020_20260303_rank06_recvcOGEu4Zc1H.jpeg",
+      "triage": "yellow",
+      "reject_codes": [],
+      "warn_codes": [
+        "MINOR_GLARE"
+      ],
+      "metrics": {
+        "width": 1080,
+        "height": 1920,
+        "screen_bbox": [
+          62,
+          370,
+          993,
+          750
+        ],
+        "screen_area_ratio": 0.3591579861111111,
+        "perspective_ratio": 1.0000001644142598,
+        "blur_score": 332.51255036480427,
+        "glare_ratio": 0.041473283179012346,
+        "dark_ratio": 0.12915605709876543,
+        "corners_found": true
+      },
+      "reshoot_guidance": []
+    }
+  ]
+}

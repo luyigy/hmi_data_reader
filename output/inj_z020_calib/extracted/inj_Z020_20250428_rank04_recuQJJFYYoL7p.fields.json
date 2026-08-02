@@ -1,0 +1,67 @@
+{
+  "image": "inj_Z020_20250428_rank04_recuQJJFYYoL7p",
+  "status": "review",
+  "warnings": [
+    "VALUE_MISSING(vp_switch_position_mm)"
+  ],
+  "controller_family": "TRD6",
+  "page_type": "injection_metering",
+  "hmi_variant": "v1",
+  "heater_columns": 0,
+  "fields": {
+    "injection_positions_mm": [
+      11.0,
+      11.0,
+      11.0,
+      12.0,
+      13.0
+    ],
+    "injection_velocity_mms": [
+      100.0,
+      100.0,
+      235.0,
+      400.0,
+      450.0
+    ],
+    "injection_stages": 5,
+    "metering_position_mm": 15.0,
+    "pressure_limit_mpa": 285.0,
+    "injection_time_limit_s": 0.65,
+    "vp_switch_mode": "位置切换",
+    "vp_switch_position_mm": null,
+    "holding_pressure_mpa": [
+      85.0
+    ],
+    "holding_time_s": [
+      0.8
+    ],
+    "holding_stages": 1,
+    "holding_velocity_mms": 20.0,
+    "cooling_time_s": 5.0,
+    "dwell_time_s": 0.0,
+    "injection_delay_s": 0.0,
+    "metering_delay_s": 0.7,
+    "metering_rpm": 55.0,
+    "back_pressure_mpa": 0.0,
+    "suckback_mm": 5.0,
+    "suckback_speed_pct": 50.0,
+    "purge_velocity_mms": 100.0,
+    "purge_count": 5.0
+  },
+  "provenance": {
+    "family_source": "machine_labels",
+    "page_source": "find_page",
+    "template": "trd6.injection_metering.json v0.1.0",
+    "ocr_file": "output/inj_z020_calib/rectified/inj_Z020_20250428_rank04_recuQJJFYYoL7p.ocr.json",
+    "screen_size": [
+      2000,
+      1539
+    ],
+    "rectify_method": "corners",
+    "ocr_clahe_merge": {
+      "added": 4,
+      "replaced": 0
+    }
+  },
+  "extraction_detail": {}
+}

@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S7",
+  "slice": "S8",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -63,9 +63,13 @@
     "049 S5 完成（A4 KAIMING/Z062）：三门禁 PASS numeric 1.0/error 0/6ok；054 HANDOVER+回归全净",
     "049 S6 启动（A5 EST/Z048）：s41 候选 136 附件全量无重复，seed 20260802 取 6+2，下载 6/6；machine_labels 预补 inj_Z048 别名；管线后台 bash-xs8krv9y",
     "049 S6 续：六图全 EST 屏结构一致（类 KEBA 青底，射出均 4 段、保压 2 段、转保压 时间/位置）；VLM 草稿×6 + 核验表 + s43 真值自动接受×6 -> ground_truth/inj_z048_injection/",
-    "049 S6 完成（A5 EST/Z048）：三门禁 PASS numeric 1.0/error 0/6ok（三轮修正：裁切→区段聚类→纠斜+单位噪声过滤）；055 HANDOVER+回归全净"
+    "049 S6 完成（A5 EST/Z048）：三门禁 PASS numeric 1.0/error 0/6ok（三轮修正：裁切→区段聚类→纠斜+单位噪声过滤）；055 HANDOVER+回归全净",
+    "049 S7 启动（A6 TRD6/Z020 沙迪克）：s44 候选 104 附件无重复，seed 20260802 取 6+2，下载 6/6；inj_Z020 别名预补；管线后台 bash-jsfuv7kx",
+    "049 S7 续：管线完成；读 rank01/02 摸 TRD6 注射设定页结构——S5~S1 位置mm+速度mm/s 段表+计量，保持压 T1-T4秒/P1-P4MPa，上限压/上限时间，V-P切换位置，保压速度，冷却/休止/注射延迟/计量延迟，螺杆旋转rpm/背压，回吸量/速度，清料速度/次数；rank01 为 720x1280 低分图需放大复核",
+    "049 S7 续：六图全 TRD6 屏（模具均 TX22057）结构一致；VLM 草稿×6（21 字段含 S5~S1 段表/保持压 T1P1 在前/上限压/回吸/清料）；核验表+s46 真值自动接受×6 -> ground_truth/inj_z020_injection/",
+    "049 S7 完成（A6 TRD6/Z020）：SAFE_REJECT——numeric 0.956 PASS 但 vp 深色框系统性不可读致 6 图全 review；rank03 P1 真值自我修正 35→95；056 HANDOVER；SAFE_REJECT 连续计数=1"
   ],
-  "next_step": "049 S7（A6 TRD6/Z020）七步流水线：s44 候选+下载 8 张起步",
+  "next_step": "049 S8（A7 ARBURG/Z068，219 附件）七步流水线：s48 候选+下载 8 张起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -111,14 +115,14 @@
       "evidence": "055 HANDOVER / output/inj_z048_calib/accuracy_report_inj_z048.json（numeric 1.0, error 0, 6/6 ok）"
     },
     "injection_metering/TRD6/wave1": {
-      "status": "BLOCKED_EXTERNAL",
-      "evidence": "046 REPORT",
-      "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
+      "status": "SAFE_REJECT",
+      "evidence": "056 HANDOVER / output/inj_z020_calib/accuracy_report_inj_z020.json（numeric 0.956 PASS、ok=0 全 review：vp 深色框不可读）"
     },
     "injection_metering/ARBURG/wave1": {
       "status": "BLOCKED_EXTERNAL",
       "evidence": "046 REPORT",
       "recovery": "lark-cli 或等价飞书 API 通道可用后先只读盘点再领片"
     }
-  }
+  },
+  "consecutive_safe_reject": 1
 }

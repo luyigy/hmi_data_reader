@@ -672,13 +672,16 @@ from extract_families.keba_injection import extract_injection_keba  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
+from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.keba_injection import extract_injection_keba  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
+from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
 from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
 from extract_families.est_injection import extract_injection_est  # noqa: E402
+from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
 
 
 # ---------------------------------------------------------------- 主流程
@@ -724,6 +727,12 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         if template is not None:
             page = "injection_metering"
             result["page_type"] = page
+    if template is None and family == "TRD6" and page in ("injection_metering", "settings"):
+        # TRD6 注射设定页被分类器记为 settings，统一走射保模板（049 A6）
+        template = load_template(family, "injection_metering", templates_dir)
+        if template is not None:
+            page = "injection_metering"
+            result["page_type"] = page
     if template is None:
         result["warnings"].append(f"NO_TEMPLATE({family},{page})")
         return result
@@ -732,7 +741,7 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     toks = norm_tokens(ocr_data, meta["screen_size"])
     clahe_stats = None
     rates_stats = None
-    if ui in ("TACT", "KEBA", "B_AND_R", "FANUC", "DEMAG") and clahe_lines is not None:
+    if ui in ("TACT", "KEBA", "B_AND_R", "FANUC", "DEMAG", "TRD6") and clahe_lines is not None:
         # 低对比白底框（TACT 保温行/KEBA 白底框）与蓝底白字（B_AND_R 整行漏检）
         # 召回补充：合并 CLAHE 变体 OCR（只加空位/高置信替换低置信的保守规则）
         merged_lines, clahe_stats = merge_variant_lines(ocr_data.get("lines", []), clahe_lines)
@@ -793,6 +802,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_kaiming(toks, template)
     elif page_key == "injection_metering" and ui == "EST":
         ext = extract_injection_est(toks, template)
+    elif page_key == "injection_metering" and ui == "TRD6":
+        ext = extract_injection_trd6(toks, template)
     elif page_key == "injection_metering" and ui == "KEBA":
         ext = extract_injection_keba(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
@@ -801,12 +812,16 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_injection_kaiming(toks, template)
     elif page_key == "injection_metering" and ui == "EST":
         ext = extract_injection_est(toks, template)
+    elif page_key == "injection_metering" and ui == "TRD6":
+        ext = extract_injection_trd6(toks, template)
     elif page_key == "injection_metering" and ui == "B_AND_R":
         ext = extract_injection_b_and_r(toks, template)
     elif page_key == "injection_metering" and ui == "KAIMING":
         ext = extract_injection_kaiming(toks, template)
     elif page_key == "injection_metering" and ui == "EST":
         ext = extract_injection_est(toks, template)
+    elif page_key == "injection_metering" and ui == "TRD6":
+        ext = extract_injection_trd6(toks, template)
     elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
     elif ui == "KEBA":

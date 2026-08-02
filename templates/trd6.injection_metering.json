@@ -1,0 +1,41 @@
+{
+  "version": "0.1.0",
+  "ui_family": "TRD6",
+  "page": "injection_metering",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（沙迪克 Z020，TRD6）OCR 实测锚点",
+  "description": "TRD6 注射设定页字段位置模板。结构：注射速度表（S5~S1+计量 位置mm 行=标签正下方 dy+0.02~0.05；V5~V1 速度mm/s 行=标签上方 dy-0.03~-0.09）；保持压（T4~T1 秒行=标签下方，T1 在最右数组在前；P4~P1 MPa 行=标签上方）+保压速度；上限压/上限时间；V-P切换位置（深色框白字，常需 CLAHE 召回）；时间设定（冷却/休止）；延迟设定（注射/计量延迟）；计量设定（螺杆旋转rpm/背压）；清料（速度/次数）；回吸（量mm/速度%）；注射座（实时不入）。底部循环/计量/填充/V-P切换压/最高填充压/最小缓冲为实时值不入。V-P切换方式六图均「位置切换」（高亮不可 OCR 判定，v0.1 常量+真值集验证）。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z020 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "arrays": {
+    "injection_positions_mm": {"labels": ["S5", "S4", "S3", "S2", "S1"], "value_dy": [0.015, 0.055], "dx": 0.045, "range": [0, 100]},
+    "metering_position_mm": {"labels": ["计量"], "label_x_min": 0.78, "value_dy": [0.015, 0.055], "dx": 0.05, "range": [0, 100]},
+    "injection_velocity_mms": {"labels": ["V5", "V4", "V3", "V2", "V1"], "value_dy": [-0.09, -0.03], "dx": 0.045, "range": [0, 600]},
+    "holding_time_s": {"labels": ["T1", "T2", "T3", "T4"], "label_x_max": 0.35, "value_dy": [0.015, 0.055], "dx": 0.045, "range": [0, 60]},
+    "holding_pressure_mpa": {"labels": ["P1", "P2", "P3", "P4"], "label_x_max": 0.35, "value_dy": [-0.08, -0.03], "dx": 0.045, "range": [0, 300]}
+  },
+  "singles": {
+    "pressure_limit_mpa": {"label": "上限压", "dx": 0.35, "range": [0, 400]},
+    "injection_time_limit_s": {"label": "上限时间", "dx": 0.15, "range": [0, 60]},
+    "vp_switch_position_mm": {"label": "位置", "label_x_max": 0.3, "label_y_range": [0.15, 0.25], "dx": 0.2, "range": [0, 100]},
+    "holding_velocity_mms": {"label": "保压速度", "dx": 0.15, "dy": 0.03, "range": [0, 200]},
+    "cooling_time_s": {"label": "冷却时间", "dx": 0.18, "range": [0, 300]},
+    "dwell_time_s": {"label": ["休止时间", "休体止时间"], "dx": 0.18, "range": [0, 300]},
+    "injection_delay_s": {"label": "注射延迟", "dx": 0.18, "range": [0, 60]},
+    "metering_delay_s": {"label": ["计量延迟", "计量延退"], "dx": 0.18, "range": [0, 60]},
+    "metering_rpm": {"label": "螺杆旋转", "dx": 0.18, "range": [0, 500]},
+    "back_pressure_mpa": {"label": "背压", "dx": 0.18, "range": [0, 50]},
+    "suckback_mm": {"label": "量", "label_x_min": 0.6, "label_y_range": [0.55, 0.75], "dx": 0.15, "range": [0, 100]},
+    "suckback_speed_pct": {"label": "速度", "label_x_min": 0.6, "label_y_range": [0.6, 0.75], "dx": 0.15, "range": [0, 100]},
+    "purge_velocity_mms": {"label": "速度", "label_x_range": [0.25, 0.45], "label_y_min": 0.65, "dx": 0.18, "range": [0, 300]},
+    "purge_count": {"label": "次数", "dx": 0.18, "range": [0, 50]}
+  },
+  "switch_mode_constant": "位置切换",
+  "page_detect_anchors": ["注射速度", "保持压", "上限压"],
+  "family_detect_groups": [
+    ["保持压", "上限压"],
+    ["计量补正", "回吸"]
+  ]
+}

@@ -615,6 +615,19 @@
       "proposed_by": "kimi-code",
       "verified_by": "用户本人",
       "verified_at": "2026-08-01"
+    },
+    "inj_Z020_TRD6": {
+      "machine_brand": "SODICK",
+      "controller_family": "TRD6",
+      "hmi_variant": "v1",
+      "records": [
+        "rec18",
+        "rec19"
+      ],
+      "evidence": "049 射保线命名前缀（inj_Z020_*）路由别名，实体同 沙迪克_A06_TRD6（大表 Z-id Z020）",
+      "proposed_by": "kimi-code",
+      "verified_by": "王为",
+      "verified_at": "2026-07-30"
     }
   }
 }

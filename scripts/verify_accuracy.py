@@ -91,6 +91,17 @@ NUMERIC_FIELDS = [
     "injection_end_position_mm",
     # 049 A3 B_AND_R 射胶页（Z050）新增
     "vp_switch_time_s",
+    # 049 A6 TRD6 注射设定页（Z020）新增
+    "injection_positions_mm",
+    "metering_position_mm",
+    "injection_time_limit_s",
+    "holding_velocity_mms",
+    "dwell_time_s",
+    "metering_delay_s",
+    "suckback_mm",
+    "suckback_speed_pct",
+    "purge_velocity_mms",
+    "purge_count",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",
