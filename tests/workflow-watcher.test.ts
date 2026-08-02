@@ -252,19 +252,32 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
 
   process.env.LARK_FAIL_PROMPT = '0';
   workflowAvailable = false;
+  const completionReceiptsBeforeWaiting = apiCalls.filter(({ body }) =>
+    String(body.content).includes('Workflow 完成回执')).length;
   const waiting = await run();
   assert.match(waiting.summary, /gate=waiting_previous_completion/);
-  assert.deepEqual(waiting.cursor, { commit: base }, 'waiting runner must retain the prior cursor');
+  assert.equal((waiting.cursor as { pending?: { gate: string } }).pending?.gate, 'workflow_ready');
   const waitingEventKey = workflowRuns.at(-1)?.eventKey;
+  const completionReceiptCalls = apiCalls.filter(({ body }) =>
+    String(body.content).includes('Workflow 完成回执'));
+  assert.equal(completionReceiptCalls.length, completionReceiptsBeforeWaiting + 1);
+  assert.equal(new URL(completionReceiptCalls.at(-1)!.url).searchParams.get('uuid'),
+    new URL(completionReceiptCalls.at(-2)!.url).searchParams.get('uuid'),
+    'retry after cursor-save failure must reuse the Feishu idempotency key');
+  const waitingAgain = await run(waiting.cursor);
+  assert.match(waitingAgain.summary, /gate=waiting_previous_completion/);
+  assert.equal(apiCalls.filter(({ body }) => String(body.content).includes('Workflow 完成回执')).length,
+    completionReceiptsBeforeWaiting + 1, 'waiting retries must not resend the completion receipt');
 
   workflowAvailable = true;
-  const manualWaiting = await run(waiting.cursor, 'active', 'manual', 'schedule');
+  const manualWaiting = await run(waitingAgain.cursor, 'active', 'manual', 'schedule');
   assert.match(manualWaiting.summary, /gate=autonomy_manual advance=next_slice/);
-  assert.deepEqual(manualWaiting.cursor, waiting.cursor);
-  assert.match(String(apiCalls.at(-1)?.body.content), /自动推进：已停止（manual，使用 \/ap job run 手动推进）/);
-  const completed = await run(waiting.cursor, 'active', 'manual', 'manual');
+  assert.deepEqual(manualWaiting.cursor, waitingAgain.cursor);
+  assert.equal(apiCalls.filter(({ body }) => String(body.content).includes('Workflow 完成回执')).length,
+    completionReceiptsBeforeWaiting + 1, 'manual polling must not resend the completion receipt');
+  const completed = await run(manualWaiting.cursor, 'active', 'manual', 'manual');
   assert.match(completed.summary, /result=session_started/);
-  assert.equal(workflowRuns.length, 3);
+  assert.equal(workflowRuns.length, 4);
   assert.equal(workflowRuns.at(-1)?.eventKey, waitingEventKey, 'retry must reuse the waiting event key');
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
   assert.equal(workflowRuns.at(-1)?.chatType, 'group');

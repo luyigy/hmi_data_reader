@@ -493,6 +493,12 @@ export const workflowWatcherHandler = async (
         };
       }
     }
+    if (!allows(pending.action)) {
+      return {
+        summary: `head=${head} pending=${pending.path} gate=autonomy_manual advance=${pending.action}`,
+        cursor: previous,
+      };
+    }
     if (mode === 'active') {
       const started = await execute(
         pending,
@@ -508,7 +514,7 @@ export const workflowWatcherHandler = async (
     }
     return {
       summary: `head=${head} candidate=${pending.path} action=${pending.action} result=${mode === 'active' ? 'session_started' : 'shadow'}`,
-      cursor: { commit: head, eventKey: pending.key },
+      cursor: { commit: pending.gate === 'workflow_ready' ? previous.commit : head, eventKey: pending.key },
     };
   }
 
@@ -729,8 +735,20 @@ export const workflowWatcherHandler = async (
       },
     };
   }
+  const pending: Pending = {
+    ...execution,
+    commit,
+    path: candidate.filePath,
+    blob,
+    action: document.action,
+    type: candidate.type,
+    documentCommit: commit,
+    documentUrl: '',
+    gate: 'workflow_ready',
+    detectedAt,
+  };
   const started = await execute(
-    execution,
+    pending,
     project.id,
     job.id,
     codingBotChatId,
@@ -742,7 +760,7 @@ export const workflowWatcherHandler = async (
   if (!started) {
     return {
       summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=waiting_previous_completion`,
-      cursor: previous,
+      cursor: { commit: head, eventKey, pending },
     };
   }
   return {
