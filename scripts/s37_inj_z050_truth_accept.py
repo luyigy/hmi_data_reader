@@ -1,10 +1,10 @@
-"""049_PLAN A1：Z050 B_AND_R 射保 6 份草稿自动整批接受转真值 + 核验表确认列回填。
+"""049_PLAN A3：Z050 B_AND_R 射保 6 份草稿自动整批接受转真值 + 核验表确认列回填。
 
 克隆 s17 口径（自动整批接受降级 + 用户事后否决权）。核验表为通用列结构
-（草稿_字段/确认_字段 文本列，s36 建），自动接受 = 确认列与草稿列一致、changed_fields=0。
+（草稿_字段/确认_字段 文本列，s30 建），自动接受 = 确认列与草稿列一致、changed_fields=0。
 真值目录 ground_truth/inj_z050_injection/。
 
-用法：python3 scripts/s31_inj_z050_truth_accept.py
+用法：python3 scripts/s37_inj_z050_truth_accept.py
 """
 import json
 import subprocess

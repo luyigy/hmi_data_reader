@@ -7,15 +7,15 @@
   "hmi_variant": "v1",
   "heater_columns": 0,
   "fields": {
-    "injection_pressure_bar": [
-      100.0,
-      110.0,
-      90.0
-    ],
     "injection_velocity_pct": [
       25.0,
       22.0,
       12.0
+    ],
+    "injection_pressure_bar": [
+      100.0,
+      110.0,
+      90.0
     ],
     "injection_position_mm": [
       42.0,
@@ -23,21 +23,22 @@
       0.0
     ],
     "injection_stages": 3,
-    "vp_switch_position_mm": 16.5,
-    "switch_time_s": 5.0,
-    "holding_pressure_bar": [
-      38.5,
-      30.8
-    ],
     "holding_velocity_pct": [
       1.1,
       5.0
+    ],
+    "holding_pressure_bar": [
+      38.5,
+      30.8
     ],
     "holding_time_s": [
       2.5,
       2.0
     ],
-    "holding_stages": 2
+    "holding_stages": 2,
+    "holding_switch_mode": "位置+时间",
+    "vp_switch_position_mm": 16.5,
+    "vp_switch_time_s": 5.0
   },
   "provenance": {
     "family_source": "machine_labels",
@@ -55,12 +56,10 @@
     }
   },
   "extraction_detail": {
-    "anchors": {
+    "section_y": {
       "injection": 0.30325,
       "holding": 0.5245,
       "switch": 0.686
-    },
-    "injection_clusters": 3,
-    "holding_clusters": 3
+    }
   }
 }

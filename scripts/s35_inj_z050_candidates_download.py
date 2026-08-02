@@ -1,9 +1,9 @@
 """049_PLAN 阶段A A3：射出/保压 B_AND_R 波次 Z050 单机候选（6目标+2候补）+ 下载去重。
 
-候选：大表只读 search（品牌=伯乐、Z050、含「成型条件-射出/保压」附件），同字节数去重，
+候选：大表只读 search（品牌=日精、Z022、含「成型条件-射出/保压」附件），同字节数去重，
 random.Random(SEED) shuffle。049 全自动接力：选机自动（队列固化 050），无需逐单元批准。
 
-用法：python3 scripts/s32_inj_z050_candidates_download.py
+用法：python3 scripts/s21_inj_z036_candidates_download.py
 """
 import hashlib
 import json

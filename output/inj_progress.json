@@ -1,6 +1,6 @@
 {
   "plan": "docs/049_PLAN_20260802_剩余页面线全自动接力.md",
-  "slice": "S4",
+  "slice": "S5",
   "updated_at": "2026-08-02",
   "completed_steps": [
     "027 路线图更新（温度页各线终态+射保线为主线）、035 PLAN 立",
@@ -52,9 +52,13 @@
     "049 S3 续：rank06 为 B&R 代屏（注射段数9/位置模式 UI）混入，按候补替换 recuQJJFYYBIVm(2025-03-28,TXE24006) 并留档 output/inj_z031_rejected/；六图读毕（rank01-05+新rank06），KEBA 页结构一致",
     "049 S3 续：换样管线重跑完成；VLM 草稿×6 落 output/inj_z031_drafts/（KEBA schema：射出3段 bar/%/终止位置mm +射出时间+转保压方式+保压位置；保压有效段=时间>0 最末段，rank03 二段时间0判不生效）",
     "049 S3 续：核验表 tblB15cEjFGoJQvc（前一轮次已建）换样对齐——旧 rank06 行标注剔除、新 rank06(recuQJJFYYBIVm) 建行传图；s34 真值自动整批接受×6 -> ground_truth/inj_z031_injection/",
-    "049 S3 验收（A2 KEBA/Z031）：三门禁 PASS numeric 1.0/error 0/6ok；keba.injection 模板 v0.1+keba_injection 提取器（段列序一段在右/值行聚类保序配对/玉力误识候选/9.09%截断）；回归 z017/z002/z036 零 diff、z022 仅 provenance；verify_accuracy 文本字段等值比对修复"
+    "049 S3 验收（A2 KEBA/Z031）：三门禁 PASS numeric 1.0/error 0/6ok；keba.injection 模板 v0.1+keba_injection 提取器（段列序一段在右/值行聚类保序配对/玉力误识候选/9.09%截断）；回归 z017/z002/z036 零 diff、z022 仅 provenance；verify_accuracy 文本字段等值比对修复",
+    "049 S4 启动（A3 B_AND_R/Z050）：s35 候选 140 附件去重 140，seed 20260802 取 6+2，下载 6/6 零重复；管线后台 bash-0yx4mmjs",
+    "049 S4 续：管线 6/6 injection_metering；读 rank01/02 摸 B&R 射胶页结构——射胶 5 段表（速度%/压力bar/位置mm，段1在最右，蓝字时间=实际不入）+保压 5 段表（速度/压力/时间）+保压切换（位置mm+时间sec 勾选式）；有效段：射胶=速度或压力非零最末段、保压=时间>0最末段",
+    "049 S4 续：六图全 B&R 屏结构一致（无换样）；VLM 草稿×6；核验表 tblNT15qet0PklAf（前轮次已建）+s37 真值自动接受×6 -> ground_truth/inj_z050_injection/",
+    "049 S4 完成（A3 B_AND_R/Z050）：三门禁 PASS numeric 1.0/error 0/6ok；053 HANDOVER+回归全净"
   ],
-  "next_step": "049 S4（A3 B_AND_R/Z050，140 附件）七步流水线：s35 候选+下载 8 张起步",
+  "next_step": "049 S5（A4 KAIMING/Z062，36 附件）七步流水线：s38 候选+下载 8 张起步",
   "pending_user_decision": [],
   "terminal_states": {
     "injection_metering/TACT/wave1": {
@@ -89,7 +93,7 @@
     },
     "injection_metering/B_AND_R/wave1": {
       "status": "PASS",
-      "evidence": "053 HANDOVER（numeric 1.0/error 0，PoC 口径）"
+      "evidence": "053 HANDOVER / output/inj_z050_calib/accuracy_report_inj_z050.json（numeric 1.0, error 0, 6/6 ok）"
     },
     "injection_metering/KAIMING/wave1": {
       "status": "BLOCKED_EXTERNAL",

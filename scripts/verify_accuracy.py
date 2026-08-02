@@ -89,6 +89,8 @@ NUMERIC_FIELDS = [
     "pressure_lower_limit_bar",
     # 049 A2 KEBA 射出页（Z031）新增
     "injection_end_position_mm",
+    # 049 A3 B_AND_R 射胶页（Z050）新增
+    "vp_switch_time_s",
     # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
     "pressure_limit_bar",
     "first_velocity_mms",

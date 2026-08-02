@@ -1,8 +1,8 @@
 """049_PLAN A3：建飞书「射出保压字段核验-Z050」表并预填 6 行草稿（B_AND_R）。
 
-克隆 s28 结构。幂等：output/inj_z050_verify_table_records.json 存在即退出。
+克隆 s33 结构。幂等：output/inj_z050_verify_table_records.json 存在即退出。
 
-用法：python3 scripts/s30_build_inj_z050_verify_table.py
+用法：python3 scripts/s36_build_inj_z050_verify_table.py
 """
 import json
 import subprocess

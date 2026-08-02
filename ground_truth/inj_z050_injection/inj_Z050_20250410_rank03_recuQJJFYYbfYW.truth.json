@@ -3,7 +3,6 @@
   "controller_family": "B_AND_R",
   "hmi_variant": "v1",
   "page_type": "injection_metering",
-  "page_variant": "br_curve_tables",
   "quality_grade": "good",
   "allow_auto_import": true,
   "fields": {
@@ -39,8 +38,9 @@
       1.0
     ],
     "holding_stages": 3,
+    "holding_switch_mode": "位置+时间",
     "vp_switch_position_mm": 15.3,
-    "switch_time_s": 2.35
+    "vp_switch_time_s": 2.35
   },
   "alarm_status": "normal",
   "alarm_evidence": "无报警字符/图标。",
@@ -48,16 +48,14 @@
     "proposed_by": "vlm",
     "verified_by": "自动整批接受（049 全自动接力口径，visual_skim_acceptance 降级；用户保留事后否决权）",
     "verified_at": "2026-08-02",
-    "changed_fields": 1,
+    "changed_fields": 0,
     "spot_check_by": "豁免（用户 2026-07-30）"
   },
   "source": {
     "base_token": "Vz2QbZ0lkagmVJsrMZ7cQwbSnZc",
-    "origin_table": "tbl5KKYuANqGpycE",
-    "origin_record_id": "recuQJJFYYbfYW",
-    "file_token": "XNxqb65Mzo7VHKxuERbczIOFnRJ",
-    "table_id": "tblNT15qet0PklAf",
-    "record_id": "recvr7gyCWDc1P"
+    "table_id": "tbl5KKYuANqGpycE",
+    "record_id": "recuQJJFYYbfYW",
+    "file_token": "XNxqb65Mzo7VHKxuERbczIOFnRJ"
   },
-  "notes": "B_AND_R（贝加莱）射胶页：顶部射胶/保压曲线与 实际速度/位置/压力/模穴压力 为实时值不入；射胶段表列 5~1（右=1段），行 速度%/压力bar/位置mm 为设定，时间行蓝字为实际不入；保压段表同构，时间行为设定秒（黑字）入真值；保压切换 位置mm/时间sec 勾选框设定值入，底部 实际切换位置/时间/压力 为实时值不入。第4段速度 0.0（橙底）= 未启用段，段数=3（保压按压力非零推断）。 | 2026-08-02 自动整批接受转真值（049 全自动口径；用户保留事后否决权）。 | 2026-08-02 真值复核更正：保压速度一段 6.0→5.0（全分辨率原图复核，初稿按缩略图误读；020 S1 先例）。"
+  "notes": "机台 Z050（伯乐 B&R 贝加莱 UI）、日期 20250410、rank03。B&R 射胶页：射胶 5 段表（速度%/压力bar/位置mm，段1在最右，数组按段号 1→N；蓝字时间=实际值不入）+保压 5 段表（速度/压力/时间）+保压切换（位置mm+时间sec 勾选式，六图均为位置+时间）。有效段：射胶=速度或压力非零最末段、保压=时间>0最末段。实际速度/位置/压力/模穴压力与实际切换值为实时值不入草稿。 | 2026-08-02 自动整批接受转真值（049 全自动口径；用户保留事后否决权）。"
 }

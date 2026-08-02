@@ -23,15 +23,15 @@
     "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
     "raw_totals": {
       "n_images": 6,
-      "n_elements": 123,
-      "n_present": 123,
-      "n_matched": 123
+      "n_elements": 129,
+      "n_present": 129,
+      "n_matched": 129
     },
     "scored_totals": {
       "n_images": 6,
-      "n_elements": 123,
-      "n_present": 123,
-      "n_matched": 123
+      "n_elements": 129,
+      "n_present": 129,
+      "n_matched": 129
     },
     "excluded_images": []
   },
@@ -47,9 +47,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 22,
-      "n_present": 22,
-      "n_matched": 22,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23,
       "correct_reject": false
     },
     {
@@ -62,9 +62,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 22,
-      "n_present": 22,
-      "n_matched": 22,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23,
       "correct_reject": false
     },
     {
@@ -77,9 +77,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 19,
-      "n_present": 19,
-      "n_matched": 19,
+      "n_elements": 20,
+      "n_present": 20,
+      "n_matched": 20,
       "correct_reject": false
     },
     {
@@ -92,9 +92,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 19,
-      "n_present": 19,
-      "n_matched": 19,
+      "n_elements": 20,
+      "n_present": 20,
+      "n_matched": 20,
       "correct_reject": false
     },
     {
@@ -107,9 +107,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 19,
-      "n_present": 19,
-      "n_matched": 19,
+      "n_elements": 20,
+      "n_present": 20,
+      "n_matched": 20,
       "correct_reject": false
     },
     {
@@ -122,9 +122,9 @@
       "page_truth": "injection_metering",
       "page_extracted": "injection_metering",
       "page_match": true,
-      "n_elements": 22,
-      "n_present": 22,
-      "n_matched": 22,
+      "n_elements": 23,
+      "n_present": 23,
+      "n_matched": 23,
       "correct_reject": false
     }
   ],
