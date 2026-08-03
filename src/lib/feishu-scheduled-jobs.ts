@@ -24,6 +24,8 @@ import {
 } from '@/lib/scheduled-jobs/workflow-inspection';
 import { completeWorkflowPlan } from '@/lib/scheduled-jobs/workflow-plan-completion';
 import { resolveWorkflowCursorRecovery } from '@/lib/scheduled-jobs/workflow-dashboard-recovery';
+import { buildWorkflowDocumentForms } from '@/lib/scheduled-jobs/workflow-dashboard-document-forms';
+import { cancelWorkflowPlan } from '@/lib/scheduled-jobs/workflow-plan-cancellation';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 export { inspectWorkflowCandidates, inspectWorkflowCursor } from '@/lib/scheduled-jobs/workflow-inspection';
@@ -382,38 +384,7 @@ export const buildWorkflowDashboardCard = (args: {
           },
         ],
       }] : []),
-      ...(documents.length ? [{
-        tag: 'form',
-        name: 'workflow-document-export',
-        elements: [
-          {
-            tag: 'select_static',
-            name: 'selectedDocument',
-            required: true,
-            width: 'fill',
-            placeholder: { tag: 'plain_text', content: '选择 Inbox、PLAN 或 HANDOVER' },
-            options: documents.map((document) => ({
-              text: { tag: 'plain_text', content: document.label },
-              value: document.path,
-            })),
-          },
-          {
-            tag: 'button',
-            name: 'exportWorkflowDocument',
-            text: { tag: 'plain_text', content: '查看飞书文档' },
-            type: 'primary_filled',
-            width: 'fill',
-            action_type: 'form_submit',
-            value: {
-              cmd: 'workflow-dashboard',
-              action: 'document',
-              projectId: args.status.projectId,
-              jobId: args.status.jobId,
-              expectedHead: args.status.head,
-            },
-          },
-        ],
-      }] : []),
+      ...buildWorkflowDocumentForms(args),
       ...(workflowDocuments.length ? [{
         tag: 'form',
         name: 'workflow-document-validation',
@@ -852,7 +823,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   if (!project || !job) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
   const action = [
-    'refresh', 'run', 'activate', 'plan_complete', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate', 'cursor_recover', 'diagnose',
+    'refresh', 'run', 'activate', 'plan_complete', 'plan_cancel', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate', 'cursor_recover', 'diagnose',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
     'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
   ].includes(args.action)
@@ -864,7 +835,7 @@ export async function handleWorkflowDashboardCardAction(args: {
     senderOpenId: args.actorOpenId,
     messageId: args.cardMessageId || '',
   };
-  const workflowStatus = ['document', 'document_validate', 'plan_complete'].includes(action)
+  const workflowStatus = ['document', 'document_validate', 'plan_complete', 'plan_cancel'].includes(action)
     ? (await loadWorkflowStatuses(project.id)).find(({ jobId }) => jobId === args.jobId)
     : undefined;
   const documents = workflowStatus?.overview ? [
@@ -893,6 +864,12 @@ export async function handleWorkflowDashboardCardAction(args: {
           const run = await handleScheduledJobCommand({ command: 'job', args: ['run', args.jobId], options: {} }, context);
           return `✅ watcher 游标已恢复到 ${recovery.target}${recovery.skipped ? '（已明确选择跳过旧提交）' : '（从共同祖先重新扫描）'}。\n${run}`;
         }).catch((error) => `❌ 恢复失败：${error instanceof Error ? error.message : String(error)}`)
+    : action === 'plan_cancel'
+      ? !isFeishuAdmin(args.actorOpenId) && !project.feishu.approver_open_ids.includes(args.actorOpenId)
+        ? '只有平台管理员或项目审批人可以取消 PLAN。'
+        : await cancelWorkflowPlan({
+          project, job, workflowStatus, selectedPlan: args.selectedCompletionPlan, expectedHead: args.expectedHead,
+        })
     : action === 'plan_complete'
       ? !isFeishuAdmin(args.actorOpenId) && !project.feishu.approver_open_ids.includes(args.actorOpenId)
         ? '只有平台管理员或项目审批人可以人工标记 PLAN 完成。'

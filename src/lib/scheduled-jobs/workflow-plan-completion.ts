@@ -19,6 +19,7 @@ export async function completeWorkflowPlan(args: {
   planPath: string;
   contractPath: string;
   expectedHead: string;
+  disposition?: 'complete' | 'cancel';
 }) {
   if (path.isAbsolute(args.planPath)
     || args.planPath.split('/').includes('..')
@@ -63,9 +64,10 @@ export async function completeWorkflowPlan(args: {
   if (promptStarts && end < 0) {
     throw new Error('PLAN 自动化 Prompt 标记必须成对且顺序正确。');
   }
+  const cancelled = args.disposition === 'cancel';
   const yaml = match[1]
-    .replace(/^doc_status:\s*.*$/m, 'doc_status: completed')
-    .replace(/^next_action:\s*.*$/m, 'next_action: await_acceptance');
+    .replace(/^doc_status:\s*.*$/m, `doc_status: ${cancelled ? 'superseded' : 'completed'}`)
+    .replace(/^next_action:\s*.*$/m, `next_action: ${cancelled ? 'none' : 'await_acceptance'}`);
   const withoutPrompt = promptStarts
     ? content.slice(0, start) + content.slice(end + promptEnd.length)
     : content;
@@ -95,9 +97,10 @@ export async function completeWorkflowPlan(args: {
       return { state: 'stale' as const, head: await git(args.project.path, 'rev-parse', args.project.ref) };
     }
     await git(args.project.path, 'add', '--', args.planPath);
-    await git(args.project.path, 'commit', '--no-verify', '--only', '-m', 'docs(workflow): mark plan complete', '--', args.planPath);
+    await git(args.project.path, 'commit', '--no-verify', '--only', '-m',
+      cancelled ? 'docs(workflow): cancel plan' : 'docs(workflow): mark plan complete', '--', args.planPath);
     return {
-      state: 'completed' as const,
+      state: cancelled ? 'cancelled' as const : 'completed' as const,
       path: args.planPath,
       head: await git(args.project.path, 'rev-parse', 'HEAD'),
     };

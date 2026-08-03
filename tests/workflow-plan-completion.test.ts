@@ -64,6 +64,8 @@ async function main() {
     ].join('\n'));
     const lockedPlanPath = 'docs/004_PLAN_20260802_locked_fixture.md';
     writeFileSync(path.join(root, lockedPlanPath), readFileSync(path.join(root, draftPlanPath), 'utf8'));
+    const cancelledPlanPath = 'docs/005_PLAN_20260802_cancelled_fixture.md';
+    writeFileSync(path.join(root, cancelledPlanPath), readFileSync(path.join(root, planPath), 'utf8'));
     writeFileSync(path.join(root, 'staged.txt'), 'original staged\n');
     writeFileSync(path.join(root, 'unstaged.txt'), 'original unstaged\n');
     git('add', '.');
@@ -94,9 +96,15 @@ async function main() {
       filePaths: [planPath],
       contractPath,
     }))[0].action, 'await_acceptance');
+    const cancelled = await completeWorkflowPlan({
+      project, planPath: cancelledPlanPath, contractPath, expectedHead: result.head, disposition: 'cancel',
+    });
+    assert.equal(cancelled.state, 'cancelled');
+    assert.match(readFileSync(path.join(root, cancelledPlanPath), 'utf8'), /doc_status: superseded[\s\S]*next_action: none/);
+    assert.doesNotMatch(readFileSync(path.join(root, cancelledPlanPath), 'utf8'), /WORKFLOW_PROMPT_(?:START|END)/);
     assert.equal(git('status', '--porcelain', '--', 'staged.txt', 'unstaged.txt', 'untracked.txt'), unrelatedStatus);
     const draftResult = await completeWorkflowPlan({
-      project, planPath: draftPlanPath, contractPath, expectedHead: result.head,
+      project, planPath: draftPlanPath, contractPath, expectedHead: cancelled.head,
     });
     assert.equal(draftResult.state, 'completed');
     assert.equal((await validateWorkflowDocuments({

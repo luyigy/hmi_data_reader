@@ -281,8 +281,7 @@ assert.match(JSON.stringify(dashboardCard), /唯一下一步/);
 assert.match(JSON.stringify(dashboardCard), /autonomy_manual/);
 assert.match(JSON.stringify(dashboardCard), /"tag":"collapsible_panel","expanded":false/);
 assert.match(JSON.stringify(dashboardCard), /自治模式：semi_auto[\s\S]*autonomy_manual[\s\S]*autonomy_auto/);
-const activationCard = buildWorkflowDashboardCard({
-  status: {
+const activationStatus = {
     ...workflowStatus,
     stage: '空闲',
     overview: {
@@ -320,22 +319,32 @@ const activationCard = buildWorkflowDashboardCard({
         slices: [],
       }],
     },
-  },
-  cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 },
+};
+const activationCursor = { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 };
+const activationCard = buildWorkflowDashboardCard({
+  status: activationStatus,
+  cursor: activationCursor,
   pending: null,
 });
 assert.match(JSON.stringify(activationCard), /select_static/);
 assert.match(JSON.stringify(activationCard), /docs\/010_PLAN\.md/);
 assert.match(JSON.stringify(activationCard), /"action":"activate"/);
 assert.match(JSON.stringify(activationCard), /"action_type":"form_submit"/);
-assert.match(JSON.stringify(activationCard), /selectedDocument/);
-assert.match(JSON.stringify(activationCard), /查看飞书文档/);
+assert.match(JSON.stringify(activationCard), /selectedInboxDocument/);
+assert.match(JSON.stringify(activationCard), /selectedPlanDocument/);
+assert.match(JSON.stringify(activationCard), /selectedHandoverDocument/);
+assert.match(JSON.stringify(activationCard), /查看 Inbox 飞书文档/);
+assert.match(JSON.stringify(activationCard), /查看 PLAN 飞书文档/);
+assert.match(JSON.stringify(activationCard), /查看 HANDOVER 飞书文档/);
 assert.match(JSON.stringify(activationCard), /"action":"document"/);
 assert.match(JSON.stringify(activationCard), /校验所选 PLAN \/ HANDOVER/);
 assert.match(JSON.stringify(activationCard), /"action":"document_validate"/);
 assert.match(JSON.stringify(activationCard), /人工标记所选 PLAN 完成/);
 assert.match(JSON.stringify(activationCard), /"action":"plan_complete"/);
 assert.match(JSON.stringify(activationCard), /"name":"selectedCompletionPlan"/);
+assert.match(JSON.stringify(activationCard), /取消实施所选 PLAN/);
+assert.match(JSON.stringify(activationCard), /"action":"plan_cancel"/);
+assert.match(JSON.stringify(activationCard), /"name":"selectedCancelledPlan"/);
 assert.match(JSON.stringify(activationCard), /"name":"validateWorkflowDocument".*?"type":"primary_filled"/);
 const dashboardForms = activationCard.elements.filter(({ tag }) => tag === 'form') as Array<{
   elements: Array<{ tag: string; name?: string; action_type?: string }>;
@@ -348,6 +357,13 @@ assert.equal(new Set(dashboardFieldNames).size, dashboardFieldNames.length);
 assert.match(JSON.stringify(activationCard), /Inbox · 待整理事项/);
 assert.match(JSON.stringify(activationCard), /PLAN · 可选计划/);
 assert.match(JSON.stringify(activationCard), /HANDOVER · 交接文档/);
+const pendingPlanCard = buildWorkflowDashboardCard({
+  status: activationStatus,
+  cursor: activationCursor,
+  pending: { path: 'docs/010_PLAN.md', gate: 'plan_review', reviewState: 'revision' },
+});
+assert.match(JSON.stringify(pendingPlanCard), /"action":"plan_cancel"/);
+assert.doesNotMatch(JSON.stringify(pendingPlanCard), /"action":"plan_complete"/);
 assert.match(JSON.stringify(dashboardCard), /validation_show/);
 assert.match(JSON.stringify(dashboardCard), /validation_strict/);
 assert.match(JSON.stringify(dashboardCard), /立即运行=马上扫描一次/);
