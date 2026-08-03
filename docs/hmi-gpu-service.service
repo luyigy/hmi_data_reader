@@ -1,0 +1,16 @@
+[Unit]
+Description=HMI GPU Recognition Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data1/code/hmi_data_reader
+Environment=CUDA_VISIBLE_DEVICES=0
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/data1/code/hmi_data_reader/.venv/bin/uvicorn hmi_service:app --host 127.0.0.1 --port 8765 --workers 1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
