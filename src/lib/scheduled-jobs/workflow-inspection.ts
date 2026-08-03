@@ -82,6 +82,7 @@ export type WorkflowOverview = {
   inbox: Array<{ path: string; title: string; status: string; nextAction: string; source: string }>;
   queue: WorkflowPlanInspection[];
   plans: WorkflowPlanInspection[];
+  planDocuments?: WorkflowPlanInspection[];
   handovers: Array<{
     path: string;
     number: number;
@@ -226,6 +227,13 @@ export async function inspectWorkflowOverview(
       state: plan.state,
       slices: plan.slices,
     }));
+  const planDocuments: WorkflowPlanInspection[] = planRows.map(({ path: planPath, number, title, state, slices }) => ({
+    path: planPath,
+    number,
+    title,
+    state,
+    slices,
+  }));
   const firstByTitle = new Map<string, WorkflowPlanInspection>();
   for (const plan of plans) {
     const original = firstByTitle.get(plan.title);
@@ -268,7 +276,7 @@ export async function inspectWorkflowOverview(
     ...plans.filter(({ duplicateOf }) => duplicateOf)
       .map(({ number, duplicateOf }) => `${number} 与 ${path.posix.basename(duplicateOf!)} 重复`),
   ];
-  return { inbox, queue, plans, handovers: relatedHandovers, others, warnings };
+  return { inbox, queue, plans, planDocuments, handovers: relatedHandovers, others, warnings };
 }
 
 export const formatWorkflowOverview = (overview: WorkflowOverview) => [

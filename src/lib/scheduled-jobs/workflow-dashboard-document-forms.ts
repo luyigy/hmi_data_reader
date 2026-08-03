@@ -1,6 +1,9 @@
 import path from 'node:path';
 import type { WorkflowStatus } from './workflow-status';
 
+const documentNumber = (filePath: string) =>
+  path.posix.basename(filePath).match(/^(\d+)_/)?.[1]?.padStart(3, '0') ?? '无编号';
+
 export function buildWorkflowDocumentForms(args: {
   status: WorkflowStatus;
   pending: Record<string, unknown> | null;
@@ -9,7 +12,7 @@ export function buildWorkflowDocumentForms(args: {
   if (!overview) return [];
   const groups = [
     { label: 'Inbox', field: 'selectedInboxDocument', documents: overview.inbox.map((document) => ({ ...document, type: 'Inbox' })) },
-    { label: 'PLAN', field: 'selectedPlanDocument', documents: overview.plans.map((document) => ({ ...document, type: 'PLAN' })) },
+    { label: 'PLAN', field: 'selectedPlanDocument', documents: (overview.planDocuments ?? overview.plans).map((document) => ({ ...document, type: 'PLAN' })) },
     { label: 'HANDOVER', field: 'selectedHandoverDocument', documents: overview.handovers.map((document) => ({ ...document, type: 'HANDOVER' })) },
     { label: '其他', field: 'selectedOtherDocument', documents: overview.others ?? [] },
   ];
@@ -46,7 +49,7 @@ export function buildWorkflowDocumentForms(args: {
         options: group.documents.map((document) => ({
           text: {
             tag: 'plain_text',
-            content: `${path.posix.basename(document.path).match(/^(\d+)_/)?.[1] ?? '-'} ${document.type} · ${document.title}`,
+            content: `[编号 ${documentNumber(document.path)}] ${document.type} · ${document.title}`,
           },
           value: document.path,
         })),

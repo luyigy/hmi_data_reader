@@ -300,6 +300,19 @@ const activationStatus = {
         queuePosition: 1,
         slices: [],
       }],
+      planDocuments: [{
+        path: 'docs/010_PLAN.md',
+        number: 10,
+        title: '可选计划',
+        state: '等待启动（未进入 watcher 队列）',
+        slices: [],
+      }, {
+        path: 'docs/015_PLAN.md',
+        number: 15,
+        title: '已完成计划',
+        state: '实施完成，等待人工验收',
+        slices: [],
+      }],
       handovers: [{
         path: 'docs/011_HANDOVER.md',
         number: 11,
@@ -362,10 +375,11 @@ assert(dashboardForms.every((form) => form.elements.filter((element) => (
 )).length === 1));
 const dashboardFieldNames = dashboardForms.flatMap((form) => form.elements.flatMap(({ name }) => name ? [name] : []));
 assert.equal(new Set(dashboardFieldNames).size, dashboardFieldNames.length);
-assert.match(JSON.stringify(activationCard), /009 Inbox · 待整理事项/);
-assert.match(JSON.stringify(activationCard), /010 PLAN · 可选计划/);
-assert.match(JSON.stringify(activationCard), /011 HANDOVER · 交接文档/);
-assert.match(JSON.stringify(activationCard), /012 REPORT · 总结报告/);
+assert.match(JSON.stringify(activationCard), /\[编号 009\] Inbox · 待整理事项/);
+assert.match(JSON.stringify(activationCard), /\[编号 010\] PLAN · 可选计划/);
+assert.match(JSON.stringify(activationCard), /\[编号 015\] PLAN · 已完成计划/);
+assert.match(JSON.stringify(activationCard), /\[编号 011\] HANDOVER · 交接文档/);
+assert.match(JSON.stringify(activationCard), /\[编号 012\] REPORT · 总结报告/);
 const pendingPlanCard = buildWorkflowDashboardCard({
   status: activationStatus,
   cursor: activationCursor,
@@ -520,6 +534,7 @@ async function testWorkflowOverview() {
       [12, '重复计划（同 11）'],
       [13, '阻塞'],
     ]);
+    assert.deepEqual(overview.planDocuments.map(({ number }) => number), [10, 11, 12, 13, 15]);
     assert.match(overview.warnings.join('\n'), /008_PLAN_20260722_legacy\.md: missing YAML front matter/);
     assert.match(overview.warnings.join('\n'), /009_HANDOVER_20260722_legacy\.md: missing YAML front matter/);
     assert.deepEqual(overview.queue.map(({ number, queuePosition }) => [number, queuePosition]), [[10, 1], [11, 2]]);

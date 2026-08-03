@@ -79,11 +79,14 @@ export const buildAssistantRelayCard = (
     : null;
   if (handoffRootMessageId && deliveryIntent !== 'handoff') {
     elements.push({
+      tag: 'note',
+      elements: [{ tag: 'plain_text', content: '范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。' }],
+    }, {
       tag: 'action',
       actions: [{
         tag: 'button',
         type: 'primary',
-        text: { tag: 'plain_text', content: '将本轮讨论生成审批 PLAN' },
+        text: { tag: 'plain_text', content: '将本轮 Handoff 链生成审批 PLAN' },
         value: {
           cmd: 'handoff-plan',
           roomId: message.roomId,

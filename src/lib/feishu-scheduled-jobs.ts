@@ -840,7 +840,7 @@ export async function handleWorkflowDashboardCardAction(args: {
     : undefined;
   const documents = workflowStatus?.overview ? [
     ...workflowStatus.overview.inbox,
-    ...workflowStatus.overview.plans,
+    ...(workflowStatus.overview.planDocuments ?? workflowStatus.overview.plans),
     ...workflowStatus.overview.handovers,
     ...(workflowStatus.overview.others ?? []),
   ] : [];
