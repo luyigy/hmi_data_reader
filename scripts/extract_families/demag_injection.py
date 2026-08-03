@@ -136,13 +136,43 @@ def _extract_curve(toks, tpl, warnings):
         fields["stage_pressure_bar"] = sp_list
         fields["stage_velocity_mms"] = sv_list
     elif variant == "multi_stage_back_pressure":
-        fields["stage_back_pressure_bar"] = sp_list
-        fields["stage_plasticizing_speed_rpm"] = sv_list
-        fields["first_velocity_mms"] = out["velocity"][0] if out["velocity"] else None
-        fields["first_position_mm"] = out["position"][0] if out["position"] else None
+        table_toks = [t for t in toks if 0.55 < t.get("y", 0) < 0.85]
+
+        def _find_row_y(keys, default_y):
+            hits = [t["y"] for t in table_toks if _anchor_match(keys, t["text"])]
+            return min(hits, key=lambda y: abs(y - default_y)) if hits else default_y
+
+        r_bp = _find_row_y(["背压[bar]", "背压"], 0.628)
+        r_rpm = _find_row_y(["螺杆转速[U/rnin]", "螺杆转速", "转速"], 0.668)
+        r_pos = _find_row_y(["位置[mm]", "位置"], 0.708)
+        r_spd = _find_row_y(["速度[mm/s]", "速度"], 0.746)
+
+        def _get_row_vals(ly, min_x=0.40):
+            cands = sorted([(t["x"], _v(t["text"])) for t in table_toks
+                            if abs(t["y"] - ly) <= 0.02 and t["x"] > min_x
+                            and re.fullmatch(r"\d+\.?\d*", t["text"].strip())],
+                           key=lambda e: e[0])
+            deduped = []
+            for item in cands:
+                if not deduped or (item[0] - deduped[-1][0] >= 0.018):
+                    deduped.append(item)
+                elif item[1] != deduped[-1][1] and item[0] - deduped[-1][0] > 0.01:
+                    deduped.append(item)
+            return [v for _, v in deduped]
+
+        bp_vals = _get_row_vals(r_bp, min_x=0.45)
+        rpm_vals = _get_row_vals(r_rpm, min_x=0.45)
+        pos_vals = _get_row_vals(r_pos, min_x=0.40)
+        spd_vals = _get_row_vals(r_spd, min_x=0.40)
+
+        fields["stage_back_pressure_bar"] = bp_vals
+        fields["stage_plasticizing_speed_rpm"] = rpm_vals
+        fields["stage_position_mm"] = pos_vals
+        fields["stage_velocity_mms"] = spd_vals
+        fields["first_velocity_mms"] = spd_vals[0] if spd_vals else (out["velocity"][0] if out["velocity"] else None)
+        fields["first_position_mm"] = pos_vals[0] if pos_vals else (out["position"][0] if out["position"] else None)
         fields["pressure_limit_bar"] = None
-        fields["stage_pressure_bar"] = sp_list
-        fields["stage_velocity_mms"] = sv_list
+        fields["stage_pressure_bar"] = bp_vals
     else:  # multi_stage_injection
         fields["pressure_limit_bar"] = out["pressure"][0] if out["pressure"] else None
         fields["first_velocity_mms"] = out["velocity"][0] if out["velocity"] else None

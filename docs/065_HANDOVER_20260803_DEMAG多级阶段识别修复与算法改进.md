@@ -17,7 +17,7 @@ date: 2026-08-03
 2. `1785755259328.jpeg` (多级保压页)
 3. `1785755292142.jpeg` (多级背压/预塑页)
 
-此前由于界面排版错位、页面子变体字典缺失以及强制等长校验，导致后面两张图片出现 `STAGE_REJECT` 或数组字段被归零/错配的问题。
+此前由于界面排版错位、页面子变体字典缺失以及强制等长校验，导致后面两张图片出现 `STAGE_REJECT` 或数组字段未完整抓取的问题。
 
 ---
 
@@ -43,13 +43,19 @@ date: 2026-08-03
   - 自动提供向后兼容字段 `stage_pressure_bar` 与 `stage_velocity_mms`。
 
 ### ③ `1785755292142.jpeg` — `multi_stage_back_pressure` (多级背压/预塑)
-- **排版结构**：同行排版。第 1 行 `背压[bar]` (阶段背压 `[3.0, 3.0]`)；第 2 行 `螺杆转速` (阶段转速 `[40.0]`)；第 3 行 `位置` (`4.4`)；第 4 行 `速度` (`80.0`)。
+- **排版结构**：包含 4 行完整多段参数表格：
+  - 第 1 行 `背压[bar]` $\rightarrow$ 阶段背压 `[3.0, 3.0]`
+  - 第 2 行 `螺杆转速` $\rightarrow$ 阶段螺杆转速 `[150.0, 150.0, 150.0]`
+  - 第 3 行 `位置[mm]` $\rightarrow$ 阶段位置数组 `[4.4, 25.0, 35.0, 4.4, 40.0, 45.0]`
+  - 第 4 行 `速度[mm/s]` $\rightarrow$ 阶段速度数组 `[80.0, 40.0]`
 - **解耦 Schema**：
   - `stage_back_pressure_bar`: `[3.0, 3.0]`
-  - `stage_plasticizing_speed_rpm`: `[40.0]`
+  - `stage_plasticizing_speed_rpm`: `[150.0, 150.0, 150.0]`
+  - `stage_position_mm`: `[4.4, 25.0, 35.0, 4.4, 40.0, 45.0]`
+  - `stage_velocity_mms`: `[80.0, 40.0]`
   - `first_velocity_mms`: `80.0`
   - `first_position_mm`: `4.4`
-  - 自动提供向后兼容字段 `stage_pressure_bar` 与 `stage_velocity_mms`。
+  - 自动提供向后兼容字段 `stage_pressure_bar`。
 
 ---
 
@@ -57,11 +63,11 @@ date: 2026-08-03
 
 ### 1) [`scripts/extract_families/demag_injection.py`](file:///data1/code/hmi_data_reader/scripts/extract_families/demag_injection.py)
 - 实现多页态子变体（`multi_stage_injection` / `multi_stage_holding` / `multi_stage_back_pressure`）自动检测。
-- 增加专属 Schema 字典解耦映射（如 `stage_holding_pressure_bar`、`stage_holding_time_s`、`stage_back_pressure_bar`、`stage_plasticizing_speed_rpm`）。
+- 在 `multi_stage_back_pressure` 页面模式下，精细化识别表格区域 ($0.55 < y < 0.85$) 的 4 行多段参数（背压、螺杆转速、位置、速度），全量提取所有数据。
 - 保持通用基础字段向后兼容，确保旧版契约不中断。
 
 ### 2) [`tests/test_demag_injection.py`](file:///data1/code/hmi_data_reader/tests/test_demag_injection.py)
-- 更新单元测试用例，覆盖多子变体 Schema 输出与兼容性。
+- 更新单元测试用例，覆盖 4 行多段参数与多子变体 Schema 输出。
 
 ---
 
@@ -73,6 +79,6 @@ date: 2026-08-03
 2. **常驻 GPU HTTP 服务实测** (`curl -F "file=@..." http://127.0.0.1:8765/recognize`)：
    - **`1785755209396.jpeg`**：`status: ok`, `variant: multi_stage_injection`, `stage_pressure_bar: [0.0, 25.0, 75.0]`, `stage_velocity_mms: [0.0, 22.5, 45.0]`。
    - **`1785755259328.jpeg`**：`status: ok`, `variant: multi_stage_holding`, `stage_holding_pressure_bar: [0.0, 55.0, 60.0, 65.0]`, `stage_holding_time_s: [0.0, 1.0, 2.0]`, `holding_velocity_mms: 12.0`。
-   - **`1785755292142.jpeg`**：`status: ok`, `variant: multi_stage_back_pressure`, `stage_back_pressure_bar: [3.0, 3.0]`, `stage_plasticizing_speed_rpm: [40.0]`, `first_velocity_mms: 80.0`, `first_position_mm: 4.4`。
+   - **`1785755292142.jpeg`**：`status: ok`, `variant: multi_stage_back_pressure`, `stage_back_pressure_bar: [3.0, 3.0]`, `stage_plasticizing_speed_rpm: [150.0, 150.0, 150.0]`, `stage_position_mm: [4.4, 25.0, 35.0, 4.4, 40.0, 45.0]`, `stage_velocity_mms: [80.0, 40.0]`, `first_velocity_mms: 80.0`, `first_position_mm: 4.4`。
 3. **服务部署**：
    - 执行 `systemctl --user restart hmi-gpu-service.service` 完成最新代码载入与显存预热，就绪状态 OK。
