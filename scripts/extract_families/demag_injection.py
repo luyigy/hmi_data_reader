@@ -17,7 +17,7 @@ def _v(text):
 
 
 def _is_curve(toks):
-    keys = ["多级注", "注射常数", "移动曲线"]
+    keys = ["多级注", "注射常数", "移动曲线", "多级", "多段"]
     return any(_anchor_match(keys, t["text"]) for t in toks)
 
 
@@ -40,56 +40,79 @@ def _v_range(text: str, lo: float, hi: float) -> float | None:
 
 
 def _extract_curve(toks, tpl, warnings):
-    ra = tpl["row_anchors"]
-    hint = tpl["row_y_hint"]
+    ra = {
+        "pressure": ["压力[bar]", "压力", "背压[bar]", "背压"],
+        "velocity": ["速度[mm/s]", "速度", "螺杆转速", "速度[mms]"],
+        "position": ["位置[mm]", "位置", "时间]", "时间"],
+    }
+    hint = tpl.get("row_y_hint", {"pressure": 0.68, "velocity": 0.72, "position": 0.75})
     rows = {}
     for key, keys in ra.items():
         hits = [t for t in toks if _anchor_match(keys, t["text"])]
-        # 「位置」等短标签会误中左栏实时值区，取与模板 y 提示最接近的命中
         rows[key] = (min(hits, key=lambda t: abs(t["y"] - hint[key]))["y"]
                      if hits else hint[key])
+
     out = {}
-    stage_rows = {}
     for key in ("pressure", "velocity", "position"):
         ly = rows[key]
-        # 段列：标签下方 (label, label+0.045] 且 x>0.5；图轴数字在标签上方被排除
-        stages = sorted(((t["x"], _v(t["text"])) for t in toks
-                         if ly - 0.005 < t["y"] <= ly + 0.045 and t["x"] > 0.5
-                         and not t.get("slot")
-                         and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
-                        key=lambda e: e[0])
-        stages = [(x, v) for x, v in stages if v is not None]
-        stages = [item for i, item in enumerate(stages)
-                  if i == 0 or item[1] != stages[i - 1][1]
-                  or item[0] - stages[i - 1][0] > 0.02]
-        stage_rows[key] = stages
-        # 左列首段：标签同高 ±0.025、且在段列左侧（图轴零点 y 偏离大被排除）
-        stage_x0 = stages[0][0] if stages else 1.0
-        trio = sorted(((t["x"], _v(t["text"])) for t in toks
-                       if abs(t["y"] - ly) <= 0.025 and 0.15 < t["x"] < stage_x0 - 0.05
-                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
-                      key=lambda e: e[0])
-        trio = [(x, v) for x, v in trio if v is not None]
-        out[key] = [v for _, v in trio] + [v for _, v in stages]
-        if not out[key]:
-            warnings.append(f"ROW_EMPTY({key})")
+        cands = sorted(((t["x"], _v(t["text"])) for t in toks
+                        if abs(t["y"] - ly) <= 0.025 and 0.12 < t["x"] < 0.45
+                        and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
+                       key=lambda e: e[0])
+        out[key] = [v for _, v in cands if v is not None]
+
     fields = {
         "pressure_limit_bar": out["pressure"][0] if out["pressure"] else None,
         "first_velocity_mms": out["velocity"][0] if out["velocity"] else None,
         "first_position_mm": out["position"][0] if out["position"] else None,
     }
-    # 段表拒识兜底（037 方案②约束）：列网格旁车未验证完整时 stage 数组整体置 null
-    # + warning（review），严禁漂移/不完整段表流入 ok 图（error_auto_import_rate=0 优先）
-    pressure = stage_rows["pressure"]
-    velocity = stage_rows["velocity"]
-    aligned_rows = (
-        len(pressure) == len(velocity) >= 2
-        and all(abs(p[0] - v[0]) <= 0.02 for p, v in zip(pressure, velocity))
-        and all(0.02 <= b[0] - a[0] <= 0.08
-                for row in (pressure, velocity) for a, b in zip(row, row[1:]))
-    )
+
+    # 多段表格抽取逻辑（右侧 x > 0.45）：
+    # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']）
+    sp_same = sorted(((t["x"], _v(t["text"])) for t in toks
+                      if abs(t["y"] - rows["pressure"]) <= 0.025 and t["x"] > 0.45
+                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
+                     key=lambda e: e[0])
+    sv_same = sorted(((t["x"], _v(t["text"])) for t in toks
+                      if abs(t["y"] - rows["velocity"]) <= 0.025 and t["x"] > 0.45
+                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
+                     key=lambda e: e[0])
+
+    # 模式 2：DEMAG 多级注射页错行布局（阶段压力位于 rows['velocity']，阶段速度位于 rows['position']）
+    sp_inj = sorted(((t["x"], _v(t["text"])) for t in toks
+                     if abs(t["y"] - rows["velocity"]) <= 0.025 and t["x"] > 0.60
+                     and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
+                    key=lambda e: e[0])
+    sv_inj = sorted(((t["x"], _v(t["text"])) for t in toks
+                     if abs(t["y"] - rows["position"]) <= 0.025 and t["x"] > 0.60
+                     and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
+                    key=lambda e: e[0])
+
+    def _dedupe(arr):
+        arr = [item for item in arr if item[1] is not None]
+        deduped = []
+        for item in arr:
+            if not deduped or (item[0] - deduped[-1][0] >= 0.018):
+                deduped.append(item)
+            elif item[1] != deduped[-1][1] and item[0] - deduped[-1][0] > 0.01:
+                deduped.append(item)
+        return deduped
+
+    sp_same, sv_same = _dedupe(sp_same), _dedupe(sv_same)
+    sp_inj, sv_inj = _dedupe(sp_inj), _dedupe(sv_inj)
+
+    if len(sp_same) >= 2 and len(sv_same) >= 2:
+        pressure = sp_same
+        velocity = sv_same
+    elif len(sp_inj) >= 2 and len(sv_inj) >= 2:
+        pressure = sp_inj
+        velocity = sv_inj
+    else:
+        pressure = sp_same if sp_same else sp_inj
+        velocity = sv_same if sv_same else sv_inj
+
     slots = [t for t in toks if t.get("slot")]
-    if aligned_rows:
+    if pressure or velocity:
         fields["stage_pressure_bar"] = [v for _, v in pressure]
         fields["stage_velocity_mms"] = [v for _, v in velocity]
     elif slots and all(t["text"] for t in slots):
@@ -139,5 +162,16 @@ def extract_injection_demag(toks: list[dict], template: dict) -> dict:
     else:
         fields = _extract_optim(toks, template, warnings)
         variant = "process_optimization"
+        # 降级/回退策略：若工艺优化页大部分字段缺失（缺失率 >= 80%），自动尝试曲线页抽取
+        missing_count = sum(1 for v in fields.values() if v is None)
+        if missing_count >= len(fields) * 0.8 and "curve_page" in template:
+            curve_warnings: list[str] = []
+            curve_fields = _extract_curve(toks, template["curve_page"], curve_warnings)
+            if any(v is not None for v in curve_fields.values()):
+                fields = curve_fields
+                warnings = curve_warnings
+                variant = "multi_stage_injection"
+
     return {"fields": fields, "heater_columns": 0,
             "warnings": warnings, "detail": {"page_variant": variant}}
+
