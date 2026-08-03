@@ -92,6 +92,11 @@ assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
 ]);
 
 assistant.metadata = { deliveryIntent: 'broadcast', handoffRootMessageId: 'root-message' };
+assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
+  { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
+]);
+
+assistant.metadata = { deliveryIntent: 'broadcast', handoffRootMessageId: 'root-message', chainDepth: 1 };
 assert.deepEqual(buildAssistantRelayCard(assistant).elements.slice(-2), [{
   tag: 'note',
   elements: [{ tag: 'plain_text', content: '范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。' }],

@@ -77,7 +77,10 @@ export const buildAssistantRelayCard = (
   const handoffRootMessageId = typeof message.metadata?.handoffRootMessageId === 'string'
     ? message.metadata.handoffRootMessageId
     : null;
-  if (handoffRootMessageId && deliveryIntent !== 'handoff') {
+  const chainDepth = typeof message.metadata?.chainDepth === 'number'
+    ? message.metadata.chainDepth
+    : 0;
+  if (handoffRootMessageId && chainDepth > 0 && deliveryIntent !== 'handoff') {
     elements.push({
       tag: 'note',
       elements: [{ tag: 'plain_text', content: '范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。' }],
