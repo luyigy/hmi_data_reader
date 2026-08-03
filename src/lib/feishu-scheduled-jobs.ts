@@ -23,6 +23,7 @@ import {
   inspectWorkflowCursor,
 } from '@/lib/scheduled-jobs/workflow-inspection';
 import { completeWorkflowPlan } from '@/lib/scheduled-jobs/workflow-plan-completion';
+import { resolveWorkflowCursorRecovery } from '@/lib/scheduled-jobs/workflow-dashboard-recovery';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 export { inspectWorkflowCandidates, inspectWorkflowCursor } from '@/lib/scheduled-jobs/workflow-inspection';
@@ -218,6 +219,19 @@ export const buildWorkflowDashboardCard = (args: {
       ? [action('受控修复', 'validation_repair', 'primary')]
       : []),
   ];
+  const recommendedAction = args.cursor.rewritten || args.status.running || args.status.overview?.queue.length
+    ? null
+    : !args.status.enabled
+      ? action('继续工作流', 'enable', 'primary')
+      : reviewState === 'review'
+        ? action('重发审批卡', 'resend', 'primary')
+        : ['revision', 'awaiting_revision_feedback'].includes(reviewState)
+          ? action('恢复修改任务', 'retry', 'primary')
+          : ['文档错误', '已隔离'].includes(args.status.stage)
+            ? action('受控修复', 'validation_repair', 'primary')
+            : args.status.stage === '运行阻塞'
+              ? action('查看诊断', 'diagnose', 'primary')
+              : action('继续工作流', 'run', 'primary');
   const documents = args.status.overview ? [
     ...args.status.overview.inbox.map(({ path: documentPath, title }) => ({
       path: documentPath, label: `Inbox · ${title}`,
@@ -247,6 +261,37 @@ export const buildWorkflowDashboardCard = (args: {
           `**唯一下一步**：${args.status.nextStep}`,
         ].join('\n'),
       },
+      ...(args.cursor.rewritten ? [{
+        tag: 'markdown',
+        content: [
+          '🚧 **卡点：Git 历史已改写**',
+          `当前游标 \`${args.cursor.current?.slice(0, 8) || '-'}\` 已不属于 HEAD \`${args.cursor.latest.slice(0, 8)}\` 的历史。`,
+          '**推荐**：选择“共同祖先重新扫描”，保留新历史中的待处理文档。',
+          '**风险**：选择“当前 HEAD 跳过”会永久跳过尚未处理的提交。',
+        ].join('\n'),
+      }, {
+        tag: 'form',
+        name: 'workflow-cursor-recovery',
+        elements: [{
+          tag: 'select_static', name: 'selectedCursorRecovery', required: true, width: 'fill',
+          placeholder: { tag: 'plain_text', content: '选择恢复基准' },
+          options: [
+            { text: { tag: 'plain_text', content: '共同祖先：重新扫描（推荐）' }, value: 'rescan' },
+            { text: { tag: 'plain_text', content: `当前 HEAD ${args.cursor.latest.slice(0, 8)}：跳过待处理提交` }, value: 'skip' },
+          ],
+        }, {
+          tag: 'button', name: 'recoverWorkflowCursor', action_type: 'form_submit', type: 'danger', width: 'fill',
+          text: { tag: 'plain_text', content: '确认恢复并继续工作流' },
+          confirm: {
+            title: { tag: 'plain_text', content: '确认恢复 watcher 游标' },
+            text: { tag: 'plain_text', content: '系统会再次校验 HEAD 和恢复基准；选择 HEAD 会跳过未处理提交。' },
+          },
+          value: { cmd: 'workflow-dashboard', action: 'cursor_recover', projectId: args.status.projectId, jobId: args.status.jobId, expectedHead: args.status.head },
+        }],
+      }] : args.status.stage === '运行阻塞' ? [{
+        tag: 'markdown',
+        content: `🚧 **卡点**：${args.status.validator}\n**推荐动作**：${args.status.nextStep}\n**风险**：只提供诊断，不自动移动游标或改写历史。`,
+      }, { tag: 'action', actions: [recommendedAction!] }] : recommendedAction ? [{ tag: 'action', actions: [recommendedAction] }] : []),
       {
         tag: 'collapsible_panel',
         expanded: false,
@@ -799,6 +844,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   selectedPlan?: string;
   selectedCompletionPlan?: string;
   selectedDocument?: string;
+  selectedCursorRecovery?: string;
 }) {
   const config = await loadProjectsConfig();
   const project = config.projects.find(({ id }) => id === args.projectId);
@@ -806,7 +852,7 @@ export async function handleWorkflowDashboardCardAction(args: {
   if (!project || !job) return 'Dashboard 已失效，请重新发送 /ap dashboard。';
   if (!args.actorOpenId) return '无法识别操作人。';
   const action = [
-    'refresh', 'run', 'activate', 'plan_complete', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate',
+    'refresh', 'run', 'activate', 'plan_complete', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate', 'cursor_recover', 'diagnose',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
     'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
   ].includes(args.action)
@@ -828,6 +874,25 @@ export async function handleWorkflowDashboardCardAction(args: {
   ] : [];
   const result = action === 'refresh'
     ? '状态已刷新。'
+    : action === 'cursor_recover'
+      ? !isFeishuAdmin(args.actorOpenId) && !project.feishu.approver_open_ids.includes(args.actorOpenId)
+        ? '只有平台管理员或项目审批人可以恢复 watcher 游标。'
+        : await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${project.id}:${job.id}`}, 0))::text`;
+          if (await tx.scheduledJobRun.count({ where: { projectId: project.id, jobId: job.id, status: 'running' } })) {
+            throw new Error(`${job.id} 正在运行，请等待当前执行结束`);
+          }
+          const state = await tx.scheduledJobState.findUnique({ where: { projectId_jobId: { projectId: project.id, jobId: job.id } } });
+          const recovery = await resolveWorkflowCursorRecovery(project.path, project.ref, state?.cursorJson, args.expectedHead || '', args.selectedCursorRecovery || '');
+          await tx.scheduledJobState.update({
+            where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+            data: { cursorJson: { commit: recovery.target }, lastError: null },
+          });
+          return recovery;
+        }).then(async (recovery) => {
+          const run = await handleScheduledJobCommand({ command: 'job', args: ['run', args.jobId], options: {} }, context);
+          return `✅ watcher 游标已恢复到 ${recovery.target}${recovery.skipped ? '（已明确选择跳过旧提交）' : '（从共同祖先重新扫描）'}。\n${run}`;
+        }).catch((error) => `❌ 恢复失败：${error instanceof Error ? error.message : String(error)}`)
     : action === 'plan_complete'
       ? !isFeishuAdmin(args.actorOpenId) && !project.feishu.approver_open_ids.includes(args.actorOpenId)
         ? '只有平台管理员或项目审批人可以人工标记 PLAN 完成。'

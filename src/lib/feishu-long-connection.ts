@@ -334,7 +334,7 @@ function buildCardActionHandler(prefix: string) {
         expectedHead: typeof value.expectedHead === 'string' ? value.expectedHead : undefined,
         selectedPlan: typeof formValue?.selectedPlan === 'string' ? formValue.selectedPlan : undefined,
         selectedCompletionPlan: typeof formValue?.selectedCompletionPlan === 'string' ? formValue.selectedCompletionPlan : undefined,
-        selectedDocument: typeof formValue?.selectedDocument === 'string' ? formValue.selectedDocument : typeof formValue?.selectedWorkflowDocument === 'string' ? formValue.selectedWorkflowDocument : undefined,
+        selectedDocument: typeof formValue?.selectedDocument === 'string' ? formValue.selectedDocument : typeof formValue?.selectedWorkflowDocument === 'string' ? formValue.selectedWorkflowDocument : undefined, selectedCursorRecovery: typeof formValue?.selectedCursorRecovery === 'string' ? formValue.selectedCursorRecovery : undefined,
       }).then((result) => {
         console.log(`${prefix} workflow dashboard action completed`, {
           action: value.action,

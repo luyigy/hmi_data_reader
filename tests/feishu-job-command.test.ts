@@ -27,6 +27,7 @@ import {
   formatWorkflowOverview,
   inspectWorkflowOverview,
 } from '../src/lib/scheduled-jobs/workflow-inspection';
+import { resolveWorkflowCursorRecovery } from '../src/lib/scheduled-jobs/workflow-dashboard-recovery';
 
 const message = (text: string) => ({
   chatId: 'chat',
@@ -352,6 +353,21 @@ assert.match(JSON.stringify(dashboardCard), /validation_strict/);
 assert.match(JSON.stringify(dashboardCard), /立即运行=马上扫描一次/);
 assert.match(JSON.stringify(dashboardCard), /宽松：内容规范问题记为 warning/);
 assert.match(JSON.stringify(dashboardCard), /abcdef1234/);
+const rewrittenCard = buildWorkflowDashboardCard({
+  status: { ...workflowStatus, stage: '运行阻塞', validator: 'runtime_unavailable：configured Git ref was rewritten' },
+  cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: true, behind: undefined },
+  pending: null,
+});
+assert.match(JSON.stringify(rewrittenCard), /共同祖先：重新扫描（推荐）/);
+assert.match(JSON.stringify(rewrittenCard), /当前 HEAD abcdef12：跳过待处理提交/);
+assert.match(JSON.stringify(rewrittenCard), /"action":"cursor_recover"/);
+assert.match(JSON.stringify(rewrittenCard), /"name":"selectedCursorRecovery"/);
+const idleCard = buildWorkflowDashboardCard({
+  status: { ...workflowStatus, stage: '空闲', approval: 'none', overview: { inbox: [], plans: [], handovers: [], queue: [], warnings: [] } },
+  cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 },
+  pending: null,
+});
+assert.match(JSON.stringify(idleCard), /继续工作流/);
 assert.match(formatWorkflowStatus(workflowStatus), /项目 \/ ref \/ HEAD：project/);
 assert.match(formatWorkflowStatus(workflowStatus), /自治模式：semi_auto（config）/);
 assert.match(formatWorkflowStatus(workflowStatus), /唯一下一步：完成并提交/);
@@ -419,6 +435,20 @@ async function testCursor() {
       branch_space: '.',
       initial_cursor_commit: current,
     }), ['docs/001_PLAN_20260728_test.md']);
+
+    const mainBranch = git('branch', '--show-current');
+    git('checkout', '-qb', 'obsolete-cursor', current);
+    writeFileSync(path.join(root, 'file'), 'obsolete');
+    git('commit', '-qam', 'obsolete history');
+    const obsolete = git('rev-parse', 'HEAD');
+    git('checkout', '-q', mainBranch);
+    const rescan = await resolveWorkflowCursorRecovery(root, 'HEAD', { commit: obsolete }, head, 'rescan');
+    assert.equal(rescan.target, current);
+    assert.equal(rescan.skipped, false);
+    const skip = await resolveWorkflowCursorRecovery(root, 'HEAD', { commit: obsolete }, head, 'skip');
+    assert.equal(skip.target, head);
+    assert.equal(skip.skipped, true);
+    await assert.rejects(resolveWorkflowCursorRecovery(root, 'HEAD', { commit: obsolete }, current, 'rescan'), /Dashboard 已过期/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
