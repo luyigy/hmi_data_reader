@@ -32,3 +32,7 @@ output/s1_calibration_pre_recheck.json
 output/*.json
 output/web_uploads/
 
+
+
+
+docs/*sample*/
