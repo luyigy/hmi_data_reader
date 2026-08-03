@@ -136,6 +136,7 @@ export async function inspectWorkflowOverview(
     }
   }));
   const documents = parsedDocuments.filter(({ error }) => !error);
+  const documentsByPath = new Map(documents.map((document) => [document.filePath, document]));
   const handovers = documents.filter(({ type }) => type === 'HANDOVER');
   const inboxRoot = path.posix.join(watchRoot, 'inbox');
   const parsedInbox = await Promise.all(files
@@ -154,11 +155,11 @@ export async function inspectWorkflowOverview(
         };
       }
     }));
-  const queuedPlans = new Set((await Promise.all(queuedDocuments.map(async (filePath) => {
+  const queuedPlans = new Set(queuedDocuments.map((filePath) => {
     if (/_PLAN_/.test(filePath)) return filePath;
-    const content = await git(repository, 'show', `${head}:${filePath}`).catch(() => '');
-    return content ? planReference(workflowFrontMatter(content), filePath) : '';
-  }))).filter(Boolean));
+    const document = documentsByPath.get(filePath);
+    return document ? planReference(document.metadata, filePath) : '';
+  }).filter(Boolean));
   const planRows = documents.filter(({ type }) => type === 'PLAN').map((plan) => {
     const planHandovers = handovers
       .filter(({ metadata, filePath }) => planReference(metadata, filePath) === plan.filePath)

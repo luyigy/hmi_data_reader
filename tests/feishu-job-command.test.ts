@@ -448,6 +448,7 @@ async function testWorkflowOverview() {
     write('docs/015_PLAN_20260801_complete.md', plan('ready', 'start_first_slice', '完成计划'));
     write('docs/016_HANDOVER_20260801_complete.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: await_acceptance\nplan: docs/015_PLAN_20260801_complete.md\nslice: S01\nplan_progress: complete\n---\n\n# HANDOVER\n`);
     write('docs/008_PLAN_20260722_legacy.md', '# Legacy PLAN without frontmatter\n');
+    write('docs/009_HANDOVER_20260722_legacy.md', '# Legacy HANDOVER without frontmatter\n');
     write('docs/inbox/009_ISSUE_20260801_candidate.md', `---\ndoc_type: ISSUE\ndoc_status: draft\nnext_action: none\n---\n\n# ISSUE · Inbox candidate\n`);
     git('add', '.');
     git('commit', '-qm', 'plans');
@@ -464,6 +465,7 @@ async function testWorkflowOverview() {
       [13, '阻塞'],
     ]);
     assert.match(overview.warnings.join('\n'), /008_PLAN_20260722_legacy\.md: missing YAML front matter/);
+    assert.match(overview.warnings.join('\n'), /009_HANDOVER_20260722_legacy\.md: missing YAML front matter/);
     assert.deepEqual(overview.queue.map(({ number, queuePosition }) => [number, queuePosition]), [[10, 1], [11, 2]]);
     assert.deepEqual(overview.inbox.map(({ title, source }) => [title, source]), [
       ['Inbox candidate', 'docs/inbox/009_ISSUE_20260801_candidate.md'],
