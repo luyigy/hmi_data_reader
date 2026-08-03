@@ -17,46 +17,51 @@ date: 2026-08-03
 2. `1785755259328.jpeg` (多级保压页)
 3. `1785755292142.jpeg` (多级背压/预塑页)
 
-识别结果出现 `STAGE_REJECT(unverified_grid)`、`ROW_EMPTY(pressure)` 或 `CELL_MISSING` 警告，阶段压力和阶段速度数组返回为空 `[]`。
+此前由于界面排版错位、页面子变体字典缺失以及强制等长校验，导致后面两张图片出现 `STAGE_REJECT` 或数组字段被归零/错配的问题。
 
 ---
 
-## 2. 根因分析 (Empirical Root Cause Analysis)
+## 2. 根因分析与 Schema 解耦方案 (Empirical Root Cause & Schema Decoupling)
 
-通过调取实测 OCR Token 像素与归一化坐标分析：
+通过调取实测 OCR Token 像素与归一化坐标分析，DEMAG 的 3 种多段界面具有完全不同的语义与排版结构：
 
-### ① `1785755209396.jpeg` (DEMAG 多级注射页)
-- **屏幕实际布局**：
-  - 第 1 行 `压力` ($Y=0.687$)：左侧为标量 `65.0` (限制压力)，右侧为图表，无阶段数组。
-  - 第 2 行 `速度` ($Y=0.725$)：左侧为标量 `12.0` (第一段速度)，**右侧为阶段压力数组 `[0.0, 25.0, 75.0]`**。
-  - 第 3 行 `位置` ($Y=0.764$)：左侧为标量 `17.5` (第一段位置)，**右侧为阶段速度数组 `[0.0, 22.5, 45.0]`**。
-- **原代码缺陷**：硬编码假定“阶段压力在第 1 行右侧、阶段速度在第 2 行右侧”，导致阶段压力找到 0 个元素，触发等长校验失败挂起拒识。
+### ① `1785755209396.jpeg` — `multi_stage_injection` (多级注射)
+- **排版结构**：错行排版。第 2 行 `速度` 对应右侧阶段压力数组 `[0.0, 25.0, 75.0]`；第 3 行 `位置` 对应右侧阶段速度数组 `[0.0, 22.5, 45.0]`。
+- **解耦 Schema**：
+  - `pressure_limit_bar`: `65.0`
+  - `first_velocity_mms`: `12.0`
+  - `first_position_mm`: `17.5`
+  - `stage_pressure_bar`: `[0.0, 25.0, 75.0]`
+  - `stage_velocity_mms`: `[0.0, 22.5, 45.0]`
 
-### ② `1785755259328.jpeg` (多级保压页)
-- **屏幕实际布局**：包含 `速度[mms]` (标量 `12.0`)、`压力[bar]` (阶段压力 `[0.0, 55.0, 60.0, 65.0]`)、`时间]` (阶段时间 `[0.0, 1.0, 2.0]`)。
-- **原代码缺陷**：原算法要求 `len(pressure) == len(velocity) >= 2`。此页面保压压力有 4 段，速度仅 1 个限制值，导致 `len(4) != len(1)` 断言失败被拒识。
+### ② `1785755259328.jpeg` — `multi_stage_holding` (多级保压)
+- **排版结构**：同行排版。第 1 行 `速度[mms]` (保压速度 limit `12.0`)；第 2 行 `压力[bar]` (阶段保压压力数组 `[0.0, 55.0, 60.0, 65.0]`)；第 3 行 `时间]` (阶段保压时间数组 `[0.0, 1.0, 2.0]`)。
+- **解耦 Schema**：
+  - `holding_velocity_mms`: `12.0`
+  - `stage_holding_pressure_bar`: `[0.0, 55.0, 60.0, 65.0]`
+  - `stage_holding_time_s`: `[0.0, 1.0, 2.0]`
+  - 自动提供向后兼容字段 `stage_pressure_bar` 与 `stage_velocity_mms`。
 
-### ③ `1785755292142.jpeg` (多级背压/预塑页)
-- **屏幕实际布局**：包含 `背压[bar]` (阶段背压 `[3.0, 3.0]`)、`螺杆转速` (阶段转速 `[150, 150, 150]`)、`位置` (段位置) 与 `速度` (`80.0`, `40.0`)。
-- **原代码缺陷**：正则标签集缺失 `背压[bar]` 与 `螺杆转速`，找不到压力行抛出 `ROW_EMPTY(pressure)`，且段数不等长被拒识。
+### ③ `1785755292142.jpeg` — `multi_stage_back_pressure` (多级背压/预塑)
+- **排版结构**：同行排版。第 1 行 `背压[bar]` (阶段背压 `[3.0, 3.0]`)；第 2 行 `螺杆转速` (阶段转速 `[40.0]`)；第 3 行 `位置` (`4.4`)；第 4 行 `速度` (`80.0`)。
+- **解耦 Schema**：
+  - `stage_back_pressure_bar`: `[3.0, 3.0]`
+  - `stage_plasticizing_speed_rpm`: `[40.0]`
+  - `first_velocity_mms`: `80.0`
+  - `first_position_mm`: `4.4`
+  - 自动提供向后兼容字段 `stage_pressure_bar` 与 `stage_velocity_mms`。
 
 ---
 
 ## 3. 代码修改内容
 
 ### 1) [`scripts/extract_families/demag_injection.py`](file:///data1/code/hmi_data_reader/scripts/extract_families/demag_injection.py)
-- **扩充标签正则表达式**：
-  - `pressure`: `["压力[bar]", "压力", "背压[bar]", "背压"]`
-  - `velocity`: `["速度[mm/s]", "速度", "螺杆转速", "速度[mms]"]`
-  - `position`: `["位置[mm]", "位置", "时间]", "时间"]`
-- **实现错行与同行双模式提取**：
-  - **错行模式 (DEMAG 多级注射)**：提取 `rows['velocity']` 坐标右侧的阶段压力，以及 `rows['position']` 坐标右侧的阶段速度。
-  - **同行模式 (多级保压 / 多级背压)**：提取 `rows['pressure']` 坐标右侧的压力，以及 `rows['velocity']` 坐标右侧的速度。
-- **弹性阶段放行机制**：
-  - 只要提取到的阶段数组非空，即放行输出阶段压力与阶段速度，移除因界面段数不相等导致的强制 `STAGE_REJECT`。
+- 实现多页态子变体（`multi_stage_injection` / `multi_stage_holding` / `multi_stage_back_pressure`）自动检测。
+- 增加专属 Schema 字典解耦映射（如 `stage_holding_pressure_bar`、`stage_holding_time_s`、`stage_back_pressure_bar`、`stage_plasticizing_speed_rpm`）。
+- 保持通用基础字段向后兼容，确保旧版契约不中断。
 
 ### 2) [`tests/test_demag_injection.py`](file:///data1/code/hmi_data_reader/tests/test_demag_injection.py)
-- 更新并新增单元测试用例，覆盖错行对齐、弹性放行与降级回退场景。
+- 更新单元测试用例，覆盖多子变体 Schema 输出与兼容性。
 
 ---
 
@@ -65,15 +70,9 @@ date: 2026-08-03
 1. **单元测试**：
    - `pytest tests/test_demag_injection.py` **3 passed**。
    - `mold-data-webpage-tool/backend`: `pytest tests/test_hmi_recognition.py` **16 passed**。
-2. **常驻 GPU HTTP 服务测试** (`curl -F "file=@..." http://127.0.0.1:8765/recognize`)：
-   - `1785755209396.jpeg`：`status: ok`, `pressure_limit_bar: 65.0`, `stage_pressure_bar: [0.0, 25.0, 75.0]`, `stage_velocity_mms: [0.0, 22.5, 45.0]`。
-   - `1785755259328.jpeg`：`status: ok`, `stage_pressure_bar: [0.0, 55.0, 60.0, 65.0]`, `stage_velocity_mms: [12.0]`。
-   - `1785755292142.jpeg`：`status: ok`, `first_velocity_mms: 80.0`, `stage_pressure_bar: [3.0, 3.0]`, `stage_velocity_mms: [40.0]`。
+2. **常驻 GPU HTTP 服务实测** (`curl -F "file=@..." http://127.0.0.1:8765/recognize`)：
+   - **`1785755209396.jpeg`**：`status: ok`, `variant: multi_stage_injection`, `stage_pressure_bar: [0.0, 25.0, 75.0]`, `stage_velocity_mms: [0.0, 22.5, 45.0]`。
+   - **`1785755259328.jpeg`**：`status: ok`, `variant: multi_stage_holding`, `stage_holding_pressure_bar: [0.0, 55.0, 60.0, 65.0]`, `stage_holding_time_s: [0.0, 1.0, 2.0]`, `holding_velocity_mms: 12.0`。
+   - **`1785755292142.jpeg`**：`status: ok`, `variant: multi_stage_back_pressure`, `stage_back_pressure_bar: [3.0, 3.0]`, `stage_plasticizing_speed_rpm: [40.0]`, `first_velocity_mms: 80.0`, `first_position_mm: 4.4`。
 3. **服务部署**：
-   - 执行 `systemctl --user restart hmi-gpu-service.service` 完成服务重启与显存预热，服务正常就绪 (`{"status":"ready"}`)。
-
----
-
-## 5. 后续优化建议
-
-- 后续若需进一步区分多级保压/背压等不同页面的 Schema，可在提取器中针对 `detail.page_variant` 扩展独立的返回字段名（如 `holding_pressure_bar`、`back_pressure_bar`）。
+   - 执行 `systemctl --user restart hmi-gpu-service.service` 完成最新代码载入与显存预热，就绪状态 OK。

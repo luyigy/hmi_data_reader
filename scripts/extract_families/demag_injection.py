@@ -40,6 +40,10 @@ def _v_range(text: str, lo: float, hi: float) -> float | None:
 
 
 def _extract_curve(toks, tpl, warnings):
+    top_texts = [t["text"] for t in toks if t.get("y", 0) < 0.85]
+    has_holding = any(_anchor_match(["多级保压", "保压段"], t) for t in top_texts)
+    has_backp = any(_anchor_match(["多级背压", "背压[bar]", "螺杆转速"], t) for t in top_texts)
+
     ra = {
         "pressure": ["压力[bar]", "压力", "背压[bar]", "背压"],
         "velocity": ["速度[mm/s]", "速度", "螺杆转速", "速度[mms]"],
@@ -60,12 +64,6 @@ def _extract_curve(toks, tpl, warnings):
                         and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                        key=lambda e: e[0])
         out[key] = [v for _, v in cands if v is not None]
-
-    fields = {
-        "pressure_limit_bar": out["pressure"][0] if out["pressure"] else None,
-        "first_velocity_mms": out["velocity"][0] if out["velocity"] else None,
-        "first_position_mm": out["position"][0] if out["position"] else None,
-    }
 
     # 多段表格抽取逻辑（右侧 x > 0.45）：
     # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']）
@@ -101,34 +99,75 @@ def _extract_curve(toks, tpl, warnings):
     sp_same, sv_same = _dedupe(sp_same), _dedupe(sv_same)
     sp_inj, sv_inj = _dedupe(sp_inj), _dedupe(sv_inj)
 
-    if len(sp_same) >= 2 and len(sv_same) >= 2:
+    if has_backp:
+        variant = "multi_stage_back_pressure"
+        pressure = sp_same
+        velocity = sv_same
+    elif has_holding:
+        variant = "multi_stage_holding"
+        pressure = sp_same
+        velocity = sv_same
+    elif len(sp_same) >= 2 and len(sv_same) >= 2:
+        variant = "multi_stage_injection"
         pressure = sp_same
         velocity = sv_same
     elif len(sp_inj) >= 2 and len(sv_inj) >= 2:
+        variant = "multi_stage_injection"
         pressure = sp_inj
         velocity = sv_inj
     else:
+        variant = "multi_stage_injection"
         pressure = sp_same if sp_same else sp_inj
         velocity = sv_same if sv_same else sv_inj
 
+    sp_list = [v for _, v in pressure]
+    sv_list = [v for _, v in velocity]
+    fields = {}
+
+    if variant == "multi_stage_holding":
+        fields["holding_velocity_mms"] = out["velocity"][0] if out["velocity"] else (sv_list[0] if sv_list else None)
+        fields["stage_holding_pressure_bar"] = sp_list
+        st_time = sorted([_v(t["text"]) for t in toks if abs(t["y"] - rows["position"]) <= 0.025 and t["x"] > 0.45 and _v(t["text"]) is not None])
+        fields["stage_holding_time_s"] = st_time
+        # 基础校验向后兼容
+        fields["pressure_limit_bar"] = None
+        fields["first_velocity_mms"] = fields["holding_velocity_mms"]
+        fields["first_position_mm"] = None
+        fields["stage_pressure_bar"] = sp_list
+        fields["stage_velocity_mms"] = sv_list
+    elif variant == "multi_stage_back_pressure":
+        fields["stage_back_pressure_bar"] = sp_list
+        fields["stage_plasticizing_speed_rpm"] = sv_list
+        fields["first_velocity_mms"] = out["velocity"][0] if out["velocity"] else None
+        fields["first_position_mm"] = out["position"][0] if out["position"] else None
+        fields["pressure_limit_bar"] = None
+        fields["stage_pressure_bar"] = sp_list
+        fields["stage_velocity_mms"] = sv_list
+    else:  # multi_stage_injection
+        fields["pressure_limit_bar"] = out["pressure"][0] if out["pressure"] else None
+        fields["first_velocity_mms"] = out["velocity"][0] if out["velocity"] else None
+        fields["first_position_mm"] = out["position"][0] if out["position"] else None
+        fields["stage_pressure_bar"] = sp_list
+        fields["stage_velocity_mms"] = sv_list
+
     slots = [t for t in toks if t.get("slot")]
-    if pressure or velocity:
-        fields["stage_pressure_bar"] = [v for _, v in pressure]
-        fields["stage_velocity_mms"] = [v for _, v in velocity]
-    elif slots and all(t["text"] for t in slots):
-        sp = [t for t in slots if abs(t["y"] - rows["pressure"]) <= 0.035]
-        sv = [t for t in slots if abs(t["y"] - rows["velocity"]) <= 0.035]
-        if sp and sv:
-            fields["stage_pressure_bar"] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
-            fields["stage_velocity_mms"] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
+    if not (pressure or velocity):
+        if slots and all(t["text"] for t in slots):
+            sp = [t for t in slots if abs(t["y"] - rows["pressure"]) <= 0.035]
+            sv = [t for t in slots if abs(t["y"] - rows["velocity"]) <= 0.035]
+            if sp and sv:
+                fields["stage_pressure_bar"] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
+                fields["stage_velocity_mms"] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
+            else:
+                fields["stage_pressure_bar"] = []
+                fields["stage_velocity_mms"] = []
+                warnings.append("STAGE_REJECT(unverified_grid)")
         else:
             fields["stage_pressure_bar"] = []
             fields["stage_velocity_mms"] = []
             warnings.append("STAGE_REJECT(unverified_grid)")
-    else:
-        fields["stage_pressure_bar"] = []
-        fields["stage_velocity_mms"] = []
-        warnings.append("STAGE_REJECT(unverified_grid)")
+
+    fields["_page_variant"] = variant
     return fields
 
 
@@ -158,7 +197,7 @@ def extract_injection_demag(toks: list[dict], template: dict) -> dict:
     warnings: list[str] = []
     if _is_curve(toks):
         fields = _extract_curve(toks, template["curve_page"], warnings)
-        variant = "multi_stage_injection"
+        variant = fields.pop("_page_variant", "multi_stage_injection")
     else:
         fields = _extract_optim(toks, template, warnings)
         variant = "process_optimization"
@@ -170,7 +209,7 @@ def extract_injection_demag(toks: list[dict], template: dict) -> dict:
             if any(v is not None for v in curve_fields.values()):
                 fields = curve_fields
                 warnings = curve_warnings
-                variant = "multi_stage_injection"
+                variant = fields.pop("_page_variant", "multi_stage_injection")
 
     return {"fields": fields, "heater_columns": 0,
             "warnings": warnings, "detail": {"page_variant": variant}}
