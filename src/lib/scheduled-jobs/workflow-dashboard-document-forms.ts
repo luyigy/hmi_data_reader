@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { WorkflowStatus } from './workflow-status';
 
 export function buildWorkflowDocumentForms(args: {
@@ -7,9 +8,10 @@ export function buildWorkflowDocumentForms(args: {
   const overview = args.status.overview;
   if (!overview) return [];
   const groups = [
-    { label: 'Inbox', field: 'selectedInboxDocument', documents: overview.inbox },
-    { label: 'PLAN', field: 'selectedPlanDocument', documents: overview.plans },
-    { label: 'HANDOVER', field: 'selectedHandoverDocument', documents: overview.handovers },
+    { label: 'Inbox', field: 'selectedInboxDocument', documents: overview.inbox.map((document) => ({ ...document, type: 'Inbox' })) },
+    { label: 'PLAN', field: 'selectedPlanDocument', documents: overview.plans.map((document) => ({ ...document, type: 'PLAN' })) },
+    { label: 'HANDOVER', field: 'selectedHandoverDocument', documents: overview.handovers.map((document) => ({ ...document, type: 'HANDOVER' })) },
+    { label: '其他', field: 'selectedOtherDocument', documents: overview.others ?? [] },
   ];
   const cancellablePlans = overview.plans.filter(({ path }) => !args.pending?.path || args.pending.path === path);
   return [
@@ -42,7 +44,11 @@ export function buildWorkflowDocumentForms(args: {
         tag: 'select_static', name: group.field, required: true, width: 'fill',
         placeholder: { tag: 'plain_text', content: `选择 ${group.label}` },
         options: group.documents.map((document) => ({
-          text: { tag: 'plain_text', content: `${group.label} · ${document.title}` }, value: document.path,
+          text: {
+            tag: 'plain_text',
+            content: `${path.posix.basename(document.path).match(/^(\d+)_/)?.[1] ?? '-'} ${document.type} · ${document.title}`,
+          },
+          value: document.path,
         })),
       }, {
         tag: 'button', name: `exportWorkflowDocument${group.label}`, type: 'primary_filled',

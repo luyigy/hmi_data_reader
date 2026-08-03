@@ -224,7 +224,7 @@ export const buildWorkflowDashboardCard = (args: {
   const recommendedAction = args.cursor.rewritten || args.status.running || args.status.overview?.queue.length
     ? null
     : !args.status.enabled
-      ? action('继续工作流', 'enable', 'primary')
+      ? action('启用工作流', 'enable', 'primary')
       : reviewState === 'review'
         ? action('重发审批卡', 'resend', 'primary')
         : ['revision', 'awaiting_revision_feedback'].includes(reviewState)
@@ -233,7 +233,7 @@ export const buildWorkflowDashboardCard = (args: {
             ? action('受控修复', 'validation_repair', 'primary')
             : args.status.stage === '运行阻塞'
               ? action('查看诊断', 'diagnose', 'primary')
-              : action('继续工作流', 'run', 'primary');
+              : action('立即检查新文档', 'run', 'primary');
   const documents = args.status.overview ? [
     ...args.status.overview.inbox.map(({ path: documentPath, title }) => ({
       path: documentPath, label: `Inbox · ${title}`,
@@ -842,6 +842,7 @@ export async function handleWorkflowDashboardCardAction(args: {
     ...workflowStatus.overview.inbox,
     ...workflowStatus.overview.plans,
     ...workflowStatus.overview.handovers,
+    ...(workflowStatus.overview.others ?? []),
   ] : [];
   const result = action === 'refresh'
     ? '状态已刷新。'

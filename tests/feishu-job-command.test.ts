@@ -309,6 +309,12 @@ const activationStatus = {
         planProgress: 'in_progress',
         nextAction: 'next_slice',
       }],
+      others: [{
+        path: 'docs/012_REPORT_20260801_summary.md',
+        number: 12,
+        type: 'REPORT',
+        title: '总结报告',
+      }],
       warnings: [],
       queue: [{
         path: 'docs/010_PLAN.md',
@@ -333,9 +339,11 @@ assert.match(JSON.stringify(activationCard), /"action_type":"form_submit"/);
 assert.match(JSON.stringify(activationCard), /selectedInboxDocument/);
 assert.match(JSON.stringify(activationCard), /selectedPlanDocument/);
 assert.match(JSON.stringify(activationCard), /selectedHandoverDocument/);
+assert.match(JSON.stringify(activationCard), /selectedOtherDocument/);
 assert.match(JSON.stringify(activationCard), /查看 Inbox 飞书文档/);
 assert.match(JSON.stringify(activationCard), /查看 PLAN 飞书文档/);
 assert.match(JSON.stringify(activationCard), /查看 HANDOVER 飞书文档/);
+assert.match(JSON.stringify(activationCard), /查看 其他 飞书文档/);
 assert.match(JSON.stringify(activationCard), /"action":"document"/);
 assert.match(JSON.stringify(activationCard), /校验所选 PLAN \/ HANDOVER/);
 assert.match(JSON.stringify(activationCard), /"action":"document_validate"/);
@@ -354,9 +362,10 @@ assert(dashboardForms.every((form) => form.elements.filter((element) => (
 )).length === 1));
 const dashboardFieldNames = dashboardForms.flatMap((form) => form.elements.flatMap(({ name }) => name ? [name] : []));
 assert.equal(new Set(dashboardFieldNames).size, dashboardFieldNames.length);
-assert.match(JSON.stringify(activationCard), /Inbox · 待整理事项/);
-assert.match(JSON.stringify(activationCard), /PLAN · 可选计划/);
-assert.match(JSON.stringify(activationCard), /HANDOVER · 交接文档/);
+assert.match(JSON.stringify(activationCard), /009 Inbox · 待整理事项/);
+assert.match(JSON.stringify(activationCard), /010 PLAN · 可选计划/);
+assert.match(JSON.stringify(activationCard), /011 HANDOVER · 交接文档/);
+assert.match(JSON.stringify(activationCard), /012 REPORT · 总结报告/);
 const pendingPlanCard = buildWorkflowDashboardCard({
   status: activationStatus,
   cursor: activationCursor,
@@ -379,11 +388,11 @@ assert.match(JSON.stringify(rewrittenCard), /当前 HEAD abcdef12：跳过待处
 assert.match(JSON.stringify(rewrittenCard), /"action":"cursor_recover"/);
 assert.match(JSON.stringify(rewrittenCard), /"name":"selectedCursorRecovery"/);
 const idleCard = buildWorkflowDashboardCard({
-  status: { ...workflowStatus, stage: '空闲', approval: 'none', overview: { inbox: [], plans: [], handovers: [], queue: [], warnings: [] } },
+  status: { ...workflowStatus, stage: '空闲', approval: 'none', overview: { inbox: [], plans: [], handovers: [], others: [], queue: [], warnings: [] } },
   cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 },
   pending: null,
 });
-assert.match(JSON.stringify(idleCard), /继续工作流/);
+assert.match(JSON.stringify(idleCard), /立即检查新文档/);
 assert.match(formatWorkflowStatus(workflowStatus), /项目 \/ ref \/ HEAD：project/);
 assert.match(formatWorkflowStatus(workflowStatus), /自治模式：semi_auto（config）/);
 assert.match(formatWorkflowStatus(workflowStatus), /唯一下一步：完成并提交/);
@@ -495,6 +504,7 @@ async function testWorkflowOverview() {
     write('docs/016_HANDOVER_20260801_complete.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: await_acceptance\nplan: docs/015_PLAN_20260801_complete.md\nslice: S01\nplan_progress: complete\n---\n\n# HANDOVER\n`);
     write('docs/008_PLAN_20260722_legacy.md', '# Legacy PLAN without frontmatter\n');
     write('docs/009_HANDOVER_20260722_legacy.md', '# Legacy HANDOVER without frontmatter\n');
+    write('docs/017_REPORT_20260801_summary.md', `---\ndoc_type: REPORT\ndoc_status: completed\nnext_action: none\n---\n\n# REPORT · 汇总报告\n`);
     write('docs/inbox/009_ISSUE_20260801_candidate.md', `---\ndoc_type: ISSUE\ndoc_status: draft\nnext_action: none\n---\n\n# ISSUE · Inbox candidate\n`);
     git('add', '.');
     git('commit', '-qm', 'plans');
@@ -520,6 +530,9 @@ async function testWorkflowOverview() {
       overview.handovers.map(({ number, slice, planProgress, nextAction }) => [number, slice, planProgress, nextAction]),
       [[14, 'S01', 'in_progress', 'next_slice']],
     );
+    assert.deepEqual(overview.others.map(({ number, type, title }) => [number, type, title]), [
+      [17, 'REPORT', '汇总报告'],
+    ]);
     assert.deepEqual(overview.plans.find(({ number }) => number === 11)?.slices.map(({ id }) => id), ['S02']);
     assert.match(formatWorkflowOverview(overview), /队列分类：Inbox 1 · PLAN 4 · HANDOVER 1[\s\S]*未完成 PLAN 与 Slice：[\s\S]*S02[\s\S]*相关 HANDOVER：[\s\S]*next_slice[\s\S]*排队序列：[\s\S]*1\. 10[\s\S]*异常：/);
   } finally {

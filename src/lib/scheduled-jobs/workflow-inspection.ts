@@ -91,6 +91,7 @@ export type WorkflowOverview = {
     planProgress: string;
     nextAction: string;
   }>;
+  others?: Array<{ path: string; number: number; type: string; title: string }>;
   warnings: string[];
 };
 
@@ -138,6 +139,23 @@ export async function inspectWorkflowOverview(
   const documents = parsedDocuments.filter(({ error }) => !error);
   const documentsByPath = new Map(documents.map((document) => [document.filePath, document]));
   const handovers = documents.filter(({ type }) => type === 'HANDOVER');
+  const allowedTypes = (contract.documents as typeof contract.documents & { allowed_types?: string[] }).allowed_types ?? [];
+  const otherCandidates = selectWorkflowCandidates(files, {
+    ...contract,
+    documents: {
+      ...contract.documents,
+      automation_types: allowedTypes.filter((type) => !contract.documents.automation_types.includes(type)),
+    },
+  }, watchRoot);
+  const others = await Promise.all(otherCandidates.map(async ({ filePath, number, type }) => {
+    const content = await git(repository, 'show', `${head}:${filePath}`);
+    return {
+      path: filePath,
+      number,
+      type,
+      title: content.match(/^#\s+[A-Z]+\s*[·・-]\s*(.+)$/m)?.[1]?.trim() ?? path.posix.basename(filePath),
+    };
+  }));
   const inboxRoot = path.posix.join(watchRoot, 'inbox');
   const parsedInbox = await Promise.all(files
     .filter((file) => path.posix.dirname(file) === inboxRoot && file.endsWith('.md')
@@ -250,10 +268,10 @@ export async function inspectWorkflowOverview(
     ...plans.filter(({ duplicateOf }) => duplicateOf)
       .map(({ number, duplicateOf }) => `${number} 与 ${path.posix.basename(duplicateOf!)} 重复`),
   ];
-  return { inbox, queue, plans, handovers: relatedHandovers, warnings };
+  return { inbox, queue, plans, handovers: relatedHandovers, others, warnings };
 }
 
-export const formatWorkflowOverview = (overview: Awaited<ReturnType<typeof inspectWorkflowOverview>>) => [
+export const formatWorkflowOverview = (overview: WorkflowOverview) => [
   `队列分类：Inbox ${overview.inbox.length} · PLAN ${overview.plans.length} · HANDOVER ${overview.handovers.length}`,
   'Inbox：',
   ...(overview.inbox.length
