@@ -49,14 +49,20 @@ def _extract_curve(toks, tpl, warnings):
         rows[key] = (min(hits, key=lambda t: abs(t["y"] - hint[key]))["y"]
                      if hits else hint[key])
     out = {}
+    stage_rows = {}
     for key in ("pressure", "velocity", "position"):
         ly = rows[key]
         # 段列：标签下方 (label, label+0.045] 且 x>0.5；图轴数字在标签上方被排除
         stages = sorted(((t["x"], _v(t["text"])) for t in toks
                          if ly - 0.005 < t["y"] <= ly + 0.045 and t["x"] > 0.5
+                         and not t.get("slot")
                          and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                         key=lambda e: e[0])
         stages = [(x, v) for x, v in stages if v is not None]
+        stages = [item for i, item in enumerate(stages)
+                  if i == 0 or item[1] != stages[i - 1][1]
+                  or item[0] - stages[i - 1][0] > 0.02]
+        stage_rows[key] = stages
         # 左列首段：标签同高 ±0.025、且在段列左侧（图轴零点 y 偏离大被排除）
         stage_x0 = stages[0][0] if stages else 1.0
         trio = sorted(((t["x"], _v(t["text"])) for t in toks
@@ -74,12 +80,28 @@ def _extract_curve(toks, tpl, warnings):
     }
     # 段表拒识兜底（037 方案②约束）：列网格旁车未验证完整时 stage 数组整体置 null
     # + warning（review），严禁漂移/不完整段表流入 ok 图（error_auto_import_rate=0 优先）
+    pressure = stage_rows["pressure"]
+    velocity = stage_rows["velocity"]
+    aligned_rows = (
+        len(pressure) == len(velocity) >= 2
+        and all(abs(p[0] - v[0]) <= 0.02 for p, v in zip(pressure, velocity))
+        and all(0.02 <= b[0] - a[0] <= 0.08
+                for row in (pressure, velocity) for a, b in zip(row, row[1:]))
+    )
     slots = [t for t in toks if t.get("slot")]
-    if slots and all(t["text"] for t in slots):
+    if aligned_rows:
+        fields["stage_pressure_bar"] = [v for _, v in pressure]
+        fields["stage_velocity_mms"] = [v for _, v in velocity]
+    elif slots and all(t["text"] for t in slots):
         sp = [t for t in slots if abs(t["y"] - rows["pressure"]) <= 0.035]
         sv = [t for t in slots if abs(t["y"] - rows["velocity"]) <= 0.035]
-        fields["stage_pressure_bar"] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
-        fields["stage_velocity_mms"] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
+        if sp and sv:
+            fields["stage_pressure_bar"] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
+            fields["stage_velocity_mms"] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
+        else:
+            fields["stage_pressure_bar"] = []
+            fields["stage_velocity_mms"] = []
+            warnings.append("STAGE_REJECT(unverified_grid)")
     else:
         fields["stage_pressure_bar"] = []
         fields["stage_velocity_mms"] = []

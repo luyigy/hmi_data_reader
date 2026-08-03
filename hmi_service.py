@@ -4,7 +4,7 @@
 1. PaddleOCR 模型进程级单例驻留 GPU 内存 (gpu:0)。
 2. 服务启动自动预热 (Dummy 推理)。
 3. 内存直接解码图片 (cv2.imdecode)，避开磁盘 I/O 开销。
-4. 提供 /health, /ready 接口，单 Worker + 信号量控制并发 (并发数 1，排队超时返 429)。
+4. 提供 /health, /ready 接口，单 Worker + 信号量控制并发 (并发数 1，忙时返 429)。
 """
 
 from __future__ import annotations
@@ -217,6 +217,7 @@ async def recognize_image(file: UploadFile = File(...)):
                     "page_confidence": cls_res.get("page_confidence"),
                 },
                 "fields": extract_res.get("fields", {}),
+                "hmi_variant": extract_res.get("hmi_variant"),
                 "status": extract_res.get("status"),
                 "warnings": extract_res.get("warnings", []),
             }
