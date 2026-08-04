@@ -29,6 +29,10 @@ assert.equal(supportsRoomWorkspaceConstraint({
   backend: 'platform_local',
 }, 'safe_local'), true);
 assert.equal(supportsRoomWorkspaceConstraint({
+  harnessType: 'deepseek',
+  backend: 'platform_local',
+}, 'safe_local'), true);
+assert.equal(supportsRoomWorkspaceConstraint({
   harnessType: 'claude',
   backend: 'platform_local',
 }, 'safe_local'), false);

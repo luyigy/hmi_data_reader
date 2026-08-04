@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process';
+import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 import { buildDeepSeekToolEvent, extractDeepSeekStatusText } from './deepseek-event-parser';
 
 const DEFAULT_DEEPSEEK_RUNTIME_HOST = process.env.DEEPSEEK_RUNTIME_HOST?.trim() || '127.0.0.1';
@@ -95,7 +96,11 @@ const waitForRuntimeReady = async (baseUrl: string, timeoutMs: number) => {
   throw new Error(`DeepSeek runtime did not become ready within ${timeoutMs}ms`);
 };
 
-export const ensureDeepSeekRuntime = async () => {
+export const ensureDeepSeekRuntime = async (options?: {
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
+  onSpawn?: (child: ChildProcess) => void;
+}) => {
   const baseUrl = getRuntimeBaseUrl();
 
   if (await pingRuntime(baseUrl)) {
@@ -107,17 +112,28 @@ export const ensureDeepSeekRuntime = async () => {
   }
 
   runtimeReadyPromise = (async () => {
+    const command = 'deepseek';
+    const commandArgs = [
+      'serve',
+      '--',
+      '--http',
+      '--host',
+      DEFAULT_DEEPSEEK_RUNTIME_HOST,
+      '--port',
+      String(DEFAULT_DEEPSEEK_RUNTIME_PORT),
+    ];
+    const wrapped = wrapWithBubblewrap({
+      command,
+      commandArgs,
+      cwd: process.cwd(),
+      workspaceRoot: options?.workspaceRoot,
+      networkAccess: options?.networkAccess,
+      env: process.env,
+    });
+
     const child = spawn(
-      'deepseek',
-      [
-        'serve',
-        '--',
-        '--http',
-        '--host',
-        DEFAULT_DEEPSEEK_RUNTIME_HOST,
-        '--port',
-        String(DEFAULT_DEEPSEEK_RUNTIME_PORT),
-      ],
+      wrapped.command,
+      wrapped.args,
       {
         cwd: process.cwd(),
         env: { ...process.env },
@@ -126,6 +142,7 @@ export const ensureDeepSeekRuntime = async () => {
       }
     );
 
+    options?.onSpawn?.(child);
     runtimeProcess = child;
 
     let startupLog = '';
@@ -159,16 +176,22 @@ export const ensureDeepSeekRuntime = async () => {
 
 export const createDeepSeekRuntimeThread = async ({
   workingDirectory,
+  workspaceRoot,
+  networkAccess,
   allowShell,
   trustMode,
   autoApprove,
+  onSpawn,
 }: {
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   allowShell?: boolean;
   trustMode?: boolean;
   autoApprove?: boolean;
+  onSpawn?: (child: ChildProcess) => void;
 }) => {
-  const baseUrl = await ensureDeepSeekRuntime();
+  const baseUrl = await ensureDeepSeekRuntime({ workspaceRoot, networkAccess, onSpawn });
 
   return fetchJson<DeepSeekRuntimeThread>(`${baseUrl}/v1/threads`, {
     method: 'POST',
@@ -213,13 +236,18 @@ export const runDeepSeekRuntimeTurn = async ({
   prompt,
   threadId,
   workingDirectory,
+  workspaceRoot,
+  networkAccess,
   timeoutMs,
   streamCallbacks,
   threadConfig,
+  onSpawn,
 }: {
   prompt: string;
   threadId?: string;
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   timeoutMs?: number | null;
   streamCallbacks?: DeepSeekRuntimeStreamCallbacks;
   threadConfig?: {
@@ -227,16 +255,20 @@ export const runDeepSeekRuntimeTurn = async ({
     trustMode?: boolean;
     autoApprove?: boolean;
   };
+  onSpawn?: (child: ChildProcess) => void;
 }) => {
-  const baseUrl = await ensureDeepSeekRuntime();
+  const baseUrl = await ensureDeepSeekRuntime({ workspaceRoot, networkAccess, onSpawn });
   const resolvedThreadId =
     threadId ||
     (
       await createDeepSeekRuntimeThread({
         workingDirectory,
+        workspaceRoot,
+        networkAccess,
         allowShell: threadConfig?.allowShell,
         trustMode: threadConfig?.trustMode,
         autoApprove: threadConfig?.autoApprove,
+        onSpawn,
       })
     ).id;
 

@@ -12,6 +12,8 @@ import { runDeepSeekRuntimeTurn } from './deepseek-runtime';
 export interface DeepSeekConfig {
   timeout?: number | null;
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   sandboxMode?: string;
   approvalPolicy?: 'never' | 'on-request';
@@ -83,6 +85,8 @@ export const executeDeepSeekTask = async (
   const {
     timeout = 30000,
     workingDirectory = process.cwd(),
+    workspaceRoot = config.workspaceRoot,
+    networkAccess = config.networkAccess,
     streamCallbacks,
     sandboxMode = 'workspace-write',
     approvalPolicy = 'never',
@@ -93,6 +97,8 @@ export const executeDeepSeekTask = async (
     const result = await executeDeepSeekTurn(task, {
       timeout,
       workingDirectory,
+      workspaceRoot,
+      networkAccess,
       streamCallbacks,
       threadConfig: resolveDeepSeekThreadConfig(sandboxMode, approvalPolicy),
       onSpawn,
@@ -121,6 +127,8 @@ export const resumeDeepSeekSession = async ({
   prompt,
   timeout,
   workingDirectory = process.cwd(),
+  workspaceRoot,
+  networkAccess,
   streamCallbacks,
   onSpawn,
   onThreadStarted,
@@ -131,6 +139,8 @@ export const resumeDeepSeekSession = async ({
   prompt: string;
   timeout: number | null;
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => void;
@@ -149,6 +159,8 @@ export const resumeDeepSeekSession = async ({
       {
         timeout,
         workingDirectory,
+        workspaceRoot,
+        networkAccess,
         streamCallbacks,
         onSpawn,
         resumeThreadId: threadId,
@@ -179,6 +191,8 @@ const executeDeepSeekTurn = async (
   options: {
     timeout: number | null;
     workingDirectory: string;
+    workspaceRoot?: string;
+    networkAccess?: 'restricted' | 'enabled';
     streamCallbacks?: HarnessStreamCallbacks;
     threadConfig: {
       allowShell: boolean;
@@ -196,9 +210,12 @@ const executeDeepSeekTurn = async (
     prompt,
     threadId: options.resumeThreadId,
     workingDirectory: options.workingDirectory,
+    workspaceRoot: options.workspaceRoot,
+    networkAccess: options.networkAccess,
     timeoutMs: options.timeout,
     streamCallbacks: options.streamCallbacks,
     threadConfig: options.threadConfig,
+    onSpawn: options.onSpawn,
   });
 
   if (result.threadId) {
