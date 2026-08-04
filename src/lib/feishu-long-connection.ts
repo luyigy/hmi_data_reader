@@ -24,6 +24,11 @@ import {
   updateFeishuRuntimeStatus,
 } from '@/lib/feishu-runtime-status';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
+import {
+  buildFeishuRuntimeRecoveryCommand,
+  failAndNotifyInterruptedDeliveries,
+  startPeriodicWatchdog,
+} from '@/lib/feishu-runtime-cleanup';
 import { checkFeishuDirectMessageAccess, resolveFeishuAdminApproval } from '@/lib/feishu-access-approval';
 import { handleFeishuInteractionCardAction } from '@/lib/feishu-interaction-card-action';
 import {
@@ -119,60 +124,7 @@ function shouldUseLongConnection() {
   return mode === 'long_connection';
 }
 
-export function buildFeishuRuntimeRecoveryCommand(content: string) {
-  const plan = content.match(/docs\/\d+_PLAN_[^\s`]+\.md/)?.[0];
-  const handover = Array.from(content.matchAll(/docs\/\d+_HANDOVER_[^\s`]+\.md/g)).at(-1)?.[0];
-  const slice = content.match(/的 (S\d{2,})/)?.[1];
-  return plan && handover && slice
-    ? `/ap chat 重新执行 ${plan} 的 ${slice}；严格读取 ${handover} 中的 WORKFLOW_PROMPT 并执行，完成后提交并停止。`
-    : '/ap chat 继续执行刚才因服务中断而停止的任务；先检查并保护现有未提交改动，完成后提交并停止。';
-}
-
-async function failAndNotifyInterruptedDeliveries(reason: string) {
-  const deliveries = await prisma.liveRoomDelivery.findMany({
-    where: { deliveryStatus: 'running' },
-    select: {
-      id: true,
-      targetMember: {
-        select: { displayName: true, userNickname: true },
-      },
-      roomMessage: {
-        select: {
-          content: true,
-          room: {
-            select: {
-              feishuBindings: {
-                orderBy: { updatedAt: 'desc' },
-                take: 1,
-                select: { chatId: true },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-  if (!deliveries.length) return 0;
-  await prisma.liveRoomDelivery.updateMany({
-    where: { id: { in: deliveries.map(({ id }) => id) } },
-    data: { deliveryStatus: 'failed', fallbackReason: reason, acknowledgedAt: new Date() },
-  });
-  await Promise.all(deliveries.map(async (delivery) => {
-    const chatId = delivery.roomMessage.room.feishuBindings[0]?.chatId;
-    if (!chatId) return;
-    const member = delivery.targetMember.userNickname || delivery.targetMember.displayName;
-    await sendFeishuTextMessage({
-      receiveId: chatId,
-      receiveIdType: 'chat_id',
-      text: [
-        `⚠️ 系统提示：服务中断或重启已停止 ${member} 的当前运行。`,
-        `恢复命令：${buildFeishuRuntimeRecoveryCommand(delivery.roomMessage.content)}`,
-        '请等待服务恢复后再发送；系统不会自动复用已结束的旧进程。',
-      ].join('\n'),
-    }).catch((error) => console.warn('[FeishuRuntime] failed to send recovery notice:', error));
-  }));
-  return deliveries.length;
-}
+export { buildFeishuRuntimeRecoveryCommand } from '@/lib/feishu-runtime-cleanup';
 
 function pruneSeenMessageIds(state: FeishuLongConnectionState) {
   const now = Date.now();
@@ -906,29 +858,9 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
       lastError: null,
     });
 
-    // Periodic watchdog: reap deliveries stuck in 'running' for > 12 minutes
-    // (claude max runtime is 10 min, so any delivery older than 12 min is definitely stale).
-    // This handles SIGKILL cases that bypass the SIGTERM handler.
-    const STALE_DELIVERY_THRESHOLD_MS = 12 * 60 * 1000;
-    const watchdogInterval = setInterval(async () => {
-      try {
-        const staleAt = new Date(Date.now() - STALE_DELIVERY_THRESHOLD_MS);
-        const result = await prisma.liveRoomDelivery.updateMany({
-          where: { deliveryStatus: 'running', attemptedAt: { lt: staleAt } },
-          data: { deliveryStatus: 'failed', fallbackReason: 'Stale: watchdog timeout', acknowledgedAt: new Date() },
-        });
-        if (result.count > 0) {
-          await prisma.liveRoomMember.updateMany({
-            where: { presenceStatus: 'busy' },
-            data: { presenceStatus: 'idle' },
-          });
-          console.warn(`${prefix} watchdog reaped ${result.count} stale deliveries`);
-        }
-      } catch (watchdogError) {
-        console.warn(`${prefix} watchdog error (non-fatal):`, watchdogError);
-      }
-    }, 5 * 60 * 1000); // check every 5 minutes
-    watchdogInterval.unref(); // don't prevent process exit
+    // Periodic watchdog: reap deliveries stuck in 'running' for > 12 minutes.
+    // Extracted to feishu-runtime-cleanup.ts for long-file compliance.
+    startPeriodicWatchdog(prefix);
   })()
     .catch((error) => {
       state.status = 'error';

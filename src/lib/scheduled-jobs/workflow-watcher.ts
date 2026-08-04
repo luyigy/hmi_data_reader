@@ -99,13 +99,30 @@ type ProjectsConfigLoader = () => Promise<ProjectsConfig>;
 
 const declared = (value: unknown) => typeof value === 'string' && value.trim() ? value : '未声明';
 
-const workflowContext = (metadata: Record<string, unknown>, documentPath: string, type: string) => [
-  `**所属 PLAN**：${type === 'PLAN' ? documentPath : declared(metadata.plan)}`,
-  `**当前或将执行的 Slice**：${declared(metadata.slice)}`,
-  `**计划进度**：${declared(metadata.plan_progress)}`,
-  `**文档状态**：${declared(metadata.doc_status)}`,
-  `**下一动作**：${declared(metadata.next_action)}`,
-].join('\n');
+const workflowContext = (
+  metadata: Record<string, unknown>,
+  documentPath: string,
+  type: string,
+  targetSlice?: string,
+) => {
+  const lines = [
+    `**所属 PLAN**：${type === 'PLAN' ? documentPath : declared(metadata.plan)}`,
+  ];
+  if (type === 'HANDOVER') {
+    lines.push(`**交接 Slice（HANDOVER）**：${declared(metadata.slice)}`);
+    if (targetSlice) {
+      lines.push(`**目标 Slice**：${targetSlice}`);
+    }
+  } else {
+    lines.push(`**当前或将执行的 Slice**：${declared(metadata.slice)}`);
+  }
+  lines.push(
+    `**计划进度**：${declared(metadata.plan_progress)}`,
+    `**文档状态**：${declared(metadata.doc_status)}`,
+    `**下一动作**：${declared(metadata.next_action)}`,
+  );
+  return lines.join('\n');
+};
 
 const exec = (file: string, args: string[], signal: AbortSignal, cwd?: string) =>
   new Promise<string>((resolve, reject) => {
@@ -614,7 +631,7 @@ export const workflowWatcherHandler = async (
     };
   }
   await send(project.feishu.chat_id,
-    `✅ workflow validator 通过：${candidate.filePath}\ncommit: ${commit}\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
+    `✅ workflow validator 通过：${candidate.filePath}\ncommit: ${commit}\n${workflowContext(metadata, candidate.filePath, candidate.type, document.nextSlice)}`,
     eventKey, 'validation_passed');
   if (candidate.type === 'HANDOVER') {
     await send(project.feishu.chat_id,
@@ -628,7 +645,7 @@ export const workflowWatcherHandler = async (
         automaticProgression: gate === 'execute' && !allows(document.action)
           ? '已停止（manual，使用 /ap job run 手动推进）'
           : undefined,
-      })}\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
+      })}\n${workflowContext(metadata, candidate.filePath, candidate.type, document.nextSlice)}`,
       eventKey, 'completion_receipt');
   }
   if (gate === 'execute' && !allows(document.action)) {
@@ -687,7 +704,7 @@ export const workflowWatcherHandler = async (
     }
     if (candidate.type !== 'HANDOVER') {
       await send(project.feishu.chat_id,
-        `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。\n${workflowContext(metadata, candidate.filePath, candidate.type)}`,
+        `[workflow-watcher] ${path.posix.basename(candidate.filePath)}: next_action=${document.action}，不启动新 Session。\n${workflowContext(metadata, candidate.filePath, candidate.type, document.nextSlice)}`,
         eventKey, 'terminal');
     }
     return {
@@ -699,7 +716,7 @@ export const workflowWatcherHandler = async (
   const execution = {
     key: eventKey,
     prompt: document.prompt,
-    workflowContext: workflowContext(metadata, candidate.filePath, candidate.type),
+    workflowContext: workflowContext(metadata, candidate.filePath, candidate.type, document.nextSlice),
   };
   if (gate === 'plan_review') {
     const documentUrl = await importDocument({

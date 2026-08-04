@@ -214,6 +214,11 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
     if (command.revisionPath && planPath !== command.revisionPath) {
       throw new WorkflowPlanError(`主持人返回了其他 PLAN_PATH：${planPath}`, 'plan_path');
     }
+    await postLiveRoomMessage({
+      roomId,
+      content: `系统提示：PLAN 文件已生成（${planPath}），正在提交到版本库...`,
+      messageType: 'system',
+    });
     try {
       await execFileAsync('git', ['add', '--', planPath], { cwd: sourceTask.workingDirectory || process.cwd() });
     } catch (e: any) {
@@ -226,7 +231,7 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
         '--', planPath,
       ], { cwd: sourceTask.workingDirectory || process.cwd() });
     } catch (e: any) {
-      throw new WorkflowPlanError(`git commit 失败：${e?.stderr || e?.message || String(e)}`, 'git_commit');
+      throw new WorkflowPlanError(`git commit 失败：${e?.stderr || e?.message || String(e)}；文件已 git add（${planPath}）但未提交`, 'git_commit');
     }
     await postLiveRoomMessage({
       roomId,
@@ -236,6 +241,9 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
       messageType: 'system',
     });
   } catch (error) {
+    const completedStages = outputs.length
+      ? `\n已完成的阶段：${outputs.map((o) => `${o.label}（${o.member}）`).join(' → ')}`
+      : '';
     let content: string;
     if (error instanceof WorkflowPlanError && error.category === 'member_execution') {
       const { main, noise } = filterDiagnosticNoise(error.detail || '');
@@ -247,6 +255,7 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
         `失败类型：成员执行失败`,
         `影响：PLAN 定稿尚未开始，没有文件或提交需要回滚`,
         `处置：修复执行环境后重新发起 /plan 请求`,
+        completedStages,
         detailLines ? `\n${detailLines}` : '',
       ].filter(Boolean).join('\n');
     } else if (error instanceof WorkflowPlanError && error.category === 'plan_path') {
@@ -257,6 +266,7 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
         `原因：${error.message}`,
         `影响：没有文件或提交产生`,
         `处置：请主持人检查输出格式后重新发起 /plan`,
+        completedStages,
       ].join('\n');
     } else if (error instanceof WorkflowPlanError && error.category === 'git_commit') {
       content = [
@@ -266,9 +276,10 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
         `原因：${error.message}`,
         `影响：文件可能已暂存但未提交（检查 git status）`,
         `处置：修复 Git 状态后重新发起 /plan`,
+        completedStages,
       ].join('\n');
     } else {
-      content = `系统提示：PLAN 未提交：${error instanceof Error ? error.message : String(error)}`;
+      content = `系统提示：PLAN 未提交：${error instanceof Error ? error.message : String(error)}${completedStages}`;
     }
     await postLiveRoomMessage({ roomId, content, messageType: 'system' });
   }

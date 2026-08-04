@@ -484,7 +484,18 @@ export const validateWorkflowDocument = async (
       issues,
     );
   }
-  return { action, prompt, issues };
+  // Compute nextSlice for HANDOVER next_slice actions so the watcher can
+  // distinguish the handover slice from the target slice in its display.
+  let nextSlice: string | undefined;
+  if (type === 'HANDOVER' && action === contract.documents.handover.next_action && has('slice') && hasValue('plan')) {
+    try {
+      const plan = await readPlan(metadata.plan);
+      const planSlices = slices(plan.planContent, contract);
+      const current = planSlices.indexOf(String(metadata.slice));
+      nextSlice = planSlices[current + 1];
+    } catch { /* plan read failures are already surfaced as issues above */ }
+  }
+  return { action, prompt, issues, nextSlice };
 };
 
 export const validateWorkflowDocuments = async ({

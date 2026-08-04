@@ -230,6 +230,7 @@ const buildWorkflowStatus = async (
   );
   const slice = text(
     committedDocument.metadata.slice
+      ?? workflowContextValue(pending?.workflowContext, '交接 Slice（HANDOVER）')
       ?? workflowContextValue(pending?.workflowContext, '当前或将执行的 Slice'),
   );
   const reviewState = text(pending?.reviewState, '');
