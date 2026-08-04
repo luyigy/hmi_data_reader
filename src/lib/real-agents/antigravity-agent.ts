@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 import {
   parseAntigravityUsageFromText,
@@ -12,6 +13,8 @@ import {
 export interface AntigravityConfig {
   timeout?: number | null;
   workingDirectory?: string;
+  workspaceRoot?: string;
+  networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   sandboxMode?: string;
   onSpawn?: (child: ChildProcess) => void;
@@ -133,11 +136,21 @@ export const executeAntigravityTask = (
       ? ['--dangerously-skip-permissions']
       : ['--sandbox']),
   ];
+  const env = childEnv();
+  const wrapped = wrapWithBubblewrap({
+    command: AGY_BIN,
+    commandArgs: args,
+    cwd: config.workingDirectory || process.cwd(),
+    workspaceRoot: config.workspaceRoot,
+    networkAccess: config.networkAccess,
+    env,
+    configPaths: [path.join(env.HOME || '/home/hello', '.gemini')],
+  });
 
   return new Promise((resolve) => {
-    const child = spawn(AGY_BIN, args, {
+    const child = spawn(wrapped.command, wrapped.args, {
       cwd: config.workingDirectory || process.cwd(),
-      env: childEnv(),
+      env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     config.onSpawn?.(child);

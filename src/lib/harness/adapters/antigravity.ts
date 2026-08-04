@@ -21,6 +21,8 @@ export const antigravityHarnessAdapter: HarnessAdapter = {
     const result = await executeAntigravityTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
+      workspaceRoot: context.workspaceRoot,
+      networkAccess: context.networkAccess,
       streamCallbacks: context.streamCallbacks,
       sandboxMode: context.permissionConfig?.sandboxMode,
       onSpawn: context.onSpawn,
@@ -48,12 +50,12 @@ export const antigravityHarnessAdapter: HarnessAdapter = {
       scope: 'next_run_or_continuation',
       hotReloadSupported: false,
       summary: local
-        ? 'Antigravity 使用 print 模式；普通配置启用 --sandbox，full access 使用 --dangerously-skip-permissions。'
+        ? 'Antigravity 使用 print 模式；受限运行由 Bubblewrap 强制工作区和网络边界，full access 使用 --dangerously-skip-permissions。'
         : 'Antigravity 当前仅接入 platform-local 执行。',
       sandboxMode: local ? 'applied' : 'recorded_only',
       approvalPolicy: local ? 'partially_applied' : 'recorded_only',
-      networkAccess: 'recorded_only',
-      writableRoots: 'recorded_only',
+      networkAccess: local ? 'applied' : 'recorded_only',
+      writableRoots: local ? 'applied' : 'recorded_only',
     };
   },
 };
