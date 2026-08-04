@@ -43,6 +43,10 @@ assert.deepEqual(
   { kind: 'target', targetMemberId: 'b' },
 );
 assert.deepEqual(
+  detectLiveRoomHandoffIntent({ content: '安排。$B', members, senderMemberId: 'a' }),
+  { kind: 'target', targetMemberId: 'b' },
+);
+assert.deepEqual(
   detectLiveRoomHandoffIntent({ content: '@B visible only', members, senderMemberId: 'a' }),
   { kind: 'none' },
 );

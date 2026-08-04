@@ -6,7 +6,7 @@ export const MAX_LIVE_ROOM_HANDOFF_LIMIT = 32;
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const MENTION_BOUNDARY = `[\\s,.;:!?\\/()\\[\\]{}"'，。；：！？】【、】【（）《》]`;
-const HANDOFF_PREFIX = '(^|[\\s(])';
+const HANDOFF_PREFIX = `(^|${MENTION_BOUNDARY})`;
 
 type HandoffMember = {
   id: string;
