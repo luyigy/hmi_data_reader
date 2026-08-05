@@ -32,6 +32,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from classify_ui import classify
+from contract import attach_contract
 from extract_fields import MACHINE_LABELS, RECORD_REPORT, extract_one
 from postprocess import postprocess_one
 from quality import assess
@@ -198,6 +199,8 @@ async def recognize_image(file: UploadFile = File(...)):
             record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
             machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
             extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates")
+            # 带分类置信度重算契约键（幂等，extract 内已算过一次无分类版本）
+            attach_contract(extract_res, cls_res)
 
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
 
@@ -218,6 +221,12 @@ async def recognize_image(file: UploadFile = File(...)):
                 },
                 "fields": extract_res.get("fields", {}),
                 "hmi_variant": extract_res.get("hmi_variant"),
+                "template": (extract_res.get("provenance") or {}).get("template"),
+                "contract_version": extract_res.get("contract_version"),
+                "profile_id": extract_res.get("profile_id"),
+                "profile_confidence": extract_res.get("profile_confidence"),
+                "profile_status": extract_res.get("profile_status"),
+                "field_meta": extract_res.get("field_meta", {}),
                 "status": extract_res.get("status"),
                 "warnings": extract_res.get("warnings", []),
             }

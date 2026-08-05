@@ -44,6 +44,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_ui import find_page, find_ui_family  # noqa: E402
+from contract import attach_contract  # noqa: E402
 
 TEMPLATES_DIR = Path("templates")
 RECORD_REPORT = Path("output/record_classify_report.json")
@@ -741,7 +742,6 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     page, page_src = route_page(stem, lines, family, templates_dir)
     result["controller_family"] = family
     result["page_type"] = page
-    result["hmi_variant"] = "v1"
 
     template = load_template(family, page, templates_dir) if family != "unknown" else None
     if template is None and family == "DEMAG" and page in ("injection_metering", "monitor_curve"):
@@ -922,6 +922,7 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     if rates_stats is not None:
         result["provenance"]["ocr_rates_merge"] = rates_stats
     result["extraction_detail"] = ext["detail"]
+    attach_contract(result)
 
     if ext["fields"] is None:
         result["status"] = "reject"

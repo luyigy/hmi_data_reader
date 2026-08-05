@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "description": "Profile 注册表 v1.0.0。profile_id 格式 <controller-family>.<page>.<layout-family>（稳定 slug，不含 git hash 或机器号）。status 生命周期：unknown -> candidate -> verified -> quarantined。verified 标注 grandfathered 的条目沿用并仓前品牌门禁的生产行为，CT-S02 必须在 >=5 张独立 holdout 上通过 verify_accuracy 全部硬门禁复核，未通过或连续 2 次反馈不符即降级。",
+  "apply_thresholds": {
+    "verified_min_confidence": 0.9,
+    "candidate_min_confidence": 0.7
+  },
+  "profiles": [
+    {
+      "profile_id": "demag.injection_metering.multi_stage_injection",
+      "controller_family": "DEMAG",
+      "page_type": "injection_metering",
+      "layout_variant": "multi_stage_injection",
+      "status": "verified",
+      "lifecycle_note": "grandfathered：沿用品牌门禁下已可安全应用的射胶段生产行为；CT-S02 复核"
+    },
+    {
+      "profile_id": "demag.injection_metering.process_optimization",
+      "controller_family": "DEMAG",
+      "page_type": "injection_metering",
+      "layout_variant": "process_optimization",
+      "status": "verified",
+      "lifecycle_note": "grandfathered：冷却时间等工艺优化页字段沿用现有生产行为；CT-S02 复核"
+    },
+    {
+      "profile_id": "demag.injection_metering.multi_stage_holding",
+      "controller_family": "DEMAG",
+      "page_type": "injection_metering",
+      "layout_variant": "multi_stage_holding",
+      "status": "candidate",
+      "lifecycle_note": "保压段语义（段时间定义、压力侧别）未经真值确认，仅预览"
+    },
+    {
+      "profile_id": "demag.injection_metering.multi_stage_back_pressure",
+      "controller_family": "DEMAG",
+      "page_type": "injection_metering",
+      "layout_variant": "multi_stage_back_pressure",
+      "status": "candidate",
+      "lifecycle_note": "熔胶背压段语义未经真值确认，仅预览"
+    },
+    {
+      "profile_id": "demag.temperature.screen_order_5",
+      "controller_family": "DEMAG",
+      "page_type": "temperature",
+      "layout_variant": "screen_order_5",
+      "status": "verified",
+      "lifecycle_note": "grandfathered：料筒/下料口温度沿用现有生产行为（屏幕列序 喷嘴1/区3/区2/区1/料口）；CT-S02 复核"
+    }
+  ]
+}
