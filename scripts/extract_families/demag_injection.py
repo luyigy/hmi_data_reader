@@ -63,6 +63,16 @@ def _extract_global_pressure(toks, pressure_row_y, tpl, warnings):
 def _extract_curve(toks, tpl, warnings):
     top_texts = [t["text"] for t in toks if t.get("y", 0) < 0.85]
     has_holding = any(_anchor_match(["多级保压", "保压段"], t) for t in top_texts)
+    if not has_holding:
+        # 035 保压真值（app 反馈 e3ebbba2）补充指纹：标题在裁切拍照中可能完全缺席，
+        # 改用结构性锚词——段表区（y>0.5、左半区）的"时间[s]"行标签（多级注射页
+        # 该位置为"位置[mm]"行，其"注射时间"在左列 y<0.5，不会误中），
+        # 或左列实际值区的"实际切换"标题（注射页左列为 注射时间/注射压力/位置/余料量）。
+        has_holding = any(
+            _anchor_match(["时间[s]", "时间]"], t["text"])
+            and t.get("y", 0) > 0.5 and t.get("x", 1) < 0.45
+            for t in toks
+        ) or any(_anchor_match(["实际切换"], t["text"]) for t in toks)
     has_backp = any(_anchor_match(["多级背压", "背压[bar]", "螺杆转速"], t) for t in top_texts)
 
     ra = {
@@ -148,16 +158,27 @@ def _extract_curve(toks, tpl, warnings):
     fields = {}
 
     if variant == "multi_stage_holding":
-        fields["holding_velocity_mms"] = out["velocity"][0] if out["velocity"] else (sv_list[0] if sv_list else None)
+        # 035 保压真值（app 反馈 e3ebbba2，领域确认）：段表 压力[bar] 行=各段保压压力、
+        # 时间[s] 行=各段保压时长（segment_duration），速度[mm/s] 行=全局保压速度设定；
+        # 左列为实际值（实际切换/保压/位置/余料量）不入字段。屏幕自右向左为第 1 段起，
+        # 在输出边界统一反转为物理段序并剔除最左未启用的 0 值段槽位（深灰框）。
+        # 注射页字段（pressure_limit_bar/first_*/stage_pressure_bar/stage_velocity_mms 等）
+        # 在本页为误标，一律不输出；找不到的行给 None/空数组 + CELL_MISSING，不猜。
+        time_cells = _dedupe(sorted(
+            ((t["x"], _v(t["text"])) for t in toks
+             if abs(t["y"] - rows["position"]) <= 0.025 and t["x"] > 0.45
+             and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
+            key=lambda e: e[0]))
+        time_list = [v for _, v in time_cells]
         fields["stage_holding_pressure_bar"] = sp_list
-        st_time = sorted([_v(t["text"]) for t in toks if abs(t["y"] - rows["position"]) <= 0.025 and t["x"] > 0.45 and _v(t["text"]) is not None])
-        fields["stage_holding_time_s"] = st_time
-        # 基础校验向后兼容
-        fields["pressure_limit_bar"] = None
-        fields["first_velocity_mms"] = fields["holding_velocity_mms"]
-        fields["first_position_mm"] = None
-        fields["stage_pressure_bar"] = sp_list
-        fields["stage_velocity_mms"] = sv_list
+        fields["stage_holding_time_s"] = time_list
+        fields["holding_velocity_mms"] = sv_list[-1] if sv_list else None
+        if not sp_list:
+            warnings.append("CELL_MISSING(stage_holding_pressure_bar)")
+        if not time_list:
+            warnings.append("CELL_MISSING(stage_holding_time_s)")
+        if fields["holding_velocity_mms"] is None:
+            warnings.append("CELL_MISSING(holding_velocity_mms)")
     elif variant == "multi_stage_back_pressure":
         table_toks = [t for t in toks if 0.55 < t.get("y", 0) < 0.85]
 
@@ -213,13 +234,18 @@ def _extract_curve(toks, tpl, warnings):
     if not (pressure or velocity):
         # 026_FIX：slot 槽位回退与主路径同一语义——multi_stage_injection 时
         # rows['pressure'] 行=段速度、rows['velocity'] 行=段位置；其余变体不变。
+        # 035 保压真值：multi_stage_holding 时 rows['pressure'] 行=段保压压力、
+        # rows['position'] 行（"时间[s]"标签锚定）=段保压时长。
         if variant == "multi_stage_injection":
             upper_key, lower_key = "stage_velocity_mms", "stage_position_mm"
+        elif variant == "multi_stage_holding":
+            upper_key, lower_key = "stage_holding_pressure_bar", "stage_holding_time_s"
         else:
             upper_key, lower_key = "stage_pressure_bar", "stage_velocity_mms"
+        lower_row_y = rows["position"] if variant == "multi_stage_holding" else rows["velocity"]
         if slots and all(t["text"] for t in slots):
             sp = [t for t in slots if abs(t["y"] - rows["pressure"]) <= 0.035]
-            sv = [t for t in slots if abs(t["y"] - rows["velocity"]) <= 0.035]
+            sv = [t for t in slots if abs(t["y"] - lower_row_y) <= 0.035]
             if sp and sv:
                 fields[upper_key] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
                 fields[lower_key] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
@@ -236,10 +262,21 @@ def _extract_curve(toks, tpl, warnings):
         # DEMAG 多级注射页段表在屏幕上自右向左排列（最右列为第 1 段）；
         # 契约要求段数组按物理段序输出，故在输出边界统一反转（025_FIX）。
         # 026_FIX：反转对象改为 段速度 + 段位置（本页无分段压力）。
-        # 保压/背压变体段序未经真值确认，维持屏幕序且仍为 candidate 仅预览。
+        # 背压变体段序未经真值确认，维持屏幕序且仍为 candidate 仅预览。
         for key in ("stage_velocity_mms", "stage_position_mm"):
             values = fields.get(key)
             if isinstance(values, list):
+                fields[key] = list(reversed(values))
+
+    if variant == "multi_stage_holding":
+        # 035 保压真值（app 反馈 e3ebbba2，领域确认）：保压段表同样自右向左排列
+        # （最右列为第 1 段），输出边界统一反转为物理段序；反转前剔除屏幕最左
+        # 未启用的 0 值段槽位（深灰框，0 bar/0 s 非真实段）。
+        for key in ("stage_holding_pressure_bar", "stage_holding_time_s"):
+            values = fields.get(key)
+            if isinstance(values, list):
+                while values and values[0] == 0:
+                    values = values[1:]
                 fields[key] = list(reversed(values))
 
     fields["_page_variant"] = variant
