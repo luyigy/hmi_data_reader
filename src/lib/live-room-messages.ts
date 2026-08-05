@@ -560,6 +560,34 @@ export const mergeLiveRoomMentionedMemberIds = ({
   return Array.from(new Set(merged));
 };
 
+/** 文档/记录类意图关键词检测。
+ *  检测"写进 inbox / 出文档 / 记一下 / 写 FIX 文档 / 记录这次决定"等模式。
+ *  会在剥离开头的 @/$mention 前缀后匹配，避免 @文档专员 本身被误判。 */
+const DOCUMENTATION_INTENT_PATTERNS = [
+  /写进\s*inbox/i,
+  /(?:出|写|生成)(?:个?\s*)?(?:FIX|fix)\s*文档/i,
+  /(?:出|写|生成)(?:个?\s*)?(?:文档|记录|HANDOVER)\b/i,
+  /记(?:录|一下|下来)(?:这次|这个|一下)?(?:决定|结论|讨论)/i,
+  /(?:写|存|放)(?:进|到|入)\s*inbox/i,
+  /(?:记录|记)\s*(?:一下|下来|这个)\b/i,
+  /(?:整理|汇总)(?:一下|个?)?\s*(?:文档|记录)/i,
+];
+
+export const detectDocumentationIntent = (content: string): boolean => {
+  // 剥离开头的 @mention / $mention 前缀，避免把提及本身当作意图
+  const stripped = content.replace(/^[@$][^\s]+\s*/, '').trim();
+  return DOCUMENTATION_INTENT_PATTERNS.some((pattern) => pattern.test(stripped));
+};
+
+/** 在成员列表中查找文档专员（specialty === 'documentation' 且 canReply） */
+export const findDocumentationSpecialist = <T extends { id: string; canReply?: boolean; specialty?: string | null }>(
+  members: T[],
+): T | null => {
+  return members.find(
+    (member) => member.canReply && member.specialty === 'documentation'
+  ) || null;
+};
+
 export const resolveLiveRoomMessageMetadata = ({
   senderKind,
   targetMemberId,

@@ -11,6 +11,7 @@ const HELP_PAGES = [
     '/ap members',
     '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
     '/ap role --member=<memberName|idSuffix> --role=<planner|researcher|implementer|reviewer|tester|custom>',
+    '/ap specialty --member=<memberName|idSuffix> --specialty=<documentation|diagnostics|implementation|general>',
     '/ap codex-config --agent=<memberName|idSuffix> [--model=<model|inherit>] [--thinking=<level|inherit>]',
     '/ap speaker [memberName|idSuffix]',
     '/ap add --agents=<agentId>  支持短写：TX-server:claude',
@@ -89,6 +90,8 @@ export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
 const QUICK_ACTIONS = [
   [
     ['成员', '/ap members'],
+    ['功能开发 /run feature', '/ap run feature'],
+    ['排障修复 /run debug', '/ap run debug'],
   ],
   [
     ['状态', '/ap status'],
@@ -114,7 +117,7 @@ const QUICK_ACTIONS = [
 ] as const;
 
 const CATEGORY_VIEWS = ['room', 'runtime', 'workflow', 'admin'] as const;
-const FORM_VIEWS = ['form-workspace', 'form-chat', 'form-plan', 'form-schedule'] as const;
+const FORM_VIEWS = ['form-run-feature', 'form-run-debug', 'form-documentation', 'form-workspace', 'form-chat', 'form-plan', 'form-schedule'] as const;
 export type FeishuCommandCenterView = 'home' | typeof CATEGORY_VIEWS[number] | typeof FORM_VIEWS[number];
 export type FeishuRoomControlView = 'permission' | 'role';
 
@@ -130,6 +133,30 @@ export type FeishuRoomCreationAgent = {
 };
 
 const FORM_DEFINITIONS = {
+  'form-run-feature': {
+    title: '功能开发 /run feature',
+    description: '按角色流水线执行：分析 → 计划 → 实施 → 审查 → 测试。',
+    fields: [{ name: 'task', label: '任务描述', placeholder: '请描述要实现的功能、目标和验收标准', multiline: true }],
+    submitName: 'submitRunFeature',
+    submitLabel: '启动功能开发',
+    returnView: 'room',
+  },
+  'form-run-debug': {
+    title: '排障修复 /run debug',
+    description: '按角色流水线执行：分析 → 复现方案 → 修复计划 → 实施 → 审查 → 回归测试。',
+    fields: [{ name: 'task', label: '问题描述', placeholder: '请描述要排查的问题、现象和复现条件', multiline: true }],
+    submitName: 'submitRunDebug',
+    submitLabel: '启动排障修复',
+    returnView: 'room',
+  },
+  'form-documentation': {
+    title: '文档与记录',
+    description: '写进 inbox、出 FIX 文档、记录决定等文档类任务。',
+    fields: [{ name: 'task', label: '文档/记录内容', placeholder: '例如：写进 inbox / 出个 FIX 文档 / 记录这次决定...', multiline: true }],
+    submitName: 'submitDocumentation',
+    submitLabel: '提交文档任务',
+    returnView: 'room',
+  },
   'form-workspace': {
     title: '切换工作区',
     description: '填写 root 范围内的绝对或相对路径。',
@@ -274,8 +301,10 @@ export const buildFeishuCommandCenterCard = (
   const [group, commands] = HELP_PAGES[pageIndex];
   const formButtons = categoryView === 'room'
     ? [
+      callbackButton('功能开发…', { cmd: 'ap-menu', view: 'form-run-feature', chatType }),
+      callbackButton('排障修复…', { cmd: 'ap-menu', view: 'form-run-debug', chatType }),
+      callbackButton('文档与记录…', { cmd: 'ap-menu', view: 'form-documentation', chatType }, 'primary_filled'),
       callbackButton('创建/配置房间…', { cmd: 'ap-room-create', chatType }),
-      callbackButton('发送消息…', { cmd: 'ap-menu', view: 'form-chat', chatType }),
       callbackButton('创建 PLAN…', { cmd: 'ap-menu', view: 'form-plan', chatType }),
       callbackButton('设置角色…', { cmd: 'ap-room-control', view: 'role', chatType }),
     ]
@@ -536,6 +565,15 @@ export const buildFeishuCommandFromForm = (
   }
   if (form === 'form-schedule' && text('jobId') && text('cron')) {
     return { command: 'job', args: ['schedule', text('jobId')], options: { cron: text('cron') } };
+  }
+  if (form === 'form-run-feature' && text('task')) {
+    return { command: 'chat', args: [`/run feature ${text('task')}`], options: {} };
+  }
+  if (form === 'form-run-debug' && text('task')) {
+    return { command: 'chat', args: [`/run debug ${text('task')}`], options: {} };
+  }
+  if (form === 'form-documentation' && text('task')) {
+    return { command: 'chat', args: [text('task')], options: {} };
   }
   if (form === 'form-room-restriction' && text('target') && text('profile')) {
     return { command: 'restrict', args: [text('target'), text('profile')], options: {} };

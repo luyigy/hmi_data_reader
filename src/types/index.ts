@@ -86,6 +86,7 @@ export interface LiveRoomMember {
   runtimeAgentId?: string | null;
   roleLabel?: string | null;
   role: string;
+  specialty?: string | null;
   joinStatus: string;
   presenceStatus: string;
   canReply: boolean;

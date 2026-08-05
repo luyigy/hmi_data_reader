@@ -253,6 +253,7 @@ export const serializeLiveRoomMember = (member: {
   runtimeAgentId: string | null;
   roleLabel: string | null;
   role: string;
+  specialty?: string | null;
   joinStatus: string;
   presenceStatus: string;
   canReply: boolean;
@@ -284,6 +285,7 @@ export const serializeLiveRoomMember = (member: {
     runtimeAgentId: member.runtimeAgentId,
     roleLabel: member.roleLabel,
     role: member.role,
+    specialty: member.specialty ?? null,
     joinStatus: member.joinStatus,
     presenceStatus: member.presenceStatus,
     canReply: member.canReply,

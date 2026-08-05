@@ -31,6 +31,7 @@ import {
   handleModeCommand,
   handleNickCommand,
   handleRoleCommand,
+  handleSpecialtyCommand,
   handleRoomCommand,
   handleSpeakerCommand,
 } from '@/lib/feishu-live-room-commands';
@@ -95,6 +96,8 @@ export async function handleFeishuCommand(args: {
       return handleNickCommand(args.command, args.context);
     case 'role':
       return handleRoleCommand(args.command, args.context);
+    case 'specialty':
+      return handleSpecialtyCommand(args.command, args.context);
     case 'restrict':
       return handleRoomRestrictionCommand(args.command, args.context);
     case 'codex-config':

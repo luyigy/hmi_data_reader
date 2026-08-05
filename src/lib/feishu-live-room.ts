@@ -5,9 +5,11 @@ import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 import {
   addCatalogAgentsToLiveRoom,
   buildLiveRoomRosterText,
+  detectDocumentationIntent,
   detectLiveRoomMentionAll,
   detectMentionedLiveRoomMembers,
   ensureLiveRoomUserMember,
+  findDocumentationSpecialist,
   listLiveRoomCatalogAgents,
   listLiveRoomPendingReplies,
   mergeLiveRoomMentionedMemberIds,
@@ -537,6 +539,13 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
   });
   const resolvedTargetMemberId = mentionedAll ? '' : (mentionedMemberIds[0] || '');
 
+  // 382: 文档/记录意图路由——无显式 @提及时，自动派给 documentation 专员
+  const hasNoExplicitTarget = !resolvedTargetMemberId && !mentionedAll && detectionResult.matchType !== 'explicit';
+  const documentationSpecialist = hasNoExplicitTarget && detectDocumentationIntent(args.content)
+    ? findDocumentationSpecialist(roomMembers)
+    : null;
+  const effectiveTargetMemberId = documentationSpecialist?.id || resolvedTargetMemberId;
+
   const message = await postLiveRoomMessage({
     roomId: binding.liveRoomId,
     senderMemberId: userMember.id,
@@ -545,7 +554,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     matchedAlias: detectionResult.primaryMatchedAlias,
     metadata: resolveLiveRoomMessageMetadata({
       senderKind: 'user',
-      targetMemberId: resolvedTargetMemberId || null,
+      targetMemberId: effectiveTargetMemberId || null,
       mentionedMemberIds,
       mentionedAll,
       expectedResponderMemberIds,
@@ -556,6 +565,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
         feishuMessageId: args.context.messageId,
         targetLocked: explicitMentionMemberIds.length === 1 && !mentionedAll,
         targetResolutionSource: explicitMentionMemberIds.length > 0 ? 'feishu_structured_mention' : null,
+        ...(documentationSpecialist ? { specialtyRoute: 'documentation' } : {}),
       },
     }),
   });
@@ -563,7 +573,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
   void triggerLiveRoomMessageReplies({
     roomId: binding.liveRoomId,
     roomMessageId: message.id,
-    requestedTargetMemberId: resolvedTargetMemberId || null,
+    requestedTargetMemberId: effectiveTargetMemberId || null,
   }).catch((error) => {
     console.error('Failed to trigger Feishu live room auto reply:', error);
   });

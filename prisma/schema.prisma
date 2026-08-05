@@ -546,6 +546,7 @@ model LiveRoomMember {
   runtimeAgentId       String?
   roleLabel            String?
   role                 String                  @default("custom")
+  specialty            String?                 // documentation, diagnostics, implementation, general
   acpxPermissionConfig String?                 // JSON object; null inherits the source task permission
   codexModel           String?
   codexReasoningEffort String?

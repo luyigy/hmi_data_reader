@@ -192,6 +192,53 @@ export async function handleRoleCommand(command: ParsedFeishuCommand, context?: 
   return `✅ 已将 ${target.userNickname || target.displayName} 的角色设为 ${role}。`;
 }
 
+export async function handleSpecialtyCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
+  const roomId = await getBoundLiveRoomId(context);
+  if (!roomId) {
+    return '当前 Feishu 会话尚未绑定 Live Room。';
+  }
+
+  const memberQuery = (command.options['member'] || command.args[0] || '').trim().replace(/^[@$]/, '');
+  const specialty = (command.options['specialty'] || command.args[1] || '').trim().toLowerCase();
+  const validSpecialties = ['documentation', 'diagnostics', 'implementation', 'general'];
+  if (!memberQuery || !validSpecialties.includes(specialty)) {
+    return [
+      '请指定成员和有效职责。',
+      '职责：documentation、diagnostics、implementation、general',
+      '示例：/ap specialty --member=lcc --specialty=documentation',
+    ].join('\n');
+  }
+
+  const members = await prisma.liveRoomMember.findMany({
+    where: { roomId },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const normalizedQuery = memberQuery.toLowerCase();
+  const target = members.find((member) =>
+    member.memberType !== 'user' && (
+      member.displayName.toLowerCase() === normalizedQuery ||
+      (member.userNickname || '').toLowerCase() === normalizedQuery ||
+      (member.shortAlias || '').toLowerCase() === normalizedQuery ||
+      member.displayName.toLowerCase().includes(normalizedQuery) ||
+      member.id.endsWith(memberQuery)
+    )
+  );
+
+  if (!target) {
+    const names = members
+      .filter((member) => member.memberType !== 'user')
+      .map((member) => member.userNickname || member.displayName)
+      .join(', ');
+    return `找不到成员：${memberQuery}\n当前成员：${names || '(none)'}`;
+  }
+
+  await prisma.liveRoomMember.update({
+    where: { id: target.id },
+    data: { specialty },
+  });
+  return `✅ 已将 ${target.userNickname || target.displayName} 的职责设为 ${specialty}。`;
+}
+
 export async function handleCodexConfigCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
   const room = await getBoundLiveRoom(context);
   if (!room) return '当前 Feishu 会话尚未绑定 Live Room。';
