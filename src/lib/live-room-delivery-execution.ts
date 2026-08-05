@@ -32,6 +32,7 @@ import {
   type DeliveryRoom,
   type DeliveryRoomMember,
 } from '@/lib/live-room-delivery-routing';
+import { FeishuProgressTracker } from '@/lib/feishu-progress';
 
 const SSH_WARNING_PATTERNS = [
   /^Warning: Permanently added .*known hosts\.\s*$/gim,
@@ -368,6 +369,19 @@ export const executeLiveRoomReplyViaAcpx = async ({
     feishuChatId: sourceMetadata?.feishuChatId,
   };
 
+  // Resolve Feishu chatId for interactive progress card (prefer metadata, fallback to DB)
+  const bindingRows = await prisma.$queryRaw<Array<{ chatId: string }>>`
+    SELECT "chatId" FROM "FeishuConversationBinding"
+    WHERE "liveRoomId" = ${room.id}
+    LIMIT 1
+  `;
+  const metadataChatId = typeof relayOrigin.feishuChatId === 'string' ? relayOrigin.feishuChatId : null;
+  const feishuChatId: string | null = metadataChatId || bindingRows[0]?.chatId || null;
+
+  const progressTracker = feishuChatId
+    ? new FeishuProgressTracker(feishuChatId)
+    : null;
+
   const participant = buildLiveRoomAcpxParticipant({
     id: targetMember.id,
     displayName: targetMember.displayName,
@@ -512,7 +526,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       });
   };
 
-  const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }) => {
+  const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }, skipFeishuRelay = false) => {
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
     const now = Date.now();
@@ -525,6 +539,18 @@ export const executeLiveRoomReplyViaAcpx = async ({
     lastToolPostedAt = now;
     lastVisibleActivityAt = now;
 
+    const extras: Record<string, unknown> = {
+      ...relayOrigin,
+      systemEvent: 'member_reply_tool',
+      harnessType: targetMember.harnessType,
+      toolName: event.toolName,
+      toolEmoji: event.emoji,
+      preview,
+    };
+    if (skipFeishuRelay) {
+      extras.skipFeishuRelay = true;
+    }
+
     progressFlushPromise = progressFlushPromise
       .then(async () => {
         await postLiveRoomMessage({
@@ -534,13 +560,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
           metadata: resolveLiveRoomMessageMetadata({
             senderKind: 'system',
             targetMemberId: targetMember.id,
-            extras: {
-              ...relayOrigin,
-              systemEvent: 'member_reply_tool',
-              toolName: event.toolName,
-              toolEmoji: event.emoji,
-              preview,
-            },
+            extras,
           }),
         });
       })
@@ -551,7 +571,14 @@ export const executeLiveRoomReplyViaAcpx = async ({
 
   const liveRoomStreamCallbacks: HarnessStreamCallbacks = {
     onStdoutChunk: (chunk) => { enqueueThinkingUpdate(chunk); },
-    onToolEvent: enqueueToolUpdate,
+    onToolEvent: (event) => {
+      if (progressTracker) {
+        // Interactive progress card handles tool events for Feishu
+        progressTracker.onToolEvent(event.toolName, event.preview, event.emoji);
+      }
+      // Always post to live room web UI (skip Feishu relay when tracker is active)
+      enqueueToolUpdate(event, progressTracker ? true : false);
+    },
   };
 
   const heartbeatTimer = setInterval(() => {
@@ -700,6 +727,14 @@ export const executeLiveRoomReplyViaAcpx = async ({
 
   clearInterval(heartbeatTimer);
   await progressFlushPromise.catch(() => undefined);
+
+  // Finalize Feishu interactive progress card
+  if (progressTracker) {
+    const finalSummary = acpxResult.status === 'completed'
+      ? participantResult?.summary || acpxResult.summary || `${targetMember.displayName} 执行完成`
+      : participantResult?.error || acpxResult.summary || `${targetMember.displayName} 执行失败`;
+    await progressTracker.finalize(finalSummary, acpxResult.status === 'completed').catch(() => {});
+  }
 
   if (acpxResult.status === 'interrupted') {
     throw new Error('Interrupted by user');

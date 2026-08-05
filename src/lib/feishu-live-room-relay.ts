@@ -35,6 +35,11 @@ export const selectFeishuRelayBinding = (
 };
 
 export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
+  // Suppress relay when an interactive Feishu progress card is handling the same events
+  if (message.metadata?.skipFeishuRelay) {
+    return false;
+  }
+
   if (message.messageType === 'assistant') {
     return true;
   }
