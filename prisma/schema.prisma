@@ -664,3 +664,18 @@ model User {
 
   @@index([username])
 }
+
+model RemoteNode {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  host      String
+  secretHash String
+  status    String   @default("offline") // online, offline
+  lastSeen  DateTime?
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([name])
+}
