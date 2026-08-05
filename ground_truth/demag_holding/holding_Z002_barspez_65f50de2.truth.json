@@ -1,0 +1,36 @@
+{
+  "image": "holding_Z002_barspez_65f50de2.jpeg",
+  "controller_family": "DEMAG",
+  "hmi_variant": "multi_stage_holding",
+  "page_type": "injection_metering",
+  "page_variant": "multi_stage_holding",
+  "quality_grade": "good",
+  "allow_auto_import": false,
+  "fields": {
+    "stage_holding_pressure_bar": [
+      1000.0,
+      800.0
+    ],
+    "stage_holding_time_s": [
+      2.0,
+      3.0
+    ],
+    "stage_holding_velocity_mms": [
+      15.0,
+      10.0,
+      5.0
+    ]
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "hmi_reader_extraction",
+    "verified_by": "王为（直播间逐张领域核对）",
+    "verified_at": "2026-08-05",
+    "changed_fields": 0
+  },
+  "source": {
+    "note": "飞书转发 img_v3_02149_65f50de2（2026-08-05）"
+  },
+  "notes": "2026-08-05 王为核对：压力单位 bar_spez（塑料压力，非液压 bar）——首份 pressure_basis=plastic_pressure 真值；保压速度为分段字段 15/10/5（物理段序），非全局单值（识别当时只取最右 15，已知差距）。"
+}

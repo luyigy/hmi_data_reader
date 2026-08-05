@@ -1,0 +1,37 @@
+{
+  "image": "holding_Z002_e4d130e8.jpeg",
+  "controller_family": "DEMAG",
+  "hmi_variant": "multi_stage_holding",
+  "page_type": "injection_metering",
+  "page_variant": "multi_stage_holding",
+  "quality_grade": "good",
+  "allow_auto_import": false,
+  "fields": {
+    "stage_holding_pressure_bar": [
+      83.0,
+      60.0,
+      60.0
+    ],
+    "stage_holding_time_s": [
+      2.0,
+      3.0
+    ],
+    "stage_holding_velocity_mms": [
+      15.0,
+      12.0,
+      12.0
+    ]
+  },
+  "alarm_status": "normal",
+  "alarm_evidence": "无报警字符/图标。",
+  "preannotation": {
+    "proposed_by": "hmi_reader_extraction",
+    "verified_by": "王为（直播间逐张领域核对）",
+    "verified_at": "2026-08-05",
+    "changed_fields": 0
+  },
+  "source": {
+    "note": "飞书转发 img_v3_02149_e4d130e8（2026-08-05）"
+  },
+  "notes": "2026-08-05 王为核对：保压速度 3 段 15/12/12（注意物理段序）。"
+}
