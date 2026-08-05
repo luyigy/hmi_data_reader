@@ -81,7 +81,8 @@ plan_progress: in_progress
 
 ## 4. 遗留事项
 
-- **Feishu 端覆盖范围**：当前只有 `FeishuProgressTracker`（工具调用进度）使用了折叠卡片。完整的 Agent 执行过程（stdout 流式输出）仍按原样发送到飞书
+- ~~**FeishuProgressTracker 未接入实际执行链路**~~ → 已于 `527b465` 修复
+- ~~**Feishu 交互卡片被 API 拒绝**~~ → `95575dd` 补 `header`、`18777eb` 补 `title` 嵌套，已修复生效
 - **Web 端全局开关**：界面右上角的「折叠/展开全部」Toggle 尚未实现
 - **S02 诊断联动**：需要在 S02 的错误消息卡片中添加「查看诊断」按钮，并联动打开对应 CollapsibleExecutionBlock
 
@@ -92,6 +93,8 @@ plan_progress: in_progress
 - `src/lib/acpx/types.ts`：新增 `TaskRunEventTier`，`AcpxLiveEventPayload` 新增 `tier`
 - `src/lib/acpx/event-bus.ts`：新增 `computeTier`，发布/推送时包含 `tier`
 - `src/lib/feishu-progress.ts`：重写为交互卡片 + `collapsible_panel`
+- `src/lib/live-room-delivery-execution.ts`：接入 FeishuProgressTracker（`527b465`）
+- `src/lib/feishu-live-room-relay.ts`：`skipFeishuRelay` 防重复推送（`527b465`）
 - `src/app/tasks/[id]/chat/task-chat-types.ts`：`TaskRunEvent` 新增 `tier`
 - `src/app/tasks/[id]/chat/CollapsibleExecutionBlock.tsx`：新文件，手风琴折叠组件
 - `src/app/tasks/[id]/chat/TaskChatTimeline.tsx`：集成分组折叠逻辑
