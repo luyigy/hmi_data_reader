@@ -42,6 +42,7 @@ export type TaskRunEventType =
   | 'run_completed'
   | 'run_failed';
 export type TaskRunStream = 'system' | 'stdout' | 'stderr';
+export type TaskRunEventTier = 'summary' | 'detail';
 export type HarnessInteractionRequestKind =
   | 'permission_request'
   | 'input_request'
@@ -130,6 +131,7 @@ export interface AcpxLiveEventPayload {
   sequence: number;
   eventType: TaskRunEventType;
   stream: TaskRunStream;
+  tier: TaskRunEventTier;
   content: string;
   metadata?: Record<string, unknown> | null;
   createdAt: string;

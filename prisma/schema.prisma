@@ -185,6 +185,7 @@ model TaskRunEvent {
   sequence         Int
   eventType        String
   stream           String              @default("system") // system, stdout, stderr
+  tier             String              @default("summary") // summary, detail
   content          String
   metadata         String?
   createdAt        DateTime            @default(now())

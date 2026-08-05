@@ -1,10 +1,15 @@
 import { prisma } from '@/lib/prisma';
 import { getSocketServer } from '@/lib/websocket';
-import type { AcpxLiveEventPayload, TaskRunEventType, TaskRunStream } from './types';
+import type { AcpxLiveEventPayload, TaskRunEventTier, TaskRunEventType, TaskRunStream } from './types';
 
 const TASK_RUN_ROOM_PREFIX = 'task-run';
 
 export const getTaskRunRoom = (taskId: string) => `${TASK_RUN_ROOM_PREFIX}:${taskId}`;
+const DETAIL_EVENT_TYPES: Set<TaskRunEventType> = new Set<TaskRunEventType>(['stdout_chunk', 'stderr_chunk']);
+
+const computeTier = (eventType: TaskRunEventType): TaskRunEventTier =>
+  DETAIL_EVENT_TYPES.has(eventType) ? 'detail' : 'summary';
+
 
 const parseMetadata = (metadata?: Record<string, unknown> | null) =>
   metadata ? JSON.stringify(metadata) : null;
@@ -40,6 +45,7 @@ export const publishTaskRunEvent = async ({
       sequence: (latestEvent?.sequence ?? 0) + 1,
       eventType,
       stream,
+      tier: computeTier(eventType),
       content,
       metadata: parseMetadata(metadata),
     },
@@ -54,6 +60,7 @@ export const publishTaskRunEvent = async ({
     sequence: event.sequence,
     eventType,
     stream,
+    tier: (event as any).tier || computeTier(eventType),
     content,
     metadata: metadata ?? null,
     createdAt: event.createdAt.toISOString(),

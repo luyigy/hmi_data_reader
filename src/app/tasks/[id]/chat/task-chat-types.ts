@@ -88,6 +88,7 @@ export interface TaskRunEvent {
   sequence: number;
   eventType: string;
   stream: 'system' | 'stdout' | 'stderr';
+  tier: 'summary' | 'detail';
   content: string;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
