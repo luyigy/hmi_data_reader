@@ -1,0 +1,32 @@
+schema_version: 1.0.0
+case_id: holding_Z002_ab30f6f6
+profile_id: demag.injection_metering.multi_stage_holding
+controller_family: DEMAG
+page_type: injection_metering
+hmi_variant: multi_stage_holding
+allow_auto_import: false
+image:
+  file: holding_Z002_ab30f6f6.jpeg
+fields:
+  stage_holding_pressure_bar:
+  - 65.0
+  - 50.0
+  - 0.0
+  stage_holding_time_s:
+  - 2.0
+  - 3.0
+  stage_holding_velocity_mms:
+  - 15.0
+  - 10.0
+  - 5.0
+provenance:
+  origin_truth: ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json
+  source:
+    note: 飞书转发 img_v3_02149_ab30f6f6（2026-08-05）
+  verified_by: 王为（直播间逐张领域核对）
+  verified_at: '2026-08-05'
+  tuning_involvement: recognition_fix
+  placement_reason: 真值注记记录速度整行漏读与前导双 0 槽位剔除两个识别差距，驱动 030_FIX——参与过识别修复，只能当练习册；按 031
+    PLAN §4.2 绝不进 holdout
+notes: 2026-08-05 王为核对：压力 65/50/0（第 3 段 0=未启用，保留真值）；速度 3 段 15/10/5。识别当时速度整行漏读（null，诚实降级
+  review）且前导双 0 槽位剔除规则把禁用段 0 也剔了——两个已知差距待修。

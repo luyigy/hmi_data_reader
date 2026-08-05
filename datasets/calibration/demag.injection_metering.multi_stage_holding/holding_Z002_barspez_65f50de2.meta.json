@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "holding_Z002_barspez_65f50de2",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_layout_version": 1,
+  "contract_version": "2.5.0",
+  "truth_hash": "sha256:736117ed7c582648ff20df736f8d01c95b44a0eb8626a07111743ad0247dc928",
+  "image_sha256": "sha256:64c0fb77a6b4224c6efb2ea04c81c0265556d854c7f43dd848b2697935433665",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "injection_metering",
+    "hmi_variant": "multi_stage_holding",
+    "allow_auto_import": false,
+    "image": "holding_Z002_barspez_65f50de2.jpeg",
+    "n_fields": 3
+  },
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "射胶页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "射胶页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "stage_holding_velocity_mms": {
+      "label_zh": "各段保压速度",
+      "page_label_zh": "射胶页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "origin_truth": "ground_truth/demag_holding/holding_Z002_barspez_65f50de2.truth.json",
+    "source": {
+      "note": "飞书转发 img_v3_02149_65f50de2（2026-08-05）"
+    },
+    "verified_by": "王为（直播间逐张领域核对）",
+    "verified_at": "2026-08-05",
+    "tuning_involvement": "recognition_fix",
+    "placement_reason": "首份 pressure_basis=plastic_pressure 真值，驱动契约 v2.3.0 stage_holding_velocity_mms 分段字段——参与过识别修复，只能当练习册；按 031 PLAN §4.2 绝不进 holdout"
+  }
+}

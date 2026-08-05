@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "holding_Z002_ab30f6f6",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_layout_version": 1,
+  "contract_version": "2.5.0",
+  "truth_hash": "sha256:32dc5411ada5e8121f00b7dfdef3f0642a75165630679ee8bdd66c4e785610ec",
+  "image_sha256": "sha256:186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "injection_metering",
+    "hmi_variant": "multi_stage_holding",
+    "allow_auto_import": false,
+    "image": "holding_Z002_ab30f6f6.jpeg",
+    "n_fields": 3
+  },
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "射胶页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "射胶页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "stage_holding_velocity_mms": {
+      "label_zh": "各段保压速度",
+      "page_label_zh": "射胶页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "origin_truth": "ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json",
+    "source": {
+      "note": "飞书转发 img_v3_02149_ab30f6f6（2026-08-05）"
+    },
+    "verified_by": "王为（直播间逐张领域核对）",
+    "verified_at": "2026-08-05",
+    "tuning_involvement": "recognition_fix",
+    "placement_reason": "真值注记记录速度整行漏读与前导双 0 槽位剔除两个识别差距，驱动 030_FIX——参与过识别修复，只能当练习册；按 031 PLAN §4.2 绝不进 holdout"
+  }
+}

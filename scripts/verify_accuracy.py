@@ -1,10 +1,10 @@
-"""S4 真值比对：提取结果 vs S3 字段级真值，报告 6 项验收指标。
+"""S4 真值比对：提取结果 vs 真值，报告 6 项验收指标（031 PLAN S01 改版）。
 
 指标（公式与 PLAN §3 统一）：
 1. controller_classification_accuracy — |family 一致的图| / |全部图|（大小写归一）
 2. page_classification_accuracy       — |page_type 一致的图| / |全部图|
 3. field_completeness                 — |提取非空的数值字段元素| / |计分真值非空数值字段元素|
-4. numeric_accuracy                   — |匹配真值(允许误差 ±0.5)的数值字段元素| / |计分真值非空数值字段元素|，门槛 >= 95%
+4. numeric_accuracy                   — |匹配真值(允许误差)的数值字段元素| / |计分真值非空数值字段元素|，门槛 >= 95%
 5. auto_import_ratio                  — |status=ok 的图| / |全部图|
 6. error_auto_import_rate             — |误识别但仍 status=ok 的字段元素| / |status=ok 图的字段元素|，门槛严格 = 0
 7. rejection_accuracy                 — |正确拒识(status!=ok)的 allow_auto_import=false 图| / |allow_auto_import=false 图|，门槛严格 = 1，空分母 N/A
@@ -16,9 +16,21 @@
 数值字段元素 = 标量字段本身或数组字段的单个元素；数组长度不一致时，真值侧超出的
 元素计为"提取缺失"（不完整 + 不匹配）。
 
+双模式（031 PLAN §4.5，NUMERIC_FIELDS 硬编码清单已删除）：
+- contract 模式（真值目录含 *.truth.yml，datasets/ 契约真值）：按字段目录
+  value_type 判定数值/文本字段与容差；真值出现目录未登记字段立即硬失败，
+  不给未接入字段编造单位语义。报告标 mode=contract；全部硬门禁通过且
+  rejection_accuracy 非 N/A 时 lifecycle_eligible=true，否则 false
+  （rejection N/A 不得晋级）。
+- legacy 模式（真值目录含 *.truth.json，ground_truth/ 历史真值）：按真值值
+  类型动态枚举数值键（标量数值/数值数组/文本标量），继续出对比报告，但一律
+  lifecycle_eligible=false——老真值无契约绑定，不得用于晋级。
+
 用法：
     python scripts/verify_accuracy.py output/extracted --truth ground_truth/zizes_temperature \
         --output output/accuracy_report.json
+    python scripts/verify_accuracy.py output/extracted --truth datasets/holdout/<profile_id> \
+        --output output/accuracy_report.json   # contract 模式
 """
 from __future__ import annotations
 
@@ -27,139 +39,42 @@ import json
 import sys
 from pathlib import Path
 
+import yaml
+
 TOLERANCE = 0.5
 GATE_NUMERIC_ACCURACY = 0.95
 GATE_ERROR_AUTO_IMPORT_RATE = 0.0
 
-# 真值 schema 的数值字段（oil_temperature_current_c 为 2026-07-30 新增，
-# holding/drop_port_* 为 2026-07-31 TACT 新增；high/low_deviation_c 为
-# 2026-07-31 伯乐 KEBA/B_AND_R 新增；以真值集为准，家族间取并集，
-# 不属于该家族真值的字段读出来是 None，不会进入分母）
-NUMERIC_FIELDS = [
-    "barrel_temperature_set_c",
-    "barrel_temperature_current_c",
-    "oil_temperature_set_c",
-    "oil_temperature_current_c",
-    "control_percent",
-    "holding_temperature_c",
-    "drop_port_temperature_set_c",
-    "drop_port_temperature_current_c",
-    "drop_port_control_percent",
-    "high_deviation_c",
-    "low_deviation_c",
-    # 035 射出/保压页（TACT injection_metering）新增；以真值集为准取并集
-    "fill_velocity_mms",
-    "fill_stages",
-    "switch_position_sv1_mm",
-    "switch_position_sv2_mm",
-    "metering_position_sm_mm",
-    "metering_rpm",
-    "back_pressure_mpa",
-    "holding_pressure_mpa",
-    "holding_stages",
-    "holding_time_s",
-    "holding_limit_speed_mms",
-    "vp_switch_position_mm",
-    "pressure_limit_mpa",
-    "injection_time_s",
-    "cooling_time_s",
-    "decompress_velocity_mms",
-    "sd_position_mm",
-    # 035 第三波 FANUC 射出/计量页（Z036）新增；以真值集为准取并集
-    "injection_velocity_mms",
-    "injection_pressure_limit_mpa",
-    "injection_switch_position_mm",
-    "max_injection_time_s",
-    "injection_alarm_pressure_mpa",
-    "metering_back_pressure_mpa",
-    "metering_rpm_stages",
-    "metering_switch_positions_mm",
-    "decompress_mms",
-    # 049 A1 ZIZES 射出页（Z017）新增；以真值集为准取并集
-    "injection_pressure_bar",
-    "injection_velocity_pct",
-    "injection_position_mm",
-    "injection_stages",
-    "injection_time_s",
-    "injection_delay_s",
-    "holding_pressure_bar",
-    "holding_velocity_pct",
-    "holding_switch_mode",
-    "pressure_upper_limit_bar",
-    "pressure_lower_limit_bar",
-    # 049 A2 KEBA 射出页（Z031）新增
-    "injection_end_position_mm",
-    # 049 A3 B_AND_R 射胶页（Z050）新增
-    "vp_switch_time_s",
-    # 049 A6 TRD6 注射设定页（Z020）新增
-    "injection_positions_mm",
-    "metering_position_mm",
-    "injection_time_limit_s",
-    "holding_velocity_mms",
-    "dwell_time_s",
-    "metering_delay_s",
-    "suckback_mm",
-    "suckback_speed_pct",
-    "purge_velocity_mms",
-    "purge_count",
-    # 049 B1 储料/冷却（Z036）新增
-    "decompress_position_mm",
-    # 049 B2 成型监控（Z036）新增
-    "monitor_upper",
-    "monitor_baseline",
-    "monitor_lower",
-    "cycle_alarm_upper_s",
-    "cycle_alarm_lower_s",
-    "cycle_alarm_delay_s",
-    # 049 B3 波形图（Z036）新增
-    "y_axis_max_set_pressure_mpa",
-    "y_axis_max_inject_pressure_mpa",
-    "y_axis_max_screw_velocity_mms",
-    "y_axis_max_screw_position_mm",
-    "y_axis_min_screw_velocity_mms",
-    "x_axis_max",
-    # 049 B4 热流道（Z023）新增
-    "sv_c",
-    # 049 B5 模温机（Z036）新增
-    "set_temperature_c",
-    # 035 第二波 DEMAG 射出/保压页新增；以真值集为准取并集
-    "pressure_limit_bar",
-    "first_velocity_mms",
-    "first_position_mm",
-    "stage_velocity_mms",
-    "stage_pressure_bar",
-    "plasticizing_speed_rpm",
-    "back_pressure_bar",
-    "holding_pressure_bar",
-    "holding_velocity_mms",
-    "cushion_mm",
-    "switch_position_mm",
-    "switch_pressure_bar",
-    "switch_time_s",
-    "injection_velocity_mms",
-    "injection_pressure_limit_bar",
-]
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CATALOG = REPO_ROOT / "contracts" / "field_catalog.json"
+
+# 字段目录 value_type -> 计分类型
+NUMERIC_VALUE_TYPES = {"float", "int", "list[float]", "list[int]"}
+TEXT_VALUE_TYPES = {"str", "string"}
 
 
-def truth_numeric_keys(fields: dict | None) -> list[str]:
-    """真值 fields 里所有数值型（标量或数值数组）键——用于漏算检查。"""
-    keys = []
+def truth_scorable_keys(fields: dict | None) -> dict[str, str]:
+    """legacy 模式：真值 fields 里可计分键 -> numeric/text（按真值值类型动态枚举）。"""
+    keys: dict[str, str] = {}
     for k, v in (fields or {}).items():
         if isinstance(v, bool):
             continue
         if isinstance(v, (int, float)):
-            keys.append(k)
-        elif isinstance(v, list) and v and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v):
-            keys.append(k)
+            keys[k] = "numeric"
+        elif isinstance(v, str):
+            keys[k] = "text"
+        elif isinstance(v, list) and v and all(
+                isinstance(x, (int, float)) and not isinstance(x, bool) for x in v):
+            keys[k] = "numeric"
     return keys
 
 
-def flatten_numeric(fields: dict | None) -> dict[str, float | None]:
+def flatten_scorable(fields: dict | None, scorable: dict[str, str]) -> dict:
     """{field: scalar|[...]} -> {field 或 field[i]: value}；缺失/None 记为 None。"""
-    flat: dict[str, float | None] = {}
+    flat: dict = {}
     if not fields:
         return flat
-    for name in NUMERIC_FIELDS:
+    for name in scorable:
         v = fields.get(name)
         if isinstance(v, list):
             for i, item in enumerate(v):
@@ -169,27 +84,23 @@ def flatten_numeric(fields: dict | None) -> dict[str, float | None]:
     return flat
 
 
-def compare_one(truth: dict, extracted: dict | None) -> dict:
-    """单图比对，返回该图的逐元素明细与计数。"""
-    t_family = truth.get("controller_family", "")
-    t_page = truth.get("page_type", "")
-    e_family = (extracted or {}).get("controller_family", "")
-    e_page = (extracted or {}).get("page_type", "")
-    status = (extracted or {}).get("status", "reject")
-
-    t_flat = flatten_numeric(truth.get("fields"))
-    e_flat = flatten_numeric(extracted.get("fields") if extracted else None)
-
+def compare_elements(t_flat: dict, e_flat: dict, scorable: dict[str, str],
+                     tolerances: dict[str, float]) -> list[dict]:
+    """逐元素比对：数值按容差、文本按等值。真值 None 不计入分母。"""
     elements = []
     for key, t_val in t_flat.items():
         if t_val is None:
             continue  # 真值空缺不计入分母
+        base = key.split("[", 1)[0]
         e_val = e_flat.get(key)
-        if isinstance(t_val, str) or isinstance(e_val, str):
-            # 文本型字段（如 KEBA 转保压方式 时间/位置）：等值比对
+        if scorable.get(base) == "text" or isinstance(t_val, str) or isinstance(e_val, str):
             matched = e_val is not None and e_val == t_val
         else:
-            matched = e_val is not None and abs(e_val - t_val) <= TOLERANCE
+            tol = tolerances.get(base, TOLERANCE)
+            matched = (e_val is not None
+                       and isinstance(e_val, (int, float))
+                       and not isinstance(e_val, bool)
+                       and abs(e_val - t_val) <= tol)
         elements.append({
             "field": key,
             "truth": t_val,
@@ -197,6 +108,21 @@ def compare_one(truth: dict, extracted: dict | None) -> dict:
             "present": e_val is not None,
             "matched": matched,
         })
+    return elements
+
+
+def compare_one(truth: dict, extracted: dict | None, scorable: dict[str, str],
+                tolerances: dict[str, float]) -> dict:
+    """单图比对，返回该图的逐元素明细与计数。"""
+    t_family = truth.get("controller_family", "")
+    t_page = truth.get("page_type", "")
+    e_family = (extracted or {}).get("controller_family", "")
+    e_page = (extracted or {}).get("page_type", "")
+    status = (extracted or {}).get("status", "reject")
+
+    t_flat = flatten_scorable(truth.get("fields"), scorable)
+    e_flat = flatten_scorable(extracted.get("fields") if extracted else None, scorable)
+    elements = compare_elements(t_flat, e_flat, scorable, tolerances)
 
     return {
         "image": truth["image"],
@@ -215,39 +141,70 @@ def compare_one(truth: dict, extracted: dict | None) -> dict:
     }
 
 
-def main():
-    ap = argparse.ArgumentParser(description="S4 提取结果 vs 真值：6 项验收指标")
-    ap.add_argument("extracted_dir", help="extract_fields 输出目录（*.fields.json）")
-    ap.add_argument("--truth", required=True, help="真值目录（*.truth.json）")
-    ap.add_argument("--output", "-o", required=True)
-    args = ap.parse_args()
+def load_legacy_truths(truth_dir: Path) -> tuple[list[dict], dict[str, str],
+                                                 dict[str, float]]:
+    """legacy *.truth.json：数值键按真值值类型动态枚举（跨文件取并集）。"""
+    truths = []
+    scorable: dict[str, str] = {}
+    for tf in sorted(truth_dir.glob("*.truth.json")):
+        raw = json.loads(tf.read_text(encoding="utf-8"))
+        truths.append({
+            "image": raw.get("image") or tf.name,
+            "controller_family": raw.get("controller_family", ""),
+            "page_type": raw.get("page_type", ""),
+            "allow_auto_import": raw.get("allow_auto_import"),
+            "fields": raw.get("fields") or {},
+        })
+    for truth in truths:
+        scorable.update(truth_scorable_keys(truth["fields"]))
+    tolerances = {k: TOLERANCE for k in scorable}
+    return truths, scorable, tolerances
 
-    extracted_dir = Path(args.extracted_dir)
-    truth_dir = Path(args.truth)
-    truth_files = sorted(truth_dir.glob("*.truth.json"))
-    if not truth_files:
-        sys.exit(f"[verify] ERROR: 真值目录为空: {truth_dir}")
 
-    per_image = []
-    missing_extraction = []
-    uncovered = {}  # 真值数值字段未被 NUMERIC_FIELDS 覆盖 -> 防漏算硬检查
-    for tf in truth_files:
-        truth = json.loads(tf.read_text())
-        miss = [k for k in truth_numeric_keys(truth.get("fields")) if k not in NUMERIC_FIELDS]
+def load_contract_truths(truth_dir: Path, catalog: dict) -> tuple[list[dict],
+                                                                 dict[str, str],
+                                                                 dict[str, float]]:
+    """contract *.truth.yml：按字段目录 value_type 计分；未登记字段硬失败。"""
+    catalog_fields = catalog.get("fields", {})
+    truths = []
+    unregistered: dict[str, list[str]] = {}
+    for tf in sorted(truth_dir.glob("*.truth.yml")):
+        raw = yaml.safe_load(tf.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or not isinstance(raw.get("fields"), dict):
+            sys.exit(f"[verify] ERROR: contract 真值缺少 fields mapping: {tf}")
+        fields = raw["fields"]
+        miss = sorted(k for k in fields if k not in catalog_fields)
         if miss:
-            uncovered[truth["image"]] = miss
-        stem = Path(truth["image"]).stem
-        ef = extracted_dir / f"{stem}.fields.json"
-        extracted = json.loads(ef.read_text()) if ef.is_file() else None
-        if extracted is None:
-            missing_extraction.append(truth["image"])
-        per_image.append(compare_one(truth, extracted))
+            unregistered[raw.get("case_id") or tf.name] = miss
+        image = (raw.get("image") or {}).get("file") or f"{raw.get('case_id', tf.stem)}"
+        truths.append({
+            "image": image,
+            "controller_family": raw.get("controller_family", ""),
+            "page_type": raw.get("page_type", ""),
+            "allow_auto_import": raw.get("allow_auto_import"),
+            "fields": fields,
+        })
+    if unregistered:
+        sys.exit(f"[verify] ERROR: contract 真值出现字段目录未登记字段（不给未接入字段"
+                 f"编造单位语义，先在 contracts/field_catalog.json 登记）: "
+                 f"{json.dumps(unregistered, ensure_ascii=False)}")
+    scorable: dict[str, str] = {}
+    tolerances: dict[str, float] = {}
+    for name, spec in catalog_fields.items():
+        if not isinstance(spec, dict):
+            continue
+        vtype = spec.get("value_type")
+        if vtype in NUMERIC_VALUE_TYPES:
+            scorable[name] = "numeric"
+            tol = spec.get("tolerance")
+            tolerances[name] = tol if isinstance(tol, (int, float)) else TOLERANCE
+        elif vtype in TEXT_VALUE_TYPES:
+            scorable[name] = "text"
+    return truths, scorable, tolerances
 
-    if uncovered:
-        # 真值含 NUMERIC_FIELDS 之外的数值字段：继续跑会把它漏出分母形成假高分，直接失败
-        sys.exit(f"[verify] ERROR: 真值数值字段未被 NUMERIC_FIELDS 覆盖（会漏算出假高分）: "
-                 f"{json.dumps(uncovered, ensure_ascii=False)}")
 
+def build_report(per_image: list[dict], missing_extraction: list[str],
+                 *, mode: str, catalog_version: str | None) -> dict:
     n = len(per_image)
 
     # 023 PLAN §3 拒识口径：只有真值 allow_auto_import=false 且提取 status != ok 的
@@ -293,15 +250,31 @@ def main():
         "rejection_accuracy == 1": ("N/A" if metrics["rejection_accuracy"] is None
                                     else metrics["rejection_accuracy"] == 1.0),
     }
+    # 晋级资格（031 PLAN §4.3/§4.5）：legacy 一律 false；contract 须三门禁全过
+    # 且 rejection_accuracy 非 N/A（空分母不得晋级）
+    if mode == "legacy":
+        lifecycle_eligible = False
+        lifecycle_note = ("legacy ground_truth 无契约绑定（无 meta/hash/分区治理），"
+                          "报告仅供对比，不得用于 profile 晋级")
+    else:
+        lifecycle_eligible = all(v is True for v in gates.values())
+        lifecycle_note = ("contract dataset 三门禁全过且负例在场，可作为晋级输入"
+                          if lifecycle_eligible else
+                          "门禁未全过或 rejection_accuracy 为 N/A（空分母不得晋级）")
     report = {
-        "version": "1.1",
-        "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3；拒识口径 docs/023_PLAN_20260801_伯乐S3拒识口径与定向收口.md §3",
+        "version": "2.0",
+        "mode": mode,
+        "contract_version": catalog_version,
+        "lifecycle_eligible": lifecycle_eligible,
+        "lifecycle_note": lifecycle_note,
+        "plan_ref": "docs/007_PLAN_20260730_端到端薄切片实施计划.md §3；拒识口径 docs/023_PLAN_20260801_伯乐S3拒识口径与定向收口.md §3；双模式 031 PLAN §4.5",
         "tolerance": TOLERANCE,
         "n_images": n,
+        "n_negative": len(neg),
         "metrics": metrics,
         "gates": gates,
         "poc_pass": all(v is True or v == "N/A" for v in gates.values()),
-        "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，伯乐批分母应为 1 由验收显式核对）",
+        "gate_semantics": "PoC 可跑通判定：达标 = 允许进入扩样验证，不代表许可生产环境真实自动入库；空分母 numeric/error 门 FAIL，rejection 空分母记 N/A（不宣称 PASS，且 N/A 不得用于晋级）",
         "scoring": {
             "rule": "仅真值 allow_auto_import=false 且提取 status != ok 的正确拒识图，其数值元素从 field_completeness/numeric_accuracy 分母分子排除；错误放行负样本不排除",
             "raw_totals": raw_totals,
@@ -321,17 +294,61 @@ def main():
             for p in per_image for e in p["elements"] if not e["matched"]
         ],
     }
+    return report
+
+
+def main():
+    ap = argparse.ArgumentParser(description="S4 提取结果 vs 真值：6 项验收指标")
+    ap.add_argument("extracted_dir", help="extract_fields 输出目录（*.fields.json）")
+    ap.add_argument("--truth", required=True, help="真值目录（*.truth.yml 契约真值或 *.truth.json 历史真值）")
+    ap.add_argument("--output", "-o", required=True)
+    ap.add_argument("--catalog", default=str(DEFAULT_CATALOG),
+                    help="contract 模式字段目录（默认 contracts/field_catalog.json）")
+    args = ap.parse_args()
+
+    extracted_dir = Path(args.extracted_dir)
+    truth_dir = Path(args.truth)
+
+    if list(truth_dir.glob("*.truth.yml")):
+        mode = "contract"
+        catalog = json.loads(Path(args.catalog).read_text(encoding="utf-8"))
+        truths, scorable, tolerances = load_contract_truths(truth_dir, catalog)
+        catalog_version = catalog.get("contract_version")
+    elif list(truth_dir.glob("*.truth.json")):
+        mode = "legacy"
+        catalog_version = None
+        truths, scorable, tolerances = load_legacy_truths(truth_dir)
+    else:
+        sys.exit(f"[verify] ERROR: 真值目录为空（无 *.truth.yml 或 *.truth.json）: {truth_dir}")
+
+    per_image = []
+    missing_extraction = []
+    for truth in truths:
+        stem = Path(truth["image"]).stem
+        ef = extracted_dir / f"{stem}.fields.json"
+        extracted = json.loads(ef.read_text()) if ef.is_file() else None
+        if extracted is None:
+            missing_extraction.append(truth["image"])
+        per_image.append(compare_one(truth, extracted, scorable, tolerances))
+
+    report = build_report(per_image, missing_extraction,
+                          mode=mode, catalog_version=catalog_version)
+    metrics, gates = report["metrics"], report["gates"]
+    excluded = report["scoring"]["excluded_images"]
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2))
 
-    print(f"[verify] {n} 张真值图，提取缺失 {len(missing_extraction)} 张，计分排除 {len(excluded)} 张")
+    print(f"[verify] mode={mode}，{report['n_images']} 张真值图，提取缺失 "
+          f"{len(missing_extraction)} 张，计分排除 {len(excluded)} 张")
     for k, v in metrics.items():
         print(f"  {k}: {v}")
     for k, v in gates.items():
         mark = "N/A" if v == "N/A" else ("PASS" if v else "FAIL")
         print(f"  gate {k}: {mark}")
+    print(f"  lifecycle_eligible: {report['lifecycle_eligible']}"
+          f"（{report['lifecycle_note']}）")
     print(f"[verify] report -> {out_path}")
 
 

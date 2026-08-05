@@ -1,0 +1,31 @@
+schema_version: 1.0.0
+case_id: holding_Z002_e4d130e8
+profile_id: demag.injection_metering.multi_stage_holding
+controller_family: DEMAG
+page_type: injection_metering
+hmi_variant: multi_stage_holding
+allow_auto_import: false
+image:
+  file: holding_Z002_e4d130e8.jpeg
+fields:
+  stage_holding_pressure_bar:
+  - 83.0
+  - 60.0
+  - 60.0
+  stage_holding_time_s:
+  - 2.0
+  - 3.0
+  stage_holding_velocity_mms:
+  - 15.0
+  - 12.0
+  - 12.0
+provenance:
+  origin_truth: ground_truth/demag_holding/holding_Z002_e4d130e8.truth.json
+  source:
+    note: 飞书转发 img_v3_02149_e4d130e8（2026-08-05）
+  verified_by: 王为（直播间逐张领域核对）
+  verified_at: '2026-08-05'
+  tuning_involvement: domain_check_only
+  placement_reason: 领域核对通过、未直接用于修识别；作回归练习册（已在 test_demag_stage_enabled 钉住识别产出）；按 031
+    PLAN §4.2 绝不进 holdout
+notes: 2026-08-05 王为核对：保压速度 3 段 15/12/12（注意物理段序）。

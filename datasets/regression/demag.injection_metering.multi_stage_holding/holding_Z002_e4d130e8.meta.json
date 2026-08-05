@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "holding_Z002_e4d130e8",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_layout_version": 1,
+  "contract_version": "2.5.0",
+  "truth_hash": "sha256:b3efdfb2e98d7441ca920f652e24620f662c60910c8a83403a5506d811cda522",
+  "image_sha256": "sha256:421dca7e9fd1c4f3d3add9e1d4778b1fddf2f5fcc9ca54733d878aeb603bba23",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "injection_metering",
+    "hmi_variant": "multi_stage_holding",
+    "allow_auto_import": false,
+    "image": "holding_Z002_e4d130e8.jpeg",
+    "n_fields": 3
+  },
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "射胶页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "射胶页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "stage_holding_velocity_mms": {
+      "label_zh": "各段保压速度",
+      "page_label_zh": "射胶页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "origin_truth": "ground_truth/demag_holding/holding_Z002_e4d130e8.truth.json",
+    "source": {
+      "note": "飞书转发 img_v3_02149_e4d130e8（2026-08-05）"
+    },
+    "verified_by": "王为（直播间逐张领域核对）",
+    "verified_at": "2026-08-05",
+    "tuning_involvement": "domain_check_only",
+    "placement_reason": "领域核对通过、未直接用于修识别；作回归练习册（已在 test_demag_stage_enabled 钉住识别产出）；按 031 PLAN §4.2 绝不进 holdout"
+  }
+}

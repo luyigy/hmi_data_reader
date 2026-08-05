@@ -1,0 +1,33 @@
+schema_version: 1.0.0
+case_id: holding_Z002_photo_1784721642626
+profile_id: demag.injection_metering.multi_stage_holding
+controller_family: DEMAG
+page_type: injection_metering
+hmi_variant: multi_stage_holding
+allow_auto_import: true
+image:
+  file: holding_Z002_photo_1784721642626.jpeg
+fields:
+  stage_holding_pressure_bar:
+  - 65.0
+  - 60.0
+  - 55.0
+  stage_holding_time_s:
+  - 2.0
+  - 1.0
+  holding_velocity_mms: 12.0
+provenance:
+  origin_truth: ground_truth/demag_holding/holding_Z002_photo_1784721642626.truth.json
+  source:
+    feedback_issue_id: e3ebbba2-0756-47c0-a7d8-18eeeb04a3ca
+    machine_id: 9bfeb5d9-622a-4f47-b4fe-8b20c12b4c58
+    source_filename: photo_1784721642626.JPEG
+  verified_by: 王为（app 反馈 e3ebbba2）
+  verified_at: '2026-08-05'
+  tuning_involvement: recognition_fix
+  placement_reason: app 反馈 e3ebbba2 直接驱动 035 variant 检测修复与契约 v2.2.0 保压语义确认——参与过识别修复，只能当练习册；按
+    031 PLAN §4.2 绝不进 holdout
+notes: 机台 Z002（DEMAG NC）多级保压页（曲线+段表）。段表屏幕自右向左为第 1/2/3 段：压力[bar] 行=各段保压压力（屏幕左→右 0.0/55/60/65，最左
+  0 值深灰框为未启用段槽位，物理段序=[65,60,55]）；时间[s] 行=各段保压时长 segment_duration（每段时长：2s 内 65→60、再
+  1s 内 60→55，物理段序=[2,1]，非累计时刻）；速度[mm/s] 行=全局保压速度设定 12.0。左列 实际切换/保压/位置/余料量 为实际值不入真值。该页曾被误判为
+  multi_stage_injection（标题在裁切中缺席致 has_holding 锚点未命中），035 已修正 variant 检测。

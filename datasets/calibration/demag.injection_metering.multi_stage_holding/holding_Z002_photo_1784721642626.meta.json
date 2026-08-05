@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "holding_Z002_photo_1784721642626",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_layout_version": 1,
+  "contract_version": "2.5.0",
+  "truth_hash": "sha256:44ab3fee948530477ae506bbfce14c9ca76c4f20d7fe7b3b77715f883350208a",
+  "image_sha256": "sha256:6219a638df0d10f67b839c7ca520ce1b402d20ffd2e0c62a5d6bd0e38c13b589",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "injection_metering",
+    "hmi_variant": "multi_stage_holding",
+    "allow_auto_import": true,
+    "image": "holding_Z002_photo_1784721642626.jpeg",
+    "n_fields": 3
+  },
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "射胶页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "射胶页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "holding_velocity_mms": {
+      "label_zh": "保压速度",
+      "page_label_zh": "射胶页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding",
+        "identity": "singleton"
+      },
+      "value_type": "float",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "origin_truth": "ground_truth/demag_holding/holding_Z002_photo_1784721642626.truth.json",
+    "source": {
+      "feedback_issue_id": "e3ebbba2-0756-47c0-a7d8-18eeeb04a3ca",
+      "machine_id": "9bfeb5d9-622a-4f47-b4fe-8b20c12b4c58",
+      "source_filename": "photo_1784721642626.JPEG"
+    },
+    "verified_by": "王为（app 反馈 e3ebbba2）",
+    "verified_at": "2026-08-05",
+    "tuning_involvement": "recognition_fix",
+    "placement_reason": "app 反馈 e3ebbba2 直接驱动 035 variant 检测修复与契约 v2.2.0 保压语义确认——参与过识别修复，只能当练习册；按 031 PLAN §4.2 绝不进 holdout"
+  }
+}
