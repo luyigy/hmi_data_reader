@@ -30,7 +30,7 @@ class ContractProfileTest(unittest.TestCase):
         self.assertEqual(result["profile_id"],
                          "demag.injection_metering.multi_stage_injection")
         self.assertEqual(result["profile_status"], "verified")
-        self.assertEqual(result["contract_version"], "2.4.0")
+        self.assertEqual(result["contract_version"], "2.5.0")
 
     def test_stage_velocity_web_target(self):
         result = attach_contract(_injection_result("multi_stage_injection"))
@@ -140,6 +140,60 @@ class ContractIdempotentTest(unittest.TestCase):
         for key in ("hmi_variant", "profile_id", "profile_status",
                     "contract_version", "field_meta"):
             self.assertEqual(result[key], first[key])
+
+
+class PressureBasisOverrideTest(unittest.TestCase):
+    """extraction_detail.pressure_unit_text 对 physical_semantics.pressure_basis
+    的运行时覆盖：bar_spez=塑料压力；bar/无标签保持目录原值（null 不猜）。"""
+
+    def _holding_result(self, unit_text_marker):
+        result = _injection_result("multi_stage_holding", fields={
+            "stage_holding_pressure_bar": [65.0, 60.0],
+            "stage_holding_time_s": [2.0, 1.0],
+            "stage_holding_velocity_mms": [12.0],
+        })
+        if unit_text_marker is not None:
+            result["extraction_detail"]["pressure_unit_text"] = unit_text_marker
+        return result
+
+    def test_holding_segment_web_targets(self):
+        result = attach_contract(self._holding_result(None))
+        meta = result["field_meta"]
+        self.assertEqual(meta["stage_holding_pressure_bar"]["web_target"],
+                         "holding_segment_pressure")
+        self.assertEqual(meta["stage_holding_time_s"]["web_target"],
+                         "holding_segment_time")
+        self.assertIsNone(meta["stage_holding_velocity_mms"]["web_target"])
+
+    def test_bar_spez_overrides_to_plastic_pressure(self):
+        result = attach_contract(self._holding_result("bar_spez"))
+        meta = result["field_meta"]
+        self.assertEqual(
+            meta["stage_holding_pressure_bar"]["physical_semantics"],
+            {"pressure_basis": "plastic_pressure"})
+        # 无 pressure_basis 维度的字段不受影响
+        self.assertEqual(
+            meta["stage_holding_time_s"]["physical_semantics"],
+            {"time_definition": "segment_duration"})
+
+    def test_bar_keeps_catalog_value(self):
+        result = attach_contract(self._holding_result("bar"))
+        self.assertEqual(
+            result["field_meta"]["stage_holding_pressure_bar"]["physical_semantics"],
+            {"pressure_basis": None})
+
+    def test_no_unit_text_keeps_catalog_value(self):
+        result = attach_contract(self._holding_result(None))
+        self.assertEqual(
+            result["field_meta"]["stage_holding_pressure_bar"]["physical_semantics"],
+            {"pressure_basis": None})
+
+    def test_catalog_cache_not_polluted(self):
+        attach_contract(self._holding_result("bar_spez"))
+        result = attach_contract(self._holding_result(None))
+        self.assertEqual(
+            result["field_meta"]["stage_holding_pressure_bar"]["physical_semantics"],
+            {"pressure_basis": None})
 
 
 if __name__ == "__main__":

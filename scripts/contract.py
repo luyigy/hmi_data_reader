@@ -13,6 +13,9 @@ service 内带 classification 再调用一次（重算 profile_confidence），
 - field_meta         仅目录中存在的字段：label_zh/page_label_zh/unit/role/entity/
                      value_type/web_target（role 应用 role_overrides[profile_id]；
                      physical_semantics 仅在目录中定义时原样带上）
+- 压力侧别运行时覆盖：extraction_detail.pressure_unit_text == "bar_spez" 时，
+  带 physical_semantics.pressure_basis 的字段覆盖为 plastic_pressure；
+  "bar" 或无标签保持目录原值（null 不猜）
 """
 from __future__ import annotations
 
@@ -120,7 +123,8 @@ def _build_field_meta(fields: dict | None, catalog_fields: dict,
         if profile_id and isinstance(overrides, dict) and profile_id in overrides:
             meta["role"] = overrides[profile_id]
         if "physical_semantics" in spec:
-            meta["physical_semantics"] = spec.get("physical_semantics")
+            # 拷贝而非引用：pressure_basis 运行时覆盖不得污染 lru_cache 目录对象
+            meta["physical_semantics"] = dict(spec["physical_semantics"])
         field_meta[name] = meta
     return field_meta
 
@@ -155,4 +159,14 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
     result["contract_version"] = catalog.get("contract_version")
     result["field_meta"] = _build_field_meta(
         result.get("fields"), catalog.get("fields", {}), profile_id)
+
+    detail = result.get("extraction_detail")
+    unit_text = detail.get("pressure_unit_text") if isinstance(detail, dict) else None
+    if unit_text == "bar_spez":
+        # 压力行标签实测 bar_spez=塑料压力（领域确认）：运行时覆盖目录 null；
+        # "[bar]"/无标签保持目录原值（液压未显式确认，null 不猜）。
+        for meta in result["field_meta"].values():
+            semantics = meta.get("physical_semantics")
+            if isinstance(semantics, dict) and "pressure_basis" in semantics:
+                semantics["pressure_basis"] = "plastic_pressure"
     return result

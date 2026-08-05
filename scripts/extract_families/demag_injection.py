@@ -58,6 +58,17 @@ def _v(text):
     return float(m.group()) if m else None
 
 
+def _pressure_unit_text(label: str | None) -> str | None:
+    """压力行标签原文中的单位字符串：含 bar_spez（塑料压力）/"[bar]"，未标出为 None。"""
+    if not label:
+        return None
+    if "bar_spez" in label:
+        return "bar_spez"
+    if "[bar]" in label:
+        return "bar"
+    return None
+
+
 def _is_curve(toks):
     keys = ["多级注", "注射常数", "移动曲线", "多级", "多段"]
     return any(_anchor_match(keys, t["text"]) for t in toks)
@@ -158,12 +169,15 @@ def _extract_curve(toks, tpl, warnings, img=None):
     }
     hint = tpl.get("row_y_hint", {"pressure": 0.68, "velocity": 0.72, "position": 0.75})
     rows = {}
+    pressure_label = None  # 压力行标签原文（注射/保压变体压力侧别观测用）
     for key, keys in ra.items():
         # 行标签只在左侧标签区（x<0.45）出现；右下"多级速度"勾选框等同名
         # 复选框在部分几何下比真行更靠近 hint，会抢占锚定（030_FIX 图 5 实测）。
         hits = [t for t in toks if t["x"] < 0.45 and _anchor_match(keys, t["text"])]
-        rows[key] = (min(hits, key=lambda t: abs(t["y"] - hint[key]))["y"]
-                     if hits else hint[key])
+        anchor = min(hits, key=lambda t: abs(t["y"] - hint[key])) if hits else None
+        rows[key] = anchor["y"] if anchor else hint[key]
+        if key == "pressure" and anchor is not None:
+            pressure_label = anchor["text"]
 
     dy = _page_value_offset([t for t in toks if t["x"] > 0.45], rows)
     vrow = {key: rows[key] + dy for key in rows}
@@ -426,6 +440,10 @@ def _extract_curve(toks, tpl, warnings, img=None):
             fields["_stage_enabled"] = stage_enabled
 
     fields["_page_variant"] = variant
+    if variant in ("multi_stage_injection", "multi_stage_holding"):
+        # 压力侧别观测（不进 fields，背压变体不观测）：注射/保压变体从压力行
+        # 标签原文提取单位字符串，attach_contract 据此做 pressure_basis 运行时覆盖。
+        fields["_pressure_unit_text"] = _pressure_unit_text(pressure_label)
     return fields
 
 
@@ -460,10 +478,12 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
         img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
     warnings: list[str] = []
     stage_enabled = None
+    pressure_unit_text = None
     if _is_curve(toks):
         fields = _extract_curve(toks, template["curve_page"], warnings, img=img)
         variant = fields.pop("_page_variant", "multi_stage_injection")
         stage_enabled = fields.pop("_stage_enabled", None)
+        pressure_unit_text = fields.pop("_pressure_unit_text", None)
     else:
         fields = _extract_optim(toks, template, warnings)
         variant = "process_optimization"
@@ -477,8 +497,11 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
                 warnings = curve_warnings
                 variant = fields.pop("_page_variant", "multi_stage_injection")
                 stage_enabled = fields.pop("_stage_enabled", None)
+                pressure_unit_text = fields.pop("_pressure_unit_text", None)
 
     detail = {"page_variant": variant}
+    if variant in ("multi_stage_injection", "multi_stage_holding"):
+        detail["pressure_unit_text"] = pressure_unit_text
     if stage_enabled:
         detail["stage_enabled"] = stage_enabled
     return {"fields": fields, "heater_columns": 0,

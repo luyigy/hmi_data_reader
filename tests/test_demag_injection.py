@@ -233,5 +233,45 @@ class DemagHoldingPageTest(unittest.TestCase):
         self.assertNotIn("stage_holding_pressure_bar", fields)
 
 
+class DemagPressureUnitTextTest(unittest.TestCase):
+    """压力侧别观测：注射/保压变体从压力行标签原文提取单位字符串（背压变体不动）。"""
+
+    TEMPLATE = DemagHoldingPageTest.TEMPLATE
+
+    def _holding_detail(self, label_text):
+        toks = [dict(t) for t in DemagHoldingPageTest.HOLDING_TOKENS]
+        for t in toks:
+            if t["text"] == "压力[bar]":
+                t["text"] = label_text
+        res = extract_injection_demag(toks, {"curve_page": self.TEMPLATE})
+        assert res["detail"]["page_variant"] == "multi_stage_holding"
+        return res["detail"]
+
+    def test_bar_spez_label(self):
+        self.assertEqual(self._holding_detail("压力[bar_spez]")["pressure_unit_text"],
+                         "bar_spez")
+
+    def test_bar_label(self):
+        self.assertEqual(self._holding_detail("压力[bar]")["pressure_unit_text"],
+                         "bar")
+
+    def test_label_without_unit(self):
+        self.assertIsNone(self._holding_detail("压力")["pressure_unit_text"])
+
+    def test_back_pressure_variant_not_observed(self):
+        toks = [
+            {"text": "多级背压", "x": 0.5, "y": 0.03},
+            {"text": "背压[bar]", "x": 0.18, "y": 0.628},
+            {"text": "10.0", "x": 0.50, "y": 0.628},
+            {"text": "20.0", "x": 0.60, "y": 0.628},
+            {"text": "螺杆转速", "x": 0.18, "y": 0.668},
+            {"text": "30.0", "x": 0.50, "y": 0.668},
+            {"text": "40.0", "x": 0.60, "y": 0.668},
+        ]
+        res = extract_injection_demag(toks, {"curve_page": self.TEMPLATE})
+        self.assertEqual(res["detail"]["page_variant"], "multi_stage_back_pressure")
+        self.assertNotIn("pressure_unit_text", res["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()
