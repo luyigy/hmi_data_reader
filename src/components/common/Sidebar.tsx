@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from './AuthProvider';
 
 const menuItems = [
   { href: '/', label: 'Dashboard', icon: '📊' },
@@ -16,23 +17,39 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+  // Hide sidebar on login page
+  if (pathname === '/login') return null;
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     setIsCollapsed(window.localStorage.getItem('app-sidebar-collapsed') === 'true');
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
+    if (typeof window === 'undefined') return;
     window.localStorage.setItem('app-sidebar-collapsed', String(isCollapsed));
   }, [isCollapsed]);
+
+  // Redirect to login if not authenticated and not loading
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [loading, user, router]);
+
+  if (loading) {
+    return (
+      <aside className="flex h-screen w-20 shrink-0 flex-col items-center justify-center bg-gray-900 text-white">
+        <div className="text-sm text-gray-400">加载中...</div>
+      </aside>
+    );
+  }
+
+  if (!user) return null;
 
   return (
     <aside className={`flex h-screen shrink-0 flex-col bg-gray-900 text-white transition-[width] duration-200 ${
@@ -77,14 +94,20 @@ export function Sidebar() {
         })}
       </nav>
       
-      <div className={`border-t border-gray-800 ${isCollapsed ? 'p-3 text-center' : 'p-6'}`}>
-        <div className="text-sm text-gray-400">
-          {isCollapsed ? (
-            <span className="text-green-400">●</span>
-          ) : (
-            <p>系统状态: <span className="text-green-400">运行中</span></p>
-          )}
-        </div>
+      <div className={`border-t border-gray-800 ${isCollapsed ? 'p-3 text-center' : 'p-4'}`}>
+        {user && !isCollapsed && (
+          <div className="mb-3 text-sm text-gray-400">
+            <div className="font-medium text-gray-200">{user.displayName || user.username}</div>
+            <div className="text-xs text-gray-500">{user.role === 'admin' ? '管理员' : '用户'}</div>
+          </div>
+        )}
+        <button
+          onClick={() => logout()}
+          className={`w-full rounded-lg bg-gray-800 px-3 py-2 text-xs text-gray-400 transition-colors hover:bg-gray-700 hover:text-white`}
+          title="退出登录"
+        >
+          {isCollapsed ? '🚪' : '退出登录'}
+        </button>
       </div>
     </aside>
   );

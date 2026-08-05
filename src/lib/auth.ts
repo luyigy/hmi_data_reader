@@ -3,6 +3,8 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 
+export const AUTH_COOKIE = 'ap_auth_token';
+
 export type AuthContext =
   | { tier: 'operator'; subject: 'admin' }
   | { tier: 'machine'; subject: 'gateway'; gatewayId: string }
@@ -148,6 +150,9 @@ type RouteRule = {
 const operator = { access: 'operator' } as const;
 const ROUTE_RULES: readonly RouteRule[] = [
   { surface: 'page', pattern: '/login', methods: ['GET'], requirement: { access: 'public' } },
+  { surface: 'api', pattern: '/api/auth/login', methods: ['POST'], requirement: { access: 'public' } },
+  { surface: 'api', pattern: '/api/auth/logout', methods: ['POST'], requirement: { access: 'public' } },
+  { surface: 'api', pattern: '/api/auth/me', methods: ['GET'], requirement: { access: 'public' } },
   ...[
     '/', '/agents', '/chat', '/gateway-tools', '/gateways/register', '/remote-ssh-tools',
     '/rooms', '/rooms/:id', '/tasks', '/tasks/:id', '/tasks/:id/chat', '/workflow',
