@@ -119,13 +119,19 @@ def _extract_curve(toks, tpl, warnings):
     hint = tpl.get("row_y_hint", {"pressure": 0.68, "velocity": 0.72, "position": 0.75})
     rows = {}
     for key, keys in ra.items():
-        hits = [t for t in toks if _anchor_match(keys, t["text"])]
+        # 行标签只在左侧标签区（x<0.45）出现；右下"多级速度"勾选框等同名
+        # 复选框在部分几何下比真行更靠近 hint，会抢占锚定（030_FIX 图 5 实测）。
+        hits = [t for t in toks if t["x"] < 0.45 and _anchor_match(keys, t["text"])]
         rows[key] = (min(hits, key=lambda t: abs(t["y"] - hint[key]))["y"]
                      if hits else hint[key])
 
     dy = _page_value_offset([t for t in toks if t["x"] > 0.45], rows)
     vrow = {key: rows[key] + dy for key in rows}
     _half = 0.012
+    # 030_FIX：偏移数值行只用于已验证变体（注射/保压）；背压等未验证变体
+    # 的共享路径保持 029 前行为（rows 行 ±0.025），不被偏移逻辑改写。
+    _row_of = (lambda key: vrow[key]) if not has_backp else (lambda key: rows[key])
+    _tol = _half if not has_backp else 0.025
 
     out = {}
     for key in ("pressure", "velocity", "position"):
@@ -140,22 +146,22 @@ def _extract_curve(toks, tpl, warnings):
     # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']；
     # 多级注射页 026_FIX：rows['pressure'] 行=段速度上 row，rows['velocity'] 行=段位置下 row）
     sp_same = sorted(((t["x"], _v(t["text"])) for t in toks
-                      if abs(t["y"] - vrow["pressure"]) <= _half and t["x"] > 0.45
+                      if abs(t["y"] - _row_of("pressure")) <= _tol and t["x"] > 0.45
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                      key=lambda e: e[0])
     sv_same = sorted(((t["x"], _v(t["text"])) for t in toks
-                      if abs(t["y"] - vrow["velocity"]) <= _half and t["x"] > 0.45
+                      if abs(t["y"] - _row_of("velocity")) <= _tol and t["x"] > 0.45
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                      key=lambda e: e[0])
 
     # 模式 2：DEMAG 多级注射页错行布局（段表整体下移一行：上 row 位于 rows['velocity']，
     # 下 row 位于 rows['position']；026_FIX：上 row=段速度、下 row=段位置）
     sp_inj = sorted(((t["x"], _v(t["text"])) for t in toks
-                     if abs(t["y"] - vrow["velocity"]) <= _half and t["x"] > 0.60
+                     if abs(t["y"] - _row_of("velocity")) <= _tol and t["x"] > 0.60
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                     key=lambda e: e[0])
     sv_inj = sorted(((t["x"], _v(t["text"])) for t in toks
-                     if abs(t["y"] - vrow["position"]) <= _half and t["x"] > 0.60
+                     if abs(t["y"] - _row_of("position")) <= _tol and t["x"] > 0.60
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                     key=lambda e: e[0])
 
@@ -206,19 +212,22 @@ def _extract_curve(toks, tpl, warnings):
         # 在本页为误标，一律不输出；找不到的行给 None/空数组 + CELL_MISSING，不猜。
         time_cells = _dedupe(sorted(
             ((t["x"], _v(t["text"])) for t in toks
-             if abs(t["y"] - vrow["position"]) <= _half and t["x"] > 0.45
+             if abs(t["y"] - _row_of("position")) <= _tol and t["x"] > 0.45
              and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
             key=lambda e: e[0]))
         time_list = [v for _, v in time_cells]
         fields["stage_holding_pressure_bar"] = sp_list
         fields["stage_holding_time_s"] = time_list
-        fields["holding_velocity_mms"] = sv_list[-1] if sv_list else None
+        # 030_FIX（领域确认）：DEMAG 保压页速度行是**分段**字段（如 15/10/5），
+        # 仅本 profile 按分段输出；单个有效值的页面经反转块回退为 holding_velocity_mms
+        # 单值。其他家族保压速度为全局单值的语义不写死在这里。
+        fields["stage_holding_velocity_mms"] = sv_list
         if not sp_list:
             warnings.append("CELL_MISSING(stage_holding_pressure_bar)")
         if not time_list:
             warnings.append("CELL_MISSING(stage_holding_time_s)")
-        if fields["holding_velocity_mms"] is None:
-            warnings.append("CELL_MISSING(holding_velocity_mms)")
+        if not sv_list:
+            warnings.append("CELL_MISSING(stage_holding_velocity_mms)")
     elif variant == "multi_stage_back_pressure":
         table_toks = [t for t in toks if 0.55 < t.get("y", 0) < 0.85]
 
@@ -283,9 +292,15 @@ def _extract_curve(toks, tpl, warnings):
         else:
             upper_key, lower_key = "stage_pressure_bar", "stage_velocity_mms"
         lower_key_row = "position" if variant == "multi_stage_holding" else "velocity"
+        use_offset = variant in ("multi_stage_injection", "multi_stage_holding")
         if slots and all(t["text"] for t in slots):
-            sp = [t for t in slots if abs(t["y"] - vrow["pressure"]) <= _half]
-            sv = [t for t in slots if abs(t["y"] - vrow[lower_key_row]) <= _half]
+            if use_offset:
+                sp = [t for t in slots if abs(t["y"] - vrow["pressure"]) <= _half]
+                sv = [t for t in slots if abs(t["y"] - vrow[lower_key_row]) <= _half]
+            else:
+                # 背压等未验证变体保持 029 前行为（ rows 行 ±0.035 ），不受偏移逻辑影响
+                sp = [t for t in slots if abs(t["y"] - rows["pressure"]) <= 0.035]
+                sv = [t for t in slots if abs(t["y"] - rows[lower_key_row]) <= 0.035]
             if sp and sv:
                 fields[upper_key] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
                 fields[lower_key] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
@@ -312,12 +327,18 @@ def _extract_curve(toks, tpl, warnings):
         # 035 保压真值（app 反馈 e3ebbba2，领域确认）：保压段表同样自右向左排列
         # （最右列为第 1 段），输出边界统一反转为物理段序；反转前剔除屏幕最左
         # 未启用的 0 值段槽位（深灰框，0 bar/0 s 非真实段）。
-        for key in ("stage_holding_pressure_bar", "stage_holding_time_s"):
+        # 030_FIX：速度行同规则处理；单个有效值时回退输出 holding_velocity_mms 单值
+        # （文字层无法区分深灰槽位与禁用段 0 值——已知限制，归 Layer 1 观测）。
+        for key in ("stage_holding_pressure_bar", "stage_holding_time_s",
+                    "stage_holding_velocity_mms"):
             values = fields.get(key)
             if isinstance(values, list):
                 while values and values[0] == 0:
                     values = values[1:]
                 fields[key] = list(reversed(values))
+        hv = fields.get("stage_holding_velocity_mms")
+        if isinstance(hv, list) and len(hv) == 1:
+            fields["holding_velocity_mms"] = hv[0]
 
     fields["_page_variant"] = variant
     return fields

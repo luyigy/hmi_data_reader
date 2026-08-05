@@ -169,6 +169,8 @@ class DemagHoldingPageTest(unittest.TestCase):
         # 屏幕自右向左为第 1 段起，输出物理段序；最左 0 值未启用槽位剔除
         self.assertEqual(fields["stage_holding_pressure_bar"], [65, 60, 55])
         self.assertEqual(fields["stage_holding_time_s"], [2, 1])
+        # 030_FIX：速度行按分段输出；单个有效值时回退单值
+        self.assertEqual(fields["stage_holding_velocity_mms"], [12])
         self.assertEqual(fields["holding_velocity_mms"], 12.0)
         # 注射/兼容误标键一律不输出
         for removed in ("pressure_limit_bar", "first_velocity_mms",
@@ -179,6 +181,18 @@ class DemagHoldingPageTest(unittest.TestCase):
             self.assertNotIn(removed, fields)
         self.assertEqual(warnings, [])
 
+    def test_holding_per_stage_velocity(self):
+        # 030_FIX（领域确认）：DEMAG 保压页速度行为分段字段 15/10/5（物理段序）
+        toks = [t for t in self.HOLDING_TOKENS if t["text"] != "12.0"] + [
+            {"text": "5.0", "x": 0.70, "y": 0.663},
+            {"text": "10.0", "x": 0.79, "y": 0.663},
+            {"text": "15.0", "x": 0.88, "y": 0.663},
+        ]
+        warnings = []
+        fields = _extract_curve(toks, self.TEMPLATE, warnings)
+        self.assertEqual(fields["stage_holding_velocity_mms"], [15, 10, 5])
+        self.assertNotIn("holding_velocity_mms", fields)
+
     def test_holding_missing_rows_warns_not_guesses(self):
         toks = [t for t in self.HOLDING_TOKENS
                 if t["text"] not in ("0.000", "1.000", "2.000", "12.0")]
@@ -187,9 +201,10 @@ class DemagHoldingPageTest(unittest.TestCase):
         self.assertEqual(fields["_page_variant"], "multi_stage_holding")
         self.assertEqual(fields["stage_holding_pressure_bar"], [65, 60, 55])
         self.assertEqual(fields["stage_holding_time_s"], [])
-        self.assertIsNone(fields["holding_velocity_mms"])
+        self.assertEqual(fields["stage_holding_velocity_mms"], [])
+        self.assertNotIn("holding_velocity_mms", fields)
         self.assertIn("CELL_MISSING(stage_holding_time_s)", warnings)
-        self.assertIn("CELL_MISSING(holding_velocity_mms)", warnings)
+        self.assertIn("CELL_MISSING(stage_holding_velocity_mms)", warnings)
 
     def test_injection_page_not_flipped_by_holding_anchors(self):
         # 多级注射页："注射时间"在左列 y<0.5（不得命中"时间"行指纹），
