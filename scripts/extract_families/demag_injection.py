@@ -41,6 +41,42 @@ def _v_range(text: str, lo: float, hi: float) -> float | None:
     return None
 
 
+def _page_value_offset(toks, rows, keys=("pressure", "velocity", "position"), half=0.012):
+    """估计整页数值行相对行标签的纵向偏移（029_FIX）。
+    DEMAG NC 段表在部分拍照几何下"标签在行底、数值在其上方约 0.023"，而同 y 布局
+    偏移为 0；固定容差带无法同时兼容（带大则吃进相邻行，带小则漏值）。
+    做法：为每行收集标签上方的数值聚类中心作为候选偏移（含 0），
+    取三行总捕获单元数最多的偏移；调用方以 row_y+offset 为数值行、±half 取值。"""
+    num = re.compile(r"\d+\.?\d*")
+
+    def capture(offset):
+        total = 0
+        for key in keys:
+            ly = rows[key] + offset
+            total += sum(1 for t in toks
+                         if num.fullmatch(t["text"].strip())
+                         and abs(t["y"] - ly) <= half)
+        return total
+
+    candidates = {0.0}
+    for key in keys:
+        ly = rows[key]
+        above = sorted(t["y"] for t in toks
+                       if num.fullmatch(t["text"].strip())
+                       and 0.005 < ly - t["y"] <= 0.045)
+        clusters, cur = [], []
+        for y in above:
+            if cur and y - cur[-1] > 0.015:
+                clusters.append(cur)
+                cur = []
+            cur.append(y)
+        if cur:
+            clusters.append(cur)
+        for cluster in clusters:
+            candidates.add(round(sum(cluster) / len(cluster) - ly, 4))
+    return max(candidates, key=capture)
+
+
 def _extract_global_pressure(toks, pressure_row_y, tpl, warnings):
     """右上全局射胶压力上限（026_FIX 新增锚区）：x > x_min 且位于段表上 row
     上方 dy_above 带内的数值（带下限可为小幅负值：拍照矫正后该值可能与压力行同 y）；
@@ -87,6 +123,10 @@ def _extract_curve(toks, tpl, warnings):
         rows[key] = (min(hits, key=lambda t: abs(t["y"] - hint[key]))["y"]
                      if hits else hint[key])
 
+    dy = _page_value_offset([t for t in toks if t["x"] > 0.45], rows)
+    vrow = {key: rows[key] + dy for key in rows}
+    _half = 0.012
+
     out = {}
     for key in ("pressure", "velocity", "position"):
         ly = rows[key]
@@ -100,22 +140,22 @@ def _extract_curve(toks, tpl, warnings):
     # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']；
     # 多级注射页 026_FIX：rows['pressure'] 行=段速度上 row，rows['velocity'] 行=段位置下 row）
     sp_same = sorted(((t["x"], _v(t["text"])) for t in toks
-                      if abs(t["y"] - rows["pressure"]) <= 0.025 and t["x"] > 0.45
+                      if abs(t["y"] - vrow["pressure"]) <= _half and t["x"] > 0.45
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                      key=lambda e: e[0])
     sv_same = sorted(((t["x"], _v(t["text"])) for t in toks
-                      if abs(t["y"] - rows["velocity"]) <= 0.025 and t["x"] > 0.45
+                      if abs(t["y"] - vrow["velocity"]) <= _half and t["x"] > 0.45
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                      key=lambda e: e[0])
 
     # 模式 2：DEMAG 多级注射页错行布局（段表整体下移一行：上 row 位于 rows['velocity']，
     # 下 row 位于 rows['position']；026_FIX：上 row=段速度、下 row=段位置）
     sp_inj = sorted(((t["x"], _v(t["text"])) for t in toks
-                     if abs(t["y"] - rows["velocity"]) <= 0.025 and t["x"] > 0.60
+                     if abs(t["y"] - vrow["velocity"]) <= _half and t["x"] > 0.60
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                     key=lambda e: e[0])
     sv_inj = sorted(((t["x"], _v(t["text"])) for t in toks
-                     if abs(t["y"] - rows["position"]) <= 0.025 and t["x"] > 0.60
+                     if abs(t["y"] - vrow["position"]) <= _half and t["x"] > 0.60
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                     key=lambda e: e[0])
 
@@ -166,7 +206,7 @@ def _extract_curve(toks, tpl, warnings):
         # 在本页为误标，一律不输出；找不到的行给 None/空数组 + CELL_MISSING，不猜。
         time_cells = _dedupe(sorted(
             ((t["x"], _v(t["text"])) for t in toks
-             if abs(t["y"] - rows["position"]) <= 0.025 and t["x"] > 0.45
+             if abs(t["y"] - vrow["position"]) <= _half and t["x"] > 0.45
              and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
             key=lambda e: e[0]))
         time_list = [v for _, v in time_cells]
@@ -242,10 +282,10 @@ def _extract_curve(toks, tpl, warnings):
             upper_key, lower_key = "stage_holding_pressure_bar", "stage_holding_time_s"
         else:
             upper_key, lower_key = "stage_pressure_bar", "stage_velocity_mms"
-        lower_row_y = rows["position"] if variant == "multi_stage_holding" else rows["velocity"]
+        lower_key_row = "position" if variant == "multi_stage_holding" else "velocity"
         if slots and all(t["text"] for t in slots):
-            sp = [t for t in slots if abs(t["y"] - rows["pressure"]) <= 0.035]
-            sv = [t for t in slots if abs(t["y"] - lower_row_y) <= 0.035]
+            sp = [t for t in slots if abs(t["y"] - vrow["pressure"]) <= _half]
+            sv = [t for t in slots if abs(t["y"] - vrow[lower_key_row]) <= _half]
             if sp and sv:
                 fields[upper_key] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
                 fields[lower_key] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
