@@ -67,6 +67,14 @@ const processKimiCodeJsonLine = (
         arguments?: string;
       };
     }>;
+    // Anthropic-style streaming fields
+    name?: string;
+    input?: unknown;
+    content_block?: {
+      type?: string;
+      name?: string;
+      input?: unknown;
+    };
   };
 
   try {
@@ -98,6 +106,28 @@ const processKimiCodeJsonLine = (
         emoji: getToolEmoji(toolName),
       });
     }
+  }
+
+  // Also detect tool_use events (Anthropic-style streaming format)
+  if (event.type === 'tool_use' && typeof event.name === 'string') {
+    void streamCallbacks?.onToolEvent?.({
+      toolName: event.name,
+      preview: buildToolPreview(event.input) || '',
+      emoji: getToolEmoji(event.name),
+    });
+  }
+
+  // Detect content_block_start with tool_use (alternative format)
+  if (
+    event.type === 'content_block_start'
+    && event.content_block?.type === 'tool_use'
+    && typeof event.content_block?.name === 'string'
+  ) {
+    void streamCallbacks?.onToolEvent?.({
+      toolName: event.content_block.name,
+      preview: buildToolPreview(event.content_block.input) || '',
+      emoji: getToolEmoji(event.content_block.name),
+    });
   }
 
   if (

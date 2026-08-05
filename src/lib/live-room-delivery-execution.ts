@@ -475,6 +475,43 @@ export const executeLiveRoomReplyViaAcpx = async ({
       });
   };
 
+  let lastThinkingPostedAt = 0;
+  let lastThinkingPreview = '';
+
+  const enqueueThinkingUpdate = (chunk: string) => {
+    const preview = chunk.trim().slice(0, 80);
+    if (!preview) return;
+    const now = Date.now();
+    if (preview === lastThinkingPreview && now - lastThinkingPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+      return;
+    }
+    lastThinkingPreview = preview;
+    lastThinkingPostedAt = now;
+    lastVisibleActivityAt = now;
+
+    progressFlushPromise = progressFlushPromise
+      .then(async () => {
+        await postLiveRoomMessage({
+          roomId: room.id,
+          content: `系统提示：${targetMember.displayName} 正在分析：${preview}${chunk.trim().length > 80 ? '…' : ''}`,
+          messageType: 'system',
+          metadata: resolveLiveRoomMessageMetadata({
+            senderKind: 'system',
+            targetMemberId: targetMember.id,
+            extras: {
+              ...relayOrigin,
+              systemEvent: 'member_reply_thinking',
+              harnessType: targetMember.harnessType,
+              preview,
+            },
+          }),
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to post live room thinking update:', error);
+      });
+  };
+
   const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }) => {
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
@@ -513,6 +550,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
   };
 
   const liveRoomStreamCallbacks: HarnessStreamCallbacks = {
+    onStdoutChunk: (chunk) => { enqueueThinkingUpdate(chunk); },
     onToolEvent: enqueueToolUpdate,
   };
 
