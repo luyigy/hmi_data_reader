@@ -66,6 +66,7 @@ export class FeishuProgressTracker {
         },
         {
           tag: 'collapsible_panel',
+          header: { tag: "plain_text", content: "工具调用详情" },
           expanded: false,
           elements: toolLines.length > 0
             ? toolLines.map((line) => ({
@@ -148,6 +149,7 @@ export class FeishuProgressTracker {
         },
         ...(this.entries.length > 0 ? [{
           tag: 'collapsible_panel',
+          header: { tag: "plain_text", content: "工具调用详情" },
           expanded: false,
           elements: this.entries.map((e) => {
             const suffix = e.count > 1 ? ` ×${e.count}` : '';
