@@ -49,11 +49,16 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
       return false;
     }
 
-    if (message.metadata?.systemEvent !== 'member_reply_progress') {
+    const systemEvent = message.metadata?.systemEvent;
+    if (systemEvent === 'member_reply_thinking' || systemEvent === 'member_reply_tool') {
+      return false;
+    }
+
+    if (systemEvent !== 'member_reply_progress') {
       return true;
     }
 
-    return message.metadata.progressKind === 'heartbeat';
+    return message.metadata?.progressKind === 'heartbeat';
   }
 
   return false;

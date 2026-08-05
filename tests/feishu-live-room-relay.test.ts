@@ -37,9 +37,14 @@ assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
   harnessType: 'claude', progressKind: 'heartbeat',
 })), true);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_thinking')), false);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_started', { skipFeishuRelay: true })), false);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
+  harnessType: 'claude', progressKind: 'heartbeat', skipFeishuRelay: true,
+})), false);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_started')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_queued')), true);
-assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_tool')), true);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_tool')), false);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'session_reset')), true);
 assert.equal(shouldRelayLiveRoomMessage(message('assistant')), true);
 

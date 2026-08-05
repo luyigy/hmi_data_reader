@@ -10,10 +10,17 @@ interface ToolEntry {
   count: number;
 }
 
+interface SystemEntry {
+  message: string;
+  emoji: string;
+  time: string;
+}
+
 export class FeishuProgressTracker {
   private progressMsgId: string | null = null;
   private chatId: string;
   private entries: ToolEntry[] = [];
+  private systemEntries: SystemEntry[] = [];
   private lastEditAt = 0;
   private flushPromise: Promise<void> = Promise.resolve();
   private statusText = '执行中...';
@@ -43,6 +50,27 @@ export class FeishuProgressTracker {
     });
   }
 
+  onSystemEvent(message: string, emoji = 'ℹ️'): void {
+    console.log(`[FeishuProgress] onSystemEvent: ${message} | chatId=${this.chatId}`);
+    const truncated = message.length > 80 ? message.slice(0, 80) + '…' : message;
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+    const lastEntry = this.systemEntries.at(-1);
+    if (lastEntry && lastEntry.message === truncated) {
+      return;
+    }
+
+    this.systemEntries.push({ message: truncated, emoji, time: timeStr });
+    if (this.systemEntries.length > 20) {
+      this.systemEntries.shift();
+    }
+
+    this.flushPromise = this.flushPromise.then(() => this.maybeFlush()).catch((err) => {
+      console.error('[FeishuProgress] flush error:', err);
+    });
+  }
+
   setStatus(status: string): void {
     this.statusText = status;
   }
@@ -53,32 +81,49 @@ export class FeishuProgressTracker {
       return `${e.emoji} ${e.toolName}: "${e.preview}"${suffix}`;
     });
 
+    const systemLines = this.systemEntries.map((s) => `${s.emoji} \`[${s.time}]\` ${s.message}`);
+
+    const elements: Array<Record<string, unknown>> = [
+      {
+        tag: 'markdown',
+        content: `**已完成 ${this.stepCount} 个步骤**`,
+      },
+    ];
+
+    if (this.systemEntries.length > 0) {
+      elements.push({
+        tag: 'collapsible_panel',
+        header: { title: { tag: "plain_text", content: "⚙️ 系统信息详情" } },
+        expanded: false,
+        elements: systemLines.map((line) => ({
+          tag: 'markdown',
+          content: line,
+        })),
+      });
+    }
+
+    elements.push({
+      tag: 'collapsible_panel',
+      header: { title: { tag: "plain_text", content: "🛠️ 工具调用详情" } },
+      expanded: false,
+      elements: toolLines.length > 0
+        ? toolLines.map((line) => ({
+            tag: 'markdown',
+            content: line,
+          }))
+        : [{
+            tag: 'markdown',
+            content: '等待工具调用...',
+          }],
+    });
+
     return {
       config: { wide_screen_mode: true },
       header: {
         template: 'blue',
         title: { tag: 'plain_text', content: `🔄 Agent ${this.statusText}` },
       },
-      elements: [
-        {
-          tag: 'markdown',
-          content: `**已完成 ${this.stepCount} 个步骤**`,
-        },
-        {
-          tag: 'collapsible_panel',
-          header: { title: { tag: "plain_text", content: "工具调用详情" } },
-          expanded: false,
-          elements: toolLines.length > 0
-            ? toolLines.map((line) => ({
-                tag: 'markdown',
-                content: line,
-              }))
-            : [{
-                tag: 'markdown',
-                content: '等待工具调用...',
-              }],
-        },
-      ],
+      elements,
     };
   }
 
@@ -128,7 +173,7 @@ export class FeishuProgressTracker {
 
   async flush(): Promise<void> {
     await this.flushPromise;
-    if (this.progressMsgId && this.entries.length > 0) {
+    if (this.progressMsgId && (this.entries.length > 0 || this.systemEntries.length > 0)) {
       await this.updateCard().catch(() => {});
     }
   }
@@ -136,6 +181,7 @@ export class FeishuProgressTracker {
   /** Send a final summary card (replacing the progress card) and return the message id */
   async finalize(summary: string, success: boolean): Promise<string | null> {
     await this.flushPromise;
+    const systemLines = this.systemEntries.map((s) => `${s.emoji} \`[${s.time}]\` ${s.message}`);
     const card = {
       config: { wide_screen_mode: true },
       header: {
@@ -145,11 +191,20 @@ export class FeishuProgressTracker {
       elements: [
         {
           tag: 'markdown',
-          content: summary.slice(0, 4000),
+          content: success ? '执行完成，步骤明细见下：' : summary.slice(0, 4000),
         },
+        ...(this.systemEntries.length > 0 ? [{
+          tag: 'collapsible_panel',
+          header: { title: { tag: "plain_text", content: "⚙️ 系统信息详情" } },
+          expanded: false,
+          elements: systemLines.map((line) => ({
+            tag: 'markdown',
+            content: line,
+          })),
+        }] : []),
         ...(this.entries.length > 0 ? [{
           tag: 'collapsible_panel',
-          header: { title: { tag: "plain_text", content: "工具调用详情" } },
+          header: { title: { tag: "plain_text", content: "🛠️ 工具调用详情" } },
           expanded: false,
           elements: this.entries.map((e) => {
             const suffix = e.count > 1 ? ` ×${e.count}` : '';

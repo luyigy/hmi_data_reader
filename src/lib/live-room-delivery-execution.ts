@@ -454,9 +454,12 @@ export const executeLiveRoomReplyViaAcpx = async ({
       extras: {
         ...relayOrigin,
         systemEvent: 'member_reply_started',
+        ...(progressTracker ? { skipFeishuRelay: true } : {}),
       },
     }),
   });
+
+  progressTracker?.onSystemEvent(`开始处理消息 | ${targetMember.displayName} (${targetMember.harnessType})`, '🚀');
 
   let progressFlushPromise: Promise<void> = Promise.resolve();
   let lastToolSignature = '';
@@ -465,6 +468,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
 
   const enqueueHeartbeatUpdate = () => {
     lastVisibleActivityAt = Date.now();
+    progressTracker?.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
     progressFlushPromise = progressFlushPromise
       .then(async () => {
         await postLiveRoomMessage({
@@ -480,6 +484,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
               harnessType: targetMember.harnessType,
               progressKind: 'heartbeat',
               preview: '当前步骤耗时较长',
+              ...(progressTracker ? { skipFeishuRelay: true } : {}),
             },
           }),
         });
@@ -503,6 +508,8 @@ export const executeLiveRoomReplyViaAcpx = async ({
     lastThinkingPostedAt = now;
     lastVisibleActivityAt = now;
 
+    progressTracker?.onSystemEvent(`思考分析：${preview}`, '🧠');
+
     progressFlushPromise = progressFlushPromise
       .then(async () => {
         await postLiveRoomMessage({
@@ -517,6 +524,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
               systemEvent: 'member_reply_thinking',
               harnessType: targetMember.harnessType,
               preview,
+              ...(progressTracker ? { skipFeishuRelay: true } : {}),
             },
           }),
         });
@@ -627,6 +635,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
 
   if (shouldFallback && latestSession?.participant?.id) {
     const staleReason = firstFailureMessage!;
+    progressTracker?.onSystemEvent(`续聊会话失效，自动开启新会话重试: ${staleReason}`, '⚠️');
     await markParticipantContinuationStale({
       participantId: latestSession.participant.id,
       reason: staleReason,
@@ -674,6 +683,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       message: participantResult.error,
     })
   ) {
+    progressTracker?.onSystemEvent('Codex 状态异常，自动使用临时会话重试', '⚠️');
     acpxResult = await runLiveRoomAcpxAttempt({
       sourceTask,
       room,
