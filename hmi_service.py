@@ -204,7 +204,7 @@ async def recognize_image(file: UploadFile = File(...)):
 
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
 
-            return {
+            response = {
                 "success": True,
                 "processing_time_ms": elapsed_ms,
                 "quality": {
@@ -230,6 +230,11 @@ async def recognize_image(file: UploadFile = File(...)):
                 "status": extract_res.get("status"),
                 "warnings": extract_res.get("warnings", []),
             }
+            # Layer 1 禁用段图像观测（契约 2.4.0 additive）：无图像观测时缺省不出
+            stage_enabled = (extract_res.get("extraction_detail") or {}).get("stage_enabled")
+            if stage_enabled is not None:
+                response["stage_enabled"] = stage_enabled
+            return response
 
     except HTTPException:
         raise

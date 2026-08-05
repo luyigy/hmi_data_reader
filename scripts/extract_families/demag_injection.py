@@ -12,6 +12,46 @@ from .common import _anchor_match, _fit_slope, _num  # noqa: F401
 
 NUM_RE = re.compile(r"\d+\.?\d*")
 
+# Layer 1 禁用段图像观测：深色背景格亮度 / 段表白格基线 的判定阈值。
+# 标定（2026-08-05，inj_z002_calib rank01 + ground_truth/demag_holding 5 张真值图）：
+# 深色禁用格比值 ∈ [0.44, 0.65]，启用格 ∈ [0.86, 1.05]，取两者中点 0.75。
+DARK_CELL_RATIO = 0.75
+
+
+def _cell_brightness(img, cells: list[tuple[float, float]]) -> list[float]:
+    """按归一化中心采样段表格亮度中位数。采样窗宽=相邻格 x 最小间距*0.9
+    （单格缺省 0.05），窗高≈行距一半（0.036，段表行距实测约 0.037）。"""
+    import numpy as np
+
+    h, w = img.shape[:2]
+    xs = [x for x, _ in cells]
+    gaps = [b - a for a, b in zip(xs, xs[1:])]
+    gap = min(gaps) if gaps else 0.05
+    hw, hh = gap * 0.45, 0.018
+    meds = []
+    for x, y in cells:
+        px, py = int(x * w), int(y * h)
+        dx, dy = int(hw * w), int(hh * h)
+        patch = img[max(0, py - dy):py + dy, max(0, px - dx):px + dx]
+        meds.append(float(np.median(patch)) if patch.size else 0.0)
+    return meds
+
+
+def _stage_enabled(img, captures: dict[str, list[tuple[float, float]]]) -> dict[str, list[bool]]:
+    """captures: {field_key: [(x, y), ...]}（屏幕序，剔除/反转前的捕获集合）
+    -> {field_key: [bool, ...]}（True=启用亮格，False=深色禁用格）。
+    基线=全部段表格亮度中位数的 75 分位（白色单元），低于 DARK_CELL_RATIO*基线 判深色。"""
+    import numpy as np
+
+    meds = {k: _cell_brightness(img, cells) for k, cells in captures.items() if cells}
+    all_meds = [m for ms in meds.values() for m in ms]
+    if not all_meds:
+        return {}
+    baseline = float(np.percentile(all_meds, 75))
+    if baseline <= 0:
+        return {}
+    return {k: [m >= DARK_CELL_RATIO * baseline for m in ms] for k, ms in meds.items()}
+
 
 def _v(text):
     m = NUM_RE.search(text)
@@ -96,7 +136,7 @@ def _extract_global_pressure(toks, pressure_row_y, tpl, warnings):
     return cands[-1][2]
 
 
-def _extract_curve(toks, tpl, warnings):
+def _extract_curve(toks, tpl, warnings, img=None):
     top_texts = [t["text"] for t in toks if t.get("y", 0) < 0.85]
     has_holding = any(_anchor_match(["多级保压", "保压段"], t) for t in top_texts)
     if not has_holding:
@@ -178,6 +218,7 @@ def _extract_curve(toks, tpl, warnings):
     sp_same, sv_same = _dedupe(sp_same), _dedupe(sv_same)
     sp_inj, sv_inj = _dedupe(sp_inj), _dedupe(sv_inj)
 
+    cap_rows = None  # 注射变体捕获行的实际 y（Layer 1 图像观测采样用）
     if has_backp:
         variant = "multi_stage_back_pressure"
         pressure = sp_same
@@ -190,14 +231,20 @@ def _extract_curve(toks, tpl, warnings):
         variant = "multi_stage_injection"
         pressure = sp_same
         velocity = sv_same
+        cap_rows = (_row_of("pressure"), _row_of("velocity"))
     elif len(sp_inj) >= 2 and len(sv_inj) >= 2:
         variant = "multi_stage_injection"
         pressure = sp_inj
         velocity = sv_inj
+        cap_rows = (_row_of("velocity"), _row_of("position"))
     else:
         variant = "multi_stage_injection"
         pressure = sp_same if sp_same else sp_inj
         velocity = sv_same if sv_same else sv_inj
+        cap_rows = (_row_of("pressure") if pressure is sp_same else _row_of("velocity"),
+                    _row_of("velocity") if velocity is sv_same else _row_of("position"))
+
+    time_cells = []
 
     sp_list = [v for _, v in pressure]
     sv_list = [v for _, v in velocity]
@@ -280,6 +327,7 @@ def _extract_curve(toks, tpl, warnings):
             toks, rows["pressure"], tpl, warnings)
 
     slots = [t for t in toks if t.get("slot")]
+    slot_captures = None  # slot 回退路径的捕获集合（Layer 1 图像观测采样用）
     if not (pressure or velocity):
         # 026_FIX：slot 槽位回退与主路径同一语义——multi_stage_injection 时
         # rows['pressure'] 行=段速度、rows['velocity'] 行=段位置；其余变体不变。
@@ -304,6 +352,10 @@ def _extract_curve(toks, tpl, warnings):
             if sp and sv:
                 fields[upper_key] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
                 fields[lower_key] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
+                slot_captures = {
+                    upper_key: [(t["x"], t["y"]) for t in sorted(sp, key=lambda t: t["x"])],
+                    lower_key: [(t["x"], t["y"]) for t in sorted(sv, key=lambda t: t["x"])],
+                }
             else:
                 fields[upper_key] = []
                 fields[lower_key] = []
@@ -312,6 +364,25 @@ def _extract_curve(toks, tpl, warnings):
             fields[upper_key] = []
             fields[lower_key] = []
             warnings.append("STAGE_REJECT(unverified_grid)")
+
+    # Layer 1 禁用段图像观测：对进入段数组的捕获格采样亮度判深色=禁用。
+    # 仅观测不改数值——下方对布尔施加与数值完全相同的剔除与反转变换。
+    stage_enabled = {}
+    if img is not None and variant in ("multi_stage_injection", "multi_stage_holding"):
+        captures = slot_captures
+        if captures is None:
+            if variant == "multi_stage_injection":
+                captures = {
+                    "stage_velocity_mms": [(x, cap_rows[0]) for x, _ in pressure],
+                    "stage_position_mm": [(x, cap_rows[1]) for x, _ in velocity],
+                }
+            else:
+                captures = {
+                    "stage_holding_pressure_bar": [(x, _row_of("pressure")) for x, _ in pressure],
+                    "stage_holding_velocity_mms": [(x, _row_of("velocity")) for x, _ in velocity],
+                    "stage_holding_time_s": [(x, _row_of("position")) for x, _ in time_cells],
+                }
+        stage_enabled = _stage_enabled(img, captures)
 
     if variant == "multi_stage_injection":
         # DEMAG 多级注射页段表在屏幕上自右向左排列（最右列为第 1 段）；
@@ -322,6 +393,8 @@ def _extract_curve(toks, tpl, warnings):
             values = fields.get(key)
             if isinstance(values, list):
                 fields[key] = list(reversed(values))
+                if key in stage_enabled:
+                    stage_enabled[key] = list(reversed(stage_enabled[key]))
 
     if variant == "multi_stage_holding":
         # 035 保压真值（app 反馈 e3ebbba2，领域确认）：保压段表同样自右向左排列
@@ -333,12 +406,24 @@ def _extract_curve(toks, tpl, warnings):
                     "stage_holding_velocity_mms"):
             values = fields.get(key)
             if isinstance(values, list):
+                enabled = stage_enabled.get(key)
                 while values and values[0] == 0:
                     values = values[1:]
+                    if enabled:
+                        enabled = enabled[1:]
                 fields[key] = list(reversed(values))
+                if enabled is not None:
+                    stage_enabled[key] = list(reversed(enabled))
         hv = fields.get("stage_holding_velocity_mms")
         if isinstance(hv, list) and len(hv) == 1:
             fields["holding_velocity_mms"] = hv[0]
+
+    if stage_enabled:
+        # 对齐护栏：只保留与最终段数组逐位等长的观测
+        stage_enabled = {k: v for k, v in stage_enabled.items()
+                         if isinstance(fields.get(k), list) and len(v) == len(fields[k])}
+        if stage_enabled:
+            fields["_stage_enabled"] = stage_enabled
 
     fields["_page_variant"] = variant
     return fields
@@ -366,11 +451,19 @@ def _extract_optim(toks, tpl, warnings):
     return fields
 
 
-def extract_injection_demag(toks: list[dict], template: dict) -> dict:
+def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -> dict:
+    # image_path：矫正后 PNG（可选）。传入时对段表做 Layer 1 禁用段图像观测，
+    # 结果放 detail["stage_enabled"]；缺省 None 时完全保持现行为（无观测输出）。
+    img = None
+    if image_path is not None:
+        import cv2  # 延迟导入：无图像流程不引入 cv2
+        img = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
     warnings: list[str] = []
+    stage_enabled = None
     if _is_curve(toks):
-        fields = _extract_curve(toks, template["curve_page"], warnings)
+        fields = _extract_curve(toks, template["curve_page"], warnings, img=img)
         variant = fields.pop("_page_variant", "multi_stage_injection")
+        stage_enabled = fields.pop("_stage_enabled", None)
     else:
         fields = _extract_optim(toks, template, warnings)
         variant = "process_optimization"
@@ -378,12 +471,16 @@ def extract_injection_demag(toks: list[dict], template: dict) -> dict:
         missing_count = sum(1 for v in fields.values() if v is None)
         if missing_count >= len(fields) * 0.8 and "curve_page" in template:
             curve_warnings: list[str] = []
-            curve_fields = _extract_curve(toks, template["curve_page"], curve_warnings)
+            curve_fields = _extract_curve(toks, template["curve_page"], curve_warnings, img=img)
             if any(v is not None for v in curve_fields.values()):
                 fields = curve_fields
                 warnings = curve_warnings
                 variant = fields.pop("_page_variant", "multi_stage_injection")
+                stage_enabled = fields.pop("_stage_enabled", None)
 
+    detail = {"page_variant": variant}
+    if stage_enabled:
+        detail["stage_enabled"] = stage_enabled
     return {"fields": fields, "heater_columns": 0,
-            "warnings": warnings, "detail": {"page_variant": variant}}
+            "warnings": warnings, "detail": detail}
 

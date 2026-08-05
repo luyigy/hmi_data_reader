@@ -835,7 +835,10 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     if page_key == "injection_metering" and ui == "TACT":
         ext = extract_injection_tact(toks, template)
     elif page_key == "injection_metering" and ui == "DEMAG":
-        ext = extract_injection_demag(toks, template)
+        # Layer 1 禁用段图像观测：矫正 PNG 存在时传入（缺失则优雅降级，无观测输出）
+        png_path = rectified_dir / f"{stem}.png"
+        ext = extract_injection_demag(toks, template,
+                                      image_path=png_path if png_path.is_file() else None)
     elif page_key == "injection_metering" and ui == "FANUC":
         ext = extract_injection_fanuc(toks, template)
     elif page_key == "injection_metering" and ui == "ZIZES":
