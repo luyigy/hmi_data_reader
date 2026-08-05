@@ -1,7 +1,7 @@
 ---
 doc_type: HANDOVER
 doc_status: completed
-next_action: none
+next_action: await_acceptance
 plan: docs/383_PLAN_20260804_Inbox优先级议题实施.md
 slice: S05
 plan_progress: complete
