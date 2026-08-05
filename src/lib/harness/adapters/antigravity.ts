@@ -1,15 +1,15 @@
 import type { HarnessAdapter } from '../types';
-import {
-  executeAntigravityTask,
-  getAntigravityVersion,
-  isAntigravityAvailable,
-} from '@/lib/real-agents/antigravity-agent';
+
+async function loadAntigravityAgent() {
+  return import('@/lib/real-agents/antigravity-agent');
+}
 
 export const antigravityHarnessAdapter: HarnessAdapter = {
   type: 'antigravity',
   displayName: 'Antigravity CLI',
 
   async checkAvailability() {
+    const { isAntigravityAvailable, getAntigravityVersion } = await loadAntigravityAgent();
     const available = await isAntigravityAvailable();
     return {
       available,
@@ -18,6 +18,7 @@ export const antigravityHarnessAdapter: HarnessAdapter = {
   },
 
   async execute({ task, context }) {
+    const { executeAntigravityTask } = await loadAntigravityAgent();
     const result = await executeAntigravityTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,

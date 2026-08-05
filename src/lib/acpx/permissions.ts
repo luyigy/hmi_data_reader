@@ -1,5 +1,4 @@
 import type { AcpxExecutionBackend, AcpxHarnessType, AcpxPermissionConfig } from './types';
-import { getHarnessAdapter } from '@/lib/harness';
 
 export const DEFAULT_ACPX_PERMISSION_CONFIG: AcpxPermissionConfig = {
   profile: 'safe_local',
@@ -117,9 +116,16 @@ export const getLocalHarnessPermissionSupport = (
   harnessType: AcpxHarnessType,
   executionBackend: AcpxExecutionBackend
 ): AcpxPermissionSupportSummary => {
-  const adapter = getHarnessAdapter(harnessType);
-  if (adapter) {
-    return adapter.getPermissionSupport(executionBackend);
+  if (typeof window === 'undefined') {
+    try {
+      const { getHarnessAdapter } = require('@/lib/harness') as typeof import('@/lib/harness');
+      const adapter = getHarnessAdapter(harnessType);
+      if (adapter) {
+        return adapter.getPermissionSupport(executionBackend);
+      }
+    } catch {
+      // Fallback below if harness cannot be loaded
+    }
   }
 
   if (executionBackend === 'platform_local' && harnessType === 'codex') {

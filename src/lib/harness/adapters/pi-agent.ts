@@ -1,11 +1,8 @@
 import type { HarnessAdapter } from '../types';
-import {
-  executePiAgentTask,
-  getPiAgentVersion,
-  isPiAgentAvailable,
-  resolvePiAgentSessionDir,
-  resumePiAgentSession,
-} from '@/lib/real-agents/pi-agent';
+
+async function loadPiAgent() {
+  return import('@/lib/real-agents/pi-agent');
+}
 
 const INVALID_PI_CONTINUATION_PATTERNS = [
   /No session found/i,
@@ -19,6 +16,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
   displayName: 'Pi Agent',
 
   async checkAvailability() {
+    const { isPiAgentAvailable, getPiAgentVersion } = await loadPiAgent();
     const available = await isPiAgentAvailable();
     return {
       available,
@@ -27,6 +25,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
   },
 
   async execute({ task, context }) {
+    const { executePiAgentTask, resolvePiAgentSessionDir } = await loadPiAgent();
     const sessionDir = resolvePiAgentSessionDir(context.sessionKey || `${context.executionBackend}:${task.id}`);
     context.onSessionStarted?.({
       sessionId: sessionDir,
@@ -54,6 +53,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
   },
 
   async resume({ context, sessionId, continuationMessage }) {
+    const { resumePiAgentSession } = await loadPiAgent();
     const result = await resumePiAgentSession({
       sessionDir: sessionId,
       prompt: continuationMessage,

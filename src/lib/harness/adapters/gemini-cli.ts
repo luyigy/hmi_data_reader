@@ -1,5 +1,8 @@
 import type { HarnessAdapter } from '../types';
-import { executeGeminiTask, getGeminiVersion, isGeminiAvailable, resumeGeminiSession } from '@/lib/real-agents/gemini-cli-agent';
+
+async function loadGeminiAgent() {
+  return import('@/lib/real-agents/gemini-cli-agent');
+}
 
 const INVALID_GEMINI_CONTINUATION_PATTERNS = [
   /Invalid session identifier/i,
@@ -12,6 +15,7 @@ export const geminiCliHarnessAdapter: HarnessAdapter = {
   displayName: 'Gemini CLI',
 
   async checkAvailability() {
+    const { isGeminiAvailable, getGeminiVersion } = await loadGeminiAgent();
     const available = await isGeminiAvailable();
     return {
       available,
@@ -20,6 +24,7 @@ export const geminiCliHarnessAdapter: HarnessAdapter = {
   },
 
   async execute({ task, context }) {
+    const { executeGeminiTask } = await loadGeminiAgent();
     const result = await executeGeminiTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
@@ -48,6 +53,7 @@ export const geminiCliHarnessAdapter: HarnessAdapter = {
   },
 
   async resume({ context, sessionId, continuationMessage }) {
+    const { resumeGeminiSession } = await loadGeminiAgent();
     const result = await resumeGeminiSession({
       sessionId,
       prompt: continuationMessage,

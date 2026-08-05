@@ -1,9 +1,8 @@
 import type { HarnessAdapter } from '../types';
-import {
-  executeKimiCodeTask,
-  getKimiCodeVersion,
-  isKimiCodeAvailable,
-} from '@/lib/real-agents/kimi-code-agent';
+
+async function loadKimiCodeAgent() {
+  return import('@/lib/real-agents/kimi-code-agent');
+}
 
 const INVALID_KIMI_CONTINUATION_PATTERNS = [
   /Session ".+" not found\./i,
@@ -15,6 +14,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
   displayName: 'Kimi Code CLI',
 
   async checkAvailability() {
+    const { isKimiCodeAvailable, getKimiCodeVersion } = await loadKimiCodeAgent();
     const available = await isKimiCodeAvailable();
     return {
       available,
@@ -30,7 +30,8 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
         executionTime: 0,
       };
     }
-    const result = await executeKimiCodeTask(task, {
+    const { executeKimiCodeTask: runKimiCode } = await loadKimiCodeAgent();
+    const result = await runKimiCode(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
       workspaceRoot: context.workspaceRoot,
@@ -48,7 +49,8 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
   },
 
   async resume({ task, context, sessionId, continuationMessage }) {
-    const result = await executeKimiCodeTask(task, {
+    const { executeKimiCodeTask: resumeKimiCode } = await loadKimiCodeAgent();
+    const result = await resumeKimiCode(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
       workspaceRoot: context.workspaceRoot,

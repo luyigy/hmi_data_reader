@@ -1,5 +1,8 @@
 import type { HarnessAdapter } from '../types';
-import { executeClaudeTask, getClaudeVersion, isClaudeAvailable, resumeClaudeSession } from '@/lib/real-agents/claude-agent';
+
+async function loadClaudeAgent() {
+  return import('@/lib/real-agents/claude-agent');
+}
 
 const INVALID_CLAUDE_CONTINUATION_PATTERNS = [
   /No conversation found with session ID/i,
@@ -12,6 +15,7 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
   displayName,
 
   async checkAvailability() {
+    const { isClaudeAvailable, getClaudeVersion } = await loadClaudeAgent();
     const available = await isClaudeAvailable(harnessType);
     return {
       available,
@@ -20,6 +24,7 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
   },
 
   async execute({ task, context }) {
+    const { executeClaudeTask } = await loadClaudeAgent();
     const result = await executeClaudeTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
@@ -49,6 +54,7 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
   },
 
   async resume({ context, sessionId, continuationMessage }) {
+    const { resumeClaudeSession } = await loadClaudeAgent();
     const result = await resumeClaudeSession({
       sessionId,
       prompt: continuationMessage,

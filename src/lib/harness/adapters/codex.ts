@@ -1,6 +1,9 @@
 import type { HarnessAdapter } from '../types';
-import { executeCodexTask, getCodexVersion, isCodexAvailable, resumeCodexSession } from '@/lib/real-agents/codex-agent';
 import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
+
+async function loadCodexAgent() {
+  return import('@/lib/real-agents/codex-agent');
+}
 
 const INVALID_CODEX_CONTINUATION_PATTERNS = [
   /(session|thread|conversation).*(not found|does not exist|invalid)/i,
@@ -17,6 +20,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
   displayName: 'Codex',
 
   async checkAvailability() {
+    const { isCodexAvailable, getCodexVersion } = await loadCodexAgent();
     const available = await isCodexAvailable();
     return {
       available,
@@ -25,6 +29,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
   },
 
   async execute({ task, context }) {
+    const { executeCodexTask } = await loadCodexAgent();
     const workflowBoundary = resolveWorkflowCodexBoundary(
       context.permissionConfig,
       context.workingDirectory,
@@ -67,6 +72,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
   },
 
   async resume({ context, sessionId, continuationMessage }) {
+    const { resumeCodexSession } = await loadCodexAgent();
     const startTime = Date.now();
     const workflowBoundary = resolveWorkflowCodexBoundary(
       context.permissionConfig,

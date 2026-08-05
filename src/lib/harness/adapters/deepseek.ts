@@ -1,5 +1,8 @@
 import type { HarnessAdapter } from '../types';
-import { executeDeepSeekTask, getDeepSeekVersion, isDeepSeekAvailable, resumeDeepSeekSession } from '@/lib/real-agents/deepseek-agent';
+
+async function loadDeepSeekAgent() {
+  return import('@/lib/real-agents/deepseek-agent');
+}
 
 const INVALID_DEEPSEEK_CONTINUATION_PATTERNS = [
   /thread not found/i,
@@ -11,6 +14,7 @@ export const deepSeekHarnessAdapter: HarnessAdapter = {
   displayName: 'DeepSeek',
 
   async checkAvailability() {
+    const { isDeepSeekAvailable, getDeepSeekVersion } = await loadDeepSeekAgent();
     const available = await isDeepSeekAvailable();
     return {
       available,
@@ -19,6 +23,7 @@ export const deepSeekHarnessAdapter: HarnessAdapter = {
   },
 
   async execute({ task, context }) {
+    const { executeDeepSeekTask } = await loadDeepSeekAgent();
     const result = await executeDeepSeekTask(task, {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
@@ -51,6 +56,7 @@ export const deepSeekHarnessAdapter: HarnessAdapter = {
   },
 
   async resume({ context, sessionId, continuationMessage }) {
+    const { resumeDeepSeekSession } = await loadDeepSeekAgent();
     const result = await resumeDeepSeekSession({
       threadId: sessionId,
       prompt: continuationMessage,
