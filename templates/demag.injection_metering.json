@@ -10,36 +10,160 @@
     "calibrated_at": "2026-08-01"
   },
   "curve_page": {
-    "detect": ["多级注射"],
+    "detect": [
+      "多级注射"
+    ],
     "row_anchors": {
-      "pressure": ["压力[bar]", "压力"],
-      "velocity": ["速度[mm/s]", "速度", "mm/s"],
-      "position": ["位置[mm]", "位置"]
+      "pressure": [
+        "压力[bar]",
+        "压力"
+      ],
+      "velocity": [
+        "速度[mm/s]",
+        "速度",
+        "mm/s"
+      ],
+      "position": [
+        "位置[mm]",
+        "位置"
+      ]
     },
-    "row_y_hint": {"pressure": 0.68, "velocity": 0.72, "position": 0.75},
-    "note": "行内数值按 x 排序：首值=首段（pressure_limit/first_velocity/first_position），其余=stage 数组"
+    "row_y_hint": {
+      "pressure": 0.68,
+      "velocity": 0.72,
+      "position": 0.75
+    },
+    "global_pressure": {
+      "x_min": 0.75,
+      "dy_above": [
+        -0.005,
+        0.08
+      ],
+      "note": "026_FIX 锚区（2026-08-05 加宽）：右上全局射胶压力上限（全段通用，页面仅出现一次）。取 x > x_min 且 y 位于段表上 row（rows['pressure']）上方 0.08 至下方 0.005 带内的纯数值 token，取最贴近压力行者。实测：校准图该值在压力行上方 0.027–0.077；拍照图与压力行同 y（约 0.001）。段表速度行在压力行下方约 0.037，不会被下限纳入；位置轴刻度（50.00mm）非纯数值，被 fullmatch 排除。找不到输出 None + CELL_MISSING，不猜。"
+    },
+    "note": "026_FIX 领域确认：段表上 row（pressure 行）=各段射胶速度、下 row（velocity 行）=各段起点位置；左列=保压压力/保压速度/V-P 切换位置；行内数值按 x 排序，输出边界反转为物理段序"
   },
   "optimization_page": {
-    "detect": ["工艺优化", "切换条件"],
+    "detect": [
+      "工艺优化",
+      "切换条件"
+    ],
     "fields": {
-      "plasticizing_speed_rpm": {"row_y": 0.185, "col_x": 0.66, "range": [0, 400]},
-      "back_pressure_bar": {"row_y": 0.262, "col_x": 0.64, "range": [0, 50]},
-      "cushion_mm": {"row_y": 0.556, "col_x": 0.39, "range": [0, 100]},
-      "cooling_time_s": {"row_y": 0.635, "col_x": 0.29, "range": [0, 300]},
-      "holding_velocity_mms": {"row_y": 0.518, "col_x": 0.48, "range": [0, 200]},
-      "holding_pressure_bar": {"row_y": 0.596, "col_x": 0.48, "range": [0, 300]},
-      "holding_time_s": {"row_y": 0.635, "col_x": 0.48, "range": [0, 60]},
-      "switch_position_mm": {"row_y": 0.556, "col_x": 0.68, "range": [0, 100]},
-      "switch_pressure_bar": {"row_y": 0.596, "col_x": 0.68, "range": [0, 300]},
-      "switch_time_s": {"row_y": 0.635, "col_x": 0.68, "range": [0, 60]},
-      "injection_velocity_mms": {"row_y": 0.518, "col_x": 0.84, "range": [0, 200]},
-      "injection_pressure_limit_bar": {"row_y": 0.596, "col_x": 0.84, "range": [0, 300]}
+      "plasticizing_speed_rpm": {
+        "row_y": 0.185,
+        "col_x": 0.66,
+        "range": [
+          0,
+          400
+        ]
+      },
+      "back_pressure_bar": {
+        "row_y": 0.262,
+        "col_x": 0.64,
+        "range": [
+          0,
+          50
+        ]
+      },
+      "cushion_mm": {
+        "row_y": 0.556,
+        "col_x": 0.39,
+        "range": [
+          0,
+          100
+        ]
+      },
+      "cooling_time_s": {
+        "row_y": 0.635,
+        "col_x": 0.29,
+        "range": [
+          0,
+          300
+        ]
+      },
+      "holding_velocity_mms": {
+        "row_y": 0.518,
+        "col_x": 0.48,
+        "range": [
+          0,
+          200
+        ]
+      },
+      "holding_pressure_bar": {
+        "row_y": 0.596,
+        "col_x": 0.48,
+        "range": [
+          0,
+          300
+        ]
+      },
+      "holding_time_s": {
+        "row_y": 0.635,
+        "col_x": 0.48,
+        "range": [
+          0,
+          60
+        ]
+      },
+      "switch_position_mm": {
+        "row_y": 0.556,
+        "col_x": 0.68,
+        "range": [
+          0,
+          100
+        ]
+      },
+      "switch_pressure_bar": {
+        "row_y": 0.596,
+        "col_x": 0.68,
+        "range": [
+          0,
+          300
+        ]
+      },
+      "switch_time_s": {
+        "row_y": 0.635,
+        "col_x": 0.68,
+        "range": [
+          0,
+          60
+        ]
+      },
+      "injection_velocity_mms": {
+        "row_y": 0.518,
+        "col_x": 0.84,
+        "range": [
+          0,
+          200
+        ]
+      },
+      "injection_pressure_limit_bar": {
+        "row_y": 0.596,
+        "col_x": 0.84,
+        "range": [
+          0,
+          300
+        ]
+      }
     },
-    "cell_tolerance": {"dy": 0.03, "dx": 0.06}
+    "cell_tolerance": {
+      "dy": 0.03,
+      "dx": 0.06
+    }
   },
-  "page_detect_anchors": ["多级注射", "工艺优化", "切换条件"],
+  "page_detect_anchors": [
+    "多级注射",
+    "工艺优化",
+    "切换条件"
+  ],
   "family_detect_groups": [
-    ["多级注射", "多级保压"],
-    ["工艺优化", "切换条件"]
+    [
+      "多级注射",
+      "多级保压"
+    ],
+    [
+      "工艺优化",
+      "切换条件"
+    ]
   ]
 }

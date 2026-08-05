@@ -1,6 +1,8 @@
 """DEMAG 射出/保压页提取（035_PLAN 第二波新增，双变体）。
 
-- 多级注射曲线页：行（压力/速度/位置）内数值按 x 排序，首值=首段，其余=stage 数组；
+- 多级注射曲线页（026_FIX 领域确认语义）：右侧段表上 row=各段射胶速度 mm/s、
+  下 row=各段起点位置 mm（本页无分段压力）；左列 压力/速度/位置 =
+  保压压力/保压速度/V-P 切换位置；右上为全局射胶压力上限（全段通用）。
 - 工艺优化页：按模板 (row_y, col_x) 网格取设定值（左灰框，右蓝框为实际值不取）。
 返回结构同 keba。
 """
@@ -39,6 +41,25 @@ def _v_range(text: str, lo: float, hi: float) -> float | None:
     return None
 
 
+def _extract_global_pressure(toks, pressure_row_y, tpl, warnings):
+    """右上全局射胶压力上限（026_FIX 新增锚区）：x > x_min 且位于段表上 row
+    上方 dy_above 带内的数值（带下限可为小幅负值：拍照矫正后该值可能与压力行同 y）；
+    取最贴近段表者。找不到返回 None 并告警，不猜。"""
+    spec = tpl.get("global_pressure") or {}
+    x_min = spec.get("x_min", 0.75)
+    dy_lo, dy_hi = spec.get("dy_above", [-0.005, 0.08])
+    cands = [(t["y"], t["x"], _v(t["text"])) for t in toks
+             if t["x"] > x_min
+             and pressure_row_y - dy_hi <= t["y"] <= pressure_row_y - dy_lo
+             and re.fullmatch(r"\d+\.?\d*", t["text"].strip())]
+    cands = [c for c in cands if c[2] is not None]
+    if not cands:
+        warnings.append("CELL_MISSING(injection_pressure_limit_bar)")
+        return None
+    cands.sort(key=lambda c: (c[0], c[1]))
+    return cands[-1][2]
+
+
 def _extract_curve(toks, tpl, warnings):
     top_texts = [t["text"] for t in toks if t.get("y", 0) < 0.85]
     has_holding = any(_anchor_match(["多级保压", "保压段"], t) for t in top_texts)
@@ -66,7 +87,8 @@ def _extract_curve(toks, tpl, warnings):
         out[key] = [v for _, v in cands if v is not None]
 
     # 多段表格抽取逻辑（右侧 x > 0.45）：
-    # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']）
+    # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']；
+    # 多级注射页 026_FIX：rows['pressure'] 行=段速度上 row，rows['velocity'] 行=段位置下 row）
     sp_same = sorted(((t["x"], _v(t["text"])) for t in toks
                       if abs(t["y"] - rows["pressure"]) <= 0.025 and t["x"] > 0.45
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
@@ -76,7 +98,8 @@ def _extract_curve(toks, tpl, warnings):
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                      key=lambda e: e[0])
 
-    # 模式 2：DEMAG 多级注射页错行布局（阶段压力位于 rows['velocity']，阶段速度位于 rows['position']）
+    # 模式 2：DEMAG 多级注射页错行布局（段表整体下移一行：上 row 位于 rows['velocity']，
+    # 下 row 位于 rows['position']；026_FIX：上 row=段速度、下 row=段位置）
     sp_inj = sorted(((t["x"], _v(t["text"])) for t in toks
                      if abs(t["y"] - rows["velocity"]) <= 0.025 and t["x"] > 0.60
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
@@ -174,34 +197,47 @@ def _extract_curve(toks, tpl, warnings):
         fields["pressure_limit_bar"] = None
         fields["stage_pressure_bar"] = bp_vals
     else:  # multi_stage_injection
-        fields["pressure_limit_bar"] = out["pressure"][0] if out["pressure"] else None
-        fields["first_velocity_mms"] = out["velocity"][0] if out["velocity"] else None
-        fields["first_position_mm"] = out["position"][0] if out["position"] else None
-        fields["stage_pressure_bar"] = sp_list
-        fields["stage_velocity_mms"] = sv_list
+        # 026_FIX（领域确认）：段表上 row（rows['pressure'] 行）= 各段射胶速度 mm/s，
+        # 下 row（rows['velocity'] 行）= 各段起点位置 mm；本页无分段压力，不再输出
+        # stage_pressure_bar。左列 压力/速度/位置 = 保压压力/保压速度/V-P 切换位置
+        # （非首段设定值，废止 pressure_limit_bar/first_velocity_mms/first_position_mm）。
+        fields["holding_pressure_bar"] = out["pressure"][0] if out["pressure"] else None
+        fields["holding_velocity_mms"] = out["velocity"][0] if out["velocity"] else None
+        fields["switch_position_mm"] = out["position"][0] if out["position"] else None
+        fields["stage_velocity_mms"] = sp_list
+        fields["stage_position_mm"] = sv_list
+        fields["injection_pressure_limit_bar"] = _extract_global_pressure(
+            toks, rows["pressure"], tpl, warnings)
 
     slots = [t for t in toks if t.get("slot")]
     if not (pressure or velocity):
+        # 026_FIX：slot 槽位回退与主路径同一语义——multi_stage_injection 时
+        # rows['pressure'] 行=段速度、rows['velocity'] 行=段位置；其余变体不变。
+        if variant == "multi_stage_injection":
+            upper_key, lower_key = "stage_velocity_mms", "stage_position_mm"
+        else:
+            upper_key, lower_key = "stage_pressure_bar", "stage_velocity_mms"
         if slots and all(t["text"] for t in slots):
             sp = [t for t in slots if abs(t["y"] - rows["pressure"]) <= 0.035]
             sv = [t for t in slots if abs(t["y"] - rows["velocity"]) <= 0.035]
             if sp and sv:
-                fields["stage_pressure_bar"] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
-                fields["stage_velocity_mms"] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
+                fields[upper_key] = [_v(t["text"]) for t in sorted(sp, key=lambda t: t["x"])]
+                fields[lower_key] = [_v(t["text"]) for t in sorted(sv, key=lambda t: t["x"])]
             else:
-                fields["stage_pressure_bar"] = []
-                fields["stage_velocity_mms"] = []
+                fields[upper_key] = []
+                fields[lower_key] = []
                 warnings.append("STAGE_REJECT(unverified_grid)")
         else:
-            fields["stage_pressure_bar"] = []
-            fields["stage_velocity_mms"] = []
+            fields[upper_key] = []
+            fields[lower_key] = []
             warnings.append("STAGE_REJECT(unverified_grid)")
 
     if variant == "multi_stage_injection":
         # DEMAG 多级注射页段表在屏幕上自右向左排列（最右列为第 1 段）；
         # 契约要求段数组按物理段序输出，故在输出边界统一反转（025_FIX）。
+        # 026_FIX：反转对象改为 段速度 + 段位置（本页无分段压力）。
         # 保压/背压变体段序未经真值确认，维持屏幕序且仍为 candidate 仅预览。
-        for key in ("stage_pressure_bar", "stage_velocity_mms"):
+        for key in ("stage_velocity_mms", "stage_position_mm"):
             values = fields.get(key)
             if isinstance(values, list):
                 fields[key] = list(reversed(values))

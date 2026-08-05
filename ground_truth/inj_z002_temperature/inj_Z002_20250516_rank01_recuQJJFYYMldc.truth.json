@@ -7,19 +7,20 @@
   "quality_grade": "good",
   "allow_auto_import": true,
   "fields": {
-    "pressure_limit_bar": 65.0,
-    "first_velocity_mms": 12.0,
-    "first_position_mm": 17.5,
     "stage_velocity_mms": [
+      75.0,
+      25.0,
+      0.0
+    ],
+    "stage_position_mm": [
       45.0,
       22.5,
       0.0
     ],
-    "stage_pressure_bar": [
-      75.0,
-      25.0,
-      0.0
-    ]
+    "holding_pressure_bar": 65.0,
+    "holding_velocity_mms": 12.0,
+    "switch_position_mm": 17.5,
+    "injection_pressure_limit_bar": 100.0
   },
   "alarm_status": "normal",
   "alarm_evidence": "无报警字符/图标。",
@@ -38,5 +39,5 @@
     "origin_record_id": "recuQJJFYYMldc",
     "file_token": "H6XIbfp1Pomh1jxElsVcGui6nue"
   },
-  "notes": "机台 Z002（DEMAG NC）、日期 2025-05-16、rank01。多级注射页（曲线+段表）：左列=首段压力限制/速度/位置，右列=后续段速度/压力（深色框为当前段）。注射时间/注射压力/位置/余料量为左侧实时值不入真值。 | 2026-08-01 自动整批接受转真值（半自动降级口径；用户保留事后否决权）。 | 2026-08-05 段数组反转为物理段序（原自动整批接受沿用屏幕自右向左序，025_FIX 修正）。"
+  "notes": "机台 Z002（DEMAG NC）、日期 2025-05-16、rank01。多级注射页（曲线+段表）：左列=首段压力限制/速度/位置，右列=后续段速度/压力（深色框为当前段）。注射时间/注射压力/位置/余料量为左侧实时值不入真值。 | 2026-08-01 自动整批接受转真值（半自动降级口径；用户保留事后否决权）。 | 2026-08-05 段数组反转为物理段序（原自动整批接受沿用屏幕自右向左序，025_FIX 修正）。 | 2026-08-05 026_FIX（领域操作者逐字确认，机台 Z002 实测核对）：段表上 row=各段射胶速度 mm/s（屏幕序 [0,25,75]→物理序 [75,25,0]）、下 row=各段起点位置 mm（屏幕序 [0,22.5,45]→物理序 [45,22.5,0]，向 0 递减，禁用段为 0）；左列 65/12/17.5 = 保压压力/保压速度/V-P 切换位置（非首段设定值，废止 pressure_limit_bar/first_velocity_mms/first_position_mm）；右上 100.0 = 全局射胶压力上限 injection_pressure_limit_bar（全段通用）；本页无分段压力，移除 stage_pressure_bar。"
 }

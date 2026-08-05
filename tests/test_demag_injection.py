@@ -17,6 +17,7 @@ class DemagStageGridTest(unittest.TestCase):
                 "position": ["position"],
             },
             "row_y_hint": {"pressure": 0.68, "velocity": 0.72, "position": 0.75},
+            "global_pressure": {"x_min": 0.6, "dy_above": [0.01, 0.06]},
         }
         labels = [
             {"text": "pressure", "x": 0.22, "y": 0.68},
@@ -26,24 +27,36 @@ class DemagStageGridTest(unittest.TestCase):
             {"text": "12.0", "x": 0.35, "y": 0.72},
             {"text": "17.50", "x": 0.35, "y": 0.75},
         ]
+        # 026_FIX 语义：段表上 row（y=0.69）=各段射胶速度、下 row（y=0.73）=各段起点位置；
+        # 左列=保压压力/保压速度/V-P 切换位置；右上=全局射胶压力上限
         complete = labels + [
             {"text": str(value), "x": x, "y": y}
             for y, values in ((0.69, (0, 25, 75)), (0.73, (0, 22.5, 45)))
             for x, value in zip((0.75, 0.80, 0.85), values)
-        ] + [{"text": "45.00", "x": 0.86, "y": 0.73}]
+        ] + [{"text": "45.00", "x": 0.86, "y": 0.73},
+             {"text": "100.0", "x": 0.85, "y": 0.65}]
 
         warnings = []
         fields = _extract_curve(complete, template, warnings)
         # 屏幕自右向左为第 1 段起，输出统一反转为物理段序（025_FIX）
-        self.assertEqual(fields["stage_pressure_bar"], [75, 25, 0])
-        self.assertEqual(fields["stage_velocity_mms"], [45, 22.5, 0])
+        self.assertEqual(fields["stage_velocity_mms"], [75, 25, 0])
+        self.assertEqual(fields["stage_position_mm"], [45, 22.5, 0])
+        self.assertEqual(fields["holding_pressure_bar"], 65.0)
+        self.assertEqual(fields["holding_velocity_mms"], 12.0)
+        self.assertEqual(fields["switch_position_mm"], 17.5)
+        self.assertEqual(fields["injection_pressure_limit_bar"], 100.0)
+        # 误标字段不再输出
+        for removed in ("pressure_limit_bar", "first_velocity_mms",
+                        "first_position_mm", "stage_pressure_bar"):
+            self.assertNotIn(removed, fields)
         self.assertEqual(warnings, [])
 
         warnings = []
         fields = _extract_curve([t for t in complete if t["x"] < 0.5], template, warnings)
-        self.assertEqual(fields["stage_pressure_bar"], [])
         self.assertEqual(fields["stage_velocity_mms"], [])
-        self.assertEqual(warnings, ["STAGE_REJECT(unverified_grid)"])
+        self.assertEqual(fields["stage_position_mm"], [])
+        self.assertEqual(warnings, ["CELL_MISSING(injection_pressure_limit_bar)",
+                                    "STAGE_REJECT(unverified_grid)"])
 
     def test_relaxed_grid_alignment(self):
         template = {
@@ -53,6 +66,7 @@ class DemagStageGridTest(unittest.TestCase):
                 "position": ["position"],
             },
             "row_y_hint": {"pressure": 0.68, "velocity": 0.72, "position": 0.75},
+            "global_pressure": {"x_min": 0.6, "dy_above": [0.01, 0.06]},
         }
         labels = [
             {"text": "pressure", "x": 0.22, "y": 0.68},
@@ -68,12 +82,13 @@ class DemagStageGridTest(unittest.TestCase):
             {"text": "25", "x": 0.80, "y": 0.69},
             {"text": "0", "x": 0.77, "y": 0.73},
             {"text": "22.5", "x": 0.82, "y": 0.73},
+            {"text": "100.0", "x": 0.85, "y": 0.65},
         ]
         warnings = []
         fields = _extract_curve(complete, template, warnings)
         # 屏幕自右向左为第 1 段起，输出统一反转为物理段序（025_FIX）
-        self.assertEqual(fields["stage_pressure_bar"], [25, 0])
-        self.assertEqual(fields["stage_velocity_mms"], [22.5, 0])
+        self.assertEqual(fields["stage_velocity_mms"], [25, 0])
+        self.assertEqual(fields["stage_position_mm"], [22.5, 0])
         self.assertEqual(warnings, [])
 
     def test_optim_fallback_to_curve(self):
@@ -105,9 +120,10 @@ class DemagStageGridTest(unittest.TestCase):
         ]
         res = extract_injection_demag(tokens, template)
         self.assertEqual(res["detail"]["page_variant"], "multi_stage_injection")
-        self.assertEqual(res["fields"]["pressure_limit_bar"], 65.0)
+        # 026_FIX：左列首值=保压压力（非 pressure_limit_bar）
+        self.assertEqual(res["fields"]["holding_pressure_bar"], 65.0)
+        self.assertNotIn("pressure_limit_bar", res["fields"])
 
 
 if __name__ == "__main__":
     unittest.main()
-
