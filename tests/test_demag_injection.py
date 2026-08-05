@@ -34,8 +34,9 @@ class DemagStageGridTest(unittest.TestCase):
 
         warnings = []
         fields = _extract_curve(complete, template, warnings)
-        self.assertEqual(fields["stage_pressure_bar"], [0, 25, 75])
-        self.assertEqual(fields["stage_velocity_mms"], [0, 22.5, 45])
+        # 屏幕自右向左为第 1 段起，输出统一反转为物理段序（025_FIX）
+        self.assertEqual(fields["stage_pressure_bar"], [75, 25, 0])
+        self.assertEqual(fields["stage_velocity_mms"], [45, 22.5, 0])
         self.assertEqual(warnings, [])
 
         warnings = []
@@ -70,8 +71,9 @@ class DemagStageGridTest(unittest.TestCase):
         ]
         warnings = []
         fields = _extract_curve(complete, template, warnings)
-        self.assertEqual(fields["stage_pressure_bar"], [0, 25])
-        self.assertEqual(fields["stage_velocity_mms"], [0, 22.5])
+        # 屏幕自右向左为第 1 段起，输出统一反转为物理段序（025_FIX）
+        self.assertEqual(fields["stage_pressure_bar"], [25, 0])
+        self.assertEqual(fields["stage_velocity_mms"], [22.5, 0])
         self.assertEqual(warnings, [])
 
     def test_optim_fallback_to_curve(self):

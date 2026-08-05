@@ -197,6 +197,15 @@ def _extract_curve(toks, tpl, warnings):
             fields["stage_velocity_mms"] = []
             warnings.append("STAGE_REJECT(unverified_grid)")
 
+    if variant == "multi_stage_injection":
+        # DEMAG 多级注射页段表在屏幕上自右向左排列（最右列为第 1 段）；
+        # 契约要求段数组按物理段序输出，故在输出边界统一反转（025_FIX）。
+        # 保压/背压变体段序未经真值确认，维持屏幕序且仍为 candidate 仅预览。
+        for key in ("stage_pressure_bar", "stage_velocity_mms"):
+            values = fields.get(key)
+            if isinstance(values, list):
+                fields[key] = list(reversed(values))
+
     fields["_page_variant"] = variant
     return fields
 
