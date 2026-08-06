@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from extract_fields import extract_one
 from extract_families.demag_injection import (
     DARK_CELL_RATIO,
+    _extract_curve,
     _stage_enabled,
     extract_injection_demag,
 )
@@ -63,9 +64,9 @@ class NoImageDegradeTest(unittest.TestCase):
         }
         toks = [
             {"text": "多级注射", "x": 0.3, "y": 0.1},
-            {"text": "pressure", "x": 0.22, "y": 0.68},
-            {"text": "velocity", "x": 0.22, "y": 0.72},
-            {"text": "position", "x": 0.22, "y": 0.75},
+            {"text": "压力[bar]", "x": 0.22, "y": 0.68},
+            {"text": "速度[mm/s]", "x": 0.22, "y": 0.72},
+            {"text": "位置[mm]", "x": 0.22, "y": 0.75},
             {"text": "65.0", "x": 0.35, "y": 0.68},
             {"text": "12.0", "x": 0.35, "y": 0.72},
             {"text": "17.50", "x": 0.35, "y": 0.75},
@@ -79,6 +80,72 @@ class NoImageDegradeTest(unittest.TestCase):
         # 数值产出与无观测路径一致
         self.assertEqual(result["fields"]["stage_velocity_mms"], [75, 25, 0])
         self.assertNotIn("_stage_enabled", result["fields"])
+
+
+class StageEnabledFilterTest(unittest.TestCase):
+    """033_FIX 修复2：保压变体数值剔除/反转以 enabled 观测为准。
+
+    - 深色禁用槽任何值（含非零旧值 35）剔除；
+    - 浅色启用槽的 0 保留（06b7efe8 真值 P=[39.7,52.9,0]）；
+    - 时间行例外维持旧"前导 0 剔除"（f29c52c4 真值 T=[2,1,1] 保留深色槽
+      1.000，与禁用剔除规则冲突，以真值为准）。
+    """
+
+    TEMPLATE = {
+        "row_y_hint": {"pressure": 0.68, "velocity": 0.72, "position": 0.75},
+    }
+
+    def _img(self, dark_cells):
+        # 白底 200；dark_cells 里的 (x, y) 格涂深（比值 0.4 < DARK_CELL_RATIO）
+        img = np.full((400, 1000), 200, dtype=np.uint8)
+        for x, y in dark_cells:
+            img[int(y * 400) - 12:int(y * 400) + 12,
+                int(x * 1000) - 35:int(x * 1000) + 35] = 80
+        return img
+
+    BASE_TOKENS = [
+        {"text": "实际切换", "x": 0.04, "y": 0.04},
+        {"text": "速度[mm/s]", "x": 0.19, "y": 0.666},
+        {"text": "12.0", "x": 0.88, "y": 0.663},
+        {"text": "压力[bar]", "x": 0.18, "y": 0.720},
+        {"text": "时间]", "x": 0.18, "y": 0.773},
+        {"text": "1.000", "x": 0.69, "y": 0.773},
+        {"text": "1.000", "x": 0.75, "y": 0.773},
+        {"text": "2.000", "x": 0.82, "y": 0.773},
+    ]
+
+    def test_dark_nonzero_stale_value_dropped(self):
+        # f29c52c4 型：压力行深色槽残留旧值 35 剔除；时间行深色槽 1.000 保留
+        toks = self.BASE_TOKENS + [
+            {"text": "35.0", "x": 0.69, "y": 0.720},
+            {"text": "45.0", "x": 0.75, "y": 0.720},
+            {"text": "55.0", "x": 0.82, "y": 0.720},
+            {"text": "55.0", "x": 0.88, "y": 0.720},
+        ]
+        img = self._img([(0.69, 0.720), (0.69, 0.773)])
+        warnings = []
+        fields = _extract_curve(list(toks), self.TEMPLATE, warnings, img=img)
+        self.assertEqual(fields["stage_holding_pressure_bar"], [55.0, 55.0, 45.0])
+        self.assertEqual(fields["stage_holding_time_s"], [2.0, 1.0, 1.0])
+        self.assertEqual(fields["stage_holding_velocity_mms"], [12.0])
+        self.assertEqual(fields["holding_velocity_mms"], 12.0)
+        self.assertEqual(fields["_stage_enabled"]["stage_holding_pressure_bar"],
+                         [True, True, True])
+        self.assertEqual(warnings, [])
+
+    def test_enabled_zero_kept_dark_zero_dropped(self):
+        # 06b7efe8 型：压力行 [深色 0, 浅色 0, 52.9, 39.7] -> [39.7, 52.9, 0]
+        toks = self.BASE_TOKENS + [
+            {"text": "0.0", "x": 0.69, "y": 0.720},
+            {"text": "0.0", "x": 0.75, "y": 0.720},
+            {"text": "52.9", "x": 0.82, "y": 0.720},
+            {"text": "39.7", "x": 0.88, "y": 0.720},
+        ]
+        img = self._img([(0.69, 0.720), (0.69, 0.773)])
+        warnings = []
+        fields = _extract_curve(list(toks), self.TEMPLATE, warnings, img=img)
+        self.assertEqual(fields["stage_holding_pressure_bar"], [39.7, 52.9, 0.0])
+        self.assertEqual(warnings, [])
 
 
 @unittest.skipUnless((CALIB_DIR / f"{RANK01}.png").is_file(),
@@ -102,7 +169,10 @@ class Rank01FixtureTest(unittest.TestCase):
 
 
 # 5 张保压真值图的期望（与 ground_truth/demag_holding/*.truth.json 注记一致；
-# 段数组为现行数值产出——含 ab30f6f6 前导双 0 剔除的已知差距——观测逐位对齐）
+# 段数组为 033_FIX 修复2 后产出——enabled 观测过滤：ab30f6f6 的浅色启用段 0
+# 保留（与真值 [65,50,0] 一致，原"前导双 0 剔除"差距消除）；barspez_65f50de2
+# 的浅色 0 格同样保留（真值记 [1000,800]——与 ab30f6f6 真值语义冲突，已上报
+# 待王为复核，识别侧按 Layer 1 观测统一保留）
 HOLDING_EXPECTED = {
     "holding_Z002_1785755259328": {
         "stage_holding_pressure_bar": ([65.0, 60.0, 55.0], [True, True, True]),
@@ -110,14 +180,16 @@ HOLDING_EXPECTED = {
         "stage_holding_velocity_mms": ([12.0], [True]),
     },
     "holding_Z002_ab30f6f6": {
-        # 真值注记：压力 65/50/0，第 3 段 0=未启用；前导深色槽位剔除规则
-        # 把禁用段 0 也剔了（已知差距，数值语义不在本层修）
-        "stage_holding_pressure_bar": ([65.0, 50.0], [True, True]),
+        # 真值注记：压力 65/50/0，第 3 段 0=未启用但保留真值；033_FIX 后
+        # enabled 观测该格为浅色启用 -> 保留，与真值一致
+        "stage_holding_pressure_bar": ([65.0, 50.0, 0.0], [True, True, True]),
         "stage_holding_time_s": ([2.0, 3.0], [True, True]),
         "stage_holding_velocity_mms": ([15.0, 10.0, 5.0], [True, True, True]),
     },
     "holding_Z002_barspez_65f50de2": {
-        "stage_holding_pressure_bar": ([1000.0, 800.0], [True, True]),
+        # 真值记 [1000,800]，但enabled 观测第 3 格为浅色（与 ab30f6f6 同构）
+        # -> 保留 0。真值间冲突待王为复核（033_FIX 报告）
+        "stage_holding_pressure_bar": ([1000.0, 800.0, 0.0], [True, True, True]),
         "stage_holding_time_s": ([2.0, 3.0], [True, True]),
         "stage_holding_velocity_mms": ([15.0, 10.0, 5.0], [True, True, True]),
     },

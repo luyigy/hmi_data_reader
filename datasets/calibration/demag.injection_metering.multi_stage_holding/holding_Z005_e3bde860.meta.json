@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "holding_Z005_e3bde860",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_layout_version": 1,
+  "contract_version": "2.5.0",
+  "truth_hash": "sha256:3ca5e53ad4678d93eaec58b9cdf30029ac6154412f7f06724035ff143073a2dd",
+  "image_sha256": "sha256:e5a477220eb0781b3c5945c4d76587ded942c282cd7863c8e5d9bcced0a0966d",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "injection_metering",
+    "hmi_variant": "multi_stage_holding",
+    "allow_auto_import": false,
+    "image": "holding_Z005_e3bde860.jpeg",
+    "n_fields": 3
+  },
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "射胶页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "射胶页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "stage_holding_velocity_mms": {
+      "label_zh": "各段保压速度",
+      "page_label_zh": "射胶页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书转发 Z005 保压页照片（2026-08-06，033_FIX 缺陷样本）"
+    },
+    "verified_by": "kimi 图像复核，待王为确认",
+    "verified_at": "2026-08-06",
+    "tuning_involvement": "recognition_fix",
+    "placement_reason": "033_FIX 拒识样本——只拍段表局部（标题/行标签全裁），正确结果是 reject/review，绝不得产出错误 ok；参与过识别修复，只能当练习册，绝不进 holdout"
+  }
+}

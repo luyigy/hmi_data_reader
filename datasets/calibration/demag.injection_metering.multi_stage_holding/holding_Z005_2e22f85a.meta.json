@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "holding_Z005_2e22f85a",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_layout_version": 1,
+  "contract_version": "2.5.0",
+  "truth_hash": "sha256:dda283fcfbc553105a77cbcb2f547f3b1ad741b0c88a1eb9922b4ac72a61cb92",
+  "image_sha256": "sha256:ebfab180de48b76938c75a8dea9ac12131a945379924b22b397dd518dd4f6a15",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "injection_metering",
+    "hmi_variant": "multi_stage_holding",
+    "allow_auto_import": false,
+    "image": "holding_Z005_2e22f85a.jpeg",
+    "n_fields": 3
+  },
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "射胶页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "射胶页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "stage_holding_velocity_mms": {
+      "label_zh": "各段保压速度",
+      "page_label_zh": "射胶页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书转发 Z005 保压页照片（2026-08-06，033_FIX 缺陷样本）"
+    },
+    "verified_by": "kimi 图像复核，待王为确认",
+    "verified_at": "2026-08-06",
+    "tuning_involvement": "recognition_fix",
+    "placement_reason": "驱动 033_FIX 修复1b（错行护栏）——更近拍法导致数值行位于标签下方， 029 偏移估计只向上找候选而失败，修复前错行却 status ok（最危险缺陷）；参与过识别修复， 只能当练习册，绝不进 holdout"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "holding_Z005_f29c52c4",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_layout_version": 1,
+  "contract_version": "2.5.0",
+  "truth_hash": "sha256:29be3f625f51ef863ea207e9345976f519ae8a19634c281ab25051f78f1b5256",
+  "image_sha256": "sha256:4cbb3bba62009d2889d026121da02657d357c263c9d09ac99f85ba8573d30b14",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "injection_metering",
+    "hmi_variant": "multi_stage_holding",
+    "allow_auto_import": true,
+    "image": "holding_Z005_f29c52c4.jpeg",
+    "n_fields": 3
+  },
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "射胶页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "射胶页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "stage_holding_velocity_mms": {
+      "label_zh": "各段保压速度",
+      "page_label_zh": "射胶页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书转发 Z005 保压页照片（2026-08-06，033_FIX 缺陷样本）"
+    },
+    "verified_by": "kimi 图像复核，待王为确认",
+    "verified_at": "2026-08-06",
+    "tuning_involvement": "recognition_fix",
+    "placement_reason": "驱动 033_FIX 修复2（深色禁用槽残留旧值 35 剔除）——参与过识别修复， 只能当练习册；按 031 PLAN §4.2 绝不进 holdout"
+  }
+}

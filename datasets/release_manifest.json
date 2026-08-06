@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "generator": "scripts/datasets.py",
   "contract_version": "2.5.0",
-  "reader_commit": "3acda787bff3d318e43e23f163aeb5c4c12be533",
+  "reader_commit": "e9fef9da2e6a53f8ff1d3d64996f41ada7f12ab2",
   "partitions": {
     "calibration": [
       {
@@ -25,6 +25,48 @@
         "truth_hash": "sha256:44ab3fee948530477ae506bbfce14c9ca76c4f20d7fe7b3b77715f883350208a",
         "image_sha256": "sha256:6219a638df0d10f67b839c7ca520ce1b402d20ffd2e0c62a5d6bd0e38c13b589",
         "path": "calibration/demag.injection_metering.multi_stage_holding/holding_Z002_photo_1784721642626.truth.yml"
+      },
+      {
+        "case_id": "holding_Z005_06b7efe8",
+        "profile_id": "demag.injection_metering.multi_stage_holding",
+        "truth_hash": "sha256:a1ac77ebe084a589908a8be512588868c187993df20fc97c1be271685842ce98",
+        "image_sha256": "sha256:ff7e51049624c00b64d7c4a12f27be5e7703bcb97097e7994c5fbe397f46e938",
+        "path": "calibration/demag.injection_metering.multi_stage_holding/holding_Z005_06b7efe8.truth.yml"
+      },
+      {
+        "case_id": "holding_Z005_2e22f85a",
+        "profile_id": "demag.injection_metering.multi_stage_holding",
+        "truth_hash": "sha256:dda283fcfbc553105a77cbcb2f547f3b1ad741b0c88a1eb9922b4ac72a61cb92",
+        "image_sha256": "sha256:ebfab180de48b76938c75a8dea9ac12131a945379924b22b397dd518dd4f6a15",
+        "path": "calibration/demag.injection_metering.multi_stage_holding/holding_Z005_2e22f85a.truth.yml"
+      },
+      {
+        "case_id": "holding_Z005_cac666e7",
+        "profile_id": "demag.injection_metering.multi_stage_holding",
+        "truth_hash": "sha256:389c6f585d8a0084d6b7ae95a1f8bce58002193995bf075bad11078cbb44c945",
+        "image_sha256": "sha256:c753ddf7b40479b455e3a8485977c85b2fee7cdff16ecb87df84871e5a045969",
+        "path": "calibration/demag.injection_metering.multi_stage_holding/holding_Z005_cac666e7.truth.yml"
+      },
+      {
+        "case_id": "holding_Z005_db2cf983",
+        "profile_id": "demag.injection_metering.multi_stage_holding",
+        "truth_hash": "sha256:b79c077d8693d016283e3f70385cab6081195859dff1dfa5cda404a8a02c3cf2",
+        "image_sha256": "sha256:6d32ed6e8ffeafe0c902ad875b5b84bf1f62f0a0454f940ec8be0c64193b8b6f",
+        "path": "calibration/demag.injection_metering.multi_stage_holding/holding_Z005_db2cf983.truth.yml"
+      },
+      {
+        "case_id": "holding_Z005_e3bde860",
+        "profile_id": "demag.injection_metering.multi_stage_holding",
+        "truth_hash": "sha256:3ca5e53ad4678d93eaec58b9cdf30029ac6154412f7f06724035ff143073a2dd",
+        "image_sha256": "sha256:e5a477220eb0781b3c5945c4d76587ded942c282cd7863c8e5d9bcced0a0966d",
+        "path": "calibration/demag.injection_metering.multi_stage_holding/holding_Z005_e3bde860.truth.yml"
+      },
+      {
+        "case_id": "holding_Z005_f29c52c4",
+        "profile_id": "demag.injection_metering.multi_stage_holding",
+        "truth_hash": "sha256:29be3f625f51ef863ea207e9345976f519ae8a19634c281ab25051f78f1b5256",
+        "image_sha256": "sha256:4cbb3bba62009d2889d026121da02657d357c263c9d09ac99f85ba8573d30b14",
+        "path": "calibration/demag.injection_metering.multi_stage_holding/holding_Z005_f29c52c4.truth.yml"
       }
     ],
     "holdout": [],
@@ -46,7 +88,7 @@
     ]
   },
   "totals": {
-    "calibration": 3,
+    "calibration": 9,
     "holdout": 0,
     "regression": 2
   }

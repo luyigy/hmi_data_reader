@@ -170,14 +170,22 @@ def _extract_curve(toks, tpl, warnings, img=None):
     hint = tpl.get("row_y_hint", {"pressure": 0.68, "velocity": 0.72, "position": 0.75})
     rows = {}
     pressure_label = None  # 压力行标签原文（注射/保压变体压力侧别观测用）
+    anchor_missing = []  # 033_FIX 修复1：逐行记录锚词是否命中（背压变体不动）
     for key, keys in ra.items():
         # 行标签只在左侧标签区（x<0.45）出现；右下"多级速度"勾选框等同名
         # 复选框在部分几何下比真行更靠近 hint，会抢占锚定（030_FIX 图 5 实测）。
         hits = [t for t in toks if t["x"] < 0.45 and _anchor_match(keys, t["text"])]
         anchor = min(hits, key=lambda t: abs(t["y"] - hint[key])) if hits else None
         rows[key] = anchor["y"] if anchor else hint[key]
+        if anchor is None:
+            anchor_missing.append(key)
         if key == "pressure" and anchor is not None:
             pressure_label = anchor["text"]
+    if anchor_missing and not has_backp:
+        # 033_FIX 修复1：关键行锚词缺失时 hint 兜底猜到的可能是错行的值且
+        # status=ok（cac666e7 左裁切实测行互换仍 ok）——诚实降级，宁可拒不可错。
+        for key in anchor_missing:
+            warnings.append(f"ROW_ANCHOR_MISSING({key})")
 
     dy = _page_value_offset([t for t in toks if t["x"] > 0.45], rows)
     vrow = {key: rows[key] + dy for key in rows}
@@ -199,34 +207,48 @@ def _extract_curve(toks, tpl, warnings, img=None):
     # 多段表格抽取逻辑（右侧 x > 0.45）：
     # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']；
     # 多级注射页 026_FIX：rows['pressure'] 行=段速度上 row，rows['velocity'] 行=段位置下 row）
-    sp_same = sorted(((t["x"], _v(t["text"])) for t in toks
+    def _var(t):
+        # 033_FIX 修复3：CLAHE 合并追加（ocr_variant）与段网格旁车（slot）
+        # token 属变体来源，同格冲突时主 OCR 值优先。
+        return bool(t.get("slot")) or t.get("src") == "ocr_variant"
+
+    sp_same = sorted(((t["x"], _v(t["text"]), _var(t)) for t in toks
                       if abs(t["y"] - _row_of("pressure")) <= _tol and t["x"] > 0.45
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                      key=lambda e: e[0])
-    sv_same = sorted(((t["x"], _v(t["text"])) for t in toks
+    sv_same = sorted(((t["x"], _v(t["text"]), _var(t)) for t in toks
                       if abs(t["y"] - _row_of("velocity")) <= _tol and t["x"] > 0.45
                       and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                      key=lambda e: e[0])
 
     # 模式 2：DEMAG 多级注射页错行布局（段表整体下移一行：上 row 位于 rows['velocity']，
     # 下 row 位于 rows['position']；026_FIX：上 row=段速度、下 row=段位置）
-    sp_inj = sorted(((t["x"], _v(t["text"])) for t in toks
+    sp_inj = sorted(((t["x"], _v(t["text"]), _var(t)) for t in toks
                      if abs(t["y"] - _row_of("velocity")) <= _tol and t["x"] > 0.60
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                     key=lambda e: e[0])
-    sv_inj = sorted(((t["x"], _v(t["text"])) for t in toks
+    sv_inj = sorted(((t["x"], _v(t["text"]), _var(t)) for t in toks
                      if abs(t["y"] - _row_of("position")) <= _tol and t["x"] > 0.60
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                     key=lambda e: e[0])
 
     def _dedupe(arr):
+        # 033_FIX 修复3：同格（x 间距 <0.018）异值冲突时优先主 OCR 变体的值
+        # （rank02 段网格旁车 '004500' 盖住主 OCR '45.00' 实测）；冲突双方
+        # 无主从之分时保持原行为（间距 >0.01 且异值两个都留）。
         arr = [item for item in arr if item[1] is not None]
         deduped = []
         for item in arr:
             if not deduped or (item[0] - deduped[-1][0] >= 0.018):
                 deduped.append(item)
-            elif item[1] != deduped[-1][1] and item[0] - deduped[-1][0] > 0.01:
-                deduped.append(item)
+            elif item[1] != deduped[-1][1]:
+                last = deduped[-1]
+                if last[2] and not item[2]:
+                    deduped[-1] = item  # 变体在前、主 token 在后：替换
+                elif item[2] and not last[2]:
+                    pass  # 主 token 在前：丢弃变体
+                elif item[0] - last[0] > 0.01:
+                    deduped.append(item)
         return deduped
 
     sp_same, sv_same = _dedupe(sp_same), _dedupe(sv_same)
@@ -260,8 +282,8 @@ def _extract_curve(toks, tpl, warnings, img=None):
 
     time_cells = []
 
-    sp_list = [v for _, v in pressure]
-    sv_list = [v for _, v in velocity]
+    sp_list = [v for _, v, _ in pressure]
+    sv_list = [v for _, v, _ in velocity]
     fields = {}
 
     if variant == "multi_stage_holding":
@@ -272,11 +294,11 @@ def _extract_curve(toks, tpl, warnings, img=None):
         # 注射页字段（pressure_limit_bar/first_*/stage_pressure_bar/stage_velocity_mms 等）
         # 在本页为误标，一律不输出；找不到的行给 None/空数组 + CELL_MISSING，不猜。
         time_cells = _dedupe(sorted(
-            ((t["x"], _v(t["text"])) for t in toks
+            ((t["x"], _v(t["text"]), _var(t)) for t in toks
              if abs(t["y"] - _row_of("position")) <= _tol and t["x"] > 0.45
              and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
             key=lambda e: e[0]))
-        time_list = [v for _, v in time_cells]
+        time_list = [v for _, v, _ in time_cells]
         fields["stage_holding_pressure_bar"] = sp_list
         fields["stage_holding_time_s"] = time_list
         # 030_FIX（领域确认）：DEMAG 保压页速度行是**分段**字段（如 15/10/5），
@@ -340,9 +362,43 @@ def _extract_curve(toks, tpl, warnings, img=None):
         fields["injection_pressure_limit_bar"] = _extract_global_pressure(
             toks, rows["pressure"], tpl, warnings)
 
+    # 033_FIX 修复1：任一关键行锚词缺失时，hint 兜底猜到的可能是错行的值且
+    # status=ok（cac666e7 左裁切实测压力/速度行互换仍 ok）。段表及所有依赖
+    # 行位的输出一律置空，由上方 ROW_ANCHOR_MISSING warning 降级 review。
+    anchor_void = bool(anchor_missing) and variant in (
+        "multi_stage_injection", "multi_stage_holding")
+    if anchor_void:
+        for fkey in ("stage_velocity_mms", "stage_position_mm",
+                     "stage_holding_pressure_bar", "stage_holding_time_s",
+                     "stage_holding_velocity_mms"):
+            if fkey in fields:
+                fields[fkey] = []
+        for fkey in ("holding_pressure_bar", "holding_velocity_mms",
+                     "switch_position_mm", "injection_pressure_limit_bar"):
+            if fkey in fields:
+                fields[fkey] = None
+
+    # 033_FIX 修复1b 错行护栏：锚词命中但整页偏移估计失败时，分段行捕获数
+    # 明显失衡（2e22f85a 实测：压力行只捕到速度行单值、时间行捕到压力行 4 值）。
+    # 保压变体比 压力/时间 两个分段行（速度行可为全局单值，不参与）；
+    # 注射变体比 段速度/段位置 两行。min*2 < max 判异常 -> 段表置空降级。
+    if not anchor_void and variant == "multi_stage_holding":
+        n_p, n_t = len(sp_list), len(fields.get("stage_holding_time_s") or [])
+        if n_p and n_t and min(n_p, n_t) * 2 < max(n_p, n_t):
+            warnings.append(f"STAGE_ROW_MISALIGN(pressure={n_p},time={n_t})")
+            fields["stage_holding_pressure_bar"] = []
+            fields["stage_holding_time_s"] = []
+            fields["stage_holding_velocity_mms"] = []
+    elif not anchor_void and variant == "multi_stage_injection":
+        n_v, n_pos = len(sp_list), len(sv_list)
+        if n_v and n_pos and min(n_v, n_pos) * 2 < max(n_v, n_pos):
+            warnings.append(f"STAGE_ROW_MISALIGN(velocity={n_v},position={n_pos})")
+            fields["stage_velocity_mms"] = []
+            fields["stage_position_mm"] = []
+
     slots = [t for t in toks if t.get("slot")]
     slot_captures = None  # slot 回退路径的捕获集合（Layer 1 图像观测采样用）
-    if not (pressure or velocity):
+    if not (pressure or velocity) and not anchor_void:
         # 026_FIX：slot 槽位回退与主路径同一语义——multi_stage_injection 时
         # rows['pressure'] 行=段速度、rows['velocity'] 行=段位置；其余变体不变。
         # 035 保压真值：multi_stage_holding 时 rows['pressure'] 行=段保压压力、
@@ -387,14 +443,14 @@ def _extract_curve(toks, tpl, warnings, img=None):
         if captures is None:
             if variant == "multi_stage_injection":
                 captures = {
-                    "stage_velocity_mms": [(x, cap_rows[0]) for x, _ in pressure],
-                    "stage_position_mm": [(x, cap_rows[1]) for x, _ in velocity],
+                    "stage_velocity_mms": [(x, cap_rows[0]) for x, *_ in pressure],
+                    "stage_position_mm": [(x, cap_rows[1]) for x, *_ in velocity],
                 }
             else:
                 captures = {
-                    "stage_holding_pressure_bar": [(x, _row_of("pressure")) for x, _ in pressure],
-                    "stage_holding_velocity_mms": [(x, _row_of("velocity")) for x, _ in velocity],
-                    "stage_holding_time_s": [(x, _row_of("position")) for x, _ in time_cells],
+                    "stage_holding_pressure_bar": [(x, _row_of("pressure")) for x, *_ in pressure],
+                    "stage_holding_velocity_mms": [(x, _row_of("velocity")) for x, *_ in velocity],
+                    "stage_holding_time_s": [(x, _row_of("position")) for x, *_ in time_cells],
                 }
         stage_enabled = _stage_enabled(img, captures)
 
@@ -412,22 +468,36 @@ def _extract_curve(toks, tpl, warnings, img=None):
 
     if variant == "multi_stage_holding":
         # 035 保压真值（app 反馈 e3ebbba2，领域确认）：保压段表同样自右向左排列
-        # （最右列为第 1 段），输出边界统一反转为物理段序；反转前剔除屏幕最左
-        # 未启用的 0 值段槽位（深灰框，0 bar/0 s 非真实段）。
-        # 030_FIX：速度行同规则处理；单个有效值时回退输出 holding_velocity_mms 单值
-        # （文字层无法区分深灰槽位与禁用段 0 值——已知限制，归 Layer 1 观测）。
+        # （最右列为第 1 段），输出边界统一反转为物理段序。
+        # 033_FIX 修复2：压力/速度行的剔除以 Layer 1 enabled 观测为准——深色禁用槽
+        # 任何值（含非零旧值 35）剔除，浅色启用槽的 0 保留——取代"前导 0 剔除"
+        # 启发式（f29c52c4 旧值 35 泄漏、06b7efe8 启用段 0 误删实测）；观测缺失/
+        # 长度不符时保持旧启发式并落 review（STAGE_ENABLED_UNVERIFIED，不猜）。
+        # 时间行例外：f29c52c4 真值 T=[2,1,1] 保留了深色槽的 1.000，与"禁用段
+        # 剔除"规则冲突——以真值为准，时间行维持前导 0 剔除旧规则。
+        # 030_FIX：单个有效速度值时回退输出 holding_velocity_mms 单值。
         for key in ("stage_holding_pressure_bar", "stage_holding_time_s",
                     "stage_holding_velocity_mms"):
             values = fields.get(key)
-            if isinstance(values, list):
-                enabled = stage_enabled.get(key)
+            if not isinstance(values, list):
+                continue
+            enabled = stage_enabled.get(key)
+            use_enabled = (key != "stage_holding_time_s"
+                           and enabled is not None and len(enabled) == len(values))
+            if use_enabled:
+                kept = [(v, e) for v, e in zip(values, enabled) if e]
+                values = [v for v, _ in kept]
+                enabled = [e for _, e in kept]
+            else:
+                if key != "stage_holding_time_s" and values:
+                    warnings.append(f"STAGE_ENABLED_UNVERIFIED({key})")
                 while values and values[0] == 0:
                     values = values[1:]
                     if enabled:
                         enabled = enabled[1:]
-                fields[key] = list(reversed(values))
-                if enabled is not None:
-                    stage_enabled[key] = list(reversed(enabled))
+            fields[key] = list(reversed(values))
+            if enabled is not None:
+                stage_enabled[key] = list(reversed(enabled))
         hv = fields.get("stage_holding_velocity_mms")
         if isinstance(hv, list) and len(hv) == 1:
             fields["holding_velocity_mms"] = hv[0]

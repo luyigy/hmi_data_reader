@@ -1,0 +1,32 @@
+schema_version: 1.0.0
+case_id: holding_Z005_2e22f85a
+profile_id: demag.injection_metering.multi_stage_holding
+controller_family: DEMAG
+page_type: injection_metering
+hmi_variant: multi_stage_holding
+allow_auto_import: false
+image:
+  file: holding_Z005_2e22f85a.jpeg
+fields:
+  stage_holding_pressure_bar:
+  - 55.0
+  - 55.0
+  - 45.0
+  stage_holding_time_s:
+  - 2.0
+  - 1.0
+  - 1.0
+  stage_holding_velocity_mms:
+  - 5.0
+provenance:
+  source:
+    note: 飞书转发 Z005 保压页照片（2026-08-06，033_FIX 缺陷样本）
+  verified_by: kimi 图像复核，待王为确认
+  verified_at: '2026-08-06'
+  tuning_involvement: recognition_fix
+  placement_reason: 驱动 033_FIX 修复1b（错行护栏）——更近拍法导致数值行位于标签下方，
+    029 偏移估计只向上找候选而失败，修复前错行却 status ok（最危险缺陷）；参与过识别修复，
+    只能当练习册，绝不进 holdout
+notes: 2026-08-06 kimi 读屏核定：与 f29c52c4 同屏（更近拍法）。修复前识别行错位
+  P=[5.0]、T=[55,55,45,35] 且 ok；033_FIX 后 STAGE_ROW_MISALIGN 护栏置空降级 review，
+  正确结果即 review/拒识；allow_auto_import=false 钉住"不得错误放行"。

@@ -1,0 +1,32 @@
+schema_version: 1.0.0
+case_id: holding_Z005_cac666e7
+profile_id: demag.injection_metering.multi_stage_holding
+controller_family: DEMAG
+page_type: injection_metering
+hmi_variant: multi_stage_holding
+allow_auto_import: false
+image:
+  file: holding_Z005_cac666e7.jpeg
+fields:
+  stage_holding_pressure_bar:
+  - 39.7
+  - 52.9
+  - 0.0
+  stage_holding_time_s:
+  - 2.0
+  - 3.0
+  stage_holding_velocity_mms:
+  - 10.0
+  - 15.0
+  - 0.0
+provenance:
+  source:
+    note: 飞书转发 Z005 保压页照片（2026-08-06，033_FIX 缺陷样本）
+  verified_by: kimi 图像复核，待王为确认
+  verified_at: '2026-08-06'
+  tuning_involvement: recognition_fix
+  placement_reason: 驱动 033_FIX 修复1（行锚定缺失诚实降级）——左裁切致行标签只剩半截，
+    hint 兜底把压力/速度行互换且 status ok；参与过识别修复，只能当练习册，绝不进 holdout
+notes: 2026-08-06 kimi 读屏核定：与 06b7efe8 同屏（左裁切）。修复前识别行错位互换
+  P=[10,15]、V=[39.7,52.9] 且 ok；033_FIX 后 ROW_ANCHOR_MISSING×3 置空降级 review，
+  正确结果即 review/拒识；allow_auto_import=false 钉住"不得错误放行"。

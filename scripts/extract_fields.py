@@ -422,7 +422,8 @@ def merge_variant_lines(base_lines: list[dict], variant_lines: list[dict]) -> tu
     规则（保守，保错误自动入库率 = 0）：
     - 变体行与任一基础行同位（IoU >= 0.2 或互相包含中心点）：仅当基础行 conf < 0.7
       且变体行 conf >= 0.9 且文本不同，才用变体行替换（低置信误读纠正）；
-    - 无同位基础行：作为补充行追加（填补基础 OCR 漏检）。
+    - 无同位基础行：作为补充行追加（填补基础 OCR 漏检），并标记
+      _src="ocr_variant"（033_FIX 修复3：下游同格异值冲突时主 OCR 值优先）。
     返回 (合并后的 lines, {"added": n, "replaced": n})。
     """
     merged = [dict(l) for l in base_lines]
@@ -434,7 +435,9 @@ def merge_variant_lines(base_lines: list[dict], variant_lines: list[dict]) -> tu
                 hit = i
                 break
         if hit is None:
-            merged.append(dict(v))
+            added = dict(v)
+            added["_src"] = "ocr_variant"
+            merged.append(added)
             stats["added"] += 1
         else:
             b = merged[hit]
@@ -789,9 +792,13 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                                meta["screen_size"])
     if ui == "DEMAG" and page == "injection_metering":
         # 037 方案①：曲线页段表列网格旁车（带 slot 标记直接并入）
+        # 033_FIX 修复3：旁车为 rec-only 重建变体，标 _src="ocr_variant"——
+        # 与主 OCR 同格异值冲突时主 OCR 值优先（rank02 '004500' 实测）
         stage_path = rectified_dir / f"{stem}.ocr_stage.json"
         if stage_path.is_file():
             stage_lines = json.loads(stage_path.read_text()).get("lines", [])
+            for l in stage_lines:
+                l["_src"] = "ocr_variant"
             base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
             toks = norm_tokens({**ocr_data, "lines": base_lines + stage_lines},
                                meta["screen_size"])
