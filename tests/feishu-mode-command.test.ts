@@ -62,3 +62,19 @@ assert.deepEqual(parseFeishuCommand({
   args: [],
   options: { all: 'true' },
 });
+
+assert.deepEqual(parseFeishuCommand({
+  chatId: 'chat',
+  chatType: 'p2p',
+  messageId: 'message',
+  senderOpenId: 'user',
+  messageType: 'text',
+  text: '/ap mode=discussion',
+  mentions: [],
+  mentionNames: [],
+}), {
+  command: 'mode',
+  args: ['discussion'],
+  options: { mode: 'discussion' },
+});
+

@@ -502,6 +502,29 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     throw new Error('This Feishu chat is not bound to a live room yet. Use /ap room --agents=<agentId1,agentId2> first.');
   }
 
+  if (args.context.messageId) {
+    const existingMessage = await prisma.liveRoomMessage.findFirst({
+      where: {
+        roomId: binding.liveRoomId,
+        metadata: {
+          contains: `"feishuMessageId":"${args.context.messageId}"`,
+        },
+      },
+      select: { id: true },
+    });
+    if (existingMessage) {
+      const roomMembers = await prisma.liveRoomMember.findMany({
+        where: { roomId: binding.liveRoomId },
+      });
+      return {
+        liveRoomId: binding.liveRoomId,
+        targetedMembers: [],
+        mentionedAll: false,
+        pendingReplies: [],
+      };
+    }
+  }
+
   const userMember = await ensureLiveRoomUserMember(binding.liveRoomId);
   await syncLiveRoomSourceTask(binding.liveRoomId);
 

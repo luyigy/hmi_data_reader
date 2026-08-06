@@ -76,7 +76,16 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const normalizedTokens = tokenizeCommandText(commandText);
 
   const [rawCommand = 'help', ...rest] = normalizedTokens;
-  const commandAlias = rawCommand.toLowerCase();
+
+  let rawCommandToken = rawCommand;
+  let inlineValue: string | null = null;
+  const eqIndex = rawCommand.indexOf('=');
+  if (eqIndex > 0) {
+    rawCommandToken = rawCommand.slice(0, eqIndex);
+    inlineValue = rawCommand.slice(eqIndex + 1);
+  }
+
+  const commandAlias = rawCommandToken.toLowerCase();
   const command = commandAlias === 'new'
     ? 'new-session'
     : commandAlias === 'dashboard'
@@ -88,6 +97,11 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
 
   const args: string[] = [];
   const options: Record<string, string> = {};
+
+  if (inlineValue !== null) {
+    args.push(inlineValue);
+    options[command] = inlineValue;
+  }
 
   for (const token of rest) {
     if (token.startsWith('--')) {

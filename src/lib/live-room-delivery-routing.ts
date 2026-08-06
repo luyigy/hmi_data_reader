@@ -153,7 +153,7 @@ export const getPrimaryReplyTarget = ({
   sourceMessageSenderMemberId,
   sourceMetadata,
   requestedTargetMemberId,
-  preferRequestedTarget = false,
+  preferRequestedTarget = Boolean(requestedTargetMemberId),
 }: {
   room: DeliveryRoom;
   sourceMessageSenderMemberId?: string | null;

@@ -119,7 +119,10 @@ const LIVE_ROOM_TOOL_MIN_INTERVAL_MS = 3000;
 const LIVE_ROOM_HEARTBEAT_INTERVAL_MS = 45_000;
 
 export const shouldRelayLiveRoomStdoutProgress = (harnessType: string | null) =>
-  harnessType === 'kimi-code';
+  harnessType === 'codex' || harnessType === 'kimi-code';
+
+export const isUsefulLiveRoomThinkingPreview = (text: string) =>
+  text.length >= 80 || /[.!?。！？]\s*$/.test(text);
 
 const markParticipantContinuationStale = async ({
   participantId,
@@ -500,20 +503,28 @@ export const executeLiveRoomReplyViaAcpx = async ({
 
   let lastThinkingPostedAt = 0;
   let lastThinkingPreview = '';
+  let pendingThinkingText = '';
 
   const enqueueThinkingUpdate = (chunk: string) => {
-    const preview = chunk.trim().slice(0, 80);
+    const isCodex = targetMember.harnessType === 'codex';
+    const text = isCodex
+      ? (pendingThinkingText += chunk).trim()
+      : chunk.trim();
+    const preview = text.slice(0, 80);
     if (!preview) return;
+    if (isCodex && !isUsefulLiveRoomThinkingPreview(text)) return;
     const now = Date.now();
     if (now - lastThinkingPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
       return;
     }
     if (preview === lastThinkingPreview) {
+      pendingThinkingText = '';
       return;
     }
     lastThinkingPreview = preview;
     lastThinkingPostedAt = now;
     lastVisibleActivityAt = now;
+    pendingThinkingText = '';
 
     progressTracker?.onSystemEvent(`思考分析：${preview}`, '🧠');
 
@@ -521,7 +532,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       .then(async () => {
         await postLiveRoomMessage({
           roomId: room.id,
-          content: `系统提示：${targetMember.displayName} 正在分析：${preview}${chunk.trim().length > 80 ? '…' : ''}`,
+          content: `系统提示：${targetMember.displayName} 正在分析：${preview}${text.length > 80 ? '…' : ''}`,
           messageType: 'system',
           metadata: resolveLiveRoomMessageMetadata({
             senderKind: 'system',

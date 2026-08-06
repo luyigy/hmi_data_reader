@@ -248,7 +248,7 @@ export const triggerLiveRoomAgentReply = async ({
     sourceMessageSenderMemberId: sourceMessage.senderMemberId,
     sourceMetadata,
     requestedTargetMemberId: targetMemberId,
-    preferRequestedTarget: forceTargetMember,
+    preferRequestedTarget: forceTargetMember || Boolean(targetMemberId),
   });
 
   if (!targetMember || !targetMember.canReply) {
@@ -411,7 +411,7 @@ export const triggerLiveRoomMessageReplies = async ({
       roomMessageId,
       targetMemberId,
       chainDepth: 0,
-      forceTargetMember: isMentionAll,
+      forceTargetMember: isMentionAll || isRoleQueue,
       waitForCompletion,
       allowHandoff: allowHandoff && !isMentionAll && !isRoleQueue,
     });
