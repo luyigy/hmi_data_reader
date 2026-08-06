@@ -115,7 +115,11 @@ const shouldPreferTranscriptContinuation = (participant: ReturnType<typeof build
   participant.executionBackend === 'platform_local' && participant.harnessType === 'codex';
 
 const LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS = 8000;
+const LIVE_ROOM_TOOL_MIN_INTERVAL_MS = 3000;
 const LIVE_ROOM_HEARTBEAT_INTERVAL_MS = 45_000;
+
+export const shouldRelayLiveRoomStdoutProgress = (harnessType: string | null) =>
+  harnessType === 'kimi-code';
 
 const markParticipantContinuationStale = async ({
   participantId,
@@ -501,7 +505,10 @@ export const executeLiveRoomReplyViaAcpx = async ({
     const preview = chunk.trim().slice(0, 80);
     if (!preview) return;
     const now = Date.now();
-    if (preview === lastThinkingPreview && now - lastThinkingPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+    if (now - lastThinkingPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+      return;
+    }
+    if (preview === lastThinkingPreview) {
       return;
     }
     lastThinkingPreview = preview;
@@ -538,8 +545,10 @@ export const executeLiveRoomReplyViaAcpx = async ({
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
     const now = Date.now();
-
-    if (signature === lastToolSignature && now - lastToolPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
+    if (now - lastToolPostedAt < LIVE_ROOM_TOOL_MIN_INTERVAL_MS) {
+      return;
+    }
+    if (signature === lastToolSignature) {
       return;
     }
 
@@ -578,7 +587,9 @@ export const executeLiveRoomReplyViaAcpx = async ({
   };
 
   const liveRoomStreamCallbacks: HarnessStreamCallbacks = {
-    onStdoutChunk: (chunk) => { enqueueThinkingUpdate(chunk); },
+    ...(shouldRelayLiveRoomStdoutProgress(targetMember.harnessType) ? {
+      onStdoutChunk: (chunk: string) => { enqueueThinkingUpdate(chunk); },
+    } : {}),
     onToolEvent: (event) => {
       if (progressTracker) {
         // Interactive progress card handles tool events for Feishu

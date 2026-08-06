@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { prisma } from '../src/lib/prisma';
 import { listHarnessAdapters } from '../src/lib/harness';
@@ -14,6 +15,10 @@ import {
 const requireModule = createRequire(__filename);
 
 void (async () => {
+  assert.match(
+    await readFile('src/lib/acpx/runner-harness.ts', 'utf8'),
+    /workspaceRoot && !\[[^\]]*'pi-agent'[^\]]*\]\.includes\(participant\.harnessType\)/,
+  );
   assert.deepEqual(
     listHarnessAdapters().map((adapter) => adapter.type).sort(),
     [

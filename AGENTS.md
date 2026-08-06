@@ -59,6 +59,9 @@ This project is indexed by GitNexus as **agent-platform-v2** (9486 symbols, 1634
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Import Markdown to Feishu Doc / Showcase sync | `skills/feishu-doc-import/SKILL.md` |
+| Work with Feishu Miaoda (秒搭 PM showcase / OpenAPI) | `skills/feishu-miaoda/SKILL.md` |
+
 
 <!-- gitnexus:end -->
 

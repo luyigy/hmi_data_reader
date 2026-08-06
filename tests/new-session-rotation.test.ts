@@ -47,6 +47,10 @@ async function main() {
     '---',
     '# HANDOVER',
   ].join('\n'));
+  await fs.writeFile(path.join(workspace, 'docs/215_PLAN_20260722_legacy.md'), [
+    '# Legacy Plan without frontmatter',
+    'This file has no YAML frontmatter block.',
+  ].join('\n'));
   await runGit('add', '.');
   await runGit('commit', '-m', 'fixture');
   await fs.writeFile(path.join(workspace, 'dirty.txt'), 'keep me\n');
@@ -246,6 +250,7 @@ async function main() {
   assert.match(await handleNewSessionCommand(command, context), /已发送确认卡/);
   assert.match(confirmationCard, /001_PLAN_20260731_fixture\.md/);
   assert.doesNotMatch(confirmationCard, /002_PLAN_20260731_completed\.md/);
+  assert.doesNotMatch(confirmationCard, /215_PLAN_20260722_legacy\.md/);
   for (const label of [
     'running / queued',
     '未提交改动',
@@ -354,6 +359,26 @@ async function main() {
   assert.equal(await fs.readFile(path.join(workspace, 'dirty.txt'), 'utf8'), 'keep me\n');
   assert.match((await runGit('diff', '--cached', '--name-only')).stdout, /README\.md/);
   assert.match(replies.at(-1) || '', /^✅/);
+
+  let startedCalled = false;
+  const asyncResult = await handleNewSessionConfirmationCardAction({
+    value: {
+      decision: 'handover',
+      requesterOpenId: 'user',
+      chatType: 'group',
+      command: JSON.stringify(command),
+      rotationKey: 'async-handover-end',
+    },
+    openId: 'user',
+    chatId: 'chat',
+    messageId: 'card-async',
+    onStarted: () => { startedCalled = true; },
+    asyncProcessing: true,
+  });
+  assert.equal(startedCalled, true);
+  assert.equal(asyncResult.toast.type, 'success');
+  assert.match(asyncResult.toast.content, /已开始生成 Handover/);
+  await new Promise((resolve) => setTimeout(resolve, 200));
 
   await fs.rm(workspace, { recursive: true, force: true });
   console.log('new session rotation checks passed');

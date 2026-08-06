@@ -331,6 +331,17 @@ function buildCardActionHandler(prefix: string) {
       openId: openId || null,
       chatId: chatId || null,
       messageId,
+      onStarted: () => {
+        if (chatId) {
+          void sendFeishuTextMessage({
+            receiveId: chatId,
+            receiveIdType: 'chat_id',
+            replyId: messageId,
+            text: '⏳ 已接收，正在后台处理 Session 切换与 Handover 生成...',
+          }).catch(() => undefined);
+        }
+      },
+      asyncProcessing: true,
     });
 
     if (cmd === 'ap-command') {

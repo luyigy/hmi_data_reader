@@ -191,7 +191,16 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
   try {
     await runStage(host, '约束定义', '定义问题、范围、约束、风险和计划验收标准；只讨论，不写文件。');
     for (const member of participants.slice(1)) {
-      await runStage(member, '成员建议', '基于全部前文给出一次建议，覆盖方案、风险、验证和待确认项；只讨论。');
+      try {
+        await runStage(member, '成员建议', '基于全部前文给出一次建议，覆盖方案、风险、验证和待确认项；只讨论。');
+      } catch (err: any) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        await postLiveRoomMessage({
+          roomId,
+          content: `系统提示：成员 ${member.displayName} 在建议阶段执行失败（${errorMsg}），已自动跳过该成员，由剩余成员与主持人继续生成 PLAN。`,
+          messageType: 'system',
+        });
+      }
     }
     const finalOutput = await runStage(
       host,

@@ -1,10 +1,14 @@
 import assert from 'node:assert';
 import { FeishuProgressTracker } from '../src/lib/feishu-progress';
+import { shouldRelayLiveRoomStdoutProgress } from '../src/lib/live-room-delivery-execution';
 
 async function runTest() {
   console.log('[Test] Testing FeishuProgressTracker system info collapsible panel...');
 
   const tracker = new FeishuProgressTracker('test-chat-123');
+
+  assert.equal(shouldRelayLiveRoomStdoutProgress('codex'), false);
+  assert.equal(shouldRelayLiveRoomStdoutProgress('kimi-code'), true);
 
   // Test adding system events
   tracker.onSystemEvent('开始处理消息 | codex (local_acpx)', '🚀');

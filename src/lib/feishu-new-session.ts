@@ -95,6 +95,9 @@ async function findUnfinishedPlan(workingDirectory: string) {
   }
   for (const file of planPaths.reverse()) {
     const metadata = frontmatter(await git(workingDirectory, 'show', `HEAD:${file}`));
+    if (Object.keys(metadata).length === 0 || metadata.doc_type !== 'PLAN' || !metadata.doc_status) {
+      continue;
+    }
     if (!['completed', 'superseded'].includes(String(metadata.doc_status)) && !completedPlans.has(file)) {
       return file;
     }
@@ -219,7 +222,8 @@ async function generateCommittedHandover(args: {
   const docsDirectory = path.join(args.workingDirectory, 'docs');
   await fs.mkdir(docsDirectory, { recursive: true });
   const numbers = (await fs.readdir(docsDirectory))
-    .map((name) => Number(name.match(/^(\d+)_/)?.[1] || 0));
+    .map((name) => Number(name.match(/^(\d{1,4})_/)?.[1] || 0))
+    .filter((n) => n < 9000);
   let number = Math.max(0, ...numbers) + 1;
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const suffix = createHash('sha256').update(args.rotationKey).digest('hex').slice(0, 8);
@@ -756,6 +760,8 @@ export async function handleNewSessionConfirmationCardAction(args: {
   openId: string | null;
   chatId: string | null;
   messageId?: string | null;
+  onStarted?: () => void;
+  asyncProcessing?: boolean;
 }) {
   const decision = args.value.decision;
   if (!args.openId || !args.chatId
@@ -794,29 +800,62 @@ export async function handleNewSessionConfirmationCardAction(args: {
   if (claimed === false) {
     return { toast: { type: 'warning', content: '确认卡已处理或换代正在进行' } };
   }
-  const result = await handleNewSessionCommand({
-    ...command,
-    options: {
-      ...command.options,
-      confirmed: 'true',
-      'rotation-key': args.value.rotationKey,
-      ...(decision === 'handover' ? { 'generate-handover': 'true' } : {}),
-    },
-  }, {
-    chatId: args.chatId,
-    chatType: args.value.chatType === 'p2p' ? 'p2p' : 'group',
-    senderOpenId: args.openId,
-    messageId: args.messageId || `new-session:${args.value.rotationKey}`,
-  });
-  await sendFeishuTextMessage({
-    receiveId: args.chatId,
-    receiveIdType: 'chat_id',
-    replyId: args.messageId || undefined,
-    text: result,
-  });
-  if (result.startsWith('✅')) {
-    await transitionWorkflowRotationFromCard(command, 'rotation_pending', 'rotation_completed');
+
+  const rotationKey = String(args.value.rotationKey);
+
+  const executeRotation = async () => {
+    try {
+      const result = await handleNewSessionCommand({
+        ...command,
+        options: {
+          ...command.options,
+          confirmed: 'true',
+          'rotation-key': rotationKey,
+          ...(decision === 'handover' ? { 'generate-handover': 'true' } : {}),
+        },
+      }, {
+        chatId: args.chatId!,
+        chatType: args.value.chatType === 'p2p' ? 'p2p' : 'group',
+        senderOpenId: args.openId!,
+        messageId: args.messageId || `new-session:${rotationKey}`,
+      });
+      await sendFeishuTextMessage({
+        receiveId: args.chatId!,
+        receiveIdType: 'chat_id',
+        replyId: args.messageId || undefined,
+        text: result,
+      });
+      if (result.startsWith('✅')) {
+        await transitionWorkflowRotationFromCard(command, 'rotation_pending', 'rotation_completed');
+      }
+      return result;
+    } catch (err) {
+      console.error('handleNewSessionConfirmationCardAction background execution failed:', err);
+      if (args.chatId) {
+        void sendFeishuTextMessage({
+          receiveId: args.chatId,
+          receiveIdType: 'chat_id',
+          replyId: args.messageId || undefined,
+          text: `❌ Session 切换失败：${err instanceof Error ? err.message : String(err)}`,
+        }).catch(() => undefined);
+      }
+      throw err;
+    }
+  };
+
+  args.onStarted?.();
+
+  if (args.asyncProcessing) {
+    void executeRotation().catch(() => undefined);
+    return {
+      toast: {
+        type: 'success',
+        content: decision === 'handover' ? '已开始生成 Handover 并切换 Session...' : '已开始切换 Session...',
+      },
+    };
   }
+
+  const result = await executeRotation();
   return {
     toast: {
       type: result.startsWith('✅') ? 'success' : 'warning',

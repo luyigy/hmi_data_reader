@@ -76,7 +76,8 @@ export async function handleMembersCommand(context?: FeishuConversationContext) 
         : ` | 用量 ${m.contextWatermark.usagePercentage}% (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
       : '';
     const permission = m.permissionLabel ? ` | ${m.permissionLabel}` : '';
-    return `- ${m.displayName} [${m.id.slice(-8)}] | ${m.backend || 'local'}${permission} | ${tag}${watermark}`;
+    const role = ` | 角色: ${m.role || 'custom'}`;
+    return `- ${m.displayName} [${m.id.slice(-8)}]${role} | ${m.backend || 'local'}${permission} | ${tag}${watermark}`;
   });
 
   return [`Live Room 成员列表 (${roomId.slice(-8)})`, ...lines].join('\n');
