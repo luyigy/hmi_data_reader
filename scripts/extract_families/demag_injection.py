@@ -166,8 +166,11 @@ def _extract_global_pressure(toks, pressure_row_y, tpl, warnings):
     main = [c for c in cands if not c[3]]
     if main:
         cands = main
-    cands.sort(key=lambda c: (c[0], c[1]))
-    return cands[-1][2]
+    # 036_FIX：取带内最高（y 最小）候选；同高度取最右（x 最大）。
+    # 全局压力在段表上方右上区；原"取最贴近段表（y 最大）"在降采样几何下会
+    # 抓到段表首行数值（rank05 降采样后 110→90 实测回归）。
+    cands.sort(key=lambda c: (c[0], -c[1]))
+    return cands[0][2]
 
 
 def _extract_curve(toks, tpl, warnings, img=None):
