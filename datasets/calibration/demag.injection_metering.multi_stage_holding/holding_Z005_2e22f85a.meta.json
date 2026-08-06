@@ -4,7 +4,7 @@
   "profile_id": "demag.injection_metering.multi_stage_holding",
   "profile_layout_version": 1,
   "contract_version": "2.5.0",
-  "truth_hash": "sha256:dda283fcfbc553105a77cbcb2f547f3b1ad741b0c88a1eb9922b4ac72a61cb92",
+  "truth_hash": "sha256:63f03a422a0248707fe8b3b444de66f7fb5d992a9c076e568e782b734359fee4",
   "image_sha256": "sha256:ebfab180de48b76938c75a8dea9ac12131a945379924b22b397dd518dd4f6a15",
   "structure": {
     "controller_family": "DEMAG",

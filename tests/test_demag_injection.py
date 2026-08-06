@@ -49,7 +49,11 @@ class DemagStageGridTest(unittest.TestCase):
         for removed in ("pressure_limit_bar", "first_velocity_mms",
                         "first_position_mm", "stage_pressure_bar"):
             self.assertNotIn(removed, fields)
-        self.assertEqual(warnings, [])
+        # 033 统一裁定：无图像观测时注射段数组保持现状并落 review（不猜）
+        self.assertEqual(warnings, [
+            "STAGE_ENABLED_UNVERIFIED(stage_velocity_mms)",
+            "STAGE_ENABLED_UNVERIFIED(stage_position_mm)",
+        ])
 
         warnings = []
         fields = _extract_curve([t for t in complete if t["x"] < 0.5], template, warnings)
@@ -89,7 +93,10 @@ class DemagStageGridTest(unittest.TestCase):
         # 屏幕自右向左为第 1 段起，输出统一反转为物理段序（025_FIX）
         self.assertEqual(fields["stage_velocity_mms"], [25, 0])
         self.assertEqual(fields["stage_position_mm"], [22.5, 0])
-        self.assertEqual(warnings, [])
+        self.assertEqual(warnings, [
+            "STAGE_ENABLED_UNVERIFIED(stage_velocity_mms)",
+            "STAGE_ENABLED_UNVERIFIED(stage_position_mm)",
+        ])
 
     def test_optim_fallback_to_curve(self):
         template = {
@@ -179,9 +186,11 @@ class DemagHoldingPageTest(unittest.TestCase):
                         "holding_pressure_bar", "switch_position_mm",
                         "injection_pressure_limit_bar"):
             self.assertNotIn(removed, fields)
-        # 033_FIX 修复2：无图像观测时保持旧启发式并落 review（不猜）
+        # 033_FIX 修复2 + 统一裁定：无图像观测时保持旧启发式并落 review（不猜），
+        # 时间行同样纳入
         self.assertEqual(warnings, [
             "STAGE_ENABLED_UNVERIFIED(stage_holding_pressure_bar)",
+            "STAGE_ENABLED_UNVERIFIED(stage_holding_time_s)",
             "STAGE_ENABLED_UNVERIFIED(stage_holding_velocity_mms)",
         ])
 
@@ -416,7 +425,10 @@ class DemagMergeDedupeTest(unittest.TestCase):
         fields = _extract_curve(toks, self.TEMPLATE, warnings)
         self.assertEqual(fields["stage_velocity_mms"], [75, 25])
         self.assertEqual(fields["stage_position_mm"], [45, 22.5])
-        self.assertEqual(warnings, [])
+        self.assertEqual(warnings, [
+            "STAGE_ENABLED_UNVERIFIED(stage_velocity_mms)",
+            "STAGE_ENABLED_UNVERIFIED(stage_position_mm)",
+        ])
 
     def test_slot_token_dropped_on_conflict(self):
         toks = self._injection_toks([

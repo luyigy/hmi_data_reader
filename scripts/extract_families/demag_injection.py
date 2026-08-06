@@ -459,22 +459,33 @@ def _extract_curve(toks, tpl, warnings, img=None):
         # 契约要求段数组按物理段序输出，故在输出边界统一反转（025_FIX）。
         # 026_FIX：反转对象改为 段速度 + 段位置（本页无分段压力）。
         # 背压变体段序未经真值确认，维持屏幕序且仍为 candidate 仅预览。
+        # 033_FIX 统一裁定（王为 2026-08-06）：enabled 过滤推广到注射变体——
+        # 深色禁用槽任何值剔除（rank01 深色底尾段 0 实测）、浅色启用槽保留；
+        # 观测缺失/长度不符时保持现状（只反转）并落 review（不猜）。
         for key in ("stage_velocity_mms", "stage_position_mm"):
             values = fields.get(key)
-            if isinstance(values, list):
-                fields[key] = list(reversed(values))
-                if key in stage_enabled:
-                    stage_enabled[key] = list(reversed(stage_enabled[key]))
+            if not isinstance(values, list):
+                continue
+            enabled = stage_enabled.get(key)
+            use_enabled = enabled is not None and len(enabled) == len(values)
+            if use_enabled:
+                kept = [(v, e) for v, e in zip(values, enabled) if e]
+                values = [v for v, _ in kept]
+                enabled = [e for _, e in kept]
+            elif values:
+                warnings.append(f"STAGE_ENABLED_UNVERIFIED({key})")
+            fields[key] = list(reversed(values))
+            if enabled is not None:
+                stage_enabled[key] = list(reversed(enabled))
 
     if variant == "multi_stage_holding":
         # 035 保压真值（app 反馈 e3ebbba2，领域确认）：保压段表同样自右向左排列
         # （最右列为第 1 段），输出边界统一反转为物理段序。
-        # 033_FIX 修复2：压力/速度行的剔除以 Layer 1 enabled 观测为准——深色禁用槽
-        # 任何值（含非零旧值 35）剔除，浅色启用槽的 0 保留——取代"前导 0 剔除"
-        # 启发式（f29c52c4 旧值 35 泄漏、06b7efe8 启用段 0 误删实测）；观测缺失/
-        # 长度不符时保持旧启发式并落 review（STAGE_ENABLED_UNVERIFIED，不猜）。
-        # 时间行例外：f29c52c4 真值 T=[2,1,1] 保留了深色槽的 1.000，与"禁用段
-        # 剔除"规则冲突——以真值为准，时间行维持前导 0 剔除旧规则。
+        # 033_FIX 修复2 + 统一裁定（王为 2026-08-06）：三个分段行的剔除统一以
+        # Layer 1 enabled 观测为准——深色背景槽=禁用段，任何值（含非零旧值 35、
+        # 时间行深色槽 1.000）剔除；浅色槽=启用段，任何值（含 0）保留。
+        # 观测缺失/长度不符时回退旧"前导 0 剔除"启发式并落 review
+        # （STAGE_ENABLED_UNVERIFIED，不猜）。
         # 030_FIX：单个有效速度值时回退输出 holding_velocity_mms 单值。
         for key in ("stage_holding_pressure_bar", "stage_holding_time_s",
                     "stage_holding_velocity_mms"):
@@ -482,14 +493,13 @@ def _extract_curve(toks, tpl, warnings, img=None):
             if not isinstance(values, list):
                 continue
             enabled = stage_enabled.get(key)
-            use_enabled = (key != "stage_holding_time_s"
-                           and enabled is not None and len(enabled) == len(values))
+            use_enabled = enabled is not None and len(enabled) == len(values)
             if use_enabled:
                 kept = [(v, e) for v, e in zip(values, enabled) if e]
                 values = [v for v, _ in kept]
                 enabled = [e for _, e in kept]
             else:
-                if key != "stage_holding_time_s" and values:
+                if values:
                     warnings.append(f"STAGE_ENABLED_UNVERIFIED({key})")
                 while values and values[0] == 0:
                     values = values[1:]
