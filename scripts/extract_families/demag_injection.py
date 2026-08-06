@@ -58,6 +58,23 @@ def _v(text):
     return float(m.group()) if m else None
 
 
+# 035_PLAN §3：同格主 OCR 与 ocr_variant 数值异值的冲突分类与文案。10/100 倍关系
+# （疑似摩尔纹吞小数点）→ MOIRE_DECIMAL_SUSPECT；其余 → VALUE_CONFLICT。0 值不参与
+# 倍数判定（避免除零或近似把普通差异误标成摩尔嫌疑）。调用方已保证 main != variant。
+def _ocr_conflict_code(main: float, variant: float) -> str:
+    if main and variant:
+        big, small = (main, variant) if main > variant else (variant, main)
+        ratio = big / small
+        if abs(ratio - 10.0) < 1e-9 or abs(ratio - 100.0) < 1e-9:
+            return "MOIRE_DECIMAL_SUSPECT"
+    return "VALUE_CONFLICT"
+
+
+def _ocr_conflict_msg(row_label: str, main: float, variant: float) -> str:
+    """035_PLAN §5：含主值/变体值/来源，不记录图片或其他敏感内容。"""
+    return f"{_ocr_conflict_code(main, variant)}(row={row_label} main={main} variant={variant} src=ocr_variant)"
+
+
 def _pressure_unit_text(label: str | None) -> str | None:
     """压力行标签原文中的单位字符串：含 bar_spez（塑料压力）/"[bar]"，未标出为 None。"""
     if not label:
@@ -214,9 +231,14 @@ def _extract_curve(toks, tpl, warnings, img=None):
     # 模式 1：同行布局（多级保压 / 多级背压页：阶段压力在 rows['pressure']，阶段速度在 rows['velocity']；
     # 多级注射页 026_FIX：rows['pressure'] 行=段速度上 row，rows['velocity'] 行=段位置下 row）
     def _var(t):
-        # 033_FIX 修复3：CLAHE 合并追加（ocr_variant）与段网格旁车（slot）
-        # token 属变体来源，同格冲突时主 OCR 值优先。
-        return bool(t.get("slot")) or t.get("src") == "ocr_variant"
+        # 033_FIX 修复3：slot 段网格旁车与 ocr_variant（CLAHE/摩尔抑制）属变体来源，
+        # 同格冲突时主 OCR 值优先。返回来源标签（None=主 OCR）而非布尔——truthy 语义
+        # 不变（None 假、字符串真），035_PLAN 起据此区分：仅 ocr_variant 同格异值进诚实降级。
+        if t.get("slot"):
+            return "slot"
+        if t.get("src") == "ocr_variant":
+            return "ocr_variant"
+        return None
 
     sp_same = sorted(((t["x"], _v(t["text"]), _var(t)) for t in toks
                       if abs(t["y"] - _row_of("pressure")) <= _tol and t["x"] > 0.45
@@ -238,10 +260,14 @@ def _extract_curve(toks, tpl, warnings, img=None):
                      and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
                     key=lambda e: e[0])
 
-    def _dedupe(arr):
-        # 033_FIX 修复3：同格（x 间距 <0.018）异值冲突时优先主 OCR 变体的值
+    def _dedupe(arr, row_label=""):
+        # 033_FIX 修复3：同格（x 间距 <0.018）异值冲突时主 OCR 值优先
         # （rank02 段网格旁车 '004500' 盖住主 OCR '45.00' 实测）；冲突双方
         # 无主从之分时保持原行为（间距 >0.01 且异值两个都留）。
+        # 035_PLAN：主 OCR 与 ocr_variant 同格数值异值不再静默选主值——保留主值
+        # 供复核展示，另输出 MOIRE_DECIMAL_SUSPECT/VALUE_CONFLICT warning 使最终
+        # status=review 且禁止自动应用（slot 旁车不进本规则）。同值异写（5 与 5.0）
+        # 在上方 `item[1] != deduped[-1][1]` float 比较处被判同值，不进本分支、不告警。
         arr = [item for item in arr if item[1] is not None]
         deduped = []
         for item in arr:
@@ -251,14 +277,20 @@ def _extract_curve(toks, tpl, warnings, img=None):
                 last = deduped[-1]
                 if last[2] and not item[2]:
                     deduped[-1] = item  # 变体在前、主 token 在后：替换
+                    if last[2] == "ocr_variant":
+                        warnings.append(_ocr_conflict_msg(row_label,
+                                                          main=item[1], variant=last[1]))
                 elif item[2] and not last[2]:
                     pass  # 主 token 在前：丢弃变体
+                    if item[2] == "ocr_variant":
+                        warnings.append(_ocr_conflict_msg(row_label,
+                                                          main=last[1], variant=item[1]))
                 elif item[0] - last[0] > 0.01:
                     deduped.append(item)
         return deduped
 
-    sp_same, sv_same = _dedupe(sp_same), _dedupe(sv_same)
-    sp_inj, sv_inj = _dedupe(sp_inj), _dedupe(sv_inj)
+    sp_same, sv_same = _dedupe(sp_same, "same.pressure_row"), _dedupe(sv_same, "same.velocity_row")
+    sp_inj, sv_inj = _dedupe(sp_inj, "inj.velocity_row"), _dedupe(sv_inj, "inj.position_row")
 
     cap_rows = None  # 注射变体捕获行的实际 y（Layer 1 图像观测采样用）
     if has_backp:
@@ -303,7 +335,7 @@ def _extract_curve(toks, tpl, warnings, img=None):
             ((t["x"], _v(t["text"]), _var(t)) for t in toks
              if abs(t["y"] - _row_of("position")) <= _tol and t["x"] > 0.45
              and re.fullmatch(r"\d+\.?\d*", t["text"].strip())),
-            key=lambda e: e[0]))
+            key=lambda e: e[0]), "holding.time_row")
         time_list = [v for _, v, _ in time_cells]
         fields["stage_holding_pressure_bar"] = sp_list
         fields["stage_holding_time_s"] = time_list

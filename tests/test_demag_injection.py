@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from extract_families.demag_injection import _extract_curve, extract_injection_demag
+from extract_families.demag_injection import _extract_curve, extract_injection_demag, _ocr_conflict_code
 
 
 class DemagStageGridTest(unittest.TestCase):
@@ -425,7 +425,12 @@ class DemagMergeDedupeTest(unittest.TestCase):
         fields = _extract_curve(toks, self.TEMPLATE, warnings)
         self.assertEqual(fields["stage_velocity_mms"], [75, 25])
         self.assertEqual(fields["stage_position_mm"], [45, 22.5])
+        # 035_PLAN：主值仍保留供复核，但 ocr_variant 同格异值（45→4500 为 100 倍）
+        # 不再静默 ok——诚实降级 review（MOIRE_DECIMAL_SUSPECT 在前，随后既有
+        # STAGE_ENABLED_UNVERIFIED×2）。整页偏移使 y=0.73 段走 inj 错行布局，
+        # 冲突落在 inj.position_row。
         self.assertEqual(warnings, [
+            "MOIRE_DECIMAL_SUSPECT(row=inj.position_row main=45.0 variant=4500.0 src=ocr_variant)",
             "STAGE_ENABLED_UNVERIFIED(stage_velocity_mms)",
             "STAGE_ENABLED_UNVERIFIED(stage_position_mm)",
         ])
@@ -455,6 +460,67 @@ class DemagMergeDedupeTest(unittest.TestCase):
         fields = _extract_curve(toks, self.TEMPLATE, warnings)
         self.assertEqual(fields["stage_velocity_mms"], [75, 25])
         self.assertEqual(fields["stage_position_mm"], [45, 22.5])
+
+
+class OcrConflictCodeTest(unittest.TestCase):
+    # 035_PLAN §5 最小检查：分类器边界。同值异写（5 与 5.0）在 _dedupe 的 float
+    # 比较处被判同值、不进冲突分支，由 test_no_conflict_behavior_unchanged 覆盖。
+    def test_10x_is_moire(self):
+        self.assertEqual(_ocr_conflict_code(50.0, 5.0), "MOIRE_DECIMAL_SUSPECT")
+        self.assertEqual(_ocr_conflict_code(5.0, 50.0), "MOIRE_DECIMAL_SUSPECT")
+
+    def test_100x_is_moire(self):
+        self.assertEqual(_ocr_conflict_code(350.0, 3.5), "MOIRE_DECIMAL_SUSPECT")
+
+    def test_plain_difference_is_value_conflict(self):
+        self.assertEqual(_ocr_conflict_code(12.0, 7.0), "VALUE_CONFLICT")
+
+    def test_zero_not_treated_as_moire(self):
+        # 0 值不参与倍数判定（避免除零/近似误标）
+        self.assertEqual(_ocr_conflict_code(0.0, 5.0), "VALUE_CONFLICT")
+        self.assertEqual(_ocr_conflict_code(5.0, 0.0), "VALUE_CONFLICT")
+
+
+class MoireDecimal10xFlagTest(unittest.TestCase):
+    TEMPLATE = {"curve_page": {
+        "row_y_hint": {"pressure": 0.68, "velocity": 0.72, "position": 0.75},
+        "global_pressure": {"x_min": 0.75, "dy_above": [-0.005, 0.08]},
+    }}
+
+    def _injection_toks(self, extra):
+        return [
+            {"text": "多级注射", "x": 0.5, "y": 0.03},
+            {"text": "压力[bar]", "x": 0.18, "y": 0.68},
+            {"text": "65.0", "x": 0.35, "y": 0.68},
+            {"text": "速度[mm/s]", "x": 0.18, "y": 0.72},
+            {"text": "12.0", "x": 0.35, "y": 0.72},
+            {"text": "位置[mm]", "x": 0.18, "y": 0.75},
+            {"text": "17.50", "x": 0.35, "y": 0.75},
+            {"text": "100.0", "x": 0.85, "y": 0.65},
+        ] + extra
+
+    def test_10x_conflict_flagged_main_kept(self):
+        # 035_PLAN 头条实例：保压速度屏 5.0 被主 OCR 读成 50，变体读对 5.0
+        toks = self._injection_toks([
+            {"text": "50", "x": 0.80, "y": 0.69},
+            {"text": "25.0", "x": 0.85, "y": 0.69},
+            {"text": "5.0", "x": 0.808, "y": 0.69, "src": "ocr_variant"},
+            {"text": "22.50", "x": 0.80, "y": 0.73},
+            {"text": "45.00", "x": 0.85, "y": 0.73},
+        ])
+        warnings = []
+        fields = _extract_curve(toks, self.TEMPLATE, warnings)
+        # 主值 50 仍保留供复核（不自动改用变体）
+        self.assertIn(50, fields["stage_velocity_mms"])
+        # 10 倍关系被标为摩尔小数点嫌疑，提示含双值与来源。同一物理冲突可能被
+        # sv_same 与 sp_inj 两条同带扫描各报一次（现有四数组独立去重的结构属性），
+        # 这里只要求至少报一次且文案含主值/变体值/来源。
+        moire = [w for w in warnings if w.startswith("MOIRE_DECIMAL_SUSPECT")
+                 and "main=50.0" in w and "variant=5.0" in w]
+        self.assertGreaterEqual(len(moire), 1)
+        self.assertIn("src=ocr_variant", moire[0])
+        # 最终必须降级 review（warning 非空）
+        self.assertTrue(warnings)
 
 
 if __name__ == "__main__":
