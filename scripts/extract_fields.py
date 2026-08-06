@@ -794,13 +794,18 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         # 037 方案①：曲线页段表列网格旁车（带 slot 标记直接并入）
         # 033_FIX 修复3：旁车为 rec-only 重建变体，标 _src="ocr_variant"——
         # 与主 OCR 同格异值冲突时主 OCR 值优先（rank02 '004500' 实测）
-        stage_path = rectified_dir / f"{stem}.ocr_stage.json"
-        if stage_path.is_file():
-            stage_lines = json.loads(stage_path.read_text()).get("lines", [])
-            for l in stage_lines:
-                l["_src"] = "ocr_variant"
+        # 034_FIX：摩尔纹低通变体旁车（ocr_variants.moire_suppress，治段表
+        # 相邻格粘连漏读）同机制并入，同格冲突主 OCR 值优先
+        extra_lines = []
+        for sidecar in ("ocr_stage", "ocr_moire"):
+            sc_path = rectified_dir / f"{stem}.{sidecar}.json"
+            if sc_path.is_file():
+                for l in json.loads(sc_path.read_text()).get("lines", []):
+                    l["_src"] = "ocr_variant"
+                    extra_lines.append(l)
+        if extra_lines:
             base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
-            toks = norm_tokens({**ocr_data, "lines": base_lines + stage_lines},
+            toks = norm_tokens({**ocr_data, "lines": base_lines + extra_lines},
                                meta["screen_size"])
     if ui == "FANUC":
         # 低质图整屏放大 OCR 变体召回补充（026 S7c）

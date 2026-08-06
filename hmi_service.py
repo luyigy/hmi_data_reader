@@ -195,6 +195,20 @@ async def recognize_image(file: UploadFile = File(...)):
             # 5. 分类
             cls_res = classify(ocr_json)
 
+            # 5b. 摩尔纹抑制变体（034_FIX）：仅 DEMAG 注射/保压页生成 sidecar，
+            # 合并时主 OCR 值优先；变体失败不影响主路径。
+            if (
+                str(cls_res.get("ui_family") or "").upper() == "DEMAG"
+                and cls_res.get("page") in ("injection_metering", "monitor_curve")
+            ):
+                try:
+                    from ocr_variants import generate_moire_sidecar
+                    generate_moire_sidecar(
+                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_moire.json"
+                    )
+                except Exception as variant_error:  # noqa: BLE001
+                    logger.warning("moire variant failed: %s", variant_error)
+
             # 6. 字段提取
             record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
             machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None

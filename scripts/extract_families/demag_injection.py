@@ -135,7 +135,7 @@ def _extract_global_pressure(toks, pressure_row_y, tpl, warnings):
     spec = tpl.get("global_pressure") or {}
     x_min = spec.get("x_min", 0.75)
     dy_lo, dy_hi = spec.get("dy_above", [-0.005, 0.08])
-    cands = [(t["y"], t["x"], _v(t["text"])) for t in toks
+    cands = [(t["y"], t["x"], _v(t["text"]), t.get("src") == "ocr_variant") for t in toks
              if t["x"] > x_min
              and pressure_row_y - dy_hi <= t["y"] <= pressure_row_y - dy_lo
              and re.fullmatch(r"\d+\.?\d*", t["text"].strip())]
@@ -143,6 +143,12 @@ def _extract_global_pressure(toks, pressure_row_y, tpl, warnings):
     if not cands:
         warnings.append("CELL_MISSING(injection_pressure_limit_bar)")
         return None
+    # 034_FIX：锚带下沿与段表上 row 相邻，变体补回的段值 token 会落入带内
+    # （rank05 '30.0' 盖过 '110.0' 实测）——与主 OCR 候选并存时主值优先，
+    # 变体仅在主 OCR 整带漏检时兜底（同 033_FIX 修复3 口径）。
+    main = [c for c in cands if not c[3]]
+    if main:
+        cands = main
     cands.sort(key=lambda c: (c[0], c[1]))
     return cands[-1][2]
 
