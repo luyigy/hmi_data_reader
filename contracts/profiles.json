@@ -27,8 +27,8 @@
       "controller_family": "DEMAG",
       "page_type": "injection_metering",
       "layout_variant": "multi_stage_holding",
-      "status": "candidate",
-      "lifecycle_note": "首份真值已建（app 反馈 e3ebbba2，2026-08-05 领域确认：段保压压力物理段序、段保压时间=segment_duration、保压速度全局单值）；保持 candidate 仅预览，待凑齐 >=5 张独立 holdout 通过 verify_accuracy 硬门禁后晋级 verified"
+      "status": "verified",
+      "lifecycle_note": "2026-08-06 王为所有者豁免晋级（verified）。证据：Z002+Z005 两台机共 17 份领域核对样本；校准门禁 numeric_accuracy=1.0、error_auto_import_rate=0；全部样本表现为全对或诚实降级/拒识；stage_enabled 观测、双路冲突降级（035）就位。偏差披露：无未调参 holdout（样本全部参与过迭代修复）；rejection_accuracy=0.6 为 review/reject 计分口径差异（review 同样禁止自动应用）；Web 映射经 28 项单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
     },
     {
       "profile_id": "demag.injection_metering.multi_stage_back_pressure",
