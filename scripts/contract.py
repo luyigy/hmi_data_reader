@@ -32,6 +32,18 @@ DEFAULT_CONFIDENCE = 0.7
 # layout_variant 解析失败时的置信度上限（低于 candidate 门槛，禁止应用）
 NO_LAYOUT_CONFIDENCE_CAP = 0.69
 
+# 分类器关键词未命中（ui_family unknown -> 置信 0）时，提取路由证据的兜底置信度：
+# record 聚合/机台先验经人工核验（machine_labels.json），模板指纹（family_detect_groups
+# 全组命中）为结构性证据；per_image_classify 与分类器同源，不在此兜底。
+_ROUTE_FAMILY_CONFIDENCE = {
+    "record_report": 0.95,
+    "machine_labels": 0.95,
+    "template_keywords": 0.9,
+}
+_ROUTE_PAGE_CONFIDENCE = {
+    "template_anchors": 0.9,
+}
+
 
 @lru_cache(maxsize=1)
 def _field_catalog() -> dict:
@@ -101,6 +113,32 @@ def _classification_confidence(classification: dict | None) -> float | None:
     return min(usable) if usable else None
 
 
+def _routed_confidence(result: dict, classification: dict | None) -> float | None:
+    """分类器未认出家族时的路由证据置信度。
+
+    仅在提取路由经 record 聚合/机台先验/模板指纹确认了家族、且页面也有
+    模板锚点或分类器证据时才给；证据不齐返回 None（维持既有默认口径）。
+    """
+    provenance = result.get("provenance")
+    if not isinstance(provenance, dict):
+        return None
+    family = result.get("controller_family")
+    page = result.get("page_type")
+    if not family or family == "unknown" or not page or page == "unknown":
+        return None
+    family_conf = _ROUTE_FAMILY_CONFIDENCE.get(provenance.get("family_source"))
+    if family_conf is None:
+        return None
+    page_conf = None
+    if isinstance(classification, dict) and classification.get("page") == page:
+        page_conf = _usable_confidence(classification.get("page_confidence"))
+    if page_conf is None:
+        page_conf = _ROUTE_PAGE_CONFIDENCE.get(provenance.get("page_source"))
+    if page_conf is None:
+        return None
+    return min(family_conf, page_conf)
+
+
 def _build_field_meta(fields: dict | None, catalog_fields: dict,
                       profile_id: str | None) -> dict:
     field_meta = {}
@@ -122,6 +160,13 @@ def _build_field_meta(fields: dict | None, catalog_fields: dict,
         overrides = spec.get("role_overrides")
         if profile_id and isinstance(overrides, dict) and profile_id in overrides:
             meta["role"] = overrides[profile_id]
+        entity_overrides = spec.get("entity_overrides")
+        if profile_id and isinstance(entity_overrides, dict) and profile_id in entity_overrides:
+            override = entity_overrides[profile_id]
+            if isinstance(override, dict):
+                # 合并拷贝：不得污染 lru_cache 目录对象（B_AND_R 列序 NZ/#1~#5 与
+                # 目录默认 DEMAG 列序不同，v2.6.0 起按 profile 覆盖）
+                meta["entity"] = {**(spec.get("entity") or {}), **override}
         if "physical_semantics" in spec:
             # 拷贝而非引用：pressure_basis 运行时覆盖不得污染 lru_cache 目录对象
             meta["physical_semantics"] = dict(spec["physical_semantics"])
@@ -150,6 +195,11 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
     result["profile_status"] = profile["status"] if profile else "unknown"
 
     confidence = _classification_confidence(classification)
+    if classification is not None and not confidence:
+        # 仅 service 路径：分类器关键词未命中（unknown -> 0.0）时，
+        # 用提取路由证据兜底（record/机台先验/模板指纹）；离线 extract 路径
+        # （classification=None）保持既有默认口径，避免历史回归产物 diff。
+        confidence = _routed_confidence(result, classification)
     if confidence is None:
         confidence = DEFAULT_CONFIDENCE
     if layout_variant is None:

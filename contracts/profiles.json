@@ -45,6 +45,14 @@
       "layout_variant": "screen_order_5",
       "status": "verified",
       "lifecycle_note": "grandfathered：料筒/下料口温度沿用现有生产行为（屏幕列序 喷嘴1/区3/区2/区1/料口）；CT-S02 复核"
+    },
+    {
+      "profile_id": "b_and_r.temperature.fixed",
+      "controller_family": "B_AND_R",
+      "page_type": "temperature",
+      "layout_variant": "fixed",
+      "status": "verified",
+      "lifecycle_note": "2026-08-07 用户（所有者）豁免晋级（verified）。证据：7 份用户核验真值（bole_Z046×6 + bole_Z004，蓝 UI，模板校准样本）；浅色无 NZ 列变体（bole_BR 实拍）经模板指纹路由实测提取全对（设定/实际/偏差/加热输出/保温共 26 个值与照片一致）；#1=射嘴（无 NZ 列变体）经用户 2026-08-07 裁定；路由证据置信度兜底（record/机台先验/模板指纹 0.9~0.95）就位。偏差披露：无独立 holdout（浅色变体仅 1 张温度页照片，未走契约真值报告门禁）；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
     }
   ]
 }
