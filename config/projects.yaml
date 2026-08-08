@@ -41,7 +41,7 @@ projects:
   - id: mold-data-webpage-tool
     name: 科学试模助手
     path: /data1/code/mold-data-webpage-tool
-    ref: refs/heads/codex/machine-converter-integration
+    ref: refs/heads/codex/machine-converter-release-20260807-r2
     feishu:
       chat_id: oc_b4d2abbe3c16c3596631c3a9e756bd4f
       approver_open_ids:
@@ -58,7 +58,7 @@ projects:
           coding_bot_chat_type: group
           coding_bot_app_id: cli_a8e5326f4e7f901c
           contract_path: docs/workflow/workflow-contract.yaml
-          branch_space: machine-converter-integration
+          branch_space: machine-converter-release-20260807-r2
           initial_cursor_commit: cee29134fdfd35ca2f1955fd28e01e84d1d24f81
           workflow_autonomy: semi_auto
           execution_policy:

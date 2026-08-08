@@ -191,6 +191,14 @@ export async function resolveFeishuAdminApproval(args: {
       });
       if (accessUpdated.count !== 1) throw new Error('This access request is no longer pending.');
       responseText = args.approved ? '准入已批准，已创建受限 Safe Local 会话。请重新发送消息。' : '准入申请已被拒绝。';
+    } else if (approval.kind === 'branch_switch') {
+      const { resolveBranchSwitchApproval } = await import('@/lib/scheduled-jobs/project-branch');
+      await prisma.feishuAdminApproval.update({ where: { id: approval.id }, data: { status: 'pending' } });
+      responseText = await resolveBranchSwitchApproval({
+        approvalId: approval.id,
+        approved: args.approved,
+        actorOpenId: args.actorOpenId || 'system',
+      });
     } else if (args.approved && approval.payloadJson) {
       const stored = JSON.parse(approval.payloadJson) as StoredCommand;
       const { handleFeishuCommand } = await import('@/lib/feishu');

@@ -55,6 +55,8 @@ export {
   validateFeishuVerificationToken,
 } from '@/lib/feishu-webhook';
 
+import { handleBranchCommand } from '@/lib/feishu-branch-command';
+
 export async function handleFeishuCommand(args: {
   command: ParsedFeishuCommand;
   baseUrl: string;
@@ -141,6 +143,7 @@ export async function handleFeishuCommand(args: {
       return handleNewSessionCommand(args.command, args.context);
     case 'stop': return handleStopAgentCommand(args.command, args.context);
     case 'sessions': return handleAgentSessionsCommand();
+    case 'branch': return handleBranchCommand(args.command, args.context);
     default:
       return formatFeishuHelp(args.command);
   }

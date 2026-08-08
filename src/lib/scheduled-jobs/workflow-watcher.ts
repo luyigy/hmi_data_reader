@@ -35,6 +35,7 @@ import {
 } from './workflow-autonomy';
 import { loadProjectsConfig, type ProjectsConfig } from './project-config';
 import { proposeNextWorkflowInboxPlan } from './workflow-roadmap-inbox';
+import { inspectProjectBranch } from './project-branch';
 
 type Pending = WorkflowReviewPending & {
   key: string;
@@ -266,6 +267,29 @@ export const workflowWatcherHandler = async (
 
   await ensureAppendOnlyGitRef(project.path, project.ref, signal, contractPath);
   const head = (await git(project.path, signal, 'rev-parse', '--verify', `${project.ref}^{commit}`)).trim();
+
+  const branchInfo = await inspectProjectBranch(project.path, project.ref).catch(() => null);
+  if (branchInfo?.isDrifted && mode === 'active') {
+    const driftKey = `${project.id}:${branchInfo.actualBranch}:branch_drift`;
+    await send(
+      project.feishu.chat_id,
+      [
+        `⚠️ **【监控分支漂移警告】**`,
+        `项目：**${project.name}** (\`${project.id}\`)`,
+        `仓库路径：\`${project.path}\``,
+        `仓库当前实际分支：\`${branchInfo.actualBranch}\``,
+        `系统当前监控分支：\`${branchInfo.monitoredBranch}\``,
+        '',
+        `🚨 **风险说明**：当前 Git 检出分支与系统监控分支不匹配，推送到当前分支的 Commit 及 PLAN/HANDOVER 自动化将**无法被自动触发**！`,
+        '',
+        `💡 **如何处理**：`,
+        `• 非管理员申请切换监控分支：\`/ap branch apply\``,
+        `• 管理员直接切换监控分支：\`/ap branch switch ${branchInfo.actualBranch}\``,
+      ].join('\n'),
+      driftKey,
+      'branch_drift_warning',
+    ).catch((err) => console.error('[WorkflowWatcher] failed to send branch drift warning', err));
+  }
   const previous = workflowCursor(cursor, job.config.initial_cursor_commit);
   const contract = await readWorkflowContract(project.path, head, contractPath, signal);
   const block = async (reason: string, nextStep: string) => {
