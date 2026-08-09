@@ -31,6 +31,13 @@ assert.equal(resolveDocumentationTarget({
 }).targetMemberId, 'mentioned');
 
 assert.equal(resolveDocumentationTarget({
+  content: '@codex 这个文档你亲自写',
+  mentionedAll: false,
+  resolvedTargetMemberId: 'mentioned',
+  members,
+}).targetMemberId, 'mentioned');
+
+assert.equal(resolveDocumentationTarget({
   content: '@all 写个 FIX 文档记录这个问题',
   mentionedAll: true,
   resolvedTargetMemberId: null,

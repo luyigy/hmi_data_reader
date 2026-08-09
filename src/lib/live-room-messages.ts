@@ -573,6 +573,8 @@ const DOCUMENTATION_INTENT_PATTERNS = [
   /(?:整理|汇总)(?:一下|个?)?\s*(?:文档|记录)/i,
 ];
 
+const DOCUMENTATION_SPECIALTY_OVERRIDE = /(?:亲自|你自己|直接)(?:来)?(?:写|整理|记录|提交)/;
+
 export const detectDocumentationIntent = (content: string): boolean => {
   // 剥离开头的 @mention / $mention 前缀，避免把提及本身当作意图
   const stripped = content.replace(/^[@$][^\s]+\s*/, '').trim();
@@ -599,7 +601,9 @@ export const resolveDocumentationTarget = <T extends { id: string; canReply?: bo
   resolvedTargetMemberId?: string | null;
   members: T[];
 }) => {
-  const specialist = !mentionedAll && detectDocumentationIntent(content)
+  const specialist = !mentionedAll
+    && !DOCUMENTATION_SPECIALTY_OVERRIDE.test(content)
+    && detectDocumentationIntent(content)
     ? findDocumentationSpecialist(members)
     : null;
   return { specialist, targetMemberId: specialist?.id || resolvedTargetMemberId || null };
