@@ -125,7 +125,7 @@ const QUICK_ACTIONS = [
 const CATEGORY_VIEWS = ['room', 'runtime', 'workflow', 'admin'] as const;
 const FORM_VIEWS = ['form-run-feature', 'form-run-debug', 'form-documentation', 'form-workspace', 'form-chat', 'form-plan', 'form-schedule'] as const;
 export type FeishuCommandCenterView = 'home' | typeof CATEGORY_VIEWS[number] | typeof FORM_VIEWS[number];
-export type FeishuRoomControlView = 'permission' | 'role';
+export type FeishuRoomControlView = 'permission' | 'role' | 'specialty';
 
 export type FeishuRoomControlMember = {
   id: string;
@@ -313,6 +313,7 @@ export const buildFeishuCommandCenterCard = (
       callbackButton('创建/配置房间…', { cmd: 'ap-room-create', chatType }),
       callbackButton('创建 PLAN…', { cmd: 'ap-menu', view: 'form-plan', chatType }),
       callbackButton('设置角色…', { cmd: 'ap-room-control', view: 'role', chatType }),
+      callbackButton('设置职责…', { cmd: 'ap-room-control', view: 'specialty', chatType }),
     ]
     : categoryView === 'runtime'
       ? [callbackButton('切换工作区…', { cmd: 'ap-menu', view: 'form-workspace', chatType })]
@@ -359,19 +360,22 @@ export const buildFeishuRoomControlCard = (
     value: member.id,
   }));
   const permission = view === 'permission';
+  const specialty = view === 'specialty';
   return cardShell(
-    permission ? '房间权限约束' : '设置 Agent 角色',
-    permission ? '先写入新的工作区边界，再停止目标旧运行' : '角色将在后续调度中生效',
+    permission ? '房间权限约束' : specialty ? '设置 Agent 职责' : '设置 Agent 角色',
+    permission ? '先写入新的工作区边界，再停止目标旧运行' : specialty ? '职责将用于意图路由' : '角色将在后续调度中生效',
     [
       {
         tag: 'markdown',
         content: permission
           ? `**房间工作区**\n\`${workspace || '未配置'}\`\n仅提供工作区受限档位；Full Access 请使用“权限申请”。不支持真实隔离的 Agent 会使本次操作整体拒绝。`
-          : '**选择一个 Agent 和它在当前房间中的角色。**',
+          : specialty
+            ? '**选择一个 Agent 和它在当前房间中的专项职责。**'
+            : '**选择一个 Agent 和它在当前房间中的角色。**',
       },
       {
         tag: 'form',
-        name: permission ? 'form-room-restriction' : 'form-agent-role',
+        name: permission ? 'form-room-restriction' : specialty ? 'form-agent-specialty' : 'form-agent-role',
         vertical_spacing: '12px',
         elements: [
           {
@@ -389,19 +393,29 @@ export const buildFeishuRoomControlCard = (
           },
           {
             tag: 'select_static',
-            name: permission ? 'profile' : 'role',
+            name: permission ? 'profile' : specialty ? 'specialty' : 'role',
             required: true,
             width: 'fill',
             placeholder: {
               tag: 'plain_text',
-              content: permission ? '选择工作区权限档位' : '选择角色',
+              content: permission ? '选择工作区权限档位' : specialty ? '选择职责' : '选择角色',
             },
             options: permission
               ? [
                 { text: { tag: 'plain_text', content: 'Safe Local · 禁止网络' }, value: 'safe_local' },
                 { text: { tag: 'plain_text', content: 'Dev Local · 允许网络' }, value: 'dev_local' },
               ]
-              : [
+              : specialty
+                ? [
+                  ['文档 Documentation', 'documentation'],
+                  ['诊断 Diagnostics', 'diagnostics'],
+                  ['实施 Implementation', 'implementation'],
+                  ['通用 General', 'general'],
+                ].map(([content, value]) => ({
+                  text: { tag: 'plain_text', content },
+                  value,
+                }))
+                : [
                 ['规划 Planner', 'planner'],
                 ['研究 Researcher', 'researcher'],
                 ['实施 Implementer', 'implementer'],
@@ -415,8 +429,8 @@ export const buildFeishuRoomControlCard = (
           },
           {
             tag: 'button',
-            name: `${permission ? 'submitRoomRestriction' : 'submitAgentRole'}_${chatType}`,
-            text: { tag: 'plain_text', content: permission ? '应用权限约束' : '设置角色' },
+            name: `${permission ? 'submitRoomRestriction' : specialty ? 'submitAgentSpecialty' : 'submitAgentRole'}_${chatType}`,
+            text: { tag: 'plain_text', content: permission ? '应用权限约束' : specialty ? '设置职责' : '设置角色' },
             type: 'primary_filled',
             width: 'fill',
             form_action_type: 'submit',
@@ -586,6 +600,9 @@ export const buildFeishuCommandFromForm = (
   }
   if (form === 'form-agent-role' && text('target') && text('role')) {
     return { command: 'role', args: [], options: { member: text('target'), role: text('role') } };
+  }
+  if (form === 'form-agent-specialty' && text('target') && text('specialty')) {
+    return { command: 'specialty', args: [], options: { member: text('target'), specialty: text('specialty') } };
   }
   return null;
 };

@@ -60,6 +60,7 @@ const workflowCard = buildFeishuCommandCenterCard('group', 'workflow');
 assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'admin')), /权限申请/);
 assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'admin')), /权限约束/);
 assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'room')), /设置角色/);
+assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'room')), /设置职责/);
 assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'room')), /ap-room-create/);
 for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   const expectedCategory = command === '/ap members'
@@ -70,6 +71,7 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
           '/ap dashboard',
           '/ap jobs',
           '/ap workflow status',
+          '/ap branch status',
           '/ap workflow validation show',
           '/ap workflow validation template',
           '/ap workflow policy show',
@@ -148,6 +150,17 @@ assert.deepEqual(buildFeishuCommandFromForm('form-agent-role', {
   command: 'role',
   args: [],
   options: { member: 'agent-1', role: 'reviewer' },
+});
+const specialtyCard = buildFeishuRoomControlCard('group', 'specialty', roomControlMembers, '/workspace/hmi');
+assert.match(JSON.stringify(specialtyCard), /文档 Documentation/);
+assert.match(JSON.stringify(specialtyCard), /submitAgentSpecialty_group/);
+assert.deepEqual(buildFeishuCommandFromForm('form-agent-specialty', {
+  target: 'agent-1',
+  specialty: 'documentation',
+}), {
+  command: 'specialty',
+  args: [],
+  options: { member: 'agent-1', specialty: 'documentation' },
 });
 const roomCreationCard = buildFeishuRoomCreationCard('group', [
   { id: 'platform:local:codex', label: 'Codex · local · online' },

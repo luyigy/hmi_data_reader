@@ -68,6 +68,7 @@ const AP_COMMAND_FORMS = {
   submitWorkspace: 'form-workspace', submitChat: 'form-chat', submitPlan: 'form-plan',
   submitSchedule: 'form-schedule', submitRoom: 'form-room-create',
   submitRoomRestriction: 'form-room-restriction', submitAgentRole: 'form-agent-role',
+  submitAgentSpecialty: 'form-agent-specialty',
 } as const;
 
 type FeishuWsMessagePayload = {
@@ -230,7 +231,7 @@ function buildCardActionHandler(prefix: string) {
 
     if (cmd === 'ap-room-control') {
       const value = data.action.value as Record<string, unknown>;
-      const view = value.view === 'permission' ? 'permission' : value.view === 'role' ? 'role' : null;
+      const view = value.view === 'permission' ? 'permission' : value.view === 'role' ? 'role' : value.view === 'specialty' ? 'specialty' : null;
       const chatType = value.chatType === 'p2p' ? 'p2p' : 'group';
       if (!openId || !chatId || !view) {
         return { toast: { type: 'warning', content: '房间控制卡已失效，请重新发送 /ap menu' } };
@@ -246,7 +247,7 @@ function buildCardActionHandler(prefix: string) {
         return { toast: { type: 'warning', content: '当前会话未绑定含 Agent 的 Live Room' } };
       }
       return {
-        toast: { type: 'success', content: view === 'permission' ? '权限约束表单已打开' : '角色设置表单已打开' },
+        toast: { type: 'success', content: view === 'permission' ? '权限约束表单已打开' : view === 'specialty' ? '职责设置表单已打开' : '角色设置表单已打开' },
         card: {
           type: 'raw',
           data: buildFeishuRoomControlCard(
@@ -405,6 +406,8 @@ function buildCardActionHandler(prefix: string) {
           ? '应用房间权限约束'
           : command.command === 'role'
             ? '设置 Agent 角色'
+            : command.command === 'specialty'
+              ? '设置 Agent 职责'
             : `执行 /ap ${command.command}`;
       void handleFeishuCommand({
         command,
