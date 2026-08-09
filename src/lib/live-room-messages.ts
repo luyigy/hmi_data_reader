@@ -237,7 +237,6 @@ export const serializeLiveRoomSummary = (room: {
   };
 };
 
-
 export const emitLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   const io = getSocketServer();
   if (!io) {
