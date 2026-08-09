@@ -237,6 +237,7 @@ export const serializeLiveRoomSummary = (room: {
   };
 };
 
+
 export const emitLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   const io = getSocketServer();
   if (!io) {
@@ -566,7 +567,7 @@ export const mergeLiveRoomMentionedMemberIds = ({
 const DOCUMENTATION_INTENT_PATTERNS = [
   /写进\s*inbox/i,
   /(?:出|写|生成)(?:个?\s*)?(?:FIX|fix)\s*文档/i,
-  /(?:出|写|生成)(?:个?\s*)?(?:文档|记录|HANDOVER)\b/i,
+  /(?:出|写|生成|提交)(?:个?\s*)?(?:文档|记录|HANDOVER)/i,
   /记(?:录|一下|下来)(?:这次|这个|一下)?(?:决定|结论|讨论)/i,
   /(?:写|存|放)(?:进|到|入)\s*inbox/i,
   /(?:记录|记)\s*(?:一下|下来|这个)\b/i,
@@ -666,4 +667,3 @@ export const resolveLiveRoomMessageMetadata = ({
     ...(extras || {}),
   };
 };
-

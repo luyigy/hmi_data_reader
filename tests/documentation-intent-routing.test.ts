@@ -17,6 +17,13 @@ assert.deepEqual(
 );
 
 assert.equal(resolveDocumentationTarget({
+  content: '现在你提交个文档，我看它会不会交给负责文档的 Agent 处理',
+  mentionedAll: false,
+  resolvedTargetMemberId: null,
+  members,
+}).targetMemberId, 'documenter');
+
+assert.equal(resolveDocumentationTarget({
   content: '@codex 修复这个问题',
   mentionedAll: false,
   resolvedTargetMemberId: 'mentioned',
