@@ -17,6 +17,10 @@ const requireModule = createRequire(__filename);
 void (async () => {
   assert.match(
     await readFile('src/lib/acpx/runner-harness.ts', 'utf8'),
+    /const DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS = 24 \* 60 \* 60 \* 1000;/,
+  );
+  assert.match(
+    await readFile('src/lib/acpx/runner-harness.ts', 'utf8'),
     /workspaceRoot && !\[[^\]]*'pi-agent'[^\]]*\]\.includes\(participant\.harnessType\)/,
   );
   assert.deepEqual(

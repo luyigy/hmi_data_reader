@@ -6,7 +6,6 @@ import {
   getOpenClawGatewayConfig,
 } from '@/lib/openclaw-client';
 import { getHarnessAdapter } from '@/lib/harness';
-import { isClaudeHarnessType } from '@/lib/real-agents/claude-installations';
 import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
 import {
   collectKimiCodeProviderContextUsage,
@@ -23,10 +22,8 @@ import { buildHarnessPrompt, withLongFileRuntimeContext } from './prompt';
 import type { LongFileRuntimeContext } from './long-file-runtime-context';
 import type { AcpxParticipantRequest, AcpxRunRequest, HarnessStreamCallbacks } from './types';
 
-const DEFAULT_CODEX_MAX_RUNTIME_MS = 10 * 60 * 1000;
-const DEFAULT_CLAUDE_MAX_RUNTIME_MS = 10 * 60 * 1000;
-const DEFAULT_DEEPSEEK_MAX_RUNTIME_MS = 10 * 60 * 1000;
-const DEFAULT_GEMINI_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS = 10 * 60 * 1000;
 
 export const resolveHarnessTimeout = (
   configuredTimeout: number | null | undefined,
@@ -148,15 +145,6 @@ export const executeViaLocalHarness = async (
     onSpawn?.(child);
   };
 
-  const defaultTimeout =
-    participant.harnessType === 'codex'
-      ? DEFAULT_CODEX_MAX_RUNTIME_MS
-      : participant.harnessType === 'deepseek'
-      ? DEFAULT_DEEPSEEK_MAX_RUNTIME_MS
-      : participant.harnessType === 'gemini-cli'
-      ? DEFAULT_GEMINI_MAX_RUNTIME_MS
-      : DEFAULT_CLAUDE_MAX_RUNTIME_MS;
-
   const result = participant.continuationMessage && adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
     ? await adapter.resume({
         task,
@@ -168,7 +156,10 @@ export const executeViaLocalHarness = async (
           networkAccess: permissionConfig.networkAccess,
           executionBackend: participant.executionBackend,
           permissionConfig,
-          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
+          timeout: resolveHarnessTimeout(
+            request.watchdogConfig?.maxRuntimeMs,
+            DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS
+          ),
           ephemeralSession: participant.ephemeralSession,
           codexHome,
           model: participant.model,
@@ -201,7 +192,10 @@ export const executeViaLocalHarness = async (
           networkAccess: permissionConfig.networkAccess,
           executionBackend: participant.executionBackend,
           permissionConfig,
-          timeout: resolveHarnessTimeout(request.watchdogConfig?.maxRuntimeMs, defaultTimeout),
+          timeout: resolveHarnessTimeout(
+            request.watchdogConfig?.maxRuntimeMs,
+            DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS
+          ),
           ephemeralSession: participant.ephemeralSession,
           codexHome,
           model: participant.model,
@@ -310,12 +304,8 @@ export const executeViaRemoteSshHarness = async (
     {
       timeout: resolveHarnessTimeout(
         request.watchdogConfig?.maxRuntimeMs,
-        isClaudeHarnessType(participant.harnessType)
-          ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
-          : DEFAULT_CODEX_MAX_RUNTIME_MS
-      ) ?? (isClaudeHarnessType(participant.harnessType)
-        ? DEFAULT_CLAUDE_MAX_RUNTIME_MS
-        : DEFAULT_CODEX_MAX_RUNTIME_MS),
+        DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS
+      ) ?? DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS,
       harnessType: participant.harnessType,
       host: remoteHost,
       resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
