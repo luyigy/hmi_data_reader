@@ -588,6 +588,23 @@ export const findDocumentationSpecialist = <T extends { id: string; canReply?: b
   ) || null;
 };
 
+export const resolveDocumentationTarget = <T extends { id: string; canReply?: boolean; specialty?: string | null }>({
+  content,
+  mentionedAll,
+  resolvedTargetMemberId,
+  members,
+}: {
+  content: string;
+  mentionedAll: boolean;
+  resolvedTargetMemberId?: string | null;
+  members: T[];
+}) => {
+  const specialist = !mentionedAll && detectDocumentationIntent(content)
+    ? findDocumentationSpecialist(members)
+    : null;
+  return { specialist, targetMemberId: specialist?.id || resolvedTargetMemberId || null };
+};
+
 export const resolveLiveRoomMessageMetadata = ({
   senderKind,
   targetMemberId,
@@ -649,5 +666,4 @@ export const resolveLiveRoomMessageMetadata = ({
     ...(extras || {}),
   };
 };
-
 
