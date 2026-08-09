@@ -141,7 +141,7 @@ export type FeishuRoomCreationAgent = {
 const FORM_DEFINITIONS = {
   'form-run-feature': {
     title: '功能开发 /run feature',
-    description: '默认 full 完整流水线；也可发送 /run feature --level=lean|fast <任务> 简化执行。',
+    description: '选择 workflow 档位并填写任务。',
     fields: [{ name: 'task', label: '任务描述', placeholder: '请描述要实现的功能、目标和验收标准', multiline: true }],
     submitName: 'submitRunFeature',
     submitLabel: '启动功能开发',
@@ -258,6 +258,9 @@ export const buildFeishuCommandCenterCard = (
         tag: 'markdown',
         content: '**所有命令都必须以 `/ap` 开头。**\n常用只读命令可直接执行；带参数命令使用结构化表单。',
       },
+      buttonColumns([
+        callbackButton('功能开发…', { cmd: 'ap-menu', view: 'form-run-feature', chatType }, 'primary_filled'),
+      ]),
       buttonColumns(HELP_PAGES.map(([group], index) => callbackButton(
         group,
         { cmd: 'ap-menu', view: CATEGORY_VIEWS[index], chatType },
@@ -273,6 +276,19 @@ export const buildFeishuCommandCenterCard = (
         tag: 'form',
         name: view,
         elements: [
+          ...(view === 'form-run-feature' ? [{
+            tag: 'select_static',
+            name: 'level',
+            required: true,
+            width: 'fill',
+            initial_option: 'full',
+            placeholder: { tag: 'plain_text', content: '选择 workflow 档位' },
+            options: [
+              { text: { tag: 'plain_text', content: 'Full · 完整流程' }, value: 'full' },
+              { text: { tag: 'plain_text', content: 'Lean · 计划审查 + 实施 + 测试' }, value: 'lean' },
+              { text: { tag: 'plain_text', content: 'Fast · 实施 + 测试' }, value: 'fast' },
+            ],
+          }] : []),
           ...form.fields.map((field) => ({
             tag: 'input',
             name: field.name,
@@ -587,7 +603,9 @@ export const buildFeishuCommandFromForm = (
     return { command: 'job', args: ['schedule', text('jobId')], options: { cron: text('cron') } };
   }
   if (form === 'form-run-feature' && text('task')) {
-    return { command: 'chat', args: [`/run feature ${text('task')}`], options: {} };
+    const level = text('level');
+    if (!['full', 'lean', 'fast'].includes(level)) return null;
+    return { command: 'chat', args: [`/run feature --level=${level} ${text('task')}`], options: {} };
   }
   if (form === 'form-run-debug' && text('task')) {
     return { command: 'chat', args: [`/run debug ${text('task')}`], options: {} };

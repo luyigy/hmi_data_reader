@@ -85,6 +85,12 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   );
 }
 assert.match(JSON.stringify(workflowCard), /修改调度/);
+const menuCard = buildFeishuCommandCenterCard('group');
+assert.match(JSON.stringify(menuCard), /功能开发…/);
+const featureFormCard = buildFeishuCommandCenterCard('group', 'form-run-feature');
+assert.match(JSON.stringify(featureFormCard), /Full · 完整流程/);
+assert.match(JSON.stringify(featureFormCard), /Lean · 计划审查/);
+assert.match(JSON.stringify(featureFormCard), /Fast · 实施/);
 const scheduleFormCard = buildFeishuCommandCenterCard('group', 'form-schedule');
 assert.match(JSON.stringify(scheduleFormCard), /form_action_type/);
 assert.match(JSON.stringify(scheduleFormCard), /submitSchedule_group/);
@@ -118,6 +124,18 @@ assert.deepEqual(buildFeishuCommandFromForm('form-schedule', {
   args: ['schedule', 'workflow-watcher'],
   options: { cron: '*/5 * * * *' },
 });
+assert.deepEqual(buildFeishuCommandFromForm('form-run-feature', {
+  level: 'lean',
+  task: ' 实施 S01 ',
+}), {
+  command: 'chat',
+  args: ['/run feature --level=lean 实施 S01'],
+  options: {},
+});
+assert.equal(buildFeishuCommandFromForm('form-run-feature', {
+  level: 'turbo',
+  task: '实施 S01',
+}), null);
 const roomControlMembers = [
   { id: 'agent-1', displayName: 'Codex', userNickname: '实现 Agent' },
   { id: 'agent-2', displayName: 'Claude', userNickname: null },
