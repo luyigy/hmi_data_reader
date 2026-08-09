@@ -44,7 +44,7 @@ type WorkflowStage = {
   instruction: string;
 };
 
-const ROLE_PRIORITY = ['implementer', 'planner', 'reviewer', 'tester', 'researcher', 'custom'];
+const WORKFLOW_ROLES = ['planner', 'implementer', 'reviewer', 'tester'] as const;
 
 export const parseLiveRoomWorkflowCommand = (content: string) => {
   const match = content.trim().match(/^\/run\s+(feature|debug)(?:\s+([\s\S]+))?$/i);
@@ -295,13 +295,6 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
   return true;
 };
 
-const firstByRole = (members: WorkflowMember[], roles: string[], excludedIds: string[] = []) =>
-  roles
-    .map((role) => members.find((member) => member.role === role && !excludedIds.includes(member.id)))
-    .find(Boolean)
-  || members.find((member) => !excludedIds.includes(member.id))
-  || members[0];
-
 const addStage = (
   stages: WorkflowStage[],
   id: string,
@@ -318,39 +311,22 @@ export const buildLiveRoomWorkflowStages = (
   name: LiveRoomWorkflowName,
   members: WorkflowMember[]
 ) => {
-  const eligible = [...members]
-    .filter((member) => member.harnessType)
-    .sort((left, right) => ROLE_PRIORITY.indexOf(left.role) - ROLE_PRIORITY.indexOf(right.role));
-  const lead = firstByRole(eligible, ['implementer', 'planner']);
-  const reviewer = firstByRole(eligible, ['reviewer'], lead ? [lead.id] : []);
-  const tester = firstByRole(
-    eligible,
-    ['tester'],
-    [lead?.id, reviewer?.id].filter((id): id is string => Boolean(id))
-  );
-  const stages: WorkflowStage[] = [];
-
-  for (const member of eligible) {
-    addStage(
-      stages,
-      `analysis-${member.id}`,
-      '独立分析',
-      member,
-      name === 'debug'
-        ? '独立分析问题，给出可能根因、证据、风险和建议排查路径。此阶段不要修改代码。'
-        : '独立分析需求，给出实现建议、风险、边界和需要确认的问题。此阶段不要修改代码。'
-    );
+  const selected = WORKFLOW_ROLES.map((role) => members.find((member) => member.role === role && member.harnessType));
+  if (selected.some((member) => !member) || new Set(selected.map((member) => member?.id)).size !== WORKFLOW_ROLES.length) {
+    return [];
   }
+  const [planner, implementer, reviewer, tester] = selected as WorkflowMember[];
+  const stages: WorkflowStage[] = [];
 
   if (name === 'debug') {
     addStage(stages, 'reproduce-plan', '复现方案', tester, '根据已有分析制定最小复现步骤、回归范围和通过标准。此阶段不要修改代码。');
-    addStage(stages, 'fix-plan', '修复计划', lead, '汇总已有分析和复现方案，确定根因修复计划、涉及文件和验证方式。此阶段不要修改代码。');
+    addStage(stages, 'fix-plan', '修复计划', planner, '结合复现方案确定根因修复计划、涉及文件和验证方式。此阶段不要修改代码。');
   } else {
-    addStage(stages, 'plan', '实施计划', lead, '汇总所有分析，给出最小实施计划、涉及文件、风险和验证方式。此阶段不要修改代码。');
+    addStage(stages, 'plan', '实施计划', planner, '给出最小实施计划、涉及文件、风险和验证方式。此阶段不要修改代码。');
   }
 
   addStage(stages, 'plan-review', '计划审查', reviewer, '审查计划是否解决真实问题、是否遗漏边界或过度设计。明确给出 APPROVED 或 CHANGES_REQUESTED，并列出具体理由。不要修改代码。');
-  addStage(stages, 'plan-final', '计划定稿', lead, '根据计划审查意见修订并输出最终实施计划。不要修改代码。');
+  addStage(stages, 'plan-final', '计划定稿', planner, '根据计划审查意见修订并输出最终实施计划。不要修改代码。');
   addStage(
     stages,
     'test-plan',
@@ -364,14 +340,37 @@ export const buildLiveRoomWorkflowStages = (
     stages,
     name === 'debug' ? 'fix' : 'implement',
     name === 'debug' ? '实施修复' : '功能实施',
-    lead,
+    implementer,
     '严格按照已确认计划和测试方案修改代码。完成最小必要实现和自测，并列出修改文件。'
   );
   addStage(stages, 'code-review', '代码审查', reviewer, '审查实际代码改动的正确性、回归风险、安全性和是否符合计划。运行必要的轻量检查。明确给出 APPROVED 或 CHANGES_REQUESTED；发现问题时给出文件和位置。');
   addStage(stages, 'test', name === 'debug' ? '回归测试' : '验收测试', tester, '严格按照前面确认的测试方案执行测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。');
-  addStage(stages, 'final', '最终总结', lead, '汇总实施、代码审查和测试结果。若存在未解决失败必须明确说明，不得声称任务已完成。');
+  addStage(stages, 'final', '最终总结', planner, '汇总实施、代码审查和测试结果。若存在未解决失败必须明确说明，不得声称任务已完成。');
 
   return stages;
+};
+
+export const missingLiveRoomWorkflowRoles = (members: WorkflowMember[]) => {
+  const selectedIds = new Set<string>();
+  return WORKFLOW_ROLES.filter((role) => {
+    const member = members.find((candidate) => candidate.role === role
+      && candidate.harnessType
+      && !selectedIds.has(candidate.id));
+    if (!member) return true;
+    selectedIds.add(member.id);
+    return false;
+  });
+};
+
+export const liveRoomWorkflowGatePassed = (stageId: string, output: string) => {
+  const expected = stageId === 'test'
+    ? ['PASSED', 'FAILED']
+    : stageId === 'plan-review' || stageId === 'code-review'
+      ? ['APPROVED', 'CHANGES_REQUESTED']
+      : null;
+  if (!expected) return null;
+  const conclusions = expected.filter((value) => new RegExp(`\\b${value}\\b`).test(output));
+  return conclusions.length === 1 && conclusions[0] === expected[0];
 };
 
 const formatPriorOutputs = (outputs: Array<{ label: string; member: string; output: string }>) =>
@@ -403,15 +402,19 @@ export const runLiveRoomWorkflow = async ({
     throw new Error('Live room workflow requires an active room and backing task');
   }
 
-  const stages = buildLiveRoomWorkflowStages(name, room.members as WorkflowMember[]);
-  if (!task || stages.length === 0) {
+  const members = room.members as WorkflowMember[];
+  const missingRoles = missingLiveRoomWorkflowRoles(members);
+  if (!task || missingRoles.length > 0) {
     await postLiveRoomMessage({
       roomId,
-      content: task ? '系统提示：当前房间没有可执行工作流的 Agent。' : `系统提示：用法：/run ${name} <任务>`,
+      content: task
+        ? `系统提示：无法启动 ${name} 工作流，缺少可执行且独立的角色：${missingRoles.join('、')}。请补齐角色并确认其 harness 可用后重试。`
+        : `系统提示：用法：/run ${name} <任务>`,
       messageType: 'system',
     });
     return;
   }
+  const stages = buildLiveRoomWorkflowStages(name, members);
 
   await postLiveRoomMessage({
     roomId,
@@ -425,6 +428,15 @@ export const runLiveRoomWorkflow = async ({
   });
 
   const outputs: Array<{ label: string; member: string; output: string }> = [];
+  const failWorkflow = (stage: WorkflowStage, reason: string) => postLiveRoomMessage({
+    roomId,
+    content: `系统提示：${name} 工作流在“${stage.label}”阶段停止：${reason}`,
+    messageType: 'system',
+    metadata: resolveLiveRoomMessageMetadata({
+      senderKind: 'system',
+      extras: { systemEvent: 'workflow_failed', workflow: name, stage: stage.id },
+    }),
+  });
   for (let index = 0; index < stages.length; index += 1) {
     const stage = stages[index];
     await postLiveRoomMessage({
@@ -493,15 +505,11 @@ export const runLiveRoomWorkflow = async ({
     });
 
     if (stageResult?.status !== 'completed') {
-      await postLiveRoomMessage({
-        roomId,
-        content: `系统提示：${name} 工作流在“${stage.label}”阶段停止：${output}`,
-        messageType: 'system',
-        metadata: resolveLiveRoomMessageMetadata({
-          senderKind: 'system',
-          extras: { systemEvent: 'workflow_failed', workflow: name, stage: stage.id },
-        }),
-      });
+      await failWorkflow(stage, output);
+      return;
+    }
+    if (liveRoomWorkflowGatePassed(stage.id, output) === false) {
+      await failWorkflow(stage, `未获得唯一通过结论：${output}`);
       return;
     }
   }

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   buildLiveRoomWorkflowStages,
+  liveRoomWorkflowGatePassed,
+  missingLiveRoomWorkflowRoles,
   parseLiveRoomPlanCommand,
   parseLiveRoomWorkflowCommand,
   planPathFrom,
@@ -54,6 +56,7 @@ assert.equal(workflowPlanRevisionPathFrom('PLAN_REVISE\nplan_path: ../outside.md
 assert.equal(workflowPlanRevisionPathFrom('plan_path: docs/288_PLAN_20260728_fix.md'), null);
 
 const members = [
+  member('planner', 'planner'),
   member('builder', 'implementer'),
   member('reviewer', 'reviewer'),
   member('tester', 'tester'),
@@ -75,26 +78,20 @@ assert.deepEqual(
     stage.member.id,
   ]),
   [
-    ['analysis-builder', 'builder'],
-    ['analysis-reviewer', 'reviewer'],
-    ['analysis-tester', 'tester'],
-    ['plan', 'builder'],
+    ['plan', 'planner'],
     ['plan-review', 'reviewer'],
-    ['plan-final', 'builder'],
+    ['plan-final', 'planner'],
     ['test-plan', 'tester'],
     ['implement', 'builder'],
     ['code-review', 'reviewer'],
     ['test', 'tester'],
-    ['final', 'builder'],
+    ['final', 'planner'],
   ]
 );
 
 assert.deepEqual(
   buildLiveRoomWorkflowStages('debug', members).map((stage) => stage.id),
   [
-    'analysis-builder',
-    'analysis-reviewer',
-    'analysis-tester',
     'reproduce-plan',
     'fix-plan',
     'plan-review',
@@ -106,3 +103,21 @@ assert.deepEqual(
     'final',
   ]
 );
+
+assert.deepEqual(missingLiveRoomWorkflowRoles(members), []);
+assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'reviewer')), ['reviewer']);
+assert.deepEqual(missingLiveRoomWorkflowRoles([
+  member('same', 'planner'),
+  member('same', 'implementer'),
+  member('reviewer', 'reviewer'),
+  member('tester', 'tester'),
+]), ['implementer']);
+assert.equal(buildLiveRoomWorkflowStages('feature', members.slice(1)).length, 0);
+
+assert.equal(liveRoomWorkflowGatePassed('plan-review', 'APPROVED'), true);
+assert.equal(liveRoomWorkflowGatePassed('code-review', 'CHANGES_REQUESTED'), false);
+assert.equal(liveRoomWorkflowGatePassed('code-review', 'APPROVED but not CHANGES_REQUESTED'), false);
+assert.equal(liveRoomWorkflowGatePassed('test', 'PASSED'), true);
+assert.equal(liveRoomWorkflowGatePassed('test', 'FAILED'), false);
+assert.equal(liveRoomWorkflowGatePassed('test', 'no explicit result'), false);
+assert.equal(liveRoomWorkflowGatePassed('implement', 'completed'), null);
