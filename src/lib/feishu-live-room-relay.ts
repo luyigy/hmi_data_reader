@@ -73,7 +73,14 @@ export const buildAssistantRelayCard = (
       ? message.metadata.targetMemberName
       : null;
   const deliveryIntent = message.metadata?.deliveryIntent;
+  const executionRole = typeof message.metadata?.executionRole === 'string'
+    ? message.metadata.executionRole
+    : null;
   const elements: Array<Record<string, unknown>> = [
+    ...(executionRole ? [{
+      tag: 'note',
+      elements: [{ tag: 'plain_text', content: `执行角色：${executionRole}` }],
+    }] : []),
     { tag: 'markdown', content: message.content },
   ];
 

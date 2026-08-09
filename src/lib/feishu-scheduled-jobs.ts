@@ -24,8 +24,10 @@ import {
 } from '@/lib/scheduled-jobs/workflow-inspection';
 import { completeWorkflowPlan } from '@/lib/scheduled-jobs/workflow-plan-completion';
 import { resolveWorkflowCursorRecovery } from '@/lib/scheduled-jobs/workflow-dashboard-recovery';
-import { buildWorkflowDocumentForms } from '@/lib/scheduled-jobs/workflow-dashboard-document-forms';
+import { buildWorkflowDocumentPanels } from '@/lib/scheduled-jobs/workflow-dashboard-document-forms';
 import { cancelWorkflowPlan } from '@/lib/scheduled-jobs/workflow-plan-cancellation';
+import { inspectProjectBranch } from '@/lib/scheduled-jobs/project-branch';
+import { handleBranchCommand } from '@/lib/feishu-branch-command';
 
 const date = (value: Date | null | undefined) => value?.toISOString() ?? '-';
 export { inspectWorkflowCandidates, inspectWorkflowCursor } from '@/lib/scheduled-jobs/workflow-inspection';
@@ -42,6 +44,7 @@ export const formatWorkflowDiagnosis = ({
   candidates,
   lastError,
   recentFailure,
+  branchInfo,
 }: {
   projectName: string;
   jobId: string;
@@ -54,12 +57,16 @@ export const formatWorkflowDiagnosis = ({
   candidates: string[];
   lastError?: string | null;
   recentFailure?: { status: string; error?: string | null; summary?: string | null } | null;
+  branchInfo?: import('./scheduled-jobs/project-branch').ProjectBranchInfo | null;
 }) => [
   `${projectName} / ${jobId} 诊断（只读）`,
   `已启用：${enabled ? '是' : '否'}`,
   `运行中：${running ? '是' : '否'}`,
   `模式：${mode}`,
   `调度：${schedule}`,
+  `监控分支：${branchInfo ? branchInfo.monitoredBranch : '-'}`,
+  `实际分支：${branchInfo ? branchInfo.actualBranch : '-'}`,
+  `分支漂移：${branchInfo ? (branchInfo.isDrifted ? '⚠️ 漂移中' : '否') : '-'}`,
   `游标：${cursor.current ?? '-'}`,
   `最新提交：${cursor.latest}`,
   `游标属于当前历史：${cursor.current ? !cursor.rewritten ? '是' : '否' : '-'}`,
@@ -68,6 +75,7 @@ export const formatWorkflowDiagnosis = ({
   `最近错误：${lastError ?? '-'}`,
   `最近失败：${recentFailure ? `${recentFailure.status}: ${recentFailure.error ?? recentFailure.summary ?? '-'}` : '-'}`,
   `候选工作流文档：${candidates.length ? candidates.join(', ') : '无'}`,
+  ...(branchInfo?.isDrifted ? ['⚠️ 漂移提示: 仓库实际分支与监控分支不匹配，请用 /ap branch apply 或 /ap branch switch 修复。'] : []),
   cursor.rewritten
     ? '安全提示: 历史已改写；--latest 会跳过待处理提交，需人工确认恢复基准。'
     : '安全提示: 本命令只读；不会写数据库、移动 cursor、清除 pending、发送飞书消息或启动 Agent。',
@@ -234,22 +242,57 @@ export const buildWorkflowDashboardCard = (args: {
             : args.status.stage === '运行阻塞'
               ? action('查看诊断', 'diagnose', 'primary')
               : action('立即检查新文档', 'run', 'primary');
-  const documents = args.status.overview ? [
-    ...args.status.overview.inbox.map(({ path: documentPath, title }) => ({
-      path: documentPath, label: `Inbox · ${title}`,
-    })),
-    ...args.status.overview.plans.map(({ path: documentPath, title }) => ({
-      path: documentPath, label: `PLAN · ${title}`,
-    })),
-    ...args.status.overview.handovers.map(({ path: documentPath, title }) => ({
-      path: documentPath, label: `HANDOVER · ${title}`,
-    })),
-  ] : [];
-  const workflowDocuments = documents.filter(({ label }) => !label.startsWith('Inbox ·'));
+  const isDrifted = args.status.branchInfo?.isDrifted ?? false;
+  const monitoredBranch = args.status.branchInfo?.monitoredBranch ?? args.status.ref.replace(/^refs\/heads\//, '');
+  const actualBranch = args.status.branchInfo?.actualBranch ?? 'unknown';
+  const branchDisplay = isDrifted
+    ? `监控 \`${monitoredBranch}\` · 实际 \`${actualBranch}\` ⚠️ **(漂移)**`
+    : `\`${monitoredBranch}\` ✅`;
+  const branchActions = [
+    action('查看分支', 'branch_status'),
+    action(isDrifted ? '申请切换到实际分支' : '申请切换分支', 'branch_apply', isDrifted ? 'primary' : 'default'),
+  ];
+
+  const formElements = [
+    ...(args.status.overview?.queue.length && !args.status.running && !args.pending ? [{
+      tag: 'form',
+      name: 'workflow-plan-activation',
+      elements: [
+        {
+          tag: 'select_static',
+          name: 'selectedPlan',
+          required: true,
+          width: 'fill',
+          placeholder: { tag: 'plain_text', content: '选择要激活的 PLAN' },
+          options: args.status.overview.queue.map((plan) => ({
+            text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` },
+            value: plan.path,
+          })),
+        },
+        {
+          tag: 'button',
+          name: 'activateWorkflowPlan',
+          text: { tag: 'plain_text', content: '激活所选 PLAN' },
+          type: 'primary_filled',
+          width: 'fill',
+          action_type: 'form_submit',
+          value: {
+            cmd: 'workflow-dashboard',
+            action: 'activate',
+            projectId: args.status.projectId,
+            jobId: args.status.jobId,
+            expectedHead: args.status.head,
+          },
+        },
+      ],
+    }] : []),
+    ...buildWorkflowDocumentPanels(args),
+  ];
+
   return {
     config: { wide_screen_mode: true },
     header: {
-      template: args.status.lastError !== '-' ? 'red'
+      template: (args.status.lastError !== '-' || isDrifted) ? 'red'
         : args.status.running ? 'blue' : args.status.enabled ? 'green' : 'grey',
       title: { tag: 'plain_text', content: 'Workflow Dashboard' },
     },
@@ -258,18 +301,20 @@ export const buildWorkflowDashboardCard = (args: {
         tag: 'markdown',
         content: [
           `**${args.status.projectName} / ${args.status.jobId}**`,
-          `**状态**：${stage}`,
-          `**自治模式**：${args.status.autonomy}（${args.status.autonomySource}）`,
+          `**状态**：${stage} · **自治**：${args.status.autonomy}`,
+          `**分支**：${branchDisplay}`,
           `**唯一下一步**：${args.status.nextStep}`,
         ].join('\n'),
       },
+      ...(isDrifted ? [{
+        tag: 'markdown',
+        content: `⚠️ **检测到分支漂移**：配置监控 \`${monitoredBranch}\` ≠ 实际检出 \`${actualBranch}\`。运行 \`/ap branch apply\` 即可提交分支切换申请。`,
+      }] : []),
       ...(args.cursor.rewritten ? [{
         tag: 'markdown',
         content: [
           '🚧 **卡点：Git 历史已改写**',
           `当前游标 \`${args.cursor.current?.slice(0, 8) || '-'}\` 已不属于 HEAD \`${args.cursor.latest.slice(0, 8)}\` 的历史。`,
-          '**推荐**：选择“共同祖先重新扫描”，保留新历史中的待处理文档。',
-          '**风险**：选择“当前 HEAD 跳过”会永久跳过尚未处理的提交。',
         ].join('\n'),
       }, {
         tag: 'form',
@@ -283,176 +328,61 @@ export const buildWorkflowDashboardCard = (args: {
           ],
         }, {
           tag: 'button', name: 'recoverWorkflowCursor', action_type: 'form_submit', type: 'danger', width: 'fill',
-          text: { tag: 'plain_text', content: '确认恢复并继续工作流' },
-          confirm: {
-            title: { tag: 'plain_text', content: '确认恢复 watcher 游标' },
-            text: { tag: 'plain_text', content: '系统会再次校验 HEAD 和恢复基准；选择 HEAD 会跳过未处理提交。' },
-          },
+          text: { tag: 'plain_text', content: '确认恢复游标' },
           value: { cmd: 'workflow-dashboard', action: 'cursor_recover', projectId: args.status.projectId, jobId: args.status.jobId, expectedHead: args.status.head },
         }],
       }] : args.status.stage === '运行阻塞' ? [{
         tag: 'markdown',
-        content: `🚧 **卡点**：${args.status.validator}\n**推荐动作**：${args.status.nextStep}\n**风险**：只提供诊断，不自动移动游标或改写历史。`,
+        content: `🚧 **卡点**：${args.status.validator}\n**推荐动作**：${args.status.nextStep}`,
       }, { tag: 'action', actions: [recommendedAction!] }] : recommendedAction ? [{ tag: 'action', actions: [recommendedAction] }] : []),
+      ...formElements,
       {
         tag: 'collapsible_panel',
         expanded: false,
-        header: { title: { tag: 'plain_text', content: '运行与队列详情' } },
-        elements: [{
-          tag: 'markdown',
-          content: [
-            `**项目 / ref / HEAD**：${args.status.projectId} · \`${args.status.ref}\` · \`${args.status.head.slice(0, 8)}\``,
-            `**PLAN / Slice / 动作**：${args.status.plan} · ${args.status.slice} · ${args.status.action}`,
-            `**模式 / 调度**：${args.status.mode} · \`${args.status.schedule}\``,
-            `**审批 / Session**：${args.status.approval} · ${args.status.session}`,
-            `**Validator**：${args.status.validator}`,
-            `**游标**：\`${args.cursor.current?.slice(0, 8) || '-'}\` → \`${args.cursor.latest.slice(0, 8)}\`（behind ${args.cursor.behind ?? '-'}）`,
-            `**最近成功 / 错误**：${args.status.lastSuccessAt} · ${args.status.lastError}`,
-            `**重试 / 隔离**：${args.status.retry}`,
-            ...(args.status.completion ? [
-              `**完成回执**：commit \`${args.status.completion.commit}\` · 验证 ${args.status.completion.validation} · 入口 ${args.status.completion.entry} · 自动推进 ${args.status.completion.automaticProgression}`,
-            ] : []),
-            ...(args.status.overview ? ['', formatWorkflowOverview(args.status.overview)] : []),
-          ].join('\n'),
-        }],
-      },
-      ...(args.status.overview?.queue.length && !args.status.running && !args.pending ? [{
-        tag: 'form',
-        name: 'workflow-plan-activation',
-        elements: [
-          {
-            tag: 'select_static',
-            name: 'selectedPlan',
-            required: true,
-            width: 'fill',
-            placeholder: { tag: 'plain_text', content: '选择要激活的 PLAN' },
-            options: args.status.overview.queue.map((plan) => ({
-              text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` },
-              value: plan.path,
-            })),
-          },
-          {
-            tag: 'button',
-            name: 'activateWorkflowPlan',
-            text: { tag: 'plain_text', content: '激活所选 PLAN' },
-            type: 'primary_filled',
-            width: 'fill',
-            action_type: 'form_submit',
-            value: {
-              cmd: 'workflow-dashboard',
-              action: 'activate',
-              projectId: args.status.projectId,
-              jobId: args.status.jobId,
-              expectedHead: args.status.head,
-            },
-          },
-        ],
-      }] : []),
-      ...(args.status.overview?.plans.length && !args.status.running && !args.pending ? [{
-        tag: 'form',
-        name: 'workflow-plan-completion',
-        elements: [
-          {
-            tag: 'select_static',
-            name: 'selectedCompletionPlan',
-            required: true,
-            width: 'fill',
-            placeholder: { tag: 'plain_text', content: '选择要人工标记完成的 PLAN' },
-            options: args.status.overview.plans.map((plan) => ({
-              text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` },
-              value: plan.path,
-            })),
-          },
-          {
-            tag: 'button',
-            name: 'completeWorkflowPlan',
-            text: { tag: 'plain_text', content: '人工标记所选 PLAN 完成' },
-            type: 'danger',
-            width: 'fill',
-            action_type: 'form_submit',
-            confirm: {
-              title: { tag: 'plain_text', content: '确认人工标记完成' },
-              text: { tag: 'plain_text', content: '这会提交 PLAN 的 completed / await_acceptance 状态，请确认已完成或决定终止剩余工作。' },
-            },
-            value: {
-              cmd: 'workflow-dashboard',
-              action: 'plan_complete',
-              projectId: args.status.projectId,
-              jobId: args.status.jobId,
-              expectedHead: args.status.head,
-            },
-          },
-        ],
-      }] : []),
-      ...buildWorkflowDocumentForms(args),
-      ...(workflowDocuments.length ? [{
-        tag: 'form',
-        name: 'workflow-document-validation',
-        elements: [
-          {
-            tag: 'select_static',
-            name: 'selectedWorkflowDocument',
-            required: true,
-            width: 'fill',
-            placeholder: { tag: 'plain_text', content: '选择要校验的 PLAN 或 HANDOVER' },
-            options: workflowDocuments.map((document) => ({
-              text: { tag: 'plain_text', content: document.label },
-              value: document.path,
-            })),
-          },
-          {
-            tag: 'button',
-            name: 'validateWorkflowDocument',
-            text: { tag: 'plain_text', content: '校验所选 PLAN / HANDOVER' },
-            type: 'primary_filled',
-            width: 'fill',
-            action_type: 'form_submit',
-            value: {
-              cmd: 'workflow-dashboard',
-              action: 'document_validate',
-              projectId: args.status.projectId,
-              jobId: args.status.jobId,
-              expectedHead: args.status.head,
-            },
-          },
-        ],
-      }] : []),
-      {
-        tag: 'collapsible_panel',
-        expanded: false,
-        header: { title: { tag: 'plain_text', content: '运行控制' } },
+        header: { title: { tag: 'plain_text', content: `⚙️ 运行 / 模式 / 分支（${args.status.autonomy}）` } },
         elements: [
           {
             tag: 'markdown',
-            content: '控制 workflow watcher：立即运行=马上扫描一次；停止=终止当前这一次；停用=不再按计划自动扫描；启用=恢复自动扫描。',
+            content: '立即运行=马上扫描一次；停止=终止当前这一次；停用=不再按计划自动扫描；启用=恢复自动扫描。',
           },
           { tag: 'action', actions: runActions },
-        ],
-      },
-      {
-        tag: 'collapsible_panel',
-        expanded: false,
-        header: { title: { tag: 'plain_text', content: `自治模式：${args.status.autonomy}` } },
-        elements: [{ tag: 'action', actions: autonomyActions }],
-      },
-      {
-        tag: 'collapsible_panel',
-        expanded: false,
-        header: { title: { tag: 'plain_text', content: '文档校验' } },
-        elements: [
+          { tag: 'markdown', content: `**自治模式 (${args.status.autonomy})**` },
+          { tag: 'action', actions: autonomyActions },
           {
             tag: 'markdown',
-            content: '宽松：内容规范问题记为 warning，不阻断；严格：同类问题记为 error，会阻断后续 workflow。合同/YAML、动作、引用和 Prompt 等安全错误在两种模式下都会阻断。这里的“最近”只指 watcher 最后记录的失败；要检查指定文档，请用上方下拉框。',
+            content: '宽松：内容规范问题记为 warning，不阻断；严格：同类问题记为 error，会阻断后续 workflow。',
           },
           { tag: 'action', actions: validationActions },
+          { tag: 'action', actions: branchActions },
         ],
       },
       {
-        tag: 'note',
-        elements: [{
-          tag: 'plain_text',
-          content: '重发审批卡只适用于等待审批；退回修改后请点“恢复修改任务”。清除 pending / 移动 cursor 仍需显式命令。',
-        }],
+        tag: 'collapsible_panel',
+        expanded: false,
+        header: { title: { tag: 'plain_text', content: '📊 运行与队列详情' } },
+        elements: [
+          ...(args.status.overview ? [{
+            tag: 'markdown',
+            content: formatWorkflowOverview(args.status.overview),
+          }] : []),
+          {
+            tag: 'markdown',
+            content: [
+              `**项目 / ref / HEAD**：${args.status.projectId} · \`${args.status.ref}\` · \`${args.status.head.slice(0, 8)}\``,
+              `**监控分支 / 实际分支**：\`${monitoredBranch}\` · \`${actualBranch}\`${isDrifted ? ' (漂移)' : ''}`,
+              `**PLAN / Slice / 动作**：${args.status.plan} · ${args.status.slice} · ${args.status.action}`,
+              `**模式 / 调度**：${args.status.mode} · \`${args.status.schedule}\``,
+              `**审批 / Session**：${args.status.approval} · ${args.status.session}`,
+              `**Validator**：${args.status.validator}`,
+              `**游标**：\`${args.cursor.current?.slice(0, 8) || '-'}\` → \`${args.cursor.latest.slice(0, 8)}\`（behind ${args.cursor.behind ?? '-'}）`,
+              `**最近成功 / 错误**：${args.status.lastSuccessAt} · ${args.status.lastError}`,
+              `**重试 / 隔离**：${args.status.retry}`,
+              ...(args.status.completion ? [
+                `**完成回执**：commit \`${args.status.completion.commit}\` · 验证 ${args.status.completion.validation} · 入口 ${args.status.completion.entry} · 自动推进 ${args.status.completion.automaticProgression}`,
+              ] : []),
+            ].join('\n'),
+          },
+        ],
       },
     ],
   };
@@ -594,6 +524,7 @@ export async function handleScheduledJobCommand(
         diagnosticError = error instanceof Error ? error.message : String(error);
       }
     }
+    const branchInfo = await inspectProjectBranch(project.path, project.ref).catch(() => null);
     const output = formatWorkflowDiagnosis({
       projectName: project.name,
       jobId: job.id,
@@ -606,6 +537,7 @@ export async function handleScheduledJobCommand(
       candidates,
       lastError: state?.lastError,
       recentFailure,
+      branchInfo,
     });
     return diagnosticError ? `${output}\ndiagnostic error: ${diagnosticError}` : output;
   }
@@ -826,6 +758,7 @@ export async function handleWorkflowDashboardCardAction(args: {
     'refresh', 'run', 'activate', 'plan_complete', 'plan_cancel', 'retry', 'resend', 'stop', 'enable', 'disable', 'document', 'document_validate', 'cursor_recover', 'diagnose',
     'autonomy_manual', 'autonomy_semi_auto', 'autonomy_auto',
     'validation_show', 'validation_template', 'validation_balanced', 'validation_strict', 'validation_repair',
+    'branch_status', 'branch_apply',
   ].includes(args.action)
     ? args.action
     : 'refresh';
@@ -940,6 +873,12 @@ export async function handleWorkflowDashboardCardAction(args: {
           options: { head: args.expectedHead },
         }, context)
         : 'Dashboard 已失效，请重新发送 /ap dashboard。'
+    : action.startsWith('branch_')
+      ? await handleBranchCommand({
+        command: 'branch',
+        args: [action.slice('branch_'.length)],
+        options: { project: project.id },
+      }, context)
       : await handleScheduledJobCommand({
         command: 'job',
         args: [action, args.jobId],

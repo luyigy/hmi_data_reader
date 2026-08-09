@@ -285,8 +285,8 @@ function buildCardActionHandler(prefix: string) {
         cardMessageId: messageId,
         expectedHead: typeof value.expectedHead === 'string' ? value.expectedHead : undefined,
         selectedPlan: typeof formValue?.selectedPlan === 'string' ? formValue.selectedPlan : undefined,
-        selectedCompletionPlan: typeof formValue?.selectedCompletionPlan === 'string' ? formValue.selectedCompletionPlan : typeof formValue?.selectedCancelledPlan === 'string' ? formValue.selectedCancelledPlan : undefined,
-        selectedDocument: ['selectedInboxDocument', 'selectedPlanDocument', 'selectedHandoverDocument', 'selectedOtherDocument', 'selectedWorkflowDocument'].map((field) => formValue?.[field]).find((selected): selected is string => typeof selected === 'string'), selectedCursorRecovery: typeof formValue?.selectedCursorRecovery === 'string' ? formValue.selectedCursorRecovery : undefined,
+        selectedCompletionPlan: typeof value.selectedCompletionPlan === 'string' ? value.selectedCompletionPlan : typeof formValue?.selectedCompletionPlan === 'string' ? formValue.selectedCompletionPlan : typeof formValue?.selectedCancelledPlan === 'string' ? formValue.selectedCancelledPlan : undefined,
+        selectedDocument: typeof value.selectedDocument === 'string' ? value.selectedDocument : ['selectedDocument', 'selectedInboxDocument', 'selectedPlanDocument', 'selectedHandoverDocument', 'selectedOtherDocument', 'selectedWorkflowDocument'].map((field) => formValue?.[field]).find((selected): selected is string => typeof selected === 'string'), selectedCursorRecovery: typeof formValue?.selectedCursorRecovery === 'string' ? formValue.selectedCursorRecovery : undefined,
       }).then((result) => {
         console.log(`${prefix} workflow dashboard action completed`, {
           action: value.action,

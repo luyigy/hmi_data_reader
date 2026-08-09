@@ -4,64 +4,80 @@ import type { WorkflowStatus } from './workflow-status';
 const documentNumber = (filePath: string) =>
   path.posix.basename(filePath).match(/^(\d+)_/)?.[1]?.padStart(3, '0') ?? '无编号';
 
-export function buildWorkflowDocumentForms(args: {
+export function buildWorkflowDocumentPanels(args: {
   status: WorkflowStatus;
   pending: Record<string, unknown> | null;
 }) {
   const overview = args.status.overview;
   if (!overview) return [];
   const groups = [
-    { label: 'Inbox', field: 'selectedInboxDocument', documents: overview.inbox.map((document) => ({ ...document, type: 'Inbox' })) },
-    { label: 'PLAN', field: 'selectedPlanDocument', documents: (overview.planDocuments ?? overview.plans).map((document) => ({ ...document, type: 'PLAN' })) },
-    { label: 'HANDOVER', field: 'selectedHandoverDocument', documents: overview.handovers.map((document) => ({ ...document, type: 'HANDOVER' })) },
-    { label: '其他', field: 'selectedOtherDocument', documents: overview.others ?? [] },
+    ...overview.inbox.map((document) => ({ ...document, type: 'Inbox' })),
+    ...(overview.planDocuments ?? overview.plans).map((document) => ({ ...document, type: 'PLAN' })),
+    ...overview.handovers.map((document) => ({ ...document, type: 'HANDOVER' })),
+    ...(overview.others ?? []),
   ];
-  const cancellablePlans = overview.plans.filter(({ path }) => !args.pending?.path || args.pending.path === path);
+  const workflowDocuments = groups.filter(({ type }) => ['PLAN', 'HANDOVER'].includes(type));
+  const button = (label: string, action: string, path: string, type = 'default') => ({
+    tag: 'button', type,
+    text: { tag: 'plain_text', content: label },
+    ...(action.startsWith('plan_') ? {
+      confirm: {
+        title: { tag: 'plain_text', content: `确认${label}` },
+        text: { tag: 'plain_text', content: action === 'plan_complete'
+          ? '这会提交 PLAN 的 completed / await_acceptance 状态。'
+          : '这会把 PLAN 标记为 superseded / none，并停止剩余 Slice。' },
+      },
+    } : {}),
+    value: {
+      cmd: 'workflow-dashboard', action, projectId: args.status.projectId,
+      jobId: args.status.jobId, expectedHead: args.status.head,
+      ...(action.startsWith('plan_') ? { selectedCompletionPlan: path } : { selectedDocument: path }),
+    },
+  });
   return [
-    ...(cancellablePlans.length && !args.status.running ? [{
-      tag: 'form',
-      name: 'workflow-plan-cancellation',
+    {
+      tag: 'collapsible_panel', expanded: false,
+      header: { title: { tag: 'plain_text', content: '✅ PLAN 人工完成 / 取消' } },
+      elements: overview.plans.length
+        ? overview.plans.flatMap((plan) => [{
+          tag: 'markdown', content: `[编号 ${documentNumber(plan.path)}] PLAN · ${plan.title}`,
+        }, {
+          tag: 'action', actions: [
+            button('人工标记完成', 'plan_complete', plan.path, 'danger'),
+            button('取消实施', 'plan_cancel', plan.path, 'danger'),
+          ],
+        }])
+        : [{ tag: 'markdown', content: '当前没有可人工完成或取消的未完成 PLAN。' }],
+    },
+    ...(groups.length ? [{
+      tag: 'form', name: 'workflow-document-view',
       elements: [{
-        tag: 'select_static', name: 'selectedCancelledPlan', required: true, width: 'fill',
-        placeholder: { tag: 'plain_text', content: '选择不再实施的 PLAN' },
-        options: cancellablePlans.map((plan) => ({
-          text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` }, value: plan.path,
-        })),
-      }, {
-        tag: 'button', name: 'cancelWorkflowPlan', type: 'danger', width: 'fill', action_type: 'form_submit',
-        text: { tag: 'plain_text', content: '取消实施所选 PLAN' },
-        confirm: {
-          title: { tag: 'plain_text', content: '确认取消实施' },
-          text: { tag: 'plain_text', content: '这会把 PLAN 标记为 superseded / none，并停止剩余 Slice。' },
-        },
-        value: {
-          cmd: 'workflow-dashboard', action: 'plan_cancel', projectId: args.status.projectId,
-          jobId: args.status.jobId, expectedHead: args.status.head,
-        },
-      }],
-    }] : []),
-    ...groups.filter(({ documents }) => documents.length).map((group) => ({
-      tag: 'form',
-      name: `workflow-document-export-${group.label.toLowerCase()}`,
-      elements: [{
-        tag: 'select_static', name: group.field, required: true, width: 'fill',
-        placeholder: { tag: 'plain_text', content: `选择 ${group.label}` },
-        options: group.documents.map((document) => ({
-          text: {
-            tag: 'plain_text',
-            content: `[编号 ${documentNumber(document.path)}] ${document.type} · ${document.title}`,
-          },
+        tag: 'select_static', name: 'selectedDocument', required: true, width: 'fill',
+        placeholder: { tag: 'plain_text', content: '选择要查看的文档' },
+        options: groups.map((document) => ({
+          text: { tag: 'plain_text', content: `[编号 ${documentNumber(document.path)}] ${document.type} · ${document.title}` },
           value: document.path,
         })),
       }, {
-        tag: 'button', name: `exportWorkflowDocument${group.label}`, type: 'primary_filled',
-        width: 'fill', action_type: 'form_submit',
-        text: { tag: 'plain_text', content: `查看 ${group.label} 飞书文档` },
-        value: {
-          cmd: 'workflow-dashboard', action: 'document', projectId: args.status.projectId,
-          jobId: args.status.jobId, expectedHead: args.status.head,
-        },
+        tag: 'button', name: 'viewWorkflowDocument', type: 'primary_filled', width: 'fill', action_type: 'form_submit',
+        text: { tag: 'plain_text', content: '查看所选文档' },
+        value: { cmd: 'workflow-dashboard', action: 'document', projectId: args.status.projectId, jobId: args.status.jobId, expectedHead: args.status.head },
       }],
-    })),
+    }] : []),
+    ...(workflowDocuments.length ? [{
+      tag: 'form', name: 'workflow-document-validation',
+      elements: [{
+        tag: 'select_static', name: 'selectedWorkflowDocument', required: true, width: 'fill',
+        placeholder: { tag: 'plain_text', content: '选择要校验的 PLAN 或 HANDOVER' },
+        options: workflowDocuments.map((document) => ({
+          text: { tag: 'plain_text', content: `[编号 ${documentNumber(document.path)}] ${document.type} · ${document.title}` },
+          value: document.path,
+        })),
+      }, {
+        tag: 'button', name: 'validateWorkflowDocument', type: 'primary_filled', width: 'fill', action_type: 'form_submit',
+        text: { tag: 'plain_text', content: '校验所选 PLAN / HANDOVER' },
+        value: { cmd: 'workflow-dashboard', action: 'document_validate', projectId: args.status.projectId, jobId: args.status.jobId, expectedHead: args.status.head },
+      }],
+    }] : []),
   ];
 }

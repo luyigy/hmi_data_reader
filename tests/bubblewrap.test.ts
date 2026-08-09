@@ -38,7 +38,10 @@ void (async () => {
     `test ! -e ${JSON.stringify(siblingSecret)}`,
     `test ! -e ${JSON.stringify(escape)}/secret`,
     'test -r /etc/ssl/certs/ca-certificates.crt',
+    'test -r /etc/hosts',
     'test -r /etc/resolv.conf',
+    'test -r /sys/devices/system/cpu/online',
+    'test -d /sys/devices/system/node',
     `test -r ${JSON.stringify(roomAuth)}`,
     `! echo changed > ${JSON.stringify(roomAuth)}`,
     `test -r ${JSON.stringify(linkedAuth)}`,
@@ -47,7 +50,10 @@ void (async () => {
   const wrapped = wrapWithBubblewrap({ command: '/usr/bin/sh', commandArgs: ['-c', command], cwd: path.join(root, 'nested', '..'), workspaceRoot: root, networkAccess: 'enabled', env: process.env, configPaths: [root], readOnlyPaths: [shared] });
   assert.ok(wrapped.args.includes('--share-net'));
   assert.ok(wrapped.args.includes('/etc/ssl/certs'));
+  assert.ok(wrapped.args.includes('/etc/hosts'));
   assert.ok(wrapped.args.includes('/etc/resolv.conf'));
+  assert.ok(wrapped.args.includes('/sys/devices/system/cpu'));
+  assert.ok(wrapped.args.includes('/sys/devices/system/node'));
   assert.ok(wrapped.args.includes(shared));
   assert.deepEqual(wrapped.args.slice(wrapped.args.indexOf('--bind'), wrapped.args.indexOf('--bind') + 3), ['--bind', root, root]);
   assert.ok(wrapped.args.includes('--tmpfs'));

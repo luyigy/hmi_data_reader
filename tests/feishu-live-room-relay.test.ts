@@ -59,6 +59,15 @@ assert.deepEqual(buildAssistantRelayCard(assistant), {
   elements: [{ tag: 'markdown', content: '**Done**\n\n- one\n- two' }],
 });
 
+assistant.metadata = { executionRole: 'feature:implement' };
+assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
+  {
+    tag: 'note',
+    elements: [{ tag: 'plain_text', content: '执行角色：feature:implement' }],
+  },
+  { tag: 'markdown', content: '**Done**\n\n- one\n- two' },
+]);
+
 assistant.metadata = { deliveryIntent: 'directed_visible', targetMemberName: 'Claude' };
 assert.equal(
   (buildAssistantRelayCard(assistant).header.title as { content: string }).content,

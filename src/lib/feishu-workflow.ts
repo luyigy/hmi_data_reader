@@ -112,7 +112,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
     },
     update: {},
   });
-  if (dispatch.state === 'reply_queued') return true;
+  if (['reply_queued', 'completed', 'failed'].includes(dispatch.state)) return true;
   if (dispatch.state === 'blocked') {
     throw new Error(`workflow dispatch blocked after unconfirmed Feishu side effect: ${args.eventKey}`);
   }
@@ -396,6 +396,10 @@ export async function runWorkflowInBoundLiveRoom(args: {
         task: args.prompt,
       }).catch(async (error) => {
         console.error('[workflow] role workflow failed to start', error);
+        await prisma.workflowDispatch.updateMany({
+          where: { id: dispatch.id, state: 'reply_queued' },
+          data: { state: 'failed' },
+        }).catch((updateError) => console.error('[workflow] failed to finalize role workflow dispatch', updateError));
         await postLiveRoomMessage({
           roomId: room.id,
           content: `系统提示：角色串行工作流启动失败：${error instanceof Error ? error.message : String(error)}`,

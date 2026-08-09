@@ -289,7 +289,7 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.equal(workflowRuns.at(-1)?.chatType, 'group');
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /NEXT PROMPT/);
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*所属 PLAN\*\*：000_PLAN_20260725_owner.md/);
-  assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*当前或将执行的 Slice\*\*：S01/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*交接 Slice（HANDOVER）\*\*：S01/);
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*计划进度\*\*：in_progress/);
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*文档状态\*\*：completed/);
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*下一动作\*\*：next_slice/);
@@ -317,7 +317,7 @@ plan_progress: complete
   assert.match(String(terminalNotice?.body.content), /实际验证/);
   assert.match(String(terminalNotice?.body.content), /自动推进：已停止/);
   assert.match(String(terminalNotice?.body.content), /\*\*所属 PLAN\*\*：000_PLAN_20260725_owner.md/);
-  assert.match(String(terminalNotice?.body.content), /\*\*当前或将执行的 Slice\*\*：S02/);
+  assert.match(String(terminalNotice?.body.content), /\*\*交接 Slice（HANDOVER）\*\*：S02/);
   assert.match(String(terminalNotice?.body.content), /\*\*计划进度\*\*：complete/);
   assert.match(String(terminalNotice?.body.content), /\*\*文档状态\*\*：completed/);
   assert.match(String(terminalNotice?.body.content), /\*\*下一动作\*\*：await_acceptance/);

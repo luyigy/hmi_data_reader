@@ -446,6 +446,7 @@ export const processLiveRoomDelivery = async ({
             deliveryId: delivery.id,
             backend: targetMember.backend,
             harnessType: targetMember.harnessType,
+            executionRole: targetMember.role,
             chainDepth,
             remoteTiming,
             targetLocked: isDirectedVisibleReply,

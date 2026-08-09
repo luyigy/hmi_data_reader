@@ -15,7 +15,7 @@ async function main() {
   let dispatch!: Dispatch;
   let messageExists = false;
   let deliveryExists = false;
-  let fault: 'rotation' | 'rotation_run' | 'rotation_complete' | 'feishu' | 'prompt' | 'reply' | null = null;
+  let fault: 'rotation' | 'rotation_run' | 'rotation_complete' | 'feishu' | 'prompt' | 'reply' | 'role_workflow' | null = null;
   let feishuPosts = 0;
   let promptPosts = 0;
   let replyQueues = 0;
@@ -120,6 +120,7 @@ async function main() {
   const workflows = await import('../src/lib/live-room-workflows') as unknown as Record<string, unknown>;
   workflows.runLiveRoomWorkflow = async () => {
     roleWorkflowQueues += 1;
+    if (fault === 'role_workflow') throw new Error('role workflow crashed');
   };
   const projectConfig = await import('../src/lib/scheduled-jobs/project-config') as unknown as Record<string, unknown>;
   const project = {
@@ -260,6 +261,13 @@ async function main() {
   reset('reply_queued');
   assert.equal(await run(), true);
 
+  const roleWorkflowsBeforeTerminalChecks = roleWorkflowQueues;
+  reset('failed');
+  assert.equal(await run(true), true);
+  reset('completed');
+  assert.equal(await run(true), true);
+  assert.equal(roleWorkflowQueues, roleWorkflowsBeforeTerminalChecks, 'terminal dispatches must not queue another role workflow');
+
   reset('prompt_posted');
   messageExists = true;
   deliveryExists = false;
@@ -268,6 +276,18 @@ async function main() {
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(roleWorkflowQueues, 1, 'approved PLAN must queue the role workflow once');
   assert.equal(replyQueues, repliesBeforeFault + 1, 'role workflow must not broadcast as a normal room message');
+
+  reset('prompt_posted');
+  fault = 'role_workflow';
+  const originalConsoleError = console.error;
+  console.error = () => undefined;
+  try {
+    assert.equal(await run(true), true);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(dispatch.state, 'failed', 'unexpected role workflow errors must finalize the dispatch');
+  } finally {
+    console.error = originalConsoleError;
+  }
 }
 
 void main();

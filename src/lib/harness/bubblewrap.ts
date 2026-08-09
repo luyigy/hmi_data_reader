@@ -48,7 +48,9 @@ export function wrapWithBubblewrap(args: {
   const executable = executablePath(args.command, args.env);
   const executableMount = executable.endsWith('.js') ? path.dirname(path.dirname(executable)) : executable;
   const systemCertificates = '/etc/ssl/certs';
+  const systemHosts = '/etc/hosts';
   const systemResolvConf = '/etc/resolv.conf';
+  const systemTopologyPaths = ['/sys/devices/system/cpu', '/sys/devices/system/node'].filter(existsSync);
   const configPaths = (args.configPaths || []).filter(existsSync);
   const explicitReadOnlyPaths = args.readOnlyPaths?.filter(existsSync).flatMap((source) => {
     const resolved = realpathSync(source);
@@ -58,6 +60,7 @@ export function wrapWithBubblewrap(args: {
     .filter((source) => !isWithin(workspaceRoot, source));
   const readOnlyMounts = [
     executableMount,
+    ...systemTopologyPaths,
     ...(explicitReadOnlyPaths ?? configPaths.flatMap(symlinkTargets)),
   ]
     .filter((source, index, all) => !source.startsWith('/usr/') && all.indexOf(source) === index);
@@ -68,6 +71,7 @@ export function wrapWithBubblewrap(args: {
     '--dir', '/usr', '--ro-bind', '/usr', '/usr',
     '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
     ...(existsSync(systemCertificates) ? [...parentDirs(systemCertificates), '--ro-bind', systemCertificates, systemCertificates] : []),
+    ...(existsSync(systemHosts) ? [...parentDirs(systemHosts), '--ro-bind', realpathSync(systemHosts), systemHosts] : []),
     ...(existsSync(systemResolvConf) ? [...parentDirs(systemResolvConf), '--ro-bind', realpathSync(systemResolvConf), systemResolvConf] : []),
     ...parentDirs(workspaceRoot), '--bind', workspaceRoot, workspaceRoot,
     ...writableMounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),

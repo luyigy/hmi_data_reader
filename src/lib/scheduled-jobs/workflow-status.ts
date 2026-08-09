@@ -9,6 +9,7 @@ import {
   type ProjectConfig,
 } from './project-config';
 import { resolveWorkflowAutonomy, type WorkflowAutonomy } from './workflow-autonomy';
+import { inspectProjectBranch, type ProjectBranchInfo } from './project-branch';
 import {
   formatWorkflowOverview,
   inspectWorkflowOverview,
@@ -45,6 +46,7 @@ export type WorkflowStatus = {
   lastError: string;
   retry: string;
   nextStep: string;
+  branchInfo?: ProjectBranchInfo;
   lastRun?: {
     status: string;
     summary: string;
@@ -283,6 +285,7 @@ const buildWorkflowStatus = async (
           ? 'runtime_retry_available'
           : 'none';
   const nextStep = nextStepFor({ enabled, running, jobId: job.id, stage, documentPath, action });
+  const branchInfo = await inspectProjectBranch(project.path, project.ref).catch(() => undefined);
   const status: WorkflowStatus = {
     projectId: project.id,
     projectName: project.name,
@@ -313,6 +316,7 @@ const buildWorkflowStatus = async (
     lastError: text(state?.lastError ?? latestRun?.error),
     retry,
     nextStep,
+    branchInfo,
     ...(latestRun ? {
       lastRun: {
         status: latestRun.status,

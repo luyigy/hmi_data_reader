@@ -280,7 +280,7 @@ assert.doesNotMatch(JSON.stringify(dashboardCard), /stale-expiry/);
 assert.match(JSON.stringify(dashboardCard), /唯一下一步/);
 assert.match(JSON.stringify(dashboardCard), /autonomy_manual/);
 assert.match(JSON.stringify(dashboardCard), /"tag":"collapsible_panel","expanded":false/);
-assert.match(JSON.stringify(dashboardCard), /自治模式：semi_auto[\s\S]*autonomy_manual[\s\S]*autonomy_auto/);
+assert.match(JSON.stringify(dashboardCard), /运行 \/ 模式 \/ 分支（semi_auto）[\s\S]*autonomy_manual[\s\S]*autonomy_auto/);
 const activationStatus = {
     ...workflowStatus,
     stage: '空闲',
@@ -349,27 +349,28 @@ assert.match(JSON.stringify(activationCard), /select_static/);
 assert.match(JSON.stringify(activationCard), /docs\/010_PLAN\.md/);
 assert.match(JSON.stringify(activationCard), /"action":"activate"/);
 assert.match(JSON.stringify(activationCard), /"action_type":"form_submit"/);
-assert.match(JSON.stringify(activationCard), /selectedInboxDocument/);
-assert.match(JSON.stringify(activationCard), /selectedPlanDocument/);
-assert.match(JSON.stringify(activationCard), /selectedHandoverDocument/);
-assert.match(JSON.stringify(activationCard), /selectedOtherDocument/);
-assert.match(JSON.stringify(activationCard), /查看 Inbox 飞书文档/);
-assert.match(JSON.stringify(activationCard), /查看 PLAN 飞书文档/);
-assert.match(JSON.stringify(activationCard), /查看 HANDOVER 飞书文档/);
-assert.match(JSON.stringify(activationCard), /查看 其他 飞书文档/);
+assert.match(JSON.stringify(activationCard), /"name":"selectedDocument"/);
+assert.match(JSON.stringify(activationCard), /选择要查看的文档/);
+assert.match(JSON.stringify(activationCard), /查看所选文档/);
+assert.equal(JSON.stringify(activationCard).match(/查看所选文档/g)?.length, 1);
+assert.doesNotMatch(JSON.stringify(activationCard), /查看 (Inbox|PLAN|HANDOVER|其他)/);
 assert.match(JSON.stringify(activationCard), /"action":"document"/);
+assert.match(JSON.stringify(activationCard), /选择要校验的 PLAN 或 HANDOVER/);
 assert.match(JSON.stringify(activationCard), /校验所选 PLAN \/ HANDOVER/);
 assert.match(JSON.stringify(activationCard), /"action":"document_validate"/);
-assert.match(JSON.stringify(activationCard), /人工标记所选 PLAN 完成/);
+assert.match(JSON.stringify(activationCard), /✅ PLAN 人工完成 \/ 取消/);
+assert.match(JSON.stringify(activationCard), /人工标记完成/);
 assert.match(JSON.stringify(activationCard), /"action":"plan_complete"/);
-assert.match(JSON.stringify(activationCard), /"name":"selectedCompletionPlan"/);
-assert.match(JSON.stringify(activationCard), /取消实施所选 PLAN/);
+assert.match(JSON.stringify(activationCard), /"selectedCompletionPlan":"docs\/010_PLAN\.md"/);
+assert.match(JSON.stringify(activationCard), /取消实施/);
 assert.match(JSON.stringify(activationCard), /"action":"plan_cancel"/);
-assert.match(JSON.stringify(activationCard), /"name":"selectedCancelledPlan"/);
-assert.match(JSON.stringify(activationCard), /"name":"validateWorkflowDocument".*?"type":"primary_filled"/);
 const dashboardForms = activationCard.elements.filter(({ tag }) => tag === 'form') as Array<{
   elements: Array<{ tag: string; name?: string; action_type?: string }>;
 }>;
+assert(dashboardForms.length > 0);
+assert(activationCard.elements.filter(({ tag }) => tag === 'collapsible_panel').every(({ elements }) => (
+  !elements?.some(({ tag }: { tag: string }) => tag === 'form')
+)));
 assert(dashboardForms.every((form) => form.elements.filter((element) => (
   element.tag === 'button' && element.action_type === 'form_submit'
 )).length === 1));
@@ -386,11 +387,13 @@ const pendingPlanCard = buildWorkflowDashboardCard({
   pending: { path: 'docs/010_PLAN.md', gate: 'plan_review', reviewState: 'revision' },
 });
 assert.match(JSON.stringify(pendingPlanCard), /"action":"plan_cancel"/);
-assert.doesNotMatch(JSON.stringify(pendingPlanCard), /"action":"plan_complete"/);
+assert.match(JSON.stringify(pendingPlanCard), /"action":"plan_complete"/);
 assert.match(JSON.stringify(dashboardCard), /validation_show/);
 assert.match(JSON.stringify(dashboardCard), /validation_strict/);
 assert.match(JSON.stringify(dashboardCard), /立即运行=马上扫描一次/);
 assert.match(JSON.stringify(dashboardCard), /宽松：内容规范问题记为 warning/);
+assert.match(JSON.stringify(dashboardCard), /"action":"branch_status"/);
+assert.match(JSON.stringify(dashboardCard), /"action":"branch_apply"/);
 assert.match(JSON.stringify(dashboardCard), /abcdef1234/);
 const rewrittenCard = buildWorkflowDashboardCard({
   status: { ...workflowStatus, stage: '运行阻塞', validator: 'runtime_unavailable：configured Git ref was rewritten' },
@@ -406,6 +409,8 @@ const idleCard = buildWorkflowDashboardCard({
   cursor: { current: '1234567890', latest: 'abcdef1234', rewritten: false, behind: 1 },
   pending: null,
 });
+assert.match(JSON.stringify(idleCard), /✅ PLAN 人工完成 \/ 取消/);
+assert.match(JSON.stringify(idleCard), /当前没有可人工完成或取消的未完成 PLAN/);
 assert.match(JSON.stringify(idleCard), /立即检查新文档/);
 assert.match(formatWorkflowStatus(workflowStatus), /项目 \/ ref \/ HEAD：project/);
 assert.match(formatWorkflowStatus(workflowStatus), /自治模式：semi_auto（config）/);

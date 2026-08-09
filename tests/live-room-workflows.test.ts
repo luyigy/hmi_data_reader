@@ -6,6 +6,7 @@ import {
   parseLiveRoomPlanCommand,
   parseLiveRoomWorkflowCommand,
   planPathFrom,
+  runLiveRoomWorkflow,
   selectLiveRoomPlanHost,
   workflowPlanRevisionPathFrom,
 } from '../src/lib/live-room-workflows';
@@ -121,3 +122,37 @@ assert.equal(liveRoomWorkflowGatePassed('test', 'PASSED'), true);
 assert.equal(liveRoomWorkflowGatePassed('test', 'FAILED'), false);
 assert.equal(liveRoomWorkflowGatePassed('test', 'no explicit result'), false);
 assert.equal(liveRoomWorkflowGatePassed('implement', 'completed'), null);
+
+async function verifyFailedWorkflowStopsDispatch() {
+  let dispatchState = 'reply_queued';
+  const messages: Array<{ content: string }> = [];
+  const prismaModule = await import('../src/lib/prisma') as unknown as { prisma: Record<string, unknown> };
+  prismaModule.prisma = {
+    liveRoom: { findUnique: async () => ({ id: 'room', members: members.map((item) => ({ ...item, canReply: true, joinStatus: 'joined' })) }) },
+    liveRoomMessage: { findUnique: async () => ({ metadata: null }) },
+    workflowDispatch: { updateMany: async ({ data }: { data: { state: string } }) => {
+      dispatchState = data.state;
+      return { count: 1 };
+    } },
+  };
+  const liveRoomMembers = await import('../src/lib/live-room-members') as unknown as Record<string, unknown>;
+  liveRoomMembers.syncLiveRoomSourceTask = async () => ({
+    id: 'task', name: 'Task', workingDirectory: process.cwd(), acpxPermissionConfig: null, currentTaskSession: null,
+  });
+  const liveRoomMessages = await import('../src/lib/live-room-messages') as unknown as Record<string, unknown>;
+  liveRoomMessages.postLiveRoomMessage = async (message: { content: string }) => {
+    messages.push(message);
+    return { id: `message-${messages.length}` };
+  };
+  const runner = await import('../src/lib/acpx/runner') as unknown as Record<string, unknown>;
+  runner.executeAcpxTaskRun = async () => ({
+    taskRunId: 'run', status: 'failed', summary: 'failed', participants: [{ status: 'failed', error: 'harness crashed' }],
+  });
+
+  await runLiveRoomWorkflow({ roomId: 'room', sourceMessageId: 'source', name: 'feature', task: 'test failure' });
+
+  assert.equal(dispatchState, 'failed');
+  assert.match(messages.at(-1)?.content || '', /停止，不再等待后续角色/);
+}
+
+void verifyFailedWorkflowStopsDispatch();

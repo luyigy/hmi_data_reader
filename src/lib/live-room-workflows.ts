@@ -436,15 +436,22 @@ export const runLiveRoomWorkflow = async ({
   });
 
   const outputs: Array<{ label: string; member: string; output: string }> = [];
-  const failWorkflow = (stage: WorkflowStage, reason: string) => postLiveRoomMessage({
-    roomId,
-    content: `系统提示：${name} 工作流在“${stage.label}”阶段停止：${reason}`,
-    messageType: 'system',
-    metadata: resolveLiveRoomMessageMetadata({
-      senderKind: 'system',
-      extras: { systemEvent: 'workflow_failed', workflow: name, stage: stage.id },
-    }),
+  const finishDispatch = (state: 'completed' | 'failed') => prisma.workflowDispatch.updateMany({
+    where: { messageId: sourceMessageId, state: 'reply_queued' },
+    data: { state },
   });
+  const failWorkflow = async (stage: WorkflowStage, reason: string) => {
+    await finishDispatch('failed');
+    await postLiveRoomMessage({
+      roomId,
+      content: `系统提示：${name} 工作流在“${stage.label}”阶段停止，不再等待后续角色：${reason}`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        extras: { systemEvent: 'workflow_failed', workflow: name, stage: stage.id },
+      }),
+    });
+  };
   for (let index = 0; index < stages.length; index += 1) {
     const stage = stages[index];
     await postLiveRoomMessage({
@@ -491,7 +498,11 @@ export const runLiveRoomWorkflow = async ({
         ),
         workflowPermissionSnapshot,
       ),
+    }).catch(async (error) => {
+      await failWorkflow(stage, error instanceof Error ? error.message : String(error));
+      return null;
     });
+    if (!result) return;
     const stageResult = result.participants[0];
     const output = stageResult?.summary || stageResult?.error || `${stage.label} 未返回结果`;
     outputs.push({ label: stage.label, member: stage.member.displayName, output });
@@ -509,6 +520,7 @@ export const runLiveRoomWorkflow = async ({
           systemEvent: 'workflow_stage_completed',
           workflow: name,
           stage: stage.id,
+          executionRole: participant.role,
           taskRunId: result.taskRunId,
           status: stageResult?.status || result.status,
         },
@@ -525,6 +537,7 @@ export const runLiveRoomWorkflow = async ({
     }
   }
 
+  await finishDispatch('completed');
   await postLiveRoomMessage({
     roomId,
     content: `系统提示：${name} 工作流已完成。`,
