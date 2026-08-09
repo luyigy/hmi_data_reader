@@ -160,7 +160,13 @@ S01 then S02
     feishu: { chat_id: 'chat', approver_open_ids: ['approver'] },
     jobs: [job],
   };
-  const workflowRuns: Array<{ chatId: string; chatType: 'group' | 'p2p'; prompt: string; eventKey: string }> = [];
+  const workflowRuns: Array<{
+    chatId: string;
+    chatType: 'group' | 'p2p';
+    prompt: string;
+    eventKey: string;
+    roleWorkflow: boolean;
+  }> = [];
   let workflowAvailable = true;
   const importedDocuments: Array<{ content: string; name: string; idempotencyKey: string }> = [];
   const importDocument = async (args: {
@@ -475,6 +481,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     workflowRuns.at(-1)?.prompt ?? '',
     /请补充风险和验收步骤/,
   );
+  assert.equal(workflowRuns.at(-1)?.roleWorkflow, false, 'PLAN revision must stay on the plan-only path');
   assert.equal(workflowRuns.at(-1)?.eventKey, 'key:feedback');
   assert.equal(
     (revisionRequestedRun.cursor as { pending: { blob: string } }).pending.blob,
@@ -515,6 +522,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   process.env.LARK_FAIL_MESSAGES = '0';
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
   assert.equal(workflowRuns.at(-1)?.chatType, 'p2p');
+  assert.equal(workflowRuns.at(-1)?.roleWorkflow, true, 'approved PLAN must use the role pipeline');
 
   const callbackRejected = JSON.parse(JSON.stringify(revisedReviewCursor));
   callbackRejected.pending.reviewState = 'rejected';

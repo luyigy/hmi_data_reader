@@ -5,6 +5,7 @@ import {
 import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 import {
   runLiveRoomPlan,
+  runLiveRoomWorkflow,
   workflowPlanRevisionPathFrom,
 } from '@/lib/live-room-workflows';
 import {
@@ -75,6 +76,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   workflowContext?: string;
   executionPolicy: WorkflowExecutionPolicy;
   eventKey: string;
+  roleWorkflow?: boolean;
   signal: AbortSignal;
 }): Promise<boolean> {
   args.signal.throwIfAborted();
@@ -377,6 +379,26 @@ export async function runWorkflowInBoundLiveRoom(args: {
         await postLiveRoomMessage({
           roomId: room.id,
           content: `系统提示：PLAN 修订启动失败：${error instanceof Error ? error.message : String(error)}`,
+          messageType: 'system',
+        }).catch(() => undefined);
+      });
+      return true;
+    } else if (args.roleWorkflow) {
+      const claimed = await prisma.workflowDispatch.updateMany({
+        where: { id: dispatch.id, state: 'prompt_posted' },
+        data: { state: 'reply_queued' },
+      });
+      if (!claimed.count) return true;
+      void runLiveRoomWorkflow({
+        roomId: room.id,
+        sourceMessageId: dispatch.messageId,
+        name: 'feature',
+        task: args.prompt,
+      }).catch(async (error) => {
+        console.error('[workflow] role workflow failed to start', error);
+        await postLiveRoomMessage({
+          roomId: room.id,
+          content: `系统提示：角色串行工作流启动失败：${error instanceof Error ? error.message : String(error)}`,
           messageType: 'system',
         }).catch(() => undefined);
       });

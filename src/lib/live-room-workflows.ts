@@ -401,6 +401,14 @@ export const runLiveRoomWorkflow = async ({
   if (!room || !sourceTask) {
     throw new Error('Live room workflow requires an active room and backing task');
   }
+  const sourceMessage = await prisma.liveRoomMessage.findUnique({
+    where: { id: sourceMessageId },
+    select: { metadata: true },
+  });
+  const workflowPermissionSnapshot = readWorkflowPermissionSnapshot(
+    parseLiveRoomMessageMetadata(sourceMessage?.metadata)?.workflowPermissionSnapshot,
+    sourceTask.workingDirectory || process.cwd(),
+  );
 
   const members = room.members as WorkflowMember[];
   const missingRoles = missingLiveRoomWorkflowRoles(members);
@@ -476,9 +484,12 @@ export const runLiveRoomWorkflow = async ({
       orchestrationMode: 'staged',
       participants: [participant],
       workingDirectory: sourceTask.workingDirectory || process.cwd(),
-      permissionConfig: resolveLiveRoomMemberPermission(
-        stage.member.acpxPermissionConfig,
-        sourceTask.acpxPermissionConfig
+      permissionConfig: applyWorkflowPermissionSnapshot(
+        resolveLiveRoomMemberPermission(
+          stage.member.acpxPermissionConfig,
+          sourceTask.acpxPermissionConfig
+        ),
+        workflowPermissionSnapshot,
       ),
     });
     const stageResult = result.participants[0];

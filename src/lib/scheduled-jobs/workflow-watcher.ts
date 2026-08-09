@@ -86,6 +86,7 @@ type WorkflowRunner = (args: {
   workflowContext?: string;
   executionPolicy: WorkflowExecutionPolicy;
   eventKey: string;
+  roleWorkflow: boolean;
   signal: AbortSignal;
 }) => Promise<void | boolean>;
 type WorkflowDocumentImporter = (args: {
@@ -196,7 +197,10 @@ const sendReviewCard = (
 });
 
 const execute = async (
-  pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext'>,
+  pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext'> & {
+    roleWorkflow?: boolean;
+    type?: string;
+  },
   projectId: string,
   jobId: string,
   codingBotChatId: string,
@@ -219,6 +223,7 @@ const execute = async (
     workflowContext: pending.workflowContext,
     executionPolicy,
     eventKey: pending.key,
+    roleWorkflow: pending.roleWorkflow ?? ['PLAN', 'HANDOVER'].includes(pending.type || ''),
     signal,
   })) !== false;
 };
@@ -397,7 +402,12 @@ export const workflowWatcherHandler = async (
       )).trim();
       if (mode === 'active') {
         await execute(
-          { ...pending, key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
+          {
+            ...pending,
+            key: pending.revisionDispatchKey || pending.key,
+            prompt: revisionPrompt(),
+            roleWorkflow: false,
+          },
           project.id,
           job.id,
           codingBotChatId,
@@ -429,7 +439,12 @@ export const workflowWatcherHandler = async (
           return { summary: `head=${head} pending=${pending.path} gate=autonomy_manual advance=revision`, cursor: previous };
         }
         await execute(
-          { ...pending, key: pending.revisionDispatchKey || pending.key, prompt: revisionPrompt() },
+          {
+            ...pending,
+            key: pending.revisionDispatchKey || pending.key,
+            prompt: revisionPrompt(),
+            roleWorkflow: false,
+          },
           project.id,
           job.id,
           codingBotChatId,

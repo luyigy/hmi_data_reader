@@ -19,6 +19,7 @@ async function main() {
   let feishuPosts = 0;
   let promptPosts = 0;
   let replyQueues = 0;
+  let roleWorkflowQueues = 0;
   let rotationDecisions = 0;
   let rotationRuns = 0;
   let rotationAction: 'reuse' | 'prepare_checkpoint' | 'rotation_pending' | 'warning_only' = 'reuse';
@@ -116,6 +117,10 @@ async function main() {
     deliveryExists = true;
     if (fault === 'reply') throw new Error('crash after reply queue');
   };
+  const workflows = await import('../src/lib/live-room-workflows') as unknown as Record<string, unknown>;
+  workflows.runLiveRoomWorkflow = async () => {
+    roleWorkflowQueues += 1;
+  };
   const projectConfig = await import('../src/lib/scheduled-jobs/project-config') as unknown as Record<string, unknown>;
   const project = {
     id: 'project',
@@ -164,7 +169,7 @@ async function main() {
   };
 
   const { runWorkflowInBoundLiveRoom } = await import('../src/lib/feishu-workflow');
-  const run = () => runWorkflowInBoundLiveRoom({
+  const run = (roleWorkflow = false) => runWorkflowInBoundLiveRoom({
     projectId: 'project',
     jobId: 'workflow',
     chatId: 'chat',
@@ -172,6 +177,7 @@ async function main() {
     prompt: 'S02',
     executionPolicy: { preset: 'workspace' },
     eventKey: 'event',
+    roleWorkflow,
     signal: new AbortController().signal,
   });
 
@@ -253,6 +259,15 @@ async function main() {
 
   reset('reply_queued');
   assert.equal(await run(), true);
+
+  reset('prompt_posted');
+  messageExists = true;
+  deliveryExists = false;
+  assert.equal(await run(true), true);
+  assert.equal(dispatch.state, 'reply_queued');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(roleWorkflowQueues, 1, 'approved PLAN must queue the role workflow once');
+  assert.equal(replyQueues, repliesBeforeFault + 1, 'role workflow must not broadcast as a normal room message');
 }
 
 void main();
