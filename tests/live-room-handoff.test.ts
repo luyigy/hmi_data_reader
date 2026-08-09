@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { prisma } from '../src/lib/prisma';
 import {
+  applyPlannedLiveRoomHandoff,
   claimLiveRoomHandoff,
   detectLiveRoomHandoffIntent,
   parseLiveRoomHandoffLimit,
@@ -56,8 +57,20 @@ assert.deepEqual(
 );
 assert.deepEqual(
   detectLiveRoomHandoffIntent({ content: '$missing continue', members, senderMemberId: 'a' }),
-  { kind: 'invalid', reason: 'unknown_target' },
+  { kind: 'none' },
 );
+assert.deepEqual(
+  detectLiveRoomHandoffIntent({ content: 'A $\\to$ B $\\to$ C', members, senderMemberId: 'a' }),
+  { kind: 'none' },
+);
+assert.deepEqual(
+  detectLiveRoomHandoffIntent({ content: 'Math $\\to$ then $B', members, senderMemberId: 'a' }),
+  { kind: 'target', targetMemberId: 'b' },
+);
+assert.deepEqual(applyPlannedLiveRoomHandoff({ kind: 'none' }, 'b'), {
+  kind: 'target',
+  targetMemberId: 'b',
+});
 assert.equal(parseLiveRoomHandoffLimit('0'), 0);
 assert.equal(parseLiveRoomHandoffLimit('32'), 32);
 assert.equal(parseLiveRoomHandoffLimit('-1'), null);

@@ -15,6 +15,7 @@ import {
   LIVE_ROOM_CONTROL_BLOCK_PATTERN,
   ensureMemberSession,
   executeLiveRoomControlAction,
+  inferDirectedVisibleRelayTargets,
   parseLiveRoomControlAction,
 } from '@/lib/live-room-delivery-routing';
 import {
@@ -23,6 +24,7 @@ import {
 } from '@/lib/live-room-delivery-execution';
 import {
   detectLiveRoomHandoffIntent,
+  applyPlannedLiveRoomHandoff,
   recordRejectedLiveRoomHandoff,
 } from '@/lib/live-room-handoff';
 
@@ -391,13 +393,23 @@ export const processLiveRoomDelivery = async ({
         members: room.members,
         senderMemberId: targetMember.id,
       });
-      const handoffIntent = delivery.handoffRootMessageId
+      const requestedHandoffIntent = delivery.handoffRootMessageId
         ? detectLiveRoomHandoffIntent({
             content: output,
             members: room.members,
             senderMemberId: targetMember.id,
           })
         : { kind: 'none' as const };
+      const plannedTargets = delivery.handoffRootMessageId
+        ? inferDirectedVisibleRelayTargets({ room, sourceMessage, currentTargetMember: targetMember })
+        : [];
+      const handoffIntent = applyPlannedLiveRoomHandoff(requestedHandoffIntent, plannedTargets[0]?.id);
+      const selectedTargetIndex = handoffIntent.kind === 'target'
+        ? plannedTargets.findIndex((member) => member.id === handoffIntent.targetMemberId)
+        : -1;
+      const handoffRemainingMemberIds = selectedTargetIndex >= 0
+        ? plannedTargets.slice(selectedTargetIndex + 1).map((member) => member.id)
+        : [];
       const startsWithExplicitMention = /^[\s]*[@$][^\s]+/.test(output);
       const isDirectedVisibleReply =
         startsWithExplicitMention
@@ -441,6 +453,7 @@ export const processLiveRoomDelivery = async ({
               ? room.members.find((member) => member.id === handoffIntent.targetMemberId)?.displayName || null
               : directedTargetMember?.displayName || null,
             handoffRootMessageId: delivery.handoffRootMessageId,
+            handoffRemainingMemberIds,
           },
         }),
       });

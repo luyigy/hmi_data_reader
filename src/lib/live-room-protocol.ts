@@ -1,9 +1,11 @@
 export const buildLiveRoomControlManual = ({
   replyableMemberLabels,
+  replyableMemberTokens,
   directedTargetAlias,
   directedTargetDisplayName,
 }: {
   replyableMemberLabels: string[];
+  replyableMemberTokens?: string[];
   directedTargetAlias?: string | null;
   directedTargetDisplayName?: string | null;
 }) => [
@@ -31,13 +33,14 @@ export const buildLiveRoomControlManual = ({
   '- If the user asks you to contact another room member, do not answer on their behalf.',
   '- A named live-room member is not an internal sub-agent. Do not use spawn_agent, send_message, or another private delegation mechanism to contact them.',
   '- `@member` is a visible reference only; it never schedules another turn.',
-  '- Use exactly one `$member` only when another room member must continue the current request; otherwise do not emit `$member`.',
+  '- When another room member must continue the current request, end with exactly one canonical handoff token from the list below; otherwise emit no handoff token.',
   '- Never hand off to yourself.',
-  '- Never emit multiple `$member` targets. Structured /ap plan and /run workflows keep their orchestrated order.',
+  '- Never emit multiple handoff tokens. Structured /ap plan and /run workflows keep their orchestrated order.',
   directedTargetAlias
     ? `- The requested member is ${directedTargetDisplayName}; use $${directedTargetAlias} once if your reply should hand off to them.`
     : '- Answer the current turn normally.',
   `- Available replyable members: ${replyableMemberLabels.join(', ') || '(none)'}`,
+  `- Canonical handoff tokens: ${replyableMemberTokens?.join(', ') || '(none)'}`,
 ].join('\n');
 
 export const buildLiveRoomContinuationMessage = (manual: string, content: string) =>
@@ -46,17 +49,19 @@ export const buildLiveRoomContinuationMessage = (manual: string, content: string
 export const stripLeadingMentionForTarget = ({
   content,
   targetDisplayName,
+  targetAliases = [],
 }: {
   content: string;
   targetDisplayName?: string | null;
+  targetAliases?: string[];
 }) => {
   if (!/^[@$]/.test(content)) return content;
 
-  if (targetDisplayName) {
-    const exactPrefix = `${content[0]}${targetDisplayName}`;
+  for (const targetName of [targetDisplayName, ...targetAliases].filter(Boolean) as string[]) {
+    const exactPrefix = `${content[0]}${targetName}`;
     if (content.startsWith(exactPrefix)) {
       const stripped = content.slice(exactPrefix.length).trim();
-      if (stripped) return stripped;
+      if (stripped) return stripped.replace(/^[,.;:!?，。；：！？、]+\s*/, '');
     }
   }
 

@@ -10,6 +10,7 @@ import {
 } from '@/lib/live-room';
 import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduling';
 import { stripLeadingMentionForTarget } from '@/lib/live-room-protocol';
+import { getMentionAliases, type LiveRoomMemberWithAgent } from '@/lib/agent-identity';
 
 export type DeliveryRoomMember = {
   id: string;
@@ -296,7 +297,7 @@ export const ensureMemberSession = async (roomId: string, member: {
   });
 };
 
-export const inferDirectedVisibleRelayTarget = ({
+export const inferDirectedVisibleRelayTargets = ({
   room,
   sourceMessage,
   currentTargetMember,
@@ -304,6 +305,7 @@ export const inferDirectedVisibleRelayTarget = ({
   room: DeliveryRoom;
   sourceMessage: {
     content: string;
+    metadata?: string | null;
     senderMember?: {
       id: string;
       displayName: string;
@@ -312,18 +314,33 @@ export const inferDirectedVisibleRelayTarget = ({
   };
   currentTargetMember: DeliveryRoomMember;
 }) => {
-  if (sourceMessage.senderMember?.memberType !== 'user') {
-    return null;
+  const metadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
+  const savedTargets = Array.isArray(metadata?.handoffRemainingMemberIds)
+    ? metadata.handoffRemainingMemberIds.filter((memberId): memberId is string => typeof memberId === 'string')
+    : [];
+  const eligibleTargets = savedTargets
+    .map((memberId) => room.members.find((member) => member.id === memberId))
+    .filter((member): member is DeliveryRoomMember => Boolean(member?.canReply && member.id !== currentTargetMember.id));
+  if (eligibleTargets.length > 0) return eligibleTargets;
+
+  if (sourceMessage.senderMember?.memberType !== 'user') return [];
+
+  const mentionedIds = metadata?.mentionedMemberIds || [];
+  const currentIndex = mentionedIds.indexOf(currentTargetMember.id);
+  if (currentIndex >= 0) {
+    const remainingMentionedTargets = mentionedIds.slice(currentIndex + 1)
+      .map((memberId) => room.members.find((member) => member.id === memberId))
+      .filter((member): member is DeliveryRoomMember => Boolean(member?.canReply));
+    if (remainingMentionedTargets.length > 0) return remainingMentionedTargets;
   }
 
   const stripped = stripLeadingMentionForTarget({
     content: sourceMessage.content,
     targetDisplayName: currentTargetMember.displayName,
+    targetAliases: getMentionAliases(currentTargetMember as LiveRoomMemberWithAgent),
   });
 
-  if (!stripped || stripped === sourceMessage.content) {
-    return null;
-  }
+  if (!stripped || stripped === sourceMessage.content) return [];
 
   const detection = detectMentionedLiveRoomMembers({
     content: stripped,
@@ -331,9 +348,7 @@ export const inferDirectedVisibleRelayTarget = ({
     senderMemberId: sourceMessage.senderMember?.id || null,
   });
 
-  if (detection.memberIds.length !== 1) {
-    return null;
-  }
-
-  return room.members.find((member) => member.id === detection.memberIds[0]) || null;
+  return detection.memberIds
+    .map((memberId) => room.members.find((member) => member.id === memberId))
+    .filter((member): member is DeliveryRoomMember => Boolean(member));
 };

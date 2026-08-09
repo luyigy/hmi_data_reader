@@ -71,17 +71,23 @@ export const detectLiveRoomHandoffIntent = ({
     }
   }
 
-  const resolvedTargets = new Set(
-    dollarPositions.map((position) => matches.get(position)?.memberId).filter(Boolean),
-  );
-  if (dollarPositions.length > 1 || resolvedTargets.size > 1) {
+  const resolvedMatches = dollarPositions
+    .map((position) => matches.get(position))
+    .filter((match): match is { memberId: string; aliasLength: number } => Boolean(match));
+  if (resolvedMatches.length === 0) return { kind: 'none' };
+
+  if (resolvedMatches.length > 1) {
     return { kind: 'invalid', reason: 'multiple_targets' };
   }
-  const targetMemberId = matches.get(dollarPositions[0])?.memberId;
-  return targetMemberId
-    ? { kind: 'target', targetMemberId }
-    : { kind: 'invalid', reason: 'unknown_target' };
+  return { kind: 'target', targetMemberId: resolvedMatches[0].memberId };
 };
+
+export const applyPlannedLiveRoomHandoff = (
+  intent: LiveRoomHandoffIntent,
+  plannedTargetMemberId?: string | null,
+): LiveRoomHandoffIntent => intent.kind === 'none' && plannedTargetMemberId
+  ? { kind: 'target', targetMemberId: plannedTargetMemberId }
+  : intent;
 
 export const ensureLiveRoomHandoffRoot = async ({
   messageId,

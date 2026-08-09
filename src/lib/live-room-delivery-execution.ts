@@ -28,7 +28,7 @@ import {
 } from '@/lib/workflow-execution-policy';
 import {
   getPreferredDirectedAlias,
-  inferDirectedVisibleRelayTarget,
+  inferDirectedVisibleRelayTargets,
   type DeliveryRoom,
   type DeliveryRoomMember,
 } from '@/lib/live-room-delivery-routing';
@@ -287,12 +287,13 @@ const runLiveRoomAcpxAttempt = async ({
       ? { maxRuntimeMs: null }
       : undefined;
 
-  const replyableMemberLabels = room.members
+  const replyableMembers = room.members
     .filter((member) => member.canReply && member.id !== currentMemberId)
-    .map((member) => member.displayName);
+    .map((member) => ({ label: member.displayName, token: `$${getPreferredDirectedAlias(member)}` }));
   const directedTargetAlias = desiredDirectedTarget ? getPreferredDirectedAlias(desiredDirectedTarget) : null;
   const liveRoomControlManual = buildLiveRoomControlManual({
-    replyableMemberLabels,
+    replyableMemberLabels: replyableMembers.map((member) => member.label),
+    replyableMemberTokens: replyableMembers.map((member) => member.token),
     directedTargetAlias,
     directedTargetDisplayName: desiredDirectedTarget?.displayName || null,
   });
@@ -423,11 +424,12 @@ export const executeLiveRoomReplyViaAcpx = async ({
     content: sourceMessage.content,
     targetDisplayName: targetMember.displayName,
   });
-  const desiredDirectedTarget = inferDirectedVisibleRelayTarget({
+  const directedRelayTargets = inferDirectedVisibleRelayTargets({
     room,
     sourceMessage,
     currentTargetMember: targetMember,
   });
+  const desiredDirectedTarget = directedRelayTargets[0] || null;
 
   if (shouldInjectLatestInstruction && contentForAgent) {
     await postTaskRoomMessage({
