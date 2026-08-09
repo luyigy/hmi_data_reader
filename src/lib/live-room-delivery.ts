@@ -340,6 +340,7 @@ export const triggerLiveRoomMessageReplies = async ({
       roomId,
       sourceMessageId: roomMessageId,
       name: workflow.name,
+      level: workflow.level,
       task: workflow.task,
     });
     return;

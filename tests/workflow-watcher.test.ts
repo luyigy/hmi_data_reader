@@ -166,6 +166,7 @@ S01 then S02
     prompt: string;
     eventKey: string;
     roleWorkflow: boolean;
+    roleWorkflowLevel?: 'full' | 'lean' | 'fast';
   }> = [];
   let workflowAvailable = true;
   const importedDocuments: Array<{ content: string; name: string; idempotencyKey: string }> = [];
@@ -295,6 +296,7 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*下一动作\*\*：next_slice/);
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /平台 completion gate 会在 Session 结束后统一校验/);
   assert.doesNotMatch(workflowRuns.at(-1)?.prompt ?? '', /npm run workflow:validate/);
+  assert.equal(workflowRuns.at(-1)?.roleWorkflowLevel, 'fast', 'HANDOVER must use the fast role pipeline');
   const unchanged = await run(completed.cursor);
   assert.match(unchanged.summary, /candidate=none/);
   assert.equal((unchanged.cursor as { eventKey?: string }).eventKey, (completed.cursor as { eventKey?: string }).eventKey);
@@ -523,6 +525,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
   assert.equal(workflowRuns.at(-1)?.chatType, 'p2p');
   assert.equal(workflowRuns.at(-1)?.roleWorkflow, true, 'approved PLAN must use the role pipeline');
+  assert.equal(workflowRuns.at(-1)?.roleWorkflowLevel, 'lean', 'approved PLAN must use the lean role pipeline');
 
   const callbackRejected = JSON.parse(JSON.stringify(revisedReviewCursor));
   callbackRejected.pending.reviewState = 'rejected';

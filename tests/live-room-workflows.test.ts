@@ -28,12 +28,20 @@ const member = (id: string, role: string) => ({
 
 assert.deepEqual(parseLiveRoomWorkflowCommand('/run feature build login'), {
   name: 'feature',
+  level: 'full',
   task: 'build login',
 });
 assert.deepEqual(parseLiveRoomWorkflowCommand('/RUN DEBUG fix crash'), {
   name: 'debug',
+  level: 'full',
   task: 'fix crash',
 });
+assert.deepEqual(parseLiveRoomWorkflowCommand('/run feature --level=lean implement S01'), {
+  name: 'feature',
+  level: 'lean',
+  task: 'implement S01',
+});
+assert.equal(parseLiveRoomWorkflowCommand('/run feature --level=turbo implement S01'), null);
 assert.equal(parseLiveRoomWorkflowCommand('/run build login'), null);
 assert.deepEqual(parseLiveRoomPlanCommand('/plan --host=codex design login'), {
   host: 'codex', task: 'design login',
@@ -104,9 +112,20 @@ assert.deepEqual(
     'final',
   ]
 );
+assert.deepEqual(
+  buildLiveRoomWorkflowStages('feature', members, 'lean').map((stage) => stage.id),
+  ['plan-review', 'implement', 'test'],
+);
+assert.deepEqual(
+  buildLiveRoomWorkflowStages('feature', members, 'fast').map((stage) => stage.id),
+  ['implement', 'test'],
+);
 
 assert.deepEqual(missingLiveRoomWorkflowRoles(members), []);
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'reviewer')), ['reviewer']);
+assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'planner'), 'lean'), []);
+assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'reviewer'), 'lean'), ['reviewer']);
+assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'planner' && candidate.role !== 'reviewer'), 'fast'), []);
 assert.deepEqual(missingLiveRoomWorkflowRoles([
   member('same', 'planner'),
   member('same', 'implementer'),
@@ -123,9 +142,10 @@ assert.equal(liveRoomWorkflowGatePassed('test', 'FAILED'), false);
 assert.equal(liveRoomWorkflowGatePassed('test', 'no explicit result'), false);
 assert.equal(liveRoomWorkflowGatePassed('implement', 'completed'), null);
 
-async function verifyFailedWorkflowStopsDispatch() {
+async function verifyFailedWorkflowDefersToNextAgent() {
   let dispatchState = 'reply_queued';
   const messages: Array<{ content: string }> = [];
+  const prompts: string[] = [];
   const prismaModule = await import('../src/lib/prisma') as unknown as { prisma: Record<string, unknown> };
   prismaModule.prisma = {
     liveRoom: { findUnique: async () => ({ id: 'room', members: members.map((item) => ({ ...item, canReply: true, joinStatus: 'joined' })) }) },
@@ -145,14 +165,34 @@ async function verifyFailedWorkflowStopsDispatch() {
     return { id: `message-${messages.length}` };
   };
   const runner = await import('../src/lib/acpx/runner') as unknown as Record<string, unknown>;
-  runner.executeAcpxTaskRun = async () => ({
-    taskRunId: 'run', status: 'failed', summary: 'failed', participants: [{ status: 'failed', error: 'harness crashed' }],
-  });
+  let runCount = 0;
+  runner.executeAcpxTaskRun = async ({ taskDescription }: { taskDescription: string }) => {
+    runCount += 1;
+    prompts.push(taskDescription);
+    const summary = runCount === 2 ? 'APPROVED' : runCount === 3 ? 'PASSED' : 'completed';
+    return runCount === 1
+      ? { taskRunId: 'run-1', status: 'failed', participants: [{ status: 'failed', error: 'harness crashed' }] }
+      : { taskRunId: `run-${runCount}`, status: 'completed', participants: [{ status: 'completed', summary }] };
+  };
 
-  await runLiveRoomWorkflow({ roomId: 'room', sourceMessageId: 'source', name: 'feature', task: 'test failure' });
+  await runLiveRoomWorkflow({ roomId: 'room', sourceMessageId: 'source', name: 'feature', level: 'lean', task: 'test failure' });
 
+  assert.equal(dispatchState, 'completed');
+  assert.equal(runCount, 3);
+  assert.match(messages.find((message) => message.content.includes('职责已顺延'))?.content || '', /计划审查 \+ 功能实施/);
+  assert.match(prompts[1], /Inherited failed responsibilities/);
+
+  dispatchState = 'reply_queued';
+  messages.length = 0;
+  runCount = 0;
+  runner.executeAcpxTaskRun = async () => {
+    runCount += 1;
+    return { taskRunId: `failed-${runCount}`, status: 'failed', participants: [{ status: 'failed', error: 'still broken' }] };
+  };
+  await runLiveRoomWorkflow({ roomId: 'room', sourceMessageId: 'source', name: 'feature', level: 'fast', task: 'terminal failure' });
+  assert.equal(runCount, 2);
   assert.equal(dispatchState, 'failed');
   assert.match(messages.at(-1)?.content || '', /停止，不再等待后续角色/);
 }
 
-void verifyFailedWorkflowStopsDispatch();
+void verifyFailedWorkflowDefersToNextAgent();

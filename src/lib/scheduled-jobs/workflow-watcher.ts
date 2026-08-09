@@ -87,6 +87,7 @@ type WorkflowRunner = (args: {
   executionPolicy: WorkflowExecutionPolicy;
   eventKey: string;
   roleWorkflow: boolean;
+  roleWorkflowLevel?: 'full' | 'lean' | 'fast';
   signal: AbortSignal;
 }) => Promise<void | boolean>;
 type WorkflowDocumentImporter = (args: {
@@ -224,6 +225,7 @@ const execute = async (
     executionPolicy,
     eventKey: pending.key,
     roleWorkflow: pending.roleWorkflow ?? ['PLAN', 'HANDOVER'].includes(pending.type || ''),
+    roleWorkflowLevel: pending.type === 'PLAN' ? 'lean' : pending.type === 'HANDOVER' ? 'fast' : undefined,
     signal,
   })) !== false;
 };

@@ -6,6 +6,7 @@ import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
 import {
   runLiveRoomPlan,
   runLiveRoomWorkflow,
+  type LiveRoomWorkflowLevel,
   workflowPlanRevisionPathFrom,
 } from '@/lib/live-room-workflows';
 import {
@@ -77,6 +78,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   executionPolicy: WorkflowExecutionPolicy;
   eventKey: string;
   roleWorkflow?: boolean;
+  roleWorkflowLevel?: LiveRoomWorkflowLevel;
   signal: AbortSignal;
 }): Promise<boolean> {
   args.signal.throwIfAborted();
@@ -393,6 +395,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
         roomId: room.id,
         sourceMessageId: dispatch.messageId,
         name: 'feature',
+        level: args.roleWorkflowLevel,
         task: args.prompt,
       }).catch(async (error) => {
         console.error('[workflow] role workflow failed to start', error);

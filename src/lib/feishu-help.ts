@@ -141,7 +141,7 @@ export type FeishuRoomCreationAgent = {
 const FORM_DEFINITIONS = {
   'form-run-feature': {
     title: '功能开发 /run feature',
-    description: '按角色流水线执行：分析 → 计划 → 实施 → 审查 → 测试。',
+    description: '默认 full 完整流水线；也可发送 /run feature --level=lean|fast <任务> 简化执行。',
     fields: [{ name: 'task', label: '任务描述', placeholder: '请描述要实现的功能、目标和验收标准', multiline: true }],
     submitName: 'submitRunFeature',
     submitLabel: '启动功能开发',

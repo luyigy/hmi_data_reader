@@ -18,6 +18,7 @@ import {
 } from '@/lib/workflow-execution-policy';
 
 export type LiveRoomWorkflowName = 'feature' | 'debug';
+export type LiveRoomWorkflowLevel = 'full' | 'lean' | 'fast';
 
 const execFileAsync = promisify(execFile);
 
@@ -46,15 +47,31 @@ type WorkflowStage = {
 
 const WORKFLOW_ROLES = ['planner', 'implementer', 'reviewer', 'tester'] as const;
 
+const workflowRolesFor = (level: LiveRoomWorkflowLevel) => level === 'full'
+  ? WORKFLOW_ROLES
+  : level === 'lean'
+    ? WORKFLOW_ROLES.slice(1)
+    : WORKFLOW_ROLES.filter((role) => role === 'implementer' || role === 'tester');
+
 export const parseLiveRoomWorkflowCommand = (content: string) => {
   const match = content.trim().match(/^\/run\s+(feature|debug)(?:\s+([\s\S]+))?$/i);
   if (!match) {
     return null;
   }
 
+  const tokens = (match[2] || '').trim().split(/\s+/).filter(Boolean);
+  let level: LiveRoomWorkflowLevel = 'full';
+  while (tokens[0]?.startsWith('--')) {
+    const option = tokens.shift()!;
+    const value = option.match(/^--level=(full|lean|fast)$/i)?.[1]?.toLowerCase();
+    if (!value) return null;
+    level = value as LiveRoomWorkflowLevel;
+  }
+
   return {
     name: match[1].toLowerCase() as LiveRoomWorkflowName,
-    task: match[2]?.trim() || '',
+    level,
+    task: tokens.join(' '),
   };
 };
 
@@ -309,50 +326,76 @@ const addStage = (
 
 export const buildLiveRoomWorkflowStages = (
   name: LiveRoomWorkflowName,
-  members: WorkflowMember[]
+  members: WorkflowMember[],
+  level: LiveRoomWorkflowLevel = 'full',
 ) => {
-  const selected = WORKFLOW_ROLES.map((role) => members.find((member) => member.role === role && member.harnessType));
-  if (selected.some((member) => !member) || new Set(selected.map((member) => member?.id)).size !== WORKFLOW_ROLES.length) {
+  const requiredRoles = workflowRolesFor(level);
+  const selected = requiredRoles.map((role) => members.find((member) => member.role === role && member.harnessType));
+  if (selected.some((member) => !member) || new Set(selected.map((member) => member?.id)).size !== requiredRoles.length) {
     return [];
   }
-  const [planner, implementer, reviewer, tester] = selected as WorkflowMember[];
+  const planner = members.find((member) => member.role === 'planner' && member.harnessType);
+  const implementer = members.find((member) => member.role === 'implementer' && member.harnessType);
+  const reviewer = members.find((member) => member.role === 'reviewer' && member.harnessType);
+  const tester = members.find((member) => member.role === 'tester' && member.harnessType);
   const stages: WorkflowStage[] = [];
 
-  if (name === 'debug') {
+  if (level === 'full' && name === 'debug') {
     addStage(stages, 'reproduce-plan', '复现方案', tester, '根据已有分析制定最小复现步骤、回归范围和通过标准。此阶段不要修改代码。');
     addStage(stages, 'fix-plan', '修复计划', planner, '结合复现方案确定根因修复计划、涉及文件和验证方式。此阶段不要修改代码。');
-  } else {
+  } else if (level === 'full') {
     addStage(stages, 'plan', '实施计划', planner, '给出最小实施计划、涉及文件、风险和验证方式。此阶段不要修改代码。');
   }
 
-  addStage(stages, 'plan-review', '计划审查', reviewer, '审查计划是否解决真实问题、是否遗漏边界或过度设计。明确给出 APPROVED 或 CHANGES_REQUESTED，并列出具体理由。不要修改代码。');
-  addStage(stages, 'plan-final', '计划定稿', planner, '根据计划审查意见修订并输出最终实施计划。不要修改代码。');
-  addStage(
-    stages,
-    'test-plan',
-    '测试方案',
-    tester,
-    name === 'debug'
-      ? '在修复前确定回归测试方案：复现用例、修复后通过标准、相关回归范围和具体命令。不要随意扩大测试范围，不要修改代码。'
-      : '在实施前确定验收标准和测试方案：用例、预期结果、具体命令及测试边界。不要随意扩大测试范围，不要修改代码。'
-  );
+  if (level !== 'fast') {
+    addStage(stages, 'plan-review', '计划审查', reviewer, '审查已有计划是否足以直接实施、是否遗漏边界或过度设计。明确给出 APPROVED 或 CHANGES_REQUESTED，并列出具体理由。不要修改代码。');
+  }
+  if (level === 'full') {
+    addStage(stages, 'plan-final', '计划定稿', planner, '根据计划审查意见修订并输出最终实施计划。不要修改代码。');
+    addStage(
+      stages,
+      'test-plan',
+      '测试方案',
+      tester,
+      name === 'debug'
+        ? '在修复前确定回归测试方案：复现用例、修复后通过标准、相关回归范围和具体命令。不要随意扩大测试范围，不要修改代码。'
+        : '在实施前确定验收标准和测试方案：用例、预期结果、具体命令及测试边界。不要随意扩大测试范围，不要修改代码。'
+    );
+  }
   addStage(
     stages,
     name === 'debug' ? 'fix' : 'implement',
     name === 'debug' ? '实施修复' : '功能实施',
     implementer,
-    '严格按照已确认计划和测试方案修改代码。完成最小必要实现和自测，并列出修改文件。'
+    level === 'full'
+      ? '严格按照已确认计划和测试方案修改代码。完成最小必要实现和自测，并列出修改文件。'
+      : '依据已有 PLAN 和原始任务直接完成最小必要实现与自测，并列出修改文件。不要重新制定完整计划。'
   );
-  addStage(stages, 'code-review', '代码审查', reviewer, '审查实际代码改动的正确性、回归风险、安全性和是否符合计划。运行必要的轻量检查。明确给出 APPROVED 或 CHANGES_REQUESTED；发现问题时给出文件和位置。');
-  addStage(stages, 'test', name === 'debug' ? '回归测试' : '验收测试', tester, '严格按照前面确认的测试方案执行测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。');
-  addStage(stages, 'final', '最终总结', planner, '汇总实施、代码审查和测试结果。若存在未解决失败必须明确说明，不得声称任务已完成。');
+  if (level === 'full') {
+    addStage(stages, 'code-review', '代码审查', reviewer, '审查实际代码改动的正确性、回归风险、安全性和是否符合计划。运行必要的轻量检查。明确给出 APPROVED 或 CHANGES_REQUESTED；发现问题时给出文件和位置。');
+  }
+  addStage(
+    stages,
+    'test',
+    name === 'debug' ? '回归测试' : '验收测试',
+    tester,
+    level === 'full'
+      ? '严格按照前面确认的测试方案执行测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。'
+      : '依据已有 PLAN、原始任务和实际改动执行必要测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。',
+  );
+  if (level === 'full') {
+    addStage(stages, 'final', '最终总结', planner, '汇总实施、代码审查和测试结果。若存在未解决失败必须明确说明，不得声称任务已完成。');
+  }
 
   return stages;
 };
 
-export const missingLiveRoomWorkflowRoles = (members: WorkflowMember[]) => {
+export const missingLiveRoomWorkflowRoles = (
+  members: WorkflowMember[],
+  level: LiveRoomWorkflowLevel = 'full',
+) => {
   const selectedIds = new Set<string>();
-  return WORKFLOW_ROLES.filter((role) => {
+  return workflowRolesFor(level).filter((role) => {
     const member = members.find((candidate) => candidate.role === role
       && candidate.harnessType
       && !selectedIds.has(candidate.id));
@@ -380,11 +423,13 @@ export const runLiveRoomWorkflow = async ({
   roomId,
   sourceMessageId,
   name,
+  level = 'full',
   task,
 }: {
   roomId: string;
   sourceMessageId: string;
   name: LiveRoomWorkflowName;
+  level?: LiveRoomWorkflowLevel;
   task: string;
 }) => {
   const room = await prisma.liveRoom.findUnique({
@@ -411,27 +456,27 @@ export const runLiveRoomWorkflow = async ({
   );
 
   const members = room.members as WorkflowMember[];
-  const missingRoles = missingLiveRoomWorkflowRoles(members);
+  const missingRoles = missingLiveRoomWorkflowRoles(members, level);
   if (!task || missingRoles.length > 0) {
     await postLiveRoomMessage({
       roomId,
       content: task
         ? `系统提示：无法启动 ${name} 工作流，缺少可执行且独立的角色：${missingRoles.join('、')}。请补齐角色并确认其 harness 可用后重试。`
-        : `系统提示：用法：/run ${name} <任务>`,
+        : `系统提示：用法：/run ${name} [--level=full|lean|fast] <任务>`,
       messageType: 'system',
     });
     return;
   }
-  const stages = buildLiveRoomWorkflowStages(name, members);
+  const stages = buildLiveRoomWorkflowStages(name, members, level);
 
   await postLiveRoomMessage({
     roomId,
-    content: `系统提示：${name} 工作流已启动，共 ${stages.length} 个阶段：${stages.map((stage) => stage.label).join(' → ')}`,
+    content: `系统提示：${name} 工作流已启动（${level}），共 ${stages.length} 个阶段：${stages.map((stage) => stage.label).join(' → ')}`,
     messageType: 'system',
     replyToMessageId: sourceMessageId,
     metadata: resolveLiveRoomMessageMetadata({
       senderKind: 'system',
-      extras: { systemEvent: 'workflow_started', workflow: name },
+      extras: { systemEvent: 'workflow_started', workflow: name, level },
     }),
   });
 
@@ -451,6 +496,25 @@ export const runLiveRoomWorkflow = async ({
         extras: { systemEvent: 'workflow_failed', workflow: name, stage: stage.id },
       }),
     });
+  };
+  let inheritedFailures: Array<{ stage: WorkflowStage; reason: string }> = [];
+  const deferFailure = async (stage: WorkflowStage, reason: string, index: number) => {
+    const next = stages[index + 1];
+    if (!next) {
+      await failWorkflow(stage, reason);
+      return false;
+    }
+    inheritedFailures.push({ stage, reason });
+    await postLiveRoomMessage({
+      roomId,
+      content: `系统提示：“${stage.label}”未完成，职责已顺延给 ${next.member.displayName}；下一阶段将合并执行“${stage.label} + ${next.label}”。原因：${reason}`,
+      messageType: 'system',
+      metadata: resolveLiveRoomMessageMetadata({
+        senderKind: 'system',
+        extras: { systemEvent: 'workflow_stage_deferred', workflow: name, stage: stage.id, nextStage: next.id },
+      }),
+    });
+    return true;
   };
   for (let index = 0; index < stages.length; index += 1) {
     const stage = stages[index];
@@ -476,6 +540,9 @@ export const runLiveRoomWorkflow = async ({
       role: `${name}:${stage.id}`,
     };
     const priorOutputs = formatPriorOutputs(outputs);
+    const inheritedInstruction = inheritedFailures.length
+      ? `Inherited failed responsibilities (complete these together with the current stage):\n${inheritedFailures.map(({ stage: failedStage, reason }) => `- ${failedStage.label}: ${failedStage.instruction}\n  Failure: ${reason}`).join('\n')}`
+      : '';
     const result = await executeAcpxTaskRun({
       taskId: sourceTask.id,
       taskSessionId: sourceTask.currentTaskSession?.id || undefined,
@@ -485,8 +552,11 @@ export const runLiveRoomWorkflow = async ({
         `Original task: ${task}`,
         `Current stage: ${stage.label}`,
         `Stage instruction: ${stage.instruction}`,
+        inheritedInstruction,
         priorOutputs ? `Confirmed prior stage outputs:\n${priorOutputs}` : '',
-        'Only perform the current stage. Return its concrete result; do not start later stages or contact another agent.',
+        inheritedFailures.length
+          ? 'Perform the inherited responsibilities and the current stage as one combined assignment. Return concrete results for both; do not start later stages or contact another agent.'
+          : 'Only perform the current stage. Return its concrete result; do not start later stages or contact another agent.',
       ].filter(Boolean).join('\n\n'),
       orchestrationMode: 'staged',
       participants: [participant],
@@ -498,11 +568,13 @@ export const runLiveRoomWorkflow = async ({
         ),
         workflowPermissionSnapshot,
       ),
-    }).catch(async (error) => {
-      await failWorkflow(stage, error instanceof Error ? error.message : String(error));
-      return null;
-    });
-    if (!result) return;
+    }).catch((error) => error as Error);
+    if (result instanceof Error) {
+      const reason = result.message;
+      outputs.push({ label: `${stage.label}（失败）`, member: stage.member.displayName, output: reason });
+      if (await deferFailure(stage, reason, index)) continue;
+      return;
+    }
     const stageResult = result.participants[0];
     const output = stageResult?.summary || stageResult?.error || `${stage.label} 未返回结果`;
     outputs.push({ label: stage.label, member: stage.member.displayName, output });
@@ -528,13 +600,14 @@ export const runLiveRoomWorkflow = async ({
     });
 
     if (stageResult?.status !== 'completed') {
-      await failWorkflow(stage, output);
+      if (await deferFailure(stage, output, index)) continue;
       return;
     }
     if (liveRoomWorkflowGatePassed(stage.id, output) === false) {
-      await failWorkflow(stage, `未获得唯一通过结论：${output}`);
+      if (await deferFailure(stage, `未获得唯一通过结论：${output}`, index)) continue;
       return;
     }
+    inheritedFailures = [];
   }
 
   await finishDispatch('completed');
@@ -544,7 +617,7 @@ export const runLiveRoomWorkflow = async ({
     messageType: 'system',
     metadata: resolveLiveRoomMessageMetadata({
       senderKind: 'system',
-      extras: { systemEvent: 'workflow_completed', workflow: name },
+      extras: { systemEvent: 'workflow_completed', workflow: name, level },
     }),
   });
 };
