@@ -21,9 +21,6 @@ export function Sidebar() {
   const { user, loading, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Hide sidebar on login page
-  if (pathname === '/login') return null;
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
     setIsCollapsed(window.localStorage.getItem('app-sidebar-collapsed') === 'true');
@@ -36,10 +33,13 @@ export function Sidebar() {
 
   // Redirect to login if not authenticated and not loading
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !user && pathname !== '/login') {
       router.replace('/login');
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, pathname]);
+
+  // Hide sidebar on login page
+  if (pathname === '/login') return null;
 
   if (loading) {
     return (

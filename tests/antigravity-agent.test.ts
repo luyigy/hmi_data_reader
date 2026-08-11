@@ -90,7 +90,18 @@ esac
     assert.equal(sandboxed.success, true, sandboxed.error);
     assert.equal(sandboxed.output, 'Task completed inside the sandbox.');
     assert.equal(await readFile(path.join(workspace, 'sandbox-write'), 'utf8'), 'sandboxed');
+    const restrictedArgs = await readFile(path.join(workspace, 'args'), 'utf8');
+    assert.doesNotMatch(restrictedArgs, /^--sandbox$/m);
+    assert.doesNotMatch(restrictedArgs, /^--dangerously-skip-permissions$/m);
 
+    process.env.AGY_TEST_CASE = 'text';
+    await executeAntigravityTask(
+      { id: '7', name: 'smoke' },
+      { sandboxMode: 'danger-full-access' },
+    );
+    assert.match(await readFile(path.join(workspace, 'args'), 'utf8'), /^--dangerously-skip-permissions$/m);
+
+    process.env.AGY_TEST_CASE = 'sandbox';
     const { executeViaLocalHarness } = await import('../src/lib/acpx/runner-harness');
     const { clearRunningProcess } = await import('../src/lib/acpx/process-registry');
     const participant = {

@@ -134,7 +134,7 @@ export const executeAntigravityTask = (
     'stream-json',
     ...(config.sandboxMode === 'danger-full-access'
       ? ['--dangerously-skip-permissions']
-      : ['--sandbox']),
+      : []),
   ];
   const env = childEnv();
   const wrapped = wrapWithBubblewrap({

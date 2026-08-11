@@ -33,8 +33,8 @@ export default function DashboardPage() {
         gatewaysResponse.json(),
       ]);
 
-      setAgents(Array.isArray(agentsData) ? agentsData : []);
-      setGateways(Array.isArray(gatewaysData) ? gatewaysData : []);
+      setAgents(Array.isArray(agentsData) ? agentsData : (agentsData?.agents || []));
+      setGateways(Array.isArray(gatewaysData) ? gatewaysData : (gatewaysData?.gateways || []));
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       setAgents([]);
