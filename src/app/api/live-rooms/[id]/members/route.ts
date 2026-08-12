@@ -122,7 +122,7 @@ export async function POST(
           remoteHostId: agent.backend === 'remote_ssh' ? agent.gatewayId : null,
         }),
         joinStatus: 'joined',
-        presenceStatus: agent.status === 'online' ? 'online' : 'idle',
+        presenceStatus: agent.status === 'online' ? 'online' : agent.status === 'offline' ? 'offline' : 'idle',
         canReply: true,
         sortOrder: maxSort + 1,
       },

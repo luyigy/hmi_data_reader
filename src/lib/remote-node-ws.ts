@@ -1,6 +1,12 @@
 import type { IncomingMessage } from 'http';
 import WebSocket from 'ws';
-import { verifyNodeSecret, registerNode, markNodeOffline } from './remote-node-registry';
+import {
+  markNodeOffline,
+  markRemoteNodeMembersOffline,
+  markRemoteNodeMembersOnline,
+  registerNode,
+  verifyNodeSecret,
+} from './remote-node-registry';
 
 interface NodeSocket {
   ws: WebSocket;
@@ -8,9 +14,48 @@ interface NodeSocket {
   connectedAt: Date;
 }
 
-const connectedNodes = new Map<string, NodeSocket>();
+export interface RemoteNodeRunRequest {
+  runId: string;
+  taskId: string;
+  cwd: string;
+  prompt: string;
+  sessionDir?: string;
+  continue?: boolean;
+}
 
-/** Handle a WebSocket upgrade request from a remote node */
+export interface RemoteNodeRunResult {
+  success: boolean;
+  output: string;
+  filesModified?: string[];
+  sessionDir?: string;
+  error?: string;
+}
+
+interface PendingRun {
+  nodeName: string;
+  resolve: (result: RemoteNodeRunResult) => void;
+  reject: (error: Error) => void;
+  onStdout?: (chunk: string) => void;
+  onStderr?: (chunk: string) => void;
+}
+
+const globalState = globalThis as unknown as {
+  remoteNodeSockets?: Map<string, NodeSocket>;
+  remoteNodeRuns?: Map<string, PendingRun>;
+};
+const connectedNodes = globalState.remoteNodeSockets ||= new Map<string, NodeSocket>();
+const pendingRuns = globalState.remoteNodeRuns ||= new Map<string, PendingRun>();
+
+const failNodeRuns = (nodeName: string, error: Error) => {
+  pendingRuns.forEach((run, runId) => {
+    if (run.nodeName === nodeName) {
+      pendingRuns.delete(runId);
+      run.reject(error);
+    }
+  });
+};
+
+/** Handle a WebSocket upgrade request from a remote node. */
 export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage): Promise<void> {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const nodeName = url.searchParams.get('node')?.trim();
@@ -20,55 +65,101 @@ export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage):
     ws.close(4001, 'Missing node name or secret');
     return;
   }
-
-  const valid = await verifyNodeSecret(nodeName, secret);
-  if (!valid) {
+  if (!await verifyNodeSecret(nodeName, secret)) {
     ws.close(4003, 'Invalid credentials');
     return;
   }
 
   const host = req.socket.remoteAddress || 'unknown';
   const node = await registerNode(nodeName, host, secret);
+  const socket = { ws, nodeName, connectedAt: new Date() };
+  connectedNodes.get(nodeName)?.ws.close(4000, 'Replaced by newer connection');
+  connectedNodes.set(nodeName, socket);
+  await markRemoteNodeMembersOnline(nodeName);
 
-  connectedNodes.set(nodeName, { ws, nodeName, connectedAt: new Date() });
-
-  console.log(`[RemoteNode] ${nodeName} connected from ${host}`);
-
-  ws.addEventListener('message', (event: { data: Buffer }) => {
+  ws.addEventListener('message', (event) => {
+    let message: Record<string, unknown>;
     try {
-      const msg = JSON.parse(event.data.toString());
-      console.log(`[RemoteNode] ${nodeName} message:`, msg.type);
+      message = JSON.parse(event.data.toString()) as Record<string, unknown>;
     } catch {
-      // ignore malformed messages
+      return;
+    }
+
+    if (message.type === 'hello') {
+      const harnesses = Array.isArray(message.harnesses)
+        ? message.harnesses.filter((value): value is string => typeof value === 'string')
+        : [];
+      const workspace = typeof message.workspace === 'string' ? message.workspace : undefined;
+      void registerNode(nodeName, host, secret, { harnesses, workspace })
+        .catch(() => ws.close(1011, 'Failed to register node metadata'));
+      return;
+    }
+    if (message.type === 'heartbeat') {
+      void registerNode(nodeName, host, secret).catch(() => ws.close(1011, 'Heartbeat failed'));
+      ws.send(JSON.stringify({ type: 'heartbeat_ack' }));
+      return;
+    }
+
+    const runId = typeof message.runId === 'string' ? message.runId : '';
+    const run = pendingRuns.get(runId);
+    if (!run || run.nodeName !== nodeName) return;
+    if (message.type === 'stdout' && typeof message.data === 'string') run.onStdout?.(message.data);
+    if (message.type === 'stderr' && typeof message.data === 'string') run.onStderr?.(message.data);
+    if (message.type === 'complete') {
+      pendingRuns.delete(runId);
+      run.resolve({
+        success: message.success === true,
+        output: typeof message.output === 'string' ? message.output : '',
+        error: typeof message.error === 'string' ? message.error : undefined,
+        sessionDir: typeof message.sessionDir === 'string' ? message.sessionDir : undefined,
+        filesModified: Array.isArray(message.filesModified)
+          ? message.filesModified.filter((value): value is string => typeof value === 'string')
+          : [],
+      });
     }
   });
 
-  ws.addEventListener('close', () => {
+  const disconnect = () => {
+    if (connectedNodes.get(nodeName) !== socket) return;
     connectedNodes.delete(nodeName);
-    markNodeOffline(nodeName).catch(() => {});
-    console.log(`[RemoteNode] ${nodeName} disconnected`);
-  });
-
-  ws.addEventListener('error', () => {
-    connectedNodes.delete(nodeName);
-    markNodeOffline(nodeName).catch(() => {});
-  });
-
-  // Send welcome message
+    failNodeRuns(nodeName, new Error(`Remote node disconnected: ${nodeName}`));
+    void markNodeOffline(nodeName).catch(() => undefined);
+    void markRemoteNodeMembersOffline(nodeName).catch(() => undefined);
+  };
+  ws.addEventListener('close', disconnect, { once: true });
+  ws.addEventListener('error', disconnect, { once: true });
   ws.send(JSON.stringify({ type: 'welcome', nodeId: node.id, nodeName: node.name }));
 }
 
-/** Get connected node count */
-export function getConnectedNodeCount(): number {
-  return connectedNodes.size;
-}
+export const executeOnNode = (
+  nodeName: string,
+  request: RemoteNodeRunRequest,
+  callbacks: { onStdout?: (chunk: string) => void; onStderr?: (chunk: string) => void } = {},
+) => new Promise<RemoteNodeRunResult>((resolve, reject) => {
+  const socket = connectedNodes.get(nodeName);
+  if (!socket || socket.ws.readyState !== WebSocket.OPEN) {
+    reject(new Error(`Remote node is offline: ${nodeName}`));
+    return;
+  }
+  if (pendingRuns.has(request.runId)) {
+    reject(new Error(`Duplicate remote run id: ${request.runId}`));
+    return;
+  }
+  pendingRuns.set(request.runId, { nodeName, resolve, reject, ...callbacks });
+  try {
+    socket.ws.send(JSON.stringify({ type: 'run', ...request }));
+  } catch (error) {
+    pendingRuns.delete(request.runId);
+    reject(error instanceof Error ? error : new Error(String(error)));
+  }
+});
 
-/** Check if a specific node is connected */
-export function isNodeConnected(nodeName: string): boolean {
-  return connectedNodes.has(nodeName);
-}
+export const cancelNodeRun = (nodeName: string, runId: string) =>
+  sendToNode(nodeName, { type: 'cancel', runId });
 
-/** Send a message to a specific connected node */
+export const getConnectedNodeCount = () => connectedNodes.size;
+export const isNodeConnected = (nodeName: string) => connectedNodes.has(nodeName);
+
 export function sendToNode(nodeName: string, message: unknown): boolean {
   const socket = connectedNodes.get(nodeName);
   if (!socket || socket.ws.readyState !== WebSocket.OPEN) return false;
@@ -76,12 +167,8 @@ export function sendToNode(nodeName: string, message: unknown): boolean {
   return true;
 }
 
-/** Broadcast to all connected nodes */
 export function broadcastToNodes(message: unknown): void {
-  const payload = JSON.stringify(message);
   connectedNodes.forEach((socket) => {
-    if (socket.ws.readyState === WebSocket.OPEN) {
-      socket.ws.send(payload);
-    }
+    if (socket.ws.readyState === WebSocket.OPEN) socket.ws.send(JSON.stringify(message));
   });
 }

@@ -1,10 +1,16 @@
-import type { ChildProcess } from 'child_process';
 import type { RunControlAction } from './types';
+
+interface RunningProcess {
+  pid?: number;
+  exitCode?: number | null;
+  killed?: boolean;
+  kill(signal?: NodeJS.Signals | number): boolean;
+}
 
 interface RunningProcessEntry {
   taskRunId: string;
   participantId: string;
-  child: ChildProcess;
+  child: RunningProcess;
   executionBackend: string;
   harnessType: string;
 }

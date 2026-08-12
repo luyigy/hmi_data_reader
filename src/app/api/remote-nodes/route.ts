@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { listRemoteNodes } from '@/lib/remote-node-registry';
-import { getConnectedNodeCount } from '@/lib/remote-node-ws';
 
 export async function GET() {
   try {
     const nodes = await listRemoteNodes();
-    const connectedCount = getConnectedNodeCount();
+    const connectedCount = nodes.filter((node) => node.status === 'online').length;
     return NextResponse.json({ nodes, connectedCount });
   } catch (error) {
     console.error('[RemoteNodes] Error:', error);

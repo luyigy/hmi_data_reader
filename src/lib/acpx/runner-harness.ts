@@ -14,6 +14,8 @@ import {
 import { persistAntigravityContextUsageMetadata } from '@/lib/real-agents/antigravity-context';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
+import { executeRemoteRunnerTask } from '@/lib/remote-harness/runner-executor';
+import { getRemoteNodeWorkspace } from '@/lib/remote-node-registry';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
 import { registerRunningProcess } from './process-registry';
 import { getParticipantContinuationKey } from './session-tracking';
@@ -283,6 +285,39 @@ export const executeViaRemoteSshHarness = async (
   sessionKind?: string;
   threadId?: string;
 }> => {
+  if (participant.gatewayId.startsWith('remote-node:')) {
+    if (participant.harnessType !== 'pi-agent') {
+      throw new Error(`Remote runner currently supports only pi-agent, received: ${participant.harnessType}`);
+    }
+    const nodeName = participant.gatewayId.slice('remote-node:'.length);
+    const remoteWorkspace = await getRemoteNodeWorkspace(nodeName);
+    if (!remoteWorkspace) throw new Error(`Remote runner has not announced a workspace: ${nodeName}`);
+    return executeRemoteRunnerTask({
+      nodeName,
+      taskId: request.taskId,
+      cwd: remoteWorkspace,
+      prompt: participant.continuationMessage
+        || buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
+      sessionDir: participant.resumeSessionId || participant.resumeThreadId,
+      continuation: Boolean(participant.continuationMessage && (participant.resumeSessionId || participant.resumeThreadId)),
+      timeout: resolveHarnessTimeout(
+        request.watchdogConfig?.maxRuntimeMs,
+        DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS
+      ) ?? DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS,
+      streamCallbacks: callbacks,
+      onControl: (child) => {
+        registerRunningProcess({
+          taskRunId,
+          participantId,
+          child,
+          executionBackend: participant.executionBackend,
+          harnessType: participant.harnessType,
+        });
+        onSpawn?.(child);
+      },
+    });
+  }
+
   const remoteHost = await getRemoteHarnessHostById(participant.gatewayId);
 
   if (!remoteHost) {

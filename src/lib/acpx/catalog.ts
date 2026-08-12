@@ -80,7 +80,7 @@ const parseSupportedHarnesses = (value?: string | null): string[] => {
 export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> => {
   const currentHostname = getServerHostname();
   await ensurePlatformLocalAgents();
-  const [gateways, localStatus, remoteHosts, platformLocalAgents] = await Promise.all([
+  const [gateways, localStatus, remoteHosts, platformLocalAgents, remoteNodes] = await Promise.all([
     prisma.gateway.findMany({
       include: {
         agents: {
@@ -108,6 +108,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         name: 'asc',
       },
     }),
+    prisma.remoteNode.findMany({ orderBy: { name: 'asc' } }),
   ]);
 
   const options: HarnessOption[] = [];
@@ -136,7 +137,6 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
 
     const hostname = agent.hostname || 'localhost';
     const hostnameShort = hostname.split('.')[0];
-    const displayName = agent.userNickname || agent.name;
 
     options.push({
       gatewayId: 'platform-local',
@@ -269,8 +269,6 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         continue;
       }
 
-      // Use nickname as display name if set
-      const displayName = agent.userNickname || agent.name;
       const harnessLabel = `${gateway.name} / ${toTitleCase(harnessType)}`;
 
       options.push({
@@ -303,6 +301,32 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
         agentName: `${host.label} ${toTitleCase(harnessType)}`,
         runtimeAgentId: harnessType,
         status: host.status,
+      });
+    }
+  }
+
+  for (const node of remoteNodes) {
+    let metadata: { harnesses?: unknown; workspace?: unknown } = {};
+    try {
+      metadata = node.metadata ? JSON.parse(node.metadata) : {};
+    } catch {
+      // Ignore stale metadata; the next hello refreshes it.
+    }
+    const harnesses = Array.isArray(metadata.harnesses)
+      ? metadata.harnesses.filter((value): value is string => typeof value === 'string')
+      : [];
+    for (const harnessType of harnesses) {
+      options.push({
+        gatewayId: `remote-node:${node.name}`,
+        gatewayName: node.name,
+        executionBackend: 'remote_ssh',
+        harnessType,
+        harnessLabel: `${node.name} / ${toTitleCase(harnessType)} Runner`,
+        agentId: `remote-node:${node.name}:${harnessType}`,
+        agentName: `${node.name} ${toTitleCase(harnessType)}`,
+        hostname: node.name,
+        runtimeAgentId: harnessType,
+        status: node.status,
       });
     }
   }

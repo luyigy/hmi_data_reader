@@ -1,0 +1,16 @@
+[Unit]
+Description=Agent Platform Remote Runner Gateway
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data1/code/agent-platform-v2
+ExecStart=/usr/bin/npm run remote-runner:gateway
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillMode=control-group
+
+[Install]
+WantedBy=default.target
