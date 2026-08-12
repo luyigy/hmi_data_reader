@@ -31,6 +31,7 @@ import {
 } from '@/lib/feishu-runtime-cleanup';
 import { checkFeishuDirectMessageAccess, resolveFeishuAdminApproval } from '@/lib/feishu-access-approval';
 import { handleFeishuInteractionCardAction } from '@/lib/feishu-interaction-card-action';
+import { forwardMoldTrialCardAction } from '@/lib/mold-trial-card-action';
 import {
   resolveWorkflowReviewCardAction,
   resolveWorkflowRevisionFeedback,
@@ -216,12 +217,21 @@ function buildCardActionHandler(prefix: string) {
     const submitName = action.name?.replace(/_(p2p|group)$/, '');
     const submittedForm = AP_COMMAND_FORMS[submitName as keyof typeof AP_COMMAND_FORMS];
     const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
-    if (!cmd && !submittedForm) {
+    const trialAction = data?.action?.value?.trial_action;
+    if (!cmd && !submittedForm && !['approve', 'reject'].includes(String(trialAction))) {
       return {};
     }
 
     const { openId, chatId, messageId } = resolveFeishuCardActionIdentity(data as FeishuCardActionIdentity);
     const actorName = openId ? `openid:${openId.slice(-6)}` : '用户';
+
+    if (trialAction === 'approve' || trialAction === 'reject') {
+      return forwardMoldTrialCardAction({
+        openId,
+        value: action.value || {},
+        formValue: action.form_value,
+      });
+    }
 
     if (cmd === 'ap-room-create') return openFeishuRoomCreationCard({
       openId,
