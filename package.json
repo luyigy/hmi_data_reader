@@ -34,6 +34,8 @@
     "test:feishu-permission-card": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/feishu-permission-card.test.ts",
     "test:project-branch": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/project-branch.test.ts",
     "workflow:validate": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only scripts/validate-workflow-documents.ts",
+    "workflow:new": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only scripts/new-workflow-document.ts",
+    "test:new-workflow-document": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only tests/new-workflow-document.test.ts",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3010",
     "lint": "next lint",
