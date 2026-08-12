@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtemp, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  GitRefReader,
   readWorkflowContract,
   validateWorkflowDocuments,
+  WorkingTreeReader,
   WorkflowDocumentValidationError,
 } from '../src/lib/scheduled-jobs/workflow-validator';
 
@@ -157,6 +159,60 @@ plan_progress: in_progress
   await validate('docs/001_PLAN_20260726_valid.md');
   await validate('docs/004_HANDOVER_20260726_valid.md');
   await validate('docs/009_HANDOVER_20260726_no_roadmap.md');
+
+  const signal = new AbortController().signal;
+  const gitReader = new GitRefReader(root, ref, signal);
+  const workingTreeReader = new WorkingTreeReader(root, ref, signal);
+  const [gitResult] = await validateWorkflowDocuments({
+    cwd: root,
+    ref,
+    filePaths: ['docs/001_PLAN_20260726_valid.md'],
+    reader: gitReader,
+  });
+  const [workingTreeResult] = await validateWorkflowDocuments({
+    cwd: root,
+    ref,
+    filePaths: ['docs/001_PLAN_20260726_valid.md'],
+    reader: workingTreeReader,
+  });
+  assert.deepEqual(workingTreeResult, gitResult);
+
+  const fallbackPlanPath = path.join(root, 'docs/008_PLAN_20260726_no_roadmap.md');
+  const fallbackPlan = await readFile(fallbackPlanPath, 'utf8');
+  await unlink(fallbackPlanPath);
+  await validateWorkflowDocuments({
+    cwd: root,
+    ref,
+    filePaths: ['docs/009_HANDOVER_20260726_no_roadmap.md'],
+    reader: workingTreeReader,
+  });
+  assert.equal(await workingTreeReader.read('docs/008_PLAN_20260726_no_roadmap.md'), fallbackPlan);
+  await writeFile(fallbackPlanPath, fallbackPlan);
+
+  await writeFile(path.join(root, 'docs/016_PLAN_20260812_preflight.md'), `---
+doc_type: PLAN
+doc_status: ready
+next_action: start_first_slice
+---
+`);
+  const cli = spawnSync(process.execPath, [
+    '-r', require.resolve('ts-node/register/transpile-only'),
+    path.join(process.cwd(), 'scripts/validate-workflow-documents.ts'),
+    '--preflight', 'docs/016_PLAN_20260812_preflight.md', '--json',
+  ], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      TS_NODE_COMPILER_OPTIONS: '{"module":"commonjs","moduleResolution":"node"}',
+    },
+  });
+  assert.equal(cli.status, 1, cli.stderr);
+  const cliIssues = JSON.parse(cli.stdout) as Array<Record<string, unknown>>;
+  assert.ok(cliIssues.length > 0);
+  for (const field of ['code', 'severity', 'location', 'message', 'expected', 'actual', 'template']) {
+    assert.ok(field in cliIssues[0], `preflight JSON issue missing ${field}`);
+  }
   await assert.rejects(
     validateWorkflowDocuments({
       cwd: root,

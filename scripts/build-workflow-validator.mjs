@@ -12,6 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outputPath = path.join(root, 'src/lib/scheduled-jobs/generated');
 const temporary = await mkdtemp(path.join(os.tmpdir(), 'workflow-validator-build-'));
 const sources = [
+  'src/lib/scheduled-jobs/workflow-reader.ts',
   'src/lib/scheduled-jobs/workflow-validator.ts',
   'scripts/validate-workflow-documents.ts',
 ];

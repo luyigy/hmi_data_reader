@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import {
   validateWorkflowDocuments,
+  GitRefReader,
+  WorkingTreeReader,
   WorkflowDocumentValidationError,
+  type WorkflowValidationIssue,
 } from '../src/lib/scheduled-jobs/workflow-validator';
 
 // Printed next to genuine document validation failures in --hook-batch mode.
@@ -11,6 +14,14 @@ import {
 export const DOCUMENT_VALIDATION_FAILED_MARKER = 'WORKFLOW_DOCUMENT_VALIDATION_FAILED';
 
 const hookBatchMode = process.argv[2] === '--hook-batch';
+const preflightIndex = process.argv.indexOf('--preflight');
+const preflightMode = preflightIndex !== -1;
+const jsonMode = process.argv.includes('--json');
+const jsonIssues = (issues: WorkflowValidationIssue[]) => issues.map((issue) => ({
+  ...issue,
+  expected: issue.expected ?? null,
+  actual: issue.actual ?? null,
+}));
 
 const printWarnings = (results: Awaited<ReturnType<typeof validateWorkflowDocuments>>) => {
   for (const result of results) {
@@ -59,6 +70,40 @@ async function main() {
     }
     if (documentFailure) process.exitCode = 1;
     else if (runtimeFailure) process.exitCode = 2;
+    return;
+  }
+
+  if (preflightMode) {
+    const filePath = process.argv[preflightIndex + 1];
+    if (!filePath || filePath.startsWith('--')) {
+      throw new Error('usage: npm run workflow:validate -- --preflight <PLAN-or-HANDOVER> [--json]');
+    }
+    try {
+      const signal = new AbortController().signal;
+      const [result] = await validateWorkflowDocuments({
+        cwd: process.cwd(),
+        ref: 'HEAD',
+        filePaths: [filePath],
+        signal,
+        reader: new WorkingTreeReader(process.cwd(), 'HEAD', signal),
+        contractReader: new GitRefReader(process.cwd(), 'HEAD', signal),
+      });
+      if (jsonMode) console.log(JSON.stringify(jsonIssues(result.issues)));
+      else {
+        console.log(`PASS ${result.filePath} action=${result.action}`);
+        printWarnings([result]);
+      }
+    } catch (error) {
+      if (jsonMode && error instanceof WorkflowDocumentValidationError) {
+        console.log(JSON.stringify(jsonIssues(error.issues)));
+      } else if (error instanceof WorkflowDocumentValidationError) {
+        console.error(`FAIL ${filePath}: ${error.message}`);
+        for (const issue of error.issues) console.error(`\n${issue.template}`);
+      } else {
+        throw error;
+      }
+      process.exitCode = 1;
+    }
     return;
   }
 

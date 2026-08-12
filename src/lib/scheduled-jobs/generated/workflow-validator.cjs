@@ -12,6 +12,14 @@ const workflow_validator_1 = __bundleRequire(1);
 // loading) degrade to a warning instead of blocking every commit.
 exports.DOCUMENT_VALIDATION_FAILED_MARKER = 'WORKFLOW_DOCUMENT_VALIDATION_FAILED';
 const hookBatchMode = process.argv[2] === '--hook-batch';
+const preflightIndex = process.argv.indexOf('--preflight');
+const preflightMode = preflightIndex !== -1;
+const jsonMode = process.argv.includes('--json');
+const jsonIssues = (issues) => issues.map((issue) => ({
+    ...issue,
+    expected: issue.expected ?? null,
+    actual: issue.actual ?? null,
+}));
 const printWarnings = (results) => {
     for (const result of results) {
         for (const issue of result.issues.filter(({ severity }) => severity === 'warning')) {
@@ -58,6 +66,44 @@ async function main() {
             process.exitCode = 2;
         return;
     }
+    if (preflightMode) {
+        const filePath = process.argv[preflightIndex + 1];
+        if (!filePath || filePath.startsWith('--')) {
+            throw new Error('usage: npm run workflow:validate -- --preflight <PLAN-or-HANDOVER> [--json]');
+        }
+        try {
+            const signal = new AbortController().signal;
+            const [result] = await (0, workflow_validator_1.validateWorkflowDocuments)({
+                cwd: process.cwd(),
+                ref: 'HEAD',
+                filePaths: [filePath],
+                signal,
+                reader: new workflow_validator_1.WorkingTreeReader(process.cwd(), 'HEAD', signal),
+                contractReader: new workflow_validator_1.GitRefReader(process.cwd(), 'HEAD', signal),
+            });
+            if (jsonMode)
+                console.log(JSON.stringify(jsonIssues(result.issues)));
+            else {
+                console.log(`PASS ${result.filePath} action=${result.action}`);
+                printWarnings([result]);
+            }
+        }
+        catch (error) {
+            if (jsonMode && error instanceof workflow_validator_1.WorkflowDocumentValidationError) {
+                console.log(JSON.stringify(jsonIssues(error.issues)));
+            }
+            else if (error instanceof workflow_validator_1.WorkflowDocumentValidationError) {
+                console.error(`FAIL ${filePath}: ${error.message}`);
+                for (const issue of error.issues)
+                    console.error(`\n${issue.template}`);
+            }
+            else {
+                throw error;
+            }
+            process.exitCode = 1;
+        }
+        return;
+    }
     const [ref, ...filePaths] = process.argv.slice(2);
     if (!ref || !filePaths.length) {
         throw new Error('usage: npm run workflow:validate -- <git-ref> <PLAN-or-HANDOVER> [...]');
@@ -92,10 +138,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateWorkflowDocuments = exports.validateWorkflowDocument = exports.selectWorkflowCandidates = exports.workflowFrontMatter = exports.readWorkflowContract = exports.WorkflowDocumentValidationError = void 0;
-const node_child_process_1 = require("node:child_process");
+exports.validateWorkflowDocuments = exports.validateWorkflowDocument = exports.selectWorkflowCandidates = exports.workflowFrontMatter = exports.readWorkflowContract = exports.WorkflowDocumentValidationError = exports.WorkingTreeReader = exports.GitRefReader = void 0;
 const node_path_1 = __importDefault(require("node:path"));
 const yaml_1 = __bundleRequire(2);
+const workflow_reader_1 = __bundleRequire(74);
+var workflow_reader_2 = __bundleRequire(74);
+Object.defineProperty(exports, "GitRefReader", { enumerable: true, get: function () { return workflow_reader_2.GitRefReader; } });
+Object.defineProperty(exports, "WorkingTreeReader", { enumerable: true, get: function () { return workflow_reader_2.WorkingTreeReader; } });
 class WorkflowDocumentValidationError extends Error {
     issues;
     constructor(message, issues = []) {
@@ -106,20 +155,6 @@ class WorkflowDocumentValidationError extends Error {
     }
 }
 exports.WorkflowDocumentValidationError = WorkflowDocumentValidationError;
-const exec = (file, args, signal, cwd) => new Promise((resolve, reject) => {
-    (0, node_child_process_1.execFile)(file, args, {
-        cwd,
-        encoding: 'utf8',
-        maxBuffer: 10 * 1024 * 1024,
-        signal,
-    }, (error, stdout, stderr) => {
-        if (error)
-            reject(new Error(stderr.trim() || error.message));
-        else
-            resolve(stdout);
-    });
-});
-const git = (cwd, signal, ...args) => exec('git', ['-c', 'core.quotepath=false', ...args], signal, cwd);
 const required = (value, label) => {
     if (value === undefined || value === null)
         throw new Error(`workflow contract missing ${label}`);
@@ -131,8 +166,8 @@ const strings = (value, label) => {
     }
     return value;
 };
-const readWorkflowContract = async (cwd, ref, contractPath, signal) => {
-    const source = await git(cwd, signal, 'show', `${ref}:${contractPath}`);
+const readWorkflowContract = async (cwd, ref, contractPath, signal, reader = new workflow_reader_1.GitRefReader(cwd, ref, signal)) => {
+    const source = await reader.read(contractPath);
     const contract = (0, yaml_1.parse)(source);
     if (contract.schema_version !== 2)
         throw new Error(`unsupported workflow schema_version: ${contract.schema_version}`);
@@ -231,14 +266,13 @@ const promptFrom = (content, action, contract) => {
         throw new Error('automation prompt is empty');
     return prompt;
 };
-const exists = (cwd, ref, filePath, signal) => git(cwd, signal, 'cat-file', '-e', `${ref}:${filePath}`).then(() => true, () => false);
 const slices = (content, contract) => {
     const pattern = contract.documents.slice_pattern;
     const matches = content.matchAll(new RegExp(pattern.replace(/^\(\?m\)/, ''), pattern.startsWith('(?m)') ? 'gm' : 'g'));
     return Array.from(new Set(Array.from(matches, (match) => match[1] ?? match[0].trim())))
         .sort((left, right) => Number(left.slice(1)) - Number(right.slice(1)));
 };
-const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metadata, contract, watchRoot, signal) => {
+const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metadata, contract, watchRoot, signal, reader = new workflow_reader_1.GitRefReader(cwd, ref, signal)) => {
     const issues = [];
     const policySeverity = (rule) => {
         if (!rule)
@@ -308,9 +342,9 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
     });
     const readPlan = async (reference) => {
         const planPath = normalizeReference(reference, watchRoot);
-        if (!await exists(cwd, ref, planPath, signal))
+        if (!await reader.exists(planPath))
             throw new Error(`referenced PLAN does not exist: ${node_path_1.default.posix.basename(planPath)}`);
-        const planContent = await git(cwd, signal, 'show', `${ref}:${planPath}`);
+        const planContent = await reader.read(planPath);
         const planMetadata = (0, exports.workflowFrontMatter)(planContent);
         if (planMetadata.doc_type !== 'PLAN')
             throw new Error(`referenced document is not a PLAN: ${node_path_1.default.posix.basename(planPath)}`);
@@ -336,7 +370,7 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
         if (hasValue('roadmap')) {
             try {
                 roadmap = normalizeReference(metadata.roadmap, watchRoot);
-                if (!await exists(cwd, ref, roadmap, signal)) {
+                if (!await reader.exists(roadmap)) {
                     issue('ROADMAP_NOT_FOUND', 'YAML.roadmap', `引用的 ROADMAP 不存在：${node_path_1.default.posix.basename(roadmap)}`);
                 }
             }
@@ -460,15 +494,27 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
                 + (item.actual === undefined ? '' : `；实际：${JSON.stringify(item.actual)}`)).join('\n')
             + '\n  修复并提交后由平台 completion gate 重新校验。', issues);
     }
-    return { action, prompt, issues };
+    // Compute nextSlice for HANDOVER next_slice actions so the watcher can
+    // distinguish the handover slice from the target slice in its display.
+    let nextSlice;
+    if (type === 'HANDOVER' && action === contract.documents.handover.next_action && has('slice') && hasValue('plan')) {
+        try {
+            const plan = await readPlan(metadata.plan);
+            const planSlices = slices(plan.planContent, contract);
+            const current = planSlices.indexOf(String(metadata.slice));
+            nextSlice = planSlices[current + 1];
+        }
+        catch { /* plan read failures are already surfaced as issues above */ }
+    }
+    return { action, prompt, issues, nextSlice };
 };
 exports.validateWorkflowDocument = validateWorkflowDocument;
-const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePaths, contractPath = 'docs/workflow/workflow-contract.yaml', signal = new AbortController().signal, contentOverrides = {}, }) => {
-    const contract = await (0, exports.readWorkflowContract)(cwd, contractRef, contractPath, signal);
+const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePaths, contractPath = 'docs/workflow/workflow-contract.yaml', signal = new AbortController().signal, contentOverrides = {}, reader = new workflow_reader_1.GitRefReader(cwd, ref, signal), contractReader = new workflow_reader_1.GitRefReader(cwd, contractRef, signal), }) => {
+    const contract = await (0, exports.readWorkflowContract)(cwd, contractRef, contractPath, signal, contractReader);
     if (contract.validation?.mode && !['balanced', 'strict'].includes(contract.validation.mode)) {
         throw new Error(`unsupported workflow validation mode: ${contract.validation.mode}`);
     }
-    const templateIssues = (await Promise.all(Object.entries(contract.templates ?? {}).map(async ([type, filePath]) => filePath && !await exists(cwd, contractRef, filePath, signal)
+    const templateIssues = (await Promise.all(Object.entries(contract.templates ?? {}).map(async ([type, filePath]) => filePath && !await contractReader.exists(filePath)
         ? {
             code: 'TEMPLATE_MISSING',
             severity: 'warning',
@@ -496,7 +542,7 @@ const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePath
             throw new WorkflowDocumentValidationError(`${candidate.filePath}: ${issue.message}`, [issue]);
         }
         const content = contentOverrides[candidate.filePath]
-            ?? await git(cwd, signal, 'show', `${ref}:${candidate.filePath}`);
+            ?? await reader.read(candidate.filePath);
         let metadata;
         try {
             metadata = (0, exports.workflowFrontMatter)(content);
@@ -511,7 +557,7 @@ const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePath
             };
             throw new WorkflowDocumentValidationError(issue.message, [issue]);
         }
-        const result = await (0, exports.validateWorkflowDocument)(cwd, ref, candidate.filePath, candidate.type, content, metadata, contract, node_path_1.default.posix.dirname(candidate.filePath), signal);
+        const result = await (0, exports.validateWorkflowDocument)(cwd, ref, candidate.filePath, candidate.type, content, metadata, contract, node_path_1.default.posix.dirname(candidate.filePath), signal, reader);
         return { filePath: candidate.filePath, ...result, issues: [...templateIssues, ...result.issues] };
     }));
     const documentFailures = results.flatMap((result, index) => result.status === 'rejected' && result.reason instanceof WorkflowDocumentValidationError
@@ -8805,6 +8851,78 @@ exports.parse = parse;
 exports.parseAllDocuments = parseAllDocuments;
 exports.parseDocument = parseDocument;
 exports.stringify = stringify;
+
+},
+(module, exports, __bundleRequire) => {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.WorkingTreeReader = exports.GitRefReader = void 0;
+const node_child_process_1 = require("node:child_process");
+const promises_1 = require("node:fs/promises");
+const node_path_1 = __importDefault(require("node:path"));
+const git = (cwd, signal, ...args) => new Promise((resolve, reject) => {
+    (0, node_child_process_1.execFile)('git', ['-c', 'core.quotepath=false', ...args], {
+        cwd,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+        signal,
+    }, (error, stdout, stderr) => {
+        if (error)
+            reject(new Error(stderr.trim() || error.message));
+        else
+            resolve(stdout);
+    });
+});
+class GitRefReader {
+    cwd;
+    ref;
+    signal;
+    constructor(cwd, ref, signal = new AbortController().signal) {
+        this.cwd = cwd;
+        this.ref = ref;
+        this.signal = signal;
+    }
+    read(filePath) {
+        return git(this.cwd, this.signal, 'show', `${this.ref}:${filePath}`);
+    }
+    exists(filePath) {
+        return git(this.cwd, this.signal, 'cat-file', '-e', `${this.ref}:${filePath}`).then(() => true, () => false);
+    }
+}
+exports.GitRefReader = GitRefReader;
+class WorkingTreeReader {
+    cwd;
+    fallback;
+    constructor(cwd, fallbackRef = 'HEAD', signal = new AbortController().signal) {
+        this.cwd = cwd;
+        this.fallback = new GitRefReader(cwd, fallbackRef, signal);
+    }
+    async read(filePath) {
+        try {
+            return await (0, promises_1.readFile)(node_path_1.default.resolve(this.cwd, filePath), 'utf8');
+        }
+        catch (error) {
+            if (error.code !== 'ENOENT')
+                throw error;
+            return this.fallback.read(filePath);
+        }
+    }
+    async exists(filePath) {
+        try {
+            await (0, promises_1.access)(node_path_1.default.resolve(this.cwd, filePath));
+            return true;
+        }
+        catch (error) {
+            if (error.code !== 'ENOENT')
+                throw error;
+            return this.fallback.exists(filePath);
+        }
+    }
+}
+exports.WorkingTreeReader = WorkingTreeReader;
 
 }
 ];

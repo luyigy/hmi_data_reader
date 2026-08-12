@@ -1,6 +1,8 @@
-import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { parse } from 'yaml';
+import { GitRefReader, type Reader } from './workflow-reader';
+
+export { GitRefReader, WorkingTreeReader, type Reader } from './workflow-reader';
 
 /** Thrown only when workflow documents themselves fail validation; runtime/infra
  * failures (missing contract, git errors, validator crashes) stay plain Errors so
@@ -67,22 +69,6 @@ export type WorkflowCandidate = {
   type: string;
 };
 
-const exec = (file: string, args: string[], signal: AbortSignal, cwd?: string) =>
-  new Promise<string>((resolve, reject) => {
-    execFile(file, args, {
-      cwd,
-      encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024,
-      signal,
-    }, (error, stdout, stderr) => {
-      if (error) reject(new Error(stderr.trim() || error.message));
-      else resolve(stdout);
-    });
-  });
-
-const git = (cwd: string, signal: AbortSignal, ...args: string[]) =>
-  exec('git', ['-c', 'core.quotepath=false', ...args], signal, cwd);
-
 const required = <T>(value: T | undefined | null, label: string): T => {
   if (value === undefined || value === null) throw new Error(`workflow contract missing ${label}`);
   return value;
@@ -100,8 +86,9 @@ export const readWorkflowContract = async (
   ref: string,
   contractPath: string,
   signal: AbortSignal,
+  reader: Reader = new GitRefReader(cwd, ref, signal),
 ) => {
-  const source = await git(cwd, signal, 'show', `${ref}:${contractPath}`);
+  const source = await reader.read(contractPath);
   const contract = parse(source) as WorkflowContract;
   if (contract.schema_version !== 2) throw new Error(`unsupported workflow schema_version: ${contract.schema_version}`);
   strings(contract.documents?.automation_types, 'documents.automation_types');
@@ -198,9 +185,6 @@ const promptFrom = (content: string, action: string, contract: WorkflowContract)
   return prompt;
 };
 
-const exists = (cwd: string, ref: string, filePath: string, signal: AbortSignal) =>
-  git(cwd, signal, 'cat-file', '-e', `${ref}:${filePath}`).then(() => true, () => false);
-
 const slices = (content: string, contract: WorkflowContract) => {
   const pattern = contract.documents.slice_pattern;
   const matches = content.matchAll(new RegExp(
@@ -221,6 +205,7 @@ export const validateWorkflowDocument = async (
   contract: WorkflowContract,
   watchRoot: string,
   signal: AbortSignal,
+  reader: Reader = new GitRefReader(cwd, ref, signal),
 ) => {
   const issues: WorkflowValidationIssue[] = [];
   const policySeverity = (rule?: string) => {
@@ -310,8 +295,8 @@ export const validateWorkflowDocument = async (
   });
   const readPlan = async (reference: unknown) => {
     const planPath = normalizeReference(reference, watchRoot);
-    if (!await exists(cwd, ref, planPath, signal)) throw new Error(`referenced PLAN does not exist: ${path.posix.basename(planPath)}`);
-    const planContent = await git(cwd, signal, 'show', `${ref}:${planPath}`);
+    if (!await reader.exists(planPath)) throw new Error(`referenced PLAN does not exist: ${path.posix.basename(planPath)}`);
+    const planContent = await reader.read(planPath);
     const planMetadata = workflowFrontMatter(planContent);
     if (planMetadata.doc_type !== 'PLAN') throw new Error(`referenced document is not a PLAN: ${path.posix.basename(planPath)}`);
     return { planPath, planContent, planMetadata };
@@ -342,7 +327,7 @@ export const validateWorkflowDocument = async (
     if (hasValue('roadmap')) {
       try {
         roadmap = normalizeReference(metadata.roadmap, watchRoot);
-        if (!await exists(cwd, ref, roadmap, signal)) {
+        if (!await reader.exists(roadmap)) {
           issue('ROADMAP_NOT_FOUND', 'YAML.roadmap', `引用的 ROADMAP 不存在：${path.posix.basename(roadmap)}`);
         }
       } catch (error) {
@@ -506,6 +491,8 @@ export const validateWorkflowDocuments = async ({
   contractPath = 'docs/workflow/workflow-contract.yaml',
   signal = new AbortController().signal,
   contentOverrides = {},
+  reader = new GitRefReader(cwd, ref, signal),
+  contractReader = new GitRefReader(cwd, contractRef, signal),
 }: {
   cwd: string;
   ref: string;
@@ -514,13 +501,15 @@ export const validateWorkflowDocuments = async ({
   contractPath?: string;
   signal?: AbortSignal;
   contentOverrides?: Record<string, string>;
+  reader?: Reader;
+  contractReader?: Reader;
 }) => {
-  const contract = await readWorkflowContract(cwd, contractRef, contractPath, signal);
+  const contract = await readWorkflowContract(cwd, contractRef, contractPath, signal, contractReader);
   if (contract.validation?.mode && !['balanced', 'strict'].includes(contract.validation.mode)) {
     throw new Error(`unsupported workflow validation mode: ${contract.validation.mode}`);
   }
   const templateIssues = (await Promise.all(Object.entries(contract.templates ?? {}).map(async ([type, filePath]) =>
-    filePath && !await exists(cwd, contractRef, filePath, signal)
+    filePath && !await contractReader.exists(filePath)
       ? {
           code: 'TEMPLATE_MISSING',
           severity: 'warning' as const,
@@ -547,7 +536,7 @@ export const validateWorkflowDocuments = async ({
       throw new WorkflowDocumentValidationError(`${candidate.filePath}: ${issue.message}`, [issue]);
     }
     const content = contentOverrides[candidate.filePath]
-      ?? await git(cwd, signal, 'show', `${ref}:${candidate.filePath}`);
+      ?? await reader.read(candidate.filePath);
     let metadata: Record<string, unknown>;
     try {
       metadata = workflowFrontMatter(content);
@@ -563,7 +552,7 @@ export const validateWorkflowDocuments = async ({
     }
     const result = await validateWorkflowDocument(
       cwd, ref, candidate.filePath, candidate.type, content, metadata,
-      contract, path.posix.dirname(candidate.filePath), signal,
+      contract, path.posix.dirname(candidate.filePath), signal, reader,
     );
     return { filePath: candidate.filePath, ...result, issues: [...templateIssues, ...result.issues] };
   }));
