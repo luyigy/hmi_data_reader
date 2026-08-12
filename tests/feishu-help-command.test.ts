@@ -85,6 +85,7 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   );
 }
 assert.match(JSON.stringify(workflowCard), /修改调度/);
+assert.match(JSON.stringify(workflowCard), /修改执行档位/);
 const menuCard = buildFeishuCommandCenterCard('group');
 assert.match(JSON.stringify(menuCard), /功能开发…/);
 const featureFormCard = buildFeishuCommandCenterCard('group', 'form-run-feature');
@@ -98,6 +99,9 @@ const scheduleForm = scheduleFormCard.body.elements[0] as {
   elements: Array<Record<string, unknown>>;
 };
 assert.equal('value' in scheduleForm.elements.at(-1)!, false);
+const workflowLevelCard = buildFeishuCommandCenterCard('group', 'form-workflow-level');
+assert.match(JSON.stringify(workflowLevelCard), /Full · 完整流程/);
+assert.match(JSON.stringify(workflowLevelCard), /submitWorkflowLevel_group/);
 const workflowUpdate = buildFeishuCommandCenterCardUpdate('group', 'workflow');
 assert.equal(workflowUpdate.type, 'raw');
 assert.deepEqual(workflowUpdate.data, workflowCard);
@@ -124,6 +128,12 @@ assert.deepEqual(buildFeishuCommandFromForm('form-schedule', {
   args: ['schedule', 'workflow-watcher'],
   options: { cron: '*/5 * * * *' },
 });
+assert.deepEqual(buildFeishuCommandFromForm('form-workflow-level', { workflowLevel: 'full' }), {
+  command: 'workflow',
+  args: ['level', 'set', 'full'],
+  options: {},
+});
+assert.equal(buildFeishuCommandFromForm('form-workflow-level', { workflowLevel: 'turbo' }), null);
 assert.deepEqual(buildFeishuCommandFromForm('form-run-feature', {
   level: 'lean',
   task: ' 实施 S01 ',

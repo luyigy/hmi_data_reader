@@ -6,6 +6,9 @@ import {
   configuredWorkflowAutonomy,
   decideWorkflowAutonomyChange,
   resolveWorkflowAutonomy,
+  resolveWorkflowRoleLevel,
+  storedWorkflowRoleLevel,
+  workflowPreferencesWithRoleLevel,
   workflowAutonomyAllows,
 } from '../src/lib/scheduled-jobs/workflow-autonomy';
 
@@ -26,6 +29,12 @@ assert.deepEqual(resolveWorkflowAutonomy(job('auto'), { mode: 'broken' }), {
   mode: 'manual',
   source: 'safe_fallback',
 });
+assert.equal(resolveWorkflowRoleLevel(null), 'fast');
+const preferences = workflowPreferencesWithRoleLevel({
+  job: job('semi_auto'), stored: null, level: 'full', expectedHead: 'head', requestId: 'request', updatedBy: 'user',
+});
+assert.equal(resolveWorkflowAutonomy(job('manual'), preferences).mode, 'semi_auto');
+assert.equal(storedWorkflowRoleLevel(preferences), 'full');
 
 const advances = ['revision', 'start_first_slice', 'next_slice', 'resume_parent'] as const;
 assert.deepEqual(advances.map((advance) => workflowAutonomyAllows('manual', advance, 'schedule')), [
@@ -84,5 +93,15 @@ void (async () => {
     senderOpenId: 'not-authorized',
     messageId: 'message',
   }), '当前 Feishu 会话未绑定 Workflow 项目。');
+  assert.equal(await handleWorkflowPolicyCommand({
+    command: 'workflow',
+    args: ['level', 'set', 'full'],
+    options: {},
+  }, {
+    chatId: project.feishu.chat_id,
+    chatType: 'group',
+    senderOpenId: 'not-authorized',
+    messageId: 'message',
+  }), '只有平台管理员或项目审批人可以切换 Workflow 执行档位。');
   console.log('workflow autonomy checks passed');
 })();

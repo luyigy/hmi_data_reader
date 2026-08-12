@@ -39,6 +39,8 @@ const HELP_PAGES = [
   ]],
   ['Workflow / Jobs', [
     '/ap workflow status',
+    '/ap workflow level show',
+    '/ap workflow level set <full|lean|fast>  (管理员/项目审批人，后续 Slice 生效)',
     '/ap workflow autonomy show',
     '/ap workflow autonomy set <manual|semi_auto|auto> --head=<当前HEAD>  (管理员/项目审批人)',
     '/ap workflow validation show',
@@ -123,7 +125,7 @@ const QUICK_ACTIONS = [
 ] as const;
 
 const CATEGORY_VIEWS = ['room', 'runtime', 'workflow', 'admin'] as const;
-const FORM_VIEWS = ['form-run-feature', 'form-run-debug', 'form-documentation', 'form-workspace', 'form-chat', 'form-plan', 'form-schedule'] as const;
+const FORM_VIEWS = ['form-run-feature', 'form-run-debug', 'form-documentation', 'form-workspace', 'form-chat', 'form-plan', 'form-schedule', 'form-workflow-level'] as const;
 export type FeishuCommandCenterView = 'home' | typeof CATEGORY_VIEWS[number] | typeof FORM_VIEWS[number];
 export type FeishuRoomControlView = 'permission' | 'role' | 'specialty';
 
@@ -196,6 +198,14 @@ const FORM_DEFINITIONS = {
     ],
     submitName: 'submitSchedule',
     submitLabel: '应用调度',
+    returnView: 'workflow',
+  },
+  'form-workflow-level': {
+    title: '修改 Workflow 执行档位',
+    description: '修改当前 PLAN 后续 Slice 的角色执行流程；不会中断正在运行的阶段。',
+    fields: [],
+    submitName: 'submitWorkflowLevel',
+    submitLabel: '应用执行档位',
     returnView: 'workflow',
   },
 } as const;
@@ -276,12 +286,12 @@ export const buildFeishuCommandCenterCard = (
         tag: 'form',
         name: view,
         elements: [
-          ...(view === 'form-run-feature' ? [{
+          ...(['form-run-feature', 'form-workflow-level'].includes(view) ? [{
             tag: 'select_static',
-            name: 'level',
+            name: view === 'form-run-feature' ? 'level' : 'workflowLevel',
             required: true,
             width: 'fill',
-            initial_option: 'full',
+            ...(view === 'form-run-feature' ? { initial_option: 'full' } : {}),
             placeholder: { tag: 'plain_text', content: '选择 workflow 档位' },
             options: [
               { text: { tag: 'plain_text', content: 'Full · 完整流程' }, value: 'full' },
@@ -334,7 +344,10 @@ export const buildFeishuCommandCenterCard = (
     : categoryView === 'runtime'
       ? [callbackButton('切换工作区…', { cmd: 'ap-menu', view: 'form-workspace', chatType })]
       : categoryView === 'workflow'
-        ? [callbackButton('修改调度…', { cmd: 'ap-menu', view: 'form-schedule', chatType })]
+        ? [
+          callbackButton('修改执行档位…', { cmd: 'ap-menu', view: 'form-workflow-level', chatType }, 'primary_filled'),
+          callbackButton('修改调度…', { cmd: 'ap-menu', view: 'form-schedule', chatType }),
+        ]
         : categoryView === 'admin'
           ? [callbackButton('权限约束…', { cmd: 'ap-room-control', view: 'permission', chatType })]
         : [];
@@ -601,6 +614,9 @@ export const buildFeishuCommandFromForm = (
   }
   if (form === 'form-schedule' && text('jobId') && text('cron')) {
     return { command: 'job', args: ['schedule', text('jobId')], options: { cron: text('cron') } };
+  }
+  if (form === 'form-workflow-level' && ['full', 'lean', 'fast'].includes(text('workflowLevel'))) {
+    return { command: 'workflow', args: ['level', 'set', text('workflowLevel')], options: {} };
   }
   if (form === 'form-run-feature' && text('task')) {
     const level = text('level');

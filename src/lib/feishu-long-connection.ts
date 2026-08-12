@@ -66,7 +66,7 @@ type FeishuLongConnectionState = {
 
 const AP_COMMAND_FORMS = {
   submitWorkspace: 'form-workspace', submitChat: 'form-chat', submitPlan: 'form-plan',
-  submitSchedule: 'form-schedule', submitRoom: 'form-room-create',
+  submitSchedule: 'form-schedule', submitWorkflowLevel: 'form-workflow-level', submitRoom: 'form-room-create',
   submitRoomRestriction: 'form-room-restriction', submitAgentRole: 'form-agent-role',
   submitAgentSpecialty: 'form-agent-specialty',
 } as const;
@@ -446,6 +446,9 @@ function buildCardActionHandler(prefix: string) {
       const reviewFeedback = typeof formValue?.reviewFeedback === 'string'
         ? formValue.reviewFeedback.trim()
         : '';
+      const roleWorkflowLevel = typeof formValue?.roleWorkflowLevel === 'string'
+        ? formValue.roleWorkflowLevel
+        : undefined;
       if (!['approve', 'reject', 'revision'].includes(String(decision))
         || typeof value.projectId !== 'string'
         || typeof value.jobId !== 'string'
@@ -460,6 +463,7 @@ function buildCardActionHandler(prefix: string) {
           messageId,
           reviewAttempt: typeof value.reviewAttempt === 'number' ? value.reviewAttempt : undefined,
           reviewFeedback,
+          roleWorkflowLevel,
         });
         if (result.status === 'applied' && messageId) {
           await updateFeishuApprovalCardResolved({

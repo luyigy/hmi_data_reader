@@ -167,6 +167,7 @@ S01 then S02
     eventKey: string;
     roleWorkflow: boolean;
     roleWorkflowLevel?: 'full' | 'lean' | 'fast';
+    roleWorkflowApprovedPlan?: boolean;
   }> = [];
   let workflowAvailable = true;
   const importedDocuments: Array<{ content: string; name: string; idempotencyKey: string }> = [];
@@ -185,11 +186,13 @@ S01 then S02
     mode: 'shadow' | 'active' = 'active',
     workflowAutonomy?: 'manual' | 'semi_auto' | 'auto',
     trigger?: string,
+    workflowRoleLevel?: 'full' | 'lean' | 'fast',
   ) => workflowWatcherHandler({
     project,
     job,
     mode,
     workflowAutonomy,
+    workflowRoleLevel,
     trigger,
     cursor,
     signal: new AbortController().signal,
@@ -282,7 +285,7 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.deepEqual(manualWaiting.cursor, waitingAgain.cursor);
   assert.equal(apiCalls.filter(({ body }) => String(body.content).includes('Workflow 完成回执')).length,
     completionReceiptsBeforeWaiting + 1, 'manual polling must not resend the completion receipt');
-  const completed = await run(manualWaiting.cursor, 'active', 'manual', 'manual');
+  const completed = await run(manualWaiting.cursor, 'active', 'manual', 'manual', 'full');
   assert.match(completed.summary, /result=session_started/);
   assert.equal(workflowRuns.length, 4);
   assert.equal(workflowRuns.at(-1)?.eventKey, waitingEventKey, 'retry must reuse the waiting event key');
@@ -296,7 +299,8 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /\*\*下一动作\*\*：next_slice/);
   assert.match(workflowRuns.at(-1)?.prompt ?? '', /平台 completion gate 会在 Session 结束后统一校验/);
   assert.doesNotMatch(workflowRuns.at(-1)?.prompt ?? '', /npm run workflow:validate/);
-  assert.equal(workflowRuns.at(-1)?.roleWorkflowLevel, 'fast', 'HANDOVER must use the fast role pipeline');
+  assert.equal(workflowRuns.at(-1)?.roleWorkflowLevel, 'full', 'stored level must override a waiting HANDOVER');
+  assert.equal(workflowRuns.at(-1)?.roleWorkflowApprovedPlan, true, 'HANDOVER must reuse the approved PLAN');
   const unchanged = await run(completed.cursor);
   assert.match(unchanged.summary, /candidate=none/);
   assert.equal((unchanged.cursor as { eventKey?: string }).eventKey, (completed.cursor as { eventKey?: string }).eventKey);
@@ -364,6 +368,10 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /拒绝/);
   assert.match(String(reviewCall.body.content), /修改/);
   assert.match(String(reviewCall.body.content), /"decision":"revision"/);
+  assert.match(String(reviewCall.body.content), /"name":"roleWorkflowLevel"/);
+  assert.match(String(reviewCall.body.content), /"initial_option":"lean"/);
+  assert.match(String(reviewCall.body.content), /"decision":"approve"/);
+  assert.match(String(reviewCall.body.content), /"name":"submitApproval"/);
   assert.match(String(reviewCall.body.content), /reviewFeedback/);
   assert.match(String(reviewCall.body.content), /"rows":6/);
   assert.match(String(reviewCall.body.content), /"max_rows":12/);
@@ -518,6 +526,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   const revisedReviewCursor = revisedReview.cursor as typeof reviewCursor;
   const callbackApproved = JSON.parse(JSON.stringify(revisedReviewCursor));
   callbackApproved.pending.reviewState = 'approved';
+  callbackApproved.pending.roleWorkflowLevel = 'full';
   job.config.coding_bot_chat_type = 'p2p';
   process.env.LARK_FAIL_MESSAGES = '1';
   assert.match((await run(callbackApproved)).summary, /result=session_started/);
@@ -525,7 +534,8 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(workflowRuns.at(-1)?.chatId, 'coding-bot-chat');
   assert.equal(workflowRuns.at(-1)?.chatType, 'p2p');
   assert.equal(workflowRuns.at(-1)?.roleWorkflow, true, 'approved PLAN must use the role pipeline');
-  assert.equal(workflowRuns.at(-1)?.roleWorkflowLevel, 'lean', 'approved PLAN must use the lean role pipeline');
+  assert.equal(workflowRuns.at(-1)?.roleWorkflowLevel, 'full', 'approved PLAN must use the selected role pipeline');
+  assert.equal(workflowRuns.at(-1)?.roleWorkflowApprovedPlan, true, 'approved PLAN must skip fresh planning');
 
   const callbackRejected = JSON.parse(JSON.stringify(revisedReviewCursor));
   callbackRejected.pending.reviewState = 'rejected';
@@ -565,6 +575,22 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
     pending: { ...reviewPending, reviewState: 'approved' }, decision: 'approve',
     actorOpenId: 'approver', approverOpenId: 'approver', messageId: 'message', pendingKey: 'key',
   }).status, 'duplicate');
+  assert.equal(applyWorkflowReviewDecision({
+    pending: reviewPending, decision: 'approve', actorOpenId: 'approver', approverOpenId: 'approver',
+    messageId: 'message', pendingKey: 'key', roleWorkflowLevel: 'turbo',
+  }).status, 'invalid');
+  const approvedFast = applyWorkflowReviewDecision({
+    pending: reviewPending, decision: 'approve', actorOpenId: 'approver', approverOpenId: 'approver',
+    messageId: 'message', pendingKey: 'key', roleWorkflowLevel: 'fast',
+  });
+  assert.equal(approvedFast.status, 'applied');
+  assert.equal(approvedFast.pending.roleWorkflowLevel, 'fast');
+  const approvedLegacy = applyWorkflowReviewDecision({
+    pending: reviewPending, decision: 'approve', actorOpenId: 'approver', approverOpenId: 'approver',
+    messageId: 'message', pendingKey: 'key',
+  });
+  assert.equal(approvedLegacy.status, 'applied');
+  assert.equal(approvedLegacy.pending.roleWorkflowLevel, 'lean');
   assert.equal(applyWorkflowReviewDecision({
     pending: reviewPending, decision: 'revise', actorOpenId: 'approver', approverOpenId: 'approver',
     messageId: 'message', pendingKey: 'key',
@@ -635,6 +661,11 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(importedDocuments.length, 2, 'pending retry must reuse the revised document');
 
   await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
+  const contractPath = path.join(root, 'docs/workflow/workflow-contract.yaml');
+  await writeFile(contractPath, (await readFile(contractPath, 'utf8')).replace(
+    'terminal: [await_acceptance, blocked, none]',
+    'terminal: [await_plan_approval, await_acceptance, blocked, none]',
+  ));
   await writeFile(path.join(root, 'docs/branch/main/004_PLAN_20260725_approval.md'), `---
 doc_type: PLAN
 doc_status: draft
@@ -647,13 +678,16 @@ return_to: null
 ---
 S01
 `);
+  const importsBeforeTerminalPlan = importedDocuments.length;
+  const reviewCardsBeforeTerminalPlan = apiCalls.filter(({ body }) => body.msg_type === 'interactive').length;
   git('add', '.');
   git('commit', '-qm', 'draft plan approval');
   const approvalDocument = await run(approved.cursor);
-  assert.match(approvalDocument.summary, /validation_failed notified=true/);
-  assert.match(String(apiCalls.at(-1)?.body.content), /无效的下一步动作/);
-  const approvalQuarantined = await run(approvalDocument.cursor);
-  assert.match(approvalQuarantined.summary, /validation_failed quarantined=true/);
+  assert.match(approvalDocument.summary, /action=await_plan_approval result=notified/);
+  assert.equal(importedDocuments.length, importsBeforeTerminalPlan, 'terminal PLAN must not be imported for review');
+  assert.equal(apiCalls.filter(({ body }) => body.msg_type === 'interactive').length, reviewCardsBeforeTerminalPlan,
+    'terminal PLAN must not send an approval card');
+  assert.match(String(apiCalls.at(-1)?.body.content), /不启动新 Session/);
 
   await writeFile(path.join(root, 'docs/branch/main/005_PLAN_20260725_import_failure.md'), `---
 doc_type: PLAN
@@ -677,7 +711,7 @@ NEXT PROMPT 005_PLAN_20260725_import_failure.md 000_ROADMAP_20260725_test.md S01
     project,
     job,
     mode: 'active',
-    cursor: approvalQuarantined.cursor,
+    cursor: approvalDocument.cursor,
     signal: new AbortController().signal,
   }, undefined, async () => {
     throw new Error('fake import failed');
@@ -691,7 +725,7 @@ NEXT PROMPT 005_PLAN_20260725_import_failure.md 000_ROADMAP_20260725_test.md S01
     project,
     job,
     mode: 'active',
-    cursor: approvalQuarantined.cursor,
+    cursor: approvalDocument.cursor,
     signal: new AbortController().signal,
   });
   assert.match(defaultImport.summary, /gate=plan_review document_ready=true/);

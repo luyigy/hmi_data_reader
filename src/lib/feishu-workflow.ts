@@ -79,6 +79,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   eventKey: string;
   roleWorkflow?: boolean;
   roleWorkflowLevel?: LiveRoomWorkflowLevel;
+  roleWorkflowApprovedPlan?: boolean;
   signal: AbortSignal;
 }): Promise<boolean> {
   args.signal.throwIfAborted();
@@ -396,6 +397,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
         sourceMessageId: dispatch.messageId,
         name: 'feature',
         level: args.roleWorkflowLevel,
+        approvedPlan: args.roleWorkflowApprovedPlan,
         task: args.prompt,
       }).catch(async (error) => {
         console.error('[workflow] role workflow failed to start', error);

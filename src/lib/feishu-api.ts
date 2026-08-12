@@ -292,23 +292,54 @@ export const sendFeishuWorkflowReviewCard = (args: {
           + `**提交**：${args.reviewedCommit}\n**截止**：${args.expiresAt}`,
       },
       {
+        tag: 'form',
+        name: 'workflowReviewApproval',
+        elements: [
+          {
+            tag: 'select_static',
+            name: 'roleWorkflowLevel',
+            required: true,
+            width: 'fill',
+            initial_option: 'lean',
+            placeholder: { tag: 'plain_text', content: '选择执行档位' },
+            options: [
+              { text: { tag: 'plain_text', content: 'Full · 完整审查、实施与测试' }, value: 'full' },
+              { text: { tag: 'plain_text', content: 'Lean · 计划审查 + 实施 + 测试' }, value: 'lean' },
+              { text: { tag: 'plain_text', content: 'Fast · 实施 + 测试' }, value: 'fast' },
+            ],
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '批准并执行' },
+            type: 'primary',
+            action_type: 'form_submit',
+            name: 'submitApproval',
+            value: {
+              cmd: 'workflow-review',
+              decision: 'approve',
+              projectId: args.projectId,
+              jobId: args.jobId,
+              pendingKey: args.pendingKey,
+              reviewAttempt: args.reviewAttempt,
+            },
+          },
+        ],
+      },
+      {
         tag: 'action',
-        actions: [
-          ['批准', 'approve', 'primary'],
-          ['拒绝', 'reject', 'danger'],
-        ].map(([label, decision, type]) => ({
+        actions: [{
           tag: 'button',
-          text: { tag: 'plain_text', content: label },
-          type,
+          text: { tag: 'plain_text', content: '拒绝' },
+          type: 'danger',
           value: {
             cmd: 'workflow-review',
-            decision,
+            decision: 'reject',
             projectId: args.projectId,
             jobId: args.jobId,
             pendingKey: args.pendingKey,
             reviewAttempt: args.reviewAttempt,
           },
-        })),
+        }],
       },
       {
         tag: 'form',

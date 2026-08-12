@@ -120,10 +120,15 @@ assert.deepEqual(
   buildLiveRoomWorkflowStages('feature', members, 'fast').map((stage) => stage.id),
   ['implement', 'test'],
 );
+assert.deepEqual(
+  buildLiveRoomWorkflowStages('feature', members, 'full', true).map((stage) => stage.id),
+  ['plan-review', 'test-plan', 'implement', 'code-review', 'test'],
+);
 
 assert.deepEqual(missingLiveRoomWorkflowRoles(members), []);
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'reviewer')), ['reviewer']);
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'planner'), 'lean'), []);
+assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'planner'), 'full', true), []);
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'reviewer'), 'lean'), ['reviewer']);
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'planner' && candidate.role !== 'reviewer'), 'fast'), []);
 assert.deepEqual(missingLiveRoomWorkflowRoles([

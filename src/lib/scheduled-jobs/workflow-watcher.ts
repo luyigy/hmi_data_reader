@@ -88,6 +88,7 @@ type WorkflowRunner = (args: {
   eventKey: string;
   roleWorkflow: boolean;
   roleWorkflowLevel?: 'full' | 'lean' | 'fast';
+  roleWorkflowApprovedPlan?: boolean;
   signal: AbortSignal;
 }) => Promise<void | boolean>;
 type WorkflowDocumentImporter = (args: {
@@ -198,7 +199,7 @@ const sendReviewCard = (
 });
 
 const execute = async (
-  pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext'> & {
+  pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext' | 'roleWorkflowLevel'> & {
     roleWorkflow?: boolean;
     type?: string;
   },
@@ -225,7 +226,9 @@ const execute = async (
     executionPolicy,
     eventKey: pending.key,
     roleWorkflow: pending.roleWorkflow ?? ['PLAN', 'HANDOVER'].includes(pending.type || ''),
-    roleWorkflowLevel: pending.type === 'PLAN' ? 'lean' : pending.type === 'HANDOVER' ? 'fast' : undefined,
+    roleWorkflowLevel: pending.roleWorkflowLevel
+      ?? (pending.type === 'PLAN' ? 'lean' : pending.type === 'HANDOVER' ? 'fast' : undefined),
+    roleWorkflowApprovedPlan: ['PLAN', 'HANDOVER'].includes(pending.type || ''),
     signal,
   })) !== false;
 };
@@ -237,6 +240,7 @@ export const workflowWatcherHandler = async (
     mode,
     trigger = 'schedule',
     workflowAutonomy,
+    workflowRoleLevel,
     cursor,
     signal,
   }: Parameters<JobHandler>[0],
@@ -368,7 +372,9 @@ export const workflowWatcherHandler = async (
     if (!contract.legacy.automation_enabled) {
       return { summary: `head=${head} pending=${previous.pending.path} gate=automation_disabled`, cursor: previous };
     }
-    let pending = previous.pending;
+    let pending = workflowRoleLevel
+      ? { ...previous.pending, roleWorkflowLevel: workflowRoleLevel }
+      : previous.pending;
     const revisionPrompt = () => {
       const feedback = pending.reviewFeedback?.trim();
       return `PLAN_REVISE\nplan_path: ${pending.path}\n`
@@ -660,7 +666,7 @@ export const workflowWatcherHandler = async (
   const gate = !contract.legacy.automation_enabled
     ? 'automation_disabled'
     : candidate.type === 'PLAN'
-      && [contract.documents.plan.start_action, 'await_plan_approval'].includes(document.action)
+      && document.action === contract.documents.plan.start_action
       ? 'plan_review'
       : contract.actions.executable.includes(document.action)
         ? 'execute'
@@ -781,6 +787,7 @@ export const workflowWatcherHandler = async (
       reviewExpiresAt: reviewExpiry(contract),
       detectedAt,
       workflowContext: execution.workflowContext,
+      roleWorkflowLevel: workflowRoleLevel,
     };
     const reviewMessageId = await sendReviewCard(project, job.id, pending, sendReview);
     if (!reviewMessageId) throw new Error('plan review request returned no message_id');
@@ -804,6 +811,7 @@ export const workflowWatcherHandler = async (
     documentUrl: '',
     gate: 'workflow_ready',
     detectedAt,
+    roleWorkflowLevel: workflowRoleLevel,
   };
   const started = await execute(
     pending,

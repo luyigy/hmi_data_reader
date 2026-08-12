@@ -25,7 +25,11 @@ import {
   canManageWorkflowAutonomy,
   decideWorkflowAutonomyChange,
   isWorkflowAutonomy,
+  isWorkflowRoleLevel,
   resolveWorkflowAutonomy,
+  resolveWorkflowRoleLevel,
+  storedWorkflowRoleLevel,
+  workflowPreferencesWithRoleLevel,
 } from '@/lib/scheduled-jobs/workflow-autonomy';
 import { handleWorkflowValidationCommand } from '@/lib/feishu-workflow-validation';
 
@@ -60,6 +64,59 @@ export async function handleWorkflowPolicyCommand(
   if (command.args[0] === 'status' && command.args.length === 1 && !Object.keys(command.options).length) {
     const status = await loadWorkflowStatusForChat(context.chatId);
     return status ? formatWorkflowStatus(status) : '当前 Feishu 会话未绑定 Workflow 项目。';
+  }
+  if (command.args[0] === 'level') {
+    const project = findProjectByChatId(await loadProjectsConfig(), context.chatId);
+    if (!project) return '当前 Feishu 会话未绑定 Workflow 项目。';
+    const job = project.jobs.find((candidate) => candidate.type === 'workflow_watcher');
+    if (!job) return '当前项目未配置 workflow-watcher。';
+    const action = command.args[1];
+    if (action === 'show' && command.args.length === 2 && !Object.keys(command.options).length) {
+      const state = await prisma.scheduledJobState.findUnique({
+        where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+        select: { workflowAutonomy: true },
+      });
+      return `Workflow 执行档位：${resolveWorkflowRoleLevel(state?.workflowAutonomy)}（后续 Slice 生效）`;
+    }
+    if (action !== 'set' || command.args.length !== 3 || !isWorkflowRoleLevel(command.args[2])
+      || Object.keys(command.options).length) {
+      return '用法：/ap workflow level show | /ap workflow level set <full|lean|fast>';
+    }
+    if (!canManageWorkflowAutonomy(
+      context.senderOpenId,
+      isFeishuAdmin(context.senderOpenId),
+      project.feishu.approver_open_ids,
+    )) return '只有平台管理员或项目审批人可以切换 Workflow 执行档位。';
+    const level = command.args[2];
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT pg_advisory_xact_lock(hashtextextended(${`${project.id}:${job.id}`}, 0))::text
+      `;
+      const currentHead = (await execFileAsync(
+        'git', ['-C', project.path, 'rev-parse', project.ref], { encoding: 'utf8' },
+      )).stdout.trim();
+      const state = await tx.scheduledJobState.upsert({
+        where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
+        create: { projectId: project.id, jobId: job.id },
+        update: {},
+      });
+      if (storedWorkflowRoleLevel(state.workflowAutonomy) === level) return 'unchanged' as const;
+      await tx.scheduledJobState.update({
+        where: { id: state.id },
+        data: { workflowAutonomy: workflowPreferencesWithRoleLevel({
+          job,
+          stored: state.workflowAutonomy,
+          level,
+          expectedHead: currentHead,
+          requestId: context.messageId || `${context.senderOpenId}:${level}`,
+          updatedBy: context.senderOpenId,
+        }) },
+      });
+      return 'updated' as const;
+    });
+    return result === 'unchanged'
+      ? `✅ Workflow 执行档位已经是 ${level}（幂等，无写入）。后续 Slice 生效。`
+      : `✅ Workflow 执行档位已切换为 ${level}。当前执行中的阶段不变，后续 Slice 生效。`;
   }
   if (command.args[0] === 'autonomy') {
     const project = findProjectByChatId(await loadProjectsConfig(), context.chatId);
@@ -121,6 +178,9 @@ export async function handleWorkflowPolicyCommand(
         data: {
           workflowAutonomy: {
             mode: requested,
+            ...(storedWorkflowRoleLevel(state?.workflowAutonomy)
+              ? { roleWorkflowLevel: storedWorkflowRoleLevel(state?.workflowAutonomy) }
+              : {}),
             expectedHead,
             requestId,
             updatedBy: context.senderOpenId,
@@ -138,7 +198,7 @@ export async function handleWorkflowPolicyCommand(
       : `✅ Workflow 自治模式已切换为 ${requested}。HEAD：${result.currentHead}`;
   }
   if (command.args[0] !== 'policy' || !['show', 'set'].includes(command.args[1] || '')) {
-    return '用法：/ap workflow status | /ap workflow autonomy <show|set> | /ap workflow validation <show|set|template|repair> | /ap workflow policy <show|set>';
+    return '用法：/ap workflow status | /ap workflow level <show|set> | /ap workflow autonomy <show|set> | /ap workflow validation <show|set|template|repair> | /ap workflow policy <show|set>';
   }
   const setting = command.args[1] === 'set';
   const project = findProjectByChatId(

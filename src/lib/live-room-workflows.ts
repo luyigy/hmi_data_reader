@@ -47,8 +47,8 @@ type WorkflowStage = {
 
 const WORKFLOW_ROLES = ['planner', 'implementer', 'reviewer', 'tester'] as const;
 
-const workflowRolesFor = (level: LiveRoomWorkflowLevel) => level === 'full'
-  ? WORKFLOW_ROLES
+const workflowRolesFor = (level: LiveRoomWorkflowLevel, approvedPlan = false) => level === 'full'
+  ? approvedPlan ? WORKFLOW_ROLES.slice(1) : WORKFLOW_ROLES
   : level === 'lean'
     ? WORKFLOW_ROLES.slice(1)
     : WORKFLOW_ROLES.filter((role) => role === 'implementer' || role === 'tester');
@@ -328,8 +328,9 @@ export const buildLiveRoomWorkflowStages = (
   name: LiveRoomWorkflowName,
   members: WorkflowMember[],
   level: LiveRoomWorkflowLevel = 'full',
+  approvedPlan = false,
 ) => {
-  const requiredRoles = workflowRolesFor(level);
+  const requiredRoles = workflowRolesFor(level, approvedPlan);
   const selected = requiredRoles.map((role) => members.find((member) => member.role === role && member.harnessType));
   if (selected.some((member) => !member) || new Set(selected.map((member) => member?.id)).size !== requiredRoles.length) {
     return [];
@@ -340,18 +341,20 @@ export const buildLiveRoomWorkflowStages = (
   const tester = members.find((member) => member.role === 'tester' && member.harnessType);
   const stages: WorkflowStage[] = [];
 
-  if (level === 'full' && name === 'debug') {
+  if (level === 'full' && !approvedPlan && name === 'debug') {
     addStage(stages, 'reproduce-plan', '复现方案', tester, '根据已有分析制定最小复现步骤、回归范围和通过标准。此阶段不要修改代码。');
     addStage(stages, 'fix-plan', '修复计划', planner, '结合复现方案确定根因修复计划、涉及文件和验证方式。此阶段不要修改代码。');
-  } else if (level === 'full') {
+  } else if (level === 'full' && !approvedPlan) {
     addStage(stages, 'plan', '实施计划', planner, '给出最小实施计划、涉及文件、风险和验证方式。此阶段不要修改代码。');
   }
 
   if (level !== 'fast') {
     addStage(stages, 'plan-review', '计划审查', reviewer, '审查已有计划是否足以直接实施、是否遗漏边界或过度设计。明确给出 APPROVED 或 CHANGES_REQUESTED，并列出具体理由。不要修改代码。');
   }
-  if (level === 'full') {
+  if (level === 'full' && !approvedPlan) {
     addStage(stages, 'plan-final', '计划定稿', planner, '根据计划审查意见修订并输出最终实施计划。不要修改代码。');
+  }
+  if (level === 'full') {
     addStage(
       stages,
       'test-plan',
@@ -383,7 +386,7 @@ export const buildLiveRoomWorkflowStages = (
       ? '严格按照前面确认的测试方案执行测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。'
       : '依据已有 PLAN、原始任务和实际改动执行必要测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。',
   );
-  if (level === 'full') {
+  if (level === 'full' && !approvedPlan) {
     addStage(stages, 'final', '最终总结', planner, '汇总实施、代码审查和测试结果。若存在未解决失败必须明确说明，不得声称任务已完成。');
   }
 
@@ -393,9 +396,10 @@ export const buildLiveRoomWorkflowStages = (
 export const missingLiveRoomWorkflowRoles = (
   members: WorkflowMember[],
   level: LiveRoomWorkflowLevel = 'full',
+  approvedPlan = false,
 ) => {
   const selectedIds = new Set<string>();
-  return workflowRolesFor(level).filter((role) => {
+  return workflowRolesFor(level, approvedPlan).filter((role) => {
     const member = members.find((candidate) => candidate.role === role
       && candidate.harnessType
       && !selectedIds.has(candidate.id));
@@ -424,12 +428,14 @@ export const runLiveRoomWorkflow = async ({
   sourceMessageId,
   name,
   level = 'full',
+  approvedPlan = false,
   task,
 }: {
   roomId: string;
   sourceMessageId: string;
   name: LiveRoomWorkflowName;
   level?: LiveRoomWorkflowLevel;
+  approvedPlan?: boolean;
   task: string;
 }) => {
   const room = await prisma.liveRoom.findUnique({
@@ -456,7 +462,7 @@ export const runLiveRoomWorkflow = async ({
   );
 
   const members = room.members as WorkflowMember[];
-  const missingRoles = missingLiveRoomWorkflowRoles(members, level);
+  const missingRoles = missingLiveRoomWorkflowRoles(members, level, approvedPlan);
   if (!task || missingRoles.length > 0) {
     await postLiveRoomMessage({
       roomId,
@@ -467,7 +473,7 @@ export const runLiveRoomWorkflow = async ({
     });
     return;
   }
-  const stages = buildLiveRoomWorkflowStages(name, members, level);
+  const stages = buildLiveRoomWorkflowStages(name, members, level, approvedPlan);
 
   await postLiveRoomMessage({
     roomId,

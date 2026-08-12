@@ -2,10 +2,13 @@ import type { JobConfig } from './project-config';
 
 export const WORKFLOW_AUTONOMY_MODES = ['manual', 'semi_auto', 'auto'] as const;
 export type WorkflowAutonomy = typeof WORKFLOW_AUTONOMY_MODES[number];
+export const WORKFLOW_ROLE_LEVELS = ['full', 'lean', 'fast'] as const;
+export type WorkflowRoleLevel = typeof WORKFLOW_ROLE_LEVELS[number];
 export type WorkflowAdvance = 'revision' | 'start_first_slice' | 'next_slice' | 'resume_parent';
 
 export type StoredWorkflowAutonomy = {
   mode: WorkflowAutonomy;
+  roleWorkflowLevel?: WorkflowRoleLevel;
   expectedHead: string;
   requestId: string;
   updatedBy: string;
@@ -14,6 +17,9 @@ export type StoredWorkflowAutonomy = {
 
 export const isWorkflowAutonomy = (value: unknown): value is WorkflowAutonomy =>
   WORKFLOW_AUTONOMY_MODES.includes(value as WorkflowAutonomy);
+
+export const isWorkflowRoleLevel = (value: unknown): value is WorkflowRoleLevel =>
+  WORKFLOW_ROLE_LEVELS.includes(value as WorkflowRoleLevel);
 
 export const configuredWorkflowAutonomy = (job: JobConfig): WorkflowAutonomy => {
   const value = job.config.workflow_autonomy;
@@ -42,6 +48,33 @@ export const resolveWorkflowAutonomy = (job: JobConfig, stored: unknown) => {
     ? { mode: override.mode, source: 'override' as const, override }
     : { mode: 'manual' as const, source: 'safe_fallback' as const };
 };
+
+export const storedWorkflowRoleLevel = (stored: unknown) => {
+  const level = storedWorkflowAutonomy(stored)?.roleWorkflowLevel;
+  return isWorkflowRoleLevel(level) ? level : undefined;
+};
+
+export const resolveWorkflowRoleLevel = (stored: unknown, fallback: WorkflowRoleLevel = 'fast') =>
+  storedWorkflowRoleLevel(stored) ?? fallback;
+
+export const workflowPreferencesWithRoleLevel = (args: {
+  job: JobConfig;
+  stored: unknown;
+  level: WorkflowRoleLevel;
+  expectedHead: string;
+  requestId: string;
+  updatedBy: string;
+  updatedAt?: string;
+}): StoredWorkflowAutonomy => ({
+  ...(storedWorkflowAutonomy(args.stored) ?? {
+    mode: resolveWorkflowAutonomy(args.job, args.stored).mode,
+  }),
+  roleWorkflowLevel: args.level,
+  expectedHead: args.expectedHead,
+  requestId: args.requestId,
+  updatedBy: args.updatedBy,
+  updatedAt: args.updatedAt ?? new Date().toISOString(),
+});
 
 export const workflowAutonomyAllows = (
   mode: WorkflowAutonomy,

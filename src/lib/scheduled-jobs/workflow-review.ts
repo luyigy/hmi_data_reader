@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { loadProjectsConfig } from './project-config';
+import { workflowPreferencesWithRoleLevel } from './workflow-autonomy';
 
 export type WorkflowReviewPending = {
   key: string;
@@ -13,6 +14,7 @@ export type WorkflowReviewPending = {
   revisionFeedbackMessageId?: string;
   revisionDispatched?: boolean;
   revisionDispatchKey?: string;
+  roleWorkflowLevel?: 'full' | 'lean' | 'fast';
 };
 
 export type WorkflowReviewDecision = 'approve' | 'reject' | 'revision' | 'revise';
@@ -26,6 +28,7 @@ export function applyWorkflowReviewDecision(args: {
   reviewAttempt?: number;
   pendingKey: string;
   reviewFeedback?: string;
+  roleWorkflowLevel?: string;
   now?: Date;
 }) {
   const { pending } = args;
@@ -40,6 +43,11 @@ export function applyWorkflowReviewDecision(args: {
   }
   if (pending.reviewState !== 'review') return { status: 'duplicate' as const, pending };
   if (args.decision === 'revise') return { status: 'prompt' as const, pending };
+  if (args.decision === 'approve'
+    && args.roleWorkflowLevel !== undefined
+    && !['full', 'lean', 'fast'].includes(args.roleWorkflowLevel)) {
+    return { status: 'invalid' as const, pending };
+  }
   return {
     status: 'applied' as const,
     pending: {
@@ -54,6 +62,9 @@ export function applyWorkflowReviewDecision(args: {
       ...(args.decision === 'revision' ? { reviewFeedback: args.reviewFeedback?.trim() ?? '' } : {}),
       ...(args.decision === 'revision' && args.reviewFeedback?.trim()
         ? { revisionDispatchKey: `${pending.key}:feedback` }
+        : {}),
+      ...(args.decision === 'approve'
+        ? { roleWorkflowLevel: (args.roleWorkflowLevel ?? 'lean') as 'full' | 'lean' | 'fast' }
         : {}),
     },
   };
@@ -108,6 +119,7 @@ export async function resolveWorkflowReviewCardAction(args: {
   messageId?: string;
   reviewAttempt?: number;
   reviewFeedback?: string;
+  roleWorkflowLevel?: string;
 }) {
   const { projects } = await loadProjectsConfig();
   const project = projects.find(({ id }) => id === args.projectId);
@@ -122,7 +134,7 @@ export async function resolveWorkflowReviewCardAction(args: {
     `;
     const state = await tx.scheduledJobState.findUnique({
       where: { projectId_jobId: { projectId: project.id, jobId: job.id } },
-      select: { cursorJson: true },
+      select: { cursorJson: true, workflowAutonomy: true },
     });
     const cursor = state?.cursorJson;
     if (!cursor || typeof cursor !== 'object' || Array.isArray(cursor) || !('pending' in cursor)) {
@@ -139,6 +151,16 @@ export async function resolveWorkflowReviewCardAction(args: {
             ...(cursor as Record<string, Prisma.JsonValue>),
             pending: result.pending,
           } as Prisma.InputJsonValue,
+          ...(args.decision === 'approve' && result.pending.roleWorkflowLevel ? {
+            workflowAutonomy: workflowPreferencesWithRoleLevel({
+              job,
+              stored: state?.workflowAutonomy,
+              level: result.pending.roleWorkflowLevel,
+              expectedHead: args.pendingKey.split(':')[0],
+              requestId: args.messageId || args.pendingKey,
+              updatedBy: args.actorOpenId || approverOpenId,
+            }),
+          } : {}),
         },
       });
     }
