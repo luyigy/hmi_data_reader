@@ -1,6 +1,6 @@
 {
-  "contract_version": "2.7.0",
-  "description": "HMI 识别输出字段目录 v2.1.0。reader 仓维护的唯一字段事实源；主仓只保存本文件的冻结快照（contracts/hmi-reader/）。每个字段给出值类型、单位、容差、业务语义、物理语义维度与 Web 目标规则。physical_semantics 中 null 表示该维度尚未由真实样本确认，禁止猜测。 v1.0.1：DEMAG 多级注射段数组明确为物理段序输出（025_FIX 错误修正），entity.order=physical_stage。 v2.0.0（026_FIX，领域操作者确认）：DEMAG 多级注射页段表上 row 实为各段射胶速度、下 row 实为各段起点位置（stage_position_mm 语义重定义为 injection_segment/physical_stage，position_meaning=stage_start_position，reference_origin=cushion_zero）；左列三值实为保压压力/保压速度/V-P 切换位置（复用 holding_pressure_bar/holding_velocity_mms/switch_position_mm）；新增右上全局射胶压力上限复用 injection_pressure_limit_bar；删除误标条目 pressure_limit_bar/first_velocity_mms/first_position_mm；multi_stage_injection 不再输出 stage_pressure_bar。 v2.1.0（027，用户批准的 quick fix）：新增 4 条 Web 目标规则 injection_global_pressure_limit/vp_switch_position/holding_single_pressure/injection_segment_start_position，injection_pressure_limit_bar、switch_position_mm、holding_pressure_bar、stage_position_mm 的 web_target 分别指向新规则；识别输出字段与语义不变，属向后兼容 minor。 v2.2.0（035 保压页独立 profile，首份真值 app 反馈 e3ebbba2 领域确认）：multi_stage_holding 语义确认——stage_holding_time_s 的 physical_semantics.time_definition=segment_duration（各段保压时间为每段时长，非累计时刻）；stage_holding_pressure_bar entity.order=physical_stage（段数组按物理段序输出，与注射段一致；屏幕自右向左为第 1 段起，输出边界统一反转）；识别输出字段集合不变，属向后兼容 minor。 v2.3.0：新增 stage_holding_velocity_mms——DEMAG 保压页速度行为分段字段（030_FIX 领域确认），仅 multi_stage_holding profile 输出；单个有效值页面回退 holding_velocity_mms 单值。 v2.4.0（Layer 1 禁用段图像观测）：新增响应顶层可选键 stage_enabled（dict[str, list[bool]]）——DEMAG 段表禁用段以深色背景/深灰框表达、OCR 文字层不可见，现对矫正图采样段表格亮度补足观测（深色=禁用），布尔数组经与数值完全相同的剔除/反转变换，与最终段数组逐位对齐；仅 multi_stage_injection/multi_stage_holding 变体输出，无图像时该键缺省；纯观测标注，不改变任何数值数组的产出语义，属向后兼容 minor。 v2.5.0（保压段映射 + 压力侧别，用户批准）：新增 2 条 Web 目标规则 holding_segment_pressure/holding_segment_time，stage_holding_pressure_bar、stage_holding_time_s 的 web_target 分别指向新规则（stage_holding_velocity_mms 保持 null，草稿保压段无速度目标）；DEMAG 注射/保压变体新增 extraction_detail.pressure_unit_text 压力行标签单位观测（bar_spez=塑料压力），attach_contract 据此对带 physical_semantics.pressure_basis 的字段做运行时覆盖，目录原值不变；识别输出字段集合与既有语义不变，属向后兼容 minor。 v2.5.1：保压字段 page_label_zh 由 射胶页面 改为 保压页面（页面分类错误修正，Web 页面清单纯展示层同步）。 v2.6.0（B_AND_R 温度列语义，用户批准）：料筒温区数组字段新增 entity_overrides——profile b_and_r.temperature.fixed 的列序为 [NZ,#1,#2,#3,#4,#5]（NZ=射嘴区；无 NZ 列的浅色 UI 变体 NZ 位输出 null，此时 #1=射嘴，用户 2026-08-07 裁定），覆盖目录默认的 DEMAG 列序 [喷嘴1,区3,区2,区1]；attach_contract 按 profile_id 合并覆盖 entity，字段集合与数值语义不变，属向后兼容 minor。 v2.7.0（热流道温控箱，用户批准）：新增字段 hot_runner_sv_c——温控箱数码管面板 SV 设定值数组（多排面板按 y 排序拼接，黑屏通道为 null，PV 实时值不入），page_type=hot_runner_temp；新增 Web 目标规则 hot_runner_zone_temperature_set（非 null 通道按序写入 hot_runner_zones，数量须一致）。",
+  "contract_version": "2.7.1",
+  "description": "HMI 识别输出字段目录 v2.1.0。reader 仓维护的唯一字段事实源；主仓只保存本文件的冻结快照（contracts/hmi-reader/）。每个字段给出值类型、单位、容差、业务语义、物理语义维度与 Web 目标规则。physical_semantics 中 null 表示该维度尚未由真实样本确认，禁止猜测。 v1.0.1：DEMAG 多级注射段数组明确为物理段序输出（025_FIX 错误修正），entity.order=physical_stage。 v2.0.0（026_FIX，领域操作者确认）：DEMAG 多级注射页段表上 row 实为各段射胶速度、下 row 实为各段起点位置（stage_position_mm 语义重定义为 injection_segment/physical_stage，position_meaning=stage_start_position，reference_origin=cushion_zero）；左列三值实为保压压力/保压速度/V-P 切换位置（复用 holding_pressure_bar/holding_velocity_mms/switch_position_mm）；新增右上全局射胶压力上限复用 injection_pressure_limit_bar；删除误标条目 pressure_limit_bar/first_velocity_mms/first_position_mm；multi_stage_injection 不再输出 stage_pressure_bar。 v2.1.0（027，用户批准的 quick fix）：新增 4 条 Web 目标规则 injection_global_pressure_limit/vp_switch_position/holding_single_pressure/injection_segment_start_position，injection_pressure_limit_bar、switch_position_mm、holding_pressure_bar、stage_position_mm 的 web_target 分别指向新规则；识别输出字段与语义不变，属向后兼容 minor。 v2.2.0（035 保压页独立 profile，首份真值 app 反馈 e3ebbba2 领域确认）：multi_stage_holding 语义确认——stage_holding_time_s 的 physical_semantics.time_definition=segment_duration（各段保压时间为每段时长，非累计时刻）；stage_holding_pressure_bar entity.order=physical_stage（段数组按物理段序输出，与注射段一致；屏幕自右向左为第 1 段起，输出边界统一反转）；识别输出字段集合不变，属向后兼容 minor。 v2.3.0：新增 stage_holding_velocity_mms——DEMAG 保压页速度行为分段字段（030_FIX 领域确认），仅 multi_stage_holding profile 输出；单个有效值页面回退 holding_velocity_mms 单值。 v2.4.0（Layer 1 禁用段图像观测）：新增响应顶层可选键 stage_enabled（dict[str, list[bool]]）——DEMAG 段表禁用段以深色背景/深灰框表达、OCR 文字层不可见，现对矫正图采样段表格亮度补足观测（深色=禁用），布尔数组经与数值完全相同的剔除/反转变换，与最终段数组逐位对齐；仅 multi_stage_injection/multi_stage_holding 变体输出，无图像时该键缺省；纯观测标注，不改变任何数值数组的产出语义，属向后兼容 minor。 v2.5.0（保压段映射 + 压力侧别，用户批准）：新增 2 条 Web 目标规则 holding_segment_pressure/holding_segment_time，stage_holding_pressure_bar、stage_holding_time_s 的 web_target 分别指向新规则（stage_holding_velocity_mms 保持 null，草稿保压段无速度目标）；DEMAG 注射/保压变体新增 extraction_detail.pressure_unit_text 压力行标签单位观测（bar_spez=塑料压力），attach_contract 据此对带 physical_semantics.pressure_basis 的字段做运行时覆盖，目录原值不变；识别输出字段集合与既有语义不变，属向后兼容 minor。 v2.5.1：保压字段 page_label_zh 由 射胶页面 改为 保压页面（页面分类错误修正，Web 页面清单纯展示层同步）。 v2.6.0（B_AND_R 温度列语义，用户批准）：料筒温区数组字段新增 entity_overrides——profile b_and_r.temperature.fixed 的列序为 [NZ,#1,#2,#3,#4,#5]（NZ=射嘴区；无 NZ 列的浅色 UI 变体 NZ 位输出 null，此时 #1=射嘴，用户 2026-08-07 裁定），覆盖目录默认的 DEMAG 列序 [喷嘴1,区3,区2,区1]；attach_contract 按 profile_id 合并覆盖 entity，字段集合与数值语义不变，属向后兼容 minor。 v2.7.0（热流道温控箱，用户批准）：新增字段 hot_runner_sv_c——温控箱数码管面板 SV 设定值数组（多排面板按 y 排序拼接，黑屏通道为 null，PV 实时值不入），page_type=hot_runner_temp；新增 Web 目标规则 hot_runner_zone_temperature_set（非 null 通道按序写入 hot_runner_zones，数量须一致）。 v2.7.1（模温机/冷水机面板，042 PLAN S01）：新增字段 mold_temperature_set_c / mold_temperature_current_c——模温机/温度循环控制机/冷水机面板 SV(SET) 设定值与 PV 实际值（标量），page_type=mold_temp；新增 Web 目标规则 mold_zone_temperature_set（设定值只写入用户显式选择的模温目标）；不沿用无目录语义的裸 set_temperature_c。纯新增字段，属向后兼容 minor。",
   "web_target_rules": {
     "injection_segment_speed": "按段序写入 parameter_data.injection.segments[*].speed.raw_value；要求草稿段数与识别值数量一致、段序连续、面板与段单位均为 mm/s",
     "injection_segment_pressure_limit": "按段序写入 parameter_data.injection.segments[*].pressure_limit.raw_value；要求段结构兼容、面板单位 bar 且压力侧别一致",
@@ -13,7 +13,8 @@
     "injection_segment_start_position": "各段起点位置换算为终点后写入 parameter_data.injection.segments[*].end_position.raw_value（第 N 段终点=第 N+1 段起点，末段终点=同图 switch_position_mm）；位置数组尾部为 0 的禁用段剔除后启用段数须与草稿段数一致、段序连续、面板位置单位 mm 且各段单位 mm；缺有效 switch_position_mm 时整条规则不落值",
     "holding_segment_pressure": "按物理段序写入 parameter_data.holding.segments[*].pressure.raw_value；要求草稿保压段数与识别段数一致、面板压力单位 bar、压力侧别已配置且各保压段单位 bar 与面板侧别一致；识别侧 field_meta.physical_semantics.pressure_basis 非 null 时须与草稿面板侧别一致",
     "holding_segment_time": "按物理段序写入 parameter_data.holding.segments[*].time.raw_value；要求草稿保压段数与识别段数一致、holding.time_definition 为 segment_duration、面板时间单位 s 且各保压段单位 s",
-    "hot_runner_zone_temperature_set": "非 null 通道按面板顺序写入 hot_runner_zones[*].set_temperature_c；非 null 通道数须与温区数量一致，不一致拒绝填入"
+    "hot_runner_zone_temperature_set": "非 null 通道按面板顺序写入 hot_runner_zones[*].set_temperature_c；非 null 通道数须与温区数量一致，不一致拒绝填入",
+    "mold_zone_temperature_set": "设定值只写入用户上传前显式选择的模温目标（cavity_side / core_side / mold_zones[zone_id]）的 set_temperature；目标不存在、已删除或识别期间变更时禁止应用；PV 实际值仅展示与核对，不写入草稿"
   },
   "fields": {
     "stage_velocity_mms": {
@@ -692,6 +693,40 @@
       },
       "web_target": "hot_runner_zone_temperature_set",
       "note": "数码管 SV 行按面板物理顺序展开（每排 channels 通道，多排按 y 拼接）；黑屏通道 null；PV 实时值不入"
+    },
+    "mold_temperature_set_c": {
+      "value_type": "float",
+      "unit": "°C",
+      "tolerance": 0.5,
+      "label_zh": "模温设定温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "source_pages": [
+        "mold_temp"
+      ],
+      "role": "setpoint",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "web_target": "mold_zone_temperature_set",
+      "note": "模温机/温度循环控制机/冷水机面板 SV(SET) 设定值；前模/后模/行位由用户上传前显式选择，识别结果不含目标语义；替代无目录语义的裸 set_temperature_c"
+    },
+    "mold_temperature_current_c": {
+      "value_type": "float",
+      "unit": "°C",
+      "tolerance": 0.5,
+      "label_zh": "模温实际温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "source_pages": [
+        "mold_temp"
+      ],
+      "role": "actual",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "web_target": null,
+      "note": "面板 PV 实际值，仅展示与核对，不写入草稿"
     }
   }
 }

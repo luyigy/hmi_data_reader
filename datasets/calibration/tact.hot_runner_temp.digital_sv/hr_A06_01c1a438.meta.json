@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "hr_A06_01c1a438",
+  "profile_id": "tact.hot_runner_temp.digital_sv",
+  "profile_layout_version": 1,
+  "contract_version": "2.7.1",
+  "truth_hash": "sha256:e1743d37fe13f4cdffdc80fca5da25d9126d7ea0ad9fdf9d483a7a09468f7769",
+  "image_sha256": "sha256:01c1a4380033b40a727b666d3170dd4757b0c09ef06a00fe8c7491d957456ac8",
+  "structure": {
+    "controller_family": "TACT",
+    "page_type": "hot_runner_temp",
+    "hmi_variant": "digital_sv",
+    "allow_auto_import": true,
+    "image": "hr_A06_01c1a438.jpg",
+    "n_fields": 1
+  },
+  "field_meta": {
+    "hot_runner_sv_c": {
+      "label_zh": "热流道设定温度",
+      "page_label_zh": "热流道温控箱面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "hot_runner_channel",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "hot_runner_zone_temperature_set"
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-热流道温控箱温度」附件（record recuQJJFYYEAXs，伯乐 A06，036 PLAN 批次 batch_001）"
+    },
+    "verified_by": "kimi-code 逐图目视核验（042 S01，待王为确认）",
+    "verified_at": "2026-08-12",
+    "tuning_involvement": "none",
+    "placement_reason": "036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout"
+  }
+}

@@ -1,0 +1,50 @@
+schema_version: 1.0.0
+case_id: barrel_A11_9835fbea
+profile_id: fanuc.temperature.rightmost5
+controller_family: FANUC
+page_type: temperature
+hmi_variant: rightmost5
+allow_auto_import: true
+image:
+  file: barrel_A11_9835fbea.jpg
+fields:
+  barrel_temperature_set_c:
+  - 290.0
+  - 285.0
+  - 275.0
+  - 270.0
+  barrel_temperature_current_c:
+  - 280.0
+  - 285.0
+  - 275.0
+  - 270.2
+  high_deviation_c:
+  - 10.0
+  - 10.0
+  - 10.0
+  - 15.0
+  low_deviation_c:
+  - 10.0
+  - 10.0
+  - 10.0
+  - 15.0
+  control_percent:
+  - 35.5
+  - 12.0
+  - 5.9
+  - 47.8
+  drop_port_temperature_set_c: 45.0
+  drop_port_temperature_current_c: 45.0
+  drop_port_control_percent: 57.0
+  holding_temperature_c: 200.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recuQJJFYYymzu，发那科 A11，036 PLAN 批次
+      batch_001）
+  verified_by: kimi-code 逐图目视核验（042 S01，待王为确认）
+  verified_at: '2026-08-12'
+  tuning_involvement: none
+  placement_reason: 036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout
+notes: ROBOSHOT α-S30iA 喷嘴/料筒页；列序 [N,B1,B2,B3]，H 列为料斗喉部按 drop_port 语义；M1-M4 模温加热器关断（设定
+  0、实际 *****）不入；低温保持 200.0°C(OFF) 作 holding_temperature_c；输出行 N=35.5 经原图局部放大确认（摩尔纹下易误读
+  31.5）。

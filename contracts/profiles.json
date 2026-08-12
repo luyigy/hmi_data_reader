@@ -61,6 +61,54 @@
       "layout_variant": "digital_sv",
       "status": "candidate",
       "lifecycle_note": "2026-08-08 登记：热流道温控箱数码管面板（龙昌兴/YUDO CW301 同构）。证据：6 份自动整批接受真值（hr_Z023 rank01-06，单排 6 通道）；2026-08-08 多排扩展（12 通道双排，ground_truth/hot_runner 实拍 2 张：龙昌兴 SV[c250+5×null+c250×6]、YUDO SV[255.0+5×null+255.0×6]）。温控箱为独立设备，路由沿用 TACT slug 仅为提取器分发，不参与机台品牌核对。晋级 verified 需契约真值门禁（holdout >=5）或所有者豁免。"
+    },
+    {
+      "profile_id": "fanuc.temperature.rightmost5",
+      "controller_family": "FANUC",
+      "page_type": "temperature",
+      "layout_variant": "rightmost5",
+      "status": "candidate",
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：发那科 ROBOSHOT 喷嘴/料筒温度页右起 5 列（N,B1,B2,B3,H）布局。证据：2 份逐图目视核验真值（barrel_A11_9835fbea / barrel_A11_3ce4cae5，calibration）。H 列按料口（drop_port）语义，M1-M4 关断模温加热器不入。晋级 verified 需 042 S06 独立 holdout 门禁。 [lifecycle] unknown -> candidate"
+    },
+    {
+      "profile_id": "hot_system.hot_runner_temp.single_zone",
+      "controller_family": "HOT_SYSTEM",
+      "page_type": "hot_runner_temp",
+      "layout_variant": "single_zone",
+      "status": "candidate",
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：Hot-system 单通道热流道温控器（A09，PV/SV 数码管）。证据：3 份逐图目视核验真值（hr_A09_*，calibration，均 allow_auto_import=false）。单通道布局不纳入本期 release 自动导入，仅钉住安全拒识。 [lifecycle] unknown -> candidate"
+    },
+    {
+      "profile_id": "omron_e5cc.mold_temp.single_loop",
+      "controller_family": "OMRON_E5CC",
+      "page_type": "mold_temp",
+      "layout_variant": "single_loop",
+      "status": "candidate",
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：AOLANTE/APM 温度循环控制机搭载的 Omron E5CC 单回路温控器面板（PV 上行/SV 下行）。证据：7 份逐图目视核验真值（mt_*_B07/A04/A09，calibration）。模温机为独立设备，不与注塑机品牌强制核对；前/后/行位目标由用户显式选择。晋级 verified 需 042 S06 独立 holdout 门禁。 [lifecycle] unknown -> candidate"
+    },
+    {
+      "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+      "controller_family": "MOLD_THERMOREGULATOR",
+      "page_type": "mold_temp",
+      "layout_variant": "pv_sv_decimal",
+      "status": "candidate",
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：模具温度调节机（MOLD-THERMOREGULATOR）双数码管带小数布局（PV/SV 一位小数）。证据：4 份逐图目视核验真值（mt_*_A02/B05，calibration）。晋级 verified 需 042 S06 独立 holdout 门禁。 [lifecycle] unknown -> candidate"
+    },
+    {
+      "profile_id": "mold_thermoregulator.mold_temp.pv_sv_integer",
+      "controller_family": "MOLD_THERMOREGULATOR",
+      "page_type": "mold_temp",
+      "layout_variant": "pv_sv_integer",
+      "status": "candidate",
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：模具温度调节机双数码管整数布局（PV/SV 整数，T1/T2 指示灯）。证据：3 份逐图目视核验真值（mt_*_A11/B12，calibration）。晋级 verified 需 042 S06 独立 holdout 门禁。 [lifecycle] unknown -> candidate"
+    },
+    {
+      "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
+      "controller_family": "INDUSTRIAL_CHILLER",
+      "page_type": "mold_temp",
+      "layout_variant": "lcd_pv_set",
+      "status": "candidate",
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：工业冷水机 LCD 面板（PV 大字 + SET 小字，B03 行位来源）。证据：3 份逐图目视核验真值（mt_slide_B03_*，calibration，均 allow_auto_import=false）。冷水机非模温机，布局不纳入本期 release 自动导入，仅钉住安全拒识。 [lifecycle] unknown -> candidate"
     }
   ]
 }

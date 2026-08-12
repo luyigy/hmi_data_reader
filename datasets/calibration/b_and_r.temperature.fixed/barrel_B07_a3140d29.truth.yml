@@ -1,0 +1,55 @@
+schema_version: 1.0.0
+case_id: barrel_B07_a3140d29
+profile_id: b_and_r.temperature.fixed
+controller_family: B_AND_R
+page_type: temperature
+hmi_variant: fixed
+allow_auto_import: true
+image:
+  file: barrel_B07_a3140d29.jpg
+fields:
+  barrel_temperature_set_c:
+  - 250.0
+  - 255.0
+  - 255.0
+  - 245.0
+  - 225.0
+  - null
+  barrel_temperature_current_c:
+  - 250.1
+  - 254.4
+  - 255.1
+  - 244.9
+  - 224.7
+  - null
+  high_deviation_c:
+  - 30.0
+  - 30.0
+  - 30.0
+  - 25.0
+  - 35.0
+  - null
+  low_deviation_c:
+  - 20.0
+  - 20.0
+  - 20.0
+  - 20.0
+  - 20.0
+  - null
+  control_percent:
+  - 16.4
+  - 50.6
+  - 8.3
+  - 10.2
+  - 26.4
+  - null
+  holding_temperature_c: 150.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recuQJJFYYdeL7，伯乐 B07，036 PLAN 批次
+      batch_001）
+  verified_by: kimi-code 逐图目视核验（042 S01，待王为确认）
+  verified_at: '2026-08-12'
+  tuning_involvement: none
+  placement_reason: 036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout
+notes: 5 列变体同 159bb588；加热计划页保温温度 150.0°C。

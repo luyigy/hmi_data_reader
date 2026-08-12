@@ -1,0 +1,54 @@
+schema_version: 1.0.0
+case_id: barrel_B07_159bb588
+profile_id: b_and_r.temperature.fixed
+controller_family: B_AND_R
+page_type: temperature
+hmi_variant: fixed
+allow_auto_import: true
+image:
+  file: barrel_B07_159bb588.jpg
+fields:
+  barrel_temperature_set_c:
+  - 250.0
+  - 255.0
+  - 255.0
+  - 245.0
+  - 225.0
+  - null
+  barrel_temperature_current_c:
+  - 249.9
+  - 255.3
+  - 255.1
+  - 244.9
+  - 224.8
+  - null
+  high_deviation_c:
+  - 30.0
+  - 30.0
+  - 30.0
+  - 25.0
+  - 35.0
+  - null
+  low_deviation_c:
+  - 20.0
+  - 20.0
+  - 20.0
+  - 20.0
+  - 20.0
+  - null
+  control_percent:
+  - 24.4
+  - 42.0
+  - 8.1
+  - 10.6
+  - 20.6
+  - null
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recuQJJFYYwEDU，伯乐 B07，036 PLAN 批次
+      batch_001）
+  verified_by: kimi-code 逐图目视核验（042 S01，待王为确认）
+  verified_at: '2026-08-12'
+  tuning_involvement: none
+  placement_reason: 036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout
+notes: 'B07 料筒温度页为 5 列变体（NZ,#1..#4），无 #5 列，#5 位记 null；行标签左侧被拍照裁切，按行序（实际/设定/高温偏差/低温偏差/加热输出/启用）确认。'

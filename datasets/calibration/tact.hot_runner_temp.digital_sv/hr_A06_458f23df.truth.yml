@@ -1,0 +1,26 @@
+schema_version: 1.0.0
+case_id: hr_A06_458f23df
+profile_id: tact.hot_runner_temp.digital_sv
+controller_family: TACT
+page_type: hot_runner_temp
+hmi_variant: digital_sv
+allow_auto_import: true
+image:
+  file: hr_A06_458f23df.jpg
+fields:
+  hot_runner_sv_c:
+  - 300.0
+  - 320.0
+  - 300.0
+  - 320.0
+  - 300.0
+  - null
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-热流道温控箱温度」附件（record recuQJJFYYZEvK，伯乐 A06，036 PLAN
+      批次 batch_001）
+  verified_by: kimi-code 逐图目视核验（042 S01，待王为确认）
+  verified_at: '2026-08-12'
+  tuning_involvement: none
+  placement_reason: 036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout
+notes: 龙昌兴单排 6 通道数码管面板；通道 6 黑屏记 null；PV 实时值按目录口径不入。

@@ -3,7 +3,7 @@
   "case_id": "holding_Z005_2e22f85a",
   "profile_id": "demag.injection_metering.multi_stage_holding",
   "profile_layout_version": 1,
-  "contract_version": "2.5.0",
+  "contract_version": "2.7.1",
   "truth_hash": "sha256:63f03a422a0248707fe8b3b444de66f7fb5d992a9c076e568e782b734359fee4",
   "image_sha256": "sha256:ebfab180de48b76938c75a8dea9ac12131a945379924b22b397dd518dd4f6a15",
   "structure": {
@@ -17,7 +17,7 @@
   "field_meta": {
     "stage_holding_pressure_bar": {
       "label_zh": "各段保压压力",
-      "page_label_zh": "射胶页面",
+      "page_label_zh": "保压页面",
       "unit": "bar",
       "role": "setpoint",
       "entity": {
@@ -33,7 +33,7 @@
     },
     "stage_holding_time_s": {
       "label_zh": "各段保压时间",
-      "page_label_zh": "射胶页面",
+      "page_label_zh": "保压页面",
       "unit": "s",
       "role": "setpoint",
       "entity": {
@@ -48,7 +48,7 @@
     },
     "stage_holding_velocity_mms": {
       "label_zh": "各段保压速度",
-      "page_label_zh": "射胶页面",
+      "page_label_zh": "保压页面",
       "unit": "mm/s",
       "role": "setpoint",
       "entity": {

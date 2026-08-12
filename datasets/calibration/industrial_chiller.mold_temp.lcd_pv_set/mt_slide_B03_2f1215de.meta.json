@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "mt_slide_B03_2f1215de",
+  "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
+  "profile_layout_version": 1,
+  "contract_version": "2.7.1",
+  "truth_hash": "sha256:d8885c5457bbf2aa83a0e1d1a4001899ba045e5a93069b8b25c2410a1e86fd83",
+  "image_sha256": "sha256:2f1215de720b99f70b4deb075156aa9a3b9da83a6b508eb00a3566702428ca36",
+  "structure": {
+    "controller_family": "INDUSTRIAL_CHILLER",
+    "page_type": "mold_temp",
+    "hmi_variant": "lcd_pv_set",
+    "allow_auto_import": false,
+    "image": "mt_slide_B03_2f1215de.jpg",
+    "n_fields": 2
+  },
+  "field_meta": {
+    "mold_temperature_set_c": {
+      "label_zh": "模温设定温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": "mold_zone_temperature_set"
+    },
+    "mold_temperature_current_c": {
+      "label_zh": "模温实际温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-模温机行位」附件（record recuQJJFYY66ON，伯乐 B03，036 PLAN 批次 batch_001）"
+    },
+    "verified_by": "kimi-code 逐图目视核验（042 S01，待王为确认）",
+    "verified_at": "2026-08-12",
+    "tuning_involvement": "none",
+    "placement_reason": "036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout"
+  }
+}

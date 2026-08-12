@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "mt_rear_A04_c3272b43",
+  "profile_id": "omron_e5cc.mold_temp.single_loop",
+  "profile_layout_version": 1,
+  "contract_version": "2.7.1",
+  "truth_hash": "sha256:df666f060b816054127f5a0467d5ed8db66e8545270d629f5d16a258a1f85794",
+  "image_sha256": "sha256:c3272b43f98a5bfb08bc2d5c06bf0cedc2896e1d14d76d532ace1452bda0b82d",
+  "structure": {
+    "controller_family": "OMRON_E5CC",
+    "page_type": "mold_temp",
+    "hmi_variant": "single_loop",
+    "allow_auto_import": true,
+    "image": "mt_rear_A04_c3272b43.jpg",
+    "n_fields": 2
+  },
+  "field_meta": {
+    "mold_temperature_set_c": {
+      "label_zh": "模温设定温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": "mold_zone_temperature_set"
+    },
+    "mold_temperature_current_c": {
+      "label_zh": "模温实际温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-模温机后模」附件（record recuQJJFYYjvNr，日精 A04，036 PLAN 批次 batch_001）"
+    },
+    "verified_by": "kimi-code 逐图目视核验（042 S01，待王为确认）",
+    "verified_at": "2026-08-12",
+    "tuning_involvement": "none",
+    "placement_reason": "036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout"
+  }
+}

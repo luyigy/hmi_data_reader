@@ -1,0 +1,190 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "barrel_A02_e54f3633",
+  "profile_id": "demag.temperature.screen_order_5",
+  "profile_layout_version": 1,
+  "contract_version": "2.7.1",
+  "truth_hash": "sha256:8b9043649cdfa5de8f6db00c9b8cb16c85f493ac0d49273b70fb896a78987f68",
+  "image_sha256": "sha256:e54f3633e56de2890122d0e5365a1ba600bb175705e2883cae049e4e7a3a05a5",
+  "structure": {
+    "controller_family": "DEMAG",
+    "page_type": "temperature",
+    "hmi_variant": "screen_order_5",
+    "allow_auto_import": true,
+    "image": "barrel_A02_e54f3633.jpg",
+    "n_fields": 11
+  },
+  "field_meta": {
+    "barrel_temperature_set_c": {
+      "label_zh": "料筒设定温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "喷嘴1",
+          "区3",
+          "区2",
+          "区1"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": "barrel_zone_temperature_set"
+    },
+    "barrel_temperature_current_c": {
+      "label_zh": "料筒当前温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "喷嘴1",
+          "区3",
+          "区2",
+          "区1"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": "barrel_zone_temperature_actual"
+    },
+    "high_deviation_c": {
+      "label_zh": "温度上偏差",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "limit",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "喷嘴1",
+          "区3",
+          "区2",
+          "区1"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    },
+    "low_deviation_c": {
+      "label_zh": "温度下偏差",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "limit",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "喷嘴1",
+          "区3",
+          "区2",
+          "区1"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    },
+    "control_percent": {
+      "label_zh": "料筒加热输出",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "%",
+      "role": "monitor",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "喷嘴1",
+          "区3",
+          "区2",
+          "区1"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    },
+    "drop_port_temperature_set_c": {
+      "label_zh": "下料口设定温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "drop_port",
+        "identity": "singleton"
+      },
+      "value_type": "float",
+      "web_target": null
+    },
+    "drop_port_temperature_current_c": {
+      "label_zh": "下料口当前温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "drop_port",
+        "identity": "singleton"
+      },
+      "value_type": "float",
+      "web_target": null
+    },
+    "drop_port_control_percent": {
+      "label_zh": "下料口加热输出",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "%",
+      "role": "monitor",
+      "entity": {
+        "kind": "drop_port",
+        "identity": "singleton"
+      },
+      "value_type": "float",
+      "web_target": null
+    },
+    "oil_temperature_set_c": {
+      "label_zh": "液压油设定温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "oil",
+        "identity": "singleton"
+      },
+      "value_type": "float",
+      "web_target": null
+    },
+    "oil_temperature_current_c": {
+      "label_zh": "液压油当前温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "oil",
+        "identity": "singleton"
+      },
+      "value_type": "float",
+      "web_target": null
+    },
+    "holding_temperature_c": {
+      "label_zh": "保温温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_temperature",
+        "identity": "singleton"
+      },
+      "value_type": "float",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recuQJJFYYb0FB，德马格 A02，036 PLAN 批次 batch_001）"
+    },
+    "verified_by": "kimi-code 逐图目视核验（042 S01，待王为确认）",
+    "verified_at": "2026-08-12",
+    "tuning_involvement": "none",
+    "placement_reason": "036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout"
+  }
+}

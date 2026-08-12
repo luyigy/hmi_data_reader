@@ -1,0 +1,69 @@
+{
+  "profiles": {
+    "demag.injection_metering.multi_stage_injection": {
+      "status": "verified",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "demag.injection_metering.process_optimization": {
+      "status": "verified",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "demag.injection_metering.multi_stage_holding": {
+      "status": "verified",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "demag.injection_metering.multi_stage_back_pressure": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "demag.temperature.screen_order_5": {
+      "status": "verified",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "b_and_r.temperature.fixed": {
+      "status": "verified",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "tact.hot_runner_temp.digital_sv": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "fanuc.temperature.rightmost5": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "hot_system.hot_runner_temp.single_zone": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "omron_e5cc.mold_temp.single_loop": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "mold_thermoregulator.mold_temp.pv_sv_decimal": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "mold_thermoregulator.mold_temp.pv_sv_integer": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    },
+    "industrial_chiller.mold_temp.lcd_pv_set": {
+      "status": "candidate",
+      "mismatch_streak": 0,
+      "seen_issue_ids": []
+    }
+  }
+}

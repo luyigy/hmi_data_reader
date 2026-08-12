@@ -1,0 +1,50 @@
+schema_version: 1.0.0
+case_id: barrel_A02_b24ff33d
+profile_id: demag.temperature.screen_order_5
+controller_family: DEMAG
+page_type: temperature
+hmi_variant: screen_order_5
+allow_auto_import: true
+image:
+  file: barrel_A02_b24ff33d.jpg
+fields:
+  barrel_temperature_set_c:
+  - 350.0
+  - 295.0
+  - 290.0
+  - 285.0
+  barrel_temperature_current_c:
+  - 350.0
+  - 295.0
+  - 290.0
+  - 285.0
+  high_deviation_c:
+  - 20.0
+  - 50.0
+  - 50.0
+  - 50.0
+  low_deviation_c:
+  - 20.0
+  - 20.0
+  - 20.0
+  - 20.0
+  control_percent:
+  - 25.0
+  - 15.0
+  - 3.0
+  - 41.0
+  drop_port_temperature_set_c: 60.0
+  drop_port_temperature_current_c: 60.0
+  drop_port_control_percent: -8.0
+  oil_temperature_set_c: 30.0
+  oil_temperature_current_c: 30.0
+  holding_temperature_c: 200.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recuQJJFYYbjRN，德马格 A02，036 PLAN 批次
+      batch_001）
+  verified_by: kimi-code 逐图目视核验（042 S01，待王为确认）
+  verified_at: '2026-08-12'
+  tuning_involvement: none
+  placement_reason: 036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout
+notes: 同 e54f3633 布局，速率行 [25,15,3,41]、料口 -8。
