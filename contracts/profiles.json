@@ -53,6 +53,14 @@
       "layout_variant": "fixed",
       "status": "verified",
       "lifecycle_note": "2026-08-07 用户（所有者）豁免晋级（verified）。证据：7 份用户核验真值（bole_Z046×6 + bole_Z004，蓝 UI，模板校准样本）；浅色无 NZ 列变体（bole_BR 实拍）经模板指纹路由实测提取全对（设定/实际/偏差/加热输出/保温共 26 个值与照片一致）；#1=射嘴（无 NZ 列变体）经用户 2026-08-07 裁定；路由证据置信度兜底（record/机台先验/模板指纹 0.9~0.95）就位。偏差披露：无独立 holdout（浅色变体仅 1 张温度页照片，未走契约真值报告门禁）；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
+      "profile_id": "tact.hot_runner_temp.digital_sv",
+      "controller_family": "TACT",
+      "page_type": "hot_runner_temp",
+      "layout_variant": "digital_sv",
+      "status": "candidate",
+      "lifecycle_note": "2026-08-08 登记：热流道温控箱数码管面板（龙昌兴/YUDO CW301 同构）。证据：6 份自动整批接受真值（hr_Z023 rank01-06，单排 6 通道）；2026-08-08 多排扩展（12 通道双排，ground_truth/hot_runner 实拍 2 张：龙昌兴 SV[c250+5×null+c250×6]、YUDO SV[255.0+5×null+255.0×6]）。温控箱为独立设备，路由沿用 TACT slug 仅为提取器分发，不参与机台品牌核对。晋级 verified 需契约真值门禁（holdout >=5）或所有者豁免。"
     }
   ]
 }

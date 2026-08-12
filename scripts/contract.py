@@ -74,6 +74,20 @@ def _template_heater_mode(family: str, page_type: str) -> str | None:
     return None
 
 
+@lru_cache(maxsize=None)
+def _template_layout_variant(family: str, page_type: str) -> str | None:
+    """hot_runner_temp/mold_temp 等页的 layout_variant = 模板显式 layout_variant 键。"""
+    path = TEMPLATES_DIR / f"{family.lower()}.{page_type}.json"
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    variant = data.get("layout_variant")
+    return variant if isinstance(variant, str) and variant else None
+
+
 def _resolve_layout_variant(result: dict) -> str | None:
     page_type = result.get("page_type")
     if page_type == "injection_metering":
@@ -87,6 +101,10 @@ def _resolve_layout_variant(result: dict) -> str | None:
         family = result.get("controller_family")
         if isinstance(family, str) and family:
             return _template_heater_mode(family, page_type)
+    if page_type in ("hot_runner_temp", "mold_temp"):
+        family = result.get("controller_family")
+        if isinstance(family, str) and family:
+            return _template_layout_variant(family, page_type)
     return None
 
 

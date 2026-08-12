@@ -209,6 +209,18 @@ async def recognize_image(file: UploadFile = File(...)):
                 except Exception as variant_error:  # noqa: BLE001
                     logger.warning("moire variant failed: %s", variant_error)
 
+            # 5c. CLAHE 召回变体（2026-08-08）：分类器未认出家族的图片（热流道温控箱等
+            # 数码管面板常漏检），生成 CLAHE sidecar——extract 的模板指纹兜底判族与
+            # TACT/KEBA/B_AND_R 等家族的 CLAHE 合并均复用该产物，失败不影响主路径。
+            if str(cls_res.get("ui_family") or "").strip().lower() in ("", "unknown"):
+                try:
+                    from ocr_variants import generate_clahe_sidecar
+                    generate_clahe_sidecar(
+                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_clahe.json"
+                    )
+                except Exception as variant_error:  # noqa: BLE001
+                    logger.warning("clahe variant failed: %s", variant_error)
+
             # 6. 字段提取
             record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
             machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
@@ -235,6 +247,10 @@ async def recognize_image(file: UploadFile = File(...)):
                 },
                 "fields": extract_res.get("fields", {}),
                 "hmi_variant": extract_res.get("hmi_variant"),
+                # 039_FIX：模板指纹兜底解析出的家族/页面（classify_ui 关键词表之外的家族
+                # 如 EST）必须透出，否则响应里只剩 classification 的 unknown，Web 门禁误杀。
+                "controller_family": extract_res.get("controller_family"),
+                "page_type": extract_res.get("page_type"),
                 "template": (extract_res.get("provenance") or {}).get("template"),
                 "contract_version": extract_res.get("contract_version"),
                 "profile_id": extract_res.get("profile_id"),

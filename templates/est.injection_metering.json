@@ -7,35 +7,119 @@
   "coordinate_system": "normalized_screen",
   "calibration": {
     "method": "6 张真值图（inj_Z048 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
-    "calibrated_at": "2026-08-02"
+    "calibrated_at": "2026-08-02",
+    "family_detect_note": "039_FIX：组1 追加 保压位置——部分照片 OCR 漏读 转保压方式/终止位置 标签（EST1 实测）；组2（输入值范围 290.0）仍承担与 KEBA 的区分。"
   },
   "tables": {
     "injection": {
-      "header_y": [0.0, 0.1], "max_stages": 6,
-      "row_labels": {"pressure": "压力", "velocity": "速度", "end_position": "终止位置"},
+      "header_y": [
+        0.0,
+        0.1
+      ],
+      "max_stages": 6,
+      "row_labels": {
+        "pressure": "压力",
+        "velocity": "速度",
+        "end_position": "终止位置"
+      },
       "row_label_x_max": 0.12,
-      "default_centers": [0.86, 0.73, 0.61, 0.49, 0.37, 0.25]
+      "default_centers": [
+        0.86,
+        0.73,
+        0.61,
+        0.49,
+        0.37,
+        0.25
+      ]
     },
     "holding": {
-      "header_y": [0.55, 0.65], "max_stages": 5,
-      "row_labels": {"pressure": "压力", "velocity": "速度", "time": "时间"},
-      "row_label_x_range": [0.15, 0.35],
-      "default_centers": [0.85, 0.74, 0.62, 0.50, 0.38]
+      "header_y": [
+        0.55,
+        0.65
+      ],
+      "max_stages": 5,
+      "row_labels": {
+        "pressure": "压力",
+        "velocity": "速度",
+        "time": "时间"
+      },
+      "row_label_x_range": [
+        0.15,
+        0.35
+      ],
+      "default_centers": [
+        0.85,
+        0.74,
+        0.62,
+        0.5,
+        0.38
+      ]
     },
-    "row_band": 0.03, "col_tol": 0.07
+    "row_band": 0.03,
+    "col_tol": 0.07
   },
   "singles": {
-    "injection_time_s": {"label": "射出时间", "range": [0, 60],
-                         "note": "值在标签上方段一列（dy -0.03~+0.005, x>0.8），单位 s 粘连"},
-    "holding_switch_mode": {"label": "转保压方式", "x_range": [0.2, 0.6],
-                            "values": ["时间/位置", "位置", "时间"]},
-    "vp_switch_position_mm": {"label": "保压位置", "range": [0, 200],
-                              "note": "标签同行右侧（dx<0.3），单位 mm 粘连"}
+    "injection_time_s": {
+      "label": "射出时间",
+      "range": [
+        0,
+        60
+      ],
+      "note": "值在标签上方段一列（dy -0.03~+0.005, x>0.8），单位 s 粘连"
+    },
+    "holding_switch_mode": {
+      "label": "转保压方式",
+      "x_range": [
+        0.2,
+        0.6
+      ],
+      "values": [
+        "时间/位置",
+        "位置",
+        "时间"
+      ]
+    },
+    "vp_switch_position_mm": {
+      "label": "保压位置",
+      "range": [
+        0,
+        200
+      ],
+      "note": "标签同行右侧（dx<0.3），单位 mm 粘连"
+    }
   },
-  "value_ranges": {"bar": [0, 400], "pct": [0, 100], "mm": [0, 200], "s": [0, 60]},
-  "page_detect_anchors": ["转保压方式", "终止位置", "保压位置"],
+  "value_ranges": {
+    "bar": [
+      0,
+      400
+    ],
+    "pct": [
+      0,
+      100
+    ],
+    "mm": [
+      0,
+      200
+    ],
+    "s": [
+      0,
+      60
+    ]
+  },
+  "page_detect_anchors": [
+    "转保压方式",
+    "终止位置",
+    "保压位置"
+  ],
   "family_detect_groups": [
-    ["转保压方式", "终止位置"],
-    ["输入值范围", "290.0"]
+    [
+      "转保压方式",
+      "终止位置",
+      "保压位置"
+    ],
+    [
+      "输入值范围",
+      "290.0"
+    ]
   ]
 }

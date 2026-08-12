@@ -76,9 +76,11 @@ def _anchor_match(anchor, text: str) -> bool:
 def detect_family_from_templates(lines: list[dict], templates_dir: Path) -> str | None:
     """模板 family_detect_groups 判族（最后兜底）：每个 group 内任一候选命中即该组命中，
     全部组命中则判为该模板的 ui_family。仅在 record/机台/单图分类全部失败时调用，
-    不影响 ZizES/TACT 等既有路由。"""
+    不影响 ZizES/TACT 等既有路由。
+    039_FIX：glob 从 *.temperature.json 放宽到全部模板——EST 等只有注射页模板的
+    家族此前永远无法走该兜底（整族 unknown 误拒）。各组按模板文件名序取先命中者。"""
     texts = [l["text"] for l in lines]
-    for tpl_path in sorted(Path(templates_dir).glob("*.temperature.json")):
+    for tpl_path in sorted(Path(templates_dir).glob("*.json")):
         try:
             tpl = json.loads(tpl_path.read_text())
         except Exception:
