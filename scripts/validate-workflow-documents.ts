@@ -22,6 +22,11 @@ const jsonIssues = (issues: WorkflowValidationIssue[]) => issues.map((issue) => 
   expected: issue.expected ?? null,
   actual: issue.actual ?? null,
 }));
+const textIssue = (issue: WorkflowValidationIssue) => [
+  `ERROR [${issue.code}] [${issue.location}] ${issue.message}`,
+  issue.actual === undefined ? '' : `  实际：${String(issue.actual)}`,
+  `  修复：${issue.template}`,
+].filter(Boolean).join('\n');
 
 const printWarnings = (results: Awaited<ReturnType<typeof validateWorkflowDocuments>>) => {
   for (const result of results) {
@@ -98,7 +103,7 @@ async function main() {
         console.log(JSON.stringify(jsonIssues(error.issues)));
       } else if (error instanceof WorkflowDocumentValidationError) {
         console.error(`FAIL ${filePath}: ${error.message}`);
-        for (const issue of error.issues) console.error(`\n${issue.template}`);
+        for (const issue of error.issues) console.error(`\n${textIssue(issue)}`);
       } else {
         throw error;
       }

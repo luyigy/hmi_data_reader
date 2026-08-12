@@ -171,15 +171,48 @@ const normalizeReference = (value: unknown, watchRoot: string) => {
   return resolved;
 };
 
+class PromptMarkerError extends Error {
+  constructor(
+    public readonly code: 'PROMPT_MARKERS_MISSING' | 'PROMPT_MARKERS_INVALID' | 'PROMPT_FORBIDDEN',
+    message: string,
+    public readonly actual: string,
+    public readonly fix: string,
+  ) {
+    super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+const markerLines = (content: string, marker: string) => Array.from(content.matchAll(
+  new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+), ({ index = 0 }) => content.slice(0, index).split('\n').length);
+
 const promptFrom = (content: string, action: string, contract: WorkflowContract) => {
   const { start_marker: start, end_marker: end } = contract.prompt;
-  const starts = content.split(start).length - 1;
-  const ends = content.split(end).length - 1;
+  const startLines = markerLines(content, start);
+  const endLines = markerLines(content, end);
+  const actual = `检测到 ${startLines.length} 个 start / ${endLines.length} 个 end 标记`;
+  const locations = `start 行：${startLines.join('、') || '无'}；end 行：${endLines.join('、') || '无'}`;
   if (!contract.actions.executable.includes(action)) {
-    if (starts || ends) throw new Error(`${action} must not contain an automation prompt`);
+    if (startLines.length || endLines.length) throw new PromptMarkerError(
+      'PROMPT_FORBIDDEN',
+      '非可执行动作不得包含自动化 Prompt',
+      actual,
+      `删除所有 Prompt 标记及其内容（${locations}）`,
+    );
     return '';
   }
-  if (starts !== 1 || ends !== 1) throw new Error('executable action requires exactly one prompt marker pair');
+  if (startLines.length !== 1 || endLines.length !== 1) {
+    const missing = startLines.length === 0 || endLines.length === 0;
+    const extra = startLines.length > 1 || endLines.length > 1;
+    const fix = [extra && '删除多余标记，只保留一对', missing && '补齐缺失标记'].filter(Boolean).join('；');
+    throw new PromptMarkerError(
+      extra ? 'PROMPT_MARKERS_INVALID' : 'PROMPT_MARKERS_MISSING',
+      extra ? '可执行动作的 Prompt 标记数量无效' : '可执行动作缺少 Prompt 标记',
+      actual,
+      `${fix}（${locations}）`,
+    );
+  }
   const prompt = content.slice(content.indexOf(start) + start.length, content.indexOf(end)).trim();
   if (!prompt) throw new Error('automation prompt is empty');
   return prompt;
@@ -220,6 +253,7 @@ export const validateWorkflowDocument = async (
     expected?: string,
     actual?: unknown,
     rule?: string,
+    template?: string,
   ) => {
     const severity = policySeverity(rule);
     if (!severity) return;
@@ -231,11 +265,11 @@ export const validateWorkflowDocument = async (
       message,
       ...(expected === undefined ? {} : { expected }),
       ...(actual === undefined ? {} : { actual }),
-      template: location === 'Prompt'
+      template: template ?? (location === 'Prompt'
         ? `${contract.prompt.start_marker}\n<下一 Session Prompt>\n${contract.prompt.end_marker}`
         : location === '正文'
           ? '## S01：<Slice 标题>'
-          : `${field || location}: <值>`,
+          : `${field || location}: <值>`),
     });
   };
   const has = (field: string) => field in metadata;
@@ -266,18 +300,19 @@ export const validateWorkflowDocument = async (
     try {
       prompt = promptFrom(content, action, contract);
     } catch (error) {
+      const markerError = error instanceof PromptMarkerError ? error : null;
       issue(
         error instanceof Error && error.message === 'automation prompt is empty'
           ? 'PROMPT_EMPTY'
-          : error instanceof Error && error.message === 'executable action requires exactly one prompt marker pair'
-            ? 'PROMPT_MARKERS_INVALID'
-            : 'PROMPT_FORBIDDEN',
+          : markerError?.code ?? 'PROMPT_FORBIDDEN',
         'Prompt',
-        error instanceof Error && error.message === 'executable action requires exactly one prompt marker pair'
-          ? '可执行动作必须包含且只能包含一对 Prompt 标记'
-          : error instanceof Error && error.message === 'automation prompt is empty'
-            ? 'Prompt 标记之间的内容不能为空'
-            : '非可执行动作不得包含自动化 Prompt',
+        error instanceof Error && error.message === 'automation prompt is empty'
+          ? 'Prompt 标记之间的内容不能为空'
+          : markerError?.message ?? '非可执行动作不得包含自动化 Prompt',
+        contract.actions.executable.includes(action) ? '恰好一对 Prompt 标记' : '零个 Prompt 标记',
+        markerError?.actual,
+        undefined,
+        markerError?.fix,
       );
     }
   }

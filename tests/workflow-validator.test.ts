@@ -100,6 +100,18 @@ ${prompt}`;
   await writeFile(path.join(root, 'docs/001_PLAN_20260726_valid.md'), plan('start_first_slice', validPrompt));
   await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval', validPrompt));
   await writeFile(path.join(root, 'docs/003_PLAN_20260726_missing_prompt.md'), plan('start_first_slice'));
+  await writeFile(
+    path.join(root, 'docs/017_PLAN_20260726_multiple_prompts.md'),
+    plan('start_first_slice', validPrompt + validPrompt),
+  );
+  await writeFile(
+    path.join(root, 'docs/018_PLAN_20260726_half_prompt.md'),
+    plan('start_first_slice', '<!-- WORKFLOW_PROMPT_START -->\n缺少结束标记。\n'),
+  );
+  await writeFile(
+    path.join(root, 'docs/019_PLAN_20260726_terminal_prompt.md'),
+    plan('await_acceptance', validPrompt),
+  );
   await writeFile(path.join(root, 'docs/006_PLAN_20260726_all_errors.md'), `---
 doc_type: PLAN
 doc_status: ready
@@ -213,6 +225,25 @@ next_action: start_first_slice
   for (const field of ['code', 'severity', 'location', 'message', 'expected', 'actual', 'template']) {
     assert.ok(field in cliIssues[0], `preflight JSON issue missing ${field}`);
   }
+  const missingMarkerIssue = cliIssues.find(({ code }) => code === 'PROMPT_MARKERS_MISSING');
+  assert.equal(missingMarkerIssue?.actual, '检测到 0 个 start / 0 个 end 标记');
+  assert.match(String(missingMarkerIssue?.template), /补齐缺失标记.*start 行：无；end 行：无/);
+  const textCli = spawnSync(process.execPath, [
+    '-r', require.resolve('ts-node/register/transpile-only'),
+    path.join(process.cwd(), 'scripts/validate-workflow-documents.ts'),
+    '--preflight', 'docs/016_PLAN_20260812_preflight.md',
+  ], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      TS_NODE_COMPILER_OPTIONS: '{"module":"commonjs","moduleResolution":"node"}',
+    },
+  });
+  assert.equal(textCli.status, 1);
+  assert.match(textCli.stderr, /ERROR \[PROMPT_MARKERS_MISSING\] \[Prompt\]/);
+  assert.match(textCli.stderr, /实际：检测到 0 个 start \/ 0 个 end 标记/);
+  assert.match(textCli.stderr, /修复：补齐缺失标记.*start 行：无；end 行：无/);
   await assert.rejects(
     validateWorkflowDocuments({
       cwd: root,
@@ -236,17 +267,50 @@ next_action: start_first_slice
     'a proven document failure must still fail closed when the same batch also has a runtime failure',
   );
   await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /无效的下一步动作/);
-  await assert.rejects(validate('docs/003_PLAN_20260726_missing_prompt.md'), /必须包含且只能包含一对 Prompt 标记/);
+  const markerIssue = async (filePath: string) => {
+    try {
+      await validate(filePath);
+      assert.fail(`${filePath} should fail validation`);
+    } catch (error) {
+      assert.ok(error instanceof WorkflowDocumentValidationError);
+      return error.issues.find(({ location }) => location === 'Prompt');
+    }
+  };
+  assert.deepEqual(
+    await markerIssue('docs/003_PLAN_20260726_missing_prompt.md'),
+    {
+      code: 'PROMPT_MARKERS_MISSING',
+      severity: 'error',
+      location: 'Prompt',
+      message: '可执行动作缺少 Prompt 标记',
+      expected: '恰好一对 Prompt 标记',
+      actual: '检测到 0 个 start / 0 个 end 标记',
+      template: '补齐缺失标记（start 行：无；end 行：无）',
+    },
+  );
+  const multiple = await markerIssue('docs/017_PLAN_20260726_multiple_prompts.md');
+  assert.equal(multiple?.code, 'PROMPT_MARKERS_INVALID');
+  assert.equal(multiple?.message, '可执行动作的 Prompt 标记数量无效');
+  assert.equal(multiple?.actual, '检测到 2 个 start / 2 个 end 标记');
+  assert.match(multiple?.template ?? '', /删除多余标记，只保留一对.*start 行：9、12；end 行：11、14/);
+  const half = await markerIssue('docs/018_PLAN_20260726_half_prompt.md');
+  assert.equal(half?.code, 'PROMPT_MARKERS_MISSING');
+  assert.equal(half?.actual, '检测到 1 个 start / 0 个 end 标记');
+  assert.match(half?.template ?? '', /补齐缺失标记.*start 行：9；end 行：无/);
+  const terminal = await markerIssue('docs/019_PLAN_20260726_terminal_prompt.md');
+  assert.equal(terminal?.code, 'PROMPT_FORBIDDEN');
+  assert.equal(terminal?.actual, '检测到 1 个 start / 1 个 end 标记');
+  assert.match(terminal?.template ?? '', /删除所有 Prompt 标记及其内容.*start 行：9；end 行：11/);
   await assert.rejects(
     validate('docs/006_PLAN_20260726_all_errors.md'),
     (error: Error) => {
       assert.ok(error instanceof WorkflowDocumentValidationError);
       assert.match(error.message, /共发现 3 个工作流文档错误/);
       assert.match(error.message, /YAML\.plan_kind.*缺少必填字段/);
-      assert.match(error.message, /Prompt.*必须包含且只能包含一对 Prompt 标记/);
+      assert.match(error.message, /Prompt.*可执行动作缺少 Prompt 标记.*检测到 0 个 start \/ 0 个 end 标记/);
       assert.match(error.message, /正文.*至少需要包含一个 Slice/);
       assert.deepEqual(error.issues.map(({ code, severity }) => [code, severity]), [
-        ['PROMPT_MARKERS_INVALID', 'error'],
+        ['PROMPT_MARKERS_MISSING', 'error'],
         ['PLAN_REQUIRED_FIELD_MISSING', 'error'],
         ['PLAN_SLICE_MISSING', 'error'],
       ]);
