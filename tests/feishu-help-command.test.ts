@@ -75,6 +75,7 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
           '/ap workflow validation show',
           '/ap workflow validation template',
           '/ap workflow policy show',
+          '/ap workflow policy edit',
           '/ap job diagnose workflow-watcher',
         ].includes(command)
         ? 'workflow'

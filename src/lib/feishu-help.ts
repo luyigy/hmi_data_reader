@@ -89,6 +89,7 @@ export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
   '/ap workflow validation show',
   '/ap workflow validation template',
   '/ap workflow policy show',
+  '/ap workflow policy edit',
   '/ap job diagnose workflow-watcher',
   '/ap users',
   '/ap approvals',
@@ -116,6 +117,7 @@ const QUICK_ACTIONS = [
     ['错误模板', '/ap workflow validation template'],
     ['Jobs', '/ap jobs'],
     ['权限策略', '/ap workflow policy show'],
+    ['额外挂载配置…', '/ap workflow policy edit'],
     ['诊断', '/ap job diagnose workflow-watcher'],
   ],
   [
