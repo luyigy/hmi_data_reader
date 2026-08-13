@@ -132,10 +132,14 @@ export const findLatestParticipantSession = async (
   options?: {
     taskSessionId?: string | null;
     permissionConfig?: AcpxPermissionConfig | null;
+    // Interactive follow-ups (role 'custom'/default) set this to inherit the agent's
+    // latest completed workflow participant session when no same-role session exists.
+    // Workflow-internal role serials must not enable it; they stay role-isolated.
+    allowRoleFallback?: boolean;
   }
 ) => {
   const expectedContinuationKey = getParticipantContinuationKey(participant);
-  const candidates = await prisma.taskRunParticipant.findMany({
+  const queryCandidates = (role: string | null) => prisma.taskRunParticipant.findMany({
     where: {
       taskRun: {
         taskId,
@@ -144,7 +148,7 @@ export const findLatestParticipantSession = async (
       executionBackend: participant.executionBackend,
       gatewayId: participant.gatewayId || null,
       harnessType: participant.harnessType,
-      role: participant.role,
+      ...(role === null ? {} : { role }),
       agentId: participant.agentId || null,
     },
     include: {
@@ -170,41 +174,58 @@ export const findLatestParticipantSession = async (
     ? normalizeAcpxPermissionConfig(options.permissionConfig)
     : null;
 
-  const viableCandidates = candidates.filter((candidate) => {
-    if (readContinuationKeyFromMetadata(candidate.controlMetadata) !== expectedContinuationKey) {
-      return false;
-    }
-
-    if (isContinuationMarkedStale(candidate.controlMetadata)) {
-      return false;
-    }
-
-    if (candidate.status !== 'completed') {
-      return false;
-    }
-
-    if (candidate.taskRun.status === 'failed' || candidate.taskRun.status === 'stopped') {
-      return false;
-    }
-
-    if (expectedPermissionConfig) {
-      const metadata = parseAcpxMetadata(candidate.controlMetadata);
-      const candidatePermissionConfig = metadata.permissionConfig && typeof metadata.permissionConfig === 'object'
-        ? normalizeAcpxPermissionConfig(metadata.permissionConfig as Partial<AcpxPermissionConfig>)
-        : null;
-      if (!candidatePermissionConfig) {
+  const selectMatched = (candidates: Awaited<ReturnType<typeof queryCandidates>>) => {
+    const viableCandidates = candidates.filter((candidate) => {
+      if (readContinuationKeyFromMetadata(candidate.controlMetadata) !== expectedContinuationKey) {
         return false;
       }
 
-      if (JSON.stringify(candidatePermissionConfig) !== JSON.stringify(expectedPermissionConfig)) {
+      if (isContinuationMarkedStale(candidate.controlMetadata)) {
         return false;
       }
-    }
 
-    return Boolean(getContinuationSession(candidate).sessionId);
-  });
+      if (candidate.status !== 'completed') {
+        return false;
+      }
 
-  const matched = viableCandidates[0] || null;
+      if (candidate.taskRun.status === 'failed' || candidate.taskRun.status === 'stopped') {
+        return false;
+      }
+
+      if (expectedPermissionConfig) {
+        const metadata = parseAcpxMetadata(candidate.controlMetadata);
+        const candidatePermissionConfig = metadata.permissionConfig && typeof metadata.permissionConfig === 'object'
+          ? normalizeAcpxPermissionConfig(metadata.permissionConfig as Partial<AcpxPermissionConfig>)
+          : null;
+        if (!candidatePermissionConfig) {
+          return false;
+        }
+
+        if (JSON.stringify(candidatePermissionConfig) !== JSON.stringify(expectedPermissionConfig)) {
+          return false;
+        }
+      }
+
+      return Boolean(getContinuationSession(candidate).sessionId);
+    });
+
+    return viableCandidates[0] || null;
+  };
+
+  let matched = selectMatched(await queryCandidates(participant.role));
+  let viaRoleFallback = false;
+
+  // Same-role miss during an interactive follow-up: relax the role constraint and
+  // inherit this agent's latest completed workflow participant session in the same
+  // task/session. Derived continuation keys embed the role, so only participants
+  // with an explicit (role-independent) continuation key can match cross-role —
+  // workflow-internal role serials stay isolated. The same stale/failed/permission
+  // filters apply, so a fallback hit always matches the effective execution
+  // permission decided by the workflow policy.
+  if (!matched && options?.allowRoleFallback) {
+    matched = selectMatched(await queryCandidates(null));
+    viaRoleFallback = Boolean(matched);
+  }
 
   return matched
     ? {
@@ -212,6 +233,7 @@ export const findLatestParticipantSession = async (
         continuationThreadId: getContinuationThreadId(matched),
         continuationSessionId: getContinuationSession(matched).sessionId,
         continuationSessionKind: getContinuationSession(matched).sessionKind,
+        viaRoleFallback,
       }
     : null;
 };

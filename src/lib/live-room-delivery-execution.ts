@@ -416,6 +416,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
   const latestSession = await findLatestParticipantSession(sourceTask.id, participant, {
     taskSessionId: sourceTask.currentTaskSession?.id || null,
     permissionConfig,
+    allowRoleFallback: true,
   });
   const taskRoom = await ensureTaskChatRoom(sourceTask.id, sourceTask.name);
   const shouldInjectLatestInstruction = sourceMessage.senderMember?.memberType !== 'user';

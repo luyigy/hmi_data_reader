@@ -231,7 +231,9 @@ export async function grantRightsForRoom(args: {
     targetParticipantLabel,
   });
 
-  const latestSession = await findLatestParticipantSession(room.sourceTask.id, participant);
+  const latestSession = await findLatestParticipantSession(room.sourceTask.id, participant, {
+    allowRoleFallback: true,
+  });
   const runResult = await executeAcpxTaskRunWithContinuationFallback({
     staleParticipantId: latestSession?.participant?.id || null,
     request: {
