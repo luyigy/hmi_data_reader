@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { buildWorkflowExecutionCard } from '../src/lib/feishu-workflow';
-import { buildWorkflowPermissionSnapshot } from '../src/lib/workflow-execution-policy';
+import {
+  buildWorkflowPermissionSnapshot,
+  detectWorkflowPermissionDowngrade,
+} from '../src/lib/workflow-execution-policy';
+import type { AcpxPermissionConfig } from '../src/lib/acpx/types';
 
 const context = [
   '**所属 PLAN**：276_PLAN.md',
@@ -59,3 +63,76 @@ assert.deepEqual(card, {
     { tag: 'note', elements: [{ tag: 'plain_text', content: '以上指令已投递给 Coding Agent；请等待本阶段完成后再继续。' }] },
   ],
 });
+
+// S02: workspace job + full_access member → the execution card highlights the downgrade.
+const fullAccessPermission: AcpxPermissionConfig = {
+  profile: 'full_access',
+  sandboxMode: 'danger-full-access',
+  networkAccess: 'enabled',
+  approvalPolicy: 'never',
+  writableRoots: [],
+};
+const safeLocalPermission: AcpxPermissionConfig = {
+  profile: 'safe_local',
+  sandboxMode: 'workspace-write',
+  networkAccess: 'enabled',
+  approvalPolicy: 'never',
+  writableRoots: ['/workspace/project'],
+};
+
+const downgrade = detectWorkflowPermissionDowngrade({
+  policy: { preset: 'workspace' },
+  members: [
+    { displayName: 'kimi-code', permission: fullAccessPermission },
+    { displayName: 'codex', permission: safeLocalPermission },
+  ],
+});
+assert.ok(downgrade);
+assert.deepEqual(downgrade.members, ['kimi-code']);
+assert.match(downgrade.notice, /权限降级：成员拥有 full_access/);
+assert.ok(downgrade.notice.includes('kimi-code'));
+
+const cardMarkdown = (element: { tag: string; content?: string }) =>
+  element.tag === 'markdown' ? element.content ?? '' : '';
+
+const downgradedCard = buildWorkflowExecutionCard(
+  context,
+  `${context}\n\n${instruction}`,
+  permissionSnapshot,
+  undefined,
+  downgrade.notice,
+);
+const downgradeIndex = downgradedCard.elements.findIndex(
+  (element) => cardMarkdown(element).includes('权限降级'),
+);
+assert.ok(downgradeIndex > -1, 'downgrade warning must be rendered');
+const permissionsIndex = downgradedCard.elements.findIndex(
+  (element) => cardMarkdown(element).startsWith('**Workflow permissions**'),
+);
+assert.ok(downgradeIndex < permissionsIndex, 'downgrade warning must precede the permissions block');
+
+// No downgrade when the member is not full_access.
+assert.equal(detectWorkflowPermissionDowngrade({
+  policy: { preset: 'workspace' },
+  members: [{ displayName: 'codex', permission: safeLocalPermission }],
+}), null);
+
+// S02: full_access job + full_access member → respected, no warning, no sandbox snapshot.
+assert.equal(detectWorkflowPermissionDowngrade({
+  policy: { preset: 'full_access' },
+  members: [{ displayName: 'kimi-code', permission: fullAccessPermission }],
+}), null);
+const fullAccessSnapshot = buildWorkflowPermissionSnapshot({
+  policy: { preset: 'full_access' },
+  projectPath: '/workspace/project',
+  source: 'config/projects.yaml#example',
+});
+assert.equal(fullAccessSnapshot.effective.filesystem, 'full_access');
+const fullAccessCard = buildWorkflowExecutionCard(
+  context,
+  `${context}\n\n${instruction}`,
+  fullAccessSnapshot,
+);
+assert.equal(fullAccessCard.elements.filter(
+  (element) => cardMarkdown(element).includes('权限降级'),
+).length, 0);

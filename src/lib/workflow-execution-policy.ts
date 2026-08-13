@@ -336,6 +336,29 @@ export const workflowSnapshotExtraRoots = (
   };
 };
 
+export type WorkflowPermissionDowngrade = {
+  members: string[];
+  notice: string;
+};
+
+export const detectWorkflowPermissionDowngrade = ({
+  policy,
+  members,
+}: {
+  policy: WorkflowExecutionPolicy;
+  members: Array<{ displayName: string; permission: AcpxPermissionConfig }>;
+}): WorkflowPermissionDowngrade | null => {
+  if (policy.preset !== 'workspace') return null;
+  const downgraded = members
+    .filter(({ permission }) => permission.profile === 'full_access')
+    .map(({ displayName }) => displayName);
+  if (!downgraded.length) return null;
+  return {
+    members: downgraded,
+    notice: `⚠️ 权限降级：成员拥有 full_access，已按 Workflow 策略收敛为 workspace 单目录沙箱（涉及成员：${downgraded.join('、')}）`,
+  };
+};
+
 export const formatWorkflowPermissionSnapshot = (snapshot: WorkflowPermissionSnapshot) => {
   if (snapshot.configured.preset === 'full_access') {
     return [

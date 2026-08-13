@@ -33,18 +33,21 @@ import {
 } from '@/lib/workflow-session-rotation';
 import {
   buildWorkflowPermissionSnapshot,
+  detectWorkflowPermissionDowngrade,
   formatWorkflowPermissionSnapshot,
   validateWorkflowExecutionPolicy,
   workflowPolicySource,
   type WorkflowExecutionPolicy,
   type WorkflowPermissionSnapshot,
 } from '@/lib/workflow-execution-policy';
+import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 
 export const buildWorkflowExecutionCard = (
   workflowContext: string | undefined,
   prompt: string,
   permissionSnapshot?: WorkflowPermissionSnapshot,
   rotationNotice?: string,
+  downgradeNotice?: string,
 ) => {
   const instruction = workflowContext && prompt.startsWith(`${workflowContext}\n\n`)
     ? prompt.slice(workflowContext.length + 2)
@@ -59,6 +62,7 @@ export const buildWorkflowExecutionCard = (
       ...(workflowContext ? [{ tag: 'markdown', content: workflowContext }] : []),
       { tag: 'hr' },
       { tag: 'markdown', content: instruction },
+      ...(downgradeNotice ? [{ tag: 'markdown', content: `**${downgradeNotice}**` }] : []),
       ...(permissionSnapshot
         ? [{ tag: 'markdown', content: `**Workflow permissions**\n${formatWorkflowPermissionSnapshot(permissionSnapshot)}` }]
         : []),
@@ -133,6 +137,19 @@ export async function runWorkflowInBoundLiveRoom(args: {
     member.memberType !== 'user'
     && member.canReply
     && member.harnessType !== 'antigravity');
+  const sourceTaskPermission = boundRoom.sourceTask.acpxPermissionConfig;
+  const permissionDowngrade = detectWorkflowPermissionDowngrade({
+    policy: executionPolicy,
+    members: boundRoom.members
+      .filter((member) => member.memberType !== 'user')
+      .map((member) => ({
+        displayName: member.userNickname || member.displayName,
+        permission: resolveLiveRoomMemberPermission(
+          member.acpxPermissionConfig,
+          sourceTaskPermission,
+        ),
+      })),
+  });
   const scheduledState = await prisma.scheduledJobState.findUnique({
     where: {
       projectId_jobId: {
@@ -318,7 +335,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
     const feishuMessageId = await sendFeishuInteractiveMessage({
       receiveId: args.chatId,
       receiveIdType: 'chat_id',
-      card: buildWorkflowExecutionCard(args.workflowContext, args.prompt, permissionSnapshot, rotationNotice),
+      card: buildWorkflowExecutionCard(args.workflowContext, args.prompt, permissionSnapshot, rotationNotice, permissionDowngrade?.notice),
     });
     if (!feishuMessageId) throw new Error('Feishu workflow card response missing message_id');
     dispatch = await prisma.workflowDispatch.update({
@@ -351,6 +368,15 @@ export async function runWorkflowInBoundLiveRoom(args: {
             source: 'workflow_watcher',
             eventKey: args.eventKey,
             workflowPermissionSnapshot: permissionSnapshot,
+            ...(permissionDowngrade
+              ? {
+                workflowPermissionDowngrade: {
+                  members: permissionDowngrade.members,
+                  notice: permissionDowngrade.notice,
+                  policy: executionPolicy.preset,
+                },
+              }
+              : {}),
           },
         }),
       });
