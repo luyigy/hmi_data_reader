@@ -98,6 +98,8 @@ const waitForRuntimeReady = async (baseUrl: string, timeoutMs: number) => {
 
 export const ensureDeepSeekRuntime = async (options?: {
   workspaceRoot?: string;
+  writableRoots?: string[];
+  readOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   onSpawn?: (child: ChildProcess) => void;
 }) => {
@@ -127,6 +129,8 @@ export const ensureDeepSeekRuntime = async (options?: {
       commandArgs,
       cwd: process.cwd(),
       workspaceRoot: options?.workspaceRoot,
+      writableRoots: options?.writableRoots,
+      readOnlyPaths: options?.readOnlyPaths,
       networkAccess: options?.networkAccess,
       env: process.env,
     });
@@ -177,6 +181,8 @@ export const ensureDeepSeekRuntime = async (options?: {
 export const createDeepSeekRuntimeThread = async ({
   workingDirectory,
   workspaceRoot,
+  extraWritableRoots,
+  extraReadOnlyPaths,
   networkAccess,
   allowShell,
   trustMode,
@@ -185,13 +191,21 @@ export const createDeepSeekRuntimeThread = async ({
 }: {
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   allowShell?: boolean;
   trustMode?: boolean;
   autoApprove?: boolean;
   onSpawn?: (child: ChildProcess) => void;
 }) => {
-  const baseUrl = await ensureDeepSeekRuntime({ workspaceRoot, networkAccess, onSpawn });
+  const baseUrl = await ensureDeepSeekRuntime({
+    workspaceRoot,
+    writableRoots: extraWritableRoots,
+    readOnlyPaths: extraReadOnlyPaths,
+    networkAccess,
+    onSpawn,
+  });
 
   return fetchJson<DeepSeekRuntimeThread>(`${baseUrl}/v1/threads`, {
     method: 'POST',
@@ -237,6 +251,8 @@ export const runDeepSeekRuntimeTurn = async ({
   threadId,
   workingDirectory,
   workspaceRoot,
+  extraWritableRoots,
+  extraReadOnlyPaths,
   networkAccess,
   timeoutMs,
   streamCallbacks,
@@ -247,6 +263,8 @@ export const runDeepSeekRuntimeTurn = async ({
   threadId?: string;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   timeoutMs?: number | null;
   streamCallbacks?: DeepSeekRuntimeStreamCallbacks;
@@ -257,13 +275,21 @@ export const runDeepSeekRuntimeTurn = async ({
   };
   onSpawn?: (child: ChildProcess) => void;
 }) => {
-  const baseUrl = await ensureDeepSeekRuntime({ workspaceRoot, networkAccess, onSpawn });
+  const baseUrl = await ensureDeepSeekRuntime({
+    workspaceRoot,
+    writableRoots: extraWritableRoots,
+    readOnlyPaths: extraReadOnlyPaths,
+    networkAccess,
+    onSpawn,
+  });
   const resolvedThreadId =
     threadId ||
     (
       await createDeepSeekRuntimeThread({
         workingDirectory,
         workspaceRoot,
+        extraWritableRoots,
+        extraReadOnlyPaths,
         networkAccess,
         allowShell: threadConfig?.allowShell,
         trustMode: threadConfig?.trustMode,

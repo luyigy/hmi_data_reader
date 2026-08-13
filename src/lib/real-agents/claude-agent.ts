@@ -16,6 +16,8 @@ export interface ClaudeConfig {
   timeout?: number | null;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
@@ -63,6 +65,8 @@ export const executeClaudeTask = async (
       timeout,
       workingDirectory,
       workspaceRoot: config.workspaceRoot,
+      extraWritableRoots: config.extraWritableRoots,
+      extraReadOnlyPaths: config.extraReadOnlyPaths,
       networkAccess: config.networkAccess,
       streamCallbacks,
       harnessType,
@@ -93,6 +97,8 @@ export const resumeClaudeSession = async ({
   timeout,
   workingDirectory = process.cwd(),
   workspaceRoot,
+  extraWritableRoots,
+  extraReadOnlyPaths,
   networkAccess,
   streamCallbacks,
   onSpawn,
@@ -104,6 +110,8 @@ export const resumeClaudeSession = async ({
   timeout: number | null;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
@@ -123,6 +131,8 @@ export const resumeClaudeSession = async ({
         timeout,
         workingDirectory,
         workspaceRoot,
+        extraWritableRoots,
+        extraReadOnlyPaths,
         networkAccess,
         streamCallbacks,
         onSpawn,
@@ -158,6 +168,8 @@ const executeClaudeCLI = async (
     timeout: number | null;
     workingDirectory: string;
     workspaceRoot?: string;
+    extraWritableRoots?: string[];
+    extraReadOnlyPaths?: string[];
     networkAccess?: 'restricted' | 'enabled';
     streamCallbacks?: HarnessStreamCallbacks;
     onSpawn?: (child: ChildProcess) => void;
@@ -278,7 +290,7 @@ Take your time and be thorough.`;
     // On Unix/Linux, use shell: false for better security and performance
     const shell = process.platform === 'win32';
     const env = buildClaudeChildEnv();
-    const wrapped = wrapWithBubblewrap({ command: installation.binaryPath, commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, networkAccess: options.networkAccess, env, configPaths: installation.configDir ? [installation.configDir] : [] });
+    const wrapped = wrapWithBubblewrap({ command: installation.binaryPath, commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, env, configPaths: installation.configDir ? [installation.configDir] : [], readOnlyPaths: options.extraReadOnlyPaths?.length ? options.extraReadOnlyPaths : undefined });
     const child = spawn(wrapped.command, wrapped.args, {
       cwd: options.workingDirectory,
       env,

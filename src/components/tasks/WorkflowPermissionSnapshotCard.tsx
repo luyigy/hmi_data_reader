@@ -8,7 +8,9 @@ export const workflowPermissionSnapshotFrom = (
   const value = (permissionConfig as AcpxPermissionConfig & {
     workflowPermissionSnapshot?: WorkflowPermissionSnapshot;
   }).workflowPermissionSnapshot;
-  return value?.configured?.preset === 'workspace' ? value : null;
+  return value?.configured?.preset === 'workspace' || value?.configured?.preset === 'full_access'
+    ? value
+    : null;
 };
 
 export function WorkflowPermissionSnapshotCard({

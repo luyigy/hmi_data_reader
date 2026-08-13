@@ -73,6 +73,22 @@ void (async () => {
   const fullAccess = wrapWithBubblewrap({ command: '/usr/bin/sh', commandArgs: ['-c', 'true'], cwd: root, networkAccess: 'enabled', env: process.env });
   assert.deepEqual(fullAccess, { command: '/usr/bin/sh', args: ['-c', 'true'] });
 
+  const withExtra = wrapWithBubblewrap({
+    command: '/usr/bin/sh',
+    commandArgs: ['-c', 'true'],
+    cwd: root,
+    workspaceRoot: root,
+    networkAccess: 'enabled',
+    env: process.env,
+    writableRoots: [sibling, path.join(root, 'nested'), sibling],
+  });
+  const writableBinds = withExtra.args
+    .map((arg, index) => (arg === '--bind' ? withExtra.args[index + 1] : null))
+    .filter((arg) => arg !== null);
+  assert.ok(writableBinds.includes(sibling));
+  assert.ok(!writableBinds.includes(path.join(root, 'nested')));
+  assert.equal(writableBinds.filter((arg) => arg === sibling).length, 1);
+
   const approvalSource = await readFile(path.join(process.cwd(), 'src/lib/feishu-access-approval.ts'), 'utf8');
   assert.equal(approvalSource.match(/networkAccess: 'enabled'/g)?.length, 3);
   assert.doesNotMatch(approvalSource, /networkAccess: 'restricted'/);

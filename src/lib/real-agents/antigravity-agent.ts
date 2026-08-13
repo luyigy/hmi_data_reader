@@ -14,6 +14,8 @@ export interface AntigravityConfig {
   timeout?: number | null;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   sandboxMode?: string;
@@ -142,9 +144,11 @@ export const executeAntigravityTask = (
     commandArgs: args,
     cwd: config.workingDirectory || process.cwd(),
     workspaceRoot: config.workspaceRoot,
+    writableRoots: config.extraWritableRoots,
     networkAccess: config.networkAccess,
     env,
     configPaths: [path.join(env.HOME || '/home/hello', '.gemini')],
+    readOnlyPaths: config.extraReadOnlyPaths?.length ? config.extraReadOnlyPaths : undefined,
   });
 
   return new Promise((resolve) => {

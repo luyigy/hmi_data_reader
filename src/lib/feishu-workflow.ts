@@ -91,7 +91,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
   }
   const source = workflowPolicySource(project.id, job.id);
   const executionPolicy = validateWorkflowExecutionPolicy(job.config.execution_policy, source);
-  if (executionPolicy.preset !== args.executionPolicy.preset) {
+  if (JSON.stringify(executionPolicy) !== JSON.stringify(args.executionPolicy)) {
     throw new Error('Workflow execution policy changed before dispatch; retry with current config');
   }
   const permissionSnapshot = buildWorkflowPermissionSnapshot({

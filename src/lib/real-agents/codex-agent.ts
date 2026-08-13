@@ -21,6 +21,7 @@ export interface CodexConfig {
   timeout?: number | null;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
   networkAccess?: 'restricted' | 'enabled';
   readOnlyPaths?: string[];
   ephemeral?: boolean;
@@ -75,6 +76,7 @@ export const executeCodexTask = async (
       timeout,
       workingDirectory,
       workspaceRoot: config.workspaceRoot,
+      extraWritableRoots: config.extraWritableRoots,
       networkAccess: config.networkAccess,
       readOnlyPaths: config.readOnlyPaths,
       ephemeral,
@@ -112,6 +114,7 @@ interface CodexExecutionOptions {
   timeout: number | null;
   workingDirectory: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
   networkAccess?: 'restricted' | 'enabled';
   readOnlyPaths?: string[];
   ephemeral?: boolean;
@@ -215,6 +218,7 @@ export const resumeCodexSession = async ({
   timeout,
   workingDirectory,
   workspaceRoot,
+  extraWritableRoots,
   networkAccess,
   readOnlyPaths,
   codexHome,
@@ -232,6 +236,7 @@ export const resumeCodexSession = async ({
   timeout: number | null;
   workingDirectory: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
   networkAccess?: 'restricted' | 'enabled';
   readOnlyPaths?: string[];
   codexHome?: string;
@@ -252,6 +257,7 @@ export const resumeCodexSession = async ({
         timeout,
         workingDirectory,
         workspaceRoot,
+        extraWritableRoots,
         networkAccess,
         readOnlyPaths,
         codexHome,
@@ -284,6 +290,7 @@ export const resumeCodexSession = async ({
       timeout,
       workingDirectory,
       workspaceRoot,
+      extraWritableRoots,
       networkAccess,
       streamCallbacks,
       skipGitRepoCheck,
@@ -386,7 +393,7 @@ const runCodexJsonCommand = async ({
     let turnFailureMessage: string | null = null;
 
     const env = buildCodexChildEnv(options.codexHome);
-    const wrapped = wrapWithBubblewrap({ command: 'codex', commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, networkAccess: options.networkAccess, env, configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`], readOnlyPaths: options.readOnlyPaths });
+    const wrapped = wrapWithBubblewrap({ command: 'codex', commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, env, configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`], readOnlyPaths: options.readOnlyPaths });
     const child = spawn(wrapped.command, wrapped.args, {
       cwd: options.workingDirectory,
       env,

@@ -13,6 +13,8 @@ export interface DeepSeekConfig {
   timeout?: number | null;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   sandboxMode?: string;
@@ -86,6 +88,8 @@ export const executeDeepSeekTask = async (
     timeout = 30000,
     workingDirectory = process.cwd(),
     workspaceRoot = config.workspaceRoot,
+    extraWritableRoots = config.extraWritableRoots,
+    extraReadOnlyPaths = config.extraReadOnlyPaths,
     networkAccess = config.networkAccess,
     streamCallbacks,
     sandboxMode = 'workspace-write',
@@ -98,6 +102,8 @@ export const executeDeepSeekTask = async (
       timeout,
       workingDirectory,
       workspaceRoot,
+      extraWritableRoots,
+      extraReadOnlyPaths,
       networkAccess,
       streamCallbacks,
       threadConfig: resolveDeepSeekThreadConfig(sandboxMode, approvalPolicy),
@@ -128,6 +134,8 @@ export const resumeDeepSeekSession = async ({
   timeout,
   workingDirectory = process.cwd(),
   workspaceRoot,
+  extraWritableRoots,
+  extraReadOnlyPaths,
   networkAccess,
   streamCallbacks,
   onSpawn,
@@ -140,6 +148,8 @@ export const resumeDeepSeekSession = async ({
   timeout: number | null;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
@@ -160,6 +170,8 @@ export const resumeDeepSeekSession = async ({
         timeout,
         workingDirectory,
         workspaceRoot,
+        extraWritableRoots,
+        extraReadOnlyPaths,
         networkAccess,
         streamCallbacks,
         onSpawn,
@@ -192,6 +204,8 @@ const executeDeepSeekTurn = async (
     timeout: number | null;
     workingDirectory: string;
     workspaceRoot?: string;
+    extraWritableRoots?: string[];
+    extraReadOnlyPaths?: string[];
     networkAccess?: 'restricted' | 'enabled';
     streamCallbacks?: HarnessStreamCallbacks;
     threadConfig: {
@@ -211,6 +225,8 @@ const executeDeepSeekTurn = async (
     threadId: options.resumeThreadId,
     workingDirectory: options.workingDirectory,
     workspaceRoot: options.workspaceRoot,
+    extraWritableRoots: options.extraWritableRoots,
+    extraReadOnlyPaths: options.extraReadOnlyPaths,
     networkAccess: options.networkAccess,
     timeoutMs: options.timeout,
     streamCallbacks: options.streamCallbacks,

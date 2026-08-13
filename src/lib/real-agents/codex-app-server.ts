@@ -20,6 +20,7 @@ export interface CodexAppServerOptions {
   threadId?: string;
   workingDirectory: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
   networkAccess?: 'restricted' | 'enabled';
   readOnlyPaths?: string[];
   codexHome?: string;
@@ -137,6 +138,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       commandArgs: ['app-server', '--stdio'],
       cwd: runtimeCwd,
       workspaceRoot: options.workspaceRoot,
+      writableRoots: options.extraWritableRoots,
       networkAccess: options.networkAccess,
       env: options.env ?? process.env,
       configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],

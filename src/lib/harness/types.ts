@@ -22,6 +22,8 @@ export interface HarnessSessionStarted {
 export interface HarnessExecutionContext {
   workingDirectory: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   executionBackend: AcpxExecutionBackend;
   permissionConfig?: AcpxPermissionConfig;

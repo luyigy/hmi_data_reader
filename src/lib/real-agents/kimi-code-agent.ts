@@ -10,6 +10,8 @@ export interface KimiCodeConfig {
   timeout?: number | null;
   workingDirectory?: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   permissionProfile?: string;
   streamCallbacks?: HarnessStreamCallbacks;
@@ -153,6 +155,8 @@ const runKimiCodeCommand = async ({
   timeout,
   workingDirectory,
   workspaceRoot,
+  extraWritableRoots,
+  extraReadOnlyPaths,
   networkAccess,
   permissionProfile,
   streamCallbacks,
@@ -164,6 +168,8 @@ const runKimiCodeCommand = async ({
   timeout: number | null;
   workingDirectory: string;
   workspaceRoot?: string;
+  extraWritableRoots?: string[];
+  extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   permissionProfile?: string;
   streamCallbacks?: HarnessStreamCallbacks;
@@ -191,9 +197,11 @@ const runKimiCodeCommand = async ({
     commandArgs: args,
     cwd: workingDirectory,
     workspaceRoot,
+    writableRoots: extraWritableRoots,
     networkAccess,
     env,
     configPaths: [getKimiCodeHome()],
+    readOnlyPaths: extraReadOnlyPaths?.length ? extraReadOnlyPaths : undefined,
   });
   const child = spawn(wrapped.command, wrapped.args, {
     cwd: workingDirectory,
@@ -294,6 +302,8 @@ export const executeKimiCodeTask = async (
       timeout: config.timeout === undefined ? 300000 : config.timeout,
       workingDirectory: config.workingDirectory || process.cwd(),
       workspaceRoot: config.workspaceRoot,
+      extraWritableRoots: config.extraWritableRoots,
+      extraReadOnlyPaths: config.extraReadOnlyPaths,
       networkAccess: config.networkAccess,
       permissionProfile: config.permissionProfile,
       streamCallbacks: config.streamCallbacks,

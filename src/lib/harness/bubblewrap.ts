@@ -34,6 +34,7 @@ export function wrapWithBubblewrap(args: {
   commandArgs: string[];
   cwd: string;
   workspaceRoot?: string;
+  writableRoots?: string[];
   networkAccess?: 'restricted' | 'enabled';
   env: NodeJS.ProcessEnv;
   configPaths?: string[];
@@ -58,6 +59,12 @@ export function wrapWithBubblewrap(args: {
   });
   const writableMounts = configPaths.map((source) => realpathSync(source))
     .filter((source) => !isWithin(workspaceRoot, source));
+  const extraWritableMounts = (args.writableRoots || [])
+    .filter(existsSync)
+    .map((source) => realpathSync(source))
+    .filter((source) => !isWithin(workspaceRoot, source));
+  const allWritableMounts = [...writableMounts, ...extraWritableMounts]
+    .filter((source, index, all) => all.indexOf(source) === index);
   const readOnlyMounts = [
     executableMount,
     ...systemTopologyPaths,
@@ -74,7 +81,7 @@ export function wrapWithBubblewrap(args: {
     ...(existsSync(systemHosts) ? [...parentDirs(systemHosts), '--ro-bind', realpathSync(systemHosts), systemHosts] : []),
     ...(existsSync(systemResolvConf) ? [...parentDirs(systemResolvConf), '--ro-bind', realpathSync(systemResolvConf), systemResolvConf] : []),
     ...parentDirs(workspaceRoot), '--bind', workspaceRoot, workspaceRoot,
-    ...writableMounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),
+    ...allWritableMounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),
     ...readOnlyMounts.flatMap((source) => [...parentDirs(source), '--ro-bind', source, source]),
     '--chdir', cwd,
     executable,

@@ -23,6 +23,8 @@ export const antigravityHarnessAdapter: HarnessAdapter = {
       timeout: context.timeout,
       workingDirectory: context.workingDirectory,
       workspaceRoot: context.workspaceRoot,
+      extraWritableRoots: context.extraWritableRoots,
+      extraReadOnlyPaths: context.extraReadOnlyPaths,
       networkAccess: context.networkAccess,
       streamCallbacks: context.streamCallbacks,
       sandboxMode: context.permissionConfig?.sandboxMode,
