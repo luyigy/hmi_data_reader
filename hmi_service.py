@@ -220,6 +220,21 @@ async def recognize_image(file: UploadFile = File(...)):
                     )
                 except Exception as variant_error:  # noqa: BLE001
                     logger.warning("clahe variant failed: %s", variant_error)
+            # 三类炮筒 Profile 的专用弱读格召回；结构不匹配时 FANUC helper 返回 0，
+            # 不会把其他页面硬塞进温度提取器。
+            try:
+                from ocr_variants import (generate_demag_rate_sidecar,
+                                          generate_fanuc_temperature_cells_sidecar)
+                family = str(cls_res.get("ui_family") or "").upper()
+                if family == "DEMAG" and cls_res.get("page") == "temperature":
+                    generate_demag_rate_sidecar(
+                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_rates.json")
+                elif family == "FANUC" and cls_res.get("page") == "temperature":
+                    generate_fanuc_temperature_cells_sidecar(
+                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_cells.json",
+                        lines, rr["screen_size"])
+            except Exception as variant_error:  # noqa: BLE001
+                logger.warning("barrel cell variant failed: %s", variant_error)
 
             # 6. 字段提取
             record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None

@@ -40,7 +40,10 @@ UI_FAMILY_KEYWORDS = {
     #   HR模式 — FANUC HR 模式项（rec00 储料/射出），仅 FANUC 记录命中
     #   低温保持 — FANUC 炮筒页功能项（rec00 炮筒）
     #   i-MODEL — ROBOSHOT 型号栏 "α-S30iA i-MODEL B"（rec00 波形 OCR "Beries 3li-MODEL B"）
-    "FANUC": ["FANUC", "ROBOSHOT", "α-S", "a-S30", "S30iA", "S-iA", "NUC",
+    # 发那科 = FANUC 的中文品牌名（042 S02 显式别名，不做模糊字符匹配）。
+    # 部分 ROBOSHOT 屏幕标题区只清晰出现“发那科”三字（型号/ROBOSHOT 被摩尔纹/裁切
+    # 误读），需要该显式别名才能稳定分到 FANUC 家族。
+    "FANUC": ["FANUC", "发那科", "ROBOSHOT", "α-S", "a-S30", "S30iA", "S-iA", "NUC",
               "精密计量", "计量扭矩", "HR模式", "低温保持", "i-MODEL"],
     "ZizES": ["ZES", "ZizES", "佳明", "广东佳明"],
     "TRD6": ["TRD6", "SPT", "沙迪克", "Sodick"],
@@ -75,7 +78,7 @@ UI_FAMILY_KEYWORDS = {
 }
 
 PAGE_KEYWORDS = {
-    "temperature": ["温度", "炮筒温度", "炮温", "Barrel Temp"],
+    "temperature": ["温度", "炮筒温度", "炮温", "Barrel Temp", "喷嘴/料筒"],
     "injection_metering": ["射出", "保压", "计量", "射出·计量", "射出·保压", "射出/保压"],
     "storage_cooling": ["储料", "冷却", "储料·冷却"],
     "monitor_curve": ["监视", "曲线", "波形"],
@@ -128,6 +131,15 @@ def find_page(lines: list[dict]) -> tuple[str, float]:
     """
     if not lines:
         return "unknown", 0.0
+
+    # FANUC 喷嘴/料筒页同时显示注塑统计区（保压/计量），通用词频会误判为
+    # injection_metering；仅完整温度表结构命中时采用这个精确页面签名。
+    texts = [line["text"] for line in lines]
+    if any("喷嘴/料筒" in text for text in texts) and all(
+            any(anchor in text for text in texts)
+            for anchor in ("现在", "输出", "上限", "设定", "下限")):
+        conf = max(line["conf"] for line in lines if "喷嘴/料筒" in line["text"])
+        return "temperature", round(conf, 3)
 
     # 收集所有 (page, y_min, conf)
     hits: list[tuple[str, float, float]] = []

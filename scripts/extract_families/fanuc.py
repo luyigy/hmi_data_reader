@@ -28,6 +28,13 @@ def _clean_num(text: str) -> float | None:
     return vals[0] if vals else None
 
 
+def _cell_num(text: str) -> float | None:
+    """单格 OCR 只取首个数值，容忍小数点被读成横线和单位残字。"""
+    text = re.sub(r"(\d)-(\d)", r"\1.\2", text)
+    match = re.search(r"\d{1,3}(?:\.\d)?", text)
+    return float(match.group()) if match else None
+
+
 def _row_values(toks, y, k, x_lo=0.25, x_hi=0.7, tol=0.018):
     """某行 y（按斜率 k 修正）附近的数值 token，按 x 排序；粘连 token 切分后同位展开。"""
     band = [t for t in toks
@@ -64,6 +71,20 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
     if not lab["control"]:
         warnings.append("ROW_ANCHOR_MISSING(control)")
 
+    # 在线服务生成的 Profile 专用逐格旁车。按最近行标签归组，必须 5 列齐全才采用；
+    # 任一非 NZ 列缺失仍走基础 OCR 并保留缺格告警。
+    cell_tokens = {name: [] for name in lab}
+    for token in (t for t in toks if t.get("src") == "fanuc_cell"):
+        name = min((name for name in lab if lab[name]),
+                   key=lambda name: abs(token["y"] - lab[name]["y"]))
+        if abs(token["y"] - lab[name]["y"]) < 0.03:
+            cell_tokens[name].append(token)
+    cell_rows = {}
+    for name, row_tokens in cell_tokens.items():
+        values = [_cell_num(t["text"]) for t in sorted(row_tokens, key=lambda t: t["x"])]
+        cell_rows[name] = values if len(values) == 5 and all(v is not None for v in values) else None
+    base_toks = [t for t in toks if t.get("src") != "fanuc_cell"]
+
     # 内容锚定行网格：设定行是表区唯一含 ≥3 个 ≥100 数值的行（行值域约束），
     # 找到后按行距（标签实测，缺省用模板均值）向上下展开 上限/下限/输出/现在。
     # 不依赖标签与数值的纵向对齐（倾斜暗图错位可达 0.05）。
@@ -89,8 +110,16 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
 
     set_y = find_set_y()
     if set_y is None:
-        return {"fields": None, "heater_columns": 0,
-                "warnings": warnings + ["SET_ROW_NOT_FOUND"], "detail": {}}
+        # 密度扫描失败时退回「设定」行标签 y（标签检测到即用，避免整页硬拒；
+        # 标签与数值的纵向错位由后续 _row_values 的行带容差吸收，漏检值仍 CELL_MISSING）。
+        if cell_rows.get("set"):
+            set_y = lab["set"]["y"]
+        elif lab["set"]:
+            set_y = lab["set"]["y"]
+            warnings.append("SET_ROW_LABEL_FALLBACK")
+        else:
+            return {"fields": None, "heater_columns": 0,
+                    "warnings": warnings + ["SET_ROW_NOT_FOUND"], "detail": {}}
 
     g = (lab["low"]["y"] - lab["high"]["y"]) / 2
     g_out = lab["high"]["y"] - lab["control"]["y"] if lab["control"] else g
@@ -101,19 +130,26 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
 
     rows = {}
     for r, ry in (("high", high_y), ("set", set_y), ("low", low_y)):
-        vals = _row_values(toks, ry, 0)
+        vals = _row_values(base_toks, ry, 0)
         if len(vals) == 4:
             # 边缘列（多为 H）略出行带：放宽一档补一次
-            vals2 = _row_values(toks, ry, 0, tol=0.028)
+            vals2 = _row_values(base_toks, ry, 0, tol=0.028)
             if len(vals2) >= 5:
                 vals = vals2
-        rows[r] = _rightmost5(vals, r, warnings)
+        base_row = [v for _, v, _ in vals[-5:]] if len(vals) >= 5 else None
+        # 设定行若基础粘连 token 已完整，沿用基础值；高/低偏差优先逐格结果。
+        rows[r] = base_row if r == "set" and base_row else cell_rows.get(r) or base_row
+        if rows[r] is None:
+            warnings.append(f"ROW_VALUES_MISSING({r},{len(vals)}/5)")
 
-    # 现在行：本行唯一多值粘连块是 N..B3 温度 blob（M1-M4 为 *****、H 为独立 token）。
-    # 逐 token 切分并值域过滤，取有效值最多的 token 的末 4 值为 N,B1,B2,B3；
-    # H 取该 blob 右侧的单值 token。
+    # 现在行：本行多值粘连块可能是 N..B3（4 值）或 N..H（5 值，H 料口也粘进来）。
+    # 逐 token 切分并值域过滤，取有效值最多的 token：
+    #   - 5 值（N,B1,B2,B3,H 粘连）：前 4 = 料筒，末 1 = 料口 H（042 S02 修复：
+    #     旧逻辑取末 4 会丢 N、错把 H 填进 B3 位）
+    #   - 4 值（仅 N..B3）：整组为料筒，H 取 blob 右侧独立单值 token
     cur_barrel = cur_h = None
-    band = [t for t in toks if abs(t["y"] - current_y) < 0.02 and 0.2 < t["x"] < 0.7]
+    band = [t for t in base_toks
+            if abs(t["y"] - current_y) < 0.02 and 0.2 < t["x"] < 0.7]
     cands = []
     for t in sorted(band, key=lambda t: t["x"]):
         vals = [v for v in _split_nums(t["text"]) if 0 <= v <= 400]
@@ -121,18 +157,28 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
             cands.append((t, vals))
     if cands:
         best_t, best_v = max(cands, key=lambda e: (len(e[1]), e[0]["conf"]))
-        if len(best_v) >= 4:
+        if len(best_v) >= 5:
+            cur_barrel = best_v[:4]
+            cur_h = best_v[4]
+            if not cell_rows.get("current"):
+                warnings.append("CURRENT_ROW_GLUED_SPLIT")
+        elif len(best_v) >= 4:
             cur_barrel = best_v[-4:]
             if len(_split_nums(best_t["text"])) > 1:
-                warnings.append("CURRENT_ROW_GLUED_SPLIT")
+                if not cell_rows.get("current"):
+                    warnings.append("CURRENT_ROW_GLUED_SPLIT")
             for t, vals in cands:
                 if t["x"] > best_t["x"] and len(vals) == 1:
                     cur_h = vals[0]
+    if cell_rows.get("current"):
+        cur_barrel, cur_h = cell_rows["current"][:4], cell_rows["current"][4]
     if cur_barrel is None:
         warnings.append("ROW_VALUES_MISSING(current)")
 
     # 输出行（%）
-    ctl5 = _rightmost5(_row_values(toks, control_y, 0), "control", warnings)
+    ctl5 = cell_rows.get("control")
+    if ctl5 is None:
+        ctl5 = _rightmost5(_row_values(base_toks, control_y, 0), "control", warnings)
 
     k = 0.0
 

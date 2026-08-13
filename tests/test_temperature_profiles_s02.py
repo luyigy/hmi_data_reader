@@ -1,0 +1,132 @@
+"""042 S02 炮筒温度 Profile 聚焦回归。"""
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from classify_ui import find_page, find_ui_family
+from contract import attach_contract
+from extract_families.b_and_r import extract_temperature_b_and_r
+from extract_families.fanuc import extract_temperature_fanuc
+from ocr_variants import generate_demag_rate_sidecar
+
+
+def token(text, x, y, *, src=None):
+    value = {"text": text, "x": x, "y": y, "conf": 0.99}
+    if src:
+        value["src"] = src
+    return value
+
+
+def template(name):
+    return json.loads((ROOT / "templates" / name).read_text(encoding="utf-8"))
+
+
+class DemagRateCellsTest(unittest.TestCase):
+    def test_five_top_cells_and_negative_sign_are_preserved(self):
+        class FakeOcr:
+            values = iter(("25", "15", "3", "41", "-8"))
+
+            def ocr(self, _image, **_kwargs):
+                return [[(next(self.values), 0.99)]]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            image = np.zeros((400, 800, 3), dtype=np.uint8)
+            for x in (80, 200, 320, 440, 560):
+                cv2.rectangle(image, (x, 55), (x + 60, 85), (255, 180, 80), -1)
+                cv2.rectangle(image, (x, 140), (x + 60, 170), (255, 180, 80), -1)
+            png = Path(tmp) / "demag.png"
+            out = Path(tmp) / "demag.ocr_rates.json"
+            cv2.imwrite(str(png), image)
+
+            self.assertEqual(generate_demag_rate_sidecar(FakeOcr(), png, out), 5)
+            lines = json.loads(out.read_text(encoding="utf-8"))["lines"]
+            self.assertEqual([line["text"] for line in lines],
+                             ["25", "15", "3", "41", "-8"])
+            self.assertTrue(all(line["_src"] == "rate_cell" for line in lines))
+
+
+class BandRFiveColumnTest(unittest.TestCase):
+    def make_tokens(self):
+        toks = [token(name, x, 0.2) for name, x in zip(
+            ("NZ", "#1", "#2", "#3", "#4"), (0.2, 0.3, 0.4, 0.5, 0.6))]
+        rows = (("实际温度", 0.30, 200), ("设定温度", 0.35, 200),
+                ("高温偏差", 0.40, 10), ("低温偏差", 0.45, 5),
+                ("加热输出", 0.50, 20))
+        for label, y, value in rows:
+            toks.append(token(label, 0.05, y))
+            toks.extend(token(str(value), x, y) for x in (0.2, 0.3, 0.4, 0.5, 0.6))
+        return toks
+
+    def test_nz_through_four_maps_without_phantom_fifth_zone(self):
+        result = extract_temperature_b_and_r(
+            self.make_tokens(), template("b_and_r.temperature.json"))
+        self.assertEqual(result["heater_columns"], 5)
+        self.assertEqual(result["warnings"], [])
+        self.assertEqual(result["fields"]["barrel_temperature_set_c"],
+                         [200.0, 200.0, 200.0, 200.0, 200.0, None])
+
+    def test_missing_middle_header_is_not_accepted_as_five_column_layout(self):
+        toks = [t for t in self.make_tokens() if t["text"] != "#3"]
+        result = extract_temperature_b_and_r(toks, template("b_and_r.temperature.json"))
+        self.assertEqual(result["heater_columns"], 6)
+        self.assertTrue(any(w.startswith("COLUMN_CLUSTER_COUNT")
+                            for w in result["warnings"]), result["warnings"])
+
+
+class FanucTemperatureCellsTest(unittest.TestCase):
+    def test_cell_rows_restore_set_current_and_keep_candidate(self):
+        rows = {"现在": (0.30, [290, 285, 275, 270, 45]),
+                "输出": (0.35, [36.5, 12.6, 6.3, 52.4, 100]),
+                "上限": (0.40, [5, 5, 5, 5, 10]),
+                "设定": (0.45, [290, 285, 275, 270, 45]),
+                "下限": (0.50, [5, 5, 5, 5, 10])}
+        toks = [token("低温保持", 0.08, 0.10), token("200.0", 0.20, 0.10)]
+        for label, (y, values) in rows.items():
+            toks.append(token(label, 0.10, y))
+            toks.extend(token(str(value), x, y, src="fanuc_cell")
+                        for x, value in zip((0.35, 0.42, 0.49, 0.56, 0.63), values))
+
+        result = extract_temperature_fanuc(toks, template("fanuc.temperature.json"))
+        self.assertEqual(result["warnings"], [])
+        self.assertEqual(result["fields"]["barrel_temperature_current_c"],
+                         [290.0, 285.0, 275.0, 270.0])
+        self.assertEqual(result["fields"]["drop_port_temperature_current_c"], 45.0)
+        contract = attach_contract({"status": "ok", "warnings": [],
+                                    "controller_family": "FANUC",
+                                    "page_type": "temperature",
+                                    "fields": result["fields"],
+                                    "extraction_detail": result["detail"]})
+        self.assertEqual(contract["profile_id"], "fanuc.temperature.rightmost5")
+        self.assertEqual(contract["profile_status"], "candidate")
+
+
+class FanucAliasRoutingTest(unittest.TestCase):
+    def test_explicit_chinese_alias_and_temperature_title(self):
+        lines = [{"text": "发那科", "conf": 0.99, "bbox": {"y_min": 0}},
+                 {"text": "喷嘴/料筒", "conf": 0.98, "bbox": {"y_min": 20}}]
+        lines.extend({"text": text, "conf": 0.97, "bbox": {"y_min": y}}
+                     for text, y in zip(("现在", "输出", "上限", "设定", "下限"),
+                                        (100, 120, 140, 160, 180)))
+        self.assertEqual(find_ui_family(lines), ("FANUC", 0.99))
+        self.assertEqual(find_page(lines), ("temperature", 0.98))
+
+    def test_near_alias_does_not_fuzzy_match(self):
+        lines = [{"text": "发那料", "conf": 0.99, "bbox": {"y_min": 0}}]
+        self.assertEqual(find_ui_family(lines), ("unknown", 0.0))
+
+    def test_no_temperature_structure_keeps_other_page(self):
+        lines = [{"text": "保压", "conf": 0.99, "bbox": {"y_min": 0}},
+                 {"text": "喷嘴/料筒", "conf": 0.98, "bbox": {"y_min": 20}}]
+        self.assertEqual(find_page(lines)[0], "injection_metering")
+
+
+if __name__ == "__main__":
+    unittest.main()

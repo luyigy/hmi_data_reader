@@ -72,14 +72,28 @@ def extract_temperature_b_and_r(toks: list[dict], template: dict) -> dict:
             clusters[-1].append(x)
         else:
             clusters.append([x])
-    if len(clusters) == 6:
+    # 列数自适应（042 S02）：只有 NZ/#1~#4 列头全部可见且 #5 不存在时，才进入
+    # B07 五列变体；任何非 NZ 列头缺失都保持六列并告警，不能把缺列误当变体放行。
+    headers = {t["text"].replace(" ", "") for t in toks}
+    five_columns = all(name in headers for name in ("NZ", "#1", "#2", "#3", "#4")) \
+        and "#5" not in headers
+    n_cols = 5 if five_columns else 6
+    if len(clusters) == n_cols:
         col_centers = [sum(c) / len(c) for c in clusters]
+    elif len(clusters) > n_cols:
+        # 噪声簇过多：取成员数最多的 n_cols 簇（数据列数值密集，标签残字簇成员少）
+        picked = sorted(clusters, key=lambda c: len(c), reverse=True)[:n_cols]
+        picked.sort(key=lambda c: sum(c) / len(c))
+        col_centers = [sum(c) / len(c) for c in picked]
+        warnings.append(f"COLUMN_CLUSTER_PRUNED({len(clusters)}->{n_cols})")
     else:
-        warnings.append(f"COLUMN_CLUSTER_COUNT({len(clusters)})")
-        col_centers = [template["layout"]["column_x_centers"][lb]
-                       for lb in ("NZ", "#1", "#2", "#3", "#4", "#5")]
+        # 实测列数 < 期望：非尾列缺失或列结构识别失败，仍按模板兜底 + 告警（review/reject）
+        warnings.append(f"COLUMN_CLUSTER_COUNT({len(clusters)}/{n_cols})")
+        labels = ("NZ", "#1", "#2", "#3", "#4") if five_columns else \
+            ("NZ", "#1", "#2", "#3", "#4", "#5")
+        col_centers = [template["layout"]["column_x_centers"][lb] for lb in labels]
         warnings.append("TEMPLATE_COLUMNS_FALLBACK")
-    spacing = (col_centers[-1] - col_centers[0]) / 5
+    spacing = (col_centers[-1] - col_centers[0]) / (n_cols - 1)
     col_tol = 0.4 * spacing
 
     # 逐列垂直对齐：行标签锚定在左侧，透视畸变下右侧各行整体平移，
@@ -131,14 +145,19 @@ def extract_temperature_b_and_r(toks: list[dict], template: dict) -> dict:
         for r, t in assigned.items():
             if i not in cells[r] or t["conf"] > cells[r][i]["conf"]:
                 cells[r][i] = t
-        if abs(o_c) > 0.5 * g:
+        if not five_columns and abs(o_c) > 0.5 * g:
             warnings.append(f"COLUMN_SHIFTED(col{i + 1},{o_c / g:+.2f}g)")
         if n_un:
             warnings.append(f"COLUMN_ALIGN_UNASSIGNED(col{i + 1},{n_un})")
 
     def row_values(row: str) -> tuple[list[float | None], list[str]]:
+        # 始终输出 6 元数组（契约 zones6）；5 列变体下第 6 位（#5）物理不存在，
+        # 记 None 且不告 CELL_MISSING（与真值 #5=null 一致）；中间列漏检仍告警。
         vals, ws = [], []
         for i in range(6):
+            if i >= n_cols:
+                vals.append(None)
+                continue
             t = cells[row].get(i)
             v = _num(t) if t else None
             if v is None:
@@ -170,7 +189,7 @@ def extract_temperature_b_and_r(toks: list[dict], template: dict) -> dict:
                 warnings.append(f"LOW_CONF(holding,{hold_tok['conf']:.2f})")
         else:
             warnings.append("HOLDING_VALUE_NOT_FOUND")
-    else:
+    elif not five_columns:
         warnings.append("HOLDING_LABEL_NOT_FOUND")
 
     fields = {
@@ -215,4 +234,4 @@ def extract_temperature_b_and_r(toks: list[dict], template: dict) -> dict:
         "cells": {r: {str(i): {"text": t["text"], "conf": round(t["conf"], 3)}
                       for i, t in cells[r].items()} for r in row_names},
     }
-    return {"fields": fields, "heater_columns": 6, "warnings": warnings, "detail": detail}
+    return {"fields": fields, "heater_columns": n_cols, "warnings": warnings, "detail": detail}

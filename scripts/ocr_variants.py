@@ -77,6 +77,126 @@ def run_ocr(ocr, path: Path) -> list[dict]:
     return lines
 
 
+def _run_rec(ocr, crop) -> tuple[str, float]:
+    result = ocr.ocr(cv2.resize(crop, None, fx=6, fy=6,
+                                interpolation=cv2.INTER_CUBIC),
+                     det=False, cls=False)
+    if result and result[0] and isinstance(result[0], list) and result[0]:
+        text, conf = result[0][0]
+        return str(text).strip(), float(conf)
+    return "", 0.0
+
+
+def _write_cells(out_path: Path, png_path: Path, model: str, lines: list[dict]) -> int:
+    out_path.write_text(json.dumps({
+        "filename": png_path.name,
+        "path": str(png_path),
+        "model": model,
+        "line_count": len(lines),
+        "lines": lines,
+    }, ensure_ascii=False, indent=2))
+    return len(lines)
+
+
+def generate_demag_rate_sidecar(ocr, png_path: Path, out_path: Path) -> int:
+    """DEMAG 温度页蓝色 control 单格 OCR；只收顶部速率格，不收实际温度格。"""
+    img = cv2.imread(str(png_path))
+    h, w = img.shape[:2]
+    y0, y1 = int(h * 0.10), int(h * 0.42)
+    strip = img[y0:y1]
+    mask = cv2.inRange(cv2.cvtColor(strip, cv2.COLOR_BGR2HSV),
+                       (85, 60, 100), (125, 255, 255))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cells = []
+    for contour in contours:
+        x, y, cw, ch = cv2.boundingRect(contour)
+        cy = (y0 + y + ch / 2) / h
+        if 15 <= cw <= 150 and 8 <= ch <= 70 and 0.8 <= cw / ch <= 8 and cy < 0.25:
+            cells.append((x, y, cw, ch))
+    lines = []
+    for x, y, cw, ch in sorted(cells):
+        pad = 10
+        crop = strip[max(0, y - pad):y + ch + pad,
+                     max(0, x - pad):x + cw + pad]
+        text, conf = _run_rec(ocr, crop)
+        if text:
+            lines.append({"text": text, "conf": conf, "_src": "rate_cell", "bbox": {
+                "points": [[x, y0 + y], [x + cw, y0 + y],
+                           [x + cw, y0 + y + ch], [x, y0 + y + ch]],
+                "x_min": float(x), "y_min": float(y0 + y),
+                "x_max": float(x + cw), "y_max": float(y0 + y + ch),
+            }})
+    return _write_cells(out_path, png_path, "paddleocr rec-only DEMAG rate cells", lines)
+
+
+def generate_fanuc_temperature_cells_sidecar(
+        ocr, png_path: Path, out_path: Path, base_lines: list[dict],
+        screen_size: list[int]) -> int:
+    """FANUC N/B1/B2/B3/H 五列逐格 OCR；结构不完整即不生成。"""
+    sw, sh = screen_size
+    toks = []
+    for line in base_lines:
+        box = line["bbox"]
+        toks.append({"text": line["text"],
+                     "x": (box["x_min"] + box["x_max"]) / 2 / sw,
+                     "y": (box["y_min"] + box["y_max"]) / 2 / sh})
+    labels = {}
+    for name, anchor in (("current", "现在"), ("control", "输出"),
+                         ("high", "上限"), ("set", "设定"), ("low", "下限")):
+        found = [t for t in toks if t["x"] < 0.25 and anchor in t["text"]]
+        if not found:
+            return 0
+        labels[name] = min(found, key=lambda t: t["y"])
+
+    aliases = {0: {"N"}, 1: {"B1", "BI"}, 2: {"B2", "82"},
+               3: {"B3", "83"}, 4: {"H"}}
+    points = []
+    current_y = labels["current"]["y"]
+    for token in toks:
+        text = token["text"].strip().upper()
+        for index, names in aliases.items():
+            if text in names and current_y - 0.12 < token["y"] < current_y:
+                points.append((index, token["x"]))
+    if len(points) < 2:
+        return 0
+    mean_i = sum(i for i, _ in points) / len(points)
+    mean_x = sum(x for _, x in points) / len(points)
+    denom = sum((i - mean_i) ** 2 for i, _ in points)
+    spacing = sum((i - mean_i) * (x - mean_x) for i, x in points) / denom
+    first_x = mean_x - spacing * mean_i
+    if not 0.03 <= spacing <= 0.10:
+        return 0
+    columns = [first_x + spacing * i for i in range(5)]
+
+    img = cv2.imread(str(png_path))
+    ih, iw = img.shape[:2]
+    lines = []
+    for row, label in labels.items():
+        ys = [t["y"] for t in toks
+              if columns[0] - spacing / 2 < t["x"] < columns[-1] + spacing / 2
+              and label["y"] - 0.005 < t["y"] < label["y"] + 0.035
+              and any(ch.isdigit() for ch in t["text"])]
+        row_y = sorted(ys)[len(ys) // 2] if ys else label["y"]
+        for x in columns:
+            dx, dy = 0.48 * spacing, 0.015
+            x0, x1 = max(0, int((x - dx) * iw)), min(iw, int((x + dx) * iw))
+            y0, y1 = max(0, int((row_y - dy) * ih)), min(ih, int((row_y + dy) * ih))
+            crop = img[y0:y1, x0:x1]
+            if row == "control":
+                crop = cv2.GaussianBlur(crop, (3, 3), 0)
+            else:
+                gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+                crop = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+            text, conf = _run_rec(ocr, crop)
+            if text:
+                lines.append({"text": text, "conf": conf, "_src": "fanuc_cell", "bbox": {
+                    "points": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+                    "x_min": float(x0), "y_min": float(y0),
+                    "x_max": float(x1), "y_max": float(y1),
+                }})
+    return _write_cells(out_path, png_path, "paddleocr rec-only FANUC temperature cells", lines)
+
+
 def generate_moire_sidecar(ocr, png_path: Path, out_path: Path) -> int:
     """对矫正 PNG 生成摩尔纹抑制变体 OCR sidecar，返回行数。"""
     img = cv2.imread(str(png_path))

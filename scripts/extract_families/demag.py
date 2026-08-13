@@ -103,7 +103,7 @@ def extract_temperature_demag(toks: list[dict], template: dict) -> dict:
         return {"fields": None, "heater_columns": 0,
                 "warnings": warnings + [f"COLUMNS_NOT_FOUND({len(cols)}/5)"], "detail": {}}
 
-    def row_at(y, min_v=None, y_off=0.0, tol=0.02):
+    def row_at(y, min_v=None, y_off=0.0, tol=0.02, report_missing=True):
         """按列位从行 y（+偏移）的 band 里取 5 列值（最近邻，容差 tol）。
         y_off 用于 OCR 行标签与数值格纵向错位（标签在格子上沿）的行。"""
         band = [e for e in _band_nums(toks, y + y_off, k, min_v=min_v, tol=tol)]
@@ -114,7 +114,8 @@ def extract_temperature_demag(toks: list[dict], template: dict) -> dict:
                 vals.append(min(near, key=lambda e: abs(e[0] - cx))[1])
             else:
                 vals.append(None)
-                warnings.append(f"CELL_MISSING({COL_NAMES[i]})")
+                if report_missing:
+                    warnings.append(f"CELL_MISSING({COL_NAMES[i]})")
         return vals
 
     cur5 = row_at(cur_lab["y"], min_v=10.0)
@@ -156,15 +157,14 @@ def extract_temperature_demag(toks: list[dict], template: dict) -> dict:
                 vals.append(min(near, key=lambda e: abs(e["x"] - cx))["v"])
             else:
                 vals.append(None)
-                warnings.append(f"CELL_MISSING({COL_NAMES[i]},{row_name})")
         return vals
 
     dr = dev_rows()
 
     def best_dev_row(lab_y):
         """两种窗口几何（标签与数值对齐 / 数值在标签下 ~0.015）择优；并列取偏移版。"""
-        a = row_at(lab_y)
-        b = row_at(lab_y, y_off=0.015, tol=0.013)
+        a = row_at(lab_y, report_missing=False)
+        b = row_at(lab_y, y_off=0.015, tol=0.013, report_missing=False)
         return b if sum(v is None for v in b) <= sum(v is None for v in a) else a
 
     high5 = best_dev_row(high_lab["y"])
@@ -174,6 +174,10 @@ def extract_temperature_demag(toks: list[dict], template: dict) -> dict:
             high5 = row_from_cluster(dr[0], "high")
         if sum(v is None for v in low5) >= 2:
             low5 = row_from_cluster(dr[1], "low")
+    for row_name, values in (("high", high5), ("low", low5)):
+        for i, value in enumerate(values):
+            if value is None:
+                warnings.append(f"CELL_MISSING({COL_NAMES[i]},{row_name})")
 
     # control：列顶蓝框（列标签上方整数 token，允许负值；基础/CLAHE 漏检由 .ocr_rates 旁车补充）
     hdr = [t for t in toks if _anchor_match(anchors["column_headers"], t["text"])]
@@ -186,8 +190,8 @@ def extract_temperature_demag(toks: list[dict], template: dict) -> dict:
         if near:
             # 宁缺不错：优先 HSV 单格源（位置精确），再位数多（防 '17'->'1' 截读）、
             # 再高置信、x 最近
-            best = min(near, key=lambda t: (t.get("src") != "rate_cell",
-                                            -len(RATE_RE.search(t["text"]).group().lstrip("-").split(".")[0]),
+            best = min(near, key=lambda t: (-len(RATE_RE.search(t["text"]).group().lstrip("-").split(".")[0]),
+                                            t.get("src") != "rate_cell",
                                             -t["conf"], abs(t["x"] - cx)))
             ctl5.append(_rate_num(best))
         else:

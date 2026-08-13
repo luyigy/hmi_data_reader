@@ -811,12 +811,18 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                                meta["screen_size"])
     if ui == "FANUC":
         # 低质图整屏放大 OCR 变体召回补充（026 S7c）
+        base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
         zoom_path = rectified_dir / f"{stem}.ocr_zoom.json"
         if zoom_path.is_file():
             zoom_lines = json.loads(zoom_path.read_text()).get("lines", [])
-            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
             merged_zoom, rates_stats = merge_variant_lines(base_lines, zoom_lines)
-            toks = norm_tokens({**ocr_data, "lines": merged_zoom}, meta["screen_size"])
+            base_lines = merged_zoom
+            toks = norm_tokens({**ocr_data, "lines": base_lines}, meta["screen_size"])
+        cells_path = rectified_dir / f"{stem}.ocr_cells.json"
+        if cells_path.is_file():
+            cell_lines = json.loads(cells_path.read_text()).get("lines", [])
+            toks = norm_tokens({**ocr_data, "lines": base_lines + cell_lines},
+                               meta["screen_size"])
     if ui == "ARBURG":
         # 延迟时间灰框旁车（049 A7）：带 _src 标记直接并入
         delay_path = rectified_dir / f"{stem}.ocr_delay.json"
