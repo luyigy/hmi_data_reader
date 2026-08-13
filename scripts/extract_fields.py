@@ -45,6 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_ui import find_page, find_ui_family  # noqa: E402
 from contract import attach_contract  # noqa: E402
+from extract_families.common import _anchor_hits  # noqa: E402
 
 TEMPLATES_DIR = Path("templates")
 RECORD_REPORT = Path("output/record_classify_report.json")
@@ -88,7 +89,7 @@ def detect_family_from_templates(lines: list[dict], templates_dir: Path) -> str 
         groups = tpl.get("family_detect_groups")
         if not groups:
             continue
-        if all(any(_anchor_match(g, t) for t in texts) for g in groups):
+        if all(_anchor_hits(g, texts) for g in groups):
             return tpl.get("ui_family")
     return None
 
@@ -130,7 +131,7 @@ def route_page(stem: str, lines: list[dict], family: str,
         # 模板可声明自己的页面检测锚点（TACT 无油温列头）；缺省保持 ZizES 口径
         # 锚点值为字符串或候选列表（KEBA 设定温度/温度设置 双子变体）
         keys = tpl.get("page_detect_anchors", ["oil_header", "set", "control"])
-        if all(any(_anchor_match(anchors[k], t) for t in texts) for k in keys):
+        if all(_anchor_hits(anchors[k], texts) for k in keys):
             return "temperature", "template_anchors"
         # 非温度页模板锚点路由（049 B2 molding_monitor 等）：全部 page_detect_anchors
         # 在场即判该页（锚点设计成跨页互斥）
@@ -140,7 +141,7 @@ def route_page(stem: str, lines: list[dict], family: str,
                 continue
             t2 = json.loads(tp.read_text())
             anchors2 = t2.get("page_detect_anchors")
-            if anchors2 and all(any(_anchor_match(a, t) for t in texts) for a in anchors2):
+            if anchors2 and all(_anchor_hits(a, texts) for a in anchors2):
                 return page_name, "template_anchors"
     page, _ = find_page(lines)
     if page != "unknown":

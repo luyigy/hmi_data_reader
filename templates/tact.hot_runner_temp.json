@@ -1,9 +1,9 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "ui_family": "TACT",
   "page": "hot_runner_temp",
-  "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z023 热流道温控箱，龙昌兴×5+YUDO CW301×1）OCR 实测锚点；2026-08-08 多排扩展：ground_truth/hot_runner 龙昌兴/YUDO 12 通道双排实拍",
-  "description": "热流道温控箱数码管面板模板。结构：6 通道，上行红字=PV 当前值（实时不入）、下行绿字=SV 设定值（c3xx / SV 3xx.x）。取值规则：200~400 的 3 位数值 token 按 y 聚两行，下行=SV；SV token 按 x 顺序分配到 6 个通道槽（槽距=相邻 token 中位间隔，最左 token 锚 c1；黑屏通道无 token 记 null）。'2310' 为 'c310' 误识（c->2）。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。 2026-08-08：支持多排面板（每排 channels 个通道，按 y 排序拼接输出）；family_detect_groups 改单组 OR（龙昌兴/YUDO 任一命中）；token_y_max 0.85。",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z023 热流道温控箱，龙昌兴×5+YUDO CW301×1）OCR 实测锚点；2026-08-08 多排扩展：ground_truth/hot_runner 龙昌兴/YUDO 12 通道双排实拍；2026-08-13（042 S03）：斜拍全景结构指纹锚点",
+  "description": "热流道温控箱数码管面板模板。结构：6 通道，上行红字=PV 当前值（实时不入）、下行绿字=SV 设定值（c3xx / SV 3xx.x）。取值规则：200~400 的 3 位数值 token 按 y 聚两行，下行=SV；SV token 按 x 顺序分配到 6 个通道槽（槽距=相邻 token 中位间隔，最左 token 锚 c1；黑屏通道无 token 记 null）。'2310' 为 'c310' 误识（c->2）。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。 2026-08-08：支持多排面板（每排 channels 个通道，按 y 排序拼接输出）；family_detect_groups 改单组 OR（龙昌兴/YUDO 任一命中）；token_y_max 0.85。 2026-08-13（042 S03）：斜拍全景下品牌表头（龙昌兴/HOT RUNNER）出画或不可读，NO_TEMPLATE 误拒；补计次锚点 {\"text\":\"MANU\",\"min_count\":2}——面板每通道各一个 SOFT/AUTO/MANU 按钮标签，多通道面板 MANU 行数 >= 2，Hot-system 单通道温控器仅 1 次不命中；全仓 OCR 语料（output/、ground_truth/）中仅龙昌兴/YUDO 多通道面板出现 MANU >= 2。",
   "coordinate_system": "normalized_screen",
   "calibration": {
     "method": "6 张真值图（hr_Z023 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
@@ -20,7 +20,11 @@
       "龙昌兴",
       "YUDO",
       "HOT RUNNER",
-      "CW301"
+      "CW301",
+      {
+        "text": "MANU",
+        "min_count": 2
+      }
     ]
   ],
   "family_detect_groups": [
@@ -28,7 +32,11 @@
       "龙昌兴",
       "YUDO",
       "HOT RUNNER",
-      "CW301"
+      "CW301",
+      {
+        "text": "MANU",
+        "min_count": 2
+      }
     ]
   ],
   "token_y_max": 0.85,

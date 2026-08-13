@@ -9,8 +9,12 @@
 
 2026-08-08 多排扩展：12 通道等双排面板（每排 6 通道，上排 1~6、下排 7~12）。
 SV 行判定：优先取含 c/SV 前缀标记 token 的行；标记不全时按位置兜底
-（偶数行取每排下行 rows[1::2]）。输出 sv_c 按排序拼接（长度=排数×channels）。
+（偶数行取每排下行 rows[1::2]）。输出按排序拼接（长度=排数×channels）。
 token y 上限由模板 token_y_max 控制（单排 0.40 防底部杂项，双排放宽）。
+
+2026-08-13（042 S03）：输出字段名由 legacy sv_c 对齐契约目录字段
+hot_runner_sv_c（字段目录 v2.7.0 已登记，web_target=hot_runner_zone_temperature_set；
+field_meta 由此生效，legacy ground_truth/hr_z023 真值不受契约比对约束）。
 """
 import re
 
@@ -140,5 +144,5 @@ def extract_hot_runner_tact(toks: list[dict], template: dict) -> dict:
     if all(v is None for v in sv):
         warnings.append("SV_ALL_MISSING")
 
-    fields = {"sv_c": sv}
+    fields = {"hot_runner_sv_c": sv}
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}
