@@ -36,6 +36,7 @@ import {
 import { loadProjectsConfig, type ProjectsConfig } from './project-config';
 import { proposeNextWorkflowInboxPlan } from './workflow-roadmap-inbox';
 import { inspectProjectBranch } from './project-branch';
+import { reviewQuarantinedDocument } from './workflow-quarantine-review';
 
 type Pending = WorkflowReviewPending & {
   key: string;
@@ -629,6 +630,35 @@ export const workflowWatcherHandler = async (
       project.path, signal, 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot,
     )).trim().split('\n').filter(Boolean);
   const candidates = selectWorkflowCandidates(changed, contract, watchRoot);
+  // Quarantined failures ride along with cursor updates so the document is
+  // re-reviewed once the candidate queue drains, instead of being forgotten.
+  const carryQuarantine = (cursor: Cursor): Cursor => (previous.validationFailure?.quarantined
+    ? { ...cursor, validationFailure: previous.validationFailure }
+    : cursor);
+
+  if (!candidates.length && previous.validationFailure?.quarantined) {
+    // Quarantine auto-review: with an empty candidate queue, re-validate the
+    // quarantined number at head so a resolved conflict (duplicate renamed or
+    // finalized) advances without an artificial re-commit. Unresolved reviews
+    // stay quarantined and never re-notify (throttle).
+    const review = await reviewQuarantinedDocument({
+      cwd: project.path,
+      head,
+      failurePath: previous.validationFailure.path,
+      contract,
+      git: (...args: string[]) => git(project.path, signal, ...args),
+      signal,
+    });
+    if (review.status !== 'resolved') {
+      return {
+        summary: `head=${head} candidate=none quarantine_review=${review.status}`,
+        cursor: carryQuarantine({ commit: head, eventKey: previous.eventKey }),
+      };
+    }
+    candidates.push(review.candidate);
+    previous = { ...previous };
+    delete previous.validationFailure;
+  }
 
   if (!candidates.length) return { summary: `head=${head} candidate=none`, cursor: { commit: head, eventKey: previous.eventKey } };
   const candidate = candidates.at(-1)!;
@@ -696,7 +726,7 @@ export const workflowWatcherHandler = async (
   const commit = await documentCommit(project.path, head, candidate.filePath, signal);
   const eventKey = `${head}:${candidate.filePath}:${blob}:${document.action}`;
   if (previous.eventKey === eventKey) {
-    return { summary: `head=${head} candidate=${candidate.filePath} duplicate=true`, cursor: { commit: head, eventKey } };
+    return { summary: `head=${head} candidate=${candidate.filePath} duplicate=true`, cursor: carryQuarantine({ commit: head, eventKey }) };
   }
   const gate = !contract.legacy.automation_enabled
     ? 'automation_disabled'
@@ -709,7 +739,7 @@ export const workflowWatcherHandler = async (
   if (mode === 'shadow' || gate === 'automation_disabled') {
     return {
       summary: `head=${head} candidate=${candidate.filePath} type=${candidate.type} action=${document.action} gate=${gate}`,
-      cursor: { commit: head, eventKey },
+      cursor: carryQuarantine({ commit: head, eventKey }),
     };
   }
   await send(project.feishu.chat_id,
@@ -791,7 +821,7 @@ export const workflowWatcherHandler = async (
     }
     return {
       summary: `head=${head} commit=${commit} candidate=${candidate.filePath} action=${document.action} result=notified`,
-      cursor: { commit: head, eventKey },
+      cursor: carryQuarantine({ commit: head, eventKey }),
     };
   }
   const detectedAt = new Date().toISOString();
@@ -828,11 +858,11 @@ export const workflowWatcherHandler = async (
     if (!reviewMessageId) throw new Error('plan review request returned no message_id');
     return {
       summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=${gate} document_ready=true card_sent=true`,
-      cursor: {
+      cursor: carryQuarantine({
         commit: head,
         eventKey,
         pending: { ...pending, reviewState: 'review', reviewMessageId },
-      },
+      }),
     };
   }
   const pending: Pending = {
@@ -861,11 +891,11 @@ export const workflowWatcherHandler = async (
   if (!started) {
     return {
       summary: `${supersededSummary ? `${supersededSummary} ` : ''}head=${head} candidate=${candidate.filePath} action=${document.action} gate=waiting_previous_completion`,
-      cursor: { commit: head, eventKey, pending },
+      cursor: carryQuarantine({ commit: head, eventKey, pending }),
     };
   }
   return {
     summary: `${supersededSummary ? `${supersededSummary} ` : ''}head=${head} commit=${commit} candidate=${candidate.filePath} action=${document.action} result=session_started`,
-    cursor: { commit: head, eventKey },
+    cursor: carryQuarantine({ commit: head, eventKey }),
   };
 };

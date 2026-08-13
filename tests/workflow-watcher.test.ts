@@ -802,6 +802,81 @@ S01
   assert.equal(apiCalls.length, noticesBeforeInvalid + 3, 'new blob must be revalidated and notified');
   assert.equal(workflowRuns.length, runsBeforeInvalid, 'new invalid blob must still not dispatch a repair Session');
 
+  // Quarantine auto-review: a duplicate-number conflict quarantines the
+  // candidate; renaming the conflicting copy away must let the watcher
+  // re-validate and advance the authoritative document on its own.
+  const beforeDuplicate = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-duplicate' };
+  await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
+  const duplicatePlan = (title: string) => `---
+doc_type: PLAN
+doc_status: ready
+next_action: start_first_slice
+plan_kind: phase
+roadmap: 000_ROADMAP_20260725_test.md
+parent_plan: null
+parent_slice: null
+return_to: null
+---
+S01
+<!-- WORKFLOW_PROMPT_START -->
+NEXT PROMPT ${title} 000_ROADMAP_20260725_test.md S01
+<!-- WORKFLOW_PROMPT_END -->
+`;
+  await writeFile(
+    path.join(root, 'docs/branch/main/007_PLAN_20260725_authoritative.md'),
+    duplicatePlan('007_PLAN_20260725_authoritative.md'),
+  );
+  await writeFile(
+    path.join(root, 'docs/branch/main/007_PLAN_20260725_duplicate.md'),
+    duplicatePlan('007_PLAN_20260725_duplicate.md'),
+  );
+  git('add', '.');
+  git('commit', '-qm', 'duplicate number plans');
+  const duplicate = await run(beforeDuplicate);
+  assert.match(duplicate.summary, /validation_failed notified=true/);
+  const duplicateQuarantine = await run(duplicate.cursor);
+  assert.match(duplicateQuarantine.summary, /validation_failed quarantined=true/);
+  assert.ok((duplicateQuarantine.cursor as { validationFailure?: { quarantined?: boolean } })
+    .validationFailure?.quarantined);
+
+  const noticesBeforeReview = apiCalls.length;
+  const runsBeforeReview = workflowRuns.length;
+  const stillQuarantined = await run(duplicateQuarantine.cursor);
+  assert.match(stillQuarantined.summary, /candidate=none quarantine_review=still_failing/);
+  assert.ok((stillQuarantined.cursor as { validationFailure?: { quarantined?: boolean } })
+    .validationFailure?.quarantined, 'unresolved review must keep the quarantine');
+  assert.equal(apiCalls.length, noticesBeforeReview, 'unresolved quarantine review must not re-notify');
+  assert.equal(workflowRuns.length, runsBeforeReview, 'quarantine review must not dispatch a Session');
+
+  await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
+  await rm(path.join(root, 'docs/branch/main/007_PLAN_20260725_duplicate.md'), { force: true });
+  await writeFile(path.join(root, 'docs/branch/main/008_PLAN_20260725_terminal.md'), `---
+doc_type: PLAN
+doc_status: completed
+next_action: none
+plan_kind: phase
+roadmap: 000_ROADMAP_20260725_test.md
+parent_plan: null
+parent_slice: null
+return_to: null
+---
+S01
+`);
+  git('add', '-A');
+  git('commit', '-qm', 'rename conflicting duplicate to terminal 008');
+  const terminalRename = await run(stillQuarantined.cursor);
+  assert.match(terminalRename.summary, /candidate=docs\/branch\/main\/008_PLAN_20260725_terminal\.md action=none result=notified/);
+  assert.ok((terminalRename.cursor as { validationFailure?: { quarantined?: boolean } })
+    .validationFailure?.quarantined, 'quarantine must survive unrelated candidate processing');
+
+  const reviewed = await run(terminalRename.cursor);
+  assert.match(reviewed.summary,
+    /candidate=docs\/branch\/main\/007_PLAN_20260725_authoritative\.md action=start_first_slice gate=plan_review/);
+  const reviewedCursor = reviewed.cursor as { pending?: { path: string }; validationFailure?: unknown };
+  assert.equal(reviewedCursor.pending?.path, 'docs/branch/main/007_PLAN_20260725_authoritative.md');
+  assert.equal(reviewedCursor.validationFailure, undefined, 'resolved quarantine must be cleared');
+  assert.equal(workflowRuns.length, runsBeforeReview, 'revalidated PLAN must wait for plan review approval');
+
   const rewriteCursor = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-rewrite' };
   await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
   git('commit', '--amend', '--allow-empty', '-qm', 'rewrite current head');
