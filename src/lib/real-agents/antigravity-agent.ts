@@ -3,6 +3,8 @@ import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { sanitizePreview } from '@/lib/acpx/harness-events';
+import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 import {
@@ -87,6 +89,57 @@ const promptFor = (task: AntigravityTask) =>
 
 const normalizeOutput = (value: string) => value.trim().replace(/\s+/g, ' ');
 
+const processAntigravityJsonLine = (
+  line: string,
+  workingDirectory: string,
+  streamCallbacks?: HarnessStreamCallbacks,
+) => {
+  try {
+    const event = JSON.parse(line) as { event?: string; step_update?: Record<string, unknown> };
+    if (event.event !== 'step_update' || !event.step_update) return;
+    const step = event.step_update;
+    const stepType = typeof step.step_type === 'string' ? step.step_type : '';
+    if (typeof step.text_delta === 'string') {
+      void streamCallbacks?.onStdoutChunk?.(
+        sanitizePreview(step.text_delta, { workspaceRoot: workingDirectory })
+      );
+      return;
+    }
+
+    const normalizedType = stepType.toLowerCase();
+    if (/tool|function/.test(normalizedType)) {
+      if (/result|response|output/.test(normalizedType)) {
+        void streamCallbacks?.onToolEvent?.({ toolName: 'Tool Result', preview: '', emoji: '✅' });
+        return;
+      }
+      const tool = step.tool as Record<string, unknown> | undefined;
+      const fn = (step.function_call ?? step.function) as Record<string, unknown> | undefined;
+      const toolCall = step.tool_call as Record<string, unknown> | undefined;
+      const toolName = [step.tool_name, step.function_name, step.name, tool?.name, fn?.name, toolCall?.name]
+        .find((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+        ?.trim() || 'Task';
+      const input = step.input ?? step.args ?? step.arguments ?? step.tool_input
+        ?? fn?.arguments ?? toolCall?.arguments ?? tool?.input;
+      void streamCallbacks?.onToolEvent?.({
+        toolName,
+        preview: sanitizePreview(buildToolPreview(input) || input || '', { workspaceRoot: workingDirectory }),
+        emoji: getToolEmoji(toolName),
+      });
+      return;
+    }
+
+    if (/thinking|reasoning|plan/.test(normalizedType)) {
+      void streamCallbacks?.onStdoutChunk?.('思考中');
+    } else if (stepType && !['user_input', 'agent_response'].includes(normalizedType)) {
+      void streamCallbacks?.onStdoutChunk?.(
+        sanitizePreview(`进度：${stepType}`, { workspaceRoot: workingDirectory })
+      );
+    }
+  } catch {
+    // Ignore non-JSON diagnostic lines; the final response extractor retains them.
+  }
+};
+
 const extractAntigravityResponse = (stdout: string): string => {
   const lines = stdout.split('\n');
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -160,6 +213,7 @@ export const executeAntigravityTask = (
     config.onSpawn?.(child);
 
     let stdout = '';
+    let stdoutBuffer = '';
     let stderr = '';
     let settled = false;
     const finish = (result: Omit<AntigravityResult, 'executionTime'>) => {
@@ -178,21 +232,15 @@ export const executeAntigravityTask = (
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stdout += text;
-      // Extract text_delta from stream-json lines if possible
-      const lines = text.split('\n');
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() ?? '';
       for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('{')) {
-          try {
-            const obj = JSON.parse(trimmed);
-            if (obj.event === 'step_update' && typeof obj.step_update?.text_delta === 'string') {
-              void config.streamCallbacks?.onStdoutChunk?.(obj.step_update.text_delta);
-              continue;
-            }
-          } catch {
-            // continue
-          }
-        }
+        processAntigravityJsonLine(
+          line.trim(),
+          config.workingDirectory || process.cwd(),
+          config.streamCallbacks,
+        );
       }
     });
     child.stderr?.on('data', (chunk: Buffer) => {
@@ -205,6 +253,13 @@ export const executeAntigravityTask = (
       error: `Failed to start Antigravity CLI: ${error.message}`,
     }));
     child.on('close', (code) => {
+      if (stdoutBuffer.trim()) {
+        processAntigravityJsonLine(
+          stdoutBuffer.trim(),
+          config.workingDirectory || process.cwd(),
+          config.streamCallbacks,
+        );
+      }
       const output = extractAntigravityResponse(stdout);
       const contextUsage = parseAntigravityUsageFromText(stdout) || parseAntigravityUsageFromText(stderr) || undefined;
       if (code !== 0) {

@@ -24,6 +24,13 @@ case "$AGY_TEST_CASE" in
   echo) printf 'Task: smoke\\n\\nPlease   complete this task.\\n' ;;
   empty) printf 'diagnostic from stderr' >&2 ;;
   text) printf 'Task completed with a valid answer.\\n' ;;
+  progress)
+    printf '%s' '{"event":"step_update","step_update":{"step_type":"planning","state":"IN_PROGRESS"}}'
+    printf '\\n{"event":"step_update","step_update":{"step_type":"function_call","function_name":"Bash","arguments":{"command":"cat /var/private/key.pem sk-secret123"}}}\\n'
+    printf '{"event":"step_update","step_update":{"step_type":"function_result","result":"secret body"}}\\n'
+    printf '{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"done"}}\\n'
+    printf '{"event":"result","result":{"response":"final answer"}}\\n'
+    ;;
   sandbox)
     test ! -e "$AGY_OUTSIDE_FILE" || exit 9
     printf sandboxed > sandbox-write
@@ -100,6 +107,28 @@ esac
       { sandboxMode: 'danger-full-access' },
     );
     assert.match(await readFile(path.join(workspace, 'args'), 'utf8'), /^--dangerously-skip-permissions$/m);
+
+    process.env.AGY_TEST_CASE = 'progress';
+    const chunks: string[] = [];
+    const tools: Array<{ toolName: string; preview: string; emoji: string }> = [];
+    const progress = await executeAntigravityTask(
+      { id: '8', name: 'smoke' },
+      {
+        workingDirectory: workspace,
+        streamCallbacks: {
+          onStdoutChunk: (chunk) => { chunks.push(chunk); },
+          onToolEvent: (event) => { tools.push(event); },
+        },
+      },
+    );
+    assert.equal(progress.success, true, progress.error);
+    assert.equal(progress.output, 'final answer');
+    assert.deepEqual(chunks, ['思考中', 'done']);
+    assert.deepEqual(tools, [
+      { toolName: 'Bash', preview: 'cat key.pem [REDACTED]', emoji: '💻' },
+      { toolName: 'Tool Result', preview: '', emoji: '✅' },
+    ]);
+    assert.doesNotMatch(JSON.stringify({ chunks, tools }), /var\/private|sk-secret123|secret body/);
 
     process.env.AGY_TEST_CASE = 'sandbox';
     const { executeViaLocalHarness } = await import('../src/lib/acpx/runner-harness');
