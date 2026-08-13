@@ -1,4 +1,6 @@
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import { sanitizePreview } from '@/lib/acpx/harness-events';
+import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import type { ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -64,12 +66,14 @@ const buildPiArgs = ({
   prompt,
   sessionDir,
   continueSession,
+  mode = 'json',
 }: {
   prompt: string;
   sessionDir?: string;
   continueSession?: boolean;
+  mode?: 'json' | 'print';
 }) => {
-  const args = ['--print'];
+  const args = mode === 'json' ? ['--mode', 'json'] : ['--print'];
 
   if (DEFAULT_PI_PROVIDER) {
     args.push('--provider', DEFAULT_PI_PROVIDER);
@@ -100,6 +104,61 @@ const buildPiArgs = ({
   return args;
 };
 
+interface PiJsonEvent {
+  type?: string;
+  toolName?: string;
+  args?: unknown;
+  message?: {
+    role?: string;
+    content?: Array<{ type?: string; text?: string }>;
+  };
+}
+
+const normalizeToolName = (value?: string) => {
+  const name = value?.trim() || 'Task';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+};
+
+const processPiJsonLine = (
+  line: string,
+  workingDirectory: string,
+  streamCallbacks?: HarnessStreamCallbacks
+) => {
+  try {
+    const event = JSON.parse(line) as PiJsonEvent;
+    const assistantText = event.message?.role === 'assistant' && Array.isArray(event.message.content)
+      ? event.message.content
+        .filter((item) => item.type === 'text' && typeof item.text === 'string')
+        .map((item) => item.text)
+        .join('')
+      : '';
+
+    if (assistantText) {
+      void streamCallbacks?.onStdoutChunk?.(
+        sanitizePreview(assistantText, { workspaceRoot: workingDirectory })
+      );
+    }
+
+    if (event.type === 'tool_execution_start') {
+      const toolName = normalizeToolName(event.toolName);
+      void streamCallbacks?.onToolEvent?.({
+        toolName,
+        preview: sanitizePreview(buildToolPreview(event.args), { workspaceRoot: workingDirectory }),
+        emoji: getToolEmoji(toolName),
+      });
+    } else if (event.type === 'tool_execution_end') {
+      void streamCallbacks?.onToolEvent?.({ toolName: 'Tool Result', preview: '', emoji: '✅' });
+    }
+
+    return assistantText || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const jsonModeUnavailable = (value: string) =>
+  /(?:unknown|unrecognized|unsupported|invalid)[^\n]*(?:--mode|mode[^\n]*json)|--mode[^\n]*(?:unknown|unrecognized|unsupported|invalid)/i.test(value);
+
 const runPiAgentCommand = async ({
   prompt,
   timeout,
@@ -123,17 +182,17 @@ const runPiAgentCommand = async ({
     fs.mkdirSync(sessionDir, { recursive: true });
   }
 
-  const child = spawn(DEFAULT_PI_AGENT_BIN, buildPiArgs({ prompt, sessionDir, continueSession }), {
-    cwd: workingDirectory,
-    env: { ...process.env },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
-  onSpawn?.(child);
-
-  return new Promise<string>((resolve, reject) => {
+  const run = (mode: 'json' | 'print') => new Promise<string>((resolve, reject) => {
+    const child = spawn(DEFAULT_PI_AGENT_BIN, buildPiArgs({ prompt, sessionDir, continueSession, mode }), {
+      cwd: workingDirectory,
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    onSpawn?.(child);
     let stdout = '';
     let stderr = '';
+    let stdoutBuffer = '';
+    let resolvedText = '';
     let settled = false;
     let timeoutHandle: NodeJS.Timeout | undefined;
 
@@ -158,7 +217,16 @@ const runPiAgentCommand = async ({
     child.stdout?.on('data', (chunk: Buffer | string) => {
       const text = chunk.toString();
       stdout += text;
-      void streamCallbacks?.onStdoutChunk?.(text);
+      if (mode === 'print') {
+        void streamCallbacks?.onStdoutChunk?.(text);
+        return;
+      }
+      stdoutBuffer += text;
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() ?? '';
+      for (const line of lines) {
+        resolvedText = processPiJsonLine(line, workingDirectory, streamCallbacks) || resolvedText;
+      }
     });
 
     child.stderr?.on('data', (chunk: Buffer | string) => {
@@ -172,17 +240,27 @@ const runPiAgentCommand = async ({
     });
 
     child.on('close', (code) => {
-      const combined = `${stdout}`.trim();
+      if (mode === 'json' && stdoutBuffer.trim()) {
+        resolvedText = processPiJsonLine(stdoutBuffer, workingDirectory, streamCallbacks) || resolvedText;
+      }
+      const combined = (mode === 'json' ? resolvedText : stdout).trim();
       const normalizedStderr = stderr.trim();
       if (code === 0) {
         settle(() => resolve(combined || normalizedStderr || 'Pi Agent completed'));
         return;
       }
 
-      const errorMessage = normalizedStderr || combined || `Pi Agent exited with code ${code ?? 'unknown'}`;
+      const errorMessage = normalizedStderr || stdout.trim() || `Pi Agent exited with code ${code ?? 'unknown'}`;
       settle(() => reject(new Error(errorMessage)));
     });
   });
+
+  try {
+    return await run('json');
+  } catch (error) {
+    if (!jsonModeUnavailable(error instanceof Error ? error.message : String(error))) throw error;
+    return run('print');
+  }
 };
 
 export const executePiAgentTask = async (
