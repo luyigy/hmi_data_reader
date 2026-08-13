@@ -4,6 +4,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { parseDocument } from 'yaml';
 import { isFeishuAdmin } from '@/lib/feishu-access-approval';
+import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 import { prisma } from '@/lib/prisma';
@@ -198,10 +199,11 @@ export async function handleWorkflowPolicyCommand(
       ? `✅ Workflow 自治模式已经是 ${requested}（幂等，无写入）。HEAD：${result.currentHead}`
       : `✅ Workflow 自治模式已切换为 ${requested}。HEAD：${result.currentHead}`;
   }
-  if (command.args[0] !== 'policy' || !['show', 'set'].includes(command.args[1] || '')) {
-    return '用法：/ap workflow status | /ap workflow level <show|set> | /ap workflow autonomy <show|set> | /ap workflow validation <show|set|template|repair> | /ap workflow policy <show|set>';
+  if (command.args[0] !== 'policy' || !['show', 'set', 'edit'].includes(command.args[1] || '')) {
+    return '用法：/ap workflow status | /ap workflow level <show|set> | /ap workflow autonomy <show|set> | /ap workflow validation <show|set|template|repair> | /ap workflow policy <show|set|edit>';
   }
   const setting = command.args[1] === 'set';
+  const editing = command.args[1] === 'edit';
   const project = findProjectByChatId(
     await loadProjectsConfig(undefined, undefined, { allowMissingWorkflowPolicy: setting }),
     context.chatId,
@@ -218,9 +220,19 @@ export async function handleWorkflowPolicyCommand(
     projectPath: project.path,
     source,
   });
-  if (!setting) return formatWorkflowPermissionSnapshot(snapshot);
+  if (!setting && !editing) return formatWorkflowPermissionSnapshot(snapshot);
 
   if (!isFeishuAdmin(context.senderOpenId)) return '仅配置的 Feishu 管理员可以设置 Workflow 权限策略。';
+  if (editing) {
+    await sendWorkflowPolicyEditCard({
+      projectId: project.id,
+      jobId: job.id,
+      projectPath: project.path,
+      chatId: context.chatId,
+      before,
+    });
+    return '🔧 已发送 Workflow 额外挂载配置卡片，请在卡片中修改并提交（下次 watcher 加载生效）。';
+  }
   const allowedPolicyOptions = ['preset', 'extra-read', 'extra-write'];
   const unknownPolicyOptions = Object.keys(command.options).filter((key) => !allowedPolicyOptions.includes(key));
   if (command.args.length !== 2
@@ -299,4 +311,93 @@ export async function handleWorkflowPolicyCommand(
     'effective: next watcher config load',
     formatWorkflowPermissionSnapshot(afterSnapshot),
   ].join('\n');
+}
+
+export async function sendWorkflowPolicyEditCard(args: {
+  projectId: string;
+  jobId: string;
+  projectPath: string;
+  chatId: string;
+  before: WorkflowExecutionPolicy | null;
+}) {
+  const source = workflowPolicySource(args.projectId, args.jobId);
+  const readExtras = (policy: WorkflowExecutionPolicy) =>
+    policy.preset === 'workspace'
+      ? { extraReadOnlyPaths: policy.extraReadOnlyPaths ?? [], extraWritableRoots: policy.extraWritableRoots ?? [] }
+      : { extraReadOnlyPaths: [] as string[], extraWritableRoots: [] as string[] };
+  const current = args.before ? readExtras(args.before) : { extraReadOnlyPaths: [], extraWritableRoots: [] };
+  await sendFeishuInteractiveMessage({
+    receiveId: args.chatId,
+    card: {
+      config: { wide_screen_mode: true },
+      header: { template: 'blue', title: { tag: 'plain_text', content: '🔧 Workflow 额外挂载配置' } },
+      elements: [
+        { tag: 'markdown', content: [
+          `**项目：** ${args.projectId}（\`${args.projectPath}\`）`,
+          `**来源：** ${source}`,
+          '在下方填写需要额外挂载进沙箱的目录（逗号分隔绝对路径）。**全量覆盖**：提交后以此处内容为准；某项留空 = 清空该项。',
+          '',
+          `当前只读挂载：\`${current.extraReadOnlyPaths.join(', ') || '（无）'}\``,
+          `当前可写挂载：\`${current.extraWritableRoots.join(', ') || '（无）'}\``,
+        ].join('\n') },
+        { tag: 'input', name: 'extraRead', placeholder: { tag: 'plain_text', content: '/data1/code/repo-a,/data1/code/repo-b' }, default_value: current.extraReadOnlyPaths.join(','), label: { tag: 'plain_text', content: '额外只读挂载 (extra-read)' } },
+        { tag: 'input', name: 'extraWrite', placeholder: { tag: 'plain_text', content: '/data1/code/repo-c' }, default_value: current.extraWritableRoots.join(','), label: { tag: 'plain_text', content: '额外可写挂载 (extra-write)' } },
+        { tag: 'action', actions: [
+          { tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '提交' }, value: { cmd: `workflow-policy:${args.projectId}:${args.jobId}` }, form_action_type: 'submit' },
+        ] },
+      ],
+    },
+  });
+}
+
+export async function applyWorkflowPolicyCard(args: {
+  projectId: string;
+  jobId: string;
+  extraReadRaw?: string;
+  extraWriteRaw?: string;
+  operatorOpenId: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const source = workflowPolicySource(args.projectId, args.jobId);
+  const cfg = await loadProjectsConfig(undefined, undefined, { allowMissingWorkflowPolicy: true });
+  const project = cfg.projects.find((candidate) => candidate.id === args.projectId);
+  if (!project) return { ok: false, message: `未找到项目：${args.projectId}` };
+  const job = project.jobs.find((candidate) => candidate.id === args.jobId && candidate.type === 'workflow_watcher');
+  if (!job) return { ok: false, message: `未找到 workflow-watcher：${args.projectId}/${args.jobId}` };
+  const before = job.config.execution_policy === undefined ? null : validateWorkflowExecutionPolicy(job.config.execution_policy, source);
+  const splitPaths = (raw: string | undefined): string[] =>
+    raw === undefined ? [] : raw.split(',').map((item) => item.trim()).filter(Boolean);
+  const readExtras = (policy: WorkflowExecutionPolicy) =>
+    policy.preset === 'workspace'
+      ? { extraReadOnlyPaths: policy.extraReadOnlyPaths ?? [], extraWritableRoots: policy.extraWritableRoots ?? [] }
+      : { extraReadOnlyPaths: [] as string[], extraWritableRoots: [] as string[] };
+  const base = before ?? { preset: 'workspace' as const };
+  const currentExtras = readExtras(base);
+  const extraReadOnlyPaths = args.extraReadRaw === undefined ? currentExtras.extraReadOnlyPaths : splitPaths(args.extraReadRaw);
+  const extraWritableRoots = args.extraWriteRaw === undefined ? currentExtras.extraWritableRoots : splitPaths(args.extraWriteRaw);
+  let after: WorkflowExecutionPolicy;
+  try {
+    after = validateWorkflowExecutionPolicy({ preset: 'workspace', ...(extraWritableRoots.length ? { extraWritableRoots } : {}), ...(extraReadOnlyPaths.length ? { extraReadOnlyPaths } : {}) }, source);
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+  const audit = await prisma.feishuAdminApproval.create({
+    data: {
+      kind: 'workflow_policy_set',
+      status: 'processing',
+      requesterOpenId: args.operatorOpenId,
+      requesterChatId: args.operatorOpenId || 'feishu_card',
+      payloadJson: JSON.stringify({ projectId: args.projectId, jobId: args.jobId, source, before, after, effective: 'next_watcher_load', via: 'card' }),
+      resolvedBy: args.operatorOpenId,
+    },
+  });
+  try {
+    await writeWorkflowPolicy(args.projectId, args.jobId, after);
+    await prisma.feishuAdminApproval.update({ where: { id: audit.id }, data: { status: 'approved', resolvedAt: new Date() } });
+  } catch (error) {
+    await prisma.feishuAdminApproval.update({ where: { id: audit.id }, data: { status: 'denied', resolvedAt: new Date() } }).catch(() => undefined);
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+  const afterExtras = readExtras(after);
+  const summary = `preset=workspace${afterExtras.extraWritableRoots.length ? ` extraWritableRoots=${afterExtras.extraWritableRoots.join(',')}` : ''}${afterExtras.extraReadOnlyPaths.length ? ` extraReadOnlyPaths=${afterExtras.extraReadOnlyPaths.join(',')}` : ''}`;
+  return { ok: true, message: `已更新：${summary}（下次 watcher 加载生效）` };
 }

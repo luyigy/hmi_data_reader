@@ -1,6 +1,7 @@
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import { isFeishuAdmin } from '@/lib/feishu-access-approval';
 import { updateFeishuApprovalCardResolved } from '@/lib/feishu-api';
+import { applyWorkflowPolicyCard } from '@/lib/feishu-workflow-policy';
 import { prisma } from '@/lib/prisma';
 
 export async function handleFeishuInteractionCardAction(args: {
@@ -12,7 +13,27 @@ export async function handleFeishuInteractionCardAction(args: {
   prefix: string;
 }) {
   const match = /^(approve|deny|answer):(.+)$/.exec(args.cmd);
-  if (!match) return null;
+  if (!match) {
+    const policyMatch = /^workflow-policy:(.+):(.+)$/.exec(args.cmd);
+    if (policyMatch) {
+      if (!isFeishuAdmin(args.openId)) {
+        return { toast: { type: 'warning', content: '仅配置的 Feishu 管理员可以修改 Workflow 权限策略。' } };
+      }
+      const formValue = args.formValue ?? {};
+      const extraReadRaw = typeof formValue.extraRead === 'string' ? formValue.extraRead : undefined;
+      const extraWriteRaw = typeof formValue.extraWrite === 'string' ? formValue.extraWrite : undefined;
+      const result = await applyWorkflowPolicyCard({
+        projectId: policyMatch[1],
+        jobId: policyMatch[2],
+        extraReadRaw,
+        extraWriteRaw,
+        operatorOpenId: args.openId || 'feishu_card',
+      });
+      console.log(`${args.prefix} workflow policy card submit`, { projectId: policyMatch[1], jobId: policyMatch[2], ok: result.ok });
+      return { toast: { type: result.ok ? 'success' : 'warning', content: result.message } };
+    }
+    return null;
+  }
   if (!isFeishuAdmin(args.openId)) {
     const access = args.openId
       ? await prisma.feishuUserAccess.findUnique({
