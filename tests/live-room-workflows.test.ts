@@ -66,9 +66,9 @@ assert.equal(workflowPlanRevisionPathFrom('plan_path: docs/288_PLAN_20260728_fix
 
 const members = [
   member('planner', 'planner'),
-  member('builder', 'implementer'),
+  { ...member('builder', 'implementer'), harnessType: 'pi-agent' },
   member('reviewer', 'reviewer'),
-  member('tester', 'tester'),
+  { ...member('tester', 'tester'), harnessType: 'antigravity' },
 ];
 
 assert.equal(selectLiveRoomPlanHost([{ ...member('planner', 'planner'), canReply: true }]).host?.id, 'planner');
@@ -153,6 +153,7 @@ async function verifyFailedWorkflowDefersToNextAgent() {
   const prompts: string[] = [];
   const prismaModule = await import('../src/lib/prisma') as unknown as { prisma: Record<string, unknown> };
   prismaModule.prisma = {
+    $queryRaw: async () => [],
     liveRoom: { findUnique: async () => ({ id: 'room', members: members.map((item) => ({ ...item, canReply: true, joinStatus: 'joined' })) }) },
     liveRoomMessage: { findUnique: async () => ({ metadata: null }) },
     workflowDispatch: { updateMany: async ({ data }: { data: { state: string } }) => {
@@ -171,8 +172,18 @@ async function verifyFailedWorkflowDefersToNextAgent() {
   };
   const runner = await import('../src/lib/acpx/runner') as unknown as Record<string, unknown>;
   let runCount = 0;
-  runner.executeAcpxTaskRun = async ({ taskDescription }: { taskDescription: string }) => {
+  let callbacksAttached = 0;
+  runner.executeAcpxTaskRun = async ({ taskDescription, streamCallbacks }: {
+    taskDescription: string;
+    streamCallbacks?: {
+      onStdoutChunk?: (chunk: string) => void;
+      onToolEvent?: (event: { toolName: string; preview: string; emoji: string }) => void;
+    };
+  }) => {
     runCount += 1;
+    if (streamCallbacks) callbacksAttached += 1;
+    streamCallbacks?.onStdoutChunk?.(`stage ${runCount} thinking.`);
+    streamCallbacks?.onToolEvent?.({ toolName: 'Read', preview: 'src/file.ts', emoji: '📖' });
     prompts.push(taskDescription);
     const summary = runCount === 2 ? 'APPROVED' : runCount === 3 ? 'PASSED' : 'completed';
     return runCount === 1
@@ -184,7 +195,10 @@ async function verifyFailedWorkflowDefersToNextAgent() {
 
   assert.equal(dispatchState, 'completed');
   assert.equal(runCount, 3);
+  assert.equal(callbacksAttached, 3);
   assert.match(messages.find((message) => message.content.includes('职责已顺延'))?.content || '', /计划审查 \+ 功能实施/);
+  assert.ok(messages.some((message) => message.content.includes('正在分析')));
+  assert.ok(messages.some((message) => message.content.includes('正在使用 Read')));
   assert.match(prompts[1], /Inherited failed responsibilities/);
 
   dispatchState = 'reply_queued';

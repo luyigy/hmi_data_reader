@@ -32,7 +32,13 @@ import {
   type DeliveryRoom,
   type DeliveryRoomMember,
 } from '@/lib/live-room-delivery-routing';
-import { FeishuProgressTracker } from '@/lib/feishu-progress';
+import {
+  attachLiveRoomProgress,
+  isUsefulLiveRoomThinkingPreview,
+  shouldRelayLiveRoomStdoutProgress,
+} from '@/lib/live-room-progress';
+
+export { isUsefulLiveRoomThinkingPreview, shouldRelayLiveRoomStdoutProgress };
 
 const SSH_WARNING_PATTERNS = [
   /^Warning: Permanently added .*known hosts\.\s*$/gim,
@@ -113,16 +119,6 @@ const shouldRetryCodexEphemeral = ({
 // may retain incomplete tool calls after an interruption.
 const shouldPreferTranscriptContinuation = (participant: ReturnType<typeof buildLiveRoomAcpxParticipant>) =>
   participant.executionBackend === 'platform_local' && participant.harnessType === 'codex';
-
-const LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS = 8000;
-const LIVE_ROOM_TOOL_MIN_INTERVAL_MS = 3000;
-const LIVE_ROOM_HEARTBEAT_INTERVAL_MS = 45_000;
-
-export const shouldRelayLiveRoomStdoutProgress = (harnessType: string | null) =>
-  harnessType === 'codex' || harnessType === 'kimi-code';
-
-export const isUsefulLiveRoomThinkingPreview = (text: string) =>
-  text.length >= 80 || /[.!?。！？]\s*$/.test(text);
 
 const markParticipantContinuationStale = async ({
   participantId,
@@ -377,19 +373,6 @@ export const executeLiveRoomReplyViaAcpx = async ({
     feishuChatId: sourceMetadata?.feishuChatId,
   };
 
-  // Resolve Feishu chatId for interactive progress card (prefer metadata, fallback to DB)
-  const bindingRows = await prisma.$queryRaw<Array<{ chatId: string }>>`
-    SELECT "chatId" FROM "FeishuConversationBinding"
-    WHERE "liveRoomId" = ${room.id}
-    LIMIT 1
-  `;
-  const metadataChatId = typeof relayOrigin.feishuChatId === 'string' ? relayOrigin.feishuChatId : null;
-  const feishuChatId: string | null = metadataChatId || bindingRows[0]?.chatId || null;
-
-  const progressTracker = feishuChatId
-    ? new FeishuProgressTracker(feishuChatId)
-    : null;
-
   const participant = buildLiveRoomAcpxParticipant({
     id: targetMember.id,
     displayName: targetMember.displayName,
@@ -403,6 +386,13 @@ export const executeLiveRoomReplyViaAcpx = async ({
     codexModel: targetMember.codexModel,
     codexReasoningEffort: targetMember.codexReasoningEffort,
   });
+  const progress = await attachLiveRoomProgress({ room, participant: targetMember, sourceMessage });
+  let progressDisposed = false;
+  const disposeProgress = async (summary: string, success: boolean) => {
+    if (progressDisposed) return;
+    progressDisposed = true;
+    await progress.dispose(summary, success);
+  };
 
   const workflowPermissionSnapshot = readWorkflowPermissionSnapshot(
     sourceMetadata?.workflowPermissionSnapshot,
@@ -464,162 +454,10 @@ export const executeLiveRoomReplyViaAcpx = async ({
       extras: {
         ...relayOrigin,
         systemEvent: 'member_reply_started',
-        ...(progressTracker ? { skipFeishuRelay: true } : {}),
+        ...(progress.progressTracker ? { skipFeishuRelay: true } : {}),
       },
     }),
   });
-
-  progressTracker?.onSystemEvent(`开始处理消息 | ${targetMember.displayName} (${targetMember.harnessType})`, '🚀');
-
-  let progressFlushPromise: Promise<void> = Promise.resolve();
-  let lastToolSignature = '';
-  let lastToolPostedAt = 0;
-  let lastVisibleActivityAt = Date.now();
-
-  const enqueueHeartbeatUpdate = () => {
-    lastVisibleActivityAt = Date.now();
-    progressTracker?.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
-    progressFlushPromise = progressFlushPromise
-      .then(async () => {
-        await postLiveRoomMessage({
-          roomId: room.id,
-          content: `系统提示：${targetMember.displayName} 仍在处理中，当前步骤耗时较长。`,
-          messageType: 'system',
-          metadata: resolveLiveRoomMessageMetadata({
-            senderKind: 'system',
-            targetMemberId: targetMember.id,
-            extras: {
-              ...relayOrigin,
-              systemEvent: 'member_reply_progress',
-              harnessType: targetMember.harnessType,
-              progressKind: 'heartbeat',
-              preview: '当前步骤耗时较长',
-              ...(progressTracker ? { skipFeishuRelay: true } : {}),
-            },
-          }),
-        });
-      })
-      .catch((error) => {
-        console.error('Failed to post live room progress update:', error);
-      });
-  };
-
-  let lastThinkingPostedAt = 0;
-  let lastThinkingPreview = '';
-  let pendingThinkingText = '';
-
-  const enqueueThinkingUpdate = (chunk: string) => {
-    const isCodex = targetMember.harnessType === 'codex';
-    const text = isCodex
-      ? (pendingThinkingText += chunk).trim()
-      : chunk.trim();
-    const preview = text.slice(0, 80);
-    if (!preview) return;
-    if (isCodex && !isUsefulLiveRoomThinkingPreview(text)) return;
-    const now = Date.now();
-    if (now - lastThinkingPostedAt < LIVE_ROOM_PROGRESS_MIN_INTERVAL_MS) {
-      return;
-    }
-    if (preview === lastThinkingPreview) {
-      pendingThinkingText = '';
-      return;
-    }
-    lastThinkingPreview = preview;
-    lastThinkingPostedAt = now;
-    lastVisibleActivityAt = now;
-    pendingThinkingText = '';
-
-    progressTracker?.onSystemEvent(`思考分析：${preview}`, '🧠');
-
-    progressFlushPromise = progressFlushPromise
-      .then(async () => {
-        await postLiveRoomMessage({
-          roomId: room.id,
-          content: `系统提示：${targetMember.displayName} 正在分析：${preview}${text.length > 80 ? '…' : ''}`,
-          messageType: 'system',
-          metadata: resolveLiveRoomMessageMetadata({
-            senderKind: 'system',
-            targetMemberId: targetMember.id,
-            extras: {
-              ...relayOrigin,
-              systemEvent: 'member_reply_thinking',
-              harnessType: targetMember.harnessType,
-              preview,
-              ...(progressTracker ? { skipFeishuRelay: true } : {}),
-            },
-          }),
-        });
-      })
-      .catch((error) => {
-        console.error('Failed to post live room thinking update:', error);
-      });
-  };
-
-  const enqueueToolUpdate = (event: { toolName: string; preview: string; emoji: string }, skipFeishuRelay = false) => {
-    const preview = event.preview.trim();
-    const signature = `${event.toolName}:${preview}`;
-    const now = Date.now();
-    if (now - lastToolPostedAt < LIVE_ROOM_TOOL_MIN_INTERVAL_MS) {
-      return;
-    }
-    if (signature === lastToolSignature) {
-      return;
-    }
-
-    lastToolSignature = signature;
-    lastToolPostedAt = now;
-    lastVisibleActivityAt = now;
-
-    const extras: Record<string, unknown> = {
-      ...relayOrigin,
-      systemEvent: 'member_reply_tool',
-      harnessType: targetMember.harnessType,
-      toolName: event.toolName,
-      toolEmoji: event.emoji,
-      preview,
-    };
-    if (skipFeishuRelay) {
-      extras.skipFeishuRelay = true;
-    }
-
-    progressFlushPromise = progressFlushPromise
-      .then(async () => {
-        await postLiveRoomMessage({
-          roomId: room.id,
-          content: `系统提示：${targetMember.displayName} 正在使用 ${event.toolName}${preview ? `：${preview}` : ''}`,
-          messageType: 'system',
-          metadata: resolveLiveRoomMessageMetadata({
-            senderKind: 'system',
-            targetMemberId: targetMember.id,
-            extras,
-          }),
-        });
-      })
-      .catch((error) => {
-        console.error('Failed to post live room tool update:', error);
-      });
-  };
-
-  const liveRoomStreamCallbacks: HarnessStreamCallbacks = {
-    ...(shouldRelayLiveRoomStdoutProgress(targetMember.harnessType) ? {
-      onStdoutChunk: (chunk: string) => { enqueueThinkingUpdate(chunk); },
-    } : {}),
-    onToolEvent: (event) => {
-      if (progressTracker) {
-        // Interactive progress card handles tool events for Feishu
-        progressTracker.onToolEvent(event.toolName, event.preview, event.emoji);
-      }
-      // Always post to live room web UI (skip Feishu relay when tracker is active)
-      enqueueToolUpdate(event, progressTracker ? true : false);
-    },
-  };
-
-  const heartbeatTimer = setInterval(() => {
-    if (Date.now() - lastVisibleActivityAt >= LIVE_ROOM_HEARTBEAT_INTERVAL_MS) {
-      enqueueHeartbeatUpdate();
-    }
-  }, LIVE_ROOM_HEARTBEAT_INTERVAL_MS);
-  heartbeatTimer.unref();
 
   try {
 
@@ -633,7 +471,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     permissionConfig,
     latestSession,
     useFreshSession: false, workflowCompletionGate,
-    streamCallbacks: liveRoomStreamCallbacks,
+    streamCallbacks: progress.streamCallbacks,
   });
 
   let participantResult = acpxResult.participants[0];
@@ -660,7 +498,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
 
   if (shouldFallback && latestSession?.participant?.id) {
     const staleReason = firstFailureMessage!;
-    progressTracker?.onSystemEvent(`续聊会话失效，自动开启新会话重试: ${staleReason}`, '⚠️');
+    progress.progressTracker?.onSystemEvent(`续聊会话失效，自动开启新会话重试: ${staleReason}`, '⚠️');
     await markParticipantContinuationStale({
       participantId: latestSession.participant.id,
       reason: staleReason,
@@ -680,7 +518,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       permissionConfig,
       latestSession,
       useFreshSession: true, workflowCompletionGate,
-      streamCallbacks: liveRoomStreamCallbacks,
+      streamCallbacks: progress.streamCallbacks,
     });
     participantResult = acpxResult.participants[0];
     finalStatus =
@@ -708,7 +546,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       message: participantResult.error,
     })
   ) {
-    progressTracker?.onSystemEvent('Codex 状态异常，自动使用临时会话重试', '⚠️');
+    progress.progressTracker?.onSystemEvent('Codex 状态异常，自动使用临时会话重试', '⚠️');
     acpxResult = await runLiveRoomAcpxAttempt({
       sourceTask,
       room,
@@ -720,7 +558,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       latestSession,
       useFreshSession: true,
       forceEphemeral: true, workflowCompletionGate,
-      streamCallbacks: liveRoomStreamCallbacks,
+      streamCallbacks: progress.streamCallbacks,
     });
     participantResult = acpxResult.participants[0];
     finalStatus =
@@ -760,16 +598,10 @@ export const executeLiveRoomReplyViaAcpx = async ({
     },
   });
 
-  clearInterval(heartbeatTimer);
-  await progressFlushPromise.catch(() => undefined);
-
-  // Finalize Feishu interactive progress card
-  if (progressTracker) {
-    const finalSummary = acpxResult.status === 'completed'
-      ? participantResult?.summary || acpxResult.summary || `${targetMember.displayName} 执行完成`
-      : participantResult?.error || acpxResult.summary || `${targetMember.displayName} 执行失败`;
-    await progressTracker.finalize(finalSummary, acpxResult.status === 'completed').catch(() => {});
-  }
+  const finalSummary = acpxResult.status === 'completed'
+    ? participantResult?.summary || acpxResult.summary || `${targetMember.displayName} 执行完成`
+    : participantResult?.error || acpxResult.summary || `${targetMember.displayName} 执行失败`;
+  await disposeProgress(finalSummary, acpxResult.status === 'completed');
 
   if (acpxResult.status === 'interrupted') {
     throw new Error('Interrupted by user');
@@ -794,6 +626,6 @@ export const executeLiveRoomReplyViaAcpx = async ({
     remoteTiming: null,
   };
   } finally {
-    clearInterval(heartbeatTimer);
+    await disposeProgress(`${targetMember.displayName} 执行失败`, false);
   }
 };

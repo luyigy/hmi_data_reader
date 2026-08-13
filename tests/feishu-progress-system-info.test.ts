@@ -12,6 +12,8 @@ async function runTest() {
 
   assert.equal(shouldRelayLiveRoomStdoutProgress('codex'), true);
   assert.equal(shouldRelayLiveRoomStdoutProgress('kimi-code'), true);
+  assert.equal(shouldRelayLiveRoomStdoutProgress('pi-agent'), true);
+  assert.equal(shouldRelayLiveRoomStdoutProgress('antigravity'), true);
   assert.equal(isUsefulLiveRoomThinkingPreview('I'), false);
   assert.equal(isUsefulLiveRoomThinkingPreview('I will inspect the delivery path.'), true);
   assert.equal(isUsefulLiveRoomThinkingPreview('正在检查直播间投递链路。'), true);

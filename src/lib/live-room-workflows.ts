@@ -16,6 +16,7 @@ import {
   applyWorkflowPermissionSnapshot,
   readWorkflowPermissionSnapshot,
 } from '@/lib/workflow-execution-policy';
+import { attachLiveRoomProgress } from '@/lib/live-room-progress';
 
 export type LiveRoomWorkflowName = 'feature' | 'debug';
 export type LiveRoomWorkflowLevel = 'full' | 'lean' | 'fast';
@@ -549,6 +550,7 @@ export const runLiveRoomWorkflow = async ({
     const inheritedInstruction = inheritedFailures.length
       ? `Inherited failed responsibilities (complete these together with the current stage):\n${inheritedFailures.map(({ stage: failedStage, reason }) => `- ${failedStage.label}: ${failedStage.instruction}\n  Failure: ${reason}`).join('\n')}`
       : '';
+    const progress = await attachLiveRoomProgress({ room, participant: stage.member, sourceMessage: sourceMessage || {} });
     const result = await executeAcpxTaskRun({
       taskId: sourceTask.id,
       taskSessionId: sourceTask.currentTaskSession?.id || undefined,
@@ -574,15 +576,18 @@ export const runLiveRoomWorkflow = async ({
         ),
         workflowPermissionSnapshot,
       ),
+      streamCallbacks: progress.streamCallbacks,
     }).catch((error) => error as Error);
     if (result instanceof Error) {
       const reason = result.message;
+      await progress.dispose(reason, false);
       outputs.push({ label: `${stage.label}（失败）`, member: stage.member.displayName, output: reason });
       if (await deferFailure(stage, reason, index)) continue;
       return;
     }
     const stageResult = result.participants[0];
     const output = stageResult?.summary || stageResult?.error || `${stage.label} 未返回结果`;
+    await progress.dispose(output, stageResult?.status === 'completed');
     outputs.push({ label: stage.label, member: stage.member.displayName, output });
 
     await postLiveRoomMessage({
