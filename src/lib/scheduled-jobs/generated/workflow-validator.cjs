@@ -20,6 +20,11 @@ const jsonIssues = (issues) => issues.map((issue) => ({
     expected: issue.expected ?? null,
     actual: issue.actual ?? null,
 }));
+const textIssue = (issue) => [
+    `ERROR [${issue.code}] [${issue.location}] ${issue.message}`,
+    issue.actual === undefined ? '' : `  实际：${String(issue.actual)}`,
+    `  修复：${issue.template}`,
+].filter(Boolean).join('\n');
 const printWarnings = (results) => {
     for (const result of results) {
         for (const issue of result.issues.filter(({ severity }) => severity === 'warning')) {
@@ -95,7 +100,7 @@ async function main() {
             else if (error instanceof workflow_validator_1.WorkflowDocumentValidationError) {
                 console.error(`FAIL ${filePath}: ${error.message}`);
                 for (const issue of error.issues)
-                    console.error(`\n${issue.template}`);
+                    console.error(`\n${textIssue(issue)}`);
             }
             else {
                 throw error;
@@ -250,17 +255,36 @@ const normalizeReference = (value, watchRoot) => {
     }
     return resolved;
 };
+class PromptMarkerError extends Error {
+    code;
+    actual;
+    fix;
+    constructor(code, message, actual, fix) {
+        super(message);
+        this.code = code;
+        this.actual = actual;
+        this.fix = fix;
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+const markerLines = (content, marker) => Array.from(content.matchAll(new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')), ({ index = 0 }) => content.slice(0, index).split('\n').length);
 const promptFrom = (content, action, contract) => {
     const { start_marker: start, end_marker: end } = contract.prompt;
-    const starts = content.split(start).length - 1;
-    const ends = content.split(end).length - 1;
+    const startLines = markerLines(content, start);
+    const endLines = markerLines(content, end);
+    const actual = `检测到 ${startLines.length} 个 start / ${endLines.length} 个 end 标记`;
+    const locations = `start 行：${startLines.join('、') || '无'}；end 行：${endLines.join('、') || '无'}`;
     if (!contract.actions.executable.includes(action)) {
-        if (starts || ends)
-            throw new Error(`${action} must not contain an automation prompt`);
+        if (startLines.length || endLines.length)
+            throw new PromptMarkerError('PROMPT_FORBIDDEN', '非可执行动作不得包含自动化 Prompt', actual, `删除所有 Prompt 标记及其内容（${locations}）`);
         return '';
     }
-    if (starts !== 1 || ends !== 1)
-        throw new Error('executable action requires exactly one prompt marker pair');
+    if (startLines.length !== 1 || endLines.length !== 1) {
+        const missing = startLines.length === 0 || endLines.length === 0;
+        const extra = startLines.length > 1 || endLines.length > 1;
+        const fix = [extra && '删除多余标记，只保留一对', missing && '补齐缺失标记'].filter(Boolean).join('；');
+        throw new PromptMarkerError(extra ? 'PROMPT_MARKERS_INVALID' : 'PROMPT_MARKERS_MISSING', extra ? '可执行动作的 Prompt 标记数量无效' : '可执行动作缺少 Prompt 标记', actual, `${fix}（${locations}）`);
+    }
     const prompt = content.slice(content.indexOf(start) + start.length, content.indexOf(end)).trim();
     if (!prompt)
         throw new Error('automation prompt is empty');
@@ -281,7 +305,7 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
             return null;
         return contract.validation?.mode === 'balanced' ? 'warning' : 'error';
     };
-    const issue = (code, location, message, expected, actual, rule) => {
+    const issue = (code, location, message, expected, actual, rule, template) => {
         const severity = policySeverity(rule);
         if (!severity)
             return;
@@ -293,11 +317,11 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
             message,
             ...(expected === undefined ? {} : { expected }),
             ...(actual === undefined ? {} : { actual }),
-            template: location === 'Prompt'
+            template: template ?? (location === 'Prompt'
                 ? `${contract.prompt.start_marker}\n<下一 Session Prompt>\n${contract.prompt.end_marker}`
                 : location === '正文'
                     ? '## S01：<Slice 标题>'
-                    : `${field || location}: <值>`,
+                    : `${field || location}: <值>`),
         });
     };
     const has = (field) => field in metadata;
@@ -324,15 +348,12 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
             prompt = promptFrom(content, action, contract);
         }
         catch (error) {
+            const markerError = error instanceof PromptMarkerError ? error : null;
             issue(error instanceof Error && error.message === 'automation prompt is empty'
                 ? 'PROMPT_EMPTY'
-                : error instanceof Error && error.message === 'executable action requires exactly one prompt marker pair'
-                    ? 'PROMPT_MARKERS_INVALID'
-                    : 'PROMPT_FORBIDDEN', 'Prompt', error instanceof Error && error.message === 'executable action requires exactly one prompt marker pair'
-                ? '可执行动作必须包含且只能包含一对 Prompt 标记'
-                : error instanceof Error && error.message === 'automation prompt is empty'
-                    ? 'Prompt 标记之间的内容不能为空'
-                    : '非可执行动作不得包含自动化 Prompt');
+                : markerError?.code ?? 'PROMPT_FORBIDDEN', 'Prompt', error instanceof Error && error.message === 'automation prompt is empty'
+                ? 'Prompt 标记之间的内容不能为空'
+                : markerError?.message ?? '非可执行动作不得包含自动化 Prompt', contract.actions.executable.includes(action) ? '恰好一对 Prompt 标记' : '零个 Prompt 标记', markerError?.actual, undefined, markerError?.fix);
         }
     }
     const requirePromptRefs = (...refs) => refs.forEach((item) => {
@@ -528,6 +549,32 @@ const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePath
     const candidates = (0, exports.selectWorkflowCandidates)(filePaths, contract);
     if (candidates.length !== filePaths.length)
         throw new Error('candidate is not a PLAN/HANDOVER workflow document');
+    // Branch-space numbering uniqueness (commit-time gate): scan the branch-space
+    // tree of the target ref so a second document reusing an existing number in
+    // the same branch space is rejected here instead of being discovered by the
+    // watcher after landing. Scope is the single branch-space directory (contract
+    // `numbering.scope: branch_space`): other branch spaces restart numbering, so
+    // only collisions with siblings of the validated candidates are errors and
+    // pre-existing duplicates elsewhere cannot freeze commits.
+    if (contract.numbering.unique && reader.list) {
+        const allPaths = Array.from(new Set([...await reader.list(contract.branch_spaces.root), ...filePaths]));
+        for (const candidate of candidates) {
+            const watchRoot = node_path_1.default.posix.dirname(candidate.filePath);
+            const collisions = (0, exports.selectWorkflowCandidates)(allPaths, contract, watchRoot).filter((item) => item.number === candidate.number && item.filePath !== candidate.filePath);
+            if (collisions.length) {
+                const issue = {
+                    code: 'DOCUMENT_NUMBER_DUPLICATE',
+                    severity: 'error',
+                    location: '文件名.number',
+                    message: `workflow 文档编号 ${candidate.rawNumber} 不唯一：${candidate.filePath} 与 ${collisions.map(({ filePath }) => filePath).join('、')} 同号`,
+                    expected: `编号在分支空间 ${watchRoot} 内唯一`,
+                    actual: [candidate.filePath, ...collisions.map(({ filePath }) => filePath)],
+                    template: `将 ${candidate.filePath} 改为未占用的编号后重新提交`,
+                };
+                throw new WorkflowDocumentValidationError(`${candidate.filePath}: ${issue.message}`, [issue]);
+            }
+        }
+    }
     const results = await Promise.allSettled(candidates.map(async (candidate) => {
         if (candidate.rawNumber.length !== contract.numbering.width) {
             const issue = {
@@ -8891,6 +8938,10 @@ class GitRefReader {
     exists(filePath) {
         return git(this.cwd, this.signal, 'cat-file', '-e', `${this.ref}:${filePath}`).then(() => true, () => false);
     }
+    list(dirPath) {
+        return git(this.cwd, this.signal, 'ls-tree', '-r', '--name-only', this.ref, '--', dirPath)
+            .then((output) => output.split('\n').filter(Boolean));
+    }
 }
 exports.GitRefReader = GitRefReader;
 class WorkingTreeReader {
@@ -8920,6 +8971,12 @@ class WorkingTreeReader {
                 throw error;
             return this.fallback.exists(filePath);
         }
+    }
+    list(dirPath) {
+        // The uniqueness check is authoritative at commit time (GitRefReader);
+        // for working-tree validation the tracked ref listing plus the explicit
+        // filePaths already cover newly added documents.
+        return this.fallback.list(dirPath);
     }
 }
 exports.WorkingTreeReader = WorkingTreeReader;

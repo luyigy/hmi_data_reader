@@ -507,6 +507,63 @@ S01
     filePaths: [phasePath, interruptPath, nextPath, resumePath, terminalPath],
   });
   assert.ok(templateResults.every(({ issues }) => issues.length === 0));
+
+  // Commit-time numbering uniqueness (PLAN 418 S02): a second document reusing
+  // an existing number in the same branch space is rejected with the existing
+  // path; a different branch space restarts numbering (contract
+  // `numbering.scope: branch_space`) and a fresh number passes.
+  await writeFile(path.join(root, 'docs/001_HANDOVER_20260813_duplicate.md'), `---
+doc_type: HANDOVER
+doc_status: completed
+next_action: await_acceptance
+plan: 001_PLAN_20260726_valid.md
+slice: S01
+plan_progress: complete
+---
+`);
+  git('add', '.');
+  git('commit', '-qm', 'duplicate number fixture');
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root,
+      ref: git('rev-parse', 'HEAD'),
+      filePaths: ['docs/001_HANDOVER_20260813_duplicate.md'],
+    }),
+    (error: Error) => {
+      assert.ok(error instanceof WorkflowDocumentValidationError);
+      assert.match(error.message, /编号 001 不唯一/);
+      assert.match(error.message, /docs\/001_HANDOVER_20260813_duplicate\.md/);
+      assert.match(error.message, /docs\/001_PLAN_20260726_valid\.md/);
+      assert.equal(error.issues[0]?.code, 'DOCUMENT_NUMBER_DUPLICATE');
+      assert.equal(error.issues[0]?.severity, 'error');
+      return true;
+    },
+  );
+  git('rm', '-q', 'docs/001_HANDOVER_20260813_duplicate.md');
+  await mkdir(path.join(root, 'docs/021_branch'), { recursive: true });
+  await writeFile(path.join(root, 'docs/021_branch/001_HANDOVER_20260813_branch_space.md'), `---
+doc_type: HANDOVER
+doc_status: completed
+next_action: await_acceptance
+plan: null
+slice: S01
+plan_progress: complete
+---
+`);
+  await writeFile(path.join(root, 'docs/022_PLAN_20260813_unique.md'), plan('start_first_slice', `<!-- WORKFLOW_PROMPT_START -->
+执行 022_PLAN_20260813_unique.md 的 S01，遵循 000_ROADMAP_20260726_test.md。
+<!-- WORKFLOW_PROMPT_END -->
+`));
+  git('add', '.');
+  git('commit', '-qm', 'branch-space and unique number fixtures');
+  await validateWorkflowDocuments({
+    cwd: root,
+    ref: git('rev-parse', 'HEAD'),
+    filePaths: [
+      'docs/021_branch/001_HANDOVER_20260813_branch_space.md',
+      'docs/022_PLAN_20260813_unique.md',
+    ],
+  });
   console.log('workflow validator contract/ref checks passed');
 }
 

@@ -557,6 +557,34 @@ export const validateWorkflowDocuments = async ({
       : null))).filter(Boolean) as WorkflowValidationIssue[];
   const candidates = selectWorkflowCandidates(filePaths, contract);
   if (candidates.length !== filePaths.length) throw new Error('candidate is not a PLAN/HANDOVER workflow document');
+  // Branch-space numbering uniqueness (commit-time gate): scan the branch-space
+  // tree of the target ref so a second document reusing an existing number in
+  // the same branch space is rejected here instead of being discovered by the
+  // watcher after landing. Scope is the single branch-space directory (contract
+  // `numbering.scope: branch_space`): other branch spaces restart numbering, so
+  // only collisions with siblings of the validated candidates are errors and
+  // pre-existing duplicates elsewhere cannot freeze commits.
+  if (contract.numbering.unique && reader.list) {
+    const allPaths = Array.from(new Set([...await reader.list(contract.branch_spaces.root), ...filePaths]));
+    for (const candidate of candidates) {
+      const watchRoot = path.posix.dirname(candidate.filePath);
+      const collisions = selectWorkflowCandidates(allPaths, contract, watchRoot).filter(
+        (item) => item.number === candidate.number && item.filePath !== candidate.filePath,
+      );
+      if (collisions.length) {
+        const issue: WorkflowValidationIssue = {
+          code: 'DOCUMENT_NUMBER_DUPLICATE',
+          severity: 'error',
+          location: '文件名.number',
+          message: `workflow 文档编号 ${candidate.rawNumber} 不唯一：${candidate.filePath} 与 ${collisions.map(({ filePath }) => filePath).join('、')} 同号`,
+          expected: `编号在分支空间 ${watchRoot} 内唯一`,
+          actual: [candidate.filePath, ...collisions.map(({ filePath }) => filePath)],
+          template: `将 ${candidate.filePath} 改为未占用的编号后重新提交`,
+        };
+        throw new WorkflowDocumentValidationError(`${candidate.filePath}: ${issue.message}`, [issue]);
+      }
+    }
+  }
   const results = await Promise.allSettled(candidates.map(async (candidate) => {
     if (candidate.rawNumber.length !== contract.numbering.width) {
       const issue: WorkflowValidationIssue = {

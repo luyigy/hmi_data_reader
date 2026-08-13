@@ -5,6 +5,10 @@ import path from 'node:path';
 export interface Reader {
   read(filePath: string): Promise<string>;
   exists(filePath: string): Promise<boolean>;
+  /** Lists tracked files under a directory; used by the commit-time numbering
+   * uniqueness check. Readers without a listable backend may omit it, in which
+   * case the check is skipped. */
+  list?(dirPath: string): Promise<string[]>;
 }
 
 const git = (cwd: string, signal: AbortSignal, ...args: string[]) =>
@@ -33,6 +37,11 @@ export class GitRefReader implements Reader {
 
   exists(filePath: string) {
     return git(this.cwd, this.signal, 'cat-file', '-e', `${this.ref}:${filePath}`).then(() => true, () => false);
+  }
+
+  list(dirPath: string) {
+    return git(this.cwd, this.signal, 'ls-tree', '-r', '--name-only', this.ref, '--', dirPath)
+      .then((output) => output.split('\n').filter(Boolean));
   }
 }
 
@@ -64,5 +73,12 @@ export class WorkingTreeReader implements Reader {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       return this.fallback.exists(filePath);
     }
+  }
+
+  list(dirPath: string) {
+    // The uniqueness check is authoritative at commit time (GitRefReader);
+    // for working-tree validation the tracked ref listing plus the explicit
+    // filePaths already cover newly added documents.
+    return this.fallback.list(dirPath);
   }
 }
