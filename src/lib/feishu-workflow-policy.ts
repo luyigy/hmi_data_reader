@@ -329,21 +329,30 @@ export async function sendWorkflowPolicyEditCard(args: {
   await sendFeishuInteractiveMessage({
     receiveId: args.chatId,
     card: {
-      config: { wide_screen_mode: true },
+      schema: '2.0',
+      config: { update_multi: true, width_mode: 'default' },
       header: { template: 'blue', title: { tag: 'plain_text', content: '🔧 Workflow 额外挂载配置' } },
-      elements: [
-        { tag: 'markdown', content: [
-          `**项目：** ${args.projectId}（\`${args.projectPath}\`）`,
-          `**来源：** ${source}`,
-          '在下方填写需要额外挂载进沙箱的目录（逗号分隔绝对路径）。**全量覆盖**：提交后以此处内容为准；某项留空 = 清空该项。',
-          '',
-          `当前只读挂载：\`${current.extraReadOnlyPaths.join(', ') || '（无）'}\``,
-          `当前可写挂载：\`${current.extraWritableRoots.join(', ') || '（无）'}\``,
-        ].join('\n') },
-        { tag: 'input', name: 'extraRead', placeholder: { tag: 'plain_text', content: '/data1/code/repo-a,/data1/code/repo-b' }, default_value: current.extraReadOnlyPaths.join(','), label: { tag: 'plain_text', content: '额外只读挂载 (extra-read)' } },
-        { tag: 'input', name: 'extraWrite', placeholder: { tag: 'plain_text', content: '/data1/code/repo-c' }, default_value: current.extraWritableRoots.join(','), label: { tag: 'plain_text', content: '额外可写挂载 (extra-write)' } },
-        { tag: 'button', name: `submitWorkflowPolicy_${args.projectId}`, type: 'primary_filled', text: { tag: 'plain_text', content: '提交' }, value: { cmd: `workflow-policy:${args.projectId}:${args.jobId}` }, form_action_type: 'submit' },
-      ],
+      body: {
+        elements: [
+          { tag: 'markdown', content: [
+            `**项目：** ${args.projectId}（\`${args.projectPath}\`）`,
+            `**来源：** ${source}`,
+            '在下方填写需要额外挂载进沙箱的目录（逗号分隔绝对路径）。**全量覆盖**：提交后以此处内容为准；某项留空 = 清空该项。',
+            '',
+            `当前只读挂载：\`${current.extraReadOnlyPaths.join(', ') || '（无）'}\``,
+            `当前可写挂载：\`${current.extraWritableRoots.join(', ') || '（无）'}\``,
+          ].join('\n') },
+          {
+            tag: 'form',
+            name: `workflowPolicyEdit_${args.projectId}`,
+            elements: [
+              { tag: 'input', name: 'extraRead', placeholder: { tag: 'plain_text', content: '/data1/code/repo-a,/data1/code/repo-b' }, default_value: current.extraReadOnlyPaths.join(','), label: { tag: 'plain_text', content: '额外只读挂载 (extra-read)' } },
+              { tag: 'input', name: 'extraWrite', placeholder: { tag: 'plain_text', content: '/data1/code/repo-c' }, default_value: current.extraWritableRoots.join(','), label: { tag: 'plain_text', content: '额外可写挂载 (extra-write)' } },
+              { tag: 'button', name: `submitWorkflowPolicy_${args.projectId}`, type: 'primary', text: { tag: 'plain_text', content: '提交' }, value: { cmd: `workflow-policy:${args.projectId}:${args.jobId}` }, form_action_type: 'submit' },
+            ],
+          },
+        ],
+      },
     },
   });
 }
