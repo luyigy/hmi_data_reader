@@ -10,6 +10,10 @@ export type NormalizedHarnessEvent = {
 };
 
 const MAX_PREVIEW_LENGTH = 80;
+export const PROGRESS_CARD_MIN_MS = 1_500;
+export const PROGRESS_TOOL_MIN_MS = 3_000;
+export const PROGRESS_THINKING_MIN_MS = 8_000;
+export const PROGRESS_HEARTBEAT_MS = 45_000;
 const SHORT_VALUE_KEYS = new Set(['content', 'command', 'text']);
 const SENSITIVE_VALUE_KEY = /^(?:authorization|sign|hmac)$|(?:password|passwd|pwd|secret|signature|token|api[_-]?key|private[_-]?key)$/i;
 
@@ -72,12 +76,12 @@ const withCount = (event: NormalizedHarnessEvent, count: number): NormalizedHarn
   : event;
 
 export const createProgressDedupe = ({
-  toolMinMs,
-  thinkingMinMs,
+  toolMinMs = PROGRESS_TOOL_MIN_MS,
+  thinkingMinMs = PROGRESS_THINKING_MIN_MS,
 }: {
-  toolMinMs: number;
-  thinkingMinMs: number;
-}) => {
+  toolMinMs?: number;
+  thinkingMinMs?: number;
+} = {}) => {
   let pendingTool: { event: NormalizedHarnessEvent; signature: string; count: number; at: number } | null = null;
   let lastThinking: { signature: string; at: number } | null = null;
   const lastSignatures = new Map<NormalizedHarnessEvent['kind'], string>();

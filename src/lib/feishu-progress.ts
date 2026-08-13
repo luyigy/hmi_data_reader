@@ -1,7 +1,7 @@
+import { PROGRESS_CARD_MIN_MS, sanitizePreview } from '@/lib/acpx/harness-events';
 import { editFeishuMessage, sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 
-const THROTTLE_MS = 1500;
-const MAX_PREVIEW_LEN = 50;
+const RECENT_TOOL_COUNT = 5;
 
 interface ToolEntry {
   toolName: string;
@@ -25,23 +25,27 @@ export class FeishuProgressTracker {
   private flushPromise: Promise<void> = Promise.resolve();
   private statusText = '执行中...';
   private stepCount = 0;
+  private phase = '等待';
+  private readonly startedAt = Date.now();
+  private readonly workspaceRoot: string;
 
-  constructor(chatId: string) {
+  constructor(chatId: string, workspaceRoot = process.cwd()) {
     this.chatId = chatId;
+    this.workspaceRoot = workspaceRoot;
   }
 
   onToolEvent(toolName: string, preview: string, emoji: string): void {
     console.log(`[FeishuProgress] onToolEvent: ${toolName} | chatId=${this.chatId}`);
-    const truncated = preview.length > MAX_PREVIEW_LEN
-      ? preview.slice(0, MAX_PREVIEW_LEN) + '…'
-      : preview;
+    const safeToolName = sanitizePreview(toolName, { workspaceRoot: this.workspaceRoot });
+    const safePreview = sanitizePreview(preview, { workspaceRoot: this.workspaceRoot });
+    this.phase = '工具';
 
     const lastEntry = this.entries.at(-1);
-    if (lastEntry && lastEntry.toolName === toolName) {
+    if (lastEntry && lastEntry.toolName === safeToolName) {
       lastEntry.count += 1;
-      lastEntry.preview = truncated;
+      lastEntry.preview = safePreview;
     } else {
-      this.entries.push({ toolName, preview: truncated, emoji, count: 1 });
+      this.entries.push({ toolName: safeToolName, preview: safePreview, emoji, count: 1 });
     }
     this.stepCount += 1;
 
@@ -52,7 +56,9 @@ export class FeishuProgressTracker {
 
   onSystemEvent(message: string, emoji = 'ℹ️'): void {
     console.log(`[FeishuProgress] onSystemEvent: ${message} | chatId=${this.chatId}`);
-    const truncated = message.length > 80 ? message.slice(0, 80) + '…' : message;
+    const truncated = sanitizePreview(message, { workspaceRoot: this.workspaceRoot });
+    if (emoji === '🧠') this.phase = '思考';
+    else if (emoji === '💓' || emoji === '🚀') this.phase = '等待';
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
@@ -72,11 +78,18 @@ export class FeishuProgressTracker {
   }
 
   setStatus(status: string): void {
-    this.statusText = status;
+    this.statusText = sanitizePreview(status, { workspaceRoot: this.workspaceRoot });
+  }
+
+  private elapsedText(): string {
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - this.startedAt) / 1000));
+    const minutes = Math.floor(elapsedSeconds / 60);
+    const seconds = elapsedSeconds % 60;
+    return minutes ? `${minutes}分${seconds}秒` : `${seconds}秒`;
   }
 
   private buildCard(): Record<string, unknown> {
-    const toolLines = this.entries.map((e) => {
+    const toolLines = this.entries.slice(-RECENT_TOOL_COUNT).map((e) => {
       const suffix = e.count > 1 ? ` ×${e.count}` : '';
       return `${e.emoji} ${e.toolName}: "${e.preview}"${suffix}`;
     });
@@ -86,7 +99,7 @@ export class FeishuProgressTracker {
     const elements: Array<Record<string, unknown>> = [
       {
         tag: 'markdown',
-        content: `**已完成 ${this.stepCount} 个步骤**`,
+        content: `**当前阶段：${this.phase}** · 已用时 ${this.elapsedText()} · 累计 ${this.stepCount} 步`,
       },
     ];
 
@@ -104,7 +117,7 @@ export class FeishuProgressTracker {
 
     elements.push({
       tag: 'collapsible_panel',
-      header: { title: { tag: "plain_text", content: "🛠️ 工具调用详情" } },
+      header: { title: { tag: "plain_text", content: `🛠️ 最近 ${RECENT_TOOL_COUNT} 条工具` } },
       expanded: false,
       elements: toolLines.length > 0
         ? toolLines.map((line) => ({
@@ -138,12 +151,12 @@ export class FeishuProgressTracker {
       }) ?? null;
       console.log(`[FeishuProgress] first card sent, id=${this.progressMsgId}`);
       this.lastEditAt = Date.now();
-    } else if (now - this.lastEditAt >= THROTTLE_MS) {
+    } else if (now - this.lastEditAt >= PROGRESS_CARD_MIN_MS) {
       console.log(`[FeishuProgress] updating card ${this.progressMsgId}`);
       await this.updateCard();
       this.lastEditAt = Date.now();
     } else {
-      console.log(`[FeishuProgress] throttled, skipping edit (${now - this.lastEditAt}ms < ${THROTTLE_MS}ms)`);
+      console.log(`[FeishuProgress] throttled, skipping edit (${now - this.lastEditAt}ms < ${PROGRESS_CARD_MIN_MS}ms)`);
     }
   }
 
@@ -178,11 +191,15 @@ export class FeishuProgressTracker {
     }
   }
 
-  /** Send a final summary card (replacing the progress card) and return the message id */
-  async finalize(summary: string, success: boolean): Promise<string | null> {
-    await this.flushPromise;
+  private buildFinalCard(summary: string, success: boolean): Record<string, unknown> {
     const systemLines = this.systemEntries.map((s) => `${s.emoji} \`[${s.time}]\` ${s.message}`);
-    const card = {
+    const safeSummary = sanitizePreview(summary, { workspaceRoot: this.workspaceRoot });
+    const tally = new Map<string, number>();
+    for (const entry of this.entries) tally.set(entry.toolName, (tally.get(entry.toolName) ?? 0) + entry.count);
+    const tallyText = tally.size
+      ? Array.from(tally, ([toolName, count]) => `${toolName} ×${count}`).join(' · ')
+      : '无工具调用';
+    return {
       config: { wide_screen_mode: true },
       header: {
         template: success ? 'green' : 'red',
@@ -191,7 +208,7 @@ export class FeishuProgressTracker {
       elements: [
         {
           tag: 'markdown',
-          content: success ? '执行完成，步骤明细见下：' : summary.slice(0, 4000),
+          content: `**摘要：** ${safeSummary || (success ? '执行完成' : '执行失败')}\n**已用时：** ${this.elapsedText()} · **累计步骤：** ${this.stepCount}\n**工具 tally：** ${tallyText}`,
         },
         ...(this.systemEntries.length > 0 ? [{
           tag: 'collapsible_panel',
@@ -216,6 +233,12 @@ export class FeishuProgressTracker {
         }] : []),
       ],
     };
+  }
+
+  /** Send a final summary card (replacing the progress card) and return the message id */
+  async finalize(summary: string, success: boolean): Promise<string | null> {
+    await this.flushPromise;
+    const card = this.buildFinalCard(summary, success);
 
     if (this.progressMsgId) {
       try {

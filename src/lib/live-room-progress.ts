@@ -1,4 +1,9 @@
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
+import {
+  PROGRESS_HEARTBEAT_MS,
+  PROGRESS_THINKING_MIN_MS,
+  PROGRESS_TOOL_MIN_MS,
+} from '@/lib/acpx/harness-events';
 import { FeishuProgressTracker } from '@/lib/feishu-progress';
 import {
   parseLiveRoomMessageMetadata,
@@ -6,10 +11,6 @@ import {
   resolveLiveRoomMessageMetadata,
 } from '@/lib/live-room';
 import { prisma } from '@/lib/prisma';
-
-const PROGRESS_MIN_INTERVAL_MS = 8000;
-const TOOL_MIN_INTERVAL_MS = 3000;
-const HEARTBEAT_INTERVAL_MS = 45_000;
 
 export const shouldRelayLiveRoomStdoutProgress = (harnessType: string | null) =>
   ['codex', 'kimi-code', 'pi-agent', 'antigravity'].includes(harnessType || '');
@@ -71,7 +72,7 @@ export const attachLiveRoomProgress = async ({
     const preview = text.slice(0, 80);
     if (!preview || (isCodex && !isUsefulLiveRoomThinkingPreview(text))) return;
     const now = Date.now();
-    if (now - lastThinkingPostedAt < PROGRESS_MIN_INTERVAL_MS) return;
+    if (now - lastThinkingPostedAt < PROGRESS_THINKING_MIN_MS) return;
     if (preview === lastThinkingPreview) {
       pendingThinkingText = '';
       return;
@@ -92,7 +93,7 @@ export const attachLiveRoomProgress = async ({
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
     const now = Date.now();
-    if (now - lastToolPostedAt < TOOL_MIN_INTERVAL_MS || signature === lastToolSignature) return;
+    if (now - lastToolPostedAt < PROGRESS_TOOL_MIN_MS || signature === lastToolSignature) return;
     lastToolSignature = signature;
     lastToolPostedAt = now;
     lastVisibleActivityAt = now;
@@ -116,7 +117,7 @@ export const attachLiveRoomProgress = async ({
     onToolEvent: enqueueToolUpdate,
   };
   const heartbeatTimer = setInterval(() => {
-    if (Date.now() - lastVisibleActivityAt < HEARTBEAT_INTERVAL_MS) return;
+    if (Date.now() - lastVisibleActivityAt < PROGRESS_HEARTBEAT_MS) return;
     lastVisibleActivityAt = Date.now();
     progressTracker?.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
     postProgress(
@@ -124,7 +125,7 @@ export const attachLiveRoomProgress = async ({
       'member_reply_progress',
       { progressKind: 'heartbeat', preview: '当前步骤耗时较长', ...(progressTracker ? { skipFeishuRelay: true } : {}) },
     );
-  }, HEARTBEAT_INTERVAL_MS);
+  }, PROGRESS_HEARTBEAT_MS);
   heartbeatTimer.unref();
 
   progressTracker?.onSystemEvent(`开始处理消息 | ${participant.displayName} (${participant.harnessType})`, '🚀');
