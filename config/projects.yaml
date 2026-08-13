@@ -63,7 +63,7 @@ projects:
           workflow_autonomy: semi_auto
           execution_policy:
             preset: workspace
-            extraReadOnlyPaths:
+            extraWritableRoots:
               - /data1/code/hmi_data_reader
       - id: long-file-detector
         type: long_file_detector

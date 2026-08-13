@@ -16,6 +16,7 @@ import {
   formatWorkflowPermissionSnapshot,
   validateWorkflowExecutionPolicy,
   workflowPolicySource,
+  type WorkflowExecutionPolicy,
 } from '@/lib/workflow-execution-policy';
 import {
   formatWorkflowStatus,
@@ -35,7 +36,7 @@ import { handleWorkflowValidationCommand } from '@/lib/feishu-workflow-validatio
 
 const configFile = () => path.join(process.cwd(), 'config/projects.yaml');
 const execFileAsync = promisify(execFile);
-async function writeWorkflowPolicy(projectId: string, jobId: string) {
+async function writeWorkflowPolicy(projectId: string, jobId: string, policy: WorkflowExecutionPolicy) {
   const file = configFile();
   const mode = (await fs.stat(file)).mode & 0o777;
   const document = parseDocument(await fs.readFile(file, 'utf8'));
@@ -48,7 +49,7 @@ async function writeWorkflowPolicy(projectId: string, jobId: string) {
   if (projectIndex < 0 || jobIndex < 0) throw new Error(`workflow watcher config not found: ${projectId}/${jobId}`);
   document.setIn(
     ['projects', projectIndex, 'jobs', jobIndex, 'config', 'execution_policy'],
-    { preset: 'workspace' },
+    document.createNode(policy),
   );
   const temporary = `${file}.${process.pid}.tmp`;
   await fs.writeFile(temporary, document.toString(), { encoding: 'utf8', mode });
@@ -220,11 +221,42 @@ export async function handleWorkflowPolicyCommand(
   if (!setting) return formatWorkflowPermissionSnapshot(snapshot);
 
   if (!isFeishuAdmin(context.senderOpenId)) return '仅配置的 Feishu 管理员可以设置 Workflow 权限策略。';
-  if (command.options.preset !== 'workspace'
-    || command.args.length !== 2
-    || Object.keys(command.options).some((key) => key !== 'preset')) {
-    return '仅支持：/ap workflow policy set --preset=workspace';
+  const allowedPolicyOptions = ['preset', 'extra-read', 'extra-write'];
+  const unknownPolicyOptions = Object.keys(command.options).filter((key) => !allowedPolicyOptions.includes(key));
+  if (command.args.length !== 2
+    || command.options.preset !== 'workspace'
+    || unknownPolicyOptions.length) {
+    return [
+      '用法：/ap workflow policy set --preset=workspace [--extra-read=<逗号分隔绝对路径>] [--extra-write=<逗号分隔绝对路径>]',
+      '--extra-read=只读额外挂载；--extra-write=可写额外挂载。两者缺省保留现状，传空值（--extra-read=）可清空。',
+    ].join('\n');
   }
+
+  const parseExtraList = (raw: string | undefined): string[] | undefined =>
+    raw === undefined ? undefined : raw.split(',').map((item) => item.trim()).filter(Boolean);
+  const workspaceExtras = (policy: WorkflowExecutionPolicy) =>
+    policy.preset === 'workspace'
+      ? { extraReadOnlyPaths: policy.extraReadOnlyPaths ?? [], extraWritableRoots: policy.extraWritableRoots ?? [] }
+      : { extraReadOnlyPaths: [] as string[], extraWritableRoots: [] as string[] };
+  const base = before ?? { preset: 'workspace' as const };
+  const currentExtras = workspaceExtras(base);
+  const extraReadOnlyPaths = parseExtraList(command.options['extra-read']) ?? currentExtras.extraReadOnlyPaths;
+  const extraWritableRoots = parseExtraList(command.options['extra-write']) ?? currentExtras.extraWritableRoots;
+  let after: WorkflowExecutionPolicy;
+  try {
+    after = validateWorkflowExecutionPolicy({
+      preset: 'workspace',
+      ...(extraWritableRoots.length ? { extraWritableRoots } : {}),
+      ...(extraReadOnlyPaths.length ? { extraReadOnlyPaths } : {}),
+    }, source);
+  } catch (error) {
+    return `❌ ${error instanceof Error ? error.message : String(error)}`;
+  }
+  const afterSnapshot = buildWorkflowPermissionSnapshot({
+    policy: after,
+    projectPath: project.path,
+    source,
+  });
 
   const audit = await prisma.feishuAdminApproval.create({
     data: {
@@ -237,14 +269,14 @@ export async function handleWorkflowPolicyCommand(
         jobId: job.id,
         source,
         before,
-        after: { preset: 'workspace' },
+        after,
         effective: 'next_watcher_load',
       }),
       resolvedBy: context.senderOpenId,
     },
   });
   try {
-    await writeWorkflowPolicy(project.id, job.id);
+    await writeWorkflowPolicy(project.id, job.id, after);
     await prisma.feishuAdminApproval.update({
       where: { id: audit.id },
       data: { status: 'approved', resolvedAt: new Date() },
@@ -256,13 +288,15 @@ export async function handleWorkflowPolicyCommand(
     }).catch(() => undefined);
     throw error;
   }
+  const afterExtras = workspaceExtras(after);
+  const afterSummary = `preset=workspace${afterExtras.extraWritableRoots.length ? ` extraWritableRoots=${afterExtras.extraWritableRoots.join(',')}` : ''}${afterExtras.extraReadOnlyPaths.length ? ` extraReadOnlyPaths=${afterExtras.extraReadOnlyPaths.join(',')}` : ''}`;
   return [
     '✅ Workflow 权限策略已设置。',
     `before: ${before ? `preset=${before.preset}` : 'unset'}`,
-    'after: preset=workspace',
+    `after: ${afterSummary}`,
     `operator: ${context.senderOpenId}`,
     `audit: ${audit.id}`,
     'effective: next watcher config load',
-    formatWorkflowPermissionSnapshot(snapshot),
+    formatWorkflowPermissionSnapshot(afterSnapshot),
   ].join('\n');
 }

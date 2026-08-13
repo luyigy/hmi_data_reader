@@ -48,7 +48,7 @@ const HELP_PAGES = [
     '/ap workflow validation template',
     '/ap workflow validation repair --head=<当前HEAD>  (管理员/项目审批人)',
     '/ap workflow policy show',
-    '/ap workflow policy set --preset=workspace  (管理员)',
+    '/ap workflow policy set --preset=workspace [--extra-read/--extra-write=绝对路径]  (管理员)',
     '/ap dashboard [job-id]  返回可点击的 Workflow 状态卡',
     '/ap jobs',
     '/ap branch status  查询当前仓库实际分支、监控分支与漂移警告',

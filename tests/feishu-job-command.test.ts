@@ -60,6 +60,16 @@ assert.deepEqual(parseFeishuCommand(message('/ap workflow policy set --preset=wo
   args: ['policy', 'set'],
   options: { preset: 'workspace' },
 });
+assert.deepEqual(parseFeishuCommand(message('/ap workflow policy set --preset=workspace --extra-read=/a,/b --extra-write=/c')), {
+  command: 'workflow',
+  args: ['policy', 'set'],
+  options: { preset: 'workspace', 'extra-read': '/a,/b', 'extra-write': '/c' },
+});
+assert.deepEqual(parseFeishuCommand(message('/ap workflow policy set --preset=workspace --extra-read=')), {
+  command: 'workflow',
+  args: ['policy', 'set'],
+  options: { preset: 'workspace', 'extra-read': '' },
+});
 assert.deepEqual(parseFeishuCommand(message('/ap workflow status')), {
   command: 'workflow',
   args: ['status'],
