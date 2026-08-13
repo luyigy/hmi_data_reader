@@ -342,9 +342,7 @@ export async function sendWorkflowPolicyEditCard(args: {
         ].join('\n') },
         { tag: 'input', name: 'extraRead', placeholder: { tag: 'plain_text', content: '/data1/code/repo-a,/data1/code/repo-b' }, default_value: current.extraReadOnlyPaths.join(','), label: { tag: 'plain_text', content: '额外只读挂载 (extra-read)' } },
         { tag: 'input', name: 'extraWrite', placeholder: { tag: 'plain_text', content: '/data1/code/repo-c' }, default_value: current.extraWritableRoots.join(','), label: { tag: 'plain_text', content: '额外可写挂载 (extra-write)' } },
-        { tag: 'action', actions: [
-          { tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '提交' }, value: { cmd: `workflow-policy:${args.projectId}:${args.jobId}` }, form_action_type: 'submit' },
-        ] },
+        { tag: 'button', name: `submitWorkflowPolicy_${args.projectId}`, type: 'primary_filled', text: { tag: 'plain_text', content: '提交' }, value: { cmd: `workflow-policy:${args.projectId}:${args.jobId}` }, form_action_type: 'submit' },
       ],
     },
   });
