@@ -348,6 +348,7 @@ return_to: null
 ---
 此前阶段 S08 已完成。
 S01
+S02
 <!-- WORKFLOW_PROMPT_START -->
 PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
 <!-- WORKFLOW_PROMPT_END -->
@@ -389,6 +390,33 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(importedDocuments[0].content, /PLAN PROMPT/);
   assert.equal(new URL(reviewCall.url).searchParams.get('receive_id_type'), 'chat_id');
   assert.match(String(reviewCall.body.content), /"reviewAttempt":1/);
+
+  const supersedingHandoverPath = path.join(root, 'docs/branch/main/004_HANDOVER_20260725_s01.md');
+  await writeFile(supersedingHandoverPath, `---
+doc_type: HANDOVER
+doc_status: completed
+next_action: next_slice
+plan: 003_PLAN_20260725_review.md
+slice: S01
+plan_progress: in_progress
+---
+<!-- WORKFLOW_PROMPT_START -->
+NEXT PROMPT 004_HANDOVER_20260725_s01.md 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S02
+<!-- WORKFLOW_PROMPT_END -->
+`);
+  git('add', '.');
+  git('commit', '-qm', 'newer handover supersedes pending plan review');
+  const shadowSuperseded = await run(review.cursor, 'shadow');
+  assert.match(shadowSuperseded.summary, /pending_superseded=.*003_PLAN.*by=.*004_HANDOVER/);
+  assert.deepEqual(shadowSuperseded.cursor, review.cursor, 'shadow supersession must not change the cursor');
+  const superseded = await run(review.cursor);
+  assert.match(superseded.summary, /pending_superseded=.*003_PLAN.*by=.*004_HANDOVER/);
+  assert.match(superseded.summary, /candidate=.*004_HANDOVER.*result=session_started/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /NEXT PROMPT 004_HANDOVER.*S02/);
+  assert.doesNotMatch(workflowRuns.at(-1)?.prompt ?? '', /PLAN PROMPT/);
+  await rm(supersedingHandoverPath);
+  git('add', '.');
+  git('commit', '-qm', 'remove supersession fixture');
 
   const expiredReviewCursor = JSON.parse(JSON.stringify(reviewCursor));
   expiredReviewCursor.pending.reviewExpiresAt = new Date(Date.now() - 1).toISOString();

@@ -301,8 +301,13 @@ export const workflowWatcherHandler = async (
       'branch_drift_warning',
     ).catch((err) => console.error('[WorkflowWatcher] failed to send branch drift warning', err));
   }
-  const previous = workflowCursor(cursor, job.config.initial_cursor_commit);
+  let previous = workflowCursor(cursor, job.config.initial_cursor_commit);
   const contract = await readWorkflowContract(project.path, head, contractPath, signal);
+  const branchSpace = String(job.config.branch_space || '');
+  if (!branchSpace || branchSpace.includes('/') || branchSpace === '..') {
+    throw new Error('workflow_watcher requires a single-directory config.branch_space');
+  }
+  const watchRoot = path.posix.join(contract.branch_spaces.root, branchSpace);
   const block = async (reason: string, nextStep: string) => {
     // Remediation may advance HEAD while the blocked cursor intentionally stays fixed.
     const key = `${previous.commit}:${reason}`;
@@ -365,6 +370,41 @@ export const workflowWatcherHandler = async (
         'cursor precedes contract cutoff; human review required',
         '核对合同 cutoff 后，将 watcher 游标移动到 cutoff 或其后的安全提交，再手动运行 watcher。',
       );
+    }
+  }
+
+  let supersededSummary = '';
+  if (previous.pending) {
+    const pendingCandidate = selectWorkflowCandidates([previous.pending.path], contract, watchRoot)[0];
+    const changed = previous.commit === head ? [] : (await git(
+      project.path, signal, 'diff', '--name-only', '--diff-filter=AMR', previous.commit, head, '--', watchRoot,
+    )).trim().split('\n').filter(Boolean);
+    const newerCandidates = selectWorkflowCandidates(changed, contract, watchRoot)
+      .filter(({ number }) => pendingCandidate && number > pendingCandidate.number)
+      .reverse();
+    let superseder: typeof newerCandidates[number] | undefined;
+    for (const candidate of newerCandidates) {
+      try {
+        const content = await git(project.path, signal, 'show', `${head}:${candidate.filePath}`);
+        await validateWorkflowDocument(
+          project.path, head, candidate.filePath, candidate.type, content,
+          workflowFrontMatter(content), contract, watchRoot, signal,
+        );
+        superseder = candidate;
+        break;
+      } catch (error) {
+        if (!(error instanceof WorkflowDocumentValidationError)) throw error;
+      }
+    }
+    if (superseder) {
+      supersededSummary = `head=${head} pending_superseded=${previous.pending.path} by=${superseder.filePath}`;
+      if (mode === 'shadow') return { summary: supersededSummary, cursor: previous };
+      if (previous.pending.gate === 'plan_review' && previous.pending.reviewMessageId) {
+        await expireReview(previous.pending.reviewMessageId)
+          .catch((error) => console.error('[WorkflowReview] failed to expire superseded card', error));
+      }
+      previous = { ...previous, selectedPlan: superseder.filePath };
+      delete previous.pending;
     }
   }
 
@@ -582,11 +622,6 @@ export const workflowWatcherHandler = async (
     };
   }
 
-  const branchSpace = String(job.config.branch_space || '');
-  if (!branchSpace || branchSpace.includes('/') || branchSpace === '..') {
-    throw new Error('workflow_watcher requires a single-directory config.branch_space');
-  }
-  const watchRoot = path.posix.join(contract.branch_spaces.root, branchSpace);
   const scanFrom = previous.eventKey ? previous.commit : String(job.config.initial_cursor_commit);
   const changed = previous.selectedPlan
     ? [previous.selectedPlan]
@@ -825,12 +860,12 @@ export const workflowWatcherHandler = async (
   );
   if (!started) {
     return {
-      summary: `head=${head} candidate=${candidate.filePath} action=${document.action} gate=waiting_previous_completion`,
+      summary: `${supersededSummary ? `${supersededSummary} ` : ''}head=${head} candidate=${candidate.filePath} action=${document.action} gate=waiting_previous_completion`,
       cursor: { commit: head, eventKey, pending },
     };
   }
   return {
-    summary: `head=${head} commit=${commit} candidate=${candidate.filePath} action=${document.action} result=session_started`,
+    summary: `${supersededSummary ? `${supersededSummary} ` : ''}head=${head} commit=${commit} candidate=${candidate.filePath} action=${document.action} result=session_started`,
     cursor: { commit: head, eventKey },
   };
 };
