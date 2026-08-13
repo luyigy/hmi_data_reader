@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'child_process';
 import { homedir } from 'os';
 import path from 'path';
 import { promisify } from 'util';
+import { sanitizePreview } from '@/lib/acpx/harness-events';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
@@ -53,7 +54,8 @@ Take your time and be thorough.`;
 
 const processKimiCodeJsonLine = (
   line: string,
-  state: { output: string; structuredError?: string; sessionId?: string },
+  state: { output: string; structuredError?: string; sessionId?: string; thinkingNotified?: boolean },
+  workspaceRoot: string,
   streamCallbacks?: HarnessStreamCallbacks
 ) => {
   let event: {
@@ -77,6 +79,11 @@ const processKimiCodeJsonLine = (
       name?: string;
       input?: unknown;
     };
+    delta?: string | {
+      type?: string;
+      text?: string;
+      thinking?: string;
+    };
   };
 
   try {
@@ -86,9 +93,28 @@ const processKimiCodeJsonLine = (
     return;
   }
 
-  if (event.role === 'assistant' && typeof event.content === 'string') {
-    state.output += event.content;
-    void streamCallbacks?.onStdoutChunk?.(event.content);
+  const thinking = event.type === 'thinking'
+    || event.type === 'redacted_thinking'
+    || event.content_block?.type === 'thinking'
+    || event.content_block?.type === 'redacted_thinking'
+    || (typeof event.delta === 'object'
+      && ['thinking_delta', 'redacted_thinking'].includes(event.delta.type ?? ''));
+  if (thinking && !state.thinkingNotified) {
+    state.thinkingNotified = true;
+    void streamCallbacks?.onStdoutChunk?.('思考中');
+  }
+
+  const isDelta = event.type === 'content_block_delta' || event.type === 'delta';
+  const deltaText = !thinking && isDelta
+    ? (typeof event.delta === 'string' ? event.delta : event.delta?.text)
+    : undefined;
+  const assistantText = deltaText
+    ?? (!isDelta && event.role === 'assistant' && typeof event.content === 'string'
+      ? event.content
+      : undefined);
+  if (assistantText) {
+    state.output += assistantText;
+    void streamCallbacks?.onStdoutChunk?.(sanitizePreview(assistantText, { workspaceRoot }));
   }
   if (event.role === 'assistant' && Array.isArray(event.tool_calls)) {
     for (const toolCall of event.tool_calls) {
@@ -104,7 +130,7 @@ const processKimiCodeJsonLine = (
       }
       void streamCallbacks?.onToolEvent?.({
         toolName,
-        preview: buildToolPreview(input) || rawArguments?.trim() || '',
+        preview: sanitizePreview(buildToolPreview(input) || rawArguments?.trim() || '', { workspaceRoot }),
         emoji: getToolEmoji(toolName),
       });
     }
@@ -114,7 +140,7 @@ const processKimiCodeJsonLine = (
   if (event.type === 'tool_use' && typeof event.name === 'string') {
     void streamCallbacks?.onToolEvent?.({
       toolName: event.name,
-      preview: buildToolPreview(event.input) || '',
+      preview: sanitizePreview(buildToolPreview(event.input) || event.input || '', { workspaceRoot }),
       emoji: getToolEmoji(event.name),
     });
   }
@@ -127,9 +153,20 @@ const processKimiCodeJsonLine = (
   ) {
     void streamCallbacks?.onToolEvent?.({
       toolName: event.content_block.name,
-      preview: buildToolPreview(event.content_block.input) || '',
+      preview: sanitizePreview(
+        buildToolPreview(event.content_block.input) || event.content_block.input || '',
+        { workspaceRoot }
+      ),
       emoji: getToolEmoji(event.content_block.name),
     });
+  }
+
+  if (
+    event.type === 'tool_result'
+    || event.role === 'tool'
+    || (event.type === 'content_block_start' && event.content_block?.type === 'tool_result')
+  ) {
+    void streamCallbacks?.onToolEvent?.({ toolName: 'Tool Result', preview: '', emoji: '✅' });
   }
 
   if (
@@ -253,7 +290,9 @@ const runKimiCodeCommand = async ({
       const lines = stdoutBuffer.split('\n');
       stdoutBuffer = lines.pop() ?? '';
       for (const line of lines) {
-        if (line.trim()) processKimiCodeJsonLine(line.trim(), state, streamCallbacks);
+        if (line.trim()) {
+          processKimiCodeJsonLine(line.trim(), state, workspaceRoot || workingDirectory, streamCallbacks);
+        }
       }
     });
 
@@ -270,7 +309,12 @@ const runKimiCodeCommand = async ({
       if (forceKillHandle) clearTimeout(forceKillHandle);
       if (settled) return;
       if (stdoutBuffer.trim()) {
-        processKimiCodeJsonLine(stdoutBuffer.trim(), state, streamCallbacks);
+        processKimiCodeJsonLine(
+          stdoutBuffer.trim(),
+          state,
+          workspaceRoot || workingDirectory,
+          streamCallbacks
+        );
       }
       cleanup();
       if (code === 0 && !state.structuredError) {

@@ -48,10 +48,13 @@ if [ "$has_prompt" -eq 1 ] && [ "$has_forbidden" -eq 1 ]; then
 fi
 case "$KIMI_TEST_CASE" in
   stream)
-    printf '{"role":"assistant","content":"Hel'
+    printf '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hel'
     sleep 0.02
-    printf 'lo","tool_calls":[{"type":"function","id":"call_1","function":{"name":"Bash","arguments":"{\\"command\\":\\"npm test\\"}"}}]}\\n'
-    printf '{"role":"tool","tool_call_id":"call_1","content":"passed"}\\n'
+    printf 'lo"}}\\n'
+    printf '{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"private reasoning"}}\\n'
+    printf '{"type":"redacted_thinking","content":"encrypted reasoning"}\\n'
+    printf '{"role":"assistant","tool_calls":[{"type":"function","id":"call_1","function":{"name":"Bash","arguments":"{\\"command\\":\\"cat /var/private/key.pem sk-secret123\\"}"}}]}\\n'
+    printf '{"role":"tool","tool_call_id":"call_1","content":"secret result body"}\\n'
     printf '{"role":"assistant","content":" world"}\\n'
     printf '{"role":"meta","type":"session.resume_hint","session_id":"ses_first"}\\n'
     ;;
@@ -159,8 +162,14 @@ esac
       { transcript: '', latestUserMessage: null }
     );
     assert.equal(streamed.output, 'Hello world');
-    assert.deepEqual(streamedChunks, ['Hello', ' world']);
-    assert.deepEqual(toolEvents, [{ toolName: 'Bash', preview: 'npm test', emoji: '💻' }]);
+    assert.deepEqual(streamedChunks, ['Hello', '思考中', ' world']);
+    assert.deepEqual(toolEvents, [
+      { toolName: 'Bash', preview: 'cat key.pem [REDACTED]', emoji: '💻' },
+      { toolName: 'Tool Result', preview: '', emoji: '✅' },
+    ]);
+    assert.ok(streamedChunks.every((chunk) => !chunk.includes('private reasoning')));
+    assert.ok(toolEvents.every((event) => !event.preview.includes('/var/private')));
+    assert.ok(toolEvents.every((event) => !event.preview.includes('sk-secret123')));
     assert.equal(streamed.sessionId, 'ses_first');
     assert.equal(streamed.sessionKind, 'kimi_session');
     clearRunningProcess('participant');
