@@ -117,24 +117,31 @@ def route_family(stem: str, lines: list[dict],
 
 
 def route_page(stem: str, lines: list[dict], family: str,
-               templates_dir: Path = TEMPLATES_DIR) -> tuple[str, str]:
+               templates_dir: Path = TEMPLATES_DIR,
+               extra_anchor_lines: list[dict] | None = None) -> tuple[str, str]:
     """页面路由：结构锚点优先（该家族温度页模板的 油温列头 + 设定/控制行锚点
     同时在场），其次 classify_ui.find_page，最后文件名兜底。
 
     find_page 会被页内 '设定°C'/'控制%' 行标签与底部 Tab 干扰（实测 rec12 误判
     settings），所以温度页模板锚点命中时直接判 temperature。
-    """
+
+    extra_anchor_lines（042 S04）：模温机旁车等附加 OCR 行，仅参与模板锚点
+    文本匹配，不进 find_page 的位置启发（坐标系可能不同）。"""
     tpl = load_template(family, "temperature", templates_dir) if family != "unknown" else None
+    texts = [l["text"] for l in lines + (extra_anchor_lines or [])]
     if tpl:
         anchors = tpl["row_anchors"]
-        texts = [l["text"] for l in lines]
         # 模板可声明自己的页面检测锚点（TACT 无油温列头）；缺省保持 ZizES 口径
         # 锚点值为字符串或候选列表（KEBA 设定温度/温度设置 双子变体）
         keys = tpl.get("page_detect_anchors", ["oil_header", "set", "control"])
         if all(_anchor_hits(anchors[k], texts) for k in keys):
             return "temperature", "template_anchors"
+    if family != "unknown":
         # 非温度页模板锚点路由（049 B2 molding_monitor 等）：全部 page_detect_anchors
         # 在场即判该页（锚点设计成跨页互斥）
+        # 042 S04：模温机等独立设备家族没有 temperature 模板——锚点循环移出
+        # if tpl 分支，否则设备面板的「温度循环控制机」「冷却」字样会被
+        # find_page 误分为注塑机 temperature/storage_cooling 后 NO_TEMPLATE 误拒。
         for tp in sorted(templates_dir.glob(f"{family.lower()}.*.json")):
             page_name = tp.stem.split(".", 1)[1]
             if page_name == "temperature":
@@ -695,23 +702,8 @@ from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc
 from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
 from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
 from extract_families.fanuc_mold_temp import extract_mold_temp_fanuc  # noqa: E402
-from extract_families.keba_injection import extract_injection_keba  # noqa: E402
-from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
-from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
-from extract_families.est_injection import extract_injection_est  # noqa: E402
-from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
-from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
-from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
-from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
-from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
-from extract_families.b_and_r_injection import extract_injection_b_and_r  # noqa: E402
-from extract_families.kaiming_injection import extract_injection_kaiming  # noqa: E402
-from extract_families.est_injection import extract_injection_est  # noqa: E402
-from extract_families.trd6_injection import extract_injection_trd6  # noqa: E402
-from extract_families.arburg_injection import extract_injection_arburg  # noqa: E402
-from extract_families.fanuc_molding_monitor import extract_molding_monitor_fanuc  # noqa: E402
-from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
-from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
+from extract_families.mold_temp_devices import (  # noqa: E402
+    extract_mold_temp_omron_e5cc, extract_mold_temp_thermoregulator)
 
 
 # ---------------------------------------------------------------- 主流程
@@ -736,16 +728,23 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     clahe_lines = None
     if clahe_path.is_file():
         clahe_lines = json.loads(clahe_path.read_text()).get("lines", [])
+    # 042 S04：模温机数码管旁车（含原图全量 OCR 行）。整机照片 rectify 可能扭曲
+    # 丢内容（mt_rear_B07_fd01ca17 矫正图主 OCR 0 行），锚文本仅存在于原图
+    # 全量行——判族兜底与页面锚点路由必须能看到它们（坐标系与主 OCR 不同，
+    # 仅取文本参与锚点匹配，不进 find_page 位置启发）。
+    mt_path = rectified_dir / f"{stem}.ocr_mt.json"
+    mt_lines = json.loads(mt_path.read_text()).get("lines", []) if mt_path.is_file() else []
     if family == "unknown":
         # 伯乐 KEBA/B_AND_R 等无 record/机台先验且单图关键词分类失败的图：
         # 合并 CLAHE 变体后按各模板的 family_detect_groups 判族（不改既有路由优先级）
         det_lines = lines
         if clahe_lines is not None:
             det_lines, _ = merge_variant_lines(lines, clahe_lines)
-        fam = detect_family_from_templates(det_lines, templates_dir)
+        fam = detect_family_from_templates(det_lines + mt_lines, templates_dir)
         if fam:
             family, family_src = fam, "template_keywords"
-    page, page_src = route_page(stem, lines, family, templates_dir)
+    page, page_src = route_page(stem, lines, family, templates_dir,
+                                extra_anchor_lines=mt_lines)
     result["controller_family"] = family
     result["page_type"] = page
 
@@ -852,6 +851,20 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
             toks = norm_tokens({**ocr_data, "lines": base_lines + hr_lines},
                                meta["screen_size"])
+    if template_page_key == "mold_temp":
+        # 模温机数码管旁车（042 S04）：bbox 为各源图 0-1 分数坐标，换算到屏幕
+        # 框架后并入；_src 区分坐标系（mt_cell=矫正图 / mt_cell_orig=原图 /
+        # mt_full=原图全量 OCR），提取器按 src 分系聚行，不跨系混合
+        if mt_lines:
+            dst_w, dst_h = meta["screen_size"]
+            for l in mt_lines:
+                b = l["bbox"]
+                b["points"] = [[px * dst_w, py * dst_h] for px, py in b["points"]]
+                b["x_min"], b["x_max"] = b["x_min"] * dst_w, b["x_max"] * dst_w
+                b["y_min"], b["y_max"] = b["y_min"] * dst_h, b["y_max"] * dst_h
+            base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
+            toks = norm_tokens({**ocr_data, "lines": base_lines + mt_lines},
+                               meta["screen_size"])
     page_key = template_page_key
     if page_key == "injection_metering" and ui == "TACT":
         ext = extract_injection_tact(toks, template)
@@ -884,40 +897,10 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_hot_runner_tact(toks, template)
     elif page_key == "mold_temp" and ui == "FANUC":
         ext = extract_mold_temp_fanuc(toks, template)
-    elif page_key == "injection_metering" and ui == "KEBA":
-        ext = extract_injection_keba(toks, template)
-    elif page_key == "injection_metering" and ui == "B_AND_R":
-        ext = extract_injection_b_and_r(toks, template)
-    elif page_key == "injection_metering" and ui == "KAIMING":
-        ext = extract_injection_kaiming(toks, template)
-    elif page_key == "injection_metering" and ui == "EST":
-        ext = extract_injection_est(toks, template)
-    elif page_key == "injection_metering" and ui == "TRD6":
-        ext = extract_injection_trd6(toks, template)
-    elif page_key == "injection_metering" and ui == "ARBURG":
-        ext = extract_injection_arburg(toks, template)
-    elif page_key == "molding_monitor" and ui == "FANUC":
-        ext = extract_molding_monitor_fanuc(toks, template)
-    elif page_key == "waveform" and ui == "FANUC":
-        ext = extract_waveform_fanuc(toks, template)
-    elif page_key == "hot_runner_temp" and ui == "TACT":
-        ext = extract_hot_runner_tact(toks, template)
-    elif page_key == "injection_metering" and ui == "B_AND_R":
-        ext = extract_injection_b_and_r(toks, template)
-    elif page_key == "injection_metering" and ui == "KAIMING":
-        ext = extract_injection_kaiming(toks, template)
-    elif page_key == "injection_metering" and ui == "EST":
-        ext = extract_injection_est(toks, template)
-    elif page_key == "injection_metering" and ui == "TRD6":
-        ext = extract_injection_trd6(toks, template)
-    elif page_key == "injection_metering" and ui == "ARBURG":
-        ext = extract_injection_arburg(toks, template)
-    elif page_key == "molding_monitor" and ui == "FANUC":
-        ext = extract_molding_monitor_fanuc(toks, template)
-    elif page_key == "waveform" and ui == "FANUC":
-        ext = extract_waveform_fanuc(toks, template)
-    elif page_key == "hot_runner_temp" and ui == "TACT":
-        ext = extract_hot_runner_tact(toks, template)
+    elif page_key == "mold_temp" and ui == "OMRON_E5CC":
+        ext = extract_mold_temp_omron_e5cc(toks, template)
+    elif page_key == "mold_temp" and ui == "MOLD_THERMOREGULATOR":
+        ext = extract_mold_temp_thermoregulator(toks, template)
     elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
     elif ui == "KEBA":

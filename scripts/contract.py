@@ -102,6 +102,15 @@ def _resolve_layout_variant(result: dict) -> str | None:
         if isinstance(family, str) and family:
             return _template_heater_mode(family, page_type)
     if page_type in ("hot_runner_temp", "mold_temp"):
+        if page_type == "mold_temp":
+            # 042 S04：模具温度调节机同模板双布局（pv_sv_decimal/pv_sv_integer），
+            # 由提取器按数码管实测是否带小数点在 detail.page_variant 判定；
+            # 未给出时回退模板显式 layout_variant（omron_e5cc single_loop）。
+            detail = result.get("extraction_detail")
+            if isinstance(detail, dict):
+                variant = detail.get("page_variant")
+                if isinstance(variant, str) and variant:
+                    return variant
         family = result.get("controller_family")
         if isinstance(family, str) and family:
             return _template_layout_variant(family, page_type)

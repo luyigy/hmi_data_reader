@@ -1,9 +1,9 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "ui_family": "FANUC",
   "page": "mold_temp",
-  "source": "2026-08-02 首版：6 份自动整批接受真值图（发那科 Z036 模温机面板）OCR 实测锚点",
-  "description": "模具温度调节机面板数码管/指示灯模板。结构：LED数码管显示 PV（实时温度，不入库）与 SV（设定温度，40.0°C 或关断/黑屏/报警记 null）。",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（发那科 Z036 模温机面板）OCR 实测锚点；2026-08-13（042 S04）：family_detect_groups 收窄为「设备名 AND FANUC 品牌证据」双组",
+  "description": "发那科注塑机模温页面板数码管/指示灯模板。结构：LED数码管显示 PV（实时温度，不入库）与 SV（设定温度，40.0°C 或关断/黑屏/报警记 null）。2026-08-13（042 S04）：原单组「模具温度调节机/MOLD-THERMOREGULATOR」指纹会把独立模具温度调节机整机照片误路由为 FANUC（实测 mt_front_A02_d8b6f05a 等）；收窄为双组 AND——设备名与 FANUC 品牌词须同时在场（模板兜底仅在关键词分类失败时运行，故该兜底对 FANUC 屏幕实际不再触发，独立设备落到 mold_thermoregulator 模板）。输出字段对齐契约目录 mold_temperature_set_c（替代裸 set_temperature_c）。",
   "coordinate_system": "normalized_screen",
   "calibration": {
     "method": "6 张真值图（mt_Z036 rank01-06）rectify 后 PaddleOCR 实测",
@@ -20,10 +20,16 @@
     [
       "模具温度调节机",
       "MOLD-THERMOREGULATOR"
+    ],
+    [
+      "FANUC",
+      "发那科",
+      "ROBOSHOT",
+      "i-MODEL"
     ]
   ],
   "field_mapping": {
-    "set_temperature_c": {
+    "mold_temperature_set_c": {
       "unit": "°C"
     }
   }

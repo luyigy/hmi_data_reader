@@ -220,6 +220,20 @@ async def recognize_image(file: UploadFile = File(...)):
                     )
                 except Exception as variant_error:  # noqa: BLE001
                     logger.warning("clahe variant failed: %s", variant_error)
+                # 5e. 模温机数码管旁车（042 S04）：独立设备整机照片无屏幕可矫正，
+                # rectify 可能把机箱盖误判为屏幕扭曲丢内容，故旁车同时作用于矫正图
+                # （mt_cell）与原图（mt_cell_orig）两个坐标系，由提取器分系聚行；
+                # 仅 mold_temp 模板路由命中时才被 extract 合并，失败不影响主路径。
+                try:
+                    from ocr_variants import generate_mold_temp_display_sidecar
+                    mt_sources = [(ocr_target, "mt_cell")]
+                    if ocr_target != orig_path:
+                        mt_sources.append((orig_path, "mt_cell_orig"))
+                    generate_mold_temp_display_sidecar(
+                        ocr_model, mt_sources, rect_dir / f"{stem}.ocr_mt.json"
+                    )
+                except Exception as variant_error:  # noqa: BLE001
+                    logger.warning("mold_temp display variant failed: %s", variant_error)
             # 三类炮筒 Profile 的专用弱读格召回；结构不匹配时 FANUC helper 返回 0，
             # 不会把其他页面硬塞进温度提取器。
             try:
