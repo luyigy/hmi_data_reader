@@ -1,0 +1,128 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "barrel_B02_42b0649f",
+  "profile_id": "b_and_r.temperature.fixed",
+  "profile_layout_version": 1,
+  "contract_version": "2.7.1",
+  "truth_hash": "sha256:9cc1b49ec007cfb42123559171dcca32f51c11f4a76e5a0de05eac501e1c081c",
+  "image_sha256": "sha256:42b0649f8ec3be1627c3526faddc4c161216f4e0800853c6ab83d8cd72174bb6",
+  "structure": {
+    "controller_family": "KEBA",
+    "page_type": "temperature",
+    "hmi_variant": "keba_dynamic",
+    "allow_auto_import": false,
+    "image": "barrel_B02_42b0649f.jpeg",
+    "n_fields": 5
+  },
+  "field_meta": {
+    "barrel_temperature_set_c": {
+      "label_zh": "料筒设定温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "NZ",
+          "#1",
+          "#2",
+          "#3",
+          "#4",
+          "#5"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": "barrel_zone_temperature_set"
+    },
+    "barrel_temperature_current_c": {
+      "label_zh": "料筒当前温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "NZ",
+          "#1",
+          "#2",
+          "#3",
+          "#4",
+          "#5"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": "barrel_zone_temperature_actual"
+    },
+    "high_deviation_c": {
+      "label_zh": "温度上偏差",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "limit",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "NZ",
+          "#1",
+          "#2",
+          "#3",
+          "#4",
+          "#5"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    },
+    "low_deviation_c": {
+      "label_zh": "温度下偏差",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "limit",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "NZ",
+          "#1",
+          "#2",
+          "#3",
+          "#4",
+          "#5"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    },
+    "control_percent": {
+      "label_zh": "料筒加热输出",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "%",
+      "role": "monitor",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "NZ",
+          "#1",
+          "#2",
+          "#3",
+          "#4",
+          "#5"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqnjFOC7PjE，伯乐 B02，054 PLAN S01 批次 batch_002）"
+    },
+    "verified_by": "kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）",
+    "verified_at": "2026-08-13",
+    "tuning_involvement": "none",
+    "placement_reason": "054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参"
+  }
+}

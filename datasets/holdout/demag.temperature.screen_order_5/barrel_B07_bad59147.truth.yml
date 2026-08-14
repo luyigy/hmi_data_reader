@@ -1,0 +1,35 @@
+schema_version: 1.0.0
+case_id: barrel_B07_bad59147
+profile_id: demag.temperature.screen_order_5
+controller_family: ZizES
+page_type: temperature
+hmi_variant: zizes_7zone
+allow_auto_import: false
+image:
+  file: barrel_B07_bad59147.jpeg
+fields:
+  barrel_temperature_set_c:
+  - 260.5
+  - 290.0
+  - 290.0
+  - 290.0
+  - 280.0
+  - 0.0
+  - 0.0
+  barrel_temperature_current_c:
+  - 260.2
+  - 290.0
+  - 293.4
+  - 289.4
+  - 279.5
+  - null
+  - null
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqnNTs3hthh，佳明 B07，054 PLAN S01
+      批次 batch_001）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: 佳明 ZizES 温度页 7 区+油温；区6/7 显示 *（未启用），设定 0.0；油温 34.9/设定 0.0；布局未在本期 release，应安全拒识

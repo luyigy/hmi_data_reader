@@ -1,0 +1,26 @@
+schema_version: 1.0.0
+case_id: hr_A01_95011b1b
+profile_id: tact.hot_runner_temp.digital_sv
+controller_family: TACT
+page_type: hot_runner_temp
+hmi_variant: digital_sv
+allow_auto_import: true
+image:
+  file: hr_A01_95011b1b.jpeg
+fields:
+  hot_runner_sv_c:
+  - 205.0
+  - 185.0
+  - 215.0
+  - 250.0
+  - 240.0
+  - 250.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-热流道温控箱温度」附件（record recvqnjFOCUpsj，伯乐 A01，054 PLAN
+      S01 批次 batch_001）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: 龙昌兴单排 6 通道数码管面板；绿行 c### = SV：205/185/215/250/240/250（红行 PV 同值）；6 通道全亮

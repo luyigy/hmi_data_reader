@@ -1,0 +1,29 @@
+schema_version: 1.0.0
+case_id: hr_B03_cbc3a592
+profile_id: tact.hot_runner_temp.digital_sv
+controller_family: unknown
+page_type: hot_runner_temp
+hmi_variant: yudo_cw301
+allow_auto_import: false
+image:
+  file: hr_B03_cbc3a592.jpeg
+fields:
+  hot_runner_sv_c:
+  - 290.0
+  - 290.0
+  - 290.0
+  - 290.0
+  - 290.0
+  - 290.0
+  - 290.0
+  - 290.0
+  - 290.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-热流道温控箱温度」附件（record recvrvDIgDwUte，伯乐 B03，054 PLAN
+      S01 批次 batch_001）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: 同机柜另一角度：可见通道 SV 均 290.0，下排 4-6 黑屏；YUDO 布局未注册，应安全拒识

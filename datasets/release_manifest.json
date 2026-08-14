@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "generator": "scripts/datasets.py",
   "contract_version": "2.7.1",
-  "reader_commit": "06c7128604b99249406780dbbc3ea751365ee287",
+  "reader_commit": "509eb65cd33a012a479dc14126ce26d6058dd972",
   "partitions": {
     "calibration": [
       {
@@ -32,6 +32,13 @@
         "truth_hash": "sha256:3db5257c1008c57b94e7a60c2a3b6546966134e0c3384397279a6999037112a4",
         "image_sha256": "sha256:9835fbead6b71317cf4df4d8140915271991ef2204363b2f0e284a43d6fe4b53",
         "path": "calibration/fanuc.temperature.rightmost5/barrel_A11_9835fbea.truth.yml"
+      },
+      {
+        "case_id": "barrel_B01_f056d349",
+        "profile_id": "b_and_r.temperature.fixed",
+        "truth_hash": "sha256:17dabe6efb9da7b98d8b4475dcb1d0b772ad5a0f70e16af521e3669437b6641d",
+        "image_sha256": "sha256:f056d349ce7472cccd09bdd9561b0eed358ae6485c6c3bb9042d5e51bd0f4bce",
+        "path": "calibration/b_and_r.temperature.fixed/barrel_B01_f056d349.truth.yml"
       },
       {
         "case_id": "barrel_B07_159bb588",
@@ -272,7 +279,344 @@
         "path": "calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_slide_B12_af783ea3.truth.yml"
       }
     ],
-    "holdout": [],
+    "holdout": [
+      {
+        "case_id": "barrel_A01_3bd6585d",
+        "profile_id": "b_and_r.temperature.fixed",
+        "truth_hash": "sha256:304a3199a1575dd0a128d06e4070172968593562dfc48a28e6ca6215f96bbcbc",
+        "image_sha256": "sha256:3bd6585d7482e306721cca5c669614fca8ee93f66f3ca987a32f425801866571",
+        "path": "holdout/b_and_r.temperature.fixed/barrel_A01_3bd6585d.truth.yml"
+      },
+      {
+        "case_id": "barrel_A01_9da8a3a9",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:09cd21a01c0649eb40dc7bc80d7da76733e98841af827166025983b68b49af24",
+        "image_sha256": "sha256:9da8a3a96ff6b234fd941377a9ed7489e2791a25e1ec135ddcc5c9129420516e",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_A01_9da8a3a9.truth.yml"
+      },
+      {
+        "case_id": "barrel_A02_59cd552b",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:aac548d34da02b757e56a9ed1727eb16458135525b7594009835e926744ebbad",
+        "image_sha256": "sha256:59cd552b3d02aab40a22a52ddc0f156575acc8d0917d397ac441330ef227c700",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_A02_59cd552b.truth.yml"
+      },
+      {
+        "case_id": "barrel_A06_169be854",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:25f6a5e6c1233f60e9139a95eec1e8db444c0158632bf414d5ca1d36bbfefa0f",
+        "image_sha256": "sha256:169be85481f0e72b25b94cf6af88c6768d5f4b264b3a47ae2696245e0862a3dc",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_A06_169be854.truth.yml"
+      },
+      {
+        "case_id": "barrel_A06_3c146c62",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:fd0e080aa298fde50e3b8c27ee9198e248e9cc43c909469763ece13486992beb",
+        "image_sha256": "sha256:3c146c621caec0a8a6a0d3e9eaacc6e3b350adb550869319b88a00941a115dff",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_A06_3c146c62.truth.yml"
+      },
+      {
+        "case_id": "barrel_A06_956c1cdb",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:d47689d3386150a79d9bc60632093a9f23060ac677dd8ef922a67303c9942248",
+        "image_sha256": "sha256:956c1cdb06f80c8b1917f2d6df8dd36ea292759312dfac2fb12c67bfa16899e8",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_A06_956c1cdb.truth.yml"
+      },
+      {
+        "case_id": "barrel_A07_5a80a90e",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:f116b2db28c366e3c9992687e651621822e89a3996051cca85f36f4cacb3cb0d",
+        "image_sha256": "sha256:5a80a90e01b3e0de4bc9b80e566e0948f0c951413cb53746188a1ebe389902e9",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_A07_5a80a90e.truth.yml"
+      },
+      {
+        "case_id": "barrel_A07_bf3c8fcb",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:b545bee0ec5960be48b0840bdfda13138c4a47b8333f9f43b93ad88b92bb16b6",
+        "image_sha256": "sha256:bf3c8fcb28e6f272de363a8aea707c58d38638dd3ef4f55ac80b3c0f9554005c",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_A07_bf3c8fcb.truth.yml"
+      },
+      {
+        "case_id": "barrel_A09_56323296",
+        "profile_id": "fanuc.temperature.rightmost5",
+        "truth_hash": "sha256:21e1ec72137d1ab949310b73d5f932868eeeace206a54b21753a174609b78b57",
+        "image_sha256": "sha256:563232963c648d523f6fc7087249d80c8807c5a6ab4c6b64e82211ae7b629d94",
+        "path": "holdout/fanuc.temperature.rightmost5/barrel_A09_56323296.truth.yml"
+      },
+      {
+        "case_id": "barrel_A09_9aae0b4a",
+        "profile_id": "fanuc.temperature.rightmost5",
+        "truth_hash": "sha256:82e5b3b63c388589c52b56eea7b646753d509a958b446711b1d4cc38fc35af4b",
+        "image_sha256": "sha256:9aae0b4a7da01f91ee50776d1b9d6f7ddd089083b3061d503f6c35f664ea36cb",
+        "path": "holdout/fanuc.temperature.rightmost5/barrel_A09_9aae0b4a.truth.yml"
+      },
+      {
+        "case_id": "barrel_B02_42b0649f",
+        "profile_id": "b_and_r.temperature.fixed",
+        "truth_hash": "sha256:9cc1b49ec007cfb42123559171dcca32f51c11f4a76e5a0de05eac501e1c081c",
+        "image_sha256": "sha256:42b0649f8ec3be1627c3526faddc4c161216f4e0800853c6ab83d8cd72174bb6",
+        "path": "holdout/b_and_r.temperature.fixed/barrel_B02_42b0649f.truth.yml"
+      },
+      {
+        "case_id": "barrel_B07_425763bb",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:3dc71ac5a36bfdcd23cefbb68bb843bb6da0f1e2d9ecce022f0a170f57417c1a",
+        "image_sha256": "sha256:425763bbbb8842ad1b13385bb75f7851a647e6502a0e97072c96a15b4743fa3d",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_B07_425763bb.truth.yml"
+      },
+      {
+        "case_id": "barrel_B07_bad59147",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:ee94700e34b0175f3e8c88c48c85353d451a1ccbc2a0694f883d1eaf85be01be",
+        "image_sha256": "sha256:bad591476f7357270712094fa77dbdd3f6df977f2cc886810569e17066d76ad4",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_B07_bad59147.truth.yml"
+      },
+      {
+        "case_id": "barrel_B09_74baa34d",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:75792460f82bae5c16e84db1c269fe7233479be016575dec42881522884856d6",
+        "image_sha256": "sha256:74baa34d3cf1c3e1ff1e715f92f9620f01b1c958fac1e84a75efab65c103ce8a",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_B09_74baa34d.truth.yml"
+      },
+      {
+        "case_id": "barrel_B09_8741e7e2",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:633a54c636cf41b8b63a463e72472ebe231194c929096731daf6cc48bb3daca2",
+        "image_sha256": "sha256:8741e7e2a006674625682a8397a938c6401fb29127e6a9806015c6763d87a388",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_B09_8741e7e2.truth.yml"
+      },
+      {
+        "case_id": "barrel_B10_ad86e701",
+        "profile_id": "demag.temperature.screen_order_5",
+        "truth_hash": "sha256:dea59c3c34d90544dddccd5322c3ade64bc9b25bd3003b3c43aba0ab6be558fc",
+        "image_sha256": "sha256:ad86e7010964e590d4917847ed7cbe2d12d62238f587a881c222fc0e321c30b5",
+        "path": "holdout/demag.temperature.screen_order_5/barrel_B10_ad86e701.truth.yml"
+      },
+      {
+        "case_id": "hr_A01_95011b1b",
+        "profile_id": "tact.hot_runner_temp.digital_sv",
+        "truth_hash": "sha256:cf728aff114c13f51e88edd7add4df2694386b884308af5d27e6991da8bb728c",
+        "image_sha256": "sha256:95011b1bf472fc765c48df40ffdca337ddbe253b709784f07061abb07c83806d",
+        "path": "holdout/tact.hot_runner_temp.digital_sv/hr_A01_95011b1b.truth.yml"
+      },
+      {
+        "case_id": "hr_B03_54b7a68e",
+        "profile_id": "tact.hot_runner_temp.digital_sv",
+        "truth_hash": "sha256:5b396dc997f7064399ae86c1e85bbfbbc602a34208806db26c9c3aece83df2cd",
+        "image_sha256": "sha256:54b7a68e78ef2a4ad97c263dbd9fed3b9dd08bf8860278d99305652db68614f6",
+        "path": "holdout/tact.hot_runner_temp.digital_sv/hr_B03_54b7a68e.truth.yml"
+      },
+      {
+        "case_id": "hr_B03_cbc3a592",
+        "profile_id": "tact.hot_runner_temp.digital_sv",
+        "truth_hash": "sha256:114421f70db690dfef4540524fe8d6e50cc352688895dea9f613d6a84f758b0e",
+        "image_sha256": "sha256:cbc3a59276c59e0a5ed1fa60bee91897cbe3874309f3a4804c0a251b3a041258",
+        "path": "holdout/tact.hot_runner_temp.digital_sv/hr_B03_cbc3a592.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A01_89cda55a",
+        "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
+        "truth_hash": "sha256:932fce0c81f4e4d2c851f525f3b7e427aa1034557c9caf8ad3250bd8ae6fe371",
+        "image_sha256": "sha256:89cda55a9aa09cb3fcd88b1f61ad2a37c41d01f8e8aeefb08cb4a6dcf3408a1c",
+        "path": "holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_front_A01_89cda55a.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A01_a93a1380",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:b0248fd6757c8ec182db8a306b56555c7eeb6737f2d7f929dc913a183a1d8f0d",
+        "image_sha256": "sha256:a93a138078306927cb59a03d3cc872fb6ce3a47363105626cc7ae328a8a08a73",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A01_a93a1380.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A02_0e857c55",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:3b572beb838d55f8de2b627e5de30647b9a57e15a64537343081b03f2185b5c8",
+        "image_sha256": "sha256:0e857c555b247abc8af2b96885fddf92a54c3c7a994f23daba5e8bf78f4c042a",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A02_0e857c55.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A06_33004d1b",
+        "profile_id": "omron_e5cc.mold_temp.single_loop",
+        "truth_hash": "sha256:2bc7b66427f85a73d2d7acf51c38d403d62897ab0d7de64e1dc3716d522a35a1",
+        "image_sha256": "sha256:33004d1b72e65c18df2bc2c0b3c483b780e67f38c7111f3c5e1266d7a0a05db0",
+        "path": "holdout/omron_e5cc.mold_temp.single_loop/mt_front_A06_33004d1b.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A06_b09bc5b1",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:e2de91822d0aecd155e0ea10358d7f0e64a0601e0945e4c1a75d7ccc4f32f18e",
+        "image_sha256": "sha256:b09bc5b12bea225d16c6d1e5d65903f74d421c64e77067e76676e037c3acec70",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A06_b09bc5b1.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A06_bb2c56a0",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:e5f8c27a54940eb1e06be677eed0b3cbc3534213003f143c644ffc416ef2f88a",
+        "image_sha256": "sha256:bb2c56a08a42a747afe1a79d3244e22f485b06d06afd8976a54b26834f23bde2",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A06_bb2c56a0.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A07_6c3e3983",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:ea34b17a54667c075efc2faf5440370295118b1474b53b809b350d0100d75a3f",
+        "image_sha256": "sha256:6c3e3983c44712576fb64b224e797d1ca72f8293462dfafe92a97013a5c20644",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A07_6c3e3983.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A07_ed84c514",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:0bad57f776096a0fb5c86c79c1343a8b6152daffc14d98f5484b11c339a9f22d",
+        "image_sha256": "sha256:ed84c514d740d7792b6680903c7664bdf9d7a32947ce4004cb3d110ee306d8cf",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A07_ed84c514.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A09_5fe352e2",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:14ddb7540dbff237b0d038a41dae7259a739f84d8a94f69a6be8b9b0d818a271",
+        "image_sha256": "sha256:5fe352e2e6b66b0b4dbb96017f9155cea4efd01881252961187da530bd7e0456",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A09_5fe352e2.truth.yml"
+      },
+      {
+        "case_id": "mt_front_A09_e64fe222",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:ab09e48547cdb88369fdbe4f5a9abfe4a87f44923c65908dda3fda6e66ca8356",
+        "image_sha256": "sha256:e64fe22240d0b3780c44e974ca487d0eb01aa94b8e66779802823137cca0bf2e",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A09_e64fe222.truth.yml"
+      },
+      {
+        "case_id": "mt_front_B01_a12bcc5c",
+        "profile_id": "omron_e5cc.mold_temp.single_loop",
+        "truth_hash": "sha256:e569cbdd83f021dfd90982b49ecc70101aabeae2401c53638d97e5464450f6bb",
+        "image_sha256": "sha256:a12bcc5c0c804d0c674e785c0c4a439f90d2bc54d5b298df21ca7f8b17134a93",
+        "path": "holdout/omron_e5cc.mold_temp.single_loop/mt_front_B01_a12bcc5c.truth.yml"
+      },
+      {
+        "case_id": "mt_front_B02_b7da7f18",
+        "profile_id": "omron_e5cc.mold_temp.single_loop",
+        "truth_hash": "sha256:5863903439a0d8baff0ade0e9185ef84bafab79f756eda90f017655d7541508a",
+        "image_sha256": "sha256:b7da7f18df3c67dde64461c12357b7c8f14cb9420b564323467265e281a19334",
+        "path": "holdout/omron_e5cc.mold_temp.single_loop/mt_front_B02_b7da7f18.truth.yml"
+      },
+      {
+        "case_id": "mt_front_B07_7d0896ce",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:a5c1f61bf390be68c40776fe898c0b468dfebfd3838117f14adfa849bb2baa13",
+        "image_sha256": "sha256:7d0896ce1da10b89266b51167a49334cd10f58e643084e7c9e2f18596f07808d",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B07_7d0896ce.truth.yml"
+      },
+      {
+        "case_id": "mt_front_B07_f9456f86",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:114002e9ac738d36eeb4ad66f9c22ddefdeacf2d70a9e5b59bf2f30288c7cfff",
+        "image_sha256": "sha256:f9456f861ed626e128a599a3136423c372cced01bb2c1472d1adfbcd3337e117",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B07_f9456f86.truth.yml"
+      },
+      {
+        "case_id": "mt_front_B09_9d592e00",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:a4148f0a6af115a3cfa5604602ead79eac78c8672944ef6b67bdab631e87787b",
+        "image_sha256": "sha256:9d592e0067e01d0ec7812a0bc2585cc01d8b8cf6f2dcccbd1aec0aa0dba454c5",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B09_9d592e00.truth.yml"
+      },
+      {
+        "case_id": "mt_front_B09_ea486c69",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:532f5638dac19f5cb67d29e93dc057c25a15a9cf7d4eec1bf6d03277f8d60a92",
+        "image_sha256": "sha256:ea486c695b58b96e1967cdd97546bbdba5413317668fa0397b6ff3b305933f1b",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_B09_ea486c69.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_A01_b358413f",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:7f32e9fed2dfe5cfcb6af83be293a196301c4b9f4cd227b3e4ff0e8624a3f682",
+        "image_sha256": "sha256:b358413fa1b35a144b065db725a81d8b947286d25675f722d29c277d8f99cf8d",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_A01_b358413f.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_A02_a9c2dee3",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:ea84b9d640d5fe55ce13dd2e7ca3fc047651180860c541c114114cba44a4869d",
+        "image_sha256": "sha256:a9c2dee3c88332b189c53fa66c57dc47d15b1f1abdbe6da90427ec9f2f84c292",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_A02_a9c2dee3.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_A06_1f7505fb",
+        "profile_id": "omron_e5cc.mold_temp.single_loop",
+        "truth_hash": "sha256:4bf7d1a922ea19fe26f52df265528efddc79805acc6bb7993411e0f7c40bc3aa",
+        "image_sha256": "sha256:1f7505fbf2cc765032b244fcf7daa67bb46b738cef2389dd063a7a33afee296e",
+        "path": "holdout/omron_e5cc.mold_temp.single_loop/mt_rear_A06_1f7505fb.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_A09_1e26fd11",
+        "profile_id": "omron_e5cc.mold_temp.single_loop",
+        "truth_hash": "sha256:a9ba851b5e63d4e7b690929a84332c9baefd19501e5b3f0ddffb7aa8c15c96dc",
+        "image_sha256": "sha256:1e26fd11bf5a70e1a4380df5c28256b37d42d314663f89fd7ea80d27566858a2",
+        "path": "holdout/omron_e5cc.mold_temp.single_loop/mt_rear_A09_1e26fd11.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_B01_4693f9af",
+        "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
+        "truth_hash": "sha256:bf6cf475812bc72824604543a5bc35a72e301fd8b6d84dc526bc57fb83552d79",
+        "image_sha256": "sha256:4693f9af6470320176e5e49684e6886629f8649ced7dad3308a55a94aeb95b1a",
+        "path": "holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_rear_B01_4693f9af.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_B02_95685b65",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:d7feda7dc6e4b89d2c7f213bbbf65b8bfdd88bd4a2d5ed00c7778a2c01024139",
+        "image_sha256": "sha256:95685b65ea2fba181d6d0132fee670c98094f466b928186bbb88f89f99d82768",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B02_95685b65.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_B02_9a6703e1",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:4c4cde7bc9e5578df6483bf1c023aa9312b151d2f8f1073951400c82ece933a6",
+        "image_sha256": "sha256:9a6703e1fafd3c8d032108a6382ac0e51e9478b52266d8ef4c17dde016b78d80",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B02_9a6703e1.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_B07_19ca92a7",
+        "profile_id": "omron_e5cc.mold_temp.single_loop",
+        "truth_hash": "sha256:c0c0ba1936f970a30e6dc90981c5c2975beac8816e71a5ebf390abc076e2a0e1",
+        "image_sha256": "sha256:19ca92a77dd6227166100bafeb23536a01ede08a7ff3a149b210bca2da4bf5cb",
+        "path": "holdout/omron_e5cc.mold_temp.single_loop/mt_rear_B07_19ca92a7.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_B07_2ad661e6",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:9a138f964de36c01fd0d33bcf6bdf3ede389f2ed429fa78bdba9fa0ce4ec9172",
+        "image_sha256": "sha256:2ad661e6d5acea1fc096b2c400f32bdb289f4b57ad391f8ee65c4a950c55b1ae",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B07_2ad661e6.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_B09_1bb042d4",
+        "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+        "truth_hash": "sha256:9e9f737c02de4b79cfc1274e088e5afca0124a086c856909421910b0d1522441",
+        "image_sha256": "sha256:1bb042d46e6c8919791cf7395bc38c7e688409caa83a9a7eb4be8ca4f4660b8e",
+        "path": "holdout/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_rear_B09_1bb042d4.truth.yml"
+      },
+      {
+        "case_id": "mt_rear_B10_1b8f30c8",
+        "profile_id": "omron_e5cc.mold_temp.single_loop",
+        "truth_hash": "sha256:912bf500c18584bd5345e560615bb7ab153037b183f9b12fbb70caa97b83bb46",
+        "image_sha256": "sha256:1b8f30c8ee1f38dccfedb29ac61fb78a5acb81317e47d421dd7a24941d1b8742",
+        "path": "holdout/omron_e5cc.mold_temp.single_loop/mt_rear_B10_1b8f30c8.truth.yml"
+      },
+      {
+        "case_id": "mt_slide_B03_1cda0b75",
+        "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
+        "truth_hash": "sha256:4a623af436bacdec5e789b02c279cb7a363bed9b0c958603b057defe2a3924c1",
+        "image_sha256": "sha256:1cda0b75369406699534d787a9f04c2993be4ea28b498887316922ed35c237b9",
+        "path": "holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_slide_B03_1cda0b75.truth.yml"
+      },
+      {
+        "case_id": "mt_slide_B03_abdcdcb5",
+        "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
+        "truth_hash": "sha256:0a2b11db54dc488cf6c71bcb04b757e2f5a5d68f3e300ec3dd13b95171d405fe",
+        "image_sha256": "sha256:abdcdcb5a303d1b7a76a54a07d9d34ae761692e7bf3dc9f6863de6fb542fa850",
+        "path": "holdout/industrial_chiller.mold_temp.lcd_pv_set/mt_slide_B03_abdcdcb5.truth.yml"
+      }
+    ],
     "regression": [
       {
         "case_id": "holding_Z002_1785755259328",
@@ -298,8 +642,8 @@
     ]
   },
   "totals": {
-    "calibration": 38,
-    "holdout": 0,
+    "calibration": 39,
+    "holdout": 48,
     "regression": 3
   }
 }

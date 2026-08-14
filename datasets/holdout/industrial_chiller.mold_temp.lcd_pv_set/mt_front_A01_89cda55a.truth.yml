@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+case_id: mt_front_A01_89cda55a
+profile_id: industrial_chiller.mold_temp.lcd_pv_set
+controller_family: INDUSTRIAL_CHILLER
+page_type: mold_temp
+hmi_variant: lcd_pv_set
+allow_auto_import: false
+image:
+  file: mt_front_A01_89cda55a.jpeg
+fields:
+  mold_temperature_set_c: 17.0
+  mold_temperature_current_c: 19.3
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-模温机前模」附件（record recvqnjFOCUpsj，伯乐 A01，054 PLAN S01
+      批次 batch_002）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: 工业冷水机 LCD（非模温机，钉住安全拒识）

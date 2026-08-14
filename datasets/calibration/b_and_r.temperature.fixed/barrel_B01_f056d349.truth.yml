@@ -1,0 +1,54 @@
+schema_version: 1.0.0
+case_id: barrel_B01_f056d349
+profile_id: b_and_r.temperature.fixed
+controller_family: B_AND_R
+page_type: temperature
+hmi_variant: b_and_r_fixed
+allow_auto_import: true
+image:
+  file: barrel_B01_f056d349.jpeg
+fields:
+  barrel_temperature_set_c:
+  - 285
+  - 270
+  - 266
+  - 265
+  - 260
+  - 250
+  barrel_temperature_current_c:
+  - 287.5
+  - 270.2
+  - 264.9
+  - 264.9
+  - 260.0
+  - 250.1
+  high_deviation_c:
+  - 20
+  - 20
+  - 20
+  - 40
+  - 45
+  - 40
+  low_deviation_c:
+  - 20
+  - 20
+  - 20
+  - 40
+  - 20
+  - 40
+  control_percent:
+  - 0.0
+  - 56.6
+  - 5.3
+  - 11.3
+  - 9.3
+  - 35.3
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqnjE2Bpx8i，伯乐 B01，054 PLAN S01
+      批次 batch_002）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: 用于定位“低温偏差→低湿偏差”OCR 锚点别名
+  placement_reason: 054 S01 batch_002 修复样本，按 054 §3.2 从 holdout 转 calibration
+notes: B&R EKS_350 固定 6 列 NZ/#1~#5 全列可读正例

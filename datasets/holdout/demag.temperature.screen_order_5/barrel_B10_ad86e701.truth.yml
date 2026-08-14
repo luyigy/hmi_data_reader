@@ -1,0 +1,42 @@
+schema_version: 1.0.0
+case_id: barrel_B10_ad86e701
+profile_id: demag.temperature.screen_order_5
+controller_family: TACT
+page_type: temperature
+hmi_variant: tact_temp_6zone
+allow_auto_import: false
+image:
+  file: barrel_B10_ad86e701.jpeg
+fields:
+  barrel_temperature_set_c:
+  - 325
+  - 285
+  - 280
+  - 280
+  - 275
+  - 50
+  barrel_temperature_current_c:
+  - 325.0
+  - 285.0
+  - 280.1
+  - 280.0
+  - 275.0
+  - 49.9
+  high_deviation_c: null
+  low_deviation_c: null
+  control_percent:
+  - 33.8
+  - 13.1
+  - 2.9
+  - 5.7
+  - 56.5
+  - 87.5
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqncKYrTCYQ，日精 B10，054 PLAN S01
+      批次 batch_002）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: TACT5 温度页 5 区+落下口（Profile 未注册，钉住安全拒识）

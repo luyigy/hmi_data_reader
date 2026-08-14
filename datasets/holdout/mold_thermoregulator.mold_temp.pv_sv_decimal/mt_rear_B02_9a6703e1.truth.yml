@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+case_id: mt_rear_B02_9a6703e1
+profile_id: mold_thermoregulator.mold_temp.pv_sv_decimal
+controller_family: MOLD_THERMOREGULATOR
+page_type: mold_temp
+hmi_variant: pv_sv_decimal
+allow_auto_import: true
+image:
+  file: mt_rear_B02_9a6703e1.jpeg
+fields:
+  mold_temperature_set_c: 40.0
+  mold_temperature_current_c: 40.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-模温机后模」附件（record recvqnjbWK1MTx，伯乐 B02，054 PLAN S01
+      批次 batch_002）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: 模具温度调节机双数码管 PV 40.0/SV 40.0

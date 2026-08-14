@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+case_id: mt_rear_B07_19ca92a7
+profile_id: omron_e5cc.mold_temp.single_loop
+controller_family: OMRON_E5CC
+page_type: mold_temp
+hmi_variant: single_loop
+allow_auto_import: true
+image:
+  file: mt_rear_B07_19ca92a7.jpg
+fields:
+  mold_temperature_set_c: 50.0
+  mold_temperature_current_c: 50.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-模温机后模」附件（record recvqnNTs3UNsS，佳明 B07，054 PLAN S01
+      批次 batch_001）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: 奥兰特 AOLANTE 温度循环控制机 + 小型温控器（E5CC 样式白 PV/绿 SV）：PV 50 / SV 50

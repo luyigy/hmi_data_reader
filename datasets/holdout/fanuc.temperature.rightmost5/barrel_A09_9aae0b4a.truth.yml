@@ -1,0 +1,44 @@
+schema_version: 1.0.0
+case_id: barrel_A09_9aae0b4a
+profile_id: fanuc.temperature.rightmost5
+controller_family: FANUC
+page_type: temperature
+hmi_variant: fanuc_rightmost5
+allow_auto_import: true
+image:
+  file: barrel_A09_9aae0b4a.jpeg
+fields:
+  barrel_temperature_set_c:
+  - 340
+  - 335
+  - 335
+  - 335
+  - 50
+  barrel_temperature_current_c:
+  - 340.1
+  - 335.0
+  - 335.0
+  - 335.3
+  - 50.0
+  high_deviation_c:
+  - 40
+  - 30
+  - 30
+  - 30
+  - 10
+  low_deviation_c:
+  - 40
+  - 30
+  - 30
+  - 30
+  - 10
+  control_percent: null
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqncKYrSImd，发那科 A09，054 PLAN S01
+      批次 batch_002）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: FANUC ROBOSHOT N/B1/B2/B3/H 五列正例

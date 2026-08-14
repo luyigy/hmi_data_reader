@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "mt_front_B09_ea486c69",
+  "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
+  "profile_layout_version": 1,
+  "contract_version": "2.7.1",
+  "truth_hash": "sha256:532f5638dac19f5cb67d29e93dc057c25a15a9cf7d4eec1bf6d03277f8d60a92",
+  "image_sha256": "sha256:ea486c695b58b96e1967cdd97546bbdba5413317668fa0397b6ff3b305933f1b",
+  "structure": {
+    "controller_family": "MOLD_THERMOREGULATOR",
+    "page_type": "mold_temp",
+    "hmi_variant": "pv_sv_decimal",
+    "allow_auto_import": true,
+    "image": "mt_front_B09_ea486c69.jpeg",
+    "n_fields": 2
+  },
+  "field_meta": {
+    "mold_temperature_set_c": {
+      "label_zh": "模温设定温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": "mold_zone_temperature_set"
+    },
+    "mold_temperature_current_c": {
+      "label_zh": "模温实际温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": null
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-模温机前模」附件（record recvqngVzobizL，日精 B09，054 PLAN S01 批次 batch_002）"
+    },
+    "verified_by": "kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）",
+    "verified_at": "2026-08-13",
+    "tuning_involvement": "none",
+    "placement_reason": "054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参"
+  }
+}

@@ -23,11 +23,11 @@ def extract_temperature_b_and_r(toks: list[dict], template: dict) -> dict:
 
     cur_l = find_labels(anchors["current"])
     set_l = find_labels(anchors["set"])
-    high_l = [t for t in toks if t["x"] < 0.35 and "高温偏差" in t["text"]]
-    low_l = [t for t in toks if t["x"] < 0.35 and "低温偏差" in t["text"]]
+    high_l = find_labels(anchors["high"])
+    low_l = find_labels(anchors["low"])
     # 高/低温偏差同被截为「温偏差」时按 y 顺序分配（上=高温、下=低温）
     generic = [t for t in find_labels(anchors["high_low_generic"])
-               if "高温偏差" not in t["text"] and "低温偏差" not in t["text"]]
+               if t not in high_l and t not in low_l]
     if not high_l and generic:
         high_l = [generic.pop(0)]
     if not low_l and generic:

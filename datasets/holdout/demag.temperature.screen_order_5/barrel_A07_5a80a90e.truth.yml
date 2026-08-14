@@ -1,0 +1,48 @@
+schema_version: 1.0.0
+case_id: barrel_A07_5a80a90e
+profile_id: demag.temperature.screen_order_5
+controller_family: ARBURG
+page_type: temperature
+hmi_variant: arburg_6zone
+allow_auto_import: false
+image:
+  file: barrel_A07_5a80a90e.jpeg
+fields:
+  barrel_temperature_set_c:
+  - 300
+  - 290
+  - 285
+  - 280
+  - 280
+  - 273
+  barrel_temperature_current_c:
+  - 300
+  - 290
+  - 285
+  - 280
+  - 280
+  - 275
+  high_deviation_c:
+  - 30
+  - 20
+  - 20
+  - 25
+  - 25
+  - 25
+  low_deviation_c:
+  - 25
+  - 25
+  - 25
+  - 25
+  - 25
+  - 25
+  control_percent: null
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqnOxCWOWrm，阿博格 A07，054 PLAN S01
+      批次 batch_002）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: ARBURG SELOGICA 6 区温度页（布局未注册，钉住安全拒识）

@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "barrel_B07_bad59147",
+  "profile_id": "demag.temperature.screen_order_5",
+  "profile_layout_version": 1,
+  "contract_version": "2.7.1",
+  "truth_hash": "sha256:ee94700e34b0175f3e8c88c48c85353d451a1ccbc2a0694f883d1eaf85be01be",
+  "image_sha256": "sha256:bad591476f7357270712094fa77dbdd3f6df977f2cc886810569e17066d76ad4",
+  "structure": {
+    "controller_family": "ZizES",
+    "page_type": "temperature",
+    "hmi_variant": "zizes_7zone",
+    "allow_auto_import": false,
+    "image": "barrel_B07_bad59147.jpeg",
+    "n_fields": 2
+  },
+  "field_meta": {
+    "barrel_temperature_set_c": {
+      "label_zh": "料筒设定温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "喷嘴1",
+          "区3",
+          "区2",
+          "区1"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": "barrel_zone_temperature_set"
+    },
+    "barrel_temperature_current_c": {
+      "label_zh": "料筒当前温度",
+      "page_label_zh": "温度页面（含射嘴/料筒/炮筒温度）",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "barrel_zone",
+        "identity": "array_order",
+        "columns": [
+          "喷嘴1",
+          "区3",
+          "区2",
+          "区1"
+        ]
+      },
+      "value_type": "list[float]",
+      "web_target": "barrel_zone_temperature_actual"
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqnNTs3hthh，佳明 B07，054 PLAN S01 批次 batch_001）"
+    },
+    "verified_by": "kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）",
+    "verified_at": "2026-08-13",
+    "tuning_involvement": "none",
+    "placement_reason": "054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参"
+  }
+}

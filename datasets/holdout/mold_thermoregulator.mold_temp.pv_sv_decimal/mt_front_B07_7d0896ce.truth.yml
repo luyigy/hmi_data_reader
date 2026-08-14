@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+case_id: mt_front_B07_7d0896ce
+profile_id: mold_thermoregulator.mold_temp.pv_sv_decimal
+controller_family: MOLD_THERMOREGULATOR
+page_type: mold_temp
+hmi_variant: pv_sv_decimal
+allow_auto_import: true
+image:
+  file: mt_front_B07_7d0896ce.jpg
+fields:
+  mold_temperature_set_c: 80.0
+  mold_temperature_current_c: 80.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-模温机前模」附件（record recvqnNTs3UNsS，佳明 B07，054 PLAN S01
+      批次 batch_001）
+  verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
+  verified_at: '2026-08-13'
+  tuning_involvement: none
+  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+notes: 模具温度调节机双数码管带小数：PV 80.0 / SV 80.0（第二张）
