@@ -32,6 +32,7 @@ import {
 import {
   configuredWorkflowAutonomy,
   workflowAutonomyAllows,
+  type WorkflowRoleLevel,
 } from './workflow-autonomy';
 import { loadProjectsConfig, type ProjectsConfig } from './project-config';
 import { proposeNextWorkflowInboxPlan } from './workflow-roadmap-inbox';
@@ -88,7 +89,7 @@ type WorkflowRunner = (args: {
   executionPolicy: WorkflowExecutionPolicy;
   eventKey: string;
   roleWorkflow: boolean;
-  roleWorkflowLevel?: 'full' | 'lean' | 'fast';
+  roleWorkflowLevel?: WorkflowRoleLevel;
   roleWorkflowApprovedPlan?: boolean;
   signal: AbortSignal;
 }) => Promise<void | boolean>;

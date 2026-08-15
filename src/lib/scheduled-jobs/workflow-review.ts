@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { loadProjectsConfig } from './project-config';
-import { workflowPreferencesWithRoleLevel } from './workflow-autonomy';
+import { isWorkflowRoleLevel, workflowPreferencesWithRoleLevel, type WorkflowRoleLevel } from './workflow-autonomy';
 
 export type WorkflowReviewPending = {
   key: string;
@@ -14,7 +14,7 @@ export type WorkflowReviewPending = {
   revisionFeedbackMessageId?: string;
   revisionDispatched?: boolean;
   revisionDispatchKey?: string;
-  roleWorkflowLevel?: 'full' | 'lean' | 'fast';
+  roleWorkflowLevel?: WorkflowRoleLevel;
 };
 
 export type WorkflowReviewDecision = 'approve' | 'reject' | 'revision' | 'revise';
@@ -45,7 +45,7 @@ export function applyWorkflowReviewDecision(args: {
   if (args.decision === 'revise') return { status: 'prompt' as const, pending };
   if (args.decision === 'approve'
     && args.roleWorkflowLevel !== undefined
-    && !['full', 'lean', 'fast'].includes(args.roleWorkflowLevel)) {
+    && !isWorkflowRoleLevel(args.roleWorkflowLevel)) {
     return { status: 'invalid' as const, pending };
   }
   return {
@@ -64,7 +64,7 @@ export function applyWorkflowReviewDecision(args: {
         ? { revisionDispatchKey: `${pending.key}:feedback` }
         : {}),
       ...(args.decision === 'approve'
-        ? { roleWorkflowLevel: (args.roleWorkflowLevel ?? 'lean') as 'full' | 'lean' | 'fast' }
+        ? { roleWorkflowLevel: (args.roleWorkflowLevel ?? 'lean') as WorkflowRoleLevel }
         : {}),
     },
   };

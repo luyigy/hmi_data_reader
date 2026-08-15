@@ -41,6 +41,11 @@ assert.deepEqual(parseLiveRoomWorkflowCommand('/run feature --level=lean impleme
   level: 'lean',
   task: 'implement S01',
 });
+assert.deepEqual(parseLiveRoomWorkflowCommand('/run feature --level=implement implement S01'), {
+  name: 'feature',
+  level: 'implement',
+  task: 'implement S01',
+});
 assert.equal(parseLiveRoomWorkflowCommand('/run feature --level=turbo implement S01'), null);
 assert.equal(parseLiveRoomWorkflowCommand('/run build login'), null);
 assert.deepEqual(parseLiveRoomPlanCommand('/plan --host=codex design login'), {
@@ -121,6 +126,10 @@ assert.deepEqual(
   ['implement', 'test'],
 );
 assert.deepEqual(
+  buildLiveRoomWorkflowStages('feature', members, 'implement').map((stage) => stage.id),
+  ['implement'],
+);
+assert.deepEqual(
   buildLiveRoomWorkflowStages('feature', members, 'full', true).map((stage) => stage.id),
   ['plan-review', 'test-plan', 'implement', 'code-review', 'test'],
 );
@@ -131,6 +140,7 @@ assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => cand
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'planner'), 'full', true), []);
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'reviewer'), 'lean'), ['reviewer']);
 assert.deepEqual(missingLiveRoomWorkflowRoles(members.filter((candidate) => candidate.role !== 'planner' && candidate.role !== 'reviewer'), 'fast'), []);
+assert.deepEqual(missingLiveRoomWorkflowRoles([members[1]], 'implement'), []);
 assert.deepEqual(missingLiveRoomWorkflowRoles([
   member('same', 'planner'),
   member('same', 'implementer'),

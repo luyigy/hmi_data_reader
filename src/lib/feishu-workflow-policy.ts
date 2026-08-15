@@ -82,7 +82,7 @@ export async function handleWorkflowPolicyCommand(
     }
     if (action !== 'set' || command.args.length !== 3 || !isWorkflowRoleLevel(command.args[2])
       || Object.keys(command.options).length) {
-      return '用法：/ap workflow level show | /ap workflow level set <full|lean|fast>';
+      return '用法：/ap workflow level show | /ap workflow level set <full|lean|fast|implement>';
     }
     if (!canManageWorkflowAutonomy(
       context.senderOpenId,

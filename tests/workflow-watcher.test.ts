@@ -166,7 +166,7 @@ S01 then S02
     prompt: string;
     eventKey: string;
     roleWorkflow: boolean;
-    roleWorkflowLevel?: 'full' | 'lean' | 'fast';
+    roleWorkflowLevel?: 'full' | 'lean' | 'fast' | 'implement';
     roleWorkflowApprovedPlan?: boolean;
   }> = [];
   let workflowAvailable = true;
@@ -186,7 +186,7 @@ S01 then S02
     mode: 'shadow' | 'active' = 'active',
     workflowAutonomy?: 'manual' | 'semi_auto' | 'auto',
     trigger?: string,
-    workflowRoleLevel?: 'full' | 'lean' | 'fast',
+    workflowRoleLevel?: 'full' | 'lean' | 'fast' | 'implement',
   ) => workflowWatcherHandler({
     project,
     job,
@@ -389,6 +389,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /"decision":"revision"/);
   assert.match(String(reviewCall.body.content), /"name":"roleWorkflowLevel"/);
   assert.match(String(reviewCall.body.content), /"initial_option":"lean"/);
+  assert.match(String(reviewCall.body.content), /Implement · 仅实施（不测试）/);
   assert.match(String(reviewCall.body.content), /"decision":"approve"/);
   assert.match(String(reviewCall.body.content), /"name":"submitApproval"/);
   assert.match(String(reviewCall.body.content), /reviewFeedback/);
@@ -631,6 +632,12 @@ NEXT PROMPT 004_HANDOVER_20260725_s01.md 003_PLAN_20260725_review.md 000_ROADMAP
   });
   assert.equal(approvedFast.status, 'applied');
   assert.equal(approvedFast.pending.roleWorkflowLevel, 'fast');
+  const approvedImplement = applyWorkflowReviewDecision({
+    pending: reviewPending, decision: 'approve', actorOpenId: 'approver', approverOpenId: 'approver',
+    messageId: 'message', pendingKey: 'key', roleWorkflowLevel: 'implement',
+  });
+  assert.equal(approvedImplement.status, 'applied');
+  assert.equal(approvedImplement.pending.roleWorkflowLevel, 'implement');
   const approvedLegacy = applyWorkflowReviewDecision({
     pending: reviewPending, decision: 'approve', actorOpenId: 'approver', approverOpenId: 'approver',
     messageId: 'message', pendingKey: 'key',

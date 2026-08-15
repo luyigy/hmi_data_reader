@@ -17,9 +17,10 @@ import {
   readWorkflowPermissionSnapshot,
 } from '@/lib/workflow-execution-policy';
 import { attachLiveRoomProgress } from '@/lib/live-room-progress';
+import type { WorkflowRoleLevel } from '@/lib/scheduled-jobs/workflow-autonomy';
 
 export type LiveRoomWorkflowName = 'feature' | 'debug';
-export type LiveRoomWorkflowLevel = 'full' | 'lean' | 'fast';
+export type LiveRoomWorkflowLevel = WorkflowRoleLevel;
 
 const execFileAsync = promisify(execFile);
 
@@ -52,7 +53,9 @@ const workflowRolesFor = (level: LiveRoomWorkflowLevel, approvedPlan = false) =>
   ? approvedPlan ? WORKFLOW_ROLES.slice(1) : WORKFLOW_ROLES
   : level === 'lean'
     ? WORKFLOW_ROLES.slice(1)
-    : WORKFLOW_ROLES.filter((role) => role === 'implementer' || role === 'tester');
+    : level === 'fast'
+      ? WORKFLOW_ROLES.filter((role) => role === 'implementer' || role === 'tester')
+      : WORKFLOW_ROLES.filter((role) => role === 'implementer');
 
 export const parseLiveRoomWorkflowCommand = (content: string) => {
   const match = content.trim().match(/^\/run\s+(feature|debug)(?:\s+([\s\S]+))?$/i);
@@ -64,7 +67,7 @@ export const parseLiveRoomWorkflowCommand = (content: string) => {
   let level: LiveRoomWorkflowLevel = 'full';
   while (tokens[0]?.startsWith('--')) {
     const option = tokens.shift()!;
-    const value = option.match(/^--level=(full|lean|fast)$/i)?.[1]?.toLowerCase();
+    const value = option.match(/^--level=(full|lean|fast|implement)$/i)?.[1]?.toLowerCase();
     if (!value) return null;
     level = value as LiveRoomWorkflowLevel;
   }
@@ -349,7 +352,7 @@ export const buildLiveRoomWorkflowStages = (
     addStage(stages, 'plan', '实施计划', planner, '给出最小实施计划、涉及文件、风险和验证方式。此阶段不要修改代码。');
   }
 
-  if (level !== 'fast') {
+  if (level === 'full' || level === 'lean') {
     addStage(stages, 'plan-review', '计划审查', reviewer, '审查已有计划是否足以直接实施、是否遗漏边界或过度设计。明确给出 APPROVED 或 CHANGES_REQUESTED，并列出具体理由。不要修改代码。');
   }
   if (level === 'full' && !approvedPlan) {
@@ -373,20 +376,24 @@ export const buildLiveRoomWorkflowStages = (
     implementer,
     level === 'full'
       ? '严格按照已确认计划和测试方案修改代码。完成最小必要实现和自测，并列出修改文件。'
-      : '依据已有 PLAN 和原始任务直接完成最小必要实现与自测，并列出修改文件。不要重新制定完整计划。'
+      : level === 'implement'
+        ? '依据已有 PLAN 和原始任务直接完成最小必要实现并列出修改文件。不要重新制定计划，不要运行测试。'
+        : '依据已有 PLAN 和原始任务直接完成最小必要实现与自测，并列出修改文件。不要重新制定完整计划。'
   );
   if (level === 'full') {
     addStage(stages, 'code-review', '代码审查', reviewer, '审查实际代码改动的正确性、回归风险、安全性和是否符合计划。运行必要的轻量检查。明确给出 APPROVED 或 CHANGES_REQUESTED；发现问题时给出文件和位置。');
   }
-  addStage(
-    stages,
-    'test',
-    name === 'debug' ? '回归测试' : '验收测试',
-    tester,
-    level === 'full'
-      ? '严格按照前面确认的测试方案执行测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。'
-      : '依据已有 PLAN、原始任务和实际改动执行必要测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。',
-  );
+  if (level !== 'implement') {
+    addStage(
+      stages,
+      'test',
+      name === 'debug' ? '回归测试' : '验收测试',
+      tester,
+      level === 'full'
+        ? '严格按照前面确认的测试方案执行测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。'
+        : '依据已有 PLAN、原始任务和实际改动执行必要测试。报告实际命令、结果和失败证据，明确给出 PASSED 或 FAILED。',
+    );
+  }
   if (level === 'full' && !approvedPlan) {
     addStage(stages, 'final', '最终总结', planner, '汇总实施、代码审查和测试结果。若存在未解决失败必须明确说明，不得声称任务已完成。');
   }
@@ -469,7 +476,7 @@ export const runLiveRoomWorkflow = async ({
       roomId,
       content: task
         ? `系统提示：无法启动 ${name} 工作流，缺少可执行且独立的角色：${missingRoles.join('、')}。请补齐角色并确认其 harness 可用后重试。`
-        : `系统提示：用法：/run ${name} [--level=full|lean|fast] <任务>`,
+        : `系统提示：用法：/run ${name} [--level=full|lean|fast|implement] <任务>`,
       messageType: 'system',
     });
     return;

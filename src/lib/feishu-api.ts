@@ -306,6 +306,7 @@ export const sendFeishuWorkflowReviewCard = (args: {
               { text: { tag: 'plain_text', content: 'Full · 完整审查、实施与测试' }, value: 'full' },
               { text: { tag: 'plain_text', content: 'Lean · 计划审查 + 实施 + 测试' }, value: 'lean' },
               { text: { tag: 'plain_text', content: 'Fast · 实施 + 测试' }, value: 'fast' },
+              { text: { tag: 'plain_text', content: 'Implement · 仅实施（不测试）' }, value: 'implement' },
             ],
           },
           {

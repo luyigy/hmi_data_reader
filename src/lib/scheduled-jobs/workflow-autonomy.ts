@@ -2,7 +2,7 @@ import type { JobConfig } from './project-config';
 
 export const WORKFLOW_AUTONOMY_MODES = ['manual', 'semi_auto', 'auto'] as const;
 export type WorkflowAutonomy = typeof WORKFLOW_AUTONOMY_MODES[number];
-export const WORKFLOW_ROLE_LEVELS = ['full', 'lean', 'fast'] as const;
+export const WORKFLOW_ROLE_LEVELS = ['full', 'lean', 'fast', 'implement'] as const;
 export type WorkflowRoleLevel = typeof WORKFLOW_ROLE_LEVELS[number];
 export type WorkflowAdvance = 'revision' | 'start_first_slice' | 'next_slice' | 'resume_parent';
 

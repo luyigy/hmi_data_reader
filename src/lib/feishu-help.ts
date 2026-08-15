@@ -40,7 +40,7 @@ const HELP_PAGES = [
   ['Workflow / Jobs', [
     '/ap workflow status',
     '/ap workflow level show',
-    '/ap workflow level set <full|lean|fast>  (管理员/项目审批人，后续 Slice 生效)',
+    '/ap workflow level set <full|lean|fast|implement>  (管理员/项目审批人，后续 Slice 生效)',
     '/ap workflow autonomy show',
     '/ap workflow autonomy set <manual|semi_auto|auto> --head=<当前HEAD>  (管理员/项目审批人)',
     '/ap workflow validation show',
@@ -300,6 +300,7 @@ export const buildFeishuCommandCenterCard = (
               { text: { tag: 'plain_text', content: 'Full · 完整流程' }, value: 'full' },
               { text: { tag: 'plain_text', content: 'Lean · 计划审查 + 实施 + 测试' }, value: 'lean' },
               { text: { tag: 'plain_text', content: 'Fast · 实施 + 测试' }, value: 'fast' },
+              { text: { tag: 'plain_text', content: 'Implement · 仅实施（不测试）' }, value: 'implement' },
             ],
           }] : []),
           ...form.fields.map((field) => ({
@@ -618,12 +619,12 @@ export const buildFeishuCommandFromForm = (
   if (form === 'form-schedule' && text('jobId') && text('cron')) {
     return { command: 'job', args: ['schedule', text('jobId')], options: { cron: text('cron') } };
   }
-  if (form === 'form-workflow-level' && ['full', 'lean', 'fast'].includes(text('workflowLevel'))) {
+  if (form === 'form-workflow-level' && ['full', 'lean', 'fast', 'implement'].includes(text('workflowLevel'))) {
     return { command: 'workflow', args: ['level', 'set', text('workflowLevel')], options: {} };
   }
   if (form === 'form-run-feature' && text('task')) {
     const level = text('level');
-    if (!['full', 'lean', 'fast'].includes(level)) return null;
+    if (!['full', 'lean', 'fast', 'implement'].includes(level)) return null;
     return { command: 'chat', args: [`/run feature --level=${level} ${text('task')}`], options: {} };
   }
   if (form === 'form-run-debug' && text('task')) {
