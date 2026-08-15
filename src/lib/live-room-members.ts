@@ -225,20 +225,11 @@ const toCatalogAgentId = (agent: Awaited<ReturnType<typeof deriveGatewayHarnessO
   `${agent.executionBackend}:${agent.gatewayId}:${agent.runtimeAgentId || agent.agentId || agent.harnessType}`;
 
 export const listLiveRoomCatalogAgents = async (user?: AuthUser): Promise<LiveRoomCatalogAgent[]> => {
-  const options = await deriveGatewayHarnessOptions();
+  // Non-admin callers only ever see their own remote nodes; the catalog itself
+  // scopes the query so no foreign options are even built.
+  const options = await deriveGatewayHarnessOptions(user);
 
-  const ownedNodeNames = user?.role === 'user'
-    ? new Set((await prisma.remoteNode.findMany({
-        where: { ownerUserId: user.id },
-        select: { name: true },
-      })).map((node) => node.name))
-    : null;
-
-  return options.filter((option) => !ownedNodeNames || (
-    option.executionBackend === 'remote_ssh'
-    && option.gatewayId.startsWith('remote-node:')
-    && ownedNodeNames.has(option.gatewayId.slice('remote-node:'.length))
-  )).map((option) => ({
+  return options.map((option) => ({
     id: toCatalogAgentId(option),
     agentRecordId: option.executionBackend === 'gateway_openclaw' ? option.agentId || null : null,
     gatewayId: option.gatewayId,

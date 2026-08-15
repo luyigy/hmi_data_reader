@@ -58,12 +58,12 @@ const ROUTE_RULES: readonly RouteRule[] = [
     ['/api/tasks/:id/room', ['GET', 'DELETE']],
     ['/api/tasks/:id/runs', ['GET']],
     ['/api/tasks/:id/runs/latest', ['GET']],
+    ['/api/acpx/harness-options', ['GET']],
   ]),
   ...apiRules(admin, [
     ['/api/admin/users', ['GET', 'POST']],
     ['/api/admin/users/:id', ['DELETE']],
     ['/api/admin/users/:id/reset-password', ['POST']],
-    ['/api/acpx/harness-options', ['GET']],
     ['/api/agents', ['GET']],
     ['/api/agents/:id', ['PATCH']],
     ['/api/agents/register-real', ['GET', 'POST']],

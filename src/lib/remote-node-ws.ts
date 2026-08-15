@@ -62,6 +62,16 @@ export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage):
   const authorization = req.headers.authorization?.trim() || '';
   const secret = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
 
+  // Buffer socket events that fire while the async database setup below is still
+  // in flight. Runners send their `hello` immediately on 'open'; attaching the
+  // real listeners after the awaits used to drop that frame, so harness/workspace
+  // metadata never reached the registry and the node never surfaced in harness options.
+  const earlyMessages: string[] = [];
+  let earlyClosed = false;
+  let onMessage: ((data: string) => void) | null = (data) => earlyMessages.push(data);
+  ws.addEventListener('message', (event) => onMessage?.(event.data.toString()));
+  ws.addEventListener('close', () => { earlyClosed = true; }, { once: true });
+
   if (!nodeName || !secret) {
     ws.close(4001, 'Missing node name or secret');
     return;
@@ -78,10 +88,10 @@ export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage):
   connectedNodes.set(nodeName, socket);
   await markRemoteNodeMembersOnline(nodeName);
 
-  ws.addEventListener('message', (event) => {
+  const handleMessage = (raw: string) => {
     let message: Record<string, unknown>;
     try {
-      message = JSON.parse(event.data.toString()) as Record<string, unknown>;
+      message = JSON.parse(raw) as Record<string, unknown>;
     } catch {
       return;
     }
@@ -118,7 +128,9 @@ export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage):
           : [],
       });
     }
-  });
+  };
+  onMessage = handleMessage;
+  for (const data of earlyMessages.splice(0)) handleMessage(data);
 
   const disconnect = () => {
     if (connectedNodes.get(nodeName) !== socket) return;
@@ -129,6 +141,7 @@ export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage):
   };
   ws.addEventListener('close', disconnect, { once: true });
   ws.addEventListener('error', disconnect, { once: true });
+  if (earlyClosed) disconnect();
   ws.send(JSON.stringify({ type: 'welcome', nodeId: node.id, nodeName: node.name }));
 }
 

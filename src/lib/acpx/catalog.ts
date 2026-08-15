@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getRealAgentsStatus } from '@/lib/real-agents';
 import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
+import type { AuthUser } from '@/lib/auth-users';
 import type { AcpxExecutionBackend } from './types';
 
 export interface HarnessOption {
@@ -77,7 +78,19 @@ const parseSupportedHarnesses = (value?: string | null): string[] => {
   }
 };
 
-export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> => {
+export const deriveGatewayHarnessOptions = async (
+  user?: Pick<AuthUser, 'id' | 'role'>,
+): Promise<HarnessOption[]> => {
+  if (user && user.role !== 'admin') {
+    // Non-admin users may only execute through remote nodes they own (see
+    // requireExecutionAccess). Surface exactly those, never platform-local
+    // hosts, global gateways, or shared SSH hosts.
+    const owned = await prisma.remoteNode.findMany({
+      where: { ownerUserId: user.id },
+      orderBy: { name: 'asc' },
+    });
+    return buildRemoteNodeOptions(owned);
+  }
   const currentHostname = getServerHostname();
   await ensurePlatformLocalAgents();
   const [gateways, localStatus, remoteHosts, platformLocalAgents, remoteNodes] = await Promise.all([
@@ -305,7 +318,12 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
     }
   }
 
-  for (const node of remoteNodes) {
+  return [...options, ...buildRemoteNodeOptions(remoteNodes)];
+};
+
+const buildRemoteNodeOptions = (nodes: Awaited<ReturnType<typeof prisma.remoteNode.findMany>>): HarnessOption[] => {
+  const nodeOptions: HarnessOption[] = [];
+  for (const node of nodes) {
     let metadata: { harnesses?: unknown; workspace?: unknown } = {};
     try {
       metadata = node.metadata ? JSON.parse(node.metadata) : {};
@@ -316,7 +334,7 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
       ? metadata.harnesses.filter((value): value is string => typeof value === 'string')
       : [];
     for (const harnessType of harnesses) {
-      options.push({
+      nodeOptions.push({
         gatewayId: `remote-node:${node.name}`,
         gatewayName: node.name,
         executionBackend: 'remote_ssh',
@@ -330,6 +348,5 @@ export const deriveGatewayHarnessOptions = async (): Promise<HarnessOption[]> =>
       });
     }
   }
-
-  return options;
+  return nodeOptions;
 };
