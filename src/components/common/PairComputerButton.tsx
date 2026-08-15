@@ -36,7 +36,7 @@ export function PairComputerButton({ collapsed }: { collapsed: boolean }) {
   const [command, setCommand] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState<'yes' | 'manual' | null>(null);
+  const [copied, setCopied] = useState<'windows' | 'unix' | 'manual' | null>(null);
 
   const create = async () => {
     setLoading(true);
@@ -46,7 +46,7 @@ export function PairComputerButton({ collapsed }: { collapsed: boolean }) {
       const response = await fetch('/api/pairing-tickets', { method: 'POST' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '创建配对票据失败');
-      setCommand(`curl -fsSL ${window.location.origin}/runner.js | node - --pairing-token=${result.token}`);
+      setCommand(`${window.location.origin}/runner.js | node - --pairing-token=${result.token}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '创建配对票据失败');
     } finally {
@@ -54,9 +54,9 @@ export function PairComputerButton({ collapsed }: { collapsed: boolean }) {
     }
   };
 
-  const copy = async () => {
-    const ok = await copyText(command);
-    setCopied(ok ? 'yes' : 'manual');
+  const copy = async (text: string, target: 'windows' | 'unix') => {
+    const ok = await copyText(text);
+    setCopied(ok ? target : 'manual');
     if (ok) setTimeout(() => setCopied(null), 2500);
   };
 
@@ -77,9 +77,15 @@ export function PairComputerButton({ collapsed }: { collapsed: boolean }) {
             {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : (
               <>
                 <p className="mt-2 text-sm text-slate-600">在目标电脑的工作目录运行以下命令。票据 10 分钟内有效且只能使用一次。</p>
-                <pre className="mt-4 select-text overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100"><code>{command}</code></pre>
-                <button onClick={() => void copy()} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-                  {copied === 'yes' ? '已复制 ✓' : '复制命令'}
+                <p className="mt-4 text-xs font-medium text-slate-600">Windows PowerShell</p>
+                <pre className="mt-1 select-text overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100"><code>curl.exe -fsSL {command}</code></pre>
+                <p className="mt-4 text-xs font-medium text-slate-600">macOS / Linux</p>
+                <pre className="mt-1 select-text overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100"><code>curl -fsSL {command}</code></pre>
+                <button onClick={() => void copy(`curl.exe -fsSL ${command}`, 'windows')} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
+                  {copied === 'windows' ? '已复制 ✓' : '复制 Windows 命令'}
+                </button>
+                <button onClick={() => void copy(`curl -fsSL ${command}`, 'unix')} className="ml-3 mt-4 rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
+                  {copied === 'unix' ? '已复制 ✓' : '复制 macOS/Linux 命令'}
                 </button>
                 {copied === 'manual' && (
                   <span className="ml-3 text-xs text-amber-600">浏览器禁止了自动复制，请手动选中上方命令复制。</span>

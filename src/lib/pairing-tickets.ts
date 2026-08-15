@@ -13,6 +13,46 @@ export class PairingTicketError extends Error {
   }
 }
 
+/**
+ * WebSocket endpoint handed to runners. Derived from the origin the runner
+ * actually reached (tunnel IP, LAN IP, or reverse proxy) so the address is
+ * routable from wherever the runner lives. REMOTE_RUNNER_PUBLIC_URL overrides
+ * with a full URL (e.g. behind an external proxy); otherwise the gateway port
+ * (REMOTE_RUNNER_GATEWAY_PORT, default 3012) is combined with the request host.
+ */
+/**
+ * Origin the client actually reached us on. Next dev reconstructs request.url
+ * from the listen address (e.g. http://0.0.0.0:3010), which is unroutable for
+ * runners, so prefer x-forwarded-host / Host headers when present.
+ */
+export const requestOrigin = (request: Request): string => {
+  const headerOrigin = (name: string) => request.headers.get(name)?.split(',')[0]?.trim();
+  const host = headerOrigin('x-forwarded-host') || request.headers.get('host')?.trim()
+    || new URL(request.url).host;
+  const proto = headerOrigin('x-forwarded-proto')
+    || (host.endsWith(':443') ? 'https' : new URL(request.url).protocol.replace(':', ''));
+  return `${proto}://${host}`;
+};
+
+export type RunnerServerUrlEnv = {
+  [key: string]: string | undefined;
+  REMOTE_RUNNER_PUBLIC_URL?: string | undefined;
+  REMOTE_RUNNER_GATEWAY_PORT?: string | undefined;
+};
+
+export const resolveRunnerServerUrl = (
+  origin: string,
+  env: RunnerServerUrlEnv = process.env,
+): string => {
+  const url = new URL(origin);
+  const override = env.REMOTE_RUNNER_PUBLIC_URL?.trim();
+  const gatewayPort = env.REMOTE_RUNNER_GATEWAY_PORT?.trim() || '3012';
+  return `${(override || `${url.protocol}//${url.hostname}:${gatewayPort}`)
+    .replace(/^http:/, 'ws:')
+    .replace(/^https:/, 'wss:')
+    .replace(/\/+$/, '')}/runner`;
+};
+
 export async function createPairingTicket(user: AuthUser) {
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + TTL_MS);

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { claimPairingTicket, PairingTicketError } from '@/lib/pairing-tickets';
+import { claimPairingTicket, PairingTicketError, requestOrigin, resolveRunnerServerUrl } from '@/lib/pairing-tickets';
 
 export async function POST(request: Request) {
   try {
@@ -11,10 +11,10 @@ export async function POST(request: Request) {
       body.pairingToken,
       typeof body.nodeName === 'string' ? body.nodeName : 'local-computer',
     );
-    const origin = new URL(request.url).origin;
-    const wsOrigin = (process.env.REMOTE_RUNNER_PUBLIC_URL?.trim() || origin)
-      .replace(/^http:/, 'ws:').replace(/^https:/, 'wss:').replace(/\/$/, '');
-    return NextResponse.json({ ...claimed, server: `${wsOrigin}/runner` });
+    return NextResponse.json({
+      ...claimed,
+      server: resolveRunnerServerUrl(requestOrigin(request)),
+    });
   } catch (error) {
     if (error instanceof PairingTicketError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

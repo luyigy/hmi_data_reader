@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { prisma } from '../src/lib/prisma';
-import { claimPairingTicket, createPairingTicket, PairingTicketError } from '../src/lib/pairing-tickets';
+import { claimPairingTicket, createPairingTicket, PairingTicketError, requestOrigin, resolveRunnerServerUrl } from '../src/lib/pairing-tickets';
 import { resolveRouteAuth } from '../src/lib/auth-routes';
 
 async function main() {
@@ -41,6 +41,41 @@ async function main() {
   };
 
   try {
+    assert.equal(
+      requestOrigin(new Request('http://0.0.0.0:3010/x', { headers: { host: '10.144.144.5:3010' } })),
+      'http://10.144.144.5:3010',
+      'Host header wins over the unroutable listen address',
+    );
+    assert.equal(
+      requestOrigin(new Request('http://internal/x', {
+        headers: { host: 'proxy.example.com', 'x-forwarded-proto': 'https' },
+      })),
+      'https://proxy.example.com',
+    );
+
+    assert.equal(
+      resolveRunnerServerUrl('http://10.144.144.5:3010', {}),
+      'ws://10.144.144.5:3012/runner',
+      'tunnel access derives a tunnel-routable ws endpoint',
+    );
+    assert.equal(
+      resolveRunnerServerUrl('http://192.168.31.109:3010', {}),
+      'ws://192.168.31.109:3012/runner',
+    );
+    assert.equal(
+      resolveRunnerServerUrl('https://platform.example.com', {}),
+      'wss://platform.example.com:3012/runner',
+    );
+    assert.equal(
+      resolveRunnerServerUrl('http://10.144.144.5:3010', { REMOTE_RUNNER_PUBLIC_URL: 'https://proxy.example.com/' }),
+      'wss://proxy.example.com/runner',
+      'explicit public URL override wins',
+    );
+    assert.equal(
+      resolveRunnerServerUrl('http://10.144.144.5:3010', { REMOTE_RUNNER_GATEWAY_PORT: '9312' }),
+      'ws://10.144.144.5:9312/runner',
+    );
+
     assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/pairing-tickets', method: 'POST' }), { access: 'authenticated' });
     assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/runner/claim', method: 'POST' }), { access: 'public' });
     assert.deepEqual(resolveRouteAuth({ surface: 'page', pathname: '/runner.js', method: 'GET' }), { access: 'public' });
