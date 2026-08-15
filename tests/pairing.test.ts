@@ -109,6 +109,10 @@ async function main() {
 
     const wsSource = await readFile('src/lib/remote-node-ws.ts', 'utf8');
     const runnerSource = await readFile('scripts/agent-platform-runner.js', 'utf8');
+    const pairingUiSource = await readFile('src/components/common/PairComputerButton.tsx', 'utf8');
+    assert.match(pairingUiSource, /Windows PowerShell \/ CMD/);
+    assert.match(pairingUiSource, /无需先 cd/);
+    assert.match(pairingUiSource, /curl\.exe -fsSL/);
     assert.match(wsSource, /headers\.authorization/);
     assert.doesNotMatch(wsSource, /searchParams\.get\('secret'\)/);
     assert.match(runnerSource, /Authorization: `Bearer \$\{nodeToken\}`/);
