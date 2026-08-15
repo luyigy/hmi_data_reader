@@ -417,6 +417,20 @@ export const workflowWatcherHandler = async (
     let pending = workflowRoleLevel
       ? { ...previous.pending, roleWorkflowLevel: workflowRoleLevel }
       : previous.pending;
+    if (pending.gate === 'plan_review'
+      && !['revision', 'revision_requested', 'awaiting_revision_feedback'].includes(pending.reviewState || '')) {
+      const currentBlob = (await git(project.path, signal, 'rev-parse', `${head}:${pending.path}`)).trim();
+      if (currentBlob !== pending.blob) {
+        if (mode === 'shadow') {
+          return { summary: `head=${head} pending=${pending.path} gate=plan_review changed=true`, cursor: previous };
+        }
+        if (pending.reviewMessageId) {
+          await expireReview(pending.reviewMessageId)
+            .catch((error) => console.error('[WorkflowReview] failed to expire changed card', error));
+        }
+        pending = { ...pending, reviewState: 'revision' };
+      }
+    }
     const revisionPrompt = () => {
       const feedback = pending.reviewFeedback?.trim();
       return `PLAN_REVISE\nplan_path: ${pending.path}\n`

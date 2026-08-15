@@ -410,6 +410,39 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.equal(new URL(reviewCall.url).searchParams.get('receive_id_type'), 'chat_id');
   assert.match(String(reviewCall.body.content), /"reviewAttempt":1/);
 
+  const reviewedPlanPath = path.join(root, 'docs/branch/main/003_PLAN_20260725_review.md');
+  await writeFile(reviewedPlanPath, `${importedDocuments[0].content}\n外部直接修订\n`);
+  git('add', '.');
+  git('commit', '-qm', 'directly revise pending plan');
+  const expiredChangedCards: string[] = [];
+  const changedImports: string[] = [];
+  const changedReview = await workflowWatcherHandler({
+    project,
+    job,
+    mode: 'active',
+    cursor: review.cursor,
+    signal: new AbortController().signal,
+  }, async () => true, async ({ content }) => {
+    changedImports.push(content);
+    return 'https://example.feishu.cn/docx/changed-plan';
+  }, async () => 'unused', async (messageId) => {
+    expiredChangedCards.push(messageId);
+  });
+  assert.match(changedReview.summary, /gate=plan_review revised=true/);
+  assert.deepEqual(expiredChangedCards, ['review-1']);
+  assert.match(changedImports[0], /外部直接修订/);
+  assert.equal(
+    (changedReview.cursor as { pending: { documentUrl: string; reviewMessageId?: string } }).pending.documentUrl,
+    'https://example.feishu.cn/docx/changed-plan',
+  );
+  assert.equal(
+    (changedReview.cursor as { pending: { reviewMessageId?: string } }).pending.reviewMessageId,
+    undefined,
+  );
+  await writeFile(reviewedPlanPath, importedDocuments[0].content);
+  git('add', '.');
+  git('commit', '-qm', 'restore pending plan fixture');
+
   const supersedingHandoverPath = path.join(root, 'docs/branch/main/004_HANDOVER_20260725_s01.md');
   await writeFile(supersedingHandoverPath, `---
 doc_type: HANDOVER
