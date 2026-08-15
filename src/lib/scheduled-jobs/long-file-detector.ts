@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { sendFeishuTextMessage } from '../feishu-api';
 import { LONG_FILE_CONTRACT_PATH, parseLongFileRules } from '../long-file-guard';
 import type { JobHandler } from './handlers';
@@ -17,6 +17,34 @@ const git = (cwd: string, signal: AbortSignal, ...args: string[]) => new Promise
   });
 });
 
+const gitBlobs = (cwd: string, signal: AbortSignal, blobs: string[]) => new Promise<Buffer[]>((resolve, reject) => {
+  if (!blobs.length) return resolve([]);
+  const child = spawn('git', ['-C', cwd, 'cat-file', '--batch'], { signal, stdio: ['pipe', 'pipe', 'pipe'] });
+  const stdout: Buffer[] = [];
+  const stderr: Buffer[] = [];
+  child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+  child.on('error', reject);
+  child.on('close', (code) => {
+    if (code !== 0) return reject(new Error(Buffer.concat(stderr).toString().trim() || `git cat-file exited with ${code}`));
+    const output = Buffer.concat(stdout);
+    const contents: Buffer[] = [];
+    let offset = 0;
+    for (const blob of blobs) {
+      const newline = output.indexOf(10, offset);
+      const header = newline < 0 ? '' : output.subarray(offset, newline).toString();
+      const match = header.match(/^([0-9a-f]+) blob (\d+)$/);
+      if (!match || match[1] !== blob) return reject(new Error(`invalid git cat-file response for ${blob}`));
+      const size = Number(match[2]);
+      offset = newline + 1;
+      contents.push(output.subarray(offset, offset + size));
+      offset += size + 1;
+    }
+    resolve(contents);
+  });
+  child.stdin.end(`${blobs.join('\n')}\n`);
+});
+
 const lineCount = (content: Buffer) => {
   if (!content.length) return 0;
   let lines = content.at(-1) === 10 ? 0 : 1;
@@ -33,6 +61,7 @@ export async function detectLongFiles(
   const rules = parseLongFileRules((await git(cwd, signal, 'show', `${head}:${LONG_FILE_CONTRACT_PATH}`)).toString());
   const tree = (await git(cwd, signal, 'ls-tree', '-r', '-z', '--full-tree', head)).toString();
   const offenders: Offender[] = [];
+  const candidates: Array<{ blob: string; filePath: string }> = [];
 
   for (const entry of tree.split('\0')) {
     if (!entry) continue;
@@ -42,9 +71,13 @@ export async function detectLongFiles(
     if (filePath.split('/').some((part) => rules.ignored.has(part))) continue;
     const extension = filePath.includes('.') ? filePath.slice(filePath.lastIndexOf('.')).toLowerCase() : '';
     if (!rules.extensions.has(extension)) continue;
-    const lines = lineCount(await git(cwd, signal, 'cat-file', 'blob', blob));
-    if (lines >= rules.blocking) offenders.push({ path: filePath, blob, head, lines });
+    candidates.push({ blob, filePath });
   }
+  const contents = await gitBlobs(cwd, signal, candidates.map(({ blob }) => blob));
+  candidates.forEach(({ blob, filePath }, index) => {
+    const lines = lineCount(contents[index]);
+    if (lines >= rules.blocking) offenders.push({ path: filePath, blob, head, lines });
+  });
   return { head, threshold: rules.blocking, offenders };
 }
 
