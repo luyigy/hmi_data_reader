@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { createUserSession, loadAuthConfig } from '../src/lib/auth';
 import { prisma } from '../src/lib/prisma';
 import { AuthenticationError, requireAdmin, verifySessionToken } from '../src/lib/auth-users';
-import { middleware } from '../middleware';
+import { middleware } from '../src/middleware';
 
 const env = {
   NODE_ENV: 'production',
