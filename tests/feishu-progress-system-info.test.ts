@@ -27,8 +27,10 @@ async function runTest() {
   tracker.onSystemEvent('开始处理消息 | codex (local_acpx)', '🚀');
   tracker.onSystemEvent('思考分析：读取 /srv/agent-platform/src/config.ts token=secret-value', '🧠');
   assert.match((tracker as any).buildCard().elements[0].content, /当前阶段：思考/);
+  assert.match((tracker as any).buildCard().elements[0].content, /最新进展：.*思考分析：读取 src\/config\.ts/);
   tracker.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
   assert.match((tracker as any).buildCard().elements[0].content, /当前阶段：等待/);
+  assert.match((tracker as any).buildCard().elements[0].content, /最新进展：.*心跳保活/);
 
   // Test adding tool events
   tracker.onToolEvent('view_file', 'src/lib/feishu-progress.ts', '📄');
@@ -43,6 +45,7 @@ async function runTest() {
   assert.strictEqual(card.config.wide_screen_mode, true);
   assert.strictEqual(card.header.title.content, '🔄 Agent 执行中...');
   assert.match(card.elements[0].content, /当前阶段：工具.*已用时 1分5秒.*累计 8 步/);
+  assert.match(card.elements[0].content, /最新进展：.*tool-4：private-4\.txt/);
 
   const systemPanel = card.elements.find((el: any) =>
     el.tag === 'collapsible_panel' && el.header?.title?.content === '⚙️ 系统信息详情'

@@ -26,6 +26,7 @@ export class FeishuProgressTracker {
   private statusText = '执行中...';
   private stepCount = 0;
   private phase = '等待';
+  private latestActivity = '等待 Agent 输出...';
   private readonly startedAt = Date.now();
   private readonly workspaceRoot: string;
 
@@ -39,6 +40,7 @@ export class FeishuProgressTracker {
     const safeToolName = sanitizePreview(toolName, { workspaceRoot: this.workspaceRoot });
     const safePreview = sanitizePreview(preview, { workspaceRoot: this.workspaceRoot });
     this.phase = '工具';
+    this.latestActivity = `${emoji} ${safeToolName}${safePreview ? `：${safePreview}` : ''}`;
 
     const lastEntry = this.entries.at(-1);
     if (lastEntry && lastEntry.toolName === safeToolName) {
@@ -59,6 +61,7 @@ export class FeishuProgressTracker {
     const truncated = sanitizePreview(message, { workspaceRoot: this.workspaceRoot });
     if (emoji === '🧠') this.phase = '思考';
     else if (emoji === '💓' || emoji === '🚀') this.phase = '等待';
+    this.latestActivity = `${emoji} ${truncated}`;
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
@@ -99,7 +102,7 @@ export class FeishuProgressTracker {
     const elements: Array<Record<string, unknown>> = [
       {
         tag: 'markdown',
-        content: `**当前阶段：${this.phase}** · 已用时 ${this.elapsedText()} · 累计 ${this.stepCount} 步`,
+        content: `**当前阶段：${this.phase}** · 已用时 ${this.elapsedText()} · 累计 ${this.stepCount} 步\n**最新进展：** ${this.latestActivity}`,
       },
     ];
 
