@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "hr_Z001_aa0e8e4a",
+  "profile_id": "tact.hot_runner_temp.digital_sv",
+  "profile_layout_version": 1,
+  "contract_version": "2.8.0",
+  "truth_hash": "sha256:e1bf6e034743be995919355ae0ad4bfd180700a4c69468a37111546218489e84",
+  "image_sha256": "sha256:aa0e8e4abdc0d8c1876c8b960c7992408962ff562917dea8b86c0ad76aa60ac5",
+  "structure": {
+    "controller_family": "TACT",
+    "page_type": "hot_runner_temp",
+    "hmi_variant": "digital_sv",
+    "allow_auto_import": true,
+    "image": "hr_Z001_aa0e8e4a.jpeg",
+    "n_fields": 1
+  },
+  "field_meta": {
+    "hot_runner_sv_c": {
+      "label_zh": "热流道设定温度",
+      "page_label_zh": "热流道温控箱面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "hot_runner_channel",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "hot_runner_zone_temperature_set"
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "原始 Base 新样本（062 HANDOVER 批次）"
+    },
+    "verified_by": "codex 逐图目视复核（062）",
+    "verified_at": "2026-08-14",
+    "tuning_involvement": "algorithm_debugging",
+    "placement_reason": "已用于识别根因调试，归入 calibration，禁止进入 holdout"
+  }
+}

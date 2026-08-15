@@ -105,6 +105,25 @@ def _extract_pv_sv(toks: list[dict], template: dict) -> dict:
 
     pv = pv_row[0]["v"]
     sv = sv_row[0]["v"]
+    # 完整 OCR 已给出双行、但两套独立 cell OCR 都只看清同一行时，无法仅凭
+    # 单行判断它是 PV 还是 SV。若该共识值不能同时解释完整 OCR 的两行，说明
+    # 来源互相矛盾；安全拒识，避免把七段残影（如 100.1 -> 100.8）自动入库。
+    if src_name in ("base", "mt_full"):
+        cell_rows = rows_by_src["mt_cell"]
+        orig_rows = rows_by_src["mt_cell_orig"]
+        if len(cell_rows) == len(orig_rows) == 1:
+            cell_values = {e["v"] for e in cell_rows[0]}
+            orig_values = {e["v"] for e in orig_rows[0]}
+            if len(cell_values) == len(orig_values) == 1:
+                cell_value = next(iter(cell_values))
+                orig_value = next(iter(orig_values))
+                if (abs(cell_value - orig_value) <= 0.5
+                        and not all(abs(cell_value - v) <= 0.5 for v in (pv, sv))):
+                    detail["value_conflict"] = {
+                        "trusted": [pv, sv], "cell_consensus": cell_value}
+                    return {"fields": None, "heater_columns": 0,
+                            "warnings": warnings + ["VALUE_SOURCE_CONFLICT"],
+                            "detail": detail}
     detail["pv_text"] = pv_row[0]["text"]
     detail["sv_text"] = sv_row[0]["text"]
     fields = {

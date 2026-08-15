@@ -1,0 +1,20 @@
+schema_version: 1.0.0
+case_id: mt_rear_Z023_0ff56552
+profile_id: mold_thermoregulator.mold_temp.pv_sv_integer
+controller_family: MOLD_THERMOREGULATOR
+page_type: mold_temp
+hmi_variant: pv_sv_integer
+allow_auto_import: false
+image:
+  file: mt_rear_Z023_0ff56552.jpeg
+fields:
+  mold_temperature_current_c: 72.0
+  mold_temperature_set_c: 70.0
+provenance:
+  source:
+    note: 原始 Base 新样本（062 HANDOVER 批次）
+  verified_by: codex 逐图目视复核（062）
+  verified_at: '2026-08-14'
+  tuning_involvement: algorithm_debugging
+  placement_reason: 已用于安全拒识调试，归入 calibration，禁止进入 holdout
+notes: AOLANTE LCD 控制器，不属于双红数码管整数布局；应安全拒识。

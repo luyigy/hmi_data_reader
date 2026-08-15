@@ -3,7 +3,7 @@
   "case_id": "mt_front_A02_d8b6f05a",
   "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
   "profile_layout_version": 1,
-  "contract_version": "2.7.1",
+  "contract_version": "2.8.0",
   "truth_hash": "sha256:2ae0234e67e26c979eda2a634c75d32bea7670c101240c21d74c897c25d20fd1",
   "image_sha256": "sha256:d8b6f05a858c450d02f4c6c5965f170b60941650ab30855ac9675185dbf1f017",
   "structure": {

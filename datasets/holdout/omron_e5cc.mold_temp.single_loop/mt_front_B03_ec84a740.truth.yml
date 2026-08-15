@@ -1,0 +1,21 @@
+schema_version: 1.0.0
+case_id: mt_front_B03_ec84a740
+profile_id: omron_e5cc.mold_temp.single_loop
+controller_family: OMRON_E5CC
+page_type: mold_temp
+hmi_variant: single_loop
+allow_auto_import: true
+image:
+  file: mt_front_B03_ec84a740.jpeg
+fields:
+  mold_temperature_set_c: 55.0
+  mold_temperature_current_c: 55.0
+provenance:
+  source:
+    note: 飞书 Base 注塑机台监控汇总「成型条件-模温机前模」附件（record recvrvDHwHVjTV，伯乐 B03，054 PLAN S01
+      批次 batch_004）
+  verified_by: codex 大模型逐图直接视觉核验（057 S04，contract 真值）
+  verified_at: '2026-08-14'
+  tuning_involvement: none
+  placement_reason: 057 S04 新 holdout 验收批：hash 未出现在 calibration/regression/既有 holdout，未参与任何调参
+notes: 双数码管温控器前模：红色 PV 55，绿色 SV 55；逐图目视核验。

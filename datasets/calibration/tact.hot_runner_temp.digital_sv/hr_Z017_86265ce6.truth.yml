@@ -1,0 +1,19 @@
+schema_version: 1.0.0
+case_id: hr_Z017_86265ce6
+profile_id: tact.hot_runner_temp.digital_sv
+controller_family: TACT
+page_type: hot_runner_temp
+hmi_variant: digital_sv
+allow_auto_import: true
+image:
+  file: hr_Z017_86265ce6.jpeg
+fields:
+  hot_runner_sv_c: [380.0, 370.0, null, null, null, null]
+provenance:
+  source:
+    note: 原始 Base 新样本（062 HANDOVER 批次）
+  verified_by: codex 逐图目视复核（062）
+  verified_at: '2026-08-14'
+  tuning_involvement: algorithm_debugging
+  placement_reason: 已用于识别根因调试，归入 calibration，禁止进入 holdout
+notes: 龙昌兴单排 6 通道，3-6 黑屏。

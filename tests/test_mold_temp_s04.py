@@ -116,6 +116,18 @@ class MoldTempExtractorTest(unittest.TestCase):
         self.assertEqual(result["detail"]["value_source"], "mt_full")
         self.assertEqual(result["fields"]["mold_temperature_set_c"], 68.0)
 
+    def test_trusted_pair_conflicting_with_two_cell_frames_rejected(self):
+        toks = [
+            {**cell("100.8", 0.44), "src": "mt_full"},
+            {**cell("100.0", 0.50), "src": "mt_full"},
+            cell("100.1", 0.29),
+            {**cell("100.1", 0.225), "src": "mt_cell_orig"},
+        ]
+        result = extract_mold_temp_thermoregulator(
+            toks, template("mold_thermoregulator.mold_temp.json"))
+        self.assertIsNone(result["fields"])
+        self.assertIn("VALUE_SOURCE_CONFLICT", result["warnings"])
+
     def test_integer_variant_detected(self):
         toks = [base_tok("30", 0.48), base_tok("30", 0.52)]
         result = extract_mold_temp_thermoregulator(

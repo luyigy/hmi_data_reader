@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "mt_front_Z023_5a45acaa",
+  "profile_id": "mold_thermoregulator.mold_temp.pv_sv_integer",
+  "profile_layout_version": 1,
+  "contract_version": "2.8.0",
+  "truth_hash": "sha256:e62c6aa8c587f0eb23d4cd67bd754bdac89dde6496d15627c7b90f7089034b39",
+  "image_sha256": "sha256:5a45acaa19bd23753221c1e96cdf525f379080e52cadf2c27670b6efda6c5766",
+  "structure": {
+    "controller_family": "MOLD_THERMOREGULATOR",
+    "page_type": "mold_temp",
+    "hmi_variant": "pv_sv_integer",
+    "allow_auto_import": true,
+    "image": "mt_front_Z023_5a45acaa.jpeg",
+    "n_fields": 2
+  },
+  "field_meta": {
+    "mold_temperature_current_c": {
+      "label_zh": "模温实际温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": null
+    },
+    "mold_temperature_set_c": {
+      "label_zh": "模温设定温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": "mold_zone_temperature_set"
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "原始 Base 新样本（062 HANDOVER 批次）"
+    },
+    "verified_by": "codex 逐图目视复核（062）",
+    "verified_at": "2026-08-14",
+    "tuning_involvement": "algorithm_debugging",
+    "placement_reason": "已用于识别根因调试，归入 calibration，禁止进入 holdout"
+  }
+}

@@ -32,7 +32,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from classify_ui import classify
-from contract import attach_contract
+from contract import attach_contract, validate_channel_observations
 from extract_fields import MACHINE_LABELS, RECORD_REPORT, extract_one
 from postprocess import postprocess_one
 from quality import assess
@@ -153,6 +153,42 @@ async def recognize_image(file: UploadFile = File(...)):
 
             # 1. 质量评估
             q_report = assess(orig_path)
+
+            # 1b. 权威质量门禁前移（064 S02）：triage=red 在重 OCR/召回旁车之前短路，
+            # 返回与正常路径兼容的结构化拒识（quality 块四字段 + success/status/fields
+            # 契约键，与 Web backend/app/hmi_recognition/schemas.py 对齐）。
+            # yellow/green 继续走下方现有流程，字段与行为不变。
+            if q_report.triage == "red":
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                logger.info("quality gate red short-circuit: %s", q_report.reject_codes)
+                return {
+                    "success": True,
+                    "processing_time_ms": elapsed_ms,
+                    "quality": {
+                        "triage": q_report.triage,
+                        "reject_codes": q_report.reject_codes,
+                        "warn_codes": q_report.warn_codes,
+                        "reshoot_guidance": q_report.reshoot_guidance,
+                    },
+                    "classification": {
+                        "ui_family": None,
+                        "ui_family_confidence": None,
+                        "page": None,
+                        "page_confidence": None,
+                    },
+                    "fields": {},
+                    "hmi_variant": None,
+                    "controller_family": None,
+                    "page_type": None,
+                    "template": None,
+                    "contract_version": None,
+                    "profile_id": None,
+                    "profile_confidence": None,
+                    "profile_status": None,
+                    "field_meta": {},
+                    "status": "reject",
+                    "warnings": [],
+                }
 
             # 2. 透视矫正
             rr = rectify(orig_path, rect_png, rect_meta)
@@ -293,6 +329,13 @@ async def recognize_image(file: UploadFile = File(...)):
             stage_enabled = (extract_res.get("extraction_detail") or {}).get("stage_enabled")
             if stage_enabled is not None:
                 response["stage_enabled"] = stage_enabled
+            # 热流道逐槽位通道观察（契约 2.8.0 additive，057 S01）：信任边界校验
+            # 失败时降级缺省，不阻断识别响应；旧 hot_runner_sv_c 视图保持不变
+            observations = validate_channel_observations(
+                (extract_res.get("extraction_detail") or {}).get(
+                    "hot_runner_channel_observations"))
+            if observations is not None:
+                response["hot_runner_channel_observations"] = observations
             return response
 
     except HTTPException:

@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "hr_Z001_a6561aaf",
+  "profile_id": "tact.hot_runner_temp.digital_sv",
+  "profile_layout_version": 1,
+  "contract_version": "2.8.0",
+  "truth_hash": "sha256:986485e98aef950141d2a7080fe4e247554a0296f9a360c878c34450149a4f42",
+  "image_sha256": "sha256:a6561aaff132bd9f3a4a00ca5265cd2b3bc4d6f3563e716aaf9170eaad9ab804",
+  "structure": {
+    "controller_family": "TACT",
+    "page_type": "hot_runner_temp",
+    "hmi_variant": "digital_sv",
+    "allow_auto_import": true,
+    "image": "hr_Z001_a6561aaf.jpeg",
+    "n_fields": 1
+  },
+  "field_meta": {
+    "hot_runner_sv_c": {
+      "label_zh": "热流道设定温度",
+      "page_label_zh": "热流道温控箱面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "hot_runner_channel",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "hot_runner_zone_temperature_set"
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "原始 Base 修复后独立抽样（062 后续批次）"
+    },
+    "verified_by": "codex 在 Reader 调用前逐图目视核验",
+    "verified_at": "2026-08-14",
+    "tuning_involvement": "none",
+    "placement_reason": "修复完成后下载，SHA-256 未命中任何现有数据集，且未用于调参"
+  }
+}

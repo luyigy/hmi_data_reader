@@ -3,7 +3,7 @@
   "case_id": "holding_Z005_f29c52c4",
   "profile_id": "demag.injection_metering.multi_stage_holding",
   "profile_layout_version": 1,
-  "contract_version": "2.7.1",
+  "contract_version": "2.8.0",
   "truth_hash": "sha256:82075f5009e40d540c5ab4ae6bfce1432ebc9e9bd4af6cdbd3d2c652a9ac756f",
   "image_sha256": "sha256:4cbb3bba62009d2889d026121da02657d357c263c9d09ac99f85ba8573d30b14",
   "structure": {

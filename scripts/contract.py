@@ -16,11 +16,16 @@ service 内带 classification 再调用一次（重算 profile_confidence），
 - 压力侧别运行时覆盖：extraction_detail.pressure_unit_text == "bar_spez" 时，
   带 physical_semantics.pressure_basis 的字段覆盖为 plastic_pressure；
   "bar" 或无标签保持目录原值（null 不猜）
+
+另：validate_channel_observations 为响应顶层可选键
+hot_runner_channel_observations（契约 2.8.0 additive，057 PLAN S01）的
+信任边界校验，由 service 层在透出前调用；该键不经 attach_contract。
 """
 from __future__ import annotations
 
 import json
 from functools import lru_cache
+from math import isfinite
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -247,3 +252,54 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
             if isinstance(semantics, dict) and "pressure_basis" in semantics:
                 semantics["pressure_basis"] = "plastic_pressure"
     return result
+
+
+# 热流道逐槽位通道观察（契约 2.8.0 additive 顶层可选键）的信任边界口径：
+# 单次识别 1–100 个物理槽位；position 为图内 1 起的物理顺序标识。
+HOT_RUNNER_CHANNEL_LIMIT = 100
+CHANNEL_OBSERVATION_STATES = {"ok", "blackout", "unreadable"}
+_CHANNEL_OBSERVATION_KEYS = {"position", "label", "sv_c", "state", "confidence"}
+
+
+def _finite_number(value) -> bool:
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and isfinite(value))
+
+
+def validate_channel_observations(value) -> list | None:
+    """校验 hot_runner_channel_observations（契约 2.8.0 additive，057 PLAN S01）。
+
+    合法原样返回；缺省（None）或不合法返回 None——服务边界降级为不出键，
+    不因此阻断识别响应。每条观察恰好含 position/label/sv_c/state/confidence：
+    position 为 1..100 的整数且不重复；label 为 str（≤50 字符）或 null；sv_c 为
+    [-100, 500] 的有限数或 null；state ∈ {ok, blackout, unreadable}；
+    confidence 为 [0,1] 有限数或 null。
+    """
+    if value is None:
+        return None
+    if not isinstance(value, list) or not 1 <= len(value) <= HOT_RUNNER_CHANNEL_LIMIT:
+        return None
+    positions = set()
+    for entry in value:
+        if not isinstance(entry, dict) or set(entry) != _CHANNEL_OBSERVATION_KEYS:
+            return None
+        position = entry["position"]
+        if (isinstance(position, bool) or not isinstance(position, int)
+                or not 1 <= position <= HOT_RUNNER_CHANNEL_LIMIT):
+            return None
+        if position in positions:
+            return None
+        positions.add(position)
+        label = entry["label"]
+        if label is not None and (not isinstance(label, str) or len(label) > 50):
+            return None
+        sv_c = entry["sv_c"]
+        if sv_c is not None and not (_finite_number(sv_c) and -100 <= sv_c <= 500):
+            return None
+        if entry["state"] not in CHANNEL_OBSERVATION_STATES:
+            return None
+        confidence = entry["confidence"]
+        if confidence is not None and not (
+                _finite_number(confidence) and 0 <= confidence <= 1):
+            return None
+    return value

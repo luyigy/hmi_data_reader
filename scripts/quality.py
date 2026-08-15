@@ -9,7 +9,8 @@
 
 硬拒绝原因码：
 DUPLICATE_ATTACHMENT, CROSS_RECORD_DUPLICATE, SCREEN_NOT_FOUND, SCREEN_TOO_SMALL,
-SEVERE_GLARE, SEVERE_BLUR, SEVERE_PERSPECTIVE, PAGE_UNKNOWN
+SEVERE_GLARE, SEVERE_BLUR, SEVERE_PERSPECTIVE, PAGE_UNKNOWN,
+SCREEN_CLIPPED, SEVERE_UNDEREXPOSURE（064 S02 新增，五类原因映射见 064 PLAN §3.1）
 
 警告原因码（黄灯）：
 NEEDS_RECTIFICATION, LOW_TEXT_SIZE, MINOR_GLARE, LOW_CLASS_CONFIDENCE
@@ -20,6 +21,13 @@ NEEDS_RECTIFICATION, LOW_TEXT_SIZE, MINOR_GLARE, LOW_CLASS_CONFIDENCE
 - 反光：高亮区域比例（>230 像素值）>0.15 且画面纹理已破坏（Laplacian 方差 <300）才硬拒
 - 模糊：Laplacian 方差
 - 屏幕太小：屏幕有效宽度 < 500px 硬拒；屏占比 <30% 仅黄灯（绝对像素宽者不再误杀）
+- 完整性（064 S02）：屏幕 bbox 贴图像边（余量 <1%）且四角未命中时 SCREEN_CLIPPED
+  硬拒；四角命中说明屏幕完整入镜，不误判。无法定界屏幕 ROI 时不下质量结论
+  （安全降级，SCREEN_NOT_FOUND 已覆盖）
+- 欠曝（064 S02）：屏幕 ROI 欠曝比例 >0.85 且纹理已破坏（blur<300）才
+  SEVERE_UNDEREXPOSURE 硬拒；语料无欠曝样本，阈值保守取值待补采校准
+- 多码命中（064 S02）：reject_codes 返回全部机器码，red 时 reshoot_guidance
+  只保留一个主提示（按 REJECT_GUIDANCE 顺序取最可操作者），yellow 维持原多提示
 
 用法：
     python scripts/quality.py <image>... --output <report.json>
@@ -47,6 +55,8 @@ class QualityMetrics:
     glare_ratio: float = 0.0  # >230 像素比例
     dark_ratio: float = 0.0
     corners_found: bool = False  # detect_screen_corners 是否命中（命中则透视可被 rectify 矫正）
+    screen_clipped: bool = False  # 屏幕 bbox 贴图像边且四角未命中（064 S02，疑似屏幕被裁切）
+    roi_dark_ratio: float = 0.0  # 屏幕 ROI 内欠曝(<30)像素比例（064 S02；无 ROI 时保持 0 不强拒）
 
 
 @dataclass
@@ -70,6 +80,22 @@ THRESHOLD_PERSPECTIVE_RECTIFIABLE = 1.80  # 有四角（rectify 可矫正）时�
 # 但 Laplacian 方差大（文字梯度仍在），OCR 可读，不应红灯
 THRESHOLD_GLARE_SEVERE = 0.15
 THRESHOLD_GLARE_BLUR_MAX = 300.0
+# 064 S02 新增（五类原因补齐）：
+THRESHOLD_EDGE_MARGIN_RATIO = 0.01  # 屏幕 bbox 距图像边不足 1% 视为贴边（疑似裁切）
+THRESHOLD_DARK_SEVERE = 0.85  # 屏幕 ROI 欠曝比例硬拒下限（须同时 blur<300；语料无样本，保守值待补采校准）
+
+# 064 S02：五类原因的硬拒码 → 中文重拍提示（064 PLAN §3.1 / 065 §3.1 冻结映射）。
+# red 多码命中时 reject_codes 全部返回，reshoot_guidance 只保留列表中最靠前的一个主提示。
+REJECT_GUIDANCE = {
+    "SCREEN_CLIPPED": "屏幕未拍完整，请将完整屏幕框入取景框。",
+    "SCREEN_NOT_FOUND": "请正对屏幕拍摄，四个屏幕边角全部入镜，不要从侧面斜拍。",
+    "SEVERE_PERSPECTIVE": "请正对屏幕拍摄，四个屏幕边角全部入镜，不要从侧面斜拍。",
+    "SCREEN_TOO_SMALL": "请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。",
+    "SEVERE_UNDEREXPOSURE": "画面过暗：请改善照明，确保屏幕数字区域清晰可辨后重拍。",
+    "SEVERE_GLARE": "反光严重：请调整站位或关闭闪光灯，确保反光不覆盖数字区域。",
+    "SEVERE_BLUR": "画面模糊：请擦净镜头、保持手机稳定，点击屏幕区域对焦后重拍。",
+    "READ_ERROR": "图片无法读取，请重新拍照或检查文件格式。",
+}
 
 
 def detect_screen_bbox(img: np.ndarray) -> tuple[int, int, int, int] | None:
@@ -250,14 +276,21 @@ def triage(report: QualityReport) -> None:
     if m.screen_bbox is None:
         report.reject_codes.append("SCREEN_NOT_FOUND")
         tri = "red"
-        reshoot.append("请正对屏幕拍摄，四个屏幕边角全部入镜，不要从侧面斜拍。")
+        reshoot.append(REJECT_GUIDANCE["SCREEN_NOT_FOUND"])
+
+    # 064 S02 完整性独立机器码：bbox 贴图像边且四角未命中 → 屏幕疑似被裁切。
+    # 四角命中说明屏幕完整入镜；bbox 缺失（SCREEN_NOT_FOUND）时不重复判裁切。
+    if m.screen_bbox is not None and m.screen_clipped:
+        report.reject_codes.append("SCREEN_CLIPPED")
+        tri = "red"
+        reshoot.append(REJECT_GUIDANCE["SCREEN_CLIPPED"])
 
     if m.screen_bbox is not None:
         x, y, bw, bh = m.screen_bbox
         if bw < THRESHOLD_SCREEN_MIN_WIDTH:
             report.reject_codes.append("SCREEN_TOO_SMALL")
             tri = "red"
-            reshoot.append("请靠近拍摄，让显示屏主体占照片大部分，同时保留完整四边。")
+            reshoot.append(REJECT_GUIDANCE["SCREEN_TOO_SMALL"])
         # 最小数字字符像素
         text_h = estimate_text_size(m.screen_bbox)
         if text_h is not None and text_h < 14:
@@ -269,7 +302,7 @@ def triage(report: QualityReport) -> None:
     if m.perspective_ratio > (THRESHOLD_PERSPECTIVE_RECTIFIABLE if m.corners_found else THRESHOLD_PERSPECTIVE):
         report.reject_codes.append("SEVERE_PERSPECTIVE")
         tri = "red"
-        reshoot.append("请正对屏幕拍摄，四个屏幕边角全部入镜，不要从侧面斜拍。")
+        reshoot.append(REJECT_GUIDANCE["SEVERE_PERSPECTIVE"])
     elif m.perspective_ratio > 1.10:
         report.warn_codes.append("NEEDS_RECTIFICATION")
         if tri == "green":
@@ -278,12 +311,12 @@ def triage(report: QualityReport) -> None:
     if m.blur_score < THRESHOLD_BLUR_VARIANCE:
         report.reject_codes.append("SEVERE_BLUR")
         tri = "red"
-        reshoot.append("画面模糊：请擦净镜头、保持手机稳定，点击屏幕区域对焦后重拍。")
+        reshoot.append(REJECT_GUIDANCE["SEVERE_BLUR"])
 
     if m.glare_ratio > THRESHOLD_GLARE_SEVERE and m.blur_score < THRESHOLD_GLARE_BLUR_MAX:
         report.reject_codes.append("SEVERE_GLARE")
         tri = "red"
-        reshoot.append("反光严重：请调整站位或关闭闪光灯，确保反光不覆盖数字区域。")
+        reshoot.append(REJECT_GUIDANCE["SEVERE_GLARE"])
     elif m.glare_ratio > 0.05:
         report.warn_codes.append("MINOR_GLARE")
         if tri == "green":
@@ -293,6 +326,14 @@ def triage(report: QualityReport) -> None:
         if tri == "green":
             tri = "yellow"
 
+    # 064 S02 欠曝独立机器码：仅基于屏幕 ROI（不用全图背景做强拒识），
+    # 且须纹理已被破坏（blur<300），避免误伤暗底亮字的数码管面板。
+    if (m.screen_bbox is not None and m.roi_dark_ratio > THRESHOLD_DARK_SEVERE
+            and m.blur_score < THRESHOLD_GLARE_BLUR_MAX):
+        report.reject_codes.append("SEVERE_UNDEREXPOSURE")
+        tri = "red"
+        reshoot.append(REJECT_GUIDANCE["SEVERE_UNDEREXPOSURE"])
+
     # 屏幕占比过低：只黄灯提示。OCR 可用性取决于屏幕绝对像素宽度（上方 width 规则），
     # 高分辨率远景照屏占比低但绝对像素充足（校准集 rank06 2525px / rank11 2366px 宽被误杀）
     if m.screen_bbox is not None and m.screen_area_ratio < THRESHOLD_SCREEN_MIN_AREA_RATIO:
@@ -300,6 +341,14 @@ def triage(report: QualityReport) -> None:
         if tri == "green":
             tri = "yellow"
         reshoot.append("屏幕占照片比例偏低：建议靠近拍摄，让显示屏主体占照片大部分。")
+
+    # 064 S02：red 多码命中时只保留一个主提示（REJECT_GUIDANCE 声明顺序即优先级）；
+    # yellow/green 维持原有多提示行为不变。
+    if tri == "red":
+        for code, guidance in REJECT_GUIDANCE.items():
+            if code in report.reject_codes:
+                reshoot = [guidance]
+                break
 
     report.triage = tri
     report.reshoot_guidance = reshoot
@@ -311,13 +360,26 @@ def assess(image_path: Path) -> QualityReport:
         r = QualityReport(filename=image_path.name)
         r.reject_codes.append("READ_ERROR")
         r.triage = "red"
-        r.reshoot_guidance.append("图片无法读取，请重新拍照或检查文件格式。")
+        r.reshoot_guidance.append(REJECT_GUIDANCE["READ_ERROR"])
         return r
     h, w = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     bbox = detect_screen_bbox(img)
     quad = detect_screen_corners(img)
+    # 064 S02：贴边/欠曝判据只基于屏幕 ROI；四角命中视为屏幕完整入镜，不判裁切。
+    screen_clipped = False
+    roi_dark_ratio = 0.0
+    if bbox:
+        x, y, bw, bh = bbox
+        roi = gray[max(y, 0):y + bh, max(x, 0):x + bw]
+        if roi.size:
+            roi_dark_ratio = compute_dark(roi)
+        if quad is None:
+            mx = max(1, int(w * THRESHOLD_EDGE_MARGIN_RATIO))
+            my = max(1, int(h * THRESHOLD_EDGE_MARGIN_RATIO))
+            screen_clipped = (x <= mx or y <= my
+                              or x + bw >= w - mx or y + bh >= h - my)
     metrics = QualityMetrics(
         width=w,
         height=h,
@@ -328,6 +390,8 @@ def assess(image_path: Path) -> QualityReport:
         glare_ratio=compute_glare(gray),
         dark_ratio=compute_dark(gray),
         corners_found=quad is not None,
+        screen_clipped=screen_clipped,
+        roi_dark_ratio=roi_dark_ratio,
     )
 
     r = QualityReport(filename=image_path.name, metrics=metrics)

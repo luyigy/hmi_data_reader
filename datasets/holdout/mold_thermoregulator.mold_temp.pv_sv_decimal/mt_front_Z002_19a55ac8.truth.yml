@@ -1,0 +1,20 @@
+schema_version: 1.0.0
+case_id: mt_front_Z002_19a55ac8
+profile_id: mold_thermoregulator.mold_temp.pv_sv_decimal
+controller_family: MOLD_THERMOREGULATOR
+page_type: mold_temp
+hmi_variant: pv_sv_decimal
+allow_auto_import: true
+image:
+  file: mt_front_Z002_19a55ac8.jpeg
+fields:
+  mold_temperature_current_c: 100.8
+  mold_temperature_set_c: 100.0
+provenance:
+  source:
+    note: 原始 Base 修复后独立抽样（062 后续批次）
+  verified_by: codex 在 Reader 调用前逐图目视核验
+  verified_at: '2026-08-14'
+  tuning_involvement: none
+  placement_reason: 修复完成后下载，SHA-256 未命中任何现有数据集，且未用于调参
+notes: 模具温度调节机双红数码管，小数布局；PV 100.8，SV 100.0。

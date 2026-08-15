@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "case_id": "mt_rear_Z015_7c614b3d",
+  "profile_id": "omron_e5cc.mold_temp.single_loop",
+  "profile_layout_version": 1,
+  "contract_version": "2.8.0",
+  "truth_hash": "sha256:59f51f51ad7a4ec6b6d54720d86079b9494ac85f351a82249ff09afc455554ba",
+  "image_sha256": "sha256:7c614b3d2fe50a64c31a973e79f7d640dab36546e349711109c37b312187b82f",
+  "structure": {
+    "controller_family": "OMRON_E5CC",
+    "page_type": "mold_temp",
+    "hmi_variant": "single_loop",
+    "allow_auto_import": true,
+    "image": "mt_rear_Z015_7c614b3d.jpeg",
+    "n_fields": 2
+  },
+  "field_meta": {
+    "mold_temperature_current_c": {
+      "label_zh": "模温实际温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "actual",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": null
+    },
+    "mold_temperature_set_c": {
+      "label_zh": "模温设定温度",
+      "page_label_zh": "模温机/冷水机面板",
+      "unit": "°C",
+      "role": "setpoint",
+      "entity": {
+        "kind": "mold_temp_controller",
+        "identity": "single"
+      },
+      "value_type": "float",
+      "web_target": "mold_zone_temperature_set"
+    }
+  },
+  "provenance": {
+    "source": {
+      "note": "原始 Base 新样本（062 HANDOVER 批次）"
+    },
+    "verified_by": "codex 逐图目视复核（062）",
+    "verified_at": "2026-08-14",
+    "tuning_involvement": "algorithm_debugging",
+    "placement_reason": "已用于识别根因调试，归入 calibration，禁止进入 holdout"
+  }
+}

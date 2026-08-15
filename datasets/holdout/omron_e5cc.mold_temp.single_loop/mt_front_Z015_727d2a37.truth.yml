@@ -1,0 +1,20 @@
+schema_version: 1.0.0
+case_id: mt_front_Z015_727d2a37
+profile_id: omron_e5cc.mold_temp.single_loop
+controller_family: OMRON_E5CC
+page_type: mold_temp
+hmi_variant: single_loop
+allow_auto_import: true
+image:
+  file: mt_front_Z015_727d2a37.jpeg
+fields:
+  mold_temperature_current_c: 31.0
+  mold_temperature_set_c: 30.0
+provenance:
+  source:
+    note: 原始 Base 修复后独立抽样（062 后续批次）
+  verified_by: codex 在 Reader 调用前逐图目视核验
+  verified_at: '2026-08-14'
+  tuning_involvement: none
+  placement_reason: 修复完成后下载，SHA-256 未命中任何现有数据集，且未用于调参
+notes: AOLANTE 温度循环控制机 OMRON E5CC；PV 31，SV 30。

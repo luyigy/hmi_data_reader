@@ -1,0 +1,19 @@
+schema_version: 1.0.0
+case_id: hr_Z001_a6561aaf
+profile_id: tact.hot_runner_temp.digital_sv
+controller_family: TACT
+page_type: hot_runner_temp
+hmi_variant: digital_sv
+allow_auto_import: true
+image:
+  file: hr_Z001_a6561aaf.jpeg
+fields:
+  hot_runner_sv_c: [210.0, 185.0, 215.0, 230.0, 240.0, 240.0]
+provenance:
+  source:
+    note: 原始 Base 修复后独立抽样（062 后续批次）
+  verified_by: codex 在 Reader 调用前逐图目视核验
+  verified_at: '2026-08-14'
+  tuning_involvement: none
+  placement_reason: 修复完成后下载，SHA-256 未命中任何现有数据集，且未用于调参
+notes: 龙昌兴单排 6 通道，PV/SV 同值。

@@ -894,7 +894,11 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     elif page_key == "waveform" and ui == "FANUC":
         ext = extract_waveform_fanuc(toks, template)
     elif page_key == "hot_runner_temp" and ui == "TACT":
-        ext = extract_hot_runner_tact(toks, template)
+        # 057 S02 动态槽位：黑屏（blackout）图像确认需矫正图探测显示区，
+        # 缺失时优雅降级 unreadable（同 DEMAG Layer 1 先例，不传则不出 blackout）
+        png_path = rectified_dir / f"{stem}.png"
+        ext = extract_hot_runner_tact(
+            toks, template, image_path=png_path if png_path.is_file() else None)
     elif page_key == "mold_temp" and ui == "FANUC":
         ext = extract_mold_temp_fanuc(toks, template)
     elif page_key == "mold_temp" and ui == "OMRON_E5CC":

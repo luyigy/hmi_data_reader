@@ -30,7 +30,7 @@ class ContractProfileTest(unittest.TestCase):
         self.assertEqual(result["profile_id"],
                          "demag.injection_metering.multi_stage_injection")
         self.assertEqual(result["profile_status"], "verified")
-        self.assertEqual(result["contract_version"], "2.7.1")
+        self.assertEqual(result["contract_version"], "2.8.0")
 
     def test_stage_velocity_web_target(self):
         result = attach_contract(_injection_result("multi_stage_injection"))

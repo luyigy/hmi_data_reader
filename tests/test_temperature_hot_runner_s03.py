@@ -99,13 +99,19 @@ class HotRunnerExtractorContractTest(unittest.TestCase):
     """多排物理顺序展开、黑屏通道 null、契约字段名 hot_runner_sv_c。"""
 
     def make_tokens(self):
-        # 单排 6 通道：PV 上行 5 值，SV 下行 5 值（c 前缀），通道 6 黑屏无 token
+        # 单排 6 通道：PV 上行 5 值，SV 下行 5 值（c 前缀），通道 6 黑屏无值 token；
+        # 每通道一组 SOFT/AUTO/MANU 按钮锚点（057 S02 动态槽位：黑屏槽位由可见
+        # 单元锚点建立，不再由模板 channels 固定槽数）
         toks = []
         xs = [0.15, 0.29, 0.43, 0.57, 0.71]
         for x, v in zip(xs, (300, 320, 300, 320, 300)):
             toks.append({"text": str(v), "x": x, "y": 0.10, "conf": 0.99, "src": None})
         for x, v in zip(xs, (300, 320, 300, 320, 300)):
             toks.append({"text": f"c{v}", "x": x, "y": 0.16, "conf": 0.99, "src": None})
+        for x in xs + [0.85]:
+            for j, label in enumerate(("SOFT", "AUTO", "MANU")):
+                toks.append({"text": label, "x": x + (j - 1) * 0.045, "y": 0.42,
+                             "conf": 0.99, "src": None})
         return toks
 
     def test_contract_field_name_and_black_channel_null(self):
