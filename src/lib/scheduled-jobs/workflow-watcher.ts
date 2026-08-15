@@ -760,12 +760,6 @@ export const workflowWatcherHandler = async (
       })}\n${workflowContext(metadata, candidate.filePath, candidate.type, document.nextSlice)}`,
       eventKey, 'completion_receipt');
   }
-  if (gate === 'execute' && !allows(document.action)) {
-    return {
-      summary: `head=${head} candidate=${candidate.filePath} gate=autonomy_manual advance=${document.action}`,
-      cursor: previous,
-    };
-  }
   if (gate === 'terminal') {
     if (
       candidate.type === 'HANDOVER'
@@ -878,6 +872,12 @@ export const workflowWatcherHandler = async (
     detectedAt,
     roleWorkflowLevel: workflowRoleLevel,
   };
+  if (!allows(pending.action)) {
+    return {
+      summary: `head=${head} candidate=${candidate.filePath} gate=autonomy_manual advance=${pending.action}`,
+      cursor: carryQuarantine({ commit: head, eventKey, pending }),
+    };
+  }
   const started = await execute(
     pending,
     project.id,

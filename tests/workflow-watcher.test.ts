@@ -261,6 +261,24 @@ NEXT PROMPT 001_HANDOVER_20260725_test.md 000_PLAN_20260725_owner.md 000_ROADMAP
   await assert.rejects(run(), /prompt-failed/);
 
   process.env.LARK_FAIL_PROMPT = '0';
+  const manualFirstScanReceiptsBefore = apiCalls.filter(({ body }) =>
+    String(body.content).includes('Workflow 完成回执')).length;
+  const manualFirstScan = await run(undefined, 'active', 'manual', 'schedule');
+  assert.match(manualFirstScan.summary, /gate=autonomy_manual advance=next_slice/);
+  const manualFirstScanCursor = manualFirstScan.cursor as {
+    commit: string; eventKey?: string; pending?: { gate: string };
+  };
+  assert.equal(manualFirstScanCursor.commit, git('rev-parse', 'HEAD'));
+  assert.ok(manualFirstScanCursor.eventKey);
+  assert.equal(manualFirstScanCursor.pending?.gate, 'workflow_ready');
+  const manualFirstScanReceiptCount = apiCalls.filter(({ body }) =>
+    String(body.content).includes('Workflow 完成回执')).length;
+  assert.equal(manualFirstScanReceiptCount, manualFirstScanReceiptsBefore + 1);
+  const manualFirstScanAgain = await run(manualFirstScan.cursor, 'active', 'manual', 'schedule');
+  assert.match(manualFirstScanAgain.summary, /gate=autonomy_manual advance=next_slice/);
+  assert.equal(apiCalls.filter(({ body }) => String(body.content).includes('Workflow 完成回执')).length,
+    manualFirstScanReceiptCount, 'manual polling after first scan must not resend the completion receipt');
+
   workflowAvailable = false;
   const completionReceiptsBeforeWaiting = apiCalls.filter(({ body }) =>
     String(body.content).includes('Workflow 完成回执')).length;
