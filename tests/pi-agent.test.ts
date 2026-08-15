@@ -14,6 +14,10 @@ if [ "$1" = "--mode" ] && [ "$PI_TEST_CASE" = "fallback" ]; then
   printf 'error: unknown option --mode\\n' >&2
   exit 2
 fi
+if [ "$1" = "--mode" ] && [ "$PI_TEST_CASE" = "error" ]; then
+  printf '{"type":"message_end","message":{"role":"assistant","content":[]},"stopReason":"error","errorMessage":"429 Usage limit reached"}\n'
+  exit 0
+fi
 if [ "$1" = "--print" ]; then
   printf 'legacy output'
   exit 0
@@ -61,6 +65,14 @@ printf '{"type":"message_end","message":{"role":"assistant","content":[{"type":"
     assert.equal(fallback.success, true);
     assert.equal(fallback.output, 'legacy output');
     assert.deepEqual(fallbackChunks, ['legacy output']);
+
+    process.env.PI_TEST_CASE = 'error';
+    const failed = await executePiAgentTask(
+      { id: 'error', name: 'error' },
+      { workingDirectory: workspace }
+    );
+    assert.equal(failed.success, false);
+    assert.equal(failed.error, '429 Usage limit reached');
   } finally {
     delete process.env.PI_AGENT_BIN;
     delete process.env.PI_TEST_CASE;

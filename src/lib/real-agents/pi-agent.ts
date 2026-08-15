@@ -106,6 +106,8 @@ const buildPiArgs = ({
 
 interface PiJsonEvent {
   type?: string;
+  stopReason?: string;
+  errorMessage?: string;
   toolName?: string;
   args?: unknown;
   message?: {
@@ -150,7 +152,10 @@ const processPiJsonLine = (
       void streamCallbacks?.onToolEvent?.({ toolName: 'Tool Result', preview: '', emoji: '✅' });
     }
 
-    return assistantText || undefined;
+    return {
+      assistantText: assistantText || undefined,
+      errorMessage: event.stopReason === 'error' ? event.errorMessage?.trim() || 'Pi Agent failed' : undefined,
+    };
   } catch {
     return undefined;
   }
@@ -193,6 +198,7 @@ const runPiAgentCommand = async ({
     let stderr = '';
     let stdoutBuffer = '';
     let resolvedText = '';
+    let resolvedError = '';
     let settled = false;
     let timeoutHandle: NodeJS.Timeout | undefined;
 
@@ -225,7 +231,13 @@ const runPiAgentCommand = async ({
       const lines = stdoutBuffer.split('\n');
       stdoutBuffer = lines.pop() ?? '';
       for (const line of lines) {
-        resolvedText = processPiJsonLine(line, workingDirectory, streamCallbacks) || resolvedText;
+        const event = processPiJsonLine(line, workingDirectory, streamCallbacks);
+        if (event?.assistantText) {
+          resolvedText = event.assistantText;
+          resolvedError = '';
+        } else if (event?.errorMessage) {
+          resolvedError = event.errorMessage;
+        }
       }
     });
 
@@ -241,11 +253,21 @@ const runPiAgentCommand = async ({
 
     child.on('close', (code) => {
       if (mode === 'json' && stdoutBuffer.trim()) {
-        resolvedText = processPiJsonLine(stdoutBuffer, workingDirectory, streamCallbacks) || resolvedText;
+        const event = processPiJsonLine(stdoutBuffer, workingDirectory, streamCallbacks);
+        if (event?.assistantText) {
+          resolvedText = event.assistantText;
+          resolvedError = '';
+        } else if (event?.errorMessage) {
+          resolvedError = event.errorMessage;
+        }
       }
       const combined = (mode === 'json' ? resolvedText : stdout).trim();
       const normalizedStderr = stderr.trim();
       if (code === 0) {
+        if (mode === 'json' && resolvedError) {
+          settle(() => reject(new Error(resolvedError)));
+          return;
+        }
         settle(() => resolve(combined || normalizedStderr || 'Pi Agent completed'));
         return;
       }
