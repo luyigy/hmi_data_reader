@@ -61,6 +61,17 @@ async function main() {
     ticket.expiresAt = new Date(0);
     await assert.rejects(() => claimPairingTicket(expired.token, 'expired'), (error) => error instanceof PairingTicketError && error.status === 410);
 
+    const runnerRoute = await import('../src/app/runner.js/route');
+    const runnerResponse = runnerRoute.GET(new Request('http://pairing.test/runner.js'));
+    const runnerBody = await runnerResponse.then((response: Response) => response.text());
+    assert.match(runnerBody, /^process\.env\.AGENT_PLATFORM_SERVER="http:\/\/pairing\.test";/);
+    assert.ok(!/^#!/.test(runnerBody), 'served runner must not start with a shebang');
+    assert.ok(
+      runnerBody.split('\n').slice(1).every((line) => !line.startsWith('#!')),
+      'served runner must not contain a mid-file shebang (SyntaxError for node stdin/file)',
+    );
+    new (await import('node:vm')).Script(runnerBody);
+
     const wsSource = await readFile('src/lib/remote-node-ws.ts', 'utf8');
     const runnerSource = await readFile('scripts/agent-platform-runner.js', 'utf8');
     assert.match(wsSource, /headers\.authorization/);
