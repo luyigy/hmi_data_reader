@@ -7,6 +7,7 @@ export const AUTH_COOKIE = 'ap_auth_token';
 
 export type AuthContext =
   | { tier: 'operator'; subject: 'admin' }
+  | { tier: 'operator'; subject: string; userId: string; role: 'admin' | 'user' }
   | { tier: 'machine'; subject: 'gateway'; gatewayId: string }
   | { tier: 'machine'; subject: 'feishu'; senderOpenId: string };
 
@@ -81,6 +82,26 @@ type OperatorSessionClaims = {
   expiresAt: number;
 };
 
+type UserSessionClaims = {
+  version: 2;
+  purpose: 'operator-session';
+  subject: string;
+  userId: string;
+  role: 'admin' | 'user';
+  issuedAt: number;
+  expiresAt: number;
+};
+
+type ParsedSessionClaims = {
+  version?: unknown;
+  purpose?: unknown;
+  subject?: unknown;
+  userId?: unknown;
+  role?: unknown;
+  issuedAt?: unknown;
+  expiresAt?: unknown;
+};
+
 const sign = (payload: string, secret: string) =>
   createHmac('sha256', secret).update(payload).digest('base64url');
 
@@ -92,6 +113,24 @@ export function createOperatorSession(
     version: 1,
     purpose: 'operator-session',
     subject: 'admin',
+    issuedAt: nowSeconds,
+    expiresAt: nowSeconds + config.sessionTtlSeconds,
+  };
+  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
+  return `${payload}.${sign(payload, config.sessionSecret)}`;
+}
+
+export function createUserSession(
+  user: { id: string; username: string; role: 'admin' | 'user' },
+  config: AuthConfig,
+  nowSeconds = Math.floor(Date.now() / 1000)
+): string {
+  const claims: UserSessionClaims = {
+    version: 2,
+    purpose: 'operator-session',
+    subject: user.username,
+    userId: user.id,
+    role: user.role,
     issuedAt: nowSeconds,
     expiresAt: nowSeconds + config.sessionTtlSeconds,
   };
@@ -112,128 +151,38 @@ export function verifyOperatorSession(
   if (!safeEqual(signature, expectedSignature, config.sessionSecret)) return null;
 
   try {
-    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Partial<OperatorSessionClaims>;
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as ParsedSessionClaims;
+    const validLifetime = typeof claims.issuedAt === 'number'
+      && typeof claims.expiresAt === 'number'
+      && Number.isInteger(claims.issuedAt)
+      && Number.isInteger(claims.expiresAt)
+      && claims.issuedAt <= nowSeconds
+      && claims.expiresAt > nowSeconds
+      && claims.expiresAt - claims.issuedAt === config.sessionTtlSeconds;
     if (
-      claims.version !== 1
-      || claims.purpose !== 'operator-session'
-      || claims.subject !== 'admin'
-      || !Number.isInteger(claims.issuedAt)
-      || !Number.isInteger(claims.expiresAt)
-      || claims.issuedAt! > nowSeconds
-      || claims.expiresAt! <= nowSeconds
-      || claims.expiresAt! - claims.issuedAt! !== config.sessionTtlSeconds
+      claims.purpose !== 'operator-session'
+      || !validLifetime
     ) {
       return null;
     }
-    return { tier: 'operator', subject: 'admin' };
+    if (claims.version === 1 && claims.subject === 'admin') {
+      return { tier: 'operator', subject: 'admin' };
+    }
+    if (
+      claims.version === 2
+      && typeof claims.subject === 'string'
+      && claims.subject.length > 0
+      && typeof claims.userId === 'string'
+      && claims.userId.length > 0
+      && (claims.role === 'admin' || claims.role === 'user')
+    ) {
+      return { tier: 'operator', subject: claims.subject, userId: claims.userId, role: claims.role };
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-type RouteSurface = 'page' | 'api' | 'socket';
-export type RouteAuthRequirement =
-  | { access: 'public' }
-  | { access: 'operator' }
-  | { access: 'machine'; subject: 'gateway' | 'feishu'; verification: 'route' }
-  | { access: 'self_verified'; verification: 'signed-action' }
-  | { access: 'deny' };
-
-type RouteRule = {
-  surface: RouteSurface;
-  pattern: string;
-  methods?: readonly HttpMethod[];
-  requirement: RouteAuthRequirement;
-};
-
-const operator = { access: 'operator' } as const;
-const ROUTE_RULES: readonly RouteRule[] = [
-  { surface: 'page', pattern: '/login', methods: ['GET'], requirement: { access: 'public' } },
-  { surface: 'api', pattern: '/api/auth/login', methods: ['POST'], requirement: { access: 'public' } },
-  { surface: 'api', pattern: '/api/auth/logout', methods: ['POST'], requirement: { access: 'public' } },
-  { surface: 'api', pattern: '/api/auth/me', methods: ['GET'], requirement: { access: 'public' } },
-  ...[
-    '/', '/agents', '/chat', '/gateway-tools', '/gateways/register', '/remote-ssh-tools',
-    '/rooms', '/rooms/:id', '/tasks', '/tasks/:id', '/tasks/:id/chat', '/workflow',
-    '/workspaces', '/workspaces/:id',
-  ].map((pattern): RouteRule => ({ surface: 'page', pattern, methods: ['GET'], requirement: operator })),
-  { surface: 'api', pattern: '/api/health', methods: ['GET'], requirement: { access: 'public' } },
-  { surface: 'api', pattern: '/api/feishu/grant', methods: ['GET'], requirement: { access: 'self_verified', verification: 'signed-action' } },
-  { surface: 'api', pattern: '/api/feishu/webhook', methods: ['POST'], requirement: { access: 'machine', subject: 'feishu', verification: 'route' } },
-  { surface: 'api', pattern: '/api/gateways/register', methods: ['POST'], requirement: { access: 'machine', subject: 'gateway', verification: 'route' } },
-  { surface: 'api', pattern: '/api/gateways/:id/test', methods: ['POST'], requirement: { access: 'machine', subject: 'gateway', verification: 'route' } },
-  { surface: 'api', pattern: '/api/gateways/messages/incoming', methods: ['GET', 'POST'], requirement: { access: 'machine', subject: 'gateway', verification: 'route' } },
-  { surface: 'api', pattern: '/api/gateways/messages/send', methods: ['GET', 'POST'], requirement: { access: 'machine', subject: 'gateway', verification: 'route' } },
-  ...[
-    ['/api/acpx/harness-options', ['GET']],
-    ['/api/agents', ['GET']],
-    ['/api/agents/:id', ['PATCH']],
-    ['/api/agents/register-real', ['GET', 'POST']],
-    ['/api/chat/agent-response', ['POST']],
-    ['/api/chat/messages', ['GET', 'POST']],
-    ['/api/chat/rooms', ['GET']],
-    ['/api/control-plane/execute', ['GET', 'POST']],
-    ['/api/feishu/connection', ['GET']],
-    ['/api/gateways', ['GET', 'POST']],
-    ['/api/gateways/:id/agents/refresh', ['POST']],
-    ['/api/gateways/:id/health', ['GET']],
-    ['/api/gateways/:id/openclaw/config', ['GET', 'POST', 'DELETE']],
-    ['/api/gateways/:id/openclaw/respond', ['POST']],
-    ['/api/gateways/:id/test', ['GET']],
-    ['/api/gateways/chat', ['GET', 'POST']],
-    ['/api/gateways/register', ['GET']],
-    ['/api/gateways/token', ['GET', 'POST', 'DELETE']],
-    ['/api/live-rooms', ['GET', 'POST']],
-    ['/api/live-rooms/:id', ['GET', 'PATCH', 'DELETE']],
-    ['/api/live-rooms/:id/clear-task-room', ['POST']],
-    ['/api/live-rooms/:id/interrupt', ['POST']],
-    ['/api/live-rooms/:id/members', ['POST']],
-    ['/api/live-rooms/:id/members/:memberId', ['PATCH', 'DELETE']],
-    ['/api/live-rooms/:id/messages', ['GET', 'POST']],
-    ['/api/live-rooms/:id/speaker', ['POST']],
-    ['/api/live-rooms/:id/topic', ['POST']],
-    ['/api/remote-harness-hosts', ['GET', 'POST']],
-    ['/api/remote-harness-hosts/:id', ['PATCH', 'DELETE']],
-    ['/api/remote-harness-hosts/:id/test', ['POST']],
-    ['/api/socket', ['GET']],
-    ['/api/tasks', ['GET', 'POST']],
-    ['/api/tasks/:id', ['GET', 'PUT', 'DELETE']],
-    ['/api/tasks/:id/control', ['POST']],
-    ['/api/tasks/:id/execute', ['POST']],
-    ['/api/tasks/:id/logs', ['GET']],
-    ['/api/tasks/:id/room', ['GET', 'DELETE']],
-    ['/api/tasks/:id/runs', ['GET']],
-    ['/api/tasks/:id/runs/latest', ['GET']],
-    ['/api/workspaces', ['GET']],
-    ['/api/workspaces/:id', ['GET']],
-  ].map(([pattern, methods]): RouteRule => ({
-    surface: 'api',
-    pattern: pattern as string,
-    methods: methods as HttpMethod[],
-    requirement: operator,
-  })),
-  { surface: 'socket', pattern: '/api/socket', requirement: operator },
-];
-
-const matchesPattern = (pattern: string, pathname: string) => {
-  const expected = pattern.split('/');
-  const actual = pathname.split('/');
-  return expected.length === actual.length
-    && expected.every((segment, index) => segment.startsWith(':') || segment === actual[index]);
-};
-
-export function resolveRouteAuth(args: {
-  surface: RouteSurface;
-  pathname: string;
-  method?: string;
-}): RouteAuthRequirement {
-  const pathname = args.pathname.split('?')[0].replace(/\/$/, '') || '/';
-  const method = args.method?.toUpperCase();
-  const rule = ROUTE_RULES.find((candidate) =>
-    candidate.surface === args.surface
-    && matchesPattern(candidate.pattern, pathname)
-    && (!candidate.methods || (!!method && candidate.methods.includes(method as HttpMethod)))
-  );
-  return rule?.requirement ?? { access: 'deny' };
-}
+export { resolveRouteAuth } from './auth-routes';
+export type { RouteAuthRequirement } from './auth-routes';

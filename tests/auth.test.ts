@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   AuthConfigurationError,
   createOperatorSession,
+  createUserSession,
   loadAuthConfig,
   resolveRouteAuth,
   verifyAdminCredentials,
@@ -28,6 +29,12 @@ const session = createOperatorSession(config, now);
 assert.deepEqual(verifyOperatorSession(session, config, now), { tier: 'operator', subject: 'admin' });
 assert.equal(verifyOperatorSession(`${session.slice(0, -1)}x`, config, now), null);
 assert.equal(verifyOperatorSession(session, config, now + config.sessionTtlSeconds), null);
+
+const userSession = createUserSession({ id: 'user-1', username: 'alice', role: 'user' }, config, now);
+assert.deepEqual(verifyOperatorSession(userSession, config, now), {
+  tier: 'operator', subject: 'alice', userId: 'user-1', role: 'user',
+});
+assert.equal(verifyOperatorSession(`${userSession.slice(0, -1)}x`, config, now), null);
 
 const wrongPurposePayload = Buffer.from(JSON.stringify({
   version: 1,
@@ -57,7 +64,8 @@ assert.doesNotThrow(() => loadAuthConfig({
   AUTH_SESSION_SECRET: 'local-secret-key',
 }));
 
-assert.deepEqual(resolveRouteAuth({ surface: 'page', pathname: '/', method: 'GET' }), { access: 'operator' });
+assert.deepEqual(resolveRouteAuth({ surface: 'page', pathname: '/', method: 'GET' }), { access: 'authenticated' });
+assert.deepEqual(resolveRouteAuth({ surface: 'page', pathname: '/workspaces', method: 'GET' }), { access: 'admin' });
 assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/health', method: 'GET' }), { access: 'public' });
 assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/feishu/webhook', method: 'POST' }), {
   access: 'machine', subject: 'feishu', verification: 'route',
@@ -65,7 +73,7 @@ assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/feishu/webho
 assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/gateways/gw-1/test', method: 'POST' }), {
   access: 'machine', subject: 'gateway', verification: 'route',
 });
-assert.deepEqual(resolveRouteAuth({ surface: 'socket', pathname: '/api/socket' }), { access: 'operator' });
+assert.deepEqual(resolveRouteAuth({ surface: 'socket', pathname: '/api/socket' }), { access: 'admin' });
 assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/unknown', method: 'GET' }), { access: 'deny' });
 assert.deepEqual(resolveRouteAuth({ surface: 'api', pathname: '/api/health', method: 'POST' }), { access: 'deny' });
 

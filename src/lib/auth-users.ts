@@ -3,9 +3,10 @@ import crypto from 'crypto';
 import {
   loadAuthConfig,
   verifyAdminCredentials,
-  createOperatorSession,
+  createUserSession,
   verifyOperatorSession,
   AUTH_COOKIE,
+  type AuthConfig,
 } from '@/lib/auth';
 
 export { AUTH_COOKIE };
@@ -22,7 +23,9 @@ function createPasswordHash(password: string): string {
 function verifyPassword(password: string, storedHash: string): boolean {
   const [salt, hash] = storedHash.split(':');
   if (!salt || !hash) return false;
-  return hashWithSalt(password, salt) === hash;
+  const actual = Buffer.from(hashWithSalt(password, salt));
+  const expected = Buffer.from(hash);
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
 export interface AuthUser {
@@ -54,21 +57,67 @@ export async function authenticateUser(username: string, password: string): Prom
 /** Create a session token for the given user */
 export function createSessionForUser(user: AuthUser): string {
   const config = loadAuthConfig();
-  return createOperatorSession(config);
+  return createUserSession(user, config);
 }
 
 /** Verify a session token cookie value */
-export function verifySessionToken(token: string): AuthUser | null {
+export async function verifySessionToken(token: string, config: AuthConfig = loadAuthConfig()): Promise<AuthUser | null> {
   try {
-    const config = loadAuthConfig();
     const ctx = verifyOperatorSession(token, config);
-    if (ctx && ctx.tier === 'operator' && ctx.subject === 'admin') {
+    if (ctx && ctx.tier === 'operator' && !('userId' in ctx)) {
       return { id: 'admin', username: config.adminUsername, role: 'admin', displayName: 'Admin' };
+    }
+    if (ctx && ctx.tier === 'operator' && 'userId' in ctx) {
+      if (ctx.userId === 'admin') {
+        return ctx.role === 'admin'
+          ? { id: 'admin', username: config.adminUsername, role: 'admin', displayName: 'Admin' }
+          : null;
+      }
+      const user = await prisma.user.findUnique({ where: { id: ctx.userId } });
+      if (!user) return null;
+      return {
+        id: user.id,
+        username: user.username,
+        role: user.role as 'admin' | 'user',
+        displayName: user.displayName,
+      };
     }
   } catch {
     // fall through
   }
   return null;
+}
+
+export class AuthenticationError extends Error {
+  constructor(public readonly status: 401 | 403) {
+    super(status === 401 ? 'Authentication required' : 'Administrator access required');
+    this.name = 'AuthenticationError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+const cookieToken = (request: Request) => request.headers.get('cookie')
+  ?.split(';')
+  .map((part) => part.trim().split('='))
+  .find(([name]) => name === AUTH_COOKIE)?.slice(1).join('=');
+
+export async function requireCurrentUser(request: Request): Promise<AuthUser> {
+  const encodedToken = cookieToken(request);
+  let token: string | undefined;
+  try {
+    token = encodedToken ? decodeURIComponent(encodedToken) : undefined;
+  } catch {
+    throw new AuthenticationError(401);
+  }
+  const user = token ? await verifySessionToken(token) : null;
+  if (!user) throw new AuthenticationError(401);
+  return user;
+}
+
+export async function requireAdmin(request: Request): Promise<AuthUser> {
+  const user = await requireCurrentUser(request);
+  if (user.role !== 'admin') throw new AuthenticationError(403);
+  return user;
 }
 
 /** Register a new database user (requires env-var admin credentials check by caller) */

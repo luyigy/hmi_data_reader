@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifySessionToken, AUTH_COOKIE } from '@/lib/auth-users';
+import { requireCurrentUser, AuthenticationError } from '@/lib/auth-users';
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(AUTH_COOKIE)?.value;
-  if (!token) return NextResponse.json({ user: null }, { status: 401 });
-
-  const user = verifySessionToken(token);
-  if (!user) return NextResponse.json({ user: null }, { status: 401 });
-
-  return NextResponse.json({ user });
+  try {
+    return NextResponse.json({ user: await requireCurrentUser(request) });
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      return NextResponse.json({ user: null }, { status: error.status });
+    }
+    throw error;
+  }
 }
