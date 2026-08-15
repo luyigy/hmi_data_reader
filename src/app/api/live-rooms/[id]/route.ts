@@ -9,16 +9,18 @@ import {
   serializeLiveRoomSummary,
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const room = await prisma.liveRoom.findUnique({
-      where: { id: params.id },
+    const user = await requireCurrentUser(request);
+    const room = await prisma.liveRoom.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       include: {
         currentSpeaker: {
           include: {
@@ -55,7 +57,7 @@ export async function GET(
       );
     }
 
-    const availableAgents = await listLiveRoomCatalogAgents();
+    const availableAgents = await listLiveRoomCatalogAgents(user);
     const pendingReplies = await listLiveRoomPendingReplies(params.id);
 
     const members = await serializeLiveRoomMembersWithContext({
@@ -88,8 +90,9 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const existing = await prisma.liveRoom.findUnique({
-      where: { id: params.id },
+    const user = await requireCurrentUser(request);
+    const existing = await prisma.liveRoom.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       select: {
         id: true,
         title: true,
@@ -202,9 +205,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const hardDelete = request.nextUrl.searchParams.get('hard') === 'true';
-    const existing = await prisma.liveRoom.findUnique({
-      where: { id: params.id },
+    const existing = await prisma.liveRoom.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       select: {
         id: true,
         title: true,

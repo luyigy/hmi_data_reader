@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listLiveRoomPendingReplies } from '@/lib/live-room';
 import { interruptLiveRoomMemberReplies } from '@/lib/live-room-delivery';
+import { prisma } from '@/lib/prisma';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +11,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
+    const room = await prisma.liveRoom.findFirst({ where: { id: params.id, ...ownedByCurrentUser(user) } });
+    if (!room) return NextResponse.json({ error: 'Live room not found' }, { status: 404 });
     const body = await request.json().catch(() => ({}));
     const memberId = typeof body.memberId === 'string' ? body.memberId.trim() : '';
 

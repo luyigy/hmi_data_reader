@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ensureTaskChatRoom, clearTaskRoomMessages } from '@/lib/task-room';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
+    const user = await requireCurrentUser(request);
+    const task = await prisma.task.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       select: {
         id: true,
         name: true,
@@ -48,8 +50,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
+    const user = await requireCurrentUser(request);
+    const task = await prisma.task.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       select: {
         id: true,
         name: true,

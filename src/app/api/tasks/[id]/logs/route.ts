@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 /**
  * GET /api/tasks/[id]/logs
@@ -11,11 +12,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const taskId = params.id;
 
     // 获取任务信息（包括执行结果）
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
+    const task = await prisma.task.findFirst({
+      where: { id: taskId, ...ownedByCurrentUser(user) },
       include: {
         assignedAgents: {
           include: {

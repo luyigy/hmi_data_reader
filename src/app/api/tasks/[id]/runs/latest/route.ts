@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,11 +10,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const url = new URL(request.url);
     const selectedRunId = url.searchParams.get('runId');
-    await reconcileTaskRunLiveness(params.id);
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
+    const task = await prisma.task.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       include: {
         runs: {
           include: {
@@ -33,6 +34,9 @@ export async function GET(
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
+
+
+    await reconcileTaskRunLiveness(params.id);
 
     const latestRun = selectedRunId
       ? task.runs.find((run) => run.id === selectedRunId) ?? null

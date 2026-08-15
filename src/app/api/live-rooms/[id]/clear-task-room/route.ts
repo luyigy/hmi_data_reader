@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { clearTaskRoomMessages } from '@/lib/task-room';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 /**
  * POST /api/live-rooms/[id]/clear-task-room
@@ -12,8 +13,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const liveRoom = await prisma.liveRoom.findUnique({
-      where: { id: params.id },
+    const user = await requireCurrentUser(request);
+    const liveRoom = await prisma.liveRoom.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       select: {
         id: true,
         title: true,

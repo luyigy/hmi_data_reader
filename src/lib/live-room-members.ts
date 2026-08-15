@@ -8,6 +8,7 @@ import { DEFAULT_ACPX_PERMISSION_CONFIG, getPermissionProfileLabel } from "@/lib
 import { resolveLiveRoomMemberPermission } from "@/lib/live-room-permissions";
 import { buildTaskRoomTranscriptFromMessages, ensureTaskChatRoom, parseTaskRoomSessionResetMarker, sliceTaskRoomMessagesForParticipant } from "@/lib/task-room";
 import { getTaskRoomParticipantTargetKey } from "@/lib/task-room-targets";
+import type { AuthUser } from '@/lib/auth-users';
 import type { AcpxExecutionBackend, AcpxParticipantRequest } from "@/lib/acpx/types";
 import { encodeLiveRoomRoleLabel, extractRemoteHostIdFromRoleLabel, getLiveRoomParticipantContinuationKey, type LiveRoomCatalogAgent, type LiveRoomMemberContextWatermarkPayload, type LiveRoomMemberPayload } from "@/lib/live-room-types";
 
@@ -223,10 +224,21 @@ export async function addCatalogAgentsToLiveRoom(roomId: string, selectedAgentId
 const toCatalogAgentId = (agent: Awaited<ReturnType<typeof deriveGatewayHarnessOptions>>[number]) =>
   `${agent.executionBackend}:${agent.gatewayId}:${agent.runtimeAgentId || agent.agentId || agent.harnessType}`;
 
-export const listLiveRoomCatalogAgents = async (): Promise<LiveRoomCatalogAgent[]> => {
+export const listLiveRoomCatalogAgents = async (user?: AuthUser): Promise<LiveRoomCatalogAgent[]> => {
   const options = await deriveGatewayHarnessOptions();
 
-  return options.map((option) => ({
+  const ownedNodeNames = user?.role === 'user'
+    ? new Set((await prisma.remoteNode.findMany({
+        where: { ownerUserId: user.id },
+        select: { name: true },
+      })).map((node) => node.name))
+    : null;
+
+  return options.filter((option) => !ownedNodeNames || (
+    option.executionBackend === 'remote_ssh'
+    && option.gatewayId.startsWith('remote-node:')
+    && ownedNodeNames.has(option.gatewayId.slice('remote-node:'.length))
+  )).map((option) => ({
     id: toCatalogAgentId(option),
     agentRecordId: option.executionBackend === 'gateway_openclaw' ? option.agentId || null : null,
     gatewayId: option.gatewayId,
@@ -755,6 +767,7 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
       liveRoomId: room.id,
       participantCount: participants.length,
     }),
+    ownerUserId: room.ownerUserId,
   };
 
   const sourceTask = room.sourceTask

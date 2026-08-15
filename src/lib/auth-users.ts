@@ -35,6 +35,30 @@ export interface AuthUser {
   displayName: string | null;
 }
 
+export const ownedByCurrentUser = (user: AuthUser) =>
+  user.role === 'admin' ? {} : { ownerUserId: user.id };
+
+export function requirePlatformLocalAdmin(user: AuthUser, backends: Array<string | null | undefined>): void {
+  if (user.role !== 'admin' && backends.includes('platform_local')) throw new AuthenticationError(403);
+}
+
+export async function requireExecutionAccess(
+  user: AuthUser,
+  targets: Array<{ executionBackend?: string | null; gatewayId?: string | null }>
+): Promise<void> {
+  if (user.role === 'admin') return;
+  const names = targets.map((target) =>
+    target.executionBackend === 'remote_ssh' && target.gatewayId?.startsWith('remote-node:')
+      ? target.gatewayId.slice('remote-node:'.length)
+      : null
+  );
+  if (names.some((name) => !name)) throw new AuthenticationError(403);
+  const owned = await prisma.remoteNode.count({
+    where: { ownerUserId: user.id, name: { in: names as string[] } },
+  });
+  if (owned !== new Set(names).size) throw new AuthenticationError(403);
+}
+
 /** Try admin env-var credentials first, then database users */
 export async function authenticateUser(username: string, password: string): Promise<AuthUser | null> {
   // 1. Try env-var admin credentials
@@ -95,6 +119,11 @@ export class AuthenticationError extends Error {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+export const authenticationErrorResponse = (error: unknown): Response | null =>
+  error instanceof AuthenticationError
+    ? Response.json({ error: error.message }, { status: error.status })
+    : null;
 
 const cookieToken = (request: Request) => request.headers.get('cookie')
   ?.split(';')

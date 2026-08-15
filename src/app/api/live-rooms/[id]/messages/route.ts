@@ -12,6 +12,7 @@ import {
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 import { triggerLiveRoomMessageReplies } from '@/lib/live-room-delivery';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +21,14 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const limitParam = Number(request.nextUrl.searchParams.get('limit') || '80');
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 200) : 80;
 
+    const room = await prisma.liveRoom.findFirst({ where: { id: params.id, ...ownedByCurrentUser(user) } });
+    if (!room) return NextResponse.json({ error: 'Live room not found' }, { status: 404 });
     const messages = await prisma.liveRoomMessage.findMany({
-      where: { roomId: params.id },
+      where: { roomId: room.id },
       include: {
         senderMember: {
           include: {
@@ -55,6 +59,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const body = await request.json().catch(() => ({}));
     const content = typeof body.content === 'string' ? body.content.trim() : '';
     const targetMemberId = typeof body.targetMemberId === 'string' ? body.targetMemberId.trim() : '';
@@ -72,8 +77,8 @@ export async function POST(
       );
     }
 
-    const room = await prisma.liveRoom.findUnique({
-      where: { id: params.id },
+    const room = await prisma.liveRoom.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       select: { id: true },
     });
 

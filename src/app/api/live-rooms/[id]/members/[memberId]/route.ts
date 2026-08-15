@@ -7,16 +7,20 @@ import {
   type LiveRoomPermissionProfile,
 } from '@/lib/live-room-permissions';
 import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 /**
  * DELETE /api/live-rooms/[id]/members/[memberId]
  * 从 Live Room 移除成员
  */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string; memberId: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
+    const roomAccess = await prisma.liveRoom.findFirst({ where: { id: params.id, ...ownedByCurrentUser(user) } });
+    if (!roomAccess) return NextResponse.json({ error: 'Live room not found' }, { status: 404 });
     const member = await prisma.liveRoomMember.findUnique({
       where: { id: params.memberId },
     });
@@ -73,6 +77,9 @@ export async function PATCH(
   { params }: { params: { id: string; memberId: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
+    const roomAccess = await prisma.liveRoom.findFirst({ where: { id: params.id, ...ownedByCurrentUser(user) } });
+    if (!roomAccess) return NextResponse.json({ error: 'Live room not found' }, { status: 404 });
     const body = await request.json();
     const { userNickname, shortAlias } = body;
     const role = typeof body.role === 'string' ? body.role.trim() || 'custom' : undefined;

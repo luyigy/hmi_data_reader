@@ -87,6 +87,8 @@ model Task {
   acpxPermissionConfig String?                 // JSON object of local Codex permission preferences
   workingDirectory     String?
   currentTaskSessionId String?
+  ownerUserId          String?
+  owner                User?                   @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   liveRooms            LiveRoom[]
   assignedAgents       Agent[]
   result               String?                 // JSON result data
@@ -104,6 +106,7 @@ model Task {
   @@index([status])
   @@index([executionMode])
   @@index([currentTaskSessionId])
+  @@index([ownerUserId])
 }
 
 model TaskRun {
@@ -395,6 +398,8 @@ model LiveRoom {
   mode                   String                  @default("discussion") // discussion, execution, hybrid
   status                 String                  @default("active") // active, archived
   createdBy              String                  @default("user")
+  ownerUserId            String?
+  owner                  User?                   @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   currentSpeakerMemberId String?
   workingDirectory       String?
   handoffLimit           Int                         @default(4)
@@ -409,6 +414,7 @@ model LiveRoom {
 
   @@index([sourceTaskId])
   @@index([status, updatedAt])
+  @@index([ownerUserId])
 }
 
 model FeishuConversationBinding {
@@ -661,6 +667,9 @@ model User {
   displayName  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  tasks        Task[]
+  liveRooms    LiveRoom[]
+  remoteNodes  RemoteNode[]
 
   @@index([username])
 }
@@ -670,6 +679,8 @@ model RemoteNode {
   name      String   @unique
   host      String
   secretHash String
+  ownerUserId String?
+  owner       User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   status    String   @default("offline") // online, offline
   lastSeen  DateTime?
   metadata  String?  // JSON
@@ -678,4 +689,5 @@ model RemoteNode {
 
   @@index([status])
   @@index([name])
+  @@index([ownerUserId])
 }

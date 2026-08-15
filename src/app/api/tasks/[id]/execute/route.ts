@@ -15,6 +15,7 @@ import {
 } from '@/lib/task-room-targets';
 import type { ChatMessageTargetType } from '@/lib/chat-types';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
+import { authenticationErrorResponse, ownedByCurrentUser, requireCurrentUser, requireExecutionAccess, requirePlatformLocalAdmin } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,12 +30,13 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const taskId = params.id;
     const body = await request.json().catch(() => ({}));
     
     // 获取任务信息
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
+    const task = await prisma.task.findFirst({
+      where: { id: taskId, ...ownedByCurrentUser(user) },
       include: {
         assignedAgents: true,
       },
@@ -71,6 +73,11 @@ export async function POST(
           }
         })()
       : [];
+    requirePlatformLocalAdmin(
+      user,
+      isAcpxTask ? acpxParticipants.map((participant) => participant.executionBackend) : ['platform_local']
+    );
+    await requireExecutionAccess(user, isAcpxTask ? acpxParticipants : [{ executionBackend: 'platform_local' }]);
     const requestedAcpxPermissionConfig = isAcpxTask && body?.acpxPermissionConfig
       ? (() => {
           return normalizeAcpxPermissionConfig(body.acpxPermissionConfig as AcpxPermissionConfig);
@@ -344,6 +351,8 @@ export async function POST(
       ...resultData,
     });
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to execute task:', error);
     return NextResponse.json(
       { error: 'Failed to execute task' },

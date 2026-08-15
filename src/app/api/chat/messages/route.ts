@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import type { ChatMessageTargetType } from '@/lib/chat-types';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +31,17 @@ const mapMessage = (message: {
   createdAt: message.createdAt.toISOString(),
 });
 
+const canAccessRoom = async (request: NextRequest, roomId: string) => {
+  const user = await requireCurrentUser(request);
+  if (user.role === 'admin') return true;
+  const room = await prisma.chatRoom.findUnique({ where: { id: roomId }, select: { description: true } });
+  const taskId = room?.description?.match(/(?:^|\n)TASK_ROOM:([^\s]+)/)?.[1];
+  return Boolean(taskId && await prisma.task.findFirst({
+    where: { id: taskId, ...ownedByCurrentUser(user) },
+    select: { id: true },
+  }));
+};
+
 // GET /api/chat/messages?roomId=xxx&limit=50&before=2024-01-01T00:00:00.000Z
 export async function GET(request: NextRequest) {
   try {
@@ -40,6 +52,9 @@ export async function GET(request: NextRequest) {
         { error: 'roomId is required' },
         { status: 400 }
       );
+    }
+    if (!await canAccessRoom(request, roomId)) {
+      return NextResponse.json({ error: 'Chat room not found' }, { status: 404 });
     }
 
     const limit = Math.min(Number(searchParams.get('limit') ?? 50), 200);
@@ -75,6 +90,9 @@ export async function POST(request: NextRequest) {
         { error: 'content, roomId, userId, userName are required' },
         { status: 400 }
       );
+    }
+    if (!await canAccessRoom(request, roomId)) {
+      return NextResponse.json({ error: 'Chat room not found' }, { status: 404 });
     }
 
     if (targetType && targetType !== 'task' && targetType !== 'participant' && targetType !== 'all') {

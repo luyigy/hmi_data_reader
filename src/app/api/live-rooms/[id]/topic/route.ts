@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { postLiveRoomMessage, syncLiveRoomSourceTask } from '@/lib/live-room';
+import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,11 +10,12 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const body = await request.json().catch(() => ({}));
     const topic = typeof body.topic === 'string' ? body.topic.trim() : '';
 
-    const room = await prisma.liveRoom.findUnique({
-      where: { id: params.id },
+    const room = await prisma.liveRoom.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
     });
 
     if (!room) {

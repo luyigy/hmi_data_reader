@@ -4,6 +4,7 @@ import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
 import type { Prisma } from '@prisma/client';
 import type { AcpxParticipantRequest, AcpxPermissionConfig } from '@/lib/acpx/types';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
+import { authenticationErrorResponse, ownedByCurrentUser, requireCurrentUser, requireExecutionAccess, requirePlatformLocalAdmin } from '@/lib/auth-users';
 
 const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -57,10 +58,10 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await reconcileTaskRunLiveness(params.id);
+    const user = await requireCurrentUser(request);
 
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
+    const task = await prisma.task.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       include: {
         currentTaskSession: true,
         assignedAgents: {
@@ -78,8 +79,12 @@ export async function GET(
       );
     }
 
+    await reconcileTaskRunLiveness(params.id);
+
     return NextResponse.json(formatTask(task));
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to fetch task:', error);
     return NextResponse.json(
       { error: 'Failed to fetch task' },
@@ -94,6 +99,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const body = await request.json();
     const { status, result, error, acpxParticipants, acpxPermissionConfig } = body;
 
@@ -106,8 +112,8 @@ export async function PUT(
       );
     }
 
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
+    const task = await prisma.task.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
     });
 
     if (!task) {
@@ -140,6 +146,11 @@ export async function PUT(
     }
 
     if (acpxParticipants !== undefined) {
+      requirePlatformLocalAdmin(
+        user,
+        Array.isArray(acpxParticipants) ? acpxParticipants.map((participant) => participant?.executionBackend) : []
+      );
+      if (Array.isArray(acpxParticipants)) await requireExecutionAccess(user, acpxParticipants);
       updateData.acpxParticipants = JSON.stringify(acpxParticipants);
     }
 
@@ -164,6 +175,8 @@ export async function PUT(
 
     return NextResponse.json(formatTask(updated));
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to update task:', error);
     return NextResponse.json(
       { error: 'Failed to update task' },
@@ -178,8 +191,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
+    const user = await requireCurrentUser(request);
+    const task = await prisma.task.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
     });
 
     if (!task) {
@@ -195,6 +209,8 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Task deleted' });
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to delete task:', error);
     return NextResponse.json(
       { error: 'Failed to delete task' },

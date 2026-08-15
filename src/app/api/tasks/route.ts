@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import type { AcpxParticipantRequest, AcpxOrchestrationMode, AcpxPermissionConfig } from '@/lib/acpx/types';
 import { ensureTaskSession } from '@/lib/acpx/session';
 import { DEFAULT_ACPX_PERMISSION_CONFIG, normalizeAcpxPermissionConfig } from '@/lib/acpx/permissions';
+import { authenticationErrorResponse, ownedByCurrentUser, requireCurrentUser, requireExecutionAccess, requirePlatformLocalAdmin } from '@/lib/auth-users';
 
 const parseJson = <T,>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
@@ -42,11 +43,12 @@ const formatTask = (task: any) => ({
 // GET /api/tasks - 获取所有任务
 export async function GET(request: NextRequest) {
   try {
+    const user = await requireCurrentUser(request);
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const where = status ? { status } : {};
+    const where = { ...(status ? { status } : {}), ...ownedByCurrentUser(user) };
 
     const tasks = await prisma.task.findMany({
       where,
@@ -68,6 +70,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(formatted);
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to fetch tasks:', error);
     return NextResponse.json(
       { error: 'Failed to fetch tasks' },
@@ -79,6 +83,7 @@ export async function GET(request: NextRequest) {
 // POST /api/tasks - 创建新任务
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireCurrentUser(request);
     const body = await request.json();
     const {
       name,
@@ -130,6 +135,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (executionMode === 'acpx') {
+      requirePlatformLocalAdmin(user, normalizedParticipants.map((participant) => participant.executionBackend));
+      await requireExecutionAccess(user, normalizedParticipants);
       if (normalizedParticipants.length === 0) {
         return NextResponse.json(
           { error: 'ACPX task requires at least one participant' },
@@ -153,6 +160,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (executionMode !== 'acpx') requirePlatformLocalAdmin(user, ['platform_local']);
+
     const task = await prisma.task.create({
       data: {
         name: normalizedName,
@@ -164,6 +173,7 @@ export async function POST(request: NextRequest) {
         acpxPermissionConfig:
           executionMode === 'acpx' ? JSON.stringify(normalizedPermissionConfig) : null,
         workingDirectory: effectiveWorkingDirectory,
+        ownerUserId: user.id === 'admin' ? null : user.id,
         result:
           executionMode === 'acpx'
             ? JSON.stringify({
@@ -202,6 +212,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(formatted, { status: 201 });
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to create task:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to create task';
     const validationHint =

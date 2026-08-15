@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import type { AuthUser } from '@/lib/auth-users';
 
 export interface RemoteNodeInfo {
   id: string;
@@ -67,8 +68,11 @@ export async function markRemoteNodeMembersOffline(name: string): Promise<void> 
 }
 
 /** Get all registered nodes */
-export async function listRemoteNodes(): Promise<RemoteNodeInfo[]> {
-  const nodes = await prisma.remoteNode.findMany({ orderBy: { name: 'asc' } });
+export async function listRemoteNodes(user?: AuthUser): Promise<RemoteNodeInfo[]> {
+  const nodes = await prisma.remoteNode.findMany({
+    where: user?.role === 'user' ? { ownerUserId: user.id } : undefined,
+    orderBy: { name: 'asc' },
+  });
   return nodes.map(n => ({
     id: n.id,
     name: n.name,

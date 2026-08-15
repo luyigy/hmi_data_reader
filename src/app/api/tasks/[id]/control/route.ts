@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { authenticationErrorResponse, ownedByCurrentUser, requireCurrentUser, requireExecutionAccess, requirePlatformLocalAdmin } from '@/lib/auth-users';
 import { createTaskRunControlMessage } from '@/lib/acpx/control';
 import { requestRunControl } from '@/lib/acpx/process-registry';
 import { publishTaskRunEvent } from '@/lib/acpx/event-bus';
@@ -115,7 +116,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    await reconcileTaskRunLiveness(params.id);
+    const user = await requireCurrentUser(request);
 
     const body = await request.json();
     const action = body.action;
@@ -146,8 +147,8 @@ export async function POST(
       );
     }
 
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
+    const task = await prisma.task.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       include: {
         currentTaskSession: true,
       },
@@ -156,6 +157,9 @@ export async function POST(
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
+
+
+    await reconcileTaskRunLiveness(params.id);
 
     const taskPermissionConfig = (() => {
       try {
@@ -172,6 +176,8 @@ export async function POST(
     });
 
     const acpxParticipants = parseParticipants(task.acpxParticipants);
+    requirePlatformLocalAdmin(user, acpxParticipants.map((participant) => participant.executionBackend));
+    await requireExecutionAccess(user, acpxParticipants);
     const targetParticipantSpec = targetType === 'participant'
       ? acpxParticipants.find(
           (participant) => getTaskRoomParticipantTargetKey(participant) === targetParticipantKey
@@ -657,6 +663,8 @@ export async function POST(
       continuationRunId,
     });
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to process task control request:', error);
     return NextResponse.json(
       { error: 'Failed to process task control request' },

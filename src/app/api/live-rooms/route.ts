@@ -14,14 +14,17 @@ import {
   permissionConfigForProfile,
   type LiveRoomPermissionProfile,
 } from '@/lib/live-room-permissions';
+import { authenticationErrorResponse, ownedByCurrentUser, requireCurrentUser, requireExecutionAccess } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await requireCurrentUser(request);
     const [rooms, availableAgents] = await Promise.all([
       prisma.liveRoom.findMany({
         where: {
+          ...ownedByCurrentUser(user),
           status: {
             in: ['active', 'archived'],
           },
@@ -46,7 +49,7 @@ export async function GET() {
           updatedAt: 'desc',
         },
       }),
-      listLiveRoomCatalogAgents(),
+      listLiveRoomCatalogAgents(user),
     ]);
 
     return NextResponse.json({
@@ -54,6 +57,8 @@ export async function GET() {
       availableAgents,
     });
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to fetch live rooms:', error);
     return NextResponse.json(
       { error: 'Failed to fetch live rooms' },
@@ -64,6 +69,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireCurrentUser(request);
     const body = await request.json().catch(() => ({}));
     const title = typeof body.title === 'string' ? body.title.trim() : '';
     const description = typeof body.description === 'string' ? body.description.trim() : '';
@@ -89,8 +95,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const availableAgents = await listLiveRoomCatalogAgents();
+    const availableAgents = await listLiveRoomCatalogAgents(user);
     const selectedAgents = availableAgents.filter((agent) => selectedAgentIds.includes(agent.id));
+    await requireExecutionAccess(user, selectedAgents.map((agent) => ({
+      executionBackend: agent.backend,
+      gatewayId: agent.gatewayId,
+    })));
 
     const room = await prisma.liveRoom.create({
       data: {
@@ -101,6 +111,7 @@ export async function POST(request: NextRequest) {
         mode,
         status: 'active',
         createdBy: 'user',
+        ownerUserId: user.id === 'admin' ? null : user.id,
       },
     });
 
@@ -216,6 +227,8 @@ export async function POST(request: NextRequest) {
       room: hydratedRoom ? serializeLiveRoomSummary(hydratedRoom) : null,
     }, { status: 201 });
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to create live room:', error);
     return NextResponse.json(
       { error: 'Failed to create live room' },

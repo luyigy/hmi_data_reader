@@ -14,6 +14,7 @@ import {
   permissionConfigForProfile,
   type LiveRoomPermissionProfile,
 } from '@/lib/live-room-permissions';
+import { authenticationErrorResponse, ownedByCurrentUser, requireCurrentUser, requireExecutionAccess } from '@/lib/auth-users';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireCurrentUser(request);
     const body = await request.json().catch(() => ({}));
     const selectedAgentId = typeof body.agentId === 'string' ? body.agentId.trim() : '';
     const role = typeof body.role === 'string' ? body.role.trim() || 'custom' : 'custom';
@@ -36,8 +38,8 @@ export async function POST(
       );
     }
 
-    const room = await prisma.liveRoom.findUnique({
-      where: { id: params.id },
+    const room = await prisma.liveRoom.findFirst({
+      where: { id: params.id, ...ownedByCurrentUser(user) },
       include: {
         members: true,
       },
@@ -50,7 +52,7 @@ export async function POST(
       );
     }
 
-    const availableAgents = await listLiveRoomCatalogAgents();
+    const availableAgents = await listLiveRoomCatalogAgents(user);
     const agent = availableAgents.find((item) => item.id === selectedAgentId);
 
     if (!agent) {
@@ -59,6 +61,7 @@ export async function POST(
         { status: 400 }
       );
     }
+    await requireExecutionAccess(user, [{ executionBackend: agent.backend, gatewayId: agent.gatewayId }]);
 
     const duplicate = room.members.find((member) =>
       member.runtimeAgentId === (agent.runtimeAgentId || null)
@@ -175,6 +178,8 @@ export async function POST(
       duplicate: false,
     }, { status: 201 });
   } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     console.error('Failed to add live room member:', error);
     return NextResponse.json(
       { error: 'Failed to add live room member' },
