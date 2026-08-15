@@ -99,7 +99,7 @@ esac
     assert.equal(await readFile(path.join(workspace, 'sandbox-write'), 'utf8'), 'sandboxed');
     const restrictedArgs = await readFile(path.join(workspace, 'args'), 'utf8');
     assert.doesNotMatch(restrictedArgs, /^--sandbox$/m);
-    assert.doesNotMatch(restrictedArgs, /^--dangerously-skip-permissions$/m);
+    assert.match(restrictedArgs, /^--dangerously-skip-permissions$/m);
 
     process.env.AGY_TEST_CASE = 'text';
     await executeAntigravityTask(

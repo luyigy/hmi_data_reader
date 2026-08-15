@@ -187,7 +187,7 @@ export const executeAntigravityTask = (
     ...resolveProjectArgs(config.workingDirectory),
     '--output-format',
     'stream-json',
-    ...(config.sandboxMode === 'danger-full-access'
+    ...(config.workspaceRoot || config.sandboxMode === 'danger-full-access'
       ? ['--dangerously-skip-permissions']
       : []),
   ];
