@@ -82,8 +82,8 @@ def run_ocr(ocr, path: Path) -> list[dict]:
     return lines
 
 
-def _run_rec(ocr, crop) -> tuple[str, float]:
-    result = ocr.ocr(cv2.resize(crop, None, fx=6, fy=6,
+def _run_rec(ocr, crop, scale=6) -> tuple[str, float]:
+    result = ocr.ocr(cv2.resize(crop, None, fx=scale, fy=scale,
                                 interpolation=cv2.INTER_CUBIC),
                      det=False, cls=False)
     if result and result[0] and isinstance(result[0], list) and result[0]:
@@ -258,13 +258,18 @@ def _mt_find_bands(img):
         comps = []
         for i in range(1, n):
             x, y, w, h, area = stats[i]
+            # 低分辨率图经闭运算后，两位数码管可能合并为一个整行组件；直接
+            # 保留横向数字行，后续 rec-only 数值口径与 PV/SV 双行门禁继续过滤。
+            if 8 <= h <= 200 and 12 <= w <= 500 and 1.4 <= w / h <= 5.0:
+                bands.append((x, y, x + w, y + h, color))
+                continue
             if not (10 <= h <= 200 and 3 <= w <= 160):
                 continue
             if h < w * 0.85:
                 continue
-            # 填充率窗口：7 段数码管为镂空笔画（约 0.1-0.6），实心圆指示灯
-            # （>0.65）不是数字，剔除防 '11'/'0' 噪声行
-            if not (0.10 <= area / (w * h) <= 0.65):
+            # 填充率窗口：低分辨率插值会把 7 段管填充率抬到约 0.7；上方长宽比
+            # 已剔除近圆形指示灯，保留到 0.75 以召回仍可分开的两位数字。
+            if not (0.10 <= area / (w * h) <= 0.75):
                 continue
             comps.append((x, y, w, h))
         groups: list[list] = []
@@ -373,23 +378,42 @@ def generate_mold_temp_display_sidecar(ocr, image_sources, out_path: Path) -> in
                 continue
             mask_crop = mask_fns[color](cv2.cvtColor(crop, cv2.COLOR_BGR2HSV))
             mask_bgr = cv2.cvtColor(mask_crop, cv2.COLOR_GRAY2BGR)
-            attempts = [crop, mask_bgr]
+            tight_crop = img[y0:y1, x0:x1]
+            attempts = [
+                (crop, 6),
+                (mask_bgr, 6),
+                (cv2.threshold(cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY), 0, 255,
+                               cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1], 6),
+                (tight_crop, 10),
+            ]
             if ph > (x1 - x0):  # 竖行：照片旋转 90° 回退
                 attempts = [
-                    cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE),
-                    cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE),
-                    cv2.rotate(mask_bgr, cv2.ROTATE_90_CLOCKWISE),
-                    cv2.rotate(mask_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE),
+                    (cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE), 6),
+                    (cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE), 6),
+                    (cv2.rotate(mask_bgr, cv2.ROTATE_90_CLOCKWISE), 6),
+                    (cv2.rotate(mask_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE), 6),
                 ]
             best_text, best_conf = "", 0.0
             fallback_text, fallback_conf = "", 0.0
-            for attempt in attempts:
-                text, conf = _run_rec(ocr, attempt)
+            # 足够高的横向 7 段管优先用 Otsu 去掉未点亮残影；结果仍须与原图
+            # 独立坐标系交叉一致，单一路径不会直接成为可信字段。
+            if ph >= 20 and ph <= x1 - x0:
+                preferred_pad = max(pad, int(ph * (0.42 if color == "red" else 0.24)))
+                preferred = img[max(0, y0 - preferred_pad):min(ih, y1 + preferred_pad),
+                                max(0, x0 - preferred_pad):min(iw, x1 + preferred_pad)]
+                preferred = cv2.threshold(cv2.cvtColor(preferred, cv2.COLOR_BGR2GRAY),
+                                          0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+                text, conf = _run_rec(ocr, preferred, 8)
                 if NUM_FULLMATCH.match(text):
-                    if conf > best_conf:
-                        best_text, best_conf = text, conf
-                elif conf > fallback_conf:
-                    fallback_text, fallback_conf = text, conf
+                    best_text, best_conf = text, conf
+            if not best_text:
+                for attempt, scale in attempts:
+                    text, conf = _run_rec(ocr, attempt, scale)
+                    if NUM_FULLMATCH.match(text):
+                        if conf > best_conf:
+                            best_text, best_conf = text, conf
+                    elif conf > fallback_conf:
+                        fallback_text, fallback_conf = text, conf
             if not best_text:
                 best_text, best_conf = fallback_text, fallback_conf
             if not best_text or not any(ch.isdigit() for ch in best_text):

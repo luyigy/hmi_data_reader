@@ -31,6 +31,21 @@ def _report(**metric_overrides) -> QualityReport:
 
 
 class TriageNewCodesTest(unittest.TestCase):
+    def test_small_width_is_review_only_when_screen_fills_frame(self):
+        r = _report(screen_bbox=(0, 100, 436, 259), screen_area_ratio=0.65,
+                    corners_found=True, blur_score=100.0, perspective_ratio=1.0)
+        triage(r)
+        self.assertNotIn("SCREEN_TOO_SMALL", r.reject_codes)
+        self.assertEqual(r.triage, "yellow")
+        self.assertIn("LOW_TEXT_SIZE", r.warn_codes)
+
+    def test_small_distant_screen_remains_rejected(self):
+        r = _report(screen_bbox=(100, 100, 436, 259), screen_area_ratio=0.20,
+                    corners_found=True, blur_score=100.0, perspective_ratio=1.0)
+        triage(r)
+        self.assertIn("SCREEN_TOO_SMALL", r.reject_codes)
+        self.assertEqual(r.triage, "red")
+
     def test_screen_clipped_requires_bbox_without_corners(self):
         r = _report(screen_bbox=(0, 100, 3900, 2000), screen_area_ratio=0.8,
                     screen_clipped=True, corners_found=False,

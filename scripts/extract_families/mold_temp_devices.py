@@ -15,8 +15,8 @@
    仅在两系结果一致（±0.5°C）时交叉采信。
 2. 严格数值口径：^\d{1,3}(\.\d)?$ 且落入模板 sv_range；'500'（'50.0' 丢点）
    超界拒收，'8888'（关断残段）不符模式拒收，不猜值。
-3. 同一来源按 y 聚行：恰好两行且行内无冲突 -> 上行 PV / 下行 SV；任一来源
-   行数不为 2 或行内冲突即放弃该来源；全部来源不可用 ->
+3. 同一来源按 y 聚行：恰好两行且行内无冲突 -> 上行 PV / 下行 SV；旁车存在
+   额外噪声行时，仅接受两个坐标系唯一一致的相邻双行；全部来源不可用 ->
    VALUE_ROWS_MISSING/VALUE_ROWS_AMBIGUOUS 拒识，不猜值、不错位取舍。
 
 输出契约字段：mold_temperature_set_c（SV 设定）与
@@ -79,6 +79,12 @@ def _extract_pv_sv(toks: list[dict], template: dict) -> dict:
         return len(rows) == 2 and all(
             len({e["v"] for e in row}) == 1 for row in rows)
 
+    def pairs(rows):
+        return [(rows[i:i + 2], tuple(next(iter({e["v"] for e in row}))
+                                      for row in rows[i:i + 2]))
+                for i in range(len(rows) - 1)
+                if all(len({e["v"] for e in row}) == 1 for row in rows[i:i + 2])]
+
     rows, src_name = [], None
     for candidate in ("base", "mt_full"):
         if usable(rows_by_src[candidate]):
@@ -88,11 +94,16 @@ def _extract_pv_sv(toks: list[dict], template: dict) -> dict:
         # 旁车交叉验证：两个坐标系的独立裁剪识别给出一致 (PV, SV) 才采信
         cell_rows = rows_by_src["mt_cell"]
         orig_rows = rows_by_src["mt_cell_orig"]
-        if usable(cell_rows) and usable(orig_rows):
-            pair_c = (cell_rows[0][0]["v"], cell_rows[1][0]["v"])
-            pair_o = (orig_rows[0][0]["v"], orig_rows[1][0]["v"])
-            if all(abs(a - b) <= 0.5 for a, b in zip(pair_c, pair_o)):
-                rows, src_name = cell_rows, "mt_cell_xvalid"
+        matches = [(pair_c, values_c) for pair_c, values_c in pairs(cell_rows)
+                   for _, values_o in pairs(orig_rows)
+                   if all(abs(a - b) <= 0.5 for a, b in zip(values_c, values_o))]
+        distinct = []
+        for pair_c, values_c in matches:
+            if not any(all(abs(a - b) <= 0.5 for a, b in zip(values_c, prior))
+                       for prior in distinct):
+                distinct.append(values_c)
+        if len(distinct) == 1:
+            rows, src_name = matches[0][0], "mt_cell_xvalid"
     detail["value_source"] = src_name
 
     if src_name is None:

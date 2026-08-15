@@ -14,6 +14,9 @@ import sys
 import unittest
 from pathlib import Path
 
+import cv2
+import numpy as np
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -22,6 +25,7 @@ from extract_families.fanuc_mold_temp import extract_mold_temp_fanuc
 from extract_families.mold_temp_devices import (
     extract_mold_temp_omron_e5cc, extract_mold_temp_thermoregulator)
 from extract_fields import detect_family_from_templates, route_page
+from ocr_variants import _mt_find_bands
 
 
 def template(name):
@@ -80,6 +84,18 @@ class MoldTempPageRoutingTest(unittest.TestCase):
 
 
 class MoldTempExtractorTest(unittest.TestCase):
+    def test_low_resolution_merged_digit_rows_are_detected(self):
+        image = np.zeros((120, 160, 3), dtype=np.uint8)
+        cv2.rectangle(image, (40, 30), (48, 45), (0, 0, 255), -1)
+        cv2.rectangle(image, (55, 30), (63, 45), (0, 0, 255), -1)
+        cv2.rectangle(image, (40, 70), (48, 85), (0, 255, 0), -1)
+        cv2.rectangle(image, (55, 70), (63, 85), (0, 255, 0), -1)
+
+        bands = _mt_find_bands(image)
+
+        self.assertTrue(any(color == "red" and y0 < 50 for _, y0, _, _, color in bands))
+        self.assertTrue(any(color == "green" and y0 > 50 for _, y0, _, _, color in bands))
+
     def test_omron_cells_only_rejected_without_trusted_source(self):
         # 旁车裁剪 rec-only 单独不足信（实测 '140'/'88' 残段误读），须拒识
         toks = [cell("40", 0.29), cell("40", 0.33)]
@@ -94,6 +110,23 @@ class MoldTempExtractorTest(unittest.TestCase):
         self.assertEqual(result["detail"]["value_source"], "mt_cell_xvalid")
         self.assertEqual(result["fields"], {
             "mold_temperature_set_c": 40.0, "mold_temperature_current_c": 40.0})
+
+    def test_cells_cross_validation_ignores_unmatched_trailing_noise(self):
+        toks = [cell("65", 0.29), cell("65", 0.33), cell("7", 0.37), cell("7", 0.41),
+                {**cell("65", 0.225), "src": "mt_cell_orig"},
+                {**cell("65", 0.259), "src": "mt_cell_orig"}]
+        result = extract_mold_temp_omron_e5cc(toks, template("omron_e5cc.mold_temp.json"))
+        self.assertEqual(result["fields"], {
+            "mold_temperature_set_c": 65.0, "mold_temperature_current_c": 65.0})
+
+    def test_cells_multiple_cross_validated_pairs_stay_rejected(self):
+        toks = [cell("65", 0.29), cell("65", 0.33), cell("7", 0.37), cell("7", 0.41),
+                {**cell("65", 0.225), "src": "mt_cell_orig"},
+                {**cell("65", 0.259), "src": "mt_cell_orig"},
+                {**cell("7", 0.293), "src": "mt_cell_orig"},
+                {**cell("7", 0.327), "src": "mt_cell_orig"}]
+        result = extract_mold_temp_omron_e5cc(toks, template("omron_e5cc.mold_temp.json"))
+        self.assertIsNone(result["fields"])
 
     def test_cells_disagreeing_across_frames_rejected(self):
         toks = [cell("140", 0.29), cell("88", 0.33),

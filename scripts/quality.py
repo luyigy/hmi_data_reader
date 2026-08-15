@@ -20,7 +20,7 @@ NEEDS_RECTIFICATION, LOW_TEXT_SIZE, MINOR_GLARE, LOW_CLASS_CONFIDENCE
 - 透视：有屏幕四角时取对边长度比（>1.80 且可矫正仍硬拒；无四角回退启发式 >1.30 硬拒）
 - 反光：高亮区域比例（>230 像素值）>0.15 且画面纹理已破坏（Laplacian 方差 <300）才硬拒
 - 模糊：Laplacian 方差
-- 屏幕太小：屏幕有效宽度 < 500px 硬拒；屏占比 <30% 仅黄灯（绝对像素宽者不再误杀）
+- 屏幕太小：屏幕有效宽度 < 500px 且屏占比 <30% 硬拒；仅一项不足时黄灯
 - 完整性（064 S02）：屏幕 bbox 贴图像边（余量 <1%）且四角未命中时 SCREEN_CLIPPED
   硬拒；四角命中说明屏幕完整入镜，不误判。无法定界屏幕 ROI 时不下质量结论
   （安全降级，SCREEN_NOT_FOUND 已覆盖）
@@ -287,7 +287,8 @@ def triage(report: QualityReport) -> None:
 
     if m.screen_bbox is not None:
         x, y, bw, bh = m.screen_bbox
-        if bw < THRESHOLD_SCREEN_MIN_WIDTH:
+        if (bw < THRESHOLD_SCREEN_MIN_WIDTH
+                and m.screen_area_ratio < THRESHOLD_SCREEN_MIN_AREA_RATIO):
             report.reject_codes.append("SCREEN_TOO_SMALL")
             tri = "red"
             reshoot.append(REJECT_GUIDANCE["SCREEN_TOO_SMALL"])
