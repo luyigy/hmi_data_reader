@@ -129,6 +129,10 @@ assert.deepEqual(
   buildLiveRoomWorkflowStages('feature', members, 'implement').map((stage) => stage.id),
   ['implement'],
 );
+assert.match(
+  buildLiveRoomWorkflowStages('feature', members, 'implement')[0].instruction,
+  /不要运行测试.*REPORT\/HANDOVER.*preflight.*git add.*commit/,
+);
 assert.deepEqual(
   buildLiveRoomWorkflowStages('feature', members, 'full', true).map((stage) => stage.id),
   ['plan-review', 'test-plan', 'implement', 'code-review', 'test'],
@@ -159,13 +163,14 @@ assert.equal(liveRoomWorkflowGatePassed('implement', 'completed'), null);
 
 async function verifyFailedWorkflowDefersToNextAgent() {
   let dispatchState = 'reply_queued';
+  let sourceMetadata: string | null = null;
   const messages: Array<{ content: string }> = [];
   const prompts: string[] = [];
   const prismaModule = await import('../src/lib/prisma') as unknown as { prisma: Record<string, unknown> };
   prismaModule.prisma = {
     $queryRaw: async () => [],
     liveRoom: { findUnique: async () => ({ id: 'room', members: members.map((item) => ({ ...item, canReply: true, joinStatus: 'joined' })) }) },
-    liveRoomMessage: { findUnique: async () => ({ metadata: null }) },
+    liveRoomMessage: { findUnique: async () => ({ metadata: sourceMetadata }) },
     workflowDispatch: { updateMany: async ({ data }: { data: { state: string } }) => {
       dispatchState = data.state;
       return { count: 1 };
@@ -183,14 +188,17 @@ async function verifyFailedWorkflowDefersToNextAgent() {
   const runner = await import('../src/lib/acpx/runner') as unknown as Record<string, unknown>;
   let runCount = 0;
   let callbacksAttached = 0;
-  runner.executeAcpxTaskRun = async ({ taskDescription, streamCallbacks }: {
+  const completionGates: Array<boolean | undefined> = [];
+  runner.executeAcpxTaskRun = async ({ taskDescription, streamCallbacks, workflowCompletionGate }: {
     taskDescription: string;
+    workflowCompletionGate?: boolean;
     streamCallbacks?: {
       onStdoutChunk?: (chunk: string) => void;
       onToolEvent?: (event: { toolName: string; preview: string; emoji: string }) => void;
     };
   }) => {
     runCount += 1;
+    completionGates.push(workflowCompletionGate);
     if (streamCallbacks) callbacksAttached += 1;
     streamCallbacks?.onStdoutChunk?.(`stage ${runCount} thinking.`);
     streamCallbacks?.onToolEvent?.({ toolName: 'Read', preview: 'src/file.ts', emoji: '📖' });
@@ -210,8 +218,17 @@ async function verifyFailedWorkflowDefersToNextAgent() {
   assert.ok(messages.some((message) => message.content.includes('正在分析')));
   assert.ok(messages.some((message) => message.content.includes('正在使用 Read')));
   assert.match(prompts[1], /Inherited failed responsibilities/);
+  assert.deepEqual(completionGates, [false, false, false]);
+
+  sourceMetadata = JSON.stringify({ source: 'workflow_watcher' });
+  runCount = 0;
+  completionGates.length = 0;
+  await runLiveRoomWorkflow({ roomId: 'room', sourceMessageId: 'source', name: 'feature', level: 'implement', task: 'finish S02' });
+  assert.equal(runCount, 1);
+  assert.deepEqual(completionGates, [true]);
 
   dispatchState = 'reply_queued';
+  sourceMetadata = null;
   messages.length = 0;
   runCount = 0;
   runner.executeAcpxTaskRun = async () => {

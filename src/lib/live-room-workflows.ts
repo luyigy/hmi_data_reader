@@ -377,7 +377,7 @@ export const buildLiveRoomWorkflowStages = (
     level === 'full'
       ? '严格按照已确认计划和测试方案修改代码。完成最小必要实现和自测，并列出修改文件。'
       : level === 'implement'
-        ? '依据已有 PLAN 和原始任务直接完成最小必要实现并列出修改文件。不要重新制定计划，不要运行测试。'
+        ? '依据已有 PLAN 和原始任务直接完成最小必要实现。不要重新制定计划，不要运行测试；但必须按目标仓库 workflow contract 完成本 Slice 所需 REPORT/HANDOVER、preflight 校验、git add 和 commit，并列出修改文件。'
         : '依据已有 PLAN 和原始任务直接完成最小必要实现与自测，并列出修改文件。不要重新制定完整计划。'
   );
   if (level === 'full') {
@@ -464,10 +464,13 @@ export const runLiveRoomWorkflow = async ({
     where: { id: sourceMessageId },
     select: { metadata: true },
   });
+  const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage?.metadata);
   const workflowPermissionSnapshot = readWorkflowPermissionSnapshot(
-    parseLiveRoomMessageMetadata(sourceMessage?.metadata)?.workflowPermissionSnapshot,
+    sourceMetadata?.workflowPermissionSnapshot,
     sourceTask.workingDirectory || process.cwd(),
   );
+  const workflowCompletionGate = level === 'implement'
+    && sourceMetadata?.source === 'workflow_watcher';
 
   const members = room.members as WorkflowMember[];
   const missingRoles = missingLiveRoomWorkflowRoles(members, level, approvedPlan);
@@ -562,6 +565,7 @@ export const runLiveRoomWorkflow = async ({
       taskId: sourceTask.id,
       taskSessionId: sourceTask.currentTaskSession?.id || undefined,
       taskName: sourceTask.name,
+      workflowCompletionGate,
       taskDescription: [
         `Live Room ${name} workflow.`,
         `Original task: ${task}`,

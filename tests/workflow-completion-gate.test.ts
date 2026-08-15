@@ -43,7 +43,28 @@ async function main() {
   git('commit', '-qm', 'baseline');
   const baseline = await getWorkflowCompletionBaseline(root);
 
-  await assertWorkflowCompletion(root, baseline);
+  await assert.rejects(
+    assertWorkflowCompletion(root, baseline),
+    /no committed PLAN\/HANDOVER produced during the workflow run/,
+  );
+  let missingDocumentCorrection = '';
+  await assert.rejects(
+    completeWorkflowInOriginalSession({
+      cwd: root,
+      baseline,
+      taskId: 'task',
+      taskName: 'task',
+      sessionId: 'original-session',
+      notify: async () => {},
+      correct: async ({ continuationMessage }) => {
+        missingDocumentCorrection = continuationMessage;
+        throw new Error('stop after inspecting missing-document correction');
+      },
+    }),
+    /stop after inspecting missing-document correction/,
+  );
+  assert.match(missingDocumentCorrection, /no committed PLAN\/HANDOVER/);
+  assert.match(missingDocumentCorrection, /创建或修订本次相关 PLAN\/HANDOVER 并提交/);
 
   const plan = (action: string) => `---
 doc_type: PLAN
@@ -68,7 +89,10 @@ S01
   );
 
   const preDirtyBaseline = await getWorkflowCompletionBaseline(root);
-  await assertWorkflowCompletion(root, preDirtyBaseline);
+  await assert.rejects(
+    assertWorkflowCompletion(root, preDirtyBaseline),
+    /no committed PLAN\/HANDOVER produced during the workflow run/,
+  );
   await writeFile(planPath, `${plan('start_first_slice')}\nchanged during run\n`);
   await assert.rejects(
     assertWorkflowCompletion(root, preDirtyBaseline),

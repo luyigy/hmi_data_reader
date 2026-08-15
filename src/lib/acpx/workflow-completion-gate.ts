@@ -116,17 +116,22 @@ export const assertWorkflowCompletion = async (cwd: string, baseline: WorkflowCo
       dirty,
     );
   }
-  if (changed.length) {
-    try {
-      await validateWorkflowDocuments({ cwd, ref: head, filePaths: changed });
-    } catch (error) {
-      if (!(error instanceof WorkflowDocumentValidationError)) throw error;
-      throw new WorkflowCompletionValidationError(
-        error.message,
-        head,
-        changed,
-      );
-    }
+  if (!changed.length) {
+    throw new WorkflowCompletionValidationError(
+      'no committed PLAN/HANDOVER produced during the workflow run',
+      head,
+      [],
+    );
+  }
+  try {
+    await validateWorkflowDocuments({ cwd, ref: head, filePaths: changed });
+  } catch (error) {
+    if (!(error instanceof WorkflowDocumentValidationError)) throw error;
+    throw new WorkflowCompletionValidationError(
+      error.message,
+      head,
+      changed,
+    );
   }
 };
 

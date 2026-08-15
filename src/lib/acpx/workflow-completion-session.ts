@@ -50,10 +50,10 @@ export const completeWorkflowInOriginalSession = async ({
         continuationMessage: [
           `Workflow completion 校验失败（自动纠错 ${attempt}/2）。`,
           `目标 HEAD：${validationError.head}`,
-          `失败文档：${validationError.filePaths.join(', ')}`,
+          validationError.filePaths.length ? `失败文档：${validationError.filePaths.join(', ')}` : '',
           validationError.message,
-          '只修订上述相关 PLAN/HANDOVER 并提交；不要执行下一 Slice。提交后立即停止，平台会使用原始 baseline 重新校验。',
-        ].join('\n\n'),
+          '只创建或修订本次相关 PLAN/HANDOVER 并提交；不要执行下一 Slice。提交后立即停止，平台会使用原始 baseline 重新校验。',
+        ].filter(Boolean).join('\n\n'),
       });
     });
   } catch (error) {
