@@ -22,7 +22,7 @@ const ROUTE_RULES: readonly RouteRule[] = [
   { surface: 'page', pattern: '/login', methods: ['GET'], requirement: { access: 'public' } },
   ...['/', '/rooms', '/rooms/:id', '/tasks', '/tasks/:id', '/tasks/:id/chat']
     .map((pattern): RouteRule => ({ surface: 'page', pattern, methods: ['GET'], requirement: authenticated })),
-  ...['/agents', '/chat', '/gateway-tools', '/gateways/register', '/remote-ssh-tools', '/workflow', '/workspaces', '/workspaces/:id']
+  ...['/admin/users', '/agents', '/chat', '/gateway-tools', '/gateways/register', '/remote-ssh-tools', '/workflow', '/workspaces', '/workspaces/:id']
     .map((pattern): RouteRule => ({ surface: 'page', pattern, methods: ['GET'], requirement: admin })),
   { surface: 'api', pattern: '/api/health', methods: ['GET'], requirement: { access: 'public' } },
   ...apiRules({ access: 'public' }, [
@@ -57,6 +57,9 @@ const ROUTE_RULES: readonly RouteRule[] = [
     ['/api/tasks/:id/runs/latest', ['GET']],
   ]),
   ...apiRules(admin, [
+    ['/api/admin/users', ['GET', 'POST']],
+    ['/api/admin/users/:id', ['DELETE']],
+    ['/api/admin/users/:id/reset-password', ['POST']],
     ['/api/acpx/harness-options', ['GET']],
     ['/api/agents', ['GET']],
     ['/api/agents/:id', ['PATCH']],

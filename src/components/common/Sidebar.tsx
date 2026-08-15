@@ -15,6 +15,10 @@ const menuItems = [
   { href: '/workflow', label: 'Workflow', icon: '🧭' },
 ];
 
+const adminMenuItems = [
+  { href: '/admin/users', label: '用户管理', icon: '👥' },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -74,7 +78,7 @@ export function Sidebar() {
       </div>
       
       <nav className="mt-6 flex-1 overflow-y-auto pb-6">
-        {menuItems.map((item) => {
+        {[...menuItems, ...(user.role === 'admin' ? adminMenuItems : [])].map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link

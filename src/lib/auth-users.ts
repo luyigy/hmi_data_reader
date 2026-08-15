@@ -156,11 +156,13 @@ export async function registerDbUser(
   role: 'admin' | 'user' = 'user',
   displayName?: string
 ): Promise<AuthUser> {
-  const existing = await prisma.user.findUnique({ where: { username: username.toLowerCase() } });
+  const normalizedUsername = username.toLowerCase();
+  if (normalizedUsername === loadAuthConfig().adminUsername.toLowerCase()) throw new Error('用户名已存在');
+  const existing = await prisma.user.findUnique({ where: { username: normalizedUsername } });
   if (existing) throw new Error('用户名已存在');
   const passwordHash = createPasswordHash(password);
   const user = await prisma.user.create({
-    data: { username: username.toLowerCase(), passwordHash, role, displayName: displayName || username },
+    data: { username: normalizedUsername, passwordHash, role, displayName: displayName || username },
   });
   return { id: user.id, username: user.username, role: user.role as 'admin' | 'user', displayName: user.displayName };
 }
@@ -179,4 +181,12 @@ export async function listUsers(): Promise<AuthUser[]> {
 /** Delete a database user */
 export async function deleteUser(userId: string): Promise<void> {
   await prisma.user.delete({ where: { id: userId } });
+}
+
+/** Replace a database user's password */
+export async function resetUserPassword(userId: string, password: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: createPasswordHash(password) },
+  });
 }
