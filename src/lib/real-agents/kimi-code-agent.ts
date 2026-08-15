@@ -6,6 +6,13 @@ import { sanitizePreview } from '@/lib/acpx/harness-events';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
+import { redactSensitiveText } from '@/lib/redact-sensitive';
+
+export const KIMI_CODE_MAX_SUBAGENTS = 3;
+
+const redactKimiOutput = (value: string) => redactSensitiveText(value)
+  .replace(/\bsk-[A-Za-z0-9_-]{6,}/gi, '[REDACTED]')
+  .replace(/(\bbearer\s+)[^\s,;"'}]+/gi, '$1[REDACTED]');
 
 export interface KimiCodeConfig {
   timeout?: number | null;
@@ -54,7 +61,15 @@ Take your time and be thorough.`;
 
 const processKimiCodeJsonLine = (
   line: string,
-  state: { output: string; structuredError?: string; sessionId?: string; thinkingNotified?: boolean },
+  state: {
+    output: string;
+    structuredError?: string;
+    sessionId?: string;
+    thinkingNotified?: boolean;
+    subagentCount: number;
+    subagentCalls: Map<string, { taskId: string; description: string }>;
+    subagentLimitExceeded?: boolean;
+  },
   workspaceRoot: string,
   streamCallbacks?: HarnessStreamCallbacks
 ) => {
@@ -66,6 +81,7 @@ const processKimiCodeJsonLine = (
     message?: string;
     session_id?: string;
     tool_calls?: Array<{
+      id?: string;
       function?: {
         name?: string;
         arguments?: string;
@@ -84,6 +100,19 @@ const processKimiCodeJsonLine = (
       text?: string;
       thinking?: string;
     };
+    info?: {
+      taskId?: string;
+      description?: string;
+      status?: string;
+      kind?: string;
+      agentId?: string;
+      subagentType?: string;
+      model?: string;
+      startedAt?: number;
+      endedAt?: number;
+    };
+    outputTail?: string | null;
+    tool_call_id?: string;
   };
 
   try {
@@ -116,6 +145,25 @@ const processKimiCodeJsonLine = (
     state.output += assistantText;
     void streamCallbacks?.onStdoutChunk?.(sanitizePreview(assistantText, { workspaceRoot }));
   }
+
+  if (
+    (event.type === 'task.started' || event.type === 'task.terminated')
+    && event.info?.kind === 'agent'
+    && event.info.taskId
+  ) {
+    const description = sanitizePreview(event.info.description || event.info.taskId, { workspaceRoot });
+    void streamCallbacks?.onSubagentEvent?.({
+      taskId: event.info.taskId,
+      agentId: event.info.agentId,
+      description,
+      status: event.info.status || (event.type === 'task.started' ? 'running' : 'unknown'),
+      subagentType: event.info.subagentType,
+      model: event.info.model,
+      startedAt: event.info.startedAt,
+      endedAt: event.info.endedAt,
+      output: typeof event.outputTail === 'string' ? redactKimiOutput(event.outputTail) : undefined,
+    });
+  }
   if (event.role === 'assistant' && Array.isArray(event.tool_calls)) {
     for (const toolCall of event.tool_calls) {
       const toolName = toolCall.function?.name?.trim() || 'Task';
@@ -128,12 +176,56 @@ const processKimiCodeJsonLine = (
           // Keep malformed or non-JSON arguments as the best available preview.
         }
       }
+      if (toolName === 'Agent' || toolName === 'AgentSwarm') {
+        const args = input && typeof input === 'object' ? input as Record<string, unknown> : {};
+        const requested = toolName === 'AgentSwarm'
+          ? (Array.isArray(args.items) ? args.items.length : 0)
+            + (args.resume_agent_ids && typeof args.resume_agent_ids === 'object'
+              ? Object.keys(args.resume_agent_ids).length
+              : 0)
+          : 1;
+        if (state.subagentCount + requested > KIMI_CODE_MAX_SUBAGENTS) {
+          state.subagentLimitExceeded = true;
+          state.structuredError = `Kimi Code exceeded the platform limit of ${KIMI_CODE_MAX_SUBAGENTS} SubAgents.`;
+        } else {
+          state.subagentCount += requested;
+          const callId = toolCall.id || `${toolName}-${state.subagentCount}`;
+          const description = sanitizePreview(
+            typeof args.description === 'string' ? args.description : toolName,
+            { workspaceRoot },
+          );
+          state.subagentCalls.set(callId, { taskId: callId, description });
+          for (let index = 0; index < requested; index += 1) {
+            void streamCallbacks?.onSubagentEvent?.({
+              taskId: requested === 1 ? callId : `${callId}:${index + 1}`,
+              description,
+              status: 'running',
+              ordinal: state.subagentCount - requested + index + 1,
+              limit: KIMI_CODE_MAX_SUBAGENTS,
+              subagentType: typeof args.subagent_type === 'string' ? args.subagent_type : undefined,
+              model: typeof args.model === 'string' ? args.model : undefined,
+            });
+          }
+        }
+      }
       void streamCallbacks?.onToolEvent?.({
         toolName,
         preview: sanitizePreview(buildToolPreview(input) || rawArguments?.trim() || '', { workspaceRoot }),
         emoji: getToolEmoji(toolName),
       });
     }
+  }
+
+  if (event.role === 'tool' && event.tool_call_id && state.subagentCalls.has(event.tool_call_id)) {
+    const call = state.subagentCalls.get(event.tool_call_id)!;
+    const output = typeof event.content === 'string' ? redactKimiOutput(event.content) : undefined;
+    const status = /\bstatus:\s*running\b/i.test(output || '')
+      ? 'running'
+      : /\bstatus:\s*(?:failed|killed|lost)\b/i.test(output || '')
+      ? 'failed'
+      : 'completed';
+    void streamCallbacks?.onSubagentEvent?.({ ...call, status, output });
+    if (status !== 'running') state.subagentCalls.delete(event.tool_call_id);
   }
 
   // Also detect tool_use events (Anthropic-style streaming format)
@@ -219,10 +311,11 @@ const runKimiCodeCommand = async ({
   }
 
   const env = { ...process.env };
+  env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(KIMI_CODE_MAX_SUBAGENTS);
   // Prompt mode is implicitly Kimi's fully autonomous `auto` mode; Bubblewrap is the safety boundary.
   const args = [
     '--prompt',
-    prompt,
+    `${prompt}\n\nPlatform constraint: create at most ${KIMI_CODE_MAX_SUBAGENTS} SubAgents in total during this run, including Agent and AgentSwarm calls.`,
     '--output-format',
     'stream-json',
   ];
@@ -255,7 +348,18 @@ const runKimiCodeCommand = async ({
     let closed = false;
     let timeoutHandle: NodeJS.Timeout | undefined;
     let forceKillHandle: NodeJS.Timeout | undefined;
-    const state: { output: string; structuredError?: string; sessionId?: string } = { output: '' };
+    const state = {
+      output: '',
+      subagentCount: 0,
+      subagentCalls: new Map<string, { taskId: string; description: string }>(),
+    } as {
+      output: string;
+      structuredError?: string;
+      sessionId?: string;
+      subagentCount: number;
+      subagentCalls: Map<string, { taskId: string; description: string }>;
+      subagentLimitExceeded?: boolean;
+    };
 
     const cleanup = () => {
       if (timeoutHandle) clearTimeout(timeoutHandle);
@@ -292,6 +396,11 @@ const runKimiCodeCommand = async ({
       for (const line of lines) {
         if (line.trim()) {
           processKimiCodeJsonLine(line.trim(), state, workspaceRoot || workingDirectory, streamCallbacks);
+          if (state.subagentLimitExceeded) {
+            child.kill('SIGTERM');
+            fail(state.structuredError!);
+            return;
+          }
         }
       }
     });

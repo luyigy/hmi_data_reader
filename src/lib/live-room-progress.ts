@@ -115,6 +115,26 @@ export const attachLiveRoomProgress = async ({
       ? { onStdoutChunk: enqueueThinkingUpdate }
       : {}),
     onToolEvent: enqueueToolUpdate,
+    onSubagentEvent: (event) => {
+      lastVisibleActivityAt = Date.now();
+      const duration = event.startedAt && event.endedAt
+        ? `，耗时 ${Math.max(0, event.endedAt - event.startedAt)}ms`
+        : '';
+      const output = event.output?.trim();
+      const count = event.ordinal && event.limit ? ` ${event.ordinal}/${event.limit}` : '';
+      postProgress(
+        `系统提示：${participant.displayName} 的 SubAgent${count} ${event.agentId || event.taskId} ${event.status}：${event.description}${duration}${output ? `\n\n${output}` : ''}`,
+        'member_reply_subagent',
+        {
+          subagentTaskId: event.taskId,
+          subagentId: event.agentId,
+          subagentStatus: event.status,
+          subagentType: event.subagentType,
+          subagentModel: event.model,
+          preview: event.description,
+        },
+      );
+    },
   };
   const heartbeatTimer = setInterval(() => {
     if (Date.now() - lastVisibleActivityAt < PROGRESS_HEARTBEAT_MS) return;

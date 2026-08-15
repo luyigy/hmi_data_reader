@@ -111,6 +111,7 @@ export const executeParticipant = async (
       await clearWaitingForInputIfNeeded(taskRunId, participantId);
     }
   });
+  let subagentEventWrites = Promise.resolve();
 
   const callbacks: HarnessStreamCallbacks = {
     onCodexTokenUsage: participant.executionBackend === 'platform_local'
@@ -166,6 +167,30 @@ export const executeParticipant = async (
     onToolEvent: request.streamCallbacks?.onToolEvent
       ? (event) => { void request.streamCallbacks!.onToolEvent!(event); }
       : undefined,
+    onSubagentEvent: (event) => {
+      subagentEventWrites = subagentEventWrites.then(async () => {
+        const completed = event.status === 'completed';
+        const started = event.status === 'running';
+        const { output, ...metadata } = event;
+        await publishTaskRunEvent({
+          taskId: request.taskId,
+          taskRunId,
+          participantId,
+          participant: participantPayload,
+          eventType: started ? 'subagent_started' : completed ? 'subagent_completed' : 'subagent_failed',
+          stream: 'system',
+          content: [
+            `SubAgent ${event.ordinal && event.limit ? `${event.ordinal}/${event.limit} ` : ''}${event.agentId || event.taskId}: ${event.description} [${event.status}]`,
+            output,
+          ].filter(Boolean).join('\n\n'),
+          metadata,
+        });
+        await request.streamCallbacks?.onSubagentEvent?.(event);
+      }).catch((error) => {
+        console.error('[ACPX] subagent event callback failed:', error);
+      });
+      return subagentEventWrites;
+    },
     onInteractionRequest: participant.executionBackend === 'platform_local'
       && participant.harnessType === 'codex'
       ? async (interactionRequest) => {
@@ -229,6 +254,7 @@ export const executeParticipant = async (
         : await executeViaGateway(request, participant, previousSummaries, taskRoomContext, contextWarning);
 
     await streamWrites.drain();
+    await subagentEventWrites;
 
     clearRunningProcess(registryParticipantId);
 
@@ -341,6 +367,7 @@ export const executeParticipant = async (
   } catch (error) {
     try {
       await streamWrites.drain();
+      await subagentEventWrites;
     } catch (streamError) {
       console.error('[ACPX] Failed to persist buffered stream output:', streamError);
     }

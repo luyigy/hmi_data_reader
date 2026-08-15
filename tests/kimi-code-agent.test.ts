@@ -34,14 +34,20 @@ if [ "$1" = "--version" ]; then
 fi
 has_prompt=0
 has_forbidden=0
+has_subagent_limit=0
 forbidden_arg=""
 for arg in "$@"; do
   if [ "$arg" = "--prompt" ]; then has_prompt=1; fi
+  case "$arg" in *"at most 3 SubAgents"*) has_subagent_limit=1 ;; esac
   if [ "$arg" = "--yolo" ] || [ "$arg" = "--auto" ]; then
     has_forbidden=1
     forbidden_arg="$arg"
   fi
 done
+if [ "$has_prompt" -eq 1 ] && { [ "$has_subagent_limit" -ne 1 ] || [ "$KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY" != "3" ]; }; then
+  printf 'missing SubAgent limit enforcement' >&2
+  exit 2
+fi
 if [ "$has_prompt" -eq 1 ] && [ "$has_forbidden" -eq 1 ]; then
   printf 'error: Cannot combine --prompt with %s.\\n' "$forbidden_arg" >&2
   exit 1
@@ -56,7 +62,13 @@ case "$KIMI_TEST_CASE" in
     printf '{"role":"assistant","tool_calls":[{"type":"function","id":"call_1","function":{"name":"Bash","arguments":"{\\"command\\":\\"cat /var/private/key.pem sk-secret123\\"}"}}]}\\n'
     printf '{"role":"tool","tool_call_id":"call_1","content":"secret result body"}\\n'
     printf '{"role":"assistant","content":" world"}\\n'
+    printf '{"role":"assistant","tool_calls":[{"id":"agent-call","function":{"name":"Agent","arguments":"{\\"description\\":\\"inspect flow\\",\\"subagent_type\\":\\"coder\\"}"}}]}\\n'
+    printf '{"role":"tool","tool_call_id":"agent-call","content":"subagent result sk-secret123"}\\n'
     printf '{"role":"meta","type":"session.resume_hint","session_id":"ses_first"}\\n'
+    ;;
+  subagent-limit)
+    printf '{"role":"assistant","tool_calls":[{"id":"swarm-call","function":{"name":"AgentSwarm","arguments":"{\\"description\\":\\"too many\\",\\"items\\":[1,2,3,4]}"}}]}\\n'
+    sleep 2
     ;;
   structured-error)
     printf '{"type":"error","error":"model unavailable"}\\n'
@@ -124,6 +136,7 @@ esac
 
     const streamedChunks: string[] = [];
     const toolEvents: Array<{ toolName: string; preview: string; emoji: string }> = [];
+    const subagentEvents: Array<import('../src/lib/acpx/types').HarnessSubagentEvent> = [];
     process.env.KIMI_TEST_CASE = 'stream';
     const participant = {
       gatewayId: 'platform-local',
@@ -157,6 +170,9 @@ esac
         onToolEvent: (event) => {
           toolEvents.push(event);
         },
+        onSubagentEvent: (event) => {
+          subagentEvents.push(event);
+        },
       },
       [],
       { transcript: '', latestUserMessage: null }
@@ -166,6 +182,12 @@ esac
     assert.deepEqual(toolEvents, [
       { toolName: 'Bash', preview: 'cat key.pem [REDACTED]', emoji: '💻' },
       { toolName: 'Tool Result', preview: '', emoji: '✅' },
+      { toolName: 'Agent', preview: 'inspect flow', emoji: '🤖' },
+      { toolName: 'Tool Result', preview: '', emoji: '✅' },
+    ]);
+    assert.deepEqual(subagentEvents.map(({ status, taskId, output }) => ({ status, taskId, output })), [
+      { status: 'running', taskId: 'agent-call', output: undefined },
+      { status: 'completed', taskId: 'agent-call', output: 'subagent result [REDACTED]' },
     ]);
     assert.ok(streamedChunks.every((chunk) => !chunk.includes('private reasoning')));
     assert.ok(toolEvents.every((event) => !event.preview.includes('/var/private')));
@@ -323,6 +345,18 @@ esac
     );
     assert.equal(structuredError.success, false);
     assert.equal(structuredError.error, 'model unavailable');
+
+    process.env.KIMI_TEST_CASE = 'subagent-limit';
+    const limited = await executeKimiCodeTask(
+      { id: 'subagent-limit', name: 'subagent-limit' },
+      {
+        workingDirectory: workspace,
+        permissionProfile: 'full_access',
+        timeout: 1000,
+      }
+    );
+    assert.equal(limited.success, false);
+    assert.equal(limited.error, 'Kimi Code exceeded the platform limit of 3 SubAgents.');
 
     process.env.KIMI_TEST_CASE = 'nonzero';
     const nonzero = await executeKimiCodeTask(

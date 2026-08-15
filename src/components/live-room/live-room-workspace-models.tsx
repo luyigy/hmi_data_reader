@@ -200,7 +200,7 @@ export const renderLiveRoomSystemMessage = (
   room: WorkspaceDetail | null
 ) => {
   const systemEvent = getLiveRoomSystemEvent(message);
-  if (!systemEvent || !['member_reply_started', 'member_reply_progress', 'member_reply_tool'].includes(systemEvent)) {
+  if (!systemEvent || !['member_reply_started', 'member_reply_progress', 'member_reply_tool', 'member_reply_subagent'].includes(systemEvent)) {
     return null;
   }
 
@@ -219,30 +219,41 @@ export const renderLiveRoomSystemMessage = (
     ? String(getMessageMetadataValue(message, 'toolEmoji'))
     : '⚙️';
   const isTool = systemEvent === 'member_reply_tool';
+  const isSubagent = systemEvent === 'member_reply_subagent';
   const isStarted = systemEvent === 'member_reply_started';
   const isStderr = stream === 'stderr';
 
-  const toneClass = isTool
+  const toneClass = isSubagent
+    ? 'border-violet-200 bg-violet-50/80 text-violet-900'
+    : isTool
     ? 'border-sky-200 bg-sky-50/80 text-sky-900'
     : isStderr
     ? 'border-rose-200 bg-rose-50/80 text-rose-900'
     : 'border-emerald-200 bg-emerald-50/80 text-emerald-900';
-  const pillClass = isTool
+  const pillClass = isSubagent
+    ? 'bg-violet-100 text-violet-700'
+    : isTool
     ? 'bg-sky-100 text-sky-700'
     : isStderr
     ? 'bg-rose-100 text-rose-700'
     : 'bg-emerald-100 text-emerald-700';
-  const barClass = isTool
+  const barClass = isSubagent
+    ? 'bg-violet-400'
+    : isTool
     ? 'bg-sky-400'
     : isStderr
     ? 'bg-rose-400'
     : 'bg-emerald-400';
-  const title = isTool
+  const title = isSubagent
+    ? `SubAgent · ${targetLabel}`
+    : isTool
     ? `${toolEmoji} ${targetLabel} 正在调用 ${toolName || 'Tool'}`
     : isStarted
     ? `${targetLabel} 已开始处理`
     : `${targetLabel} 正在处理中`;
-  const detail = isTool
+  const detail = isSubagent
+    ? message.content
+    : isTool
     ? (preview || message.content)
     : !isStarted && preview
     ? preview
@@ -251,7 +262,7 @@ export const renderLiveRoomSystemMessage = (
   return (
     <div className={`mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${toneClass}`}>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-base shadow-sm">
-        {isTool ? toolEmoji : isStderr ? '!' : '...'}
+        {isSubagent ? 'S' : isTool ? toolEmoji : isStderr ? '!' : '...'}
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.12em]">

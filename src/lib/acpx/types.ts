@@ -31,6 +31,9 @@ export type TaskRunEventType =
   | 'interaction_request_resolved'
   | 'stdout_chunk'
   | 'stderr_chunk'
+  | 'subagent_started'
+  | 'subagent_completed'
+  | 'subagent_failed'
   | 'summary'
   | 'file_modified'
   | 'participant_interrupted'
@@ -143,10 +146,25 @@ export interface HarnessToolEvent {
   emoji: string;
 }
 
+export interface HarnessSubagentEvent {
+  taskId: string;
+  agentId?: string;
+  description: string;
+  status: string;
+  ordinal?: number;
+  limit?: number;
+  subagentType?: string;
+  model?: string;
+  startedAt?: number;
+  endedAt?: number;
+  output?: string;
+}
+
 export interface HarnessStreamCallbacks {
   onStdoutChunk?: (chunk: string) => Promise<void> | void;
   onStderrChunk?: (chunk: string) => Promise<void> | void;
   onToolEvent?: (event: HarnessToolEvent) => Promise<void> | void;
+  onSubagentEvent?: (event: HarnessSubagentEvent) => Promise<void> | void;
   onCodexTokenUsage?: (usage: import('@/lib/codex-telemetry').CodexProviderTokenUsage) => Promise<void> | void;
   onCodexRateLimits?: (event: {
     rateLimits: unknown;
