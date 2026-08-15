@@ -20,6 +20,7 @@ const apiRules = (requirement: RouteAuthRequirement, entries: Array<[string, Htt
 
 const ROUTE_RULES: readonly RouteRule[] = [
   { surface: 'page', pattern: '/login', methods: ['GET'], requirement: { access: 'public' } },
+  { surface: 'page', pattern: '/runner.js', methods: ['GET'], requirement: { access: 'public' } },
   ...['/', '/rooms', '/rooms/:id', '/tasks', '/tasks/:id', '/tasks/:id/chat']
     .map((pattern): RouteRule => ({ surface: 'page', pattern, methods: ['GET'], requirement: authenticated })),
   ...['/admin/users', '/agents', '/chat', '/gateway-tools', '/gateways/register', '/remote-ssh-tools', '/workflow', '/workspaces', '/workspaces/:id']
@@ -27,6 +28,7 @@ const ROUTE_RULES: readonly RouteRule[] = [
   { surface: 'api', pattern: '/api/health', methods: ['GET'], requirement: { access: 'public' } },
   ...apiRules({ access: 'public' }, [
     ['/api/auth/login', ['POST']], ['/api/auth/logout', ['POST']], ['/api/auth/me', ['GET']],
+    ['/api/runner/claim', ['POST']],
   ]),
   { surface: 'api', pattern: '/api/feishu/grant', methods: ['GET'], requirement: { access: 'self_verified', verification: 'signed-action' } },
   { surface: 'api', pattern: '/api/feishu/webhook', methods: ['POST'], requirement: { access: 'machine', subject: 'feishu', verification: 'route' } },
@@ -47,6 +49,7 @@ const ROUTE_RULES: readonly RouteRule[] = [
     ['/api/live-rooms/:id/speaker', ['POST']],
     ['/api/live-rooms/:id/topic', ['POST']],
     ['/api/remote-nodes', ['GET', 'POST']],
+    ['/api/pairing-tickets', ['POST']],
     ['/api/tasks', ['GET', 'POST']],
     ['/api/tasks/:id', ['GET', 'PUT', 'DELETE']],
     ['/api/tasks/:id/control', ['POST']],

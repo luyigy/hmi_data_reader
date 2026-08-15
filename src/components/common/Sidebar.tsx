@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
+import { PairComputerButton } from './PairComputerButton';
 
 const menuItems = [
   { href: '/', label: 'Dashboard', icon: '📊' },
@@ -99,6 +100,7 @@ export function Sidebar() {
       </nav>
       
       <div className={`border-t border-gray-800 ${isCollapsed ? 'p-3 text-center' : 'p-4'}`}>
+        <PairComputerButton collapsed={isCollapsed} />
         {user && !isCollapsed && (
           <div className="mb-3 text-sm text-gray-400">
             <div className="font-medium text-gray-200">{user.displayName || user.username}</div>

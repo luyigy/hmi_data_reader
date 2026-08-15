@@ -1,9 +1,82 @@
 #!/usr/bin/env node
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { spawn } = require('node:child_process');
+const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const WebSocket = require('ws');
+let WebSocket;
+try { WebSocket = require('ws'); } catch {
+  const crypto = require('node:crypto');
+  const { EventEmitter } = require('node:events');
+  const transports = { 'ws:': require('node:http'), 'wss:': require('node:https') };
+  WebSocket = class extends EventEmitter {
+    static OPEN = 1;
+    constructor(value, options = {}) {
+      super();
+      this.readyState = 0;
+      this.buffer = Buffer.alloc(0);
+      this.fragments = [];
+      const url = new URL(value);
+      const key = crypto.randomBytes(16).toString('base64');
+      const request = transports[url.protocol].request({
+        hostname: url.hostname, port: url.port || undefined, path: `${url.pathname}${url.search}`,
+        headers: { Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13', 'Sec-WebSocket-Key': key, ...options.headers },
+      });
+      request.once('upgrade', (_response, socket, head) => {
+        this.socket = socket;
+        this.readyState = WebSocket.OPEN;
+        socket.on('data', (data) => this.receive(data));
+        socket.once('error', (error) => this.emit('error', error));
+        socket.once('close', () => { this.readyState = 3; this.emit('close'); });
+        this.emit('open');
+        if (head.length) this.receive(head);
+      });
+      request.once('response', (response) => this.emit('error', new Error(`WebSocket upgrade failed (${response.statusCode})`)));
+      request.once('error', (error) => this.emit('error', error));
+      request.end();
+    }
+    frame(opcode, payload = Buffer.alloc(0)) {
+      payload = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+      const size = payload.length < 126 ? 2 : payload.length < 65536 ? 4 : 10;
+      const frame = Buffer.alloc(size + 4 + payload.length);
+      frame[0] = 0x80 | opcode;
+      if (size === 2) frame[1] = 0x80 | payload.length;
+      else if (size === 4) { frame[1] = 0xfe; frame.writeUInt16BE(payload.length, 2); }
+      else { frame[1] = 0xff; frame.writeBigUInt64BE(BigInt(payload.length), 2); }
+      const maskOffset = size;
+      crypto.randomFillSync(frame, maskOffset, 4);
+      for (let index = 0; index < payload.length; index++) frame[size + 4 + index] = payload[index] ^ frame[maskOffset + index % 4];
+      return frame;
+    }
+    send(value) { if (this.readyState === WebSocket.OPEN) this.socket.write(this.frame(1, Buffer.from(value))); }
+    close() { if (this.readyState === WebSocket.OPEN) this.socket.end(this.frame(8)); }
+    receive(data) {
+      this.buffer = Buffer.concat([this.buffer, data]);
+      while (this.buffer.length >= 2) {
+        const first = this.buffer[0];
+        const masked = (this.buffer[1] & 0x80) !== 0;
+        let length = this.buffer[1] & 0x7f;
+        let offset = 2;
+        if (length === 126) { if (this.buffer.length < 4) return; length = this.buffer.readUInt16BE(2); offset = 4; }
+        if (length === 127) { if (this.buffer.length < 10) return; length = Number(this.buffer.readBigUInt64BE(2)); offset = 10; }
+        const maskSize = masked ? 4 : 0;
+        if (this.buffer.length < offset + maskSize + length) return;
+        const mask = this.buffer.subarray(offset, offset + maskSize);
+        const payload = Buffer.from(this.buffer.subarray(offset + maskSize, offset + maskSize + length));
+        this.buffer = this.buffer.subarray(offset + maskSize + length);
+        if (masked) for (let index = 0; index < payload.length; index++) payload[index] ^= mask[index % 4];
+        const opcode = first & 0x0f;
+        if (opcode === 8) { this.socket.end(); continue; }
+        if (opcode === 9) { this.socket.write(this.frame(10, payload)); continue; }
+        if (opcode === 1 || opcode === 0) this.fragments.push(payload);
+        if ((first & 0x80) && (opcode === 1 || opcode === 0)) {
+          this.emit('message', Buffer.concat(this.fragments));
+          this.fragments = [];
+        }
+      }
+    }
+  };
+}
 
 const args = Object.fromEntries(process.argv.slice(2).flatMap((arg, index, all) => {
   if (!arg.startsWith('--')) return [];
@@ -11,14 +84,14 @@ const args = Object.fromEntries(process.argv.slice(2).flatMap((arg, index, all) 
   const key = arg.slice(2, separator < 0 ? undefined : separator);
   return [[key, separator < 0 ? all[index + 1] : arg.slice(separator + 1)]];
 }));
-const required = ['server', 'node', 'token', 'workspace'];
-const missing = required.filter((key) => !args[key]);
-if (missing.length) {
-  console.error(`Missing required options: ${missing.map((key) => `--${key}`).join(', ')}`);
-  process.exit(2);
-}
-
-const workspace = path.resolve(args.workspace);
+const configDir = path.join(os.homedir(), '.agent-platform');
+const configPath = path.join(configDir, 'runner.json');
+let config = {};
+try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
+let server = args.server || config.server;
+let nodeName = args.node || config.node;
+let nodeToken = args.token || config.token;
+const workspace = path.resolve(args.workspace || config.workspace || process.cwd());
 const piBin = args.pi || process.env.REMOTE_PI_AGENT_BIN || 'pi';
 const tools = process.env.REMOTE_PI_AGENT_TOOLS || 'read,bash,edit,write,grep,find,ls';
 const children = new Map();
@@ -88,13 +161,12 @@ function run(ws, message) {
 }
 
 function connect() {
-  const url = new URL(args.server);
-  url.searchParams.set('node', args.node);
-  url.searchParams.set('secret', args.token);
-  const ws = new WebSocket(url);
+  const url = new URL(server);
+  url.searchParams.set('node', nodeName);
+  const ws = new WebSocket(url, { headers: { Authorization: `Bearer ${nodeToken}` } });
   ws.on('open', () => {
     retryMs = 1000;
-    send(ws, { type: 'hello', node: args.node, harnesses: ['pi-agent'], workspace });
+    send(ws, { type: 'hello', node: nodeName, harnesses: ['pi-agent'], workspace });
   });
   ws.on('message', (data) => {
     let message;
@@ -118,4 +190,32 @@ function connect() {
   });
   ws.on('error', () => ws.close());
 }
-connect();
+
+async function start() {
+  if (args['pairing-token']) {
+    const platform = args.server || process.env.AGENT_PLATFORM_SERVER;
+    if (!platform) throw new Error('--server is required when pairing a downloaded runner');
+    const response = await fetch(`${platform.replace(/\/$/, '')}/api/runner/claim`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pairingToken: args['pairing-token'], nodeName: os.hostname() }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `Pairing failed (${response.status})`);
+    server = result.server;
+    nodeName = result.nodeName;
+    nodeToken = result.nodeSecret;
+    config = { server, node: nodeName, token: nodeToken, workspace };
+    fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+    console.log(`Paired remote node: ${nodeName}`);
+  }
+  const missing = [['server', server], ['node', nodeName], ['token', nodeToken]].filter(([, value]) => !value);
+  if (missing.length) throw new Error(`Missing required options: ${missing.map(([key]) => `--${key}`).join(', ')}`);
+  connect();
+}
+
+void start().catch((error) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

@@ -670,8 +670,21 @@ model User {
   tasks        Task[]
   liveRooms    LiveRoom[]
   remoteNodes  RemoteNode[]
+  pairingTickets PairingTicket[]
 
   @@index([username])
+}
+
+model PairingTicket {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  ownerUserId String?
+  owner       User?     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([ownerUserId, expiresAt])
 }
 
 model RemoteNode {

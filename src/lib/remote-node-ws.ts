@@ -59,7 +59,8 @@ const failNodeRuns = (nodeName: string, error: Error) => {
 export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage): Promise<void> {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const nodeName = url.searchParams.get('node')?.trim();
-  const secret = url.searchParams.get('secret')?.trim();
+  const authorization = req.headers.authorization?.trim() || '';
+  const secret = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
 
   if (!nodeName || !secret) {
     ws.close(4001, 'Missing node name or secret');
