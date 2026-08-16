@@ -65,6 +65,8 @@ projects:
             preset: workspace
             extraWritableRoots:
               - /data1/code/hmi_data_reader
+            extraReadOnlyPaths:
+              - /data1/code/mold-data-webpage-tool-deploy
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
