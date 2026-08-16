@@ -62,11 +62,7 @@ projects:
           initial_cursor_commit: cee29134fdfd35ca2f1955fd28e01e84d1d24f81
           workflow_autonomy: semi_auto
           execution_policy:
-            preset: workspace
-            extraWritableRoots:
-              - /data1/code/hmi_data_reader
-            extraReadOnlyPaths:
-              - /data1/code/mold-data-webpage-tool-deploy
+            preset: full_access
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
