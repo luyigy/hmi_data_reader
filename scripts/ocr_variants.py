@@ -597,6 +597,12 @@ def _gated_cell_num(ocr, crop) -> tuple[str | None, float]:
     det_text, det_conf = _det_rec(ocr, sup)
     raw_v, sup_v, det_v = (_cell_num(raw_text), _cell_num(sup_text),
                            _cell_num(det_text))
+    # det 会把末尾「.0」整段截掉（实测 295.0 -> 295）；两路 rec 对完整小数
+    # 独立一致时，不让单路高置信截尾覆盖更完整的共识读数。
+    if (raw_v and raw_v == sup_v and det_v
+            and "." in raw_v and "." not in det_v
+            and raw_v.startswith(det_v + ".")):
+        return raw_v, max(raw_conf, sup_conf)
     if det_v and det_conf >= 0.9:
         conflict = any(v and v != det_v for v in (raw_v, sup_v))
         if not conflict or det_conf >= 0.98:

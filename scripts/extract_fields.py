@@ -357,7 +357,7 @@ def extract_temperature(toks: list[dict], template: dict) -> dict:
             cells[row][col] = t
             return
         m_cur, m_new = NUM_RE.search(cur["text"]), NUM_RE.search(t["text"])
-        if (m_cur and m_new and "." not in m_cur.group()
+        if (m_cur and m_new and not re.fullmatch(r"\d+\.\d+", m_cur.group())
                 and "." in m_new.group()
                 and m_new.group().startswith(m_cur.group())):
             cells[row][col] = t
@@ -406,9 +406,9 @@ def extract_temperature(toks: list[dict], template: dict) -> dict:
             v, t = cell_number(row, c)
             if v is None:
                 ws.append(f"CELL_MISSING({row},col{c})")
-            elif "." not in NUM_RE.search(t["text"]).group():
+            elif not re.fullmatch(r"\d+\.\d+", NUM_RE.search(t["text"]).group()):
                 # 083 S13：ZizES 温度页数值恒带一位小数（含 0.0）；无小数点读数
-                # 必是 OCR 截尾（'290.2'->'290'、'2.9'->'2'），静默补 .0 会写
+                # 或尾点读数必是 OCR 截尾（'290.2'->'290'/'290.'、'2.9'->'2'），静默补 .0 会写
                 # 错值——置缺并告警，触发逐格重读救援回补，宁缺不错。
                 ws.append(f"DECIMAL_TRUNCATED({row},col{c}:{t['text']})")
                 v = None

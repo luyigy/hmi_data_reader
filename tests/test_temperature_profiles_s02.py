@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import cv2
 import numpy as np
@@ -13,9 +14,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from classify_ui import find_page, find_ui_family
 from contract import attach_contract
+from extract_fields import extract_temperature
 from extract_families.b_and_r import extract_temperature_b_and_r
 from extract_families.fanuc import extract_temperature_fanuc
-from ocr_variants import generate_demag_rate_sidecar
+from ocr_variants import _gated_cell_num, generate_demag_rate_sidecar
 
 
 def token(text, x, y, *, src=None):
@@ -30,6 +32,13 @@ def template(name):
 
 
 class DemagRateCellsTest(unittest.TestCase):
+    def test_two_complete_rec_reads_beat_truncated_det(self):
+        crop = np.zeros((20, 40, 3), dtype=np.uint8)
+        with mock.patch("ocr_variants._run_rec",
+                        side_effect=[("295.0", 0.99), ("295.0", 0.98)]), \
+                mock.patch("ocr_variants._det_rec", return_value=("295", 1.0)):
+            self.assertEqual(_gated_cell_num(None, crop), ("295.0", 0.99))
+
     def test_five_top_cells_and_negative_sign_are_preserved(self):
         class FakeOcr:
             # 083 S10：读取升级为 _gated_cell_num 三读门禁（raw rec / 抑制 rec /
@@ -138,6 +147,34 @@ class FanucAliasRoutingTest(unittest.TestCase):
         lines = [{"text": "保压", "conf": 0.99, "bbox": {"y_min": 0}},
                  {"text": "喷嘴/料筒", "conf": 0.98, "bbox": {"y_min": 20}}]
         self.assertEqual(find_page(lines)[0], "injection_metering")
+
+    def test_low_temperature_holding_pair_beats_injection_statistics(self):
+        lines = [{"text": "低温保持", "conf": 0.91, "bbox": {"y_min": 20}},
+                 {"text": "低温保持解除", "conf": 0.96, "bbox": {"y_min": 40}},
+                 {"text": "保压", "conf": 0.99, "bbox": {"y_min": 100}},
+                 {"text": "计量", "conf": 0.99, "bbox": {"y_min": 120}}]
+        self.assertEqual(find_page(lines), ("temperature", 0.96))
+
+
+class ZizESTrailingDecimalTest(unittest.TestCase):
+    def test_complete_cell_rescue_replaces_trailing_decimal(self):
+        tpl = template("zizes.temperature.json")
+        cols = [tpl["layout"]["column_x_centers"][str(i)] for i in range(1, 8)]
+        oil = tpl["layout"]["column_x_centers"]["oil"]
+        toks = [token(str(i), cols[i - 1], 0.20) for i in range(1, 8)]
+        toks.append(token("油温", oil, 0.20))
+        for label, y, value in (("当前", 0.30, "249."),
+                                ("设定", 0.40, "250.0"),
+                                ("控制", 0.50, "36.3")):
+            toks.append(token(label, 0.05, y))
+            toks.append(token(value, cols[0], y))
+        toks.append(token("249.4", cols[0], 0.30, src="zizes_cell"))
+        toks.extend((token("29.6", oil, 0.30), token("0.0", oil, 0.40)))
+
+        result = extract_temperature(toks, tpl)
+        self.assertEqual(result["fields"]["barrel_temperature_current_c"], [249.4])
+        self.assertFalse(any(w.startswith("DECIMAL_TRUNCATED")
+                             for w in result["warnings"]), result["warnings"])
 
 
 if __name__ == "__main__":

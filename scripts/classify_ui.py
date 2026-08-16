@@ -149,6 +149,12 @@ def find_page(lines: list[dict]) -> tuple[str, float]:
         conf = max(line["conf"] for line in lines if "喷嘴/料筒" in line["text"])
         return "temperature", round(conf, 3)
 
+    # FANUC 炮筒页固定同时显示低温保持设定与解除按钮；右侧注塑统计区含大量
+    # 保压/计量词，低质整机照的温度行标签漏读时会反客为主误分射出计量页。
+    holding = [line for line in lines if "低温保持" in line["text"]]
+    if len(holding) >= 2:
+        return "temperature", round(max(line["conf"] for line in holding), 3)
+
     # DEMAG 温度页（083 S10）：标题「温度」+ 实际/设定/上偏差/下偏差行标签
     # 同时在场即温度表页。通用位置启发会把行标签 '设定[℃]' 的首次命中当作
     # settings 页标题（×5 权重）反超单独的「温度」标题（实测 Z002 rank12、
