@@ -347,11 +347,26 @@ def extract_temperature(toks: list[dict], template: dict) -> dict:
         return i if d <= col_tol else None
 
     # 单元格填充：cells[row][col] = token
+    def put_cell(row: str, col: int, t: dict) -> None:
+        # 同格多 token 取先到的（更高 conf 通常先检出）；083 S13 例外——主 OCR
+        # 对红字数码格截尾漏小数位（'290.2'->'290'、'2.9'->'2'），后到 token
+        # 小数完整且以截尾读数为前缀（'290.2'/'2.9'）时替换为完整读数；
+        # 其余冲突维持既有「先到优先」口径。
+        cur = cells[row].get(col)
+        if cur is None:
+            cells[row][col] = t
+            return
+        m_cur, m_new = NUM_RE.search(cur["text"]), NUM_RE.search(t["text"])
+        if (m_cur and m_new and "." not in m_cur.group()
+                and "." in m_new.group()
+                and m_new.group().startswith(m_cur.group())):
+            cells[row][col] = t
+
     cells: dict[str, dict[int, dict]] = {r: {} for r in row_names}
     for t in value_tokens:
         r, c = row_of(t), col_of(t)
         if r and c:
-            cells[r].setdefault(c, t)  # 同格多 token 取先到的（更高 conf 通常先检出）
+            put_cell(r, c, t)
     # 行标签合并 token（如 '设定°C262.0'）：数值强制归该行第 1 个空格
     for t in label_tokens:
         if not NUM_RE.search(t["text"]):
@@ -391,7 +406,13 @@ def extract_temperature(toks: list[dict], template: dict) -> dict:
             v, t = cell_number(row, c)
             if v is None:
                 ws.append(f"CELL_MISSING({row},col{c})")
-            elif t is not None and t["conf"] < rules["min_cell_conf"]:
+            elif "." not in NUM_RE.search(t["text"]).group():
+                # 083 S13：ZizES 温度页数值恒带一位小数（含 0.0）；无小数点读数
+                # 必是 OCR 截尾（'290.2'->'290'、'2.9'->'2'），静默补 .0 会写
+                # 错值——置缺并告警，触发逐格重读救援回补，宁缺不错。
+                ws.append(f"DECIMAL_TRUNCATED({row},col{c}:{t['text']})")
+                v = None
+            elif t["conf"] < rules["min_cell_conf"]:
                 ws.append(f"LOW_CONF({row},col{c},{t['conf']:.2f})")
             vals.append(v)
         return vals, ws
@@ -1014,11 +1035,14 @@ from extract_families.mold_temp_devices import (  # noqa: E402
 # 083 S10 增补 VALUE_OUT_OF_RANGE：DEMAG 偏差行竖向粘连合并 token（'2020'
 # 占两格）超量程被值域门禁置空时，逐格重读可读到正确单格值（row_at 值域内
 # 旁车优先口径 083 S03 已就位），采用仍以告警变少为硬条件。
+# 083 S13（095 S02 B013）增补 DECIMAL_TRUNCATED 与 ZizES：ZizES 红字数码格
+# 主 OCR 截尾漏小数位（'290.2'->'290'、'2.9'->'2'），提取器把截尾格置缺并告警，
+# 逐格重读（实测几何网格）可回补正确值；采用仍以告警变少为硬条件。
 CELL_RESCUE_TRIGGERS = ("CELL_MISSING", "COLUMN_MISSING", "COLUMN_CLUSTER_COUNT",
                         "TEMPLATE_COLUMNS_FALLBACK", "COLUMNS_NOT_FOUND",
                         "ROW_LABELS_NOT_FOUND", "ROW_ANCHORS_NOT_FOUND",
-                        "VALUE_OUT_OF_RANGE")
-CELL_RESCUE_FAMILIES = ("B_AND_R", "DEMAG")
+                        "VALUE_OUT_OF_RANGE", "DECIMAL_TRUNCATED")
+CELL_RESCUE_FAMILIES = ("B_AND_R", "DEMAG", "ZIZES")
 
 
 def cell_rescue_needed(ext: dict) -> bool:
@@ -1038,7 +1062,8 @@ def cell_rescue_better(old: dict, new: dict) -> bool:
 
     def score(e: dict) -> int:
         return sum(1 for w in (e.get("warnings") or [])
-                   if w.startswith(("CELL_MISSING", "VALUE_OUT_OF_RANGE"))) \
+                   if w.startswith(("CELL_MISSING", "VALUE_OUT_OF_RANGE",
+                                    "DECIMAL_TRUNCATED"))) \
             + (1000 if e.get("fields") is None else 0)
 
     return score(new) < score(old)
@@ -1164,6 +1189,16 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             cell_lines = json.loads(tcells_path.read_text()).get("lines", [])
             base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
             toks = norm_tokens({**ocr_data, "lines": base_lines + cell_lines},
+                               meta["screen_size"])
+    if ui == "ZizES" and page == "temperature":
+        # 083 S13：ZizES 温度表逐格重读旁车（zizes_cell），同 B&R 口径并入；
+        # 同格冲突由 extract_temperature 的「小数完整前缀」规则裁决
+        # （主 OCR 截尾 '290' vs 旁车 '290.2' 时采信旁车）。
+        tcells_path = rectified_dir / f"{stem}.ocr_tcells.json"
+        if tcells_path.is_file():
+            cell_lines = json.loads(tcells_path.read_text()).get("lines", [])
+            toks = norm_tokens({**ocr_data,
+                                "lines": ocr_data.get("lines", []) + cell_lines},
                                meta["screen_size"])
     if ui == "DEMAG" and page == "injection_metering":
         # 037 方案①：曲线页段表列网格旁车（带 slot 标记直接并入）

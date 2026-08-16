@@ -334,7 +334,8 @@ async def recognize_image(file: UploadFile = File(...)):
                         n_cells = generate_temperature_cells_sidecar(
                             ocr_model, ocr_target, rect_dir / f"{stem}.ocr_tcells.json",
                             extract_res.get("controller_family"), base_lines,
-                            rr["screen_size"])
+                            rr["screen_size"],
+                            measured=extract_res.get("extraction_detail"))
                         if n_cells:
                             ext2 = extract_one(stem, rect_dir, record_report,
                                                machine_labels, HERE / "templates")

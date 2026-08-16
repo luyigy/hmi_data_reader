@@ -166,6 +166,25 @@ def find_page(lines: list[dict]) -> tuple[str, float]:
         conf = max(line["conf"] for line in lines if "温度" in line["text"])
         return "temperature", round(conf, 3)
 
+    # DEMAG 温度页无标题变体（083 S13/095 S02 B013）：整机实拍把顶部「温度」
+    # 标题裁出画面时上一签名不命中（实测 Z005 rank18 误分 settings，DEMAG 速率
+    # 旁车不生成、列顶速率整列缺读，真值比对缺 4 格）。结构锚点改判：
+    # 实际/设定/上.差/下.差行标签 + 速率行 + 区段列头（喷嘴/料口/区N 至少两个）
+    # 同时在场即 DEMAG 温度表页；缺「温度」标题时不回退位置启发误分 settings。
+    if all(any(anchor in text for text in texts)
+           for anchor in ("实际", "设定", "速率")) and all(
+            any(re.search(pat, text) for text in texts)
+            for pat in (r"上.差", r"下.差")):
+        zone_hits = sum(1 for pat in ("喷嘴", "料口", r"区\s*\d")
+                        if any(re.search(pat, text) for text in texts))
+        if zone_hits >= 2:
+            # 置信度取 DEMAG 特征锚点（速率/区段列头）最高值——不能用低置信的
+            # 偏差行残字（'上福差' 0.72 会把 profile_confidence 压过门禁线）。
+            conf = max(line["conf"] for line in lines
+                       if any(kw in line["text"] for kw in ("喷嘴", "料口", "速率"))
+                       or re.search(r"区\s*\d", line["text"]))
+            return "temperature", round(conf, 3)
+
     # 收集所有 (page, y_min, conf)
     hits: list[tuple[str, float, float]] = []
     for line in lines:

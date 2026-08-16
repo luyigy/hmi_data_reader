@@ -131,6 +131,14 @@ def generate_demag_rate_sidecar(ocr, png_path: Path, out_path: Path) -> int:
         crop = strip[max(0, y - pad):y + ch + pad,
                      max(0, x - pad):x + cw + pad]
         text, conf = _gated_cell_num(ocr, crop)
+        if text is None:
+            # 083 S13（095 S02 B013）：宽边距把屏摄网格边线/摩尔纹卷入裁剪，
+            # 单数字速率格三读被系统性压低（实测 Z005 rank18 区2 '7'：pad10
+            # 三读 0.25/0.17/空弃格，贴边三读 0.90/0.93/0.93）。补救轮用贴边
+            # 裁剪重读，仍由同一三读门禁裁决——门禁本身不放松，弃格照旧弃。
+            tight = strip[y:y + ch, x:x + cw]
+            if tight.size:
+                text, conf = _gated_cell_num(ocr, tight)
         if text is not None:
             lines.append({"text": text, "conf": conf, "_src": "rate_cell", "bbox": {
                 "points": [[x, y0 + y], [x + cw, y0 + y],
@@ -618,20 +626,36 @@ def _gated_cell_num(ocr, crop) -> tuple[str | None, float]:
     return None, 0.0
 
 
-def _rec_grid_cells(ocr, img, col_centers, row_ys, src_name) -> list[dict]:
-    """按实测网格逐格重读；只收规范数值（三读门禁见 _gated_cell_num）。"""
+def _rec_grid_cells(ocr, img, col_centers, row_ys, src_name,
+                    slope: float = 0.0, slope_x_ref: float | None = None,
+                    x_half_frac: float = 0.35,
+                    x_half_abs: float | None = None) -> list[dict]:
+    """按实测网格逐格重读；只收规范数值（三读门禁见 _gated_cell_num）。
+
+    083 S13：slope 为行 y 随列 x 的线性漂移（透视去斜残余，B&R 竖屏实拍右侧
+    各行整体下移实测约 0.026）；非零时按 y_eff = ry + slope*(cx - x_ref)
+    逐列修正采样中心，x_ref 缺省取首列中心。x_half_abs 直接指定半窗宽
+    （分数坐标）——ZizES 顶箱数码串宽达列距九成（'310.0' 约 170px/216px），
+    且末列油温距前一列近、按全列 min 列距取窗会切掉首尾字符
+    （'290.2'->'290'、'2.9'->'2'），由调用方按料筒列距中位数给定；
+    缺省参数下行为与旧版完全一致。"""
     h, w = img.shape[:2]
     x_gaps = [b - a for a, b in zip(col_centers, col_centers[1:])]
     y_gaps = [b - a for a, b in zip(row_ys, row_ys[1:])]
-    x_half = 0.35 * min(x_gaps)
+    if x_half_abs is not None:
+        x_half = x_half_abs
+    else:
+        x_half = x_half_frac * min(x_gaps)
     y_half = 0.4 * min(y_gaps)
+    x_ref = col_centers[0] if slope_x_ref is None else slope_x_ref
     lines = []
     for ry in row_ys:
         for cx in col_centers:
+            ry_eff = ry + slope * (cx - x_ref)
             x0 = int(max(0, (cx - x_half) * w))
             x1 = int(min(w, (cx + x_half) * w))
-            y0 = int(max(0, (ry - y_half) * h))
-            y1 = int(min(h, (ry + y_half) * h))
+            y0 = int(max(0, (ry_eff - y_half) * h))
+            y1 = int(min(h, (ry_eff + y_half) * h))
             if x1 - x0 < 8 or y1 - y0 < 8:
                 continue
             crop = img[y0:y1, x0:x1]
@@ -646,10 +670,41 @@ def _rec_grid_cells(ocr, img, col_centers, row_ys, src_name) -> list[dict]:
     return lines
 
 
+def _band_row_slope(band: list[dict], row_ys: list[float], gap: float) -> float:
+    """band 数值 token 的行斜率中位数（083 S13）。
+
+    逐行归属（0.5*gap 窗口）后仅在 ≥2 点且 x 跨度 ≥0.1 的行内最小二乘拟合，
+    取各行斜率中位数；行数不足或斜率越出实拍透视合理范围（|k|>0.15）时
+    返回 0，退化为平铺采样（旧行为）。"""
+    per_row: dict[int, list[dict]] = {}
+    for t in band:
+        r = min(range(len(row_ys)), key=lambda i: abs(t["y"] - row_ys[i]))
+        if abs(t["y"] - row_ys[r]) <= 0.5 * gap:
+            per_row.setdefault(r, []).append(t)
+    slopes = []
+    for toks in per_row.values():
+        xs = [t["x"] for t in toks]
+        if len(toks) < 2 or max(xs) - min(xs) < 0.1:
+            continue
+        mx = sum(xs) / len(xs)
+        my = sum(t["y"] for t in toks) / len(toks)
+        denom = sum((x - mx) ** 2 for x in xs)
+        if denom > 1e-6:
+            slopes.append(sum((t["x"] - mx) * (t["y"] - my) for t in toks) / denom)
+    if not slopes:
+        return 0.0
+    slopes.sort()
+    k = slopes[len(slopes) // 2]
+    return k if abs(k) <= 0.15 else 0.0
+
+
 def _b_and_r_grid(toks, template):
     """B&R 温度表网格：5 行标签（含单缺失均匀行距推断）+ 数值 x 聚类列。
 
-    返回 (col_centers, row_ys) 或 None。"""
+    返回 (col_centers, row_ys, row_slope) 或 None；row_slope 为 band 数值 token
+    的逐行拟合斜率（083 S13：透视去斜残余使右侧列各行 y 整体下移，平铺采样
+    会切掉右列数字——实测 Z038 竖屏实拍 #3/#4 列逐格全空），供
+    _rec_grid_cells 逐列修正采样中心。"""
     anchors = template["row_anchors"]
 
     def find(keys, xmax=0.35):
@@ -689,9 +744,13 @@ def _b_and_r_grid(toks, template):
     band = [t for t in toks if _plain_num(t["text"]) is not None and t["x"] > 0.12
             and not t["text"].strip().startswith("#")
             and ys[0] - 0.75 * gap < t["y"] < ys[-1] + 0.75 * gap]
+    # 083 S13：行标签锚在左缘，数据行随透视右倾——用 band 数值 token 的逐行
+    # 拟合斜率中位数修正右侧列采样中心（行内混拟合会虚构斜率，实测 Z038 竖屏
+    # 实拍 #3/#4 列逐格全空）；token 不足或斜率越界时为 0，退化为旧平铺行为。
+    slope = _band_row_slope(band, ys, gap) if band else 0.0
     clusters = _cluster_x([t["x"] for t in band], 0.045)
     if len(clusters) in (5, 6):
-        return [sum(c) / len(c) for c in clusters], ys
+        return [sum(c) / len(c) for c in clusters], ys, slope
     # 083 S05：竖屏整机实拍主 OCR 大量漏格、实测列簇不足且无列头锚点时，
     # 用无锚仿射配准兜底（首列须在行标签右缘之右且组合唯一，否则放弃）。
     label_right = max((t.get("x1") or 0.0)
@@ -702,14 +761,15 @@ def _b_and_r_grid(toks, template):
         fit = _affine_fit_columns([sum(c) / len(c) for c in clusters],
                                   tpl_centers, x_min=label_right)
         if fit is not None:
-            return fit[0], ys
+            return fit[0], ys, slope
     return None
 
 
 def _demag_grid(toks, template):
     """DEMAG 温度表网格：实际/设定 + 两个「差」行标签，四行数值 x 联合聚类 5 列。
 
-    返回 (col_centers, row_ys) 或 None。"""
+    返回 (col_centers, row_ys, 0.0) 或 None（083 S13 起与 _b_and_r_grid 统一
+    三元组；DEMAG 竖屏实拍斜率场景未复现，暂不拟合行斜率）。"""
     anchors = template["row_anchors"]
 
     def find_label(keys, xmax=0.2, y_lo=0.3, y_hi=0.65):
@@ -773,35 +833,85 @@ def _demag_grid(toks, template):
                                           label_right, hdr_anchors=hdr_anchors,
                                           labels_all=labels_all)
                 if fit is not None:
-                    return fit[0], ys
+                    return fit[0], ys, 0.0
         return None
-    return [sum(c) / len(c) for c in clusters], ys
+    return [sum(c) / len(c) for c in clusters], ys, 0.0
 
 
 def generate_temperature_cells_sidecar(ocr, png_path: Path, out_path,
                                        family: str, lines: list[dict],
-                                       screen_size: list[int]) -> int:
-    """B_AND_R / DEMAG 温度页逐格重读旁车（083 S03），返回写入行数。
+                                       screen_size: list[int],
+                                       measured: dict | None = None) -> int:
+    """B_AND_R / DEMAG / ZizES 温度页逐格重读旁车（083 S03），返回写入行数。
 
     family 为 extract 路由已确认的家族（record/机台先验/模板指纹，可能异于
-    分类器结果）；网格实测失败或其他家族返回 0 且不写文件。"""
+    分类器结果）；网格实测失败或其他家族返回 0 且不写文件。
+
+    083 S13（095 S02 B013）：ZizES 走 measured 实测几何——其数字列头在屏摄
+    下常不足（HEADER_DIGITS_INSUFFICIENT）且主 OCR 对红字数码格截尾漏小数位，
+    提取器已用油温锚定/模板兜底得到可信列位与行心（extraction_detail），
+    直接按该几何逐格重读比重新推导网格稳健。measured 需含
+    columns_measured（7 料筒列 + 油温列）/row_centers（current/set/control，
+    去斜坐标）/deskew_slope；逐格采样按 y = y2 + k*(x-0.5) 还原像素行心。"""
     if out_path is not None and Path(out_path).exists():
         Path(out_path).unlink()
-    builders = {"B_AND_R": (_b_and_r_grid, "br_cell", "b_and_r.temperature.json"),
-                "DEMAG": (_demag_grid, "demag_cell", "demag.temperature.json")}
-    spec = builders.get(str(family or "").upper())
-    if spec is None:
-        return 0
-    builder, src_name, tpl_name = spec
-    template = json.loads((_TEMPLATES_DIR / tpl_name).read_text(encoding="utf-8"))
-    grid = builder(_grid_toks(lines, screen_size), template)
-    if grid is None:
-        return 0
-    col_centers, row_ys = grid
+    if str(family or "").upper() == "ZIZES":
+        grid = _zizes_grid_from_measured(measured)
+        if grid is None:
+            return 0
+        col_centers, row_ys, slope, slope_x_ref = grid
+        src_name = "zizes_cell"
+        # 半窗宽按 7 个料筒列的列距中位数取 0.48——数码串宽达列距九成，
+        # 用全列 min 列距（末列油温更近）会切掉首尾字符；相邻窗不重叠。
+        barrel_gaps = sorted(b - a for a, b in zip(col_centers[:7],
+                                                   col_centers[1:7]))
+        x_half_abs = 0.48 * barrel_gaps[len(barrel_gaps) // 2]
+    else:
+        builders = {"B_AND_R": (_b_and_r_grid, "br_cell", "b_and_r.temperature.json"),
+                    "DEMAG": (_demag_grid, "demag_cell", "demag.temperature.json")}
+        spec = builders.get(str(family or "").upper())
+        if spec is None:
+            return 0
+        builder, src_name, tpl_name = spec
+        template = json.loads((_TEMPLATES_DIR / tpl_name).read_text(encoding="utf-8"))
+        grid = builder(_grid_toks(lines, screen_size), template)
+        if grid is None:
+            return 0
+        col_centers, row_ys, slope = grid
+        slope_x_ref = None
+        x_half_abs = None
     img = cv2.imread(str(png_path))
-    lines_out = _rec_grid_cells(ocr, img, col_centers, row_ys, src_name)
+    lines_out = _rec_grid_cells(ocr, img, col_centers, row_ys, src_name,
+                                slope=slope, slope_x_ref=slope_x_ref,
+                                x_half_abs=x_half_abs)
     return _write_cells(Path(out_path), png_path,
                         f"paddleocr rec-only {src_name} grid cells (083 S03)", lines_out)
+
+
+def _zizes_grid_from_measured(measured: dict | None):
+    """ZizES 温度页救援网格：直接采用提取器实测几何（083 S13）。
+
+    返回 (col_centers, row_ys, slope, slope_x_ref) 或 None。slope=deskew_slope、
+    x_ref=0.5：提取器行心为去斜坐标 y2 = y - k*(x-0.5)，逐列还原像素行心。"""
+    if not measured:
+        return None
+    cols = measured.get("columns_measured")
+    rows = measured.get("row_centers") or {}
+    k = measured.get("deskew_slope") or 0.0
+    if not cols or len(cols) != 8:
+        return None
+    try:
+        row_ys = [rows["current"], rows["set"], rows["control"]]
+    except KeyError:
+        return None
+    if not all(isinstance(v, (int, float)) for v in [*cols, *row_ys, k]):
+        return None
+    if not (row_ys[0] < row_ys[1] < row_ys[2]):
+        return None
+    gaps = [b - a for a, b in zip(row_ys, row_ys[1:])]
+    if any(g < 0.015 for g in gaps):
+        return None
+    return [float(c) for c in cols], [float(y) for y in row_ys], float(k), 0.5
 
 
 def main():
