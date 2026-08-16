@@ -14,12 +14,18 @@ NUM_FULL = re.compile(r"-?\d+\.\d+|-?\d+")
 
 def _split_nums(text: str) -> list[float]:
     """从 token 文本切数值：'90-3'->90.3（OCR 点成横）；丢点融合 '3350334.6'->335.0+334.6。
-    严格形态：整数位 2~3 + 1 位小数（本页数值全为该形态；M1-M4 的 0.0 不匹配会被自然
-    排除——表区行取最右 5 列不受影响，但输出行 0.x 小数值需注意）。"""
+    数值形态：1~3 位整数 + 1 位小数（083 S04 起含 0.0/5.0 等一位整数——M1-M4 的 0.0
+    由 x 带 + 取最右 5 列自然排除，而输出/偏差行的 0.x、5.x 本来就是合法值）；整 token
+    三位整数（'280'）或带尾点（'285.'/'20.'）按丢小数位兜底，裸 2 位整数不兜底
+    （防偏差 50 误当值）。"""
     t = text.strip()
     t = re.sub(r"(\d)-(\d)", r"\1.\2", t)  # OCR 点成横：'90-3'->90.3、'50-0oC'->50.0oC
+    t = re.sub(r"(\d)[、·](\d)", r"\1.\2", t)  # OCR 点成顿号/间隔号：'11、5'->11.5
     t = re.sub(r"(\d{2,3})(\d)(?=\d{2,3}\.\d)", r"\1.\2", t)
-    return [float(m) for m in re.findall(r"\d{2,3}\.\d", t)]
+    vals = [float(m) for m in re.findall(r"\d{1,3}\.\d", t)]
+    if not vals and re.fullmatch(r"\d{3}|\d{1,3}\.", t):
+        vals = [float(t.rstrip("."))]
+    return vals
 
 
 def _clean_num(text: str) -> float | None:
@@ -46,13 +52,6 @@ def _row_values(toks, y, k, x_lo=0.25, x_hi=0.7, tol=0.018):
     return out
 
 
-def _rightmost5(vals, row_name, warnings):
-    if len(vals) < 5:
-        warnings.append(f"ROW_VALUES_MISSING({row_name},{len(vals)}/5)")
-        return None
-    return [v for _, v, _ in vals[-5:]]
-
-
 def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
     warnings: list[str] = []
     anchors = template["row_anchors"]
@@ -71,33 +70,88 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
     if not lab["control"]:
         warnings.append("ROW_ANCHOR_MISSING(control)")
 
-    # 在线服务生成的 Profile 专用逐格旁车。按最近行标签归组，必须 5 列齐全才采用；
-    # 任一非 NZ 列缺失仍走基础 OCR 并保留缺格告警。
+    base_toks = [t for t in toks if t.get("src") != "fanuc_cell"]
+
+    # 083 S04：实拍倾斜图的行带 deskew。行标签在表区左侧、数值在右侧，整机
+    # 照片倾斜时固定 y 行带会在右侧切到相邻行（实测倾斜达 |k|≈0.08，右端错位
+    # 0.03+ 超行带容差）。斜率优先取表头字母行（M1..H 单 token 天然共线）；
+    # 表头不足时退回「标签 y 处校正距离归行 + 逐行拟合 + 跨行中位」两轮收敛。
+    HEADER_ALIAS = {"M1", "M2", "M3", "M4", "N", "H",
+                    "B1", "B2", "B3", "BI", "82", "83"}
+
+    def _fit_header_slope() -> float | None:
+        cur_y = lab["current"]["y"] if lab["current"] else lab["control"]["y"]
+        heads = [t for t in base_toks
+                 if t["text"].strip().upper() in HEADER_ALIAS
+                 and 0.1 < t["x"] < 0.75 and t["y"] < cur_y - 0.01]
+        xs = [t["x"] for t in heads]
+        if len(heads) < 3 or max(xs) - min(xs) < 0.2:
+            return None
+        return _fit_slope(heads)
+
+    def _fit_table_slope(k0: float) -> float:
+        slopes = []
+        for name in ("high", "set", "low", "control", "current"):
+            lab_t = lab[name]
+            if not lab_t:
+                continue
+            band = [t for t in base_toks
+                    if abs(t["y"] - (lab_t["y"] + k0 * (t["x"] - lab_t["x"]))) < 0.03
+                    and 0.15 < t["x"] < 0.75 and _split_nums(t["text"])]
+            xs = [t["x"] for t in band]
+            if len(band) >= 4 and max(xs) - min(xs) >= 0.25:
+                slopes.append(_fit_slope(band))
+        if not slopes:
+            return 0.0
+        slopes.sort()
+        return slopes[len(slopes) // 2]
+
+    k = _fit_header_slope()
+    if k is None:
+        k = _fit_table_slope(0.0)
+        if k:
+            k2 = _fit_table_slope(k)
+            if abs(k2) <= 0.2:
+                k = k2
+    if abs(k) > 0.2:  # 异常斜率按无倾斜处理（防误判反而拉歪正常截图）
+        k = 0.0
+
+    def _y05(name):
+        """行标签 y 换算为 x=0.5 参考处的行 y（_row_values 的参考系）。"""
+        lab_t = lab[name]
+        return lab_t["y"] + k * (0.5 - lab_t["x"]) if lab_t else None
+
+    # 在线服务生成的 Profile 专用逐格旁车。按斜率校正后的最近行标签归组，
+    # 必须 5 列齐全才采用；任一非 NZ 列缺失仍走基础 OCR 并保留缺格告警。
+    y05 = {name: _y05(name) for name in lab if lab[name]}
     cell_tokens = {name: [] for name in lab}
     for token in (t for t in toks if t.get("src") == "fanuc_cell"):
-        name = min((name for name in lab if lab[name]),
-                   key=lambda name: abs(token["y"] - lab[name]["y"]))
-        if abs(token["y"] - lab[name]["y"]) < 0.03:
+        if not y05:
+            break
+        name = min(y05, key=lambda n: abs(token["y"] - (y05[n] + k * (token["x"] - 0.5))))
+        if abs(token["y"] - (y05[name] + k * (token["x"] - 0.5))) < 0.02:
             cell_tokens[name].append(token)
     cell_rows = {}
     for name, row_tokens in cell_tokens.items():
         values = [_cell_num(t["text"]) for t in sorted(row_tokens, key=lambda t: t["x"])]
         cell_rows[name] = values if len(values) == 5 and all(v is not None for v in values) else None
-    base_toks = [t for t in toks if t.get("src") != "fanuc_cell"]
 
     # 内容锚定行网格：设定行是表区唯一含 ≥3 个 ≥100 数值的行（行值域约束），
     # 找到后按行距（标签实测，缺省用模板均值）向上下展开 上限/下限/输出/现在。
-    # 不依赖标签与数值的纵向对齐（倾斜暗图错位可达 0.05）。
+    # 不依赖标签与数值的纵向对齐（倾斜暗图错位可达 0.05）；083 S04 起扫描与
+    # 取值均按实测斜率 k 校正（x=0.5 参考系）。
     def find_set_y():
         # 扫描范围限定在上/下限标签之间（排除 现在 行粘连 blob 的同值域干扰）；
         # 按切分后 ≥100 的「值」计数（设定行 mega 粘连 token 也能积满 3）
-        y_lo = lab["high"]["y"] - 0.01
-        y_hi = lab["low"]["y"] + 0.01
+        y_lo = _y05("high") - 0.01
+        y_hi = _y05("low") + 0.01
         best, best_n = None, 0
         y = y_lo
         hits = []
         while y < y_hi:
-            band = [t for t in toks if abs(t["y"] - y) < 0.018 and 0.25 < t["x"] < 0.7]
+            band = [t for t in toks
+                    if abs(t["y"] - (y + k * (t["x"] - 0.5))) < 0.018
+                    and 0.25 < t["x"] < 0.7]
             n = sum(1 for t in band for v in _split_nums(t["text"]) if v >= 100)
             hits.append((y, n))
             if n > best_n:
@@ -113,9 +167,9 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
         # 密度扫描失败时退回「设定」行标签 y（标签检测到即用，避免整页硬拒；
         # 标签与数值的纵向错位由后续 _row_values 的行带容差吸收，漏检值仍 CELL_MISSING）。
         if cell_rows.get("set"):
-            set_y = lab["set"]["y"]
+            set_y = _y05("set")
         elif lab["set"]:
-            set_y = lab["set"]["y"]
+            set_y = _y05("set")
             warnings.append("SET_ROW_LABEL_FALLBACK")
         else:
             return {"fields": None, "heater_columns": 0,
@@ -130,15 +184,16 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
 
     rows = {}
     for r, ry in (("high", high_y), ("set", set_y), ("low", low_y)):
-        vals = _row_values(base_toks, ry, 0)
+        vals = _row_values(base_toks, ry, k)
         if len(vals) == 4:
             # 边缘列（多为 H）略出行带：放宽一档补一次
-            vals2 = _row_values(base_toks, ry, 0, tol=0.028)
+            vals2 = _row_values(base_toks, ry, k, tol=0.028)
             if len(vals2) >= 5:
                 vals = vals2
         base_row = [v for _, v, _ in vals[-5:]] if len(vals) >= 5 else None
-        # 设定行若基础粘连 token 已完整，沿用基础值；高/低偏差优先逐格结果。
-        rows[r] = base_row if r == "set" and base_row else cell_rows.get(r) or base_row
+        # 083 S04 起各行统一基础 OCR 优先、逐格旁车仅在基础行不完整时兜底
+        # （旁车单格裁切在倾斜实拍上可能丢首位数字，实测高置信错值 80.0/90.0）。
+        rows[r] = base_row or cell_rows.get(r)
         if rows[r] is None:
             warnings.append(f"ROW_VALUES_MISSING({r},{len(vals)}/5)")
 
@@ -149,7 +204,8 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
     #   - 4 值（仅 N..B3）：整组为料筒，H 取 blob 右侧独立单值 token
     cur_barrel = cur_h = None
     band = [t for t in base_toks
-            if abs(t["y"] - current_y) < 0.02 and 0.2 < t["x"] < 0.7]
+            if abs(t["y"] - (current_y + k * (t["x"] - 0.5))) < 0.02
+            and 0.2 < t["x"] < 0.7]
     cands = []
     for t in sorted(band, key=lambda t: t["x"]):
         vals = [v for v in _split_nums(t["text"]) if 0 <= v <= 400]
@@ -170,18 +226,19 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
             for t, vals in cands:
                 if t["x"] > best_t["x"] and len(vals) == 1:
                     cur_h = vals[0]
-    if cell_rows.get("current"):
+    # 逐格旁车仅在基础粘连 blob 缺失时兜底（同 high/set/low 的基础优先口径）
+    if cur_barrel is None and cell_rows.get("current"):
         cur_barrel, cur_h = cell_rows["current"][:4], cell_rows["current"][4]
     if cur_barrel is None:
         warnings.append("ROW_VALUES_MISSING(current)")
 
-    # 输出行（%）
-    ctl5 = cell_rows.get("control")
+    # 输出行（%）：基础 OCR 优先，缺格再由逐格旁车兜底，双缺才告警
+    base_ctl = _row_values(base_toks, control_y, k)
+    ctl5 = [v for _, v, _ in base_ctl[-5:]] if len(base_ctl) >= 5 else None
     if ctl5 is None:
-        ctl5 = _rightmost5(_row_values(base_toks, control_y, 0), "control", warnings)
-
-    k = 0.0
-
+        ctl5 = cell_rows.get("control")
+    if ctl5 is None:
+        warnings.append(f"ROW_VALUES_MISSING(control,{len(base_ctl)}/5)")
     # 低温保持（holding）：标签下方/右侧的 °C 设定值
     holding = None
     hlab = find_label(anchors["holding"], xmax=0.6)

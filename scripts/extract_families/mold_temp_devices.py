@@ -12,7 +12,9 @@
 1. 数值候选来源（各坐标系独立，不跨系聚行）：受信来源 = base（主
    OCR/CLAHE 合并行）与 mt_full（原图全量 OCR），均为完整 det+rec 管线；
    旁车裁剪 rec-only（mt_cell 矫正图 / mt_cell_orig 原图）单独不足信，
-   仅在两系结果一致（±0.5°C）时交叉采信。
+   但两个旁车系给出唯一一致（±0.5°C）结果时优先于整图来源——整图 OCR
+   会把倾斜显示的未点亮残段误读（如 100.1→100.8）；无唯一交叉结果时才
+   回退受信整图来源。
 2. 严格数值口径：^\d{1,3}(\.\d)?$ 且落入模板 sv_range；'500'（'50.0' 丢点）
    超界拒收，'8888'（关断残段）不符模式拒收，不猜值。
 3. 同一来源按 y 聚行：恰好两行且行内无冲突 -> 上行 PV / 下行 SV；旁车存在
@@ -85,25 +87,24 @@ def _extract_pv_sv(toks: list[dict], template: dict) -> dict:
                 for i in range(len(rows) - 1)
                 if all(len({e["v"] for e in row}) == 1 for row in rows[i:i + 2])]
 
-    rows, src_name = [], None
-    for candidate in ("base", "mt_full"):
-        if usable(rows_by_src[candidate]):
-            rows, src_name = rows_by_src[candidate], candidate
-            break
+    # 两个坐标系的独立显示带 OCR 一致时，优先于会把未点亮段
+    # 误读为 8 的整图 OCR；无唯一交叉结果时才回退受信整图来源。
+    cell_rows = rows_by_src["mt_cell"]
+    orig_rows = rows_by_src["mt_cell_orig"]
+    matches = [(pair_c, values_c) for pair_c, values_c in pairs(cell_rows)
+               for _, values_o in pairs(orig_rows)
+               if all(abs(a - b) <= 0.5 for a, b in zip(values_c, values_o))]
+    distinct = []
+    for pair_c, values_c in matches:
+        if not any(all(abs(a - b) <= 0.5 for a, b in zip(values_c, prior))
+                   for prior in distinct):
+            distinct.append(values_c)
+    rows, src_name = (matches[0][0], "mt_cell_xvalid") if len(distinct) == 1 else ([], None)
     if src_name is None:
-        # 旁车交叉验证：两个坐标系的独立裁剪识别给出一致 (PV, SV) 才采信
-        cell_rows = rows_by_src["mt_cell"]
-        orig_rows = rows_by_src["mt_cell_orig"]
-        matches = [(pair_c, values_c) for pair_c, values_c in pairs(cell_rows)
-                   for _, values_o in pairs(orig_rows)
-                   if all(abs(a - b) <= 0.5 for a, b in zip(values_c, values_o))]
-        distinct = []
-        for pair_c, values_c in matches:
-            if not any(all(abs(a - b) <= 0.5 for a, b in zip(values_c, prior))
-                       for prior in distinct):
-                distinct.append(values_c)
-        if len(distinct) == 1:
-            rows, src_name = matches[0][0], "mt_cell_xvalid"
+        for candidate in ("base", "mt_full"):
+            if usable(rows_by_src[candidate]):
+                rows, src_name = rows_by_src[candidate], candidate
+                break
     detail["value_source"] = src_name
 
     if src_name is None:

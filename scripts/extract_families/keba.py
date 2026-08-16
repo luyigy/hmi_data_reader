@@ -1,5 +1,5 @@
 """KEBA（伯乐 KePlast 灰 UI）温度页提取（026_PLAN S7 自 extract_fields.py 拆出，行为不变）。"""
-from .common import _anchor_match, _fit_slope, _num  # noqa: F401
+from .common import _anchor_match, _fit_slope, _fit_slope_rows, _num  # noqa: F401
 
 
 def extract_temperature_keba(toks: list[dict], template: dict) -> dict:
@@ -28,9 +28,10 @@ def extract_temperature_keba(toks: list[dict], template: dict) -> dict:
     z001_style = "设定温度" in set_label["text"]  # Z047 子变体行标签为「温度设置」，无油温
 
     # 两遍去斜：先用设定行+图形行数值粗拟合，再用设定行数值精拟合
+    # 083 S05：粗拟合改逐行中位（混行整体最小二乘会因各行 x 分布差异虚构斜率）
     rough = [t for t in toks if _num(t) is not None and t["x"] > set_label["x"] + 0.02
              and set_label["y"] - 0.12 < t["y"] < set_label["y"] + 0.03]
-    k = _fit_slope(rough)
+    k = _fit_slope_rows(rough)
     if len(rough) < 4:
         warnings.append(f"DESKEW_INSUFFICIENT_TOKENS({len(rough)})")
 

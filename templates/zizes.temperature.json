@@ -44,6 +44,7 @@
     "oil_header": "油温",
     "page_title": "温度"
   },
+  "family_detect_groups": [["油温"], ["设定"], ["控制"], ["生产模数", "广东佳明", "佳明", "ZizES", "ZzES", "ZES"]],
   "heater_columns": {
     "mode": "dynamic",
     "rule": "列头数字个数决定物理列数（不写死）；启用段数 = 当前值行从第 1 列起连续为数值的列数，当前值为 * 或空缺的列视为未启用；油温列独立于料筒段",

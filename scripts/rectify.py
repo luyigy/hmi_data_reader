@@ -59,15 +59,15 @@ def rectify(image_path: Path, output_path: Path, meta_path: Path | None = None,
         return {"filename": image_path.name, "ok": False, "reason": "READ_ERROR",
                 "warnings": ["MANUAL_SCREEN_CONFIRM"]}
 
-    # 首选：四角检测 + 透视矫正
-    quad = detect_screen_corners(img)
+    # 首选：四角检测 + 透视矫正（传入 bbox 做子面板防护，083 S05）
+    bbox = detect_screen_bbox(img)
+    quad = detect_screen_corners(img, bbox)
     if quad is not None:
         rectified, size = warp_to_screen(img, quad, max_size)
         method = "corners"
         src = quad.tolist()
     else:
         # 回退：轴对齐 bbox 分支（原实现）
-        bbox = detect_screen_bbox(img)
         if bbox is None:
             return {"filename": image_path.name, "ok": False, "reason": "SCREEN_NOT_FOUND",
                     "warnings": ["MANUAL_SCREEN_CONFIRM"]}

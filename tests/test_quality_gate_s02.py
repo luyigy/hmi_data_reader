@@ -186,7 +186,7 @@ class ServiceShortCircuitTest(unittest.TestCase):
                 calls["ocr"] += 1
                 return []
 
-        def _rectify(orig_path, rect_png, rect_meta):
+        def _rectify(orig_path, rect_png, rect_meta, max_size=None):
             calls["rectify"] += 1
             return {"ok": False, "screen_size": (0, 0)}
 

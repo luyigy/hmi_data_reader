@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.1",
   "ui_family": "B_AND_R",
   "page": "temperature",
   "source": "2026-07-31 首版：7 份用户核验真值图（伯乐 Z046×6 + Z004×1，B&R 蓝 UI）OCR 实测锚点算术平均",
@@ -20,58 +20,124 @@
   },
   "layout": {
     "row_y_centers": {
-      "header": 0.30,
+      "header": 0.3,
       "current": 0.34,
       "set": 0.38,
       "high": 0.42,
       "low": 0.46,
-      "control": 0.50,
+      "control": 0.5,
       "holding": 0.86
     },
     "row_gap_avg": 0.04,
     "column_x_centers": {
-      "NZ": 0.200,
+      "NZ": 0.2,
       "#1": 0.298,
       "#2": 0.397,
       "#3": 0.494,
       "#4": 0.593,
-      "#5": 0.693
+      "#5": 0.693,
+      "#6": 0.792
     },
     "column_spacing_avg": 0.099,
     "col_x_tolerance": 0.04,
     "row_y_tolerance": 0.02,
-    "notes": "屏幕长宽比差异大（1520x1999 竖屏 ~ 1000x1400），行 y 漂移 0.23~0.68，列 x 跨度 0.14-0.80 不等，必须逐图实测锚定；左侧行标签常被 OCR 截字（实际温度->示温度、设定温度->定温度、高/低温偏差->温偏差、加热输出->热输出、启用->用）；页面有明显倾斜（|k| 可达 0.05），需去斜"
+    "notes": "屏幕长宽比差异大（1520x1999 竖屏 ~ 1000x1400），行 y 漂移 0.23~0.68，列 x 跨度 0.14-0.80 不等，必须逐图实测锚定；左侧行标签常被 OCR 截字（实际温度->示温度、设定温度->定温度、高/低温偏差->温偏差、加热输出->热输出/热输（083 S12：Z061 屏摄 '出' 误读形近字 '由/里'，全仓 606 份 OCR 语料中 '热输' 仅命中 B&R 页零跨家族碰撞）、启用->用）；页面有明显倾斜（|k| 可达 0.05），需去斜"
   },
   "row_anchors": {
-    "current": ["实际温度", "示温度", "际温度"],
-    "set": ["设定温度", "定温度"],
+    "current": [
+      "实际温度",
+      "示温度",
+      "际温度"
+    ],
+    "set": [
+      "设定温度",
+      "定温度"
+    ],
     "high": "高温偏差",
-    "low": ["低温偏差", "低湿偏差"],
+    "low": [
+      "低温偏差",
+      "低湿偏差"
+    ],
     "high_low_generic": "温偏差",
-    "control": ["加热输出", "热输出"],
-    "holding": ["保温温度", "保湿温度"],
+    "control": [
+      "加热输出",
+      "热输出",
+      "热输"
+    ],
+    "holding": [
+      "保温温度",
+      "保湿温度"
+    ],
     "column_header": "NZ"
   },
-  "page_detect_anchors": ["current", "control"],
-  "family_detect_groups": [["际温度", "示温度"], ["热输出"]],
+  "page_detect_anchors": [
+    "current",
+    "control"
+  ],
+  "family_detect_groups": [
+    [
+      "际温度",
+      "示温度"
+    ],
+    [
+      "热输出",
+      "热输"
+    ]
+  ],
   "heater_columns": {
     "mode": "fixed",
     "count": 6,
-    "rule": "固定 6 列（NZ + #1~#5）。列位不按列头而按数据行数值 x 聚类（5 行数值合并一维聚类，阈值 0.045），聚类数 != 6 则告警并回退模板列位"
+    "rule": "固定 6 列（NZ + #1~#5）。列位不按列头而按数据行数值 x 聚类（5 行数值合并一维聚类，阈值 0.045），聚类数 != 6 则告警并回退模板列位；083 S06：列头可见 #6 时为七列变体（NZ/#1~#6，实测 7 簇），输出 7 元数组并置 detail.page_variant=fixed7"
   },
   "field_mapping": {
-    "barrel_temperature_current_c": {"row": "current", "columns": "zones6", "unit": "°C"},
-    "barrel_temperature_set_c": {"row": "set", "columns": "zones6", "unit": "°C"},
-    "high_deviation_c": {"row": "high", "columns": "zones6", "unit": "°C"},
-    "low_deviation_c": {"row": "low", "columns": "zones6", "unit": "°C"},
-    "control_percent": {"row": "control", "columns": "zones6", "unit": "%"},
-    "holding_temperature_c": {"row": "页底 保温温度 标签右侧同行的值", "columns": "scalar", "unit": "°C"}
+    "barrel_temperature_current_c": {
+      "row": "current",
+      "columns": "zones6",
+      "unit": "°C"
+    },
+    "barrel_temperature_set_c": {
+      "row": "set",
+      "columns": "zones6",
+      "unit": "°C"
+    },
+    "high_deviation_c": {
+      "row": "high",
+      "columns": "zones6",
+      "unit": "°C"
+    },
+    "low_deviation_c": {
+      "row": "low",
+      "columns": "zones6",
+      "unit": "°C"
+    },
+    "control_percent": {
+      "row": "control",
+      "columns": "zones6",
+      "unit": "%"
+    },
+    "holding_temperature_c": {
+      "row": "页底 保温温度 标签右侧同行的值",
+      "columns": "scalar",
+      "unit": "°C"
+    }
   },
   "validation_rules": {
-    "temperature_range_C": [0, 450],
-    "deviation_range_C": [0, 150],
-    "control_percent_range": [0, 100],
-    "holding_range_C": [50, 300],
+    "temperature_range_C": [
+      0,
+      450
+    ],
+    "deviation_range_C": [
+      0,
+      150
+    ],
+    "control_percent_range": [
+      0,
+      100
+    ],
+    "holding_range_C": [
+      50,
+      300
+    ],
     "current_set_consistency_tolerance_C": 5,
     "min_cell_conf": 0.85
   },

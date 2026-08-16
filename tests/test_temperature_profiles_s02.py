@@ -32,10 +32,20 @@ def template(name):
 class DemagRateCellsTest(unittest.TestCase):
     def test_five_top_cells_and_negative_sign_are_preserved(self):
         class FakeOcr:
-            values = iter(("25", "15", "3", "41", "-8"))
+            # 083 S10：读取升级为 _gated_cell_num 三读门禁（raw rec / 抑制 rec /
+            # det 各一次）；每格三读同值且 det conf>=0.9 无冲突 -> 按 det 读录取。
+            VALUES = ("25", "15", "3", "41", "-8")
 
-            def ocr(self, _image, **_kwargs):
-                return [[(next(self.values), 0.99)]]
+            def __init__(self):
+                self.calls = 0
+
+            def ocr(self, _image, det=False, **_kwargs):
+                value = self.VALUES[self.calls // 3]
+                self.calls += 1
+                if det:
+                    box = [[0, 0], [1, 0], [1, 1], [0, 1]]
+                    return [[(box, (value, 0.99))]]
+                return [[(value, 0.99)]]
 
         with tempfile.TemporaryDirectory() as tmp:
             image = np.zeros((400, 800, 3), dtype=np.uint8)
@@ -83,6 +93,8 @@ class BandRFiveColumnTest(unittest.TestCase):
 
 class FanucTemperatureCellsTest(unittest.TestCase):
     def test_cell_rows_restore_set_current_and_keep_candidate(self):
+        # 083 S04：profile 已豁免晋级 verified（见 profiles.json lifecycle_note），
+        # 本用例保留逐格旁车恢复 set/current 的提取行为断言，状态断言跟随晋级。
         rows = {"现在": (0.30, [290, 285, 275, 270, 45]),
                 "输出": (0.35, [36.5, 12.6, 6.3, 52.4, 100]),
                 "上限": (0.40, [5, 5, 5, 5, 10]),
@@ -105,7 +117,7 @@ class FanucTemperatureCellsTest(unittest.TestCase):
                                     "fields": result["fields"],
                                     "extraction_detail": result["detail"]})
         self.assertEqual(contract["profile_id"], "fanuc.temperature.rightmost5")
-        self.assertEqual(contract["profile_status"], "candidate")
+        self.assertEqual(contract["profile_status"], "verified")
 
 
 class FanucAliasRoutingTest(unittest.TestCase):

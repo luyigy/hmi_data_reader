@@ -25,7 +25,7 @@ from extract_families.fanuc_mold_temp import extract_mold_temp_fanuc
 from extract_families.mold_temp_devices import (
     extract_mold_temp_omron_e5cc, extract_mold_temp_thermoregulator)
 from extract_fields import detect_family_from_templates, route_page
-from ocr_variants import _mt_find_bands
+from ocr_variants import _mt_deskew, _mt_find_bands
 
 
 def template(name):
@@ -82,6 +82,40 @@ class MoldTempPageRoutingTest(unittest.TestCase):
             [line(t) for t in texts], ROOT / "templates")
         self.assertEqual(fam, "FANUC")
 
+    def test_fragmented_title_with_panel_signature_is_detected(self):
+        # 075 R02 实测失败模式：整机斜拍把标题 OCR 成「模具」/「度调节机」/
+        # 「MOREGULATOR」碎行，完整标题候选全部不命中 → NO_TEMPLATE 误拒；
+        # 碎裂标题候选须与面板联署（严禁无水开机/故障代码）同场才判族
+        texts = ["模具", "度调节机", "MOREGULATOR",
+                 "严禁无水开机", "故障代码ERROR CODE"]
+        fam = detect_family_from_templates(
+            [line(t) for t in texts], ROOT / "templates")
+        self.assertEqual(fam, "MOLD_THERMOREGULATOR")
+        page, _ = route_page("raw_upload", [line(t) for t in texts],
+                             fam, ROOT / "templates")
+        self.assertEqual(page, "mold_temp")
+
+    def test_fragmented_title_without_panel_signature_stays_rejected(self):
+        # 碎裂标题单独出现（机台 HMI 菜单项等）不得判为独立调节机
+        texts = ["模具", "度调节机", "MOREGULATOR"]
+        fam = detect_family_from_templates(
+            [line(t) for t in texts], ROOT / "templates")
+        self.assertIsNone(fam)
+
+    def test_panel_signature_alone_is_not_detected(self):
+        # 面板联署单独出现（警告贴纸/故障表）不得判族
+        texts = ["严禁无水开机", "故障代码 ERROR CODE"]
+        fam = detect_family_from_templates(
+            [line(t) for t in texts], ROOT / "templates")
+        self.assertIsNone(fam)
+
+    def test_full_title_alone_still_detected_after_cnf_extension(self):
+        # 向后兼容：075 R02 前完整标题单组命中口径不变
+        texts = ["模具温度调节机"]
+        fam = detect_family_from_templates(
+            [line(t) for t in texts], ROOT / "templates")
+        self.assertEqual(fam, "MOLD_THERMOREGULATOR")
+
 
 class MoldTempExtractorTest(unittest.TestCase):
     def test_low_resolution_merged_digit_rows_are_detected(self):
@@ -95,6 +129,18 @@ class MoldTempExtractorTest(unittest.TestCase):
 
         self.assertTrue(any(color == "red" and y0 < 50 for _, y0, _, _, color in bands))
         self.assertTrue(any(color == "green" and y0 > 50 for _, y0, _, _, color in bands))
+
+    def test_two_slanted_red_rows_are_deskewed(self):
+        image = np.full((300, 300, 3), 255, dtype=np.uint8)
+        for y in (110, 190):
+            box = cv2.boxPoints(((150, y), (120, 25), 30)).astype(np.int32)
+            cv2.fillConvexPoly(image, box, (0, 0, 255))
+
+        bands = [b for b in _mt_find_bands(_mt_deskew(image)) if b[4] == "red"]
+
+        self.assertEqual(len(bands), 2)
+        self.assertTrue(all((x1 - x0) > 3 * (y1 - y0)
+                            for x0, y0, x1, y1, _ in bands))
 
     def test_omron_cells_only_rejected_without_trusted_source(self):
         # 旁车裁剪 rec-only 单独不足信（实测 '140'/'88' 残段误读），须拒识
@@ -160,6 +206,22 @@ class MoldTempExtractorTest(unittest.TestCase):
             toks, template("mold_thermoregulator.mold_temp.json"))
         self.assertIsNone(result["fields"])
         self.assertIn("VALUE_SOURCE_CONFLICT", result["warnings"])
+
+    def test_cross_validated_cells_override_wrong_full_ocr(self):
+        toks = [
+            {**cell("100.8", 0.44), "src": "mt_full"},
+            {**cell("100.0", 0.50), "src": "mt_full"},
+            cell("100.1", 0.29), cell("100.0", 0.33),
+            {**cell("100.1", 0.225), "src": "mt_cell_orig"},
+            {**cell("100.0", 0.259), "src": "mt_cell_orig"},
+        ]
+        result = extract_mold_temp_thermoregulator(
+            toks, template("mold_thermoregulator.mold_temp.json"))
+        self.assertEqual(result["detail"]["value_source"], "mt_cell_xvalid")
+        self.assertEqual(result["fields"], {
+            "mold_temperature_set_c": 100.0,
+            "mold_temperature_current_c": 100.1,
+        })
 
     def test_integer_variant_detected(self):
         toks = [base_tok("30", 0.48), base_tok("30", 0.52)]

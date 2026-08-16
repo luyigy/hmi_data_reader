@@ -55,6 +55,14 @@
       "lifecycle_note": "2026-08-07 用户（所有者）豁免晋级（verified）。证据：7 份用户核验真值（bole_Z046×6 + bole_Z004，蓝 UI，模板校准样本）；浅色无 NZ 列变体（bole_BR 实拍）经模板指纹路由实测提取全对（设定/实际/偏差/加热输出/保温共 26 个值与照片一致）；#1=射嘴（无 NZ 列变体）经用户 2026-08-07 裁定；路由证据置信度兜底（record/机台先验/模板指纹 0.9~0.95）就位。偏差披露：无独立 holdout（浅色变体仅 1 张温度页照片，未走契约真值报告门禁）；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
     },
     {
+      "profile_id": "b_and_r.temperature.fixed7",
+      "controller_family": "B_AND_R",
+      "page_type": "temperature",
+      "layout_variant": "fixed7",
+      "status": "verified",
+      "lifecycle_note": "2026-08-16 083 PLAN S06 登记并豁免晋级（verified）。证据：b_and_r.temperature 模板 v0.2.0（083 S06 增 #6 列位与七列规则）；S06 B006 4ad43b33（伯乐 500EKS 竖屏实拍，NZ/#1~#6 七列页面）经大模型两遍判读逐值一致——设定 220/230/230/230/230/220/190、实际 219.8/230.1/229.9/229.9/230.1/220.0/190.1、高温偏差 50×7、低温偏差 50×6+30、加热输出 11.8/20.5/5.4/9.1/14.4/6.6/2.3、保温 150；此前 7 簇被 COLUMN_CLUSTER_PRUNED 裁成 6 列丢 #6 全列。偏差披露：仅 1 张样本、无独立 holdout 与契约真值；Web 映射按 entity.columns NZ/#1~#6 经 sciHmiPrefill 单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
       "profile_id": "tact.hot_runner_temp.digital_sv",
       "controller_family": "TACT",
       "page_type": "hot_runner_temp",
@@ -67,8 +75,8 @@
       "controller_family": "FANUC",
       "page_type": "temperature",
       "layout_variant": "rightmost5",
-      "status": "candidate",
-      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：发那科 ROBOSHOT 喷嘴/料筒温度页右起 5 列（N,B1,B2,B3,H）布局。证据：2 份逐图目视核验真值（barrel_A11_9835fbea / barrel_A11_3ce4cae5，calibration）。H 列按料口（drop_port）语义，M1-M4 关断模温加热器不入。晋级 verified 需 042 S06 独立 holdout 门禁。 [lifecycle] unknown -> candidate"
+      "status": "verified",
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：发那科 ROBOSHOT 喷嘴/料筒温度页右起 5 列（N,B1,B2,B3,H）布局。证据：2 份逐图目视核验真值（barrel_A11_9835fbea / barrel_A11_3ce4cae5，calibration）。H 列按料口（drop_port）语义，M1-M4 关断模温加热器不入。 [lifecycle] unknown -> candidate；2026-08-16 083 PLAN S04 豁免晋级（verified）。证据：083 S04 行带 deskew/解析容错修复后，2 份 calibration 真值回放与 042 代码逐值零差异（3ce4cae5 13/13 全对；9835fbea 主 OCR 级 298.8/280.0 与料口实际缺读为修复前既有残留，新旧代码一致）；B004 两张倾斜整机实拍（rijing_Z022_t1_炮筒、unknown_发那科_Z035）设定/现在/上下偏差/输出/低温保持与大模型两遍判读逐值一致（残差仅辅助偏差单格 20.5/20.0，review 保留）。偏差披露：无独立未调参 holdout；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。 [lifecycle] candidate -> verified"
     },
     {
       "profile_id": "hot_system.hot_runner_temp.single_zone",
@@ -103,12 +111,60 @@
       "lifecycle_note": "2026-08-12 042 PLAN S01 登记：模具温度调节机双数码管整数布局（PV/SV 整数，T1/T2 指示灯）。证据：3 份逐图目视核验真值（mt_*_A11/B12，calibration）。晋级 verified 需 042 S06 独立 holdout 门禁。 [lifecycle] unknown -> candidate"
     },
     {
+      "profile_id": "tact.temperature.fixed",
+      "controller_family": "TACT",
+      "page_type": "temperature",
+      "layout_variant": "fixed",
+      "status": "verified",
+      "lifecycle_note": "2026-08-15 083 PLAN S01 登记并豁免晋级（verified）。证据：tact.temperature 模板长期生产使用；083 S01 修复繁简锚点/编号末段变体后，B001 起逐图真值比对（results.jsonl）——TACT 温度页设定/现在/控制/保温行与真值一致（007c1ea6 17/18 仅辅助 control% 残差、0738efc2/0dc50d91/0f985caa 23/23 全对），TACT5 无品牌表头变体经模板指纹+四行标签路由实测提取与照片一致（059ca5f9/0904ba61 大模型两遍判读）。偏差披露：无独立未调参 holdout（语料多数参与过迭代修复）；Web 映射经 sciHmiPrefill 单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
+      "profile_id": "zizes.temperature.dynamic",
+      "controller_family": "ZIZES",
+      "page_type": "temperature",
+      "layout_variant": "dynamic",
+      "status": "verified",
+      "lifecycle_note": "2026-08-15 083 PLAN S01 登记并豁免晋级（verified）。证据：zizes.temperature 模板生产使用；083 S01 油温锚定列回退修复数字列头漏检错列后，holdout_Z051（1152722a）17/17 全对，后续批次逐图证据见 results.jsonl。偏差披露：无独立未调参 holdout；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
+      "profile_id": "keba.temperature.dynamic",
+      "controller_family": "KEBA",
+      "page_type": "temperature",
+      "layout_variant": "dynamic",
+      "status": "verified",
+      "lifecycle_note": "2026-08-15 083 PLAN S01 登记并豁免晋级（verified）。证据：keba.temperature 模板生产使用；083 S01 B001 0a9b0021（BOLE Z047）温度设置/上偏差/下偏差/保温提取与大模型两遍判读一致，后续批次逐图证据见 results.jsonl。偏差披露：无独立未调参 holdout；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
       "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
       "controller_family": "INDUSTRIAL_CHILLER",
       "page_type": "mold_temp",
       "layout_variant": "lcd_pv_set",
       "status": "candidate",
       "lifecycle_note": "2026-08-12 042 PLAN S01 登记：工业冷水机 LCD 面板（PV 大字 + SET 小字，B03 行位来源）。证据：3 份逐图目视核验真值（mt_slide_B03_*，calibration，均 allow_auto_import=false）。冷水机非模温机，布局不纳入本期 release 自动导入，仅钉住安全拒识。 [lifecycle] unknown -> candidate"
+    },
+    {
+      "profile_id": "kaiming.temperature.dynamic",
+      "controller_family": "KAIMING",
+      "page_type": "temperature",
+      "layout_variant": "dynamic",
+      "status": "verified",
+      "lifecycle_note": "2026-08-16 083 PLAN S03 登记并豁免晋级（verified）。证据：kaiming.temperature 模板首版（083 S03）；佳明_Z030 机台先验经人工核验（machine_labels，王为 2026-07-30）；S03 B003 2380803d 逐图比对——设定行 250/240/235/230/225、当前行 250/240/235/237/225（'250240' 并读格经 CELL_SPLIT 拆分复核）、保温 160 与大模型两遍判读一致，后续批次逐图证据见 results.jsonl。偏差披露：仅 1 张校准样本、无独立未调参 holdout；Web 映射经 sciHmiPrefill 单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
+      "profile_id": "est.temperature.dynamic",
+      "controller_family": "EST",
+      "page_type": "temperature",
+      "layout_variant": "dynamic",
+      "status": "verified",
+      "lifecycle_note": "2026-08-16 083 PLAN S05 登记并豁免晋级（verified）。证据：est.temperature 模板首版（083 S05）；同族 est.injection_metering 模板既有生产使用；S05 B005 40ca9342（伯乐 EST2 温度设定页）逐图比对——设定行 285/280/275/270/260、当前行 283/280/275/269/258、保温 150 与大模型两遍判读一致，末段孤立设定值 35（非炮筒段）经 SET_ROW_TRAILING_IGNORED 剔除复核。偏差披露：仅 1 张校准样本、无独立未调参 holdout；Web 映射经 sciHmiPrefill 单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
+      "profile_id": "trd6.temperature.z0z6",
+      "controller_family": "TRD6",
+      "page_type": "temperature",
+      "layout_variant": "z0z6",
+      "status": "verified",
+      "lifecycle_note": "2026-08-16 083 PLAN S07 登记并豁免晋级（verified）。证据：trd6.temperature 模板首版（083 S07，054 S01 注明该布局未在当期 release 应安全拒识，083 收口期按「不支持=待修」口径纳入支持）；S07 B007 553fc2de（沙迪克 TRD6 温度设定页实拍，Z0-Z2/Z4-Z6 六段+ZH+油温）经大模型两遍判读逐值一致——设定 415/385/385/385/380/365、现在 415.3/385.1/385.0/384.9/380.1/364.9、上限幅 50×6、下限幅 20/20/20/20/30/25、ZH 80.2/80.0、油温 55.6、进入保温 0.0；同布局旁证 datasets/holdout barrel_A06×3。偏差披露：仅 1 张校准样本、无独立未调参 holdout 与契约真值；段序为判读假设（Z0=415°C 全表最高=喷嘴侧，区号升序映射 entity 列序 喷嘴1/区1..区5，本布局无 Z3）；ZH→drop_port 为料斗侧温区同义映射（TACT 落下口/KEBA 法兰先例，80°C 量级一致）；机台先验（Z019=TACT）与实拍冲突时经模板指纹 FAMILY_LABEL_OVERRIDE 路由。Web 映射经 sciHmiPrefill 单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
     }
   ]
 }

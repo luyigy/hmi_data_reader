@@ -1,0 +1,54 @@
+{
+  "version": "0.1.0",
+  "ui_family": "TRD6",
+  "page": "temperature",
+  "source": "2026-08-16 首版（083 PLAN S07）：沙迪克 TRD6 温度设定页（tact_Z019_20250715_rank10 实拍 + 054 S01 holdout barrel_A06×3 同布局旁证）OCR 实测锚点",
+  "description": "TRD6（沙迪克 Sodick Plustech）温度设定页字段位置模板。布局：上块 Z4/Z5/Z6、下块 Z0/Z1/Z2 两个三区段块（本布局无 Z3），右侧 ZH 单列（料斗侧温区 ~80°C，落下口同义——TACT 落下口/KEBA 法兰先例），行=现在温度/设定温度/警报上限幅/警报下限幅（左侧竖排行标签，OCR 常碎成 现在/温度 两行，提取按数值行聚类而非标签文字）；左缘油温单值；右中「进入保温」值=holding（0.0=关）。段序=区号升序 [Z0,Z1,Z2,Z4,Z5,Z6]，Z0 实测 415°C 为全表最高=喷嘴侧（判读假设，见 profiles.json lifecycle_note 披露）；映射 entity 列序 [喷嘴1,区1..区5]。坐标为屏幕归一化值，基于 scripts/rectify.py 输出，以逐图实测为准。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "083 S07 tact_Z019_20250715_rank10（2000x1577 corners 矫正）实测；同布局旁证 datasets/holdout/demag.temperature.screen_order_5/barrel_A06×3（054 S01 注明布局未在当期 release，083 收口期纳入支持）",
+    "calibrated_at": "2026-08-16",
+    "samples": [
+      "tact_Z019_20250715_rank10_recuQYAUBt8CrG"
+    ]
+  },
+  "layout_hint": {
+    "notes": "区段列头为 Z0-Z6/ZH 单字符 token（Z0 常见 OCR 误读 ZO）；行标签竖排碎字不可靠，行序固定 现在/设定/上限幅/下限幅；页面中弹窗（如保养提示）不遮挡段块；底部状态栏（循环/计量/填充/V-P切换压等实时值）在段块窗口外不取。"
+  },
+  "row_anchors": {
+    "current": "现在",
+    "set": "设定",
+    "high": "上限幅",
+    "low": "下限幅",
+    "oil": "油温",
+    "holding": "进入保温",
+    "drop_port_header": "ZH"
+  },
+  "page_detect_anchors": ["high", "low", "holding"],
+  "family_detect_groups": [
+    ["进入保温"],
+    ["上限幅", "下限幅"]
+  ],
+  "heater_columns": {
+    "mode": "z0z6",
+    "count": 6,
+    "rule": "Z 区段列头逐图实测聚块（上块 Z4/Z5/Z6、下块 Z0/Z1/Z2，本布局无 Z3）；段序=区号升序；ZH 单列映射 drop_port（料斗侧温区，落下口同义）"
+  },
+  "field_mapping": {
+    "barrel_temperature_current_c": {"row": "current", "columns": "Z0,Z1,Z2,Z4,Z5,Z6", "unit": "°C"},
+    "barrel_temperature_set_c": {"row": "set", "columns": "Z0,Z1,Z2,Z4,Z5,Z6", "unit": "°C"},
+    "high_deviation_c": {"row": "high", "columns": "Z0,Z1,Z2,Z4,Z5,Z6", "unit": "°C"},
+    "low_deviation_c": {"row": "low", "columns": "Z0,Z1,Z2,Z4,Z5,Z6", "unit": "°C"},
+    "drop_port_temperature_current_c": {"row": "ZH 列第 1 值", "columns": "ZH", "unit": "°C"},
+    "drop_port_temperature_set_c": {"row": "ZH 列第 2 值", "columns": "ZH", "unit": "°C"},
+    "oil_temperature_current_c": {"row": "油温 标签右侧同行的值", "columns": "scalar", "unit": "°C"},
+    "holding_temperature_c": {"row": "进入保温 标签右侧同行的值", "columns": "scalar", "unit": "°C"}
+  },
+  "validation_rules": {
+    "temperature_range_C": [0, 450],
+    "deviation_range_C": [0, 100],
+    "drop_port_range_C": [0, 150],
+    "oil_range_C": [0, 100],
+    "holding_range_C": [0, 300]
+  }
+}

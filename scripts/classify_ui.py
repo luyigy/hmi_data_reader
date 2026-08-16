@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -58,7 +59,9 @@ UI_FAMILY_KEYWORDS = {
     # B_AND_R（伯乐 B01 机台的控制器）：
     #   BKS_350 — B&R 面板型号标识（S1 核验证据）；EKS_350 为 B→E 的 OCR 误读变体，
     #   KS_350 同时覆盖两种变体（rec07 全部 5 页标题 "BOLE EKS_350"）
-    "B_AND_R": ["BKS_350", "EKS_350", "KS_350"],
+    #   EKS_CAP — 500EKS 竖屏面板型号栏 "500EKS_CAP"（083 S07：Z007/Z010 实拍；
+    #   全仓 OCR 语料碰撞检查仅伯乐 B_AND_R 机台图命中，无跨家族冲突）
+    "B_AND_R": ["BKS_350", "EKS_350", "KS_350", "EKS_CAP"],
     "ARBURG": ["ARBURG", "Arburg", "ARBUR"],  # 阿博格
     # DEMAG（德马格 NC 系列）：
     #   DEMAG/Demag — 品牌（rec15）
@@ -69,9 +72,14 @@ UI_FAMILY_KEYWORDS = {
     #   多级注射 / 多级保压 / 多级预塑 — NC 页面标题（2026-08-05 029_FIX：
     #   裁切拍摄的保压页失去"余料量"等左列锚词导致整族 unknown 误拒；
     #   全仓碰撞检查仅 DEMAG 模板命中"多级X"标题族，无跨家族冲突）
+    #   同步加热 / 油预热 / 延时手动降低 — NC 温度页右下功能块术语（083 S06：
+    #   实拍图仅"冷启动保护"单条弱命中 0.819 < 0.9 门禁；前两者本就在
+    #   demag.temperature.json family_detect_groups 作为模板指纹族证；
+    #   全仓 OCR 语料碰撞检查三词仅命中 DEMAG 图，无跨家族冲突）
     "DEMAG": ["DEMAG", "Demag", "工艺控制统计", "SuperUser", "多级背压",
               "移动曲线", "冷启动保护", "余料量",
-              "多级注射", "多级保压", "多级预塑"],
+              "多级注射", "多级保压", "多级预塑",
+              "同步加热", "油预热", "延时手动降低"],
     # 注：BOLE（伯乐）是机器品牌而非控制器家族，已从关键词表移除（2026-07-30 T2）。
     # 伯乐机台的控制器级识别由 KEBA / B_AND_R 承担（S1 标签口径）；
     # "注射"（DEMAG 也在用）与 "射胶"（KEBA/B_AND_R 混用）无区分度，不收录。
@@ -139,6 +147,23 @@ def find_page(lines: list[dict]) -> tuple[str, float]:
             any(anchor in text for text in texts)
             for anchor in ("现在", "输出", "上限", "设定", "下限")):
         conf = max(line["conf"] for line in lines if "喷嘴/料筒" in line["text"])
+        return "temperature", round(conf, 3)
+
+    # DEMAG 温度页（083 S10）：标题「温度」+ 实际/设定/上偏差/下偏差行标签
+    # 同时在场即温度表页。通用位置启发会把行标签 '设定[℃]' 的首次命中当作
+    # settings 页标题（×5 权重）反超单独的「温度」标题（实测 Z002 rank12、
+    # Z005 rank13 误分 settings，DEMAG 速率旁车不生成、列顶速率整列缺读）。
+    # 全仓 587 份 OCR 语料碰撞检查：签名命中 16 份全部为温度页，无误伤。
+    # 083 S11：偏差行标签锚点单字容差——'偏' 在屏摄 OCR 下被误读为形近字
+    # （实测 Z005 rank29 '上福差℃]'/'下福差℃'，锚点缺失退回位置启发误分
+    # settings）；按 上.差/下.差 容差后全仓 596 份语料新增命中 10 份
+    # （6 张去重）全部为温度页，零误伤。
+    if any("温度" in text for text in texts) and all(
+            any(anchor in text for text in texts)
+            for anchor in ("实际", "设定")) and all(
+            any(re.search(pat, text) for text in texts)
+            for pat in (r"上.差", r"下.差")):
+        conf = max(line["conf"] for line in lines if "温度" in line["text"])
         return "temperature", round(conf, 3)
 
     # 收集所有 (page, y_min, conf)

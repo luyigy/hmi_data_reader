@@ -25,6 +25,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from extract_families.common import _affine_fit_columns, _anchor_match  # noqa: E402  # 083 S03 网格旁车锚点复用
+
 # 模温机数码管数值口径（042 S04）：1-3 位整数可带一位小数；范围由模板 sv_range 门禁
 NUM_FULLMATCH = re.compile(r"^\d{1,3}(?:\.\d)?$")
 
@@ -104,7 +106,12 @@ def _write_cells(out_path: Path, png_path: Path, model: str, lines: list[dict]) 
 
 
 def generate_demag_rate_sidecar(ocr, png_path: Path, out_path: Path) -> int:
-    """DEMAG 温度页蓝色 control 单格 OCR；只收顶部速率格，不收实际温度格。"""
+    """DEMAG 温度页蓝色 control 单格 OCR；只收顶部速率格，不收实际温度格。
+
+    083 S10：读取由裸 rec-only 升级为 _gated_cell_num 三读门禁（同逐格重读
+    旁车口径）——竖条纹摩尔纹下裸 rec 会把 '5' 读成 '厂S'（低置信被拒致
+    RATE_MISSING），并把 '-5' 的负号读丢成 '5'（conf 0.609 过 0.6 门禁成
+    错值）；det+摩尔纹抑制三读在 Z002 rank12 五格全部读对（含负号）。"""
     img = cv2.imread(str(png_path))
     h, w = img.shape[:2]
     y0, y1 = int(h * 0.10), int(h * 0.42)
@@ -123,15 +130,15 @@ def generate_demag_rate_sidecar(ocr, png_path: Path, out_path: Path) -> int:
         pad = 10
         crop = strip[max(0, y - pad):y + ch + pad,
                      max(0, x - pad):x + cw + pad]
-        text, conf = _run_rec(ocr, crop)
-        if text:
+        text, conf = _gated_cell_num(ocr, crop)
+        if text is not None:
             lines.append({"text": text, "conf": conf, "_src": "rate_cell", "bbox": {
                 "points": [[x, y0 + y], [x + cw, y0 + y],
                            [x + cw, y0 + y + ch], [x, y0 + y + ch]],
                 "x_min": float(x), "y_min": float(y0 + y),
                 "x_max": float(x + cw), "y_max": float(y0 + y + ch),
             }})
-    return _write_cells(out_path, png_path, "paddleocr rec-only DEMAG rate cells", lines)
+    return _write_cells(out_path, png_path, "paddleocr gated DEMAG rate cells", lines)
 
 
 def generate_fanuc_temperature_cells_sidecar(
@@ -212,6 +219,31 @@ def _mt_mask_fns():
     }
 
 
+def _mt_deskew(img):
+    """两条大红色显示行角度一致时拉正图片；单行/噪声不触发。"""
+    mask = _mt_mask_fns()["red"](cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    angles = []
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True)[:6]:
+        area = cv2.contourArea(contour)
+        (_, _), (w, h), angle = cv2.minAreaRect(contour)
+        if area < img.shape[0] * img.shape[1] * 0.001 or min(w, h) < 8 \
+                or max(w, h) / min(w, h) < 1.5:
+            continue
+        angle += 90 if w < h else 0
+        while angle > 45:
+            angle -= 90
+        angles.append(angle)
+    if len(angles) < 2 or abs(angles[0] - angles[1]) > 5:
+        return img
+    angle = (angles[0] + angles[1]) / 2
+    if abs(angle) < 8:
+        return img
+    ih, iw = img.shape[:2]
+    matrix = cv2.getRotationMatrix2D((iw / 2, ih / 2), angle, 1)
+    return cv2.warpAffine(img, matrix, (iw, ih), borderValue=(255, 255, 255))
+
+
 def _mt_find_bands(img):
     """显示行候选条带：(x0,y0,x1,y1,color)。
 
@@ -262,14 +294,19 @@ def _mt_find_bands(img):
             # 保留横向数字行，后续 rec-only 数值口径与 PV/SV 双行门禁继续过滤。
             if 8 <= h <= 200 and 12 <= w <= 500 and 1.4 <= w / h <= 5.0:
                 bands.append((x, y, x + w, y + h, color))
+                # 近方形（w/h<2）的合并组件可能只是整行的一部分（如三位数字
+                # 拆成"粘连两位+独立一位"），同时参与同行分组以召回完整行。
+                if w / h < 2:
+                    comps.append((x, y, w, h))
                 continue
             if not (10 <= h <= 200 and 3 <= w <= 160):
                 continue
             if h < w * 0.85:
                 continue
-            # 填充率窗口：低分辨率插值会把 7 段管填充率抬到约 0.7；上方长宽比
-            # 已剔除近圆形指示灯，保留到 0.75 以召回仍可分开的两位数字。
-            if not (0.10 <= area / (w * h) <= 0.75):
+            # 填充率窗口：低分辨率插值会把 7 段管填充率抬到约 0.7，段间闭合
+            # 后粘连的两位数字填充率更高；上方长宽比已剔除近圆形指示灯，
+            # 保留到 0.90 以召回仍可分开的两位数字。
+            if not (0.10 <= area / (w * h) <= 0.90):
                 continue
             comps.append((x, y, w, h))
         groups: list[list] = []
@@ -367,6 +404,8 @@ def generate_mold_temp_display_sidecar(ocr, image_sources, out_path: Path) -> in
                                   "x_min": b["x_min"] / sw, "y_min": b["y_min"] / sh,
                                   "x_max": b["x_max"] / sw, "y_max": b["y_max"] / sh,
                               }})
+        img = _mt_deskew(img)
+        ih, iw = img.shape[:2]
         for x0, y0, x1, y1, color in _mt_find_bands(img):
             ph = y1 - y0
             # 小边距裁剪：rec 对上下文敏感，过大边距会把残段/相邻字符卷入
@@ -455,6 +494,314 @@ def generate_moire_sidecar(ocr, png_path: Path, out_path: Path) -> int:
     }
     out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2))
     return len(lines)
+
+
+# ------------------------------------------------------- 083 S03 温度表逐格重读旁车
+# 整机/斜拍照片上基础+CLAHE OCR 仍整格漏读或把同列多格竖向粘成一个 token
+# （B&R 灰底表 5 列只读出 2 列；DEMAG 料口列 '505010'/'3023030'）。网格由
+# 行标签+数值 x 聚类实测锚定，逐格裁剪 rec-only 重读；产物带 _src 标记
+# （demag_cell / br_cell）由 extract_fields 并入，提取器只在主 OCR 缺格或
+# 越界时采信（主 OCR 值优先），网格不完整即不生成（返回 0）。
+
+# 逐格数值口径：1-3 位整数可带一位小数、可负（DEMAG 料口速率/温度均可负到 -50）；
+# 允许尾缀杂笔（格线/箭头残笔 '50-'/'50—'），但整数部分超 3 位的多格粘连
+# 重读（'505010'）不录取
+CELL_NUM_LOOSE = re.compile(r"^(-?\d{1,3}(?:\.\d)?)[^\d]")
+CELL_NUM_STRICT = re.compile(r"^-?\d{1,3}(?:\.\d)?$")
+
+
+def _cell_num(text: str) -> str | None:
+    """rec 原文 -> 规范数值文本；尾缀杂笔剥除，多格粘连/非数值返回 None。"""
+    text = text.strip()
+    if CELL_NUM_STRICT.fullmatch(text):
+        return text
+    m = CELL_NUM_LOOSE.match(text)
+    return m.group(1) if m else None
+
+_TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
+
+
+def _grid_toks(lines: list[dict], screen_size: list[int]) -> list[dict]:
+    """OCR lines -> 屏幕归一化坐标 token（与 extract_fields.norm_tokens 同构）。"""
+    w, h = screen_size
+    toks = []
+    for line in lines:
+        box = line["bbox"]
+        toks.append({"text": line["text"], "conf": float(line["conf"]),
+                     "x": ((box["x_min"] + box["x_max"]) / 2) / w,
+                     "y": ((box["y_min"] + box["y_max"]) / 2) / h,
+                     "x0": box["x_min"] / w,
+                     "x1": box["x_max"] / w})
+    return toks
+
+
+def _plain_num(text: str) -> float | None:
+    m = re.fullmatch(r"-?\d+(?:\.\d+)?", text.strip())
+    return float(m.group()) if m else None
+
+
+def _cluster_x(xs: list[float], gap: float) -> list[list[float]]:
+    clusters: list[list[float]] = []
+    for x in sorted(xs):
+        if clusters and x - clusters[-1][-1] <= gap:
+            clusters[-1].append(x)
+        else:
+            clusters.append([x])
+    return clusters
+
+
+def _det_rec(ocr, crop, scale=3) -> tuple[str, float]:
+    """检测+识别读单格（先 det 定位数字组再 rec）；多行按 x 序拼接。"""
+    up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    result = ocr.ocr(up, det=True, cls=False)
+    if not result or not result[0]:
+        return "", 0.0
+    items = sorted(((box, text, float(conf)) for box, (text, conf) in result[0]),
+                   key=lambda e: min(p[0] for p in e[0]))
+    text = "".join(t for _, t, _ in items).strip()
+    conf = min(c for _, _, c in items)
+    return text, conf
+
+
+def _gated_cell_num(ocr, crop) -> tuple[str | None, float]:
+    """单格三读门禁（083 S03/S04 口径，宁缺不错）：灰底/摩尔纹单元格上 rec-only
+    会把格线并成数字（'20.0'->'200'、'30.0'->'300'，实测 7 格全错），det+摩尔纹
+    抑制先定位数字组则稳定（同 7 格全对）。录取顺序：det 读 conf>=0.9 且不与任何
+    rec 读冲突（或 conf>=0.98 时以 det 为准）；无 det 读时两个 rec 读一致才收，
+    单读需 conf>=0.9；其余放弃，留给主 OCR/缺格告警，不写可能错误的值。
+    083 S04 补「det 低置信但与唯一 rec 读一致」路径：det<0.9 时原本直接弃格，
+    现 det 读与高置信（>=0.9）rec 读一致才收——双独立读一致，严于既有
+    「无 det 单 rec>=0.9」路径，不放宽错值风险。
+    083 S10 补「det 高置信冲突时另一路 rec 高置信一致」路径：det>=0.9 但与一路
+    rec 冲突且未达 0.98 覆盖线时，若另一路 rec 与 det 同值且 conf>=0.9，两路
+    独立高置信读数一致优先于单路异议（抑制变体偶发多读前导笔画 '5'->'15'
+    不再弃掉 det/raw 双 0.93+ 一致的正确格）。
+    083 S11 补「符号冲突专项」：det 高置信负值与 rec 读仅差前导负号时，两路
+    rec 是同一识别器对同一格图的读取，对「是否存在细负号笔画」不构成独立
+    证据（实测 DEMAG 速率格 '-14'/'-15'/'-5' 均被两路 rec 系统性丢号，det
+    先定位含负号数字组再识别，0.977-1.00 全对）；det>=0.95 取 det 负值，
+    0.9<=det<0.95 弃格（宁缺不错）——符号冲突格绝不按正值写出（'+14' 掩盖
+    冷却 '-14' 属危险错值）。
+    返回 (规范数值文本, conf) 或 (None, 0.0)。"""
+    raw_text, raw_conf = _run_rec(ocr, crop)
+    sup = moire_suppress(crop)
+    sup_text, sup_conf = _run_rec(ocr, sup)
+    det_text, det_conf = _det_rec(ocr, sup)
+    raw_v, sup_v, det_v = (_cell_num(raw_text), _cell_num(sup_text),
+                           _cell_num(det_text))
+    if det_v and det_conf >= 0.9:
+        conflict = any(v and v != det_v for v in (raw_v, sup_v))
+        if not conflict or det_conf >= 0.98:
+            return det_v, det_conf
+        agree_hi = [c for v, c in ((raw_v, raw_conf), (sup_v, sup_conf))
+                    if v == det_v and c >= 0.9]
+        if agree_hi:
+            return det_v, max(det_conf, agree_hi[0])
+        # 083 S11 符号冲突专项（见 docstring）：rec 仅差前导负号不构成独立异议
+        if det_v.startswith("-") and any(
+                v == det_v[1:] for v in (raw_v, sup_v)):
+            if det_conf >= 0.95:
+                return det_v, det_conf
+            return None, 0.0
+    if raw_v and sup_v and raw_v == sup_v:
+        return raw_v, max(raw_conf, sup_conf)
+    if det_v:
+        # det 低置信但与唯一存在的 rec 读一致且该 rec 读高置信
+        recs = [(v, c) for v, c in ((raw_v, raw_conf), (sup_v, sup_conf)) if v]
+        agree = [(v, c) for v, c in recs if v == det_v]
+        if len(recs) == len(agree) == 1 and agree[0][1] >= 0.9:
+            return det_v, max(det_conf, agree[0][1])
+    if not det_v:
+        single = [(v, c) for v, c in ((raw_v, raw_conf), (sup_v, sup_conf)) if v]
+        if len(single) == 1 and single[0][1] >= 0.9:
+            return single[0]
+    return None, 0.0
+
+
+def _rec_grid_cells(ocr, img, col_centers, row_ys, src_name) -> list[dict]:
+    """按实测网格逐格重读；只收规范数值（三读门禁见 _gated_cell_num）。"""
+    h, w = img.shape[:2]
+    x_gaps = [b - a for a, b in zip(col_centers, col_centers[1:])]
+    y_gaps = [b - a for a, b in zip(row_ys, row_ys[1:])]
+    x_half = 0.35 * min(x_gaps)
+    y_half = 0.4 * min(y_gaps)
+    lines = []
+    for ry in row_ys:
+        for cx in col_centers:
+            x0 = int(max(0, (cx - x_half) * w))
+            x1 = int(min(w, (cx + x_half) * w))
+            y0 = int(max(0, (ry - y_half) * h))
+            y1 = int(min(h, (ry + y_half) * h))
+            if x1 - x0 < 8 or y1 - y0 < 8:
+                continue
+            crop = img[y0:y1, x0:x1]
+            text, conf = _gated_cell_num(ocr, crop)
+            if text is None:
+                continue
+            lines.append({"text": text, "conf": conf, "_src": src_name, "bbox": {
+                "points": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]],
+                "x_min": float(x0), "y_min": float(y0),
+                "x_max": float(x1), "y_max": float(y1),
+            }})
+    return lines
+
+
+def _b_and_r_grid(toks, template):
+    """B&R 温度表网格：5 行标签（含单缺失均匀行距推断）+ 数值 x 聚类列。
+
+    返回 (col_centers, row_ys) 或 None。"""
+    anchors = template["row_anchors"]
+
+    def find(keys, xmax=0.35):
+        return sorted([t for t in toks if t["x"] < xmax
+                       and _anchor_match(keys, t["text"])],
+                      key=lambda t: t["y"])
+
+    found = {"current": find(anchors["current"]), "set": find(anchors["set"]),
+             "high": find(anchors["high"]), "low": find(anchors["low"]),
+             "control": find(anchors["control"])}
+    generic = [t for t in find(anchors["high_low_generic"])
+               if t not in found["high"] and t not in found["low"]]
+    if not found["high"] and generic:
+        found["high"] = [generic.pop(0)]
+    if not found["low"] and generic:
+        found["low"] = [generic.pop(0)]
+    row_names = ["current", "set", "high", "low", "control"]
+    missing = [n for n in row_names if not found[n]]
+    if len(missing) > 1:
+        return None
+    if missing:
+        # 与 extract_families.b_and_r 同一推断口径：行序固定、行距均匀才外推
+        present = [(i, found[n][0]["y"]) for i, n in enumerate(row_names) if found[n]]
+        pitches = [(y2 - y1) / (j - i) for (i, y1), (j, y2) in zip(present, present[1:])]
+        med = sorted(pitches)[len(pitches) // 2]
+        if not (len(pitches) >= 2 and med > 0
+                and all(0.6 * med <= p <= 1.5 * med for p in pitches)):
+            return None
+        m_idx = row_names.index(missing[0])
+        i0, y0 = min(present, key=lambda e: abs(e[0] - m_idx))
+        row_y = {n: found[n][0]["y"] for n in row_names if found[n]}
+        row_y[missing[0]] = y0 + (m_idx - i0) * med
+    else:
+        row_y = {n: found[n][0]["y"] for n in row_names}
+    ys = [row_y[n] for n in row_names]
+    gap = min(b - a for a, b in zip(ys, ys[1:]))
+    band = [t for t in toks if _plain_num(t["text"]) is not None and t["x"] > 0.12
+            and not t["text"].strip().startswith("#")
+            and ys[0] - 0.75 * gap < t["y"] < ys[-1] + 0.75 * gap]
+    clusters = _cluster_x([t["x"] for t in band], 0.045)
+    if len(clusters) in (5, 6):
+        return [sum(c) / len(c) for c in clusters], ys
+    # 083 S05：竖屏整机实拍主 OCR 大量漏格、实测列簇不足且无列头锚点时，
+    # 用无锚仿射配准兜底（首列须在行标签右缘之右且组合唯一，否则放弃）。
+    label_right = max((t.get("x1") or 0.0)
+                      for toks_ in found.values() for t in toks_)
+    if label_right > 0:
+        labels_all = ("NZ", "#1", "#2", "#3", "#4", "#5")
+        tpl_centers = [template["layout"]["column_x_centers"][lb] for lb in labels_all]
+        fit = _affine_fit_columns([sum(c) / len(c) for c in clusters],
+                                  tpl_centers, x_min=label_right)
+        if fit is not None:
+            return fit[0], ys
+    return None
+
+
+def _demag_grid(toks, template):
+    """DEMAG 温度表网格：实际/设定 + 两个「差」行标签，四行数值 x 联合聚类 5 列。
+
+    返回 (col_centers, row_ys) 或 None。"""
+    anchors = template["row_anchors"]
+
+    def find_label(keys, xmax=0.2, y_lo=0.3, y_hi=0.65):
+        cands = [t for t in toks if t["x"] < xmax and y_lo < t["y"] < y_hi
+                 and _anchor_match(keys, t["text"])]
+        return min(cands, key=lambda t: t["y"]) if cands else None
+
+    cur = find_label(anchors["current"])
+    set_ = find_label(anchors["set"])
+    devs = sorted([t for t in toks if t["x"] < 0.2 and 0.35 < t["y"] < 0.65
+                   and _anchor_match(anchors["high_low_generic"], t["text"])],
+                  key=lambda t: t["y"])
+    if not (cur and set_) or len(devs) < 2:
+        return None
+    ys = [cur["y"], set_["y"], devs[0]["y"], devs[1]["y"]]
+    gaps = [b - a for a, b in zip(ys, ys[1:])]
+    if any(g < 0.015 for g in gaps):
+        return None
+    gap = min(gaps)
+    # 083 S09：左移布局（实拍左缘微裁，喷嘴1 列 x≈0.15）整列被 band 0.2 下界
+    # 排除、缺列仿射配准又被 x_min=0.2 否决（拟合首列 0.13<=0.2），救援网格
+    # 整组放弃致缺列无法补读。band 下界与配准 x_min 改用行标签右缘（同 B&R
+    # 网格口径）——数据列不可能叠在标签列上，标签右缘之左本无合法数据列。
+    label_right = max(t.get("x1") or 0.0 for t in [cur, set_, *devs[:2]])
+    band = [t for t in toks if (v := _plain_num(t["text"])) is not None
+            and abs(v) <= 500 and label_right < t["x"] < 0.97
+            and ys[0] - 0.5 * gap < t["y"] < ys[-1] + 0.5 * gap]
+    clusters = _cluster_x([t["x"] for t in band], 0.04)
+    # 083 S04：表区右缘外散点数字（屏幕边框/侧栏图标，如实拍右缘孤点 '2'）
+    # 会形成单成员边缘簇使网格整组失败；只摘右缘单成员簇，左缘与内部簇不动
+    # （左缘可能是弱读的真实喷嘴列，内部簇列序不可破坏）。
+    while len(clusters) > 5 and len(clusters[-1]) == 1:
+        clusters.pop()
+    if len(clusters) != 5:
+        # 083 S07：蓝底高亮选中列整列漏读导致簇数 3-4 时，用列头 token
+        # （含模板登记的 OCR 误读变体）锚定仿射配准出 5 列网格（同
+        # extract_families/demag.py 列头锚定口径），让逐格 rec 补读缺列；
+        # 无锚或配准不可信（残差>0.02）则放弃，维持不生成旁车。
+        if 3 <= len(clusters) < 5:
+            tpl_cols = template["layout_hint"]["column_x_centers"]
+            labels_all = list(tpl_cols.keys())
+            variants = template.get("column_header_variants") or {}
+            centers = [sum(c) / len(c) for c in clusters]
+            hdr_anchors = {}
+            for i, cx in enumerate(centers):
+                best = None
+                for t in toks:
+                    if t["y"] >= ys[0]:
+                        continue
+                    for name in labels_all:
+                        cands = variants.get(name) or [name]
+                        if any(c in t["text"] for c in cands):
+                            d = abs(t["x"] - cx)
+                            if d < 0.04 and (best is None or d < best[0]):
+                                best = (d, name)
+                            break
+                if best:
+                    hdr_anchors[i] = best[1]
+            if hdr_anchors:
+                fit = _affine_fit_columns(centers, [tpl_cols[n] for n in labels_all],
+                                          label_right, hdr_anchors=hdr_anchors,
+                                          labels_all=labels_all)
+                if fit is not None:
+                    return fit[0], ys
+        return None
+    return [sum(c) / len(c) for c in clusters], ys
+
+
+def generate_temperature_cells_sidecar(ocr, png_path: Path, out_path,
+                                       family: str, lines: list[dict],
+                                       screen_size: list[int]) -> int:
+    """B_AND_R / DEMAG 温度页逐格重读旁车（083 S03），返回写入行数。
+
+    family 为 extract 路由已确认的家族（record/机台先验/模板指纹，可能异于
+    分类器结果）；网格实测失败或其他家族返回 0 且不写文件。"""
+    if out_path is not None and Path(out_path).exists():
+        Path(out_path).unlink()
+    builders = {"B_AND_R": (_b_and_r_grid, "br_cell", "b_and_r.temperature.json"),
+                "DEMAG": (_demag_grid, "demag_cell", "demag.temperature.json")}
+    spec = builders.get(str(family or "").upper())
+    if spec is None:
+        return 0
+    builder, src_name, tpl_name = spec
+    template = json.loads((_TEMPLATES_DIR / tpl_name).read_text(encoding="utf-8"))
+    grid = builder(_grid_toks(lines, screen_size), template)
+    if grid is None:
+        return 0
+    col_centers, row_ys = grid
+    img = cv2.imread(str(png_path))
+    lines_out = _rec_grid_cells(ocr, img, col_centers, row_ys, src_name)
+    return _write_cells(Path(out_path), png_path,
+                        f"paddleocr rec-only {src_name} grid cells (083 S03)", lines_out)
 
 
 def main():

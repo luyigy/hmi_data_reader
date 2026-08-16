@@ -148,7 +148,8 @@ def order_points(pts: np.ndarray) -> np.ndarray:
     ], dtype=np.float32)
 
 
-def detect_screen_corners(img: np.ndarray) -> np.ndarray | None:
+def detect_screen_corners(img: np.ndarray,
+                          bbox: tuple[int, int, int, int] | None = None) -> np.ndarray | None:
     """检测显示屏面板四角，返回 (4,2) 像素坐标 [左上, 右上, 右下, 左下]；失败返回 None。
 
     启发式：显示屏面板是图中最亮的低饱和区域（浅灰/白），边框与机身明显更暗。
@@ -156,6 +157,9 @@ def detect_screen_corners(img: np.ndarray) -> np.ndarray | None:
     approxPolyDP 逼近四边形；逼近不出四点则用 minAreaRect 的旋转矩形四角。
 
     S4（2026-07-30）新增：供 rectify.py 透视矫正与 compute_perspective_ratio 真实测量复用。
+    083 S05：传入 bbox（detect_screen_bbox 结果）时做子面板防护——局部亮区
+    （如屏幕下半功能面板）被当作整屏会让矫正裁掉上部温度区；四角候选面积
+    显著小于 bbox 且基本被其包含时判为子面板，返回 None 走 bbox 回退。
     """
     h, w = img.shape[:2]
     scale = 800 / max(h, w)
@@ -195,6 +199,34 @@ def detect_screen_corners(img: np.ndarray) -> np.ndarray | None:
     aspect = max(widths) / max(1.0, min(heights))
     if not 0.4 <= aspect <= 4.0:
         return None
+    if bbox is not None:
+        bx, by, bw, bh = bbox
+        if bw > 0 and bh > 0:
+            qx0, qy0 = float(quad[:, 0].min()), float(quad[:, 1].min())
+            qx1, qy1 = float(quad[:, 0].max()), float(quad[:, 1].max())
+            mx, my = bw * 0.10, bh * 0.10
+            inside = (qx0 >= bx - mx and qx1 <= bx + bw + mx
+                      and qy0 >= by - my and qy1 <= by + bh + my)
+            # 083 S07：bbox 已接近整幅（≥60% 图幅，整机面板被当成屏幕）且四角
+            # 候选在 bbox 内均匀留边（上缘距 bbox 顶 ≤25% 高度）时，bbox 是
+            # 「机器」而非「屏幕」——其内部四角候选（真 LCD）不应被子面板防护
+            # 否决（伯乐 500EKS 竖屏整机实拍 bbox 占 79%、真屏上缘距仅 6% 被误杀；
+            # 伯乐 Z001 斜拍 bbox 占 72%、真屏上缘距 5%）。S05 原子面板场景
+            # （EST Luban：局部亮区 quad 深陷屏幕 bbox 下半部，上缘距 42%、
+            # 下缘距 2%）不满足豁免，防护行为不变。
+            bbox_is_frame = bw * bh >= 0.6 * (w * h)
+            quad_evenly_nested = (qy0 - by) <= 0.25 * bh
+            # 083 S09：整机面板上缘留白较大（手写告示/机台 logo 占顶部 >25%）时
+            # 真屏四角仍被误杀（伯乐 TX25024 720px 整机照，真屏四缘留边
+            # 17%~44% 均匀居中）。四缘留边均 ≥10% 的居中候选与「贴顶真屏」
+            # 一样不是局部亮面子面板，同样豁免；S05 EST 子面板（下缘距 2%
+            # 贴底）不满足四缘条件，防护行为不变。
+            all_margins = (qx0 - bx >= 0.10 * bw and bx + bw - qx1 >= 0.10 * bw
+                           and qy0 - by >= 0.10 * bh and by + bh - qy1 >= 0.10 * bh)
+            exempt = bbox_is_frame and (quad_evenly_nested or all_margins)
+            if (inside and not exempt
+                    and cv2.contourArea(quad) < 0.55 * bw * bh):
+                return None
     return quad
 
 
@@ -243,6 +275,22 @@ def compute_perspective_ratio(bbox: tuple[int, int, int, int] | None, gray: np.n
         return 1.5  # 严重
 
     return aspect_penalty
+
+
+def measure_perspective(image_path: Path) -> float:
+    """测量指定图像的透视畸变比（083 S05：管线对矫正图复测透视专用）。
+
+    与 assess 内部同一口径（compute_perspective_ratio），但不触发其他判据——
+    模糊/反光/裁切/尺寸等仍在原图上评估，只有「透视」这一项在矫正后的实际
+    OCR 输入上复测。读取失败返回 inf（复测失败，维持原拒识）。
+    """
+    img = cv2.imread(str(image_path))
+    if img is None:
+        return float("inf")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    bbox = detect_screen_bbox(img)
+    quad = detect_screen_corners(img)
+    return compute_perspective_ratio(bbox, gray, quad)
 
 
 def compute_blur(gray: np.ndarray) -> float:
@@ -367,7 +415,24 @@ def assess(image_path: Path) -> QualityReport:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     bbox = detect_screen_bbox(img)
+    # 083 S05：子面板防护只作用于 rectify 的矫正分支；质量门禁保持原口径
+    # （四角命中即视为屏幕完整入镜，不判裁切）。
     quad = detect_screen_corners(img)
+    # 083 S09：bbox/四角反向失配修复——整机实拍里 Canny 外轮廓可能只闭合
+    # 屏幕内部某个小组件（伯乐 KEBA 整机照的键盘小窗 395px），而四角检测
+    # 命中的最大亮区才是真 LCD（2271px）。当四角包围盒完整包含 bbox 且面积
+    # 显著更大（≥2 倍）时，bbox 是屏幕内部子区域而非屏幕本体，改用四角
+    # 包围盒作为屏幕区域证据（占比/文本高度/欠曝 ROI 随之按真屏评估）。
+    # S05 子面板场景（四角亮区面积小于 bbox）方向相反，不触发本修复。
+    if bbox is not None and quad is not None:
+        qx0, qy0 = float(quad[:, 0].min()), float(quad[:, 1].min())
+        qx1, qy1 = float(quad[:, 0].max()), float(quad[:, 1].max())
+        bx, by, bw, bh = bbox
+        mx, my = (qx1 - qx0) * 0.10, (qy1 - qy0) * 0.10
+        contains = (bx >= qx0 - mx and bx + bw <= qx1 + mx
+                    and by >= qy0 - my and by + bh <= qy1 + my)
+        if contains and (qx1 - qx0) * (qy1 - qy0) >= 2.0 * bw * bh:
+            bbox = (int(qx0), int(qy0), int(qx1 - qx0), int(qy1 - qy0))
     # 064 S02：贴边/欠曝判据只基于屏幕 ROI；四角命中视为屏幕完整入镜，不判裁切。
     screen_clipped = False
     roi_dark_ratio = 0.0

@@ -33,10 +33,14 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from classify_ui import classify
 from contract import attach_contract, validate_channel_observations
-from extract_fields import MACHINE_LABELS, RECORD_REPORT, extract_one
+from extract_fields import (MACHINE_LABELS, RECORD_REPORT, cell_rescue_better,
+                            cell_rescue_needed, extract_one, merge_variant_lines)
 from postprocess import postprocess_one
-from quality import assess
-from rectify import rectify
+from quality import THRESHOLD_PERSPECTIVE, assess, measure_perspective
+from rectify import DEFAULT_MAX_SIZE, rectify
+
+# 083 S01 分辨率救援：提取失败时按此 max_size 重跑一轮矫正+OCR（见 run_attempt 调用处）
+RESCUE_MAX_SIZE = 4000
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("hmi_service")
@@ -154,6 +158,24 @@ async def recognize_image(file: UploadFile = File(...)):
             # 1. 质量评估
             q_report = assess(orig_path)
 
+            # 1a. 可矫正透视补救（083 S05）：唯一红灯原因为 SEVERE_PERSPECTIVE 且
+            # 屏幕四角命中（rectify 可矫正）时，先透视矫正，再对矫正图复测透视比
+            # （同一测量口径与阈值；模糊/反光/裁切等其余判据仍在原图上评估，
+            # 不因此放宽）。复测达标才降级黄灯继续，否则维持原拒识。
+            if (q_report.triage == "red"
+                    and q_report.reject_codes == ["SEVERE_PERSPECTIVE"]
+                    and q_report.metrics.corners_found):
+                rr0 = rectify(orig_path, rect_png, rect_meta)
+                ratio2 = measure_perspective(rect_png) if rr0.get("ok") else float("inf")
+                if ratio2 <= THRESHOLD_PERSPECTIVE:
+                    logger.info("SEVERE_PERSPECTIVE rectified: %.3f -> %.3f",
+                                q_report.metrics.perspective_ratio, ratio2)
+                    q_report.triage = "yellow"
+                    q_report.reject_codes = []
+                    q_report.warn_codes = q_report.warn_codes + [
+                        f"PERSPECTIVE_RECTIFIED({q_report.metrics.perspective_ratio:.2f}"
+                        f"->{ratio2:.2f})"]
+
             # 1b. 权威质量门禁前移（064 S02）：triage=red 在重 OCR/召回旁车之前短路，
             # 返回与正常路径兼容的结构化拒识（quality 块四字段 + success/status/fields
             # 契约键，与 Web backend/app/hmi_recognition/schemas.py 对齐）。
@@ -190,108 +212,154 @@ async def recognize_image(file: UploadFile = File(...)):
                     "warnings": [],
                 }
 
-            # 2. 透视矫正
-            rr = rectify(orig_path, rect_png, rect_meta)
-            ocr_target = rect_png if rr["ok"] else orig_path
+            def run_attempt(max_size: int):
+                """单轮 矫正→OCR→后处理→分类→旁车→提取（083 S01 抽出以支持分辨率救援）。
 
-            # 3. OCR 识别 (使用 GPU 常驻模型)
-            lines = []
-            ocr_result = ocr_model.ocr(str(ocr_target), cls=False)
-            if ocr_result and ocr_result[0]:
-                for line in ocr_result[0]:
-                    bbox_pts, (text, conf) = line
-                    xs = [p[0] for p in bbox_pts]
-                    ys = [p[1] for p in bbox_pts]
-                    lines.append({
-                        "text": text,
-                        "conf": float(conf),
-                        "bbox": {
-                            "points": [[float(p[0]), float(p[1])] for p in bbox_pts],
-                            "x_min": float(min(xs)),
-                            "y_min": float(min(ys)),
-                            "x_max": float(max(xs)),
-                            "y_max": float(max(ys)),
-                        },
-                    })
+                第二轮重跑前清理旁车 sidecar，避免跨轮串扰。
+                """
+                for sidecar in rect_dir.glob(f"{stem}.ocr_*.json"):
+                    sidecar.unlink()
+                # 2. 透视矫正
+                rr = rectify(orig_path, rect_png, rect_meta, max_size=max_size)
+                ocr_target = rect_png if rr["ok"] else orig_path
 
-            ocr_data = {
-                "filename": orig_path.name,
-                "path": str(ocr_target),
-                "model": "paddleocr-2.7.3 (GPU singleton)",
-                "line_count": len(lines),
-                "lines": lines,
-            }
-            ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
+                # 3. OCR 识别 (使用 GPU 常驻模型)
+                lines = []
+                ocr_result = ocr_model.ocr(str(ocr_target), cls=False)
+                if ocr_result and ocr_result[0]:
+                    for line in ocr_result[0]:
+                        bbox_pts, (text, conf) = line
+                        xs = [p[0] for p in bbox_pts]
+                        ys = [p[1] for p in bbox_pts]
+                        lines.append({
+                            "text": text,
+                            "conf": float(conf),
+                            "bbox": {
+                                "points": [[float(p[0]), float(p[1])] for p in bbox_pts],
+                                "x_min": float(min(xs)),
+                                "y_min": float(min(ys)),
+                                "x_max": float(max(xs)),
+                                "y_max": float(max(ys)),
+                            },
+                        })
 
-            # 4. 后处理
-            pp_data = postprocess_one(ocr_json)
-            pp_path = rect_dir / f"{stem}.ocr.postprocessed.json"
-            pp_path.write_text(json.dumps(pp_data, ensure_ascii=False, indent=2))
+                ocr_data = {
+                    "filename": orig_path.name,
+                    "path": str(ocr_target),
+                    "model": "paddleocr-2.7.3 (GPU singleton)",
+                    "line_count": len(lines),
+                    "lines": lines,
+                }
+                ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
 
-            # 5. 分类
-            cls_res = classify(ocr_json)
+                # 4. 后处理
+                pp_data = postprocess_one(ocr_json)
+                pp_path = rect_dir / f"{stem}.ocr.postprocessed.json"
+                pp_path.write_text(json.dumps(pp_data, ensure_ascii=False, indent=2))
 
-            # 5b. 摩尔纹抑制变体（034_FIX）：仅 DEMAG 注射/保压页生成 sidecar，
-            # 合并时主 OCR 值优先；变体失败不影响主路径。
-            if (
-                str(cls_res.get("ui_family") or "").upper() == "DEMAG"
-                and cls_res.get("page") in ("injection_metering", "monitor_curve")
-            ):
+                # 5. 分类
+                cls_res = classify(ocr_json)
+
+                # 5b. 摩尔纹抑制变体（034_FIX）：仅 DEMAG 注射/保压页生成 sidecar，
+                # 合并时主 OCR 值优先；变体失败不影响主路径。
+                if (
+                    str(cls_res.get("ui_family") or "").upper() == "DEMAG"
+                    and cls_res.get("page") in ("injection_metering", "monitor_curve")
+                ):
+                    try:
+                        from ocr_variants import generate_moire_sidecar
+                        generate_moire_sidecar(
+                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_moire.json"
+                        )
+                    except Exception as variant_error:  # noqa: BLE001
+                        logger.warning("moire variant failed: %s", variant_error)
+
+                # 5c. CLAHE 召回变体（2026-08-08）：分类器未认出家族的图片（热流道温控箱等
+                # 数码管面板常漏检），生成 CLAHE sidecar——extract 的模板指纹兜底判族与
+                # TACT/KEBA/B_AND_R 等家族的 CLAHE 合并均复用该产物，失败不影响主路径。
+                if str(cls_res.get("ui_family") or "").strip().lower() in ("", "unknown"):
+                    try:
+                        from ocr_variants import generate_clahe_sidecar
+                        generate_clahe_sidecar(
+                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_clahe.json"
+                        )
+                    except Exception as variant_error:  # noqa: BLE001
+                        logger.warning("clahe variant failed: %s", variant_error)
+                    # 5e. 模温机数码管旁车（042 S04）：独立设备整机照片无屏幕可矫正，
+                    # rectify 可能把机箱盖误判为屏幕扭曲丢内容，故旁车同时作用于矫正图
+                    # （mt_cell）与原图（mt_cell_orig）两个坐标系，由提取器分系聚行；
+                    # 仅 mold_temp 模板路由命中时才被 extract 合并，失败不影响主路径。
+                    try:
+                        from ocr_variants import generate_mold_temp_display_sidecar
+                        mt_sources = [(ocr_target, "mt_cell")]
+                        if ocr_target != orig_path:
+                            mt_sources.append((orig_path, "mt_cell_orig"))
+                        generate_mold_temp_display_sidecar(
+                            ocr_model, mt_sources, rect_dir / f"{stem}.ocr_mt.json"
+                        )
+                    except Exception as variant_error:  # noqa: BLE001
+                        logger.warning("mold_temp display variant failed: %s", variant_error)
+                # 三类炮筒 Profile 的专用弱读格召回；结构不匹配时 FANUC helper 返回 0，
+                # 不会把其他页面硬塞进温度提取器。
                 try:
-                    from ocr_variants import generate_moire_sidecar
-                    generate_moire_sidecar(
-                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_moire.json"
-                    )
+                    from ocr_variants import (generate_demag_rate_sidecar,
+                                              generate_fanuc_temperature_cells_sidecar)
+                    family = str(cls_res.get("ui_family") or "").upper()
+                    if family == "DEMAG" and cls_res.get("page") == "temperature":
+                        generate_demag_rate_sidecar(
+                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_rates.json")
+                    elif family == "FANUC" and cls_res.get("page") == "temperature":
+                        generate_fanuc_temperature_cells_sidecar(
+                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_cells.json",
+                            lines, rr["screen_size"])
                 except Exception as variant_error:  # noqa: BLE001
-                    logger.warning("moire variant failed: %s", variant_error)
+                    logger.warning("barrel cell variant failed: %s", variant_error)
 
-            # 5c. CLAHE 召回变体（2026-08-08）：分类器未认出家族的图片（热流道温控箱等
-            # 数码管面板常漏检），生成 CLAHE sidecar——extract 的模板指纹兜底判族与
-            # TACT/KEBA/B_AND_R 等家族的 CLAHE 合并均复用该产物，失败不影响主路径。
-            if str(cls_res.get("ui_family") or "").strip().lower() in ("", "unknown"):
-                try:
-                    from ocr_variants import generate_clahe_sidecar
-                    generate_clahe_sidecar(
-                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_clahe.json"
-                    )
-                except Exception as variant_error:  # noqa: BLE001
-                    logger.warning("clahe variant failed: %s", variant_error)
-                # 5e. 模温机数码管旁车（042 S04）：独立设备整机照片无屏幕可矫正，
-                # rectify 可能把机箱盖误判为屏幕扭曲丢内容，故旁车同时作用于矫正图
-                # （mt_cell）与原图（mt_cell_orig）两个坐标系，由提取器分系聚行；
-                # 仅 mold_temp 模板路由命中时才被 extract 合并，失败不影响主路径。
-                try:
-                    from ocr_variants import generate_mold_temp_display_sidecar
-                    mt_sources = [(ocr_target, "mt_cell")]
-                    if ocr_target != orig_path:
-                        mt_sources.append((orig_path, "mt_cell_orig"))
-                    generate_mold_temp_display_sidecar(
-                        ocr_model, mt_sources, rect_dir / f"{stem}.ocr_mt.json"
-                    )
-                except Exception as variant_error:  # noqa: BLE001
-                    logger.warning("mold_temp display variant failed: %s", variant_error)
-            # 三类炮筒 Profile 的专用弱读格召回；结构不匹配时 FANUC helper 返回 0，
-            # 不会把其他页面硬塞进温度提取器。
-            try:
-                from ocr_variants import (generate_demag_rate_sidecar,
-                                          generate_fanuc_temperature_cells_sidecar)
-                family = str(cls_res.get("ui_family") or "").upper()
-                if family == "DEMAG" and cls_res.get("page") == "temperature":
-                    generate_demag_rate_sidecar(
-                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_rates.json")
-                elif family == "FANUC" and cls_res.get("page") == "temperature":
-                    generate_fanuc_temperature_cells_sidecar(
-                        ocr_model, ocr_target, rect_dir / f"{stem}.ocr_cells.json",
-                        lines, rr["screen_size"])
-            except Exception as variant_error:  # noqa: BLE001
-                logger.warning("barrel cell variant failed: %s", variant_error)
+                # 6. 字段提取
+                record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
+                machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
+                extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates")
+                # 6b. 083 S03 温度表逐格重读救援：B&R/DEMAG 温度页缺格/列结构失败时，
+                # 按实测网格逐格 rec 重读生成旁车（ocr_tcells）后重提取一次；
+                # 仅缺格变少才采用，网格实测失败不生成旁车、保持原结果。
+                if cell_rescue_needed(extract_res):
+                    try:
+                        from ocr_variants import generate_temperature_cells_sidecar
+                        base_lines = json.loads(ocr_json.read_text()).get("lines", [])
+                        clahe_path = rect_dir / f"{stem}.ocr_clahe.json"
+                        if clahe_path.is_file():
+                            base_lines, _ = merge_variant_lines(
+                                base_lines,
+                                json.loads(clahe_path.read_text()).get("lines", []))
+                        n_cells = generate_temperature_cells_sidecar(
+                            ocr_model, ocr_target, rect_dir / f"{stem}.ocr_tcells.json",
+                            extract_res.get("controller_family"), base_lines,
+                            rr["screen_size"])
+                        if n_cells:
+                            ext2 = extract_one(stem, rect_dir, record_report,
+                                               machine_labels, HERE / "templates")
+                            if cell_rescue_better(extract_res, ext2):
+                                ext2.setdefault("warnings", []).append(
+                                    f"CELL_GRID_RESCUE({n_cells})")
+                                extract_res = ext2
+                    except Exception as rescue_error:  # noqa: BLE001
+                        logger.warning("temperature cell rescue failed: %s", rescue_error)
+                # 带分类置信度重算契约键（幂等，extract 内已算过一次无分类版本）
+                attach_contract(extract_res, cls_res)
+                return cls_res, extract_res
 
-            # 6. 字段提取
-            record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
-            machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
-            extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates")
-            # 带分类置信度重算契约键（幂等，extract 内已算过一次无分类版本）
-            attach_contract(extract_res, cls_res)
+            cls_res, extract_res = run_attempt(DEFAULT_MAX_SIZE)
+            if extract_res.get("fields") is None and not any(
+                    "NO_TEMPLATE" in w or "RECTIF" in w
+                    for w in extract_res.get("warnings", [])):
+                # 083 S01 分辨率救援：提取失败（非路由/模板缺失）时以更高 max_size
+                # 重跑一轮——4K 原图经 2000 长边封顶后小字表格（B&R 灰底温度表等）
+                # 降采样过度整表漏读。仅在救援轮提取出字段时采用，否则保留原拒识。
+                cls2, ext2 = run_attempt(RESCUE_MAX_SIZE)
+                if ext2.get("fields") is not None:
+                    cls_res, extract_res = cls2, ext2
+                    extract_res.setdefault("warnings", []).append(
+                        f"RESCUE_HI_RES({RESCUE_MAX_SIZE})")
 
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
 

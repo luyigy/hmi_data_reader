@@ -16,6 +16,6 @@ provenance:
       批次 batch_001）
   verified_by: kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）
   verified_at: '2026-08-13'
-  tuning_involvement: none
-  placement_reason: 054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参
+  tuning_involvement: algorithm_debugging
+  placement_reason: 2026-08-15（075 R02）参与模具温度调节机碎裂标题双组 CNF 指纹根因分析与调参，降为 calibration，禁止继续作为 holdout
 notes: HANGRUI 蓝 LCD 第二张：PV 205 / SET 205 / 回 193；布局未注册，应安全拒识

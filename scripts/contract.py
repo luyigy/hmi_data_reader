@@ -103,6 +103,13 @@ def _resolve_layout_variant(result: dict) -> str | None:
                 return variant
         return None
     if page_type == "temperature":
+        # 083 S06：B&R 七列变体等同族逐图变体经 extraction_detail.page_variant
+        # 透出（同 mold_temp 口径），优先于模板 heater_columns.mode。
+        detail = result.get("extraction_detail")
+        if isinstance(detail, dict):
+            variant = detail.get("page_variant")
+            if isinstance(variant, str) and variant:
+                return variant
         family = result.get("controller_family")
         if isinstance(family, str) and family:
             return _template_heater_mode(family, page_type)
@@ -232,6 +239,15 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
         # 用提取路由证据兜底（record/机台先验/模板指纹）；离线 extract 路径
         # （classification=None）保持既有默认口径，避免历史回归产物 diff。
         confidence = _routed_confidence(result, classification)
+    elif classification is not None and confidence is not None:
+        # 083 S01 同族互证：分类器弱命中（如单条 0.89 关键词行）与路由证据
+        # （record 聚合/人工机台先验/模板指纹）判定同一家族时，取两者较强者——
+        # 人工核验先验不应被单条弱 OCR 关键词拉低；证据冲突（异族）时不提升。
+        routed = _routed_confidence(result, classification)
+        cls_family = str(classification.get("ui_family") or "").strip().upper()
+        routed_family = str(result.get("controller_family") or "").strip().upper()
+        if (routed is not None and cls_family and cls_family == routed_family):
+            confidence = max(confidence, routed)
     if confidence is None:
         confidence = DEFAULT_CONFIDENCE
     if layout_variant is None:

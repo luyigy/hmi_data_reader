@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "ui_family": "TACT",
   "page": "temperature",
   "source": "2026-07-31 首版：6 份用户整批确认真值图（日精 Z022/A06）OCR 实测锚点算术平均",
@@ -46,8 +46,32 @@
     "drop_port_header": "落下口",
     "page_title": "温度"
   },
-  "page_detect_anchors": ["set", "control", "drop_port_header"],
-  "zone_labels": ["喷嘴", "筒头", "前部", "中部", "后部"],
+  "page_detect_anchors": [
+    "set",
+    "current",
+    "control"
+  ],
+  "family_detect_groups": [
+    [
+      "设定温度"
+    ],
+    [
+      "现在温度"
+    ],
+    [
+      "控制输出"
+    ],
+    [
+      "保温温度"
+    ]
+  ],
+  "zone_labels": [
+    "喷嘴",
+    "筒头",
+    "前部",
+    "中部",
+    "后部"
+  ],
   "drop_port_label": "落下口",
   "heater_columns": {
     "mode": "fixed",
@@ -55,17 +79,51 @@
     "rule": "TACT 温度页固定 5 段料筒（喷嘴/筒头/前部/中部/后部），列头为区段中文名；落下口为独立第 6 列，只有设定/现在/控制三行，无保温行"
   },
   "field_mapping": {
-    "barrel_temperature_set_c": {"row": "set", "columns": "zones", "unit": "°C"},
-    "barrel_temperature_current_c": {"row": "current", "columns": "zones", "unit": "°C"},
-    "control_percent": {"row": "control", "columns": "zones", "unit": "%"},
-    "holding_temperature_c": {"row": "holding", "columns": "zones", "unit": "°C"},
-    "drop_port_temperature_set_c": {"row": "set", "columns": "drop_port", "unit": "°C"},
-    "drop_port_temperature_current_c": {"row": "current", "columns": "drop_port", "unit": "°C"},
-    "drop_port_control_percent": {"row": "control", "columns": "drop_port", "unit": "%"}
+    "barrel_temperature_set_c": {
+      "row": "set",
+      "columns": "zones",
+      "unit": "°C"
+    },
+    "barrel_temperature_current_c": {
+      "row": "current",
+      "columns": "zones",
+      "unit": "°C"
+    },
+    "control_percent": {
+      "row": "control",
+      "columns": "zones",
+      "unit": "%"
+    },
+    "holding_temperature_c": {
+      "row": "holding",
+      "columns": "zones",
+      "unit": "°C"
+    },
+    "drop_port_temperature_set_c": {
+      "row": "set",
+      "columns": "drop_port",
+      "unit": "°C"
+    },
+    "drop_port_temperature_current_c": {
+      "row": "current",
+      "columns": "drop_port",
+      "unit": "°C"
+    },
+    "drop_port_control_percent": {
+      "row": "control",
+      "columns": "drop_port",
+      "unit": "%"
+    }
   },
   "validation_rules": {
-    "temperature_range_C": [0, 450],
-    "control_percent_range": [0, 100],
+    "temperature_range_C": [
+      0,
+      450
+    ],
+    "control_percent_range": [
+      0,
+      100
+    ],
     "current_set_consistency_tolerance_C": 5,
     "min_cell_conf": 0.85,
     "must_have_all_heater_columns": true
@@ -75,5 +133,11 @@
     "落下口列无保温行，保温温度仅 5 段料筒；落下口设定 40-50°C 远低于料筒段，不作跨列一致性校验",
     "单机台（Z022/A06）校准，跨机台/跨 TACT 屏变体泛化未验证",
     "current vs set 一致性校验（±5°C）会把加热中/报警态机台判为 review，属保守设计而非误报"
-  ]
+  ],
+  "page_detect_anchor_groups": [
+    [
+      "drop_port_header"
+    ]
+  ],
+  "notes": "0.1.1（083 S07）：page_detect_anchor_groups 备选锚点组——五段变体行标签（设定温度/现在温度/控制输出）OCR 整列丢失时，落下口列头（仅温度页存在，全仓语料无跨页命中）单独成组判温度页（tact_Z025_20260110_rank14 实测 find_page 误判 monitor_curve）。"
 }

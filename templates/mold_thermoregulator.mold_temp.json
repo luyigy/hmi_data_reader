@@ -1,8 +1,8 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "ui_family": "MOLD_THERMOREGULATOR",
   "page": "mold_temp",
-  "source": "2026-08-13（042 S04）：7 张已见模具温度调节机真值图（白色带小数十位 pv_sv_decimal：mt_*_A02/B05；蓝色整数 pv_sv_integer：mt_*_A11/B12，calibration）OCR 实测锚点",
+  "source": "2026-08-13（042 S04）：7 张已见模具温度调节机真值图（白色带小数十位 pv_sv_decimal：mt_*_A02/B05；蓝色整数 pv_sv_integer：mt_*_A11/B12，calibration）OCR 实测锚点；2026-08-15（075 R02）：整机斜拍标题被 OCR 碎裂（「模具」/「度调节机」/「MOREGULATOR」分行）导致 NO_TEMPLATE 误拒，指纹扩展为双组 CNF——碎裂标题候选（调节机/REGULATOR）须与面板联署（严禁无水开机/故障代码）同场才命中，完整标题单组命中口径不变",
   "description": "模具温度调节机（独立设备，白/蓝两种箱体）双红数码管面板。结构：上行=PV 当前值、下行=SV 设定值，右侧 PV/SV 标签，面板印有「模具温度调节机 MOLD-THERMOREGULATOR」与故障代码表。layout_variant 由提取器按数码管是否带小数点判定（pv_sv_decimal/pv_sv_integer），经 contract 的 detail.page_variant 解析。整机拍摄数码管占比小且为红色 7 段管，取值依赖 ocr_mt 旁车（红色彩掩膜 + 行裁剪 rec-only，支持照片旋转 90° 回退）。",
   "coordinate_system": "normalized_screen",
   "calibration": {
@@ -17,14 +17,32 @@
     [
       "模具温度调节机",
       "MOLD-THERMOREGULATOR",
-      "温度调节机"
+      "温度调节机",
+      "调节机",
+      "REGULATOR"
+    ],
+    [
+      "模具温度调节机",
+      "MOLD-THERMOREGULATOR",
+      "温度调节机",
+      "严禁无水开机",
+      "故障代码"
     ]
   ],
   "family_detect_groups": [
     [
       "模具温度调节机",
       "MOLD-THERMOREGULATOR",
-      "温度调节机"
+      "温度调节机",
+      "调节机",
+      "REGULATOR"
+    ],
+    [
+      "模具温度调节机",
+      "MOLD-THERMOREGULATOR",
+      "温度调节机",
+      "严禁无水开机",
+      "故障代码"
     ]
   ],
   "layout_variant": null

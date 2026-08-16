@@ -1,17 +1,17 @@
 {
   "schema_version": "1.0.0",
-  "case_id": "mt_rear_B02_95685b65",
+  "case_id": "mt_front_A06_b09bc5b1",
   "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
   "profile_layout_version": 1,
   "contract_version": "2.8.0",
-  "truth_hash": "sha256:d7feda7dc6e4b89d2c7f213bbbf65b8bfdd88bd4a2d5ed00c7778a2c01024139",
-  "image_sha256": "sha256:95685b65ea2fba181d6d0132fee670c98094f466b928186bbb88f89f99d82768",
+  "truth_hash": "sha256:1011c717624808e19ce4cd05b325c234aacfa7d6cc60106afdf75ddfd131a5e4",
+  "image_sha256": "sha256:b09bc5b12bea225d16c6d1e5d65903f74d421c64e77067e76676e037c3acec70",
   "structure": {
-    "controller_family": "MOLD_THERMOREGULATOR",
+    "controller_family": "unknown",
     "page_type": "mold_temp",
-    "hmi_variant": "pv_sv_decimal",
-    "allow_auto_import": true,
-    "image": "mt_rear_B02_95685b65.jpeg",
+    "hmi_variant": "hangrui_lcd",
+    "allow_auto_import": false,
+    "image": "mt_front_A06_b09bc5b1.jpeg",
     "n_fields": 2
   },
   "field_meta": {
@@ -42,11 +42,11 @@
   },
   "provenance": {
     "source": {
-      "note": "飞书 Base 注塑机台监控汇总「成型条件-模温机后模」附件（record recvqnjFOC7PjE，伯乐 B02，054 PLAN S01 批次 batch_002）"
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-模温机前模」附件（record recvqnOfv8IsHB，沙迪克 A06，054 PLAN S01 批次 batch_001）"
     },
     "verified_by": "kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）",
     "verified_at": "2026-08-13",
-    "tuning_involvement": "none",
-    "placement_reason": "054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参"
+    "tuning_involvement": "algorithm_debugging",
+    "placement_reason": "2026-08-15（075 R02）参与模具温度调节机碎裂标题双组 CNF 指纹根因分析与调参，降为 calibration，禁止继续作为 holdout"
   }
 }

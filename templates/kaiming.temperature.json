@@ -1,0 +1,41 @@
+{
+  "version": "0.1.0",
+  "ui_family": "KAIMING",
+  "page": "temperature",
+  "source": "2026-08-16 083 PLAN S03 首版：佳明 Z030（TX24016，rec203 炮筒_00）F2温度页大模型两遍判读锚点；机台先验 佳明_Z030_KAIMING（王为 2026-07-30 核验）",
+  "description": "KAIMING 屏（佳明 Z030/Z062 机台，KAI MING 标题栏 + F1状态/F2温度/F3模温/F4功能/F5参数/F6PID 按键菜单，与 ZizES 不同族）温度页字段位置模板。9 段炮筒示意图，段号 1-9 在图形下方一行；当前值在图形上方逐段一行（仅启用段有值）；设定值行=左标签「设定值」+逐段设定；段 1 为射嘴侧（与 ZizES 段序口径一致，真值段序=屏幕段序）；保温温度=页底单值。坐标为屏幕归一化值，基于 scripts/rectify.py 输出；列位以段号数字行线性拟合逐图实测。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "1 张核验图（佳明_Z030_TX24016_200-30014-3_20260318_rec203_炮筒_00）rectify 后 PaddleOCR 实测 + 大模型两遍判读比对",
+    "calibrated_at": "2026-08-16",
+    "samples": [
+      "佳明_Z030_TX24016_200-30014-3_20260318_rec203_炮筒_00"
+    ]
+  },
+  "row_anchors": {
+    "set": ["设定值"],
+    "holding": ["保温温度"],
+    "page_tab": ["F2温度"]
+  },
+  "page_detect_anchors": ["set", "holding"],
+  "family_detect_groups": [
+    ["设定值"],
+    ["射嘴百分比功能"],
+    ["手动温控周期", "自动转入半温"]
+  ],
+  "heater_columns": {
+    "mode": "dynamic",
+    "rule": "段号数字行（1-9）线性拟合得列位；启用段 = 设定值行从段 1 起连续有值的段（当前值/设定值成对，段 6-9 无值即未启用）；段 1=射嘴侧；当前值行相邻两段并读为 4/6 位偶长 token 时等长拆分（两半均在温度值域、两目标列均空缺才拆，留 CELL_SPLIT 告警）"
+  },
+  "field_mapping": {
+    "barrel_temperature_set_c": {"row": "set", "columns": "段1..启用段", "unit": "°C"},
+    "barrel_temperature_current_c": {"row": "current", "columns": "段1..启用段", "unit": "°C"},
+    "holding_temperature_c": {"row": "保温温度 标签右侧同行的值", "columns": "scalar", "unit": "°C"}
+  },
+  "validation_rules": {
+    "temperature_range_C": [0, 450],
+    "holding_range_C": [0, 300],
+    "current_set_consistency_tolerance_C": 10,
+    "min_cell_conf": 0.6
+  }
+}

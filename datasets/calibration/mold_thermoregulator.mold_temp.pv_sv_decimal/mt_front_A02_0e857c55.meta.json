@@ -1,17 +1,17 @@
 {
   "schema_version": "1.0.0",
-  "case_id": "mt_front_B07_7d0896ce",
+  "case_id": "mt_front_A02_0e857c55",
   "profile_id": "mold_thermoregulator.mold_temp.pv_sv_decimal",
   "profile_layout_version": 1,
   "contract_version": "2.8.0",
-  "truth_hash": "sha256:a5c1f61bf390be68c40776fe898c0b468dfebfd3838117f14adfa849bb2baa13",
-  "image_sha256": "sha256:7d0896ce1da10b89266b51167a49334cd10f58e643084e7c9e2f18596f07808d",
+  "truth_hash": "sha256:aa649fcf9dfd5aeb804d3949d14cdf13c52451ebe4f491a9739856b25bb76832",
+  "image_sha256": "sha256:0e857c555b247abc8af2b96885fddf92a54c3c7a994f23daba5e8bf78f4c042a",
   "structure": {
     "controller_family": "MOLD_THERMOREGULATOR",
     "page_type": "mold_temp",
     "hmi_variant": "pv_sv_decimal",
     "allow_auto_import": true,
-    "image": "mt_front_B07_7d0896ce.jpg",
+    "image": "mt_front_A02_0e857c55.jpeg",
     "n_fields": 2
   },
   "field_meta": {
@@ -42,11 +42,11 @@
   },
   "provenance": {
     "source": {
-      "note": "飞书 Base 注塑机台监控汇总「成型条件-模温机前模」附件（record recvqnNTs3UNsS，佳明 B07，054 PLAN S01 批次 batch_001）"
+      "note": "飞书 Base 注塑机台监控汇总「成型条件-模温机前模」附件（record recvqnNTs3YOC8，德马格 A02，054 PLAN S01 批次 batch_001）"
     },
     "verified_by": "kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）",
     "verified_at": "2026-08-13",
-    "tuning_involvement": "none",
-    "placement_reason": "054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参"
+    "tuning_involvement": "algorithm_debugging",
+    "placement_reason": "2026-08-15（075 R02）参与模具温度调节机碎裂标题双组 CNF 指纹根因分析与调参，降为 calibration，禁止继续作为 holdout"
   }
 }

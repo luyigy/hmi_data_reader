@@ -1,0 +1,40 @@
+{
+  "version": "0.1.0",
+  "ui_family": "EST",
+  "page": "temperature",
+  "source": "2026-08-16 083 PLAN S05 首版：伯乐 EST2（Luban_17750312370458dfdad7b）F1温度页大模型两遍判读锚点；同族注射页模板 est.injection_metering 既有（039_FIX 家族兜底）",
+  "description": "EST 屏（伯乐 EST 机台，蓝色标题栏 + F1温度/F2功能/F3参数一/F4参数二/F5水温/F7返回 按键菜单）温度设定页字段位置模板。上部炮筒条形图逐段当前值（仅启用段有值，停用段图形示 0）；「设定值」行 = 左标签 + 逐段设定（停用段空白，启用段 = 从左起连续有值）；右侧 保温功能/保温温度/预温计时 与 料管温度上下限偏差 单值区（偏差为整机单值，不进逐段字段）。段 1 为射嘴侧（与 ZizES/KAIMING 段序口径一致）。坐标为屏幕归一化值，基于 scripts/rectify.py 输出；列位以设定值行实测数值 x 逐图实测。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "1 张核验图（ground_truth/bole_est/EST2/Luban_17750312370458dfdad7b-5664-4fd6-9d32-35cb6a8f0ade）rectify 后 PaddleOCR 实测 + 大模型两遍判读比对",
+    "calibrated_at": "2026-08-16",
+    "samples": [
+      "Luban_17750312370458dfdad7b-5664-4fd6-9d32-35cb6a8f0ade"
+    ]
+  },
+  "row_anchors": {
+    "set": ["设定值"],
+    "holding": ["保温温度"],
+    "page_tab": ["F1温度"]
+  },
+  "page_detect_anchors": ["set", "holding"],
+  "family_detect_groups": [
+    ["温度设定", "手动温控周期"],
+    ["设定值", "料管温度上限偏差"]
+  ],
+  "heater_columns": {
+    "mode": "dynamic",
+    "rule": "无段号行；列位取「设定值」行实测数值 x，启用段 = 从左起连续数值（相邻列距超过 1.8 倍列距中位数即视为启用段结束，后续孤立数值不视为炮筒段）；当前值 = 条形图行同列数值（仅启用段有值，停用段 0 无设定列可吸附自动剔除）；段 1=射嘴侧"
+  },
+  "field_mapping": {
+    "barrel_temperature_set_c": {"row": "set", "columns": "段1..启用段", "unit": "°C"},
+    "barrel_temperature_current_c": {"row": "current", "columns": "段1..启用段", "unit": "°C"},
+    "holding_temperature_c": {"row": "保温温度 标签右侧同行的值", "columns": "scalar", "unit": "°C"}
+  },
+  "validation_rules": {
+    "temperature_range_C": [0, 450],
+    "holding_range_C": [0, 300],
+    "current_set_consistency_tolerance_C": 10,
+    "min_cell_conf": 0.6
+  }
+}
