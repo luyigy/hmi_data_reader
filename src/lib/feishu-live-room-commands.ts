@@ -28,6 +28,62 @@ import {
   MAX_LIVE_ROOM_HANDOFF_LIMIT,
   parseLiveRoomHandoffLimit,
 } from '@/lib/live-room-handoff';
+import {
+  MAX_LIVE_ROOM_EXECUTION_TIMEOUT_MINUTES,
+  liveRoomTimeoutMinutesToMs,
+  liveRoomTimeoutMsToMinutes,
+  parseLiveRoomExecutionTimeoutInput,
+} from '@/lib/live-room-execution-timeout';
+
+export const formatLiveRoomExecutionTimeoutMinutes = (executionTimeoutMs: number | null) =>
+  executionTimeoutMs === null
+    ? '继承默认（远程 10 分钟 / Platform Local 长任务不限时）'
+    : `${liveRoomTimeoutMsToMinutes(executionTimeoutMs)} 分钟`;
+
+/** Shared validation + update path for the room execution timeout.
+ *  Used by both the /ap room --timeout=<分钟> entry and the /ap timeout <分钟> shortcut. */
+export const applyLiveRoomExecutionTimeoutUpdate = async ({
+  roomId,
+  requestedValue,
+  changedBy,
+}: {
+  roomId: string;
+  requestedValue: string | number | undefined;
+  changedBy?: string | null;
+}): Promise<{ ok: true; minutes: number | null } | { ok: false; error: string }> => {
+  const parsed = parseLiveRoomExecutionTimeoutInput(requestedValue);
+  if (parsed.kind === 'invalid') {
+    return {
+      ok: false,
+      error: `无效执行超时。请输入 1-${MAX_LIVE_ROOM_EXECUTION_TIMEOUT_MINUTES} 的整数分钟，或 inherit 恢复默认。`,
+    };
+  }
+
+  const previous = await prisma.liveRoom.findUnique({
+    where: { id: roomId },
+    select: { executionTimeoutMs: true },
+  });
+  const executionTimeoutMs = parsed.kind === 'minutes' ? liveRoomTimeoutMinutesToMs(parsed.minutes) : null;
+  await prisma.liveRoom.update({
+    where: { id: roomId },
+    data: { executionTimeoutMs },
+  });
+  await postLiveRoomMessage({
+    roomId,
+    content: `系统提示：执行超时已从 ${formatLiveRoomExecutionTimeoutMinutes(previous?.executionTimeoutMs ?? null)} 调整为 ${formatLiveRoomExecutionTimeoutMinutes(executionTimeoutMs)}。`,
+    messageType: 'system',
+    metadata: resolveLiveRoomMessageMetadata({
+      senderKind: 'system',
+      extras: {
+        systemEvent: 'execution_timeout_changed',
+        previousExecutionTimeoutMs: previous?.executionTimeoutMs ?? null,
+        executionTimeoutMs,
+        changedBy: changedBy || null,
+      },
+    }),
+  });
+  return { ok: true, minutes: parsed.kind === 'minutes' ? parsed.minutes : null };
+};
 
 export async function handleMembersCommand(context?: FeishuConversationContext) {
   const roomId = await getBoundLiveRoomId(context);
@@ -431,6 +487,11 @@ export async function handleRoomCommand(
   if (requestedModeValue && !mode) {
     return '无效 mode。可选值：discussion、execution、hybrid。';
   }
+  // Validate the timeout up front so an invalid value never mutates the binding/room.
+  const requestedTimeoutValue = command.options['timeout'] ?? command.options['execution-timeout'];
+  if (requestedTimeoutValue !== undefined && parseLiveRoomExecutionTimeoutInput(requestedTimeoutValue).kind === 'invalid') {
+    return `无效执行超时。请输入 1-${MAX_LIVE_ROOM_EXECUTION_TIMEOUT_MINUTES} 的整数分钟，或 inherit 恢复默认。`;
+  }
   const result = await ensureFeishuConversationBinding({
     context,
     selectedAgentIds: effectiveAgentIds,
@@ -440,6 +501,16 @@ export async function handleRoomCommand(
     permissionConfig,
     mode: mode || undefined, confirmCreate: true,
   });
+  if (requestedTimeoutValue !== undefined) {
+    const timeoutUpdate = await applyLiveRoomExecutionTimeoutUpdate({
+      roomId: result.liveRoomId,
+      requestedValue: requestedTimeoutValue,
+      changedBy: context.senderOpenId,
+    });
+    if (!timeoutUpdate.ok) {
+      return timeoutUpdate.error;
+    }
+  }
   if (typeof requestedHandoffLimit === 'number') {
     const previous = await prisma.liveRoom.findUnique({
       where: { id: result.liveRoomId },
@@ -470,6 +541,7 @@ export async function handleRoomCommand(
       select: {
         workingDirectory: true,
         handoffLimit: true,
+        executionTimeoutMs: true,
         sourceTask: { select: { workingDirectory: true } },
       },
     }),
@@ -489,6 +561,7 @@ export async function handleRoomCommand(
     `权限：${permissionConfig ? formatPermissionProfileLabel(permissionConfig.profile) : 'Safe Local（默认）'}`,
     `模式：${result.roomMode}`,
     `Handoff limit：${room?.handoffLimit ?? DEFAULT_LIVE_ROOM_HANDOFF_LIMIT}`,
+    `执行超时：${formatLiveRoomExecutionTimeoutMinutes(room?.executionTimeoutMs ?? null)}`,
     '接下来可以直接发送：/ap chat 你的消息',
   ].join('\n');
 }
@@ -530,6 +603,37 @@ export async function handleHandoffLimitCommand(
   return handoffLimit === 0
     ? '✅ 已关闭当前房间的自动 handoff。'
     : `✅ 当前房间 handoff limit 已设为 ${handoffLimit}。`;
+}
+
+export async function handleTimeoutCommand(
+  command: ParsedFeishuCommand,
+  context?: FeishuConversationContext,
+) {
+  const room = await getBoundLiveRoom(context);
+  if (!room) return '当前 Feishu 会话尚未绑定 Live Room。';
+
+  const requestedValue = command.args[0] ?? command.options['timeout'] ?? command.options['minutes'];
+  if (requestedValue === undefined) {
+    return [
+      `当前执行超时：${formatLiveRoomExecutionTimeoutMinutes(room.executionTimeoutMs ?? null)}`,
+      `用法：/ap timeout <1-${MAX_LIVE_ROOM_EXECUTION_TIMEOUT_MINUTES} 分钟>|inherit`,
+    ].join('\n');
+  }
+  if (command.args.length > 1) {
+    return `无效执行超时。用法：/ap timeout <1-${MAX_LIVE_ROOM_EXECUTION_TIMEOUT_MINUTES} 分钟>|inherit`;
+  }
+
+  const update = await applyLiveRoomExecutionTimeoutUpdate({
+    roomId: room.id,
+    requestedValue,
+    changedBy: context?.senderOpenId || null,
+  });
+  if (!update.ok) {
+    return update.error;
+  }
+  return update.minutes === null
+    ? '✅ 当前房间执行超时已恢复默认（远程 10 分钟 / Platform Local 长任务不限时）。'
+    : `✅ 当前房间执行超时已设为 ${update.minutes} 分钟。`;
 }
 
 export async function handleModeCommand(

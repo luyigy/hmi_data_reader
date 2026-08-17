@@ -1,7 +1,7 @@
 import type { ParsedFeishuMessage } from '@/lib/feishu-message-content';
 
 export type ParsedFeishuCommand = {
-  command: 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'mode' | 'members' | 'nick' | 'role' | 'specialty' | 'restrict' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'doc' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'inbox' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job' | 'branch';
+  command: 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'timeout' | 'mode' | 'members' | 'nick' | 'role' | 'specialty' | 'restrict' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'doc' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'inbox' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job' | 'branch';
   args: string[];
   options: Record<string, string>;
 };
@@ -91,7 +91,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
     : commandAlias === 'dashboard'
       ? 'job'
       : commandAlias;
-  if (!['help', 'menu', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'mode', 'members', 'nick', 'role', 'specialty', 'restrict', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'doc', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'inbox', 'new-session', 'stop', 'sessions', 'jobs', 'job', 'branch'].includes(command)) {
+  if (!['help', 'menu', 'status', 'users', 'user', 'gateways', 'agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'timeout', 'mode', 'members', 'nick', 'role', 'specialty', 'restrict', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'doc', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'inbox', 'new-session', 'stop', 'sessions', 'jobs', 'job', 'branch'].includes(command)) {
     return null;
   }
 

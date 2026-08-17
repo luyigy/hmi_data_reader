@@ -39,6 +39,7 @@ export type DeliveryRoom = {
   currentTopic: string | null;
   mode: string;
   currentSpeakerMemberId: string | null;
+  executionTimeoutMs?: number | null;
   members: DeliveryRoomMember[];
 };
 

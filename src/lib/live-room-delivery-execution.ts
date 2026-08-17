@@ -26,6 +26,7 @@ import {
   applyWorkflowPermissionSnapshot,
   readWorkflowPermissionSnapshot,
 } from '@/lib/workflow-execution-policy';
+import { resolveLiveRoomExecutionWatchdogConfig } from '@/lib/live-room-execution-timeout';
 import {
   getPreferredDirectedAlias,
   inferDirectedVisibleRelayTargets,
@@ -97,11 +98,10 @@ const shouldRetryWithFreshSession = ({
     return false;
   }
 
-  if (isInvalidContinuationError(harnessType, message)) {
-    return true;
-  }
-
-  return /timed out after \d+ms/i.test(message);
+  // Only explicit session/thread invalid signals may open a fresh session.
+  // Wall-clock execution timeouts ("timed out after ...ms") must simply fail the
+  // current run; they never invalidate the continuation session.
+  return isInvalidContinuationError(harnessType, message);
 };
 
 const shouldRetryCodexEphemeral = ({
@@ -277,11 +277,14 @@ const runLiveRoomAcpxAttempt = async ({
     && !shouldPreferTranscriptContinuation(participant)
     && Boolean(latestSession?.continuationSessionId);
 
-  const watchdogConfig =
-    participant.executionBackend === 'platform_local'
-      && ['codex', 'claude', 'kimi-code'].includes(participant.harnessType)
-      ? { maxRuntimeMs: null }
-      : undefined;
+  // Explicit room timeout overrides every backend (remote SSH and remote runner share
+  // this single resolution). Without one, keep the runner-harness defaults: Platform
+  // Local codex/claude/kimi-code unlimited, remote backends 10 minutes.
+  const watchdogConfig = resolveLiveRoomExecutionWatchdogConfig({
+    executionTimeoutMs: room.executionTimeoutMs,
+    executionBackend: participant.executionBackend,
+    harnessType: participant.harnessType,
+  });
 
   const replyableMembers = room.members
     .filter((member) => member.canReply && member.id !== currentMemberId)

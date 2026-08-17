@@ -24,9 +24,10 @@ import { persistPlatformLocalSessionMetadata } from './runner-metadata';
 import { buildHarnessPrompt, withLongFileRuntimeContext } from './prompt';
 import type { LongFileRuntimeContext } from './long-file-runtime-context';
 import type { AcpxParticipantRequest, AcpxRunRequest, HarnessStreamCallbacks } from './types';
+import { DEFAULT_REMOTE_EXECUTION_TIMEOUT_MS } from '@/lib/live-room-execution-timeout';
 
 const DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS = 10 * 60 * 1000;
+const DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS = DEFAULT_REMOTE_EXECUTION_TIMEOUT_MS;
 
 export const resolveHarnessTimeout = (
   configuredTimeout: number | null | undefined,

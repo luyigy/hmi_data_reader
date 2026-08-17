@@ -36,7 +36,11 @@ assert.match(
   /targetMemberName: handoffIntent\.kind === 'target'[\s\S]*handoffIntent\.targetMemberId/,
 );
 assert.match(interrupt, /deliveryStatus: 'superseded'[\s\S]*Cancelled by user before execution/);
-assert.match(execution, /timed out after \\d\+ms[\s\S]*markLiveRoomSessionExpired[\s\S]*useFreshSession: true/);
+assert.match(execution, /Only explicit session\/thread invalid signals[\s\S]*?return isInvalidContinuationError\(harnessType, message\);[\s\S]*?markLiveRoomSessionExpired[\s\S]*?useFreshSession: true/);
+assert.ok(
+  !/timed out after \\d\+ms/i.test(execution),
+  'wall-clock execution timeouts must not trigger the fresh-session fallback',
+);
 assert.match(processing, /Remote SSH live room delivery became stale before completion[\s\S]*presenceStatus: 'online'/);
 assert.match(migration, /"handoffLimit" INTEGER NOT NULL DEFAULT 4/);
 assert.match(migration, /"handoffLimitSnapshot" INTEGER/);

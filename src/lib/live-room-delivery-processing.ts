@@ -27,10 +27,7 @@ import {
   applyPlannedLiveRoomHandoff,
   recordRejectedLiveRoomHandoff,
 } from '@/lib/live-room-handoff';
-
-const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
-const REMOTE_STALE_GRACE_MS = 30 * 1000;
-const REMOTE_STALE_AFTER_MS = DEFAULT_TIMEOUT_MS + REMOTE_STALE_GRACE_MS;
+import { resolveRemoteDeliveryStaleAfterMs } from '@/lib/live-room-execution-timeout';
 
 const markRemoteDeliverySuperseded = async (deliveryId: string, reason: string) => {
   const delivery = await prisma.liveRoomDelivery.findUnique({
@@ -81,11 +78,14 @@ const markRemoteDeliverySuperseded = async (deliveryId: string, reason: string) 
 
   return true;
 };
-const failStaleRemoteDeliveries = async (memberId: string) => {
-  const staleBefore = new Date(Date.now() - REMOTE_STALE_AFTER_MS);
+const failStaleRemoteDeliveries = async (memberId: string, executionTimeoutMs?: number | null) => {
+  // Reclaim threshold follows the room's effective execution timeout plus grace, so a
+  // room configured with a longer timeout is not falsely reaped at the old 10m30s mark.
+  const remoteStaleAfterMs = resolveRemoteDeliveryStaleAfterMs(executionTimeoutMs);
+  const staleBefore = new Date(Date.now() - remoteStaleAfterMs);
   const registryEntry = getLiveRoomRunningProcess(memberId);
 
-  if (registryEntry && Date.now() - registryEntry.startedAt >= REMOTE_STALE_AFTER_MS) {
+  if (registryEntry && Date.now() - registryEntry.startedAt >= remoteStaleAfterMs) {
     interruptLiveRoomRunningProcess(memberId, 'SIGTERM');
   }
 
@@ -245,7 +245,7 @@ export const processLiveRoomDelivery = async ({
   const session = await ensureMemberSession(room.id, targetMember);
 
   if (targetMember.backend === 'remote_ssh') {
-    await failStaleRemoteDeliveries(targetMember.id);
+    await failStaleRemoteDeliveries(targetMember.id, room.executionTimeoutMs);
 
     const newerPendingDelivery = await prisma.liveRoomDelivery.findFirst({
       where: {
@@ -527,11 +527,14 @@ export const processLiveRoomDelivery = async ({
     });
 
     if (message !== 'Interrupted by user') {
+      const isWallClockTimeout = /timed out after \d+ms/i.test(message);
       await postLiveRoomMessage({
         roomId,
         content:
           message === 'Stopped by user'
             ? `系统提示：${targetMember.displayName} 当前回复已被停止。`
+            : isWallClockTimeout
+            ? `系统提示：${targetMember.displayName} 本次回复执行超时：${message}`
             : `系统提示：${targetMember.displayName} 本次回复失败：${message}`,
         messageType: 'system',
         metadata: resolveLiveRoomMessageMetadata({

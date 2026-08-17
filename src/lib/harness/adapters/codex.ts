@@ -10,8 +10,6 @@ const INVALID_CODEX_CONTINUATION_PATTERNS = [
   /resume.*(failed|error)/i,
   /stream disconnected/i,
   /connection.*closed/i,
-  /timed out after \d+ms/i,
-  /timeout waiting for child process to exit/i,
   /failed to refresh available models/i,
 ];
 

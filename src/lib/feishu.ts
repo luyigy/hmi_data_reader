@@ -34,6 +34,7 @@ import {
   handleSpecialtyCommand,
   handleRoomCommand,
   handleSpeakerCommand,
+  handleTimeoutCommand,
 } from '@/lib/feishu-live-room-commands';
 import {
   handleApproveLikeCommand,
@@ -90,6 +91,8 @@ export async function handleFeishuCommand(args: {
       return handleRoomCommand(args.command, args.context);
     case 'handoff-limit':
       return handleHandoffLimitCommand(args.command, args.context);
+    case 'timeout':
+      return handleTimeoutCommand(args.command, args.context);
     case 'mode':
       return handleModeCommand(args.command, args.context);
     case 'members':

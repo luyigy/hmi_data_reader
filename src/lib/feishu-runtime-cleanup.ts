@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { sendFeishuTextMessage } from '@/lib/feishu-api';
 import { getLiveRoomRunningProcess } from '@/lib/live-room-process-registry';
+import { resolveRunningDeliveryStaleAfterMs } from '@/lib/live-room-execution-timeout';
 
 export function buildFeishuRuntimeRecoveryCommand(content: string) {
   const plan = content.match(/docs\/\d+_PLAN_[^\s`]+\.md/)?.[0];
@@ -57,29 +58,45 @@ export async function failAndNotifyInterruptedDeliveries(reason: string) {
   return deliveries.length;
 }
 
-/** Start a periodic watchdog that checks for deliveries stuck in 'running' for > 12 minutes.
- *  Platform Local (codex/claude/kimi-code) deliveries with a still-alive process are skipped.
+/** Start a periodic watchdog that reclaims deliveries stuck in 'running' past their
+ *  room's effective execution timeout plus grace. Platform Local (codex/claude/kimi-code)
+ *  deliveries with a still-alive process are skipped.
  *  Only members of deliveries confirmed stale are reclaimed — not all busy members. */
 export function startPeriodicWatchdog(prefix: string) {
-  const STALE_DELIVERY_THRESHOLD_MS = 12 * 60 * 1000;
   const interval = setInterval(async () => {
     try {
-      const staleAt = new Date(Date.now() - STALE_DELIVERY_THRESHOLD_MS);
-      const staleDeliveries = await prisma.liveRoomDelivery.findMany({
-        where: { deliveryStatus: 'running', attemptedAt: { lt: staleAt } },
+      const runningDeliveries = await prisma.liveRoomDelivery.findMany({
+        where: { deliveryStatus: 'running' },
         select: {
           id: true,
           targetMemberId: true,
+          attemptedAt: true,
           targetMember: {
             select: { backend: true, harnessType: true },
           },
+          roomMessage: {
+            select: {
+              room: {
+                select: { executionTimeoutMs: true },
+              },
+            },
+          },
         },
       });
-      if (staleDeliveries.length === 0) return;
+      if (runningDeliveries.length === 0) return;
 
-      const isPlatformLocal = (delivery: typeof staleDeliveries[number]) =>
+      const isPlatformLocal = (delivery: typeof runningDeliveries[number]) =>
         delivery.targetMember.backend === 'platform_local'
         && ['codex', 'claude', 'kimi-code'].includes(delivery.targetMember.harnessType ?? '');
+
+      // The reclaim threshold is per delivery: the owning room's effective execution
+      // timeout (explicit value or the 10-minute remote default) plus grace. Deliveries
+      // whose room configured a longer timeout must not be reaped at the old 12-minute
+      // mark while their process is still running.
+      const staleDeliveries = runningDeliveries.filter((delivery) =>
+        Date.now() - delivery.attemptedAt.getTime()
+          >= resolveRunningDeliveryStaleAfterMs(delivery.roomMessage?.room?.executionTimeoutMs));
+      if (staleDeliveries.length === 0) return;
 
       const trulyStale: typeof staleDeliveries = [];
       for (const delivery of staleDeliveries) {

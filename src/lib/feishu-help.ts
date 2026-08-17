@@ -5,8 +5,9 @@ import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 const HELP_PAGES = [
   ['房间与 Agent', [
     '/ap menu  返回分类命令卡片',
-    '/ap room --workdir=<目录> [--agents=<local:codex,local:claude>] [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [--handoff-limit=<0-32>] [title]',
+    '/ap room --workdir=<目录> [--agents=<local:codex,local:claude>] [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [--handoff-limit=<0-32>] [--timeout=<1-1440 分钟>] [title]',
     '/ap handoff-limit [0-32]',
+    '/ap timeout [<1-1440 分钟>|inherit]  房间级执行超时；inherit 恢复默认',
     '/ap mode <discussion|execution|hybrid>',
     '/ap members',
     '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
@@ -533,6 +534,13 @@ export const buildFeishuRoomCreationCard = (
         placeholder: { tag: 'plain_text', content: '本房间当前目标' },
       },
       {
+        tag: 'input',
+        name: 'timeout',
+        width: 'fill',
+        label: { tag: 'plain_text', content: '执行超时（分钟，可选）' },
+        placeholder: { tag: 'plain_text', content: '留空继承默认（远程 10 分钟 / Platform Local 不限时）；1-1440' },
+      },
+      {
         tag: 'select_static',
         name: 'profile',
         required: true,
@@ -604,6 +612,7 @@ export const buildFeishuCommandFromForm = (
         profile: text('profile'),
         mode: text('mode'),
         ...(text('topic') ? { topic: text('topic') } : {}),
+        ...(text('timeout') ? { timeout: text('timeout') } : {}),
       },
     };
   }

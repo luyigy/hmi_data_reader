@@ -403,6 +403,7 @@ model LiveRoom {
   currentSpeakerMemberId String?
   workingDirectory       String?
   handoffLimit           Int                         @default(4)
+  executionTimeoutMs     Int?                        // room-level execution timeout; null keeps backend defaults (1-1440 minutes)
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   sourceTask             Task?                   @relation(fields: [sourceTaskId], references: [id], onDelete: SetNull)
