@@ -6,7 +6,8 @@ export interface Agent {
   location?: string;
   capabilities: string[];
   status: 'online' | 'offline' | 'busy' | 'error';
-  lastHeartbeat: string;
+  /** ISO timestamp from the API; null/undefined means the agent never heartbeat. */
+  lastHeartbeat?: string | null;
   gatewayId?: string;
   createdAt: string;
   updatedAt: string;

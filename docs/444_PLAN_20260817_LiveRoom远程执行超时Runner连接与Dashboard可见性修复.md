@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: start_first_slice
+doc_status: completed
+next_action: await_acceptance
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -125,7 +125,8 @@ return_to: null
   Dashboard 回退不影响 Runner 执行链。
 - 真实部署/重启只在 S02 代码与测试通过后执行；不得在未确认 3012 访问边界时开放额外端口。
 
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/444_PLAN_20260817_LiveRoom远程执行超时Runner连接与Dashboard可见性修复.md` 的 S01；读取目标 HEAD 的 `AGENTS.md`、
-`docs/workflow/workflow-contract.yaml` 和本 PLAN。完成验证、创建下一 HANDOVER、提交后停止。
-<!-- WORKFLOW_PROMPT_END -->
+## 交付记录
+
+- S01：docs/445_HANDOVER_20260817_LiveRoom执行超时配置与超时不重试交付.md
+- S02：docs/446_HANDOVER_20260817_RemoteRunnerGateway部署与Runner连接诊断交付.md
+- S03：docs/447_HANDOVER_20260817_DashboardAgent契约与RemoteRunner可见性交付.md（全部 Slice 交付，待验收）

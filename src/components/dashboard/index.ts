@@ -7,3 +7,4 @@ export { DashboardStatsView } from './DashboardStats';
 export { OpenClawGatewayConsole } from './OpenClawGatewayConsole';
 export { RemoteGatewayForm } from './RemoteGatewayForm';
 export { RegisterGatewayModal } from './RegisterGatewayModal';
+export { RemoteRunnersPanel } from './RemoteRunnersPanel';

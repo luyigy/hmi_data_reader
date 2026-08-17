@@ -5,6 +5,7 @@ import {
   DashboardStatsView,
   RegisterGatewayModal,
   CreateAgentModal,
+  RemoteRunnersPanel,
 } from '@/components/dashboard';
 import { Agent, DashboardStats, Gateway } from '@/types';
 import Link from 'next/link';
@@ -243,6 +244,8 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      <RemoteRunnersPanel refreshKey={refreshKey} />
 
       <section>
         <div className="flex items-center justify-between mb-6">

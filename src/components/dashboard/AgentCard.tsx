@@ -2,6 +2,10 @@
 
 import { Agent } from '@/types';
 import { useState } from 'react';
+import {
+  formatAgentHeartbeat,
+  UNREPORTED_CAPABILITIES_LABEL,
+} from '@/lib/dashboard-display';
 
 interface AgentCardProps {
   agent: Agent;
@@ -51,7 +55,7 @@ export function AgentCard({ agent, onStatusChange }: AgentCardProps) {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{agent.name}</h3>
+        <h3 className="text-lg font-semibold text-gray-900">{agent.name || '未命名 Agent'}</h3>
         <div className="flex items-center gap-2">
           <span className={`w-3 h-3 rounded-full ${statusColors[agent.status]}`}></span>
           <span className="text-sm text-gray-600">{statusLabels[agent.status]}</span>
@@ -68,16 +72,20 @@ export function AgentCard({ agent, onStatusChange }: AgentCardProps) {
 
         <div>
           <div className="text-gray-500 mb-2">能力:</div>
-          <div className="flex flex-wrap gap-1">
-            {agent.capabilities.map((cap, idx) => (
-              <span
-                key={idx}
-                className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-              >
-                {cap}
-              </span>
-            ))}
-          </div>
+          {(agent.capabilities || []).length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {agent.capabilities.map((cap, idx) => (
+                <span
+                  key={idx}
+                  className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                >
+                  {cap}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-gray-400">{UNREPORTED_CAPABILITIES_LABEL}</span>
+          )}
         </div>
 
         <div className="pt-4 border-t border-gray-100">
@@ -113,7 +121,7 @@ export function AgentCard({ agent, onStatusChange }: AgentCardProps) {
         </div>
 
         <div className="pt-2 text-xs text-gray-400">
-          最后心跳：{new Date(agent.lastHeartbeat).toLocaleString('zh-CN')}
+          最后心跳：{formatAgentHeartbeat(agent.lastHeartbeat)}
         </div>
       </div>
     </div>

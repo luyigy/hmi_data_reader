@@ -8,7 +8,39 @@ export interface RemoteNodeInfo {
   host: string;
   status: 'online' | 'offline';
   lastSeen: Date | null;
+  /** Non-sensitive runner metadata reported via the `hello` frame. */
+  harnesses: string[];
+  workspace: string | null;
 }
+
+/** Extract only the non-sensitive display fields from stored node metadata;
+ * the node secret hash is never surfaced through this type. */
+const parseNodeMetadata = (metadata: string | null): { harnesses: string[]; workspace: string | null } => {
+  if (!metadata) return { harnesses: [], workspace: null };
+  try {
+    const parsed = JSON.parse(metadata) as { harnesses?: unknown; workspace?: unknown };
+    const harnesses = Array.isArray(parsed.harnesses)
+      ? parsed.harnesses.filter((value): value is string => typeof value === 'string')
+      : [];
+    const workspace = typeof parsed.workspace === 'string' && parsed.workspace.trim()
+      ? parsed.workspace
+      : null;
+    return { harnesses, workspace };
+  } catch {
+    return { harnesses: [], workspace: null };
+  }
+};
+
+type RemoteNodeRecord = { id: string; name: string; host: string; status: string; lastSeen: Date | null; metadata: string | null };
+
+const toRemoteNodeInfo = (node: RemoteNodeRecord): RemoteNodeInfo => ({
+  id: node.id,
+  name: node.name,
+  host: node.host,
+  status: node.status === 'online' ? 'online' : 'offline',
+  lastSeen: node.lastSeen,
+  ...parseNodeMetadata(node.metadata),
+});
 
 /** Create or rotate credentials for a node before its first connection. */
 export async function provisionNode(name: string, secret: string): Promise<void> {
@@ -37,13 +69,13 @@ export async function registerNode(
       where: { name },
       data: { host, status: 'online', lastSeen: new Date(), metadata: metadata ? JSON.stringify(metadata) : undefined },
     });
-    return { id: node.id, name: node.name, host: node.host, status: node.status as 'online' | 'offline', lastSeen: node.lastSeen };
+    return toRemoteNodeInfo(node);
   }
 
   const node = await prisma.remoteNode.create({
     data: { name, host, secretHash, status: 'online', lastSeen: new Date(), metadata: metadata ? JSON.stringify(metadata) : undefined },
   });
-  return { id: node.id, name: node.name, host: node.host, status: node.status as 'online' | 'offline', lastSeen: node.lastSeen };
+  return toRemoteNodeInfo(node);
 }
 
 /** Mark a node as offline */
@@ -73,13 +105,7 @@ export async function listRemoteNodes(user?: AuthUser): Promise<RemoteNodeInfo[]
     where: user?.role === 'user' ? { ownerUserId: user.id } : undefined,
     orderBy: { name: 'asc' },
   });
-  return nodes.map(n => ({
-    id: n.id,
-    name: n.name,
-    host: n.host,
-    status: n.status as 'online' | 'offline',
-    lastSeen: n.lastSeen,
-  }));
+  return nodes.map(toRemoteNodeInfo);
 }
 
 export async function getRemoteNodeWorkspace(name: string): Promise<string | null> {

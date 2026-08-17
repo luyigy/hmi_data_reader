@@ -7,6 +7,7 @@ import {
   generateDefaultEmojiIcon,
 } from '@/lib/agent-identity';
 import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
+import { computeEffectiveAgentStatus } from '@/lib/agent-effective-status';
 
 /**
  * 生成原始名称（用于识别是哪个 agent）
@@ -50,13 +51,28 @@ const deriveBackend = (agent: { hostname: string | null; gatewayId: string | nul
   return 'unknown';
 };
 
+/** Parse the stored capabilities JSON into a string array; unparseable/absent data reads as an empty array (never fabricated defaults). */
+const parseCapabilities = (raw: string | null): string[] => {
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed.filter((cap) => typeof cap === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
 /**
  * GET /api/agents
  * 获取所有 Agent 列表，包含身份信息
  *
- * 包括:
- * 1. 数据库中的 Agent (来自 gateway)
- * 2. Platform Local agents (内置的本地 Claude/Codex)
+ * 响应契约（Dashboard AgentCard 等消费方依赖）：
+ * - `name`: 卡片标题使用的显示名（与 `displayName` 同值，保留 `displayName`
+ *   供 /agents、/tasks 与创建表单等既有消费者使用）；
+ * - `lastHeartbeat`: ISO 时间字符串；
+ * - `status`: 有效状态。远程 Gateway Agent 按已存状态 + 心跳新鲜度
+ *   （90 秒阈值）共同计算；Platform Local 保留已存状态语义；
+ * - `storedStatus`: 数据库中的原始状态；
+ * - `capabilities`: 字符串数组（上游未上报时为空数组，不伪造默认值）。
  */
 export async function GET() {
   try {
@@ -122,13 +138,15 @@ export async function GET() {
         originalName,
         rawName,
         displayName,
+        name: displayName,
         userNickname: agent.userNickname || null,
         shortAlias,
         roleDescription: agent.roleDescription || null,
         colorTag,
         emojiIcon,
         hostname,
-        status: agent.status,
+        status: computeEffectiveAgentStatus({ backend, status: agent.status, lastHeartbeat: agent.lastHeartbeat }),
+        storedStatus: agent.status,
         type: agent.type,
         runtimeAgentId: agent.runtimeAgentId,
         gateway: agent.gateway ? {
@@ -138,7 +156,8 @@ export async function GET() {
         location: agent.location,
         backend,
         isPlatformLocal,
-        capabilities: JSON.parse(agent.capabilities || '[]'),
+        capabilities: parseCapabilities(agent.capabilities),
+        lastHeartbeat: agent.lastHeartbeat.toISOString(),
         createdAt: agent.createdAt.toISOString(),
         updatedAt: agent.updatedAt.toISOString(),
       };
