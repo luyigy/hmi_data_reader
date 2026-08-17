@@ -31,8 +31,14 @@ try { WebSocket = require('ws'); } catch {
         this.emit('open');
         if (head.length) this.receive(head);
       });
-      request.once('response', (response) => this.emit('error', new Error(`WebSocket upgrade failed (${response.statusCode})`)));
-      request.once('error', (error) => this.emit('error', error));
+      request.once('response', (response) => {
+        this.emit('error', new Error(`WebSocket upgrade failed (${response.statusCode})`));
+        this.close();
+      });
+      request.once('error', (error) => {
+        this.emit('error', error);
+        this.close();
+      });
       request.end();
     }
     frame(opcode, payload = Buffer.alloc(0)) {
@@ -49,7 +55,14 @@ try { WebSocket = require('ws'); } catch {
       return frame;
     }
     send(value) { if (this.readyState === WebSocket.OPEN) this.socket.write(this.frame(1, Buffer.from(value))); }
-    close() { if (this.readyState === WebSocket.OPEN) this.socket.end(this.frame(8)); }
+    close() {
+      if (this.readyState === 3) return;
+      // When the handshake never completed there is no socket to close, but the
+      // reconnect loop keys off the 'close' event, so emit it here exactly once.
+      if (this.readyState === WebSocket.OPEN) { this.socket.end(this.frame(8)); return; }
+      this.readyState = 3;
+      this.emit('close');
+    }
     receive(data) {
       this.buffer = Buffer.concat([this.buffer, data]);
       while (this.buffer.length >= 2) {
@@ -171,6 +184,7 @@ function connect() {
   ws.on('message', (data) => {
     let message;
     try { message = JSON.parse(data.toString()); } catch { return; }
+    if (message.type === 'welcome') console.log('connected');
     if (message.type === 'run') run(ws, message);
     if (message.type === 'cancel') {
       const child = children.get(message.runId);
@@ -185,10 +199,17 @@ function connect() {
   heartbeat.unref();
   ws.on('close', () => {
     clearInterval(heartbeat);
-    setTimeout(connect, retryMs).unref();
+    const retryInMs = retryMs;
+    console.error(`[runner] connection to ${server} closed; retrying in ${retryInMs}ms`);
+    // Keep the retry timer referenced: an unreferenced timer lets the process
+    // exit on the first disconnect, which silently cancels the backoff retries.
+    setTimeout(connect, retryInMs);
     retryMs = Math.min(retryMs * 2, 30000);
   });
-  ws.on('error', () => ws.close());
+  ws.on('error', (error) => {
+    console.error(`[runner] connection to ${server} failed: ${error instanceof Error ? error.message : String(error)}`);
+    ws.close();
+  });
 }
 
 async function start() {
@@ -208,7 +229,7 @@ async function start() {
     config = { server, node: nodeName, token: nodeToken, workspace };
     fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-    console.log(`Paired remote node: ${nodeName}`);
+    console.log('paired');
   }
   const missing = [['server', server], ['node', nodeName], ['token', nodeToken]].filter(([, value]) => !value);
   if (missing.length) throw new Error(`Missing required options: ${missing.map(([key]) => `--${key}`).join(', ')}`);

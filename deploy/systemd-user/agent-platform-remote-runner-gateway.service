@@ -6,6 +6,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/data1/code/agent-platform-v2
+# Bind the runner gateway on all interfaces so remote runners can reach it;
+# authentication is still required via node secrets and the default port 3012.
+Environment=REMOTE_RUNNER_GATEWAY_HOST=0.0.0.0
 ExecStart=/usr/bin/npm run remote-runner:gateway
 Restart=always
 RestartSec=5
