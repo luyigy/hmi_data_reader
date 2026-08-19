@@ -108,6 +108,14 @@ export async function listRemoteNodes(user?: AuthUser): Promise<RemoteNodeInfo[]
   return nodes.map(toRemoteNodeInfo);
 }
 
+export async function getRemoteNodeName(id: string, user: AuthUser): Promise<string | null> {
+  const node = await prisma.remoteNode.findFirst({
+    where: { id, ...(user.role === 'admin' ? {} : { ownerUserId: user.id }) },
+    select: { name: true },
+  });
+  return node?.name ?? null;
+}
+
 export async function getRemoteNodeWorkspace(name: string): Promise<string | null> {
   const node = await prisma.remoteNode.findUnique({ where: { name }, select: { metadata: true } });
   if (!node?.metadata) return null;

@@ -104,7 +104,7 @@ try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
 let server = args.server || config.server;
 let nodeName = args.node || config.node;
 let nodeToken = args.token || config.token;
-const workspace = path.resolve(args.workspace || config.workspace || process.cwd());
+let workspace = path.resolve(args.workspace || config.workspace || process.cwd());
 const piBin = args.pi || process.env.REMOTE_PI_AGENT_BIN || 'pi';
 const tools = process.env.REMOTE_PI_AGENT_TOOLS || 'read,bash,edit,write,grep,find,ls';
 const children = new Map();
@@ -112,6 +112,11 @@ let retryMs = 1000;
 
 const send = (ws, message) => {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+};
+const saveConfig = () => {
+  config = { ...config, server, node: nodeName, token: nodeToken, workspace };
+  fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
 };
 const safeCwd = (value) => {
   const cwd = path.resolve(value || workspace);
@@ -185,6 +190,19 @@ function connect() {
     let message;
     try { message = JSON.parse(data.toString()); } catch { return; }
     if (message.type === 'welcome') console.log('connected');
+    if (message.type === 'set_workspace' && typeof message.requestId === 'string') {
+      try {
+        if (typeof message.workspace !== 'string' || !message.workspace.trim()) throw new Error('Workspace is required');
+        const requestedWorkspace = path.resolve(message.workspace);
+        if (!fs.statSync(requestedWorkspace).isDirectory()) throw new Error(`Workspace is not a directory: ${requestedWorkspace}`);
+        workspace = requestedWorkspace;
+        saveConfig();
+        send(ws, { type: 'workspace_result', requestId: message.requestId, success: true, workspace });
+        send(ws, { type: 'hello', node: nodeName, harnesses: ['pi-agent'], workspace });
+      } catch (error) {
+        send(ws, { type: 'workspace_result', requestId: message.requestId, success: false, error: error.message });
+      }
+    }
     if (message.type === 'run') run(ws, message);
     if (message.type === 'cancel') {
       const child = children.get(message.runId);
@@ -226,9 +244,7 @@ async function start() {
     server = result.server;
     nodeName = result.nodeName;
     nodeToken = result.nodeSecret;
-    config = { server, node: nodeName, token: nodeToken, workspace };
-    fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+    saveConfig();
     console.log('paired');
   }
   const missing = [['server', server], ['node', nodeName], ['token', nodeToken]].filter(([, value]) => !value);

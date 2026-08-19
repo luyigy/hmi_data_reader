@@ -1,12 +1,35 @@
 import { createServer } from 'node:http';
 import WebSocket, { WebSocketServer } from 'ws';
-import { cancelNodeRun, executeOnNode, handleNodeConnection } from '@/lib/remote-node-ws';
+import { cancelNodeRun, configureNodeWorkspace, executeOnNode, handleNodeConnection } from '@/lib/remote-node-ws';
 
 const host = process.env.REMOTE_RUNNER_GATEWAY_HOST?.trim() || '127.0.0.1';
 const port = Number(process.env.REMOTE_RUNNER_GATEWAY_PORT || 3012);
 const server = createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/workspace') {
+    const remoteAddress = req.socket.remoteAddress || '';
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remoteAddress)) {
+      res.writeHead(403).end('Workspace configuration is local-only');
+      return;
+    }
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+      if (typeof body.nodeName !== 'string' || typeof body.workspace !== 'string' || !body.workspace.trim()) {
+        res.writeHead(400).end('Invalid workspace request');
+        return;
+      }
+      const workspace = await configureNodeWorkspace(body.nodeName, body.workspace);
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ workspace }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = message.includes('offline') ? 503 : message.includes('timed out') ? 504 : 400;
+      res.writeHead(status).end(message);
+    }
     return;
   }
   if (req.method !== 'POST' || req.url !== '/run') {

@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'http';
+import { randomUUID } from 'crypto';
 import WebSocket from 'ws';
 import {
   markNodeOffline,
@@ -39,18 +40,34 @@ interface PendingRun {
   onStderr?: (chunk: string) => void;
 }
 
+interface PendingWorkspaceUpdate {
+  nodeName: string;
+  resolve: (workspace: string) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
+}
+
 const globalState = globalThis as unknown as {
   remoteNodeSockets?: Map<string, NodeSocket>;
   remoteNodeRuns?: Map<string, PendingRun>;
+  remoteNodeWorkspaceUpdates?: Map<string, PendingWorkspaceUpdate>;
 };
 const connectedNodes = globalState.remoteNodeSockets ||= new Map<string, NodeSocket>();
 const pendingRuns = globalState.remoteNodeRuns ||= new Map<string, PendingRun>();
+const pendingWorkspaceUpdates = globalState.remoteNodeWorkspaceUpdates ||= new Map<string, PendingWorkspaceUpdate>();
 
 const failNodeRuns = (nodeName: string, error: Error) => {
   pendingRuns.forEach((run, runId) => {
     if (run.nodeName === nodeName) {
       pendingRuns.delete(runId);
       run.reject(error);
+    }
+  });
+  pendingWorkspaceUpdates.forEach((update, requestId) => {
+    if (update.nodeName === nodeName) {
+      clearTimeout(update.timer);
+      pendingWorkspaceUpdates.delete(requestId);
+      update.reject(error);
     }
   });
 };
@@ -108,6 +125,15 @@ export async function handleNodeConnection(ws: WebSocket, req: IncomingMessage):
     if (message.type === 'heartbeat') {
       void registerNode(nodeName, host, secret).catch(() => ws.close(1011, 'Heartbeat failed'));
       ws.send(JSON.stringify({ type: 'heartbeat_ack' }));
+      return;
+    }
+    if (message.type === 'workspace_result' && typeof message.requestId === 'string') {
+      const update = pendingWorkspaceUpdates.get(message.requestId);
+      if (!update || update.nodeName !== nodeName) return;
+      clearTimeout(update.timer);
+      pendingWorkspaceUpdates.delete(message.requestId);
+      if (message.success === true && typeof message.workspace === 'string') update.resolve(message.workspace);
+      else update.reject(new Error(typeof message.error === 'string' ? message.error : 'Runner rejected workspace'));
       return;
     }
 
@@ -170,6 +196,28 @@ export const executeOnNode = (
 
 export const cancelNodeRun = (nodeName: string, runId: string) =>
   sendToNode(nodeName, { type: 'cancel', runId });
+
+export const configureNodeWorkspace = (nodeName: string, workspace: string) =>
+  new Promise<string>((resolve, reject) => {
+    const socket = connectedNodes.get(nodeName);
+    if (!socket || socket.ws.readyState !== WebSocket.OPEN) {
+      reject(new Error(`Remote node is offline: ${nodeName}`));
+      return;
+    }
+    const requestId = randomUUID();
+    const timer = setTimeout(() => {
+      pendingWorkspaceUpdates.delete(requestId);
+      reject(new Error(`Remote node workspace update timed out: ${nodeName}`));
+    }, 10_000);
+    pendingWorkspaceUpdates.set(requestId, { nodeName, resolve, reject, timer });
+    try {
+      socket.ws.send(JSON.stringify({ type: 'set_workspace', requestId, workspace }));
+    } catch (error) {
+      clearTimeout(timer);
+      pendingWorkspaceUpdates.delete(requestId);
+      reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
 
 export const getConnectedNodeCount = () => connectedNodes.size;
 export const isNodeConnected = (nodeName: string) => connectedNodes.has(nodeName);

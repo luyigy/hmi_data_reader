@@ -17,7 +17,7 @@ import {
   UNKNOWN_TIME_LABEL,
 } from '../src/lib/dashboard-display';
 import { GET as getAgents } from '../src/app/api/agents/route';
-import { GET as getRemoteNodes } from '../src/app/api/remote-nodes/route';
+import { GET as getRemoteNodes, POST as updateRemoteNode } from '../src/app/api/remote-nodes/route';
 import { listRemoteNodes } from '../src/lib/remote-node-registry';
 
 const projectRoot = path.resolve(__dirname, '..');
@@ -32,8 +32,9 @@ const env = {
   AUTH_ALLOW_INSECURE_LOCAL: 'false',
 };
 
-const request = (url: string, cookie?: string) => new Request(url, {
-  headers: cookie ? { cookie } : undefined,
+const request = (url: string, cookie?: string, init: RequestInit = {}) => new Request(url, {
+  ...init,
+  headers: { ...init.headers, ...(cookie ? { cookie } : {}) },
 });
 
 /** ---- 1. Effective status: stored status + heartbeat freshness ---- */
@@ -183,8 +184,10 @@ async function remoteNodesContractTests(): Promise<void> {
   const db = prisma as unknown as Record<string, { [method: string]: (...args: never[]) => Promise<unknown> }>;
   const originals = {
     findMany: db.remoteNode.findMany,
+    findFirst: db.remoteNode.findFirst,
     userFindUnique: db.user.findUnique,
   };
+  const originalFetch = globalThis.fetch;
   const now = new Date();
   const fixtures = [
     {
@@ -260,9 +263,37 @@ async function remoteNodesContractTests(): Promise<void> {
     // Direct registry call asserts the same filter without a session.
     await listRemoteNodes({ id: 'user-2', username: 'bob', role: 'user', displayName: null });
     assert.deepEqual(capturedWhere.at(-1), { ownerUserId: 'user-2' });
+
+    const capturedFindFirst: unknown[] = [];
+    db.remoteNode.findFirst = (async (args: { where?: unknown }) => {
+      capturedFindFirst.push(args.where);
+      return { name: 'ww-ce250bc4' };
+    }) as never;
+    globalThis.fetch = (async (input, init) => {
+      assert.equal(String(input), 'http://127.0.0.1:3012/workspace');
+      assert.deepEqual(JSON.parse(String(init?.body)), { nodeName: 'ww-ce250bc4', workspace: 'C:\\new-workspace' });
+      return Response.json({ workspace: 'C:\\new-workspace' });
+    }) as typeof fetch;
+    const update = await updateRemoteNode(request(
+      'http://localhost/api/remote-nodes',
+      `ap_auth_token=${userToken}`,
+      { method: 'POST', body: JSON.stringify({ id: 'node-1', workspace: 'C:\\new-workspace' }) },
+    ));
+    assert.equal(update.status, 200);
+    assert.deepEqual(await update.json(), { workspace: 'C:\\new-workspace' });
+    assert.deepEqual(capturedFindFirst.at(-1), { id: 'node-1', ownerUserId: 'user-1' }, 'workspace updates enforce node ownership');
+
+    const unauthenticatedUpdate = await updateRemoteNode(request(
+      'http://localhost/api/remote-nodes',
+      undefined,
+      { method: 'POST', body: JSON.stringify({ id: 'node-1', workspace: 'C:\\new-workspace' }) },
+    ));
+    assert.equal(unauthenticatedUpdate.status, 401);
   } finally {
     db.remoteNode.findMany = originals.findMany;
+    db.remoteNode.findFirst = originals.findFirst;
     db.user.findUnique = originals.userFindUnique;
+    globalThis.fetch = originalFetch;
   }
   console.log('remote nodes api contract tests passed');
 }
@@ -281,6 +312,9 @@ function componentWiringTests(): void {
 
   const panel = readFileSync(path.join(projectRoot, 'src/components/dashboard/RemoteRunnersPanel.tsx'), 'utf8');
   assert.match(panel, /\/api\/remote-nodes/, 'panel reads the existing remote-nodes API');
+  assert.match(panel, /method: 'POST'/, 'panel persists workspace through the remote-nodes API');
+  assert.match(panel, /Pi 的文件和工具访问边界/, 'panel explains the workspace security boundary');
+  assert.match(panel, /node\.status !== 'online'/, 'offline runners cannot be configured');
   assert.match(panel, /formatRemoteNodeLastSeen\(node\.lastSeen\)/, 'lastSeen renders through the helper (从未连接)');
   for (const field of ['node.name', 'node.host', 'node.status', 'node.harnesses', 'node.workspace']) {
     assert.ok(panel.includes(field), `panel displays ${field}`);

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { prisma } from '../src/lib/prisma';
-import { handleNodeConnection } from '../src/lib/remote-node-ws';
+import { configureNodeWorkspace, handleNodeConnection } from '../src/lib/remote-node-ws';
 
 type Listener = (event: { data?: Buffer }) => void;
 
 class FakeWebSocket {
+  public readonly readyState = 1;
   private readonly listeners = new Map<string, Listener[]>();
   public readonly sent: string[] = [];
   public readonly closed: Array<[number, string]> = [];
@@ -54,6 +55,15 @@ async function main() {
     await handled;
 
     assert.ok(ws.sent.some((raw) => raw.includes('"type":"welcome"')), 'welcome frame sent');
+
+    const configured = configureNodeWorkspace(nodeName, '/tmp/new-workspace');
+    const request = JSON.parse(ws.sent.at(-1) || '{}') as { type?: string; requestId?: string };
+    assert.equal(request.type, 'set_workspace');
+    assert.equal(typeof request.requestId, 'string');
+    ws.emit('message', Buffer.from(JSON.stringify({
+      type: 'workspace_result', requestId: request.requestId, success: true, workspace: '/tmp/new-workspace',
+    })));
+    assert.equal(await configured, '/tmp/new-workspace');
 
     // The early hello must have reached the registry despite the setup awaits.
     for (let attempt = 0; attempt < 20; attempt += 1) {

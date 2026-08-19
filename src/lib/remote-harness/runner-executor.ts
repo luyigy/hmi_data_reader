@@ -3,6 +3,24 @@ import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 
 const gatewayUrl = () => process.env.REMOTE_RUNNER_GATEWAY_URL?.trim() || 'http://127.0.0.1:3012';
 
+export class RemoteRunnerGatewayError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+  }
+}
+
+export async function configureRemoteRunnerWorkspace(nodeName: string, workspace: string): Promise<string> {
+  const response = await fetch(`${gatewayUrl()}/workspace`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ nodeName, workspace }),
+  });
+  if (!response.ok) throw new RemoteRunnerGatewayError(response.status, await response.text() || `Remote runner HTTP ${response.status}`);
+  const result = await response.json() as { workspace?: unknown };
+  if (typeof result.workspace !== 'string') throw new RemoteRunnerGatewayError(502, 'Remote runner returned an invalid workspace');
+  return result.workspace;
+}
+
 export interface RemoteRunnerResult {
   output: string;
   filesModified: string[];

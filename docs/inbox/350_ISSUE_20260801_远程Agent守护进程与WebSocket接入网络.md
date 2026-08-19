@@ -32,13 +32,13 @@ next_action: none
 - 允许中央强力 Agent（如中央节点上的 Codex/Claude/Antigravity）与远程机器上的 Agent 进行实时消息传递、任务协同与技术指导。
 - 提供标准化的 Agent-to-Agent 消息协议与远端指令控制通道。
 
-### 4. TODO：Remote Runner Workspace 易配置
-- 当前 Windows runner 默认使用启动目录，workspace 只能通过 `--workspace`
-  或手工修改 `%USERPROFILE%\.agent-platform\runner.json` 调整，Dashboard 只展示不可配置。
-- 后续提供一个简单、可持久化的 workspace 配置入口，优先复用现有 runner
-  配置和 `--workspace` 参数，不引入第二套配置模型。
-- 配置时应校验目录存在，明确提示该目录是 Pi 的文件和工具访问边界，
-  并在 runner 重连后使 Dashboard 展示最新值。
+### 4. 已完成：Remote Runner Workspace 易配置（2026-08-19）
+- Dashboard 的 Remote Runners 区域可为在线节点修改 workspace；离线节点禁止提交。
+- 更新沿用现有 Gateway HTTP 桥接与 runner WebSocket，通过 runner 所在机器校验目录存在且为目录，
+  成功后写回 `%USERPROFILE%\.agent-platform\runner.json`，不需要重新配对，也没有第二套配置模型。
+- runner 更新后立即重发 `hello`，中央节点 metadata 与 Dashboard 展示同步刷新；新目录明确标注为
+  Pi 的文件和工具访问边界。
+- Gateway 的 workspace 控制入口仅接受本机 loopback 请求，节点访问继续遵循现有用户所有权校验。
 
 ## 验收标准
 

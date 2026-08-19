@@ -178,18 +178,21 @@ interface GatewayClient {
 async function welcomeMeansConnected(): Promise<void> {
   const home = mkdtempSync(path.join(tmpdir(), 'runner-connected-home-'));
   const workspace = mkdtempSync(path.join(tmpdir(), 'runner-connected-ws-'));
+  const updatedWorkspace = mkdtempSync(path.join(tmpdir(), 'runner-updated-ws-'));
 
-  let hello: { type?: string; node?: string; harnesses?: string[]; workspace?: string } | undefined;
+  const messages: Array<{ type?: string; node?: string; harnesses?: string[]; workspace?: string; requestId?: string; success?: boolean; error?: string }> = [];
+  let gatewayClient: GatewayClient | undefined;
   const wss = new WebSocketServer({ noServer: true });
   const server = createServer((_req, res) => { res.writeHead(404).end(); });
   server.on('upgrade', (req, socket, head) => {
     const { pathname } = new URL(req.url || '/', 'http://localhost');
     if (pathname !== '/runner') { socket.destroy(); return; }
     wss.handleUpgrade(req, socket, head, (ws: GatewayClient) => {
+      gatewayClient = ws;
       ws.on('message', (data) => {
-        const message = JSON.parse(data.toString()) as typeof hello;
+        const message = JSON.parse(data.toString()) as (typeof messages)[number];
+        messages.push(message);
         if (message?.type === 'hello') {
-          hello = message;
           ws.send(JSON.stringify({ type: 'welcome', nodeId: 'test-node-id', nodeName: message.node }));
         }
       });
@@ -197,17 +200,53 @@ async function welcomeMeansConnected(): Promise<void> {
   });
   const port = await listenOn(server);
 
-  const runner = startRunner(
+  let runner = startRunner(
     [`--server=ws://127.0.0.1:${port}/runner`, '--node=t-node', '--token=t-secret', `--workspace=${workspace}`],
     home,
   );
   try {
     await waitForLine(runner.stdout, (line) => line.trim() === 'connected', 5000,
       'connected marker after welcome');
+    const hello = messages.find((message) => message.type === 'hello');
     assert.ok(hello, 'hello frame reached the gateway');
     assert.equal(hello?.node, 't-node');
     assert.deepEqual(hello?.harnesses, ['pi-agent']);
     assert.equal(hello?.workspace, workspace);
+
+    gatewayClient?.send(JSON.stringify({ type: 'set_workspace', requestId: 'invalid', workspace: path.join(home, 'missing') }));
+    await waitForLine(
+      () => messages.map((message) => JSON.stringify(message)),
+      (line) => line.includes('"requestId":"invalid"') && line.includes('"success":false'),
+      5000,
+      'missing workspace rejection',
+    );
+
+    gatewayClient?.send(JSON.stringify({ type: 'set_workspace', requestId: 'valid', workspace: updatedWorkspace }));
+    await waitForLine(
+      () => messages.map((message) => JSON.stringify(message)),
+      (line) => line.includes('"requestId":"valid"') && line.includes('"success":true'),
+      5000,
+      'workspace update acknowledgement',
+    );
+    await waitForLine(
+      () => messages.map((message) => JSON.stringify(message)),
+      (line) => line.includes('"type":"hello"') && line.includes(JSON.stringify(updatedWorkspace).slice(1, -1)),
+      5000,
+      'updated workspace hello',
+    );
+    const config = JSON.parse(readFileSync(path.join(home, '.agent-platform', 'runner.json'), 'utf8')) as { workspace?: string };
+    assert.equal(config.workspace, updatedWorkspace);
+
+    runner.kill();
+    messages.splice(0);
+    runner = startRunner([], home);
+    await waitForLine(runner.stdout, (line) => line.trim() === 'connected', 5000, 'reconnected marker after config-only restart');
+    await waitForLine(
+      () => messages.map((message) => JSON.stringify(message)),
+      (line) => line.includes('"type":"hello"') && line.includes(JSON.stringify(updatedWorkspace).slice(1, -1)),
+      5000,
+      'persisted workspace after restart',
+    );
 
     // Silence on stderr while the connection is healthy.
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -218,6 +257,7 @@ async function welcomeMeansConnected(): Promise<void> {
     await closeServer(server);
     rmSync(home, { recursive: true, force: true });
     rmSync(workspace, { recursive: true, force: true });
+    rmSync(updatedWorkspace, { recursive: true, force: true });
   }
 }
 
