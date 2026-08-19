@@ -17,7 +17,7 @@ import {
   UNKNOWN_TIME_LABEL,
 } from '../src/lib/dashboard-display';
 import { GET as getAgents } from '../src/app/api/agents/route';
-import { GET as getRemoteNodes, POST as updateRemoteNode } from '../src/app/api/remote-nodes/route';
+import { DELETE as deleteRemoteNode, GET as getRemoteNodes, POST as updateRemoteNode } from '../src/app/api/remote-nodes/route';
 import { listRemoteNodes } from '../src/lib/remote-node-registry';
 
 const projectRoot = path.resolve(__dirname, '..');
@@ -185,6 +185,7 @@ async function remoteNodesContractTests(): Promise<void> {
   const originals = {
     findMany: db.remoteNode.findMany,
     findFirst: db.remoteNode.findFirst,
+    deleteMany: db.remoteNode.deleteMany,
     userFindUnique: db.user.findUnique,
   };
   const originalFetch = globalThis.fetch;
@@ -289,9 +290,26 @@ async function remoteNodesContractTests(): Promise<void> {
       { method: 'POST', body: JSON.stringify({ id: 'node-1', workspace: 'C:\\new-workspace' }) },
     ));
     assert.equal(unauthenticatedUpdate.status, 401);
+
+    const capturedDeletes: unknown[] = [];
+    db.remoteNode.deleteMany = (async (args: { where?: unknown }) => {
+      capturedDeletes.push(args.where);
+      return { count: 1 };
+    }) as never;
+    const deleted = await deleteRemoteNode(request(
+      'http://localhost/api/remote-nodes',
+      `ap_auth_token=${userToken}`,
+      { method: 'DELETE', body: JSON.stringify({ id: 'node-2' }) },
+    ));
+    assert.equal(deleted.status, 200);
+    assert.deepEqual(await deleted.json(), { success: true });
+    assert.deepEqual(capturedDeletes.at(-1), {
+      id: 'node-2', status: 'offline', ownerUserId: 'user-1',
+    }, 'runner deletion is atomic, offline-only, and owner-scoped');
   } finally {
     db.remoteNode.findMany = originals.findMany;
     db.remoteNode.findFirst = originals.findFirst;
+    db.remoteNode.deleteMany = originals.deleteMany;
     db.user.findUnique = originals.userFindUnique;
     globalThis.fetch = originalFetch;
   }
@@ -313,6 +331,8 @@ function componentWiringTests(): void {
   const panel = readFileSync(path.join(projectRoot, 'src/components/dashboard/RemoteRunnersPanel.tsx'), 'utf8');
   assert.match(panel, /\/api\/remote-nodes/, 'panel reads the existing remote-nodes API');
   assert.match(panel, /method: 'POST'/, 'panel persists workspace through the remote-nodes API');
+  assert.match(panel, /method: 'DELETE'/, 'panel deletes offline runners through the remote-nodes API');
+  assert.match(panel, /window\.confirm/, 'runner deletion requires confirmation');
   assert.match(panel, /Pi 的文件和工具访问边界/, 'panel explains the workspace security boundary');
   assert.match(panel, /node\.status !== 'online'/, 'offline runners cannot be configured');
   assert.match(panel, /formatRemoteNodeLastSeen\(node\.lastSeen\)/, 'lastSeen renders through the helper (从未连接)');

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getRemoteNodeName, listRemoteNodes } from '@/lib/remote-node-registry';
+import { getRemoteNodeName, listRemoteNodes, removeOfflineRemoteNode } from '@/lib/remote-node-registry';
 import { authenticationErrorResponse, requireCurrentUser } from '@/lib/auth-users';
 import { configureRemoteRunnerWorkspace, RemoteRunnerGatewayError } from '@/lib/remote-harness/runner-executor';
 
@@ -35,6 +35,24 @@ export async function POST(request: Request) {
     if (error instanceof RemoteRunnerGatewayError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await requireCurrentUser(request);
+    const body = await request.json() as { id?: unknown };
+    if (typeof body.id !== 'string') {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    }
+    if (!await removeOfflineRemoteNode(body.id, user)) {
+      return NextResponse.json({ error: 'Remote runner is online or not found' }, { status: 409 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const authError = authenticationErrorResponse(error);
+    if (authError) return authError;
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 }

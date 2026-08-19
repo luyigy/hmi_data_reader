@@ -32,6 +32,7 @@ export function RemoteRunnersPanel({ refreshKey = 0 }: RemoteRunnersPanelProps) 
   const [error, setError] = useState<string | null>(null);
   const [workspaceDrafts, setWorkspaceDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [saveMessages, setSaveMessages] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -83,6 +84,29 @@ export function RemoteRunnersPanel({ refreshKey = 0 }: RemoteRunnersPanelProps) 
       }));
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const deleteRunner = async (node: RemoteRunnerNode) => {
+    if (!window.confirm(`删除离线 runner “${node.name}”？删除后需要重新配对才能再次连接。`)) return;
+    setDeletingId(node.id);
+    setSaveMessages((messages) => ({ ...messages, [node.id]: '' }));
+    try {
+      const response = await fetch('/api/remote-nodes', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: node.id }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      setNodes((current) => current.filter((item) => item.id !== node.id));
+    } catch (deleteError) {
+      setSaveMessages((messages) => ({
+        ...messages,
+        [node.id]: deleteError instanceof Error ? deleteError.message : '删除失败',
+      }));
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -170,6 +194,16 @@ export function RemoteRunnersPanel({ refreshKey = 0 }: RemoteRunnersPanelProps) 
                   </dd>
                 </div>
               </dl>
+              {node.status === 'offline' ? (
+                <button
+                  type="button"
+                  className="mt-4 text-xs font-medium text-red-600 hover:text-red-700 disabled:text-slate-400"
+                  disabled={deletingId === node.id}
+                  onClick={() => void deleteRunner(node)}
+                >
+                  {deletingId === node.id ? '删除中...' : '删除离线 runner'}
+                </button>
+              ) : null}
             </div>
           ))}
         </div>

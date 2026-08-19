@@ -48,7 +48,7 @@ const ROUTE_RULES: readonly RouteRule[] = [
     ['/api/live-rooms/:id/messages', ['GET', 'POST']],
     ['/api/live-rooms/:id/speaker', ['POST']],
     ['/api/live-rooms/:id/topic', ['POST']],
-    ['/api/remote-nodes', ['GET', 'POST']],
+    ['/api/remote-nodes', ['GET', 'POST', 'DELETE']],
     ['/api/pairing-tickets', ['POST']],
     ['/api/tasks', ['GET', 'POST']],
     ['/api/tasks/:id', ['GET', 'PUT', 'DELETE']],

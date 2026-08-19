@@ -116,6 +116,13 @@ export async function getRemoteNodeName(id: string, user: AuthUser): Promise<str
   return node?.name ?? null;
 }
 
+export async function removeOfflineRemoteNode(id: string, user: AuthUser): Promise<boolean> {
+  const result = await prisma.remoteNode.deleteMany({
+    where: { id, status: 'offline', ...(user.role === 'admin' ? {} : { ownerUserId: user.id }) },
+  });
+  return result.count === 1;
+}
+
 export async function getRemoteNodeWorkspace(name: string): Promise<string | null> {
   const node = await prisma.remoteNode.findUnique({ where: { name }, select: { metadata: true } });
   if (!node?.metadata) return null;
