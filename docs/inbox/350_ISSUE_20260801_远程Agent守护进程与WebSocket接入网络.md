@@ -32,8 +32,18 @@ next_action: none
 - 允许中央强力 Agent（如中央节点上的 Codex/Claude/Antigravity）与远程机器上的 Agent 进行实时消息传递、任务协同与技术指导。
 - 提供标准化的 Agent-to-Agent 消息协议与远端指令控制通道。
 
+### 4. TODO：Remote Runner Workspace 易配置
+- 当前 Windows runner 默认使用启动目录，workspace 只能通过 `--workspace`
+  或手工修改 `%USERPROFILE%\.agent-platform\runner.json` 调整，Dashboard 只展示不可配置。
+- 后续提供一个简单、可持久化的 workspace 配置入口，优先复用现有 runner
+  配置和 `--workspace` 参数，不引入第二套配置模型。
+- 配置时应校验目录存在，明确提示该目录是 Pi 的文件和工具访问边界，
+  并在 runner 重连后使 Dashboard 展示最新值。
+
 ## 验收标准
 
 1. 远端机器启动 `agent-daemon` 后，能自动在中央主服务注册并保持 WebSocket 长连接。
 2. 中央主服务和房间内的成员可以向远端 Agent 发送指令并实时接收回复与过程日志。
 3. 节点掉线与网络波动时具备优雅的断线重连与状态容错能力。
+4. 用户无需重新配对即可持久更改 runner workspace；重启后 Pi 在新边界内执行，
+   Dashboard 显示值与 runner 实际配置一致。
