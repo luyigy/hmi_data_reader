@@ -115,3 +115,53 @@ plan_progress: complete
   `npm run check:long-files`、`git diff --check` 通过。
 - 新增 `DELETE /api/remote-nodes` 鉴权规则已直接验证；独立 auth inventory 仍被既有的
   `GET runner.js/route.ts` 映射缺失阻塞，与本次增补无关。
+
+## 2026-08-19 Windows PowerShell 5.1 Pi Runner 真机修复
+
+### 症状与根因
+
+1. Windows Runner 能配对、保持 online 并被 Live Room 正确选中，但 Pi 在约 1 秒后以 code 1
+   退出。旧 completion 只返回 `pi exited with code 1`，丢失了已经流式发送的 stderr。
+2. 补齐 stderr 后，真机错误明确为 `Unknown option: --mode json --tools ...`：Windows
+   PowerShell 5.1 把 Pi 的完整参数数组折叠成了一个空格拼接的参数，Pi 因而把整段命令行视为
+   单个未知 option。第一次用 `ConvertFrom-Json` 后强转 `string[]` 的修复在 PowerShell 5.1
+   仍会触发该行为，静态源码断言未能发现真机语义差异。
+3. 平台服务重启不会替换已经在 Windows 终端内运行的 stdin Runner；`/runner.js` 虽然动态读取
+   工作区最新脚本并设置 `no-store`，Windows 端仍必须停止旧进程并重新下载执行。
+
+### 最终修复
+
+- `spawnPi` 在 Windows 使用 `powershell.exe -EncodedCommand` 启动 npm 安装产生的 Pi command
+  shim；Pi 可执行文件和每个参数分别以 UTF-8 Base64 传输，PowerShell 端直接构造显式
+  `string[]`，完全移除 `ConvertFrom-Json`，保留 prompt 与各 option 的参数边界。
+- Runner 累积 stderr；失败 completion 优先返回真实 stderr，仅在 stderr 为空时回退到退出码。
+- 配对弹窗明确 Node.js 18+、Pi CLI 参数兼容、provider/model 登录、PATH 以及 Windows
+  `powershell.exe` 前置条件。
+- 既有 Runner 更新方式：先停止旧进程，再从同一平台执行
+  `curl.exe -fsSL http://<平台地址>:3010/runner.js | node -`。不带 pairing token 时复用
+  `%USERPROFILE%\.agent-platform\runner.json` 中的现有节点身份；同时运行新旧进程会争抢同一连接。
+
+### 验证与验收
+
+- `npm run test:remote-runner-deployment`：通过；覆盖失败 Pi 的 stderr 写入 completion，并锁定
+  Windows 每参数独立编码、显式 `string[]` 和禁止 `ConvertFrom-Json` 的部署契约。
+- `npx tsc --noEmit`、`git diff --check`、`npm run check:long-files`：通过。
+- `GET /runner.js | node --check`：通过；实际响应包含逐参数编码实现且不再包含
+  `ConvertFrom-Json`。
+- Windows PowerShell 5.1 真机最终验收：用户停止旧 Runner、下载最新脚本后，Live Room 中
+  `$hpi` 对目标 Pi Runner 的短消息执行成功，不再出现参数折叠错误。
+
+### 运行期间的独立故障
+
+- 18:34 的 UI 用户列表、创建用户和飞书无响应不是本次代码回归：
+  `agent-platform-postgres` 容器在应用服务重启前 14 秒收到显式停止信号并正常退出，Prisma 因
+  `127.0.0.1:55432` 不可达返回 P1001。启动原容器后数据卷保持完整（3 users、26 agents、
+  2 remote nodes），Web、飞书和 scheduled-jobs 自动恢复；没有执行迁移或数据修复。
+
+### 变更边界
+
+- 代码：`scripts/agent-platform-runner.js`、`src/components/common/PairComputerButton.tsx`
+- 测试：`tests/remote-runner-gateway-deployment.test.ts`
+- 无 API、数据库 Schema、迁移、审批、导出或新增依赖变化。
+- Runner 仍是下载后驻留内存的进程，不具备自动热更新；后续修改 `runner.js` 后仍需目标电脑
+  主动重新下载并启动。

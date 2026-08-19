@@ -132,6 +132,19 @@ const assistantText = (line) => {
   } catch { return ''; }
 };
 
+const spawnPi = (piArgs, cwd) => {
+  const options = { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] };
+  if (process.platform !== 'win32') return spawn(piBin, piArgs, options);
+
+  const command = Buffer.from(piBin, 'utf8').toString('base64');
+  const encodedArgs = piArgs.map((arg) => `[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(arg, 'utf8').toString('base64')}'))`).join(',');
+  const script = `$ErrorActionPreference='Stop'; $pi=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${command}')); [string[]]$piArgs=@(${encodedArgs}); & $pi @piArgs; if ($LASTEXITCODE -is [int]) { exit $LASTEXITCODE }`;
+  return spawn('powershell.exe', [
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64'),
+  ], options);
+};
+
 function run(ws, message) {
   const runId = message.runId;
   if (typeof runId !== 'string' || children.has(runId)) return;
@@ -145,10 +158,11 @@ function run(ws, message) {
   const piArgs = ['--mode', 'json', '--tools', tools, '--session-dir', sessionDir];
   if (message.continue) piArgs.push('--continue'); else piArgs.push('-p');
   piArgs.push(String(message.prompt || ''));
-  const child = spawn(piBin, piArgs, { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawnPi(piArgs, cwd);
   children.set(runId, child);
   let finished = false;
   let output = '';
+  let stderr = '';
   let stdoutBuffer = '';
   child.stdout.on('data', (chunk) => {
     const data = chunk.toString();
@@ -158,7 +172,11 @@ function run(ws, message) {
     stdoutBuffer = lines.pop() || '';
     for (const line of lines) output = assistantText(line) || output;
   });
-  child.stderr.on('data', (chunk) => send(ws, { type: 'stderr', runId, data: chunk.toString() }));
+  child.stderr.on('data', (chunk) => {
+    const data = chunk.toString();
+    stderr += data;
+    send(ws, { type: 'stderr', runId, data });
+  });
   child.once('error', (error) => {
     if (finished) return;
     finished = true;
@@ -172,7 +190,7 @@ function run(ws, message) {
     output = assistantText(stdoutBuffer) || output;
     send(ws, {
       type: 'complete', runId, success: code === 0, output,
-      error: code === 0 ? undefined : `pi exited with ${signal || `code ${code}`}`,
+      error: code === 0 ? undefined : stderr.trim() || `pi exited with ${signal || `code ${code}`}`,
       sessionDir, filesModified: [],
     });
   });

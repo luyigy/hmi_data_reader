@@ -76,7 +76,7 @@ export function PairComputerButton({ collapsed }: { collapsed: boolean }) {
             <h2 className="text-lg font-semibold">接入我的本地电脑</h2>
             {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : (
               <>
-                <p className="mt-2 text-sm text-slate-600">在目标电脑打开终端并运行以下命令，无需先 cd。需已安装 Node.js；票据 10 分钟内有效且只能使用一次。</p>
+                <p className="mt-2 text-sm text-slate-600">在目标电脑打开终端并运行以下命令，无需先 cd。需已安装 Node.js 18+、支持 --mode json、--tools、--session-dir、--continue、-p 的 Pi CLI，并已配置 provider/model 登录；确保 pi（Windows 还需 powershell.exe）在启动 Runner 的同一用户 PATH 中。票据 10 分钟内有效且只能使用一次。</p>
                 <p className="mt-4 text-xs font-medium text-slate-600">Windows PowerShell / CMD</p>
                 <pre className="mt-1 select-text overflow-x-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100"><code>curl.exe -fsSL {command}</code></pre>
                 <p className="mt-4 text-xs font-medium text-slate-600">macOS / Linux</p>

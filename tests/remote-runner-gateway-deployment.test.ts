@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createServer, type Server } from 'node:http';
@@ -106,6 +106,20 @@ function staticDeploymentChecks(): void {
   assert.match(gateway, /REMOTE_RUNNER_GATEWAY_HOST/);
   assert.match(gateway, /'127\.0\.0\.1'/);
   assert.match(gateway, /REMOTE_RUNNER_GATEWAY_PORT \|\| 3012/);
+
+  const runner = readFileSync(path.join(projectRoot, 'scripts/agent-platform-runner.js'), 'utf8');
+  assert.match(runner, /process\.platform !== 'win32'/,
+    'Windows runner must use the npm .cmd-compatible launch path');
+  assert.match(runner, /const encodedArgs = piArgs\.map/,
+    'Windows runner must encode each Pi argument independently');
+  assert.match(runner, /\[string\[\]\]\$piArgs=@\(\$\{encodedArgs\}\)/,
+    'Windows PowerShell 5.1 must receive an explicit string array');
+  assert.doesNotMatch(runner, /ConvertFrom-Json/,
+    'Windows PowerShell 5.1 must not collapse a JSON array into one argument');
+  assert.match(runner, /'-EncodedCommand'/,
+    'Windows runner must launch the encoded PowerShell command');
+  assert.match(runner, /const child = spawnPi\(piArgs, cwd\)/,
+    'runner execution must use the cross-platform Pi launcher');
 }
 
 /** Claim succeeds but the WebSocket endpoint is unreachable: runner stays
@@ -179,8 +193,11 @@ async function welcomeMeansConnected(): Promise<void> {
   const home = mkdtempSync(path.join(tmpdir(), 'runner-connected-home-'));
   const workspace = mkdtempSync(path.join(tmpdir(), 'runner-connected-ws-'));
   const updatedWorkspace = mkdtempSync(path.join(tmpdir(), 'runner-updated-ws-'));
+  const fakePi = path.join(home, 'fake-pi');
+  writeFileSync(fakePi, '#!/bin/sh\necho "provider auth failed" >&2\nexit 1\n');
+  chmodSync(fakePi, 0o755);
 
-  const messages: Array<{ type?: string; node?: string; harnesses?: string[]; workspace?: string; requestId?: string; success?: boolean; error?: string }> = [];
+  const messages: Array<{ type?: string; runId?: string; node?: string; harnesses?: string[]; workspace?: string; requestId?: string; success?: boolean; error?: string }> = [];
   let gatewayClient: GatewayClient | undefined;
   const wss = new WebSocketServer({ noServer: true });
   const server = createServer((_req, res) => { res.writeHead(404).end(); });
@@ -201,7 +218,7 @@ async function welcomeMeansConnected(): Promise<void> {
   const port = await listenOn(server);
 
   let runner = startRunner(
-    [`--server=ws://127.0.0.1:${port}/runner`, '--node=t-node', '--token=t-secret', `--workspace=${workspace}`],
+    [`--server=ws://127.0.0.1:${port}/runner`, '--node=t-node', '--token=t-secret', `--workspace=${workspace}`, `--pi=${fakePi}`],
     home,
   );
   try {
@@ -212,6 +229,16 @@ async function welcomeMeansConnected(): Promise<void> {
     assert.equal(hello?.node, 't-node');
     assert.deepEqual(hello?.harnesses, ['pi-agent']);
     assert.equal(hello?.workspace, workspace);
+
+    gatewayClient?.send(JSON.stringify({ type: 'run', runId: 'failed-run', taskId: 'task', prompt: 'go' }));
+    await waitForLine(
+      () => messages.map((message) => JSON.stringify(message)),
+      (line) => line.includes('"type":"complete"') && line.includes('"runId":"failed-run"'),
+      5000,
+      'failed run completion',
+    );
+    assert.equal(messages.find((message) => message.type === 'complete' && message.runId === 'failed-run')?.error,
+      'provider auth failed', 'completion exposes Pi stderr instead of a generic exit code');
 
     gatewayClient?.send(JSON.stringify({ type: 'set_workspace', requestId: 'invalid', workspace: path.join(home, 'missing') }));
     await waitForLine(
