@@ -76,3 +76,42 @@ plan_progress: complete
   feishu/scheduled-jobs/remote-runner-gateway 服务全程未受影响。后续在本机执行
   `npm run build` 前建议先停 dev 服务或改用独立 dist 目录。
 - 空 capabilities 为上游真实状态；若未来 harness 上报能力，卡片将自动展示，无需再改契约。
+
+## 2026-08-19 增补交付
+
+1. **Runner 工作目录配置**（`7f24286`）：Dashboard 的 Remote Runners 卡片可保存工作目录，
+   在线 runner 通过现有 WebSocket 协议立即接收新目录；离线 runner 在下次连接时取得已保存目录。
+2. **离线 Runner 删除**（`2003a99`）：离线卡片新增原生确认删除；服务端按当前用户所有权和
+   `offline` 状态原子删除。在线 runner 即使在点击期间发生状态竞争也不会被删除。真机已由用户
+   验收删除成功；删除后的 runner 必须重新配对才能再次连接。
+3. **发现与加入房间说明**：Remote Runner 存在于 `RemoteNode`，不是 `/ap agents` 枚举的
+   `Agent`，也不是 `/ap hosts` 枚举的 `RemoteHarnessHost`，所以
+   `desktop-5cn8jha-a825c20c` 不会出现在这两个命令中。可在 Dashboard 的
+   **Remote Runners** 区确认节点名、在线状态、`harnesses` 和工作目录；该节点上报
+   `pi-agent` 后，其房间选择器为：
+
+   ```text
+   remote-node:desktop-5cn8jha-a825c20c:pi-agent
+   ```
+
+   向当前已绑定的飞书 Live Room 添加成员：
+
+   ```text
+   /ap add --agents=remote-node:desktop-5cn8jha-a825c20c:pi-agent
+   ```
+
+   创建新房间时直接指定：
+
+   ```text
+   /ap room --agents=remote-node:desktop-5cn8jha-a825c20c:pi-agent
+   ```
+
+   选择器只有在节点仍已注册且 metadata 中已上报 `pi-agent` 时才能解析；删除节点后需先重新
+   配对并连接。Web/API 目录对普通用户只返回自己拥有的 RemoteNode，管理员可见全部节点。
+
+## 增补验证
+
+- `npm run test:dashboard-visibility`、`npx tsc --noEmit`、目标 ESLint、
+  `npm run check:long-files`、`git diff --check` 通过。
+- 新增 `DELETE /api/remote-nodes` 鉴权规则已直接验证；独立 auth inventory 仍被既有的
+  `GET runner.js/route.ts` 映射缺失阻塞，与本次增补无关。
