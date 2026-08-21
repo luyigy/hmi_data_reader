@@ -183,7 +183,7 @@ def _build_field_meta(fields: dict | None, catalog_fields: dict,
     field_meta = {}
     if not isinstance(fields, dict):
         return field_meta
-    for name in fields:
+    for name, value in fields.items():
         spec = catalog_fields.get(name)
         if not isinstance(spec, dict):
             continue
@@ -206,6 +206,10 @@ def _build_field_meta(fields: dict | None, catalog_fields: dict,
                 # 合并拷贝：不得污染 lru_cache 目录对象（B_AND_R 列序 NZ/#1~#5 与
                 # 目录默认 DEMAG 列序不同，v2.6.0 起按 profile 覆盖）
                 meta["entity"] = {**(spec.get("entity") or {}), **override}
+        if (profile_id == "keba.temperature.dynamic" and isinstance(value, list)
+                and (meta.get("entity") or {}).get("kind") == "barrel_zone"):
+            meta["entity"] = {**meta["entity"],
+                              "columns": [f"温区{i + 1}" for i in range(len(value))]}
         if "physical_semantics" in spec:
             # 拷贝而非引用：pressure_basis 运行时覆盖不得污染 lru_cache 目录对象
             meta["physical_semantics"] = dict(spec["physical_semantics"])

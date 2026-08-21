@@ -90,6 +90,18 @@ class ContractProfileTest(unittest.TestCase):
         self.assertEqual(result["profile_id"], "demag.temperature.screen_order_5")
         self.assertEqual(result["profile_status"], "verified")
 
+    def test_keba_dynamic_zone_labels_follow_recognized_count(self):
+        for count in (5, 6):
+            result = attach_contract({
+                "controller_family": "KEBA",
+                "page_type": "temperature",
+                "fields": {"barrel_temperature_set_c": [220.0] * count},
+            })
+            self.assertEqual(
+                result["field_meta"]["barrel_temperature_set_c"]["entity"]["columns"],
+                [f"温区{i}" for i in range(1, count + 1)],
+            )
+
     def test_fields_not_in_catalog_excluded(self):
         result = attach_contract(_injection_result(
             "multi_stage_injection",
