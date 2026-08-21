@@ -314,7 +314,7 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
     fields = {
         "injection_pressure_bar": cut(inj["pressure"], n_inj, "injection_pressure_bar"),
         "injection_velocity_pct": cut(inj["velocity"], n_inj, "injection_velocity_pct"),
-        "injection_end_position_mm": cut(inj["end_position"], n_inj, "injection_end_position_mm"),
+        "injection_position_mm": cut(inj["end_position"], n_inj, "injection_position_mm"),
         "injection_stages": n_inj or None,
         "injection_time_s": inj_time,
         "holding_switch_mode": switch_mode,

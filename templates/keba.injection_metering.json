@@ -1,9 +1,9 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "ui_family": "KEBA",
   "page": "injection_metering",
-  "source": "2026-08-02：6 份伯乐 Z031 蓝 UI 真值图；2026-08-21：问题包 f0939d14-345c-4bb8-9370-0d4b2b8a7b44、3ecaf759-a157-4dfd-84c0-6c4359af9bea Process expert 白色 UI",
-  "description": "KEBA 屏射出页字段位置模板。兼容蓝色旧布局与 Process expert 白色布局；射胶数组按屏幕从右到左的物理段序输出，白色布局射胶‘终’段的‘到’位置取‘螺杆位置模式’后的 V/P 切换位置。单段保压压力/时间输出标量，多段输出 stage_holding 数组。射出和保压的实际有效段数都取压力或速度非零的最末段，机台显示但压力、速度均为 0 的终段不保留。蓝底实际值与顶部仪表不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "source": "2026-08-02：6 份伯乐 Z031 蓝 UI 真值图；2026-08-21：问题包 f0939d14-345c-4bb8-9370-0d4b2b8a7b44、3ecaf759-a157-4dfd-84c0-6c4359af9bea、a155b964-7083-42f3-af02-4c4b95d0ebbd Process expert 白色 UI",
+  "description": "KEBA 屏射出页字段位置模板。兼容蓝色旧布局与 Process expert 白色布局；射胶数组按屏幕从右到左的物理段序输出，各段位置使用字段目录已有的 injection_position_mm，供页面按第 1 段至第 N 段展示。白色布局射胶‘终’段的‘到’位置取‘螺杆位置模式’后的 V/P 切换位置。单段保压压力/时间输出标量，多段输出 stage_holding 数组。射出和保压的实际有效段数都取压力或速度非零的最末段，机台显示但压力、速度均为 0 的终段不保留。蓝底实际值与顶部仪表不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
   "coordinate_system": "normalized_screen",
   "calibration": {
     "method": "6 张真值图（inj_Z031 rank01-06）rectify 后 PaddleOCR 实测标签与值位；以逐图实测为准",

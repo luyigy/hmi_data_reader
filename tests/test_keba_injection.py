@@ -43,7 +43,7 @@ def test_process_expert_white_layout_extracts_effective_holding_stage():
     assert fields == {
         "injection_pressure_bar": [155, 160, 160, 140],
         "injection_velocity_pct": [50, 92, 80, 40],
-        "injection_end_position_mm": [295, 245, 160, 140],
+        "injection_position_mm": [295, 245, 160, 140],
         "injection_stages": 4,
         "injection_time_s": 2.1,
         "holding_switch_mode": "螺杆位置模式",
