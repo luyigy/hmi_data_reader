@@ -130,7 +130,7 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
     def stage_centers(section, defaults):
         if not white_layout:
             return defaults
-        y_lo, y_hi = ((0.18, 0.35) if section == "injection" else (0.68, 0.82))
+        y_lo, y_hi = ((0.14, 0.35) if section == "injection" else (0.68, 0.82))
         hits = [t for t in toks if y_lo < t["y"] < y_hi
                 and (t["text"] == "终" or re.fullmatch(r"[1-9](?:st|nd|rd|th)", t["text"]))]
         return sorted((t["x"] for t in hits), reverse=True)[:len(defaults)] or defaults
@@ -158,7 +158,8 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
     row_y = {}
     for key, lab in it["row_labels"].items():
         x_lo, x_hi = ((0.2, 0.4) if white_layout else (0, it["row_label_x_max"]))
-        row_y[key] = _row_y(toks, lab, x_lo, x_hi, iy[0], iy[1] + 0.25)
+        y_lo = iy[0] - 0.05 if white_layout else iy[0]
+        row_y[key] = _row_y(toks, lab, x_lo, x_hi, y_lo, iy[1] + 0.25)
     inj = {}
     inj_labels = [row_y[k] for k in ("pressure", "velocity", "end_position")
                   if row_y.get(k) is not None]
@@ -308,6 +309,8 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
             return None
         return got
 
+    hold_pressure = cut(hold["pressure"], n_hold, "holding_pressure_bar")
+    hold_time = cut(hold["time"], n_hold, "holding_time_s")
     fields = {
         "injection_pressure_bar": cut(inj["pressure"], n_inj, "injection_pressure_bar"),
         "injection_velocity_pct": cut(inj["velocity"], n_inj, "injection_velocity_pct"),
@@ -316,9 +319,11 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
         "injection_time_s": inj_time,
         "holding_switch_mode": switch_mode,
         "vp_switch_position_mm": vp_pos,
-        "holding_pressure_bar": cut(hold["pressure"], n_hold, "holding_pressure_bar"),
+        "holding_pressure_bar": hold_pressure[0] if n_hold == 1 and hold_pressure else None,
         "holding_velocity_pct": cut(hold["velocity"], n_hold, "holding_velocity_pct"),
-        "holding_time_s": cut(hold["time"], n_hold, "holding_time_s"),
+        "holding_time_s": hold_time[0] if n_hold == 1 and hold_time else None,
+        "stage_holding_pressure_bar": hold_pressure if n_hold > 1 else None,
+        "stage_holding_time_s": hold_time if n_hold > 1 else None,
         "holding_stages": n_hold or None,
     }
     detail["seg_centers"] = {"injection": inj_centers, "holding": hold_centers}
