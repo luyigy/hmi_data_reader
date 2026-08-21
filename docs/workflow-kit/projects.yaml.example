@@ -1,0 +1,38 @@
+# =====================================================================
+# 平台注册示例：把本条目合并进 agent-platform-v2 的 config/projects.yaml
+# 所有 [CHANGE-ME] 必须替换；本文件不提交到目标业务仓库。
+# 约束：chat_id 全局唯一；path 必须位于平台允许的 workspace roots 内；
+#       path/ref/branch_space 须真实存在（平台启动时会校验）。
+# =====================================================================
+projects:
+  - id: my-repo            # [CHANGE-ME] 项目唯一 id
+    name: My Repo          # [CHANGE-ME] 显示名
+    path: /data1/code/my-repo          # [CHANGE-ME] 服务器上的绝对路径
+    ref: refs/heads/main   # [CHANGE-ME] 监测的完整 Git ref
+    feishu:
+      chat_id: oc_xxx      # [CHANGE-ME] 审批通知会话
+      approver_open_ids:   # [CHANGE-ME] 审批人 open_id 列表
+        - ou_xxx
+    jobs:
+      - id: workflow-watcher
+        type: workflow_watcher
+        schedule: "* * * * *"        # 每分钟；补偿由完成事件即时唤醒承担
+        enabled: true
+        mode: active                # 先 shadow 干跑观察，再切 active
+        config:
+          active_side_effects_enabled: true
+          coding_bot_chat_id: oc_xxx          # [CHANGE-ME] 编码机器人会话（可与上面相同）
+          coding_bot_chat_type: group         # [CHANGE-ME] group 或 p2p
+          coding_bot_app_id: cli_xxx          # [CHANGE-ME] 编码机器人 app id
+          contract_path: docs/workflow/workflow-contract.yaml
+          branch_space: .            # [CHANGE-ME] 文档空间子目录；根空间用 "."
+          initial_cursor_commit: "40位SHA"    # [CHANGE-ME] 接入起点 HEAD（git rev-parse HEAD）
+          workflow_autonomy: semi_auto        # [CHANGE-ME] manual / semi_auto / auto
+          execution_policy:
+            preset: workspace       # [CHANGE-ME] workspace / full_access
+      - id: long-file-detector
+        type: long_file_detector
+        schedule: "*/10 * * * *"
+        enabled: true
+        mode: active
+        config: {}

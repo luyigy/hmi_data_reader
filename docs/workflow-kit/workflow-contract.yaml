@@ -1,0 +1,175 @@
+# =====================================================================
+# 通用工作流合同模板（workflow-kit）
+#  套用时替换所有 [CHANGE-ME] 标注项；字段集合是 agent-platform-v2
+#  validator/watcher 消费的契约面，删除字段前必须核对平台实现。
+# =====================================================================
+schema_version: 2
+contract_version: "2026.08.21.1"  # [CHANGE-ME] 目标仓库自定版本号，建议 YYYY.MM.DD.N
+
+documents:
+  automation_types:
+    - PLAN
+    - HANDOVER
+
+  # [CHANGE-ME] 按仓库需要增删文档类型（例如 DISCUSSION、TODO）
+  allowed_types:
+    - ROADMAP
+    - PLAN
+    - HANDOVER
+    - DECISION
+    - ISSUE
+    - REPORT
+    - FIX
+
+  filename_pattern: "^(?P<number>[0-9]+)_(?P<doc_type>[A-Z]+)_(?P<date>[0-9]{8})_.+\\.md$"
+
+  # 默认宽松：正文任意位置的 S01 样式编号。
+  # [CHANGE-ME] 若要求 Slice 号必须出现在标题行，改用严格版：
+  #   "(?m)^\\s*#{2,4}\\s+\\d+\\.?\\s+(S[0-9]{2,})\\b"
+  slice_pattern: "\\bS[0-9]{2,}\\b"
+
+  statuses:
+    - draft
+    - ready
+    - in_progress
+    - completed
+    - paused
+    - blocked
+    - superseded
+
+  common_required_fields:
+    - doc_type
+    - doc_status
+    - next_action
+
+  # parent 字段采用“无条件必填、phase 时必须为 null”的简单风格：
+  # PLAN frontmatter 永远写出 roadmap/parent_plan/parent_slice/return_to，
+  # phase 时全部填 null，interrupt 时填真实引用。
+  plan:
+    required_fields:
+      - plan_kind
+      - roadmap
+      - parent_plan
+      - parent_slice
+      - return_to
+    kinds:
+      - phase
+      - interrupt
+    executable_actions:
+      - start_first_slice
+    start_action: start_first_slice
+    start_status: ready
+    interrupt_kind: interrupt
+    phase_kind: phase
+    parent_fields:
+      - parent_plan
+      - parent_slice
+      - return_to
+
+  handover:
+    required_fields:
+      - plan
+      - slice
+      - plan_progress
+    progress_values:
+      - in_progress
+      - complete
+    executable_actions:
+      - next_slice
+      - resume_parent
+    next_action: next_slice
+    resume_action: resume_parent
+
+actions:
+  executable:
+    - start_first_slice
+    - next_slice
+    - resume_parent
+
+  terminal:
+    - await_acceptance
+    - blocked
+    - none
+
+# Prompt 标记：正文里这对 HTML 注释之间是投递给下一 Session 的唯一 Prompt。
+prompt:
+  start_marker: "<!-- WORKFLOW_PROMPT_START -->"
+  end_marker: "<!-- WORKFLOW_PROMPT_END -->"
+
+# 模板存在性由 validator 校验；两个文件必须随本合同一起提交。
+templates:
+  plan: docs/workflow/templates/PLAN.md
+  handover: docs/workflow/templates/HANDOVER.md
+
+# balanced：策略规则产生 warning；不写 validation 段时策略规则为 error。
+validation:
+  mode: balanced
+
+# 注意：平台只消费 timeout_seconds。
+# 不要加 marker_template / final_reply_position 等旧协议字段（平台不读取，
+# 会误导 Agent；最终回复 WORKFLOW_READY 约定写在 AGENTS 工作流守则里）。
+completion_gate:
+  timeout_seconds: 1800
+
+numbering:
+  width: 3
+  scope: branch_space
+  unique: true
+  candidate_selection: highest_changed_number
+
+branch_spaces:
+  # [CHANGE-ME] 分支文档空间根目录。历史仓库常用 docs/codex；
+  # 新仓库可用 docs/branches 等任意目录名，需与平台注册的 branch_space 对应。
+  root: docs/codex
+
+  # [CHANGE-ME] 本仓库不建编号目录的分支名（通常是默认分支）。
+  unnumbered_branches:
+    - main
+    - master
+    - dev
+
+  numbered_directory_pattern: "^[0-9]{3}_[a-z0-9][a-z0-9._-]*$"
+
+large_files:
+  # [CHANGE-ME] 按仓库体量调整阈值。
+  warning_lines: 800
+  blocking_lines: 1000
+
+  # [CHANGE-ME] 按技术栈增删扩展名（.kt .swift .m .scala ...）。
+  source_extensions:
+    - .py
+    - .js
+    - .jsx
+    - .ts
+    - .tsx
+    - .vue
+    - .java
+    - .go
+    - .rs
+    - .cs
+    - .php
+    - .rb
+
+  # [CHANGE-ME] 按技术栈补充忽略目录（.next target .turbo ...）。
+  ignored_path_parts:
+    - .git
+    - .codex
+    - node_modules
+    - dist
+    - build
+    - coverage
+    - .venv
+    - venv
+    - __pycache__
+    - generated
+    - vendor
+    - migrations
+
+# [CHANGE-ME] 接入时必填：
+#   cutoff_commit: 接入时刻的 HEAD 完整 SHA（git rev-parse HEAD），
+#                  早于该提交的存量文档豁免校验；
+#                  建议同时在下方注释记录时间，例如：
+#                  # cutoff at 2026-08-21 10:00 +08:00
+legacy:
+  cutoff_commit: null
+  automation_enabled: true
