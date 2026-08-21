@@ -3,7 +3,7 @@
 取值规则（templates/keba.injection_metering.json）：段表列=段（一段在最右），
 列中心按段头（X段，一段常只剩'段'字）实测；行标签锚行 y（射出行 压力/速度/
 终止位置 x<0.12，保压行 压力/速度/时间 0.15<x<0.35）。蓝底「时间」行与顶部
-仪表为实际值不取。有效段：射出=压力或速度非零最末段，保压=时间>0 最末段；
+仪表为实际值不取。有效段：射出/保压均取压力或速度非零最末段；
 数组按段号 1→N（x 降序）。'9.09%' 类粘连按 ^\\d{1,3}\\.\\d 截一位小数。
 返回结构同 extract_families.tact_injection。
 """
@@ -52,6 +52,8 @@ def _row_y(toks, label, x_lo, x_hi, y_lo, y_hi):
 # OCR 形近误识候选（rank02 '压力'->'玉力' 实测）
 LABEL_VARIANTS = {
     "压力": ["压力", "玉力", "カ"],
+    "终止位置": ["终止位置", "到"],
+    "时间": ["时间", "到"],
 }
 
 
@@ -123,14 +125,40 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
     vr = template["value_ranges"]
     band, tol = tb["row_band"], tb["col_tol"]
     detail: dict = {}
+    white_layout = {"1st", "终"}.issubset({t["text"] for t in toks})
+
+    def stage_centers(section, defaults):
+        if not white_layout:
+            return defaults
+        y_lo, y_hi = ((0.18, 0.35) if section == "injection" else (0.68, 0.82))
+        hits = [t for t in toks if y_lo < t["y"] < y_hi
+                and (t["text"] == "终" or re.fullmatch(r"[1-9](?:st|nd|rd|th)", t["text"]))]
+        return sorted((t["x"] for t in hits), reverse=True)[:len(defaults)] or defaults
+
+    def stage_values(cluster, centers, rng, parse):
+        if not white_layout:
+            return _cluster_stage_values(cluster, centers, tol, rng, parse)
+        lo, hi = rng
+        values = [
+            parse(t["text"])
+            for t in sorted(cluster, key=lambda t: t["x"], reverse=True)
+        ]
+        values = [value for value in values if value is not None and lo <= value <= hi]
+        return (values + [None] * len(centers))[:len(centers)]
+
+    value_toks = [t for t in toks
+                  if not re.fullmatch(r"[1-9](?:st|nd|rd|th)", t["text"])]
+    pct_parse = _first_num if white_layout else _pct_num
 
     # ---- 射出 6 段表
     it = tb["injection"]
-    inj_centers = _seg_centers(toks, *it["header_y"], it["default_centers"])
+    inj_centers = stage_centers(
+        "injection", _seg_centers(toks, *it["header_y"], it["default_centers"]))
     iy = it["header_y"]
     row_y = {}
     for key, lab in it["row_labels"].items():
-        row_y[key] = _row_y(toks, lab, 0, it["row_label_x_max"], iy[0], iy[1] + 0.25)
+        x_lo, x_hi = ((0.2, 0.4) if white_layout else (0, it["row_label_x_max"]))
+        row_y[key] = _row_y(toks, lab, x_lo, x_hi, iy[0], iy[1] + 0.25)
     inj = {}
     inj_labels = [row_y[k] for k in ("pressure", "velocity", "end_position")
                   if row_y.get(k) is not None]
@@ -139,9 +167,9 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
         # 蓝底实际时间行标签（'时间'，x<0.12，在终止位置之下）
         actual_time_y = _row_y(toks, "时间", 0, it["row_label_x_max"],
                                row_y["end_position"] + 0.02, row_y["end_position"] + 0.2)
-    vrows = _table_value_rows(toks, inj_labels, exclude_ys=(actual_time_y,)) if len(inj_labels) == 3 else {}
+    vrows = _table_value_rows(value_toks, inj_labels, exclude_ys=(actual_time_y,)) if len(inj_labels) == 3 else {}
     for key, rng, parse in (("pressure", vr["bar"], _first_num),
-                            ("velocity", vr["pct"], _pct_num),
+                            ("velocity", vr["pct"], pct_parse),
                             ("end_position", vr["mm"], _first_num)):
         if row_y.get(key) is None:
             warnings.append(f"ROW_LABEL_MISSING(injection.{key})")
@@ -152,7 +180,7 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
             warnings.append(f"ROW_VALUES_MISSING(injection.{key})")
             inj[key] = None
             continue
-        inj[key] = _cluster_stage_values(cl, inj_centers, tol, rng, parse)
+        inj[key] = stage_values(cl, inj_centers, rng, parse)
     if inj["pressure"] and inj["velocity"]:
         n_inj = 0
         for i in range(len(inj_centers)):
@@ -165,7 +193,8 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
 
     # ---- 保压 5 段表
     ht = tb["holding"]
-    hold_centers = _seg_centers(toks, *ht["header_y"], ht["default_centers"])
+    hold_centers = stage_centers(
+        "holding", _seg_centers(toks, *ht["header_y"], ht["default_centers"]))
     hy = ht["header_y"]
     hx0, hx1 = ht["row_label_x_range"]
     hrow_y = {}
@@ -174,9 +203,9 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
     hold = {}
     hold_labels = [hrow_y[k] for k in ("pressure", "velocity", "time")
                    if hrow_y.get(k) is not None]
-    hvrows = _table_value_rows(toks, hold_labels) if len(hold_labels) == 3 else {}
+    hvrows = _table_value_rows(value_toks, hold_labels) if len(hold_labels) == 3 else {}
     for key, rng, parse in (("pressure", vr["bar"], _first_num),
-                            ("velocity", vr["pct"], _pct_num),
+                            ("velocity", vr["pct"], pct_parse),
                             ("time", vr["s"], _first_num)):
         if hrow_y.get(key) is None:
             warnings.append(f"ROW_LABEL_MISSING(holding.{key})")
@@ -187,14 +216,12 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
             warnings.append(f"ROW_VALUES_MISSING(holding.{key})")
             hold[key] = None
             continue
-        hold[key] = _cluster_stage_values(cl, hold_centers, tol, rng, parse)
-    if hold["time"]:
-        n_hold = 0
-        for i in range(len(hold_centers)):
-            if (hold["time"][i] or 0) > 0:
-                n_hold = i + 1
-    else:
-        n_hold = 0
+        hold[key] = stage_values(cl, hold_centers, rng, parse)
+    n_hold = 0
+    for i in range(len(hold_centers)):
+        if ((hold.get("pressure") or [None] * len(hold_centers))[i] or 0) > 0 \
+                or ((hold.get("velocity") or [None] * len(hold_centers))[i] or 0) > 0:
+            n_hold = i + 1
     if n_hold == 0:
         warnings.append("STAGES_NOT_FOUND(holding)")
 
@@ -217,7 +244,7 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
         warnings.append(f"VALUE_MISSING({name})")
         return None
 
-    inj_time = single_num("injection_time_s", x_min=0.8)
+    inj_time = None if white_layout else single_num("injection_time_s", x_min=0.8)
     vp_pos = None
     for lab in [t for t in toks if t["text"] == sp["vp_switch_position_mm"]["label"]]:
         lo, hi = sp["vp_switch_position_mm"]["range"]
@@ -229,7 +256,7 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
                     break
         if vp_pos is not None:
             break
-    if vp_pos is None:
+    if vp_pos is None and not white_layout:
         warnings.append("VALUE_MISSING(vp_switch_position_mm)")
 
     switch_mode = None
@@ -245,8 +272,32 @@ def extract_injection_keba(toks: list[dict], template: dict) -> dict:
                 break
         if switch_mode:
             break
-    if switch_mode is None:
+    if switch_mode is None and not white_layout:
         warnings.append("VALUE_MISSING(holding_switch_mode)")
+
+    if white_layout:
+        def first_row_value(label):
+            for lab in [t for t in toks if t["text"] == label]:
+                values = sorted(
+                    (t["x"], _first_num(t["text"])) for t in toks
+                    if abs(t["y"] - lab["y"]) <= 0.025 and t["x"] > lab["x"]
+                    and _first_num(t["text"]) is not None
+                )
+                if values:
+                    return values[0][1]
+            return None
+
+        inj_time = first_row_value("射胶时间模式")
+        vp_pos = first_row_value("螺杆位置模式")
+        if inj.get("end_position") and vp_pos is not None:
+            inj["end_position"][-1] = vp_pos
+        if any(t["text"] == "螺杆位置模式" for t in toks):
+            switch_mode = "螺杆位置模式"
+        for name, value in (("injection_time_s", inj_time),
+                            ("vp_switch_position_mm", vp_pos),
+                            ("holding_switch_mode", switch_mode)):
+            if value is None:
+                warnings.append(f"VALUE_MISSING({name})")
 
     def cut(vals, n, name):
         if vals is None or n == 0:

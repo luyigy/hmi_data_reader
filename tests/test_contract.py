@@ -30,7 +30,7 @@ class ContractProfileTest(unittest.TestCase):
         self.assertEqual(result["profile_id"],
                          "demag.injection_metering.multi_stage_injection")
         self.assertEqual(result["profile_status"], "verified")
-        self.assertEqual(result["contract_version"], "2.10.0")
+        self.assertEqual(result["contract_version"], "2.11.0")
 
     def test_stage_velocity_web_target(self):
         result = attach_contract(_injection_result("multi_stage_injection"))
@@ -108,6 +108,29 @@ class ContractProfileTest(unittest.TestCase):
             fields={"stage_velocity_mms": [1.0], "not_in_catalog_xyz": 1}))
         self.assertIn("stage_velocity_mms", result["field_meta"])
         self.assertNotIn("not_in_catalog_xyz", result["field_meta"])
+
+    def test_tact_and_b_and_r_injection_fields_have_presentation_metadata(self):
+        expected = {
+            "fill_velocity_mms": ("各段充填速度", "mm/s"), "fill_stages": ("充填段数", "段"),
+            "switch_position_sv1_mm": ("第 1 段充填切换位置", "mm"), "switch_position_sv2_mm": ("第 2 段充填切换位置", "mm"),
+            "metering_position_sm_mm": ("计量位置", "mm"), "metering_rpm": ("计量转速", "rpm"),
+            "back_pressure_mpa": ("熔胶背压", "MPa"), "holding_pressure_mpa": ("各段保压压力", "MPa"),
+            "holding_stages": ("保压段数", "段"), "holding_limit_speed_mms": ("保压限制速度", "mm/s"),
+            "vp_switch_position_mm": ("V/P 切换位置", "mm"), "pressure_limit_mpa": ("射胶压力上限", "MPa"),
+            "injection_time_s": ("射出时间", "s"), "decompress_velocity_mms": ("减压速度", "mm/s"),
+            "sd_position_mm": ("减压位置", "mm"), "injection_velocity_pct": ("各段射胶速度", "%"),
+            "injection_pressure_bar": ("各段射胶压力", "bar"), "injection_position_mm": ("各段射胶位置", "mm"),
+            "injection_stages": ("射胶段数", "段"), "holding_velocity_pct": ("各段保压速度", "%"),
+            "holding_switch_mode": ("保压切换方式", "-"), "vp_switch_time_s": ("V/P 切换时间", "s"),
+        }
+        result = attach_contract(_injection_result(
+            "unknown", fields={name: None for name in expected}))
+        self.assertEqual(set(result["field_meta"]), set(expected))
+        for name, (label, unit) in expected.items():
+            with self.subTest(name=name):
+                meta = result["field_meta"][name]
+                self.assertEqual((meta["label_zh"], meta["unit"]), (label, unit))
+                self.assertIsNone(meta["web_target"])
 
 
 class ContractConfidenceTest(unittest.TestCase):

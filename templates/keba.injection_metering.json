@@ -1,9 +1,9 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "ui_family": "KEBA",
   "page": "injection_metering",
-  "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z031，KEBA 蓝 UI）OCR 实测锚点",
-  "description": "KEBA 屏射出页字段位置模板。结构：射出 6 段表（行=压力bar/速度%/终止位置mm，列=段，一段在最右）+射出时间单值（段一列下方）+转保压方式（时间/位置|位置|时间 下拉文本）+保压位置mm；保压 5 段表（行=压力/速度/时间，同列序）。蓝底「时间」行（射出表内）与顶部仪表为实际值不入。有效段判定：射出=压力或速度非零的最末段，保压=时间>0 的最末段。取值规则：行标签锚行 y（射出行 x<0.12，保压行 0.15<x<0.35），列按段头（X段）实测 x 中心归列（一段常只剩'段'字，取最右列）；数组按段号 1→N 即 x 降序。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
+  "source": "2026-08-02：6 份伯乐 Z031 蓝 UI 真值图；2026-08-21：问题包 f0939d14-345c-4bb8-9370-0d4b2b8a7b44 Process expert 白色 UI",
+  "description": "KEBA 屏射出页字段位置模板。兼容蓝色旧布局与 Process expert 白色布局；数组均按屏幕从右到左的物理段序输出，白色布局射胶‘终’段的‘到’位置取‘螺杆位置模式’后的 V/P 切换位置。射出和保压的实际有效段数都取压力或速度非零的最末段，机台显示但压力、速度均为 0 的终段不保留。蓝底实际值与顶部仪表不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。",
   "coordinate_system": "normalized_screen",
   "calibration": {
     "method": "6 张真值图（inj_Z031 rank01-06）rectify 后 PaddleOCR 实测标签与值位；以逐图实测为准",
@@ -32,7 +32,7 @@
     "vp_switch_position_mm": {"label": "保压位置", "range": [0, 200],
                               "note": "标签同行右侧（dx<0.3），单位 mm 粘连"}
   },
-  "value_ranges": {"bar": [0, 400], "pct": [0, 100], "mm": [0, 200], "s": [0, 60]},
+  "value_ranges": {"bar": [0, 400], "pct": [0, 100], "mm": [0, 400], "s": [0, 60]},
   "page_detect_anchors": ["转保压方式", "终止位置", "保压位置"],
   "family_detect_groups": [
     ["转保压方式", "终止位置"],

@@ -1,5 +1,5 @@
 {
-  "contract_version": "2.10.0",
+  "contract_version": "2.11.0",
   "description": "HMI 识别输出字段目录 v2.1.0。reader 仓维护的唯一字段事实源；主仓只保存本文件的冻结快照（contracts/hmi-reader/）。每个字段给出值类型、单位、容差、业务语义、物理语义维度与 Web 目标规则。physical_semantics 中 null 表示该维度尚未由真实样本确认，禁止猜测。 v1.0.1：DEMAG 多级注射段数组明确为物理段序输出（025_FIX 错误修正），entity.order=physical_stage。 v2.0.0（026_FIX，领域操作者确认）：DEMAG 多级注射页段表上 row 实为各段射胶速度、下 row 实为各段起点位置（stage_position_mm 语义重定义为 injection_segment/physical_stage，position_meaning=stage_start_position，reference_origin=cushion_zero）；左列三值实为保压压力/保压速度/V-P 切换位置（复用 holding_pressure_bar/holding_velocity_mms/switch_position_mm）；新增右上全局射胶压力上限复用 injection_pressure_limit_bar；删除误标条目 pressure_limit_bar/first_velocity_mms/first_position_mm；multi_stage_injection 不再输出 stage_pressure_bar。 v2.1.0（027，用户批准的 quick fix）：新增 4 条 Web 目标规则 injection_global_pressure_limit/vp_switch_position/holding_single_pressure/injection_segment_start_position，injection_pressure_limit_bar、switch_position_mm、holding_pressure_bar、stage_position_mm 的 web_target 分别指向新规则；识别输出字段与语义不变，属向后兼容 minor。 v2.2.0（035 保压页独立 profile，首份真值 app 反馈 e3ebbba2 领域确认）：multi_stage_holding 语义确认——stage_holding_time_s 的 physical_semantics.time_definition=segment_duration（各段保压时间为每段时长，非累计时刻）；stage_holding_pressure_bar entity.order=physical_stage（段数组按物理段序输出，与注射段一致；屏幕自右向左为第 1 段起，输出边界统一反转）；识别输出字段集合不变，属向后兼容 minor。 v2.3.0：新增 stage_holding_velocity_mms——DEMAG 保压页速度行为分段字段（030_FIX 领域确认），仅 multi_stage_holding profile 输出；单个有效值页面回退 holding_velocity_mms 单值。 v2.4.0（Layer 1 禁用段图像观测）：新增响应顶层可选键 stage_enabled（dict[str, list[bool]]）——DEMAG 段表禁用段以深色背景/深灰框表达、OCR 文字层不可见，现对矫正图采样段表格亮度补足观测（深色=禁用），布尔数组经与数值完全相同的剔除/反转变换，与最终段数组逐位对齐；仅 multi_stage_injection/multi_stage_holding 变体输出，无图像时该键缺省；纯观测标注，不改变任何数值数组的产出语义，属向后兼容 minor。 v2.5.0（保压段映射 + 压力侧别，用户批准）：新增 2 条 Web 目标规则 holding_segment_pressure/holding_segment_time，stage_holding_pressure_bar、stage_holding_time_s 的 web_target 分别指向新规则（stage_holding_velocity_mms 保持 null，草稿保压段无速度目标）；DEMAG 注射/保压变体新增 extraction_detail.pressure_unit_text 压力行标签单位观测（bar_spez=塑料压力），attach_contract 据此对带 physical_semantics.pressure_basis 的字段做运行时覆盖，目录原值不变；识别输出字段集合与既有语义不变，属向后兼容 minor。 v2.5.1：保压字段 page_label_zh 由 射胶页面 改为 保压页面（页面分类错误修正，Web 页面清单纯展示层同步）。 v2.6.0（B_AND_R 温度列语义，用户批准）：料筒温区数组字段新增 entity_overrides——profile b_and_r.temperature.fixed 的列序为 [NZ,#1,#2,#3,#4,#5]（NZ=射嘴区；无 NZ 列的浅色 UI 变体 NZ 位输出 null，此时 #1=射嘴，用户 2026-08-07 裁定），覆盖目录默认的 DEMAG 列序 [喷嘴1,区3,区2,区1]；attach_contract 按 profile_id 合并覆盖 entity，字段集合与数值语义不变，属向后兼容 minor。 v2.7.0（热流道温控箱，用户批准）：新增字段 hot_runner_sv_c——温控箱数码管面板 SV 设定值数组（多排面板按 y 排序拼接，黑屏通道为 null，PV 实时值不入），page_type=hot_runner_temp；新增 Web 目标规则 hot_runner_zone_temperature_set（非 null 通道按序写入 hot_runner_zones，数量须一致）。 v2.7.1（模温机/冷水机面板，042 PLAN S01）：新增字段 mold_temperature_set_c / mold_temperature_current_c——模温机/温度循环控制机/冷水机面板 SV(SET) 设定值与 PV 实际值（标量），page_type=mold_temp；新增 Web 目标规则 mold_zone_temperature_set（设定值只写入用户显式选择的模温目标）；不沿用无目录语义的裸 set_temperature_c。纯新增字段，属向后兼容 minor。 v2.8.0（热流道逐槽位通道观察，057 PLAN S01）：新增响应顶层可选键 hot_runner_channel_observations——与 hot_runner_sv_c 逐位对齐的观察数组（position=图内 1 起物理顺序标识、label=面板通道标签不可读时 null、sv_c=可读设定值或 null、state∈{ok,blackout,unreadable}、confidence 预留 null）；单次识别 1–100 槽位，service 边界校验长度/数值范围/重复 position/非有限数，校验失败降级缺省；纯观测标注，不改动 hot_runner_sv_c 顺序数值视图与任何既有字段语义，属向后兼容 minor。 v2.9.0（083 S06）：新增 b_and_r.temperature.fixed7 entity_overrides（NZ/#1~#6 七列变体，识别输出字段集合与既有 profile 语义不变，属向后兼容 minor）。",
   "web_target_rules": {
     "injection_segment_speed": "按段序写入 parameter_data.injection.segments[*].speed.raw_value；要求草稿段数与识别值数量一致、段序连续、面板与段单位均为 mm/s",
@@ -822,6 +822,94 @@
       },
       "web_target": null,
       "note": "面板 PV 实际值，仅展示与核对，不写入草稿"
+    },
+    "fill_velocity_mms": {
+      "value_type": "list[float]", "unit": "mm/s", "tolerance": 0.5, "label_zh": "各段充填速度", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "injection_segment", "identity": "array_order", "order": "physical_stage"}, "web_target": null
+    },
+    "fill_stages": {
+      "value_type": "int", "unit": "段", "tolerance": 0, "label_zh": "充填段数", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "monitor", "entity": {"kind": "injection", "identity": "stage_count"}, "web_target": null
+    },
+    "switch_position_sv1_mm": {
+      "value_type": "float", "unit": "mm", "tolerance": 0.5, "label_zh": "第 1 段充填切换位置", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "injection_segment", "identity": "sv1"}, "physical_semantics": {"position_meaning": null, "reference_origin": null}, "web_target": null
+    },
+    "switch_position_sv2_mm": {
+      "value_type": "float", "unit": "mm", "tolerance": 0.5, "label_zh": "第 2 段充填切换位置", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "injection_segment", "identity": "sv2"}, "physical_semantics": {"position_meaning": null, "reference_origin": null}, "web_target": null
+    },
+    "metering_position_sm_mm": {
+      "value_type": "float", "unit": "mm", "tolerance": 0.5, "label_zh": "计量位置", "page_label_zh": "熔胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "plasticizing", "identity": "singleton"}, "physical_semantics": {"position_meaning": null, "reference_origin": null}, "web_target": null
+    },
+    "metering_rpm": {
+      "value_type": "float", "unit": "rpm", "tolerance": 0.5, "label_zh": "计量转速", "page_label_zh": "熔胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "plasticizing", "identity": "singleton"}, "web_target": null
+    },
+    "back_pressure_mpa": {
+      "value_type": "float", "unit": "MPa", "tolerance": 0.5, "label_zh": "熔胶背压", "page_label_zh": "熔胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "plasticizing", "identity": "singleton"}, "physical_semantics": {"pressure_basis": null}, "web_target": null
+    },
+    "holding_pressure_mpa": {
+      "value_type": "list[float]", "unit": "MPa", "tolerance": 0.5, "label_zh": "各段保压压力", "page_label_zh": "保压页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "holding_segment", "identity": "array_order", "order": "physical_stage"}, "physical_semantics": {"pressure_basis": null}, "web_target": null
+    },
+    "holding_stages": {
+      "value_type": "int", "unit": "段", "tolerance": 0, "label_zh": "保压段数", "page_label_zh": "保压页面", "source_pages": ["injection_metering"],
+      "role": "monitor", "entity": {"kind": "holding", "identity": "stage_count"}, "web_target": null
+    },
+    "holding_limit_speed_mms": {
+      "value_type": "float", "unit": "mm/s", "tolerance": 0.5, "label_zh": "保压限制速度", "page_label_zh": "保压页面", "source_pages": ["injection_metering"],
+      "role": "limit", "entity": {"kind": "holding", "identity": "singleton"}, "web_target": null
+    },
+    "vp_switch_position_mm": {
+      "value_type": "float", "unit": "mm", "tolerance": 0.5, "label_zh": "V/P 切换位置", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "vp_switch", "identity": "singleton"}, "physical_semantics": {"position_meaning": null, "reference_origin": null}, "web_target": null
+    },
+    "pressure_limit_mpa": {
+      "value_type": "float", "unit": "MPa", "tolerance": 0.5, "label_zh": "射胶压力上限", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "limit", "entity": {"kind": "injection", "identity": "singleton"}, "physical_semantics": {"pressure_basis": null}, "web_target": null
+    },
+    "injection_time_s": {
+      "value_type": "float", "unit": "s", "tolerance": 0.5, "label_zh": "射出时间", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "injection", "identity": "singleton"}, "physical_semantics": {"time_definition": null}, "web_target": null
+    },
+    "decompress_velocity_mms": {
+      "value_type": "float", "unit": "mm/s", "tolerance": 0.5, "label_zh": "减压速度", "page_label_zh": "熔胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "plasticizing", "identity": "singleton"}, "web_target": null
+    },
+    "sd_position_mm": {
+      "value_type": "float", "unit": "mm", "tolerance": 0.5, "label_zh": "减压位置", "page_label_zh": "熔胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "plasticizing", "identity": "singleton"}, "physical_semantics": {"position_meaning": null, "reference_origin": null}, "web_target": null
+    },
+    "injection_velocity_pct": {
+      "value_type": "list[float]", "unit": "%", "tolerance": 0.5, "label_zh": "各段射胶速度", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "injection_segment", "identity": "array_order", "order": "physical_stage"}, "web_target": null
+    },
+    "injection_pressure_bar": {
+      "value_type": "list[float]", "unit": "bar", "tolerance": 0.5, "label_zh": "各段射胶压力", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "injection_segment", "identity": "array_order", "order": "physical_stage"}, "physical_semantics": {"pressure_basis": null}, "web_target": null
+    },
+    "injection_position_mm": {
+      "value_type": "list[float]", "unit": "mm", "tolerance": 0.5, "label_zh": "各段射胶位置", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "injection_segment", "identity": "array_order", "order": "physical_stage"}, "physical_semantics": {"position_meaning": null, "reference_origin": null}, "web_target": null
+    },
+    "injection_stages": {
+      "value_type": "int", "unit": "段", "tolerance": 0, "label_zh": "射胶段数", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "monitor", "entity": {"kind": "injection", "identity": "stage_count"}, "web_target": null
+    },
+    "holding_velocity_pct": {
+      "value_type": "list[float]", "unit": "%", "tolerance": 0.5, "label_zh": "各段保压速度", "page_label_zh": "保压页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "holding_segment", "identity": "array_order", "order": "physical_stage"}, "web_target": null
+    },
+    "holding_switch_mode": {
+      "value_type": "string", "unit": "-", "tolerance": 0, "label_zh": "保压切换方式", "page_label_zh": "保压页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "vp_switch", "identity": "mode"}, "web_target": null
+    },
+    "vp_switch_time_s": {
+      "value_type": "float", "unit": "s", "tolerance": 0.5, "label_zh": "V/P 切换时间", "page_label_zh": "射胶页面", "source_pages": ["injection_metering"],
+      "role": "setpoint", "entity": {"kind": "vp_switch", "identity": "singleton"}, "physical_semantics": {"time_definition": null}, "web_target": null
     }
   }
 }
