@@ -32,6 +32,18 @@ output/s1_calibration_pre_recheck.json
 output/*.json
 output/web_uploads/
 
+# 忽略 output 下的所有日志
+output/**/*.log
+
+# 忽略特定临时目录
+output/hr_debug/
+output/hr_debug2/
+output/holding_*/
+output/s083_direct_fixes/retest*.log
+output/s083_direct_fixes/diff_*.log
+output/s083_direct_fixes/pytest_*.log
+output/s083_direct_fixes/replay_*.log
+
 
 
 
