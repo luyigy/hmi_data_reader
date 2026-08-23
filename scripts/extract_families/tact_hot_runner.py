@@ -454,6 +454,8 @@ def extract_hot_runner_tact(toks: list[dict], template: dict,
     sv = [s["sv"] for s in slots_flat]
     if all(v is None for v in sv):
         warnings.append("SV_ALL_MISSING")
+    elif len(sv) >= 6 and sum(v is not None for v in sv) <= 3:
+        warnings.append(f"CHANNELS_INSUFFICIENT({sum(v is not None for v in sv)}/{len(sv)})")
 
     fields = {"hot_runner_sv_c": sv}
     # 契约 2.8.0 additive：逐槽位通道观察，与 hot_runner_sv_c 逐位对齐，

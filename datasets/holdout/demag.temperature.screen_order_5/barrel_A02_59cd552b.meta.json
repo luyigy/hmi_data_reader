@@ -3,7 +3,7 @@
   "case_id": "barrel_A02_59cd552b",
   "profile_id": "demag.temperature.screen_order_5",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:aac548d34da02b757e56a9ed1727eb16458135525b7594009835e926744ebbad",
   "image_sha256": "sha256:59cd552b3d02aab40a22a52ddc0f156575acc8d0917d397ac441330ef227c700",
   "structure": {

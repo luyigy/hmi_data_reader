@@ -3,7 +3,7 @@
   "case_id": "mt_rear_B03_b7c0e25c",
   "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:1af7a0fe846dde6b069fe8dc9a8a2567847e8aa902d19a5efd36a80dfbc6fd2d",
   "image_sha256": "sha256:b7c0e25c8f02051c37495baf2ec21fa1f56bbb6ec1f01f8613d58eef893631ae",
   "structure": {

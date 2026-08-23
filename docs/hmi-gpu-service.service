@@ -7,7 +7,9 @@ Type=simple
 WorkingDirectory=/data1/code/hmi_data_reader
 Environment=CUDA_VISIBLE_DEVICES=0
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/data1/code/hmi_data_reader/.venv/bin/uvicorn hmi_service:app --host 127.0.0.1 --port 8765 --workers 1
+Environment=HMI_HOST=0.0.0.0
+Environment=HMI_PORT=8765
+ExecStart=/data1/code/hmi_data_reader/scripts/run_service.sh
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=30

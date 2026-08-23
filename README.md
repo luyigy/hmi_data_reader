@@ -116,6 +116,27 @@ python scripts/verify_accuracy.py output/extracted --truth ground_truth/zizes_te
     --output output/accuracy_report.json
 ```
 
+### 单图解释与验收（不重跑 OCR）
+
+当前生产字段提取链仍是 `OCR -> 家族/页面路由 -> 模板/专用提取器 -> warning -> ok/review/reject`；
+VLM 混合链只用于离线实验，尚未替代生产模板。可直接用已有 OCR sidecar 查看某张图实际走了
+哪条路、用了哪个模板、为何禁止自动导入，以及逐字段真值差异：
+
+```bash
+.venv/bin/python scripts/explain_case.py barrel_A11_9835fbea \
+  --rectified-dir output/s083_direct_fixes/rectified \
+  --truth datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_9835fbea.truth.yml \
+  --no-priors
+
+.venv/bin/python scripts/explain_case.py hr_B03_54b7a68e \
+  --rectified-dir output/s075_rf/rectified \
+  --truth datasets/holdout/tact.hot_runner_temp.digital_sv/hr_B03_54b7a68e.truth.yml \
+  --no-priors
+```
+
+`--no-priors` 会关闭机台标签与 record 报告，只验证图片 OCR 内容本身的路由；去掉它就是正常离线提取口径。
+该命令从已有 OCR JSON 开始，不覆盖原图质量门禁、透视矫正和 OCR 模型本身。
+
 ## 关键设计决策
 
 ### 路由基于图片像素，不基于品牌/字段名

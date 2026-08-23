@@ -4,7 +4,7 @@ profile_id: demag.injection_metering.multi_stage_holding
 controller_family: DEMAG
 page_type: injection_metering
 hmi_variant: multi_stage_holding
-allow_auto_import: false
+allow_auto_import: true
 image:
   file: holding_Z002_barspez_65f50de2.jpeg
 fields:

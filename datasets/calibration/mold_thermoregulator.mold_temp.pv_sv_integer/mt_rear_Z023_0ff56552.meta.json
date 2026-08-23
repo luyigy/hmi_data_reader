@@ -3,7 +3,7 @@
   "case_id": "mt_rear_Z023_0ff56552",
   "profile_id": "mold_thermoregulator.mold_temp.pv_sv_integer",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:e16410cf9e2265d3ed19551ef7233aaedad42298605f53f7a0395b5cf58c9989",
   "image_sha256": "sha256:0ff56552c97c6a8da544bfc8b241ccf816ac049babb21badc33f984258ae473f",
   "structure": {

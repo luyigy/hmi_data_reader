@@ -3,7 +3,7 @@
   "case_id": "mt_front_A01_89cda55a",
   "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:932fce0c81f4e4d2c851f525f3b7e427aa1034557c9caf8ad3250bd8ae6fe371",
   "image_sha256": "sha256:89cda55a9aa09cb3fcd88b1f61ad2a37c41d01f8e8aeefb08cb4a6dcf3408a1c",
   "structure": {

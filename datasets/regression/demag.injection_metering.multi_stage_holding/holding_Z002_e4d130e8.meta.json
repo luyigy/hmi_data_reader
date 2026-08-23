@@ -3,14 +3,14 @@
   "case_id": "holding_Z002_e4d130e8",
   "profile_id": "demag.injection_metering.multi_stage_holding",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
-  "truth_hash": "sha256:b3efdfb2e98d7441ca920f652e24620f662c60910c8a83403a5506d811cda522",
+  "contract_version": "2.11.0",
+  "truth_hash": "sha256:16e641e58d96ba1aab982082c8f382d8be84844d3e438be8046c0bb52e3d4d61",
   "image_sha256": "sha256:421dca7e9fd1c4f3d3add9e1d4778b1fddf2f5fcc9ca54733d878aeb603bba23",
   "structure": {
     "controller_family": "DEMAG",
     "page_type": "injection_metering",
     "hmi_variant": "multi_stage_holding",
-    "allow_auto_import": false,
+    "allow_auto_import": true,
     "image": "holding_Z002_e4d130e8.jpeg",
     "n_fields": 3
   },

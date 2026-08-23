@@ -3,7 +3,7 @@
   "case_id": "barrel_B01_f056d349",
   "profile_id": "b_and_r.temperature.fixed",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:17dabe6efb9da7b98d8b4475dcb1d0b772ad5a0f70e16af521e3669437b6641d",
   "image_sha256": "sha256:f056d349ce7472cccd09bdd9561b0eed358ae6485c6c3bb9042d5e51bd0f4bce",
   "structure": {

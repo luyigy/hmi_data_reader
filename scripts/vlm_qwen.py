@@ -88,10 +88,11 @@ def build_text_prompt(evidence: dict, page_fields: dict) -> str:
              ("label_token_ids", "value_token_ids", "text", "order")}
             for row in rows if isinstance(row, dict)
         ],
+        "supplements": evidence.get("supplements") or {},
     }
     safe_catalog = {
-        key: {name: meta.get(name) for name in ("label_zh", "value_type", "unit")}
-        | {"order": (meta.get("entity") or {}).get("order")}
+        key: {name: meta.get(name) for name in
+              ("label_zh", "value_type", "unit", "role", "entity")}
         for key, meta in page_fields.items()
     }
     request = {"evidence": safe_evidence, "catalog_fields": safe_catalog}
@@ -101,6 +102,12 @@ def build_text_prompt(evidence: dict, page_fields: dict) -> str:
         '{"mappings":[{"field":"...","value_token_ids":["t1"],'
         '"screen_order":"screen_left_to_right","active_count":1}],'
         '"unresolved":[],"notes":[]}。\n'
+        "先用页面标题确定工序语义，再按同一行的标签、单位和空间位置映射；"
+        "不得把无标签的实际值、状态值或相邻区域数值猜成设定字段。\n"
+        "多级保压页中：速度[mm/s] 是 holding_velocity_mms，压力[bar] 是 "
+        "stage_holding_pressure_bar，时间[s] 是 stage_holding_time_s；"
+        "屏幕从左到右为反物理段序时必须用 reverse_physical，并用 active_count "
+        "裁掉反转后末尾的禁用槽。\n"
         "数组可用 screen_order=reverse_physical；active_count 仅表示启用段数。\n"
         f"输入：{json.dumps(request, ensure_ascii=False, separators=(',', ':'))}"
     )
@@ -151,13 +158,45 @@ def _parse_mapping_output(resp: dict) -> dict:
 def validate_text_mappings(output: dict, evidence: dict, page_fields: dict) -> dict:
     """校验引用并仅从 OCR token 文本构造业务数值。"""
     tokens = evidence.get("tokens") or {}
+    rows = evidence.get("rows") or []
+    stage_fields = {"stage_holding_velocity_mms", "stage_holding_pressure_bar",
+                    "stage_holding_time_s"}
+    mappings = list(output["mappings"])
+    rate_ids = (evidence.get("supplements") or {}).get("rate_cell") or []
+    if len(rate_ids) == 5 and {"control_percent", "drop_port_control_percent"} <= page_fields.keys():
+        mappings = [mapping for mapping in mappings
+                    if not isinstance(mapping, dict)
+                    or mapping.get("field") not in {"control_percent", "drop_port_control_percent"}]
+        mappings += [
+            {"field": "control_percent", "value_token_ids": rate_ids[:4],
+             "screen_order": "screen_left_to_right", "active_count": 4},
+            {"field": "drop_port_control_percent", "value_token_ids": rate_ids[4:],
+             "screen_order": "screen_left_to_right", "active_count": 1},
+        ]
+    multi_holding = (any("保压" in str(row.get("text", "")) for row in rows)
+                     and any(isinstance(mapping, dict) and mapping.get("field") in stage_fields
+                             for mapping in mappings))
+    stage_count = 0
+    if multi_holding:
+        # ponytail: DEMAG multi-holding derives stages from active pressure/velocity
+        # cells or time transitions; move this to profile metadata when another layout differs.
+        for mapping in mappings:
+            if not isinstance(mapping, dict) or mapping.get("field") not in stage_fields:
+                continue
+            texts = [str(tokens.get(token_id, {}).get("text", ""))
+                     for token_id in mapping.get("value_token_ids", [])]
+            values = [float(match.group()) for text in texts for match in NUMBER_RE.finditer(text)]
+            nonzero = sum(value != 0 for value in values)
+            transitions = 1 if mapping.get("field") == "stage_holding_time_s" else 0
+            stage_count = max(stage_count, nonzero + transitions)
     used: set[str] = set()
     fields: dict = {}
     accepted = []
     allowed_keys = {"field", "value_token_ids", "screen_order", "active_count"}
-    for mapping in output["mappings"]:
+    for mapping in mappings:
         if not isinstance(mapping, dict) or set(mapping) - allowed_keys:
             raise VlmError("mapping 含模型直接数值或其他未允许字段")
+        mapping = dict(mapping)
         field = mapping.get("field")
         token_ids = mapping.get("value_token_ids")
         if field not in page_fields:
@@ -172,11 +211,22 @@ def validate_text_mappings(output: dict, evidence: dict, page_fields: dict) -> d
         if any(token_id not in tokens for token_id in token_ids):
             raise VlmError(f"{field}: 引用了未知 OCR token")
         token_texts = [str(tokens[token_id].get("text", "")) for token_id in token_ids]
-        if any(re.search(r"(?i)(?:\d[oil]\b|[oil]\d)", text) for text in token_texts):
+        if any(re.search(r"(?i)(?:\d[oijl]\b|[oijl]\d)", text) for text in token_texts):
             raise VlmError(f"{field}: OCR token 存在数字字母歧义")
         values = [float(match.group()) for text in token_texts for match in NUMBER_RE.finditer(text)]
         if not values:
             raise VlmError(f"{field}: OCR token 不含可解析数值")
+
+        if multi_holding and field in stage_fields:
+            row_text = " ".join(str(row.get("text", "")) for row in rows
+                                if set(token_ids).issubset(row.get("value_token_ids") or []))
+            anchor = {"stage_holding_velocity_mms": "速度",
+                      "stage_holding_pressure_bar": "压力",
+                      "stage_holding_time_s": "时间"}[field]
+            if anchor not in row_text:
+                raise VlmError(f"{field}: 多级保压业务行锚点缺失")
+            mapping["screen_order"] = "reverse_physical"
+            mapping["active_count"] = stage_count - (field == "stage_holding_time_s")
 
         expect_list = (page_fields[field].get("value_type") or "").startswith("list")
         order = mapping.get("screen_order", "screen_left_to_right")
@@ -201,17 +251,38 @@ def validate_text_mappings(output: dict, evidence: dict, page_fields: dict) -> d
             "unresolved": output.get("unresolved", []), "notes": output.get("notes", [])}
 
 
-def map_text_evidence(evidence: dict, catalog: dict) -> dict:
+def validate_text_mappings_partial(output: dict, evidence: dict,
+                                   page_fields: dict) -> dict:
+    """Keep valid mappings when a sibling mapping is unsafe."""
+    accepted = {"fields": {}, "mappings": []}
+    unresolved = list(output.get("unresolved", []))
+    for mapping in output["mappings"]:
+        try:
+            accepted = validate_text_mappings(
+                {"mappings": accepted["mappings"] + [mapping]}, evidence, page_fields)
+        except VlmError as exc:
+            field = mapping.get("field") if isinstance(mapping, dict) else None
+            unresolved.append({"field": field, "reason": str(exc)})
+    return {**accepted, "unresolved": unresolved, "notes": output.get("notes", [])}
+
+
+def map_text_evidence(evidence: dict, catalog: dict,
+                      field_names: set[str] | None = None) -> dict:
     """离线调用 8003，把当前页 OCR 文本证据映射为可审计字段。"""
     page_type = evidence.get("page_type")
     page_fields = fields_for_page(catalog, page_type)
+    if field_names is not None:
+        page_fields = {key: value for key, value in page_fields.items()
+                       if key in field_names}
     if not page_fields:
-        raise VlmError(f"catalog 中 page_type={page_type!r} 无任何字段")
+        return {"fields": {}, "mappings": [], "unresolved": [], "notes": [],
+                "usage": None, "latency_s": 0, "model": None}
     base_url, model = _text_config()
     prompt = build_text_prompt(evidence, page_fields)
     started = time.monotonic()
     resp = _text_completion(prompt, base_url, model)
-    result = validate_text_mappings(_parse_mapping_output(resp), evidence, page_fields)
+    result = validate_text_mappings_partial(
+        _parse_mapping_output(resp), evidence, page_fields)
     result.update({"usage": resp.get("usage"),
                    "latency_s": round(time.monotonic() - started, 3), "model": model})
     return result
@@ -295,6 +366,7 @@ def _chat_completion(image_b64: str, prompt: str) -> dict:
         ],
         "max_tokens": MAX_TOKENS,
         "temperature": 0,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     req = urllib.request.Request(
         f"{BASE_URL}/chat/completions",
@@ -315,7 +387,12 @@ def _chat_completion(image_b64: str, prompt: str) -> dict:
 
 def _parse_output(resp: dict) -> tuple[dict, list[str]]:
     """从响应中解析 JSON；返回 (fields, parse_notes)。"""
-    content = resp["choices"][0]["message"]["content"]
+    try:
+        content = resp["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise VlmError("VLM 响应结构非法") from exc
+    if not isinstance(content, str):
+        raise VlmError("VLM 响应内容为空")
     notes: list[str] = []
     text = content.strip()
     # 容忍 ```json 包裹

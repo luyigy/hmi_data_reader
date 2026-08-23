@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -22,7 +23,8 @@ from typing import Any
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # 引入 hmi_data_reader scripts 模块
@@ -51,6 +53,26 @@ for k in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy",
     os.environ.pop(k, None)
 
 app = FastAPI(title="HMI GPU Recognition Service", version="1.0.0")
+cors_origins = [origin.strip() for origin in os.getenv("HMI_CORS_ORIGINS", "*").split(",")
+                if origin.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+
+@app.middleware("http")
+async def authenticate_recognition(request: Request, call_next):
+    """Optional shared Bearer token; unset HMI_API_KEY keeps current open behavior."""
+    expected = os.getenv("HMI_API_KEY", "").strip()
+    if expected and request.url.path in ("/api/v1/recognize", "/recognize"):
+        supplied = request.headers.get("authorization", "")
+        if not supplied.startswith("Bearer ") or not hmac.compare_digest(
+                supplied.removeprefix("Bearer ").strip(), expected):
+            return JSONResponse(status_code=401, content={"detail": "Invalid bearer token"})
+    return await call_next(request)
 
 # 全局模型与状态
 ocr_model: Any = None
@@ -423,6 +445,6 @@ async def recognize_image(file: UploadFile = File(...)):
         raise
     except Exception as e:
         logger.error(f"Error processing image recognition request: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Internal recognition error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal recognition error")
     finally:
         concurrency_semaphore.release()

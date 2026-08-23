@@ -3,7 +3,7 @@
   "case_id": "hr_A09_f3b3f06d",
   "profile_id": "hot_system.hot_runner_temp.single_zone",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:f264fbe4681653e180db24ed8c18dc7f6b11505a54b76c738bc98d5b9e99e856",
   "image_sha256": "sha256:f3b3f06d1bdad16474c5318aa6ee866e0d4ad7e53fb8cb30e9456f3e5f2c2316",
   "structure": {

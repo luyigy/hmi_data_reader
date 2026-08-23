@@ -122,6 +122,21 @@ class HotRunnerExtractorContractTest(unittest.TestCase):
         self.assertEqual(result["fields"]["hot_runner_sv_c"],
                          [300.0, 320.0, 300.0, 320.0, 300.0, None])
 
+    def test_mostly_unreadable_channels_warn(self):
+        toks = self.make_tokens()
+        seen = 0
+        partial = []
+        for tok in toks:
+            if tok["text"].startswith("c"):
+                seen += 1
+                if seen > 3:
+                    continue
+            partial.append(tok)
+
+        result = extract_hot_runner_tact(partial, template("tact.hot_runner_temp.json"))
+
+        self.assertIn("CHANNELS_INSUFFICIENT(3/6)", result["warnings"])
+
     def test_field_meta_attached_from_catalog(self):
         result = extract_hot_runner_tact(self.make_tokens(),
                                          template("tact.hot_runner_temp.json"))

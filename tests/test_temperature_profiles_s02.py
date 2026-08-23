@@ -16,6 +16,7 @@ from classify_ui import find_page, find_ui_family
 from contract import attach_contract
 from extract_fields import extract_temperature
 from extract_families.b_and_r import extract_temperature_b_and_r
+from extract_families.est_temperature import extract_temperature_est
 from extract_families.fanuc import extract_temperature_fanuc
 from ocr_variants import _gated_cell_num, generate_demag_rate_sidecar
 
@@ -127,6 +128,43 @@ class FanucTemperatureCellsTest(unittest.TestCase):
                                     "extraction_detail": result["detail"]})
         self.assertEqual(contract["profile_id"], "fanuc.temperature.rightmost5")
         self.assertEqual(contract["profile_status"], "verified")
+
+
+class EstTemperatureGluedSetRowTest(unittest.TestCase):
+    def test_glued_three_digit_setpoints_are_split_by_bbox(self):
+        toks = [token("设定值", 0.05, 0.38),
+                {**token("260255250240230", 0.22, 0.38), "x0": 0.12, "x1": 0.32},
+                token("保温温度", 0.05, 0.56), token("100", 0.19, 0.56)]
+        toks.extend(token(str(value), x, 0.32)
+                    for value, x in zip((262, 252, 248, 239, 223),
+                                        (0.14, 0.18, 0.22, 0.26, 0.30)))
+
+        result = extract_temperature_est(toks, template("est.temperature.json"))
+
+        self.assertEqual(result["fields"]["barrel_temperature_set_c"],
+                         [260.0, 255.0, 250.0, 240.0, 230.0])
+        self.assertEqual(result["fields"]["barrel_temperature_current_c"],
+                         [262.0, 252.0, 248.0, 239.0, 223.0])
+        self.assertIn("SET_ROW_SPLIT(260255250240230)", result["warnings"])
+
+    def test_skewed_real_row_keeps_glued_setpoints_and_ignores_drop_port(self):
+        toks = [token("设定值", 0.054, 0.349),
+                {**token("260255250240230", 0.419, 0.388),
+                 "x0": 0.198, "x1": 0.640},
+                token("0", 0.842, 0.354), token("74", 0.918, 0.361),
+                token("保温温度", 0.05, 0.62), token("100", 0.30, 0.62)]
+        toks.extend(token(str(value), x, y)
+                    for value, x, y in zip((260, 252, 248, 239, 225),
+                                           (0.262, 0.350, 0.423, 0.524, 0.589),
+                                           (0.291, 0.300, 0.308, 0.318, 0.325)))
+
+        result = extract_temperature_est(toks, template("est.temperature.json"))
+
+        self.assertEqual(result["fields"]["barrel_temperature_set_c"],
+                         [260.0, 255.0, 250.0, 240.0, 230.0])
+        self.assertEqual(result["fields"]["barrel_temperature_current_c"],
+                         [260.0, 252.0, 248.0, 239.0, 225.0])
+        self.assertIn("SET_ROW_TRAILING_IGNORED", " ".join(result["warnings"]))
 
 
 class FanucAliasRoutingTest(unittest.TestCase):

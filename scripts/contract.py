@@ -94,6 +94,9 @@ def _template_layout_variant(family: str, page_type: str) -> str | None:
 
 
 def _resolve_layout_variant(result: dict) -> str | None:
+    detail = result.get("extraction_detail")
+    if isinstance(detail, dict) and detail.get("engine") == "spatial-kv+dynamic-grid":
+        return "spatial"
     page_type = result.get("page_type")
     if page_type == "injection_metering":
         detail = result.get("extraction_detail")
@@ -227,15 +230,17 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
 
     family = result.get("controller_family")
     page_type = result.get("page_type")
-    profile_id = None
-    if (isinstance(family, str) and family
+    is_generic = layout_variant == "spatial"
+    profile_id = "generic.spatial" if is_generic else None
+    if (not is_generic and isinstance(family, str) and family
             and isinstance(page_type, str) and page_type
             and layout_variant):
         profile_id = f"{family.lower()}.{page_type}.{layout_variant}"
     result["profile_id"] = profile_id
 
     profile = registry.get(profile_id) if profile_id else None
-    result["profile_status"] = profile["status"] if profile else "unknown"
+    result["profile_status"] = profile["status"] if profile else (
+        "candidate" if is_generic else "unknown")
 
     confidence = _classification_confidence(classification)
     if classification is not None and not confidence:
@@ -255,6 +260,8 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
     if confidence is None:
         confidence = DEFAULT_CONFIDENCE
     if layout_variant is None:
+        confidence = min(confidence, NO_LAYOUT_CONFIDENCE_CAP)
+    elif is_generic:
         confidence = min(confidence, NO_LAYOUT_CONFIDENCE_CAP)
     result["profile_confidence"] = round(confidence, 3)
 

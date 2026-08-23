@@ -3,7 +3,7 @@
   "case_id": "mt_slide_B03_2f1215de",
   "profile_id": "industrial_chiller.mold_temp.lcd_pv_set",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:d8885c5457bbf2aa83a0e1d1a4001899ba045e5a93069b8b25c2410a1e86fd83",
   "image_sha256": "sha256:2f1215de720b99f70b4deb075156aa9a3b9da83a6b508eb00a3566702428ca36",
   "structure": {

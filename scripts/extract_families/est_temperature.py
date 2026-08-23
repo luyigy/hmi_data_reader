@@ -36,8 +36,31 @@ def extract_temperature_est(toks: list[dict], template: dict) -> dict:
     # 按 x 排序取从左起连续段——相邻列距超过 1.8 倍列距中位数即启用段结束
     row = sorted([t for t in toks
                   if (v := _num(t)) is not None and v >= 10
-                  and t["x"] > set_lab["x"] + 0.03 and abs(t["y"] - set_y) <= 0.025],
+                  and t["x"] > set_lab["x"] + 0.03
+                  and (abs(t["y"] - set_y) <= 0.025
+                       or (abs(t["y"] - set_y) <= 0.05
+                           and re.fullmatch(r"\d{9,27}", t["text"].strip())))],
                  key=lambda t: t["x"])
+    expanded = []
+    glued_ranges = []
+    for t in row:
+        text = t["text"].strip()
+        if (re.fullmatch(r"\d{9,27}", text) and len(text) % 3 == 0
+                and all(t_lo <= float(text[i:i + 3]) <= t_hi
+                        for i in range(0, len(text), 3))):
+            chunks = [text[i:i + 3] for i in range(0, len(text), 3)]
+            x0, x1 = t.get("x0", t["x"]), t.get("x1", t["x"])
+            glued_ranges.append((x0, x1))
+            expanded.extend({**t, "text": chunk, "_est_split": True,
+                             "x": x0 + (i + 0.5) * (x1 - x0) / len(chunks)}
+                            for i, chunk in enumerate(chunks))
+            warnings.append(f"SET_ROW_SPLIT({text})")
+        else:
+            expanded.append(t)
+    if glued_ranges:
+        expanded = [t for t in expanded if t.get("_est_split")
+                    or not any(x0 <= t["x"] <= x1 for x0, x1 in glued_ranges)]
+    row = sorted(expanded, key=lambda t: t["x"])
     if len(row) < 3:
         return {"fields": None, "heater_columns": 0,
                 "warnings": warnings + [f"SET_ROW_VALUES_INSUFFICIENT({len(row)})"],
@@ -62,9 +85,10 @@ def extract_temperature_est(toks: list[dict], template: dict) -> dict:
     # 停用段条形图 0 值无设定列可吸附，自动剔除
     cur = []
     cur_toks: dict[int, dict] = {}
+    current_gap = 0.01 if glued_ranges else 0.03
     for t in toks:
         v = _num(t)
-        if v is None or not (set_y - 0.20 < t["y"] < set_y - 0.03):
+        if v is None or not (set_y - 0.20 < t["y"] < set_y - current_gap):
             continue
         d, j = min((abs(t["x"] - cx), i) for i, cx in enumerate(col_x))
         if d > col_tol:

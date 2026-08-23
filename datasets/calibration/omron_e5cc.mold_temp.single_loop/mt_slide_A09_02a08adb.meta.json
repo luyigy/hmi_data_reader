@@ -3,7 +3,7 @@
   "case_id": "mt_slide_A09_02a08adb",
   "profile_id": "omron_e5cc.mold_temp.single_loop",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:dff78ceb2bee3807b88376e3bb4a8503991bf780f1fe6eccd13ceb73506a5365",
   "image_sha256": "sha256:02a08adb60e791a3fc3c744d842770bc4180970ade617f9eb7fc280cf8062adc",
   "structure": {

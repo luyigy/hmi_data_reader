@@ -159,6 +159,13 @@ class FanucCurrentRowGluedTest(unittest.TestCase):
         cur = res["fields"]["barrel_temperature_current_c"]
         self.assertEqual(cur, [289.9, 285.0, 274.9, 269.8])
 
+    def test_missing_h_current_warns(self):
+        toks = _fanuc_token_set("289.9 285.0 274.9 269.8")
+        toks.append(_tok("45.0", 0.68, 0.58))
+        res = extract_temperature_fanuc(toks, self.TPL)
+
+        self.assertIn("DROP_PORT_CURRENT_MISSING", res["warnings"])
+
 
 class FanucSetRowLabelFallbackTest(unittest.TestCase):
     """SET 行密度扫描失败但「设定」标签在 -> SET_ROW_LABEL_FALLBACK，不硬拒。"""

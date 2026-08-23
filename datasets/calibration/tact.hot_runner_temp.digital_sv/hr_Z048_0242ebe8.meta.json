@@ -3,7 +3,7 @@
   "case_id": "hr_Z048_0242ebe8",
   "profile_id": "tact.hot_runner_temp.digital_sv",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:55c70926ef2c2de0df68b10ed78ba54e670328bf5ae1c7d16595581f1322e158",
   "image_sha256": "sha256:0242ebe866796173a7a8f530c7b3d6e128539295ef5013dc8f9b1043a773cc6f",
   "structure": {

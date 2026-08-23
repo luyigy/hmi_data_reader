@@ -3,7 +3,7 @@
   "case_id": "barrel_A09_56323296",
   "profile_id": "fanuc.temperature.rightmost5",
   "profile_layout_version": 1,
-  "contract_version": "2.8.0",
+  "contract_version": "2.11.0",
   "truth_hash": "sha256:21e1ec72137d1ab949310b73d5f932868eeeace206a54b21753a174609b78b57",
   "image_sha256": "sha256:563232963c648d523f6fc7087249d80c8807c5a6ab4c6b64e82211ae7b629d94",
   "structure": {

@@ -274,6 +274,9 @@ def extract_temperature_fanuc(toks: list[dict], template: dict) -> dict:
     low_g = gate(rows["low"], "deviation_range_C", "low")
     ctl_g = gate(ctl5, "control_range_pct", "control")
 
+    if cur_h_g is None and set_g and set_g[4] is not None:
+        warnings.append("DROP_PORT_CURRENT_MISSING")
+
     def col(vals, i):
         return vals[i] if vals else None
 
