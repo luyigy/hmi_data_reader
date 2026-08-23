@@ -45,6 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_ui import find_page, find_ui_family  # noqa: E402
 from contract import attach_contract  # noqa: E402
+from extract_generic import extract_generic  # noqa: E402
 from extract_families.common import _anchor_hits, _fit_slope, norm_cjk  # noqa: E402
 
 TEMPLATES_DIR = Path("templates")
@@ -1150,7 +1151,27 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                 result["page_type"] = page
                 template = alt_tpl
     if template is None:
-        result["warnings"].append(f"NO_TEMPLATE({family},{page})")
+        # Unknown/variant screens are still useful as operator-reviewed drafts. Keep every
+        # known-template path untouched and replace only the former hard reject here.
+        generic_lines = lines
+        if clahe_lines is not None:
+            generic_lines, _ = merge_variant_lines(lines, clahe_lines)
+        ext = extract_generic({**ocr_data, "lines": generic_lines}, meta["screen_size"], page)
+        result["warnings"].append(f"GENERIC_FALLBACK({family},{page})")
+        result["warnings"].extend(ext["warnings"])
+        result["fields"] = ext["fields"]
+        result["heater_columns"] = 0
+        result["extraction_detail"] = ext["detail"]
+        result["provenance"] = {
+            "family_source": family_src,
+            "page_source": page_src,
+            "template": "generic.spatial",
+            "ocr_file": str(ocr_path),
+            "screen_size": meta["screen_size"],
+            "rectify_method": meta.get("method"),
+        }
+        attach_contract(result)
+        result["status"] = "review" if ext["fields"] else "reject"
         return result
 
     ui = template.get("ui_family")
