@@ -347,18 +347,27 @@ async def recognize_image(file: UploadFile = File(...)):
                         logger.warning("temperature cell rescue failed: %s", rescue_error)
                 # 带分类置信度重算契约键（幂等，extract 内已算过一次无分类版本）
                 attach_contract(extract_res, cls_res)
-                return cls_res, extract_res
+                return cls_res, extract_res, {
+                    "model": ocr_data["model"],
+                    "screen_size": rr["screen_size"],
+                    "lines": [{
+                        "text": line["text"],
+                        "confidence": line["conf"],
+                        "bbox": [line["bbox"][key] for key in
+                                 ("x_min", "y_min", "x_max", "y_max")],
+                    } for line in lines],
+                }
 
-            cls_res, extract_res = run_attempt(DEFAULT_MAX_SIZE)
+            cls_res, extract_res, ocr_evidence = run_attempt(DEFAULT_MAX_SIZE)
             if extract_res.get("fields") is None and not any(
                     "NO_TEMPLATE" in w or "RECTIF" in w
                     for w in extract_res.get("warnings", [])):
                 # 083 S01 分辨率救援：提取失败（非路由/模板缺失）时以更高 max_size
                 # 重跑一轮——4K 原图经 2000 长边封顶后小字表格（B&R 灰底温度表等）
                 # 降采样过度整表漏读。仅在救援轮提取出字段时采用，否则保留原拒识。
-                cls2, ext2 = run_attempt(RESCUE_MAX_SIZE)
+                cls2, ext2, evidence2 = run_attempt(RESCUE_MAX_SIZE)
                 if ext2.get("fields") is not None:
-                    cls_res, extract_res = cls2, ext2
+                    cls_res, extract_res, ocr_evidence = cls2, ext2, evidence2
                     extract_res.setdefault("warnings", []).append(
                         f"RESCUE_HI_RES({RESCUE_MAX_SIZE})")
 
@@ -393,6 +402,9 @@ async def recognize_image(file: UploadFile = File(...)):
                 "field_meta": extract_res.get("field_meta", {}),
                 "status": extract_res.get("status"),
                 "warnings": extract_res.get("warnings", []),
+                # OCR evidence is independently useful even when template extraction rejects.
+                # Import safety remains governed by status/profile/contract in the Web layer.
+                "ocr_evidence": ocr_evidence,
             }
             # Layer 1 禁用段图像观测（契约 2.4.0 additive）：无图像观测时缺省不出
             stage_enabled = (extract_res.get("extraction_detail") or {}).get("stage_enabled")
