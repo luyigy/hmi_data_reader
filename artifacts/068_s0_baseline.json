@@ -1,0 +1,484 @@
+{
+  "schema_version": "1.0.0",
+  "plan": "docs/068_PLAN_20260823_OCR主读与VLM语义辅助.md",
+  "slice": "S0",
+  "captured_at": "2026-08-23T07:55:23Z",
+  "git": {
+    "branch": "master",
+    "head": "6e807c61d53c35e1106a34107196b53f18989701",
+    "status": [
+      "## master...origin/master [领先 1]",
+      " M AGENTS.md",
+      " M CLAUDE.md",
+      " M docs/hmi-gpu-service.service",
+      " M hmi_service.py",
+      " M scripts/contract.py",
+      " M scripts/extract_families/est_temperature.py",
+      " M scripts/extract_fields.py",
+      " M tests/test_temperature_profiles_s02.py",
+      "?? .claude/",
+      "?? output/",
+      "?? scripts/extract_generic.py",
+      "?? scripts/run_service.sh",
+      "?? scripts/vlm_eval.py",
+      "?? scripts/vlm_qwen.py",
+      "?? tests/test_generic_extraction.py"
+    ],
+    "directed_tracked_diff_sha256": {
+      "AGENTS.md": "b9c9e5454a1a337bebbddd5d253800052412de037570e03364042661c5aed1ab",
+      "CLAUDE.md": "6273f98f371b5328cff38e7e58f297f135e604b6f5d4a52c893888fb58beff07",
+      "docs/hmi-gpu-service.service": "f9abfe784f9dbc19a6113c92e291f2a537a426253f1d32a450d769a7f3400b41",
+      "hmi_service.py": "d99d3e44b7840376ed11caf873285eb62ea475c4a74ea94442b9caad97820fa6",
+      "scripts/contract.py": "5bdf372d61b4f56ea33c1aa5888c2a761c526d1201b3e107fe1c55ea6ecc18d7",
+      "scripts/extract_families/est_temperature.py": "675a0a00cad33a8e3c01588944bace60647e1011ddfdbabcb11cee3412c2b0c5",
+      "scripts/extract_fields.py": "9514c8cf57e185635b0583551c82f535e0c12f1685d0eaf08c5a18504e91ea54",
+      "tests/test_temperature_profiles_s02.py": "802f912d1381c4669a66b8fbc9b8976c7aeb80e71eef4ff3a861b83bad771a7d"
+    },
+    "directed_tracked_diff_combined_sha256": "b5456404aea03eaeb140aec2eb36078f3968840c08ac906037968bbd90cacfa2",
+    "directed_untracked_file_sha256": {
+      "scripts/extract_generic.py": "acb1f2f5b0e94720edab3457689d57e6cd66fbe3a12814049dfcb528677d82fe",
+      "scripts/run_service.sh": "68ba2c50234c857818d99900a69d4a850483698b40d8e142e69e6e8d86bfefcd",
+      "scripts/vlm_eval.py": "47dafec26fc71619fd557a84d9420f52175cabc490841b3228c8148195c3e880",
+      "scripts/vlm_qwen.py": "e7535b5dd418c4f99d106122182433065e7a1780d2239e8f4be53b2712d57d6b",
+      "tests/test_generic_extraction.py": "d031f594f69179f2f99b002cd6e37c8ede2df97c9ca15136b9769966efb0d5f7"
+    }
+  },
+  "environment": {
+    "platform": "Linux-6.8.0-87-generic-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "python_full": [
+      "main",
+      "Jun 22 2026 18:55:27"
+    ],
+    "pip_freeze_sha256": "11add3ff74305d74bc742dc642867d6102e1256a074232cd313fd393aad374f6",
+    "packages": {
+      "pytest": "9.1.1",
+      "paddleocr": "2.7.3",
+      "paddlepaddle": null,
+      "opencv-python": "4.6.0.66",
+      "fastapi": "0.141.1",
+      "numpy": "1.26.4",
+      "PyYAML": "6.0.3"
+    },
+    "gpu": "NVIDIA-SMI unavailable: could not communicate with NVIDIA driver"
+  },
+  "samples": {
+    "source": "datasets/release_manifest.json",
+    "source_sha256": "7fe44cf41a40f7250b978dbb2950c4ca347e56b46d9edf0e4f516494d4654d7b",
+    "manifest_contract_version": "2.8.0",
+    "current_catalog_contract_version": "2.11.0",
+    "totals": {
+      "calibration": 62,
+      "holdout": 46,
+      "regression": 3
+    },
+    "paired_images": 111,
+    "missing_images": [],
+    "inventory": [
+      {
+        "partition": "calibration",
+        "family": "B_AND_R",
+        "page_type": "temperature",
+        "truth_kind": "positive",
+        "count": 3
+      },
+      {
+        "partition": "calibration",
+        "family": "DEMAG",
+        "page_type": "injection_metering",
+        "truth_kind": "positive",
+        "count": 4
+      },
+      {
+        "partition": "calibration",
+        "family": "DEMAG",
+        "page_type": "injection_metering",
+        "truth_kind": "reject",
+        "count": 5
+      },
+      {
+        "partition": "calibration",
+        "family": "DEMAG",
+        "page_type": "temperature",
+        "truth_kind": "positive",
+        "count": 2
+      },
+      {
+        "partition": "calibration",
+        "family": "FANUC",
+        "page_type": "temperature",
+        "truth_kind": "positive",
+        "count": 2
+      },
+      {
+        "partition": "calibration",
+        "family": "HANGRUI",
+        "page_type": "mold_temp",
+        "truth_kind": "reject",
+        "count": 1
+      },
+      {
+        "partition": "calibration",
+        "family": "HOT_SYSTEM",
+        "page_type": "hot_runner_temp",
+        "truth_kind": "reject",
+        "count": 3
+      },
+      {
+        "partition": "calibration",
+        "family": "INDUSTRIAL_CHILLER",
+        "page_type": "mold_temp",
+        "truth_kind": "reject",
+        "count": 3
+      },
+      {
+        "partition": "calibration",
+        "family": "MOLD_THERMOREGULATOR",
+        "page_type": "mold_temp",
+        "truth_kind": "positive",
+        "count": 16
+      },
+      {
+        "partition": "calibration",
+        "family": "MOLD_THERMOREGULATOR",
+        "page_type": "mold_temp",
+        "truth_kind": "reject",
+        "count": 1
+      },
+      {
+        "partition": "calibration",
+        "family": "OMRON_E5CC",
+        "page_type": "mold_temp",
+        "truth_kind": "positive",
+        "count": 9
+      },
+      {
+        "partition": "calibration",
+        "family": "TACT",
+        "page_type": "hot_runner_temp",
+        "truth_kind": "positive",
+        "count": 11
+      },
+      {
+        "partition": "calibration",
+        "family": "unknown",
+        "page_type": "mold_temp",
+        "truth_kind": "reject",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "ARBURG",
+        "page_type": "temperature",
+        "truth_kind": "reject",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "DEMAG",
+        "page_type": "temperature",
+        "truth_kind": "positive",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "FANUC",
+        "page_type": "temperature",
+        "truth_kind": "positive",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "INDUSTRIAL_CHILLER",
+        "page_type": "mold_temp",
+        "truth_kind": "reject",
+        "count": 5
+      },
+      {
+        "partition": "holdout",
+        "family": "KEBA",
+        "page_type": "temperature",
+        "truth_kind": "reject",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "MOLD_THERMOREGULATOR",
+        "page_type": "mold_temp",
+        "truth_kind": "positive",
+        "count": 10
+      },
+      {
+        "partition": "holdout",
+        "family": "OMRON_E5CC",
+        "page_type": "mold_temp",
+        "truth_kind": "positive",
+        "count": 8
+      },
+      {
+        "partition": "holdout",
+        "family": "TACT",
+        "page_type": "hot_runner_temp",
+        "truth_kind": "positive",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "TACT",
+        "page_type": "temperature",
+        "truth_kind": "reject",
+        "count": 4
+      },
+      {
+        "partition": "holdout",
+        "family": "TRD6",
+        "page_type": "temperature",
+        "truth_kind": "reject",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "ZizES",
+        "page_type": "temperature",
+        "truth_kind": "reject",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "unknown",
+        "page_type": "hot_runner_temp",
+        "truth_kind": "reject",
+        "count": 2
+      },
+      {
+        "partition": "holdout",
+        "family": "unknown",
+        "page_type": "mold_temp",
+        "truth_kind": "reject",
+        "count": 3
+      },
+      {
+        "partition": "regression",
+        "family": "DEMAG",
+        "page_type": "injection_metering",
+        "truth_kind": "reject",
+        "count": 2
+      },
+      {
+        "partition": "regression",
+        "family": "OMRON_E5CC",
+        "page_type": "mold_temp",
+        "truth_kind": "reject",
+        "count": 1
+      }
+    ],
+    "replay_selection_rule": "manifest case has an existing output/**/<case_id>.rectify.json and matching OCR sidecar; missing sidecar cases are excluded from replay metrics",
+    "replay_cases": [
+      "barrel_A02_b24ff33d",
+      "barrel_A02_e54f3633",
+      "barrel_A11_3ce4cae5",
+      "barrel_A11_9835fbea",
+      "barrel_B07_159bb588",
+      "barrel_B07_a3140d29",
+      "holding_Z002_ab30f6f6",
+      "holding_Z002_barspez_65f50de2",
+      "holding_Z002_photo_1784721642626",
+      "holding_Z005_06b7efe8",
+      "holding_Z005_2e22f85a",
+      "holding_Z005_cac666e7",
+      "holding_Z005_db2cf983",
+      "holding_Z005_e3bde860",
+      "holding_Z005_f29c52c4",
+      "hr_A06_01c1a438",
+      "hr_A06_458f23df",
+      "hr_A06_4b52c362",
+      "hr_A09_5114279d",
+      "hr_A09_aca9d8c5",
+      "hr_A09_f3b3f06d",
+      "mt_front_A02_0e857c55",
+      "mt_front_A02_15d33262",
+      "mt_front_A02_d8b6f05a",
+      "mt_front_A04_f69799e9",
+      "mt_front_A06_b09bc5b1",
+      "mt_front_A09_5fe352e2",
+      "mt_front_A09_e64fe222",
+      "mt_front_A11_82258780",
+      "mt_front_B07_657ff3dd",
+      "mt_front_B07_7d0896ce",
+      "mt_front_B07_f9456f86",
+      "mt_front_Z002_03f69c58",
+      "mt_front_Z015_0f555f22",
+      "mt_front_Z023_5a45acaa",
+      "mt_front_Z036_80ad7d4c",
+      "mt_rear_A02_a9c2dee3",
+      "mt_rear_A02_f384426f",
+      "mt_rear_A04_051f4f39",
+      "mt_rear_A04_c3272b43",
+      "mt_rear_A11_10af110c",
+      "mt_rear_B02_95685b65",
+      "mt_rear_B07_83558101",
+      "mt_rear_B07_fd01ca17",
+      "mt_rear_Z002_147e73a9",
+      "mt_rear_Z015_7c614b3d",
+      "mt_slide_A09_02a08adb",
+      "mt_slide_B03_2f1215de",
+      "mt_slide_B03_527d7e25",
+      "mt_slide_B03_7061d0f3",
+      "mt_slide_B05_1ec3c1ab",
+      "mt_slide_B12_af783ea3",
+      "barrel_A01_3bd6585d",
+      "barrel_A01_9da8a3a9",
+      "barrel_A02_59cd552b",
+      "barrel_A06_169be854",
+      "barrel_A06_956c1cdb",
+      "barrel_A07_5a80a90e",
+      "barrel_A09_9aae0b4a",
+      "barrel_B02_42b0649f",
+      "barrel_B09_74baa34d",
+      "barrel_B09_8741e7e2",
+      "barrel_B10_ad86e701",
+      "hr_A01_95011b1b",
+      "hr_B03_54b7a68e",
+      "hr_B03_cbc3a592",
+      "mt_front_A01_89cda55a",
+      "mt_front_A01_a93a1380",
+      "mt_front_A06_33004d1b",
+      "mt_front_A07_6c3e3983",
+      "mt_front_A07_ed84c514",
+      "mt_front_B01_a12bcc5c",
+      "mt_front_B03_ec84a740",
+      "mt_front_B09_9d592e00",
+      "mt_front_B09_ea486c69",
+      "mt_front_Z002_19a55ac8",
+      "mt_front_Z015_727d2a37",
+      "mt_rear_A01_b358413f",
+      "mt_rear_A06_1f7505fb",
+      "mt_rear_A09_1e26fd11",
+      "mt_rear_B01_4693f9af",
+      "mt_rear_B02_9a6703e1",
+      "mt_rear_B07_2ad661e6",
+      "mt_rear_B09_1bb042d4",
+      "mt_rear_B10_1b8f30c8",
+      "mt_slide_B03_1cda0b75",
+      "holding_Z002_1785755259328",
+      "holding_Z002_e4d130e8",
+      "mt_front_A04_cad69193"
+    ],
+    "replay_cases_count": 89,
+    "not_replayed_no_sidecar": 22,
+    "replay_input_sha256": "e832daa469bbb7e07be47664e6406b3be6484e420019fc873f6458dd0ae16925"
+  },
+  "tests": {
+    "targeted": {
+      "command": ".venv/bin/python -m pytest -q tests/test_generic_extraction.py tests/test_contract.py tests/test_profile_lifecycle.py tests/test_temperature_barrel_s02.py tests/test_temperature_hot_runner_s03.py tests/test_temperature_profiles_s02.py tests/test_mold_temp_s04.py tests/test_keba_injection.py tests/test_demag_injection.py",
+      "result": "PASS",
+      "passed": 116,
+      "subtests_passed": 22,
+      "warnings": 2,
+      "elapsed_s": 1.03,
+      "log_sha256": "5bc1d9c89489408d55106bd29dcbae9793bfc93cd600e2830791d3df8e09c090"
+    },
+    "full": {
+      "command": ".venv/bin/python -m pytest -q tests",
+      "result": "PASS",
+      "passed": 190,
+      "subtests_passed": 27,
+      "warnings": 2,
+      "elapsed_s": 1.82,
+      "log_sha256": "8ad751805678199b40a5f287344027954a91ca9ddfe24af559ce1cc9cca92756"
+    },
+    "existing_warning": "FastAPI on_event deprecation at hmi_service.py:112 and framework registration path; no S0 code changes."
+  },
+  "dataset_contract_check": {
+    "command": ".venv/bin/python scripts/datasets.py check",
+    "result": "FAIL",
+    "errors": 111,
+    "failure": "all dataset meta files record contract_version 2.8.0 while current field catalog is 2.11.0",
+    "existing_failure": true,
+    "log_sha256": "9be7632b545eb0b4cb608f95f25b913ef57672dac0f3c2d5f1f3580ce1d9ba5d"
+  },
+  "replays": {
+    "template_chain": {
+      "command": "extract_one for 89 selected sidecars, then verify_accuracy.py in contract mode",
+      "status": {
+        "ok": 37,
+        "review": 12,
+        "reject": 40
+      },
+      "routes": {
+        "demag.temperature.json v0.1.2": 4,
+        "fanuc.temperature.json v0.1.0": 3,
+        "b_and_r.temperature.json v0.2.1": 2,
+        "demag.injection_metering.json v0.1.0": 10,
+        "generic.spatial": 25,
+        "tact.hot_runner_temp.json v0.2.0": 6,
+        "mold_thermoregulator.mold_temp.json v0.2.0": 20,
+        "omron_e5cc.mold_temp.json v0.1.0": 14,
+        "keba.temperature.json v0.1.0": 2,
+        "trd6.temperature.json v0.1.0": 1,
+        "tact.temperature.json v0.1.1": 2
+      },
+      "latency_ms": {
+        "p50": 2.028,
+        "p95": 39.079,
+        "max": 57.228
+      },
+      "verify_metrics": {
+        "controller_classification_accuracy": 0.7416,
+        "page_classification_accuracy": 0.7528,
+        "field_completeness": 0.8346,
+        "numeric_accuracy": 0.827,
+        "auto_import_ratio": 0.4157,
+        "error_auto_import_rate": 0.0291,
+        "rejection_accuracy": 0.8387
+      },
+      "verify_gates": {
+        "numeric_accuracy >= 0.95": false,
+        "error_auto_import_rate == 0": false,
+        "rejection_accuracy == 1": false
+      },
+      "lifecycle_eligible": false,
+      "existing_failure": true,
+      "report_sha256": "0070eb26e34bdf13f6eff710dc78b20de6fe0cff8246bf0ff217f6064b3429a3"
+    },
+    "generic_draft": {
+      "command": "extract_generic for same 89 OCR sidecars, then verify_accuracy.py in contract mode",
+      "status": {
+        "review": 18,
+        "reject": 71
+      },
+      "latency_ms": {
+        "p50": 0.728,
+        "p95": 8.055,
+        "max": 19.155
+      },
+      "verify_metrics": {
+        "controller_classification_accuracy": 0.7416,
+        "page_classification_accuracy": 0.7528,
+        "field_completeness": 0.1299,
+        "numeric_accuracy": 0.0311,
+        "auto_import_ratio": 0.0,
+        "error_auto_import_rate": null,
+        "rejection_accuracy": 1.0
+      },
+      "verify_gates": {
+        "numeric_accuracy >= 0.95": false,
+        "error_auto_import_rate == 0": false,
+        "rejection_accuracy == 1": true
+      },
+      "lifecycle_eligible": false,
+      "existing_failure": true,
+      "report_sha256": "6281304560b3fc36d9f24669655660804d06f23659c51f9883735584383bf6aa"
+    }
+  },
+  "classification": {
+    "s0_code_changes": 0,
+    "s0_test_failures": 0,
+    "existing_test_failures": 0,
+    "existing_dataset_contract_failures": 111,
+    "stop_condition": "dataset contract baseline invalid; S1 must not start until meta/manifest are reconciled with catalog 2.11.0",
+    "accessed_port_8000": false,
+    "accessed_port_8000_or_8003": false,
+    "service_restart": false
+  }
+}
