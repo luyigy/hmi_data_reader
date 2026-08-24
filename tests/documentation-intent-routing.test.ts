@@ -13,7 +13,7 @@ assert.deepEqual(
     resolvedTargetMemberId: 'mentioned',
     members,
   }),
-  { specialist: members[1], targetMemberId: 'documenter' },
+  { specialist: null, targetMemberId: 'mentioned' },
 );
 
 assert.equal(resolveDocumentationTarget({

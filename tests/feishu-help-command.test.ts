@@ -162,7 +162,9 @@ const permissionCard = buildFeishuRoomControlCard(
   'permission',
   roomControlMembers,
   '/workspace/hmi',
+  'Full Access',
 );
+assert.match(JSON.stringify(permissionCard), /当前房间权限：Full Access/);
 assert.match(JSON.stringify(permissionCard), /全部 Agent/);
 assert.match(JSON.stringify(permissionCard), /Safe Local/);
 assert.match(JSON.stringify(permissionCard), /submitRoomRestriction_group/);

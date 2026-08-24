@@ -18,11 +18,9 @@ import {
   resolveLiveRoomMessageMetadata,
   serializeLiveRoomMembersWithContext,
 } from '@/lib/live-room';
-import {
-  formatPermissionProfileLabel,
-  parseNewSessionProfile,
-} from '@/lib/feishu-new-session';
+import { parseNewSessionProfile } from '@/lib/feishu-new-session';
 import { buildAcpxPermissionConfigForProfile } from '@/lib/acpx/permissions';
+import { formatLiveRoomPermissionLabel } from '@/lib/live-room-permissions';
 import {
   DEFAULT_LIVE_ROOM_HANDOFF_LIMIT,
   MAX_LIVE_ROOM_HANDOFF_LIMIT,
@@ -190,12 +188,23 @@ export async function handleNickCommand(command: ParsedFeishuCommand, context?: 
     target.backend
   );
 
-  const updated = await prisma.liveRoomMember.update({
-    where: { id: target.id },
-    data: {
-      userNickname: nickname,
-      shortAlias,
-    },
+  const conflictingMemberIds = members
+    .filter((member) => member.id !== target.id && member.userNickname?.toLowerCase() === nickname.toLowerCase())
+    .map((member) => member.id);
+  const updated = await prisma.$transaction(async (tx) => {
+    if (conflictingMemberIds.length > 0) {
+      await tx.liveRoomMember.updateMany({
+        where: { id: { in: conflictingMemberIds }, roomId },
+        data: { userNickname: null },
+      });
+    }
+    return tx.liveRoomMember.update({
+      where: { id: target.id },
+      data: {
+        userNickname: nickname,
+        shortAlias,
+      },
+    });
   });
 
   return `✅ 已将 ${target.displayName} 重命名为 ${updated.userNickname}。\n后续可直接使用 $${updated.userNickname} 进行 mention。`;
@@ -542,7 +551,7 @@ export async function handleRoomCommand(
         workingDirectory: true,
         handoffLimit: true,
         executionTimeoutMs: true,
-        sourceTask: { select: { workingDirectory: true } },
+        sourceTask: { select: { workingDirectory: true, acpxPermissionConfig: true } },
       },
     }),
     prisma.feishuUserAccess.findUnique({
@@ -558,7 +567,7 @@ export async function handleRoomCommand(
     `授权根目录：${access?.workspaceRoot || '管理员不受用户根目录限制'}`,
     `实际 workdir：${room?.workingDirectory || room?.sourceTask?.workingDirectory || process.cwd()}`,
     `新增成员数：${result.addedAgentCount}`,
-    `权限：${permissionConfig ? formatPermissionProfileLabel(permissionConfig.profile) : 'Safe Local（默认）'}`,
+    `权限：${formatLiveRoomPermissionLabel(room?.sourceTask?.acpxPermissionConfig)}`,
     `模式：${result.roomMode}`,
     `Handoff limit：${room?.handoffLimit ?? DEFAULT_LIVE_ROOM_HANDOFF_LIMIT}`,
     `执行超时：${formatLiveRoomExecutionTimeoutMinutes(room?.executionTimeoutMs ?? null)}`,

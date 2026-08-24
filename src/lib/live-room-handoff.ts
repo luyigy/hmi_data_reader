@@ -11,6 +11,9 @@ const HANDOFF_PREFIX = `(^|${MENTION_BOUNDARY})`;
 type HandoffMember = {
   id: string;
   displayName: string;
+  joinStatus?: string;
+  presenceStatus?: string;
+  canReply?: boolean;
   userNickname?: string | null;
   shortAlias?: string | null;
   agentNameSnapshot?: string | null;
@@ -53,7 +56,12 @@ export const detectLiveRoomHandoffIntent = ({
 
   const matches = new Map<number, { memberId: string; aliasLength: number }>();
   for (const member of members) {
-    if (member.id === senderMemberId) continue;
+    if (
+      member.id === senderMemberId
+      || (member.joinStatus !== undefined && member.joinStatus !== 'joined')
+      || member.canReply === false
+      || member.presenceStatus === 'offline'
+    ) continue;
     for (const alias of getMentionAliases(member as LiveRoomMemberWithAgent)) {
       const trimmed = alias.trim();
       if (!trimmed) continue;
@@ -76,7 +84,7 @@ export const detectLiveRoomHandoffIntent = ({
     .filter((match): match is { memberId: string; aliasLength: number } => Boolean(match));
   if (resolvedMatches.length === 0) return { kind: 'none' };
 
-  if (resolvedMatches.length > 1) {
+  if (new Set(resolvedMatches.map((match) => match.memberId)).size > 1) {
     return { kind: 'invalid', reason: 'multiple_targets' };
   }
   return { kind: 'target', targetMemberId: resolvedMatches[0].memberId };

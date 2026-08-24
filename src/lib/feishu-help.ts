@@ -388,6 +388,7 @@ export const buildFeishuRoomControlCard = (
   view: FeishuRoomControlView,
   members: FeishuRoomControlMember[],
   workspace: string,
+  currentPermission?: string,
 ) => {
   const memberOptions = members.map((member) => ({
     text: { tag: 'plain_text', content: member.userNickname || member.displayName },
@@ -402,7 +403,7 @@ export const buildFeishuRoomControlCard = (
       {
         tag: 'markdown',
         content: permission
-          ? `**房间工作区**\n\`${workspace || '未配置'}\`\n仅提供工作区受限档位；Full Access 请使用“权限申请”。不支持真实隔离的 Agent 会使本次操作整体拒绝。`
+          ? `**当前房间权限：${currentPermission || 'Safe Local'}**\n**房间工作区**\n\`${workspace || '未配置'}\`\n仅提供工作区受限档位；Full Access 请使用“权限申请”。不支持真实隔离的 Agent 会使本次操作整体拒绝。`
           : specialty
             ? '**选择一个 Agent 和它在当前房间中的专项职责。**'
             : '**选择一个 Agent 和它在当前房间中的角色。**',

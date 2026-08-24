@@ -183,9 +183,11 @@ async function agentsContractTests(): Promise<void> {
 async function remoteNodesContractTests(): Promise<void> {
   const db = prisma as unknown as Record<string, { [method: string]: (...args: never[]) => Promise<unknown> }>;
   const originals = {
+    transaction: (prisma as any).$transaction,
     findMany: db.remoteNode.findMany,
     findFirst: db.remoteNode.findFirst,
     deleteMany: db.remoteNode.deleteMany,
+    memberUpdateMany: db.liveRoomMember.updateMany,
     userFindUnique: db.user.findUnique,
   };
   const originalFetch = globalThis.fetch;
@@ -292,10 +294,16 @@ async function remoteNodesContractTests(): Promise<void> {
     assert.equal(unauthenticatedUpdate.status, 401);
 
     const capturedDeletes: unknown[] = [];
+    const capturedMemberUpdates: Array<{ where?: unknown; data?: unknown }> = [];
     db.remoteNode.deleteMany = (async (args: { where?: unknown }) => {
       capturedDeletes.push(args.where);
       return { count: 1 };
     }) as never;
+    db.liveRoomMember.updateMany = (async (args: { where?: unknown; data?: unknown }) => {
+      capturedMemberUpdates.push(args);
+      return { count: 1 };
+    }) as never;
+    (prisma as any).$transaction = async (callback: (tx: unknown) => Promise<unknown>) => callback(prisma);
     const deleted = await deleteRemoteNode(request(
       'http://localhost/api/remote-nodes',
       `ap_auth_token=${userToken}`,
@@ -306,10 +314,19 @@ async function remoteNodesContractTests(): Promise<void> {
     assert.deepEqual(capturedDeletes.at(-1), {
       id: 'node-2', status: 'offline', ownerUserId: 'user-1',
     }, 'runner deletion is atomic, offline-only, and owner-scoped');
+    assert.deepEqual(capturedMemberUpdates.at(-1), {
+      where: {
+        backend: 'remote_ssh',
+        roleLabel: { contains: '__remote_host__:remote-node:ww-ce250bc4' },
+      },
+      data: { joinStatus: 'removed', canReply: false, presenceStatus: 'offline' },
+    }, 'runner deletion preserves history but removes matching room members from routing');
   } finally {
+    (prisma as any).$transaction = originals.transaction;
     db.remoteNode.findMany = originals.findMany;
     db.remoteNode.findFirst = originals.findFirst;
     db.remoteNode.deleteMany = originals.deleteMany;
+    db.liveRoomMember.updateMany = originals.memberUpdateMany;
     db.user.findUnique = originals.userFindUnique;
     globalThis.fetch = originalFetch;
   }

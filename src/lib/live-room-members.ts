@@ -167,6 +167,17 @@ export async function addCatalogAgentsToLiveRoom(roomId: string, selectedAgentId
     });
 
     if (existing) {
+      if (existing.joinStatus === 'removed' || !existing.canReply) {
+        const restored = await prisma.liveRoomMember.update({
+          where: { id: existing.id },
+          data: {
+            joinStatus: 'joined',
+            canReply: true,
+            presenceStatus: agent.status === 'online' ? 'online' : 'idle',
+          },
+        });
+        createdMembers.push(restored);
+      }
       continue;
     }
 

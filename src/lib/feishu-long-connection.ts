@@ -47,6 +47,7 @@ import { handleLiveRoomHandoffPlanCardAction } from '@/lib/live-room-handoff-pla
 import { handleNewSessionConfirmationCardAction } from '@/lib/feishu-new-session';
 import { openFeishuRoomCreationCard, primeFeishuRoomCreationAgents } from '@/lib/feishu-room-create-card';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
+import { formatLiveRoomPermissionLabel } from '@/lib/live-room-permissions';
 import {
   buildFeishuCommandCenterCardUpdate,
   buildFeishuCommandFromForm,
@@ -265,6 +266,7 @@ function buildCardActionHandler(prefix: string) {
             view,
             members,
             room.workingDirectory || room.sourceTask.workingDirectory || '',
+            formatLiveRoomPermissionLabel(room.sourceTask.acpxPermissionConfig),
           ),
         },
       };

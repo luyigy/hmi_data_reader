@@ -117,10 +117,20 @@ export async function getRemoteNodeName(id: string, user: AuthUser): Promise<str
 }
 
 export async function removeOfflineRemoteNode(id: string, user: AuthUser): Promise<boolean> {
-  const result = await prisma.remoteNode.deleteMany({
-    where: { id, status: 'offline', ...(user.role === 'admin' ? {} : { ownerUserId: user.id }) },
+  return prisma.$transaction(async (tx) => {
+    const where = { id, status: 'offline', ...(user.role === 'admin' ? {} : { ownerUserId: user.id }) };
+    const node = await tx.remoteNode.findFirst({ where, select: { name: true } });
+    if (!node) return false;
+
+    const result = await tx.remoteNode.deleteMany({ where });
+    if (result.count !== 1) return false;
+
+    await tx.liveRoomMember.updateMany({
+      where: { backend: 'remote_ssh', roleLabel: { contains: remoteNodeRoleMarker(node.name) } },
+      data: { joinStatus: 'removed', canReply: false, presenceStatus: 'offline' },
+    });
+    return true;
   });
-  return result.count === 1;
 }
 
 export async function getRemoteNodeWorkspace(name: string): Promise<string | null> {

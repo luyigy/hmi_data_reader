@@ -39,7 +39,7 @@ export async function openFeishuRoomCreationCard(args: {
     return { toast: { type: 'warning', content: '房间创建卡已失效，请重新发送 /ap menu' } };
   }
 
-  void primeFeishuRoomCreationAgents();
+  await primeFeishuRoomCreationAgents();
   if (!cachedAgents) {
     return { toast: { type: 'warning', content: 'Agent 列表正在加载，请稍后重试' } };
   }

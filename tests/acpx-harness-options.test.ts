@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import { prisma } from '../src/lib/prisma';
 import { deriveGatewayHarnessOptions } from '../src/lib/acpx/catalog';
 import { resolveRouteAuth } from '../src/lib/auth-routes';
+import { addCatalogAgentsToLiveRoom } from '../src/lib/live-room-members';
+import { removeOfflineRemoteNode } from '../src/lib/remote-node-registry';
 
 async function main() {
   assert.deepEqual(
@@ -18,6 +20,7 @@ async function main() {
     data: { username: `harness-other-${suffix}`, passwordHash: 'x:y', role: 'user' },
   });
   const nodeNames = [`own-node-${suffix}`, `other-node-${suffix}`];
+  let roomId: string | null = null;
 
   try {
     await prisma.remoteNode.create({
@@ -60,11 +63,40 @@ async function main() {
       'non-admin never sees platform-local, gateway, or shared-ssh options',
     );
 
+    const room = await prisma.liveRoom.create({
+      data: { title: `runner-lifecycle-${suffix}`, ownerUserId: owner.id },
+    });
+    roomId = room.id;
+    const ownAgent = ownerOptions.find((option) => option.gatewayId === `remote-node:${nodeNames[0]}`);
+    assert.ok(ownAgent);
+    const agentId = `${ownAgent.executionBackend}:${ownAgent.gatewayId}:${ownAgent.runtimeAgentId || ownAgent.agentId || ownAgent.harnessType}`;
+    const [member] = await addCatalogAgentsToLiveRoom(room.id, [agentId]);
+    const node = await prisma.remoteNode.findUniqueOrThrow({ where: { name: nodeNames[0] } });
+    assert.equal(await removeOfflineRemoteNode(node.id, { id: owner.id, username: owner.username, role: 'user', displayName: null }), true);
+    assert.deepEqual(
+      await prisma.liveRoomMember.findUnique({ where: { id: member.id }, select: { joinStatus: true, canReply: true, presenceStatus: true } }),
+      { joinStatus: 'removed', canReply: false, presenceStatus: 'offline' },
+    );
+
+    await prisma.remoteNode.create({
+      data: {
+        name: nodeNames[0], host: 'unconnected', secretHash: node.secretHash,
+        ownerUserId: owner.id, metadata: node.metadata,
+      },
+    });
+    const [restored] = await addCatalogAgentsToLiveRoom(room.id, [agentId]);
+    assert.equal(restored.id, member.id, 're-adding the same runner restores its historical room member');
+    assert.deepEqual(
+      await prisma.liveRoomMember.findUnique({ where: { id: member.id }, select: { joinStatus: true, canReply: true, presenceStatus: true } }),
+      { joinStatus: 'joined', canReply: true, presenceStatus: 'idle' },
+    );
+
     const adminOptions = await deriveGatewayHarnessOptions({ id: 'admin', role: 'admin' });
     const adminGateways = new Set(adminOptions.map((option) => option.gatewayId));
     assert.ok(adminGateways.has(`remote-node:${nodeNames[0]}`), 'admin sees owned nodes');
     assert.ok(adminGateways.has(`remote-node:platform-node-${suffix}`), 'admin sees platform nodes');
   } finally {
+    if (roomId) await prisma.liveRoom.deleteMany({ where: { id: roomId } });
     await prisma.remoteNode.deleteMany({ where: { name: { in: [...nodeNames, `platform-node-${suffix}`] } } });
     await prisma.user.deleteMany({ where: { id: { in: [owner.id, other.id] } } });
   }

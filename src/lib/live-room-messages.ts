@@ -602,6 +602,7 @@ export const resolveDocumentationTarget = <T extends { id: string; canReply?: bo
   members: T[];
 }) => {
   const specialist = !mentionedAll
+    && !resolvedTargetMemberId
     && !DOCUMENTATION_SPECIALTY_OVERRIDE.test(content)
     && detectDocumentationIntent(content)
     ? findDocumentationSpecialist(members)

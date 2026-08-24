@@ -2,6 +2,7 @@ import { prisma } from './prisma';
 import {
   buildAcpxPermissionConfigForProfile,
   DEFAULT_ACPX_PERMISSION_CONFIG,
+  getPermissionProfileLabel,
   normalizeAcpxPermissionConfig,
 } from './acpx/permissions';
 import type { AcpxPermissionConfig } from './acpx/types';
@@ -26,6 +27,9 @@ export const permissionConfigForProfile = (
   profile: LiveRoomPermissionProfile,
   writableRoots: string[] = []
 ) => buildAcpxPermissionConfigForProfile(profile, writableRoots);
+
+export const formatLiveRoomPermissionLabel = (value?: string | null) =>
+  getPermissionProfileLabel(resolveLiveRoomMemberPermission(null, value).profile);
 
 export const setLiveRoomMemberPermission = async (
   roomId: string,

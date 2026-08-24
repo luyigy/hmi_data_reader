@@ -52,6 +52,10 @@ assert.deepEqual(
   { kind: 'none' },
 );
 assert.deepEqual(
+  detectLiveRoomHandoffIntent({ content: '$B is the target; hand off to $B', members, senderMemberId: 'a' }),
+  { kind: 'target', targetMemberId: 'b' },
+);
+assert.deepEqual(
   detectLiveRoomHandoffIntent({ content: '$B then $A', members }),
   { kind: 'invalid', reason: 'multiple_targets' },
 );
@@ -67,6 +71,21 @@ assert.deepEqual(
   detectLiveRoomHandoffIntent({ content: 'Math $\\to$ then $B', members, senderMemberId: 'a' }),
   { kind: 'target', targetMemberId: 'b' },
 );
+for (const unavailable of [
+  { joinStatus: 'removed' },
+  { joinStatus: 'invited' },
+  { canReply: false },
+  { presenceStatus: 'offline' },
+]) {
+  assert.deepEqual(
+    detectLiveRoomHandoffIntent({
+      content: '$B continue',
+      members: [members[0], { ...members[1], ...unavailable }],
+      senderMemberId: 'a',
+    }),
+    { kind: 'none' },
+  );
+}
 assert.deepEqual(applyPlannedLiveRoomHandoff({ kind: 'none' }, 'b'), {
   kind: 'target',
   targetMemberId: 'b',
