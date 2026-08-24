@@ -12,7 +12,8 @@ async function runTest() {
   let now = 1_000;
   Date.now = () => now;
   const tracker = new FeishuProgressTracker('test-chat-123', '/srv/agent-platform');
-  (tracker as any).maybeFlush = async () => {};
+  let flushCount = 0;
+  (tracker as any).maybeFlush = async () => { flushCount += 1; };
 
   assert.equal(shouldRelayLiveRoomStdoutProgress('codex'), true);
   assert.equal(shouldRelayLiveRoomStdoutProgress('kimi-code'), true);
@@ -29,14 +30,20 @@ async function runTest() {
   assert.match((tracker as any).buildCard().elements[0].content, /当前阶段：思考/);
   assert.match((tracker as any).buildCard().elements[0].content, /最新进展：.*思考分析：读取 src\/config\.ts/);
   tracker.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
-  assert.match((tracker as any).buildCard().elements[0].content, /当前阶段：等待/);
-  assert.match((tracker as any).buildCard().elements[0].content, /最新进展：.*心跳保活/);
+  assert.match((tracker as any).buildCard().elements[0].content, /当前阶段：思考/);
+  assert.match((tracker as any).buildCard().elements[0].content, /最新进展：.*思考分析/);
+  await (tracker as any).flushPromise;
+  const flushCountBeforeDuplicateHeartbeat = flushCount;
+  tracker.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
+  await (tracker as any).flushPromise;
+  assert.equal(flushCount, flushCountBeforeDuplicateHeartbeat + 1);
 
   // Test adding tool events
   tracker.onToolEvent('view_file', 'src/lib/feishu-progress.ts', '📄');
   tracker.onToolEvent('view_file', 'src/lib/feishu-progress.ts', '📄');
   tracker.onToolEvent('run_command', 'npx tsc --noEmit --token sk-secret123', '⚡');
   for (let index = 0; index < 5; index += 1) tracker.onToolEvent(`tool-${index}`, `/tmp/private-${index}.txt`, '🛠️');
+  tracker.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
   now += 65_000;
 
   // Inspect internal card structure via buildCard (private method)

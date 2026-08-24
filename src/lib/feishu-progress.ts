@@ -60,19 +60,17 @@ export class FeishuProgressTracker {
     console.log(`[FeishuProgress] onSystemEvent: ${message} | chatId=${this.chatId}`);
     const truncated = sanitizePreview(message, { workspaceRoot: this.workspaceRoot });
     if (emoji === '🧠') this.phase = '思考';
-    else if (emoji === '💓' || emoji === '🚀') this.phase = '等待';
-    this.latestActivity = `${emoji} ${truncated}`;
+    else if (emoji === '🚀') this.phase = '等待';
+    if (emoji !== '💓') this.latestActivity = `${emoji} ${truncated}`;
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
     const lastEntry = this.systemEntries.at(-1);
-    if (lastEntry && lastEntry.message === truncated) {
-      return;
-    }
-
-    this.systemEntries.push({ message: truncated, emoji, time: timeStr });
-    if (this.systemEntries.length > 20) {
-      this.systemEntries.shift();
+    if (!lastEntry || lastEntry.message !== truncated) {
+      this.systemEntries.push({ message: truncated, emoji, time: timeStr });
+      if (this.systemEntries.length > 20) {
+        this.systemEntries.shift();
+      }
     }
 
     this.flushPromise = this.flushPromise.then(() => this.maybeFlush()).catch((err) => {
