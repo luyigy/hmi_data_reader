@@ -177,21 +177,27 @@ export async function runWorkflowInBoundLiveRoom(args: {
   if (dispatch.state === 'rotation_confirmation_required') return false;
 
   if (dispatch.state === 'prepared') {
-    const rotation = await evaluateWorkflowRoomRotation({
+    const rotation = args.roleWorkflow ? null : await evaluateWorkflowRoomRotation({
       room: boundRoom,
       config: job.config.session_rotation,
     });
-    rotationNotice = formatWorkflowRotationNotice(rotation.decision, rotation.thresholds);
-    if (rotation.decision.action !== 'rotation_pending' || !rotatableMembers.length) {
+    rotationNotice = rotation
+      ? formatWorkflowRotationNotice(rotation.decision, rotation.thresholds)
+      : 'Slice 边界：为可轮换成员强制启动 fresh Session；同一 Slice 内续聊保持当前 Session。';
+    const rotationRequired = Boolean(
+      rotatableMembers.length
+      && (args.roleWorkflow || rotation?.decision.action === 'rotation_pending'),
+    );
+    if (!rotationRequired) {
       dispatch = await prisma.workflowDispatch.update({
         where: { id: dispatch.id },
         data: {
-          state: rotation.decision.action === 'prepare_checkpoint'
+          state: rotation?.decision.action === 'prepare_checkpoint'
             ? 'rotation_checkpoint_prepared'
             : 'rotation_not_required',
         },
       });
-      if (!rotatableMembers.length && rotation.decision.action === 'rotation_pending') {
+      if (!rotatableMembers.length && (args.roleWorkflow || rotation?.decision.action === 'rotation_pending')) {
         rotationNotice += ' 房间内没有可换代的持久 Session；Antigravity 仅参与房间告警。';
       }
     } else if (autonomy !== 'auto') {

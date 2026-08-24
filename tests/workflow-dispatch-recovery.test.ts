@@ -206,6 +206,16 @@ async function main() {
   assert.equal(dispatch.state, 'reply_queued');
   assert.equal(rotationRuns, 2, 'rotation_pending retry must reuse the event-keyed reset checkpoints');
 
+  rotationAction = 'reuse';
+  messageExists = false;
+  deliveryExists = false;
+  reset('prepared');
+  const sliceRotationRuns = rotationRuns;
+  assert.equal(await run(true), true);
+  assert.equal(dispatch.state, 'reply_queued');
+  assert.equal(rotationRuns, sliceRotationRuns + 1, 'each new slice must rotate even below the watermark threshold');
+
+  rotationAction = 'rotation_pending';
   messageExists = false;
   deliveryExists = false;
   reset('prepared');
@@ -274,7 +284,7 @@ async function main() {
   assert.equal(await run(true), true);
   assert.equal(dispatch.state, 'reply_queued');
   await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(roleWorkflowQueues, 1, 'approved PLAN must queue the role workflow once');
+  assert.equal(roleWorkflowQueues, roleWorkflowsBeforeTerminalChecks + 1, 'approved PLAN must queue the role workflow once');
   assert.equal(replyQueues, repliesBeforeFault + 1, 'role workflow must not broadcast as a normal room message');
 
   reset('prompt_posted');
