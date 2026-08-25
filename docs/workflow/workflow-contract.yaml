@@ -1,5 +1,17 @@
 schema_version: 2
-contract_version: "2026.07.27.1"
+contract_version: "2026.08.25.1"
+
+plan_writing:
+  standard: docs/083_DECISION_20260825_PLAN写作与Slice划分规范.md
+  slice_target: one_session
+  required_slice_sections:
+    - purpose
+    - outcome
+    - implementation
+    - boundaries
+    - acceptance
+    - stop_conditions
+    - deliverables
 
 documents:
   automation_types:
