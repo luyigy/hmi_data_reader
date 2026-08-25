@@ -133,6 +133,103 @@ def _text_completion(prompt: str, base_url: str, model: str) -> dict:
         raise VlmError(f"VLM 文本请求失败：{exc}") from exc
 
 
+def draft_from_ocr(evidence: dict, user_message: str, target: str,
+                   current_structure: dict, allowed_fields: list[dict]) -> dict:
+    """Return strictly validated candidates limited to caller-approved fields."""
+    if (not isinstance(evidence, dict)
+            or not isinstance(target, str) or not target.strip()
+            or not isinstance(user_message, str)
+            or not isinstance(current_structure, dict)
+            or any(not isinstance(key, str) or isinstance(value, bool)
+                   or not isinstance(value, int) or value < 1
+                   for key, value in current_structure.items())
+            or not isinstance(allowed_fields, list)):
+        raise VlmError("候选请求上下文非法")
+    allowed = {}
+    for field in allowed_fields:
+        if (not isinstance(field, dict)
+                or set(field) != {"field_id", "label", "unit", "shape"}
+                or not isinstance(field["field_id"], str) or not field["field_id"]
+                or not isinstance(field["label"], str)
+                or not isinstance(field["unit"], str)
+                or not isinstance(field["shape"], str)
+                or field["shape"] not in {"scalar", "array"}
+                or field["field_id"] in allowed):
+            raise VlmError("允许字段定义非法")
+        allowed[field["field_id"]] = field
+    lines = [
+        {key: line.get(key) for key in ("text", "confidence", "bbox")}
+        for line in evidence.get("lines", [])
+        if isinstance(line, dict) and isinstance(line.get("text"), str)
+        and line["text"].strip()
+    ]
+    if not lines:
+        return {"candidates": [], "structure_suggestion": {},
+                "questions": ["OCR 未识别到文字，请重拍。"]}
+    request = {"target": target.strip(), "current_structure": current_structure,
+               "allowed_fields": allowed_fields, "ocr_lines": lines,
+               "user_message": user_message.strip()}
+    prompt = (
+        "只把 OCR 原文和用户纠正归位到 allowed_fields。禁止返回白名单外字段，"
+        "禁止猜测、换算单位、生成数据库路径或持久化；用户纠正优先于 OCR。\n"
+        "只输出严格 JSON："
+        '{"candidates":[{"field_id":"白名单ID","values":1.0,"unit":"s",'
+        '"evidence":["完整OCR原文"],"status":"needs_confirmation"}],'
+        '"structure_suggestion":{},"questions":[]}。'
+        "scalar 的 values 是数字，array 是非空数字数组；evidence 必须逐字引用完整 OCR 行。\n"
+        f"输入：{json.dumps(request, ensure_ascii=False, separators=(',', ':'))}"
+    )
+    base_url = os.getenv("HMI_DRAFT_VLM_BASE_URL", TEXT_BASE_URL).rstrip("/")
+    model = os.getenv("HMI_DRAFT_VLM_MODEL", TEXT_MODEL)
+    response = _text_completion(prompt, base_url, model)
+    try:
+        content = response["choices"][0]["message"]["content"].strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        draft = json.loads(content)
+    except (KeyError, IndexError, TypeError, AttributeError, json.JSONDecodeError) as exc:
+        raise VlmError("VLM 候选响应不是合法 JSON") from exc
+    if (not isinstance(draft, dict)
+            or set(draft) != {"candidates", "structure_suggestion", "questions"}
+            or not isinstance(draft["candidates"], list)
+            or not isinstance(draft["structure_suggestion"], dict)
+            or not isinstance(draft["questions"], list)
+            or any(not isinstance(question, str) for question in draft["questions"])):
+        raise VlmError("VLM 候选响应结构非法")
+    ocr_texts = {line["text"] for line in lines}
+    seen = set()
+    for candidate in draft["candidates"]:
+        if (not isinstance(candidate, dict)
+                or set(candidate) != {"field_id", "values", "unit", "evidence", "status"}
+                or not isinstance(candidate.get("field_id"), str)
+                or candidate["field_id"] not in allowed
+                or candidate["field_id"] in seen
+                or candidate.get("unit") != allowed[candidate["field_id"]]["unit"]
+                or candidate.get("status") != "needs_confirmation"
+                or not isinstance(candidate.get("evidence"), list)
+                or not candidate["evidence"]
+                or any(not isinstance(item, str) or item not in ocr_texts
+                       for item in candidate["evidence"])):
+            raise VlmError("VLM 候选字段、单位或证据非法")
+        values = candidate.get("values")
+        is_number = lambda value: (isinstance(value, (int, float))
+                                   and not isinstance(value, bool)
+                                   and value == value and abs(value) != float("inf"))
+        if (allowed[candidate["field_id"]]["shape"] == "scalar"
+                and not is_number(values)) or (
+                allowed[candidate["field_id"]]["shape"] == "array"
+                and (not isinstance(values, list) or not values
+                     or any(not is_number(value) for value in values))):
+            raise VlmError("VLM 候选值与字段 shape 不匹配")
+        seen.add(candidate["field_id"])
+    if any(not isinstance(key, str) or key not in current_structure
+           or isinstance(value, bool)
+           or not isinstance(value, int) or value < 1
+           for key, value in draft["structure_suggestion"].items()):
+        raise VlmError("VLM 结构建议非法")
+    return draft
+
+
 def _parse_mapping_output(resp: dict) -> dict:
     try:
         text = resp["choices"][0]["message"]["content"].strip()

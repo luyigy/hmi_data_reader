@@ -118,6 +118,72 @@ def test_text_request_contains_only_page_evidence_and_catalog_subset():
     assert request["catalog_fields"]["holding_time_s"]["role"] is None
 
 
+def test_draft_candidates_are_whitelisted_and_accept_user_correction(monkeypatch):
+    captured = {}
+
+    def completion(prompt, _base_url, _model):
+        captured["request"] = json.loads(prompt.split("输入：", 1)[1])
+        return {"choices": [{"message": {"content": json.dumps({
+            "candidates": [
+                {"field_id": "holding_time", "values": 3.0, "unit": "s",
+                 "evidence": ["保压时间 2.5 s"], "status": "needs_confirmation"},
+                {"field_id": "holding_pressure", "values": [360, 320], "unit": "bar",
+                 "evidence": ["保压压力 360 320 bar"], "status": "needs_confirmation"},
+            ],
+            "structure_suggestion": {"holding_segments": 2}, "questions": [],
+        }, ensure_ascii=False)}}]}
+
+    monkeypatch.setattr(vlm_qwen, "_text_completion", completion)
+    result = vlm_qwen.draft_from_ocr({"lines": [
+        {"text": "保压时间 2.5 s", "confidence": 0.9, "bbox": [1, 2, 3, 4]},
+        {"text": "保压压力 360 320 bar", "confidence": 0.9, "bbox": [1, 5, 3, 6]},
+    ], "page_type": "wrong-page"}, "保压时间=3.0", "normal_trial.holding",
+        {"holding_segments": 3}, [
+            {"field_id": "holding_time", "label": "保压时间", "unit": "s",
+             "shape": "scalar"},
+            {"field_id": "holding_pressure", "label": "各段保压压力", "unit": "bar",
+             "shape": "array"},
+        ])
+
+    assert result["candidates"][0]["values"] == 3.0
+    assert result["candidates"][1]["values"] == [360, 320]
+    assert captured["request"]["user_message"] == "保压时间=3.0"
+    assert "page_type" not in captured["request"]
+
+
+def test_draft_candidates_reject_invalid_vlm_output(monkeypatch):
+    allowed = [{"field_id": "holding_time", "label": "保压时间", "unit": "s",
+                "shape": "scalar"}]
+
+    for content in ["not-json", json.dumps({
+        "candidates": [{"field_id": "unknown", "values": 2.5, "unit": "s",
+                        "evidence": ["保压时间 2.5 s"],
+                        "status": "needs_confirmation"}],
+        "structure_suggestion": {}, "questions": [],
+    }), json.dumps({
+        "candidates": [{"field_id": "holding_time", "values": [2.5], "unit": "s",
+                        "evidence": ["并非 OCR 原文"],
+                        "status": "needs_confirmation"}],
+        "structure_suggestion": {}, "questions": [],
+    })]:
+        monkeypatch.setattr(vlm_qwen, "_text_completion", lambda *_args, value=content: {
+            "choices": [{"message": {"content": value}}]})
+        with pytest.raises(vlm_qwen.VlmError):
+            vlm_qwen.draft_from_ocr(
+                {"lines": [{"text": "保压时间 2.5 s"}]}, "", "normal_trial.holding",
+                {"holding_segments": 1}, allowed)
+
+
+def test_draft_from_empty_ocr_requests_reshoot(monkeypatch):
+    monkeypatch.setattr(vlm_qwen, "_text_completion",
+                        lambda *_args: pytest.fail("empty OCR must not call VLM"))
+
+    result = vlm_qwen.draft_from_ocr(
+        {}, "", "normal_trial.holding", {"holding_segments": 1}, [])
+
+    assert result["candidates"] == []
+
+
 def test_unresolved_request_excludes_resolved_fields_and_tokens():
     generic = {
         "fields": {"holding_time_s": 2.5},
