@@ -1027,7 +1027,8 @@ from extract_families.fanuc_waveform import extract_waveform_fanuc  # noqa: E402
 from extract_families.tact_hot_runner import extract_hot_runner_tact  # noqa: E402
 from extract_families.fanuc_mold_temp import extract_mold_temp_fanuc  # noqa: E402
 from extract_families.mold_temp_devices import (  # noqa: E402
-    extract_mold_temp_omron_e5cc, extract_mold_temp_thermoregulator)
+    extract_mold_temp_industrial_chiller, extract_mold_temp_omron_e5cc,
+    extract_mold_temp_thermoregulator, is_lcd_pv_set)
 
 
 # ---------------------------------------------------------------- 主流程
@@ -1097,6 +1098,9 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     # 仅取文本参与锚点匹配，不进 find_page 位置启发）。
     mt_path = rectified_dir / f"{stem}.ocr_mt.json"
     mt_lines = json.loads(mt_path.read_text()).get("lines", []) if mt_path.is_file() else []
+    lcd_pv_set = family == "unknown" and is_lcd_pv_set(mt_lines)
+    if lcd_pv_set:
+        family, family_src = "INDUSTRIAL_CHILLER", "mold_temp_lcd_signature"
     if family == "unknown":
         # 伯乐 KEBA/B_AND_R 等无 record/机台先验且单图关键词分类失败的图：
         # 合并 CLAHE 变体后按各模板的 family_detect_groups 判族（不改既有路由优先级）
@@ -1108,6 +1112,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             family, family_src = fam, "template_keywords"
     page, page_src = route_page(stem, lines, family, templates_dir,
                                 extra_anchor_lines=mt_lines)
+    if lcd_pv_set:
+        page, page_src = "mold_temp", "mold_temp_lcd_signature"
     result["controller_family"] = family
     result["page_type"] = page
 
@@ -1334,6 +1340,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         ext = extract_mold_temp_omron_e5cc(toks, template)
     elif page_key == "mold_temp" and ui == "MOLD_THERMOREGULATOR":
         ext = extract_mold_temp_thermoregulator(toks, template)
+    elif page_key == "mold_temp" and ui == "INDUSTRIAL_CHILLER":
+        ext = extract_mold_temp_industrial_chiller(toks, template)
     elif ui == "TACT":
         ext = extract_temperature_tact(toks, template)
     elif ui == "KEBA":

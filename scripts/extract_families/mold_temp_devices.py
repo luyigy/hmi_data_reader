@@ -29,6 +29,8 @@ from __future__ import annotations
 import re
 
 NUM_FULLMATCH = re.compile(r"^(\d{1,3}(?:\.\d)?)$")
+LCD_SET_SUFFIX = re.compile(r"^(\d{1,3}(?:\.\d)?)(?:S(?:E|5)?T|5T)$", re.I)
+LCD_SET_OVERREAD = re.compile(r"^(\d{1,3}\.\d)\d{1,2}$")
 # 同一显示行内 token 的 y 容差（归一化坐标）；PV/SV 两行间距实测约 0.025-0.035，
 # 行内重复检出 token 几乎同 y（<0.01）——取值 0.012 以可靠分行
 ROW_Y_TOL = 0.012
@@ -40,6 +42,27 @@ def _parse_value(text: str, lo: float, hi: float) -> float | None:
         return None
     v = float(m.group(1))
     return v if lo <= v <= hi else None
+
+
+def is_lcd_pv_set(lines: list[dict], lo: float = 5, hi: float = 200) -> bool:
+    """未知家族旁车是否给出上下排列的 PV 纯数值 + SET 粘连数值。"""
+    texts = [str(line.get("text") or "").strip() for line in lines]
+    joined = "".join(re.sub(r"[^A-Z]", "", text.upper()) for text in texts)
+    if "CHILL" in joined and ("INDUSTR" in joined or "USTR" in joined):
+        return True
+    pure = []
+    set_rows = []
+    for line in lines:
+        text = str(line.get("text") or "").strip().upper()
+        exact = NUM_FULLMATCH.match(text)
+        match = LCD_SET_SUFFIX.match(text) or LCD_SET_OVERREAD.match(text)
+        value_match = match or exact
+        if not value_match or not lo <= float(value_match.group(1)) <= hi:
+            continue
+        box = line.get("bbox") or {}
+        y = (float(box.get("y_min", 0)) + float(box.get("y_max", 0))) / 2
+        (set_rows if match else pure).append(y)
+    return any(pv_y < set_y for pv_y in pure for set_y in set_rows)
 
 
 def _value_rows(toks: list[dict], lo: float, hi: float) -> list[list[dict]]:
@@ -160,4 +183,16 @@ def extract_mold_temp_thermoregulator(toks: list[dict], template: dict) -> dict:
     if texts:
         detail["page_variant"] = (
             "pv_sv_decimal" if any("." in t for t in texts) else "pv_sv_integer")
+    return result
+
+
+def extract_mold_temp_industrial_chiller(toks: list[dict], template: dict) -> dict:
+    """工业冷水机 LCD：PV 大字在上，SET 小字在下。"""
+    normalized = []
+    for tok in toks:
+        match = LCD_SET_SUFFIX.match(tok["text"].strip()) \
+            or LCD_SET_OVERREAD.match(tok["text"].strip())
+        normalized.append({**tok, "text": match.group(1)} if match else tok)
+    result = _extract_pv_sv(normalized, template)
+    result["detail"]["page_variant"] = "lcd_pv_set"
     return result

@@ -1,0 +1,10 @@
+{
+  "version": "0.1.0",
+  "ui_family": "INDUSTRIAL_CHILLER",
+  "page": "mold_temp",
+  "source": "2026-08-25：问题包 d52b61c5-e69e-4c81-902f-8deddaa5c6ec；复用 3 份 calibration 与 5 份 holdout 真值",
+  "description": "工业冷水机蓝色 LCD，PV 大字在上，SET 小字在下。",
+  "coordinate_system": "normalized_screen",
+  "sv_range": [5, 200],
+  "layout_variant": "lcd_pv_set"
+}

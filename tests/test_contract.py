@@ -91,15 +91,37 @@ class ContractProfileTest(unittest.TestCase):
         self.assertEqual(result["profile_status"], "verified")
 
     def test_keba_dynamic_zone_labels_follow_recognized_count(self):
-        for count in (5, 6):
+        for family in ("KEBA", "ZIZES"):
+            for count in (5, 6):
+                result = attach_contract({
+                    "controller_family": family,
+                    "page_type": "temperature",
+                    "fields": {"barrel_temperature_set_c": [220.0] * count},
+                })
+                self.assertEqual(
+                    result["field_meta"]["barrel_temperature_set_c"]["entity"]["columns"],
+                    [f"温区{i}" for i in range(1, count + 1)],
+                )
+
+    def test_tact_zone_labels_follow_recognized_count(self):
+        for count in (4, 5, 6):
             result = attach_contract({
-                "controller_family": "KEBA",
+                "controller_family": "TACT",
                 "page_type": "temperature",
-                "fields": {"barrel_temperature_set_c": [220.0] * count},
+                "fields": {
+                    "barrel_temperature_set_c": [290.0] * count,
+                    "barrel_temperature_current_c": [290.1] * count,
+                },
             })
+            expected = ["喷嘴1", *[f"区{i}" for i in range(1, count)]]
+            self.assertEqual(result["profile_id"], "tact.temperature.fixed")
             self.assertEqual(
                 result["field_meta"]["barrel_temperature_set_c"]["entity"]["columns"],
-                [f"温区{i}" for i in range(1, count + 1)],
+                expected,
+            )
+            self.assertEqual(
+                result["field_meta"]["barrel_temperature_current_c"]["entity"]["columns"],
+                expected,
             )
 
     def test_fields_not_in_catalog_excluded(self):

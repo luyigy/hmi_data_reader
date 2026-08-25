@@ -23,7 +23,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from contract import attach_contract
 from extract_families.fanuc_mold_temp import extract_mold_temp_fanuc
 from extract_families.mold_temp_devices import (
-    extract_mold_temp_omron_e5cc, extract_mold_temp_thermoregulator)
+    extract_mold_temp_industrial_chiller, extract_mold_temp_omron_e5cc,
+    extract_mold_temp_thermoregulator, is_lcd_pv_set)
 from extract_fields import detect_family_from_templates, route_page
 from ocr_variants import _mt_deskew, _mt_find_bands
 
@@ -279,6 +280,30 @@ class MoldTempContractTest(unittest.TestCase):
                                          template("fanuc.mold_temp.json"))
         self.assertIn("mold_temperature_set_c", result["fields"])
         self.assertNotIn("set_temperature_c", result["fields"])
+
+
+class IndustrialChillerLcdTest(unittest.TestCase):
+    def test_pv_and_fuzzy_set_rows_form_strict_signature(self):
+        lines = [line("155", 0.30), line("1555T", 0.60)]
+        self.assertTrue(is_lcd_pv_set(lines))
+        self.assertTrue(is_lcd_pv_set([line("Industrial"), line("Chiller")]))
+        self.assertFalse(is_lcd_pv_set([line("155", 0.30), line("149", 0.60)]))
+
+    def test_fuzzy_set_suffix_is_removed_before_extraction(self):
+        toks = [base_tok("155", 0.48), base_tok("1555T", 0.72)]
+        result = extract_mold_temp_industrial_chiller(
+            toks, template("industrial_chiller.mold_temp.json"))
+        self.assertEqual(result["fields"], {
+            "mold_temperature_set_c": 155.0,
+            "mold_temperature_current_c": 155.0,
+        })
+        self.assertEqual(result["detail"]["page_variant"], "lcd_pv_set")
+
+    def test_set_label_overread_after_decimal_is_removed(self):
+        toks = [base_tok("13.4", 0.48), base_tok("13.058", 0.72)]
+        result = extract_mold_temp_industrial_chiller(
+            toks, template("industrial_chiller.mold_temp.json"))
+        self.assertEqual(result["fields"]["mold_temperature_set_c"], 13.0)
 
 
 if __name__ == "__main__":
