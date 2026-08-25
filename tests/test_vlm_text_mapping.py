@@ -1,9 +1,11 @@
+import io
 import json
 import os
 import sys
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -118,20 +120,37 @@ def test_text_request_contains_only_page_evidence_and_catalog_subset():
     assert request["catalog_fields"]["holding_time_s"]["role"] is None
 
 
+def _draft_item(value, label=None, source="ocr", evidence="屏幕证据"):
+    return {"label": label, "value": value, "sources": [source],
+            "evidence": [evidence], "needs_confirmation": True}
+
+
+def _draft_field(label, role, unit, items, canonical_id=None):
+    return {"screen_label": label, "canonical_id": canonical_id, "role": role,
+            "unit": unit, "items": items,
+            "sources": list(dict.fromkeys(source for item in items
+                                           for source in item["sources"])),
+            "evidence": list(dict.fromkeys(note for item in items
+                                            for note in item["evidence"])),
+            "needs_confirmation": True}
+
+
+def _draft_response(payload):
+    return {"choices": [{"message": {"content": json.dumps(
+        payload, ensure_ascii=False)}}]}
+
+
 def test_draft_candidates_are_whitelisted_and_accept_user_correction(monkeypatch):
     captured = {}
 
     def completion(prompt, _base_url, _model):
         captured["request"] = json.loads(prompt.split("输入：", 1)[1])
-        return {"choices": [{"message": {"content": json.dumps({
-            "candidates": [
-                {"field_id": "holding_time", "values": 3.0, "unit": "s",
-                 "evidence": ["保压时间 2.5 s"], "status": "needs_confirmation"},
-                {"field_id": "holding_pressure", "values": [360, 320], "unit": "bar",
-                 "evidence": ["保压压力 360 320 bar"], "status": "needs_confirmation"},
-            ],
-            "structure_suggestion": {"holding_segments": 2}, "questions": [],
-        }, ensure_ascii=False)}}]}
+        return _draft_response({"sections": [{"label": "保压", "fields": [
+            _draft_field("保压时间", "setpoint", "s", [
+                _draft_item(3.0, evidence="用户纠正：保压时间=3.0")]),
+            _draft_field("周期时间", "actual", "s", [
+                _draft_item(12.4, evidence="周期时间 12.4 s")]),
+        ]}], "questions": []})
 
     monkeypatch.setattr(vlm_qwen, "_text_completion", completion)
     result = vlm_qwen.draft_from_ocr({"lines": [
@@ -140,32 +159,37 @@ def test_draft_candidates_are_whitelisted_and_accept_user_correction(monkeypatch
     ], "page_type": "wrong-page"}, "保压时间=3.0", "normal_trial.holding",
         {"holding_segments": 3}, [
             {"field_id": "holding_time", "label": "保压时间", "unit": "s",
-             "shape": "scalar"},
-            {"field_id": "holding_pressure", "label": "各段保压压力", "unit": "bar",
-             "shape": "array"},
+             "shape": "scalar", "role": "setpoint"},
         ])
 
-    assert result["candidates"][0]["values"] == 3.0
-    assert result["candidates"][1]["values"] == [360, 320]
+    fields = result["sections"][0]["fields"]
+    assert fields[0]["canonical_id"] == "holding_time"
+    assert fields[0]["items"][0]["value"] == 3.0
+    assert fields[1]["screen_label"] == "周期时间"
+    assert fields[1]["canonical_id"] is None
     assert captured["request"]["user_message"] == "保压时间=3.0"
-    assert "page_type" not in captured["request"]
+    assert "canonical_hints" in captured["request"]
 
 
 def test_draft_candidates_reject_invalid_vlm_output(monkeypatch):
     allowed = [{"field_id": "holding_time", "label": "保压时间", "unit": "s",
-                "shape": "scalar"}]
+                "shape": "scalar", "role": "setpoint"}]
+    valid = {"sections": [{"label": "保压", "fields": [
+        _draft_field("保压时间", "setpoint", "s", [_draft_item(2.5)])
+    ]}], "questions": []}
+    invalid = [
+        "not-json",
+        json.dumps({**valid, "extra": True}),
+        json.dumps({"sections": [{"label": "保压", "fields": [
+            _draft_field("保压时间", "mystery", "s", [_draft_item(2.5)])
+        ]}], "questions": []}),
+        json.dumps({"sections": [{"label": "保压", "fields": [
+            _draft_field("保压时间", "setpoint", "s", [
+                _draft_item(True, evidence="bad")])
+        ]}], "questions": []}),
+    ]
 
-    for content in ["not-json", json.dumps({
-        "candidates": [{"field_id": "unknown", "values": 2.5, "unit": "s",
-                        "evidence": ["保压时间 2.5 s"],
-                        "status": "needs_confirmation"}],
-        "structure_suggestion": {}, "questions": [],
-    }), json.dumps({
-        "candidates": [{"field_id": "holding_time", "values": [2.5], "unit": "s",
-                        "evidence": ["并非 OCR 原文"],
-                        "status": "needs_confirmation"}],
-        "structure_suggestion": {}, "questions": [],
-    })]:
+    for content in invalid:
         monkeypatch.setattr(vlm_qwen, "_text_completion", lambda *_args, value=content: {
             "choices": [{"message": {"content": value}}]})
         with pytest.raises(vlm_qwen.VlmError):
@@ -181,7 +205,183 @@ def test_draft_from_empty_ocr_requests_reshoot(monkeypatch):
     result = vlm_qwen.draft_from_ocr(
         {}, "", "normal_trial.holding", {"holding_segments": 1}, [])
 
-    assert result["candidates"] == []
+    assert result == {"sections": [], "questions": ["没有图片或 OCR 文字可供识别。"]}
+
+
+def test_draft_uses_image_when_ocr_is_empty(monkeypatch):
+    image = io.BytesIO()
+    Image.new("RGB", (2, 2), "white").save(image, "PNG")
+    captured = {}
+
+    def completion(image_b64, prompt, base_url, model):
+        captured.update(image_b64=image_b64, prompt=prompt,
+                        base_url=base_url, model=model)
+        return _draft_response({"sections": [{"label": "保压", "fields": [
+            _draft_field("保压时间", "setpoint", "s", [
+                _draft_item(2.5, source="vlm", evidence="屏幕保压时间")])
+        ]}], "questions": []})
+
+    monkeypatch.setattr(vlm_qwen, "_chat_completion", completion)
+    monkeypatch.setenv("HMI_DRAFT_VLM_MODEL", "Qwen3.8-27B-AWQ-INT4")
+    result = vlm_qwen.draft_from_ocr(
+        {}, "", "normal_trial.holding", {},
+        [{"field_id": "holding_time", "label": "保压时间", "unit": "s",
+          "shape": "scalar", "role": "setpoint"}], image.getvalue())
+
+    assert result["sections"][0]["fields"][0]["items"][0]["value"] == 2.5
+    assert result["questions"] == []
+    assert captured["image_b64"]
+    assert captured["model"] == "Qwen3.8-27B-AWQ-INT4"
+    assert "canonical_hints 仅供匹配，不是输出白名单" in captured["prompt"]
+
+
+def test_draft_keeps_generic_sections_roles_and_item_labels(monkeypatch):
+    sections = [
+        {"label": "温度", "fields": [
+            _draft_field("料管温度", role, "°C", [
+                _draft_item(value, zone, "vlm", f"{role}-{zone}")
+                for zone, value in [("喷嘴", 230 if role == "setpoint" else 228),
+                                    ("前部", 225 if role == "setpoint" else 224)]])
+            for role in ("setpoint", "actual")]},
+        {"label": "射胶/保压", "fields": [
+            _draft_field("射胶速度", role, "mm/s", [
+                _draft_item(value, stage, "vlm", f"{role}-{stage}")
+                for stage, value in [("1段", 80 if role == "setpoint" else 78),
+                                     ("2段", 60 if role == "setpoint" else 59)]])
+            for role in ("setpoint", "actual")]},
+        {"label": "熔胶", "fields": [
+            _draft_field("熔胶转速", role, "rpm", [
+                _draft_item(100 if role == "setpoint" else 97, "1段", "vlm", role)])
+            for role in ("setpoint", "actual")]},
+        {"label": "冷却", "fields": [
+            _draft_field("冷却时间", "setpoint", "s", [_draft_item(8, source="vlm")])]},
+    ]
+    monkeypatch.setattr(vlm_qwen, "_text_completion",
+                        lambda *_: _draft_response({"sections": sections, "questions": []}))
+    result = vlm_qwen.draft_from_ocr(
+        {"lines": [{"text": "HMI 参数"}]}, "", "trial", {}, [
+            {"field_id": "barrel_set", "label": "料管温度", "unit": "°C",
+             "shape": "array", "role": "setpoint"},
+            {"field_id": "barrel_actual", "label": "料管温度", "unit": "°C",
+             "shape": "array", "role": "actual"},
+        ])
+
+    assert [section["label"] for section in result["sections"]] == [
+        "温度", "射胶/保压", "熔胶", "冷却"]
+    assert [field["canonical_id"] for field in result["sections"][0]["fields"]] == [
+        "barrel_set", "barrel_actual"]
+    assert [item["label"] for item in result["sections"][1]["fields"][0]["items"]] == [
+        "1段", "2段"]
+    assert result["sections"][1]["fields"][1]["canonical_id"] is None
+    assert {field["role"] for field in result["sections"][2]["fields"]} == {
+        "setpoint", "actual"}
+    assert [field["role"] for field in result["sections"][3]["fields"]] == ["setpoint"]
+
+
+def test_unregistered_cycle_time_survives_empty_hints(monkeypatch):
+    payload = {"sections": [{"label": "监控", "fields": [
+        _draft_field("周期时间", "actual", "s", [_draft_item(12.4, source="vlm")])
+    ]}], "questions": ["请确认周期时间"]}
+    monkeypatch.setattr(vlm_qwen, "_text_completion",
+                        lambda *_: _draft_response(payload))
+
+    result = vlm_qwen.draft_from_ocr(
+        {"lines": [{"text": "周期时间 12.4 s"}]}, "", "trial", {}, [])
+
+    assert result["sections"][0]["fields"][0]["canonical_id"] is None
+    assert result["sections"][0]["fields"][0]["screen_label"] == "周期时间"
+
+
+def test_draft_merges_equal_observations_and_keeps_conflicts(monkeypatch):
+    fields = [
+        _draft_field("射胶速度", "setpoint", "mm/s", [
+            _draft_item(80, "1段", "ocr", "OCR: 1段 80")]),
+        _draft_field("射胶速度", "setpoint", "mm/s", [
+            _draft_item(80, "1段", "vlm", "图片: 1段 80")]),
+        _draft_field("射胶速度", "setpoint", "mm/s", [
+            _draft_item(79, "1段", "vlm", "图片: 1段 79")]),
+    ]
+    monkeypatch.setattr(vlm_qwen, "_text_completion", lambda *_: _draft_response(
+        {"sections": [{"label": "射胶", "fields": fields}], "questions": []}))
+
+    result = vlm_qwen.draft_from_ocr(
+        {"lines": [{"text": "射胶速度 80"}]}, "", "trial", {}, [{
+            "field_id": "stage_velocity", "label": "射胶速度", "unit": "mm/s",
+            "shape": "array", "role": "setpoint"}])
+    field = result["sections"][0]["fields"][0]
+
+    assert field["canonical_id"] == "stage_velocity"
+    assert [item["value"] for item in field["items"]] == [80, 79]
+    assert field["items"][0]["sources"] == ["ocr", "vlm"]
+    assert field["items"][0]["evidence"] == ["OCR: 1段 80", "图片: 1段 80"]
+
+
+def test_draft_strict_output_limits_and_confirmation(monkeypatch):
+    item = _draft_item(1)
+    field = _draft_field("字段", "unknown", "", [item])
+    valid_section = {"label": "区域", "fields": [field]}
+    duplicate = {"sections": [{"label": "区域", "fields": [field, field]}],
+                 "questions": []}
+    bad_source = _draft_item(1)
+    bad_source["sources"] = ["camera"]
+    empty_evidence = _draft_item(1)
+    empty_evidence["evidence"] = [""]
+    extra_key = _draft_item(1)
+    extra_key["unexpected"] = True
+    cases = [
+        duplicate,
+        {"sections": [valid_section], "questions": ["?"] * 33},
+        {"sections": [{"label": str(i), "fields": [field]} for i in range(33)],
+         "questions": []},
+        {"sections": [{"label": "区域", "fields": [
+            _draft_field(f"字段{i}", "unknown", "", [_draft_item(i)])
+            for i in range(257)]}], "questions": []},
+        {"sections": [{"label": "区域", "fields": [
+            _draft_field("字段", "unknown", "", [
+                _draft_item(i, str(i)) for i in range(1025)])
+        ]}], "questions": []},
+        {"sections": [{"label": "区域", "fields": [
+            _draft_field("字段", "unknown", "", [bad_source])
+        ]}], "questions": []},
+        {"sections": [{"label": "区域", "fields": [
+            _draft_field("字段", "unknown", "", [empty_evidence])
+        ]}], "questions": []},
+        {"sections": [{"label": "区域", "fields": [
+            _draft_field("字段", "unknown", "", [extra_key])
+        ]}], "questions": []},
+        {"sections": [{"label": "区域", "fields": [
+            _draft_field("字段", "unknown", "", [_draft_item(float("nan"))])
+        ]}], "questions": []},
+    ]
+    unconfirmed = _draft_field("字段", "unknown", "", [_draft_item(1)])
+    unconfirmed["needs_confirmation"] = False
+    cases.append({"sections": [{"label": "区域", "fields": [unconfirmed]}],
+                  "questions": []})
+
+    for payload in cases:
+        monkeypatch.setattr(vlm_qwen, "_text_completion",
+                            lambda *_, value=payload: _draft_response(value))
+        with pytest.raises(vlm_qwen.VlmError):
+            vlm_qwen.draft_from_ocr(
+                {"lines": [{"text": "字段 1"}]}, "", "trial", {}, [])
+
+
+def test_draft_rejects_invalid_request_boundaries(monkeypatch):
+    monkeypatch.setattr(vlm_qwen, "_text_completion",
+                        lambda *_: pytest.fail("invalid input must not call VLM"))
+    calls = [
+        ({}, "", "x" * 201, {}, [], None),
+        ({}, "x" * 2001, "trial", {}, [], None),
+        ({"lines": [{"text": "x", "confidence": 2}]}, "", "trial", {}, [], None),
+        ({"lines": [{"text": "x", "bbox": [0, 1, 2]}]}, "", "trial", {}, [], None),
+        ({}, "", "trial", {"x": True}, [], None),
+        ({}, "", "trial", {}, [{"field_id": "x", "label": "X", "unit": "",
+                                  "shape": "scalar", "role": "bad"}], None),
+        ({}, "", "trial", {}, [], b""),
+    ]
+    for args in calls:
+        with pytest.raises(vlm_qwen.VlmError):
+            vlm_qwen.draft_from_ocr(*args)
 
 
 def test_unresolved_request_excludes_resolved_fields_and_tokens():

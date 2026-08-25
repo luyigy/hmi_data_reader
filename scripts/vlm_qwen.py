@@ -1,4 +1,4 @@
-"""Qwen3-VL 客户端：HMI 屏幕字段抽取（测试验证用途，不接入生产管线）。
+"""HMI VLM 客户端：生产候选草稿与离线字段抽取。
 
 边界说明（2026-08-21 实测）：
 - 本模块只负责"读字段值"，不做控制器家族/页面分类——Qwen3-VL-32B 实测会把
@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import math
 import os
 import re
 import time
@@ -134,54 +135,98 @@ def _text_completion(prompt: str, base_url: str, model: str) -> dict:
 
 
 def draft_from_ocr(evidence: dict, user_message: str, target: str,
-                   current_structure: dict, allowed_fields: list[dict]) -> dict:
-    """Return strictly validated candidates limited to caller-approved fields."""
+                   current_structure: dict, allowed_fields: list[dict],
+                   image_bytes: bytes | None = None) -> dict:
+    """Return strictly validated, open-schema HMI observations for review."""
+    roles = {"setpoint", "actual", "limit", "unknown"}
+    source_names = {"ocr", "vlm", "user"}
+
+    def string(value, limit, *, nullable=False, empty=False):
+        return ((nullable and value is None)
+                or (isinstance(value, str) and len(value) <= limit
+                    and (empty or bool(value.strip()))))
+
+    def strings(value, limit, maximum, allowed=None):
+        return (isinstance(value, list) and 0 < len(value) <= maximum
+                and all(string(item, limit) and (allowed is None or item in allowed)
+                        for item in value)
+                and len(value) == len(set(value)))
+
+    def number(value):
+        return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and math.isfinite(value))
+
     if (not isinstance(evidence, dict)
-            or not isinstance(target, str) or not target.strip()
-            or not isinstance(user_message, str)
+            or not string(target, 200)
+            or not string(user_message, 2000, empty=True)
             or not isinstance(current_structure, dict)
-            or any(not isinstance(key, str) or isinstance(value, bool)
+            or len(current_structure) > 64
+            or any(not string(key, 200) or isinstance(value, bool)
                    or not isinstance(value, int) or value < 1
                    for key, value in current_structure.items())
-            or not isinstance(allowed_fields, list)):
+            or not isinstance(allowed_fields, list) or len(allowed_fields) > 256
+            or (image_bytes is not None
+                and (not isinstance(image_bytes, bytes) or not image_bytes
+                     or len(image_bytes) > 20 * 1024 * 1024))):
         raise VlmError("候选请求上下文非法")
-    allowed = {}
+    hints = {}
     for field in allowed_fields:
         if (not isinstance(field, dict)
-                or set(field) != {"field_id", "label", "unit", "shape"}
-                or not isinstance(field["field_id"], str) or not field["field_id"]
-                or not isinstance(field["label"], str)
-                or not isinstance(field["unit"], str)
-                or not isinstance(field["shape"], str)
+                or set(field) != {"field_id", "label", "unit", "shape", "role"}
+                or not string(field["field_id"], 200)
+                or not string(field["label"], 200)
+                or not string(field["unit"], 200, empty=True)
                 or field["shape"] not in {"scalar", "array"}
-                or field["field_id"] in allowed):
-            raise VlmError("允许字段定义非法")
-        allowed[field["field_id"]] = field
-    lines = [
-        {key: line.get(key) for key in ("text", "confidence", "bbox")}
-        for line in evidence.get("lines", [])
-        if isinstance(line, dict) and isinstance(line.get("text"), str)
-        and line["text"].strip()
-    ]
-    if not lines:
-        return {"candidates": [], "structure_suggestion": {},
-                "questions": ["OCR 未识别到文字，请重拍。"]}
+                or field["role"] not in roles
+                or field["field_id"] in hints):
+            raise VlmError("canonical hint 定义非法")
+        hints[field["field_id"]] = field
+    raw_lines = evidence.get("lines", [])
+    if not isinstance(raw_lines, list) or len(raw_lines) > 2000:
+        raise VlmError("OCR evidence 非法")
+    lines = []
+    for line in raw_lines:
+        if (not isinstance(line, dict) or not {"text"} <= set(line)
+                or set(line) - {"text", "confidence", "bbox"}
+                or not string(line["text"], 1000)
+                or ("confidence" in line
+                    and (not number(line["confidence"])
+                         or not 0 <= line["confidence"] <= 1))
+                or ("bbox" in line
+                    and (not isinstance(line["bbox"], list)
+                         or len(line["bbox"]) != 4
+                         or any(not number(value) for value in line["bbox"])))):
+            raise VlmError("OCR evidence 非法")
+        lines.append({key: line[key] for key in ("text", "confidence", "bbox")
+                      if key in line})
+    if not lines and not image_bytes:
+        return {"sections": [],
+                "questions": ["没有图片或 OCR 文字可供识别。"]}
     request = {"target": target.strip(), "current_structure": current_structure,
-               "allowed_fields": allowed_fields, "ocr_lines": lines,
+               "canonical_hints": allowed_fields, "ocr_lines": lines,
                "user_message": user_message.strip()}
+    model = os.getenv("HMI_DRAFT_VLM_MODEL", TEXT_MODEL)
+    use_image = bool(image_bytes)
     prompt = (
-        "只把 OCR 原文和用户纠正归位到 allowed_fields。禁止返回白名单外字段，"
-        "禁止猜测、换算单位、生成数据库路径或持久化；用户纠正优先于 OCR。\n"
-        "只输出严格 JSON："
-        '{"candidates":[{"field_id":"白名单ID","values":1.0,"unit":"s",'
-        '"evidence":["完整OCR原文"],"status":"needs_confirmation"}],'
-        '"structure_suggestion":{},"questions":[]}。'
-        "scalar 的 values 是数字，array 是非空数字数组；evidence 必须逐字引用完整 OCR 行。\n"
+        ("直接查看 HMI 图片，并结合 OCR 原文和用户纠正，" if use_image
+         else "结合 OCR 原文和用户纠正，")
+        + "整理屏幕上所有可读工艺参数；canonical_hints 仅供匹配，不是输出白名单。"
+        "不得猜测、翻译或换算；用户纠正优先。设定/实际/限制/未知必须分别使用 "
+        "setpoint/actual/limit/unknown，并拆成并列 field；证据不足用 unknown。\n"
+        "只输出严格 JSON sections/questions。section 只有 label/fields；field 只有 "
+        "screen_label/canonical_id/role/unit/items/sources/evidence/needs_confirmation；"
+        "item 只有 label/value/sources/evidence/needs_confirmation。canonical_id 先填 null，"
+        "needs_confirmation 始终为 true，sources 只用 ocr/vlm/user。标量 item.label 为 null；"
+        "分段或温区标签保留屏幕原文。相同值的 OCR/VLM 观测分开返回以便本地融合，"
+        "冲突值都保留。即使没有 canonical hint，也必须返回目录外字段。\n"
         f"输入：{json.dumps(request, ensure_ascii=False, separators=(',', ':'))}"
     )
-    base_url = os.getenv("HMI_DRAFT_VLM_BASE_URL", TEXT_BASE_URL).rstrip("/")
-    model = os.getenv("HMI_DRAFT_VLM_MODEL", TEXT_MODEL)
-    response = _text_completion(prompt, base_url, model)
+    if use_image:
+        base_url = os.getenv("HMI_DRAFT_VLM_BASE_URL", BASE_URL).rstrip("/")
+        response = _chat_completion(_encode_image_bytes(image_bytes), prompt, base_url, model)
+    else:
+        base_url = os.getenv("HMI_DRAFT_VLM_BASE_URL", TEXT_BASE_URL).rstrip("/")
+        response = _text_completion(prompt, base_url, model)
     try:
         content = response["choices"][0]["message"]["content"].strip()
         if content.startswith("```"):
@@ -190,44 +235,106 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
     except (KeyError, IndexError, TypeError, AttributeError, json.JSONDecodeError) as exc:
         raise VlmError("VLM 候选响应不是合法 JSON") from exc
     if (not isinstance(draft, dict)
-            or set(draft) != {"candidates", "structure_suggestion", "questions"}
-            or not isinstance(draft["candidates"], list)
-            or not isinstance(draft["structure_suggestion"], dict)
+            or set(draft) != {"sections", "questions"}
+            or not isinstance(draft["sections"], list) or len(draft["sections"]) > 32
             or not isinstance(draft["questions"], list)
-            or any(not isinstance(question, str) for question in draft["questions"])):
+            or len(draft["questions"]) > 32
+            or any(not string(question, 500) for question in draft["questions"])):
         raise VlmError("VLM 候选响应结构非法")
-    ocr_texts = {line["text"] for line in lines}
-    seen = set()
-    for candidate in draft["candidates"]:
-        if (not isinstance(candidate, dict)
-                or set(candidate) != {"field_id", "values", "unit", "evidence", "status"}
-                or not isinstance(candidate.get("field_id"), str)
-                or candidate["field_id"] not in allowed
-                or candidate["field_id"] in seen
-                or candidate.get("unit") != allowed[candidate["field_id"]]["unit"]
-                or candidate.get("status") != "needs_confirmation"
-                or not isinstance(candidate.get("evidence"), list)
-                or not candidate["evidence"]
-                or any(not isinstance(item, str) or item not in ocr_texts
-                       for item in candidate["evidence"])):
-            raise VlmError("VLM 候选字段、单位或证据非法")
-        values = candidate.get("values")
-        is_number = lambda value: (isinstance(value, (int, float))
-                                   and not isinstance(value, bool)
-                                   and value == value and abs(value) != float("inf"))
-        if (allowed[candidate["field_id"]]["shape"] == "scalar"
-                and not is_number(values)) or (
-                allowed[candidate["field_id"]]["shape"] == "array"
-                and (not isinstance(values, list) or not values
-                     or any(not is_number(value) for value in values))):
-            raise VlmError("VLM 候选值与字段 shape 不匹配")
-        seen.add(candidate["field_id"])
-    if any(not isinstance(key, str) or key not in current_structure
-           or isinstance(value, bool)
-           or not isinstance(value, int) or value < 1
-           for key, value in draft["structure_suggestion"].items()):
-        raise VlmError("VLM 结构建议非法")
-    return draft
+
+    section_map = {}
+    exact_observations = set()
+    field_count = item_count = 0
+    field_keys = {"screen_label", "canonical_id", "role", "unit", "items",
+                  "sources", "evidence", "needs_confirmation"}
+    item_keys = {"label", "value", "sources", "evidence", "needs_confirmation"}
+    for section in draft["sections"]:
+        if (not isinstance(section, dict) or set(section) != {"label", "fields"}
+                or not string(section["label"], 500)
+                or not isinstance(section["fields"], list) or not section["fields"]):
+            raise VlmError("VLM section 非法")
+        output_section = section_map.setdefault(
+            section["label"], {"label": section["label"], "fields": {}, "order": []})
+        for field in section["fields"]:
+            field_count += 1
+            if (field_count > 256 or not isinstance(field, dict) or set(field) != field_keys
+                    or not string(field["screen_label"], 500)
+                    or not string(field["canonical_id"], 500, nullable=True)
+                    or field["role"] not in roles
+                    or not string(field["unit"], 500, empty=True)
+                    or not isinstance(field["items"], list) or not field["items"]
+                    or not strings(field["sources"], 500, 3, source_names)
+                    or not strings(field["evidence"], 500, 32)
+                    or field["needs_confirmation"] is not True):
+                raise VlmError("VLM field 非法")
+            shape = ("scalar" if len(field["items"]) == 1
+                     and isinstance(field["items"][0], dict)
+                     and field["items"][0].get("label") is None else "array")
+            matches = [hint["field_id"] for hint in hints.values()
+                       if (hint["label"], hint["unit"], hint["shape"], hint["role"])
+                       == (field["screen_label"], field["unit"], shape, field["role"])]
+            canonical_id = matches[0] if len(matches) == 1 else None
+            if field["canonical_id"] not in {None, canonical_id}:
+                raise VlmError("VLM canonical hint 匹配非法")
+            item_sources = set()
+            item_evidence = set()
+            field_key = (field["screen_label"], field["role"], field["unit"])
+            if field_key not in output_section["fields"]:
+                output_section["order"].append(field_key)
+                output_section["fields"][field_key] = {
+                    "screen_label": field["screen_label"], "canonical_ids": [],
+                    "role": field["role"], "unit": field["unit"], "items": {},
+                    "item_order": [], "needs_confirmation": True,
+                }
+            output_field = output_section["fields"][field_key]
+            output_field["canonical_ids"].append(canonical_id)
+            for item in field["items"]:
+                item_count += 1
+                if (item_count > 1024 or not isinstance(item, dict) or set(item) != item_keys
+                        or not string(item["label"], 500, nullable=True)
+                        or not number(item["value"])
+                        or not strings(item["sources"], 500, 3, source_names)
+                        or not strings(item["evidence"], 500, 32)
+                        or item["needs_confirmation"] is not True):
+                    raise VlmError("VLM item 非法")
+                observation = (section["label"], *field_key, item["label"], item["value"],
+                               tuple(item["sources"]), tuple(item["evidence"]))
+                if observation in exact_observations:
+                    raise VlmError("VLM 返回完全重复候选")
+                exact_observations.add(observation)
+                item_sources.update(item["sources"])
+                item_evidence.update(item["evidence"])
+                item_key = (item["label"], item["value"])
+                if item_key not in output_field["items"]:
+                    output_field["item_order"].append(item_key)
+                    output_field["items"][item_key] = dict(item)
+                else:
+                    merged = output_field["items"][item_key]
+                    merged["sources"] = list(dict.fromkeys(merged["sources"] + item["sources"]))
+                    merged["evidence"] = list(dict.fromkeys(merged["evidence"] + item["evidence"]))
+                    if len(merged["evidence"]) > 32:
+                        raise VlmError("VLM 融合后 evidence 超限")
+            if set(field["sources"]) != item_sources or set(field["evidence"]) != item_evidence:
+                raise VlmError("VLM field 来源或证据未汇总 items")
+
+    sections = []
+    for section in section_map.values():
+        fields = []
+        for key in section["order"]:
+            field = section["fields"][key]
+            items = [field["items"][item_key] for item_key in field.pop("item_order")]
+            canonical_ids = set(field.pop("canonical_ids"))
+            field["canonical_id"] = canonical_ids.pop() if len(canonical_ids) == 1 else None
+            field["items"] = items
+            field["sources"] = list(dict.fromkeys(
+                source for item in items for source in item["sources"]))
+            field["evidence"] = list(dict.fromkeys(
+                evidence for item in items for evidence in item["evidence"]))
+            if len(field["evidence"]) > 32:
+                raise VlmError("VLM 融合后 evidence 超限")
+            fields.append(field)
+        sections.append({"label": section["label"], "fields": fields})
+    return {"sections": sections, "questions": draft["questions"]}
 
 
 def _parse_mapping_output(resp: dict) -> dict:
@@ -400,7 +507,14 @@ def fields_for_page(catalog: dict, page_type: str) -> dict:
 
 
 def _encode_image(image_path: str | Path) -> str:
-    img = Image.open(image_path).convert("RGB")
+    return _encode_image_bytes(Path(image_path).read_bytes())
+
+
+def _encode_image_bytes(content: bytes) -> str:
+    try:
+        img = Image.open(io.BytesIO(content)).convert("RGB")
+    except (OSError, ValueError) as exc:
+        raise VlmError("VLM 图片格式无效") from exc
     w, h = img.size
     if max(w, h) > MAX_IMAGE_EDGE:
         scale = MAX_IMAGE_EDGE / max(w, h)
@@ -448,9 +562,10 @@ def build_prompt(page_type: str, page_fields: dict) -> str:
     return "\n".join(lines)
 
 
-def _chat_completion(image_b64: str, prompt: str) -> dict:
+def _chat_completion(image_b64: str, prompt: str,
+                     base_url: str = BASE_URL, model: str = MODEL) -> dict:
     payload = {
-        "model": MODEL,
+        "model": model,
         "messages": [
             {
                 "role": "user",
@@ -466,7 +581,7 @@ def _chat_completion(image_b64: str, prompt: str) -> dict:
         "chat_template_kwargs": {"enable_thinking": False},
     }
     req = urllib.request.Request(
-        f"{BASE_URL}/chat/completions",
+        f"{base_url}/chat/completions",
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
     )
