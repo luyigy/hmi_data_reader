@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import re
 import sys
@@ -20,6 +21,12 @@ from extract_generic import extract_generic  # noqa: E402
 def _line(text, x0, y0, x1, y1, conf=0.95):
     return {"text": text, "conf": conf,
             "bbox": {"x_min": x0, "y_min": y0, "x_max": x1, "y_max": y1}}
+
+
+def _upload():
+    _, encoded = hmi_service.cv2.imencode(
+        ".png", hmi_service.np.zeros((2, 2, 3), dtype=hmi_service.np.uint8))
+    return hmi_service.UploadFile(filename="screen.png", file=io.BytesIO(encoded.tobytes()))
 
 
 def test_spatial_kv_and_dynamic_temperature_grid():
@@ -141,10 +148,12 @@ def test_optional_bearer_token(monkeypatch):
 
 def test_draft_endpoint_passes_whitelisted_candidate_context(monkeypatch):
     evidence = {"lines": [{"text": "保压时间 2.5 s"}]}
-    candidate = {"candidates": [{
-        "field_id": "holding_time", "values": 2.5, "unit": "s",
-        "evidence": ["保压时间 2.5 s"], "status": "needs_confirmation",
-    }], "structure_suggestion": {}, "questions": []}
+    candidate = {"sections": [{"label": "保压", "fields": [{
+        "screen_label": "保压时间", "canonical_id": "holding_time",
+        "role": "setpoint", "unit": "s", "items": [],
+        "sources": ["ocr"], "evidence": ["保压时间 2.5 s"],
+        "needs_confirmation": True,
+    }]}], "questions": []}
     captured = {}
 
     async def recognize(file):
@@ -157,20 +166,40 @@ def test_draft_endpoint_passes_whitelisted_candidate_context(monkeypatch):
 
     monkeypatch.setattr(hmi_service, "recognize_image", recognize)
     monkeypatch.setattr(hmi_service, "draft_from_ocr", draft)
-    upload = object()
+    upload = _upload()
 
     result = asyncio.run(hmi_service.draft_image(
         upload, "normal_trial.holding", '{"holding_segments":3}',
         '[{"field_id":"holding_time","label":"保压时间","unit":"s",'
-        '"shape":"scalar"}]', "保压时间=2.5"))
+        '"shape":"scalar","role":"setpoint"}]', "保压时间=2.5"))
 
     assert result == candidate
     assert captured == {"file": upload, "args": (
         evidence, "保压时间=2.5", "normal_trial.holding",
         {"holding_segments": 3}, [{
             "field_id": "holding_time", "label": "保压时间", "unit": "s",
-            "shape": "scalar",
-        }])}
+            "shape": "scalar", "role": "setpoint",
+        }], captured["args"][-1])}
+    assert captured["args"][-1] == upload.file.getvalue()
+
+
+def test_draft_endpoint_reuses_supplied_ocr_evidence(monkeypatch):
+    evidence = {"lines": [{"text": "保压时间 2.5 s"}]}
+    candidate = {"sections": [{"label": "周期", "fields": [
+        {"screen_label": "周期时间", "canonical_id": None, "role": "actual"},
+        {"screen_label": "保压时间", "canonical_id": None, "role": "setpoint"},
+    ]}], "questions": ["请确认"]}
+    calls = []
+    monkeypatch.setattr(hmi_service, "recognize_image", lambda _file: pytest.fail(
+        "recognition must not run when OCR evidence is supplied"))
+    monkeypatch.setattr(hmi_service, "draft_from_ocr", lambda *args: calls.append(args) or candidate)
+
+    result = asyncio.run(hmi_service.draft_image(
+        _upload(), "target", "{}", "[]", "", json.dumps(evidence)))
+
+    assert result is candidate
+    assert len(calls) == 1
+    assert calls[0][:5] == (evidence, "", "target", {}, [])
 
 
 @pytest.mark.parametrize("status_code", [400, 429, 500])
@@ -180,7 +209,7 @@ def test_draft_endpoint_preserves_recognition_failures(monkeypatch, status_code)
 
     monkeypatch.setattr(hmi_service, "recognize_image", busy)
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(hmi_service.draft_image(object(), "target", "{}", "[]"))
+        asyncio.run(hmi_service.draft_image(_upload(), "target", "{}", "[]"))
     assert exc_info.value.status_code == status_code
 
 
@@ -194,9 +223,52 @@ def test_draft_endpoint_maps_context_and_vlm_failures(monkeypatch):
     monkeypatch.setattr(hmi_service, "recognize_image", recognized)
     monkeypatch.setattr(hmi_service, "draft_from_ocr", fail_draft)
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(hmi_service.draft_image(object(), "target", "{}", "[]"))
+        asyncio.run(hmi_service.draft_image(_upload(), "target", "{}", "[]"))
     assert exc_info.value.status_code == 502
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(hmi_service.draft_image(object(), "target", "{", "[]"))
     assert exc_info.value.status_code == 422
+
+
+@pytest.mark.parametrize("content", [b"", b"not an image"])
+def test_draft_endpoint_rejects_empty_or_invalid_images(content):
+    upload = hmi_service.UploadFile(filename="screen.png", file=io.BytesIO(content))
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(hmi_service.draft_image(upload, "target", "{}", "[]"))
+
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.parametrize("evidence,fields", [
+    ({"lines": [{"text": ""}]}, []),
+    ({"lines": []}, [{"field_id": "x", "label": "X", "unit": "",
+                      "shape": "scalar"}]),
+])
+def test_draft_endpoint_maps_invalid_request_contract_to_422(monkeypatch, evidence, fields):
+    monkeypatch.setattr(hmi_service, "draft_from_ocr", hmi_service.draft_from_ocr)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(hmi_service.draft_image(
+            _upload(), "target", "{}", json.dumps(fields),
+            ocr_evidence=json.dumps(evidence)))
+
+    assert exc_info.value.status_code == 422
+
+
+def test_draft_endpoint_applies_vlm_concurrency_limit(monkeypatch):
+    async def run():
+        semaphore = asyncio.Semaphore(1)
+        monkeypatch.setattr(hmi_service, "concurrency_semaphore", semaphore)
+        await semaphore.acquire()
+        try:
+            return await hmi_service.draft_image(
+                _upload(), "target", "{}", "[]", ocr_evidence='{"lines":[]}')
+        finally:
+            semaphore.release()
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(run())
+
+    assert exc_info.value.status_code == 429

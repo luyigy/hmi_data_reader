@@ -454,17 +454,35 @@ async def recognize_image(file: UploadFile = File(...)):
 @app.post("/api/v1/draft")
 async def draft_image(file: UploadFile = File(...), target: str = Form(...),
                       current_structure: str = Form(...), allowed_fields: str = Form(...),
-                      message: str = Form("")):
-    """Return caller-whitelisted field candidates from the uploaded HMI image."""
+                      message: str = Form(""), ocr_evidence: str = Form("")):
+    """Return open-schema field candidates from the uploaded HMI image."""
+    evidence_text = ocr_evidence if isinstance(ocr_evidence, str) else ""
     try:
         structure = json.loads(current_structure)
         fields = json.loads(allowed_fields)
-    except json.JSONDecodeError as exc:
+        evidence = json.loads(evidence_text) if evidence_text else None
+    except (json.JSONDecodeError, TypeError) as exc:
         raise HTTPException(status_code=422, detail="Invalid draft context JSON") from exc
-    recognition = await recognize_image(file)
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    if cv2.imdecode(np.frombuffer(content, np.uint8), cv2.IMREAD_COLOR) is None:
+        raise HTTPException(status_code=400, detail="Invalid image file format")
+    if evidence is None:
+        await file.seek(0)
+        recognition = await recognize_image(file)
+        evidence = recognition.get("ocr_evidence") or {}
+    if concurrency_semaphore.locked():
+        raise HTTPException(status_code=429, detail="Service busy, concurrency limit reached")
+    await concurrency_semaphore.acquire()
     try:
-        return await asyncio.to_thread(
-            draft_from_ocr, recognition.get("ocr_evidence") or {}, message,
-            target, structure, fields)
-    except VlmError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        try:
+            return await asyncio.to_thread(
+                draft_from_ocr, evidence, message,
+                target, structure, fields, content)
+        except VlmError as exc:
+            request_errors = {"候选请求上下文非法", "canonical hint 定义非法", "OCR evidence 非法"}
+            status_code = 422 if str(exc) in request_errors else 502
+            raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    finally:
+        concurrency_semaphore.release()
