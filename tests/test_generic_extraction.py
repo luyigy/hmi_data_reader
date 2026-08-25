@@ -4,6 +4,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -129,6 +131,72 @@ def test_optional_bearer_token(monkeypatch):
     allowed = Request({"type": "http", "method": "POST",
                        "path": "/api/v1/recognize",
                        "headers": [(b"authorization", b"Bearer reader-secret")]})
+    denied_draft = Request({"type": "http", "method": "POST",
+                            "path": "/api/v1/draft", "headers": []})
 
     assert asyncio.run(hmi_service.authenticate_recognition(denied, ok)).status_code == 401
     assert asyncio.run(hmi_service.authenticate_recognition(allowed, ok)).status_code == 200
+    assert asyncio.run(hmi_service.authenticate_recognition(denied_draft, ok)).status_code == 401
+
+
+def test_draft_endpoint_passes_whitelisted_candidate_context(monkeypatch):
+    evidence = {"lines": [{"text": "保压时间 2.5 s"}]}
+    candidate = {"candidates": [{
+        "field_id": "holding_time", "values": 2.5, "unit": "s",
+        "evidence": ["保压时间 2.5 s"], "status": "needs_confirmation",
+    }], "structure_suggestion": {}, "questions": []}
+    captured = {}
+
+    async def recognize(file):
+        captured["file"] = file
+        return {"ocr_evidence": evidence}
+
+    def draft(*args):
+        captured["args"] = args
+        return candidate
+
+    monkeypatch.setattr(hmi_service, "recognize_image", recognize)
+    monkeypatch.setattr(hmi_service, "draft_from_ocr", draft)
+    upload = object()
+
+    result = asyncio.run(hmi_service.draft_image(
+        upload, "normal_trial.holding", '{"holding_segments":3}',
+        '[{"field_id":"holding_time","label":"保压时间","unit":"s",'
+        '"shape":"scalar"}]', "保压时间=2.5"))
+
+    assert result == candidate
+    assert captured == {"file": upload, "args": (
+        evidence, "保压时间=2.5", "normal_trial.holding",
+        {"holding_segments": 3}, [{
+            "field_id": "holding_time", "label": "保压时间", "unit": "s",
+            "shape": "scalar",
+        }])}
+
+
+@pytest.mark.parametrize("status_code", [400, 429, 500])
+def test_draft_endpoint_preserves_recognition_failures(monkeypatch, status_code):
+    async def busy(_file):
+        raise HTTPException(status_code=status_code, detail="Recognition failed")
+
+    monkeypatch.setattr(hmi_service, "recognize_image", busy)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(hmi_service.draft_image(object(), "target", "{}", "[]"))
+    assert exc_info.value.status_code == status_code
+
+
+def test_draft_endpoint_maps_context_and_vlm_failures(monkeypatch):
+    async def recognized(_file):
+        return {"ocr_evidence": {}}
+
+    def fail_draft(*_args):
+        raise hmi_service.VlmError("bad VLM")
+
+    monkeypatch.setattr(hmi_service, "recognize_image", recognized)
+    monkeypatch.setattr(hmi_service, "draft_from_ocr", fail_draft)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(hmi_service.draft_image(object(), "target", "{}", "[]"))
+    assert exc_info.value.status_code == 502
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(hmi_service.draft_image(object(), "target", "{", "[]"))
+    assert exc_info.value.status_code == 422

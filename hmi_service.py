@@ -23,7 +23,7 @@ from typing import Any
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -40,6 +40,7 @@ from extract_fields import (MACHINE_LABELS, RECORD_REPORT, cell_rescue_better,
 from postprocess import postprocess_one
 from quality import THRESHOLD_PERSPECTIVE, assess, measure_perspective
 from rectify import DEFAULT_MAX_SIZE, rectify
+from vlm_qwen import VlmError, draft_from_ocr
 
 # 083 S01 分辨率救援：提取失败时按此 max_size 重跑一轮矫正+OCR（见 run_attempt 调用处）
 RESCUE_MAX_SIZE = 4000
@@ -67,7 +68,7 @@ app.add_middleware(
 async def authenticate_recognition(request: Request, call_next):
     """Optional shared Bearer token; unset HMI_API_KEY keeps current open behavior."""
     expected = os.getenv("HMI_API_KEY", "").strip()
-    if expected and request.url.path in ("/api/v1/recognize", "/recognize"):
+    if expected and request.url.path in ("/api/v1/recognize", "/recognize", "/api/v1/draft"):
         supplied = request.headers.get("authorization", "")
         if not supplied.startswith("Bearer ") or not hmac.compare_digest(
                 supplied.removeprefix("Bearer ").strip(), expected):
@@ -448,3 +449,22 @@ async def recognize_image(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="Internal recognition error")
     finally:
         concurrency_semaphore.release()
+
+
+@app.post("/api/v1/draft")
+async def draft_image(file: UploadFile = File(...), target: str = Form(...),
+                      current_structure: str = Form(...), allowed_fields: str = Form(...),
+                      message: str = Form("")):
+    """Return caller-whitelisted field candidates from the uploaded HMI image."""
+    try:
+        structure = json.loads(current_structure)
+        fields = json.loads(allowed_fields)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=422, detail="Invalid draft context JSON") from exc
+    recognition = await recognize_image(file)
+    try:
+        return await asyncio.to_thread(
+            draft_from_ocr, recognition.get("ocr_evidence") or {}, message,
+            target, structure, fields)
+    except VlmError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
