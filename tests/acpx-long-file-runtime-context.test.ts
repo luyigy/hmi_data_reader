@@ -71,6 +71,15 @@ async function main() {
     context,
   );
   assert.match(prompt, /Long-file baseline: example/);
+  assert.doesNotMatch(prompt, /Antigravity completion contract/);
+  const antigravityPrompt = buildHarnessPrompt(
+    { taskName: 'Example', taskDescription: null } as never,
+    { role: 'custom', harnessType: 'antigravity', gatewayName: 'Local', executionBackend: 'platform_local' } as never,
+    [],
+    { transcript: 'Earlier work.', latestUserMessage: null },
+  );
+  assert.match(antigravityPrompt, /A progress update or promise to report later is not a final response/);
+  assert.match(antigravityPrompt, /Explicitly state whether the task completed, failed, or is blocked/);
   assert.equal(await getLongFileRuntimeContext({ ...options, executionBackend: 'remote_ssh' }), null);
   assert.equal(await getLongFileRuntimeContext({ ...options, workingDirectory: os.tmpdir() }), null);
   await writeFile(config, (await readFile(config, 'utf8')).replace('enabled: true', 'enabled: false'));

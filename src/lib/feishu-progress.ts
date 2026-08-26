@@ -66,7 +66,7 @@ export class FeishuProgressTracker {
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
     const lastEntry = this.systemEntries.at(-1);
-    if (!lastEntry || lastEntry.message !== truncated) {
+    if (emoji !== '💓' && (!lastEntry || lastEntry.message !== truncated)) {
       this.systemEntries.push({ message: truncated, emoji, time: timeStr });
       if (this.systemEntries.length > 20) {
         this.systemEntries.shift();

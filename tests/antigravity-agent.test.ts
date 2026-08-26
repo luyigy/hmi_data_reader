@@ -31,6 +31,12 @@ case "$AGY_TEST_CASE" in
     printf '{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"done"}}\\n'
     printf '{"event":"result","result":{"response":"final answer"}}\\n'
     ;;
+  multi_result)
+    printf '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"waiting for background build"}}\\n'
+    printf '{"event":"result","result":{"status":"SUCCESS","response":"Waiting for background build"}}\\n'
+    printf '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"agent_response","text_delta":"build finished, testing"}}\\n'
+    printf '{"event":"result","result":{"status":"SUCCESS","response":"Build PASSED. S01 31 passed, S02 PASSED."}}\\n'
+    ;;
   sandbox)
     test ! -e "$AGY_OUTSIDE_FILE" || exit 9
     printf sandboxed > sandbox-write
@@ -130,6 +136,13 @@ esac
     ]);
     assert.doesNotMatch(JSON.stringify({ chunks, tools }), /var\/private|sk-secret123|secret body/);
 
+    process.env.AGY_TEST_CASE = 'multi_result';
+    const finalReport = await executeAntigravityTask(
+      { id: '9', name: 'smoke' },
+    );
+    assert.equal(finalReport.success, true, finalReport.error);
+    assert.equal(finalReport.output, 'Build PASSED. S01 31 passed, S02 PASSED.');
+
     process.env.AGY_TEST_CASE = 'sandbox';
     const { executeViaLocalHarness } = await import('../src/lib/acpx/runner-harness');
     const { clearRunningProcess } = await import('../src/lib/acpx/process-registry');
@@ -162,6 +175,10 @@ esac
       { transcript: '', latestUserMessage: null },
     );
     assert.equal(integrated.output, 'Task completed inside the sandbox.');
+    assert.match(
+      await readFile(path.join(workspace, 'args'), 'utf8'),
+      /^--print-timeout=86400000ms$/m,
+    );
     clearRunningProcess('participant');
   } finally {
     process.env.PATH = originalPath;

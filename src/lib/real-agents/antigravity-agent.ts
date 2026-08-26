@@ -95,7 +95,11 @@ const processAntigravityJsonLine = (
   streamCallbacks?: HarnessStreamCallbacks,
 ) => {
   try {
-    const event = JSON.parse(line) as { event?: string; step_update?: Record<string, unknown> };
+    const event = JSON.parse(line) as {
+      event?: string;
+      result?: { response?: unknown; status?: unknown };
+      step_update?: Record<string, unknown>;
+    };
     if (event.event !== 'step_update' || !event.step_update) return;
     const step = event.step_update;
     const stepType = typeof step.step_type === 'string' ? step.step_type : '';
@@ -187,6 +191,7 @@ export const executeAntigravityTask = (
     ...resolveProjectArgs(config.workingDirectory),
     '--output-format',
     'stream-json',
+    ...(timeout === null ? [] : [`--print-timeout=${timeout}ms`]),
     ...(config.workspaceRoot || config.sandboxMode === 'danger-full-access'
       ? ['--dangerously-skip-permissions']
       : []),
@@ -228,7 +233,6 @@ export const executeAntigravityTask = (
           child.kill('SIGTERM');
           finish({ success: false, error: `Antigravity execution timed out after ${timeout}ms` });
         }, timeout);
-
     child.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       stdout += text;

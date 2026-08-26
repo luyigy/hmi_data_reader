@@ -57,6 +57,12 @@ export const buildHarnessPrompt = (
     ? `\n\nPrevious participant outputs:\n${previousSummaries.map((item, index) => `${index + 1}. ${item}`).join('\n')}`
     : '';
   const warningSection = contextWarning ? `\n\n${contextWarning}` : '';
+  const completionContract = participant.harnessType === 'antigravity'
+    ? `\n\nAntigravity completion contract:
+- A progress update or promise to report later is not a final response.
+- Before ending, wait for every command and check you started, or report a concrete blocker.
+- Return one self-contained final response that consolidates the relevant completed work and results from this turn and the recent transcript. Explicitly state whether the task completed, failed, or is blocked, plus any modified files and issues encountered.`
+    : '';
 
   return withLongFileRuntimeContext(`Task: ${request.taskName}
 
@@ -69,7 +75,7 @@ You are being launched from a chat-first task room.
 Use the latest task-room instruction as the primary direction for this run.
 Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}${warningSection}
 
-Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.`, longFileContext);
+Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.${completionContract}`, longFileContext);
 };
 
 const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;

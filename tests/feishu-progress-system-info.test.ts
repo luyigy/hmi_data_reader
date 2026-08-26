@@ -32,6 +32,7 @@ async function runTest() {
   tracker.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
   assert.match((tracker as any).buildCard().elements[0].content, /当前阶段：思考/);
   assert.match((tracker as any).buildCard().elements[0].content, /最新进展：.*思考分析/);
+  assert.doesNotMatch(JSON.stringify((tracker as any).buildCard()), /心跳保活/);
   await (tracker as any).flushPromise;
   const flushCountBeforeDuplicateHeartbeat = flushCount;
   tracker.onSystemEvent('心跳保活：当前步骤耗时较长，持续处理中...', '💓');
@@ -58,12 +59,12 @@ async function runTest() {
     el.tag === 'collapsible_panel' && el.header?.title?.content === '⚙️ 系统信息详情'
   );
   assert.ok(systemPanel, 'System info collapsible panel should exist');
-  assert.strictEqual(systemPanel.elements.length, 3, 'Should have 3 system log lines');
+  assert.strictEqual(systemPanel.elements.length, 2, 'Heartbeats should not appear in system logs');
   assert.ok(systemPanel.elements[0].content.includes('🚀'), 'First log should have start emoji');
   assert.ok(systemPanel.elements[0].content.includes('开始处理消息'), 'First log content check');
   assert.ok(systemPanel.elements[1].content.includes('🧠'), 'Second log should have thinking emoji');
   assert.doesNotMatch(systemPanel.elements[1].content, /\/srv\/|secret-value/);
-  assert.ok(systemPanel.elements[2].content.includes('💓'), 'Third log should have heartbeat emoji');
+  assert.doesNotMatch(JSON.stringify(systemPanel), /心跳保活|💓/);
 
   const toolPanel = card.elements.find((el: any) =>
     el.tag === 'collapsible_panel' && el.header?.title?.content === '🛠️ 最近 5 条工具'
