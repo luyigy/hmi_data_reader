@@ -550,3 +550,49 @@ def test_rate_cell_supplement_overrides_full_ocr_misread():
 
     assert result["fields"] == {"control_percent": [25.0, 15.0, 3.0, 41.0],
                                 "drop_port_control_percent": -8.0}
+
+
+def test_draft_coerces_numeric_strings_and_defaults_empty_questions(monkeypatch):
+    response_payload = {
+        "sections": [{
+            "label": "温度",
+            "fields": [{
+                "screen_label": "设定温度",
+                "canonical_id": "barrel_temperature_set_c",
+                "role": "setpoint",
+                "unit": "°C",
+                "items": [
+                    {
+                        "label": "喷嘴",
+                        "value": "345.0",
+                        "sources": ["ocr", "vlm"],
+                        "evidence": ["OCR 345.0"],
+                        "needs_confirmation": True,
+                    },
+                    {
+                        "label": "前部",
+                        "value": 340,
+                        "sources": ["ocr", "vlm"],
+                        "evidence": ["OCR 340"],
+                        "needs_confirmation": True,
+                    },
+                ],
+                "sources": ["ocr", "vlm"],
+                "evidence": ["OCR 345.0", "OCR 340"],
+                "needs_confirmation": True,
+            }],
+        }],
+    }
+    monkeypatch.setattr(vlm_qwen, "_text_completion",
+                        lambda *_: {"choices": [{"message": {"content": json.dumps(response_payload)}}]})
+    result = vlm_qwen.draft_from_ocr(
+        {"lines": [{"text": "设定温度 345.0 340.0"}]}, "", "trial", {}, [
+            {"field_id": "barrel_temperature_set_c", "label": "设定温度", "unit": "°C",
+             "shape": "array", "role": "setpoint"},
+        ])
+
+    assert result["questions"] == []
+    items = result["sections"][0]["fields"][0]["items"]
+    assert items[0]["value"] == 345
+    assert items[1]["value"] == 340
+

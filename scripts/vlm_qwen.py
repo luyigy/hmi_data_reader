@@ -35,7 +35,7 @@ MODEL = os.environ.get("HMI_VLM_MODEL", "Qwen3-VL-32B-Instruct")
 
 MAX_IMAGE_EDGE = 1280
 JPEG_QUALITY = 85
-MAX_TOKENS = 2000
+MAX_TOKENS = int(os.environ.get("HMI_VLM_MAX_TOKENS", "8192"))
 TIMEOUT_S = 180
 MAX_RETRIES = 1
 
@@ -156,6 +156,18 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
         return (isinstance(value, (int, float)) and not isinstance(value, bool)
                 and math.isfinite(value))
 
+    def _to_number(value):
+        if number(value):
+            return int(value) if isinstance(value, float) and value.is_integer() else value
+        if isinstance(value, str):
+            try:
+                val = float(value.strip())
+                if math.isfinite(val):
+                    return int(val) if val.is_integer() else val
+            except (ValueError, TypeError):
+                pass
+        return None
+
     if (not isinstance(evidence, dict)
             or not string(target, 200)
             or not string(user_message, 2000, empty=True)
@@ -213,9 +225,9 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
         + "整理屏幕上所有可读工艺参数；canonical_hints 仅供匹配，不是输出白名单。"
         "不得猜测、翻译或换算；用户纠正优先。设定/实际/限制/未知必须分别使用 "
         "setpoint/actual/limit/unknown，并拆成并列 field；证据不足用 unknown。\n"
-        "只输出严格 JSON sections/questions。section 只有 label/fields；field 只有 "
+        "只输出严格 JSON 对象，包含 sections 和 questions 两个键。section 只有 label/fields；field 只有 "
         "screen_label/canonical_id/role/unit/items/sources/evidence/needs_confirmation；"
-        "item 只有 label/value/sources/evidence/needs_confirmation。canonical_id 先填 null，"
+        "item 只有 label/value/sources/evidence/needs_confirmation。value 必须是纯数字（int 或 float，非数字开关/状态项如 ON/OFF 等严禁输出，禁止把数字写成字符串）。canonical_id 先填 null，"
         "needs_confirmation 始终为 true，sources 只用 ocr/vlm/user。标量 item.label 为 null；"
         "分段或温区标签保留屏幕原文。相同值的 OCR/VLM 观测分开返回以便本地融合，"
         "冲突值都保留。即使没有 canonical hint，也必须返回目录外字段。\n"
@@ -234,6 +246,8 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
         draft = json.loads(content)
     except (KeyError, IndexError, TypeError, AttributeError, json.JSONDecodeError) as exc:
         raise VlmError("VLM 候选响应不是合法 JSON") from exc
+    if isinstance(draft, dict) and "sections" in draft and "questions" not in draft:
+        draft["questions"] = []
     if (not isinstance(draft, dict)
             or set(draft) != {"sections", "questions"}
             or not isinstance(draft["sections"], list) or len(draft["sections"]) > 32
@@ -257,15 +271,21 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
             section["label"], {"label": section["label"], "fields": {}, "order": []})
         for field in section["fields"]:
             field_count += 1
-            if (field_count > 256 or not isinstance(field, dict) or set(field) != field_keys
-                    or not string(field["screen_label"], 500)
-                    or not string(field["canonical_id"], 500, nullable=True)
-                    or field["role"] not in roles
-                    or not string(field["unit"], 500, empty=True)
-                    or not isinstance(field["items"], list) or not field["items"]
-                    or not strings(field["sources"], 500, 3, source_names)
-                    or not strings(field["evidence"], 500, 32)
-                    or field["needs_confirmation"] is not True):
+            if not isinstance(field, dict) or set(field) != field_keys:
+                raise VlmError("VLM field 非法")
+            if isinstance(field.get("sources"), str):
+                field["sources"] = [field["sources"]]
+            if isinstance(field.get("evidence"), str):
+                field["evidence"] = [field["evidence"]]
+            if (field_count > 256
+                    or not string(field.get("screen_label"), 500)
+                    or not string(field.get("canonical_id"), 500, nullable=True)
+                    or field.get("role") not in roles
+                    or not string(field.get("unit"), 500, empty=True)
+                    or not isinstance(field.get("items"), list) or not field["items"]
+                    or not strings(field.get("sources"), 500, 3, source_names)
+                    or not strings(field.get("evidence"), 500, 32)
+                    or field.get("needs_confirmation") is not True):
                 raise VlmError("VLM field 非法")
             shape = ("scalar" if len(field["items"]) == 1
                      and isinstance(field["items"][0], dict)
@@ -273,8 +293,9 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
             matches = [hint["field_id"] for hint in hints.values()
                        if (hint["label"], hint["unit"], hint["shape"], hint["role"])
                        == (field["screen_label"], field["unit"], shape, field["role"])]
-            canonical_id = matches[0] if len(matches) == 1 else None
-            if field["canonical_id"] not in {None, canonical_id}:
+            canonical_id = matches[0] if len(matches) == 1 else (
+                field["canonical_id"] if field["canonical_id"] in hints else None)
+            if field["canonical_id"] not in {None, canonical_id, *hints}:
                 raise VlmError("VLM canonical hint 匹配非法")
             item_sources = set()
             item_evidence = set()
@@ -290,13 +311,21 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
             output_field["canonical_ids"].append(canonical_id)
             for item in field["items"]:
                 item_count += 1
-                if (item_count > 1024 or not isinstance(item, dict) or set(item) != item_keys
-                        or not string(item["label"], 500, nullable=True)
-                        or not number(item["value"])
-                        or not strings(item["sources"], 500, 3, source_names)
-                        or not strings(item["evidence"], 500, 32)
-                        or item["needs_confirmation"] is not True):
+                if not isinstance(item, dict) or set(item) != item_keys:
                     raise VlmError("VLM item 非法")
+                if isinstance(item.get("sources"), str):
+                    item["sources"] = [item["sources"]]
+                if isinstance(item.get("evidence"), str):
+                    item["evidence"] = [item["evidence"]]
+                numeric_val = _to_number(item["value"])
+                if (item_count > 1024
+                        or not string(item.get("label"), 500, nullable=True)
+                        or numeric_val is None
+                        or not strings(item.get("sources"), 500, 3, source_names)
+                        or not strings(item.get("evidence"), 500, 32)
+                        or item.get("needs_confirmation") is not True):
+                    raise VlmError("VLM item 非法")
+                item["value"] = numeric_val
                 observation = (section["label"], *field_key, item["label"], item["value"],
                                tuple(item["sources"]), tuple(item["evidence"]))
                 if observation in exact_observations:
@@ -315,7 +344,10 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
                     if len(merged["evidence"]) > 32:
                         raise VlmError("VLM 融合后 evidence 超限")
             if set(field["sources"]) != item_sources or set(field["evidence"]) != item_evidence:
-                raise VlmError("VLM field 来源或证据未汇总 items")
+                field["sources"] = list(dict.fromkeys(field["sources"] + list(item_sources)))
+                field["evidence"] = list(dict.fromkeys(field["evidence"] + list(item_evidence)))
+                if not strings(field["sources"], 500, 3, source_names) or not strings(field["evidence"], 500, 32):
+                    raise VlmError("VLM field 来源或证据未汇总 items")
 
     sections = []
     for section in section_map.values():
@@ -323,6 +355,8 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
         for key in section["order"]:
             field = section["fields"][key]
             items = [field["items"][item_key] for item_key in field.pop("item_order")]
+            if not items:
+                continue
             canonical_ids = set(field.pop("canonical_ids"))
             field["canonical_id"] = canonical_ids.pop() if len(canonical_ids) == 1 else None
             field["items"] = items
@@ -333,7 +367,8 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
             if len(field["evidence"]) > 32:
                 raise VlmError("VLM 融合后 evidence 超限")
             fields.append(field)
-        sections.append({"label": section["label"], "fields": fields})
+        if fields:
+            sections.append({"label": section["label"], "fields": fields})
     return {"sections": sections, "questions": draft["questions"]}
 
 
