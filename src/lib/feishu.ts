@@ -80,6 +80,7 @@ export async function handleFeishuCommand(args: {
     case 'gateways':
       return handleGatewaysCommand();
     case 'agents':
+    case 'discover-agents':
       return handleAgentsCommand(args.command);
     case 'hosts':
       return handleHostsCommand();

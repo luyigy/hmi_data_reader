@@ -28,7 +28,7 @@ const HELP_PAGES = [
     '/ap status',
     '/ap status --quota [--agent=<成员>]  (管理员)',
     '/ap gateways',
-    '/ap agents [gatewayId]',
+    '/ap discover-agents [gatewayId]  发现本地、Remote SSH 与 Runner（/ap agents 兼容）',
     '/ap hosts',
     '/ap register --label=<名称> --host=<IP> --user=<用户> --keyfile=<私钥路径> [--harnesses=claude,codex] [--port=22] [--network=wireguard|lan|public]',
     '/ap run --host=<hostId|label> --harness=<codex|claude|claude-haha> <prompt>',
@@ -81,6 +81,7 @@ export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
   '/ap status',
   '/ap gateways',
   '/ap agents',
+  '/ap discover-agents',
   '/ap hosts',
   '/ap sessions',
   '/ap dashboard',
@@ -106,7 +107,7 @@ const QUICK_ACTIONS = [
   [
     ['状态', '/ap status'],
     ['网关', '/ap gateways'],
-    ['Agents', '/ap agents'],
+    ['发现 Agents', '/ap discover-agents'],
     ['Hosts', '/ap hosts'],
     ['Sessions', '/ap sessions'],
   ],
@@ -274,6 +275,7 @@ export const buildFeishuCommandCenterCard = (
       },
       buttonColumns([
         callbackButton('功能开发…', { cmd: 'ap-menu', view: 'form-run-feature', chatType }, 'primary_filled'),
+        callbackButton('发现 Agents', { cmd: 'ap-command', command: '/ap discover-agents', chatType }),
       ]),
       buttonColumns(HELP_PAGES.map(([group], index) => callbackButton(
         group,

@@ -1,6 +1,4 @@
 import { prisma } from '@/lib/prisma';
-import { getRealAgentsStatus } from '@/lib/real-agents';
-import { ensurePlatformLocalAgents, getServerHostname } from '@/lib/platform-local-init';
 import { readFeishuRuntimeStatus } from '@/lib/feishu-runtime-status';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import { listLiveRoomCatalogAgents } from '@/lib/live-room';
@@ -14,55 +12,6 @@ import {
   getKimiCodeAccountQuota,
   type KimiCodeQuotaRow,
 } from '@/lib/real-agents/kimi-code-telemetry';
-
-function getLocalHarnessStatus(agentName: string, localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>) {
-  const normalized = agentName.trim().toLowerCase();
-  if (normalized.includes('antigravity') || normalized === 'agy') {
-    return localStatus.antigravity.available ? 'online' : 'offline';
-  }
-  if (normalized === 'claude-haha') {
-    return localStatus['claude-haha'].available ? 'online' : 'offline';
-  }
-  if (normalized.includes('deepseek')) {
-    return localStatus.deepseek.available ? 'online' : 'offline';
-  }
-  if (normalized.includes('gemini')) {
-    return localStatus['gemini-cli'].available ? 'online' : 'offline';
-  }
-  if (normalized.includes('pi-agent') || normalized === 'pi') {
-    return localStatus['pi-agent'].available ? 'online' : 'offline';
-  }
-  if (normalized.includes('kimi-code') || normalized === 'kimi') {
-    return localStatus['kimi-code'].available ? 'online' : 'offline';
-  }
-  if (normalized.includes('codex')) {
-    return localStatus.codex.available ? 'online' : 'offline';
-  }
-  if (normalized === 'claude') {
-    return localStatus.claude.available ? 'online' : 'offline';
-  }
-  return 'offline';
-}
-
-function getEffectiveAgentStatus(
-  agent: {
-    status: string;
-    lastHeartbeat: Date;
-    gatewayId: string | null;
-    hostname: string | null;
-    name: string;
-  },
-  localStatus: Awaited<ReturnType<typeof getRealAgentsStatus>>,
-  currentHostname: string
-) {
-  if (agent.hostname) {
-    if (agent.hostname !== currentHostname) {
-      return 'offline';
-    }
-    return getLocalHarnessStatus(agent.name, localStatus);
-  }
-  return agent.status;
-}
 
 function formatGatewayLine(gateway: {
   name: string;
@@ -217,50 +166,21 @@ export async function handleGatewaysCommand() {
 }
 
 export async function handleAgentsCommand(command: ParsedFeishuCommand) {
-  await ensurePlatformLocalAgents();
   const gatewayId = command.args[0];
-  const currentHostname = getServerHostname();
-  const [agents, localStatus, catalogAgents] = await Promise.all([
-    prisma.agent.findMany({
-      where: gatewayId ? { gatewayId } : undefined,
-      orderBy: [
-        { gatewayId: 'asc' },
-        { name: 'asc' },
-      ],
-      take: 40,
-    }),
-    getRealAgentsStatus(),
-    listLiveRoomCatalogAgents(),
-  ]);
+  const catalogAgents = (await listLiveRoomCatalogAgents())
+    .filter((agent) => !gatewayId || agent.gatewayId === gatewayId);
 
-  if (agents.length === 0) {
+  if (catalogAgents.length === 0) {
     return gatewayId
       ? `Gateway ${gatewayId} 下还没有可见 agents。`
       : '当前还没有 agents。';
   }
 
-  const normalizedAgents = agents
-    .map((agent) => ({
-      ...agent,
-      effectiveStatus: getEffectiveAgentStatus(agent, localStatus, currentHostname),
-    }))
-    .filter((agent) => !agent.hostname || agent.hostname === currentHostname || agent.effectiveStatus !== 'offline');
-
   return [
-    gatewayId ? `Agents for ${gatewayId}` : 'Agents (用 --agents=<id> 指定)',
-    ...normalizedAgents.map((agent) => {
-      const gatewayLabel = agent.gatewayId || 'local';
-      const status = agent.effectiveStatus;
-      const catalog = catalogAgents.find((c) =>
-        c.harnessType === (agent.type || agent.name?.toLowerCase()) &&
-        (c.gatewayId === agent.gatewayId || (c.gatewayId === 'platform-local' && !agent.gatewayId))
-      );
-      const catalogId = catalog?.backend === 'platform_local'
-        ? `local:${catalog.harnessType}`
-        : catalog?.id ?? `platform_local:${gatewayLabel}:${agent.type || agent.name}`;
-      const nickname = agent.userNickname ? ` "${agent.userNickname}"` : '';
-      return `- ${agent.name}${nickname} | ${status}\n  --agents=${catalogId}`;
-    }),
+    gatewayId ? `发现 Agents · ${gatewayId}` : '发现 Agents（本地 / Remote SSH / Runner）',
+    ...catalogAgents.map((agent) =>
+      `- ${agent.userNickname || agent.agentName || agent.label} | ${agent.status} | ${agent.backend} | ${agent.gatewayName}\n  /ap add --agents=${agent.id}`
+    ),
   ].join('\n');
 }
 

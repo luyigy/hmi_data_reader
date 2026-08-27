@@ -48,6 +48,7 @@ assert.equal(formatFeishuHelp({ args: [], options: { page: '5' } }), '页码无�
 assert.equal(parseFeishuCommand(message('ap status')), null);
 assert.equal(parseFeishuCommand(message('Workflow Dashboard 点击后没有反馈')), null);
 assert.deepEqual(parseFeishuCommand(message('/ap menu')), { command: 'menu', args: [], options: {} });
+assert.deepEqual(parseFeishuCommand(message('/ap discover-agents')), { command: 'discover-agents', args: [], options: {} });
 
 const cards = buildFeishuCommandCenterCards('group');
 assert.equal(cards.length, 1);
@@ -65,7 +66,7 @@ assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'room')), /ap-
 for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
   const expectedCategory = command === '/ap members'
     ? 'room'
-    : ['/ap status', '/ap gateways', '/ap agents', '/ap hosts', '/ap sessions'].includes(command)
+    : ['/ap status', '/ap gateways', '/ap agents', '/ap discover-agents', '/ap hosts', '/ap sessions'].includes(command)
       ? 'runtime'
       : [
           '/ap dashboard',
@@ -89,6 +90,8 @@ assert.match(JSON.stringify(workflowCard), /修改调度/);
 assert.match(JSON.stringify(workflowCard), /修改执行档位/);
 const menuCard = buildFeishuCommandCenterCard('group');
 assert.match(JSON.stringify(menuCard), /功能开发…/);
+assert.match(JSON.stringify(menuCard), /发现 Agents/);
+assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', 'runtime')), /发现 Agents/);
 const featureFormCard = buildFeishuCommandCenterCard('group', 'form-run-feature');
 assert.match(JSON.stringify(featureFormCard), /Full · 完整流程/);
 assert.match(JSON.stringify(featureFormCard), /Lean · 计划审查/);
