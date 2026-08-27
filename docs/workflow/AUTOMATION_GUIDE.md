@@ -6,7 +6,8 @@
 只以目标 Git ref 中已提交的 [`workflow-contract.yaml`](./workflow-contract.yaml) 为准；本文不复制完整合同。
 
 创建或修复 PLAN/HANDOVER 时，必须读取合同声明的
-[`PLAN`](./templates/PLAN.md) / [`HANDOVER`](./templates/HANDOVER.md) 模板。缺少合同或模板时报告
+[`PLAN 写作与 Slice 划分规范`](./PLAN-writing-standard.md)、[`PLAN`](./templates/PLAN.md) /
+[`HANDOVER`](./templates/HANDOVER.md) 模板。缺少合同、规范或模板时报告
 “未初始化”，不得回退到平台安装目录中的隐藏副本。
 
 ## 2. 组件与事实边界
@@ -31,11 +32,11 @@ TaskRun 完成事件即时唤醒 + 每分钟调度补偿
 
 ### 3.1 PLAN
 
-1. 提交 `doc_status: ready + next_action: start_first_slice` 的 PLAN。
-2. watcher 校验合同、frontmatter、引用、Prompt 和编号。
+1. 提交 `doc_status: ready + next_action: await_approval` 的 PLAN；多份 PLAN 可同时留在计划清单。
+2. 从 Dashboard 选择一份 PLAN；watcher 校验合同、frontmatter、引用、Prompt、写作标准和编号。
 3. 校验通过后导入文档并发送审批卡，持久化为 `pending`。
 4. 审批选择：
-   - 批准：按自治模式决定立即执行还是等待人工运行 watcher；
+   - 批准：运行态把动作转换为 `start_first_slice`，再按自治模式立即执行或等待人工运行 watcher；
    - 修改：只启动 PLAN 修订，不执行 Slice；
    - 拒绝：结束该候选；
    - 超时：审批卡过期后可重发，不自动批准。
@@ -101,7 +102,7 @@ Inbox frontmatter 状态过滤候选，因此不想被领取的文件应删除�
 ## 6. Git、cursor 与幂等
 
 - 事件身份由 commit、文档路径、blob 和 action 共同确定；相同事件不会重复执行。
-- watcher 扫描本轮变更中编号最高的候选文档。不要在同一提交堆叠多份待执行 PLAN；需求队列使用 Inbox。
+- watcher 扫描本轮变更中编号最高的候选文档；`await_approval` PLAN 留在清单，由 Dashboard 明确选择后审批。
 - cursor 记录已消费位置；pending 记录审批或待执行 PLAN。两者都在数据库中，不写入仓库。
 - watcher 已读取或可能读取提交后，Git 历史必须只追加。禁止 amend、rebase、reset 和强推改写历史。
 - 检测到 ref 改写、cursor 早于合同 cutoff、HEAD 竞争或 consumer 冲突时，自动化停止并要求人工判断。

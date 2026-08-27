@@ -40,6 +40,7 @@ export type WorkflowContract = {
       executable_actions: string[];
       start_action: string;
       start_status: string;
+      review_action?: string;
       interrupt_kind: string;
       phase_kind: string;
       parent_fields: string[];
@@ -52,9 +53,10 @@ export type WorkflowContract = {
       resume_action: string;
     };
   };
-  actions: { executable: string[]; terminal: string[] };
+  actions: { executable: string[]; review?: string[]; terminal: string[] };
   prompt: { start_marker: string; end_marker: string };
   templates?: { plan?: string; handover?: string };
+  standards?: { plan?: string };
   validation?: { mode?: 'balanced' | 'strict'; rules?: Record<string, boolean> };
   completion_gate: { timeout_seconds: number };
   branch_spaces: { root: string };
@@ -109,8 +111,17 @@ export const readWorkflowContract = async (
   strings(contract.documents?.handover?.required_fields, 'documents.handover.required_fields');
   strings(contract.documents?.handover?.progress_values, 'documents.handover.progress_values');
   const executable = strings(contract.actions?.executable, 'actions.executable');
+  const review = contract.actions?.review ?? [];
+  if (!Array.isArray(review) || review.some((action) => typeof action !== 'string' || !action)) {
+    throw new Error('workflow contract has invalid actions.review');
+  }
   const terminal = strings(contract.actions?.terminal, 'actions.terminal');
-  if (executable.some((action) => terminal.includes(action))) throw new Error('workflow action sets overlap');
+  if ([...executable, ...review].some((action, index, actions) =>
+    terminal.includes(action) || actions.indexOf(action) !== index)) throw new Error('workflow action sets overlap');
+  if (contract.documents.plan.review_action
+    && !review.includes(contract.documents.plan.review_action)) {
+    throw new Error('PLAN review_action is not declared in actions.review');
+  }
   const planActions = strings(contract.documents.plan.executable_actions, 'documents.plan.executable_actions');
   const handoverActions = strings(contract.documents.handover.executable_actions, 'documents.handover.executable_actions');
   if ([...planActions, ...handoverActions].sort().join() !== [...executable].sort().join()) {
@@ -193,7 +204,7 @@ const promptFrom = (content: string, action: string, contract: WorkflowContract)
   const endLines = markerLines(content, end);
   const actual = `检测到 ${startLines.length} 个 start / ${endLines.length} 个 end 标记`;
   const locations = `start 行：${startLines.join('、') || '无'}；end 行：${endLines.join('、') || '无'}`;
-  if (!contract.actions.executable.includes(action)) {
+  if (![...contract.actions.executable, ...(contract.actions.review ?? [])].includes(action)) {
     if (startLines.length || endLines.length) throw new PromptMarkerError(
       'PROMPT_FORBIDDEN',
       '非可执行动作不得包含自动化 Prompt',
@@ -285,13 +296,13 @@ export const validateWorkflowDocument = async (
   }
   const action = String(metadata.next_action);
   const validAction = has('next_action')
-    && [...contract.actions.executable, ...contract.actions.terminal].includes(action);
+    && [...contract.actions.executable, ...(contract.actions.review ?? []), ...contract.actions.terminal].includes(action);
   if (has('next_action') && !validAction) {
     issue(
       'NEXT_ACTION_INVALID',
       'YAML.next_action',
       '无效的下一步动作',
-      [...contract.actions.executable, ...contract.actions.terminal].join('、'),
+      [...contract.actions.executable, ...(contract.actions.review ?? []), ...contract.actions.terminal].join('、'),
       metadata.next_action,
     );
   }
@@ -309,7 +320,9 @@ export const validateWorkflowDocument = async (
         error instanceof Error && error.message === 'automation prompt is empty'
           ? 'Prompt 标记之间的内容不能为空'
           : markerError?.message ?? '非可执行动作不得包含自动化 Prompt',
-        contract.actions.executable.includes(action) ? '恰好一对 Prompt 标记' : '零个 Prompt 标记',
+        [...contract.actions.executable, ...(contract.actions.review ?? [])].includes(action)
+          ? '恰好一对 Prompt 标记'
+          : '零个 Prompt 标记',
         markerError?.actual,
         undefined,
         markerError?.fix,
@@ -347,6 +360,10 @@ export const validateWorkflowDocument = async (
     });
     if (contract.actions.executable.includes(action) && !contract.documents.plan.executable_actions.includes(action)) {
       issue('PLAN_ACTION_INVALID', 'YAML.next_action', `PLAN 不能执行动作 ${action}`);
+    }
+    if ((contract.actions.review ?? []).includes(action)
+      && action !== contract.documents.plan.review_action) {
+      issue('PLAN_REVIEW_ACTION_INVALID', 'YAML.next_action', `PLAN 不能进入评审动作 ${action}`);
     }
     if (action === contract.documents.plan.start_action && has('doc_status')
       && metadata.doc_status !== contract.documents.plan.start_status) {
@@ -543,13 +560,17 @@ export const validateWorkflowDocuments = async ({
   if (contract.validation?.mode && !['balanced', 'strict'].includes(contract.validation.mode)) {
     throw new Error(`unsupported workflow validation mode: ${contract.validation.mode}`);
   }
-  const templateIssues = (await Promise.all(Object.entries(contract.templates ?? {}).map(async ([type, filePath]) =>
+  const declaredResources = {
+    ...Object.fromEntries(Object.entries(contract.templates ?? {}).map(([type, filePath]) => [`templates.${type}`, filePath])),
+    ...Object.fromEntries(Object.entries(contract.standards ?? {}).map(([type, filePath]) => [`standards.${type}`, filePath])),
+  };
+  const templateIssues = (await Promise.all(Object.entries(declaredResources).map(async ([type, filePath]) =>
     filePath && !await contractReader.exists(filePath)
       ? {
           code: 'TEMPLATE_MISSING',
           severity: 'warning' as const,
-          location: `templates.${type}`,
-          message: `目标 ref 缺少 ${type.toUpperCase()} 权威模板`,
+          location: type,
+          message: `目标 ref 缺少合同声明的 ${type} 文件`,
           expected: filePath,
           actual: null,
           template: `${type}: ${filePath}`,

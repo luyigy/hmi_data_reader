@@ -10,6 +10,9 @@
 规则值、合法字段、动作、Prompt 标记、编号和阈值只以
 [`workflow-contract.yaml`](./workflow-contract.yaml) 为准；本文不复制完整合同。
 
+创建或修订 PLAN 时，还必须读取合同 `standards.plan` 声明的
+[`PLAN-writing-standard.md`](./PLAN-writing-standard.md)。
+
 <!-- [CHANGE-ME] 平台部署位置/仓库地址，例如 /data1/code/agent-platform-v2 或内部 git 地址。 -->
 
 ## 2. 职责边界
@@ -26,7 +29,7 @@
 
 ## 3. 主状态机（摘要）
 
-- PLAN：提交 `ready + start_first_slice` → watcher 校验 → 审批卡（人工批准/修改/拒绝）→ 执行首 Slice。
+- PLAN：提交 `ready + await_approval` → 进入清单 → Dashboard 选择 → 审批卡 → 批准后转换为 `start_first_slice`。
 - HANDOVER：`next_slice` 投递下一 Slice；`resume_parent` 恢复父 PLAN；`await_acceptance` 停下等验收；
   `blocked` / `none` 通知后停止。
 - 新 PLAN 永远需要人工审批；`auto` 模式只负责从 Roadmap/Inbox 生成提案，不拥有批准权。

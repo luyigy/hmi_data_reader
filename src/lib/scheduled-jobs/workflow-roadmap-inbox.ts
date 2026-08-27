@@ -196,7 +196,7 @@ export async function proposeNextWorkflowInboxPlan(args: {
           '---',
           'doc_type: PLAN',
           'doc_status: ready',
-          'next_action: start_first_slice',
+          'next_action: await_approval',
           'plan_kind: phase',
           `roadmap: ${roadmap ? JSON.stringify(roadmap) : 'null'}`,
           'parent_plan: null',

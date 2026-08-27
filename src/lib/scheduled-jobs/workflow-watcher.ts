@@ -528,8 +528,8 @@ export const workflowWatcherHandler = async (
         project.path, head, pending.path, 'PLAN', content, metadata, contract,
         path.posix.dirname(pending.path), signal,
       );
-      if (revised.action !== contract.documents.plan.start_action) {
-        throw new Error('revised document is not an executable PLAN');
+      if (![contract.documents.plan.start_action, contract.documents.plan.review_action].includes(revised.action)) {
+        throw new Error('revised document is not an approvable PLAN');
       }
       const commit = await documentCommit(project.path, head, pending.path, signal);
       const key = `${head}:${pending.path}:${blob}:${revised.action}`;
@@ -600,6 +600,7 @@ export const workflowWatcherHandler = async (
           cursor: { ...previous, pending },
         };
       }
+      pending = { ...pending, action: contract.documents.plan.start_action };
       if (!contract.actions.executable.includes(pending.action)) {
         return {
           summary: `head=${head} candidate=${pending.path} action=${pending.action} result=approved`,
@@ -639,8 +640,9 @@ export const workflowWatcherHandler = async (
   }
 
   const scanFrom = previous.eventKey ? previous.commit : String(job.config.initial_cursor_commit);
-  const changed = previous.selectedPlan
-    ? [previous.selectedPlan]
+  const selectedPlan = previous.selectedPlan;
+  const changed = selectedPlan
+    ? [selectedPlan]
     : scanFrom === head ? [] : (await git(
       project.path, signal, 'diff', '--name-only', '--diff-filter=AMR', scanFrom, head, '--', watchRoot,
     )).trim().split('\n').filter(Boolean);
@@ -740,13 +742,14 @@ export const workflowWatcherHandler = async (
   }
   const commit = await documentCommit(project.path, head, candidate.filePath, signal);
   const eventKey = `${head}:${candidate.filePath}:${blob}:${document.action}`;
-  if (previous.eventKey === eventKey) {
+  if (previous.eventKey === eventKey && !selectedPlan) {
     return { summary: `head=${head} candidate=${candidate.filePath} duplicate=true`, cursor: carryQuarantine({ commit: head, eventKey }) };
   }
   const gate = !contract.legacy.automation_enabled
     ? 'automation_disabled'
     : candidate.type === 'PLAN'
-      && document.action === contract.documents.plan.start_action
+      && (document.action === contract.documents.plan.start_action
+        || (document.action === contract.documents.plan.review_action && selectedPlan === candidate.filePath))
       ? 'plan_review'
       : contract.actions.executable.includes(document.action)
         ? 'execute'

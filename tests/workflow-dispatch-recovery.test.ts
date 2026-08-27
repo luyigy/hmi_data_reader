@@ -230,11 +230,22 @@ async function main() {
   messageExists = false;
   deliveryExists = false;
   reset('prepared');
-  fault = 'feishu';
-  await assert.rejects(run(), /crash after Feishu post/);
-  assert.equal(dispatch.state, 'rotation_confirmation_posting');
-  fault = null;
-  await assert.rejects(run(), /rotation confirmation blocked/);
+  const rotationsBeforeAutomaticDispatch = rotationRuns;
+  assert.equal(await run(), true);
+  assert.equal(dispatch.state, 'reply_queued');
+  assert.equal(rotationRuns, rotationsBeforeAutomaticDispatch + 1,
+    'workflow dispatch must rotate without a confirmation card in every autonomy mode');
+
+  for (const legacyState of ['rotation_confirmation_posting', 'rotation_confirmation_required']) {
+    messageExists = false;
+    deliveryExists = false;
+    reset(legacyState);
+    const rotationsBeforeRecovery: number = rotationRuns;
+    assert.equal(await run(), true);
+    assert.equal(dispatch.state, 'reply_queued');
+    assert.equal(rotationRuns, rotationsBeforeRecovery + 1,
+      `${legacyState} must recover without waiting for the stale card`);
+  }
 
   rotationAction = 'reuse';
   reset('session_reset');

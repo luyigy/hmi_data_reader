@@ -525,7 +525,7 @@ async function testWorkflowOverview() {
     git('commit', '-qm', 'contract');
     const initial = git('rev-parse', 'HEAD');
     write('docs/010_PLAN_20260801_approval.md', plan('draft', 'await_plan_approval', '待审批'));
-    write('docs/011_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题'));
+    write('docs/011_PLAN_20260801_duplicate.md', plan('ready', 'await_approval', '重复标题'));
     write('docs/012_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题'));
     write('docs/013_PLAN_20260801_blocked.md', plan('blocked', 'blocked', '阻塞计划'));
     write('docs/014_HANDOVER_20260801_progress.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: next_slice\nplan: docs/011_PLAN_20260801_duplicate.md\nslice: S01\nplan_progress: in_progress\n---\n\n# HANDOVER · 第一阶段完成\n`);
@@ -545,7 +545,7 @@ async function testWorkflowOverview() {
     }, { ...workflowStatus, head, documentPath: '-', plan: '-', slice: '-', stage: '空闲' });
     assert.deepEqual(overview.plans.map(({ number, state }) => [number, state]), [
       [10, '等待审批'],
-      [11, '等待启动（未进入 watcher 队列）'],
+      [11, '等待审批'],
       [12, '重复计划（同 11）'],
       [13, '阻塞'],
     ]);

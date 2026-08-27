@@ -3,6 +3,7 @@
 # 工作流自动化入口
 
 - 唯一机器可读规则源：[workflow-contract.yaml](./workflow-contract.yaml)
+- PLAN 写作标准：[PLAN-writing-standard.md](./PLAN-writing-standard.md)
 - 文档骨架：[templates/PLAN.md](./templates/PLAN.md)、[templates/HANDOVER.md](./templates/HANDOVER.md)
 - 平台监测执行操作指南：[AUTOMATION_GUIDE.md](./AUTOMATION_GUIDE.md)
 <!-- [CHANGE-ME] 若有历史决策文档（如编号 DECISION_文档自动化状态机），在此补链接。 -->

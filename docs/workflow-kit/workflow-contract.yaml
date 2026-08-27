@@ -4,7 +4,7 @@
 #  validator/watcher 消费的契约面，删除字段前必须核对平台实现。
 # =====================================================================
 schema_version: 2
-contract_version: "2026.08.21.1"  # [CHANGE-ME] 目标仓库自定版本号，建议 YYYY.MM.DD.N
+contract_version: "2026.08.27.1"  # [CHANGE-ME] 目标仓库自定版本号，建议 YYYY.MM.DD.N
 
 documents:
   automation_types:
@@ -57,6 +57,7 @@ documents:
       - interrupt
     executable_actions:
       - start_first_slice
+    review_action: await_approval
     start_action: start_first_slice
     start_status: ready
     interrupt_kind: interrupt
@@ -86,6 +87,9 @@ actions:
     - next_slice
     - resume_parent
 
+  review:
+    - await_approval
+
   terminal:
     - await_acceptance
     - blocked
@@ -100,6 +104,9 @@ prompt:
 templates:
   plan: docs/workflow/templates/PLAN.md
   handover: docs/workflow/templates/HANDOVER.md
+
+standards:
+  plan: docs/workflow/PLAN-writing-standard.md
 
 # balanced：策略规则产生 warning；不写 validation 段时策略规则为 error。
 validation:

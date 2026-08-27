@@ -13,7 +13,7 @@ async function main() {
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'Test');
   await mkdir(path.join(root, 'docs/workflow/templates'), { recursive: true });
-  for (const file of ['workflow-contract.yaml', 'templates/PLAN.md', 'templates/HANDOVER.md']) {
+  for (const file of ['workflow-contract.yaml', 'PLAN-writing-standard.md', 'templates/PLAN.md', 'templates/HANDOVER.md']) {
     await writeFile(path.join(root, 'docs/workflow', file), await readFile(path.join(process.cwd(), 'docs/workflow', file)));
   }
   await writeFile(path.join(root, 'docs/007_REPORT_20260812_existing.md'), '# existing\n');
@@ -45,7 +45,9 @@ return_to: null
 
   const phase = await createWorkflowDocument(root, ['--kind', 'plan', '--title', '新计划']);
   assert.match(phase.filePath, /^docs\/013_PLAN_\d{8}_新计划\.md$/);
-  assert.match(await readFile(path.join(root, phase.filePath), 'utf8'), /plan_kind: phase/);
+  const phaseContent = await readFile(path.join(root, phase.filePath), 'utf8');
+  assert.match(phaseContent, /plan_kind: phase/);
+  assert.match(phaseContent, /next_action: await_approval/);
 
   const next = await createWorkflowDocument(root, [
     '--kind', 'handover', '--plan', 'docs/008_PLAN_20260812_fixture.md', '--slice', 'S01',

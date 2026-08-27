@@ -2,8 +2,9 @@
 
 # PLAN 最小模板
 
-从下面选择一种 PLAN。替换尖括号占位符后再提交；模板只提供示例，规则以同一目标 Git ref 的
-`docs/workflow/workflow-contract.yaml` 为准。
+从下面选择一种 PLAN。替换尖括号占位符后再提交；结构规则以同一目标 Git ref 的
+`docs/workflow/workflow-contract.yaml` 为准，正文质量与 Slice 划分必须遵守合同声明的
+`docs/workflow/PLAN-writing-standard.md`。
 
 ## Phase PLAN
 
@@ -11,7 +12,7 @@
 ---
 doc_type: PLAN
 doc_status: ready
-next_action: start_first_slice
+next_action: await_approval
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -37,7 +38,7 @@ return_to: null
 ---
 doc_type: PLAN
 doc_status: ready
-next_action: start_first_slice
+next_action: await_approval
 plan_kind: interrupt
 roadmap: null
 parent_plan: docs/<父PLAN>.md

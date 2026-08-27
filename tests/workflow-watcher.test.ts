@@ -88,6 +88,7 @@ documents:
       interrupt: [parent_plan, parent_slice, return_to]
     kinds: [phase, interrupt]
     executable_actions: [start_first_slice]
+    review_action: await_approval
     start_action: start_first_slice
     start_status: ready
     interrupt_kind: interrupt
@@ -101,6 +102,7 @@ documents:
     resume_action: resume_parent
 actions:
   executable: [start_first_slice, next_slice, resume_parent]
+  review: [await_approval]
   terminal: [await_acceptance, blocked, none]
 prompt:
   start_marker: "<!-- WORKFLOW_PROMPT_START -->"
@@ -357,7 +359,7 @@ plan_progress: complete
   await writeFile(path.join(root, 'docs/branch/main/003_PLAN_20260725_review.md'), `---
 doc_type: PLAN
 doc_status: ready
-next_action: start_first_slice
+next_action: await_approval
 plan_kind: phase
 roadmap: 000_ROADMAP_20260725_test.md
 parent_plan: null
@@ -373,7 +375,12 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
 `);
   git('add', '.');
   git('commit', '-qm', 'plan review');
-  const review = await run(activated.cursor);
+  const queuedReview = await run(activated.cursor);
+  assert.match(queuedReview.summary, /action=await_approval result=notified/);
+  const review = await run({
+    ...(queuedReview.cursor as Record<string, unknown>),
+    selectedPlan: 'docs/branch/main/003_PLAN_20260725_review.md',
+  });
   assert.match(review.summary, /gate=plan_review document_ready=true card_sent=true/);
   const reviewCursor = review.cursor as { pending: {
     detectedAt: string;
@@ -404,7 +411,7 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
   assert.match(String(reviewCall.body.content), /\*\*当前或将执行的 Slice\*\*：未声明/);
   assert.match(String(reviewCall.body.content), /\*\*计划进度\*\*：未声明/);
   assert.match(String(reviewCall.body.content), /\*\*文档状态\*\*：ready/);
-  assert.match(String(reviewCall.body.content), /\*\*下一动作\*\*：start_first_slice/);
+  assert.match(String(reviewCall.body.content), /\*\*下一动作\*\*：await_approval/);
   assert.equal(importedDocuments.length, 1);
   assert.match(importedDocuments[0].content, /PLAN PROMPT/);
   assert.equal(new URL(reviewCall.url).searchParams.get('receive_id_type'), 'chat_id');
@@ -748,14 +755,10 @@ NEXT PROMPT 004_HANDOVER_20260725_s01.md 003_PLAN_20260725_review.md 000_ROADMAP
 
   await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
   const contractPath = path.join(root, 'docs/workflow/workflow-contract.yaml');
-  await writeFile(contractPath, (await readFile(contractPath, 'utf8')).replace(
-    'terminal: [await_acceptance, blocked, none]',
-    'terminal: [await_plan_approval, await_acceptance, blocked, none]',
-  ));
   await writeFile(path.join(root, 'docs/branch/main/004_PLAN_20260725_approval.md'), `---
 doc_type: PLAN
-doc_status: draft
-next_action: await_plan_approval
+doc_status: ready
+next_action: await_approval
 plan_kind: phase
 roadmap: 000_ROADMAP_20260725_test.md
 parent_plan: null
@@ -763,17 +766,26 @@ parent_slice: null
 return_to: null
 ---
 S01
+<!-- WORKFLOW_PROMPT_START -->
+执行 004_PLAN_20260725_approval.md 的 S01，遵循 000_ROADMAP_20260725_test.md。
+<!-- WORKFLOW_PROMPT_END -->
 `);
   const importsBeforeTerminalPlan = importedDocuments.length;
   const reviewCardsBeforeTerminalPlan = apiCalls.filter(({ body }) => body.msg_type === 'interactive').length;
   git('add', '.');
   git('commit', '-qm', 'draft plan approval');
   const approvalDocument = await run(approved.cursor);
-  assert.match(approvalDocument.summary, /action=await_plan_approval result=notified/);
+  assert.match(approvalDocument.summary, /action=await_approval result=notified/);
   assert.equal(importedDocuments.length, importsBeforeTerminalPlan, 'terminal PLAN must not be imported for review');
   assert.equal(apiCalls.filter(({ body }) => body.msg_type === 'interactive').length, reviewCardsBeforeTerminalPlan,
     'terminal PLAN must not send an approval card');
   assert.match(String(apiCalls.at(-1)?.body.content), /不启动新 Session/);
+  const selectedApproval = await run({
+    ...(approvalDocument.cursor as Record<string, unknown>),
+    selectedPlan: 'docs/branch/main/004_PLAN_20260725_approval.md',
+  });
+  assert.match(selectedApproval.summary, /gate=plan_review document_ready=true card_sent=true/);
+  assert.match(String(apiCalls.at(-1)?.body.content), /批准/);
 
   await writeFile(path.join(root, 'docs/branch/main/005_PLAN_20260725_import_failure.md'), `---
 doc_type: PLAN

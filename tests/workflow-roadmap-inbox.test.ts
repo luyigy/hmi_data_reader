@@ -243,7 +243,7 @@ const main = async () => {
     const proposedHead = first.git('rev-parse', 'HEAD');
     const content = first.git('show', `${proposedHead}:${created.planPath}`);
     assert.match(content, /doc_status: ready/);
-    assert.match(content, /next_action: start_first_slice/);
+    assert.match(content, /next_action: await_approval/);
     assert.match(content, /WORKFLOW_INBOX_ITEM/);
     assert.match(content, new RegExp(inboxHead));
     assert.equal(first.git('diff', '--cached', '--name-only'), 'user-change.txt');
@@ -365,14 +365,19 @@ plan_progress: complete
     const proposed = await run('auto');
     assert.match(proposed.summary, /result=proposed/);
     assert.equal((proposed.cursor as { commit: string }).commit, integration.base);
-    const proposalFiles = integration.git('ls-tree', '-r', '--name-only', 'HEAD', '--', 'docs')
+    const proposalFiles = integration.git('-c', 'core.quotepath=false', 'ls-tree', '-r', '--name-only', 'HEAD', '--', 'docs')
       .split('\n')
       .filter((file) => /_PLAN_.*WorkflowInbox/.test(file));
     assert.equal(proposalFiles.length, 1);
-    const review = await run('auto', proposed.cursor);
+    const queued = await run('auto', proposed.cursor);
+    assert.match(queued.summary, /action=await_approval result=notified/);
+    const review = await run('auto', {
+      ...(queued.cursor as Record<string, unknown>),
+      selectedPlan: proposalFiles[0],
+    });
     assert.match(review.summary, /gate=plan_review.*card_sent=true/);
     assert.equal(
-      integration.git('ls-tree', '-r', '--name-only', 'HEAD', '--', 'docs')
+      integration.git('-c', 'core.quotepath=false', 'ls-tree', '-r', '--name-only', 'HEAD', '--', 'docs')
         .split('\n')
         .filter((file) => /_PLAN_.*WorkflowInbox/.test(file)).length,
       1,

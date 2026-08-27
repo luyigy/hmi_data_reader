@@ -10,7 +10,7 @@ workflow automation、validator/watcher。该合同是以上流程的唯一规�
 
 约定：
 
-- 创建或修复 PLAN/HANDOVER 时，必须读取合同声明的
+- 创建或修复 PLAN/HANDOVER 时，必须读取合同声明的 PLAN 写作标准及
   <!-- [CHANGE-ME] 按本仓库 branch_spaces.root 调整下述文档目录前缀（如 docs/codex/<空间>/）。 -->
   `docs/workflow/templates/PLAN.md` 与 `docs/workflow/templates/HANDOVER.md`；
   缺失时报告未初始化，不回退到平台安装目录中的隐藏副本。

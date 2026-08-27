@@ -15,6 +15,7 @@ Markdown 用 `<!-- [CHANGE-ME] ... -->` 注释），套用时逐项替换即可�
 | 套件文件 | 复制到目标仓库 | 说明 |
 | --- | --- | --- |
 | `workflow-contract.yaml` | `docs/workflow/workflow-contract.yaml` | 机器可读合同（平台运行时读取的唯一规则源） |
+| `PLAN-writing-standard.md` | `docs/workflow/PLAN-writing-standard.md` | 跨仓 PLAN 写作与 Slice 划分规范（合同 `standards.plan` 引用） |
 | `templates/PLAN.md` | `docs/workflow/templates/PLAN.md` | PLAN 骨架（合同 `templates.plan` 引用） |
 | `templates/HANDOVER.md` | `docs/workflow/templates/HANDOVER.md` | HANDOVER 骨架（合同 `templates.handover` 引用） |
 | `docs-workflow-README.md` | `docs/workflow/README.md` | 工作流目录入口说明（平台注册要点） |

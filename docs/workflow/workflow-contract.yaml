@@ -1,5 +1,5 @@
 schema_version: 2
-contract_version: "2026.08.01.2"
+contract_version: "2026.08.27.1"
 
 documents:
   automation_types:
@@ -45,6 +45,7 @@ documents:
       - interrupt
     executable_actions:
       - start_first_slice
+    review_action: await_approval
     start_action: start_first_slice
     start_status: ready
     interrupt_kind: interrupt
@@ -74,6 +75,9 @@ actions:
     - next_slice
     - resume_parent
 
+  review:
+    - await_approval
+
   terminal:
     - await_acceptance
     - blocked
@@ -88,6 +92,9 @@ prompt:
 templates:
   plan: docs/workflow/templates/PLAN.md
   handover: docs/workflow/templates/HANDOVER.md
+
+standards:
+  plan: docs/workflow/PLAN-writing-standard.md
 
 # Policy checks are enabled by default. Set an individual rule to false when
 # the document convention needs to be relaxed; structural YAML/action checks

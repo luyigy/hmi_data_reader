@@ -21,7 +21,7 @@ GitNexus results should support engineering decisions, not replace understanding
 ## 文档工作流
 
 - `docs/workflow/workflow-contract.yaml` 是 PLAN/HANDOVER 自动化的唯一规则源。
-- Agent 创建或修复 PLAN/HANDOVER 时读取合同声明的 `docs/workflow/templates/PLAN.md` 与
+- Agent 创建或修复 PLAN/HANDOVER 时读取合同声明的 PLAN 写作标准、`docs/workflow/templates/PLAN.md` 与
   `docs/workflow/templates/HANDOVER.md`；缺失时报告未初始化，不回退到平台内置模板。
 - 新建 PLAN/HANDOVER 必须使用 `npm run workflow:new` 生成骨架，禁止手工创建结构；正文填写完成且
   `git add` 后必须运行 `npm run workflow:validate -- --preflight <文档路径>`。

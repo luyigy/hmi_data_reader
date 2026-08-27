@@ -86,7 +86,7 @@ return_to: null
 
   const plan = (action: string, prompt = '') => `---
 doc_type: PLAN
-doc_status: ${action === 'start_first_slice' ? 'ready' : 'draft'}
+doc_status: ${['start_first_slice', 'await_approval'].includes(action) ? 'ready' : 'draft'}
 next_action: ${action}
 plan_kind: phase
 roadmap: 000_ROADMAP_20260726_test.md
@@ -98,7 +98,10 @@ ${prompt}`;
 <!-- WORKFLOW_PROMPT_END -->
 `;
   await writeFile(path.join(root, 'docs/001_PLAN_20260726_valid.md'), plan('start_first_slice', validPrompt));
-  await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval', validPrompt));
+  await writeFile(
+    path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'),
+    plan('await_approval', validPrompt.replace('001_PLAN_20260726_valid.md', '002_PLAN_20260726_terminal_prompt.md')),
+  );
   await writeFile(path.join(root, 'docs/003_PLAN_20260726_missing_prompt.md'), plan('start_first_slice'));
   await writeFile(
     path.join(root, 'docs/017_PLAN_20260726_multiple_prompts.md'),
@@ -259,14 +262,14 @@ next_action: start_first_slice
       cwd: root,
       ref,
       filePaths: [
-        'docs/002_PLAN_20260726_terminal_prompt.md',
+        'docs/003_PLAN_20260726_missing_prompt.md',
         'docs/010_PLAN_20260726_missing_runtime_file.md',
       ],
     }),
     (error: Error) => error instanceof WorkflowDocumentValidationError,
     'a proven document failure must still fail closed when the same batch also has a runtime failure',
   );
-  await assert.rejects(validate('docs/002_PLAN_20260726_terminal_prompt.md'), /无效的下一步动作/);
+  await validate('docs/002_PLAN_20260726_terminal_prompt.md');
   const markerIssue = async (filePath: string) => {
     try {
       await validate(filePath);
@@ -321,7 +324,7 @@ next_action: start_first_slice
   await writeFile(path.join(root, 'docs/007_PLAN_20260726_interrupt.md'), `---
 doc_type: PLAN
 doc_status: draft
-next_action: await_plan_approval
+next_action: await_approval
 plan_kind: interrupt
 ---
 S01
@@ -345,7 +348,7 @@ S01
   await writeFile(path.join(root, 'docs/010_PLAN_20260726_bad_return.md'), `---
 doc_type: PLAN
 doc_status: draft
-next_action: await_plan_approval
+next_action: await_approval
 plan_kind: interrupt
 parent_plan: 008_PLAN_20260726_no_roadmap.md
 parent_slice: S01
@@ -407,7 +410,7 @@ S01
       ['NEXT_SLICE_MISSING', 'warning'],
     ],
   );
-  assert.equal(balanced.issues.filter(({ code }) => code === 'TEMPLATE_MISSING').length, 2);
+  assert.equal(balanced.issues.filter(({ code }) => code === 'TEMPLATE_MISSING').length, 3);
   await assert.rejects(
     validateWorkflowDocuments({
       cwd: root,
@@ -438,16 +441,16 @@ S01
     filePaths: ['docs/005_HANDOVER_20260726_invalid.md'],
   });
 
-  await writeFile(path.join(root, 'docs/002_PLAN_20260726_terminal_prompt.md'), plan('await_plan_approval'));
+  await writeFile(path.join(root, 'docs/019_PLAN_20260726_terminal_prompt.md'), plan('await_acceptance'));
   await assert.rejects(
-    validate('docs/002_PLAN_20260726_terminal_prompt.md'),
-    /无效的下一步动作/,
+    validate('docs/019_PLAN_20260726_terminal_prompt.md'),
+    /非可执行动作不得包含自动化 Prompt/,
     'validation must read the target ref, not the legal workspace copy',
   );
 
   const planTemplate = await readFile(path.join(process.cwd(), 'docs/workflow/templates/PLAN.md'), 'utf8');
   const handoverTemplate = await readFile(path.join(process.cwd(), 'docs/workflow/templates/HANDOVER.md'), 'utf8');
-  for (const required of ['## Phase PLAN', '## Interrupt PLAN', 'start_first_slice']) {
+  for (const required of ['## Phase PLAN', '## Interrupt PLAN', 'await_approval']) {
     assert.match(planTemplate, new RegExp(required));
   }
   for (const required of ['## 继续下一 Slice', '## 恢复父 PLAN', '## 终止并等待验收', 'next_slice', 'resume_parent', 'await_acceptance']) {
@@ -461,6 +464,10 @@ S01
   await mkdir(path.join(root, 'docs/workflow/templates'), { recursive: true });
   await writeFile(path.join(root, 'docs/workflow/templates/PLAN.md'), planTemplate);
   await writeFile(path.join(root, 'docs/workflow/templates/HANDOVER.md'), handoverTemplate);
+  await writeFile(
+    path.join(root, 'docs/workflow/PLAN-writing-standard.md'),
+    await readFile(path.join(process.cwd(), 'docs/workflow/PLAN-writing-standard.md'), 'utf8'),
+  );
   await writeFile(
     path.join(root, 'docs/workflow/workflow-contract.yaml'),
     (await readFile(path.join(process.cwd(), 'docs/workflow/workflow-contract.yaml'), 'utf8'))

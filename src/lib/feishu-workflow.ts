@@ -16,8 +16,6 @@ import {
 import { prisma } from '@/lib/prisma';
 import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 import {
-  buildNewSessionConfirmationCard,
-  collectNewSessionRisks,
   handleNewSessionCommand,
   prepareWorkflowRotationHandover,
 } from '@/lib/feishu-new-session';
@@ -26,7 +24,6 @@ import {
   findProjectById,
   loadProjectsConfig,
 } from '@/lib/scheduled-jobs/project-config';
-import { resolveWorkflowAutonomy } from '@/lib/scheduled-jobs/workflow-autonomy';
 import {
   evaluateWorkflowRoomRotation,
   formatWorkflowRotationNotice,
@@ -150,16 +147,6 @@ export async function runWorkflowInBoundLiveRoom(args: {
         ),
       })),
   });
-  const scheduledState = await prisma.scheduledJobState.findUnique({
-    where: {
-      projectId_jobId: {
-        projectId: args.projectId,
-        jobId: args.jobId,
-      },
-    },
-    select: { workflowAutonomy: true },
-  });
-  const autonomy = resolveWorkflowAutonomy(job, scheduledState?.workflowAutonomy).mode;
   let rotationNotice = '';
 
   // A committed HANDOVER can be visible before its agent has emitted its final reply.
@@ -171,10 +158,12 @@ export async function runWorkflowInBoundLiveRoom(args: {
     if (active) return false;
   }
 
-  if (dispatch.state === 'rotation_confirmation_posting') {
-    throw new Error(`workflow rotation confirmation blocked after unconfirmed Feishu side effect: ${args.eventKey}`);
+  if (['rotation_confirmation_posting', 'rotation_confirmation_required'].includes(dispatch.state)) {
+    dispatch = await prisma.workflowDispatch.update({
+      where: { id: dispatch.id },
+      data: { state: 'rotation_pending' },
+    });
   }
-  if (dispatch.state === 'rotation_confirmation_required') return false;
 
   if (dispatch.state === 'prepared') {
     const rotation = args.roleWorkflow ? null : await evaluateWorkflowRoomRotation({
@@ -200,56 +189,6 @@ export async function runWorkflowInBoundLiveRoom(args: {
       if (!rotatableMembers.length && (args.roleWorkflow || rotation?.decision.action === 'rotation_pending')) {
         rotationNotice += ' 房间内没有可换代的持久 Session；Antigravity 仅参与房间告警。';
       }
-    } else if (autonomy !== 'auto') {
-      const suggestedHandover = args.prompt.match(/docs\/\d+_HANDOVER_\d{8}_[^\s`]+\.md/)?.[0] || null;
-      const safety = await collectNewSessionRisks({
-        taskId: boundRoom.sourceTask.id,
-        roomId: boundRoom.id,
-        memberIds: rotatableMembers.map(({ id }) => id),
-        workingDirectory: boundRoom.workingDirectory || boundRoom.sourceTask.workingDirectory || project.path,
-        hasCommittedHandover: Boolean(suggestedHandover),
-      });
-      const command = {
-        args: [],
-        options: {
-          all: 'true',
-          blank: 'true',
-          'rotatable-only': 'true',
-          ...(suggestedHandover ? { handover: suggestedHandover } : {}),
-          'rotation-key': args.eventKey,
-          'workflow-project-id': args.projectId,
-          'workflow-job-id': args.jobId,
-          'workflow-event-key': args.eventKey,
-        },
-      };
-      const claimed = await prisma.workflowDispatch.updateMany({
-        where: { id: dispatch.id, state: 'prepared' },
-        data: { state: 'rotation_confirmation_posting' },
-      });
-      if (!claimed.count) return false;
-      const requesterOpenId = project.feishu.approver_open_ids[0];
-      if (!requesterOpenId) throw new Error(`workflow project has no approver for rotation confirmation: ${project.id}`);
-      const feishuMessageId = await sendFeishuInteractiveMessage({
-        receiveId: args.chatId,
-        receiveIdType: 'chat_id',
-        card: buildNewSessionConfirmationCard({
-          command,
-          requesterOpenId,
-          chatType: args.chatType,
-          rotationKey: args.eventKey,
-          risks: safety.risks,
-          detail: `${rotationNotice}\n自治模式：${autonomy}；确认前不会停止运行或切换 Session。`,
-        }),
-      });
-      if (!feishuMessageId) throw new Error('Feishu rotation confirmation response missing message_id');
-      await prisma.workflowDispatch.update({
-        where: { id: dispatch.id },
-        data: {
-          state: 'rotation_confirmation_required',
-          feishuMessageId,
-        },
-      });
-      return false;
     } else {
       const workingDirectory = boundRoom.workingDirectory
         || boundRoom.sourceTask.workingDirectory
