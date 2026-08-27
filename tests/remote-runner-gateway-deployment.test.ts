@@ -110,15 +110,25 @@ function staticDeploymentChecks(): void {
   const runner = readFileSync(path.join(projectRoot, 'scripts/agent-platform-runner.js'), 'utf8');
   assert.match(runner, /process\.platform !== 'win32'/,
     'Windows runner must use the npm .cmd-compatible launch path');
-  assert.match(runner, /const encodedArgs = piArgs\.map/,
-    'Windows runner must encode each Pi argument independently');
+  assert.match(runner, /fs\.writeFileSync\(promptPath, piArgs\.at\(-1\), 'utf8'\)/,
+    'Windows runner must move the long prompt out of the process command line');
+  assert.match(runner, /const windowsArgs = \[\.\.\.piArgs\.slice\(0, -1\), `@\$\{promptPath\}`\]/,
+    'Windows runner must pass the prompt through Pi native @file input');
+  assert.match(runner, /const encodedArgs = windowsArgs\.map/,
+    'Windows runner must encode each remaining Pi argument independently');
+  assert.doesNotMatch(runner, /const encodedArgs = piArgs\.map/,
+    'Windows runner must not embed the full prompt in -EncodedCommand');
   assert.match(runner, /\[string\[\]\]\$piArgs=@\(\$\{encodedArgs\}\)/,
     'Windows PowerShell 5.1 must receive an explicit string array');
   assert.doesNotMatch(runner, /ConvertFrom-Json/,
     'Windows PowerShell 5.1 must not collapse a JSON array into one argument');
   assert.match(runner, /'-EncodedCommand'/,
     'Windows runner must launch the encoded PowerShell command');
-  assert.match(runner, /const child = spawnPi\(piArgs, cwd\)/,
+  assert.match(runner, /child\.once\('exit', cleanup\)/,
+    'Windows runner must delete the temporary prompt after Pi exits');
+  assert.match(runner, /try \{ child = spawnPi\(piArgs, cwd\); \} catch/,
+    'a synchronous Windows spawn failure must fail only the run, not the runner process');
+  assert.match(runner, /child = spawnPi\(piArgs, cwd\)/,
     'runner execution must use the cross-platform Pi launcher');
 }
 

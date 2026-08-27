@@ -136,13 +136,26 @@ const spawnPi = (piArgs, cwd) => {
   const options = { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] };
   if (process.platform !== 'win32') return spawn(piBin, piArgs, options);
 
+  const promptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-platform-prompt-'));
+  const promptPath = path.join(promptDir, 'prompt.md');
+  fs.writeFileSync(promptPath, piArgs.at(-1), 'utf8');
+  const windowsArgs = [...piArgs.slice(0, -1), `@${promptPath}`];
   const command = Buffer.from(piBin, 'utf8').toString('base64');
-  const encodedArgs = piArgs.map((arg) => `[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(arg, 'utf8').toString('base64')}'))`).join(',');
+  const encodedArgs = windowsArgs.map((arg) => `[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(arg, 'utf8').toString('base64')}'))`).join(',');
   const script = `$ErrorActionPreference='Stop'; $pi=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${command}')); [string[]]$piArgs=@(${encodedArgs}); & $pi @piArgs; if ($LASTEXITCODE -is [int]) { exit $LASTEXITCODE }`;
-  return spawn('powershell.exe', [
-    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-    '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64'),
-  ], options);
+  const cleanup = () => fs.rmSync(promptDir, { recursive: true, force: true });
+  try {
+    const child = spawn('powershell.exe', [
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64'),
+    ], options);
+    child.once('error', cleanup);
+    child.once('exit', cleanup);
+    return child;
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
 };
 
 function run(ws, message) {
@@ -158,7 +171,11 @@ function run(ws, message) {
   const piArgs = ['--mode', 'json', '--tools', tools, '--session-dir', sessionDir];
   if (message.continue) piArgs.push('--continue'); else piArgs.push('-p');
   piArgs.push(String(message.prompt || ''));
-  const child = spawnPi(piArgs, cwd);
+  let child;
+  try { child = spawnPi(piArgs, cwd); } catch (error) {
+    send(ws, { type: 'complete', runId, success: false, error: error.message, sessionDir });
+    return;
+  }
   children.set(runId, child);
   let finished = false;
   let output = '';
