@@ -256,11 +256,16 @@ const processPiJsonLine = (line: string, callbacks?: HarnessStreamCallbacks) => 
       });
     }
 
+    const resolvedText =
+      event.type === 'message_end' || event.type === 'turn_end'
+        ? extractPiAssistantText(event) || undefined
+        : undefined;
+    if (resolvedText) {
+      void callbacks?.onStdoutChunk?.(resolvedText);
+    }
+
     return {
-      resolvedText:
-        event.type === 'message_end' || event.type === 'turn_end'
-          ? extractPiAssistantText(event) || undefined
-          : undefined,
+      resolvedText,
       plainText: undefined as string | undefined,
     };
   } catch {
