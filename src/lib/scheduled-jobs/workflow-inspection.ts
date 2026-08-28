@@ -199,7 +199,7 @@ export async function inspectWorkflowOverview(
       : blocked ? '阻塞'
         : plan.filePath === currentPlan ? status.running ? '执行中' : status.stage
           : plan.metadata.doc_status === 'draft'
-            || ['await_approval', 'await_plan_approval'].includes(String(plan.metadata.next_action)) ? '等待审批'
+            || ['await_approval', 'await_plan_approval'].includes(String(plan.metadata.next_action)) ? '等待激活'
             : queuedPlans.has(plan.filePath) ? '等待 watcher 领取'
               : '等待启动（未进入 watcher 队列）';
     const slices = Array.from(plan.content.matchAll(/^#{2,6}\s+(S\d{2,})[：:\s-]+(.+)$/gm), (match) => ({

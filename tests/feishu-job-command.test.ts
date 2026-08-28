@@ -544,8 +544,8 @@ async function testWorkflowOverview() {
       initial_cursor_commit: initial,
     }, { ...workflowStatus, head, documentPath: '-', plan: '-', slice: '-', stage: '空闲' });
     assert.deepEqual(overview.plans.map(({ number, state }) => [number, state]), [
-      [10, '等待审批'],
-      [11, '等待审批'],
+      [10, '等待激活'],
+      [11, '等待激活'],
       [12, '重复计划（同 11）'],
       [13, '阻塞'],
     ]);
