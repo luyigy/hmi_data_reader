@@ -247,21 +247,15 @@ export async function inspectWorkflowOverview(
     !duplicateOf && !['阻塞', '实施完成，等待人工验收'].includes(state)
   ));
   queue.forEach((plan, index) => { plan.queuePosition = index + 1; });
-  const planPaths = new Set(plans.map(({ path: planPath }) => planPath));
-  const relatedHandovers = handovers
-    .filter(({ metadata, filePath }) => {
-      const reference = planReference(metadata, filePath);
-      return !reference || planPaths.has(reference);
-    })
-    .map(({ filePath, number, content, metadata }) => ({
-      path: filePath,
-      number,
-      title: content.match(/^#\s+HANDOVER\s*[·・-]\s*(.+)$/m)?.[1]?.trim() ?? path.posix.basename(filePath),
-      plan: planReference(metadata, filePath) || '未声明',
-      slice: typeof metadata.slice === 'string' ? metadata.slice : '未声明',
-      planProgress: typeof metadata.plan_progress === 'string' ? metadata.plan_progress : '未声明',
-      nextAction: typeof metadata.next_action === 'string' ? metadata.next_action : '未声明',
-    }));
+  const relatedHandovers = handovers.map(({ filePath, number, content, metadata }) => ({
+    path: filePath,
+    number,
+    title: content.match(/^#\s+HANDOVER\s*[·・-]\s*(.+)$/m)?.[1]?.trim() ?? path.posix.basename(filePath),
+    plan: planReference(metadata, filePath) || '未声明',
+    slice: typeof metadata.slice === 'string' ? metadata.slice : '未声明',
+    planProgress: typeof metadata.plan_progress === 'string' ? metadata.plan_progress : '未声明',
+    nextAction: typeof metadata.next_action === 'string' ? metadata.next_action : '未声明',
+  }));
   const inbox = parsedInbox.map(({ filePath, content, metadata }) => ({
     path: filePath,
     title: content.match(/^#\s+(?:ISSUE\s*[·・-]\s*)?(.+)$/m)?.[1]?.trim() ?? path.posix.basename(filePath),

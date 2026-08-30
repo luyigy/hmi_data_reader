@@ -558,13 +558,16 @@ async function testWorkflowOverview() {
     ]);
     assert.deepEqual(
       overview.handovers.map(({ number, slice, planProgress, nextAction }) => [number, slice, planProgress, nextAction]),
-      [[14, 'S01', 'in_progress', 'next_slice']],
+      [
+        [14, 'S01', 'in_progress', 'next_slice'],
+        [16, 'S01', 'complete', 'await_acceptance'],
+      ],
     );
     assert.deepEqual(overview.others.map(({ number, type, title }) => [number, type, title]), [
       [17, 'REPORT', '汇总报告'],
     ]);
     assert.deepEqual(overview.plans.find(({ number }) => number === 11)?.slices.map(({ id }) => id), ['S02']);
-    assert.match(formatWorkflowOverview(overview), /队列分类：Inbox 1 · PLAN 4 · HANDOVER 1[\s\S]*未完成 PLAN 与 Slice：[\s\S]*S02[\s\S]*相关 HANDOVER：[\s\S]*next_slice[\s\S]*排队序列：[\s\S]*1\. 10[\s\S]*异常：/);
+    assert.match(formatWorkflowOverview(overview), /队列分类：Inbox 1 · PLAN 4 · HANDOVER 2[\s\S]*未完成 PLAN 与 Slice：[\s\S]*S02[\s\S]*相关 HANDOVER：[\s\S]*next_slice[\s\S]*await_acceptance[\s\S]*排队序列：[\s\S]*1\. 10[\s\S]*异常：/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
