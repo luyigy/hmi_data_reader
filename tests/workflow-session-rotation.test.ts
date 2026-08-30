@@ -3,8 +3,27 @@ import {
   decideWorkflowRoomRotation,
   formatWorkflowRotationNotice,
   parseWorkflowRotationThresholds,
+  suggestHandoverPathFromPrompt,
   type WorkflowRoomWatermark,
 } from '../src/lib/workflow-session-rotation';
+
+// Workflow Handovers can live in a branch-space subdirectory (docs/dev/) or
+// directly under docs/; both must be suggested so the dispatcher reuses the
+// committed Handover instead of minting an emergency Session-rotation checkpoint.
+assert.equal(
+  suggestHandoverPathFromPrompt('读取 `docs/dev/229_HANDOVER_20260830_S04黏度速度与模温保存导出对照.md`、docs/dev/223_PLAN_x.md 和合同，只执行 S05。'),
+  'docs/dev/229_HANDOVER_20260830_S04黏度速度与模温保存导出对照.md',
+);
+assert.equal(
+  suggestHandoverPathFromPrompt('读取 docs/001_HANDOVER_20260731_fixture.md 后继续。'),
+  'docs/001_HANDOVER_20260731_fixture.md',
+);
+assert.equal(
+  suggestHandoverPathFromPrompt('读取 docs/dev/001_HANDOVER_20260731_fixture.md 后继续。'),
+  'docs/dev/001_HANDOVER_20260731_fixture.md',
+);
+assert.equal(suggestHandoverPathFromPrompt('读取 docs/dev/223_PLAN_20260830_x.md 和 docs/dev/004_TODO_x.md。'), null);
+assert.equal(suggestHandoverPathFromPrompt('没有提到任何 Handover。'), null);
 
 const sample = (
   memberId: string,

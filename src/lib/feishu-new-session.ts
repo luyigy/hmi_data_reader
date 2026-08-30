@@ -208,6 +208,15 @@ async function findGeneratedHandover(workingDirectory: string, rotationKey: stri
     .find((file) => /_HANDOVER_\d{8}_.+\.md$/.test(file)) ?? null;
 }
 
+// The transcript quoted into an emergency rotation checkpoint may repeat contract
+// automation prompt markers (for example when the previous reply echoed a
+// WORKFLOW_READY prompt). Repository reference-transaction hooks reject such
+// documents with PROMPT_FORBIDDEN, which makes every rotation retry fail and
+// accumulate staged checkpoint files. Neutralize the exact marker strings while
+// keeping the surrounding text readable.
+const redactWorkflowPromptMarkers = (text: string) => text
+  .replace(/<!--\s*(\S*PROMPT_(?:START|END))\s*-->/g, (_match, token: string) => `〔${token} 标记已脱敏〕`);
+
 async function generateCommittedHandover(args: {
   workingDirectory: string;
   rotationKey: string;
@@ -257,7 +266,7 @@ async function generateCommittedHandover(args: {
         '',
         '## 最近上下文',
         '',
-        args.transcript || '(无可用 transcript)',
+        redactWorkflowPromptMarkers(args.transcript) || '(无可用 transcript)',
         '',
         '## 下一步',
         '',
@@ -271,17 +280,26 @@ async function generateCommittedHandover(args: {
     }
   }
   await git(args.workingDirectory, 'add', '--', relativePath);
-  await git(
-    args.workingDirectory,
-    'commit',
-    '--only',
-    '-m',
-    'docs(session): checkpoint before rotation',
-    '-m',
-    `New-Session-Rotation: ${args.rotationKey}`,
-    '--',
-    relativePath,
-  );
+  try {
+    await git(
+      args.workingDirectory,
+      'commit',
+      '--only',
+      '-m',
+      'docs(session): checkpoint before rotation',
+      '-m',
+      `New-Session-Rotation: ${args.rotationKey}`,
+      '--',
+      relativePath,
+    );
+  } catch (error) {
+    // A rejected checkpoint (for example by an append-only guard hook) must not
+    // stay written and staged, otherwise every retry mints another numbered
+    // junk file while the dispatch keeps failing.
+    await git(args.workingDirectory, 'restore', '--staged', '--', relativePath).catch(() => undefined);
+    await fs.rm(path.join(args.workingDirectory, relativePath), { force: true }).catch(() => undefined);
+    throw error;
+  }
   return relativePath;
 }
 

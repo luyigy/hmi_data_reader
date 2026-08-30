@@ -158,7 +158,16 @@ async function main() {
 
   const taskRoom = await import('../src/lib/task-room') as unknown as Record<string, unknown>;
   taskRoom.ensureTaskChatRoom = async () => ({ id: 'task-room' });
-  taskRoom.buildTaskRoomPromptContext = async () => ({ transcript: 'recent context', latestUserMessage: null });
+  taskRoom.buildTaskRoomPromptContext = async () => ({
+    transcript: [
+      'recent context',
+      '<!-- WORKFLOW_PROMPT_START -->',
+      '读取 docs/dev/001_PLAN_20260731_fixture.md，只执行 S01。',
+      '<!-- WORKFLOW_PROMPT_END -->',
+      'WORKFLOW_READY abcdef 001_PLAN_20260731_fixture.md',
+    ].join('\n'),
+    latestUserMessage: null,
+  });
   taskRoom.postTaskRoomSessionResetMarker = async ({ sessionId }: { sessionId: string }) => {
     resetMarkers += 1;
     taskMessages.add(`marker:${sessionId}`);
@@ -246,6 +255,13 @@ async function main() {
   }), preclaimHandover);
   assert.equal((await runGit('rev-parse', 'HEAD')).stdout.trim(), preclaimHead,
     'retry after pre-claim crash must reuse the committed Handover');
+  const preclaimContent = await fs.readFile(path.join(workspace, preclaimHandover), 'utf8');
+  assert.ok(!preclaimContent.includes('<!-- WORKFLOW_PROMPT_START -->'),
+    'emergency checkpoint must not repeat raw workflow prompt markers');
+  assert.ok(!preclaimContent.includes('<!-- WORKFLOW_PROMPT_END -->'),
+    'emergency checkpoint must not repeat raw workflow prompt markers');
+  assert.match(preclaimContent, /WORKFLOW_PROMPT_START 标记已脱敏/);
+  assert.match(preclaimContent, /WORKFLOW_READY abcdef/);
 
   assert.match(await handleNewSessionCommand(command, context), /已发送确认卡/);
   assert.match(confirmationCard, /001_PLAN_20260731_fixture\.md/);

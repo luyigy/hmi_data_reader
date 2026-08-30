@@ -1,5 +1,15 @@
 import { getLiveRoomMemberContextWatermark } from '@/lib/live-room-members';
 
+// Workflow HANDOVER documents may live directly under docs/ (legacy layout) or in a
+// per-team branch space such as docs/dev/. The suggestion must accept one or more
+// directory segments between docs/ and the numbered document filename, otherwise
+// the dispatcher falls back to generating an emergency Session-rotation checkpoint
+// even though the prompt references an already committed Handover.
+const HANDOVER_SUGGESTION_PATTERN = /docs\/(?:[^\s`/]+\/)*\d+_HANDOVER_\d{8}_[^\s`]+\.md/;
+
+export const suggestHandoverPathFromPrompt = (prompt: string): string | null =>
+  prompt.match(HANDOVER_SUGGESTION_PATTERN)?.[0] || null;
+
 export const DEFAULT_WORKFLOW_ROTATION_THRESHOLDS = {
   checkpointPreparationPercentage: 65,
   rotationPendingPercentage: 70,

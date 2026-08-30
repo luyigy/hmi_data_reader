@@ -27,6 +27,7 @@ import {
 import {
   evaluateWorkflowRoomRotation,
   formatWorkflowRotationNotice,
+  suggestHandoverPathFromPrompt,
 } from '@/lib/workflow-session-rotation';
 import {
   buildWorkflowPermissionSnapshot,
@@ -202,7 +203,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
         memberIds: rotatableMembers.map(({ id }) => id),
         memberNames: rotatableMembers.map((member) => member.userNickname || member.displayName),
         rotationKey: args.eventKey,
-        suggestedPath: args.prompt.match(/docs\/\d+_HANDOVER_\d{8}_[^\s`]+\.md/)?.[0] || null,
+        suggestedPath: suggestHandoverPathFromPrompt(args.prompt),
       });
       const claimed = await prisma.workflowDispatch.updateMany({
         where: { id: dispatch.id, state: 'prepared' },
@@ -241,6 +242,7 @@ export async function runWorkflowInBoundLiveRoom(args: {
       memberIds: rotatableMembers.map(({ id }) => id),
       memberNames: rotatableMembers.map((member) => member.userNickname || member.displayName),
       rotationKey: args.eventKey,
+      suggestedPath: suggestHandoverPathFromPrompt(args.prompt),
     });
     const result = await handleNewSessionCommand({
       args: [],
