@@ -344,13 +344,15 @@ function buildCardActionHandler(prefix: string) {
       openId: openId || null,
       chatId: chatId || null,
       messageId,
-      onStarted: () => {
+      onStarted: (decision) => {
         if (chatId) {
           void sendFeishuTextMessage({
             receiveId: chatId,
             receiveIdType: 'chat_id',
             replyId: messageId,
-            text: '⏳ 已接收，正在后台处理 Session 切换与 Handover 生成...',
+            text: decision === 'handover'
+              ? '⏳ 已接收，正在后台处理 Session 切换与 Handover 生成...'
+              : '⏳ 已接收，正在后台处理 Session 切换...',
           }).catch(() => undefined);
         }
       },

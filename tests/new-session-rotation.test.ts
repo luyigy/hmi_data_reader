@@ -396,6 +396,46 @@ async function main() {
   assert.match(asyncResult.toast.content, /已开始生成 Handover/);
   await new Promise((resolve) => setTimeout(resolve, 200));
 
+  let startedDecision: string | null = null;
+  const headBeforeDirect = (await runGit('rev-parse', 'HEAD')).stdout.trim();
+  const directAsyncResult = await handleNewSessionConfirmationCardAction({
+    value: {
+      decision: 'direct',
+      requesterOpenId: 'user',
+      chatType: 'group',
+      command: JSON.stringify({
+        ...command,
+        options: { 'generate-handover': 'true', handover: 'stale' },
+      }),
+      rotationKey: 'async-direct-end',
+    },
+    openId: 'user',
+    chatId: 'chat',
+    messageId: 'card-direct-async',
+    onStarted: (decision) => { startedDecision = decision; },
+    asyncProcessing: true,
+  });
+  assert.equal(startedDecision, 'direct');
+  assert.equal(directAsyncResult.toast.type, 'success');
+  assert.equal(directAsyncResult.toast.content, '已开始切换 Session...');
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const headAfterDirect = (await runGit('rev-parse', 'HEAD')).stdout.trim();
+  assert.equal(headAfterDirect, headBeforeDirect, 'direct switch must not generate or commit any handover doc');
+  assert.match(replies.at(-1) || '', /^✅/);
+  assert.match(replies.at(-1) || '', /Bootstrap：room\/task state/);
+
+  const directCmdResult = await handleNewSessionCommand({
+    command: 'new-session',
+    args: [],
+    options: {
+      direct: 'true',
+      'rotation-key': 'cmd-direct',
+    },
+  }, context);
+  assert.match(directCmdResult, /^✅/);
+  assert.match(directCmdResult, /Bootstrap：room\/task state/);
+  assert.equal((await runGit('rev-parse', 'HEAD')).stdout.trim(), headBeforeDirect);
+
   await fs.rm(workspace, { recursive: true, force: true });
   console.log('new session rotation checks passed');
 }

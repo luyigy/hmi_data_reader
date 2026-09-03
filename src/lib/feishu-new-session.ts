@@ -472,7 +472,10 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
   const sourceTask = room.sourceTask;
   const workingDirectory = room.workingDirectory || sourceTask.workingDirectory || process.cwd();
 
-  let handoverOption = (command.options['handover'] || command.options['from-handover'] || '').trim();
+  const direct = isTruthyFeishuOption(command.options['direct']);
+  let handoverOption = direct
+    ? ''
+    : (command.options['handover'] || command.options['from-handover'] || '').trim();
   const memberQuery = (command.options['agent'] || command.args.join(' ') || '').trim();
   const allMembers = isTruthyFeishuOption(command.options['all']) || memberQuery.toLowerCase() === 'all';
   const rotatableOnly = isTruthyFeishuOption(command.options['rotatable-only']);
@@ -489,7 +492,9 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
   }
   const member = members[0];
 
-  const confirmed = isTruthyFeishuOption(command.options['confirmed']);
+  const confirmed = isTruthyFeishuOption(command.options['confirmed'])
+    || isTruthyFeishuOption(command.options['force'])
+    || direct;
   const rotationKey = command.options['rotation-key']
     || `manual:${context?.messageId || 'unknown'}:${members.map(({ id }) => id).join(',')}`;
   let handoverPath;
@@ -540,7 +545,7 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
     });
     return '⚠️ 检测到 Session 切换风险，已发送确认卡；确认前不会停止运行或更换 Session。';
   }
-  if (confirmed && command.options['generate-handover'] === 'true') {
+  if (confirmed && !direct && command.options['generate-handover'] === 'true') {
     const promptContext = await buildTaskRoomPromptContext(sourceTask.id, sourceTask.name, 30);
     handoverOption = await generateCommittedHandover({
       workingDirectory,
@@ -778,7 +783,7 @@ export async function handleNewSessionConfirmationCardAction(args: {
   openId: string | null;
   chatId: string | null;
   messageId?: string | null;
-  onStarted?: () => void;
+  onStarted?: (decision: 'handover' | 'direct') => void;
   asyncProcessing?: boolean;
 }) {
   const decision = args.value.decision;
@@ -823,14 +828,21 @@ export async function handleNewSessionConfirmationCardAction(args: {
 
   const executeRotation = async () => {
     try {
+      const nextOptions: Record<string, string> = {
+        ...command.options,
+        confirmed: 'true',
+        'rotation-key': rotationKey,
+      };
+      if (decision === 'handover') {
+        nextOptions['generate-handover'] = 'true';
+      } else {
+        delete nextOptions['generate-handover'];
+        delete nextOptions['handover'];
+        delete nextOptions['from-handover'];
+      }
       const result = await handleNewSessionCommand({
         ...command,
-        options: {
-          ...command.options,
-          confirmed: 'true',
-          'rotation-key': rotationKey,
-          ...(decision === 'handover' ? { 'generate-handover': 'true' } : {}),
-        },
+        options: nextOptions,
       }, {
         chatId: args.chatId!,
         chatType: args.value.chatType === 'p2p' ? 'p2p' : 'group',
@@ -861,7 +873,7 @@ export async function handleNewSessionConfirmationCardAction(args: {
     }
   };
 
-  args.onStarted?.();
+  args.onStarted?.(decision as 'handover' | 'direct');
 
   if (args.asyncProcessing) {
     void executeRotation().catch(() => undefined);
