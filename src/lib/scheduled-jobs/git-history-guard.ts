@@ -2,8 +2,9 @@ import { execFile } from 'node:child_process';
 import { appendFile, chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const MARKER = '# agent-platform append-only ref guard v3';
+const MARKER = '# agent-platform append-only ref guard v4';
 const LEGACY_MARKERS = [
+  '# agent-platform append-only ref guard v3',
   '# agent-platform append-only ref guard v1',
   '# agent-platform append-only ref guard v2',
 ];
@@ -33,6 +34,13 @@ do
   esac
   case "$new" in
     0000000000000000000000000000000000000000|0000000000000000000000000000000000000000000000000000000000000000)
+      # pack-refs has already persisted the same OID before pruning its loose
+      # copy. A real packed-ref deletion holds packed-refs.lock: never allow it.
+      packed_refs="$(git rev-parse --git-path packed-refs)" || exit 1
+      if [ ! -e "$packed_refs.lock" ] && [ -f "$packed_refs" ] &&
+        grep -Fqx "$old $ref" "$packed_refs"; then
+        continue
+      fi
       echo "Agent Platform blocked deletion of append-only $ref." >&2
       exit 1
       ;;

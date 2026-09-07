@@ -47,7 +47,7 @@ S01
     'policy/contract.yaml',
   );
   const hookSource = await readFile(hookPath, 'utf8');
-  assert.match(hookSource, /append-only ref guard v3/);
+  assert.match(hookSource, /append-only ref guard v4/);
   assert.doesNotMatch(hookSource, /agent-platform-v2|ts-node|node_modules|validate-workflow-documents\.ts/);
   const validatorPath = path.resolve(root, git('rev-parse', '--git-path', 'agent-platform/workflow-validator.cjs'));
   assert.ok((await stat(validatorPath)).size > 0);
@@ -57,7 +57,11 @@ S01
 
   await writeFile(hookPath, '#!/bin/sh\n# agent-platform append-only ref guard v2\nexit 0\n');
   await ensureAppendOnlyGitRef(root, 'refs/heads/main', new AbortController().signal, 'policy/contract.yaml');
-  assert.match(await readFile(hookPath, 'utf8'), /append-only ref guard v3/);
+  assert.match(await readFile(hookPath, 'utf8'), /append-only ref guard v4/);
+
+  await writeFile(hookPath, '#!/bin/sh\n# agent-platform append-only ref guard v3\nexit 0\n');
+  await ensureAppendOnlyGitRef(root, 'refs/heads/main', new AbortController().signal, 'policy/contract.yaml');
+  assert.equal(await readFile(hookPath, 'utf8'), hookSource);
 
   await writeFile(path.join(root, 'README.md'), 'ok\n');
   git('add', '.');
@@ -89,6 +93,27 @@ S01
   });
   assert.equal(deleted.status, 1);
   assert.match(deleted.stderr, /blocked deletion/);
+
+  // Exercise real Git transactions: packing removes loose storage, not the ref.
+  const rejectRefChange = (...args: string[]) => {
+    const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+    assert.notEqual(result.status, 0, `unexpectedly allowed: ${args.join(' ')}`);
+    assert.match(result.stderr, /Agent Platform blocked/);
+    assert.equal(git('rev-parse', 'refs/heads/main'), third);
+  };
+  rejectRefChange('update-ref', '-d', 'refs/heads/main', third);
+  git('pack-refs', '--all', '--no-prune');
+  // Both packed and loose copies exist: matching packed OID alone is unsafe.
+  rejectRefChange('update-ref', '-d', 'refs/heads/main', third);
+  git('pack-refs', '--all');
+  assert.equal(git('rev-parse', 'refs/heads/main'), third);
+  await assert.rejects(stat(path.resolve(root, git('rev-parse', '--git-path', 'refs/heads/main'))),
+    { code: 'ENOENT' });
+  rejectRefChange('update-ref', '-d', 'refs/heads/main');
+  rejectRefChange('update-ref', '-d', 'refs/heads/main', third);
+  rejectRefChange('update-ref', 'refs/heads/main', first);
+  git('-c', 'gc.packRefs=true', 'gc');
+  assert.equal(git('rev-parse', 'refs/heads/main'), third);
 
   await rename(validatorPath, `${validatorPath}.missing`);
   await writeFile(
