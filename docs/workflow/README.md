@@ -17,7 +17,8 @@
 - 本项目静态配置为 `enabled + active + semi_auto`；数据库 override 可能改变有效自治模式，以
   `/ap workflow status` 或 `/ap workflow autonomy show` 为准。
 - watcher 只读取配置 Git ref 中已提交的 PLAN/HANDOVER；不消费工作区文件，也不从正文猜动作。
-- PLAN 以 `await_approval` 进入清单，选择后必须先经人工审批；批准后运行态才转换为 `start_first_slice`。
+- PLAN 默认以 `await_approval` 留作候选；明确要求提审时使用 `start_first_slice`，提交后直接进入人工审批。
+  也可从 Dashboard 选择“提交审批”；两条路径都必须批准后才能实施。
 - `auto` 可在 Phase PLAN 完成后从 Roadmap 或 `docs/inbox/` 生成下一份审批 PLAN，但不会自动批准或实施它。
 - 状态、cursor、pending、幂等键和运行记录保存在 Agent Platform PostgreSQL，不提交回业务仓库。
 

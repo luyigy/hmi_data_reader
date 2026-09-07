@@ -32,8 +32,10 @@ TaskRun 完成事件即时唤醒 + 每分钟调度补偿
 
 ### 3.1 PLAN
 
-1. 提交 `doc_status: ready + next_action: await_approval` 的 PLAN；多份 PLAN 可同时留在计划清单。
-2. 从 Dashboard 选择一份 PLAN；watcher 校验合同、frontmatter、引用、Prompt、写作标准和编号。
+1. PLAN 使用 `doc_status: ready`，按用户意图选择动作：默认或备选方案使用 `await_approval`，
+   多份 PLAN 可同时留在候选清单，不自动发审批卡；明确要求“写好后提审”时使用 `start_first_slice`。
+2. `start_first_slice` 提交后直接由 watcher 进入审批；候选也可从 Dashboard 选择“提交审批”，
+   或使用下方的 `job activate` 命令。watcher 校验合同、frontmatter、引用、Prompt、写作标准和编号。
 3. 校验通过后导入文档并发送审批卡，持久化为 `pending`。
 4. 审批选择：
    - 批准：运行态把动作转换为 `start_first_slice`，再按自治模式立即执行或等待人工运行 watcher；
@@ -42,7 +44,19 @@ TaskRun 完成事件即时唤醒 + 每分钟调度补偿
    - 超时：审批卡过期后可重发，不自动批准。
 5. 执行时只把合同标记之间唯一且非空的 Prompt 投递到绑定 Live Room。
 
-新 PLAN 永远需要人工审批。`auto` 只负责生成提案，不拥有批准权。
+新 PLAN 永远需要人工审批。`start_first_slice` 在未批准的 PLAN 上表示申请首个 Slice 审批，
+不会跳过审批直接执行。`auto` 只负责生成提案，不拥有批准权。
+
+在对话中要求“把刚才那个 PLAN 提审”时，Agent 按写作规范定位唯一文档、修改动作、校验并单独提交。
+多个候选需要指定选择时，可直接在项目绑定的飞书会话发送已有命令，无须先打开 Dashboard：
+
+```text
+/ap job activate workflow-watcher --plan=<仓库相对PLAN路径> --head=<当前监控ref的40位HEAD>
+```
+
+该命令与 Dashboard 共用权限、HEAD 和候选校验；已有 pending 或正在运行时先处理当前任务。
+watcher 停用或合同 `automation_enabled: false` 时不会自动发卡，不得为了提审自行启用自动化。
+watcher 按变更中文档编号选择候选，多个候选应使用上述指定路径的选择入口，不能保证每份提交都会发卡。
 
 ### 3.2 HANDOVER
 
@@ -102,7 +116,7 @@ Inbox frontmatter 状态过滤候选，因此不想被领取的文件应删除�
 ## 6. Git、cursor 与幂等
 
 - 事件身份由 commit、文档路径、blob 和 action 共同确定；相同事件不会重复执行。
-- watcher 扫描本轮变更中编号最高的候选文档；`await_approval` PLAN 留在清单，由 Dashboard 明确选择后审批。
+- watcher 扫描本轮变更中编号最高的候选文档；`await_approval` PLAN 留在清单，明确选择后审批；`start_first_slice` PLAN 直接进入审批。
 - cursor 记录已消费位置；pending 记录审批或待执行 PLAN。两者都在数据库中，不写入仓库。
 - watcher 已读取或可能读取提交后，Git 历史必须只追加。禁止 amend、rebase、reset 和强推改写历史。
 - 检测到 ref 改写、cursor 早于合同 cutoff、HEAD 竞争或 consumer 冲突时，自动化停止并要求人工判断。

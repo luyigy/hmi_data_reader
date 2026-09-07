@@ -263,7 +263,7 @@ export const buildWorkflowDashboardCard = (args: {
           name: 'selectedPlan',
           required: true,
           width: 'fill',
-          placeholder: { tag: 'plain_text', content: '选择要激活的 PLAN' },
+          placeholder: { tag: 'plain_text', content: '选择要提审的 PLAN' },
           options: args.status.overview.queue.map((plan) => ({
             text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` },
             value: plan.path,
@@ -272,7 +272,7 @@ export const buildWorkflowDashboardCard = (args: {
         {
           tag: 'button',
           name: 'activateWorkflowPlan',
-          text: { tag: 'plain_text', content: '激活所选 PLAN' },
+          text: { tag: 'plain_text', content: '提交审批' },
           type: 'primary_filled',
           width: 'fill',
           action_type: 'form_submit',
@@ -588,7 +588,7 @@ export async function handleScheduledJobCommand(
   if (!jobHandlers.has(job.type)) return `job 类型未注册 handler：${job.type}`;
   let request;
   if (action === 'activate') {
-    if (job.type !== 'workflow_watcher') return `${job.id} 不支持 PLAN 激活。`;
+    if (job.type !== 'workflow_watcher') return `${job.id} 不支持 PLAN 提审。`;
     if (!(state?.enabledOverride ?? job.enabled)) return `${job.id} 当前已停用，请先启用。`;
     if (running.has(job.id)) return `${job.id} 正在运行，请等待当前执行结束。`;
     const selectedPlan = command.options.plan;

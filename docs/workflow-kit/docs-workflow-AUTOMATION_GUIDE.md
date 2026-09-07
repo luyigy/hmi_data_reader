@@ -29,7 +29,12 @@
 
 ## 3. 主状态机（摘要）
 
-- PLAN：提交 `ready + await_approval` → 进入清单 → Dashboard 选择 → 审批卡 → 批准后转换为 `start_first_slice`。
+- PLAN：默认提交 `ready + await_approval` 留作候选；明确要求“写好后提审”时提交
+  `ready + start_first_slice`，watcher 直接发审批卡，批准前不实施。
+- 已有候选可在对话中要求提审，Agent 按写作规范定位唯一文档、修改动作并单独提交；也可在 Dashboard
+  点击“提交审批”，或在项目绑定的飞书会话发送
+  `/ap job activate workflow-watcher --plan=<仓库相对PLAN路径> --head=<监控ref的40位HEAD>`。
+  多候选需指定路径时优先使用选择入口；已有 pending 时先处理当前任务，不清空 cursor 或自行启用 watcher。
 - HANDOVER：`next_slice` 投递下一 Slice；`resume_parent` 恢复父 PLAN；`await_acceptance` 停下等验收；
   `blocked` / `none` 通知后停止。
 - 新 PLAN 永远需要人工审批；`auto` 模式只负责从 Roadmap/Inbox 生成提案，不拥有批准权。

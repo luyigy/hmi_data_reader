@@ -4,6 +4,9 @@
 `docs/workflow/workflow-contract.yaml` 为准，正文质量与 Slice 划分必须遵守合同声明的
 `docs/workflow/PLAN-writing-standard.md`。
 
+模板默认保存候选（`await_approval`）。只有用户明确要求“写好后提审”或“提审此 PLAN”时，
+才将 `next_action` 改为 `start_first_slice`；该动作仍先发审批卡，批准前不执行 Slice。
+
 ## Phase PLAN
 
 ```markdown

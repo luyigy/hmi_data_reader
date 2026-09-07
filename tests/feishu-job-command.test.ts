@@ -356,6 +356,8 @@ const activationCard = buildWorkflowDashboardCard({
   pending: null,
 });
 assert.match(JSON.stringify(activationCard), /select_static/);
+assert.match(JSON.stringify(activationCard), /选择要提审的 PLAN/);
+assert.match(JSON.stringify(activationCard), /提交审批/);
 assert.match(JSON.stringify(activationCard), /docs\/010_PLAN\.md/);
 assert.match(JSON.stringify(activationCard), /"action":"activate"/);
 assert.match(JSON.stringify(activationCard), /"action_type":"form_submit"/);
@@ -544,8 +546,8 @@ async function testWorkflowOverview() {
       initial_cursor_commit: initial,
     }, { ...workflowStatus, head, documentPath: '-', plan: '-', slice: '-', stage: '空闲' });
     assert.deepEqual(overview.plans.map(({ number, state }) => [number, state]), [
-      [10, '等待激活'],
-      [11, '等待激活'],
+      [10, '待提审'],
+      [11, '待提审'],
       [12, '重复计划（同 11）'],
       [13, '阻塞'],
     ]);

@@ -92,9 +92,15 @@ PLAN 不是函数清单，也不是把需求换成技术名词。它必须让不
 
 ## 7. 状态、审批与并存规则
 
-- 可评审 PLAN 使用 `doc_status: ready + next_action: await_approval`；
-- `await_approval` 不直接执行，允许多份 PLAN 同时留在计划清单；
-- 从 Dashboard 选择一份 PLAN 后，watcher 才建立该 PLAN 的审批 pending；
+- 可评审 PLAN 使用 `doc_status: ready`，根据用户是否明确要求提审选择 `next_action`：
+  - “先写 PLAN”“备选方案”或未明确提审：使用 `await_approval`，留在候选清单，不自动发审批卡；
+  - “写好后提审”：使用 `start_first_slice`，提交后由 watcher 建立审批 pending 并发卡，批准前不实施；
+- 不根据候选数量推断提审意图；默认模板继续使用 `await_approval`；
+- “把刚才那个 PLAN 提审”：从当前对话确定唯一文档；有歧义时先明确目标。将该 PLAN 的动作改为
+  `start_first_slice`，校验并单独提交，复用现有 watcher 审批流程，不要求用户再打开 Dashboard；
+- 用户也可从 Dashboard 选择候选并点击“提交审批”，或使用指南中的已有 `job activate` 命令；
+- 提审前确认目标监控 ref、watcher 启用状态及当前 pending；已有审批或实施任务时先处理当前任务，
+  不为提审清空 pending、移动 cursor 或自动启用 watcher；多个候选需要指定提审时优先使用选择入口；
 - 人工批准后，平台在持久 cursor 中把动作原子转换为 `start_first_slice`，只派发第一个 Slice；
 - 修改、拒绝或审批超时都不得启动 Slice；
 - 每完成一个 Slice：运行项目门禁，创建 HANDOVER，提交后停止；
@@ -113,6 +119,6 @@ PLAN 不是函数清单，也不是把需求换成技术名词。它必须让不
 - [ ] 相邻 Slice 能按“上一步产出 -> 下一步输入”读通；
 - [ ] 示例覆盖真实范围，没有用单一样例冒充通用能力；
 - [ ] scope out、风险和 breaking change 已显式说明；
-- [ ] frontmatter 是 `ready / await_approval`，Prompt 只指向首个 Slice；
+- [ ] frontmatter 是 `ready`，动作按用户意图选择 `await_approval`（候选）或 `start_first_slice`（提审），Prompt 只指向首个 Slice；
 - [ ] PLAN 修订已经提交，暂存区不含无关文件。
 

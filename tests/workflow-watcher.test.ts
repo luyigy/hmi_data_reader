@@ -375,8 +375,10 @@ PLAN PROMPT 003_PLAN_20260725_review.md 000_ROADMAP_20260725_test.md S01
 `);
   git('add', '.');
   git('commit', '-qm', 'plan review');
+  const cardsBeforeCandidate = apiCalls.filter(({ body }) => body.msg_type === 'interactive').length;
   const queuedReview = await run(activated.cursor);
   assert.match(queuedReview.summary, /action=await_approval result=notified/);
+  assert.equal(apiCalls.filter(({ body }) => body.msg_type === 'interactive').length, cardsBeforeCandidate);
   const review = await run({
     ...(queuedReview.cursor as Record<string, unknown>),
     selectedPlan: 'docs/branch/main/003_PLAN_20260725_review.md',
@@ -946,6 +948,18 @@ S01
   assert.equal(reviewedCursor.pending?.path, 'docs/branch/main/007_PLAN_20260725_authoritative.md');
   assert.equal(reviewedCursor.validationFailure, undefined, 'resolved quarantine must be cleared');
   assert.equal(workflowRuns.length, runsBeforeReview, 'revalidated PLAN must wait for plan review approval');
+
+  // A committed submission still waits for human approval without Dashboard selection.
+  const submissionCursor = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-submission' };
+  const runsBeforeSubmission = workflowRuns.length;
+  await writeFile(path.join(root, 'docs/branch/main/009_PLAN_20260907_submission.md'),
+    (await readFile(reviewedPlanPath, 'utf8')).replaceAll('003_PLAN_20260725_review.md', '009_PLAN_20260907_submission.md')
+      .replace('next_action: await_approval', 'next_action: start_first_slice'));
+  git('add', '.');
+  git('commit', '-qm', 'explicitly submit plan for approval');
+  const submitted = await run(submissionCursor);
+  assert.match(submitted.summary, /action=start_first_slice gate=plan_review.*card_sent=true/);
+  assert.equal(workflowRuns.length, runsBeforeSubmission, 'direct submission must not execute before approval');
 
   const rewriteCursor = { commit: git('rev-parse', 'HEAD'), eventKey: 'before-rewrite' };
   await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
