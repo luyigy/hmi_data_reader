@@ -134,12 +134,17 @@ def _text_completion(prompt: str, base_url: str, model: str) -> dict:
         raise VlmError(f"VLM 文本请求失败：{exc}") from exc
 
 
-def draft_from_ocr(evidence: dict, user_message: str, target: str,
-                   current_structure: dict, allowed_fields: list[dict],
-                   image_bytes: bytes | None = None) -> dict:
-    """Return strictly validated, open-schema HMI observations for review."""
+def draft_from_ocr(evidence: dict, user_message: str = "", target: str = "",
+                   current_structure: dict[str, int] | None = None,
+                   allowed_fields: list[dict[str, str]] | None = None,
+                   image_bytes: bytes | None = None,
+                   mode: str = "vision") -> dict:
     roles = {"setpoint", "actual", "limit", "unknown"}
     source_names = {"ocr", "vlm", "user"}
+    if current_structure is None:
+        current_structure = {}
+    if allowed_fields is None:
+        allowed_fields = []
 
     def string(value, limit, *, nullable=False, empty=False):
         return ((nullable and value is None)
@@ -169,7 +174,8 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
         return None
 
     if (not isinstance(evidence, dict)
-            or not string(target, 200)
+            or not string(target, 200, empty=True)
+            or not isinstance(mode, str) or mode not in {"vision", "ocr_text"}
             or not string(user_message, 2000, empty=True)
             or not isinstance(current_structure, dict)
             or len(current_structure) > 64
@@ -218,19 +224,38 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
                "canonical_hints": allowed_fields, "ocr_lines": lines,
                "user_message": user_message.strip()}
     model = os.getenv("HMI_DRAFT_VLM_MODEL", TEXT_MODEL)
-    use_image = bool(image_bytes)
+    use_image = bool(image_bytes) and (mode == "vision" or not lines)
     prompt = (
         ("直接查看 HMI 图片，并结合 OCR 原文和用户纠正，" if use_image
          else "结合 OCR 原文和用户纠正，")
         + "整理屏幕上所有可读工艺参数；canonical_hints 仅供匹配，不是输出白名单。"
+        "target/current_structure 仅作后续映射上下文，不得限定提取类别、段数或温区数。"
         "不得猜测、翻译或换算；用户纠正优先。设定/实际/限制/未知必须分别使用 "
         "setpoint/actual/limit/unknown，并拆成并列 field；证据不足用 unknown。\n"
+        "依据标签、单位、表头与行列位置关联数值；不得从左右顺序推断物理段序。"
+        "未读清的段/温区标签 item.label 保留 null，不猜段号；缺值不补零。压力侧别、时间含义、启用状态不明时，"
+        "在 questions 中说明具体字段和待确认关系；经过/剩余时间不能当 actual。"
+        "图片与 OCR 冲突时保留不同观测并提问；证据注明原文及 OCR 行位置或图片区域，"
+        "没有 OCR 时不得声明 ocr 来源。已见表格缺项或画面被截断时在 questions 中说明，"
+        "不得把非空候选当作已完整提取。\n"
         "只输出严格 JSON 对象，包含 sections 和 questions 两个键。section 只有 label/fields；field 只有 "
         "screen_label/canonical_id/role/unit/items/sources/evidence/needs_confirmation；"
-        "item 只有 label/value/sources/evidence/needs_confirmation。value 必须是纯数字（int 或 float，非数字开关/状态项如 ON/OFF 等严禁输出，禁止把数字写成字符串）。canonical_id 先填 null，"
+        "item 只有 label/value/sources/evidence/needs_confirmation。以上键全部必填；"
+        "field 也必须包含 sources/evidence/needs_confirmation，汇总其 items 的来源和证据。"
+        "sources 和 evidence 均为非空字符串数组；screen_label 必须是非空屏幕原文，"
+        "缺少可读参数名的孤立数字连同位置保留在 questions，不伪造名称。unit 不明用空字符串。"
+        "value 必须是纯数字（int 或 float，非数字开关/状态项如 ON/OFF 等严禁输出，禁止把数字写成字符串）。canonical_id 先填 null，"
         "needs_confirmation 始终为 true，sources 只用 ocr/vlm/user。标量 item.label 为 null；"
         "分段或温区标签保留屏幕原文。相同值的 OCR/VLM 观测分开返回以便本地融合，"
         "冲突值都保留。即使没有 canonical hint，也必须返回目录外字段。\n"
+        "fields 只收录数值工艺参数，不收录时间戳、操作员、型号、序列号等元数据。"
+        "items 必须非空；无数值的标题、缺项和状态只写入 questions，不生成空 field。"
+        "所有 section 都使用相同的 label/fields 结构，禁止另造表格或行列 schema。\n"
+        '结构示例（仅演示格式，不代表屏幕内容）：{"sections":[{"label":"区域原文","fields":['
+        '{"screen_label":"参数原文","canonical_id":null,"role":"unknown","unit":"",'
+        '"items":[{"label":null,"value":1,"sources":["vlm"],"evidence":["图片区域及原文"],'
+        '"needs_confirmation":true}],"sources":["vlm"],"evidence":["图片区域及原文"],'
+        '"needs_confirmation":true}]}],"questions":[]}\n'
         f"输入：{json.dumps(request, ensure_ascii=False, separators=(',', ':'))}"
     )
     if use_image:
@@ -265,7 +290,8 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
     for section in draft["sections"]:
         if (not isinstance(section, dict) or set(section) != {"label", "fields"}
                 or not string(section["label"], 500)
-                or not isinstance(section["fields"], list) or not section["fields"]):
+                or not isinstance(section["fields"], list)
+                or (not section["fields"] and not draft["questions"])):
             raise VlmError("VLM section 非法")
         output_section = section_map.setdefault(
             section["label"], {"label": section["label"], "fields": {}, "order": []})
@@ -369,7 +395,10 @@ def draft_from_ocr(evidence: dict, user_message: str, target: str,
             fields.append(field)
         if fields:
             sections.append({"label": section["label"], "fields": fields})
-    return {"sections": sections, "questions": draft["questions"]}
+    questions = draft["questions"]
+    if not sections and not questions:
+        questions = ["未提取到可核对的工艺参数，请核对原图或补拍清晰完整画面。"]
+    return {"sections": sections, "questions": questions}
 
 
 def _parse_mapping_output(resp: dict) -> dict:

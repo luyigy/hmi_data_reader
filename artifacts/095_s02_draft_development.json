@@ -1,0 +1,4433 @@
+{
+  "plan": "095",
+  "slice": "S02",
+  "partition": "development_only",
+  "base_commit": "51a63777350f2ecfb9570aeb7f5981d7e191b553",
+  "evaluation_scope": "Candidate structure and development observations; not human-verified five-dimensional accuracy or holdout acceptance.",
+  "model_config": {
+    "model": "Qwen3.8-27B-FP8",
+    "base_url": "http://localhost:8000/v1",
+    "temperature": 0,
+    "max_tokens": 8192,
+    "max_image_edge": 1280,
+    "jpeg_quality": 85
+  },
+  "baseline_scope": "Before-turn dirty working tree; source SHA256 recorded per result. Default failed validation before model invocation.",
+  "baseline": [
+    {
+      "phase": "before",
+      "case": "dev_094",
+      "mode": "default",
+      "image_sha256": "fe77d801fd1a8070ec07d732c3250c8e9f796b57678819cab9d2ba77824201c9",
+      "source_sha256": "4064e10aacfe9809d28be6e14734d25e996f73404e67af7f7df1b268c3804101",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 44,
+      "error": "候选请求上下文非法",
+      "seconds": 0.0
+    },
+    {
+      "phase": "before",
+      "case": "dev_094",
+      "mode": "text",
+      "image_sha256": "fe77d801fd1a8070ec07d732c3250c8e9f796b57678819cab9d2ba77824201c9",
+      "source_sha256": "4064e10aacfe9809d28be6e14734d25e996f73404e67af7f7df1b268c3804101",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 44,
+      "draft": {
+        "sections": [
+          {
+            "label": "Header",
+            "fields": [
+              {
+                "screen_label": "0.6mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0.6,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "0.6mm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "0.6mm"
+                ]
+              },
+              {
+                "screen_label": "240.19mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "240.19mm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "240.19mm"
+                ]
+              },
+              {
+                "screen_label": "14bar",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 14,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "14bar"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "14bar"
+                ]
+              },
+              {
+                "screen_label": "121kN",
+                "role": "unknown",
+                "unit": "kN",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 121,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "121kN"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "121kN"
+                ]
+              },
+              {
+                "screen_label": "6.7mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 6.7,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "6.7mm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "6.7mm"
+                ]
+              },
+              {
+                "screen_label": "135rpm",
+                "role": "unknown",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "135rpm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "135rpm"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Process Parameters",
+            "fields": [
+              {
+                "screen_label": "背压",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": "lst",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "12"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "12"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "12"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "12"
+                ]
+              },
+              {
+                "screen_label": "熔胶",
+                "role": "unknown",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": "lst",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "135"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "135"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "135"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "135"
+                ]
+              },
+              {
+                "screen_label": "到",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": "lst",
+                    "value": 80,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "80.00"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 200,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "200.00"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 300,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "300.00"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "80.00",
+                  "200.00",
+                  "300.00"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "Status",
+            "fields": [
+              {
+                "screen_label": "螺杆位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "240.19, mm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "240.19, mm"
+                ]
+              },
+              {
+                "screen_label": "螺杆转速",
+                "role": "actual",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "135, rpm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "135, rpm"
+                ]
+              },
+              {
+                "screen_label": "熔胶延时",
+                "role": "unknown",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "0.0"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "0.0"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": []
+      },
+      "seconds": 11.63
+    },
+    {
+      "phase": "before",
+      "case": "dev_094",
+      "mode": "vision",
+      "image_sha256": "fe77d801fd1a8070ec07d732c3250c8e9f796b57678819cab9d2ba77824201c9",
+      "source_sha256": "4064e10aacfe9809d28be6e14734d25e996f73404e67af7f7df1b268c3804101",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 44,
+      "draft": {
+        "sections": [
+          {
+            "label": "Top Status Bar",
+            "fields": [
+              {
+                "screen_label": "0.6 mm",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0.6,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 0.6mm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 0.6mm"
+                ]
+              },
+              {
+                "screen_label": "6.7 mm",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 6.7,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 6.7mm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 6.7mm"
+                ]
+              },
+              {
+                "screen_label": "240.19 mm",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 240.19mm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 240.19mm"
+                ]
+              },
+              {
+                "screen_label": "135 rpm",
+                "role": "actual",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 135rpm"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 135rpm"
+                ]
+              },
+              {
+                "screen_label": "0 bar",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: obar"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: obar"
+                ]
+              },
+              {
+                "screen_label": "14 bar",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 14,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 14bar"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 14bar"
+                ]
+              },
+              {
+                "screen_label": "121 kN",
+                "role": "actual",
+                "unit": "kN",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 121,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 121kN"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 121kN"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "熔胶和松退",
+            "fields": [
+              {
+                "screen_label": "段数",
+                "role": "setpoint",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "VLM: 段数 3"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "VLM: 段数 3"
+                ]
+              },
+              {
+                "screen_label": "背压",
+                "role": "setpoint",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": "1st",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 12"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 12"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 12"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 12"
+                ]
+              },
+              {
+                "screen_label": "熔胶",
+                "role": "setpoint",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": "1st",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 135"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 135"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 135"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 135"
+                ]
+              },
+              {
+                "screen_label": "到",
+                "role": "setpoint",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": "1st",
+                    "value": 80,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 80.00"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 200,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 200.00"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 300,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 300.00"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 80.00",
+                  "OCR: 200.00",
+                  "OCR: 300.00"
+                ]
+              },
+              {
+                "screen_label": "螺杆位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 240.19"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 240.19"
+                ]
+              },
+              {
+                "screen_label": "螺杆转速",
+                "role": "actual",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 135"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 135"
+                ]
+              },
+              {
+                "screen_label": "熔胶延时",
+                "role": "setpoint",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR: 0.0",
+                      "OCR: 0"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR: 0.0",
+                  "OCR: 0"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": []
+      },
+      "seconds": 12.78
+    }
+  ],
+  "development_failure_examples": [
+    {
+      "phase": "after",
+      "case": "dev_094",
+      "mode": "default",
+      "image_sha256": "fe77d801fd1a8070ec07d732c3250c8e9f796b57678819cab9d2ba77824201c9",
+      "source_sha256": "fd3273882ee6ab398b67fbc19d41410f208c83579a1fc2716fca004996a97f67",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 44,
+      "error": "VLM field 非法",
+      "seconds": 19.09
+    },
+    {
+      "phase": "inspect",
+      "case": "dev_094",
+      "mode": "default",
+      "image_sha256": "fe77d801fd1a8070ec07d732c3250c8e9f796b57678819cab9d2ba77824201c9",
+      "source_sha256": "fd3273882ee6ab398b67fbc19d41410f208c83579a1fc2716fca004996a97f67",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 44,
+      "error": "VLM field 非法",
+      "seconds": 19.08
+    },
+    {
+      "case": "temperature",
+      "image_sha256": "f056d349ce7472cccd09bdd9561b0eed358ae6485c6c3bb9042d5e51bd0f4bce",
+      "source_sha256": "ffb869b0194a588ee3a81fb70869de37799ab3ea38a75aa19a59c6b8f49d8683",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "error": "VLM item 非法",
+      "seconds": 30.08
+    },
+    {
+      "case": "holding",
+      "image_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+      "source_sha256": "ffb869b0194a588ee3a81fb70869de37799ab3ea38a75aa19a59c6b8f49d8683",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "error": "VLM field 非法",
+      "seconds": 20.3
+    },
+    {
+      "case": "hot_runner",
+      "image_sha256": "01c1a4380033b40a727b666d3170dd4757b0c09ef06a00fe8c7491d957456ac8",
+      "source_sha256": "1737e3124cd60e5a998d39594f7a0cbb5354d2ab9004ec2a3547b074aa68e57c",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "error": "VLM section 非法",
+      "seconds": 11.24
+    }
+  ],
+  "final_scope": "Isolated HEAD plus only S02 staged core; identical code/model/prompt for all seven requests. OCR is historical, mixed image is already rectified.",
+  "final": [
+    {
+      "case": "dev_094_image_ocr",
+      "image_sha256": "fe77d801fd1a8070ec07d732c3250c8e9f796b57678819cab9d2ba77824201c9",
+      "source_sha256": "762a9e923a570f0782e382518042b130f23500d5ceae2cc88e93eca07b4792fb",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 44,
+      "draft": {
+        "sections": [
+          {
+            "label": "顶部状态栏",
+            "fields": [
+              {
+                "screen_label": "0.6 mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0.6,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '0.6mm' (bbox: [112.0, 11.0, 219.0, 47.0])",
+                      "VLM: 顶部第一行左侧数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '0.6mm' (bbox: [112.0, 11.0, 219.0, 47.0])",
+                  "VLM: 顶部第一行左侧数值"
+                ]
+              },
+              {
+                "screen_label": "6.7 mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 6.7,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '6.7mm' (bbox: [113.0, 58.0, 221.0, 92.0])",
+                      "VLM: 顶部第二行左侧数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '6.7mm' (bbox: [113.0, 58.0, 221.0, 92.0])",
+                  "VLM: 顶部第二行左侧数值"
+                ]
+              },
+              {
+                "screen_label": "240.19 mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '240.19mm' (bbox: [251.0, 12.0, 454.0, 46.0])",
+                      "VLM: 顶部第一行中间数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '240.19mm' (bbox: [251.0, 12.0, 454.0, 46.0])",
+                  "VLM: 顶部第一行中间数值"
+                ]
+              },
+              {
+                "screen_label": "135 rpm",
+                "role": "unknown",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '135rpm' (bbox: [344.0, 55.0, 459.0, 93.0])",
+                      "VLM: 顶部第二行中间数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '135rpm' (bbox: [344.0, 55.0, 459.0, 93.0])",
+                  "VLM: 顶部第二行中间数值"
+                ]
+              },
+              {
+                "screen_label": "0 bar",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: 'obar' (bbox: [550.0, 13.0, 626.0, 44.0])",
+                      "VLM: 顶部第一行右侧数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: 'obar' (bbox: [550.0, 13.0, 626.0, 44.0])",
+                  "VLM: 顶部第一行右侧数值"
+                ]
+              },
+              {
+                "screen_label": "14 bar",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 14,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '14bar' (bbox: [690.0, 12.0, 789.0, 42.0])",
+                      "VLM: 顶部第一行右侧数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '14bar' (bbox: [690.0, 12.0, 789.0, 42.0])",
+                  "VLM: 顶部第一行右侧数值"
+                ]
+              },
+              {
+                "screen_label": "121 kN",
+                "role": "unknown",
+                "unit": "kN",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 121,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '121kN' (bbox: [878.0, 10.0, 971.0, 41.0])",
+                      "VLM: 顶部第一行最右侧数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '121kN' (bbox: [878.0, 10.0, 971.0, 41.0])",
+                  "VLM: 顶部第一行最右侧数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "熔胶和松退",
+            "fields": [
+              {
+                "screen_label": "段数",
+                "role": "unknown",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "VLM: 右上角'段数'标签右侧的数值框"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "VLM: 右上角'段数'标签右侧的数值框"
+                ]
+              },
+              {
+                "screen_label": "背压",
+                "role": "setpoint",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": "1st",
+                    "value": 12,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '12' (bbox: [617.0, 263.0, 653.0, 293.0])",
+                      "VLM: 背压行 1st 列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 12,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '12' (bbox: [731.0, 258.0, 767.0, 290.0])",
+                      "VLM: 背压行 2nd 列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 12,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '12' (bbox: [840.0, 254.0, 875.0, 286.0])",
+                      "VLM: 背压行 终 列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '12' (bbox: [617.0, 263.0, 653.0, 293.0])",
+                  "VLM: 背压行 1st 列数值",
+                  "OCR: '12' (bbox: [731.0, 258.0, 767.0, 290.0])",
+                  "VLM: 背压行 2nd 列数值",
+                  "OCR: '12' (bbox: [840.0, 254.0, 875.0, 286.0])",
+                  "VLM: 背压行 终 列数值"
+                ]
+              },
+              {
+                "screen_label": "熔胶",
+                "role": "setpoint",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": "1st",
+                    "value": 135,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '135' (bbox: [601.0, 322.0, 653.0, 357.0])",
+                      "VLM: 熔胶行 1st 列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 135,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '135' (bbox: [715.0, 321.0, 767.0, 354.0])",
+                      "VLM: 熔胶行 2nd 列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 135,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '135' (bbox: [824.0, 316.0, 878.0, 350.0])",
+                      "VLM: 熔胶行 终 列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '135' (bbox: [601.0, 322.0, 653.0, 357.0])",
+                  "VLM: 熔胶行 1st 列数值",
+                  "OCR: '135' (bbox: [715.0, 321.0, 767.0, 354.0])",
+                  "VLM: 熔胶行 2nd 列数值",
+                  "OCR: '135' (bbox: [824.0, 316.0, 878.0, 350.0])",
+                  "VLM: 熔胶行 终 列数值"
+                ]
+              },
+              {
+                "screen_label": "到",
+                "role": "setpoint",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": "1st",
+                    "value": 80,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '80.00' (bbox: [623.0, 386.0, 693.0, 418.0])",
+                      "VLM: 到行 1st 列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 200,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '200.00' (bbox: [720.0, 382.0, 804.0, 413.0])",
+                      "VLM: 到行 2nd 列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 300,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '300.00' (bbox: [831.0, 377.0, 916.0, 409.0])",
+                      "VLM: 到行 终 列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '80.00' (bbox: [623.0, 386.0, 693.0, 418.0])",
+                  "VLM: 到行 1st 列数值",
+                  "OCR: '200.00' (bbox: [720.0, 382.0, 804.0, 413.0])",
+                  "VLM: 到行 2nd 列数值",
+                  "OCR: '300.00' (bbox: [831.0, 377.0, 916.0, 409.0])",
+                  "VLM: 到行 终 列数值"
+                ]
+              },
+              {
+                "screen_label": "螺杆位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '240.19' (bbox: [440.0, 517.0, 531.0, 556.0])",
+                      "VLM: 螺杆位置行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '240.19' (bbox: [440.0, 517.0, 531.0, 556.0])",
+                  "VLM: 螺杆位置行数值"
+                ]
+              },
+              {
+                "screen_label": "螺杆转速",
+                "role": "actual",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '135' (bbox: [481.0, 577.0, 531.0, 606.0])",
+                      "VLM: 螺杆转速行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '135' (bbox: [481.0, 577.0, 531.0, 606.0])",
+                  "VLM: 螺杆转速行数值"
+                ]
+              },
+              {
+                "screen_label": "熔胶延时",
+                "role": "setpoint",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "ocr",
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "OCR: '0.0' (bbox: [367.0, 699.0, 411.0, 728.0])",
+                      "VLM: 熔胶延时行左侧数值",
+                      "OCR: '0' (bbox: [486.0, 692.0, 514.0, 720.0])",
+                      "VLM: 熔胶延时行右侧数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr",
+                  "vlm"
+                ],
+                "evidence": [
+                  "OCR: '0.0' (bbox: [367.0, 699.0, 411.0, 728.0])",
+                  "VLM: 熔胶延时行左侧数值",
+                  "OCR: '0' (bbox: [486.0, 692.0, 514.0, 720.0])",
+                  "VLM: 熔胶延时行右侧数值"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": [
+          "顶部状态栏中的 '0.6 mm'、'6.7 mm'、'0 bar'、'14 bar'、'121 kN' 等数值对应的具体物理量（如注射压力、螺杆位置、锁模力等）是什么？",
+          "'熔胶延时' 行有两个数值框（0.0 和 0），它们分别代表什么含义（如设定值与实际值，或不同阶段的延时）？",
+          "屏幕底部 '松退' 区域被截断，仅可见表头（模式、压力、流量、位置），具体的数值参数无法读取。"
+        ]
+      },
+      "seconds": 28.25,
+      "input_path": "See 094 HANDOVER for the existing private service case"
+    },
+    {
+      "case": "dev_094_ocr_replay",
+      "image_sha256": null,
+      "source_sha256": "762a9e923a570f0782e382518042b130f23500d5ceae2cc88e93eca07b4792fb",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 44,
+      "draft": {
+        "sections": [
+          {
+            "label": "顶部状态栏",
+            "fields": [
+              {
+                "screen_label": "0.6mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0.6,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 1: '0.6mm' at bbox [112.0,11.0,219.0,47.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 1: '0.6mm' at bbox [112.0,11.0,219.0,47.0]"
+                ]
+              },
+              {
+                "screen_label": "240.19mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 2: '240.19mm' at bbox [251.0,12.0,454.0,46.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 2: '240.19mm' at bbox [251.0,12.0,454.0,46.0]"
+                ]
+              },
+              {
+                "screen_label": "14bar",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 14,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 5: '14bar' at bbox [690.0,12.0,789.0,42.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 5: '14bar' at bbox [690.0,12.0,789.0,42.0]"
+                ]
+              },
+              {
+                "screen_label": "121kN",
+                "role": "unknown",
+                "unit": "kN",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 121,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 6: '121kN' at bbox [878.0,10.0,971.0,41.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 6: '121kN' at bbox [878.0,10.0,971.0,41.0]"
+                ]
+              },
+              {
+                "screen_label": "6.7mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 6.7,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 8: '6.7mm' at bbox [113.0,58.0,221.0,92.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 8: '6.7mm' at bbox [113.0,58.0,221.0,92.0]"
+                ]
+              },
+              {
+                "screen_label": "135rpm",
+                "role": "unknown",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 9: '135rpm' at bbox [344.0,55.0,459.0,93.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 9: '135rpm' at bbox [344.0,55.0,459.0,93.0]"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "熔胶和松退",
+            "fields": [
+              {
+                "screen_label": "背压",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": "lst",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 13 'lst' at [612.0,191.0,664.0,231.0] and OCR line 16 '12' at [617.0,263.0,653.0,293.0]"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 14 '2nd' at [717.0,189.0,775.0,228.0] and OCR line 17 '12' at [731.0,258.0,767.0,290.0]"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 12,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 15 '终' at [847.0,187.0,882.0,223.0] and OCR line 18 '12' at [840.0,254.0,875.0,286.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 13 'lst' at [612.0,191.0,664.0,231.0] and OCR line 16 '12' at [617.0,263.0,653.0,293.0]",
+                  "OCR line 14 '2nd' at [717.0,189.0,775.0,228.0] and OCR line 17 '12' at [731.0,258.0,767.0,290.0]",
+                  "OCR line 15 '终' at [847.0,187.0,882.0,223.0] and OCR line 18 '12' at [840.0,254.0,875.0,286.0]"
+                ]
+              },
+              {
+                "screen_label": "熔胶",
+                "role": "unknown",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": "lst",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 13 'lst' at [612.0,191.0,664.0,231.0] and OCR line 21 '135' at [601.0,322.0,653.0,357.0]"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 14 '2nd' at [717.0,189.0,775.0,228.0] and OCR line 22 '135' at [715.0,321.0,767.0,354.0]"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 15 '终' at [847.0,187.0,882.0,223.0] and OCR line 23 '135' at [824.0,316.0,878.0,350.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 13 'lst' at [612.0,191.0,664.0,231.0] and OCR line 21 '135' at [601.0,322.0,653.0,357.0]",
+                  "OCR line 14 '2nd' at [717.0,189.0,775.0,228.0] and OCR line 22 '135' at [715.0,321.0,767.0,354.0]",
+                  "OCR line 15 '终' at [847.0,187.0,882.0,223.0] and OCR line 23 '135' at [824.0,316.0,878.0,350.0]"
+                ]
+              },
+              {
+                "screen_label": "到",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": "lst",
+                    "value": 80,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 13 'lst' at [612.0,191.0,664.0,231.0] and OCR line 26 '80.00' at [623.0,386.0,693.0,418.0]"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "2nd",
+                    "value": 200,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 14 '2nd' at [717.0,189.0,775.0,228.0] and OCR line 27 '200.00' at [720.0,382.0,804.0,413.0]"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "终",
+                    "value": 300,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 15 '终' at [847.0,187.0,882.0,223.0] and OCR line 28 '300.00' at [831.0,377.0,916.0,409.0]"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 13 'lst' at [612.0,191.0,664.0,231.0] and OCR line 26 '80.00' at [623.0,386.0,693.0,418.0]",
+                  "OCR line 14 '2nd' at [717.0,189.0,775.0,228.0] and OCR line 27 '200.00' at [720.0,382.0,804.0,413.0]",
+                  "OCR line 15 '终' at [847.0,187.0,882.0,223.0] and OCR line 28 '300.00' at [831.0,377.0,916.0,409.0]"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "螺杆位置",
+            "fields": [
+              {
+                "screen_label": "螺杆位置",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 240.19,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 31 '240.19' at [440.0,517.0,531.0,556.0] and OCR line 32 'mm' at [542.0,525.0,588.0,548.0] near label '螺杆位置' (line 33)"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 31 '240.19' at [440.0,517.0,531.0,556.0] and OCR line 32 'mm' at [542.0,525.0,588.0,548.0] near label '螺杆位置' (line 33)"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "螺杆转速",
+            "fields": [
+              {
+                "screen_label": "螺杆转速",
+                "role": "unknown",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 135,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 34 '135' at [481.0,577.0,531.0,606.0] and OCR line 35 'rpm' at [539.0,575.0,596.0,607.0] near label '螺杆转速' (line 36)"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 34 '135' at [481.0,577.0,531.0,606.0] and OCR line 35 'rpm' at [539.0,575.0,596.0,607.0] near label '螺杆转速' (line 36)"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "熔胶延时",
+            "fields": [
+              {
+                "screen_label": "熔胶延时",
+                "role": "unknown",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "ocr"
+                    ],
+                    "evidence": [
+                      "OCR line 37 '0.0' at [367.0,699.0,411.0,728.0] near label '熔胶延时' (line 39)"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "ocr"
+                ],
+                "evidence": [
+                  "OCR line 37 '0.0' at [367.0,699.0,411.0,728.0] near label '熔胶延时' (line 39)"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": [
+          "OCR line 3 'obar' and line 4 'Clle' are unclear; are they part of a parameter name or status?",
+          "OCR line 38 '0' at [486.0,692.0,514.0,720.0] is near '熔胶延时' but lacks a clear label or unit; is it a separate parameter?",
+          "OCR lines 40-44 ('位置', '松退', '压力', '流量', '模式') appear to be headers or labels for a section below, but no corresponding numerical values are visible in the OCR data. Are there missing values or is the screen truncated?",
+          "The top bar values (0.6mm, 240.19mm, 14bar, 121kN, 6.7mm, 135rpm) lack explicit parameter names in the OCR. What are their specific meanings (e.g., screw position, pressure, force, etc.)?"
+        ]
+      },
+      "seconds": 24.21,
+      "input_path": "See 094 HANDOVER for the existing private service case"
+    },
+    {
+      "case": "temperature",
+      "image_sha256": "f056d349ce7472cccd09bdd9561b0eed358ae6485c6c3bb9042d5e51bd0f4bce",
+      "source_sha256": "762a9e923a570f0782e382518042b130f23500d5ceae2cc88e93eca07b4792fb",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "draft": {
+        "sections": [
+          {
+            "label": "顶部状态栏",
+            "fields": [
+              {
+                "screen_label": "螺杆位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'螺杆位置'下方显示 '0.0 mm'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'螺杆位置'下方显示 '0.0 mm'"
+                ]
+              },
+              {
+                "screen_label": "顶针位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": -0.3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'顶针位置'下方显示 '-0.3 mm'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'顶针位置'下方显示 '-0.3 mm'"
+                ]
+              },
+              {
+                "screen_label": "射胶位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 114.3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'射胶位置'下方显示 '114.3 mm'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'射胶位置'下方显示 '114.3 mm'"
+                ]
+              },
+              {
+                "screen_label": "射台位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'射台位置'下方显示 '0.0 mm'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'射台位置'下方显示 '0.0 mm'"
+                ]
+              },
+              {
+                "screen_label": "熔胶转速",
+                "role": "actual",
+                "unit": "rpm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'熔胶转速'下方显示 '0.0 rpm'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'熔胶转速'下方显示 '0.0 rpm'"
+                ]
+              },
+              {
+                "screen_label": "主泵流量",
+                "role": "actual",
+                "unit": "%",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'主泵流量'下方显示 '0.0 %'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'主泵流量'下方显示 '0.0 %'"
+                ]
+              },
+              {
+                "screen_label": "主泵压力",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'主泵压力'下方显示 '0.0 bar'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'主泵压力'下方显示 '0.0 bar'"
+                ]
+              },
+              {
+                "screen_label": "系统压力",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片顶部状态栏，'系统压力'下方显示 '0.0 bar'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片顶部状态栏，'系统压力'下方显示 '0.0 bar'"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "料筒温度",
+            "fields": [
+              {
+                "screen_label": "实际温度",
+                "role": "actual",
+                "unit": "°C",
+                "items": [
+                  {
+                    "label": "H2",
+                    "value": 287.5,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'实际温度'行，'H2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#1",
+                    "value": 270.2,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'实际温度'行，'#1'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#2",
+                    "value": 264.9,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'实际温度'行，'#2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#3",
+                    "value": 264.9,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'实际温度'行，'#3'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#4",
+                    "value": 260,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'实际温度'行，'#4'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#5",
+                    "value": 250.1,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'实际温度'行，'#5'列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部表格，'实际温度'行，'H2'列数值",
+                  "图片中部表格，'实际温度'行，'#1'列数值",
+                  "图片中部表格，'实际温度'行，'#2'列数值",
+                  "图片中部表格，'实际温度'行，'#3'列数值",
+                  "图片中部表格，'实际温度'行，'#4'列数值",
+                  "图片中部表格，'实际温度'行，'#5'列数值"
+                ]
+              },
+              {
+                "screen_label": "设定温度",
+                "role": "setpoint",
+                "unit": "°C",
+                "items": [
+                  {
+                    "label": "H2",
+                    "value": 285,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'设定温度'行，'H2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#1",
+                    "value": 270,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'设定温度'行，'#1'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#2",
+                    "value": 265,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'设定温度'行，'#2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#3",
+                    "value": 265,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'设定温度'行，'#3'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#4",
+                    "value": 260,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'设定温度'行，'#4'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#5",
+                    "value": 250,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'设定温度'行，'#5'列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部表格，'设定温度'行，'H2'列数值",
+                  "图片中部表格，'设定温度'行，'#1'列数值",
+                  "图片中部表格，'设定温度'行，'#2'列数值",
+                  "图片中部表格，'设定温度'行，'#3'列数值",
+                  "图片中部表格，'设定温度'行，'#4'列数值",
+                  "图片中部表格，'设定温度'行，'#5'列数值"
+                ]
+              },
+              {
+                "screen_label": "高温偏差",
+                "role": "limit",
+                "unit": "°C",
+                "items": [
+                  {
+                    "label": "H2",
+                    "value": 20,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'高温偏差'行，'H2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#1",
+                    "value": 20,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'高温偏差'行，'#1'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#2",
+                    "value": 20,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'高温偏差'行，'#2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#3",
+                    "value": 40,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'高温偏差'行，'#3'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#4",
+                    "value": 45,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'高温偏差'行，'#4'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#5",
+                    "value": 40,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'高温偏差'行，'#5'列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部表格，'高温偏差'行，'H2'列数值",
+                  "图片中部表格，'高温偏差'行，'#1'列数值",
+                  "图片中部表格，'高温偏差'行，'#2'列数值",
+                  "图片中部表格，'高温偏差'行，'#3'列数值",
+                  "图片中部表格，'高温偏差'行，'#4'列数值",
+                  "图片中部表格，'高温偏差'行，'#5'列数值"
+                ]
+              },
+              {
+                "screen_label": "低温偏差",
+                "role": "limit",
+                "unit": "°C",
+                "items": [
+                  {
+                    "label": "H2",
+                    "value": 20,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'低温偏差'行，'H2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#1",
+                    "value": 20,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'低温偏差'行，'#1'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#2",
+                    "value": 20,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'低温偏差'行，'#2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#3",
+                    "value": 40,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'低温偏差'行，'#3'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#4",
+                    "value": 20,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'低温偏差'行，'#4'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#5",
+                    "value": 40,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'低温偏差'行，'#5'列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部表格，'低温偏差'行，'H2'列数值",
+                  "图片中部表格，'低温偏差'行，'#1'列数值",
+                  "图片中部表格，'低温偏差'行，'#2'列数值",
+                  "图片中部表格，'低温偏差'行，'#3'列数值",
+                  "图片中部表格，'低温偏差'行，'#4'列数值",
+                  "图片中部表格，'低温偏差'行，'#5'列数值"
+                ]
+              },
+              {
+                "screen_label": "加热输出",
+                "role": "actual",
+                "unit": "%",
+                "items": [
+                  {
+                    "label": "H2",
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'加热输出'行，'H2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#1",
+                    "value": 56.5,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'加热输出'行，'#1'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#2",
+                    "value": 5.3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'加热输出'行，'#2'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#3",
+                    "value": 11.3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'加热输出'行，'#3'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#4",
+                    "value": 9.3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'加热输出'行，'#4'列数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": "#5",
+                    "value": 35.3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部表格，'加热输出'行，'#5'列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部表格，'加热输出'行，'H2'列数值",
+                  "图片中部表格，'加热输出'行，'#1'列数值",
+                  "图片中部表格，'加热输出'行，'#2'列数值",
+                  "图片中部表格，'加热输出'行，'#3'列数值",
+                  "图片中部表格，'加热输出'行，'#4'列数值",
+                  "图片中部表格，'加热输出'行，'#5'列数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "保温温度",
+            "fields": [
+              {
+                "screen_label": "保温温度",
+                "role": "setpoint",
+                "unit": "°C",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 190,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片左下方，'保温温度'标签右侧显示 '190.0 °C'"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片左下方，'保温温度'标签右侧显示 '190.0 °C'"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": [
+          "图片右上角显示 '500' 和 '料筒温度'，该数值是否为料筒温度的上限或设定值？",
+          "图片左侧边栏有一列垂直排列的数值（如 547, 25.95, 4.55 等），由于缺乏明确的参数名称标签，无法确定其具体工艺含义，故未提取。"
+        ]
+      },
+      "seconds": 26.73,
+      "input_path": "datasets/calibration/b_and_r.temperature.fixed/barrel_B01_f056d349.jpeg"
+    },
+    {
+      "case": "holding",
+      "image_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+      "source_sha256": "762a9e923a570f0782e382518042b130f23500d5ceae2cc88e93eca07b4792fb",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "draft": {
+        "sections": [
+          {
+            "label": "实际 切换",
+            "fields": [
+              {
+                "screen_label": "38.0 bar",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 38,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片左上角，标签'实际 切换'下方的蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片左上角，标签'实际 切换'下方的蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "保压",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 53.1,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片左上角，标签'保压'下方的蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片左上角，标签'保压'下方的蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "位置",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 12.52,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片左上角，标签'位置'下方的蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片左上角，标签'位置'下方的蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "余料量",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 12.52,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片左上角，标签'余料量'下方的蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片左上角，标签'余料量'下方的蓝色背景数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "曲线参数",
+            "fields": [
+              {
+                "screen_label": "速度 [mm/s]",
+                "role": "unknown",
+                "unit": "mm/s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'速度 [mm/s]'行第一个数值框"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 5,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'速度 [mm/s]'行第二个数值框"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 10,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'速度 [mm/s]'行第三个数值框"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 15,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'速度 [mm/s]'行第四个数值框"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部，'速度 [mm/s]'行第一个数值框",
+                  "图片中部，'速度 [mm/s]'行第二个数值框",
+                  "图片中部，'速度 [mm/s]'行第三个数值框",
+                  "图片中部，'速度 [mm/s]'行第四个数值框"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "unknown",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'压力 [bar]'行第一个数值框",
+                      "图片中部，'压力 [bar]'行第二个数值框"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 50,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'压力 [bar]'行第三个数值框"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 65,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'压力 [bar]'行第四个数值框"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部，'压力 [bar]'行第一个数值框",
+                  "图片中部，'压力 [bar]'行第二个数值框",
+                  "图片中部，'压力 [bar]'行第三个数值框",
+                  "图片中部，'压力 [bar]'行第四个数值框"
+                ]
+              },
+              {
+                "screen_label": "时间 [s]",
+                "role": "unknown",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'时间 [s]'行第一个数值框"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'时间 [s]'行第二个数值框"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 2,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部，'时间 [s]'行第三个数值框"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部，'时间 [s]'行第一个数值框",
+                  "图片中部，'时间 [s]'行第二个数值框",
+                  "图片中部，'时间 [s]'行第三个数值框"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "底部状态栏",
+            "fields": [
+              {
+                "screen_label": "保压",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片底部状态栏，'保压'标签右侧的数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片底部状态栏，'保压'标签右侧的数值"
+                ]
+              },
+              {
+                "screen_label": "-0.52mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": -0.52,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片底部状态栏，'0.0mm'右侧的数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片底部状态栏，'0.0mm'右侧的数值"
+                ]
+              },
+              {
+                "screen_label": "12.52mm",
+                "role": "unknown",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 12.52,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片底部状态栏，'-0.52mm'右侧的数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片底部状态栏，'-0.52mm'右侧的数值"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": [
+          "图片左上角'实际 切换'下方的'38.0 bar'具体代表什么物理量（如实际压力、切换压力等）？",
+          "图片中部'速度'、'压力'、'时间'行的数值分别对应曲线的哪些节点（如起点、拐点、终点）？",
+          "图片底部状态栏中'保压'右侧的'0.0mm'、'-0.52mm'、'12.52mm'分别代表什么含义（如位置、偏差、余料等）？",
+          "图片底部状态栏中'15070717'和'0.456s'是否为时间戳或周期时间？"
+        ]
+      },
+      "seconds": 14.77,
+      "input_path": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z002_ab30f6f6.jpeg"
+    },
+    {
+      "case": "mold",
+      "image_sha256": "0e857c555b247abc8af2b96885fddf92a54c3c7a994f23daba5e8bf78f4c042a",
+      "source_sha256": "762a9e923a570f0782e382518042b130f23500d5ceae2cc88e93eca07b4792fb",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "draft": {
+        "sections": [
+          {
+            "label": "MOLD THERMOREGULATOR",
+            "fields": [
+              {
+                "screen_label": "PV",
+                "role": "actual",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 100,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方红色LED显示屏，右侧标注PV，显示数值100.0"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方红色LED显示屏，右侧标注PV，显示数值100.0"
+                ]
+              },
+              {
+                "screen_label": "SV",
+                "role": "setpoint",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 100,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方红色LED显示屏，右侧标注SV，显示数值100.0"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方红色LED显示屏，右侧标注SV，显示数值100.0"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": [
+          "PV和SV的单位是什么？（图片中未显示单位，通常为℃）",
+          "T1指示灯亮起，是否表示当前处于T1温区？",
+          "屏幕左侧的PWR, RUN, ERR, HEAT, COOL指示灯状态如何？（图片中PWR和RUN似乎亮起，HEAT似乎亮起，ERR和COOL未亮）"
+        ]
+      },
+      "seconds": 4.61,
+      "input_path": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_decimal/mt_front_A02_0e857c55.jpeg"
+    },
+    {
+      "case": "hot_runner",
+      "image_sha256": "01c1a4380033b40a727b666d3170dd4757b0c09ef06a00fe8c7491d957456ac8",
+      "source_sha256": "762a9e923a570f0782e382518042b130f23500d5ceae2cc88e93eca07b4792fb",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "draft": {
+        "sections": [
+          {
+            "label": "1",
+            "fields": [
+              {
+                "screen_label": "PV",
+                "role": "actual",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 300,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第1个控制器，上方红色数字显示300"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第1个控制器，上方红色数字显示300"
+                ]
+              },
+              {
+                "screen_label": "SV",
+                "role": "setpoint",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 300,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第1个控制器，下方绿色数字显示300"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第1个控制器，下方绿色数字显示300"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "2",
+            "fields": [
+              {
+                "screen_label": "PV",
+                "role": "actual",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 320,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第2个控制器，上方红色数字显示320"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第2个控制器，上方红色数字显示320"
+                ]
+              },
+              {
+                "screen_label": "SV",
+                "role": "setpoint",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 320,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第2个控制器，下方绿色数字显示320"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第2个控制器，下方绿色数字显示320"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "3",
+            "fields": [
+              {
+                "screen_label": "PV",
+                "role": "actual",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 300,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第3个控制器，上方红色数字显示300"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第3个控制器，上方红色数字显示300"
+                ]
+              },
+              {
+                "screen_label": "SV",
+                "role": "setpoint",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 300,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第3个控制器，下方绿色数字显示300"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第3个控制器，下方绿色数字显示300"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "4",
+            "fields": [
+              {
+                "screen_label": "PV",
+                "role": "actual",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 320,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第4个控制器，上方红色数字显示320"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第4个控制器，上方红色数字显示320"
+                ]
+              },
+              {
+                "screen_label": "SV",
+                "role": "setpoint",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 320,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第4个控制器，下方绿色数字显示320"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第4个控制器，下方绿色数字显示320"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "5",
+            "fields": [
+              {
+                "screen_label": "PV",
+                "role": "actual",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 300,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第5个控制器，上方红色数字显示300"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第5个控制器，上方红色数字显示300"
+                ]
+              },
+              {
+                "screen_label": "SV",
+                "role": "setpoint",
+                "unit": "",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 300,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片区域：第5个控制器，下方绿色数字显示300"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片区域：第5个控制器，下方绿色数字显示300"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": [
+          "第6个控制器（标签为6）的PV和SV数值在图片中被截断，无法读取。",
+          "所有控制器显示的数值单位（如摄氏度）在屏幕上未明确标注，需确认。",
+          "PV和SV的具体物理含义（如实际温度/设定温度）需确认。"
+        ]
+      },
+      "seconds": 11.24,
+      "input_path": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_A06_01c1a438.jpg"
+    },
+    {
+      "case": "mixed_rectified",
+      "image_sha256": "8dede2b94e6360ed4ada3234a6a92622514fb5811b5258b0c784420975fb9608",
+      "source_sha256": "762a9e923a570f0782e382518042b130f23500d5ceae2cc88e93eca07b4792fb",
+      "model": "Qwen3.8-27B-FP8",
+      "base_url": "http://localhost:8000/v1",
+      "ocr_lines": 0,
+      "draft": {
+        "sections": [
+          {
+            "label": "螺杆回退 预塑前",
+            "fields": [
+              {
+                "screen_label": "速度 [mm/s]",
+                "role": "setpoint",
+                "unit": "mm/s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 80,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片左上区域，速度行第一列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片左上区域，速度行第一列数值"
+                ]
+              },
+              {
+                "screen_label": "位置 [mm]",
+                "role": "setpoint",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 4.4,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片左上区域，位置行第一列数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片左上区域，位置行第一列数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "预塑 延时",
+            "fields": [
+              {
+                "screen_label": "时间 [s]",
+                "role": "setpoint",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方中间区域，时间行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方中间区域，时间行数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "预塑",
+            "fields": [
+              {
+                "screen_label": "速度 [mm/s]",
+                "role": "setpoint",
+                "unit": "U/min",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 80,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方中间区域，速度行数值，单位显示为U/min"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方中间区域，速度行数值，单位显示为U/min"
+                ]
+              },
+              {
+                "screen_label": "位置 [mm]",
+                "role": "setpoint",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 40,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方中间区域，位置行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方中间区域，位置行数值"
+                ]
+              },
+              {
+                "screen_label": "位置 [mm]",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 40.34,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方中间区域，位置行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方中间区域，位置行右侧蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "setpoint",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 5,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方中间区域，压力行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方中间区域，压力行数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 1,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方中间区域，压力行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方中间区域，压力行右侧蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "时间 [s]",
+                "role": "actual",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 6.46,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片上方中间区域，时间行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片上方中间区域，时间行右侧蓝色背景数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "螺杆回退 预塑后",
+            "fields": [
+              {
+                "screen_label": "速度 [mm/s]",
+                "role": "setpoint",
+                "unit": "mm/s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 45,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片右上区域，速度行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片右上区域，速度行数值"
+                ]
+              },
+              {
+                "screen_label": "位置 [mm]",
+                "role": "setpoint",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 45,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片右上区域，位置行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片右上区域，位置行数值"
+                ]
+              },
+              {
+                "screen_label": "位置 [mm]",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 45.89,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片右上区域，位置行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片右上区域，位置行右侧蓝色背景数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "状态栏",
+            "fields": [
+              {
+                "screen_label": "循环时间",
+                "role": "actual",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 19.237,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部状态栏，循环时间数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部状态栏，循环时间数值"
+                ]
+              },
+              {
+                "screen_label": "位置",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 46.18,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部状态栏，位置数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部状态栏，位置数值"
+                ]
+              },
+              {
+                "screen_label": "预塑时间",
+                "role": "actual",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 6.46,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部状态栏，预塑时间数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部状态栏，预塑时间数值"
+                ]
+              },
+              {
+                "screen_label": "螺杆转速",
+                "role": "actual",
+                "unit": "U/min",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部状态栏，螺杆转速数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部状态栏，螺杆转速数值"
+                ]
+              },
+              {
+                "screen_label": "注射时间",
+                "role": "actual",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0.635,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部状态栏，注射时间数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部状态栏，注射时间数值"
+                ]
+              },
+              {
+                "screen_label": "注射压力",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 3.5,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片中部状态栏，注射压力数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片中部状态栏，注射压力数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "冷却",
+            "fields": [
+              {
+                "screen_label": "时间 [s]",
+                "role": "setpoint",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 7,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方左侧区域，时间行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方左侧区域，时间行数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "余料量",
+            "fields": [
+              {
+                "screen_label": "位置 [mm]",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 9.38,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间区域，位置行蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间区域，位置行蓝色背景数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "保压 压力",
+            "fields": [
+              {
+                "screen_label": "速度 [mm/s]",
+                "role": "setpoint",
+                "unit": "mm/s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 10,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间区域，速度行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间区域，速度行数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "setpoint",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 75,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间区域，压力行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间区域，压力行数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 40.2,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间区域，压力行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间区域，压力行右侧蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "时间 [s]",
+                "role": "setpoint",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 1,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间区域，时间行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间区域，时间行数值"
+                ]
+              },
+              {
+                "screen_label": "时间 [s]",
+                "role": "actual",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 2.5,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间区域，时间行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间区域，时间行右侧蓝色背景数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "保压 切换条件",
+            "fields": [
+              {
+                "screen_label": "位置 [mm]",
+                "role": "setpoint",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 14,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间偏右区域，位置行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间偏右区域，位置行数值"
+                ]
+              },
+              {
+                "screen_label": "位置 [mm]",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 13.98,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间偏右区域，位置行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间偏右区域，位置行右侧蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "setpoint",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 33.1,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间偏右区域，压力行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间偏右区域，压力行数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 85.8,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间偏右区域，压力行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间偏右区域，压力行右侧蓝色背景数值"
+                ]
+              },
+              {
+                "screen_label": "时间 [s]",
+                "role": "setpoint",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间偏右区域，时间行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间偏右区域，时间行数值"
+                ]
+              },
+              {
+                "screen_label": "时间 [s]",
+                "role": "actual",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0.635,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方中间偏右区域，时间行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方中间偏右区域，时间行右侧蓝色背景数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "注射",
+            "fields": [
+              {
+                "screen_label": "速度 [mm/s]",
+                "role": "setpoint",
+                "unit": "mm/s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 100,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方右侧区域，速度行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方右侧区域，速度行数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "setpoint",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 95,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方右侧区域，压力行数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方右侧区域，压力行数值"
+                ]
+              },
+              {
+                "screen_label": "压力 [bar]",
+                "role": "actual",
+                "unit": "bar",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 86.4,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方右侧区域，压力行右侧蓝色背景数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方右侧区域，压力行右侧蓝色背景数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "允许压力监控",
+            "fields": [
+              {
+                "screen_label": "允许压力监控",
+                "role": "setpoint",
+                "unit": "s",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 3,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片下方左侧，允许压力监控复选框右侧数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片下方左侧，允许压力监控复选框右侧数值"
+                ]
+              }
+            ]
+          },
+          {
+            "label": "底部状态栏",
+            "fields": [
+              {
+                "screen_label": "开模",
+                "role": "actual",
+                "unit": "mm",
+                "items": [
+                  {
+                    "label": null,
+                    "value": 0,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片底部状态栏，开模右侧数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": 122.64,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片底部状态栏，开模右侧第二个数值"
+                    ],
+                    "needs_confirmation": true
+                  },
+                  {
+                    "label": null,
+                    "value": -46.18,
+                    "sources": [
+                      "vlm"
+                    ],
+                    "evidence": [
+                      "图片底部状态栏，开模右侧第三个数值"
+                    ],
+                    "needs_confirmation": true
+                  }
+                ],
+                "needs_confirmation": true,
+                "canonical_id": null,
+                "sources": [
+                  "vlm"
+                ],
+                "evidence": [
+                  "图片底部状态栏，开模右侧数值",
+                  "图片底部状态栏，开模右侧第二个数值",
+                  "图片底部状态栏，开模右侧第三个数值"
+                ]
+              }
+            ]
+          }
+        ],
+        "questions": [
+          "图片底部状态栏中“开模”标签右侧有三个数值（0.0, 122.64, -46.18），具体分别代表什么含义（如开模位置、开模距离等）？",
+          "“允许压力监控”下方的数值 3.000 的单位是秒(s)还是其他单位？",
+          "“预塑”区域的速度单位显示为 U/min，而其他速度单位显示为 mm/s，请确认预塑速度的单位是否为 U/min。"
+        ]
+      },
+      "seconds": 36.63,
+      "input_path": "output/inj_z002_calib/rectified/inj_Z002_20260312_rank04_recvdFyqLjkKBd.png"
+    }
+  ],
+  "precision": null,
+  "complete_relation_recall": null,
+  "remaining": [
+    "Incomplete verified relation truth and scoring",
+    "No independent holdout",
+    "Source descriptions and semantic roles require human verification",
+    "HTTP and validation lab migration pending"
+  ]
+}

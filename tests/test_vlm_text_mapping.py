@@ -596,3 +596,55 @@ def test_draft_coerces_numeric_strings_and_defaults_empty_questions(monkeypatch)
     assert items[0]["value"] == 345
     assert items[1]["value"] == 340
 
+
+def test_draft_default_context_combines_image_and_ocr(monkeypatch):
+    image = io.BytesIO()
+    Image.new("RGB", (2, 2), "white").save(image, "PNG")
+    captured = []
+    payload = {"sections": [], "questions": []}
+    monkeypatch.setattr(vlm_qwen, "_chat_completion", lambda _image, prompt, *_:
+                        captured.append(json.loads(prompt.split("输入：", 1)[1]))
+                        or _draft_response(payload))
+    monkeypatch.setattr(vlm_qwen, "_text_completion",
+                        lambda *_: pytest.fail("default must retain the image"))
+
+    result = vlm_qwen.draft_from_ocr(
+        {"lines": [{"text": "背压 12 bar"}]}, image_bytes=image.getvalue())
+
+    assert captured[0]["target"] == ""
+    assert captured[0]["current_structure"] == {}
+    assert captured[0]["canonical_hints"] == []
+    assert captured[0]["ocr_lines"] == [{"text": "背压 12 bar"}]
+    assert result["sections"] == []
+    assert result["questions"] == ["未提取到可核对的工艺参数，请核对原图或补拍清晰完整画面。"]
+
+
+def test_draft_explicit_text_mode_and_invalid_mode(monkeypatch):
+    monkeypatch.setattr(vlm_qwen, "_chat_completion",
+                        lambda *_: pytest.fail("explicit text mode must stay text-only"))
+    monkeypatch.setattr(vlm_qwen, "_text_completion", lambda *_:
+                        _draft_response({"sections": [], "questions": ["表头不可读"]}))
+    evidence = {"lines": [{"text": "12 bar"}]}
+
+    result = vlm_qwen.draft_from_ocr(evidence, image_bytes=b"unused", mode="ocr_text")
+    assert result["questions"] == ["表头不可读"]
+    with pytest.raises(vlm_qwen.VlmError, match="候选请求上下文非法"):
+        vlm_qwen.draft_from_ocr(evidence, mode="typo")
+
+
+def test_draft_keeps_visible_zones_when_cropped_section_has_no_fields(monkeypatch):
+    payload = {"sections": [
+        {"label": "温区1", "fields": [
+            _draft_field("SV", "setpoint", "°C", [_draft_item(200)])]},
+        {"label": "温区2", "fields": []},
+    ], "questions": ["温区2数值被截断，请补拍。"]}
+    monkeypatch.setattr(vlm_qwen, "_text_completion", lambda *_: _draft_response(payload))
+
+    result = vlm_qwen.draft_from_ocr({"lines": [{"text": "SV 200"}]})
+
+    assert [section["label"] for section in result["sections"]] == ["温区1"]
+    assert result["sections"][0]["fields"][0]["items"][0]["value"] == 200
+    assert result["questions"] == payload["questions"]
+    payload["questions"] = []
+    with pytest.raises(vlm_qwen.VlmError, match="VLM section 非法"):
+        vlm_qwen.draft_from_ocr({"lines": [{"text": "SV 200"}]})
