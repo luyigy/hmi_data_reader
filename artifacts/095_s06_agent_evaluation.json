@@ -1,0 +1,306 @@
+{
+  "base_commit": "08259ba1921d5bd3ec8d620642465737ddfa3f77",
+  "source_sha256": {
+    "hmi_service.py": "bf7cb58e09ebabc4ccf8119aad4d7fa685ee52eb7e94cae5813b63ed2fc9d750",
+    "scripts/vlm_qwen.py": "9b8a9be9ff6da31eed6117f42c9b22fcc71b83753bc0224b73b98017b86b39dd",
+    "scripts/ocr_variants.py": "1e292f8e0e50c0178f5ebcfe8045bdb734c01dc33d1e5022f520cff5a060ca89",
+    "validation_lab/app.py": "899731c5d1bf580f74d5569b8fb97dd4b91cfe7bfc277f2c7fc41a0b17ffe96e",
+    "validation_lab/lab.js": "8bf594d0ef66e19de2ec47e3295efed56f0cb0b41ca2ee9881364881ca7982d9",
+    "scripts/score_relations.py": "4c0f11ddb180c8bbdf87bfb0e913c7f4d5533c1f3fa82720694e7d758270b6e3",
+    "scripts/check_candidate_http.py": "1a0934b4aac589a2295abb1c3c123c0bbec528e6189b21ae71e0656761323a1b",
+    "tests/validation_lab_candidates.browser.js": "3619d6dd5756bb416c011aa9abcff257e316049f2759e11f382b87ccbd357319"
+  },
+  "model": {
+    "id": "Qwen3.8-27B-FP8",
+    "base_url": "http://localhost:8000/v1",
+    "temperature": 0,
+    "max_tokens": 8192,
+    "max_image_edge": 1280,
+    "weights_digest": null
+  },
+  "ocr": {
+    "paddleocr": "2.7.3",
+    "paddlepaddle-gpu": "2.6.2",
+    "ready": true,
+    "configuration": "hmi_service.init_ocr_engine; GPU 0; cuDNN and cuBLAS from venv LD_LIBRARY_PATH"
+  },
+  "annotation_sha256": "645b0ef95cafcc87cbe29dc8be962f89eabaa52ba0df9e02424209d9b2cdf580",
+  "initial_existing_diff_sha256": "0861b622ec2ce24ae3b04ddb568307cc4914330eec4ed52488422d4f3323c3f1",
+  "partition": "development_only",
+  "verdict": "FAIL five-dimensional relations; not blocked on human annotation",
+  "runs": [
+    {
+      "run": 1,
+      "artifact": "artifacts/095_s06_agent_run1.json",
+      "sha256": "1c7cf698a6034cf1b5208610478da837bf0c4f1ed0bea06e29b035ed89769dc1",
+      "requests": 5,
+      "failed_requests": 0,
+      "http_roundtrips_passed": 5,
+      "candidate_count": 83,
+      "verified_reference_count": 78,
+      "matched": 42,
+      "unmatched_predictions_including_unresolved": 41,
+      "missing_verified_relations": 36,
+      "not_pending": 0,
+      "seconds": [
+        27.93,
+        23.39,
+        5.4,
+        18.9,
+        26.35
+      ],
+      "scores": {
+        "barrel_temperature": {
+          "tp": 29,
+          "fp": 2,
+          "fn": 1,
+          "unresolved_truth": 2,
+          "precision": 0.9354838709677419,
+          "recall": 0.9666666666666667
+        },
+        "cooling": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 0,
+          "unresolved_truth": 1,
+          "precision": 0.0,
+          "recall": null
+        },
+        "holding": {
+          "tp": 0,
+          "fp": 14,
+          "fn": 12,
+          "unresolved_truth": 3,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "hot_runner": {
+          "tp": 0,
+          "fp": 10,
+          "fn": 10,
+          "unresolved_truth": 0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "injection": {
+          "tp": 5,
+          "fp": 10,
+          "fn": 12,
+          "unresolved_truth": 0,
+          "precision": 0.3333333333333333,
+          "recall": 0.29411764705882354
+        },
+        "mold_temperature": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "unresolved_truth": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "other": {
+          "tp": 5,
+          "fp": 4,
+          "fn": 1,
+          "unresolved_truth": 4,
+          "precision": 0.5555555555555556,
+          "recall": 0.8333333333333334
+        },
+        "plasticizing": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "unresolved_truth": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      }
+    },
+    {
+      "run": 2,
+      "artifact": "artifacts/095_s06_agent_run2.json",
+      "sha256": "01786825daef9f648b40a995b3c04406d1bc5858c492fe728a192f386b1e9c59",
+      "requests": 5,
+      "failed_requests": 0,
+      "http_roundtrips_passed": 5,
+      "candidate_count": 83,
+      "verified_reference_count": 78,
+      "matched": 42,
+      "unmatched_predictions_including_unresolved": 41,
+      "missing_verified_relations": 36,
+      "not_pending": 0,
+      "seconds": [
+        27.81,
+        22.74,
+        5.39,
+        18.16,
+        25.02
+      ],
+      "scores": {
+        "barrel_temperature": {
+          "tp": 29,
+          "fp": 2,
+          "fn": 1,
+          "unresolved_truth": 2,
+          "precision": 0.9354838709677419,
+          "recall": 0.9666666666666667
+        },
+        "cooling": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 0,
+          "unresolved_truth": 1,
+          "precision": 0.0,
+          "recall": null
+        },
+        "holding": {
+          "tp": 0,
+          "fp": 14,
+          "fn": 12,
+          "unresolved_truth": 3,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "hot_runner": {
+          "tp": 0,
+          "fp": 10,
+          "fn": 10,
+          "unresolved_truth": 0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "injection": {
+          "tp": 5,
+          "fp": 10,
+          "fn": 12,
+          "unresolved_truth": 0,
+          "precision": 0.3333333333333333,
+          "recall": 0.29411764705882354
+        },
+        "mold_temperature": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "unresolved_truth": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "other": {
+          "tp": 5,
+          "fp": 4,
+          "fn": 1,
+          "unresolved_truth": 4,
+          "precision": 0.5555555555555556,
+          "recall": 0.8333333333333334
+        },
+        "plasticizing": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "unresolved_truth": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      }
+    },
+    {
+      "run": 3,
+      "artifact": "artifacts/095_s06_agent_run3.json",
+      "sha256": "a2deb4141402d158894bbe5d8b7ffab14f35336b6a447c8bc6b2c4bdabccc122",
+      "requests": 5,
+      "failed_requests": 0,
+      "http_roundtrips_passed": 5,
+      "candidate_count": 83,
+      "verified_reference_count": 78,
+      "matched": 42,
+      "unmatched_predictions_including_unresolved": 41,
+      "missing_verified_relations": 36,
+      "not_pending": 0,
+      "seconds": [
+        27.84,
+        22.74,
+        5.4,
+        18.17,
+        25.09
+      ],
+      "scores": {
+        "barrel_temperature": {
+          "tp": 29,
+          "fp": 2,
+          "fn": 1,
+          "unresolved_truth": 2,
+          "precision": 0.9354838709677419,
+          "recall": 0.9666666666666667
+        },
+        "cooling": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 0,
+          "unresolved_truth": 1,
+          "precision": 0.0,
+          "recall": null
+        },
+        "holding": {
+          "tp": 0,
+          "fp": 14,
+          "fn": 12,
+          "unresolved_truth": 3,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "hot_runner": {
+          "tp": 0,
+          "fp": 10,
+          "fn": 10,
+          "unresolved_truth": 0,
+          "precision": 0.0,
+          "recall": 0.0
+        },
+        "injection": {
+          "tp": 5,
+          "fp": 10,
+          "fn": 12,
+          "unresolved_truth": 0,
+          "precision": 0.3333333333333333,
+          "recall": 0.29411764705882354
+        },
+        "mold_temperature": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "unresolved_truth": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "other": {
+          "tp": 5,
+          "fp": 4,
+          "fn": 1,
+          "unresolved_truth": 4,
+          "precision": 0.5555555555555556,
+          "recall": 0.8333333333333334
+        },
+        "plasticizing": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "unresolved_truth": 0,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      }
+    }
+  ],
+  "score_variation": 0,
+  "latency_seconds_min": 5.39,
+  "latency_seconds_max": 27.93,
+  "cost": "local model; token usage and monetary cost not measured",
+  "limitations": [
+    "Agent-reviewed reference, not blind or human-certified",
+    "Unresolved groups excluded from recall; unmatched predictions include unresolved cases",
+    "Cooling has no verified denominator; plasticizing only one rpm item",
+    "No independent holdout or legacy recognize-chain comparison",
+    "Model weight digest unavailable"
+  ],
+  "check": "Scorer pytest 1 passed; stored scores recomputed and all source/annotation hashes checked"
+}

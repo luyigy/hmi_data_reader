@@ -1,0 +1,1062 @@
+{
+  "annotation_source": "Codex direct visual review of original images; not human-certified, not Qwen output as truth",
+  "partition": "development_only",
+  "scope": "Visible numeric process parameters; unresolved groups are not item counts; exclude dates, page IDs, graph ticks, switch states, printed error codes and dark controller 6",
+  "normalization": "Exact meaning aliases only; blank unit -> null; printed hot-runner section 1..5 -> zone label; do not infer unnamed table labels from array order; never repair predicted value/unit/role. Spatial labels describe visible location, not physical stage numbering. Alias table is explicit and frozen before reading repeat-run outputs; unknown names remain unmatched in other. 保压 with mm is other/底栏保压位置候选, not pressure. Parameter aliases do not change units or roles.",
+  "images": [
+    {
+      "image": "datasets/calibration/b_and_r.temperature.fixed/barrel_B01_f056d349.jpeg",
+      "sha256": "f056d349ce7472cccd09bdd9561b0eed358ae6485c6c3bb9042d5e51bd0f4bce",
+      "truth": [
+        {
+          "category": "other",
+          "parameter": "模板位置",
+          "value": 0,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "other",
+          "parameter": "顶针位置",
+          "value": -0.8,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "射胶位置",
+          "value": 114.3,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "other",
+          "parameter": "射台位置",
+          "value": 0,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "plasticizing",
+          "parameter": "熔胶转速",
+          "value": 0,
+          "unit": "rpm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "other",
+          "parameter": "主泵流量",
+          "value": 0,
+          "unit": "%",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "other",
+          "parameter": "主泵压力",
+          "value": 0,
+          "unit": "bar",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "other",
+          "parameter": "系统压力",
+          "value": 0,
+          "unit": "bar",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 287.5,
+          "unit": "°C",
+          "role": "actual",
+          "label": "NZ",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 270.2,
+          "unit": "°C",
+          "role": "actual",
+          "label": "#1",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 264.9,
+          "unit": "°C",
+          "role": "actual",
+          "label": "#2",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 264.9,
+          "unit": "°C",
+          "role": "actual",
+          "label": "#3",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 260,
+          "unit": "°C",
+          "role": "actual",
+          "label": "#4",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 250.1,
+          "unit": "°C",
+          "role": "actual",
+          "label": "#5",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 285,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "NZ",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 270,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "#1",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 265,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "#2",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 265,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "#3",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 260,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "#4",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "温度",
+          "value": 250,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "#5",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "高温偏差",
+          "value": 20,
+          "unit": "°C",
+          "role": "limit",
+          "label": "NZ",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "高温偏差",
+          "value": 20,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#1",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "高温偏差",
+          "value": 20,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#2",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "高温偏差",
+          "value": 40,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#3",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "高温偏差",
+          "value": 45,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#4",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "高温偏差",
+          "value": 40,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#5",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "低温偏差",
+          "value": 20,
+          "unit": "°C",
+          "role": "limit",
+          "label": "NZ",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "低温偏差",
+          "value": 20,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#1",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "低温偏差",
+          "value": 20,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#2",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "低温偏差",
+          "value": 40,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#3",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "低温偏差",
+          "value": 20,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#4",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "低温偏差",
+          "value": 40,
+          "unit": "°C",
+          "role": "limit",
+          "label": "#5",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "加热输出",
+          "value": 0,
+          "unit": "%",
+          "role": "actual",
+          "label": "NZ",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "加热输出",
+          "value": 56.6,
+          "unit": "%",
+          "role": "actual",
+          "label": "#1",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "加热输出",
+          "value": 5.3,
+          "unit": "%",
+          "role": "actual",
+          "label": "#2",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "加热输出",
+          "value": 11.3,
+          "unit": "%",
+          "role": "actual",
+          "label": "#3",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "加热输出",
+          "value": 9.3,
+          "unit": "%",
+          "role": "actual",
+          "label": "#4",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "加热输出",
+          "value": 35.3,
+          "unit": "%",
+          "role": "actual",
+          "label": "#5",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "保温温度",
+          "status": "unresolved",
+          "note": "小字读数160/180需更清晰图"
+        },
+        {
+          "category": "other",
+          "parameter": "左边栏图标数值组",
+          "status": "unresolved",
+          "note": "图标无明确文字含义；组级未解"
+        },
+        {
+          "category": "barrel_temperature",
+          "parameter": "右上500",
+          "status": "unresolved",
+          "note": "含义不明"
+        }
+      ]
+    },
+    {
+      "image": "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z002_ab30f6f6.jpeg",
+      "sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+      "truth": [
+        {
+          "category": "holding",
+          "parameter": "实际切换压力",
+          "value": 38,
+          "unit": "bar",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "保压压力",
+          "value": 53.1,
+          "unit": "bar",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "位置",
+          "value": 12.52,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "余料量",
+          "value": 12.52,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "速度",
+          "value": 5,
+          "unit": "mm/s",
+          "role": "setpoint",
+          "label": "画面第2列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "速度",
+          "value": 10,
+          "unit": "mm/s",
+          "role": "setpoint",
+          "label": "画面第3列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "速度",
+          "value": 15,
+          "unit": "mm/s",
+          "role": "setpoint",
+          "label": "画面第4列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "压力",
+          "value": 0,
+          "unit": "bar",
+          "role": "setpoint",
+          "label": "画面第2列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "压力",
+          "value": 50,
+          "unit": "bar",
+          "role": "setpoint",
+          "label": "画面第3列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "压力",
+          "value": 65,
+          "unit": "bar",
+          "role": "setpoint",
+          "label": "画面第4列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "时间",
+          "value": 3,
+          "unit": "s",
+          "role": "setpoint",
+          "label": "画面第2列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "时间",
+          "value": 2,
+          "unit": "s",
+          "role": "setpoint",
+          "label": "画面第3列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "holding",
+          "parameter": "表格首列速度",
+          "status": "unresolved",
+          "note": "0.0，深色单元格角色不确定"
+        },
+        {
+          "category": "holding",
+          "parameter": "表格首列压力",
+          "status": "unresolved",
+          "note": "0.0，深色单元格角色不确定"
+        },
+        {
+          "category": "holding",
+          "parameter": "表格首列时间",
+          "status": "unresolved",
+          "note": "0.000，深色单元格角色不确定"
+        },
+        {
+          "category": "other",
+          "parameter": "底栏位置组",
+          "status": "unresolved",
+          "note": "0/-0.52/12.52 mm，图标物理含义待解"
+        },
+        {
+          "category": "other",
+          "parameter": "底栏计时",
+          "status": "unresolved",
+          "note": "0.456 s时间定义不明"
+        }
+      ]
+    },
+    {
+      "image": "datasets/calibration/mold_thermoregulator.mold_temp.pv_sv_integer/mt_front_A11_82258780.jpg",
+      "sha256": "822587808a6eedaeba90f65f2bbf5fde43a13adc2ba6ab01667411a19dc119de",
+      "truth": [
+        {
+          "category": "mold_temperature",
+          "parameter": "温度",
+          "value": 30,
+          "unit": null,
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "mold_temperature",
+          "parameter": "温度",
+          "value": 30,
+          "unit": null,
+          "role": "setpoint",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        }
+      ]
+    },
+    {
+      "image": "datasets/calibration/tact.hot_runner_temp.digital_sv/hr_A06_01c1a438.jpg",
+      "sha256": "01c1a4380033b40a727b666d3170dd4757b0c09ef06a00fe8c7491d957456ac8",
+      "truth": [
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 300,
+          "unit": "°C",
+          "role": "actual",
+          "label": "1",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 320,
+          "unit": "°C",
+          "role": "actual",
+          "label": "2",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 300,
+          "unit": "°C",
+          "role": "actual",
+          "label": "3",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 320,
+          "unit": "°C",
+          "role": "actual",
+          "label": "4",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 300,
+          "unit": "°C",
+          "role": "actual",
+          "label": "5",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 300,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "1",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 320,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "2",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 300,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "3",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 320,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "4",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "hot_runner",
+          "parameter": "温度",
+          "value": 300,
+          "unit": "°C",
+          "role": "setpoint",
+          "label": "5",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        }
+      ]
+    },
+    {
+      "image": "output/inj_z002_calib_imgs/inj_Z002_20250516_rank01_recuQJJFYYMldc.jpeg",
+      "sha256": "cc1fb9bdb2ec208d610e882f766d2cea7813b55d2ca5549f685aa371a3161f04",
+      "truth": [
+        {
+          "category": "injection",
+          "parameter": "偏差限制",
+          "value": 0,
+          "unit": "bar",
+          "role": "limit",
+          "label": "+",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "偏差限制",
+          "value": 0,
+          "unit": "bar",
+          "role": "limit",
+          "label": "-",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "注射时间",
+          "value": 0.754,
+          "unit": "s",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "注射压力",
+          "value": 2.7,
+          "unit": "bar",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "位置",
+          "value": 46.19,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "余料量",
+          "value": 16.26,
+          "unit": "mm",
+          "role": "actual",
+          "label": null,
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "压力",
+          "value": 65,
+          "unit": "bar",
+          "role": "setpoint",
+          "label": "画面左端",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "压力",
+          "value": 100,
+          "unit": "bar",
+          "role": "setpoint",
+          "label": "画面右端",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "速度",
+          "value": 12,
+          "unit": "mm/s",
+          "role": "setpoint",
+          "label": "画面左端",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "速度",
+          "value": 0,
+          "unit": "mm/s",
+          "role": "setpoint",
+          "label": "画面右侧第1列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "速度",
+          "value": 25,
+          "unit": "mm/s",
+          "role": "setpoint",
+          "label": "画面右侧第2列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "速度",
+          "value": 75,
+          "unit": "mm/s",
+          "role": "setpoint",
+          "label": "画面右侧第3列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "位置",
+          "value": 17.5,
+          "unit": "mm",
+          "role": "setpoint",
+          "label": "画面左端",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "位置",
+          "value": 0,
+          "unit": "mm",
+          "role": "setpoint",
+          "label": "画面右侧第1列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "位置",
+          "value": 22.5,
+          "unit": "mm",
+          "role": "setpoint",
+          "label": "画面右侧第2列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "injection",
+          "parameter": "位置",
+          "value": 45,
+          "unit": "mm",
+          "role": "setpoint",
+          "label": "画面右侧第3列",
+          "status": "verified",
+          "verification": "agent_visual_review"
+        },
+        {
+          "category": "other",
+          "parameter": "底栏位置组",
+          "status": "unresolved",
+          "note": "0/-0.64/46.19 mm，冷却为运行状态，不是毫米参数名"
+        },
+        {
+          "category": "cooling",
+          "parameter": "底栏计时",
+          "status": "unresolved",
+          "note": "4.260 s，不能从冷却状态字直接确定时间含义"
+        }
+      ]
+    }
+  ],
+  "field_aliases_by_image": [
+    {
+      "模板位置": [
+        "other",
+        "模板位置"
+      ],
+      "顶针位置": [
+        "other",
+        "顶针位置"
+      ],
+      "射胶位置": [
+        "injection",
+        "射胶位置"
+      ],
+      "射台位置": [
+        "other",
+        "射台位置"
+      ],
+      "熔胶转速": [
+        "plasticizing",
+        "熔胶转速"
+      ],
+      "主泵流量": [
+        "other",
+        "主泵流量"
+      ],
+      "主泵压力": [
+        "other",
+        "主泵压力"
+      ],
+      "系统压力": [
+        "other",
+        "系统压力"
+      ],
+      "实际温度": [
+        "barrel_temperature",
+        "温度"
+      ],
+      "设定温度": [
+        "barrel_temperature",
+        "温度"
+      ],
+      "高温偏差": [
+        "barrel_temperature",
+        "高温偏差"
+      ],
+      "低温偏差": [
+        "barrel_temperature",
+        "低温偏差"
+      ],
+      "加热输出": [
+        "barrel_temperature",
+        "加热输出"
+      ],
+      "保温温度": [
+        "barrel_temperature",
+        "保温温度"
+      ]
+    },
+    {
+      "实际切换": [
+        "holding",
+        "实际切换压力"
+      ],
+      "保压": [
+        "holding",
+        "保压压力"
+      ],
+      "位置": [
+        "holding",
+        "位置"
+      ],
+      "余料量": [
+        "holding",
+        "余料量"
+      ],
+      "速度 [mm/s]": [
+        "holding",
+        "速度"
+      ],
+      "压力 [bar]": [
+        "holding",
+        "压力"
+      ],
+      "时间 [s]": [
+        "holding",
+        "时间"
+      ],
+      "速度": [
+        "holding",
+        "速度"
+      ],
+      "压力": [
+        "holding",
+        "压力"
+      ],
+      "时间": [
+        "holding",
+        "时间"
+      ]
+    },
+    {
+      "PV": [
+        "mold_temperature",
+        "温度"
+      ],
+      "SV": [
+        "mold_temperature",
+        "温度"
+      ],
+      "实际温度": [
+        "mold_temperature",
+        "温度"
+      ],
+      "设定温度": [
+        "mold_temperature",
+        "温度"
+      ]
+    },
+    {
+      "PV": [
+        "hot_runner",
+        "温度"
+      ],
+      "SV": [
+        "hot_runner",
+        "温度"
+      ],
+      "实际温度": [
+        "hot_runner",
+        "温度"
+      ],
+      "设定温度": [
+        "hot_runner",
+        "温度"
+      ]
+    },
+    {
+      "偏差限制": [
+        "injection",
+        "偏差限制"
+      ],
+      "注射时间": [
+        "injection",
+        "注射时间"
+      ],
+      "注射压力": [
+        "injection",
+        "注射压力"
+      ],
+      "位置": [
+        "injection",
+        "位置"
+      ],
+      "余料量": [
+        "injection",
+        "余料量"
+      ],
+      "压力 [bar]": [
+        "injection",
+        "压力"
+      ],
+      "速度 [mm/s]": [
+        "injection",
+        "速度"
+      ],
+      "位置 [mm]": [
+        "injection",
+        "位置"
+      ],
+      "压力": [
+        "injection",
+        "压力"
+      ],
+      "速度": [
+        "injection",
+        "速度"
+      ],
+      "冷却": [
+        "cooling",
+        "冷却"
+      ]
+    }
+  ]
+}
