@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HMI 拍照验证台</title><link rel="stylesheet" href="/lab.css"><script src="/lab.js" defer></script></head>
+<body>
+<header><div><span class="eyebrow">HMI READER · 验证工具</span><h1>拍一组照片，核对一份工艺</h1><p>保留原始识别，逐段核对目标。只生成验证副本，不写入真实试模。</p></div><button id="new">新建验证批次</button></header>
+<main>
+<section class="toolbar"><label>继续上次验证 <select id="sessions"><option value="">选择批次</option></select></label><span id="batch"></span><span id="saved"></span></section>
+<p id="message" role="status" aria-live="polite">正在加载…</p>
+<section class="capture"><div><span class="step">01 · 采集</span><h2>连续拍照或添加图片</h2><p>温度、熔胶、射出、保压可以一起上传；补拍相同字段会检查冲突。每张最多 20 MiB，支持 JPEG / PNG / WebP。</p></div><div class="buttons"><label class="button primary">拍照<input id="camera" type="file" accept="image/*" capture="environment" hidden></label><label class="button">添加图片<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label></div></section>
+<div id="photos" class="photos"></div>
+<section><span class="step">02 · 目标副本</span><h2>要填入怎样的工艺结构？</h2><p>先调整温区和段数。温区名称必须与画面对应；模温位置在照片下选择。段数变化只作用于验证副本。</p><div id="structure" class="structure"></div>
+<details><summary>查看 / 编辑完整目标 JSON，或导入参数副本</summary><p>接受 parameter_data 对象或包含 parameter_data 的对象。这是结构投影，不代表通过 Web 完整保存校验。</p><label class="button">导入目标 JSON<input id="target-file" type="file" accept="application/json,.json" hidden></label><textarea id="target-json" rows="14" aria-label="目标参数 JSON" spellcheck="false"></textarea><button id="apply-target">使用这个目标副本</button></details></section>
+<section><div class="section-head"><div><span class="step">03 · 核对</span><h2>识别结果与拟写入字段</h2></div><button id="save" class="primary">保存纠错并重新预览</button></div><div id="counts" class="counts"></div><p>选中“人工核对”才把修改纳入人工验证副本；它不计为自动识别通过。段起点、终点、压力侧别等语义请结合原图核对。证据未定位时显示整张原图。</p><div id="results"></div>
+<details><summary id="missing-title">未覆盖的目标字段</summary><div id="missing"></div></details>
+<label class="note-label">本次问题 / 纠错说明<textarea id="note" rows="3" maxlength="4000" placeholder="例如：射出段从右向左排列；第 2 段压力读错"></textarea></label></section>
+<section class="export"><div><span class="step">04 · 留存</span><h2>下载结果，留作下次回归</h2><p>包含图片来源、原始响应、修改记录和拟写入副本。重试识别会追加一次结果，保留旧纠错历史。</p></div><div class="buttons"><button id="json">下载验证 JSON</button><button id="zip">下载完整案例 ZIP</button></div></section>
+<details><summary>版本与验证边界</summary><pre id="versions"></pre><p>“可映射”仅指当前适配器的检查通过。需用人工真值及未参与调试的照片验证识别准确率；本工具不证明生产错误率为零。</p></details>
+</main><footer>HMI 拍照验证台 · 图片和纠错保存在本机 · 原图永不被纠正值覆盖</footer>
+<dialog id="evidence"><button id="close-evidence">关闭</button><h2 id="evidence-title"></h2><img id="evidence-image" alt="识别来源原图"><details open><summary>原始识别与 OCR 证据</summary><pre id="evidence-json"></pre></details></dialog>
+</body></html>

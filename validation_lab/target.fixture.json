@@ -1,0 +1,440 @@
+{
+  "fixture_version": "2026-09-08.1",
+  "kind": "parameter_data_projection_not_save_payload",
+  "description": "当前 Web 参数结构的空值验证投影，不是完整保存请求；不含机台/业务数据。",
+  "web_commit": "6e465b5137e15c63c3b28346c331170bfa25dc63",
+  "source_files": {
+    "backend/app/trial_records/parameter_run_temperature.py": "af61dcc118373cebc5ac12075638eec191a987eb508ceb8432b0f5e143b0b795",
+    "backend/app/trial_records/parameter_run_plastication.py": "a02930fde288e983ae551d39a170dd51744a161880208de5a2ecd7857ee38386",
+    "backend/app/trial_records/parameter_run_injection.py": "d160174c94c728f705383d330245ca14c57100ea77421216cd3ae2b623cc32c1",
+    "backend/app/trial_records/parameter_run_holding.py": "e429285f11e826b4d1049ba1dd9dee5e5ec6fb900ddd06442d4ea616e98bed7a",
+    "backend/app/trial_records/parameter_run_cooling_ejection.py": "d5bb98f860e4a71eac1b7f8c4c0c2f3a6b2b89561a57127b3bc4f87a73e26c95"
+  },
+  "parameter_data": {
+    "temperature": {
+      "zones": [
+        {
+          "zone_id": "barrel-0",
+          "name": "喷嘴1",
+          "source": "nozzle",
+          "order": 1,
+          "set_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "actual_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          }
+        },
+        {
+          "zone_id": "barrel-1",
+          "name": "区1",
+          "source": "barrel",
+          "order": 2,
+          "set_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "actual_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          }
+        },
+        {
+          "zone_id": "barrel-2",
+          "name": "区2",
+          "source": "barrel",
+          "order": 3,
+          "set_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "actual_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          }
+        },
+        {
+          "zone_id": "barrel-3",
+          "name": "区3",
+          "source": "barrel",
+          "order": 4,
+          "set_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "actual_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          }
+        },
+        {
+          "zone_id": "mold_fixed",
+          "name": "定模",
+          "source": "mold_fixed",
+          "order": 1,
+          "set_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "actual_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "cooling_medium": null
+        },
+        {
+          "zone_id": "mold_moving",
+          "name": "动模",
+          "source": "mold_moving",
+          "order": 2,
+          "set_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "actual_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "cooling_medium": null
+        },
+        {
+          "zone_id": "mold_slide",
+          "name": "行位",
+          "source": "mold_slide",
+          "order": 3,
+          "set_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "actual_temperature": {
+            "raw_value": null,
+            "raw_unit": "°C"
+          },
+          "cooling_medium": null
+        }
+      ]
+    },
+    "plasticizing": {
+      "segments": [
+        {
+          "segment_id": "plasticizing-1",
+          "order": 1,
+          "source": "manual",
+          "screw_speed": {
+            "raw_value": null,
+            "raw_unit": "rpm"
+          },
+          "back_pressure": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "end_position": {
+            "raw_value": null,
+            "raw_unit": "mm"
+          }
+        },
+        {
+          "segment_id": "plasticizing-2",
+          "order": 2,
+          "source": "manual",
+          "screw_speed": {
+            "raw_value": null,
+            "raw_unit": "rpm"
+          },
+          "back_pressure": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "end_position": {
+            "raw_value": null,
+            "raw_unit": "mm"
+          }
+        },
+        {
+          "segment_id": "plasticizing-3",
+          "order": 3,
+          "source": "manual",
+          "screw_speed": {
+            "raw_value": null,
+            "raw_unit": "rpm"
+          },
+          "back_pressure": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "end_position": {
+            "raw_value": null,
+            "raw_unit": "mm"
+          }
+        }
+      ],
+      "metering_end_position": {
+        "raw_value": null,
+        "raw_unit": "mm"
+      },
+      "suck_back_position": {
+        "raw_value": null,
+        "raw_unit": "mm"
+      },
+      "plasticizing_time": {
+        "raw_value": null,
+        "raw_unit": "s"
+      }
+    },
+    "injection": {
+      "segments": [
+        {
+          "segment_id": "injection-1",
+          "order": 1,
+          "source": "manual",
+          "speed": {
+            "raw_value": null,
+            "raw_unit": "mm/s"
+          },
+          "pressure_limit": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "end_position": {
+            "raw_value": null,
+            "raw_unit": "mm"
+          }
+        },
+        {
+          "segment_id": "injection-2",
+          "order": 2,
+          "source": "manual",
+          "speed": {
+            "raw_value": null,
+            "raw_unit": "mm/s"
+          },
+          "pressure_limit": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "end_position": {
+            "raw_value": null,
+            "raw_unit": "mm"
+          }
+        },
+        {
+          "segment_id": "injection-3",
+          "order": 3,
+          "source": "manual",
+          "speed": {
+            "raw_value": null,
+            "raw_unit": "mm/s"
+          },
+          "pressure_limit": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "end_position": {
+            "raw_value": null,
+            "raw_unit": "mm"
+          }
+        }
+      ],
+      "vp_switch": {
+        "mode": "position",
+        "position": {
+          "raw_value": null,
+          "raw_unit": "mm"
+        },
+        "time": {
+          "raw_value": null,
+          "raw_unit": "s"
+        }
+      },
+      "filling_time": {
+        "raw_value": null,
+        "raw_unit": "s"
+      }
+    },
+    "holding": {
+      "segments": [
+        {
+          "segment_id": "holding-1",
+          "order": 1,
+          "source": "manual",
+          "pressure": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "time": {
+            "raw_value": null,
+            "raw_unit": "s"
+          },
+          "speed": {
+            "raw_value": null,
+            "raw_unit": "mm/s"
+          }
+        },
+        {
+          "segment_id": "holding-2",
+          "order": 2,
+          "source": "manual",
+          "pressure": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "time": {
+            "raw_value": null,
+            "raw_unit": "s"
+          },
+          "speed": {
+            "raw_value": null,
+            "raw_unit": "mm/s"
+          }
+        },
+        {
+          "segment_id": "holding-3",
+          "order": 3,
+          "source": "manual",
+          "pressure": {
+            "raw_value": null,
+            "raw_unit": "bar",
+            "display_basis": null
+          },
+          "time": {
+            "raw_value": null,
+            "raw_unit": "s"
+          },
+          "speed": {
+            "raw_value": null,
+            "raw_unit": "mm/s"
+          }
+        }
+      ],
+      "time_definition": "segment_duration",
+      "speed_mode": "per_segment",
+      "global_speed_limit": {
+        "raw_value": null,
+        "raw_unit": "mm/s"
+      },
+      "total_injection_time": {
+        "raw_value": null,
+        "raw_unit": "s"
+      }
+    },
+    "cooling_ejection": {
+      "hot_runner": {
+        "nozzles": [
+          {
+            "nozzle_id": "hot-1",
+            "name": "热嘴1",
+            "order": 1,
+            "set_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            },
+            "actual_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            }
+          },
+          {
+            "nozzle_id": "hot-2",
+            "name": "热嘴2",
+            "order": 2,
+            "set_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            },
+            "actual_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            }
+          },
+          {
+            "nozzle_id": "hot-3",
+            "name": "热嘴3",
+            "order": 3,
+            "set_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            },
+            "actual_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            }
+          },
+          {
+            "nozzle_id": "hot-4",
+            "name": "热嘴4",
+            "order": 4,
+            "set_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            },
+            "actual_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            }
+          },
+          {
+            "nozzle_id": "hot-5",
+            "name": "热嘴5",
+            "order": 5,
+            "set_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            },
+            "actual_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            }
+          },
+          {
+            "nozzle_id": "hot-6",
+            "name": "热嘴6",
+            "order": 6,
+            "set_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            },
+            "actual_temperature": {
+              "raw_value": null,
+              "raw_unit": "°C"
+            }
+          }
+        ]
+      },
+      "cooling": {
+        "cooling_time": {
+          "raw_value": null,
+          "raw_unit": "s"
+        }
+      },
+      "clamp_force": {
+        "raw_value": null,
+        "raw_unit": "ton"
+      },
+      "cycle_time": {
+        "raw_value": null,
+        "raw_unit": "s"
+      }
+    },
+    "preparation": {
+      "drying_temperature": {
+        "raw_value": null,
+        "raw_unit": "°C"
+      },
+      "drying_time_h": null,
+      "drying_dew_point": {
+        "raw_value": null,
+        "raw_unit": "°C"
+      }
+    }
+  }
+}
