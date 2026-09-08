@@ -2,11 +2,13 @@
 const $ = id => document.getElementById(id);
 const labels = {ready:'可映射',manual:'人工核对',review:'需确认',blocked:'未映射 / 阻断',excluded:'已排除'};
 let state, dirty = false, busy = false, targetTextDirty = false;
+let storageKey;
+const labUrl = path => new URL(path.replace(/^\//, ''), new URL('.', document.baseURI)).href;
 const el = (tag, text, cls) => { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(cls)node.className=cls; return node; };
 const msg = (text, error=false) => { $('message').textContent=text; $('message').className=error?'error':''; };
 const changed = () => { dirty=true; $('saved').textContent='有未保存修改'; };
 async function api(path, options={}) {
-  const res=await fetch(path, options);
+  const res=await fetch(labUrl(path), options);
   if(!res.ok){ const body=await res.json().catch(()=>({})); throw new Error(typeof body.detail==='string'?body.detail:`请求失败 (${res.status})`); }
   return res.json();
 }
@@ -16,7 +18,7 @@ async function action(fn) {
   try{ await fn(); }catch(e){msg(e.message,true);}
   finally{busy=false; document.querySelectorAll('button,input,select,textarea').forEach(n=>n.disabled=false);}
 }
-function adopt(data) { state=data; dirty=false; targetTextDirty=false; localStorage.setItem('hmi-lab-session',state.session.id); render(); }
+function adopt(data) { state=data; dirty=false; targetTextDirty=false; localStorage.setItem(storageKey,state.session.id); render(); }
 async function history() {
   const sessions=await api('/api/sessions'); $('sessions').replaceChildren(el('option','选择批次'));
   $('sessions').firstChild.value='';
@@ -38,7 +40,7 @@ function render() {
 }
 function showEvidence(image) {
   $('evidence-title').textContent=image.filename;
-  $('evidence-image').src=`/api/sessions/${state.session.id}/images/${image.id}`;
+  $('evidence-image').src=labUrl(`/api/sessions/${state.session.id}/images/${image.id}`);
   $('evidence-json').textContent=JSON.stringify(image.attempts,null,2);
   $('evidence').showModal();
 }
@@ -46,7 +48,7 @@ function renderPhotos() {
   $('photos').replaceChildren();
   for(const image of state.session.images){
     const card=el('article',undefined,'photo');const photo=el('img');
-    photo.src=`/api/sessions/${state.session.id}/images/${image.id}`;photo.alt=image.filename;photo.loading='lazy';
+    photo.src=labUrl(`/api/sessions/${state.session.id}/images/${image.id}`);photo.alt=image.filename;photo.loading='lazy';
     card.append(photo,el('h3',image.filename));
     const last=image.attempts.at(-1), r=last?.result;
     card.append(el('p',last?.error || (r?`${r.controller_family||'未知控制器'} · ${r.page_type||'未知页面'} · ${r.status||'未知状态'}`:'尚未识别，可点击重试')));
@@ -163,11 +165,13 @@ $('target-file').onchange=()=>action(async()=>{
   const file=$('target-file').files[0];if(!file)return;if(file.size>262144)throw new Error('目标 JSON 超过 256 KiB');
   const value=JSON.parse(await file.text());state.session.target=value.parameter_data||value;state.session.edits={};targetTextDirty=false;changed();await saveIfDirty();$('target-file').value='';
 });
-for(const id of ['json','zip'])$(id).onclick=()=>action(async()=>{await saveIfDirty();const a=el('a');a.href=`/api/sessions/${state.session.id}/export?bundle=${id==='zip'}`;a.download='';document.body.append(a);a.click();a.remove();});
+for(const id of ['json','zip'])$(id).onclick=()=>action(async()=>{await saveIfDirty();const a=el('a');a.href=labUrl(`/api/sessions/${state.session.id}/export?bundle=${id==='zip'}`);a.download='';document.body.append(a);a.click();a.remove();});
 $('close-evidence').onclick=()=>$('evidence').close();
 window.addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}});
 action(async()=>{
-  const id=localStorage.getItem('hmi-lab-session');
+  const config=await api('/api/config');
+  storageKey=`hmi-lab-session:${labUrl('/')}:${config.storage_namespace}`;
+  const id=localStorage.getItem(storageKey);
   if(id){try{adopt(await api('/api/sessions/'+id));}catch(e){if(!e.message.includes('不存在'))throw e;}}
   if(!state)adopt(await api('/api/sessions',{method:'POST'}));
   await history();msg('可以开始拍照。当前目标是空值样例，你可以调整段数或导入参数副本。');

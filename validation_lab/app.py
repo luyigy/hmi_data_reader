@@ -1,6 +1,7 @@
 """Run: .venv/bin/python -m validation_lab.app (independent of the GPU process)."""
 import argparse
 import asyncio
+from contextvars import ContextVar
 from datetime import datetime, timezone
 import hashlib
 import hmac
@@ -76,6 +77,8 @@ def create_app(data_dir=None, reader=None, password=None):
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     read_image = reader or recognize
     secret = password if password is not None else os.getenv('HMI_LAB_PASSWORD', '')
+    proxy_key = os.getenv('HMI_LAB_PROXY_KEY', '')
+    owner = ContextVar('lab_owner', default='')
     app = FastAPI(title='HMI 拍照验证台', docs_url=None, redoc_url=None, openapi_url=None)
     # ponytail: single-process local lab; use a transactional store before multiple workers.
     lock = asyncio.Lock()
@@ -83,10 +86,20 @@ def create_app(data_dir=None, reader=None, password=None):
 
     @app.middleware('http')
     async def access(request, call_next):
+        identity = request.headers.get('x-hmi-user', '')
+        authorization = request.headers.get('authorization', '')
+        proxied = bool(identity or authorization.lower().startswith('bearer '))
+        if proxied:
+            if not proxy_key or not hmac.compare_digest(authorization.encode(), ('Bearer ' + proxy_key).encode()):
+                return Response(status_code=401)
+            try:
+                identity = str(UUID(identity))
+            except ValueError:
+                return Response(status_code=401)
         host = request.url.hostname
-        if not secret and host not in ('localhost', '127.0.0.1', '::1', 'testserver'):
+        if not proxied and not secret and host not in ('localhost', '127.0.0.1', '::1', 'testserver'):
             return JSONResponse({'detail': '局域网访问需先设置 HMI_LAB_PASSWORD'}, status_code=403)
-        if secret:
+        if secret and not proxied:
             import base64
             try:
                 scheme, credentials = request.headers.get('authorization', '').split(' ', 1)
@@ -111,18 +124,26 @@ def create_app(data_dir=None, reader=None, password=None):
                 raise HTTPException(413, '请求过大')
             return message
         request._receive = bounded_receive
+        token = owner.set(identity if proxied else '')
         try:
             response = await call_next(request)
         except HTTPException as exc:
             response = JSONResponse({'detail': exc.detail}, status_code=exc.status_code)
+        finally:
+            owner.reset(token)
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; frame-ancestors 'self'"
         return response
+
+    def storage():
+        path = root / 'users' / owner.get() if owner.get() else root
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return path
 
     def folder(sid):
         try:
-            return root / str(UUID(sid))
+            return storage() / str(UUID(sid))
         except ValueError:
             raise HTTPException(404, '验证批次不存在') from None
 
@@ -168,12 +189,13 @@ def create_app(data_dir=None, reader=None, password=None):
     @app.get('/api/config')
     async def config():
         return {'fixture': FIXTURE, 'contract_version': CATALOG['contract_version'],
-                'mapping_version': MAPPING_VERSION, 'max_images': MAX_IMAGES}
+                'mapping_version': MAPPING_VERSION, 'max_images': MAX_IMAGES,
+                'storage_namespace': owner.get() or 'standalone'}
 
     @app.get('/api/sessions')
     async def sessions():
         items = []
-        for path in root.glob('*/session.json'):
+        for path in storage().glob('*/session.json'):
             data = json.loads(path.read_text())
             items.append({k: data[k] for k in ('id', 'created_at', 'updated_at')})
         return sorted(items, key=lambda s: s['updated_at'], reverse=True)[:100]
