@@ -19,7 +19,7 @@ import tempfile
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 import cv2
 import numpy as np
@@ -451,38 +451,73 @@ async def recognize_image(file: UploadFile = File(...)):
         concurrency_semaphore.release()
 
 
+def _draft_ocr_evidence(image):
+    """Reuse raw OCR only; all bounding boxes refer to the uploaded image."""
+    from ocr_variants import run_ocr
+
+    with tempfile.TemporaryDirectory(prefix="hmi_draft_") as tmp:
+        path = Path(tmp) / "upload.png"
+        if not cv2.imwrite(str(path), image):
+            raise OSError("Could not prepare draft OCR image")
+        lines = run_ocr(ocr_model, path)
+    return {"screen_size": [image.shape[1], image.shape[0]], "lines": [{
+        "text": line["text"], "confidence": line["conf"],
+        "bbox": [line["bbox"][key] for key in
+                 ("x_min", "y_min", "x_max", "y_max")],
+    } for line in lines]}
+
+
 @app.post("/api/v1/draft")
-async def draft_image(file: UploadFile = File(...), target: str = Form(...),
-                      current_structure: str = Form(...), allowed_fields: str = Form(...),
-                      message: str = Form(""), ocr_evidence: str = Form("")):
-    """Return open-schema field candidates from the uploaded HMI image."""
-    evidence_text = ocr_evidence if isinstance(ocr_evidence, str) else ""
+async def draft_image(file: UploadFile = File(...), target: Annotated[str, Form()] = "",
+                      current_structure: Annotated[str, Form()] = "{}",
+                      allowed_fields: Annotated[str, Form()] = "[]",
+                      message: Annotated[str, Form()] = "",
+                      ocr_evidence: Annotated[str, Form()] = "",
+                      mode: Annotated[str, Form()] = "vision"):
+    """Return candidates without page routing; mode follows draft_from_ocr."""
     try:
         structure = json.loads(current_structure)
         fields = json.loads(allowed_fields)
-        evidence = json.loads(evidence_text) if evidence_text else None
+        evidence = json.loads(ocr_evidence) if ocr_evidence else None
     except (json.JSONDecodeError, TypeError) as exc:
         raise HTTPException(status_code=422, detail="Invalid draft context JSON") from exc
-    content = await file.read()
+    if (mode not in {"vision", "ocr_text"}
+            or not isinstance(structure, dict) or not isinstance(fields, list)
+            or (ocr_evidence and not isinstance(evidence, dict))):
+        raise HTTPException(status_code=422, detail="候选请求上下文非法")
+    content = await file.read(20 * 1024 * 1024 + 1)
     if not content:
         raise HTTPException(status_code=400, detail="Empty file uploaded")
-    if cv2.imdecode(np.frombuffer(content, np.uint8), cv2.IMREAD_COLOR) is None:
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail="候选请求上下文非法")
+    image = cv2.imdecode(np.frombuffer(content, np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
         raise HTTPException(status_code=400, detail="Invalid image file format")
-    if evidence is None:
-        await file.seek(0)
-        recognition = await recognize_image(file)
-        evidence = recognition.get("ocr_evidence") or {}
     if concurrency_semaphore.locked():
         raise HTTPException(status_code=429, detail="Service busy, concurrency limit reached")
     await concurrency_semaphore.acquire()
     try:
+        ocr_question = None
+        if evidence is None:
+            evidence = {"lines": []}
+            if is_ready and ocr_model is not None:
+                try:
+                    evidence = await asyncio.to_thread(_draft_ocr_evidence, image)
+                except Exception:
+                    logger.warning("Draft OCR failed; using uploaded image", exc_info=True)
+                    ocr_question = "OCR 获取失败，本次依据原图生成候选，请逐项核对。"
+            else:
+                ocr_question = "OCR 尚不可用，本次依据原图生成候选，请逐项核对。"
         try:
-            return await asyncio.to_thread(
+            result = await asyncio.to_thread(
                 draft_from_ocr, evidence, message,
-                target, structure, fields, content)
+                target, structure, fields, content, mode)
         except VlmError as exc:
             request_errors = {"候选请求上下文非法", "canonical hint 定义非法", "OCR evidence 非法"}
             status_code = 422 if str(exc) in request_errors else 502
             raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+        if ocr_question:
+            result["questions"].append(ocr_question)
+        return result
     finally:
         concurrency_semaphore.release()

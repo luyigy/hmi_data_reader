@@ -171,16 +171,16 @@ def test_draft_endpoint_passes_whitelisted_candidate_context(monkeypatch):
     result = asyncio.run(hmi_service.draft_image(
         upload, "normal_trial.holding", '{"holding_segments":3}',
         '[{"field_id":"holding_time","label":"保压时间","unit":"s",'
-        '"shape":"scalar","role":"setpoint"}]', "保压时间=2.5"))
+        '"shape":"scalar","role":"setpoint"}]', "保压时间=2.5", json.dumps(evidence)))
 
     assert result == candidate
-    assert captured == {"file": upload, "args": (
+    assert captured == {"args": (
         evidence, "保压时间=2.5", "normal_trial.holding",
         {"holding_segments": 3}, [{
             "field_id": "holding_time", "label": "保压时间", "unit": "s",
             "shape": "scalar", "role": "setpoint",
-        }], captured["args"][-1])}
-    assert captured["args"][-1] == upload.file.getvalue()
+        }], captured["args"][-2], "vision")}
+    assert captured["args"][-2] == upload.file.getvalue()
 
 
 def test_draft_endpoint_reuses_supplied_ocr_evidence(monkeypatch):
@@ -204,12 +204,19 @@ def test_draft_endpoint_reuses_supplied_ocr_evidence(monkeypatch):
 
 @pytest.mark.parametrize("status_code", [400, 429, 500])
 def test_draft_endpoint_preserves_recognition_failures(monkeypatch, status_code):
+    """Legacy recognition failures stay on that route, never gate draft."""
     async def busy(_file):
         raise HTTPException(status_code=status_code, detail="Recognition failed")
 
     monkeypatch.setattr(hmi_service, "recognize_image", busy)
+    monkeypatch.setattr(hmi_service, "is_ready", False)
+    monkeypatch.setattr(hmi_service, "draft_from_ocr", lambda *_args: {
+        "sections": [], "questions": []})
+    result = asyncio.run(hmi_service.draft_image(_upload()))
+    assert result["sections"] == []
+    assert "OCR" in result["questions"][0]
     with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(hmi_service.draft_image(_upload(), "target", "{}", "[]"))
+        asyncio.run(hmi_service.recognize_image(_upload()))
     assert exc_info.value.status_code == status_code
 
 
@@ -272,3 +279,95 @@ def test_draft_endpoint_applies_vlm_concurrency_limit(monkeypatch):
         asyncio.run(run())
 
     assert exc_info.value.status_code == 429
+
+
+@pytest.mark.parametrize("mode", [None, "vision", "ocr_text"])
+@pytest.mark.parametrize("ocr_state", ["ready", "failed", "unavailable", "supplied"])
+def test_draft_image_only_http_and_mode(monkeypatch, mode, ocr_state):
+    import httpx
+    import ocr_variants
+
+    evidence = {"lines": [{"text": "冷却时间 3 s"}]}
+    calls = []
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("draft must not classify, extract or recognize a page")
+
+    def raw_ocr(_model, path):
+        assert hmi_service.concurrency_semaphore.locked()
+        assert path.is_file()
+        assert ocr_state != "supplied", "supplied evidence must skip OCR"
+        calls.append("ocr")
+        if ocr_state == "failed":
+            raise RuntimeError("OCR unavailable")
+        return [{"text": "冷却时间 3 s", "conf": 0.9,
+                 "bbox": {"x_min": 0, "y_min": 0, "x_max": 1, "y_max": 1}}]
+
+    def draft(*args):
+        assert hmi_service.concurrency_semaphore.locked()
+        calls.append(args)
+        return {"sections": [], "questions": ["请确认原图。"]}
+
+    monkeypatch.setenv("HMI_API_KEY", "reader-secret")
+    monkeypatch.setattr(hmi_service, "is_ready", ocr_state != "unavailable")
+    monkeypatch.setattr(hmi_service, "ocr_model", object())
+    monkeypatch.setattr(ocr_variants, "run_ocr", raw_ocr)
+    for name in ("recognize_image", "classify", "extract_one"):
+        monkeypatch.setattr(hmi_service, name, forbidden)
+    monkeypatch.setattr(hmi_service, "draft_from_ocr", draft)
+    content = _upload().file.getvalue()
+
+    async def run():
+        semaphore = asyncio.Semaphore(1)
+        monkeypatch.setattr(hmi_service, "concurrency_semaphore", semaphore)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=hmi_service.app),
+                                    base_url="http://test") as client:
+            data = {} if mode is None else {"mode": mode}
+            if ocr_state == "supplied":
+                data["ocr_evidence"] = json.dumps(evidence)
+            response = await client.post("/api/v1/draft", data=data,
+                files={"file": ("screen.png", content, "image/png")},
+                headers={"Authorization": "Bearer reader-secret"})
+        assert not semaphore.locked()
+        return response
+
+    response = asyncio.run(run())
+    assert response.status_code == 200
+    args = calls[-1]
+    assert args[1:] == ("", "", {}, [], content, mode or "vision")
+    if ocr_state in {"failed", "unavailable"}:
+        assert args[0] == {"lines": []}
+        assert len(response.json()["questions"]) == 2
+    elif ocr_state == "supplied":
+        assert args[0] == evidence and len(calls) == 1
+    else:
+        assert calls[0] == "ocr"
+        assert args[0]["screen_size"] == [2, 2]
+        assert args[0]["lines"][0]["bbox"] == [0, 0, 1, 1]
+
+
+@pytest.mark.parametrize("data,content,authorized,expected", [
+    ({}, None, False, 401),
+    ({"mode": "invalid"}, None, True, 422),
+    ({"current_structure": "null"}, None, True, 422),
+    ({"allowed_fields": "null"}, None, True, 422),
+    ({"ocr_evidence": "null"}, None, True, 422),
+    ({}, b"broken", True, 400),
+    ({}, b"x" * (20 * 1024 * 1024 + 1), True, 422),
+])
+def test_draft_http_input_boundaries(monkeypatch, data, content, authorized, expected):
+    import httpx
+
+    monkeypatch.setenv("HMI_API_KEY", "reader-secret")
+    monkeypatch.setattr(hmi_service, "draft_from_ocr", lambda *_args: pytest.fail(
+        "invalid input must not reach model"))
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=hmi_service.app),
+                                    base_url="http://test") as client:
+            return await client.post("/api/v1/draft", data=data,
+                files={"file": ("screen.png", content if content is not None
+                                 else _upload().file.getvalue(), "image/png")},
+                headers={"Authorization": "Bearer reader-secret"} if authorized else {})
+
+    assert asyncio.run(run()).status_code == expected
