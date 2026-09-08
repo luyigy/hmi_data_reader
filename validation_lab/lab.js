@@ -155,6 +155,38 @@ async function upload(files){
 $('new').onclick=()=>action(async()=>{await saveIfDirty();adopt(await api('/api/sessions',{method:'POST'}));await history();msg('新批次已创建，可以开始拍照。');});
 $('sessions').onchange=()=>action(async()=>{const id=$('sessions').value;if(!id)return;await saveIfDirty();adopt(await api('/api/sessions/'+id));msg('已恢复验证批次。');});
 for(const id of ['camera','files'])$(id).onchange=()=>{const files=[...$(id).files];$(id).value='';action(()=>upload(files));};
+const clipboardTypes = {'image/png':'png','image/jpeg':'jpg','image/webp':'webp'};
+async function uploadClipboard(blobs){
+  if(!blobs.length)throw new Error('剪贴板中没有图片，请先复制截图或图片。');
+  if(blobs.some(blob=>!clipboardTypes[blob.type]||blob.size>20*1024*1024))throw new Error('粘贴图片仅支持 JPEG、PNG、WebP，每张最多 20 MiB。');
+  const files=blobs.map((blob,i)=>new File([blob],`clipboard-${Date.now()}-${i+1}.${clipboardTypes[blob.type]}`,{type:blob.type}));
+  await upload(files);
+}
+$('paste').onclick=()=>action(async()=>{
+  if(!state)throw new Error('批次尚未加载，请刷新后重试。');
+  if(!navigator.clipboard?.read){
+    throw new Error('浏览器不支持直接读取剪贴板。请点击采集区后按 Ctrl+V / ⌘V 粘贴图片，或使用“添加图片”。');
+  }
+  let items;
+  try{items=await navigator.clipboard.read();}
+  catch{
+    throw new Error('未能读取剪贴板。请允许剪贴板访问，或点击此按钮后按 Ctrl+V / ⌘V 粘贴图片。');
+  }
+  const blobs=[];
+  for(const item of items){
+    const type=item.types.find(type=>clipboardTypes[type]);
+    if(type)blobs.push(await item.getType(type));
+  }
+  await uploadClipboard(blobs);
+});
+document.addEventListener('paste',event=>{
+  if(event.target.closest('input,textarea,[contenteditable]'))return;
+  const images=[...(event.clipboardData?.files||[])].filter(file=>file.type.startsWith('image/'));
+  if(!images.length)return;
+  event.preventDefault();
+  if(busy||!state){msg('正在处理，请稍后再粘贴图片。',true);return;}
+  action(()=>uploadClipboard(images));
+});
 $('save').onclick=()=>action(async()=>{changed();await saveIfDirty();});
 $('note').oninput=changed;
 $('target-json').oninput=()=>{targetTextDirty=true;changed();msg('目标 JSON 有未保存修改；保存时会校验并清除旧的逐项确认。');};

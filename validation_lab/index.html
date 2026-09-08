@@ -6,7 +6,7 @@
 <main>
 <section class="toolbar"><label>继续上次验证 <select id="sessions"><option value="">选择批次</option></select></label><span id="batch"></span><span id="saved"></span></section>
 <p id="message" role="status" aria-live="polite">正在加载…</p>
-<section class="capture"><div><span class="step">01 · 采集</span><h2>连续拍照或添加图片</h2><p>温度、熔胶、射出、保压可以一起上传；补拍相同字段会检查冲突。每张最多 20 MiB，支持 JPEG / PNG / WebP。</p></div><div class="buttons"><label class="button primary">拍照<input id="camera" type="file" accept="image/*" capture="environment" hidden></label><label class="button">添加图片<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label></div></section>
+<section class="capture"><div><span class="step">01 · 采集</span><h2>连续拍照或添加图片</h2><p>温度、熔胶、射出、保压可以一起上传；补拍相同字段会检查冲突。每张最多 20 MiB，支持 JPEG / PNG / WebP。复制截图后可点击“粘贴图片”，也可点击采集区后按 Ctrl+V / ⌘V。</p></div><div class="buttons"><label class="button primary">拍照<input id="camera" type="file" accept="image/*" capture="environment" hidden></label><label class="button">添加图片<input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden></label><button id="paste" type="button">粘贴图片</button></div></section>
 <div id="photos" class="photos"></div>
 <section><span class="step">02 · 目标副本</span><h2>要填入怎样的工艺结构？</h2><p>先调整温区和段数。温区名称必须与画面对应；模温位置在照片下选择。段数变化只作用于验证副本。</p><div id="structure" class="structure"></div>
 <details><summary>查看 / 编辑完整目标 JSON，或导入参数副本</summary><p>接受 parameter_data 对象或包含 parameter_data 的对象。这是结构投影，不代表通过 Web 完整保存校验。</p><label class="button">导入目标 JSON<input id="target-file" type="file" accept="application/json,.json" hidden></label><textarea id="target-json" rows="14" aria-label="目标参数 JSON" spellcheck="false"></textarea><button id="apply-target">使用这个目标副本</button></details></section>
