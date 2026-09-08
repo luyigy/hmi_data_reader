@@ -3,7 +3,9 @@ from copy import deepcopy
 import io
 import json
 import zipfile
+from uuid import uuid4
 
+import httpx
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -210,3 +212,143 @@ def test_unit_metadata_conflict_not_silently_relabelled():
     r = result()
     r['field_meta'] = {'barrel_temperature_set_c': {'unit': '°F'}}
     assert preview(session(r))['counts']['ready'] == 0
+
+
+def test_draft_roundtrip_confirmation_retry_and_user_isolation(tmp_path, monkeypatch):
+    monkeypatch.setenv('HMI_LAB_PROXY_KEY', 'proxy-test')
+    alice = {'Authorization': 'Bearer proxy-test', 'X-HMI-User': str(uuid4())}
+    bob = {**alice, 'X-HMI-User': str(uuid4())}
+    raw = {'sections': [{'label': '熔胶', 'fields': [{
+        'screen_label': '目录外转速', 'canonical_id': None, 'role': 'set', 'unit': 'rpm',
+        'sources': ['ocr', 'vlm'], 'evidence': ['原图左侧转速'], 'needs_confirmation': True,
+        'items': [{'label': '第 2 段', 'value': 80, 'sources': ['ocr'],
+                   'evidence': ['bbox: 1,2,3,4'], 'needs_confirmation': True}]}]}],
+        'questions': ['段序待确认'], 'extra_evidence': {'bbox': [1, 2, 3, 4]}}
+    outcome = deepcopy(raw)
+
+    async def reader(*args):
+        if isinstance(outcome, Exception):
+            raise outcome
+        return deepcopy(outcome)
+
+    client = TestClient(create_app(tmp_path, reader), headers=alice)
+    s = client.post('/api/sessions').json()['session']
+    base = f"/api/sessions/{s['id']}"
+    uploaded = client.post(base + '/images', files={'file': ('screen.png', png())}).json()
+    iid = uploaded['session']['images'][0]['id']
+    assert uploaded['candidates'][0]['result'] == raw
+    assert uploaded['candidates'][0]['review'] is None
+    assert uploaded['preview']['rows'] == []
+    assert uploaded['preview']['automatic_parameter_data'] == s['target']
+    corrected = deepcopy(raw)
+    corrected['sections'][0]['fields'][0]['items'][0]['value'] = 85
+    draft = {'attempt': 1, 'result': corrected, 'confirmed': True}
+    body = {'expected_revision': uploaded['session']['revision'], 'drafts': {iid: draft}}
+    saved = client.put(base + '/review', json=body)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['candidates'][0]['review'] == draft
+    assert saved.json()['preview']['corrected_parameter_data'] == s['target']
+    assert client.put(base + '/review', json=body).status_code == 409
+    assert client.get(base, headers=bob).status_code == 404
+    assert client.put(base + '/review', headers=bob, json=body).status_code == 404
+    assert client.get(base + '/export?bundle=true', headers=bob).status_code == 404
+
+    restarted = TestClient(create_app(tmp_path, reader), headers=alice)
+    recovered = restarted.get(base).json()
+    assert recovered == restarted.get(base + '/export').json()
+    assert recovered['session']['images'][0]['attempts'][0]['result'] == raw
+    assert recovered['session']['reviews'][0]['drafts'][iid] == draft
+    archive = zipfile.ZipFile(io.BytesIO(restarted.get(base + '/export?bundle=true').content))
+    assert json.loads(archive.read('result.json')) == recovered
+    assert archive.read(f'images/{iid}.png') == png()
+    for outcome in (HTTPException(502, 'offline'), httpx.ReadTimeout('timeout'),
+                    {'sections': 'invalid', 'questions': []}):
+        failed = restarted.post(base + f'/images/{iid}/recognize').json()
+        assert failed['session']['images'][0]['attempts'][-1].get('error')
+        candidate = failed['candidates'][0]
+        assert candidate['attempt'] == 1 and candidate['last_error']
+        assert candidate['result'] == raw and candidate['review'] == draft
+    outcome = {'sections': [], 'questions': ['未找到参数']}
+    rerun = restarted.post(base + f'/images/{iid}/recognize').json()
+    assert rerun['candidates'][0]['result'] == outcome
+    assert rerun['candidates'][0]['review'] is None
+    assert rerun['session']['reviews'][0]['drafts'][iid] == draft
+    body['expected_revision'] = rerun['session']['revision']
+    assert restarted.put(base + '/review', json=body).status_code == 409
+    assert restarted.get(base).json() == rerun
+    draft['attempt'] = rerun['candidates'][0]['attempt']
+    draft['result'] = {'sections': [{'label': 'bad', 'fields': [None]}], 'questions': []}
+    assert restarted.put(base + '/review', json=body).status_code == 422
+    assert restarted.get(base).json() == rerun
+
+
+def test_legacy_failure_keeps_preview_and_confirmation(tmp_path):
+    outcome = result()
+
+    async def reader(*args):
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    client = TestClient(create_app(tmp_path, reader))
+    sid = client.post('/api/sessions').json()['session']['id']
+    base = f'/api/sessions/{sid}'
+    data = client.post(base + '/images', files={'file': ('screen.png', png())}).json()
+    row = data['preview']['rows'][0]
+    saved = client.put(base + '/review', json={
+        'expected_revision': data['session']['revision'], 'target': data['session']['target'],
+        'edits': {row['id']: {'value': 355, 'confirmed': True}}}).json()
+    outcome = HTTPException(502, 'offline')
+    iid = data['session']['images'][0]['id']
+    failed = client.post(base + f'/images/{iid}/recognize').json()
+    assert failed['preview'] == saved['preview']
+    assert failed['candidates'] == []
+    assert failed['session']['images'][0]['attempts'][-1]['error'] == 'offline'
+
+
+@pytest.mark.parametrize('payload,valid', [
+    ({'sections': [], 'questions': ['核对原图']}, True),
+    ({'fields': {}}, False), ({'sections': [], 'questions': None}, False),
+    ({'sections': [{'label': 'bad', 'fields': [None]}], 'questions': []}, False),
+])
+def test_reader_uses_draft_and_validates_response(monkeypatch, payload, valid):
+    import asyncio
+    import validation_lab.app as lab
+
+    monkeypatch.setenv('HMI_API_KEY', 'reader-test')
+    monkeypatch.setenv('HMI_READER_URL', 'http://reader.invalid')
+    async_client = httpx.AsyncClient
+
+    def upstream(request):
+        assert request.url.path == '/api/v1/draft'
+        assert request.headers['authorization'] == 'Bearer reader-test'
+        assert b'name="file"' in request.content
+        assert b'name="target"' not in request.content
+        return httpx.Response(200, json=payload)
+
+    monkeypatch.setattr(lab.httpx, 'AsyncClient', lambda **kwargs:
+                        async_client(transport=httpx.MockTransport(upstream), **kwargs))
+    if valid:
+        assert asyncio.run(lab.recognize(png(), 'screen.png')) == payload
+    else:
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(lab.recognize(png(), 'screen.png'))
+        assert exc.value.status_code == 502
+
+
+def test_full_draft_review_can_exceed_legacy_request_limit(tmp_path):
+    raw = {'sections': [], 'questions': [], 'evidence': 'x' * (1024 * 1024)}
+
+    async def reader(*args):
+        return raw
+
+    client = TestClient(create_app(tmp_path, reader))
+    sid = client.post('/api/sessions').json()['session']['id']
+    base = f'/api/sessions/{sid}'
+    data = client.post(base + '/images', files={'file': ('screen.png', png())}).json()
+    iid = data['session']['images'][0]['id']
+    saved = client.put(base + '/review', json={
+        'expected_revision': data['session']['revision'],
+        'drafts': {iid: {'attempt': 1, 'result': raw, 'confirmed': False}}})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['candidates'][0]['review']['result'] == raw

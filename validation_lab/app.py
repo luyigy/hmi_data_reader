@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 from contextvars import ContextVar
+from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
 import hmac
@@ -31,9 +32,10 @@ MAX_IMAGES = 30
 class Review(BaseModel):
     model_config = ConfigDict(extra='forbid')
     expected_revision: int = Field(ge=0)
-    target: dict
+    target: dict | None = None
     edits: dict = Field(default_factory=dict)
     images: dict = Field(default_factory=dict)
+    drafts: dict = Field(default_factory=dict)
     note: str = Field(default='', max_length=4000)
 
 
@@ -49,13 +51,41 @@ def source_version():
         f: hashlib.sha256((ROOT / f).read_bytes()).hexdigest() for f in files}}
 
 
+def validate_draft(result):
+    """Check the storage boundary without filtering unknown candidate metadata."""
+    if (not isinstance(result, dict) or not isinstance(result.get('sections'), list)
+            or not isinstance(result.get('questions'), list)
+            or any(not isinstance(q, str) for q in result['questions'])):
+        raise ValueError('候选必须包含 sections/questions')
+    json.dumps(result, allow_nan=False)
+    for section in result['sections']:
+        if (not isinstance(section, dict) or not isinstance(section.get('label'), str)
+                or not isinstance(section.get('fields'), list)):
+            raise ValueError('候选分区不合法')
+        for field in section['fields']:
+            if (not isinstance(field, dict) or not isinstance(field.get('screen_label'), str)
+                    or not isinstance(field.get('items'), list) or not field['items']):
+                raise ValueError('候选字段不合法')
+            for item in field['items']:
+                if (not isinstance(item, dict) or 'value' not in item
+                        or (item['value'] is not None and type(item['value']) not in (int, float))):
+                    raise ValueError('候选数值不合法')
+
+
+def latest_result(image):
+    """Use the last success, retaining its original 1-based attempt identity."""
+    return next(((i, attempt['result']) for i, attempt in
+                 reversed(list(enumerate(image['attempts'], 1)))
+                 if 'result' in attempt and 'error' not in attempt), (0, None))
+
+
 async def recognize(data, filename):
     url = os.getenv('HMI_READER_URL', 'http://127.0.0.1:8765').rstrip('/')
     key = os.getenv('HMI_API_KEY', '')
     headers = {'Authorization': f'Bearer {key}'} if key else {}
     try:
         async with httpx.AsyncClient(timeout=180, trust_env=False, follow_redirects=False) as client:
-            async with client.stream('POST', url + '/api/v1/recognize', headers=headers,
+            async with client.stream('POST', url + '/api/v1/draft', headers=headers,
                                      files={'file': (filename, data, 'application/octet-stream')}) as response:
                 if response.status_code != 200:
                     raise HTTPException(502, f'Reader 返回 HTTP {response.status_code}；检查服务就绪状态和服务端鉴权配置')
@@ -65,10 +95,9 @@ async def recognize(data, filename):
                     if len(chunks) > 10 * 1024 * 1024:
                         raise HTTPException(502, 'Reader 响应超过限制')
                 result = json.loads(chunks, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
-                if not isinstance(result, dict) or (result.get('fields') is not None and not isinstance(result['fields'], dict)):
-                    raise ValueError()
+                validate_draft(result)
                 return result
-    except (httpx.HTTPError, ValueError):
+    except (httpx.HTTPError, ValueError, TypeError, RecursionError):
         raise HTTPException(502, 'Reader 无法连接、超时或返回了非法结果；照片已保留，可重试') from None
 
 
@@ -113,6 +142,8 @@ def create_app(data_dir=None, reader=None, password=None):
         if request.method not in ('GET', 'HEAD') and origin and origin != str(request.base_url).rstrip('/'):
             return JSONResponse({'detail': '不接受跨站写入'}, status_code=403)
         limit = MAX_IMAGE + 1024 * 1024 if request.url.path.endswith('/images') else 1024 * 1024
+        if request.url.path.endswith('/review'):
+            limit = 32 * 1024 * 1024  # A full 10 MiB Reader response plus JSON escaping and review metadata.
         total = 0
         receive = request._receive
 
@@ -164,11 +195,28 @@ def create_app(data_dir=None, reader=None, password=None):
         temp.replace(path)
 
     def response(session):
+        legacy = {**session, 'images': []}
+        candidates = []
+        for image in session['images']:
+            attempt, raw = latest_result(image)
+            if raw is None:
+                continue
+            if 'sections' in raw or 'questions' in raw:
+                saved = session.get('draft_reviews', {}).get(image['id'])
+                candidates.append({'image_id': image['id'], 'attempt': attempt,
+                    'result': deepcopy(raw),
+                    'review': deepcopy(saved) if saved and saved['attempt'] == attempt else None,
+                    'excluded': image.get('excluded', False),
+                    'last_error': image['attempts'][-1].get('error'),
+                    'mapping_status': 'unmapped', 'notice': '暂不可映射；人工确认不等于业务 safe'})
+            else:
+                # Preserve legacy row IDs even after a failed retry; never send drafts to fields mapping.
+                legacy['images'].append({**image, 'attempts': image['attempts'][:attempt]})
         try:
-            report = preview(session)
+            report = preview(legacy)
         except (ValueError, KeyError, TypeError, IndexError, AttributeError, RecursionError):
             raise HTTPException(422, '目标结构或识别字段不符合验证结构，请检查参数 JSON') from None
-        return {'session': session, 'preview': report}
+        return {'session': session, 'preview': report, 'candidates': candidates}
 
     @app.get('/')
     async def index():
@@ -257,9 +305,15 @@ def create_app(data_dir=None, reader=None, password=None):
         async with gpu_queue:
             try:
                 result = await read_image((folder(sid) / (image['id'] + '.image')).read_bytes(), image['filename'])
-                attempt['result'] = result
+                if isinstance(result, dict) and ('sections' in result or 'questions' in result):
+                    validate_draft(result)
+                elif not isinstance(result, dict) or not isinstance(result.get('fields'), (dict, type(None))):
+                    raise ValueError('Reader 结果不合法')
+                attempt['result'] = deepcopy(result)
             except HTTPException as exc:
                 attempt['error'] = exc.detail
+            except (httpx.HTTPError, ValueError, TypeError, RecursionError):
+                attempt['error'] = 'Reader 无法连接或返回了非法结果；保留上次有效结果'
         async with lock:
             session = load(sid)
             next(im for im in session['images'] if im['id'] == iid)['attempts'].append(attempt)
@@ -282,7 +336,17 @@ def create_app(data_dir=None, reader=None, password=None):
             if session['revision'] != body.expected_revision:
                 raise HTTPException(409, '批次已变化；请刷新后重新核对，当前编辑尚未保存')
             try:
-                validate_target(body.target)
+                validate_target(body.target if body.target is not None else session['target'])
+                images = {image['id']: image for image in session['images']}
+                for iid, draft in body.drafts.items():
+                    if (iid not in images or not isinstance(draft, dict)
+                            or set(draft) != {'attempt', 'result', 'confirmed'}
+                            or type(draft['attempt']) is not int or type(draft['confirmed']) is not bool):
+                        raise ValueError()
+                    attempt, raw = latest_result(images[iid])
+                    if not raw or 'sections' not in raw or draft['attempt'] != attempt:
+                        raise HTTPException(409, '候选来源已变化；请重新核对')
+                    validate_draft(draft['result'])
                 if len(body.edits) > 3000:
                     raise ValueError()
                 for edit in body.edits.values():
@@ -296,7 +360,13 @@ def create_app(data_dir=None, reader=None, password=None):
                         raise ValueError()
             except (ValueError, TypeError, AttributeError, RecursionError):
                 raise HTTPException(422, '目标或纠错格式不合法') from None
-            session['target'], session['edits'], session['note'] = body.target, body.edits, body.note
+            if body.target is not None:
+                session['target'] = body.target
+            if 'edits' in body.model_fields_set:
+                session['edits'] = body.edits
+            if 'note' in body.model_fields_set:
+                session['note'] = body.note
+            session.setdefault('draft_reviews', {}).update(deepcopy(body.drafts))
             for image in session['images']:
                 update = body.images.get(image['id'], {})
                 if not isinstance(update, dict) or set(update) - {'excluded', 'mold_target'}:
@@ -308,8 +378,9 @@ def create_app(data_dir=None, reader=None, password=None):
                 image.update(update)
             result = response(session)  # Validate before replacing any persisted state.
             session['reviews'].append({'created_at': now(), 'revision': session['revision'],
-                                      'target': body.target, 'edits': body.edits, 'images': body.images,
-                                      'note': body.note, 'preview': result['preview']})
+                                      'target': session['target'], 'edits': session['edits'], 'images': body.images,
+                                      'drafts': deepcopy(session['draft_reviews']),
+                                      'note': session['note'], 'preview': result['preview']})
             session['revision'] += 1
             save(session)
             return response(session)
