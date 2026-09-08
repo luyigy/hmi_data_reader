@@ -22,7 +22,13 @@ import asyncio, json, os, socket, uvicorn
 from copy import deepcopy
 from fastapi import HTTPException
 from validation_lab.app import create_app
+from validation_lab.mapping import CATALOG
 outcomes = json.loads(os.environ['S05_OUTCOMES'])
+outcomes.extend([{'success': True, 'status': 'ok', 'quality': {'triage': 'green'},
+    'profile_id': 'demag.temperature.screen_order_5', 'profile_status': 'verified',
+    'profile_confidence': .99, 'contract_version': CATALOG['contract_version'],
+    'controller_family': 'DEMAG', 'page_type': 'temperature', 'warnings': [],
+    'fields': {'barrel_temperature_set_c': [350, 295, 290, 285]}}, outcomes[0], outcomes[0]])
 async def reader(*args):
     result = outcomes.pop(0)
     if result is None:
@@ -111,8 +117,39 @@ asyncio.run(uvicorn.Server(uvicorn.Config(create_app(os.environ['S05_DATA'], rea
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     await page.getByRole('button',{name:'查看原图及原始响应',exact:true}).click();
     assert.equal(await page.locator('#evidence').isVisible(),true);await page.keyboard.press('Escape');
+    await page.setViewportSize({width:1280,height:900});
+    await page.locator('#new').click();await idle();
+    for(const size of [25,26,27]){
+      const data=await page.evaluate(size=>{const c=document.createElement('canvas');c.width=c.height=size;return c.toDataURL().split(',')[1];},size);
+      await page.locator('#files').setInputFiles({name:`check-${size}.png`,mimeType:'image/png',buffer:Buffer.from(data,'base64')});await idle();
+      if(size===25){
+        assert.equal(await card.count(),0);
+        assert.equal(await page.locator('#legacy-preview').isVisible(),true);
+      }
+    }
+    assert.equal(await card.count(),2);
+    assert.equal(await page.locator('#legacy-preview').isVisible(),true);
+    await card.nth(0).getByLabel('目录外转速 值',{exact:true}).fill('90');
+    await card.nth(1).getByLabel('目录外转速 值',{exact:true}).fill('95');
+    let saves=0;
+    await page.route('**/review',route=>{
+      if(route.request().method()==='PUT' && ++saves===2)
+        return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({detail:'synthetic second save failure'})});
+      return route.continue();
+    });
+    await page.locator('#save').click();await idle();
+    assert.match(await page.locator('#message').innerText(),/synthetic second save failure/);
+    assert.equal(await card.nth(1).getByLabel('目录外转速 值',{exact:true}).inputValue(),'95');
+    const mixedSid=await page.locator('#sessions').inputValue();
+    const partial=await (await page.request.get(url+`/api/sessions/${mixedSid}/export`)).json();
+    assert.equal(partial.candidates[0].review.result.sections[0].fields[2].items[0].value,90);
+    assert.equal(partial.candidates[1].review,null);
+    await page.unroute('**/review');
+    await page.locator('#save').click();await idle();await page.reload();await idle();
+    assert.equal(await card.nth(0).getByLabel('目录外转速 值',{exact:true}).inputValue(),'90');
+    assert.equal(await card.nth(1).getByLabel('目录外转速 值',{exact:true}).inputValue(),'95');
     assert.deepEqual(errors,[]);
-    console.log('PASS: synthetic candidate UI, correction/confirmation persistence, original evidence, export, retry, empty, mold intent, mobile and keyboard');
+    console.log('PASS: candidate UI, confirmation, evidence, export, retry, empty, mold intent, mobile, keyboard, legacy/mixed batches and partial-save recovery');
   }finally{
     if(browser)await browser.close();
     server.kill('SIGTERM');
