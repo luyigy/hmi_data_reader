@@ -16,6 +16,7 @@ import { addTypingReaction, removeTypingReaction, sendFeishuTextMessage } from '
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 import { tryRelayNonCommandToLiveRoom, UNBOUND_FEISHU_LIVE_ROOM_HINT } from '@/lib/feishu-live-room';
 import { checkFeishuDirectMessageAccess } from '@/lib/feishu-access-approval';
+import { shouldTriggerFeishuMessage } from '@/lib/feishu-message-trigger';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,10 +61,13 @@ export async function POST(request: NextRequest) {
     }
 
     const parsedMessage = parseFeishuMessage(payload);
-    const message = parsedMessage ? await hydrateFeishuMessageResources(parsedMessage) : null;
-    if (!message) {
+    if (!parsedMessage) {
       return NextResponse.json({ success: true, ignored: true });
     }
+    if (!shouldTriggerFeishuMessage(parsedMessage)) {
+      return NextResponse.json({ success: true, ignored: true, reason: 'not_addressed_to_bot' });
+    }
+    const message = await hydrateFeishuMessageResources(parsedMessage);
 
     const selfOpenId = process.env.FEISHU_BOT_OPEN_ID?.trim();
     if (selfOpenId && message.senderOpenId === selfOpenId) {

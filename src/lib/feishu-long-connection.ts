@@ -25,7 +25,6 @@ import {
 } from '@/lib/feishu-runtime-status';
 import { maybeSendFeishuSessionWatermarkWarning } from '@/lib/feishu-session-continuity';
 import {
-  buildFeishuRuntimeRecoveryCommand,
   failAndNotifyInterruptedDeliveries,
   startPeriodicWatchdog,
 } from '@/lib/feishu-runtime-cleanup';
@@ -47,6 +46,7 @@ import { handleLiveRoomHandoffPlanCardAction } from '@/lib/live-room-handoff-pla
 import { handleNewSessionConfirmationCardAction } from '@/lib/feishu-new-session';
 import { openFeishuRoomCreationCard, primeFeishuRoomCreationAgents } from '@/lib/feishu-room-create-card';
 import { claimFeishuMessage } from '@/lib/feishu-message-dedup';
+import { shouldTriggerFeishuMessage } from '@/lib/feishu-message-trigger';
 import { formatLiveRoomPermissionLabel } from '@/lib/live-room-permissions';
 import {
   buildFeishuCommandCenterCardUpdate,
@@ -615,6 +615,8 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
         console.log(`${prefix} ignored self message`, { messageId: parsedMessage.messageId });
         return;
       }
+
+      if (!shouldTriggerFeishuMessage(parsedMessage)) return;
 
       if (!await claimFeishuMessage(prisma, parsedMessage.messageId)) {
         state.messageIds.set(parsedMessage.messageId, Date.now());
