@@ -75,6 +75,7 @@ export async function executeRemoteRunnerTask(options: {
     let piBuffer = '';
     let result: Record<string, unknown> | null = null;
     let lastAssistantText = '';
+    let piError = '';
     const callbacks: HarnessStreamCallbacks = {
       onStdoutChunk: (text) => {
         // Pi repeats the completed assistant message in message_end and turn_end.
@@ -88,6 +89,7 @@ export async function executeRemoteRunnerTask(options: {
     };
     const consumePiLine = async (line: string, newline = '') => {
       const parsed = processPiJsonLine(line, callbacks);
+      if (parsed.errorMessage !== undefined) piError = parsed.errorMessage;
       if (parsed.plainText) await callbacks.onStdoutChunk?.(parsed.plainText + newline);
     };
     const consumeEvent = async (line: string) => {
@@ -116,8 +118,12 @@ export async function executeRemoteRunnerTask(options: {
     if (piBuffer.trim()) await consumePiLine(piBuffer);
     if (!result) throw new Error('Remote runner closed without a completion result');
     if (result.success !== true) throw new Error(typeof result.error === 'string' ? result.error : 'Remote runner failed');
+    if (piError) throw new Error(sanitizePreview(piError, { workspaceRoot: options.cwd }));
+    if (!(typeof result.output === 'string' && result.output.trim()) && !lastAssistantText.trim()) {
+      throw new Error('Remote Pi Agent exited without a response; check the remote Pi session for provider errors');
+    }
     return {
-      output: typeof result.output === 'string' ? result.output : 'Remote pi-agent completed',
+      output: typeof result.output === 'string' && result.output.trim() ? result.output : lastAssistantText,
       filesModified: Array.isArray(result.filesModified) ? result.filesModified.filter((v): v is string => typeof v === 'string') : [],
       executionTime: Date.now() - startedAt,
       liveStreaming: true,

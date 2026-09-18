@@ -21,7 +21,7 @@ printf '{"type":"message_end","message":{"role":"assistant","content":[{"type":"
   try {
     const chunks: string[] = [];
     const tools: string[] = [];
-    const result = await executeRemoteSshTask(
+    const execute = () => executeRemoteSshTask(
       { id: 'progress', name: 'progress' },
       {
         timeout: 5_000,
@@ -46,9 +46,16 @@ printf '{"type":"message_end","message":{"role":"assistant","content":[{"type":"
       },
     );
 
+    const result = await execute();
     assert.equal(result.output, '检查完成');
     assert.deepEqual(chunks, ['检查完成']);
     assert.deepEqual(tools, ['Bash']);
+    // Pi can report provider failure while the SSH process exits with code zero.
+    await writeFile(ssh, `#!/bin/sh
+cat >/dev/null
+printf '%s' '{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"429: quota exceeded"}}'
+`);
+    await assert.rejects(execute(), /429: quota exceeded/);
   } finally {
     process.env.PATH = originalPath;
     await rm(fixtureDir, { recursive: true, force: true });

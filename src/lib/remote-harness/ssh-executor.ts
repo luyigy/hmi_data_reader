@@ -69,7 +69,11 @@ interface PiJsonEvent {
   type?: string;
   toolName?: string;
   args?: unknown;
+  success?: boolean;
+  finalError?: string;
   message?: {
+    stopReason?: string;
+    errorMessage?: string;
     role?: string;
     content?: Array<{
       type?: string;
@@ -264,8 +268,15 @@ export const processPiJsonLine = (line: string, callbacks?: HarnessStreamCallbac
       void callbacks?.onStdoutChunk?.(resolvedText);
     }
 
+    const errorMessage = event.type === 'auto_retry_end'
+      ? event.success === false ? event.finalError?.trim() || 'Pi Agent retry failed' : ''
+      : (event.type === 'message_end' || event.type === 'turn_end') && event.message?.role === 'assistant'
+        ? event.message.stopReason === 'error' || event.message.stopReason === 'aborted'
+          ? event.message.errorMessage?.trim() || `Pi Agent ${event.message.stopReason}` : ''
+        : undefined;
     return {
       resolvedText,
+      errorMessage,
       plainText: undefined as string | undefined,
     };
   } catch {
@@ -406,6 +417,7 @@ export const executeRemoteSshTask = async (
   let claudeStdoutBuffer = '';
   let claudeSessionId: string | undefined;
   let piResolvedText = '';
+  let piError = '';
   let piStdoutBuffer = '';
   const streamCallbacks =
     options.harnessType === 'codex'
@@ -493,6 +505,7 @@ export const executeRemoteSshTask = async (
 
             for (const line of lines) {
               const parsed = processPiJsonLine(line, options.streamCallbacks);
+              if (parsed.errorMessage !== undefined) piError = parsed.errorMessage;
               if (parsed.resolvedText) {
                 piResolvedText = parsed.resolvedText;
               } else if (parsed.plainText) {
@@ -593,12 +606,15 @@ export const executeRemoteSshTask = async (
 
   if (options.harnessType === 'pi-agent' && piStdoutBuffer.trim()) {
     const parsed = processPiJsonLine(piStdoutBuffer.trim(), options.streamCallbacks);
+    if (parsed.errorMessage !== undefined) piError = parsed.errorMessage;
     if (parsed.resolvedText) {
       piResolvedText = parsed.resolvedText;
     } else if (parsed.plainText) {
       void options.streamCallbacks?.onStdoutChunk?.(parsed.plainText);
     }
   }
+
+  if (piError) throw new Error(piError);
 
   const output =
     options.harnessType === 'codex'
