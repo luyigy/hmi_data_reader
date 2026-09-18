@@ -307,9 +307,10 @@ const buildRemotePowerShellCommand = (
       ? `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --resume ${powerShellQuote(resumeSessionId)} --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`
       : `${prelude}; $prompt = [Console]::In.ReadToEnd(); & claude --print --verbose --output-format stream-json --permission-mode bypassPermissions $prompt`;
   } else if (harnessType === 'pi-agent') {
+    // Let pi read SSH stdin directly; Windows PowerShell mangles quotes in native argv.
     script = resumeSessionId
-      ? `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --mode json --tools ${powerShellQuote(DEFAULT_REMOTE_PI_TOOLS)} --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} --continue $prompt`
-      : `${prelude}; $env:PATH="$HOME/.local/node/bin:" + $env:PATH; $prompt = [Console]::In.ReadToEnd(); & ${powerShellQuote(executable)} --mode json --tools ${powerShellQuote(DEFAULT_REMOTE_PI_TOOLS)} -p --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} $prompt`;
+      ? `${prelude}; & ${powerShellQuote(executable)} --mode json --tools ${powerShellQuote(DEFAULT_REMOTE_PI_TOOLS)} --session-dir ${toPowerShellPathExpr(remotePiSessionDir)} --continue`
+      : `${prelude}; & ${powerShellQuote(executable)} --mode json --tools ${powerShellQuote(DEFAULT_REMOTE_PI_TOOLS)} -p --session-dir ${toPowerShellPathExpr(remotePiSessionDir)}`;
   } else {
     throw new Error(`Unsupported remote harness: ${harnessType}`);
   }
@@ -320,7 +321,8 @@ const buildRemotePowerShellCommand = (
 
 const shouldRetryWithPowerShell = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? '');
-  return [
+  // cmd.exe quotes the missing command even when its localized message is not UTF-8.
+  return /^'(?:bash|printf)'\s/m.test(message) || [
     'printf: usage: printf',
     '\'bash\' is not recognized',
     '\'printf\' is not recognized',

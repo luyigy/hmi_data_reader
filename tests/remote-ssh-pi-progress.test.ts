@@ -10,6 +10,7 @@ void (async () => {
   const originalPath = process.env.PATH;
 
   await writeFile(ssh, `#!/bin/sh
+cat >/dev/null
 printf '__ACPX_REMOTE_COMMAND_START__\\n' >&2
 printf '{"type":"tool_execution_start","toolName":"bash","args":{"command":"pwd"}}\\n'
 printf '{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"检查完成"}]}}\\n'
