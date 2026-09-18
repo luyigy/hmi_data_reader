@@ -239,7 +239,7 @@ const extractPiAssistantText = (event: PiJsonEvent): string | null => {
   return normalized || null;
 };
 
-const processPiJsonLine = (line: string, callbacks?: HarnessStreamCallbacks) => {
+export const processPiJsonLine = (line: string, callbacks?: HarnessStreamCallbacks) => {
   const trimmed = line.trim();
   if (!trimmed) {
     return { resolvedText: undefined as string | undefined, plainText: undefined as string | undefined };
