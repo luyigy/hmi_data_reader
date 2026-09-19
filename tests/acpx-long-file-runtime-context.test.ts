@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { assertLongFileRuntimeContext, getLongFileRuntimeContext, longFileRuntimeNotice } from '../src/lib/acpx/long-file-runtime-context';
-import { buildHarnessPrompt, withLongFileRuntimeContext } from '../src/lib/acpx/prompt';
+import { buildHarnessPrompt, withFeishuBotContactInstructions, withLongFileRuntimeContext } from '../src/lib/acpx/prompt';
 
 async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'acpx-long-file-context-'));
@@ -71,6 +71,11 @@ async function main() {
     context,
   );
   assert.match(prompt, /Long-file baseline: example/);
+  assert.match(prompt, /automatically use lark-im-mention-bots/);
+  const botContinuation = withFeishuBotContactInstructions('Continue the task.');
+  assert.match(botContinuation, /^Continue the task\./);
+  assert.match(botContinuation, /--as bot/);
+  assert.match(botContinuation, /read back mentions/);
   assert.doesNotMatch(prompt, /Antigravity completion contract/);
   const antigravityPrompt = buildHarnessPrompt(
     { taskName: 'Example', taskDescription: null } as never,
@@ -79,6 +84,7 @@ async function main() {
     { transcript: 'Earlier work.', latestUserMessage: null },
   );
   assert.match(antigravityPrompt, /A progress update or promise to report later is not a final response/);
+  assert.match(antigravityPrompt, /automatically use lark-im-mention-bots/);
   assert.match(antigravityPrompt, /Explicitly state whether the task completed, failed, or is blocked/);
   assert.equal(await getLongFileRuntimeContext({ ...options, executionBackend: 'remote_ssh' }), null);
   assert.equal(await getLongFileRuntimeContext({ ...options, workingDirectory: os.tmpdir() }), null);

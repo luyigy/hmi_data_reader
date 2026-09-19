@@ -17,6 +17,14 @@ type TaskRoomPromptContext = {
   } | null;
 };
 
+export const withFeishuBotContactInstructions = (message: string) => `${message}\n\nExternal Feishu bot contact (all platform agents):
+- When asked to contact an external Feishu/Lark bot (including Tau), automatically use lark-im-mention-bots; do not wait for the user to remind you to load it.
+- Read the skill from your installed skill catalog. On Platform Local it is at /home/hello/.agents/skills/lark-im-mention-bots/SKILL.md (also /home/hello/.codex/skills/lark-im-mention-bots/SKILL.md). Remote agents must locate their own installed copy; report a missing skill or CLI instead of claiming delivery.
+- Use the sending bot's independent LARKSUITE_CLI_CONFIG_DIR. Verify the actual chat ID and target bot ID, then send with lark-cli im +messages-send --chat-id <chat_id> --text '<at user_id="TARGET_BOT_ID">Bot name</at> message' --as bot.
+- Plain @name, platform $member handoffs and private sub-agent messages do not contact external Feishu bots. Keep canonical $member handoffs for actual platform room members.
+- Include a unique marker, retain the message_id and read back mentions to verify the target. Establish a readable reply channel before sending; do not interrupt another event connection. Only a matching reply confirms a response; a Typing reaction or successful send does not mean the task completed.
+- After a timeout, check existing outputs and running operations before retrying; avoid duplicate execution. This protocol does not authorize unsolicited messages.`;
+
 const stripLeadingMention = (content: string): string => {
   if (!content.startsWith('@')) return content;
   const greedyMatch = content.match(/^@.+\s+([\s\S]+)$/);
@@ -64,7 +72,7 @@ export const buildHarnessPrompt = (
 - Return one self-contained final response that consolidates the relevant completed work and results from this turn and the recent transcript. Explicitly state whether the task completed, failed, or is blocked, plus any modified files and issues encountered.`
     : '';
 
-  return withLongFileRuntimeContext(`Task: ${request.taskName}
+  return withLongFileRuntimeContext(withFeishuBotContactInstructions(`Task: ${request.taskName}
 
 Role: ${participant.role}
 Harness: ${participant.harnessType}
@@ -75,7 +83,7 @@ You are being launched from a chat-first task room.
 Use the latest task-room instruction as the primary direction for this run.
 Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}${warningSection}
 
-Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.${completionContract}`, longFileContext);
+Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.${completionContract}`), longFileContext);
 };
 
 const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
