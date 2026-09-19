@@ -73,9 +73,12 @@ async function main() {
   let bootstrapPosts = 0;
   let confirmationCard = '';
   const replies: string[] = [];
+  const permissionWrites: { memberId: string; config: string }[] = [];
+  const taskPermissionWrites: string[] = [];
 
   const prismaModule = await import('../src/lib/prisma') as unknown as { prisma: Record<string, unknown> };
   prismaModule.prisma = {
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(prismaModule.prisma),
     taskRun: { count: async () => 1 },
     liveRoomDelivery: { count: async () => 1 },
     taskSession: {
@@ -91,7 +94,17 @@ async function main() {
         return session;
       },
     },
-    task: { update: async () => ({}) },
+    task: { update: async ({ data }: { data: { acpxPermissionConfig?: string } }) => {
+      if (data.acpxPermissionConfig) taskPermissionWrites.push(data.acpxPermissionConfig);
+      return {};
+    } },
+    liveRoomMember: { update: async ({ where, data }: {
+      where: { id: string; roomId: string }; data: { acpxPermissionConfig: string };
+    }) => {
+      assert.equal(where.roomId, 'room');
+      permissionWrites.push({ memberId: where.id, config: data.acpxPermissionConfig });
+      return {};
+    } },
     message: {
       findFirst: async ({ where }: { where: { userId?: string; content: string | { contains: string } } }) => {
         const content = typeof where.content === 'string' ? where.content : where.content.contains;
@@ -124,7 +137,7 @@ async function main() {
       id: 'task',
       name: 'Task',
       workingDirectory: workspace,
-      acpxPermissionConfig: null,
+      acpxPermissionConfig: null as string | null,
     },
     members: [{
       id: 'member',
@@ -137,6 +150,7 @@ async function main() {
       gateway: null,
       gatewayId: null,
       runtimeAgentId: null,
+      acpxPermissionConfig: JSON.stringify({ profile: 'dev_local', writableRoots: [workspace] }),
     }],
   };
   const binding = await import('../src/lib/feishu-live-room') as unknown as Record<string, unknown>;
@@ -435,6 +449,43 @@ async function main() {
   assert.match(directCmdResult, /^✅/);
   assert.match(directCmdResult, /Bootstrap：room\/task state/);
   assert.equal((await runGit('rev-parse', 'HEAD')).stdout.trim(), headBeforeDirect);
+
+  assert.equal(permissionWrites.length, 0, 'rotation without a profile must preserve member permissions');
+  assert.equal(taskPermissionWrites.length, 0);
+  room.sourceTask.acpxPermissionConfig = JSON.stringify({ profile: 'full_access' });
+  const permissionCommand = {
+    ...command,
+    options: { direct: 'true', all: 'true', profile: 'full', 'rotation-key': 'permission-repair' },
+  };
+  await handleNewSessionCommand(permissionCommand, context);
+  assert.deepEqual(permissionWrites.map(({ memberId }) => memberId), room.members.map(({ id }) => id));
+  for (const { config } of permissionWrites) {
+    assert.equal(JSON.parse(config).profile, 'full_access', 'repair stale members even when task already has full access');
+    assert.equal(JSON.parse(config).sandboxMode, 'danger-full-access');
+    assert.deepEqual(JSON.parse(config).writableRoots, [workspace]);
+  }
+  const rotationsBeforeRetry = rotations;
+  permissionWrites.length = 0;
+  await handleNewSessionCommand(permissionCommand, context);
+  assert.equal(rotations, rotationsBeforeRetry, 'retry must reuse the rotated session');
+  assert.equal(permissionWrites.length, 3, 'retry must still synchronize member permissions');
+
+  const targetedOptions: Record<string, string>[] = [
+    { agent: 'Codex', all: 'false' },
+    { 'rotatable-only': 'true', all: 'true' },
+  ];
+  for (const options of targetedOptions) {
+    permissionWrites.length = 0;
+    const taskWritesBefore: number = taskPermissionWrites.length;
+    await handleNewSessionCommand({
+      ...command,
+      options: { direct: 'true', profile: 'safe', 'rotation-key': JSON.stringify(options), ...options },
+    }, context);
+    assert.deepEqual(permissionWrites.map(({ memberId }) => memberId),
+      options.agent ? ['member'] : ['member', 'kimi-member']);
+    assert.equal(taskPermissionWrites.length, taskWritesBefore, 'excluded members must retain inherited permissions');
+    assert.ok(permissionWrites.every(({ config }) => JSON.parse(config).profile === 'safe_local'));
+  }
 
   await fs.rm(workspace, { recursive: true, force: true });
   console.log('new session rotation checks passed');

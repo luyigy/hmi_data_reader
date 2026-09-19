@@ -21,6 +21,7 @@ import {
 import { getTaskRoomParticipantTargetKey, getTaskRoomParticipantTargetLabel } from '@/lib/task-room-targets';
 import { buildLiveRoomAcpxParticipant, postLiveRoomMessage } from '@/lib/live-room';
 import { interruptLiveRoomMemberReplies } from '@/lib/live-room-delivery';
+import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import {
   cancelQueuedLiveRoomMemberExecutions,
   waitForLiveRoomMemberExecutionStop,
@@ -638,10 +639,24 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
       data: { currentTaskSessionId: freshTaskSession.id },
     });
   }
-  if (requestedProfile && permissionConfig.profile !== currentPermissionConfig.profile) {
-    await prisma.task.update({
-      where: { id: room.sourceTask.id },
-      data: { acpxPermissionConfig: JSON.stringify(permissionConfig) },
+  if (requestedProfile) {
+    await prisma.$transaction(async (tx) => {
+      // A targeted reset must not change permissions inherited by other members.
+      if (allMembers && !rotatableOnly) {
+        await tx.task.update({
+          where: { id: sourceTask.id },
+          data: { acpxPermissionConfig: JSON.stringify(permissionConfig) },
+        });
+      }
+      for (const targetMember of members) {
+        await tx.liveRoomMember.update({
+          where: { id: targetMember.id, roomId: room.id },
+          data: { acpxPermissionConfig: JSON.stringify(buildNewSessionPermissionConfig(
+            resolveLiveRoomMemberPermission(targetMember.acpxPermissionConfig, sourceTask.acpxPermissionConfig),
+            requestedProfile,
+          )) },
+        });
+      }
     });
   }
   const resetMarker = await prisma.message.findFirst({

@@ -39,7 +39,16 @@ export async function openFeishuRoomCreationCard(args: {
     return { toast: { type: 'warning', content: '房间创建卡已失效，请重新发送 /ap menu' } };
   }
 
-  await primeFeishuRoomCreationAgents();
+  // Leave time for the workspace lookup and response within Feishu's 3s callback limit.
+  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      primeFeishuRoomCreationAgents(),
+      new Promise<void>((resolve) => { refreshTimer = setTimeout(resolve, 1000); }),
+    ]);
+  } finally {
+    clearTimeout(refreshTimer);
+  }
   if (!cachedAgents) {
     return { toast: { type: 'warning', content: 'Agent 列表正在加载，请稍后重试' } };
   }

@@ -1,4 +1,5 @@
 import type { ChildProcess } from 'child_process';
+import type { HarnessSteer } from './acpx/types';
 
 interface LiveRoomRunningProcessEntry {
   deliveryId: string;
@@ -15,6 +16,7 @@ const globalRegistry = globalThis as unknown as {
   liveRoomRunningProcesses?: Map<string, LiveRoomRunningProcessEntry>;
   liveRoomExecutionChains?: Map<string, Promise<void>>;
   liveRoomExecutionGenerations?: Map<string, number>;
+  liveRoomSteering?: Map<string, { roomId: string; sessionId: string; generation: number; runMessageId: string; steer: HarnessSteer }>;
 };
 
 const getProcessStore = () => {
@@ -45,6 +47,35 @@ const getExecutionGenerationStore = () => {
 // more than one process starts consuming Live Room deliveries.
 export const hasLiveRoomMemberExecution = (memberId: string) =>
   getExecutionChainStore().has(memberId);
+
+export const getLiveRoomExecutionGeneration = (memberId: string) =>
+  getExecutionGenerationStore().get(memberId) ?? 0;
+
+export const registerLiveRoomSteering = (
+  memberId: string, roomId: string, sessionId: string, steer: HarnessSteer,
+  generation = getLiveRoomExecutionGeneration(memberId), runMessageId = '',
+) => {
+  const store = globalRegistry.liveRoomSteering ??= new Map();
+  const entry = { roomId, sessionId, steer, generation, runMessageId };
+  store.set(memberId, entry);
+  return () => { if (store.get(memberId) === entry) store.delete(memberId); };
+};
+
+export const getLiveRoomSteering = (memberId: string) => globalRegistry.liveRoomSteering?.get(memberId);
+
+export const steerLiveRoomMember = (
+  memberId: string, roomId: string, sessionId: string, messageId: string, message: string,
+  generation = getLiveRoomExecutionGeneration(memberId),
+  expectedRunMessageId?: string,
+) => {
+  const entry = globalRegistry.liveRoomSteering?.get(memberId);
+  if (!entry || entry.roomId !== roomId || entry.sessionId !== sessionId
+    || (expectedRunMessageId !== undefined && entry.runMessageId !== expectedRunMessageId)
+    || entry.generation !== generation || generation !== getLiveRoomExecutionGeneration(memberId)) {
+    return Promise.resolve('rejected' as const);
+  }
+  return entry.steer(messageId, message);
+};
 
 export const registerLiveRoomRunningProcess = (entry: LiveRoomRunningProcessEntry) => {
   getProcessStore().set(entry.memberId, entry);

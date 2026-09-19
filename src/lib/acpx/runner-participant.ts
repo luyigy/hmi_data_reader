@@ -114,6 +114,8 @@ export const executeParticipant = async (
   let subagentEventWrites = Promise.resolve();
 
   const callbacks: HarnessStreamCallbacks = {
+    onSteeringReady: participant.executionBackend === 'platform_local' && participant.harnessType === 'pi-agent'
+      ? request.streamCallbacks?.onSteeringReady : undefined,
     onCodexTokenUsage: participant.executionBackend === 'platform_local'
       && participant.harnessType === 'codex'
       ? (usage) => persistCodexTokenUsageMetadata(participantId, usage)

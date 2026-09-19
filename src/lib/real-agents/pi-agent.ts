@@ -5,6 +5,7 @@ import type { ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { runPiRpc } from './pi-rpc';
 
 export interface PiAgentConfig {
   timeout?: number | null;
@@ -71,9 +72,9 @@ const buildPiArgs = ({
   prompt: string;
   sessionDir?: string;
   continueSession?: boolean;
-  mode?: 'json' | 'print';
+  mode?: 'json' | 'print' | 'rpc';
 }) => {
-  const args = mode === 'json' ? ['--mode', 'json'] : ['--print'];
+  const args = mode === 'print' ? ['--print'] : ['--mode', mode];
 
   if (DEFAULT_PI_PROVIDER) {
     args.push('--provider', DEFAULT_PI_PROVIDER);
@@ -100,7 +101,7 @@ const buildPiArgs = ({
   }
 
   args.push('--tools', 'read,bash,edit,write,grep,find,ls');
-  args.push(prompt);
+  if (mode !== 'rpc') args.push(prompt);
   return args;
 };
 
@@ -185,6 +186,15 @@ const runPiAgentCommand = async ({
 
   if (sessionDir) {
     fs.mkdirSync(sessionDir, { recursive: true });
+  }
+
+  if (streamCallbacks?.onSteeringReady) {
+    return runPiRpc({
+      binary: DEFAULT_PI_AGENT_BIN,
+      args: buildPiArgs({ prompt, sessionDir, continueSession, mode: 'rpc' }),
+      prompt, timeout, workingDirectory, streamCallbacks, onSpawn,
+      onEvent: (line) => { processPiJsonLine(line, workingDirectory, streamCallbacks); },
+    });
   }
 
   const run = (mode: 'json' | 'print') => new Promise<string>((resolve, reject) => {

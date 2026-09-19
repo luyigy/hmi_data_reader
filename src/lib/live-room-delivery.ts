@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import {
   enqueueLiveRoomMemberExecution,
   hasLiveRoomMemberExecution,
+  getLiveRoomExecutionGeneration,
 } from '@/lib/live-room-process-registry';
 import {
   parseLiveRoomMessageMetadata,
@@ -20,6 +21,7 @@ import {
   getTargetMemberIdsForMessage,
 } from '@/lib/live-room-delivery-routing';
 import { processLiveRoomDelivery } from '@/lib/live-room-delivery-processing';
+import { dispatchLocalPiOnce, trySteerLocalPi } from '@/lib/live-room-steering';
 import {
   claimLiveRoomHandoff,
   ensureLiveRoomHandoffRoot,
@@ -255,32 +257,57 @@ export const triggerLiveRoomAgentReply = async ({
     return;
   }
 
-  const session = await ensureMemberSession(room.id, targetMember);
-  const handoffRoot = allowHandoff
-    ? await ensureLiveRoomHandoffRoot({
-        messageId: sourceMessage.id,
-        handoffLimit: room.handoffLimit,
-      })
-    : null;
-  const delivery = await prisma.liveRoomDelivery.create({
-    data: {
-      roomMessageId,
-      targetMemberId: targetMember.id,
-      sessionId: session.id,
-      handoffRootMessageId: handoffRoot?.id || null,
-      deliveryStatus: 'pending',
-    },
-  });
+  const localPi = targetMember.backend === 'platform_local' && targetMember.harnessType === 'pi-agent';
+  const generation = getLiveRoomExecutionGeneration(targetMember.id);
+  const dispatch = async () => {
+    const session = await ensureMemberSession(room.id, targetMember);
+    const handoffRoot = allowHandoff
+      ? await ensureLiveRoomHandoffRoot({
+          messageId: sourceMessage.id,
+          handoffLimit: room.handoffLimit,
+        })
+      : null;
+    const delivery = await prisma.liveRoomDelivery.create({
+      data: {
+        roomMessageId,
+        targetMemberId: targetMember.id,
+        sessionId: session.id,
+        handoffRootMessageId: handoffRoot?.id || null,
+        deliveryStatus: 'pending',
+      },
+    });
 
-  await enqueuePreparedLiveRoomDelivery({
-    deliveryId: delivery.id,
-    roomId: room.id,
-    roomMessageId,
-    targetMember,
-    chainDepth,
-    relayOrigin,
-    waitForCompletion,
-  });
+    const canSteer = localPi && sourceMessage.messageType === 'user'
+      && sourceMessage.senderMember?.memberType === 'user' && chainDepth === 0
+      && !forceTargetMember && !sourceMetadata?.mentionedAll
+      && (!sourceMetadata?.source || sourceMetadata.source === 'feishu')
+      && !/^\s*\//.test(sourceMessage.content);
+    if (canSteer && await trySteerLocalPi({
+      deliveryId: delivery.id, roomId: room.id, sessionId: session.id,
+      memberId: targetMember.id, messageId: sourceMessage.id, content: sourceMessage.content,
+      displayName: targetMember.displayName, generation, relayOrigin, createdAt: delivery.createdAt,
+    })) return;
+
+    if (localPi && generation !== getLiveRoomExecutionGeneration(targetMember.id)) {
+      await prisma.liveRoomDelivery.updateMany({
+        where: { id: delivery.id, deliveryStatus: 'pending' },
+        data: { deliveryStatus: 'superseded', fallbackReason: 'Session changed before delivery', acknowledgedAt: new Date() },
+      });
+      return;
+    }
+
+    await enqueuePreparedLiveRoomDelivery({
+      deliveryId: delivery.id,
+      roomId: room.id,
+      roomMessageId,
+      targetMember,
+      chainDepth,
+      relayOrigin,
+      waitForCompletion,
+    });
+  };
+  if (localPi) await dispatchLocalPiOnce(roomMessageId, targetMember.id, dispatch);
+  else await dispatch();
 };
 
 export const triggerLiveRoomMessageReplies = async ({

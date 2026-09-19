@@ -161,6 +161,8 @@ export interface HarnessSubagentEvent {
 }
 
 export interface HarnessStreamCallbacks {
+  // Present only for executions whose owner supports running-message delivery.
+  onSteeringReady?: (steer: HarnessSteer) => () => void;
   onStdoutChunk?: (chunk: string) => Promise<void> | void;
   onStderrChunk?: (chunk: string) => Promise<void> | void;
   onToolEvent?: (event: HarnessToolEvent) => Promise<void> | void;
@@ -175,6 +177,8 @@ export interface HarnessStreamCallbacks {
     request: HarnessInteractionRequest
   ) => Promise<'approve' | 'deny'>;
 }
+
+export type HarnessSteer = (messageId: string, message: string) => Promise<'accepted' | 'rejected' | 'unknown'>;
 
 export interface HarnessInteractionRequest {
   kind: HarnessInteractionRequestKind;

@@ -27,6 +27,7 @@ import {
   readWorkflowPermissionSnapshot,
 } from '@/lib/workflow-execution-policy';
 import { resolveLiveRoomExecutionWatchdogConfig } from '@/lib/live-room-execution-timeout';
+import { getLiveRoomExecutionGeneration, registerLiveRoomSteering } from '@/lib/live-room-process-registry';
 import {
   getPreferredDirectedAlias,
   inferDirectedVisibleRelayTargets,
@@ -365,6 +366,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     threadId: string | null;
   };
 }) => {
+  const executionGeneration = getLiveRoomExecutionGeneration(targetMember.id);
   const sourceTask = await syncLiveRoomSourceTask(room.id);
   if (!sourceTask) {
     throw new Error('Live room source ACPX task is unavailable');
@@ -390,6 +392,13 @@ export const executeLiveRoomReplyViaAcpx = async ({
     codexReasoningEffort: targetMember.codexReasoningEffort,
   });
   const progress = await attachLiveRoomProgress({ room, participant: targetMember, sourceMessage });
+  const streamCallbacks: HarnessStreamCallbacks = {
+    ...progress.streamCallbacks,
+    onSteeringReady: targetMember.backend === 'platform_local' && targetMember.harnessType === 'pi-agent'
+      && !workflowCompletionGate
+      ? (steer) => registerLiveRoomSteering(targetMember.id, room.id, session.id, steer, executionGeneration, sourceMessage.id)
+      : undefined,
+  };
   let progressDisposed = false;
   const disposeProgress = async (summary: string, success: boolean) => {
     if (progressDisposed) return;
@@ -474,7 +483,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     permissionConfig,
     latestSession,
     useFreshSession: false, workflowCompletionGate,
-    streamCallbacks: progress.streamCallbacks,
+    streamCallbacks,
   });
 
   let participantResult = acpxResult.participants[0];
@@ -521,7 +530,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       permissionConfig,
       latestSession,
       useFreshSession: true, workflowCompletionGate,
-      streamCallbacks: progress.streamCallbacks,
+      streamCallbacks,
     });
     participantResult = acpxResult.participants[0];
     finalStatus =
@@ -561,7 +570,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
       latestSession,
       useFreshSession: true,
       forceEphemeral: true, workflowCompletionGate,
-      streamCallbacks: progress.streamCallbacks,
+      streamCallbacks,
     });
     participantResult = acpxResult.participants[0];
     finalStatus =
