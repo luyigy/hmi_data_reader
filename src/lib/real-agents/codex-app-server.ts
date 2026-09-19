@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ChildProcess } from 'child_process';
 import { realpathSync } from 'node:fs';
-import type { HarnessInteractionRequest, HarnessStreamCallbacks } from '@/lib/acpx/types';
+import type { HarnessInteractionRequest, HarnessSteer, HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { parseCodexTokenUsage } from '@/lib/codex-telemetry';
 import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
@@ -14,6 +14,13 @@ type JsonRpcMessage = {
   result?: any;
   error?: { code?: number; message?: string };
 };
+
+class CodexRpcRejection extends Error {
+  constructor(message: string) {
+    super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
 
 export interface CodexAppServerOptions {
   prompt: string;
@@ -39,6 +46,7 @@ export interface CodexAppServerOptions {
 export class CodexAppServerError extends Error {
   constructor(message: string, readonly safeToRetryJson: boolean) {
     super(message);
+    Object.setPrototypeOf(this, new.target.prototype);
     this.name = 'CodexAppServerError';
   }
 }
@@ -163,6 +171,9 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   let output = '';
   let startsNewAgentMessage = false;
   let activeThreadId = options.threadId;
+  let activeTurnId: string | undefined;
+  let unregisterSteering: (() => void) | undefined;
+  const steeringMessages = new Map<string, ReturnType<HarnessSteer>>();
   let completed = false;
   let closed = false;
   let turnSubmitted = false;
@@ -177,12 +188,66 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       child.stdin!.write(`${JSON.stringify(message)}\n`);
     }
   };
-  const request = (method: string, params: Record<string, unknown>) =>
+  const request = (method: string, params: Record<string, unknown>, timeoutMs = 30_000) =>
     new Promise<any>((resolve, reject) => {
+      if (closed || child.killed || !child.stdin?.writable) {
+        reject(new Error('Codex app-server unavailable'));
+        return;
+      }
       const id = nextId++;
-      pending.set(id, { resolve, reject });
-      send({ id, method, params });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`Codex ${method} receipt timed out`));
+      }, timeoutMs);
+      pending.set(id, {
+        resolve: (value) => {
+          clearTimeout(timer);
+          if (method === 'turn/start') activateSteering(value?.turn?.id);
+          resolve(value);
+        },
+        reject: (error) => { clearTimeout(timer); reject(error); },
+      });
+      child.stdin.write(`${JSON.stringify({ id, method, params })}\n`, (error) => {
+        if (error) { pending.get(id)?.reject(error); pending.delete(id); }
+      });
     });
+  const clearSteering = () => {
+    activeTurnId = undefined;
+    unregisterSteering?.();
+    unregisterSteering = undefined;
+  };
+  const steer: HarnessSteer = (messageId, message) => {
+    const previous = steeringMessages.get(messageId);
+    if (previous) return previous;
+    if (!activeThreadId || !activeTurnId || completed || closed || child.killed || !child.stdin?.writable) {
+      return Promise.resolve('rejected');
+    }
+    const expectedTurnId = activeTurnId;
+    const receipt = request('turn/steer', {
+      threadId: activeThreadId, expectedTurnId,
+      input: [{ type: 'text', text: message }],
+    }, 5_000).then(
+      (reply) => reply?.turnId === expectedTurnId ? 'accepted' as const : 'unknown' as const,
+      (error) => error instanceof CodexRpcRejection ? 'rejected' as const : 'unknown' as const,
+    ).then((status) => {
+      queueTelemetryCallback(() => options.streamCallbacks?.onStderrChunk?.(
+        `Codex steering: ${JSON.stringify({ messageId, threadId: activeThreadId, turnId: expectedTurnId, status })}`
+      ));
+      return status;
+    });
+    steeringMessages.set(messageId, receipt);
+    return receipt;
+  };
+  const activateSteering = (turnId: unknown) => {
+    if (typeof turnId !== 'string' || !turnId || completed || closed || child.killed) return;
+    if (activeTurnId && activeTurnId !== turnId) return;
+    activeTurnId = turnId;
+    unregisterSteering ??= options.streamCallbacks?.onSteeringReady?.(steer);
+  };
+  const rejectPending = (error: Error) => {
+    pending.forEach((waiter) => waiter.reject(error));
+    pending.clear();
+  };
   const queueTelemetryCallback = (callback: () => Promise<void> | void) => {
     telemetryCallbacks = telemetryCallbacks
       .then(callback)
@@ -230,7 +295,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       const waiter = pending.get(message.id);
       if (!waiter) return;
       pending.delete(message.id);
-      if (message.error) waiter.reject(new Error(message.error.message || 'Codex app-server request failed'));
+      if (message.error) waiter.reject(new CodexRpcRejection(message.error.message || 'Codex app-server request failed'));
       else waiter.resolve(message.result);
       return;
     }
@@ -238,7 +303,9 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       void handleServerRequest(message);
       return;
     }
-    if (message.method === 'item/started') {
+    if (message.method === 'turn/started' && message.params?.threadId === activeThreadId) {
+      activateSteering(message.params?.turn?.id);
+    } else if (message.method === 'item/started') {
       startsNewAgentMessage = message.params?.item?.type === 'agentMessage';
       const toolEvent = toCodexToolEvent(message.params?.item);
       if (toolEvent) void options.streamCallbacks?.onToolEvent?.(toolEvent);
@@ -261,7 +328,10 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
         }));
       }
     } else if (message.method === 'turn/completed') {
+      if (message.params?.threadId !== activeThreadId
+        || (activeTurnId && message.params?.turn?.id !== activeTurnId)) return;
       completed = true;
+      clearSteering();
       const status = message.params?.turn?.status;
       if (status === 'failed') failTurn(new Error(message.params?.turn?.error?.message || 'Codex turn failed'));
       else finishTurn();
@@ -279,24 +349,34 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     }
   });
   child.stderr!.on('data', (data) => void options.streamCallbacks?.onStderrChunk?.(data.toString()));
-  child.on('error', failTurn);
+  const failConnection = (error: Error) => {
+    closed = true;
+    clearSteering();
+    rejectPending(error);
+    failTurn(error);
+  };
+  child.stdin!.on('error', failConnection);
+  child.on('error', failConnection);
+  child.on('exit', () => {
+    closed = true;
+    clearSteering();
+    rejectPending(new Error('Codex app-server exited before receipt'));
+  });
   child.on('close', (code) => {
     closed = true;
+    clearSteering();
+    const error = new Error(`Codex app-server exited with code ${code}`);
+    rejectPending(error);
     if (!completed) {
-      const error = new Error(`Codex app-server exited with code ${code}`);
-      pending.forEach((waiter) => waiter.reject(error));
-      pending.clear();
       if (isSuccessfulCodexAppServerExit(code, output)) finishTurn();
       else failTurn(error);
-    } else {
-      pending.clear();
     }
   });
 
   const timeoutId = typeof options.timeout === 'number' && options.timeout > 0
     ? setTimeout(() => {
         child.kill('SIGTERM');
-        failTurn(new Error(`Codex execution timed out after ${options.timeout}ms`));
+        failConnection(new Error(`Codex execution timed out after ${options.timeout}ms`));
       }, options.timeout)
     : null;
 
@@ -322,6 +402,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
         cwd: runtimeCwd,
         sandbox: options.sandboxMode,
         approvalPolicy: options.approvalPolicy,
+        config: { 'sandbox_workspace_write.network_access': options.networkAccess === 'enabled' },
         ...(options.model ? { model: options.model } : {}),
       });
       activeThreadId = resumed.thread?.id || activeThreadId;
@@ -330,6 +411,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
         cwd: runtimeCwd,
         sandbox: options.sandboxMode,
         approvalPolicy: options.approvalPolicy,
+        config: { 'sandbox_workspace_write.network_access': options.networkAccess === 'enabled' },
         ephemeral: Boolean(options.ephemeral),
         ...(options.model ? { model: options.model } : {}),
       });
@@ -351,9 +433,12 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
   } catch (error) {
     throw new CodexAppServerError(
       error instanceof Error ? error.message : 'Codex app-server failed',
-      !turnSubmitted
+      !turnSubmitted && !child.killed
     );
   } finally {
+    closed = true;
+    clearSteering();
+    rejectPending(new Error('Codex turn ended before receipt'));
     if (timeoutId) clearTimeout(timeoutId);
     child.kill('SIGTERM');
   }

@@ -116,12 +116,12 @@ while IFS= read -r line; do
       echo '{"method":"item/agentMessage/delta","params":{"delta":"done"}}'
       echo '{"method":"thread/tokenUsage/updated","params":{"threadId":"thread-new","turnId":"turn-1","tokenUsage":{"last":{"inputTokens":50000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":52500},"total":{"inputTokens":50000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":52500},"modelContextWindow":100000}}}'
       echo '{"method":"account/rateLimits/updated","params":{"rateLimits":{"secondary":{"usedPercent":10,"windowDurationMins":10080,"resetsAt":1894060800}}}}'
-      echo '{"method":"turn/completed","params":{"turn":{"status":"completed"}}}'
+      echo '{"method":"turn/completed","params":{"threadId":"thread-new","turn":{"id":"turn-1","status":"completed"}}}'
     fi
   elif [[ "$line" == *'"id":99'* ]]; then
     echo '{"method":"item/agentMessage/delta","params":{"delta":"approved"}}'
     echo '{"method":"thread/tokenUsage/updated","params":{"threadId":"thread-resumed","turnId":"turn-1","tokenUsage":{"last":{"inputTokens":60000,"cachedInputTokens":1000,"outputTokens":2000,"reasoningOutputTokens":500,"totalTokens":62500},"total":{"inputTokens":90000,"cachedInputTokens":2000,"outputTokens":3000,"reasoningOutputTokens":800,"totalTokens":95800},"modelContextWindow":100000}}}'
-    echo '{"method":"turn/completed","params":{"turn":{"status":"completed"}}}'
+    echo '{"method":"turn/completed","params":{"threadId":"thread-resumed","turn":{"id":"turn-1","status":"completed"}}}'
   fi
 done
 `);

@@ -5,7 +5,7 @@ import { getLiveRoomSteering, steerLiveRoomMember } from '@/lib/live-room-proces
 // Same process ownership as the Live Room execution queue; DB deliveries retain
 // deduplication after restart. Unknown receipts are deliberately never replayed.
 const registry = globalThis as unknown as { piRoomDispatches?: Map<string, Promise<void>> };
-export async function dispatchLocalPiOnce(messageId: string, memberId: string, dispatch: () => Promise<void>) {
+export async function dispatchLocalSteeringOnce(messageId: string, memberId: string, dispatch: () => Promise<void>) {
   const store = registry.piRoomDispatches ??= new Map();
   const key = `${memberId}:${messageId}`;
   const previous = store.get(key);
@@ -18,7 +18,7 @@ export async function dispatchLocalPiOnce(messageId: string, memberId: string, d
   try { await operation; } finally { if (store.get(key) === operation) store.delete(key); }
 }
 
-export async function trySteerLocalPi(args: {
+export async function trySteerLocalMember(args: {
   deliveryId: string; roomId: string; sessionId: string; memberId: string;
   messageId: string; content: string; displayName: string; generation: number; createdAt: Date;
   relayOrigin: { feishuBindingId?: string; feishuChatId?: string };
@@ -33,7 +33,7 @@ export async function trySteerLocalPi(args: {
   // Persist the claim BEFORE writing stdin. A lost receipt must not cause replay.
   const claim = await prisma.liveRoomDelivery.updateMany({
     where: { id: args.deliveryId, deliveryStatus: 'pending' },
-    data: { deliveryStatus: 'running', attemptedAt: new Date(), fallbackReason: 'Pi steering receipt pending' },
+    data: { deliveryStatus: 'running', attemptedAt: new Date(), fallbackReason: 'Local steering receipt pending' },
   });
   if (!claim.count) return true;
   let result: 'accepted' | 'rejected' | 'unknown';
@@ -46,8 +46,8 @@ export async function trySteerLocalPi(args: {
     data: {
       deliveryStatus: result === 'rejected' ? 'pending' : result === 'accepted' ? 'delivered' : 'failed',
       acknowledgedAt: result === 'rejected' ? null : new Date(),
-      fallbackReason: result === 'accepted' ? `Pi steering accepted; runMessageId=${running.runMessageId}; generation=${args.generation}`
-        : result === 'unknown' ? `Pi steering receipt unknown; runMessageId=${running.runMessageId}; not automatically replayed` : null,
+      fallbackReason: result === 'accepted' ? `Local steering accepted; runMessageId=${running.runMessageId}; generation=${args.generation}`
+        : result === 'unknown' ? `Local steering receipt unknown; runMessageId=${running.runMessageId}; not automatically replayed` : null,
     },
   });
   if (!recorded.count) return true; // A stop/reset already cancelled this delivery.
@@ -55,7 +55,7 @@ export async function trySteerLocalPi(args: {
   await postLiveRoomMessage({
     roomId: args.roomId, messageType: 'system',
     content: result === 'accepted'
-      ? `系统提示：${args.displayName} 已接收追加指令，将在当前工具执行结束后的模型调用中处理。`
+      ? `系统提示：${args.displayName} 已接收追加指令，将在当前运行后续可处理输入的模型调用中处理；接收不代表已完成。`
       : `系统提示：${args.displayName} 的追加指令接收状态不明，为避免重复执行未自动重发，请核对后再决定是否重发。`,
     metadata: resolveLiveRoomMessageMetadata({
       senderKind: 'system', targetMemberId: args.memberId,

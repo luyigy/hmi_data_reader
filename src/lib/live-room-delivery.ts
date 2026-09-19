@@ -21,7 +21,7 @@ import {
   getTargetMemberIdsForMessage,
 } from '@/lib/live-room-delivery-routing';
 import { processLiveRoomDelivery } from '@/lib/live-room-delivery-processing';
-import { dispatchLocalPiOnce, trySteerLocalPi } from '@/lib/live-room-steering';
+import { dispatchLocalSteeringOnce, trySteerLocalMember } from '@/lib/live-room-steering';
 import {
   claimLiveRoomHandoff,
   ensureLiveRoomHandoffRoot,
@@ -257,7 +257,7 @@ export const triggerLiveRoomAgentReply = async ({
     return;
   }
 
-  const localPi = targetMember.backend === 'platform_local' && targetMember.harnessType === 'pi-agent';
+  const localSteering = targetMember.backend === 'platform_local' && (targetMember.harnessType === 'pi-agent' || targetMember.harnessType === 'codex');
   const generation = getLiveRoomExecutionGeneration(targetMember.id);
   const dispatch = async () => {
     const session = await ensureMemberSession(room.id, targetMember);
@@ -277,18 +277,18 @@ export const triggerLiveRoomAgentReply = async ({
       },
     });
 
-    const canSteer = localPi && sourceMessage.messageType === 'user'
+    const canSteer = localSteering && sourceMessage.messageType === 'user'
       && sourceMessage.senderMember?.memberType === 'user' && chainDepth === 0
       && !forceTargetMember && !sourceMetadata?.mentionedAll
       && (!sourceMetadata?.source || sourceMetadata.source === 'feishu')
       && !/^\s*\//.test(sourceMessage.content);
-    if (canSteer && await trySteerLocalPi({
+    if (canSteer && await trySteerLocalMember({
       deliveryId: delivery.id, roomId: room.id, sessionId: session.id,
       memberId: targetMember.id, messageId: sourceMessage.id, content: sourceMessage.content,
       displayName: targetMember.displayName, generation, relayOrigin, createdAt: delivery.createdAt,
     })) return;
 
-    if (localPi && generation !== getLiveRoomExecutionGeneration(targetMember.id)) {
+    if (localSteering && generation !== getLiveRoomExecutionGeneration(targetMember.id)) {
       await prisma.liveRoomDelivery.updateMany({
         where: { id: delivery.id, deliveryStatus: 'pending' },
         data: { deliveryStatus: 'superseded', fallbackReason: 'Session changed before delivery', acknowledgedAt: new Date() },
@@ -306,7 +306,7 @@ export const triggerLiveRoomAgentReply = async ({
       waitForCompletion,
     });
   };
-  if (localPi) await dispatchLocalPiOnce(roomMessageId, targetMember.id, dispatch);
+  if (localSteering) await dispatchLocalSteeringOnce(roomMessageId, targetMember.id, dispatch);
   else await dispatch();
 };
 

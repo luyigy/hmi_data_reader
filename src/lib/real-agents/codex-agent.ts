@@ -185,7 +185,7 @@ Please complete this task step by step. When you're done, provide a summary of:
 
 Take your time and be thorough.`;
 
-  if (options.approvalPolicy === 'on-request') {
+  if (options.approvalPolicy === 'on-request' || options.streamCallbacks?.onSteeringReady) {
     try {
       return await runCodexAppServer({
         prompt,
@@ -249,7 +249,7 @@ export const resumeCodexSession = async ({
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => Promise<void> | void;
 }): Promise<CodexCliResult> => {
-  if (approvalPolicy === 'on-request') {
+  if (approvalPolicy === 'on-request' || streamCallbacks?.onSteeringReady) {
     try {
       return await runCodexAppServer({
         prompt,

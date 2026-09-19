@@ -21,13 +21,13 @@ async function main() {
   } };
   const liveRoom = await import('../src/lib/live-room-messages') as unknown as { postLiveRoomMessage: (args: { content: string }) => Promise<void> };
   liveRoom.postLiveRoomMessage = async ({ content }) => { notices.push(content); };
-  const { trySteerLocalPi, dispatchLocalPiOnce } = await import('../src/lib/live-room-steering');
+  const { trySteerLocalMember, dispatchLocalSteeringOnce } = await import('../src/lib/live-room-steering');
   let calls = 0;
   let result: 'accepted' | 'rejected' | 'unknown' = 'accepted';
   const clear = registerLiveRoomSteering('pi','room','session', async () => { calls++; return result; }, 0, 'original');
   const deliver = async (id: string) => {
     rows.set(id, { roomMessageId: id, deliveryStatus: 'pending' });
-    return trySteerLocalPi({ deliveryId:id, messageId:id, roomId:'room', memberId:'pi', sessionId:'session',
+    return trySteerLocalMember({ deliveryId:id, messageId:id, roomId:'room', memberId:'pi', sessionId:'session',
       content:'追加', displayName:'Pi', generation:0, relayOrigin:{}, createdAt:new Date() });
   };
   assert.equal(await deliver('accepted'), true);
@@ -59,9 +59,48 @@ async function main() {
   assert.equal(await deliver('startup'), false, 'startup/idle queues normally');
   let dispatched = 0;
   const dispatch = async () => { dispatched++; rows.set('dedup', { deliveryStatus:'delivered' }); };
-  await Promise.all([dispatchLocalPiOnce('dedup','pi',dispatch), dispatchLocalPiOnce('dedup','pi',dispatch)]);
-  await dispatchLocalPiOnce('dedup','pi',dispatch);
+  await Promise.all([dispatchLocalSteeringOnce('dedup','pi',dispatch), dispatchLocalSteeringOnce('dedup','pi',dispatch)]);
+  await dispatchLocalSteeringOnce('dedup','pi',dispatch);
   assert.equal(dispatched, 1);
+  // Exercise the real delivery entry, with persistence/runner boundaries stubbed.
+  const routing = await import('../src/lib/live-room-delivery-routing');
+  const processing = await import('../src/lib/live-room-delivery-processing');
+  let queued = 0, injected = 0;
+  const member = { id:'codex', displayName:'Codex', backend:'platform_local', harnessType:'codex', canReply:true };
+  let message = { id:'', content:'输出 hello', messageType:'user', senderMember:{memberType:'user'}, metadata:null as string | null };
+  Object.assign(routing, { ensureMemberSession:async()=>({id:'session'}), getPrimaryReplyTarget:()=>member });
+  Object.assign(processing, { processLiveRoomDelivery:async()=>{queued++;return null;} });
+  Object.assign((prismaModule.prisma as {liveRoomDelivery:object}).liveRoomDelivery, {
+    create:async()=>{
+      const row={id:message.id,roomMessageId:message.id,deliveryStatus:'pending',createdAt:new Date()};
+      rows.set(message.id,row);return row;
+    },
+  });
+  Object.assign(prismaModule.prisma as object, {
+    liveRoom:{findUnique:async()=>({id:'room'})},
+    liveRoomMessage:{findUnique:async()=>message},
+  });
+  const unregisterCodex=registerLiveRoomSteering('codex','room','session',async id=>{
+    assert.equal(rows.get(id)?.deliveryStatus,'running','claim persisted before injection');
+    injected++;return 'accepted';
+  },0,'codex-original');
+  const {triggerLiveRoomAgentReply}=await import('../src/lib/live-room-delivery');
+  const trigger=async(id:string, overrides:object={})=>{
+    message={...message,id};
+    await triggerLiveRoomAgentReply({roomId:'room',roomMessageId:id,allowHandoff:false,...overrides});
+  };
+  await trigger('codex-normal'); await trigger('codex-normal');
+  assert.equal(injected,1);assert.equal(queued,0);
+  await trigger('forced',{forceTargetMember:true});
+  await trigger('relay',{chainDepth:1});
+  message.content='/new';await trigger('slash');message.content='输出 hello';
+  message.metadata=JSON.stringify({mentionedAll:true});await trigger('all');
+  message.metadata=JSON.stringify({source:'workflow_watcher'});await trigger('workflow');message.metadata=null;
+  message.messageType='assistant';await trigger('assistant');message.messageType='user';
+  member.backend='gateway_openclaw';await trigger('remote');member.backend='platform_local';
+  member.harnessType='claude';await trigger('other-harness');member.harnessType='codex';
+  assert.equal(injected,1);assert.equal(queued,8);
+  unregisterCodex();await trigger('codex-startup');assert.equal(queued,9);
   console.log('Live Room steering: receipts, fallback, generation/run/session guards, cleanup and dedup passed');
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -114,7 +114,8 @@ export const executeParticipant = async (
   let subagentEventWrites = Promise.resolve();
 
   const callbacks: HarnessStreamCallbacks = {
-    onSteeringReady: participant.executionBackend === 'platform_local' && participant.harnessType === 'pi-agent'
+    onSteeringReady: participant.executionBackend === 'platform_local' && (participant.harnessType === 'pi-agent' || participant.harnessType === 'codex')
+      && !request.workflowCompletionGate
       ? request.streamCallbacks?.onSteeringReady : undefined,
     onCodexTokenUsage: participant.executionBackend === 'platform_local'
       && participant.harnessType === 'codex'
