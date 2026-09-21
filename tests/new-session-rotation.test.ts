@@ -277,19 +277,6 @@ async function main() {
   assert.match(preclaimContent, /WORKFLOW_PROMPT_START 标记已脱敏/);
   assert.match(preclaimContent, /WORKFLOW_READY abcdef/);
 
-  assert.match(await handleNewSessionCommand(command, context), /已发送确认卡/);
-  assert.match(confirmationCard, /001_PLAN_20260731_fixture\.md/);
-  assert.doesNotMatch(confirmationCard, /002_PLAN_20260731_completed\.md/);
-  assert.doesNotMatch(confirmationCard, /215_PLAN_20260722_legacy\.md/);
-  for (const label of [
-    'running / queued',
-    '未提交改动',
-    '未完成 PLAN',
-    '未提供已提交 Handover',
-    '生成并提交 Handover 后切换',
-    '直接切换',
-    '取消',
-  ]) assert.match(confirmationCard, new RegExp(label));
   assert.equal(rotations, 0);
   assert.deepEqual(await handleNewSessionConfirmationCardAction({
     value: {
@@ -486,6 +473,34 @@ async function main() {
     assert.equal(taskPermissionWrites.length, taskWritesBefore, 'excluded members must retain inherited permissions');
     assert.ok(permissionWrites.every(({ config }) => JSON.parse(config).profile === 'safe_local'));
   }
+
+  // Default rotation must bypass the gate even with dirty files, an unfinished
+  // PLAN and running work; it must also work without a Git repository or HEAD.
+  const docsBeforeDefault = await fs.readdir(path.join(workspace, 'docs'));
+  const headBeforeDefault = (await runGit('rev-parse', 'HEAD')).stdout.trim();
+  const nonGitWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'session-no-git-'));
+  for (const index of [0, 1, 2]) {
+    const directory = index === 0 ? workspace : nonGitWorkspace;
+    if (index === 2) {
+      await execFileAsync('git', ['init'], { cwd: directory });
+    }
+    room.workingDirectory = directory;
+    runningReply = true;
+    const stopsBefore = stopEffects;
+    const rotationsBefore = rotations;
+    const result = await handleNewSessionCommand(command, {
+      ...context, messageId: `default-${index}`,
+    });
+    assert.match(result, /^✅/);
+    assert.match(result, /Bootstrap：room\/task state/);
+    assert.equal(rotations, rotationsBefore + 1);
+    assert.equal(stopEffects, stopsBefore + 1, 'default rotation must still stop old work');
+    assert.equal(confirmationCard, '', 'default rotation must not send a gate card');
+  }
+  assert.deepEqual(await fs.readdir(path.join(workspace, 'docs')), docsBeforeDefault);
+  assert.equal((await runGit('rev-parse', 'HEAD')).stdout.trim(), headBeforeDefault);
+  assert.deepEqual(await fs.readdir(nonGitWorkspace), ['.git'], 'no handover docs should be created');
+  await fs.rm(nonGitWorkspace, { recursive: true, force: true });
 
   await fs.rm(workspace, { recursive: true, force: true });
   console.log('new session rotation checks passed');

@@ -7,7 +7,7 @@ import { parse } from 'yaml';
 import { prisma } from '@/lib/prisma';
 import { parseTaskSessionMetadata, rotateTaskSession } from '@/lib/acpx/session';
 import { parseGrantProfile } from '@/lib/feishu-grant';
-import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
+import { sendFeishuTextMessage } from '@/lib/feishu-api';
 import {
   normalizeAcpxPermissionConfig,
   DEFAULT_ACPX_PERMISSION_CONFIG,
@@ -77,6 +77,11 @@ const frontmatter = (content: string) => {
     : {};
 };
 
+const isNotAGitRepositoryError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('not a git repository') || message.includes('不是 git 仓库');
+};
+
 async function findUnfinishedPlan(workingDirectory: string) {
   // ponytail: manual rotations scan committed workflow docs; add an indexed
   // projection only if repository scale makes confirmation measurably slow.
@@ -124,9 +129,21 @@ export const collectNewSessionRisks = async (args: {
         roomMessage: { roomId: args.roomId },
       },
     }),
-    git(args.workingDirectory, 'status', '--short'),
-    findUnfinishedPlan(args.workingDirectory),
-    git(args.workingDirectory, 'rev-parse', 'HEAD'),
+    // Live rooms are not required to point at Git repositories; outside a repo
+    // these probes degrade to "clean / no unfinished plan / unknown head" instead
+    // of failing the whole session rotation.
+    git(args.workingDirectory, 'status', '--short').catch((error: unknown) => {
+      if (!isNotAGitRepositoryError(error)) throw error;
+      return '';
+    }),
+    findUnfinishedPlan(args.workingDirectory).catch((error: unknown) => {
+      if (!isNotAGitRepositoryError(error)) throw error;
+      return null;
+    }),
+    git(args.workingDirectory, 'rev-parse', 'HEAD').catch((error: unknown) => {
+      if (!isNotAGitRepositoryError(error)) throw error;
+      return null;
+    }),
   ]);
   const risks: NewSessionRisk[] = [
     ...((taskRuns || deliveries) ? ['running_or_queued' as const] : []),
@@ -515,38 +532,16 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
       hasCommittedHandover = false;
     }
   }
-  const safety = await collectNewSessionRisks({
-    taskId: sourceTask.id,
-    roomId: room.id,
-    memberIds: members.map(({ id }) => id),
-    workingDirectory,
-    hasCommittedHandover,
-  });
-  if (!confirmed && safety.risks.length) {
-    if (!context?.senderOpenId || !context.messageId) {
-      return `⚠️ Session 切换需要确认：${safety.risks.join(', ')}`;
-    }
-    await sendFeishuInteractiveMessage({
-      receiveId: context.chatId,
-      receiveIdType: 'chat_id',
-      replyId: context.messageId,
-      card: buildNewSessionConfirmationCard({
-        command,
-        requesterOpenId: context.senderOpenId,
-        chatType: context.chatType === 'p2p' ? 'p2p' : 'group',
-        rotationKey,
-        risks: safety.risks,
-        detail: [
-          `running：${safety.taskRuns}`,
-          `queued/running delivery：${safety.deliveries}`,
-          `未完成 PLAN：${safety.unfinishedPlan || '无'}`,
-          `Git：${safety.status ? 'dirty' : 'clean'}`,
-        ].join('\n'),
-      }),
-    });
-    return '⚠️ 检测到 Session 切换风险，已发送确认卡；确认前不会停止运行或更换 Session。';
-  }
+  // Manual session rotation has no Git/PLAN/Handover gate. Only an explicit
+  // handover generation request needs a repository snapshot.
   if (confirmed && !direct && command.options['generate-handover'] === 'true') {
+    const safety = await collectNewSessionRisks({
+      taskId: sourceTask.id,
+      roomId: room.id,
+      memberIds: members.map(({ id }) => id),
+      workingDirectory,
+      hasCommittedHandover,
+    });
     const promptContext = await buildTaskRoomPromptContext(sourceTask.id, sourceTask.name, 30);
     handoverOption = await generateCommittedHandover({
       workingDirectory,
