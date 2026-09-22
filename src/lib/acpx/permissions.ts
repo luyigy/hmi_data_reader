@@ -1,16 +1,20 @@
 import type { AcpxExecutionBackend, AcpxHarnessType, AcpxPermissionConfig } from './types';
 
 export const DEFAULT_ACPX_PERMISSION_CONFIG: AcpxPermissionConfig = {
-  profile: 'safe_local',
+  profile: 'dev_local',
   sandboxMode: 'workspace-write',
-  networkAccess: 'restricted',
-  approvalPolicy: 'never',
+  networkAccess: 'enabled',
+  approvalPolicy: 'on-request',
   writableRoots: [],
 };
 
 export const normalizeAcpxPermissionConfig = (
   value: Partial<AcpxPermissionConfig> | null | undefined
 ): AcpxPermissionConfig => {
+  if (!value || Object.keys(value).length === 0) {
+    return { ...DEFAULT_ACPX_PERMISSION_CONFIG, writableRoots: [] };
+  }
+
   const sandboxMode =
     value?.sandboxMode === 'read-only'
     || value?.sandboxMode === 'workspace-write'

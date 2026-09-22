@@ -440,12 +440,14 @@ async function main() {
   assert.equal(permissionWrites.length, 0, 'rotation without a profile must preserve member permissions');
   assert.equal(taskPermissionWrites.length, 0);
   room.sourceTask.acpxPermissionConfig = JSON.stringify({ profile: 'full_access' });
-  const permissionCommand = {
-    ...command,
-    options: { direct: 'true', all: 'true', profile: 'full', 'rotation-key': 'permission-repair' },
-  };
+  const { buildFullAccessApprovedCommand } = await import('../src/lib/feishu-access-approval');
+  const permissionCommand = buildFullAccessApprovedCommand({ command: 'rights', args: [], options: {} });
+  permissionCommand.options['rotation-key'] = 'permission-repair';
+  threaded = true;
   await handleNewSessionCommand(permissionCommand, context);
   assert.deepEqual(permissionWrites.map(({ memberId }) => memberId), room.members.map(({ id }) => id));
+  assert.equal(JSON.parse(taskPermissionWrites.at(-1)!).profile, 'full_access');
+  assert.deepEqual(threadClearTargets, room.members.map(({ id }) => id));
   for (const { config } of permissionWrites) {
     assert.equal(JSON.parse(config).profile, 'full_access', 'repair stale members even when task already has full access');
     assert.equal(JSON.parse(config).sandboxMode, 'danger-full-access');
@@ -486,8 +488,8 @@ async function main() {
     }
     room.workingDirectory = directory;
     runningReply = true;
-    const stopsBefore = stopEffects;
-    const rotationsBefore = rotations;
+    const stopsBefore: number = stopEffects;
+    const rotationsBefore: number = rotations;
     const result = await handleNewSessionCommand(command, {
       ...context, messageId: `default-${index}`,
     });

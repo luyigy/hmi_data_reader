@@ -93,7 +93,7 @@ export function LiveRoomRoomsPanel() {
                           {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
                         </select>
                         <select
-                          value={selectedAgentPermissions[agent.id] || 'safe_local'}
+                          value={selectedAgentPermissions[agent.id] || 'dev_local'}
                           onChange={(event) => setSelectedAgentPermissions((permissions) => ({ ...permissions, [agent.id]: event.target.value }))}
                           className="rounded-lg border border-slate-300 px-2 py-1 text-[11px]"
                         >

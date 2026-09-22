@@ -29,7 +29,7 @@ export async function POST(
     const role = typeof body.role === 'string' ? body.role.trim() || 'custom' : 'custom';
     const permissionProfile = (['safe_local', 'dev_local', 'full_access'].includes(body.permissionProfile)
       ? body.permissionProfile
-      : 'safe_local') as LiveRoomPermissionProfile;
+      : 'dev_local') as LiveRoomPermissionProfile;
 
     if (!selectedAgentId) {
       return NextResponse.json(

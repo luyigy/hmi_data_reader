@@ -612,7 +612,7 @@ export function useLiveRoomController({
       }
       setMemberToAdd('');
       setMemberRoleToAdd('custom');
-      setMemberPermissionToAdd('safe_local');
+      setMemberPermissionToAdd('dev_local');
       setNotice(data.duplicate ? '该 agent 已在房间里。' : '成员已加入房间。');
       await refreshSelectedRoom(selectedRoom.id);
       await refreshRooms();

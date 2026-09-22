@@ -88,7 +88,7 @@ export default function TaskForm({
   const [executionMode, setExecutionMode] = useState<'standard' | 'acpx'>('standard');
   const [workingDirectory, setWorkingDirectory] = useState('');
   const [permissionProfile, setPermissionProfile] =
-    useState<'safe_local' | 'dev_local' | 'full_access'>('safe_local');
+    useState<'safe_local' | 'dev_local' | 'full_access'>('dev_local');
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [participants, setParticipants] = useState<AcpxParticipantDraft[]>([createDraft(0)]);
 

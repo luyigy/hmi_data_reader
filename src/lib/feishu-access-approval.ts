@@ -108,7 +108,7 @@ export function buildFullAccessApprovedCommand(command: StoredCommand['command']
   return {
     command: 'new-session',
     args: agent ? [agent] : [],
-    options: { ...(agent ? { agent } : {}), profile: 'full_access' },
+    options: { ...(agent ? { agent } : { all: 'true' }), profile: 'full_access' },
   };
 }
 
@@ -146,6 +146,9 @@ export async function requestFullAccessApproval(args: StoredCommand) {
       `命令：\`${args.command.command} ${args.command.args.join(' ')}\``,
       `当前 workdir：\`${workdir}\``,
       '授权范围：Full Access（独立管理员升级；普通 permission card 无法授予）',
+      ...(['grant', 'rights'].includes(args.command.command)
+        ? [`授权对象：${args.command.options.agent?.trim() || '当前房间全部可回复 Agent（含房间默认权限）'}`]
+        : []),
       '生效方式：仅新 Session；不会恢复或热升级旧进程',
       `有效期：${expiresAt.toISOString()}`,
     ].join('\n'),

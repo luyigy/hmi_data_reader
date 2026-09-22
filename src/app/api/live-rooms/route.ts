@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
             acpxPermissionConfig: JSON.stringify(permissionConfigForProfile(
               (['safe_local', 'dev_local', 'full_access'].includes(String(selectedAgentPermissions[agent.id]))
                 ? selectedAgentPermissions[agent.id]
-                : 'safe_local') as LiveRoomPermissionProfile
+                : 'dev_local') as LiveRoomPermissionProfile
             )),
             roleLabel: encodeLiveRoomRoleLabel({
               backend: agent.backend,

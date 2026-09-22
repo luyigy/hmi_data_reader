@@ -201,7 +201,7 @@ export function LiveRoomDetailsPanel() {
                             {MEMBER_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
                           </select>
                           <select
-                            value={member.permissionProfile || 'safe_local'}
+                            value={member.permissionProfile || 'dev_local'}
                             onChange={(event) => void handleUpdateMemberPermission(member.id, event.target.value)}
                             className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
                           >

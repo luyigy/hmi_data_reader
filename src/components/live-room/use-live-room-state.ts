@@ -22,7 +22,7 @@ export function useLiveRoomState() {
   const [roomModeDraft, setRoomModeDraft] = useState('discussion');
   const [memberToAdd, setMemberToAdd] = useState('');
   const [memberRoleToAdd, setMemberRoleToAdd] = useState('custom');
-  const [memberPermissionToAdd, setMemberPermissionToAdd] = useState('safe_local');
+  const [memberPermissionToAdd, setMemberPermissionToAdd] = useState('dev_local');
   const [isRoomsPanelOpen, setIsRoomsPanelOpen] = useState(true);
   const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(true);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);

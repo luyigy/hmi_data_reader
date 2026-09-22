@@ -62,6 +62,15 @@ assert.deepEqual(buildFullAccessApprovedCommand({
   options: { agent: 'codex', profile: 'full_access' },
 });
 
+for (const command of ['rights', 'grant'] as const) {
+  assert.deepEqual(buildFullAccessApprovedCommand({ command, args: [], options: {} }), {
+    command: 'new-session', args: [], options: { all: 'true', profile: 'full_access' },
+  });
+  assert.deepEqual(buildFullAccessApprovedCommand({ command, args: [], options: { agent: 'kimi-code' } }), {
+    command: 'new-session', args: ['kimi-code'], options: { agent: 'kimi-code', profile: 'full_access' },
+  });
+}
+
 void (async () => {
   const model = prisma.taskRunInteractionRequest as unknown as {
     findMany: (...args: unknown[]) => Promise<Array<{ id: string }>>;
