@@ -1,19 +1,24 @@
 import { sendFeishuTextMessage } from '@/lib/feishu-api';
 import { prisma } from '@/lib/prisma';
+import { resolveFeishuConversationTarget } from '@/lib/feishu-live-room';
 
-type FeishuSessionContinuityArgs = {
+export type FeishuSessionContinuityArgs = {
   context: {
     chatId: string;
     chatType: string;
     senderOpenId: string;
     messageId: string;
     mentionNames?: string[];
+    threadId?: string;
+    rootId?: string;
+    parentMessageId?: string;
   };
   replyId?: string;
 };
 
 type FeishuBindingRow = {
   liveRoomId: string;
+  threadId: string | null;
 };
 
 type ExpiredSessionRow = {
@@ -21,9 +26,6 @@ type ExpiredSessionRow = {
   memberName: string;
   lastError: string | null;
 };
-
-const buildScopeKey = (chatId: string, chatType: string) =>
-  chatType === 'p2p' ? `feishu:p2p:${chatId}` : `feishu:group:${chatId}`;
 
 const buildWarningText = (sessions: ExpiredSessionRow[]) => {
   const affectedMembers = Array.from(
@@ -45,14 +47,15 @@ export async function maybeSendFeishuSessionWatermarkWarning({
   context,
   replyId,
 }: FeishuSessionContinuityArgs) {
-  const scopeKey = buildScopeKey(context.chatId, context.chatType);
-  const bindingRows = await prisma.$queryRaw<FeishuBindingRow[]>`
-    SELECT "liveRoomId"
-    FROM "FeishuConversationBinding"
-    WHERE "scopeKey" = ${scopeKey}
-    LIMIT 1
-  `;
-  const binding = bindingRows[0];
+  // Resolve through the shared target so a task topic never reports the group
+  // room's sessions; unknown or archived topics carry no room to warn about.
+  const target = await resolveFeishuConversationTarget(context);
+  if (target.kind !== 'group_entry' && target.kind !== 'task') {
+    return false;
+  }
+  const binding: FeishuBindingRow | null = target.binding
+    ? { liveRoomId: target.binding.liveRoomId, threadId: target.binding.threadId }
+    : null;
 
   if (!binding) {
     return false;
@@ -77,8 +80,8 @@ export async function maybeSendFeishuSessionWatermarkWarning({
   }
 
   await sendFeishuTextMessage({
-    receiveId: context.chatId,
-    receiveIdType: 'chat_id',
+    receiveId: binding.threadId || context.chatId,
+    receiveIdType: binding.threadId ? 'thread_id' : 'chat_id',
     replyId,
     text: buildWarningText(expiredSessions),
   });

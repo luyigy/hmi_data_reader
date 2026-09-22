@@ -92,10 +92,12 @@ export async function getFeishuUserDisplayName(openId: string): Promise<string |
   return data.data?.user?.name?.trim() || null;
 }
 
+type FeishuReceiveIdType = 'chat_id' | 'open_id' | 'thread_id';
+
 export async function sendFeishuTextMessage(args: {
   receiveId: string;
   text: string;
-  receiveIdType?: 'chat_id' | 'open_id';
+  receiveIdType?: FeishuReceiveIdType;
   replyId?: string;
 }) {
   const token = await getFeishuTenantAccessToken();
@@ -126,7 +128,7 @@ export async function sendFeishuTextMessage(args: {
 export async function sendFeishuInteractiveMessage(args: {
   receiveId: string;
   card: Record<string, unknown>;
-  receiveIdType?: 'chat_id' | 'open_id';
+  receiveIdType?: FeishuReceiveIdType;
   replyId?: string;
 }): Promise<string | undefined> {
   const token = await getFeishuTenantAccessToken();
@@ -156,10 +158,46 @@ export async function sendFeishuInteractiveMessage(args: {
   return data.data?.message_id;
 }
 
+// Verified against the local @larksuiteoapi/node-sdk contract (im.v1.message.reply):
+// POST /im/v1/messages/{message_id}/reply keeps the response inside the topic
+// of the replied message; `reply_in_thread` opts into topic-mode replies. This is
+// the only supported way to answer inside a task thread — the create-message API
+// has no reply_id field, so the legacy replyId helper never threaded anything.
+export async function replyFeishuMessage(args: {
+  messageId: string;
+  msgType: 'text' | 'interactive';
+  content: Record<string, unknown>;
+  replyInThread?: boolean;
+  uuid?: string;
+}): Promise<string | undefined> {
+  const token = await getFeishuTenantAccessToken();
+  const url = new URL(`${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(args.messageId)}/reply`);
+  if (args.uuid) url.searchParams.set('uuid', args.uuid);
+
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      msg_type: args.msgType,
+      content: JSON.stringify(args.content),
+      ...(args.replyInThread ? { reply_in_thread: true } : {}),
+    }),
+  });
+
+  const data = (await response.json()) as FeishuSendMessageResponse;
+  if (!response.ok || data.code !== 0) {
+    throw new Error(data.msg || `Failed to reply Feishu message: HTTP ${response.status}`);
+  }
+  return data.data?.message_id;
+}
+
 export async function sendFeishuLocalImageMessage(args: {
   receiveId: string;
   filePath: string;
-  receiveIdType?: 'chat_id' | 'open_id';
+  receiveIdType?: FeishuReceiveIdType;
 }): Promise<string | undefined> {
   const workspaceRoot = await fs.realpath(process.cwd());
   const filePath = await fs.realpath(args.filePath);

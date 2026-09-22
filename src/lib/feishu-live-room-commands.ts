@@ -1,13 +1,17 @@
 import { prisma } from '@/lib/prisma';
 import { generateShortAlias } from '@/lib/agent-identity';
 import {
+  ARCHIVED_FEISHU_TASK_HINT,
   ensureFeishuConversationBinding,
   getBoundLiveRoom,
   getBoundLiveRoomId,
+  hasFeishuTopicIdentity,
+  resolveFeishuConversationTarget,
   resolveFeishuSelectedAgentIds,
   resolveDefaultFeishuBindingAgentIds,
   resolveRoomMemberQuery,
   setFeishuBoundRoomMode,
+  UNKNOWN_FEISHU_TOPIC_HINT,
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
 import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
@@ -469,6 +473,26 @@ export async function handleRoomCommand(
 ) {
   if (!context) {
     return '当前 room 命令需要来自 Feishu webhook 的会话上下文。';
+  }
+
+  // Group-level bindings are managed from the group root only. Inside a topic
+  // thread the room command must not create or mutate the group binding: reuse
+  // is limited to the bound task room, and unknown/archived topics are rejected.
+  if (hasFeishuTopicIdentity(context)) {
+    const target = await resolveFeishuConversationTarget(context);
+    if (target.kind !== 'task' || !target.binding) {
+      return target.kind === 'archived_task' ? ARCHIVED_FEISHU_TASK_HINT : UNKNOWN_FEISHU_TOPIC_HINT;
+    }
+    const binding = target.binding;
+    const room = await prisma.liveRoom.findUnique({
+      where: { id: binding.liveRoomId },
+      select: { title: true },
+    });
+    return [
+      `该话题已绑定任务房间：${room?.title || binding.liveRoomId}`,
+      '话题内请使用 /ap add 调整成员、/ap members 查看房间；',
+      '新的任务创建入口将在隔离开关（S03）开放后提供，请勿在话题内重新执行 /ap room。',
+    ].join('\n');
   }
 
   const selectedAgentIds = await resolveFeishuSelectedAgentIds(command.options['agents']);

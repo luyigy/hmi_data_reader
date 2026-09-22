@@ -16,9 +16,17 @@ interface SystemEntry {
   time: string;
 }
 
+export type FeishuProgressTarget = {
+  chatId: string;
+  // When set, every progress/final card is delivered into the task thread via
+  // the SDK-verified thread_id receive type — never the group root.
+  threadId?: string | null;
+};
+
 export class FeishuProgressTracker {
   private progressMsgId: string | null = null;
   private chatId: string;
+  private threadId: string | null;
   private entries: ToolEntry[] = [];
   private systemEntries: SystemEntry[] = [];
   private lastEditAt = 0;
@@ -30,9 +38,17 @@ export class FeishuProgressTracker {
   private readonly startedAt = Date.now();
   private readonly workspaceRoot: string;
 
-  constructor(chatId: string, workspaceRoot = process.cwd()) {
-    this.chatId = chatId;
+  constructor(target: FeishuProgressTarget | string, workspaceRoot = process.cwd()) {
+    const normalized = typeof target === 'string' ? { chatId: target } : target;
+    this.chatId = normalized.chatId;
+    this.threadId = normalized.threadId || null;
     this.workspaceRoot = workspaceRoot;
+  }
+
+  private sendTarget(): { receiveId: string; receiveIdType: 'chat_id' | 'thread_id' } {
+    return this.threadId
+      ? { receiveId: this.threadId, receiveIdType: 'thread_id' }
+      : { receiveId: this.chatId, receiveIdType: 'chat_id' };
   }
 
   onToolEvent(toolName: string, preview: string, emoji: string): void {
@@ -146,8 +162,10 @@ export class FeishuProgressTracker {
     if (!this.progressMsgId) {
       console.log(`[FeishuProgress] sending first progress card to ${this.chatId}`);
       const card = this.buildCard();
+      const target = this.sendTarget();
       this.progressMsgId = await sendFeishuInteractiveMessage({
-        receiveId: this.chatId,
+        receiveId: target.receiveId,
+        receiveIdType: target.receiveIdType,
         card,
       }) ?? null;
       console.log(`[FeishuProgress] first card sent, id=${this.progressMsgId}`);
@@ -265,7 +283,8 @@ export class FeishuProgressTracker {
     }
 
     this.progressMsgId = await sendFeishuInteractiveMessage({
-      receiveId: this.chatId,
+      receiveId: this.sendTarget().receiveId,
+      receiveIdType: this.sendTarget().receiveIdType,
       card,
     }) ?? null;
     return this.progressMsgId;

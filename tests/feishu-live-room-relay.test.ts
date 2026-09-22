@@ -3,6 +3,7 @@ import {
   buildAssistantRelayCard,
   extractAssistantRelayImages,
   relayLiveRoomMessageToFeishu,
+  resolveFeishuRelaySendTarget,
   selectFeishuRelayBinding,
   shouldRelayLiveRoomMessage,
 } from '../src/lib/feishu-live-room-relay';
@@ -162,6 +163,79 @@ assert.deepEqual(
   }
 );
 
+// Task-thread bindings always deliver inside their topic and never degrade to a
+// group broadcast, even when both the interactive card and the text fallback fail.
+assert.deepEqual(
+  resolveFeishuRelaySendTarget({ ...bindings[0], threadId: 'thread-a', rootMessageId: 'root-a', appId: 'app' }),
+  { receiveId: 'thread-a', receiveIdType: 'thread_id', threadScoped: true },
+);
+assert.deepEqual(
+  resolveFeishuRelaySendTarget(bindings[0]),
+  { receiveId: 'chat-a', receiveIdType: 'chat_id', threadScoped: false },
+);
+
+const checkThreadRelay = async () => {
+  const feishuApi = feishuApiModule as {
+    sendFeishuInteractiveMessage: typeof feishuApiModule.sendFeishuInteractiveMessage;
+    sendFeishuTextMessage: typeof feishuApiModule.sendFeishuTextMessage;
+    sendFeishuLocalImageMessage: typeof feishuApiModule.sendFeishuLocalImageMessage;
+  };
+  const originalQueryRaw = prisma.$queryRaw;
+  const originalInteractive = feishuApi.sendFeishuInteractiveMessage;
+  const originalText = feishuApi.sendFeishuTextMessage;
+  const originalImage = feishuApi.sendFeishuLocalImageMessage;
+  const sends: Array<{ kind: string; receiveId: string; receiveIdType: string }> = [];
+  const threadBinding = {
+    ...bindings[0],
+    appId: 'app',
+    threadId: 'thread-a',
+    rootMessageId: 'root-a',
+  };
+  const threadMessage = message('assistant');
+  threadMessage.metadata = { feishuBindingId: 'binding-a', feishuChatId: 'chat-a' };
+
+  prisma.$queryRaw = (async () => [threadBinding]) as typeof prisma.$queryRaw;
+  feishuApi.sendFeishuInteractiveMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
+    sends.push({ kind: 'interactive', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+    return 'om-card';
+  };
+  feishuApi.sendFeishuTextMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
+    sends.push({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+  };
+  feishuApi.sendFeishuLocalImageMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
+    sends.push({ kind: 'image', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+    return 'om-image';
+  };
+
+  try {
+    await relayLiveRoomMessageToFeishu(threadMessage);
+    assert.deepEqual(sends, [{ kind: 'interactive', receiveId: 'thread-a', receiveIdType: 'thread_id' }]);
+
+    // Failure retry: interactive card failing must fall back to text inside the
+    // same thread, never to the group chat id.
+    sends.length = 0;
+    feishuApi.sendFeishuInteractiveMessage = async () => {
+      throw new Error('card rejected');
+    };
+    await relayLiveRoomMessageToFeishu(threadMessage);
+    assert.deepEqual(sends, [{ kind: 'text', receiveId: 'thread-a', receiveIdType: 'thread_id' }]);
+
+    // Total thread failure must not degrade into any group-root send.
+    sends.length = 0;
+    feishuApi.sendFeishuTextMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
+      sends.push({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+      throw new Error('thread unavailable');
+    };
+    await relayLiveRoomMessageToFeishu(threadMessage);
+    assert.deepEqual(sends, [{ kind: 'text', receiveId: 'thread-a', receiveIdType: 'thread_id' }]);
+  } finally {
+    prisma.$queryRaw = originalQueryRaw;
+    feishuApi.sendFeishuInteractiveMessage = originalInteractive;
+    feishuApi.sendFeishuTextMessage = originalText;
+    feishuApi.sendFeishuLocalImageMessage = originalImage;
+  }
+};
+
 const checkInteractiveFallback = async () => {
   const feishuApi = feishuApiModule as {
     sendFeishuInteractiveMessage: typeof feishuApiModule.sendFeishuInteractiveMessage;
@@ -191,7 +265,8 @@ const checkInteractiveFallback = async () => {
   }
 };
 
-void checkInteractiveFallback()
+void checkThreadRelay()
+  .then(() => checkInteractiveFallback())
   .then(() => console.log('Feishu Live Room relay checks passed'))
   .catch((error) => {
     console.error(error);

@@ -10,8 +10,11 @@ import type { LiveRoomMessagePayload } from '@/lib/live-room';
 
 type FeishuConversationBindingRow = {
   id: string;
+  appId?: string | null;
   chatId: string;
   chatType: string;
+  threadId?: string | null;
+  rootMessageId?: string | null;
   latestMessageId: string | null;
   typingReactionId: string | null;
   typingForMessageId: string | null;
@@ -33,6 +36,13 @@ export const selectFeishuRelayBinding = (
     || bindings.find((binding) => binding.chatId === chatId)
     || (bindings.length === 1 ? bindings[0] : null);
 };
+
+/** Task-thread bindings must deliver inside their topic: use the SDK-verified
+ *  thread_id receive type. Failures never degrade to a group chat broadcast. */
+export const resolveFeishuRelaySendTarget = (binding: FeishuConversationBindingRow) =>
+  binding.threadId
+    ? { receiveId: binding.threadId, receiveIdType: 'thread_id' as const, threadScoped: true }
+    : { receiveId: binding.chatId, receiveIdType: 'chat_id' as const, threadScoped: false };
 
 export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   // Suppress relay when an interactive Feishu progress card is handling the same events
@@ -167,8 +177,11 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
   const bindings = await prisma.$queryRaw<FeishuConversationBindingRow[]>`
     SELECT
       "id",
+      "appId",
       "chatId",
       "chatType",
+      "threadId",
+      "rootMessageId",
       "latestMessageId",
       "typingReactionId",
       "typingForMessageId",
@@ -181,6 +194,7 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
   if (!binding) {
     return;
   }
+  const target = resolveFeishuRelaySendTarget(binding);
 
   // Remove typing reaction before sending the actual reply
   if (binding.typingReactionId && binding.typingForMessageId) {
@@ -197,33 +211,42 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
     if (relay.text) {
       try {
         await sendFeishuInteractiveMessage({
-          receiveId: binding.chatId,
-          receiveIdType: 'chat_id',
+          receiveId: target.receiveId,
+          receiveIdType: target.receiveIdType,
           card: buildAssistantRelayCard(
             { ...message, content: relay.text },
             binding.chatType === 'p2p' ? 'p2p' : 'group',
           ),
         });
       } catch {
-        console.warn('Interactive Live Room relay failed; falling back to text.');
-        await sendFeishuTextMessage({
-          receiveId: binding.chatId,
-          receiveIdType: 'chat_id',
-          text: `${message.senderName}\n\n${relay.text}`,
-        });
+        // Fallback stays inside the same target: for a task thread the fallback
+        // text is sent to the thread, never to the group root.
+        try {
+          await sendFeishuTextMessage({
+            receiveId: target.receiveId,
+            receiveIdType: target.receiveIdType,
+            text: `${message.senderName}\n\n${relay.text}`,
+          });
+        } catch (fallbackError) {
+          console.error('Live Room thread relay failed; refusing group broadcast', {
+            bindingId: binding.id,
+            threadScoped: target.threadScoped,
+            error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          });
+        }
       }
     }
     for (const filePath of relay.imagePaths) {
       await sendFeishuLocalImageMessage({
-        receiveId: binding.chatId,
-        receiveIdType: 'chat_id',
+        receiveId: target.receiveId,
+        receiveIdType: target.receiveIdType,
         filePath,
       });
     }
   } else {
     await sendFeishuTextMessage({
-      receiveId: binding.chatId,
-      receiveIdType: 'chat_id',
+      receiveId: target.receiveId,
+      receiveIdType: target.receiveIdType,
       text: message.content,
     });
   }

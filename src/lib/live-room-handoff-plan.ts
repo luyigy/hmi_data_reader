@@ -1,6 +1,6 @@
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
-import { getBoundLiveRoom } from '@/lib/feishu-live-room';
+import { isFeishuRoomBoundToChat } from '@/lib/feishu-live-room';
 import {
   buildLiveRoomAcpxParticipant,
   parseLiveRoomMessageMetadata,
@@ -119,8 +119,32 @@ export async function promoteLiveRoomHandoffToPlan(args: {
   context: FeishuConversationContext;
   onStarted?: () => void;
 }) {
-  const room = await getBoundLiveRoom(args.context);
-  if (!room || room.id !== args.roomId || !room.sourceTask) {
+  // The card value carries a client-visible roomId: never trust it directly.
+  // Load the room server-side and require a persisted binding between that room
+  // and the chat the card was clicked in (task threads share the group chat id).
+  const room = await prisma.liveRoom.findUnique({
+    where: { id: args.roomId },
+    include: {
+      members: {
+        include: {
+          gateway: true,
+          agentRecord: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+      sourceTask: {
+        include: {
+          currentTaskSession: true,
+        },
+      },
+    },
+  });
+  if (!room || !room.sourceTask
+    || !await isFeishuRoomBoundToChat({
+      roomId: args.roomId,
+      chatId: args.context.chatId,
+      appId: args.context.appId,
+    })) {
     return '当前飞书会话与该 Handoff 房间不匹配，未生成 PLAN。';
   }
 
@@ -292,18 +316,30 @@ export function handleLiveRoomHandoffPlanCardAction(args: {
     || typeof args.value.rootMessageId !== 'string') {
     return { toast: { type: 'warning', content: 'Handoff PLAN 按钮已失效' } };
   }
-  void promoteLiveRoomHandoffToPlan({
-    roomId: args.value.roomId,
-    rootMessageId: args.value.rootMessageId,
-    context: {
-      chatId: args.chatId,
-      chatType: args.value.chatType === 'p2p' ? 'p2p' : 'group',
-      senderOpenId: args.openId,
-      messageId: args.messageId || '',
-    },
-    onStarted: args.onStarted,
-  }).catch((err) => {
-    console.error(`${args.prefix} handoff PLAN promotion failed`, { err });
-  });
-  return { toast: { type: 'success', content: '已开始生成审批 PLAN；重复点击不会创建第二份' } };
+  // Reject forged cross-room cards before any work starts: the room must be
+  // bound to the chat the card was clicked in.
+  return isFeishuRoomBoundToChat({ roomId: args.value.roomId, chatId: args.chatId })
+    .then((bound) => {
+      if (!bound) {
+        return { toast: { type: 'warning', content: '当前飞书会话与该 Handoff 房间不匹配' } };
+      }
+      void promoteLiveRoomHandoffToPlan({
+        roomId: args.value.roomId as string,
+        rootMessageId: args.value.rootMessageId as string,
+        context: {
+          chatId: args.chatId!,
+          chatType: args.value.chatType === 'p2p' ? 'p2p' : 'group',
+          senderOpenId: args.openId!,
+          messageId: args.messageId || '',
+        },
+        onStarted: args.onStarted,
+      }).catch((err) => {
+        console.error(`${args.prefix} handoff PLAN promotion failed`, { err });
+      });
+      return { toast: { type: 'success', content: '已开始生成审批 PLAN；重复点击不会创建第二份' } };
+    })
+    .catch((err) => {
+      console.error(`${args.prefix} handoff PLAN room validation failed`, { err });
+      return { toast: { type: 'warning', content: 'Handoff PLAN 按钮已失效' } };
+    });
 }

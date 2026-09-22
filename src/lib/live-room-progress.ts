@@ -28,16 +28,35 @@ export const attachLiveRoomProgress = async ({
   sourceMessage: { metadata?: string | null };
 }) => {
   const sourceMetadata = parseLiveRoomMessageMetadata(sourceMessage.metadata);
-  const bindingRows = await prisma.$queryRaw<Array<{ chatId: string }>>`
-    SELECT "chatId" FROM "FeishuConversationBinding"
-    WHERE "liveRoomId" = ${room.id}
-    LIMIT 1
-  `;
   const metadataChatId = typeof sourceMetadata?.feishuChatId === 'string'
     ? sourceMetadata.feishuChatId
     : null;
-  const progressTracker = metadataChatId || bindingRows[0]?.chatId
-    ? new FeishuProgressTracker(metadataChatId || bindingRows[0].chatId)
+  // Prefer the exact binding recorded on the inbound message; a metadata id from
+  // another room must never redirect this room's progress output.
+  const metadataBindingId = typeof sourceMetadata?.feishuBindingId === 'string'
+    ? sourceMetadata.feishuBindingId
+    : null;
+  let originBinding: { chatId: string; threadId: string | null } | null = null;
+  if (metadataBindingId) {
+    const byId = await prisma.feishuConversationBinding.findUnique({
+      where: { id: metadataBindingId },
+      select: { chatId: true, threadId: true, liveRoomId: true },
+    });
+    if (byId && byId.liveRoomId === room.id) originBinding = { chatId: byId.chatId, threadId: byId.threadId };
+  }
+  if (!originBinding) {
+    const bindingRows = await prisma.$queryRaw<Array<{ chatId: string; threadId: string | null }>>`
+      SELECT "chatId", "threadId" FROM "FeishuConversationBinding"
+      WHERE "liveRoomId" = ${room.id}
+      LIMIT 1
+    `;
+    originBinding = bindingRows[0] || null;
+  }
+  const progressTracker = originBinding || metadataChatId
+    ? new FeishuProgressTracker({
+        chatId: originBinding?.chatId || metadataChatId!,
+        threadId: originBinding?.threadId ?? null,
+      })
     : null;
   const relayOrigin = {
     feishuBindingId: sourceMetadata?.feishuBindingId,

@@ -75,7 +75,7 @@ const checkPromotionIdempotency = async () => {
   let runs = 0;
   let startedNotices = 0;
   const feishuLiveRoom = feishuLiveRoomModule as unknown as {
-    getBoundLiveRoom: (...args: unknown[]) => Promise<unknown>;
+    isFeishuRoomBoundToChat: (args: { roomId: string; chatId: string }) => Promise<boolean>;
   };
   const runner = runnerModule as unknown as {
     executeAcpxTaskRun: (...args: unknown[]) => Promise<unknown>;
@@ -87,8 +87,9 @@ const checkPromotionIdempotency = async () => {
   const stores = prisma as unknown as {
     workflowDispatch: Record<string, AsyncStoreMethod>;
     liveRoomMessage: Record<string, AsyncStoreMethod>;
+    liveRoom: Record<string, AsyncStoreMethod>;
   };
-  const originalGetBoundLiveRoom = feishuLiveRoom.getBoundLiveRoom;
+  const originalIsRoomBoundToChat = feishuLiveRoom.isFeishuRoomBoundToChat;
   const originalExecute = runner.executeAcpxTaskRun;
   const originalPost = liveRoomMessages.postLiveRoomMessage;
   const originalDispatchUpsert = stores.workflowDispatch.upsert;
@@ -96,6 +97,7 @@ const checkPromotionIdempotency = async () => {
   const originalDispatchUpdate = stores.workflowDispatch.update;
   const originalMessageFindMany = stores.liveRoomMessage.findMany;
   const originalMessageFindUnique = stores.liveRoomMessage.findUnique;
+  const originalRoomFindUnique = stores.liveRoom.findUnique;
 
   try {
     await execFileAsync('git', ['init'], { cwd: workingDirectory });
@@ -106,7 +108,7 @@ const checkPromotionIdempotency = async () => {
     await execFileAsync('git', ['add', 'README.md'], { cwd: workingDirectory });
     await execFileAsync('git', ['commit', '-m', 'fixture'], { cwd: workingDirectory });
 
-    feishuLiveRoom.getBoundLiveRoom = async () => ({
+    const roomRecord = {
       id: 'room-1',
       sourceTask: {
         id: 'task-1',
@@ -131,7 +133,9 @@ const checkPromotionIdempotency = async () => {
         codexReasoningEffort: null,
         gateway: null,
       }],
-    });
+    };
+    stores.liveRoom.findUnique = async () => roomRecord;
+    feishuLiveRoom.isFeishuRoomBoundToChat = async ({ roomId, chatId }) => roomId === 'room-1' && chatId === 'chat-1';
     runner.executeAcpxTaskRun = async () => {
       runs += 1;
       const planPath = 'docs/901_PLAN_20260731_HandoffFixture.md';
@@ -208,6 +212,12 @@ const checkPromotionIdempotency = async () => {
     assert.match(first, /审批 PLAN 已提交/);
     assert.match(recovered, /已恢复/);
     assert.match(duplicate, /已生成审批 PLAN/);
+    const forged = await promoteLiveRoomHandoffToPlan({
+      roomId: 'room-1',
+      rootMessageId: 'root-1',
+      context: { ...context, chatId: 'chat-other' },
+    });
+    assert.match(forged, /不匹配/, 'forged cross-room cards must be rejected by the server-side mapping');
     assert.equal(runs, 1);
     assert.equal(startedNotices, 1);
     assert.equal(receipts.length, 1);
@@ -215,7 +225,7 @@ const checkPromotionIdempotency = async () => {
       cwd: workingDirectory,
     })).stdout.trim(), '2');
   } finally {
-    feishuLiveRoom.getBoundLiveRoom = originalGetBoundLiveRoom;
+    feishuLiveRoom.isFeishuRoomBoundToChat = originalIsRoomBoundToChat;
     runner.executeAcpxTaskRun = originalExecute;
     liveRoomMessages.postLiveRoomMessage = originalPost;
     stores.workflowDispatch.upsert = originalDispatchUpsert;
@@ -223,6 +233,7 @@ const checkPromotionIdempotency = async () => {
     stores.workflowDispatch.update = originalDispatchUpdate;
     stores.liveRoomMessage.findMany = originalMessageFindMany;
     stores.liveRoomMessage.findUnique = originalMessageFindUnique;
+    stores.liveRoom.findUnique = originalRoomFindUnique;
     await fs.rm(workingDirectory, { recursive: true, force: true });
   }
 };

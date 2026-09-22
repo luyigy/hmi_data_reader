@@ -14,9 +14,15 @@ import {
   updateFeishuApprovalCardResolved,
 } from '@/lib/feishu-api';
 import {
+  buildFeishuTopicIdentity,
+  hasFeishuTopicIdentityFields,
+  replyToFeishuConversation,
+} from '@/lib/feishu-topic-reply';
+import {
   getBoundLiveRoom,
   tryRelayNonCommandToLiveRoom,
   UNBOUND_FEISHU_LIVE_ROOM_HINT,
+  isFeishuTopicRejection,
 } from '@/lib/feishu-live-room';
 import {
   createFeishuRuntimeStatus,
@@ -83,7 +89,9 @@ type FeishuWsMessagePayload = {
     chat_id?: string;
     chat_type?: string;
     message_id?: string;
+    root_id?: string;
     parent_id?: string;
+    thread_id?: string;
     message_type?: string;
     content?: string;
     mentions?: Array<{
@@ -165,7 +173,9 @@ function parseWsIncomingMessage(payload: FeishuWsMessagePayload) {
     chatId: message.chat_id,
     chatType: message.chat_type || 'group',
     messageId: message.message_id,
+    rootId: message.root_id,
     parentId: message.parent_id,
+    threadId: message.thread_id,
     senderOpenId,
     messageType: parsedContent.messageType,
     text: parsedContent.text,
@@ -627,6 +637,8 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
 
       void (async () => {
         const parentMessageId = parsedMessage.parentId;
+        const topicIdentity = buildFeishuTopicIdentity(parsedMessage);
+        const topicScoped = hasFeishuTopicIdentityFields(topicIdentity);
         const message = await hydrateFeishuMessageResources(parsedMessage);
         if (!message) {
           console.log(`${prefix} ignored event: resource hydration failed`);
@@ -641,11 +653,11 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
           feedback: message.text,
         });
         if (revisionFeedback.status === 'applied') {
-          await sendFeishuTextMessage({
-            receiveId: message.chatId,
-            receiveIdType: 'chat_id',
-            replyId: message.messageId,
+          await replyToFeishuConversation({
+            chatId: message.chatId,
+            messageId: message.messageId,
             text: '✅ 修改意见已收到，正在通知 Coding Agent 修订 PLAN。',
+            topicScoped,
           });
           return;
         }
@@ -660,10 +672,25 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
               senderOpenId: message.senderOpenId,
               messageId: message.messageId,
               mentionNames: message.mentionNames,
+              ...topicIdentity,
             },
             content: message.text,
             typingReactionId: relayTypingReactionId ?? undefined,
-          }).catch((err) => {
+          }).catch(async (err) => {
+            if (isFeishuTopicRejection(err)) {
+              // Unknown or archived topics never reach the group room; answer the
+              // sender in place with an explicit notice instead of a generic hint.
+              if (relayTypingReactionId) {
+                await removeTypingReaction(message.messageId, relayTypingReactionId);
+              }
+              await replyToFeishuConversation({
+                chatId: message.chatId,
+                messageId: message.messageId,
+                text: err instanceof Error ? err.message : String(err),
+                topicScoped,
+              });
+              return true;
+            }
             console.error(`${prefix} relay non-command failed`, { error: err });
             return false;
           });
@@ -687,6 +714,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
                 senderOpenId: message.senderOpenId,
                 messageId: message.messageId,
                 mentionNames: message.mentionNames,
+                ...topicIdentity,
               },
               replyId: message.messageId,
             }).catch((warningError) => {
@@ -715,6 +743,7 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
               senderOpenId: message.senderOpenId,
               messageId: message.messageId,
               mentionNames: message.mentionNames,
+              ...topicIdentity,
             },
           });
 
@@ -727,11 +756,11 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
             await removeTypingReaction(message.messageId, typingReactionId);
           }
 
-          await sendFeishuTextMessage({
-            receiveId: message.chatId,
-            receiveIdType: 'chat_id',
-            replyId: message.messageId,
+          await replyToFeishuConversation({
+            chatId: message.chatId,
+            messageId: message.messageId,
             text: responseText,
+            topicScoped,
           });
 
           console.log(`${prefix} reply sent`, {
@@ -748,11 +777,11 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
             await removeTypingReaction(message.messageId, typingReactionId);
           }
           try {
-            await sendFeishuTextMessage({
-              receiveId: message.chatId,
-              receiveIdType: 'chat_id',
-              replyId: message.messageId,
-              text: `命令执行失败：${lastError}`,
+            await replyToFeishuConversation({
+              chatId: message.chatId,
+              messageId: message.messageId,
+              text: isFeishuTopicRejection(error) ? lastError : `命令执行失败：${lastError}`,
+              topicScoped,
             });
           } catch (replyError) {
             console.error(`${prefix} failed to send error reply`, {
