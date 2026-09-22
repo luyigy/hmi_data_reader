@@ -130,6 +130,7 @@ export async function sendFeishuInteractiveMessage(args: {
   card: Record<string, unknown>;
   receiveIdType?: FeishuReceiveIdType;
   replyId?: string;
+  uuid?: string;
 }): Promise<string | undefined> {
   const token = await getFeishuTenantAccessToken();
   const receiveIdType = args.receiveIdType || 'chat_id';
@@ -144,6 +145,7 @@ export async function sendFeishuInteractiveMessage(args: {
     },
     body: JSON.stringify({
       receive_id: args.receiveId,
+      ...(args.uuid ? { uuid: args.uuid } : {}),
       msg_type: 'interactive',
       content: JSON.stringify(args.card),
       ...(args.replyId ? { reply_id: args.replyId } : {}),

@@ -491,7 +491,7 @@ export async function handleRoomCommand(
     return [
       `该话题已绑定任务房间：${room?.title || binding.liveRoomId}`,
       '话题内请使用 /ap add 调整成员、/ap members 查看房间；',
-      '新的任务创建入口将在隔离开关（S03）开放后提供，请勿在话题内重新执行 /ap room。',
+      '请在群根会话使用 /ap task new --title=任务名 --workdir=<目录> 创建新任务。',
     ].join('\n');
   }
 

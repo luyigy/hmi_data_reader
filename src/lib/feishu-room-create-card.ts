@@ -72,3 +72,13 @@ export async function openFeishuRoomCreationCard(args: {
     },
   };
 }
+
+export function buildFeishuTaskEntryCard(title: string, requestId: string, state: 'pending' | 'ready' | 'archived' = 'pending') {
+  const status = state === 'ready' ? '就绪：在本卡片话题内用 /ap add --agents=local:codex 添加成员，然后持续对话。停止、新会话和加成员均只作用于本任务。'
+    : state === 'archived' ? '已归档：不会隐式恢复执行。' : '正在创建：绑定完成前请勿执行任务。';
+  return {
+    config: { wide_screen_mode: true },
+    header: { title: { tag: 'plain_text', content: title }, template: state === 'ready' ? 'green' : 'grey' },
+    elements: [{ tag: 'div', text: { tag: 'plain_text', content: `${status}\n请求：${requestId}\n创建失败时在群根会话发送 /ap task retry ${requestId}\n关闭隔离模式不改变已有任务归属。共享目录不提供文件修改隔离。` } }],
+  };
+}
