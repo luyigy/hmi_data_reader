@@ -425,6 +425,9 @@ model FeishuConversationBinding {
   chatType           String
   senderOpenId       String?
   latestMessageId    String?
+  appId              String?
+  threadId           String?
+  rootMessageId      String?
   typingReactionId   String?
   typingForMessageId String?
   liveRoomId         String
@@ -434,6 +437,33 @@ model FeishuConversationBinding {
 
   @@index([chatId, updatedAt])
   @@index([liveRoomId])
+  @@unique([appId, chatId, threadId])
+  @@unique([appId, chatId, rootMessageId])
+}
+
+model FeishuGroupTaskSettings {
+  appId            String
+  chatId           String
+  isolationEnabled Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  @@id([appId, chatId])
+}
+
+// Durable creation intent; no room exists until the card's thread is confirmed.
+model FeishuTaskBindingRequest {
+  id               String   @id @default(cuid())
+  appId            String
+  chatId           String
+  sourceMessageId  String
+  title            String
+  workingDirectory String
+  rootMessageId    String?
+  bindingId        String?  @unique
+  createdAt        DateTime @default(now())
+
+  @@unique([appId, chatId, sourceMessageId])
+  @@unique([appId, chatId, rootMessageId])
 }
 
 model FeishuUserAccess {
