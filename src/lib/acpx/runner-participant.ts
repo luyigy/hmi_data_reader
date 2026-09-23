@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { persistCodexTokenUsageMetadata } from '@/lib/codex-telemetry';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
+import { prepareFeishuBroadcastPrompt, ackFeishuBroadcastPrompt } from '@/lib/feishu-task-broadcast';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
 import { publishTaskRunEvent } from './event-bus';
 import { clearRunningProcess, consumeRunControlRequest } from './process-registry';
@@ -217,6 +218,13 @@ export const executeParticipant = async (
       ? await getWorkflowCompletionBaseline(request.workingDirectory || process.cwd())
       : null;
     const taskRoomContext = await buildTaskRoomPromptContext(request.taskId, request.taskName, 30);
+    const broadcasts = await prepareFeishuBroadcastPrompt(request, participant);
+    if (broadcasts?.text) {
+      taskRoomContext.transcript += broadcasts.text;
+      if (participant.continuationMessage) {
+        participant = { ...participant, continuationMessage: participant.continuationMessage + broadcasts.text };
+      }
+    }
     const contextWarning = await checkContextWatermark(
       request.taskId,
       request.taskName,
@@ -355,6 +363,14 @@ export const executeParticipant = async (
       content: `${participant.role} 执行完成`,
     });
     await finishPendingTaskRunInteractionRequests({ participantId, status: 'cancelled' });
+
+    // Acknowledge only the frozen input of a successful attempt. An ack outage
+    // leaves it pending for replay by stable ID; never fail a completed model run.
+    try {
+      await ackFeishuBroadcastPrompt(broadcasts, result.sessionId || result.threadId);
+    } catch (error) {
+      console.error('[ACPX] Feishu broadcast acknowledgement failed:', error);
+    }
 
     return {
       participantId,
