@@ -1,3 +1,4 @@
+import { handleFeishuBroadcastCommand } from '@/lib/feishu-broadcast-command';
 import { handleFeishuTaskCommand } from '@/lib/feishu-task-entry';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
@@ -89,6 +90,8 @@ export async function handleFeishuCommand(args: {
       return handleRunCommand(args.command);
     case 'register':
       return handleRegisterCommand(args.command);
+    case 'broadcast':
+      return handleFeishuBroadcastCommand(args.command, args.context);
     case 'isolation':
     case 'task':
       return handleFeishuTaskCommand(args.command, args.context);

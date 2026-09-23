@@ -1,7 +1,7 @@
 import type { ParsedFeishuMessage } from '@/lib/feishu-message-content';
 
 export type ParsedFeishuCommand = {
-  command: 'task' | 'isolation' | 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'discover-agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'timeout' | 'mode' | 'members' | 'nick' | 'role' | 'specialty' | 'restrict' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'doc' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'inbox' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job' | 'branch';
+  command: 'broadcast' | 'task' | 'isolation' | 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'discover-agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'timeout' | 'mode' | 'members' | 'nick' | 'role' | 'specialty' | 'restrict' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'doc' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'inbox' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job' | 'branch';
   args: string[];
   options: Record<string, string>;
 };
@@ -54,6 +54,10 @@ function tokenizeCommandText(input: string) {
 }
 
 export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCommand | null {
+  // Broadcast body is user text, not command options: preserve quotes/newlines.
+  const broadcast = message.text.replace(/^\s*(?:<at user_id="[^"]+">[^<]*<\/at>|@\S+)\s*/, '').trimStart()
+    .match(/^\/ap\s+broadcast(?:[ \t]|\r?\n|$)([\s\S]*)$/i);
+  if (broadcast) return { command: 'broadcast', args: [broadcast[1]], options: {} };
   const cleanedText = stripBotMention(message.text);
   const firstLine = cleanedText.split(/\r?\n/, 1)[0].trim();
   const commandSource = /^\/ap\s+add(?:\s|$)/i.test(firstLine) ? firstLine : cleanedText;

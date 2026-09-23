@@ -7,6 +7,7 @@ const HELP_PAGES = [
     '/ap menu  返回分类命令卡片',
     '/ap isolation [status|on|off]  群任务隔离（默认关闭，仅群管理员/平台管理员可修改）',
     '/ap task new --title=任务名 --workdir=<目录>  创建独立任务入口卡；在卡片话题内续聊',
+    '/ap broadcast <通知原文>  群主聊天区广播；目标任务各成员下一轮可见，不立即唤醒或打断',
     '/ap task retry <请求ID>  恢复失败的创建；关闭后已有任务仍保持隔离',
     '/ap room --workdir=<目录> [--agents=<local:codex,local:claude>] [--topic=xxx] [--profile=safe|dev|full] [--mode=discussion|execution|hybrid] [--handoff-limit=<0-32>] [--timeout=<1-1440 分钟>] [title]',
     '/ap handoff-limit [0-32]',

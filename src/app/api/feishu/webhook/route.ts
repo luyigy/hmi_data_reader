@@ -1,3 +1,4 @@
+import { buildFeishuTopicIdentity } from '@/lib/feishu-topic-reply';
 import { NextRequest, NextResponse } from 'next/server';
 import { unstable_noStore as noStore } from 'next/cache';
 import {
@@ -88,6 +89,7 @@ export async function POST(request: NextRequest) {
           senderOpenId: message.senderOpenId,
           messageId: message.messageId,
           mentionNames: message.mentionNames,
+          ...buildFeishuTopicIdentity(message),
         },
         content: message.text,
         typingReactionId: relayTypingReactionId ?? undefined,
@@ -114,6 +116,7 @@ export async function POST(request: NextRequest) {
             senderOpenId: message.senderOpenId,
             messageId: message.messageId,
             mentionNames: message.mentionNames,
+            ...buildFeishuTopicIdentity(message),
           },
           replyId: message.messageId,
         }).catch((warningError) => {
@@ -135,6 +138,7 @@ export async function POST(request: NextRequest) {
           senderOpenId: message.senderOpenId,
           messageId: message.messageId,
           mentionNames: message.mentionNames,
+          ...buildFeishuTopicIdentity(message),
         },
       });
     } finally {

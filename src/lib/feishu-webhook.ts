@@ -30,6 +30,9 @@ type FeishuIncomingEvent = {
       };
     };
     message?: {
+      thread_id?: string;
+      root_id?: string;
+      parent_id?: string;
       chat_id?: string;
       chat_type?: string;
       message_id?: string;
@@ -160,6 +163,9 @@ export function parseFeishuMessage(payload: FeishuIncomingEvent): ParsedFeishuMe
   }
 
   return {
+    threadId: message.thread_id,
+    rootId: message.root_id,
+    parentId: message.parent_id,
     chatId: message.chat_id,
     chatType: message.chat_type || 'group',
     messageId: message.message_id,

@@ -2,6 +2,9 @@ import { downloadFeishuMessageResource } from '@/lib/feishu-api';
 import { extractFeishuPostContent } from '@/lib/feishu-post-text';
 
 export type ParsedFeishuMessage = {
+  threadId?: string;
+  rootId?: string;
+  parentId?: string;
   chatId: string;
   chatType: string;
   messageId: string;
