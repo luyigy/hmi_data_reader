@@ -2,6 +2,7 @@ import path from 'node:path';
 import { prisma } from '@/lib/prisma';
 import {
   removeTypingReaction,
+  resolveFeishuMessageTarget,
   sendFeishuInteractiveMessage,
   sendFeishuLocalImageMessage,
   sendFeishuTextMessage,
@@ -37,12 +38,11 @@ export const selectFeishuRelayBinding = (
     || (bindings.length === 1 ? bindings[0] : null);
 };
 
-/** Task-thread bindings must deliver inside their topic: use the SDK-verified
- *  thread_id receive type. Failures never degrade to a group chat broadcast. */
-export const resolveFeishuRelaySendTarget = (binding: FeishuConversationBindingRow) =>
-  binding.threadId
-    ? { receiveId: binding.threadId, receiveIdType: 'thread_id' as const, threadScoped: true }
-    : { receiveId: binding.chatId, receiveIdType: 'chat_id' as const, threadScoped: false };
+/** Replies and fallbacks use the persisted entry root of the same task. */
+export const resolveFeishuRelaySendTarget = (binding: FeishuConversationBindingRow) => ({
+  ...resolveFeishuMessageTarget(binding),
+  threadScoped: !!binding.threadId,
+});
 
 export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   // Suppress relay when an interactive Feishu progress card is handling the same events
@@ -211,8 +211,7 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
     if (relay.text) {
       try {
         await sendFeishuInteractiveMessage({
-          receiveId: target.receiveId,
-          receiveIdType: target.receiveIdType,
+          ...target,
           card: buildAssistantRelayCard(
             { ...message, content: relay.text },
             binding.chatType === 'p2p' ? 'p2p' : 'group',
@@ -223,8 +222,7 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
         // text is sent to the thread, never to the group root.
         try {
           await sendFeishuTextMessage({
-            receiveId: target.receiveId,
-            receiveIdType: target.receiveIdType,
+            ...target,
             text: `${message.senderName}\n\n${relay.text}`,
           });
         } catch (fallbackError) {
@@ -238,15 +236,13 @@ export async function relayLiveRoomMessageToFeishu(message: LiveRoomMessagePaylo
     }
     for (const filePath of relay.imagePaths) {
       await sendFeishuLocalImageMessage({
-        receiveId: target.receiveId,
-        receiveIdType: target.receiveIdType,
+        ...target,
         filePath,
       });
     }
   } else {
     await sendFeishuTextMessage({
-      receiveId: target.receiveId,
-      receiveIdType: target.receiveIdType,
+      ...target,
       text: message.content,
     });
   }

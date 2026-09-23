@@ -167,12 +167,14 @@ assert.deepEqual(
 // group broadcast, even when both the interactive card and the text fallback fail.
 assert.deepEqual(
   resolveFeishuRelaySendTarget({ ...bindings[0], threadId: 'thread-a', rootMessageId: 'root-a', appId: 'app' }),
-  { receiveId: 'thread-a', receiveIdType: 'thread_id', threadScoped: true },
+  { receiveId: 'chat-a', receiveIdType: 'chat_id', threadRootMessageId: 'root-a', threadScoped: true },
 );
 assert.deepEqual(
   resolveFeishuRelaySendTarget(bindings[0]),
   { receiveId: 'chat-a', receiveIdType: 'chat_id', threadScoped: false },
 );
+
+assert.throws(() => resolveFeishuRelaySendTarget({ ...bindings[0], threadId: 'thread-a' }), /missing its root/);
 
 const checkThreadRelay = async () => {
   const feishuApi = feishuApiModule as {
@@ -184,7 +186,8 @@ const checkThreadRelay = async () => {
   const originalInteractive = feishuApi.sendFeishuInteractiveMessage;
   const originalText = feishuApi.sendFeishuTextMessage;
   const originalImage = feishuApi.sendFeishuLocalImageMessage;
-  const sends: Array<{ kind: string; receiveId: string; receiveIdType: string }> = [];
+  const sends: Array<{ kind: string; receiveId: string; receiveIdType: string; threadRootMessageId?: string }> = [];
+  const recordSend = (call: typeof sends[number]) => sends.push(call);
   const threadBinding = {
     ...bindings[0],
     appId: 'app',
@@ -195,21 +198,21 @@ const checkThreadRelay = async () => {
   threadMessage.metadata = { feishuBindingId: 'binding-a', feishuChatId: 'chat-a' };
 
   prisma.$queryRaw = (async () => [threadBinding]) as typeof prisma.$queryRaw;
-  feishuApi.sendFeishuInteractiveMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
-    sends.push({ kind: 'interactive', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+  feishuApi.sendFeishuInteractiveMessage = async ({ receiveId, receiveIdType, threadRootMessageId }: { receiveId: string; receiveIdType?: string; threadRootMessageId?: string }) => {
+    recordSend({ kind: 'interactive', receiveId, receiveIdType: receiveIdType || 'chat_id', threadRootMessageId });
     return 'om-card';
   };
-  feishuApi.sendFeishuTextMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
-    sends.push({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+  feishuApi.sendFeishuTextMessage = async ({ receiveId, receiveIdType, threadRootMessageId }: { receiveId: string; receiveIdType?: string; threadRootMessageId?: string }) => {
+    recordSend({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id', threadRootMessageId });
   };
-  feishuApi.sendFeishuLocalImageMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
-    sends.push({ kind: 'image', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+  feishuApi.sendFeishuLocalImageMessage = async ({ receiveId, receiveIdType, threadRootMessageId }: { receiveId: string; receiveIdType?: string; threadRootMessageId?: string }) => {
+    recordSend({ kind: 'image', receiveId, receiveIdType: receiveIdType || 'chat_id', threadRootMessageId });
     return 'om-image';
   };
 
   try {
     await relayLiveRoomMessageToFeishu(threadMessage);
-    assert.deepEqual(sends, [{ kind: 'interactive', receiveId: 'thread-a', receiveIdType: 'thread_id' }]);
+    assert.deepEqual(sends, [{ kind: 'interactive', receiveId: 'chat-a', receiveIdType: 'chat_id', threadRootMessageId: 'root-a' }]);
 
     // Failure retry: interactive card failing must fall back to text inside the
     // same thread, never to the group chat id.
@@ -218,16 +221,16 @@ const checkThreadRelay = async () => {
       throw new Error('card rejected');
     };
     await relayLiveRoomMessageToFeishu(threadMessage);
-    assert.deepEqual(sends, [{ kind: 'text', receiveId: 'thread-a', receiveIdType: 'thread_id' }]);
+    assert.deepEqual(sends, [{ kind: 'text', receiveId: 'chat-a', receiveIdType: 'chat_id', threadRootMessageId: 'root-a' }]);
 
     // Total thread failure must not degrade into any group-root send.
     sends.length = 0;
-    feishuApi.sendFeishuTextMessage = async ({ receiveId, receiveIdType }: { receiveId: string; receiveIdType?: string }) => {
-      sends.push({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+    feishuApi.sendFeishuTextMessage = async ({ receiveId, receiveIdType, threadRootMessageId }: { receiveId: string; receiveIdType?: string; threadRootMessageId?: string }) => {
+      recordSend({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id', threadRootMessageId });
       throw new Error('thread unavailable');
     };
     await relayLiveRoomMessageToFeishu(threadMessage);
-    assert.deepEqual(sends, [{ kind: 'text', receiveId: 'thread-a', receiveIdType: 'thread_id' }]);
+    assert.deepEqual(sends, [{ kind: 'text', receiveId: 'chat-a', receiveIdType: 'chat_id', threadRootMessageId: 'root-a' }]);
   } finally {
     prisma.$queryRaw = originalQueryRaw;
     feishuApi.sendFeishuInteractiveMessage = originalInteractive;

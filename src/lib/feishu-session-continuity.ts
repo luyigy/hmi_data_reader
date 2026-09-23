@@ -1,4 +1,4 @@
-import { sendFeishuTextMessage } from '@/lib/feishu-api';
+import { resolveFeishuMessageTarget, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { prisma } from '@/lib/prisma';
 import { resolveFeishuConversationTarget } from '@/lib/feishu-live-room';
 
@@ -19,6 +19,7 @@ export type FeishuSessionContinuityArgs = {
 type FeishuBindingRow = {
   liveRoomId: string;
   threadId: string | null;
+  rootMessageId: string | null;
 };
 
 type ExpiredSessionRow = {
@@ -54,7 +55,7 @@ export async function maybeSendFeishuSessionWatermarkWarning({
     return false;
   }
   const binding: FeishuBindingRow | null = target.binding
-    ? { liveRoomId: target.binding.liveRoomId, threadId: target.binding.threadId }
+    ? { liveRoomId: target.binding.liveRoomId, threadId: target.binding.threadId, rootMessageId: target.binding.rootMessageId }
     : null;
 
   if (!binding) {
@@ -80,8 +81,7 @@ export async function maybeSendFeishuSessionWatermarkWarning({
   }
 
   await sendFeishuTextMessage({
-    receiveId: binding.threadId || context.chatId,
-    receiveIdType: binding.threadId ? 'thread_id' : 'chat_id',
+    ...resolveFeishuMessageTarget({ ...binding, chatId: context.chatId }),
     replyId,
     text: buildWarningText(expiredSessions),
   });

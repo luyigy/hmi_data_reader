@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client';
 // Runs against an isolated random PostgreSQL schema built from the real
 // migrations (same bootstrap as tests/feishu-task-binding.test.ts).
 
-type SendCall = { kind: string; receiveId: string; receiveIdType: string; payload?: string };
+type SendCall = { kind: string; receiveId: string; receiveIdType: string; threadRootMessageId?: string; payload?: string };
 
 async function main() {
   const scope = { appId: 'test-app', chatId: 'test-group' };
@@ -93,25 +93,33 @@ async function main() {
 
     // ---- capture every outbound Feishu call; nothing may hit the network ----
     const sends: SendCall[] = [];
+    const networkFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => {
+      if (String(input).endsWith('/tenant_access_token/internal')) {
+        return Response.json({ code: 0, tenant_access_token: 'test-token', expire: 3600 });
+      }
+      assert.equal(init?.method, 'PATCH', 'unexpected outbound network call');
+      return Response.json({ code: 0 });
+    }) as typeof fetch;
     const feishuSends = feishuApi as {
-      sendFeishuInteractiveMessage: (args: { receiveId: string; receiveIdType?: string; card: Record<string, unknown> }) => Promise<string | undefined>;
-      sendFeishuTextMessage: (args: { receiveId: string; receiveIdType?: string; text: string }) => Promise<void>;
-      sendFeishuLocalImageMessage: (args: { receiveId: string; receiveIdType?: string; filePath: string }) => Promise<string | undefined>;
+      sendFeishuInteractiveMessage: (args: { receiveId: string; receiveIdType?: string; threadRootMessageId?: string; card: Record<string, unknown> }) => Promise<string | undefined>;
+      sendFeishuTextMessage: (args: { receiveId: string; receiveIdType?: string; threadRootMessageId?: string; text: string }) => Promise<void>;
+      sendFeishuLocalImageMessage: (args: { receiveId: string; receiveIdType?: string; threadRootMessageId?: string; filePath: string }) => Promise<string | undefined>;
     };
     const originalSends = {
       interactive: feishuSends.sendFeishuInteractiveMessage,
       text: feishuSends.sendFeishuTextMessage,
       image: feishuSends.sendFeishuLocalImageMessage,
     };
-    feishuSends.sendFeishuInteractiveMessage = async ({ receiveId, receiveIdType, card }) => {
-      sends.push({ kind: 'interactive', receiveId, receiveIdType: receiveIdType || 'chat_id', payload: String((card as { elements?: Array<{ content?: string }> }).elements?.[0]?.content || '') });
+    feishuSends.sendFeishuInteractiveMessage = async ({ receiveId, receiveIdType, threadRootMessageId, card }) => {
+      sends.push({ kind: 'interactive', receiveId, receiveIdType: receiveIdType || 'chat_id', threadRootMessageId, payload: String((card as { elements?: Array<{ content?: string }> }).elements?.[0]?.content || '') });
       return `om-${sends.length}`;
     };
-    feishuSends.sendFeishuTextMessage = async ({ receiveId, receiveIdType, text }) => {
-      sends.push({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id', payload: text });
+    feishuSends.sendFeishuTextMessage = async ({ receiveId, receiveIdType, threadRootMessageId, text }) => {
+      sends.push({ kind: 'text', receiveId, receiveIdType: receiveIdType || 'chat_id', threadRootMessageId, payload: text });
     };
-    feishuSends.sendFeishuLocalImageMessage = async ({ receiveId, receiveIdType }) => {
-      sends.push({ kind: 'image', receiveId, receiveIdType: receiveIdType || 'chat_id' });
+    feishuSends.sendFeishuLocalImageMessage = async ({ receiveId, receiveIdType, threadRootMessageId }) => {
+      sends.push({ kind: 'image', receiveId, receiveIdType: receiveIdType || 'chat_id', threadRootMessageId });
       return `om-${sends.length}`;
     };
 
@@ -161,11 +169,11 @@ async function main() {
       metadata: { source: 'feishu', feishuBindingId: taskB.id, feishuChatId: scope.chatId },
     });
     await new Promise((resolve) => setTimeout(resolve, 250));
-    assert.equal(sends.some(s => s.receiveId === 'thread-A' && s.receiveIdType === 'thread_id' && s.payload?.includes('alpha result')), true, 'A answers go to thread A');
-    assert.equal(sends.some(s => s.receiveId === 'thread-B' && s.receiveIdType === 'thread_id' && s.payload?.includes('beta result')), true, 'B answers go to thread B');
-    assert.equal(sends.some(s => s.receiveId === 'thread-B' && s.payload?.includes('alpha result')), false, 'A answer must never land in thread B');
-    assert.equal(sends.some(s => s.receiveId === 'thread-A' && s.payload?.includes('beta result')), false, 'B answer must never land in thread A');
-    assert.equal(sends.some(s => s.receiveIdType === 'chat_id' && (s.payload?.includes('alpha result') || s.payload?.includes('beta result'))), false, 'task answers must not broadcast to the group chat');
+    assert.equal(sends.some(s => s.threadRootMessageId === 'root-A' && s.receiveIdType === 'chat_id' && s.payload?.includes('alpha result')), true, 'A answers go to thread A');
+    assert.equal(sends.some(s => s.threadRootMessageId === 'root-B' && s.receiveIdType === 'chat_id' && s.payload?.includes('beta result')), true, 'B answers go to thread B');
+    assert.equal(sends.some(s => s.threadRootMessageId === 'root-B' && s.payload?.includes('alpha result')), false, 'A answer must never land in thread B');
+    assert.equal(sends.some(s => s.threadRootMessageId === 'root-A' && s.payload?.includes('beta result')), false, 'B answer must never land in thread A');
+    assert.equal(sends.some(s => !s.threadRootMessageId && (s.payload?.includes('alpha result') || s.payload?.includes('beta result'))), false, 'task answers must not broadcast to the group chat');
 
     // ---- progress cards: attachLiveRoomProgress follows the room's binding ----
     sends.length = 0;
@@ -176,10 +184,10 @@ async function main() {
     });
     progressA.progressTracker?.onSystemEvent('开始处理 A', '🚀');
     await new Promise((resolve) => setTimeout(resolve, 250));
-    assert.equal(sends.some(s => s.receiveId === 'thread-A' && s.receiveIdType === 'thread_id'), true, 'progress card goes to thread A');
-    assert.equal(sends.some(s => s.receiveId === 'thread-B'), false, 'progress card must not go to thread B');
+    assert.equal(sends.some(s => s.threadRootMessageId === 'root-A' && s.receiveIdType === 'chat_id'), true, 'progress card goes to thread A');
+    assert.equal(sends.some(s => s.threadRootMessageId === 'root-B'), false, 'progress card must not go to thread B');
     await progressA.dispose('A 完成', true);
-    assert.equal(sends.some(s => s.receiveId === 'thread-A' && s.kind === 'interactive'), true, 'final card goes to thread A');
+    assert.equal(sends.some(s => s.threadRootMessageId === 'root-A' && s.kind === 'interactive'), true, 'final card goes to thread A');
 
     // Forged metadata: a room A message claiming room B's binding id must not
     // redirect progress output into thread B.
@@ -191,7 +199,7 @@ async function main() {
     });
     progressForged.progressTracker?.onSystemEvent('开始处理（伪造归属）', '🚀');
     await new Promise((resolve) => setTimeout(resolve, 250));
-    assert.equal(sends.every(s => s.receiveId === 'thread-A'), true, 'cross-room binding metadata is ignored and falls back to the room binding');
+    assert.equal(sends.every(s => s.threadRootMessageId === 'root-A'), true, 'cross-room binding metadata is ignored and falls back to the room binding');
     await progressForged.dispose('完成', true);
 
     // ---- final card retry: failed PATCH must re-send inside the same thread ----
@@ -199,12 +207,12 @@ async function main() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => ({ ok: false, status: 500, json: async () => ({ code: 500, msg: 'patch failed' }) })) as unknown as typeof fetch;
     try {
-      const tracker = new (await import('@/lib/feishu-progress')).FeishuProgressTracker({ chatId: scope.chatId, threadId: 'thread-A' });
+      const tracker = new (await import('@/lib/feishu-progress')).FeishuProgressTracker({ chatId: scope.chatId, threadId: 'thread-A', rootMessageId: 'root-A' });
       tracker.onToolEvent('Bash', 'echo hi', '🔨');
       await new Promise((resolve) => setTimeout(resolve, 250));
       const finalId = await tracker.finalize('retry summary', true);
       assert.ok(finalId, 'finalize returns the fallback card message id');
-      assert.equal(sends.length >= 1 && sends.every(s => s.receiveId === 'thread-A' && s.receiveIdType === 'thread_id'), true, 'progress and retry channels stay inside the thread');
+      assert.equal(sends.length === 2 && sends.every(s => s.threadRootMessageId === 'root-A' && s.receiveIdType === 'chat_id'), true, 'progress and retry channels stay inside the thread');
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -238,6 +246,20 @@ async function main() {
       });
       await syncLiveRoomSourceTask(binding.liveRoomId);
     }
+    // Expired-session warnings must use the same persisted task root.
+    const memberA = await prisma.liveRoomMember.findFirstOrThrow({ where: { roomId: taskA.liveRoomId, displayName: 'A-Agent' } });
+    await prisma.liveRoomMemberSession.create({ data: {
+      roomId: taskA.liveRoomId, memberId: memberA.id, backend: 'platform_local',
+      sessionKey: 'expired-A', status: 'expired',
+    } });
+    sends.length = 0;
+    const { maybeSendFeishuSessionWatermarkWarning } = await import('@/lib/feishu-session-continuity');
+    assert.equal(await maybeSendFeishuSessionWatermarkWarning({ context: contextFor('thread-A', 'om-warning') }), true);
+    assert.equal(sends.length, 1);
+    assert.equal(sends[0].threadRootMessageId, 'root-A');
+    assert.match(sends[0].payload!, /A-Agent/);
+    assert.equal(await maybeSendFeishuSessionWatermarkWarning({ context: contextFor('thread-B', 'om-warning-b') }), false);
+
     const stopA = await handleStopAgentCommand(
       { command: 'stop', args: [], options: {} },
       contextFor('thread-A', 'om-a-4'),
@@ -320,6 +342,7 @@ async function main() {
       content: 'no binding',
     }), false);
 
+    globalThis.fetch = networkFetch;
     feishuSends.sendFeishuInteractiveMessage = originalSends.interactive;
     feishuSends.sendFeishuTextMessage = originalSends.text;
     feishuSends.sendFeishuLocalImageMessage = originalSends.image;

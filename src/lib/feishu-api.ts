@@ -92,14 +92,35 @@ export async function getFeishuUserDisplayName(openId: string): Promise<string |
   return data.data?.user?.name?.trim() || null;
 }
 
-type FeishuReceiveIdType = 'chat_id' | 'open_id' | 'thread_id';
+type FeishuReceiveIdType = 'chat_id' | 'open_id';
+
+// A persisted thread must have a verified entry root; never fall back to chat.
+export function resolveFeishuMessageTarget(binding: {
+  chatId: string;
+  threadId?: string | null;
+  rootMessageId?: string | null;
+}) {
+  if (binding.threadId && !binding.rootMessageId?.trim()) {
+    throw new Error('Feishu task thread is missing its root message');
+  }
+  return {
+    receiveId: binding.chatId,
+    receiveIdType: 'chat_id' as const,
+    ...(binding.threadId ? { threadRootMessageId: binding.rootMessageId! } : {}),
+  };
+}
 
 export async function sendFeishuTextMessage(args: {
   receiveId: string;
   text: string;
   receiveIdType?: FeishuReceiveIdType;
+  threadRootMessageId?: string;
   replyId?: string;
 }) {
+  if (args.threadRootMessageId !== undefined) {
+    await replyFeishuMessage({ messageId: args.threadRootMessageId, msgType: 'text', content: { text: args.text }, replyInThread: true });
+    return;
+  }
   const token = await getFeishuTenantAccessToken();
   const receiveIdType = args.receiveIdType || 'chat_id';
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
@@ -129,9 +150,13 @@ export async function sendFeishuInteractiveMessage(args: {
   receiveId: string;
   card: Record<string, unknown>;
   receiveIdType?: FeishuReceiveIdType;
+  threadRootMessageId?: string;
   replyId?: string;
   uuid?: string;
 }): Promise<string | undefined> {
+  if (args.threadRootMessageId !== undefined) {
+    return replyFeishuMessage({ messageId: args.threadRootMessageId, msgType: 'interactive', content: args.card, replyInThread: true, uuid: args.uuid });
+  }
   const token = await getFeishuTenantAccessToken();
   const receiveIdType = args.receiveIdType || 'chat_id';
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
@@ -167,14 +192,14 @@ export async function sendFeishuInteractiveMessage(args: {
 // has no reply_id field, so the legacy replyId helper never threaded anything.
 export async function replyFeishuMessage(args: {
   messageId: string;
-  msgType: 'text' | 'interactive';
+  msgType: 'text' | 'interactive' | 'image';
   content: Record<string, unknown>;
   replyInThread?: boolean;
   uuid?: string;
 }): Promise<string | undefined> {
+  if (!args.messageId.trim()) throw new Error('Feishu reply requires a message ID');
   const token = await getFeishuTenantAccessToken();
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(args.messageId)}/reply`);
-  if (args.uuid) url.searchParams.set('uuid', args.uuid);
 
   const response = await fetch(url.toString(), {
     method: 'POST',
@@ -186,6 +211,7 @@ export async function replyFeishuMessage(args: {
       msg_type: args.msgType,
       content: JSON.stringify(args.content),
       ...(args.replyInThread ? { reply_in_thread: true } : {}),
+      ...(args.uuid ? { uuid: args.uuid } : {}),
     }),
   });
 
@@ -200,6 +226,7 @@ export async function sendFeishuLocalImageMessage(args: {
   receiveId: string;
   filePath: string;
   receiveIdType?: FeishuReceiveIdType;
+  threadRootMessageId?: string;
 }): Promise<string | undefined> {
   const workspaceRoot = await fs.realpath(process.cwd());
   const filePath = await fs.realpath(args.filePath);
@@ -238,6 +265,9 @@ export async function sendFeishuLocalImageMessage(args: {
   }
 
   const receiveIdType = args.receiveIdType || 'chat_id';
+  if (args.threadRootMessageId !== undefined) {
+    return replyFeishuMessage({ messageId: args.threadRootMessageId, msgType: 'image', content: { image_key: imageKey }, replyInThread: true });
+  }
   const sendUrl = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
   sendUrl.searchParams.set('receive_id_type', receiveIdType);
   const sendResponse = await fetch(sendUrl, {

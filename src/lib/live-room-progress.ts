@@ -36,17 +36,17 @@ export const attachLiveRoomProgress = async ({
   const metadataBindingId = typeof sourceMetadata?.feishuBindingId === 'string'
     ? sourceMetadata.feishuBindingId
     : null;
-  let originBinding: { chatId: string; threadId: string | null } | null = null;
+  let originBinding: { chatId: string; threadId: string | null; rootMessageId: string | null } | null = null;
   if (metadataBindingId) {
     const byId = await prisma.feishuConversationBinding.findUnique({
       where: { id: metadataBindingId },
-      select: { chatId: true, threadId: true, liveRoomId: true },
+      select: { chatId: true, threadId: true, rootMessageId: true, liveRoomId: true },
     });
-    if (byId && byId.liveRoomId === room.id) originBinding = { chatId: byId.chatId, threadId: byId.threadId };
+    if (byId && byId.liveRoomId === room.id) originBinding = { chatId: byId.chatId, threadId: byId.threadId, rootMessageId: byId.rootMessageId };
   }
   if (!originBinding) {
-    const bindingRows = await prisma.$queryRaw<Array<{ chatId: string; threadId: string | null }>>`
-      SELECT "chatId", "threadId" FROM "FeishuConversationBinding"
+    const bindingRows = await prisma.$queryRaw<Array<{ chatId: string; threadId: string | null; rootMessageId: string | null }>>`
+      SELECT "chatId", "threadId", "rootMessageId" FROM "FeishuConversationBinding"
       WHERE "liveRoomId" = ${room.id}
       LIMIT 1
     `;
@@ -56,6 +56,7 @@ export const attachLiveRoomProgress = async ({
     ? new FeishuProgressTracker({
         chatId: originBinding?.chatId || metadataChatId!,
         threadId: originBinding?.threadId ?? null,
+        rootMessageId: originBinding?.rootMessageId ?? null,
       })
     : null;
   const relayOrigin = {

@@ -1,5 +1,5 @@
 import { PROGRESS_CARD_MIN_MS, sanitizePreview } from '@/lib/acpx/harness-events';
-import { editFeishuMessage, sendFeishuInteractiveMessage } from '@/lib/feishu-api';
+import { resolveFeishuMessageTarget, sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 
 const RECENT_TOOL_COUNT = 5;
 
@@ -18,15 +18,15 @@ interface SystemEntry {
 
 export type FeishuProgressTarget = {
   chatId: string;
-  // When set, every progress/final card is delivered into the task thread via
-  // the SDK-verified thread_id receive type — never the group root.
+  // Thread output replies to the persisted entry root.
   threadId?: string | null;
+  rootMessageId?: string | null;
 };
 
 export class FeishuProgressTracker {
   private progressMsgId: string | null = null;
   private chatId: string;
-  private threadId: string | null;
+  private target: ReturnType<typeof resolveFeishuMessageTarget>;
   private entries: ToolEntry[] = [];
   private systemEntries: SystemEntry[] = [];
   private lastEditAt = 0;
@@ -41,14 +41,8 @@ export class FeishuProgressTracker {
   constructor(target: FeishuProgressTarget | string, workspaceRoot = process.cwd()) {
     const normalized = typeof target === 'string' ? { chatId: target } : target;
     this.chatId = normalized.chatId;
-    this.threadId = normalized.threadId || null;
+    this.target = resolveFeishuMessageTarget(normalized);
     this.workspaceRoot = workspaceRoot;
-  }
-
-  private sendTarget(): { receiveId: string; receiveIdType: 'chat_id' | 'thread_id' } {
-    return this.threadId
-      ? { receiveId: this.threadId, receiveIdType: 'thread_id' }
-      : { receiveId: this.chatId, receiveIdType: 'chat_id' };
   }
 
   onToolEvent(toolName: string, preview: string, emoji: string): void {
@@ -162,10 +156,8 @@ export class FeishuProgressTracker {
     if (!this.progressMsgId) {
       console.log(`[FeishuProgress] sending first progress card to ${this.chatId}`);
       const card = this.buildCard();
-      const target = this.sendTarget();
       this.progressMsgId = await sendFeishuInteractiveMessage({
-        receiveId: target.receiveId,
-        receiveIdType: target.receiveIdType,
+        ...this.target,
         card,
       }) ?? null;
       console.log(`[FeishuProgress] first card sent, id=${this.progressMsgId}`);
@@ -262,7 +254,7 @@ export class FeishuProgressTracker {
     if (this.progressMsgId) {
       try {
         const token = await import('@/lib/feishu-api').then(m => m.getFeishuTenantAccessToken());
-        await fetch(
+        const response = await fetch(
           `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(this.progressMsgId)}`,
           {
             method: 'PATCH',
@@ -276,6 +268,8 @@ export class FeishuProgressTracker {
             }),
           }
         );
+        const data = await response.json() as { code?: number; msg?: string };
+        if (!response.ok || data.code !== 0) throw new Error(data.msg || 'Failed to finalize Feishu progress card');
         return this.progressMsgId;
       } catch {
         // fall through to send new
@@ -283,8 +277,7 @@ export class FeishuProgressTracker {
     }
 
     this.progressMsgId = await sendFeishuInteractiveMessage({
-      receiveId: this.sendTarget().receiveId,
-      receiveIdType: this.sendTarget().receiveIdType,
+      ...this.target,
       card,
     }) ?? null;
     return this.progressMsgId;
