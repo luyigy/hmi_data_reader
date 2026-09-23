@@ -2,7 +2,7 @@ import { existsSync, lstatSync, mkdirSync, symlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
-const SHARED_ENTRIES = ['auth.json', 'config.toml', 'skills', 'plugins', 'rules'];
+export const SHARED_ENTRIES = ['auth.json', 'config.toml', 'skills', 'plugins', 'rules'];
 
 export const prepareCodexHome = (
   codexHome: string,

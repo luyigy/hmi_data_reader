@@ -1,5 +1,13 @@
 import type { HarnessAdapter } from '../types';
+import { homedir } from 'node:os';
+import path from 'node:path';
+import { SHARED_ENTRIES } from '@/lib/real-agents/codex-home';
 import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
+
+// Explicit mounts replace automatic config symlink discovery in Bubblewrap.
+const codexReadOnlyPaths = (extra?: string[]) => extra?.length
+  ? [...SHARED_ENTRIES.map((entry) => path.join(process.env.CODEX_HOME?.trim() || path.join(homedir(), '.codex'), entry)), ...extra]
+  : undefined;
 
 async function loadCodexAgent() {
   return import('@/lib/real-agents/codex-agent');
@@ -38,6 +46,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
       workingDirectory: context.workingDirectory,
       workspaceRoot: context.workspaceRoot,
       extraWritableRoots: context.extraWritableRoots,
+      readOnlyPaths: codexReadOnlyPaths(context.extraReadOnlyPaths),
       networkAccess: context.networkAccess,
       ephemeral: context.ephemeralSession,
       codexHome: context.codexHome,
@@ -87,6 +96,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
         workingDirectory: context.workingDirectory,
         workspaceRoot: context.workspaceRoot,
         extraWritableRoots: context.extraWritableRoots,
+        readOnlyPaths: codexReadOnlyPaths(context.extraReadOnlyPaths),
         networkAccess: context.networkAccess,
         codexHome: context.codexHome,
         streamCallbacks: context.streamCallbacks,

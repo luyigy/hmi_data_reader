@@ -6,7 +6,7 @@ import {
   getOpenClawGatewayConfig,
 } from '@/lib/openclaw-client';
 import { getHarnessAdapter } from '@/lib/harness';
-import { workflowSnapshotExtraRoots } from '@/lib/workflow-execution-policy';
+import { resolveLocalRuntimeReadOnlyPaths } from './runtime-environments';
 import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
 import {
   collectKimiCodeProviderContextUsage,
@@ -127,7 +127,9 @@ export const executeViaLocalHarness = async (
   const extraWritableRoots = permissionConfig.profile === 'full_access'
     ? []
     : permissionConfig.writableRoots.slice(1).filter((root, index, all) => all.indexOf(root) === index);
-  const extraReadOnlyPaths = workflowSnapshotExtraRoots(permissionConfig).extraReadOnlyPaths;
+  const extraReadOnlyPaths = resolveLocalRuntimeReadOnlyPaths(
+    request.workingDirectory || process.cwd(), permissionConfig,
+  );
   const codexHome = participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
     : participant.codexHome;
