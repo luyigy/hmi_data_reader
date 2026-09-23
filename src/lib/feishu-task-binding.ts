@@ -33,7 +33,9 @@ export async function isFeishuTaskIsolationEnabled(scope: FeishuTaskScope, db = 
   }))?.isolationEnabled ?? false;
 }
 
-async function lockEnabledGroup(tx: Prisma.TransactionClient, scope: FeishuTaskScope) {
+// Shared with feishu-task-broadcast: the settings row lock serializes every
+// isolation-mode mutation, task confirmation and broadcast publish per group.
+export async function lockEnabledGroup(tx: Prisma.TransactionClient, scope: FeishuTaskScope) {
   const rows = await tx.$queryRaw<{ isolationEnabled: boolean }[]>`
     SELECT "isolationEnabled" FROM "FeishuGroupTaskSettings"
     WHERE "appId" = ${scope.appId} AND "chatId" = ${scope.chatId} FOR UPDATE

@@ -466,6 +466,43 @@ model FeishuTaskBindingRequest {
   @@unique([appId, chatId, rootMessageId])
 }
 
+// One public notification per source message, scoped to one group; the target
+// set is fixed at publish time and never recomputed from live rooms.
+model FeishuGroupBroadcast {
+  id              String                       @id @default(cuid())
+  appId           String
+  chatId          String
+  sequence        Int
+  sourceMessageId String
+  senderOpenId    String
+  content         String
+  publishedAt     DateTime                     @default(now())
+  targets         FeishuGroupBroadcastTarget[]
+
+  @@unique([appId, chatId, sourceMessageId])
+  @@unique([appId, chatId, sequence])
+  @@index([appId, chatId, publishedAt])
+}
+
+// Immutable publish-time target identity. No live FK to the binding or room on
+// purpose: historical scope survives later binding edits or room deletion.
+model FeishuGroupBroadcastTarget {
+  id            String               @id @default(cuid())
+  broadcastId   String
+  appId         String
+  chatId        String
+  bindingId     String
+  liveRoomId    String
+  threadId      String
+  rootMessageId String
+  createdAt     DateTime             @default(now())
+  broadcast     FeishuGroupBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, bindingId])
+  @@index([appId, chatId, threadId])
+  @@index([liveRoomId])
+}
+
 model FeishuUserAccess {
   openId        String    @id
   status        String    @default("pending") // pending, approved, denied, revoked, blocked
