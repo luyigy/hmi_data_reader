@@ -47,7 +47,7 @@ asyncio.run(uvicorn.Server(uvicorn.Config(create_app(os.environ['S05_DATA'], rea
       server.once('error',reject);server.once('exit',code=>reject(new Error(`server exited ${code}`)));
     });
     const url=`http://127.0.0.1:${port}`;
-    browser=await chromium.launch({headless:true});
+    browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH});
     const page=await browser.newPage({viewport:{width:1280,height:900}});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     // Poll readiness, without hitting any pre-existing lab.
@@ -65,9 +65,32 @@ asyncio.run(uvicorn.Server(uvicorn.Config(create_app(os.environ['S05_DATA'], rea
     const card=page.locator('#candidates article');
     assert.equal(await card.count(),1);
     assert.equal(await page.getByLabel('mixed.png 模温目标').isVisible(),false);
-    await page.locator('#photos summary').click();
-    assert.equal(await page.getByLabel('mixed.png 模温目标').isVisible(),true);
-    await page.locator('#photos summary').click();
+    assert.equal(await page.locator('#photos summary').isVisible(),false);
+    assert.doesNotMatch(await page.locator('#photos').innerText(),/模温机目标|模温目标：未选择|此处仅用于模温机/);
+    assert.equal(await page.locator('#candidate-filter').inputValue(),'core');
+    assert.match(await page.locator('#extraction-request').inputValue(),/只提取料筒/);
+    assert.equal(await page.getByLabel('料筒温度 值',{exact:true}).nth(1).isVisible(),false);
+    assert.equal(await page.locator('#prompt-preset option').count(),9);
+    await page.locator('#prompt-preset').selectOption('holding');
+    await page.locator('#apply-preset').click();
+    assert.equal(await page.getByLabel('保压压力 值',{exact:true}).isVisible(),true);
+    assert.equal(await page.getByLabel('射胶速度 值',{exact:true}).isVisible(),false);
+    await page.locator('#candidate-filter').selectOption('all');
+    await page.getByLabel('目录外转速 值',{exact:true}).fill('81');
+    await page.locator('#temperature-request').click();
+    assert.equal(await page.getByLabel('目录外转速 值',{exact:true}).isVisible(),false);
+    assert.equal(await page.getByLabel('料筒温度 值',{exact:true}).first().isVisible(),true);
+    assert.match(await page.locator('#filter-status').innerText(),/显示 3 \/ 7/);
+    await page.locator('#candidate-search').fill('料筒');
+    assert.match(await page.locator('#filter-status').innerText(),/显示 2 \/ 7/);
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.getByLabel('目录外转速 值',{exact:true}).isVisible(),false);
+    await page.setViewportSize({width:1280,height:900});
+    await page.locator('#candidate-search').fill('不存在');
+    assert.match(await page.locator('#filter-status').innerText(),/没有匹配项/);
+    await page.locator('#candidate-search').fill('');
+    await page.locator('#candidate-filter').selectOption('all');
+    assert.equal(await page.getByLabel('目录外转速 值',{exact:true}).inputValue(),'81');
     assert.equal(await page.locator('#legacy-preview').isVisible(),false);
     assert.match(await card.innerText(),/目录外参数/);
     assert.match(await card.innerText(),/暂不可映射/);
@@ -82,7 +105,8 @@ asyncio.run(uvicorn.Server(uvicorn.Config(create_app(os.environ['S05_DATA'], rea
     for(const check of await card.locator('td input[type=checkbox]').all())await check.check();
     await page.getByLabel('mixed.png 确认副本',{exact:true}).check();
     await page.locator('#save').click();await idle();
-    await page.reload();await idle();
+    await page.reload();await idle();await page.locator('#candidate-filter').selectOption('all');
+    assert.match(await page.locator('#extraction-request').inputValue(),/只提取各温区的设定温度和实际温度/);
     assert.equal(await page.getByLabel('目录外转速 值',{exact:true}).inputValue(),'85');
     assert.equal(await page.getByLabel('mixed.png 确认副本',{exact:true}).isChecked(),true);
     assert.match(await card.innerText(),/原值：80 rpm/);
@@ -125,10 +149,21 @@ asyncio.run(uvicorn.Server(uvicorn.Config(create_app(os.environ['S05_DATA'], rea
       if(size===25){
         assert.equal(await card.count(),0);
         assert.equal(await page.locator('#legacy-preview').isVisible(),true);
+        assert.equal(await page.locator('#legacy-preview').evaluate(n=>n.open),true);
+        assert.equal(await page.locator('#results input[type=number]').first().isVisible(),true);
+        assert.equal(await page.locator('#results input[type=number]').first().inputValue(),'350');
+        assert.match(await page.locator('#candidates').innerText(),/已有识别参数/);
+        assert.doesNotMatch(await page.locator('#candidates').innerText(),/尚无参数候选/);
       }
     }
     assert.equal(await card.count(),2);
     assert.equal(await page.locator('#legacy-preview').isVisible(),true);
+    const photoId=await card.nth(1).getAttribute('data-image-id');
+    await page.locator('#candidate-image').selectOption(photoId);
+    assert.equal(await card.nth(0).isVisible(),false);
+    assert.equal(await card.nth(1).isVisible(),true);
+    await page.locator('#candidate-image').selectOption('');
+    await page.locator('#candidate-filter').selectOption('all');
     await card.nth(0).getByLabel('目录外转速 值',{exact:true}).fill('90');
     await card.nth(1).getByLabel('目录外转速 值',{exact:true}).fill('95');
     let saves=0;
@@ -145,7 +180,7 @@ asyncio.run(uvicorn.Server(uvicorn.Config(create_app(os.environ['S05_DATA'], rea
     assert.equal(partial.candidates[0].review.result.sections[0].fields[2].items[0].value,90);
     assert.equal(partial.candidates[1].review,null);
     await page.unroute('**/review');
-    await page.locator('#save').click();await idle();await page.reload();await idle();
+    await page.locator('#save').click();await idle();await page.reload();await idle();await page.locator('#candidate-filter').selectOption('all');
     assert.equal(await card.nth(0).getByLabel('目录外转速 值',{exact:true}).inputValue(),'90');
     assert.equal(await card.nth(1).getByLabel('目录外转速 值',{exact:true}).inputValue(),'95');
     assert.deepEqual(errors,[]);

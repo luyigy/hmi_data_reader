@@ -27,6 +27,7 @@ from .mapping import CATALOG, FIXTURE, MAPPING_VERSION, REGISTRY, ROOT, preview,
 HERE = Path(__file__).parent
 MAX_IMAGE = 20 * 1024 * 1024
 MAX_IMAGES = 30
+PRESETS = json.loads((HERE / 'presets.json').read_text())
 
 
 class Review(BaseModel):
@@ -37,6 +38,7 @@ class Review(BaseModel):
     images: dict = Field(default_factory=dict)
     drafts: dict = Field(default_factory=dict)
     note: str = Field(default='', max_length=4000)
+    extraction_request: str = Field(default='', max_length=2000)
 
 
 def now():
@@ -79,16 +81,22 @@ def latest_result(image):
                  if 'result' in attempt and 'error' not in attempt), (0, None))
 
 
-async def recognize(data, filename):
+async def recognize(data, filename, message=''):
     url = os.getenv('HMI_READER_URL', 'http://127.0.0.1:8765').rstrip('/')
-    key = os.getenv('HMI_API_KEY', '')
+    key = os.getenv('HMI_API_KEY', '').strip()
     headers = {'Authorization': f'Bearer {key}'} if key else {}
     try:
         async with httpx.AsyncClient(timeout=180, trust_env=False, follow_redirects=False) as client:
             async with client.stream('POST', url + '/api/v1/draft', headers=headers,
+                                     data={'message': message},
                                      files={'file': (filename, data, 'application/octet-stream')}) as response:
                 if response.status_code != 200:
-                    raise HTTPException(502, f'Reader 返回 HTTP {response.status_code}；检查服务就绪状态和服务端鉴权配置')
+                    reason = {401: 'Reader 鉴权失败，请管理员核对服务端密钥',
+                              403: 'Reader 拒绝访问，请管理员核对服务端权限',
+                              429: 'Reader 正忙，请稍后重试',
+                              503: 'Reader 尚未就绪，请稍后重试',
+                              502: 'Reader 的模型调用或候选校验失败，请重试；持续失败请联系管理员检查模型日志'}
+                    raise HTTPException(502, f"{reason.get(response.status_code, 'Reader 请求失败')}（HTTP {response.status_code}）；照片已保留")
                 chunks = bytearray()
                 async for chunk in response.aiter_bytes():
                     chunks.extend(chunk)
@@ -237,6 +245,7 @@ def create_app(data_dir=None, reader=None, password=None):
     @app.get('/api/config')
     async def config():
         return {'fixture': FIXTURE, 'contract_version': CATALOG['contract_version'],
+                'presets': PRESETS,
                 'mapping_version': MAPPING_VERSION, 'max_images': MAX_IMAGES,
                 'storage_namespace': owner.get() or 'standalone'}
 
@@ -254,6 +263,7 @@ def create_app(data_dir=None, reader=None, password=None):
             sid = str(uuid4())
             folder(sid).mkdir(mode=0o700)
             session = {'id': sid, 'created_at': now(), 'revision': 0, 'images': [], 'edits': {},
+                       'extraction_request': PRESETS['core']['message'],
                        'target': FIXTURE['parameter_data'], 'note': '', 'reviews': [],
                        'provenance': {'local_source': source_version(), 'web_fixture': FIXTURE,
                                       'reader_catalog': CATALOG, 'profiles': REGISTRY,
@@ -301,10 +311,14 @@ def create_app(data_dir=None, reader=None, password=None):
         image = next((im for im in session['images'] if im['id'] == iid), None)
         if not image:
             raise HTTPException(404, '照片不存在')
-        attempt = {'created_at': now()}
+        message = session.get('extraction_request', '')
+        attempt = {'created_at': now(), 'extraction_request': message}
         async with gpu_queue:
             try:
-                result = await read_image((folder(sid) / (image['id'] + '.image')).read_bytes(), image['filename'])
+                args = [(folder(sid) / (image['id'] + '.image')).read_bytes(), image['filename']]
+                if message:
+                    args.append(message)
+                result = await read_image(*args)
                 if isinstance(result, dict) and ('sections' in result or 'questions' in result):
                     validate_draft(result)
                 elif not isinstance(result, dict) or not isinstance(result.get('fields'), (dict, type(None))):
@@ -366,6 +380,8 @@ def create_app(data_dir=None, reader=None, password=None):
                 session['edits'] = body.edits
             if 'note' in body.model_fields_set:
                 session['note'] = body.note
+            if 'extraction_request' in body.model_fields_set:
+                session['extraction_request'] = body.extraction_request.strip()
             session.setdefault('draft_reviews', {}).update(deepcopy(body.drafts))
             for image in session['images']:
                 update = body.images.get(image['id'], {})

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / "scripts")]
 
 import hmi_service  # noqa: E402
-from extract_fields import extract_one  # noqa: E402
+from extract_fields import extract_one, route_family, route_page  # noqa: E402
 from extract_generic import extract_generic  # noqa: E402
 
 
@@ -146,7 +146,25 @@ def test_optional_bearer_token(monkeypatch):
     assert asyncio.run(hmi_service.authenticate_recognition(denied_draft, ok)).status_code == 401
 
 
-def test_draft_endpoint_passes_whitelisted_candidate_context(monkeypatch):
+def test_tact_temperature_columns_override_monitor_tab():
+    lines = [_line(text, 0, y, 10, y + 5) for y, text in enumerate(
+        ("喷聘", "简头", "前部", "中部", "后部", "下口", "监视"))]
+
+    family, source = route_family("image", lines, None, None)
+    page, page_source = route_page("image", lines, family)
+
+    assert (family, source) == ("TACT", "temperature_columns")
+    assert (page, page_source) == ("temperature", "template_anchors")
+
+
+def test_partial_temperature_columns_do_not_force_tact():
+    lines = [_line(text, 0, y, 10, y + 5) for y, text in enumerate(
+        ("前部", "中部", "后部", "监视"))]
+
+    assert route_family("image", lines, None, None)[0] == "unknown"
+
+
+def test_draft_endpoint_passes_open_candidate_context(monkeypatch):
     evidence = {"lines": [{"text": "保压时间 2.5 s"}]}
     candidate = {"sections": [{"label": "保压", "fields": [{
         "screen_label": "保压时间", "canonical_id": "holding_time",

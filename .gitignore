@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+unsloth_compiled_cache/
 *.py[cod]
 *.so
 *.egg-info/

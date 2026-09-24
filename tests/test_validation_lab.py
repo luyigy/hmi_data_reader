@@ -127,7 +127,7 @@ def test_mold_target_explicit_and_cross_family_conflict():
 
 
 def test_http_upload_review_restart_export_and_revision(tmp_path):
-    async def fake(data, filename): return result()
+    async def fake(data, filename, message=""): return result()
     client = TestClient(create_app(tmp_path, fake))
     assert client.get('/').status_code == 200
     data = client.post('/api/sessions').json()
@@ -352,3 +352,79 @@ def test_full_draft_review_can_exceed_legacy_request_limit(tmp_path):
         'drafts': {iid: {'attempt': 1, 'result': raw, 'confirmed': False}}})
     assert saved.status_code == 200, saved.text
     assert saved.json()['candidates'][0]['review']['result'] == raw
+
+
+def test_extraction_request_persists_and_reaches_reader(tmp_path, monkeypatch):
+    import asyncio
+    import validation_lab.app as lab
+
+    calls = []
+    async def reader(*args):
+        calls.append(args)
+        return {'sections': [], 'questions': []}
+
+    client = TestClient(create_app(tmp_path, reader, password=''))
+    batch = client.post('/api/sessions').json()['session']
+    path = f"/api/sessions/{batch['id']}"
+    requirement = '只提取设定温度和实际温度'
+    saved = client.put(path + '/review', json={
+        'expected_revision': batch['revision'], 'extraction_request': requirement})
+    assert saved.status_code == 200
+    assert client.get(path).json()['session']['extraction_request'] == requirement
+    uploaded = client.post(path + '/images', files={'file': ('screen.png', png(), 'image/png')}).json()
+    image = uploaded['session']['images'][0]
+    assert calls[-1][2] == requirement
+    assert image['attempts'][0]['extraction_request'] == requirement
+    retried = client.post(path + f"/images/{image['id']}/recognize").json()
+    assert len(calls) == 2 and calls[-1][2] == requirement
+    revision = retried['session']['revision']
+    assert client.put(path + '/review', json={
+        'expected_revision': revision, 'extraction_request': 'x' * 2001}).status_code == 422
+    assert client.put(path + '/review', json={
+        'expected_revision': revision, 'extraction_request': ''}).status_code == 200
+    cleared = client.post(path + f"/images/{image['id']}/recognize").json()
+    assert len(calls[-1]) == 2
+    assert cleared['session']['images'][0]['attempts'][0]['extraction_request'] == requirement
+    assert cleared['session']['images'][0]['attempts'][-1]['extraction_request'] == ''
+
+    async_client = httpx.AsyncClient
+    def upstream(request):
+        assert request.url.path == '/api/v1/draft'
+        assert b'name="message"' in request.content
+        assert requirement.encode() in request.content
+        return httpx.Response(200, json={'sections': [], 'questions': []})
+    monkeypatch.setattr(lab.httpx, 'AsyncClient', lambda **kwargs:
+                        async_client(transport=httpx.MockTransport(upstream), **kwargs))
+    assert asyncio.run(lab.recognize(png(), 'screen.png', requirement))['sections'] == []
+
+
+@pytest.mark.parametrize('status,hint', [(401, '鉴权失败'), (403, '拒绝访问'),
+    (429, '正忙'), (503, '尚未就绪'), (502, '模型调用或候选校验失败')])
+def test_reader_errors_are_actionable_and_do_not_leak_upstream(monkeypatch, status, hint):
+    import asyncio
+    import validation_lab.app as lab
+    client = httpx.AsyncClient
+    monkeypatch.setenv('HMI_API_KEY', ' key ')
+    def upstream(request):
+        assert request.headers['authorization'] == 'Bearer key'
+        return httpx.Response(status, json={'detail': 'secret-internal-url'})
+    monkeypatch.setattr(lab.httpx, 'AsyncClient', lambda **kw:
+        client(transport=httpx.MockTransport(upstream), **kw))
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(lab.recognize(png(), 'screen.png'))
+    assert hint in exc.value.detail
+    assert 'secret-internal-url' not in exc.value.detail
+
+
+def test_new_batch_core_preset_is_forwarded(tmp_path):
+    calls = []
+    async def reader(*args):
+        calls.append(args[2])
+        return {'sections': [], 'questions': []}
+    client = TestClient(create_app(tmp_path, reader))
+    presets = client.get('/api/config').json()['presets']
+    batch = client.post('/api/sessions').json()['session']
+    assert batch['extraction_request'] == presets['core']['message']
+    assert set(presets) == {'core', 'thermal', 'plasticizing', 'injection', 'holding', 'cooling', 'motion', 'cycle', 'drying'}
+    client.post('/api/sessions/'+batch['id']+'/images', files={'file': ('screen.png', png())})
+    assert calls == [presets['core']['message']]

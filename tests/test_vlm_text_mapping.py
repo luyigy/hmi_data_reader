@@ -316,12 +316,24 @@ def test_draft_merges_equal_observations_and_keeps_conflicts(monkeypatch):
     assert field["items"][0]["evidence"] == ["OCR: 1段 80", "图片: 1段 80"]
 
 
+def test_draft_keeps_equal_temperatures_in_unlabelled_cells(monkeypatch):
+    values = [220, 230, 230, 220, 220, 210]
+    items = [_draft_item(value, None, "vlm", f"设定温度行第 {i + 1} 格")
+             for i, value in enumerate(values)]
+    payload = {"sections": [{"label": "温度", "fields": [
+        _draft_field("设定温度", "setpoint", "°C", items)]}], "questions": []}
+    monkeypatch.setattr(vlm_qwen, "_text_completion",
+                        lambda *_: _draft_response(payload))
+
+    result = vlm_qwen.draft_from_ocr({"lines": [{"text": "设定温度"}]})
+
+    assert result["sections"][0]["fields"][0]["items"] == items
+
+
 def test_draft_strict_output_limits_and_confirmation(monkeypatch):
     item = _draft_item(1)
     field = _draft_field("字段", "unknown", "", [item])
     valid_section = {"label": "区域", "fields": [field]}
-    duplicate = {"sections": [{"label": "区域", "fields": [field, field]}],
-                 "questions": []}
     bad_source = _draft_item(1)
     bad_source["sources"] = ["camera"]
     empty_evidence = _draft_item(1)
@@ -329,7 +341,6 @@ def test_draft_strict_output_limits_and_confirmation(monkeypatch):
     extra_key = _draft_item(1)
     extra_key["unexpected"] = True
     cases = [
-        duplicate,
         {"sections": [valid_section], "questions": ["?"] * 33},
         {"sections": [{"label": str(i), "fields": [field]} for i in range(33)],
          "questions": []},
@@ -648,3 +659,28 @@ def test_draft_keeps_visible_zones_when_cropped_section_has_no_fields(monkeypatc
     payload["questions"] = []
     with pytest.raises(vlm_qwen.VlmError, match="VLM section 非法"):
         vlm_qwen.draft_from_ocr({"lines": [{"text": "SV 200"}]})
+
+
+def test_draft_prompt_honors_explicit_extraction_scope(monkeypatch):
+    requirement = '只提取设定温度和实际温度，不要偏差和输出百分比'
+    def completion(prompt, _base_url, _model):
+        request = json.loads(prompt.split('输入：', 1)[1])
+        assert request['user_message'] == requirement
+        assert '用户只要某些参数或角色时，只输出这些参数和角色' in prompt
+        assert '未指定范围时整理所有可读工艺参数' in prompt
+        assert '提取范围内即使没有 canonical hint' in prompt
+        return _draft_response({'sections': [], 'questions': ['未读到实际温度']})
+    monkeypatch.setattr(vlm_qwen, '_text_completion', completion)
+    result = vlm_qwen.draft_from_ocr({'lines': [{'text': '设定温度 200'}]}, requirement)
+    assert result['questions'] == ['未读到实际温度']
+
+
+@pytest.mark.parametrize('label,count', [('第 1 段', 1), (None, 2)])
+def test_draft_duplicate_observations_do_not_fail_batch(monkeypatch, label, count):
+    field = _draft_field('设定温度', 'setpoint', '℃', [_draft_item(220, label)])
+    payload = {'sections': [{'label': '料筒', 'fields': [field, field]}], 'questions': []}
+    monkeypatch.setattr(vlm_qwen, '_text_completion', lambda *_: _draft_response(payload))
+    result = vlm_qwen.draft_from_ocr({'lines': [{'text': '设定温度 220'}]})
+    items = result['sections'][0]['fields'][0]['items']
+    assert len(items) == count
+    assert all(item['value'] == 220 and item['needs_confirmation'] for item in items)

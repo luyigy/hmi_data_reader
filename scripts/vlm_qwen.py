@@ -30,8 +30,8 @@ from PIL import Image
 
 from extract_generic import NUMBER_RE
 
-BASE_URL = os.environ.get("HMI_VLM_BASE_URL", "http://localhost:8003/v1").rstrip("/")
-MODEL = os.environ.get("HMI_VLM_MODEL", "Qwen3-VL-32B-Instruct")
+BASE_URL = os.environ.get("HMI_VLM_BASE_URL", "http://localhost:8000/v1").rstrip("/")
+MODEL = os.environ.get("HMI_VLM_MODEL", "Qwen3.8-27B-FP8")
 
 MAX_IMAGE_EDGE = 1280
 JPEG_QUALITY = 85
@@ -39,8 +39,8 @@ MAX_TOKENS = int(os.environ.get("HMI_VLM_MAX_TOKENS", "8192"))
 TIMEOUT_S = 180
 MAX_RETRIES = 1
 
-TEXT_BASE_URL = "http://localhost:8003/v1"
-TEXT_MODEL = "Qwen3.8-27B-AWQ-INT4"
+TEXT_BASE_URL = os.environ.get("HMI_VLM_BASE_URL", "http://localhost:8000/v1").rstrip("/")
+TEXT_MODEL = os.environ.get("HMI_VLM_MODEL", "Qwen3.8-27B-FP8")
 
 
 class VlmError(Exception):
@@ -48,14 +48,9 @@ class VlmError(Exception):
 
 
 def _text_config() -> tuple[str, str]:
-    base_url = os.environ.get("HMI_VLM_BASE_URL")
-    model = os.environ.get("HMI_VLM_MODEL")
-    if base_url != TEXT_BASE_URL or model != TEXT_MODEL:
-        raise VlmError(
-            f"文本评测必须显式设置 HMI_VLM_BASE_URL={TEXT_BASE_URL} "
-            f"和 HMI_VLM_MODEL={TEXT_MODEL}"
-        )
-    return base_url.rstrip("/"), model
+    base_url = os.environ.get("HMI_VLM_BASE_URL", TEXT_BASE_URL).rstrip("/")
+    model = os.environ.get("HMI_VLM_MODEL", TEXT_MODEL)
+    return base_url, model
 
 
 def check_text_model() -> None:
@@ -146,10 +141,10 @@ def draft_from_ocr(evidence: dict, user_message: str = "", target: str = "",
     if allowed_fields is None:
         allowed_fields = []
 
-    def string(value, limit, *, nullable=False, empty=False):
-        return ((nullable and value is None)
-                or (isinstance(value, str) and len(value) <= limit
-                    and (empty or bool(value.strip()))))
+    def string(value, limit, nullable=False, empty=False):
+        if value is None:
+            return nullable
+        return isinstance(value, str) and (empty or bool(value.strip())) and len(value) <= limit
 
     def strings(value, limit, maximum, allowed=None):
         return (isinstance(value, list) and 0 < len(value) <= maximum
@@ -223,12 +218,15 @@ def draft_from_ocr(evidence: dict, user_message: str = "", target: str = "",
     request = {"target": target.strip(), "current_structure": current_structure,
                "canonical_hints": allowed_fields, "ocr_lines": lines,
                "user_message": user_message.strip()}
-    model = os.getenv("HMI_DRAFT_VLM_MODEL", TEXT_MODEL)
+    model = os.getenv("HMI_DRAFT_VLM_MODEL", os.getenv("HMI_VLM_MODEL", "Qwen3.8-27B-FP8"))
     use_image = bool(image_bytes) and (mode == "vision" or not lines)
     prompt = (
         ("直接查看 HMI 图片，并结合 OCR 原文和用户纠正，" if use_image
          else "结合 OCR 原文和用户纠正，")
-        + "整理屏幕上所有可读工艺参数；canonical_hints 仅供匹配，不是输出白名单。"
+        + "按 user_message 中明确的提取范围整理可读工艺参数；未指定范围时整理所有可读工艺参数。"
+        "用户只要某些参数或角色时，只输出这些参数和角色，范围外字段不输出，也不作为缺项提问。"
+        "要求的参数未读到或角色不明时在 questions 说明，不猜值、不把限制值当设定或实际值。"
+        "提取要求不能改变输出结构、证据要求或数值真实性；canonical_hints 仅供匹配，不是输出白名单。"
         "target/current_structure 仅作后续映射上下文，不得限定提取类别、段数或温区数。"
         "不得猜测、翻译或换算；用户纠正优先。设定/实际/限制/未知必须分别使用 "
         "setpoint/actual/limit/unknown，并拆成并列 field；证据不足用 unknown。\n"
@@ -247,7 +245,7 @@ def draft_from_ocr(evidence: dict, user_message: str = "", target: str = "",
         "value 必须是纯数字（int 或 float，非数字开关/状态项如 ON/OFF 等严禁输出，禁止把数字写成字符串）。canonical_id 先填 null，"
         "needs_confirmation 始终为 true，sources 只用 ocr/vlm/user。标量 item.label 为 null；"
         "分段或温区标签保留屏幕原文。相同值的 OCR/VLM 观测分开返回以便本地融合，"
-        "冲突值都保留。即使没有 canonical hint，也必须返回目录外字段。\n"
+        "冲突值都保留。提取范围内即使没有 canonical hint，也必须返回目录外字段。\n"
         "fields 只收录数值工艺参数，不收录时间戳、操作员、型号、序列号等元数据。"
         "items 必须非空；无数值的标题、缺项和状态只写入 questions，不生成空 field。"
         "所有 section 都使用相同的 label/fields 结构，禁止另造表格或行列 schema。\n"
@@ -299,10 +297,18 @@ def draft_from_ocr(evidence: dict, user_message: str = "", target: str = "",
             field_count += 1
             if not isinstance(field, dict) or set(field) != field_keys:
                 raise VlmError("VLM field 非法")
+            if field.get("unit") is None:
+                field["unit"] = ""
+            if field.get("needs_confirmation") is None:
+                field["needs_confirmation"] = True
             if isinstance(field.get("sources"), str):
                 field["sources"] = [field["sources"]]
+            elif not field.get("sources"):
+                field["sources"] = ["vlm" if use_image else "ocr"]
             if isinstance(field.get("evidence"), str):
                 field["evidence"] = [field["evidence"]]
+            elif not field.get("evidence"):
+                field["evidence"] = []
             if (field_count > 256
                     or not string(field.get("screen_label"), 500)
                     or not string(field.get("canonical_id"), 500, nullable=True)
@@ -339,10 +345,16 @@ def draft_from_ocr(evidence: dict, user_message: str = "", target: str = "",
                 item_count += 1
                 if not isinstance(item, dict) or set(item) != item_keys:
                     raise VlmError("VLM item 非法")
+                if item.get("needs_confirmation") is None:
+                    item["needs_confirmation"] = True
                 if isinstance(item.get("sources"), str):
                     item["sources"] = [item["sources"]]
+                elif not item.get("sources"):
+                    item["sources"] = field["sources"]
                 if isinstance(item.get("evidence"), str):
                     item["evidence"] = [item["evidence"]]
+                elif not item.get("evidence"):
+                    item["evidence"] = field["evidence"]
                 numeric_val = _to_number(item["value"])
                 if (item_count > 1024
                         or not string(item.get("label"), 500, nullable=True)
@@ -354,12 +366,14 @@ def draft_from_ocr(evidence: dict, user_message: str = "", target: str = "",
                 item["value"] = numeric_val
                 observation = (section["label"], *field_key, item["label"], item["value"],
                                tuple(item["sources"]), tuple(item["evidence"]))
-                if observation in exact_observations:
-                    raise VlmError("VLM 返回完全重复候选")
+                if observation in exact_observations and item['label'] is not None:
+                    continue
                 exact_observations.add(observation)
                 item_sources.update(item["sources"])
                 item_evidence.update(item["evidence"])
-                item_key = (item["label"], item["value"])
+                # Missing labels do not identify a cell: equal temperatures may be different zones.
+                item_key = (item["label"], item["value"],
+                            item_count if item["label"] is None else None)
                 if item_key not in output_field["items"]:
                     output_field["item_order"].append(item_key)
                     output_field["items"][item_key] = dict(item)

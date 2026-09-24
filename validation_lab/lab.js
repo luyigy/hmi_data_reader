@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 const labels = {ready:'可映射',manual:'人工核对',review:'需确认',blocked:'未映射 / 阻断',excluded:'已排除'};
 let state, dirty = false, busy = false, targetTextDirty = false;
 let storageKey, draftEdits = {};
+let presets = {};
 const labUrl = path => new URL(path.replace(/^\//, ''), new URL('.', document.baseURI)).href;
 const el = (tag, text, cls) => { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(cls)node.className=cls; return node; };
 const msg = (text, error=false) => { $('message').textContent=text; $('message').className=error?'error':''; };
@@ -31,8 +32,16 @@ function render() {
   $('batch').textContent=`批次 ${s.id.slice(0,8)} · ${s.images.length}/30 张`;
   $('saved').textContent=`已保存 · 版本 ${s.revision}`;
   $('target-json').value=JSON.stringify(s.target,null,2); $('note').value=s.note;
+  $('extraction-request').value=s.extraction_request||'';
+  const selected=$('candidate-image').value;
+  $('candidate-image').replaceChildren(el('option','全部照片'));
+  $('candidate-image').firstChild.value='';
+  for(const image of s.images){const option=el('option',image.filename);option.value=image.id;$('candidate-image').append(option);}
+  $('candidate-image').value=s.images.some(i=>i.id===selected)?selected:'';
+  $('result-summary').textContent=`识别结果：${(state.candidates||[]).length} 张有候选 / ${s.images.length} 张照片 · ${s.images.filter(i=>i.attempts.at(-1)?.error).length} 张识别失败`;
   $('versions').textContent=JSON.stringify({mapping:p.mapping_version,contract:s.provenance.reader_catalog.contract_version,web_fixture:s.provenance.web_fixture.fixture_version,web_commit:s.provenance.web_fixture.web_commit,local_source:s.provenance.local_source,reader_runtime:s.provenance.reader_runtime,notice:p.notice},null,2);
   $('legacy-preview').hidden=!p.rows.length;
+  $('legacy-preview').open=!!p.rows.length;
   $('counts').replaceChildren(...Object.entries(p.counts).map(([k,v])=>el('span',`${labels[k]} ${v}`,'badge '+k)));
   renderPhotos();renderStructure();renderCandidates();renderRows();
   $('missing-title').textContent=`尚未覆盖 ${p.missing_targets.length} 个目标字段（不等于这些字段都必须拍摄）`;
@@ -59,7 +68,8 @@ function renderPhotos() {
     if(candidate?.last_error)card.append(el('p',candidate.last_error,'error'));
     card.append(el('p',`${image.attempts.length} 次识别`));
     const targetBox=el('details');targetBox.open=!!image.mold_target||hasMoldCandidate(candidate);
-    targetBox.append(el('summary','手动选择业务目标（可选）'));
+    targetBox.hidden=!targetBox.open && r?.page_type!=='mold_temp';
+    targetBox.append(el('summary','模温机目标（可选，仅定模 / 动模 / 行位）'));
     const target=el('select');target.setAttribute('aria-label',`${image.filename} 模温目标`);
     const empty=el('option','模温目标：未选择');empty.value='';target.append(empty);
     for(const z of state.session.target.temperature?.zones||[]){
@@ -67,10 +77,13 @@ function renderPhotos() {
       const option=el('option',z.name||z.zone_id);option.value=z.zone_id;target.append(option);
     }
     target.value=image.mold_target;target.onchange=()=>{image.mold_target=target.value;changed();};
-    targetBox.append(target,el('small','仅记录目标意图；候选暂不可映射。'));card.append(targetBox);
+    targetBox.append(target);card.append(targetBox);
     const exclude=el('label',' 排除此照片');const box=el('input');box.type='checkbox';box.checked=image.excluded;
     box.onchange=()=>{image.excluded=box.checked;changed();};exclude.prepend(box);card.append(exclude);
     const buttons=el('div',undefined,'buttons'),evidence=el('button','查看原图'),retry=el('button','重新识别');
+    const results=el('button','查看识别结果');
+    results.onclick=()=>{$('candidate-image').value=image.id;filterCandidates();$('recognition-results').scrollIntoView();};
+    buttons.append(results);
     evidence.onclick=()=>showEvidence(image);retry.onclick=()=>action(async()=>{
       await saveIfDirty();msg('正在重新识别，旧响应仍保留…');
       adopt(await api(`/api/sessions/${state.session.id}/images/${image.id}/recognize`,{method:'POST'}));
@@ -87,7 +100,9 @@ function hasMoldCandidate(candidate){
 function renderCandidates(){
   const root=$('candidates');root.replaceChildren();
   const candidates=state.candidates||[];
-  if(!candidates.length)root.append(el('p','尚无参数候选。请添加图片，或查看照片卡片中的失败原因并重试。'));
+  if(!candidates.length)root.append(el('p',state.preview.rows.length
+    ? '已有识别参数，见下方展开的结果。点击照片“重新识别”可生成新版参数候选。'
+    : '尚无参数候选。请添加图片，或查看照片卡片中的失败原因并重试。'));
   const roles={set:'设定',setpoint:'设定',actual:'实际',limit:'限值',unknown:'角色未知'};
   for(const candidate of candidates){
     const image=state.session.images.find(i=>i.id===candidate.image_id);
@@ -128,7 +143,7 @@ function renderCandidates(){
         groups.get(field.screen_label).push(field);
       }
       for(const [name,fields] of groups){
-        card.append(el('h4',name));
+        const group=el('div');group.dataset.candidateGroup='';group.append(el('h4',name));card.append(group);
         const table=el('table'),head=el('tr'),thead=el('thead'),body=el('tbody');
         head.append(el('th','当前段 / 温区'));thead.append(head);table.append(thead,body);
         const aligned=new Map();
@@ -139,9 +154,16 @@ function renderCandidates(){
           controls.append(el('p',`原文：${rawField?.screen_label??'无原始字段'} · ${roles[field.role]||field.role||'角色未知'} · ${field.canonical_id||'目录外参数'}`));
           const invalidate=()=>{field.needs_confirmation=true;field.items.forEach(i=>i.needs_confirmation=true);};
           for(const [key,label] of [['screen_label','参数名'],['unit','单位'],['role','角色']]){
-            inputFor(controls,`${name} ${label}`,field[key],input=>{field[key]=input.value;invalidate();});
+            inputFor(controls,`${name} ${label}`,field[key],input=>{
+              field[key]=input.value;header.dataset[{screen_label:'fieldName',unit:'fieldUnit',role:'fieldRole'}[key]]=input.value;invalidate();
+            });
           }
-          const metadata=el('details');metadata.append(el('summary','原文、来源、证据及全部字段元数据'),el('pre',JSON.stringify(rawField??null,null,2)));controls.append(metadata);card.append(controls);head.append(header);
+          const metadata=el('details');metadata.append(el('summary','原文、来源、证据及全部字段元数据'),el('pre',JSON.stringify(rawField??null,null,2)));controls.append(metadata);group.append(controls);head.append(header);
+          for(const node of [controls,header]){
+            node.dataset.fieldContext=section.label+' '+(field.canonical_id||'');
+            node.dataset.fieldColumn=col;node.dataset.fieldName=name;
+            node.dataset.fieldRole=field.role;node.dataset.fieldUnit=field.unit;
+          }
           const occurrences=new Map();
           field.items.forEach((item,itemIndex)=>{
             const rawItem=rawField?.items[itemIndex];
@@ -179,9 +201,9 @@ function renderCandidates(){
         });
         for(const row of aligned.values()){
           const tr=el('tr'),label=el('td',row.label);label.dataset.label='当前段 / 温区';tr.append(label);
-          fields.forEach((field,col)=>tr.append(row.cells.get(col)||el('td','此角色无该段候选')));body.append(tr);
+          fields.forEach((field,col)=>{const cell=row.cells.get(col)||el('td','此角色无该段候选');cell.dataset.fieldColumn=col;tr.append(cell);});body.append(tr);
         }
-        const wrap=el('div',undefined,'table-wrap');wrap.append(table);card.append(wrap);
+        const wrap=el('div',undefined,'table-wrap');wrap.append(table);group.append(wrap);
       }
     }
     if(!count)card.append(el('p','空候选：本次有效响应没有数值参数；请检查原图、补拍或重试。'));
@@ -196,6 +218,30 @@ function renderCandidates(){
     const confirmLabel=el('label',' 我已核对本图所有候选及问题，确认此独立副本（不等于业务 safe）');confirmLabel.prepend(whole);card.append(confirmLabel);
     sync();root.append(card);
   }
+  filterCandidates();
+}
+function filterCandidates(){
+  const scope=$('candidate-filter').value,temperature=scope==='temperature',query=$('candidate-search').value.trim().toLowerCase();
+  const pattern=presets[scope]?.pattern;
+  const imageId=$('candidate-image').value;
+  let total=0,visible=0;
+  for(const card of document.querySelectorAll('#candidates article'))card.hidden=!!imageId&&card.dataset.imageId!==imageId;
+  for(const group of document.querySelectorAll('[data-candidate-group]')){
+    let shown=0;
+    for(const header of group.querySelectorAll('th[data-field-column]')){
+      const {fieldName:name,fieldRole:role,fieldUnit:unit,fieldColumn:col}=header.dataset;
+      const thermal=/温|temp/i.test(name)||/^(℃|°C|°F|摄氏度)$/i.test(unit);
+      const match=!group.closest('article').hidden&&name.toLowerCase().includes(query)&&(!temperature||
+        (['set','setpoint','actual'].includes(role)&&thermal))&&
+        (!pattern||new RegExp(pattern,'i').test(name+' '+header.dataset.fieldContext))&&
+        (!['core','thermal'].includes(scope)||(!/偏差|输出|deviation|output/i.test(name)&&(!thermal||['set','setpoint'].includes(role))))&&
+        (scope!=='core'||!/周期|开模|合模|顶出|顶退|针阀|干燥|露点|cycle|eject|dry|dew/i.test(name));
+      total++;if(match){visible++;shown++;}
+      group.querySelectorAll(`[data-field-column="${col}"]`).forEach(node=>node.hidden=!match);
+    }
+    group.hidden=!shown;
+  }
+  $('filter-status').textContent=`显示 ${visible} / ${total} 项参数${!visible&&total?'；没有匹配项，可切回全部参数':''}`;
 }
 function resetValues(node){if(node&&typeof node==='object'){if('raw_value'in node)node.raw_value=null;else Object.values(node).forEach(resetValues);}}
 function renderStructure(){
@@ -272,7 +318,7 @@ async function saveIfDirty(){
     const saved=await api(`/api/sessions/${s.id}/review`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:s.revision,drafts:{[iid]:draft}})});
     s.revision=saved.session.revision;
   }
-  const data=await api(`/api/sessions/${s.id}/review`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:s.revision,target:s.target,edits:s.edits,images,note:$('note').value})});
+  const data=await api(`/api/sessions/${s.id}/review`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_revision:s.revision,target:s.target,edits:s.edits,images,note:$('note').value,extraction_request:$('extraction-request').value})});
   adopt(data);msg('纠错与独立确认副本已保存；候选确认不等于业务 safe。');
 }
 async function upload(files){
@@ -282,9 +328,26 @@ async function upload(files){
     const body=new FormData();body.append('file',files[i]);
     adopt(await api(`/api/sessions/${state.session.id}/images`,{method:'POST',body}));
   }
-  msg('照片处理完成。请核对参数、角色、段/温区和证据；识别失败可在照片卡片重试。');await history();
+  const failed=state.session.images.filter(i=>i.attempts.at(-1)?.error).length;
+  msg(`照片处理完成；本批次 ${failed} 张识别失败。识别结果在“02 · 识别结果”，失败照片可在卡片重试。`,!!failed);
+  $('recognition-results').scrollIntoView();await history();
 }
 $('new').onclick=()=>action(async()=>{await saveIfDirty();adopt(await api('/api/sessions',{method:'POST'}));await history();msg('新批次已创建，可以开始拍照。');});
+$('extraction-request').oninput=changed;
+$('temperature-request').onclick=()=>{
+  $('extraction-request').value='只提取各温区的设定温度和实际温度，不要上下偏差、限制值、输出百分比及其他参数。保留所有温区，不猜测未读清的数值或温区标签。';
+  changed();$('candidate-filter').value='temperature';filterCandidates();
+  msg('已设置提取要求；已有结果已筛选。点击照片“重新识别”可按此要求重新提取。');
+};
+$('candidate-filter').onchange=filterCandidates;
+$('candidate-image').onchange=filterCandidates;
+$('apply-preset').onclick=()=>{
+  const scope=$('prompt-preset').value;
+  $('extraction-request').value=presets[scope].message;changed();
+  $('candidate-filter').value=scope;$('candidate-search').value='';filterCandidates();
+  msg('已应用工艺预设并筛选已有结果；新上传或重新识别时使用此要求。');
+};
+$('candidate-search').oninput=filterCandidates;
 $('sessions').onchange=()=>action(async()=>{const id=$('sessions').value;if(!id)return;await saveIfDirty();adopt(await api('/api/sessions/'+id));msg('已恢复验证批次。');});
 for(const id of ['camera','files'])$(id).onchange=()=>{const files=[...$(id).files];$(id).value='';action(()=>upload(files));};
 const clipboardTypes = {'image/png':'png','image/jpeg':'jpg','image/webp':'webp'};
@@ -334,6 +397,11 @@ $('close-evidence').onclick=()=>$('evidence').close();
 window.addEventListener('beforeunload',e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}});
 action(async()=>{
   const config=await api('/api/config');
+  presets=config.presets;
+  for(const [key,preset] of Object.entries(presets)){
+    for(const id of ['prompt-preset','candidate-filter']){const option=el('option',preset.label);option.value=key;$(id).append(option);}
+  }
+  $('candidate-filter').value='core';
   storageKey=`hmi-lab-session:${labUrl('/')}:${config.storage_namespace}`;
   const id=localStorage.getItem(storageKey);
   if(id){try{adopt(await api('/api/sessions/'+id));}catch(e){if(!e.message.includes('不存在'))throw e;}}

@@ -43,7 +43,7 @@
     "current": "现在温度",
     "control": "控制输出",
     "holding": "保温温度",
-    "drop_port_header": "落下口",
+    "drop_port_header": ["落下口", "下口"],
     "page_title": "温度"
   },
   "page_detect_anchors": [

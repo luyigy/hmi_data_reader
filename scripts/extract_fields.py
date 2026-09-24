@@ -112,6 +112,10 @@ def route_family(stem: str, lines: list[dict],
                 fam = info.get("controller_family", "")
                 if fam and fam != "UNKNOWN":
                     return fam, "machine_labels"
+    # TACT 温度页在摩尔纹下品牌与整列行标签可能全丢，但四个连续区段列头仍在。
+    texts = [line["text"] for line in lines]
+    if all(_anchor_hits(anchor, texts) for anchor in ("前部", "中部", "后部", "下口")):
+        return "TACT", "temperature_columns"
     # 3. 单图兜底
     fam, _ = find_ui_family(lines)
     return fam, "per_image_classify"
