@@ -17,7 +17,7 @@ import { listPendingTaskRunInteractionRequests } from '@/lib/acpx/interactions';
 import { resolveInteractionRequestWithContinuation } from '@/lib/acpx/interaction-actions';
 import { createGrantActionToken, grantRightsForRoom, parseGrantProfile } from '@/lib/feishu-grant';
 import { isFeishuAdmin } from '@/lib/feishu-access-approval';
-import { resolveWorkspaceDirectory } from '@/lib/feishu-workspace';
+import { resolveWorkspaceDirectory, resolveWorkspaceRoot } from '@/lib/feishu-workspace';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import {
   listLiveRoomPendingReplies,
@@ -542,8 +542,9 @@ export async function handleWorkspaceCommand(command: ParsedFeishuCommand, conte
   }
 
   if (!context?.senderOpenId) return '无法识别当前 Feishu 用户。';
+  const isAdmin = isFeishuAdmin(context.senderOpenId);
   const access = await prisma.feishuUserAccess.findUnique({ where: { openId: context.senderOpenId }, select: { workspaceRoot: true } });
-  if (!isFeishuAdmin(context.senderOpenId) && !access?.workspaceRoot) return '当前用户尚未配置授权根目录，请联系管理员。';
+  if (!isAdmin && !access?.workspaceRoot) return '当前用户尚未配置授权根目录，请联系管理员。';
   const workspaceRoot = access?.workspaceRoot;
   const newDir = command.args.join(' ').trim() || command.options['path'] || '';
   if (!newDir) {
@@ -561,15 +562,16 @@ export async function handleWorkspaceCommand(command: ParsedFeishuCommand, conte
     return [
       `Room：${room.title} (${room.id})`,
       `绑定会话：${context.chatType} ${context.chatId}`,
-      `授权根目录：${workspaceRoot || '管理员不受用户根目录限制'}`,
+      `授权根目录：${isAdmin ? '管理员不受用户根目录限制' : workspaceRoot}`,
       `Room workdir：${room.workingDirectory || '(未设置)'}`,
       `实际 workdir：${actualWorkdir}${room.workingDirectory ? '' : '（回退值，非群独占 workspace）'}`,
-      '如需修改：/ap workspace <授权根目录内路径>',
+      isAdmin ? '如需修改：/ap workspace <绝对目录路径>' : '如需修改：/ap workspace <授权根目录内路径>',
     ].join('\n');
   }
 
-  if (!workspaceRoot) return '管理员请通过房间命令的 --workdir 设置目录；/ap workspace 仅用于受授权用户。';
-  const resolvedDir = await resolveWorkspaceDirectory(workspaceRoot, newDir);
+  const resolvedDir = isAdmin
+    ? await resolveWorkspaceRoot(newDir)
+    : await resolveWorkspaceDirectory(workspaceRoot!, newDir);
 
   await prisma.$executeRaw`
     UPDATE "LiveRoom"
