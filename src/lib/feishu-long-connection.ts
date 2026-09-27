@@ -73,7 +73,7 @@ type FeishuLongConnectionState = {
 };
 
 const AP_COMMAND_FORMS = {
-  submitWorkspace: 'form-workspace', submitChat: 'form-chat', submitPlan: 'form-plan',
+  submitTask: 'form-task-new', submitWorkspace: 'form-workspace', submitChat: 'form-chat', submitPlan: 'form-plan',
   submitSchedule: 'form-schedule', submitWorkflowLevel: 'form-workflow-level', submitRoom: 'form-room-create',
   submitRoomRestriction: 'form-room-restriction', submitAgentRole: 'form-agent-role',
   submitAgentSpecialty: 'form-agent-specialty',
@@ -213,7 +213,7 @@ function markRuntimeStatus(
   });
 }
 
-function buildCardActionHandler(prefix: string) {
+export function buildCardActionHandler(prefix: string) {
   return async (data: Lark.InteractiveCardActionEvent) => {
     const action = data.action as unknown as {
       name?: string;
@@ -226,7 +226,7 @@ function buildCardActionHandler(prefix: string) {
         ? 'group'
         : undefined;
     const submitName = action.name?.replace(/_(p2p|group)$/, '');
-    const submittedForm = AP_COMMAND_FORMS[submitName as keyof typeof AP_COMMAND_FORMS];
+    const submittedForm = AP_COMMAND_FORMS[submitName?.replace(/^submitTask:[0-9a-f-]{36}$/, 'submitTask') as keyof typeof AP_COMMAND_FORMS];
     const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
     const trialAction = data?.action?.value?.trial_action;
     if (!cmd && !submittedForm && !['approve', 'reject'].includes(String(trialAction))) {
@@ -440,7 +440,7 @@ function buildCardActionHandler(prefix: string) {
           chatId,
           chatType,
           senderOpenId: openId,
-          messageId: messageId || '',
+          messageId: messageId ? (submittedForm === 'form-task-new' ? `${messageId}:${submitName}` : messageId) : '',
         },
       }).then((result) => sendFeishuInteractiveMessage({
         receiveId: chatId,

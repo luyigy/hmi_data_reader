@@ -237,3 +237,17 @@ assert.match(JSON.stringify(resultCard), /查看详细信息/);
 assert.match(JSON.stringify(resultCard), /返回命令中心/);
 
 console.log('Feishu help command checks passed');
+
+for (const view of ['home', 'room'] as const) {
+  assert.match(JSON.stringify(buildFeishuCommandCenterCard('group', view)), /新增独立任务/);
+  assert.doesNotMatch(JSON.stringify(buildFeishuCommandCenterCard('p2p', view)), /新增独立任务/);
+}
+const taskForm = buildFeishuCommandCenterCard('group', 'form-task-new');
+assert.match(JSON.stringify(taskForm), /submitTask:[0-9a-f-]{36}_group/);
+assert.match(JSON.stringify(taskForm), /工作目录/);
+assert.deepEqual(buildFeishuCommandFromForm('form-task-new', { title: ' A " --profile=full ', workdir: ' /tmp/my project ' }), {
+  command: 'task', args: ['new'], options: { title: 'A " --profile=full', workdir: '/tmp/my project' },
+});
+for (const values of [undefined, {}, { title: 'A' }, { title: ' ', workdir: '/tmp' }, { title: 123, workdir: '/tmp' }]) {
+  assert.equal(buildFeishuCommandFromForm('form-task-new', values), null);
+}

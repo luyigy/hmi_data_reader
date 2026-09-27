@@ -152,6 +152,62 @@ async function main() {
   const sends = rootSends;
   assert.match(await run('/ap task retry old'), /安全重试窗口/);
   assert.equal(rootSends, sends);
+  // Exercise the real callback, including UUID-based form retry/new-request identity.
+  const { buildFeishuCommandCenterCard } = await import('../src/lib/feishu-help');
+  const api = localRequire('../src/lib/feishu-api');
+  const results: string[] = [];
+  stubModule('../src/lib/feishu-api', {
+    ...api,
+    sendFeishuInteractiveMessage: async (args: any) => {
+      if (args.uuid) return api.sendFeishuInteractiveMessage(args);
+      results.push(JSON.stringify(args.card));
+      return 'result-card';
+    },
+  });
+  let pending: Promise<string> | undefined;
+  stubModule('../src/lib/feishu', {
+    ...localRequire('../src/lib/feishu'),
+    handleFeishuCommand: (args: any) => {
+      pending = handleFeishuCommand(args);
+      return pending;
+    },
+  });
+  const { buildCardActionHandler } = await import('../src/lib/feishu-long-connection');
+  const callback = buildCardActionHandler('[test]');
+  const newFormName = () => {
+    const card = buildFeishuCommandCenterCard('group', 'form-task-new');
+    const form = card.body.elements[0] as any;
+    return form.elements.at(-1).name as string;
+  };
+  const submit = async (name: string, formValue: any = { title: 'From card', workdir: '/tmp' }) => {
+    pending = undefined;
+    const result = await callback({
+      operator: { open_id: 'user' },
+      context: { open_chat_id: 'chat', open_message_id: 'menu-card' },
+      action: { name, form_value: formValue },
+    } as any);
+    if (pending) await pending;
+    await new Promise(resolve => setImmediate(resolve));
+    return result;
+  };
+  const firstForm = newFormName();
+  const beforeCards = creates;
+  assert.match(JSON.stringify(await submit(firstForm, { title: ' ', workdir: '/tmp' })), /完整填写/);
+  assert.equal(creates, beforeCards);
+  assert.match(JSON.stringify(await submit(firstForm)), /已提交/);
+  assert.match(results.at(-1)!, /入口已就绪/);
+  await submit(firstForm);
+  assert.equal(creates, beforeCards + 1);
+  const nextForm = newFormName();
+  assert.notEqual(nextForm, firstForm);
+  await submit(nextForm);
+  assert.equal(creates, beforeCards + 2);
+  await submit(newFormName().replace(/_group$/, '_p2p'));
+  assert.match(results.at(-1)!, /群根会话/);
+  await run('/ap isolation off', { senderOpenId: 'owner' });
+  await submit(newFormName());
+  assert.match(results.at(-1)!, /已关闭/);
+  assert.equal(creates, beforeCards + 2);
   console.log('Feishu S03 entry checks passed: auth, toggles, idempotent recovery, scope, archive, retry window');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => {

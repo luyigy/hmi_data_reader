@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
@@ -134,7 +135,7 @@ const QUICK_ACTIONS = [
 ] as const;
 
 const CATEGORY_VIEWS = ['room', 'runtime', 'workflow', 'admin'] as const;
-const FORM_VIEWS = ['form-run-feature', 'form-run-debug', 'form-documentation', 'form-workspace', 'form-chat', 'form-plan', 'form-schedule', 'form-workflow-level'] as const;
+const FORM_VIEWS = ['form-task-new', 'form-run-feature', 'form-run-debug', 'form-documentation', 'form-workspace', 'form-chat', 'form-plan', 'form-schedule', 'form-workflow-level'] as const;
 export type FeishuCommandCenterView = 'home' | typeof CATEGORY_VIEWS[number] | typeof FORM_VIEWS[number];
 export type FeishuRoomControlView = 'permission' | 'role' | 'specialty';
 
@@ -150,6 +151,17 @@ export type FeishuRoomCreationAgent = {
 };
 
 const FORM_DEFINITIONS = {
+  'form-task-new': {
+    title: '新增独立任务',
+    description: '在已开启任务隔离的群聊中创建新任务；创建后在新入口卡片的话题内添加 Agent 并续聊。',
+    fields: [
+      { name: 'title', label: '任务名', placeholder: '例如：修复登录问题' },
+      { name: 'workdir', label: '工作目录', placeholder: '授权根目录内的绝对或相对路径' },
+    ],
+    submitName: 'submitTask',
+    submitLabel: '创建独立任务',
+    returnView: 'room',
+  },
   'form-run-feature': {
     title: '功能开发 /run feature',
     description: '选择 workflow 档位并填写任务。',
@@ -278,6 +290,7 @@ export const buildFeishuCommandCenterCard = (
         content: '**所有命令都必须以 `/ap` 开头。**\n常用只读命令可直接执行；带参数命令使用结构化表单。',
       },
       buttonColumns([
+        ...(chatType === 'group' ? [callbackButton('新增独立任务…', { cmd: 'ap-menu', view: 'form-task-new', chatType }, 'primary_filled')] : []),
         callbackButton('功能开发…', { cmd: 'ap-menu', view: 'form-run-feature', chatType }, 'primary_filled'),
         callbackButton('发现 Agents', { cmd: 'ap-command', command: '/ap discover-agents', chatType }),
       ]),
@@ -324,7 +337,8 @@ export const buildFeishuCommandCenterCard = (
           })),
           {
             tag: 'button',
-            name: `${form.submitName}_${chatType}`,
+            // Each opened task form has one stable creation request, including retries.
+            name: `${form.submitName}${view === 'form-task-new' ? `:${randomUUID()}` : ''}_${chatType}`,
             text: { tag: 'plain_text', content: form.submitLabel },
             type: 'primary_filled',
             form_action_type: 'submit',
@@ -344,6 +358,7 @@ export const buildFeishuCommandCenterCard = (
   const [group, commands] = HELP_PAGES[pageIndex];
   const formButtons = categoryView === 'room'
     ? [
+      ...(chatType === 'group' ? [callbackButton('新增独立任务…', { cmd: 'ap-menu', view: 'form-task-new', chatType }, 'primary_filled')] : []),
       callbackButton('功能开发…', { cmd: 'ap-menu', view: 'form-run-feature', chatType }),
       callbackButton('排障修复…', { cmd: 'ap-menu', view: 'form-run-debug', chatType }),
       callbackButton('文档与记录…', { cmd: 'ap-menu', view: 'form-documentation', chatType }, 'primary_filled'),
@@ -622,6 +637,9 @@ export const buildFeishuCommandFromForm = (
         ...(text('timeout') ? { timeout: text('timeout') } : {}),
       },
     };
+  }
+  if (form === 'form-task-new' && text('title') && text('workdir')) {
+    return { command: 'task', args: ['new'], options: { title: text('title'), workdir: text('workdir') } };
   }
   if (form === 'form-workspace' && text('path')) {
     return { command: 'workspace', args: [text('path')], options: {} };
