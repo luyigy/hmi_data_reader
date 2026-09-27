@@ -35,3 +35,18 @@ with tempfile.TemporaryDirectory() as temp:
                 raise AssertionError('Wrong checksum with correct file size must fail')
             assert 'failed' in (dest / 'download-status.json').read_text()
 print('download checks passed')
+
+# Exercise the BF16 selection without downloading any weights.
+with patch.dict(sys.modules, {'modelscope': sdk, 'modelscope.hub.api': api}):
+    with patch.object(sys, 'argv', [str(script), '--bf16']):
+        with tempfile.TemporaryDirectory() as temp:
+            dest = Path(temp) / 'bf16'
+            sys.argv += ['--local-dir', str(dest)]
+            sdk.snapshot_download = lambda *a, **k: (dest / 'model.safetensors').write_bytes(b'abc')
+            runpy.run_path(str(script), run_name='__main__')
+            import json
+            status = json.loads((dest / 'download-status.json').read_text())
+            assert status['state'] == 'complete'
+            assert status['model_id'] == 'Qwen/Qwen3.8-27B'
+            assert status['revision'] == 'e823e888ae179eb3be02c1a48899c4f828371376'
+print('BF16 selection checks passed')

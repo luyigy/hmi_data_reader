@@ -2,6 +2,25 @@
 
 提取注塑机控制屏（HMI）拍照图片里的设定工艺参数，转为结构化数据。
 
+## 文件放在哪里（2026-09-27 整理）
+
+| 内容 | 位置 |
+| --- | --- |
+| 飞书原图、历史样本 | `datasets/hmi/raw/` |
+| 标注包、人工复核队列 | `datasets/hmi/annotations/` |
+| 样本清单、来源与验收索引 | `datasets/hmi/catalog/` |
+| 已有真值、留出与回归基线 | `ground_truth/`、`datasets/holdout/`、`datasets/regression/` |
+| 训练运行、adapter、输入快照 | `output/training/` |
+| 框复核、对照图、验收证据 | `output/reviews/` |
+| 推理测试 | `output/inference-tests/` |
+| 训练日志、历史运维杂项 | `output/logs/training/`、`output/archive/training-prep/` |
+| 代码与回归检查 | `scripts/`、`tests/` |
+| 说明、报告与交接 | `docs/`，入口 [文档索引](docs/000_INDEX.md) |
+
+新增数据从 [HMI 数据目录说明](datasets/hmi/README.md) 进入。历史 `docs/*sample*` 和
+`output/training-prep/*` 已保留为兼容链接；新产物按上表存放，不再往旧目录平铺。
+图片、标注、权重被 Git 忽略，必须单独备份；Git 仓库不是训练数据备份。
+
 ## 数据源
 
 - 飞书多维表格 **生产工艺日报表**（base_token: `Vz2QbZ0lkagmVJsrMZ7cQwbSnZc`，table_id: `tbl5KKYuANqGpycE`）
@@ -50,7 +69,7 @@ hmi_data_reader/
 │   ├── 000_INDEX.md
 │   ├── 006_REPORT_20260729_架构重新梳理.md
 │   ├── 007_PLAN_20260730_端到端薄切片实施计划.md
-│   └── samples*/                          # 样本图片（samples / samples_v2 / samples_v3）
+│   └── samples*/                          # 历史兼容链接 → datasets/hmi/raw/legacy/
 ├── ground_truth/
 │   ├── machine_labels.json                # S1 机器先验（唯一先验事实源）
 │   └── zizes_temperature/                 # S3 ZizES 温度页字段级真值（5 张）

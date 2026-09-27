@@ -1,0 +1,17 @@
+[Unit]
+Description=HMI BF16 LoRA image test service (GPU0, localhost:8005)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data1/code/hmi_data_reader
+ExecStart=/data/venvs/hmi-unsloth/bin/python -u -m scripts.serve_finetuned
+Environment=CUDA_VISIBLE_DEVICES=0
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=TOKENIZERS_PARALLELISM=false
+Environment=HF_HUB_DISABLE_PROGRESS_BARS=1
+TimeoutStopSec=60
+KillMode=control-group
+StandardOutput=journal
+StandardError=journal

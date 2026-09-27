@@ -1,7 +1,8 @@
-"""Download the Unsloth vision QLoRA base from ModelScope (no GPU required).
+"""Download the Unsloth QLoRA or original BF16 base from ModelScope (no GPU).
 
 python scripts/download_training_model.py --check
 python scripts/download_training_model.py
+python scripts/download_training_model.py --bf16
 Rerun the same command to resume using the ModelScope cache.
 """
 import argparse
@@ -15,13 +16,18 @@ from modelscope import snapshot_download
 from modelscope.hub.api import HubApi
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--local-dir', type=Path,
-                    default=Path('/data/cache/modelscope/Qwen/Qwen3.8-27B-unsloth-bnb-4bit'))
+parser.add_argument('--local-dir', type=Path)
+parser.add_argument('--bf16', action='store_true', help='Download original Qwen BF16 weights')
 parser.add_argument('--check', action='store_true', help='Only query the remote file manifest')
 args = parser.parse_args()
 model_id = 'unsloth/Qwen3.8-27B-unsloth-bnb-4bit'
 # Pin the verified snapshot so retries cannot mix revisions.
 revision = 'efd33fc8cf0d2973542650259250be0bf17fd3ed'
+if args.bf16:
+    model_id = 'Qwen/Qwen3.8-27B'
+    revision = 'e823e888ae179eb3be02c1a48899c4f828371376'
+if args.local_dir is None:
+    args.local_dir = Path('/data/cache/modelscope/Qwen') / model_id.split('/')[-1]
 files = [f for f in HubApi().get_model_files(model_id, revision=revision, recursive=True)
          if f['Type'] == 'blob']
 assert files and any(f['Path'].endswith('.safetensors') for f in files), 'No weights in repository'

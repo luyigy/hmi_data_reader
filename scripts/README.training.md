@@ -1,5 +1,78 @@
 # HMI 视觉微调准备
 
+## BF16 首轮训练（2026-09-26）
+
+`scripts.train_small_sample` 现默认加载原始 BF16 权重，关闭 4/8-bit 量化，
+只允许 GPU0；batch size 为 1，LoRA rank 8，梯度检查点，图片最长边 1024。
+新增 `reserved-manifest.json` 汇总跨仓 holdout、本仓 holdout/regression 和保留图哈希。
+13 张 confirmed 中 `bde2ce6c4a7e75f3` 与跨仓 holdout case-004 完全相同，
+读取时明确排除，实际训练 12 张。金标原文件不改。
+保留图与训练图仍有同机台来源，不能宣称按机台隔离的泛化评测；
+`before.json` / `after.json` 是训练集拟合诊断，不是 holdout 准确率。
+
+```bash
+python3 -m tests.check_training_sample_isolation
+/data/venvs/hmi-unsloth/bin/python -m scripts.train_small_sample --check --output output/training-prep/check-only
+# 以下每次 train 都必须用新的独立目录；环境变量同时用于 train 和 reload。
+CUDA_VISIBLE_DEVICES=0 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  /data/venvs/hmi-unsloth/bin/python -u -m scripts.train_small_sample --output NEW_SMOKE_DIR --smoke
+CUDA_VISIBLE_DEVICES=0 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  /data/venvs/hmi-unsloth/bin/python -u -m scripts.train_small_sample --output NEW_SMOKE_DIR --smoke --phase reload
+```
+
+`--smoke` 保留完整答案，选择 token 最长的两张各更新一次，生成限制为 8 token；
+检查数值、梯度、真实参数更新、adapter 保存与独立重载。
+通过后去掉 `--smoke`，用新目录 `--epochs 3` 训练 36 步，再单独 `--phase reload`。
+每步 `steps.json` 记录 loss、耗时、PyTorch 峰值 allocated/reserved 和设备空闲显存。
+启动前至少 72 GiB 空闲只是准入检查，不是不会 OOM 的保证。
+当前运行目录和 systemd 单元见 `output/training-prep/active-bf16-run.json`，
+每个独立输出目录的日志为同路径加 `.log`；不要重复启动。
+
+本次短步 `bf16-smoke-20260926-163735`：两次真实更新、保存、独立重载均退出 0，
+最长完整序列 3750/3636 token，峰值 allocated 53.65 GiB，更新结束设备空闲约 22.43 GiB。
+首轮单元 `bf16-first-20260926-164047.service` 已启动（先 before 基线，再 36 步训练，
+after 对照，成功后自动独立重载）；启动不代表整轮完成，以产物和单元退出状态为准。
+GPU0 的 `comfyui-h3.service` 在队列为空时临时停止；GPU1 AWQ 未操作。
+GitNexus impact/detect_changes 均因数据库 43 / 运行时 41 不兼容失败，图风险 UNKNOWN；
+已源码核查调用方，样本隔离离线回归、样本校验与 Python 编译检查通过。
+
+## 原生 BF16 下载（2026-09-25）
+
+已停止 GPU0 的 `hmi-unsloth.service`，保持 disabled；停止后 GPU0 仅占 17 MiB。
+GPU1 AWQ 服务继续运行。当前仅下载原生权重，未启动 BF16 推理或训练。
+
+ModelScope 原仓库为 `Qwen/Qwen3.8-27B`，与 Unsloth 模型卡的 base_model 一致。
+原仓库配置为 `Qwen3_5ForConditionalGeneration`，text dtype 为 bfloat16，无量化配置；
+Qwen3.5 是架构标识，不是此模型的版本名。固定清单提交
+`e823e888ae179eb3be02c1a48899c4f828371376`，32 个文件（18 个权重分片），
+共 55,586,112,539 bytes。来源：<https://modelscope.cn/models/Qwen/Qwen3.8-27B>。
+
+```bash
+python3 scripts/download_training_model.py --bf16 --check
+# 已启动的后台服务；不要并发重复下载
+systemctl --user show hmi-bf16-model-download.service -p ActiveState -p MainPID -p ExecMainStatus
+tail -n 8 output/training-prep/bf16-download.log
+cat /data/cache/modelscope/Qwen/Qwen3.8-27B/download-status.json
+```
+
+后台命令沿用下文 systemd-run 模板，但 unit 改为 `hmi-bf16-model-download`、
+日志改为 `bf16-download.log`，Python 参数加 `--bf16`。下载退出后可用同样参数续传。
+只有逐文件大小和 SHA256 全部验证通过才写 complete；active 时 ExecMainStatus=0
+不能证明完成。保留 BNB 默认下载方式和旧权重。
+
+已请求 AI-workforce 每 2 分钟只读监控，标记 `HMI-BF16-20260925-1716`；
+消息回执及接管回复保存在 `output/training-prep/bf16-monitor-*.json`。
+禁止监控端重复下载或自动启动训练/推理。
+17:16 已收到匹配标记的接管确认（`om_x100b6457f1f36ca0c38b46b6679f796`），
+本地核实监控进程 900774 存在，首轮日志位于
+`output/training-prep/bf16-monitor.log`。Hermes 会话为 `proc_b9c909ce319f`。
+
+标注工作包本轮重建并保留已有编辑：78 张、10 类控制器、2 张评测保留图；
+3 张已有 answer 草稿，78 张仍为 needs_human_review，可训练金标为 0。
+先继续核对现有草稿，再补同一布局样本和真实分组信息；不能直接将草稿用于训练。
+入口：`output/training-prep/annotation-packet/index.html`。
+下载离线测试、BF16 参数选择测试及标注包保护测试均通过。
+
 ## 权重下载
 
 模型：`unsloth/Qwen3.8-27B-unsloth-bnb-4bit`（ModelScope），固定版本

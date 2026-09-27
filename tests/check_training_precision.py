@@ -15,7 +15,7 @@ from scripts.train_small_sample import BASE, PROMPT, model_loss, read_samples
 
 torch.manual_seed(42)
 model, processor = FastVisionModel.from_pretrained(
-    BASE, load_in_4bit=True, dtype=torch.bfloat16, max_seq_length=8192,
+    BASE, load_in_4bit=False, load_in_8bit=False, dtype=torch.bfloat16, max_seq_length=8192,
     local_files_only=True,
 )
 model = FastVisionModel.get_peft_model(
