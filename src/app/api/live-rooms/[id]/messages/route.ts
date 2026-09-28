@@ -27,8 +27,9 @@ export async function GET(
 
     const room = await prisma.liveRoom.findFirst({ where: { id: params.id, ...ownedByCurrentUser(user) } });
     if (!room) return NextResponse.json({ error: 'Live room not found' }, { status: 404 });
+    const replyToMessageId = request.nextUrl.searchParams.get('replyToMessageId');
     const messages = await prisma.liveRoomMessage.findMany({
-      where: { roomId: room.id },
+      where: { roomId: room.id, ...(replyToMessageId ? { replyToMessageId } : {}) },
       include: {
         senderMember: {
           include: {
@@ -37,13 +38,13 @@ export async function GET(
         },
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: 'desc',
       },
       take: limit,
     });
 
     return NextResponse.json({
-      messages: messages.map(serializeLiveRoomMessage),
+      messages: messages.reverse().map(serializeLiveRoomMessage),
     });
   } catch (error) {
     console.error('Failed to fetch live room messages:', error);
@@ -166,7 +167,7 @@ export async function POST(
         },
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: 'desc',
       },
       take: 120,
     });
@@ -175,7 +176,7 @@ export async function POST(
 
     return NextResponse.json({
       message,
-      messages: freshMessages.map(serializeLiveRoomMessage),
+      messages: freshMessages.reverse().map(serializeLiveRoomMessage),
       pendingReplyCount: pendingReplies.reduce((total, reply) => total + reply.pendingCount, 0),
       pendingReplyTargetNames: pendingReplies.map((reply) => reply.displayName),
       pendingReplies,
