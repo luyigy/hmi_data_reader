@@ -99,17 +99,16 @@ max_context_size = 1_000
     '{"type":"metadata","protocol_version":"1.4"}',
     '{"type":"config.update","modelAlias":"kimi-code/k3"}',
     '{"type":"context.append_loop_event","event":{"type":"step.end","usage":{"inputCacheRead":20,"inputCacheCreation":0,"inputOther":8,"output":2}}}',
+    JSON.stringify({ type: 'turn.ended', reason: 'completed', time: now.getTime(), turnId: 0 }),
   ].join('\n'));
 
     assert.deepEqual(await collectKimiCodeProviderContextUsage({
       sessionId: 'session-1',
       home,
-      collectedAt: now,
     }), usage);
     assert.equal(await collectKimiCodeProviderContextUsage({
       sessionId: '../escape',
       home,
-      collectedAt: now,
     }), null);
   } finally {
     await rm(home, { recursive: true, force: true });

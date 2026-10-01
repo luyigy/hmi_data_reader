@@ -1,20 +1,11 @@
-import type { HarnessAdapter, NormalizedContextUsage } from '../types';
+import type { HarnessAdapter, HarnessExecuteArgs } from '../types';
 
-import { collectKimiCodeProviderContextUsage } from '@/lib/real-agents/kimi-code-telemetry';
+import { collectKimiCodeSessionTelemetry } from '@/lib/real-agents/kimi-code-telemetry';
 
-async function collectContextUsage(sessionId?: string): Promise<NormalizedContextUsage | undefined> {
-  if (!sessionId) return undefined;
-  const usage = await collectKimiCodeProviderContextUsage({ sessionId });
-  return usage ? {
-    usedTokens: usage.usedTokens,
-    model: usage.modelAlias,
-    contextWindow: usage.contextWindow,
-    metricKind: 'session_context',
-    confidence: 'measured_exact',
-    sessionId,
-    collectedAt: Date.parse(usage.collectedAt),
-  } : undefined;
-}
+const collectTelemetry = (sessionId: string | undefined, context: HarnessExecuteArgs['context'], startedAt: number) =>
+  sessionId && context.executionId
+    ? collectKimiCodeSessionTelemetry({ sessionId, executionId: context.executionId,
+      startedAt, completedAt: Date.now() }) : undefined;
 
 async function loadKimiCodeAgent() {
   return import('@/lib/real-agents/kimi-code-agent');
@@ -46,6 +37,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
         executionTime: 0,
       };
     }
+    const startedAt = Date.now();
     const { executeKimiCodeTask: runKimiCode } = await loadKimiCodeAgent();
     const result = await runKimiCode(task, {
       timeout: context.timeout,
@@ -62,15 +54,18 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
     if (result.sessionId) {
       await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
     }
+    const telemetry = result.success ? await collectTelemetry(result.sessionId, context, startedAt) : undefined;
     return {
       ...result,
-      contextUsage: await collectContextUsage(result.sessionId),
+      contextUsage: telemetry?.contextUsage,
+      runtimeState: telemetry?.runtimeState,
       sessionKind: result.sessionId ? 'kimi_session' : undefined,
       liveStreaming: true,
     };
   },
 
   async resume({ task, context, sessionId, continuationMessage }) {
+    const startedAt = Date.now();
     const { executeKimiCodeTask: resumeKimiCode } = await loadKimiCodeAgent();
     const result = await resumeKimiCode(task, {
       timeout: context.timeout,
@@ -89,9 +84,11 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
     if (result.sessionId) {
       await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
     }
+    const telemetry = result.success ? await collectTelemetry(result.sessionId, context, startedAt) : undefined;
     return {
       ...result,
-      contextUsage: await collectContextUsage(result.sessionId),
+      contextUsage: telemetry?.contextUsage,
+      runtimeState: telemetry?.runtimeState,
       sessionKind: result.sessionId ? 'kimi_session' : undefined,
       liveStreaming: true,
     };

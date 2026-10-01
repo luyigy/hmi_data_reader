@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { access, readFile, readdir } from 'node:fs/promises';
+import { access, readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '@/lib/prisma';
 import { getKimiCodeHome } from './kimi-code-agent';
-import { parseKimiCodeContextUsage } from './kimi-code-context';
+import { parseKimiCodeContextUsage, parseKimiCodeSessionTelemetry } from './kimi-code-context';
 
 const PROVIDER_USAGE_MAX_AGE_MS = 15 * 60 * 1000;
 const QUOTA_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
@@ -55,35 +55,61 @@ export const parseKimiCodeModelContextWindow = (
 
 const findKimiCodeWirePath = async (home: string, sessionId: string) => {
   const workspaces = await readdir(path.join(home, 'sessions'), { withFileTypes: true });
+  let found: string | null = null;
   for (const workspace of workspaces) {
     if (!workspace.isDirectory()) continue;
     const wirePath = path.join(
       home,
       'sessions',
       workspace.name,
-      `session_${sessionId}`,
+      sessionId.startsWith('session_') ? sessionId : `session_${sessionId}`,
       'agents',
       'main',
       'wire.jsonl'
     );
     try {
       await access(wirePath);
-      return wirePath;
+      if (found) return null;
+      found = wirePath;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
   }
-  return null;
+  return found;
+};
+
+export const collectKimiCodeSessionTelemetry = async ({
+  sessionId, executionId, startedAt, completedAt, home = getKimiCodeHome(),
+}: {
+  sessionId: string; executionId: string; startedAt: number; completedAt: number; home?: string;
+}) => {
+  if (!SAFE_SESSION_ID.test(sessionId) || !executionId || !Number.isFinite(startedAt)
+    || !Number.isFinite(completedAt) || completedAt < startedAt) return;
+  try {
+    const wirePath = await findKimiCodeWirePath(home, sessionId);
+    // ponytail: whole-file read caps at 64 MiB; use bounded tail parsing if larger sessions need telemetry.
+    if (!wirePath || (await stat(wirePath)).size > 64 * 1024 * 1024) return;
+    const wire = await readFile(wirePath, 'utf8');
+    const scope = { executionId, sessionId, startedAt, completedAt };
+    const telemetry = parseKimiCodeSessionTelemetry(wire, scope);
+    if (!telemetry) return;
+    let contextWindow: number | undefined;
+    try {
+      const config = await readFile(path.join(home, 'config.toml'), 'utf8');
+      if (telemetry.modelAlias) contextWindow = parseKimiCodeModelContextWindow(config, telemetry.modelAlias) ?? undefined;
+    } catch { /* Config is optional evidence; wire state remains valid. */ }
+    return contextWindow ? parseKimiCodeSessionTelemetry(wire, { ...scope, contextWindow }) : telemetry;
+  } catch {
+    return;
+  }
 };
 
 export const collectKimiCodeProviderContextUsage = async ({
   sessionId,
   home = getKimiCodeHome(),
-  collectedAt = new Date(),
 }: {
   sessionId: string;
   home?: string;
-  collectedAt?: Date;
 }): Promise<KimiCodeProviderContextUsage | null> => {
   if (!SAFE_SESSION_ID.test(sessionId)) return null;
   try {
@@ -95,11 +121,17 @@ export const collectKimiCodeProviderContextUsage = async ({
     ]);
     const usage = parseKimiCodeContextUsage([wire]);
     if (!usage?.modelAlias || !usage.protocolVersion) return null;
+    const ended = wire.split('\n').map(line => {
+      try { return JSON.parse(line) as { type?: string; reason?: string; time?: number }; }
+      catch { return null; }
+    }).filter(record => record?.type === 'turn.ended' && record.reason === 'completed'
+      && Number.isSafeInteger(record.time)).at(-1);
+    if (!ended?.time) return null;
     const contextWindow = parseKimiCodeModelContextWindow(config, usage.modelAlias);
     if (!contextWindow) return null;
     return {
       source: 'kimi_wire',
-      collectedAt: collectedAt.toISOString(),
+      collectedAt: new Date(ended.time).toISOString(),
       sessionId,
       modelAlias: usage.modelAlias,
       usedTokens: usage.usedTokens,

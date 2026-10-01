@@ -15,7 +15,7 @@ export function readLegacyContextUsage(
   const kimi = readKimiCodeContextUsageMetadata(metadata, new Date(now));
   if (kimi) return {
     usedTokens: kimi.usedTokens, contextWindow: kimi.contextWindow,
-    metricKind: 'session_context', confidence: 'measured_exact',
+    metricKind: 'session_context', confidence: 'assumed_window',
     sessionId: kimi.sessionId, collectedAt: Date.parse(kimi.collectedAt),
   };
   // Old Antigravity records have neither session binding nor provenance;
