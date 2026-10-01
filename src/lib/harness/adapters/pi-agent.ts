@@ -27,12 +27,13 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
   async execute({ task, context }) {
     const { executePiAgentTask, resolvePiAgentSessionDir } = await loadPiAgent();
     const sessionDir = resolvePiAgentSessionDir(context.sessionKey || `${context.executionBackend}:${task.id}`);
-    context.onSessionStarted?.({
+    await context.onSessionStarted?.({
       sessionId: sessionDir,
       sessionKind: 'pi_session_dir',
     });
 
     const result = await executePiAgentTask(task, {
+      executionId: context.executionId,
       timeout: context.timeout,
       model: context.model,
       reasoningEffort: context.reasoningEffort,
@@ -50,6 +51,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
       filesModified: result.filesModified,
       sessionId: result.sessionDir,
       sessionKind: result.sessionDir ? 'pi_session_dir' : undefined,
+      runtimeState: result.runtimeState,
       liveStreaming: false,
     };
   },
@@ -57,6 +59,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
   async resume({ context, sessionId, continuationMessage }) {
     const { resumePiAgentSession } = await loadPiAgent();
     const result = await resumePiAgentSession({
+      executionId: context.executionId,
       sessionDir: sessionId,
       prompt: continuationMessage,
       timeout: context.timeout,
@@ -75,6 +78,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
       filesModified: result.filesModified,
       sessionId: result.sessionDir,
       sessionKind: result.sessionDir ? 'pi_session_dir' : undefined,
+      runtimeState: result.runtimeState,
       liveStreaming: false,
     };
   },

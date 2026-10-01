@@ -7,8 +7,11 @@ import * as os from 'os';
 import * as path from 'path';
 import { runPiRpc } from './pi-rpc';
 import { normalizeMemberModelSettings, splitPiModel } from '../live-room-codex-settings';
+import { collectPiRuntimeState } from './pi-runtime-state';
+import type { HarnessRuntimeState } from '@/lib/harness/types';
 
 export interface PiAgentConfig {
+  executionId?: string;
   model?: string;
   reasoningEffort?: string;
   timeout?: number | null;
@@ -32,6 +35,7 @@ export interface PiAgentResult {
   executionTime: number;
   filesModified?: string[];
   sessionDir?: string;
+  runtimeState?: HarnessRuntimeState;
 }
 
 const DEFAULT_PI_AGENT_BIN = process.env.PI_AGENT_BIN?.trim() || '/data1/code/pi-mono/pi-test.sh';
@@ -197,7 +201,7 @@ const runPiAgentCommand = async ({
   onSpawn?: (child: ChildProcess) => void;
   sessionDir?: string;
   continueSession?: boolean;
-}): Promise<string> => {
+}): Promise<{ output: string; sessionFile?: string; sessionId?: string }> => {
   const { spawn } = await import('child_process');
 
   if (sessionDir) {
@@ -205,15 +209,18 @@ const runPiAgentCommand = async ({
   }
 
   if (streamCallbacks?.onSteeringReady) {
-    return runPiRpc({
+    let state: { sessionFile?: string; sessionId?: string } = {};
+    const output = await runPiRpc({
       binary: DEFAULT_PI_AGENT_BIN,
       args: buildPiArgs({ prompt, sessionDir, continueSession, model, reasoningEffort, mode: 'rpc' }),
       prompt, timeout, workingDirectory, streamCallbacks, onSpawn,
       onEvent: (line) => { processPiJsonLine(line, workingDirectory, streamCallbacks); },
+      onState: (next) => { state = next; },
     });
+    return { output, ...state };
   }
 
-  const run = (mode: 'json' | 'print') => new Promise<string>((resolve, reject) => {
+  const run = (mode: 'json' | 'print') => new Promise<{ output: string; sessionId?: string }>((resolve, reject) => {
     const child = spawn(DEFAULT_PI_AGENT_BIN, buildPiArgs({ prompt, sessionDir, continueSession, model, reasoningEffort, mode }), {
       cwd: workingDirectory,
       env: { ...process.env },
@@ -225,6 +232,7 @@ const runPiAgentCommand = async ({
     let stdoutBuffer = '';
     let resolvedText = '';
     let resolvedError = '';
+    let sessionId: string | undefined;
     let settled = false;
     let timeoutHandle: NodeJS.Timeout | undefined;
 
@@ -257,6 +265,9 @@ const runPiAgentCommand = async ({
       const lines = stdoutBuffer.split('\n');
       stdoutBuffer = lines.pop() ?? '';
       for (const line of lines) {
+        if (!sessionId) {
+          try { const header = JSON.parse(line); if (header.type === 'session' && typeof header.id === 'string') sessionId = header.id; } catch { /* Invalid event is ignored below. */ }
+        }
         const event = processPiJsonLine(line, workingDirectory, streamCallbacks);
         if (event?.assistantText) {
           resolvedText = event.assistantText;
@@ -294,7 +305,7 @@ const runPiAgentCommand = async ({
           settle(() => reject(new Error(resolvedError)));
           return;
         }
-        settle(() => resolve(combined || normalizedStderr || 'Pi Agent completed'));
+        settle(() => resolve({ output: combined || normalizedStderr || 'Pi Agent completed', sessionId }));
         return;
       }
 
@@ -318,7 +329,7 @@ export const executePiAgentTask = async (
   const startTime = Date.now();
 
   try {
-    const output = await runPiAgentCommand({
+    const run = await runPiAgentCommand({
       model: config.model,
       reasoningEffort: config.reasoningEffort,
       prompt: buildPrompt(task),
@@ -332,10 +343,13 @@ export const executePiAgentTask = async (
 
     return {
       success: true,
-      output,
+      output: run.output,
       filesModified: [],
       sessionDir: config.sessionDir,
       executionTime: Date.now() - startTime,
+      runtimeState: config.sessionDir ? await collectPiRuntimeState({ executionId: config.executionId,
+        sessionDir: config.sessionDir, sessionFile: run.sessionFile, sessionId: run.sessionId,
+        startedAt: startTime, completedAt: Date.now() }) : undefined,
     };
   } catch (error) {
     return {
@@ -348,6 +362,7 @@ export const executePiAgentTask = async (
 };
 
 export const resumePiAgentSession = async ({
+  executionId,
   model,
   reasoningEffort,
   sessionDir,
@@ -357,6 +372,7 @@ export const resumePiAgentSession = async ({
   streamCallbacks,
   onSpawn,
 }: {
+  executionId?: string;
   sessionDir: string;
   model?: string;
   reasoningEffort?: string;
@@ -369,7 +385,7 @@ export const resumePiAgentSession = async ({
   const startTime = Date.now();
 
   try {
-    const output = await runPiAgentCommand({
+    const run = await runPiAgentCommand({
       model,
       reasoningEffort,
       prompt,
@@ -383,10 +399,13 @@ export const resumePiAgentSession = async ({
 
     return {
       success: true,
-      output,
+      output: run.output,
       filesModified: [],
       sessionDir,
       executionTime: Date.now() - startTime,
+      runtimeState: await collectPiRuntimeState({ executionId, sessionDir,
+        sessionFile: run.sessionFile, sessionId: run.sessionId,
+        startedAt: startTime, completedAt: Date.now() }),
     };
   } catch (error) {
     return {

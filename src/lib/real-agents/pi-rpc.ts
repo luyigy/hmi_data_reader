@@ -3,6 +3,7 @@ import type { HarnessSteer, HarnessStreamCallbacks } from '@/lib/acpx/types';
 
 type Reply = { success?: boolean; error?: string; data?: {
   isStreaming?: boolean; isCompacting?: boolean; pendingMessageCount?: number;
+  sessionFile?: string; sessionId?: string;
 } };
 
 // RPC is opt-in for local Live Room Pi. Other callers keep their existing transport.
@@ -10,6 +11,7 @@ export function runPiRpc(options: {
   binary: string; args: string[]; prompt: string; timeout: number | null;
   workingDirectory: string; streamCallbacks: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void; onEvent: (line: string) => void;
+  onState?: (state: { sessionFile?: string; sessionId?: string }) => void;
 }): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(options.binary, options.args, {
@@ -77,6 +79,7 @@ export function runPiRpc(options: {
         poll = setTimeout(() => { void checkEnd(); }, 25);
         return;
       }
+      options.onState?.(state.data || {});
       finish(failure || (!output.trim() ? 'Pi Agent returned an empty response' : undefined));
     };
 
