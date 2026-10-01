@@ -31,6 +31,19 @@ case "$AGY_TEST_CASE" in
     printf '{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"done"}}\\n'
     printf '{"event":"result","result":{"response":"final answer"}}\\n'
     ;;
+  session)
+    printf '{"event":"init","conversation_id":"test-conversation"}\\n'
+    printf '{"event":"result","result":{"conversation_id":"test-conversation","status":"SUCCESS","response":"remembered"}}\\n'
+    ;;
+  denied)
+    printf '{"event":"result","result":{"status":"SUCCESS","response":"","denied_actions":[{"action":"command"}]}}\\n'
+    ;;
+  result_error)
+    printf '{"event":"result","result":{"status":"ERROR","response":"provider failed"}}\\n'
+    ;;
+  partial)
+    printf '{"event":"step_update","step_update":{"text_delta":"unfinished"}}\\n'
+    ;;
   multi_result)
     printf '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"waiting for background build"}}\\n'
     printf '{"event":"result","result":{"status":"SUCCESS","response":"Waiting for background build"}}\\n'
@@ -142,6 +155,54 @@ esac
     );
     assert.equal(finalReport.success, true, finalReport.error);
     assert.equal(finalReport.output, 'Build PASSED. S01 31 passed, S02 PASSED.');
+
+    const { antigravityHarnessAdapter: adapter } = await import('../src/lib/harness/adapters/antigravity');
+    process.env.AGY_TEST_CASE = 'session';
+    const sessions: string[] = [];
+    const context = {
+      workingDirectory: workspace,
+      executionBackend: 'platform_local' as const,
+      timeout: 10000,
+      model: 'test-model',
+      reasoningEffort: 'low',
+      onSessionStarted: async ({ sessionId }: { sessionId: string }) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        sessions.push(sessionId);
+      },
+    };
+    const first = await adapter.execute({ task: { id: 'session', name: 'remember' }, context });
+    assert.equal(first.sessionId, 'test-conversation');
+    assert.equal(first.sessionKind, 'antigravity_conversation');
+    const { getContinuationSession } = await import('../src/lib/acpx/session-tracking');
+    assert.deepEqual(getContinuationSession({ harnessType: 'antigravity', controlMetadata: JSON.stringify({
+      lastSessionId: first.sessionId, lastSessionKind: first.sessionKind,
+    }) }), { sessionId: first.sessionId, sessionKind: first.sessionKind });
+    assert.deepEqual(sessions, ['test-conversation']);
+    const resumed = await adapter.resume!({ task: { id: 'resume', name: 'ignored' }, context,
+      sessionId: first.sessionId!, continuationMessage: 'Recall previous message' });
+    assert.equal(resumed.success, true, resumed.error);
+    assert.deepEqual(sessions, ['test-conversation', 'test-conversation']);
+    const resumeArgs = await readFile(path.join(workspace, 'args'), 'utf8');
+    assert.match(resumeArgs, /^--conversation=test-conversation$/m);
+    assert.match(resumeArgs, /^Recall previous message$/m);
+    assert.doesNotMatch(resumeArgs, /Task: ignored/);
+    assert.match(resumeArgs, /--model\ntest-model\n--effort\nlow/);
+    assert.equal(adapter.getCapabilities('platform_local').supportsQueuedUserMessages, true);
+    assert.equal(adapter.getCapabilities('platform_local').supportsLiveSessionControl, false);
+    const persistenceFailure = await executeAntigravityTask({ id: 'persist', name: 'test' }, {
+      onSessionStarted: async () => { throw new Error('database unavailable'); },
+    });
+    assert.equal(persistenceFailure.success, false);
+    assert.match(persistenceFailure.error || '', /Failed to persist/);
+    for (const [testCase, expected] of [
+      ['denied', /权限请求被拒绝/], ['result_error', /provider failed/],
+      ['partial', /without a result event/],
+    ] as const) {
+      process.env.AGY_TEST_CASE = testCase;
+      const result = await executeAntigravityTask({ id: testCase, name: 'test' });
+      assert.equal(result.success, false);
+      assert.match(result.error || '', expected);
+    }
 
     process.env.AGY_TEST_CASE = 'sandbox';
     const { executeViaLocalHarness } = await import('../src/lib/acpx/runner-harness');

@@ -14,6 +14,11 @@ import {
 
 export interface AntigravityConfig {
   timeout?: number | null;
+  sessionId?: string;
+  prompt?: string;
+  model?: string;
+  reasoningEffort?: string;
+  onSessionStarted?: (sessionId: string) => Promise<void> | void;
   workingDirectory?: string;
   workspaceRoot?: string;
   extraWritableRoots?: string[];
@@ -32,6 +37,7 @@ export interface AntigravityTask {
 
 export interface AntigravityResult {
   success: boolean;
+  sessionId?: string;
   output?: string;
   error?: string;
   executionTime: number;
@@ -112,7 +118,7 @@ const processAntigravityJsonLine = (
 
     const normalizedType = stepType.toLowerCase();
     if (/tool|function/.test(normalizedType)) {
-      if (/result|response|output/.test(normalizedType)) {
+      if (step.state === 'DONE' || /result|response|output/.test(normalizedType)) {
         void streamCallbacks?.onToolEvent?.({ toolName: 'Tool Result', preview: '', emoji: '✅' });
         return;
       }
@@ -184,11 +190,14 @@ export const executeAntigravityTask = (
 ): Promise<AntigravityResult> => {
   const startedAt = Date.now();
   const timeout = config.timeout === null ? null : (config.timeout ?? 300000);
-  const prompt = promptFor(task);
+  const prompt = config.prompt ?? promptFor(task);
   const args = [
     '-p',
     prompt,
     ...resolveProjectArgs(config.workingDirectory),
+    ...(config.sessionId ? [`--conversation=${config.sessionId}`] : []),
+    ...(config.model ? ['--model', config.model] : []),
+    ...(config.reasoningEffort ? ['--effort', config.reasoningEffort] : []),
     '--output-format',
     'stream-json',
     ...(timeout === null ? [] : [`--print-timeout=${timeout}ms`]),
@@ -221,11 +230,34 @@ export const executeAntigravityTask = (
     let stdoutBuffer = '';
     let stderr = '';
     let settled = false;
+    let sessionId: string | undefined;
+    let sawProtocolEvent = false;
+    let sessionWrite: Promise<void> = Promise.resolve();
+    let sessionError: unknown;
+    let finalResult: { status?: string; response?: string; error?: unknown; denied_actions?: unknown[] } | undefined;
+    const processLine = (line: string) => {
+      try {
+        const event = JSON.parse(line);
+        if (event.event) sawProtocolEvent = true;
+        const id = event.event === 'init' ? event.conversation_id
+          : event.event === 'result' ? event.result?.conversation_id : undefined;
+        if (typeof id === 'string' && id.trim() && id !== sessionId) {
+          sessionId = id;
+          sessionWrite = sessionWrite.then(() => config.onSessionStarted?.(id)).catch((error) => {
+            sessionError = error;
+          });
+        }
+        if (event.event === 'result' && event.result) finalResult = event.result;
+      } catch {
+        // CLI diagnostics are not protocol events.
+      }
+      processAntigravityJsonLine(line, config.workingDirectory || process.cwd(), config.streamCallbacks);
+    };
     const finish = (result: Omit<AntigravityResult, 'executionTime'>) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      resolve({ ...result, executionTime: Date.now() - startedAt });
+      resolve({ ...result, sessionId, executionTime: Date.now() - startedAt });
     };
     const timer = timeout === null
       ? undefined
@@ -240,11 +272,7 @@ export const executeAntigravityTask = (
       const lines = stdoutBuffer.split('\n');
       stdoutBuffer = lines.pop() ?? '';
       for (const line of lines) {
-        processAntigravityJsonLine(
-          line.trim(),
-          config.workingDirectory || process.cwd(),
-          config.streamCallbacks,
-        );
+        processLine(line.trim());
       }
     });
     child.stderr?.on('data', (chunk: Buffer) => {
@@ -256,18 +284,24 @@ export const executeAntigravityTask = (
       success: false,
       error: `Failed to start Antigravity CLI: ${error.message}`,
     }));
-    child.on('close', (code) => {
+    child.on('close', async (code) => {
       if (stdoutBuffer.trim()) {
-        processAntigravityJsonLine(
-          stdoutBuffer.trim(),
-          config.workingDirectory || process.cwd(),
-          config.streamCallbacks,
-        );
+        processLine(stdoutBuffer.trim());
       }
+      await sessionWrite;
       const output = extractAntigravityResponse(stdout);
       const contextUsage = parseAntigravityUsageFromText(stdout) || parseAntigravityUsageFromText(stderr) || undefined;
-      if (code !== 0) {
+      if (sessionError) {
+        finish({ success: false, error: `Failed to persist Antigravity session: ${String(sessionError)}`, contextUsage });
+      } else if (finalResult?.denied_actions?.length) {
+        finish({ success: false, error: 'Antigravity 权限请求被拒绝，本轮未完成。请检查成员权限后重试。', contextUsage });
+      } else if (finalResult?.status && finalResult.status !== 'SUCCESS') {
+        finish({ success: false, error: typeof finalResult.error === 'string' ? finalResult.error
+          : finalResult.response || stderr.trim() || `Antigravity result: ${finalResult.status}`, contextUsage });
+      } else if (code !== 0) {
         finish({ success: false, error: stderr.trim() || output || `Antigravity exited with code ${code}`, contextUsage });
+      } else if (sawProtocolEvent && !finalResult) {
+        finish({ success: false, error: 'Antigravity exited without a result event', contextUsage });
       } else if (!output) {
         finish({
           success: false,
