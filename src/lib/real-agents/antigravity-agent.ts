@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process';
-import { readdirSync, readFileSync, realpathSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
@@ -9,6 +10,11 @@ import {
   parseAntigravityUsageFromText,
   type AntigravityContextUsage,
 } from './antigravity-context';
+import {
+  collectAntigravityRuntimeState,
+  getAntigravityExecutionLogPath,
+} from './antigravity-runtime-state';
+import type { HarnessRuntimeState } from '@/lib/harness/types';
 
 export interface AntigravityConfig {
   timeout?: number | null;
@@ -27,6 +33,7 @@ export interface AntigravityConfig {
   streamCallbacks?: HarnessStreamCallbacks;
   sandboxMode?: string;
   onSpawn?: (child: ChildProcess) => void;
+  executionId?: string;
 }
 
 export interface AntigravityTask {
@@ -43,6 +50,7 @@ export interface AntigravityResult {
   executionTime: number;
   filesModified?: string[];
   contextUsage?: AntigravityContextUsage;
+  runtimeState?: HarnessRuntimeState;
 }
 
 const AGY_BIN = process.env.ANTIGRAVITY_CLI_PATH?.trim() || 'agy';
@@ -98,6 +106,13 @@ const executeAntigravityTurn = (
 ): Promise<AntigravityResult> => {
   const startedAt = Date.now();
   const timeout = config.timeout === null ? null : (config.timeout ?? 300000);
+  const executionId = config.executionId || randomUUID();
+  const logFile = getAntigravityExecutionLogPath(executionId);
+  try {
+    mkdirSync(path.dirname(logFile), { recursive: true });
+  } catch {
+    // Ignore if directory exists or cannot be created
+  }
   const message = config.prompt ?? task.description ?? `Task: ${task.name}\n\nPlease complete this task.`;
   const prompt = config.systemPrompt ? `${config.systemPrompt}\n\n${message}` : message;
   const args = [
@@ -110,6 +125,7 @@ const executeAntigravityTurn = (
     '--output-format',
     'stream-json',
     ...(timeout === null ? [] : [`--print-timeout=${timeout}ms`]),
+    ...(logFile ? ['--log-file', logFile] : []),
     ...(config.workspaceRoot || config.sandboxMode === 'danger-full-access'
       ? ['--dangerously-skip-permissions']
       : []),
@@ -142,6 +158,7 @@ const executeAntigravityTurn = (
     let sessionId: string | undefined;
     let sessionWrite: Promise<void> = Promise.resolve();
     let sessionError: unknown;
+    let initModel: string | undefined;
     let finalResult: { status?: string; response?: string; error?: unknown; denied_actions?: unknown[] } | undefined;
     const processLine = (line: string) => {
       try {
@@ -154,6 +171,9 @@ const executeAntigravityTurn = (
           sessionWrite = sessionWrite.then(() => config.onSessionStarted?.(id)).catch((error) => {
             sessionError = error;
           });
+        }
+        if (event.event === 'init' && typeof event.init?.model === 'string' && event.init.model.trim()) {
+          initModel = event.init.model.trim();
         }
         if (event.event === 'result') {
           finalResult = event.result && typeof event.result === 'object' && !Array.isArray(event.result)
@@ -222,7 +242,15 @@ const executeAntigravityTurn = (
       } else if (normalizeOutput(output) === normalizeOutput(prompt)) {
         finish({ success: false, error: `Antigravity returned only the input prompt${stderr.trim() ? `: ${stderr.trim()}` : ''}`, contextUsage });
       } else {
-        finish({ success: true, output, filesModified: [], contextUsage });
+        const runtimeState = sessionId ? await collectAntigravityRuntimeState({
+          executionId,
+          sessionId,
+          logFile,
+          initModel,
+          startedAt,
+          completedAt: Date.now(),
+        }) : undefined;
+        finish({ success: true, output, filesModified: [], contextUsage, runtimeState });
       }
     });
   });

@@ -27,12 +27,13 @@ async function run({ task, context }: HarnessExecuteArgs, sessionId?: string, pr
     streamCallbacks: context.streamCallbacks,
     sandboxMode: context.permissionConfig?.sandboxMode,
     onSpawn: context.onSpawn,
+    executionId: context.executionId,
   });
 
   const usage = result.contextUsage;
   const contextUsage: NormalizedContextUsage | undefined = usage ? {
     usedTokens: usage.lastRunInputTokens,
-    model: usage.modelAlias,
+    model: usage.modelAlias || result.runtimeState?.model,
     outputTokens: usage.outputTokens,
     contextWindow: usage.contextWindow ?? undefined,
     metricKind: 'turn_input',
@@ -43,6 +44,7 @@ async function run({ task, context }: HarnessExecuteArgs, sessionId?: string, pr
   return {
     ...result,
     contextUsage,
+    runtimeState: result.runtimeState,
     sessionKind: result.sessionId ? 'antigravity_conversation' : undefined,
     liveStreaming: true,
   };
