@@ -29,6 +29,7 @@ async function main() {
   });
   await writeFile(binary, `#!/usr/bin/env node
 const args = process.argv.slice(2);
+if (args.includes('--list-models')) { process[process.env.PI_TEST_MODEL_STREAM || 'stderr'].write('provider model context\\nexample test 128K\\n'); process.exit(0); }
 const emit = x => process.stdout.write(JSON.stringify(x)+'\\n');
 const end = () => { emit({type:'message_end',message:{role:'assistant',content:[{type:'text',text:'done'}]}}); emit({type:'agent_end',messages:[]}); };
 if (args.includes('rpc')) {
@@ -90,9 +91,13 @@ else end();
     const count = calls.length;
     assert.equal((await adapter.execute({ task, context: { ...context, model: '--invalid' } })).success, false);
     assert.equal(calls.length, count, 'invalid input must not spawn');
+    const { listPiAgentModels } = await import('../src/lib/real-agents/pi-agent');
+    assert.match(await listPiAgentModels(dir), /provider model context\nexample test 128K/);
+    process.env.PI_TEST_MODEL_STREAM = 'stdout';
+    assert.match(await listPiAgentModels(dir), /example test 128K/);
     console.log('Pi member settings: validation, provider override, JSON/RPC/print, new/resumed sessions and environment defaults passed');
   } finally {
-    for (const key of ['PI_AGENT_BIN', 'PI_AGENT_SESSION_ROOT', 'PI_AGENT_PROVIDER', 'PI_AGENT_MODEL', 'PI_AGENT_THINKING', 'PI_TEST_FALLBACK']) {
+    for (const key of ['PI_AGENT_BIN', 'PI_AGENT_SESSION_ROOT', 'PI_AGENT_PROVIDER', 'PI_AGENT_MODEL', 'PI_AGENT_THINKING', 'PI_TEST_FALLBACK', 'PI_TEST_MODEL_STREAM']) {
       if (previousEnv[key] === undefined) delete process.env[key]; else process.env[key] = previousEnv[key];
     }
     await rm(dir, { recursive: true, force: true });

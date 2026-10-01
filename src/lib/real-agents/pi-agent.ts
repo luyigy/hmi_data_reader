@@ -39,6 +39,21 @@ export interface PiAgentResult {
 }
 
 const DEFAULT_PI_AGENT_BIN = process.env.PI_AGENT_BIN?.trim() || '/data1/code/pi-mono/pi-test.sh';
+
+export async function listPiAgentModels(cwd?: string | null): Promise<string> {
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const { stdout, stderr } = await promisify(execFile)(DEFAULT_PI_AGENT_BIN, ['--list-models', '--offline'], {
+      cwd: cwd || undefined, timeout: 15_000, maxBuffer: 1024 * 1024,
+    });
+    const catalog = stdout.trim() || stderr.trim();
+    if (!catalog) throw new Error('Empty catalog');
+    return `本机 Pi 可用模型（运行器报告；实际授权可能不同）\n${catalog.slice(0, 20_000)}`;
+  } catch {
+    throw new Error('无法读取本机 Pi 模型目录（CLI 不支持、查询超时或返回异常）。');
+  }
+}
 const DEFAULT_PI_PROVIDER = process.env.PI_AGENT_PROVIDER?.trim();
 const DEFAULT_PI_MODEL = process.env.PI_AGENT_MODEL?.trim();
 const DEFAULT_PI_THINKING = process.env.PI_AGENT_THINKING?.trim();
