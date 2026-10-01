@@ -52,6 +52,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
       sessionId: result.sessionDir,
       sessionKind: result.sessionDir ? 'pi_session_dir' : undefined,
       runtimeState: result.runtimeState,
+      contextUsage: result.contextUsage,
       liveStreaming: false,
     };
   },
@@ -79,6 +80,7 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
       sessionId: result.sessionDir,
       sessionKind: result.sessionDir ? 'pi_session_dir' : undefined,
       runtimeState: result.runtimeState,
+      contextUsage: result.contextUsage,
       liveStreaming: false,
     };
   },

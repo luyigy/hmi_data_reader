@@ -7,8 +7,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { runPiRpc } from './pi-rpc';
 import { normalizeMemberModelSettings, splitPiModel } from '../live-room-codex-settings';
-import { collectPiRuntimeState } from './pi-runtime-state';
-import type { HarnessRuntimeState } from '@/lib/harness/types';
+import { collectPiSessionTelemetry } from './pi-runtime-state';
+import type { HarnessRuntimeState, NormalizedContextUsage } from '@/lib/harness/types';
 
 export interface PiAgentConfig {
   executionId?: string;
@@ -36,6 +36,7 @@ export interface PiAgentResult {
   filesModified?: string[];
   sessionDir?: string;
   runtimeState?: HarnessRuntimeState;
+  contextUsage?: NormalizedContextUsage;
 }
 
 const DEFAULT_PI_AGENT_BIN = process.env.PI_AGENT_BIN?.trim() || '/data1/code/pi-mono/pi-test.sh';
@@ -216,7 +217,7 @@ const runPiAgentCommand = async ({
   onSpawn?: (child: ChildProcess) => void;
   sessionDir?: string;
   continueSession?: boolean;
-}): Promise<{ output: string; sessionFile?: string; sessionId?: string }> => {
+}): Promise<{ output: string; sessionFile?: string; sessionId?: string; contextWindow?: number }> => {
   const { spawn } = await import('child_process');
 
   if (sessionDir) {
@@ -224,7 +225,7 @@ const runPiAgentCommand = async ({
   }
 
   if (streamCallbacks?.onSteeringReady) {
-    let state: { sessionFile?: string; sessionId?: string } = {};
+    let state: { sessionFile?: string; sessionId?: string; model?: { contextWindow?: number } } = {};
     const output = await runPiRpc({
       binary: DEFAULT_PI_AGENT_BIN,
       args: buildPiArgs({ prompt, sessionDir, continueSession, model, reasoningEffort, mode: 'rpc' }),
@@ -232,7 +233,8 @@ const runPiAgentCommand = async ({
       onEvent: (line) => { processPiJsonLine(line, workingDirectory, streamCallbacks); },
       onState: (next) => { state = next; },
     });
-    return { output, ...state };
+    return { output, sessionFile: state.sessionFile, sessionId: state.sessionId,
+      contextWindow: state.model?.contextWindow };
   }
 
   const run = (mode: 'json' | 'print') => new Promise<{ output: string; sessionId?: string }>((resolve, reject) => {
@@ -355,6 +357,9 @@ export const executePiAgentTask = async (
       sessionDir: config.sessionDir,
       continueSession: config.continueSession,
     });
+    const telemetry = config.sessionDir ? await collectPiSessionTelemetry({ executionId: config.executionId,
+      sessionDir: config.sessionDir, sessionFile: run.sessionFile, sessionId: run.sessionId,
+      contextWindow: run.contextWindow, startedAt: startTime, completedAt: Date.now() }) : undefined;
 
     return {
       success: true,
@@ -362,9 +367,7 @@ export const executePiAgentTask = async (
       filesModified: [],
       sessionDir: config.sessionDir,
       executionTime: Date.now() - startTime,
-      runtimeState: config.sessionDir ? await collectPiRuntimeState({ executionId: config.executionId,
-        sessionDir: config.sessionDir, sessionFile: run.sessionFile, sessionId: run.sessionId,
-        startedAt: startTime, completedAt: Date.now() }) : undefined,
+      ...telemetry,
     };
   } catch (error) {
     return {
@@ -411,6 +414,9 @@ export const resumePiAgentSession = async ({
       sessionDir,
       continueSession: true,
     });
+    const telemetry = await collectPiSessionTelemetry({ executionId, sessionDir,
+      sessionFile: run.sessionFile, sessionId: run.sessionId,
+      contextWindow: run.contextWindow, startedAt: startTime, completedAt: Date.now() });
 
     return {
       success: true,
@@ -418,9 +424,7 @@ export const resumePiAgentSession = async ({
       filesModified: [],
       sessionDir,
       executionTime: Date.now() - startTime,
-      runtimeState: await collectPiRuntimeState({ executionId, sessionDir,
-        sessionFile: run.sessionFile, sessionId: run.sessionId,
-        startedAt: startTime, completedAt: Date.now() }),
+      ...telemetry,
     };
   } catch (error) {
     return {
