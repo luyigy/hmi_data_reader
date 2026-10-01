@@ -1,8 +1,34 @@
-import type { HarnessAdapter } from '../types';
+import type { HarnessAdapter, HarnessExecutionContext, NormalizedContextUsage } from '../types';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { SHARED_ENTRIES } from '@/lib/real-agents/codex-home';
 import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
+
+// Keep the native stream callback at the protocol boundary.
+function contextTelemetry(context: HarnessExecutionContext) {
+  let latest: NormalizedContextUsage | undefined;
+  return {
+    get usage() { return latest; },
+    callbacks: {
+      ...context.streamCallbacks,
+      onCodexTokenUsage: async (usage: import('@/lib/codex-telemetry').CodexProviderTokenUsage) => {
+        const next: NormalizedContextUsage = {
+          usedTokens: usage.last.inputTokens,
+          contextWindow: usage.modelContextWindow,
+          metricKind: 'turn_input',
+          confidence: 'measured_exact',
+          sessionId: usage.threadId,
+          collectedAt: Date.parse(usage.collectedAt),
+        };
+        if (!latest || next.collectedAt >= latest.collectedAt) {
+          latest = next;
+          await context.onContextUsage?.(next);
+        }
+        await context.streamCallbacks?.onCodexTokenUsage?.(usage);
+      },
+    },
+  };
+}
 
 // Explicit mounts replace automatic config symlink discovery in Bubblewrap.
 const codexReadOnlyPaths = (extra?: string[]) => extra?.length
@@ -36,6 +62,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
 
   async execute({ task, context }) {
     const { executeCodexTask } = await loadCodexAgent();
+    const telemetry = contextTelemetry(context);
     const workflowBoundary = resolveWorkflowCodexBoundary(
       context.permissionConfig,
       context.workingDirectory,
@@ -50,7 +77,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
       networkAccess: context.networkAccess,
       ephemeral: context.ephemeralSession,
       codexHome: context.codexHome,
-      streamCallbacks: context.streamCallbacks,
+      streamCallbacks: telemetry.callbacks,
       sandboxMode: context.permissionConfig?.sandboxMode,
       approvalPolicy: context.permissionConfig?.approvalPolicy,
       model: context.model,
@@ -75,6 +102,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
       sessionId: result.threadId,
       sessionKind: result.threadId ? 'codex_thread' : undefined,
       threadId: result.threadId,
+      contextUsage: telemetry.usage,
       liveStreaming: true,
     };
   },
@@ -82,6 +110,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
   async resume({ context, sessionId, continuationMessage }) {
     const { resumeCodexSession } = await loadCodexAgent();
     const startTime = Date.now();
+    const telemetry = contextTelemetry(context);
     const workflowBoundary = resolveWorkflowCodexBoundary(
       context.permissionConfig,
       context.workingDirectory,
@@ -99,7 +128,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
         readOnlyPaths: codexReadOnlyPaths(context.extraReadOnlyPaths),
         networkAccess: context.networkAccess,
         codexHome: context.codexHome,
-        streamCallbacks: context.streamCallbacks,
+        streamCallbacks: telemetry.callbacks,
         sandboxMode: context.permissionConfig?.sandboxMode,
         approvalPolicy: context.permissionConfig?.approvalPolicy,
         model: context.model,
@@ -123,6 +152,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
         sessionId: result.threadId ?? undefined,
         sessionKind: result.threadId ? 'codex_thread' : undefined,
         threadId: result.threadId ?? undefined,
+        contextUsage: telemetry.usage,
         liveStreaming: true,
       };
     } catch (error) {
@@ -130,6 +160,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         executionTime: Date.now() - startTime,
+        contextUsage: telemetry.usage,
         liveStreaming: true,
       };
     }

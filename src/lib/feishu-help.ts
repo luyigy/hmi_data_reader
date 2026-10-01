@@ -6,6 +6,7 @@ import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 const HELP_PAGES = [
   ['房间与 Agent', [
     '/ap menu  返回分类命令卡片',
+    '/ap codex-config --agent=<memberName|idSuffix> [--model=<model|inherit>] [--thinking=<level|inherit>]  Codex 模型 / 思考强度；不带修改参数时查看配置',
     '/ap isolation [status|on|off]  群任务隔离（默认关闭，仅群管理员/平台管理员可修改）',
     '/ap task new --title=任务名 --workdir=<目录>  创建独立任务入口卡；在卡片话题内续聊',
     '/ap broadcast <通知原文>  群主聊天区广播；目标任务各成员下一轮可见，不立即唤醒或打断',
@@ -18,7 +19,6 @@ const HELP_PAGES = [
     '/ap nick --member=<memberName|idSuffix> --name=<newNickname>',
     '/ap role --member=<memberName|idSuffix> --role=<planner|researcher|implementer|reviewer|tester|custom>',
     '/ap specialty --member=<memberName|idSuffix> --specialty=<documentation|diagnostics|implementation|general>',
-    '/ap codex-config --agent=<memberName|idSuffix> [--model=<model|inherit>] [--thinking=<level|inherit>]',
     '/ap speaker [memberName|idSuffix]',
     '/ap add --agents=<agentId>  支持短写：TX-server:claude',
     '/ap kick <memberName>',
@@ -80,6 +80,19 @@ const HELP_PAGES = [
     '/ap rights [--agent=<name>]',
   ]],
 ] as const;
+
+const CODEX_CONFIG_HELP = {
+  tag: 'markdown',
+  content: [
+    '**Codex 模型 / 思考强度**',
+    '复制命令到当前房间发送；将 codex 换成实际成员名称或 ID 后缀。',
+    '查看配置：`/ap codex-config --agent=codex`',
+    '修改模型：`/ap codex-config --agent=codex --model=<模型ID>`',
+    '思考强度：`/ap codex-config --agent=codex --thinking=high`',
+    '恢复继承：`/ap codex-config --agent=codex --model=inherit --thinking=inherit`',
+    '修改作用于指定成员，下一次运行或续接生效。',
+  ].join('\n'),
+};
 
 export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
   '/ap members',
@@ -289,6 +302,7 @@ export const buildFeishuCommandCenterCard = (
         tag: 'markdown',
         content: '**所有命令都必须以 `/ap` 开头。**\n常用只读命令可直接执行；带参数命令使用结构化表单。',
       },
+      CODEX_CONFIG_HELP,
       buttonColumns([
         ...(chatType === 'group' ? [callbackButton('新增独立任务…', { cmd: 'ap-menu', view: 'form-task-new', chatType }, 'primary_filled')] : []),
         callbackButton('功能开发…', { cmd: 'ap-menu', view: 'form-run-feature', chatType }, 'primary_filled'),
@@ -378,6 +392,7 @@ export const buildFeishuCommandCenterCard = (
           ? [callbackButton('权限约束…', { cmd: 'ap-room-control', view: 'permission', chatType })]
         : [];
   return cardShell(group, `AP 命令中心 · ${pageIndex + 1}/${HELP_PAGES.length}`, [
+    ...(categoryView === 'room' ? [CODEX_CONFIG_HELP] : []),
     {
       tag: 'markdown',
       content: '**常用操作**\n点击后立即反馈接收状态，完成后回复一张中文结果卡。',

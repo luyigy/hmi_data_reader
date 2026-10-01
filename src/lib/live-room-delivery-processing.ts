@@ -447,6 +447,8 @@ export const processLiveRoomDelivery = async ({
             backend: targetMember.backend,
             harnessType: targetMember.harnessType,
             executionRole: targetMember.role,
+            ...(targetMember.harnessType === 'antigravity' && targetMember.backend === 'platform_local'
+              ? { skipFeishuRelay: true } : {}),
             chainDepth,
             remoteTiming,
             targetLocked: isDirectedVisibleReply,

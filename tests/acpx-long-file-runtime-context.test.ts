@@ -83,9 +83,8 @@ async function main() {
     [],
     { transcript: 'Earlier work.', latestUserMessage: null },
   );
-  assert.match(antigravityPrompt, /A progress update or promise to report later is not a final response/);
+  assert.doesNotMatch(antigravityPrompt, /Antigravity completion contract/);
   assert.match(antigravityPrompt, /automatically use lark-im-mention-bots/);
-  assert.match(antigravityPrompt, /Explicitly state whether the task completed, failed, or is blocked/);
   assert.equal(await getLongFileRuntimeContext({ ...options, executionBackend: 'remote_ssh' }), null);
   assert.equal(await getLongFileRuntimeContext({ ...options, workingDirectory: os.tmpdir() }), null);
   await writeFile(config, (await readFile(config, 'utf8')).replace('enabled: true', 'enabled: false'));

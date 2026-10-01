@@ -5,6 +5,7 @@ export type AntigravityContextUsage = {
   contextWindow: number | null;
   updatedAt: string;
   modelAlias?: string;
+  confidence?: 'measured_exact' | 'inferred_text' | 'assumed_window';
 };
 
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -155,9 +156,13 @@ export const parseAntigravityUsageFromText = (
             usageObj.input_tokens ?? usageObj.prompt_tokens ?? usageObj.inputTokens
           );
           if (Number.isFinite(inputTokens) && inputTokens >= 0) {
+            const reportedWindow = usageObj.context_window ?? usageObj.contextWindow;
+            const measuredWindow = typeof reportedWindow === 'number'
+              && Number.isFinite(reportedWindow) && reportedWindow > 0 ? reportedWindow : undefined;
             return {
+              confidence: measuredWindow ? 'measured_exact' : 'assumed_window',
               lastRunInputTokens: inputTokens,
-              contextWindow,
+              contextWindow: measuredWindow ?? contextWindow,
               updatedAt: new Date().toISOString(),
               ...(detectedModel ? { modelAlias: detectedModel } : {}),
             };
@@ -174,6 +179,7 @@ export const parseAntigravityUsageFromText = (
       const lastRunInputTokens = parseInt(tokenMatch[1], 10);
       if (!Number.isNaN(lastRunInputTokens) && lastRunInputTokens >= 0) {
         return {
+          confidence: 'inferred_text',
           lastRunInputTokens,
           contextWindow,
           updatedAt: new Date().toISOString(),

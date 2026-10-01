@@ -34,6 +34,7 @@ export interface HarnessExecutionContext {
   reasoningEffort?: string;
   sessionKey?: string;
   streamCallbacks?: HarnessStreamCallbacks;
+  onContextUsage?: (usage: NormalizedContextUsage) => Promise<void> | void;
   onSpawn?: (child: ChildProcess) => void;
   onSessionStarted?: (session: HarnessSessionStarted) => Promise<void> | void;
 }
@@ -50,7 +51,15 @@ export interface HarnessResumeArgs {
   continuationMessage: string;
 }
 
-import type { AntigravityContextUsage } from '@/lib/real-agents/antigravity-context';
+export interface NormalizedContextUsage {
+  usedTokens: number;
+  contextWindow?: number;
+  usagePercentage?: number;
+  metricKind: 'turn_input' | 'session_context' | 'cumulative';
+  confidence: 'measured_exact' | 'inferred_text' | 'assumed_window';
+  sessionId?: string;
+  collectedAt: number;
+}
 
 export interface HarnessExecuteResult {
   success: boolean;
@@ -62,7 +71,7 @@ export interface HarnessExecuteResult {
   sessionKind?: string;
   threadId?: string;
   liveStreaming?: boolean;
-  contextUsage?: AntigravityContextUsage;
+  contextUsage?: NormalizedContextUsage;
 }
 
 export interface HarnessAvailability {

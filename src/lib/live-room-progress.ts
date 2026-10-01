@@ -1,3 +1,4 @@
+import { attachLiveRoomStructuredOutput } from '@/lib/live-room-raw-output';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import {
   PROGRESS_HEARTBEAT_MS,
@@ -52,13 +53,17 @@ export const attachLiveRoomProgress = async ({
     `;
     originBinding = bindingRows[0] || null;
   }
-  const progressTracker = originBinding || metadataChatId
-    ? new FeishuProgressTracker({
+  const progressTarget = originBinding || metadataChatId
+    ? {
         chatId: originBinding?.chatId || metadataChatId!,
         threadId: originBinding?.threadId ?? null,
         rootMessageId: originBinding?.rootMessageId ?? null,
-      })
+      }
     : null;
+  if (participant.harnessType === 'antigravity') {
+    return attachLiveRoomStructuredOutput({ progressTarget, displayName: participant.displayName });
+  }
+  const progressTracker = progressTarget ? new FeishuProgressTracker(progressTarget) : null;
   const relayOrigin = {
     feishuBindingId: sourceMetadata?.feishuBindingId,
     feishuChatId: sourceMetadata?.feishuChatId,
@@ -70,6 +75,7 @@ export const attachLiveRoomProgress = async ({
   let lastThinkingPostedAt = 0;
   let lastThinkingPreview = '';
   let pendingThinkingText = '';
+  let thinkingTimer: ReturnType<typeof setTimeout> | undefined;
 
   const postProgress = (content: string, systemEvent: string, extras: Record<string, unknown>) => {
     flushPromise = flushPromise.then(() => postLiveRoomMessage({
@@ -87,12 +93,23 @@ export const attachLiveRoomProgress = async ({
   };
 
   const enqueueThinkingUpdate = (chunk: string) => {
-    const isCodex = participant.harnessType === 'codex';
-    const text = isCodex ? (pendingThinkingText += chunk).trim() : chunk.trim();
+    const isStreaming = ['codex', 'antigravity'].includes(participant.harnessType || '');
+    pendingThinkingText = isStreaming ? pendingThinkingText + chunk : chunk || pendingThinkingText;
+    const text = pendingThinkingText.trim();
     const preview = text.slice(0, 80);
-    if (!preview || (isCodex && !isUsefulLiveRoomThinkingPreview(text))) return;
+    if (!preview) return;
     const now = Date.now();
-    if (now - lastThinkingPostedAt < PROGRESS_THINKING_MIN_MS) return;
+    const remaining = PROGRESS_THINKING_MIN_MS - (now - lastThinkingPostedAt);
+    if (remaining > 0 || (chunk && isStreaming && !isUsefulLiveRoomThinkingPreview(text))) {
+      thinkingTimer ??= setTimeout(() => {
+        thinkingTimer = undefined;
+        enqueueThinkingUpdate('');
+      }, Math.max(remaining, 1000));
+      thinkingTimer.unref();
+      return;
+    }
+    clearTimeout(thinkingTimer);
+    thinkingTimer = undefined;
     if (preview === lastThinkingPreview) {
       pendingThinkingText = '';
       return;
@@ -113,11 +130,11 @@ export const attachLiveRoomProgress = async ({
     const preview = event.preview.trim();
     const signature = `${event.toolName}:${preview}`;
     const now = Date.now();
+    progressTracker?.onToolEvent(event.toolName, preview, event.emoji);
     if (now - lastToolPostedAt < PROGRESS_TOOL_MIN_MS || signature === lastToolSignature) return;
     lastToolSignature = signature;
     lastToolPostedAt = now;
     lastVisibleActivityAt = now;
-    progressTracker?.onToolEvent(event.toolName, preview, event.emoji);
     postProgress(
       `系统提示：${participant.displayName} 正在使用 ${event.toolName}${preview ? `：${preview}` : ''}`,
       'member_reply_tool',
@@ -175,6 +192,10 @@ export const attachLiveRoomProgress = async ({
     progressTracker,
     dispose: async (summary: string, success: boolean) => {
       clearInterval(heartbeatTimer);
+      clearTimeout(thinkingTimer);
+      lastThinkingPostedAt = 0;
+      enqueueThinkingUpdate('');
+      clearTimeout(thinkingTimer);
       await flushPromise.catch(() => undefined);
       await progressTracker?.finalize(summary, success).catch(() => undefined);
     },

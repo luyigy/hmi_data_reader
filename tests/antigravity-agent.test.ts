@@ -21,9 +21,24 @@ fi
 printf '%s\\n' "$@" > "$AGY_ARGS_FILE"
 pwd > "$AGY_CWD_FILE"
 case "$AGY_TEST_CASE" in
-  echo) printf 'Task: smoke\\n\\nPlease   complete this task.\\n' ;;
+  echo) printf '%s\\n' '{"event":"result","result":{"response":"Task: smoke\\n\\nPlease   complete this task."}}' ;;
   empty) printf 'diagnostic from stderr' >&2 ;;
-  text) printf 'Task completed with a valid answer.\\n' ;;
+  text) printf '%s\\n' '{"event":"result","result":{"response":"Task completed with a valid answer."}}' ;;
+  diagnostic) printf 'CLI startup diagnostic\\n' ;;
+  malformed) printf '{"event":"result","result":' ;;
+  empty_result)
+    printf '%s\\n' '{"event":"step_update","step_update":{"text_delta":"intermediate only"}}'
+    printf '%s\\n' '{"event":"result","result":{"status":"SUCCESS","response":""}}'
+    ;;
+  fragmented)
+    printf 'startup diagnostic\\r\\nnull\\r\\n{"event":"res'
+    sleep 0.02
+    printf 'ult","result":{"status":"SUCCESS","response":"分片完成"}}'
+    ;;
+  invalid_last_result)
+    printf '%s\\n' '{"event":"result","result":{"response":"obsolete answer"}}'
+    printf '%s\\n' '{"event":"result","result":[]}'
+    ;;
   progress)
     printf '%s' '{"event":"step_update","step_update":{"step_type":"planning","state":"IN_PROGRESS"}}'
     printf '\\n{"event":"step_update","step_update":{"step_type":"function_call","function_name":"Bash","arguments":{"command":"cat /var/private/key.pem sk-secret123"}}}\\n'
@@ -53,7 +68,7 @@ case "$AGY_TEST_CASE" in
   sandbox)
     test ! -e "$AGY_OUTSIDE_FILE" || exit 9
     printf sandboxed > sandbox-write
-    printf 'Task completed inside the sandbox.\\n'
+    printf '%s\\n' '{"event":"result","result":{"response":"Task completed inside the sandbox."}}'
     ;;
 esac
 `);
@@ -142,12 +157,12 @@ esac
     );
     assert.equal(progress.success, true, progress.error);
     assert.equal(progress.output, 'final answer');
-    assert.deepEqual(chunks, ['思考中', 'done']);
-    assert.deepEqual(tools, [
-      { toolName: 'Bash', preview: 'cat key.pem [REDACTED]', emoji: '💻' },
-      { toolName: 'Tool Result', preview: '', emoji: '✅' },
-    ]);
-    assert.doesNotMatch(JSON.stringify({ chunks, tools }), /var\/private|sk-secret123|secret body/);
+    const raw = chunks.join('');
+    assert.match(raw, /"event":"step_update"/);
+    assert.match(raw, /cat \/var\/private\/key.pem sk-secret123/);
+    assert.match(raw, /secret body/);
+    assert.ok(raw.endsWith('{"event":"result","result":{"response":"final answer"}}\n'));
+    assert.deepEqual(tools, [], 'raw output is not turned into tool previews');
 
     process.env.AGY_TEST_CASE = 'multi_result';
     const finalReport = await executeAntigravityTask(
@@ -170,7 +185,13 @@ esac
         sessions.push(sessionId);
       },
     };
-    const first = await adapter.execute({ task: { id: 'session', name: 'remember' }, context });
+    const first = await adapter.execute({ task: { id: 'session', name: 'remember',
+      description: 'Task: remember\n\nReady-made room prompt.' }, context });
+    const firstArgs = await readFile(path.join(workspace, 'args'), 'utf8');
+    assert.equal(firstArgs.match(/Task: remember/g)?.length, 1);
+    assert.equal(firstArgs.match(/Antigravity completion contract:/g)?.length, 1);
+    assert.match(firstArgs, /A progress update or promise to report later is not a final response/);
+    assert.match(firstArgs, /Explicitly state whether the task completed, failed, or is blocked/);
     assert.equal(first.sessionId, 'test-conversation');
     assert.equal(first.sessionKind, 'antigravity_conversation');
     const { getContinuationSession } = await import('../src/lib/acpx/session-tracking');
@@ -185,10 +206,13 @@ esac
     const resumeArgs = await readFile(path.join(workspace, 'args'), 'utf8');
     assert.match(resumeArgs, /^--conversation=test-conversation$/m);
     assert.match(resumeArgs, /^Recall previous message$/m);
+    assert.equal(resumeArgs.match(/Antigravity completion contract:/g)?.length, 1);
     assert.doesNotMatch(resumeArgs, /Task: ignored/);
     assert.match(resumeArgs, /--model\ntest-model\n--effort\nlow/);
     assert.equal(adapter.getCapabilities('platform_local').supportsQueuedUserMessages, true);
     assert.equal(adapter.getCapabilities('platform_local').supportsLiveSessionControl, false);
+    assert.equal(adapter.getCapabilities('platform_local').supportsResumeAfterInterrupt, true);
+    assert.equal(adapter.getCapabilities('remote_ssh').supportsResumeAfterInterrupt, false);
     const persistenceFailure = await executeAntigravityTask({ id: 'persist', name: 'test' }, {
       onSessionStarted: async () => { throw new Error('database unavailable'); },
     });
@@ -197,12 +221,19 @@ esac
     for (const [testCase, expected] of [
       ['denied', /权限请求被拒绝/], ['result_error', /provider failed/],
       ['partial', /without a result event/],
+      ['diagnostic', /without a result event/], ['malformed', /without a result event/],
+      ['empty_result', /no final output/], ['invalid_last_result', /without a result event/],
     ] as const) {
       process.env.AGY_TEST_CASE = testCase;
       const result = await executeAntigravityTask({ id: testCase, name: 'test' });
       assert.equal(result.success, false);
       assert.match(result.error || '', expected);
     }
+
+    process.env.AGY_TEST_CASE = 'fragmented';
+    const fragmented = await executeAntigravityTask({ id: 'fragmented', name: 'test' });
+    assert.equal(fragmented.success, true, fragmented.error);
+    assert.equal(fragmented.output, '分片完成');
 
     process.env.AGY_TEST_CASE = 'sandbox';
     const { executeViaLocalHarness } = await import('../src/lib/acpx/runner-harness');

@@ -83,6 +83,21 @@ async function runTest() {
   assert.strictEqual((tracker as any).buildFinalCard('done', true).header.title.content, '✅ 执行完成');
   Date.now = originalNow;
 
+  const delayed = new FeishuProgressTracker('test-chat-123') as any;
+  delayed.progressMsgId = 'existing-card';
+  delayed.lastEditAt = Date.now() - 1450;
+  let edits = 0;
+  delayed.updateCard = async () => { edits++; };
+  delayed.onToolEvent('run_command', 'sleep 30', '💻');
+  await delayed.flushPromise;
+  assert.equal(edits, 0);
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await delayed.flushPromise;
+  assert.equal(edits, 1, 'throttled progress must refresh without another event');
+  delayed.finalized = true;
+  await delayed.maybeFlush();
+  assert.equal(edits, 1, 'no progress edits after finalization');
+
   console.log('✅ FeishuProgressTracker system info tests passed cleanly!');
 }
 

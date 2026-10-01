@@ -1,7 +1,5 @@
+import { readContextUsage, contextUsagePercentage } from '@/lib/context-usage';
 import { prisma } from "@/lib/prisma";
-import { getCodexProviderContextUsage } from "@/lib/codex-telemetry";
-import { getKimiCodeProviderContextUsage } from "@/lib/real-agents/kimi-code-telemetry";
-import { getAntigravityProviderContextUsage } from "@/lib/real-agents/antigravity-context";
 import { deriveGatewayHarnessOptions } from "@/lib/acpx/catalog";
 import { ensureTaskSession } from "@/lib/acpx/session";
 import { DEFAULT_ACPX_PERMISSION_CONFIG, getPermissionProfileLabel } from "@/lib/acpx/permissions";
@@ -459,10 +457,6 @@ export const getLiveRoomMemberContextWatermark = async ({
     })
     ?.createdAt || null;
   const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
-  const providerHarness = member.backend === 'platform_local'
-    && (member.harnessType === 'codex' || member.harnessType === 'kimi-code' || member.harnessType === 'antigravity')
-    ? member.harnessType
-    : null;
   const [eventCount, providerParticipant] = await Promise.all([
     prisma.taskRunEvent.count({
       where: {
@@ -479,23 +473,14 @@ export const getLiveRoomMemberContextWatermark = async ({
         ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
       },
     }),
-    providerHarness
+    member.backend
       ? prisma.taskRunParticipant.findFirst({
           where: {
             taskRun: { taskId: sourceTask.id },
-            executionBackend: 'platform_local',
-            harnessType: providerHarness,
+            executionBackend: member.backend,
+            harnessType: member.harnessType,
             AND: [
               { controlMetadata: { contains: `"continuationKey":"${continuationKey}"` } },
-              {
-                controlMetadata: {
-                  contains: providerHarness === 'codex'
-                    ? '"codexTokenUsage"'
-                    : providerHarness === 'kimi-code'
-                    ? '"kimiCodeContextUsage"'
-                    : '"antigravityContextUsage"',
-                },
-              },
             ],
             ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
           },
@@ -504,21 +489,10 @@ export const getLiveRoomMemberContextWatermark = async ({
         })
       : Promise.resolve(null),
   ]);
-  const antigravityRunUsage = member.backend === 'platform_local' && member.harnessType === 'antigravity'
-    ? getAntigravityProviderContextUsage(providerParticipant?.controlMetadata)
-    : null;
-  const providerUsage = providerHarness === 'codex'
-    ? getCodexProviderContextUsage(providerParticipant?.controlMetadata)
-    : providerHarness === 'kimi-code'
-    ? getKimiCodeProviderContextUsage(providerParticipant?.controlMetadata)
-    : null;
-  const source: LiveRoomMemberContextWatermarkPayload['source'] = providerUsage
-    ? 'provider'
-    : member.backend === 'platform_local' && member.harnessType === 'antigravity'
-    ? 'not_applicable'
-    : member.backend !== 'platform_local'
-    ? 'not_applicable'
-    : 'unknown';
+  const providerUsage = readContextUsage(providerParticipant?.controlMetadata);
+  const usagePercentage = contextUsagePercentage(providerUsage);
+  const source: LiveRoomMemberContextWatermarkPayload['source'] =
+    usagePercentage !== null ? 'provider' : 'unknown';
 
   const messageCount = promptCandidates.length;
   const transcriptChars = transcript.length;
@@ -538,17 +512,10 @@ export const getLiveRoomMemberContextWatermark = async ({
       : estimatedDominantReason === 'events'
       ? 'events'
       : 'messages';
-  const usagePercentage = providerUsage?.usagePercentage
-    ?? antigravityRunUsage?.usagePercentage
-    ?? null;
-  const policyStatus = providerUsage
-    ? providerUsage.usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE
+  const policyStatus = usagePercentage !== null
+    ? usagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE
       ? 'critical'
-      : providerUsage.usagePercentage >= CONTEXT_USAGE_ELEVATED_PERCENTAGE
-      ? 'warning'
-      : 'normal'
-    : source === 'not_applicable'
-    ? 'normal'
+      : usagePercentage >= CONTEXT_USAGE_ELEVATED_PERCENTAGE ? 'warning' : 'normal'
     : getContextWatermarkPolicyStatus({ messageCount, eventCount, transcriptChars });
   const usageStatus = getContextWatermarkUsageStatus(usagePercentage, source);
 
@@ -560,39 +527,17 @@ export const getLiveRoomMemberContextWatermark = async ({
     policyLabel: getContextWatermarkPolicyLabel(policyStatus, source),
     dominantReason: providerUsage ? 'provider' : estimatedDominantReason,
     dominantLabel: providerUsage
-      ? 'provider'
-      : member.backend === 'platform_local' && member.harnessType === 'antigravity'
-      ? antigravityRunUsage
-        ? `last run usage: ${antigravityRunUsage.lastRunInputTokens} tokens${
-            antigravityRunUsage.contextWindowAssumed ? ' · 1M assumed' : ''
-          }`
-        : 'fresh conversation per turn'
-      : source === 'not_applicable'
-      ? 'fresh conversation per turn'
+      ? `${{ turn_input: 'latest turn input', session_context: 'session context', cumulative: 'cumulative tokens' }[providerUsage.metricKind]} · ${{ measured_exact: 'measured', inferred_text: 'inferred from text', assumed_window: 'window unverified' }[providerUsage.confidence]}`
       : `agent signal · ${estimatedDominantLabel}`,
-    ...(providerUsage
-      ? {
-          usedTokens: providerUsage.usedTokens,
-          contextWindow: providerUsage.contextWindow,
-        }
-      : antigravityRunUsage
-      ? {
-          usedTokens: antigravityRunUsage.lastRunInputTokens,
-          contextWindow: antigravityRunUsage.contextWindow,
-        }
-      : {}),
-    recommendedAction:
-      source === 'not_applicable'
-        ? 'Each turn starts a fresh conversation; no session reset is needed.'
-        : source === 'unknown'
-        ? policyStatus === 'warning'
-          ? 'Provider context is unknown; inspect agent activity and telemetry.'
-          : 'Provider context is unknown; no context reset recommendation.'
-        : policyStatus === 'critical'
-        ? 'Finish the current step, then reset now with /ap new-session.'
-        : policyStatus === 'warning'
-        ? 'Consider /ap new-session soon.'
-        : 'No action needed.',
+    ...(providerUsage ? {
+      usedTokens: providerUsage.usedTokens,
+      contextWindow: providerUsage.contextWindow,
+    } : {}),
+    recommendedAction: source === 'unknown'
+      ? 'Provider context is unknown; inspect agent activity and telemetry.'
+      : policyStatus === 'critical'
+      ? 'Finish the current step, then reset now with /ap new-session.'
+      : policyStatus === 'warning' ? 'Consider /ap new-session soon.' : 'No action needed.',
     messageCount,
     eventCount,
     transcriptChars,

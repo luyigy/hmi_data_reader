@@ -51,6 +51,17 @@ assert.deepEqual(parseFeishuCommand(message('/ap menu')), { command: 'menu', arg
 assert.deepEqual(parseFeishuCommand(message('/ap discover-agents')), { command: 'discover-agents', args: [], options: {} });
 
 const cards = buildFeishuCommandCenterCards('group');
+for (const chatType of ['group', 'p2p'] as const) {
+  for (const view of ['home', 'room'] as const) {
+    const card = buildFeishuCommandCenterCard(chatType, view);
+    const visibleHelp = card.body.elements.find((element) =>
+      element.tag === 'markdown' && String(element.content).includes('Codex 模型 / 思考强度'));
+    assert.ok(visibleHelp, `${chatType}/${view}: Codex commands must be visible without expanding a panel`);
+    assert.match(String(visibleHelp.content), /\/ap codex-config --agent=codex --thinking=high/);
+    assert.match(String(visibleHelp.content), /--model=inherit --thinking=inherit/);
+  }
+}
+assert.match(formatFeishuHelp({ args: [], options: {} }).split('\n')[3], /\/ap codex-config/);
 assert.equal(cards.length, 1);
 assert.ok(cards.every((card) => card.schema === '2.0'));
 assert.match(JSON.stringify(cards), /AP 命令中心/);

@@ -1,7 +1,5 @@
+import { readContextUsage, contextUsagePercentage } from '@/lib/context-usage';
 import { prisma } from '@/lib/prisma';
-import { getCodexProviderContextUsage } from '@/lib/codex-telemetry';
-import { getKimiCodeProviderContextUsage } from '@/lib/real-agents/kimi-code-telemetry';
-import { getAntigravityProviderContextUsage } from '@/lib/real-agents/antigravity-context';
 import { countTaskRoomMessages } from '@/lib/task-room';
 import { longFileRuntimeNotice, type LongFileRuntimeContext } from './long-file-runtime-context';
 import type { AcpxParticipantRequest, AcpxRunRequest } from './types';
@@ -65,12 +63,6 @@ export const buildHarnessPrompt = (
     ? `\n\nPrevious participant outputs:\n${previousSummaries.map((item, index) => `${index + 1}. ${item}`).join('\n')}`
     : '';
   const warningSection = contextWarning ? `\n\n${contextWarning}` : '';
-  const completionContract = participant.harnessType === 'antigravity'
-    ? `\n\nAntigravity completion contract:
-- A progress update or promise to report later is not a final response.
-- Before ending, wait for every command and check you started, or report a concrete blocker.
-- Return one self-contained final response that consolidates the relevant completed work and results from this turn and the recent transcript. Explicitly state whether the task completed, failed, or is blocked, plus any modified files and issues encountered.`
-    : '';
 
   return withLongFileRuntimeContext(withFeishuBotContactInstructions(`Task: ${request.taskName}
 
@@ -83,7 +75,7 @@ You are being launched from a chat-first task room.
 Use the latest task-room instruction as the primary direction for this run.
 Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}${warningSection}
 
-Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.${completionContract}`), longFileContext);
+Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.`), longFileContext);
 };
 
 const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
@@ -94,19 +86,22 @@ const CONTEXT_USAGE_HIGH_PERCENTAGE = 85;
 export const buildContextWatermarkWarning = ({
   providerUsagePercentage,
   hardReasons,
+  metricKind,
   contextStatus = providerUsagePercentage == null ? 'unknown' : 'provider',
 }: {
   providerUsagePercentage: number | null;
   hardReasons: string[];
+  metricKind?: import('@/lib/harness/types').NormalizedContextUsage['metricKind'];
   contextStatus?: 'provider' | 'unknown' | 'not_applicable';
 }): string | null => {
   if (contextStatus === 'not_applicable') return null;
+  const usageLabel = metricKind === 'turn_input' ? '最近一轮输入占上下文窗口' : '当前 session 真实上下文占用';
   if (providerUsagePercentage != null) {
     if (providerUsagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE) {
-      return [`[系统警告] 当前 session 真实上下文占用已达 ${providerUsagePercentage}%。`, '请在完成本次任务后立即执行以下操作：', '1. 用 2-3 句话总结你到目前为止完成的工作和关键发现', '2. 告知用户需要通过 /ap new-session 开始新 session 以避免上下文丢失', '不要继续累积新的上下文，先完成当前指令，然后输出总结。'].join('\n');
+      return [`[系统警告] ${usageLabel}已达 ${providerUsagePercentage}%。`, '请在完成本次任务后立即执行以下操作：', '1. 用 2-3 句话总结你到目前为止完成的工作和关键发现', '2. 告知用户需要通过 /ap new-session 开始新 session 以避免上下文丢失', '不要继续累积新的上下文，先完成当前指令，然后输出总结。'].join('\n');
     }
     return providerUsagePercentage >= CONTEXT_USAGE_ELEVATED_PERCENTAGE
-      ? `[系统提示] 当前 session 真实上下文占用已达 ${providerUsagePercentage}%，建议在合适时机执行 /ap new-session 切换新 session。`
+      ? `[系统提示] ${usageLabel}已达 ${providerUsagePercentage}%，建议在合适时机执行 /ap new-session 切换新 session。`
       : null;
   }
 
@@ -119,33 +114,23 @@ export const checkContextWatermark = async (
   taskId: string,
   taskName: string,
   taskSessionId?: string,
-  participant?: Pick<AcpxParticipantRequest, 'executionBackend' | 'harnessType' | 'continuationKey'>,
+  participant?: Pick<AcpxParticipantRequest, 'executionBackend' | 'harnessType' | 'continuationKey' | 'resumeSessionId' | 'resumeThreadId'>,
+  currentParticipantId?: string,
 ): Promise<string | null> => {
   const hardReasons: string[] = [];
-  const providerHarness = participant?.executionBackend === 'platform_local'
-    && (participant.harnessType === 'codex' || participant.harnessType === 'kimi-code' || participant.harnessType === 'antigravity')
-    ? participant.harnessType
-    : null;
+  const sessionId = participant?.resumeSessionId || participant?.resumeThreadId;
   const [roomMessageCount, eventCount, providerParticipant] = await Promise.all([
     countTaskRoomMessages(taskId, taskName),
     prisma.taskRunEvent.count({ where: taskSessionId ? { taskRun: { taskSessionId } } : { taskRun: { taskId } } }),
-    providerHarness && participant?.continuationKey
+    participant?.continuationKey && sessionId
       ? prisma.taskRunParticipant.findFirst({
           where: {
+            ...(currentParticipantId ? { id: { not: currentParticipantId } } : {}),
             taskRun: taskSessionId ? { taskSessionId } : { taskId },
-            executionBackend: 'platform_local',
-            harnessType: providerHarness,
+            executionBackend: participant.executionBackend,
+            harnessType: participant.harnessType,
             AND: [
               { controlMetadata: { contains: `"continuationKey":"${participant.continuationKey}"` } },
-              {
-                controlMetadata: {
-                  contains: providerHarness === 'codex'
-                    ? '"codexTokenUsage"'
-                    : providerHarness === 'kimi-code'
-                    ? '"kimiCodeContextUsage"'
-                    : '"antigravityContextUsage"',
-                },
-              },
             ],
           },
           orderBy: { createdAt: 'desc' },
@@ -155,16 +140,11 @@ export const checkContextWatermark = async (
   ]);
   if (roomMessageCount >= CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD) hardReasons.push(`任务室已有 ${roomMessageCount} 条消息`);
   if (eventCount >= CONTEXT_HARD_EVENT_THRESHOLD) hardReasons.push(`已累计 ${eventCount} 条运行事件`);
-  const providerUsage = providerHarness === 'codex'
-    ? getCodexProviderContextUsage(providerParticipant?.controlMetadata)
-    : providerHarness === 'kimi-code'
-    ? getKimiCodeProviderContextUsage(providerParticipant?.controlMetadata)
-    : providerHarness === 'antigravity'
-    ? getAntigravityProviderContextUsage(providerParticipant?.controlMetadata)
-    : null;
+  const providerUsage = readContextUsage(providerParticipant?.controlMetadata);
   return buildContextWatermarkWarning({
-    providerUsagePercentage: providerUsage?.usagePercentage ?? null,
+    providerUsagePercentage: providerUsage?.sessionId === sessionId ? contextUsagePercentage(providerUsage) : null,
     hardReasons,
+    metricKind: providerUsage?.metricKind,
     contextStatus: providerUsage
       ? 'provider'
       : 'unknown',

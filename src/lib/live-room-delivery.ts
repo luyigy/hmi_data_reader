@@ -257,7 +257,7 @@ export const triggerLiveRoomAgentReply = async ({
     return;
   }
 
-  const localSteering = targetMember.backend === 'platform_local' && (targetMember.harnessType === 'pi-agent' || targetMember.harnessType === 'codex');
+  const localSteering = targetMember.backend === 'platform_local' && ['pi-agent', 'codex', 'antigravity'].includes(targetMember.harnessType || '');
   const generation = getLiveRoomExecutionGeneration(targetMember.id);
   const dispatch = async () => {
     const session = await ensureMemberSession(room.id, targetMember);
@@ -286,6 +286,7 @@ export const triggerLiveRoomAgentReply = async ({
       deliveryId: delivery.id, roomId: room.id, sessionId: session.id,
       memberId: targetMember.id, messageId: sourceMessage.id, content: sourceMessage.content,
       displayName: targetMember.displayName, generation, relayOrigin, createdAt: delivery.createdAt,
+      harnessType: targetMember.harnessType,
     })) return;
 
     if (localSteering && generation !== getLiveRoomExecutionGeneration(targetMember.id)) {

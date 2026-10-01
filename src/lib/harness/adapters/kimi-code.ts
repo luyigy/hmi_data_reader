@@ -1,4 +1,19 @@
-import type { HarnessAdapter } from '../types';
+import type { HarnessAdapter, NormalizedContextUsage } from '../types';
+
+import { collectKimiCodeProviderContextUsage } from '@/lib/real-agents/kimi-code-telemetry';
+
+async function collectContextUsage(sessionId?: string): Promise<NormalizedContextUsage | undefined> {
+  if (!sessionId) return undefined;
+  const usage = await collectKimiCodeProviderContextUsage({ sessionId });
+  return usage ? {
+    usedTokens: usage.usedTokens,
+    contextWindow: usage.contextWindow,
+    metricKind: 'session_context',
+    confidence: 'measured_exact',
+    sessionId,
+    collectedAt: Date.parse(usage.collectedAt),
+  } : undefined;
+}
 
 async function loadKimiCodeAgent() {
   return import('@/lib/real-agents/kimi-code-agent');
@@ -43,8 +58,12 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       onSpawn: context.onSpawn,
       model: context.model,
     });
+    if (result.sessionId) {
+      await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
+    }
     return {
       ...result,
+      contextUsage: await collectContextUsage(result.sessionId),
       sessionKind: result.sessionId ? 'kimi_session' : undefined,
       liveStreaming: true,
     };
@@ -66,8 +85,12 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       prompt: continuationMessage,
       sessionId,
     });
+    if (result.sessionId) {
+      await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
+    }
     return {
       ...result,
+      contextUsage: await collectContextUsage(result.sessionId),
       sessionKind: result.sessionId ? 'kimi_session' : undefined,
       liveStreaming: true,
     };

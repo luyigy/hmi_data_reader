@@ -55,6 +55,7 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
   }
 
   if (message.messageType === 'system') {
+    if (message.metadata?.systemEvent === 'member_cli_output') return true;
     if (!message.content.startsWith('系统提示：')) {
       return false;
     }

@@ -55,14 +55,15 @@ const normalizePaths = (value: string, workspaceRoot: string) => {
   });
 };
 
-export const sanitizePreview = (value: unknown, { workspaceRoot }: { workspaceRoot: string }) => {
-  const redacted = redactSensitiveText(stringifyPreview(value))
+export const redactHarnessOutput = (value: string) =>
+  redactSensitiveText(value)
     .replace(/\bsk-[A-Za-z0-9_-]{6,}/gi, '[REDACTED]')
     .replace(/(\bbearer\s+)[^\s,;"'}]+/gi, '$1[REDACTED]')
     .replace(/(\b(?:signature|sign|hmac)\b\s*(?:=|:)\s*)(?:"[^"]*"|'[^']*'|[^\s,;}&]+)/gi, '$1[REDACTED]')
     .replace(/\b([A-Z][A-Z0-9_]{2,}=)(?:"[^"]*"|'[^']*'|[^\s,;}&]+)/g, '$1[REDACTED]');
-  return truncate(normalizePaths(redacted, workspaceRoot));
-};
+
+export const sanitizePreview = (value: unknown, { workspaceRoot }: { workspaceRoot: string }) =>
+  truncate(normalizePaths(redactHarnessOutput(stringifyPreview(value)), workspaceRoot));
 
 const signature = (event: NormalizedHarnessEvent) => JSON.stringify([
   event.kind,

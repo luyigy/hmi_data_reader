@@ -3,8 +3,6 @@ import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
-import { sanitizePreview } from '@/lib/acpx/harness-events';
-import { buildToolPreview, getToolEmoji } from '@/lib/acpx/tool-emojis';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
 import {
@@ -16,6 +14,8 @@ export interface AntigravityConfig {
   timeout?: number | null;
   sessionId?: string;
   prompt?: string;
+  // Print mode uses one prompt string; reapply this prefix on every resumed turn.
+  systemPrompt?: string;
   model?: string;
   reasoningEffort?: string;
   onSessionStarted?: (sessionId: string) => Promise<void> | void;
@@ -90,107 +90,16 @@ const childEnv = () => {
   return env;
 };
 
-const promptFor = (task: AntigravityTask) =>
-  `Task: ${task.name}\n\n${task.description || 'Please complete this task.'}`;
-
 const normalizeOutput = (value: string) => value.trim().replace(/\s+/g, ' ');
 
-const processAntigravityJsonLine = (
-  line: string,
-  workingDirectory: string,
-  streamCallbacks?: HarnessStreamCallbacks,
-) => {
-  try {
-    const event = JSON.parse(line) as {
-      event?: string;
-      result?: { response?: unknown; status?: unknown };
-      step_update?: Record<string, unknown>;
-    };
-    if (event.event !== 'step_update' || !event.step_update) return;
-    const step = event.step_update;
-    const stepType = typeof step.step_type === 'string' ? step.step_type : '';
-    if (typeof step.text_delta === 'string') {
-      void streamCallbacks?.onStdoutChunk?.(
-        sanitizePreview(step.text_delta, { workspaceRoot: workingDirectory })
-      );
-      return;
-    }
-
-    const normalizedType = stepType.toLowerCase();
-    if (/tool|function/.test(normalizedType)) {
-      if (step.state === 'DONE' || /result|response|output/.test(normalizedType)) {
-        void streamCallbacks?.onToolEvent?.({ toolName: 'Tool Result', preview: '', emoji: '✅' });
-        return;
-      }
-      const tool = step.tool as Record<string, unknown> | undefined;
-      const fn = (step.function_call ?? step.function) as Record<string, unknown> | undefined;
-      const toolCall = step.tool_call as Record<string, unknown> | undefined;
-      const toolName = [step.tool_name, step.function_name, step.name, tool?.name, fn?.name, toolCall?.name]
-        .find((value): value is string => typeof value === 'string' && Boolean(value.trim()))
-        ?.trim() || 'Task';
-      const input = step.input ?? step.args ?? step.arguments ?? step.tool_input
-        ?? fn?.arguments ?? toolCall?.arguments ?? tool?.input;
-      void streamCallbacks?.onToolEvent?.({
-        toolName,
-        preview: sanitizePreview(buildToolPreview(input) || input || '', { workspaceRoot: workingDirectory }),
-        emoji: getToolEmoji(toolName),
-      });
-      return;
-    }
-
-    if (/thinking|reasoning|plan/.test(normalizedType)) {
-      void streamCallbacks?.onStdoutChunk?.('思考中');
-    } else if (stepType && !['user_input', 'agent_response'].includes(normalizedType)) {
-      void streamCallbacks?.onStdoutChunk?.(
-        sanitizePreview(`进度：${stepType}`, { workspaceRoot: workingDirectory })
-      );
-    }
-  } catch {
-    // Ignore non-JSON diagnostic lines; the final response extractor retains them.
-  }
-};
-
-const extractAntigravityResponse = (stdout: string): string => {
-  const lines = stdout.split('\n');
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const trimmed = lines[i].trim();
-    if (trimmed.startsWith('{')) {
-      try {
-        const obj = JSON.parse(trimmed);
-        if (obj.event === 'result' && typeof obj.result?.response === 'string') {
-          return obj.result.response.trim();
-        }
-      } catch {
-        // continue
-      }
-    }
-  }
-
-  let text = '';
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('{')) {
-      try {
-        const obj = JSON.parse(trimmed);
-        if (obj.event === 'step_update' && typeof obj.step_update?.text_delta === 'string') {
-          text += obj.step_update.text_delta;
-        }
-      } catch {
-        // continue
-      }
-    }
-  }
-
-  return text.trim() || stdout.trim();
-};
-
-export const executeAntigravityTask = (
+const executeAntigravityTurn = (
   task: AntigravityTask,
   config: AntigravityConfig = {}
 ): Promise<AntigravityResult> => {
   const startedAt = Date.now();
   const timeout = config.timeout === null ? null : (config.timeout ?? 300000);
-  const prompt = config.prompt ?? promptFor(task);
+  const message = config.prompt ?? task.description ?? `Task: ${task.name}\n\nPlease complete this task.`;
+  const prompt = config.systemPrompt ? `${config.systemPrompt}\n\n${message}` : message;
   const args = [
     '-p',
     prompt,
@@ -231,14 +140,13 @@ export const executeAntigravityTask = (
     let stderr = '';
     let settled = false;
     let sessionId: string | undefined;
-    let sawProtocolEvent = false;
     let sessionWrite: Promise<void> = Promise.resolve();
     let sessionError: unknown;
     let finalResult: { status?: string; response?: string; error?: unknown; denied_actions?: unknown[] } | undefined;
     const processLine = (line: string) => {
       try {
         const event = JSON.parse(line);
-        if (event.event) sawProtocolEvent = true;
+        if (!event || typeof event !== 'object') return;
         const id = event.event === 'init' ? event.conversation_id
           : event.event === 'result' ? event.result?.conversation_id : undefined;
         if (typeof id === 'string' && id.trim() && id !== sessionId) {
@@ -247,11 +155,13 @@ export const executeAntigravityTask = (
             sessionError = error;
           });
         }
-        if (event.event === 'result' && event.result) finalResult = event.result;
+        if (event.event === 'result') {
+          finalResult = event.result && typeof event.result === 'object' && !Array.isArray(event.result)
+            ? event.result : undefined;
+        }
       } catch {
         // CLI diagnostics are not protocol events.
       }
-      processAntigravityJsonLine(line, config.workingDirectory || process.cwd(), config.streamCallbacks);
     };
     const finish = (result: Omit<AntigravityResult, 'executionTime'>) => {
       if (settled) return;
@@ -265,8 +175,10 @@ export const executeAntigravityTask = (
           child.kill('SIGTERM');
           finish({ success: false, error: `Antigravity execution timed out after ${timeout}ms` });
         }, timeout);
-    child.stdout?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (text: string) => {
+      void config.streamCallbacks?.onStdoutChunk?.(text);
       stdout += text;
       stdoutBuffer += text;
       const lines = stdoutBuffer.split('\n');
@@ -275,8 +187,7 @@ export const executeAntigravityTask = (
         processLine(line.trim());
       }
     });
-    child.stderr?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
+    child.stderr?.on('data', (text: string) => {
       stderr += text;
       void config.streamCallbacks?.onStderrChunk?.(text);
     });
@@ -289,7 +200,7 @@ export const executeAntigravityTask = (
         processLine(stdoutBuffer.trim());
       }
       await sessionWrite;
-      const output = extractAntigravityResponse(stdout);
+      const output = typeof finalResult?.response === 'string' ? finalResult.response.trim() : '';
       const contextUsage = parseAntigravityUsageFromText(stdout) || parseAntigravityUsageFromText(stderr) || undefined;
       if (sessionError) {
         finish({ success: false, error: `Failed to persist Antigravity session: ${String(sessionError)}`, contextUsage });
@@ -297,10 +208,10 @@ export const executeAntigravityTask = (
         finish({ success: false, error: 'Antigravity 权限请求被拒绝，本轮未完成。请检查成员权限后重试。', contextUsage });
       } else if (finalResult?.status && finalResult.status !== 'SUCCESS') {
         finish({ success: false, error: typeof finalResult.error === 'string' ? finalResult.error
-          : finalResult.response || stderr.trim() || `Antigravity result: ${finalResult.status}`, contextUsage });
+          : output || stderr.trim() || `Antigravity result: ${finalResult.status}`, contextUsage });
       } else if (code !== 0) {
         finish({ success: false, error: stderr.trim() || output || `Antigravity exited with code ${code}`, contextUsage });
-      } else if (sawProtocolEvent && !finalResult) {
+      } else if (!finalResult && stdout.trim()) {
         finish({ success: false, error: 'Antigravity exited without a result event', contextUsage });
       } else if (!output) {
         finish({
@@ -328,3 +239,54 @@ const readVersion = (): Promise<string | undefined> =>
 
 export const getAntigravityVersion = readVersion;
 export const isAntigravityAvailable = async () => Boolean(await readVersion());
+
+// Print mode has no in-flight stdin steering: cancel the turn, then resume its
+// persisted conversation. Never run two CLI processes against that conversation.
+export const executeAntigravityTask = async (
+  task: AntigravityTask, config: AntigravityConfig = {},
+): Promise<AntigravityResult> => {
+  if (!config.streamCallbacks?.onSteeringReady) return executeAntigravityTurn(task, config);
+  const startedAt = Date.now();
+  let sessionId = config.sessionId;
+  let prompt = config.prompt;
+  let interrupt: (() => boolean) | undefined;
+  let stopped = false;
+  let pending: string[] = [];
+  let unregister: (() => void) | undefined;
+  const seen = new Set<string>();
+  try {
+    while (true) {
+      const result = await executeAntigravityTurn(task, {
+        ...config, sessionId, prompt,
+        timeout: config.timeout === null ? null : Math.max(1, (config.timeout ?? 300000) - (Date.now() - startedAt)),
+        onSpawn: (child) => {
+          const kill = child.kill.bind(child);
+          interrupt = () => child.exitCode === null && child.signalCode === null && kill('SIGINT');
+          // Explicit stop/reset from the platform must also cancel a pending resume.
+          child.kill = (signal) => { stopped = true; return kill(signal); };
+          config.onSpawn?.(child);
+        },
+        onSessionStarted: async (id) => {
+          await config.onSessionStarted?.(id);
+          sessionId = id;
+          unregister ??= config.streamCallbacks!.onSteeringReady!(async (messageId, message) => {
+            if (stopped || !interrupt) return 'rejected';
+            if (seen.has(messageId)) return 'accepted';
+            if (!pending.length && !interrupt()) return 'rejected';
+            pending.push(message);
+            seen.add(messageId);
+            return 'accepted';
+          });
+        },
+      });
+      interrupt = undefined;
+      if (stopped || !pending.length || !sessionId || (config.timeout !== null && Date.now() - startedAt >= (config.timeout ?? 300000))) {
+        return { ...result, executionTime: Date.now() - startedAt };
+      }
+      prompt = `The user interrupted the previous turn. Follow the latest instructions below, preserving relevant conversation context. Do not finish an obsolete instruction first.\n\n${pending.join('\n\n')}`;
+      pending = [];
+    }
+  } finally {
+    unregister?.();
+  }
+};

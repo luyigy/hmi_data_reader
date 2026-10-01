@@ -21,3 +21,7 @@ assert.equal(buildContextWatermarkWarning({
 }), null);
 
 console.log('context watermark warning tests passed');
+
+assert.match(buildContextWatermarkWarning({
+  providerUsagePercentage: 85, hardReasons: [], metricKind: 'turn_input',
+}) || '', /最近一轮输入占上下文窗口已达 85%/);

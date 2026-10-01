@@ -29,7 +29,10 @@ export class FeishuProgressTracker {
   private target: ReturnType<typeof resolveFeishuMessageTarget>;
   private entries: ToolEntry[] = [];
   private systemEntries: SystemEntry[] = [];
+  private replyContent: { text: string; details: string; usage: string } | null = null;
   private lastEditAt = 0;
+  private flushTimer?: ReturnType<typeof setTimeout>;
+  private finalized = false;
   private flushPromise: Promise<void> = Promise.resolve();
   private statusText = '执行中...';
   private stepCount = 0;
@@ -38,7 +41,7 @@ export class FeishuProgressTracker {
   private readonly startedAt = Date.now();
   private readonly workspaceRoot: string;
 
-  constructor(target: FeishuProgressTarget | string, workspaceRoot = process.cwd()) {
+  constructor(target: FeishuProgressTarget | string, workspaceRoot = process.cwd(), private readonly displayName = 'Agent') {
     const normalized = typeof target === 'string' ? { chatId: target } : target;
     this.chatId = normalized.chatId;
     this.target = resolveFeishuMessageTarget(normalized);
@@ -92,6 +95,48 @@ export class FeishuProgressTracker {
     this.statusText = sanitizePreview(status, { workspaceRoot: this.workspaceRoot });
   }
 
+  /** Content has been extracted and redacted at the stream boundary. */
+  async setReplyContent(text: string, details: string, usage: string): Promise<void> {
+    this.replyContent = { text, details, usage };
+    this.flushPromise = this.flushPromise.then(() => this.maybeFlush());
+    await this.flushPromise;
+  }
+
+  private buildReplyCard(status: string): Record<string, unknown> {
+    // ponytail: card previews are bounded; full answers remain in the task room.
+    // Budget the doubly encoded request, including Unicode and escaped characters.
+    const bounded = (text: string, budget: number) => {
+      let size = 0;
+      let result = '';
+      for (const character of text) {
+        size += Buffer.byteLength(JSON.stringify(JSON.stringify(character))) - 6;
+        if (size > budget) return `${result}\n…（卡片预览已截断，完整内容请查看任务室）`;
+        result += character;
+      }
+      return result;
+    };
+    const reply = this.replyContent!;
+    const system = this.systemEntries.map(entry => `${entry.emoji} ${entry.message}`).join('\n');
+    return {
+      config: { wide_screen_mode: true },
+      header: { template: 'blue', title: { tag: 'plain_text', content: `${this.displayName} · ${status}` } },
+      elements: [
+        { tag: 'markdown', content: bounded(reply.text || '正在处理…', 12000) },
+        {
+          tag: 'collapsible_panel',
+          header: { title: { tag: 'plain_text', content: '⚙️ 系统信息详情' } },
+          expanded: false,
+          elements: [{ tag: 'div', text: { tag: 'plain_text', content: bounded(
+            [reply.details, system].filter(Boolean).join('\n') || '暂无过程信息', 6000,
+          ) } }],
+        },
+        { tag: 'note', elements: [{ tag: 'plain_text', content:
+          `本轮耗时 ${this.elapsedText()}${reply.usage ? ` · ${reply.usage}` : ' · Token 用量未提供'}`,
+        }] },
+      ],
+    };
+  }
+
   private elapsedText(): string {
     const elapsedSeconds = Math.max(0, Math.floor((Date.now() - this.startedAt) / 1000));
     const minutes = Math.floor(elapsedSeconds / 60);
@@ -100,6 +145,7 @@ export class FeishuProgressTracker {
   }
 
   private buildCard(): Record<string, unknown> {
+    if (this.replyContent !== null) return this.buildReplyCard(this.statusText);
     const toolLines = this.entries.slice(-RECENT_TOOL_COUNT).map((e) => {
       const suffix = e.count > 1 ? ` ×${e.count}` : '';
       return `${e.emoji} ${e.toolName}: "${e.preview}"${suffix}`;
@@ -152,6 +198,7 @@ export class FeishuProgressTracker {
   }
 
   private async maybeFlush(): Promise<void> {
+    if (this.finalized) return;
     const now = Date.now();
     if (!this.progressMsgId) {
       console.log(`[FeishuProgress] sending first progress card to ${this.chatId}`);
@@ -160,6 +207,7 @@ export class FeishuProgressTracker {
         ...this.target,
         card,
       }) ?? null;
+      if (this.replyContent !== null && !this.progressMsgId) throw new Error('Feishu reply card returned no message id');
       console.log(`[FeishuProgress] first card sent, id=${this.progressMsgId}`);
       this.lastEditAt = Date.now();
     } else if (now - this.lastEditAt >= PROGRESS_CARD_MIN_MS) {
@@ -167,7 +215,13 @@ export class FeishuProgressTracker {
       await this.updateCard();
       this.lastEditAt = Date.now();
     } else {
-      console.log(`[FeishuProgress] throttled, skipping edit (${now - this.lastEditAt}ms < ${PROGRESS_CARD_MIN_MS}ms)`);
+      this.flushTimer ??= setTimeout(() => {
+        this.flushTimer = undefined;
+        this.flushPromise = this.flushPromise.then(() => this.maybeFlush()).catch((err) => {
+          console.error('[FeishuProgress] delayed flush error:', err);
+        });
+      }, PROGRESS_CARD_MIN_MS - (now - this.lastEditAt));
+      this.flushTimer.unref();
     }
   }
 
@@ -203,6 +257,7 @@ export class FeishuProgressTracker {
   }
 
   private buildFinalCard(summary: string, success: boolean): Record<string, unknown> {
+    if (this.replyContent !== null) return this.buildReplyCard(success ? '执行完成' : '执行失败');
     const systemLines = this.systemEntries.map((s) => `${s.emoji} \`[${s.time}]\` ${s.message}`);
     const safeSummary = sanitizePreview(summary, { workspaceRoot: this.workspaceRoot });
     const tally = new Map<string, number>();
@@ -248,6 +303,8 @@ export class FeishuProgressTracker {
 
   /** Send a final summary card (replacing the progress card) and return the message id */
   async finalize(summary: string, success: boolean): Promise<string | null> {
+    this.finalized = true;
+    clearTimeout(this.flushTimer);
     await this.flushPromise;
     const card = this.buildFinalCard(summary, success);
 
@@ -271,7 +328,9 @@ export class FeishuProgressTracker {
         const data = await response.json() as { code?: number; msg?: string };
         if (!response.ok || data.code !== 0) throw new Error(data.msg || 'Failed to finalize Feishu progress card');
         return this.progressMsgId;
-      } catch {
+      } catch (error) {
+        // A failed edit must not turn streaming into duplicate messages.
+        if (this.replyContent !== null) throw error;
         // fall through to send new
       }
     }

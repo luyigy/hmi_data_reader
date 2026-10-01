@@ -1,4 +1,9 @@
-import type { HarnessAdapter, HarnessExecuteArgs } from '../types';
+import type { HarnessAdapter, HarnessExecuteArgs, NormalizedContextUsage } from '../types';
+
+const ANTIGRAVITY_COMPLETION_CONTRACT = `Antigravity completion contract:
+- A progress update or promise to report later is not a final response.
+- Before ending, wait for every command and check you started, or report a concrete blocker.
+- Return one self-contained final response that consolidates the relevant completed work and results from this turn and the recent transcript. Explicitly state whether the task completed, failed, or is blocked, plus any modified files and issues encountered.`;
 
 async function loadAntigravityAgent() {
   return import('@/lib/real-agents/antigravity-agent');
@@ -10,6 +15,7 @@ async function run({ task, context }: HarnessExecuteArgs, sessionId?: string, pr
     timeout: context.timeout,
     sessionId,
     prompt,
+    systemPrompt: ANTIGRAVITY_COMPLETION_CONTRACT,
     model: context.model,
     reasoningEffort: context.reasoningEffort,
     onSessionStarted: (id) => context.onSessionStarted?.({ sessionId: id, sessionKind: 'antigravity_conversation' }),
@@ -23,8 +29,18 @@ async function run({ task, context }: HarnessExecuteArgs, sessionId?: string, pr
     onSpawn: context.onSpawn,
   });
 
+  const usage = result.contextUsage;
+  const contextUsage: NormalizedContextUsage | undefined = usage ? {
+    usedTokens: usage.lastRunInputTokens,
+    contextWindow: usage.contextWindow ?? undefined,
+    metricKind: 'turn_input',
+    confidence: usage.confidence ?? 'assumed_window',
+    sessionId: result.sessionId,
+    collectedAt: Date.parse(usage.updatedAt),
+  } : undefined;
   return {
     ...result,
+    contextUsage,
     sessionKind: result.sessionId ? 'antigravity_conversation' : undefined,
     liveStreaming: true,
   };
@@ -53,7 +69,7 @@ export const antigravityHarnessAdapter: HarnessAdapter = {
     return {
       supportsQueuedUserMessages: executionBackend === 'platform_local',
       supportsImmediateInterrupt: executionBackend === 'platform_local',
-      supportsResumeAfterInterrupt: false,
+      supportsResumeAfterInterrupt: executionBackend === 'platform_local',
       supportsLiveSessionControl: false,
       supportsSoftStop: executionBackend === 'platform_local',
     };

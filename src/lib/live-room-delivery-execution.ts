@@ -394,7 +394,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
   const progress = await attachLiveRoomProgress({ room, participant: targetMember, sourceMessage });
   const streamCallbacks: HarnessStreamCallbacks = {
     ...progress.streamCallbacks,
-    onSteeringReady: targetMember.backend === 'platform_local' && (targetMember.harnessType === 'pi-agent' || targetMember.harnessType === 'codex')
+    onSteeringReady: targetMember.backend === 'platform_local' && ['pi-agent', 'codex', 'antigravity'].includes(targetMember.harnessType || '')
       && !workflowCompletionGate
       ? (steer) => registerLiveRoomSteering(targetMember.id, room.id, session.id, steer, executionGeneration, sourceMessage.id)
       : undefined,

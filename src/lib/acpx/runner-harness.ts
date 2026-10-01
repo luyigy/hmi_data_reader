@@ -8,11 +8,7 @@ import {
 import { getHarnessAdapter } from '@/lib/harness';
 import { resolveLocalRuntimeReadOnlyPaths } from './runtime-environments';
 import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
-import {
-  collectKimiCodeProviderContextUsage,
-  persistKimiCodeContextUsageMetadata,
-} from '@/lib/real-agents/kimi-code-telemetry';
-import { persistAntigravityContextUsageMetadata } from '@/lib/real-agents/antigravity-context';
+import { persistContextUsage } from '@/lib/context-usage';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { executeRemoteRunnerTask } from '@/lib/remote-harness/runner-executor';
@@ -155,6 +151,10 @@ export const executeViaLocalHarness = async (
     onSpawn?.(child);
   };
 
+  const onContextUsage = async (usage: import('@/lib/harness/types').NormalizedContextUsage) => {
+    try { await persistContextUsage(participantId, usage); }
+    catch { /* Diagnostic telemetry must not fail execution. */ }
+  };
   const result = participant.continuationMessage && adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
     ? await adapter.resume({
         task,
@@ -186,6 +186,7 @@ export const executeViaLocalHarness = async (
           }),
           streamCallbacks: harnessCallbacks,
           onSpawn: registerSpawn,
+          onContextUsage,
           onSessionStarted: (session) =>
             persistPlatformLocalSessionMetadata(
               taskRunId,
@@ -224,6 +225,7 @@ export const executeViaLocalHarness = async (
           }),
           streamCallbacks: harnessCallbacks,
           onSpawn: registerSpawn,
+          onContextUsage,
           onSessionStarted: (session) =>
             persistPlatformLocalSessionMetadata(
               taskRunId,
@@ -235,27 +237,9 @@ export const executeViaLocalHarness = async (
         },
       });
 
+  if (result.contextUsage) await onContextUsage(result.contextUsage);
   if (!result.success) {
     throw new Error(result.error || `${adapter.displayName} execution failed`);
-  }
-  if (participant.harnessType === 'kimi-code' && result.sessionId) {
-    try {
-      const usage = await collectKimiCodeProviderContextUsage({
-        sessionId: result.sessionId,
-      });
-      if (usage) {
-        await persistKimiCodeContextUsageMetadata(participantId, usage);
-      }
-    } catch {
-      // Context telemetry is diagnostic and must not turn a successful Kimi run into a failure.
-    }
-  }
-  if (participant.harnessType === 'antigravity' && result.contextUsage) {
-    try {
-      await persistAntigravityContextUsageMetadata(participantId, result.contextUsage);
-    } catch {
-      // Context telemetry is diagnostic and must not turn a successful Antigravity run into a failure.
-    }
   }
 
   return {

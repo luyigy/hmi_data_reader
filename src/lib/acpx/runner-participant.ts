@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma';
-import { persistCodexTokenUsageMetadata } from '@/lib/codex-telemetry';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { prepareFeishuBroadcastPrompt, ackFeishuBroadcastPrompt } from '@/lib/feishu-task-broadcast';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
@@ -118,12 +117,9 @@ export const executeParticipant = async (
     onSteeringReady: participant.executionBackend === 'platform_local' && (participant.harnessType === 'pi-agent' || participant.harnessType === 'codex')
       && !request.workflowCompletionGate
       ? request.streamCallbacks?.onSteeringReady : undefined,
-    onCodexTokenUsage: participant.executionBackend === 'platform_local'
-      && participant.harnessType === 'codex'
-      ? (usage) => persistCodexTokenUsageMetadata(participantId, usage)
-      : undefined,
     onStdoutChunk: async (chunk) => {
-      const interactionRequest = detectHarnessInteractionRequest(chunk);
+      // Raw JSON can quote permission questions in tool output; it is not an input request.
+      const interactionRequest = participant.harnessType === 'antigravity' ? null : detectHarnessInteractionRequest(chunk);
       streamWrites.push({ stream: 'stdout', content: chunk, interactionDetected: Boolean(interactionRequest) });
       if (interactionRequest) {
         await handleHarnessInteractionRequest({
@@ -146,7 +142,7 @@ export const executeParticipant = async (
       }
     },
     onStderrChunk: async (chunk) => {
-      const interactionRequest = detectHarnessInteractionRequest(chunk);
+      const interactionRequest = participant.harnessType === 'antigravity' ? null : detectHarnessInteractionRequest(chunk);
       streamWrites.push({ stream: 'stderr', content: chunk, interactionDetected: Boolean(interactionRequest) });
       if (interactionRequest) {
         await handleHarnessInteractionRequest({
@@ -230,6 +226,7 @@ export const executeParticipant = async (
       request.taskName,
       request.taskSessionId,
       participant,
+      participantId,
     );
     const localSpawnHandler = (child: { pid?: number }) => {
       if (participant.executionBackend === 'platform_local') {
