@@ -1,3 +1,4 @@
+import { loadCodexModelCatalog, validateCodexCatalogSelection, formatCodexModelCatalog } from '@/lib/codex-model-catalog';
 import { prisma } from '@/lib/prisma';
 import { generateShortAlias } from '@/lib/agent-identity';
 import {
@@ -317,11 +318,21 @@ export async function handleCodexConfigCommand(command: ParsedFeishuCommand, con
   const hasProvider = 'provider' in command.options;
   if (hasProvider && member.harnessType !== 'pi-agent') return 'Provider 切换仅支持 Pi Agent。';
   const hasThinking = 'thinking' in command.options || 'reasoning' in command.options;
+  if ('list' in command.options) {
+    if (hasModel || hasThinking || hasProvider) return '--list 仅用于查询，请与修改配置的参数分开发送。';
+    if (member.harnessType !== 'codex' || member.backend !== 'platform_local') return '模型目录查询目前仅支持 Platform Local Codex，不能使用本机目录代表远程成员。';
+    try {
+      return formatCodexModelCatalog(await loadCodexModelCatalog(room.workingDirectory));
+    } catch (error) {
+      return (error as Error).message;
+    }
+  }
   if (!hasModel && !hasThinking && !hasProvider) {
     return [
       `${member.userNickname || member.displayName} 模型配置（下一轮请求值）`,
       `Model: ${member.codexModel || 'inherit'}`,
       `Thinking: ${member.codexReasoningEffort || 'inherit'}`,
+      ...(member.harnessType === 'codex' ? ['查看模型及对应档位：/ap codex-config --agent=<成员名> --list'] : []),
     ].join('\n');
   }
 
@@ -334,12 +345,27 @@ export async function handleCodexConfigCommand(command: ParsedFeishuCommand, con
     );
   }
   const requestedThinking = command.options['thinking'] ?? command.options['reasoning'];
-  const settings = normalizeMemberModelSettings({
-    model: requestedModel,
-    reasoningEffort: hasThinking
-      ? requestedThinking === 'inherit' ? null : requestedThinking
-      : member.codexReasoningEffort,
-  }, member.harnessType, member.backend);
+  let settings: ReturnType<typeof normalizeMemberModelSettings>;
+  try {
+    settings = normalizeMemberModelSettings({
+      model: requestedModel,
+      reasoningEffort: hasThinking
+        ? requestedThinking === 'inherit' ? null : requestedThinking
+        : member.codexReasoningEffort,
+    }, member.harnessType, member.backend);
+  } catch (error) {
+    if (member.harnessType !== 'codex') throw error;
+    return '模型或思考档位格式无效，配置未修改。请用 /ap codex-config --agent=<成员名> --list 查询后复制填写。';
+  }
+
+  if (member.harnessType === 'codex' && (settings.model || settings.reasoningEffort)) {
+    if (member.backend !== 'platform_local') return '暂无法读取远程 Codex 的模型目录，配置未修改；请在对应运行器确认并配置。';
+    try {
+      validateCodexCatalogSelection(await loadCodexModelCatalog(room.workingDirectory), settings.model, settings.reasoningEffort);
+    } catch (error) {
+      return `${(error as Error).message}\n配置未修改。`;
+    }
+  }
 
   const updated = await prisma.liveRoomMember.update({
     where: { id: member.id },

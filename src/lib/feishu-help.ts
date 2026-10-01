@@ -6,7 +6,7 @@ import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 const HELP_PAGES = [
   ['房间与 Agent', [
     '/ap menu  返回分类命令卡片',
-    '/ap codex-config --agent=<memberName|idSuffix> [--model=<model|inherit>] [--thinking=<level|inherit>]  Codex 模型 / 思考强度；不带修改参数时查看配置',
+    '/ap codex-config --agent=<memberName|idSuffix> [--list] [--model=<model|inherit>] [--thinking=<level|inherit>]  Codex 模型 / 思考强度；不带修改参数时查看配置',
     '/ap model-config --agent=<memberName|idSuffix> [--provider=<provider|inherit>] [--model=<model|inherit>] [--thinking=<level|inherit>]  成员模型/强度；Provider 仅限 Pi，下一轮生效',
     '/ap isolation [status|on|off]  群任务隔离（默认关闭，仅群管理员/平台管理员可修改）',
     '/ap task new --title=任务名 --workdir=<目录>  创建独立任务入口卡；在卡片话题内续聊',
@@ -88,6 +88,7 @@ const CODEX_CONFIG_HELP = {
     '**Codex 模型 / 思考强度**',
     '复制命令到当前房间发送；将 codex 换成实际成员名称或 ID 后缀。',
     '查看配置：`/ap codex-config --agent=codex`',
+    '模型及对应思考档位：`/ap codex-config --agent=codex --list`（本机 Codex）；修改时校验目录，继承模型时请同时指定模型和档位。',
     '修改模型：`/ap codex-config --agent=codex --model=<模型ID>`',
     '思考强度：`/ap codex-config --agent=codex --thinking=high`',
     '恢复继承：`/ap codex-config --agent=codex --model=inherit --thinking=inherit`',
