@@ -27,7 +27,7 @@ async function main() {
   }) => {
     await options.onThreadStarted('codex');
     await options.streamCallbacks.onCodexTokenUsage({
-      threadId: 'codex', collectedAt: now, last: { inputTokens: 85 },
+      threadId: 'codex', collectedAt: now, last: { inputTokens: 85, outputTokens: 7 },
       total: { inputTokens: 9000 }, modelContextWindow: 100,
     });
     return { success: true, threadId: 'codex', executionTime: 1 };
@@ -37,14 +37,14 @@ async function main() {
   kimi.executeKimiCodeTask = async () => ({ success: true, sessionId: 'kimi', executionTime: 1 });
   telemetry.collectKimiCodeProviderContextUsage = async () => {
     assert.equal(started, 'kimi', 'session must be persisted before telemetry is returned');
-    return { usedTokens: 85, contextWindow: 100, collectedAt: now };
+    return { usedTokens: 85, contextWindow: 100, collectedAt: now, modelAlias: 'kimi-model' };
   };
   antigravity.executeAntigravityTask = async (_task: unknown, options: {
     onSessionStarted: (id: string) => Promise<void>;
   }) => {
     await options.onSessionStarted('agy');
     return { success: true, sessionId: 'agy', executionTime: 1,
-      contextUsage: { lastRunInputTokens: 85, contextWindow: 100,
+      contextUsage: { lastRunInputTokens: 85, contextWindow: 100, outputTokens: 7, modelAlias: 'agy-model',
         confidence: 'measured_exact', updatedAt: now } };
   };
   try {
@@ -58,6 +58,8 @@ async function main() {
         assert.equal(result.contextUsage?.sessionId, started);
         assert.equal(result.contextUsage?.confidence, 'measured_exact');
         if (adapter === codexHarnessAdapter) assert.deepEqual(result.contextUsage, streamed);
+        assert.equal(result.contextUsage?.outputTokens, adapter === kimiCodeHarnessAdapter ? undefined : 7);
+        assert.equal(result.contextUsage?.model, adapter === kimiCodeHarnessAdapter ? 'kimi-model' : adapter === antigravityHarnessAdapter ? 'agy-model' : undefined);
       }
     }
   } finally {

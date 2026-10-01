@@ -208,6 +208,11 @@ export function LiveRoomThread() {
                           <div className="whitespace-pre-wrap break-words text-[14px] leading-6">
                             {message.content}
                           </div>
+                          {isAssistant && Array.isArray(message.metadata?.footnotes) ? (
+                            <div className="mt-2 border-t border-slate-100 pt-2 text-[11px] leading-5 text-slate-500 break-words">
+                              {message.metadata.footnotes.filter((line): line is string => typeof line === 'string').map((line, index) => <div key={index}>{line}</div>)}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     );

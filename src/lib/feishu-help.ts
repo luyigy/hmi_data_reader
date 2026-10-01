@@ -7,6 +7,7 @@ const HELP_PAGES = [
   ['房间与 Agent', [
     '/ap menu  返回分类命令卡片',
     '/ap codex-config --agent=<memberName|idSuffix> [--model=<model|inherit>] [--thinking=<level|inherit>]  Codex 模型 / 思考强度；不带修改参数时查看配置',
+    '/ap model-config --agent=<memberName|idSuffix> [--provider=<provider|inherit>] [--model=<model|inherit>] [--thinking=<level|inherit>]  成员模型/强度；Provider 仅限 Pi，下一轮生效',
     '/ap isolation [status|on|off]  群任务隔离（默认关闭，仅群管理员/平台管理员可修改）',
     '/ap task new --title=任务名 --workdir=<目录>  创建独立任务入口卡；在卡片话题内续聊',
     '/ap broadcast <通知原文>  群主聊天区广播；目标任务各成员下一轮可见，不立即唤醒或打断',
@@ -90,6 +91,8 @@ const CODEX_CONFIG_HELP = {
     '修改模型：`/ap codex-config --agent=codex --model=<模型ID>`',
     '思考强度：`/ap codex-config --agent=codex --thinking=high`',
     '恢复继承：`/ap codex-config --agent=codex --model=inherit --thinking=inherit`',
+    '其他成员：`/ap model-config --agent=antigravity --thinking=high`；Antigravity 支持 low/medium/high/max，Kimi 仅支持模型。',
+    'Pi：`/ap model-config --agent=pi-agent --provider=openrouter --model=anthropic/claude-sonnet-4.5 --thinking=high`；支持 off/minimal/low/medium/high/xhigh。Provider 与模型一起指定；`--model=inherit --thinking=inherit` 清除房间覆盖，继承运行环境或会话默认值。',
     '修改作用于指定成员，下一次运行或续接生效。',
   ].join('\n'),
 };

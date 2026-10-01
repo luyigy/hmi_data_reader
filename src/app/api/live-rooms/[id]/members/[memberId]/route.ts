@@ -6,7 +6,7 @@ import {
   setLiveRoomMemberPermission,
   type LiveRoomPermissionProfile,
 } from '@/lib/live-room-permissions';
-import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
+import { normalizeMemberModelSettings } from '@/lib/live-room-codex-settings';
 import { ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
 
 /**
@@ -109,16 +109,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     }
     const codexSettings = hasCodexSettings
-      ? normalizeCodexMemberSettings({
+      ? normalizeMemberModelSettings({
           model: 'codexModel' in body ? body.codexModel : member.codexModel,
           reasoningEffort: 'codexReasoningEffort' in body
             ? body.codexReasoningEffort
             : member.codexReasoningEffort,
-        })
+        }, member.harnessType, member.backend)
       : null;
-    if (codexSettings && member.harnessType !== 'codex') {
-      return NextResponse.json({ error: 'Model settings are only supported for Codex members' }, { status: 400 });
-    }
 
     // 如果设置了昵称但未提供 shortAlias，自动生成
     let generatedShortAlias = shortAlias;
@@ -163,6 +160,6 @@ export async function PATCH(
   } catch (error) {
     console.error('Failed to update member:', error);
     const message = error instanceof Error ? error.message : 'Failed to update member';
-    return NextResponse.json({ error: message }, { status: message.startsWith('Invalid Codex') ? 400 : 500 });
+    return NextResponse.json({ error: message }, { status: (message.startsWith('Invalid Codex') || message.startsWith('Invalid member')) ? 400 : 500 });
   }
 }

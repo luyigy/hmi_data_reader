@@ -113,6 +113,7 @@ export async function handleFeishuCommand(args: {
       return handleSpecialtyCommand(args.command, args.context);
     case 'restrict':
       return handleRoomRestrictionCommand(args.command, args.context);
+    case 'model-config':
     case 'codex-config':
       return handleCodexConfigCommand(args.command, args.context);
     case 'speaker':

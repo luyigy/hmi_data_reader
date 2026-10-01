@@ -34,6 +34,8 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
 
     const result = await executePiAgentTask(task, {
       timeout: context.timeout,
+      model: context.model,
+      reasoningEffort: context.reasoningEffort,
       workingDirectory: context.workingDirectory,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
@@ -58,6 +60,8 @@ export const piAgentHarnessAdapter: HarnessAdapter = {
       sessionDir: sessionId,
       prompt: continuationMessage,
       timeout: context.timeout,
+      model: context.model,
+      reasoningEffort: context.reasoningEffort,
       workingDirectory: context.workingDirectory,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,

@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  CODEX_REASONING_EFFORTS,
   MEMBER_ROLES,
   PERMISSION_PROFILES,
   getAgentLabel,
@@ -14,7 +13,9 @@ import {
   getWatermarkUsageBarTone,
   getWatermarkUsageLabel,
 } from './live-room-workspace-models';
+import { getMemberModelCapabilities } from '@/lib/live-room-codex-settings';
 import { useLiveRoomContext } from './live-room-context';
+import { PiMemberModelSettings } from './PiMemberModelSettings';
 
 export function LiveRoomDetailsPanel() {
   const {
@@ -209,9 +210,18 @@ export function LiveRoomDetailsPanel() {
                               <option key={profile} value={profile}>{getPermissionProfileLabel(profile)}</option>
                             ))}
                           </select>
-                          {member.harnessType === 'codex' ? (
+                          {member.harnessType === 'pi-agent' && member.backend === 'platform_local' ? (
+                            <PiMemberModelSettings
+                              key={`${member.id}:${member.codexModel}:${member.codexReasoningEffort}`}
+                              model={member.codexModel}
+                              thinking={member.codexReasoningEffort}
+                              onSave={(settings) => handleUpdateCodexSettings(member.id, settings)}
+                            />
+                          ) : getMemberModelCapabilities(member.harnessType, member.backend).model ? (
                             <>
+                              <span className="w-full text-[11px] text-slate-500">下一轮请求设置（本轮不变；实际值需 CLI 确认）</span>
                               <input
+                                aria-label="下一轮模型"
                                 key={`${member.id}:${member.codexModel || ''}`}
                                 defaultValue={member.codexModel || ''}
                                 placeholder="Model (inherit)"
@@ -223,23 +233,26 @@ export function LiveRoomDetailsPanel() {
                                 className="w-36 rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
                               />
                               <select
+                                aria-label="下一轮思考强度"
+                                disabled={!getMemberModelCapabilities(member.harnessType, member.backend).efforts.length}
                                 value={member.codexReasoningEffort || ''}
                                 onChange={(event) => void handleUpdateCodexSettings(member.id, {
                                   codexReasoningEffort: event.target.value,
                                 })}
                                 className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px]"
                               >
-                                <option value="">Thinking (inherit)</option>
-                                {CODEX_REASONING_EFFORTS.map((effort) => (
+                                <option value="">{getMemberModelCapabilities(member.harnessType, member.backend).efforts.length ? 'Thinking (inherit)' : '思考强度不支持'}</option>
+                                {getMemberModelCapabilities(member.harnessType, member.backend).efforts.map((effort) => (
                                   <option key={effort} value={effort}>{effort}</option>
                                 ))}
                               </select>
                             </>
-                          ) : null}
+                          ) : <span className="text-[11px] text-slate-500">模型/强度切换暂不支持</span>}
                         </div>
                       ) : null}
                       {member.contextWatermark ? (
-                        <div className="mt-2" title={getWatermarkTooltip(member)}>
+                        <div className="mt-2 break-words" title={getWatermarkTooltip(member)}>
+                          <div className="mb-1 text-[11px] text-slate-500">{member.contextWatermark.modelLabel}</div>
                           {member.contextWatermark.usagePercentage != null ? (
                             <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
                               <div
@@ -248,7 +261,7 @@ export function LiveRoomDetailsPanel() {
                               />
                             </div>
                           ) : null}
-                          <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
+                          <div className="mt-1 flex flex-wrap gap-x-2 text-[10px] text-slate-500">
                             <span>{getWatermarkUsageLabel(member)}</span>
                             <span>{member.contextWatermark.dominantLabel}</span>
                           </div>

@@ -1,3 +1,4 @@
+import { collectLiveRoomFootnotes } from '@/lib/live-room-footnotes';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import {
@@ -178,6 +179,7 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
   const participants = [host, ...room.members.filter((member) => member.id !== host.id)] as WorkflowMember[];
   const outputs: Array<{ label: string; member: string; output: string }> = [];
   const runStage = async (member: WorkflowMember, label: string, instruction: string) => {
+    const startedAt = Date.now();
     const result = await executeAcpxTaskRun({
       taskId: sourceTask.id,
       taskSessionId: sourceTask.currentTaskSession?.id || undefined,
@@ -199,7 +201,8 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
     const stage = result.participants[0];
     const output = stage?.summary || stage?.error || `${label} 未返回结果`;
     outputs.push({ label, member: member.displayName, output });
-    await postLiveRoomMessage({ roomId, senderMemberId: member.id, content: `【${label}】\n${output}`, messageType: 'assistant', replyToMessageId: sourceMessageId });
+    const footnotes = await collectLiveRoomFootnotes({ participantId: stage?.participantId, startedAt, model: member.codexModel, reasoningEffort: member.codexReasoningEffort });
+    await postLiveRoomMessage({ roomId, senderMemberId: member.id, content: `【${label}】\n${output}`, messageType: 'assistant', replyToMessageId: sourceMessageId, metadata: { footnotes } });
     if (stage?.status !== 'completed') throw new WorkflowPlanError(
     `${member.displayName} 未完成 ${label}`,
     'member_execution',
@@ -561,6 +564,7 @@ export const runLiveRoomWorkflow = async ({
       ? `Inherited failed responsibilities (complete these together with the current stage):\n${inheritedFailures.map(({ stage: failedStage, reason }) => `- ${failedStage.label}: ${failedStage.instruction}\n  Failure: ${reason}`).join('\n')}`
       : '';
     const progress = await attachLiveRoomProgress({ room, participant: stage.member, sourceMessage: sourceMessage || {} });
+    const startedAt = Date.now();
     const result = await executeAcpxTaskRun({
       taskId: sourceTask.id,
       taskSessionId: sourceTask.currentTaskSession?.id || undefined,
@@ -598,6 +602,8 @@ export const runLiveRoomWorkflow = async ({
     }
     const stageResult = result.participants[0];
     const output = stageResult?.summary || stageResult?.error || `${stage.label} 未返回结果`;
+    const footnotes = await collectLiveRoomFootnotes({ participantId: stageResult?.participantId, startedAt, model: participant.model, reasoningEffort: participant.reasoningEffort });
+    progress.progressTracker?.setFootnotes(footnotes);
     await progress.dispose(output, stageResult?.status === 'completed');
     outputs.push({ label: stage.label, member: stage.member.displayName, output });
 
@@ -611,6 +617,7 @@ export const runLiveRoomWorkflow = async ({
         senderKind: 'assistant',
         replyToMessageId: sourceMessageId,
         extras: {
+          footnotes,
           systemEvent: 'workflow_stage_completed',
           workflow: name,
           stage: stage.id,

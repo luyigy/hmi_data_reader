@@ -1,3 +1,4 @@
+import { collectLiveRoomFootnotes } from '@/lib/live-room-footnotes';
 import { prisma } from '@/lib/prisma';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
 import { findLatestParticipantSession } from '@/lib/acpx/session-tracking';
@@ -366,6 +367,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     threadId: string | null;
   };
 }) => {
+  const startedAt = Date.now();
   const executionGeneration = getLiveRoomExecutionGeneration(targetMember.id);
   const sourceTask = await syncLiveRoomSourceTask(room.id);
   if (!sourceTask) {
@@ -613,6 +615,11 @@ export const executeLiveRoomReplyViaAcpx = async ({
   const finalSummary = acpxResult.status === 'completed'
     ? participantResult?.summary || acpxResult.summary || `${targetMember.displayName} 执行完成`
     : participantResult?.error || acpxResult.summary || `${targetMember.displayName} 执行失败`;
+  const footnotes = await collectLiveRoomFootnotes({
+    participantId: participantResult?.participantId, startedAt,
+    model: participant.model, reasoningEffort: participant.reasoningEffort,
+  });
+  progress.progressTracker?.setFootnotes(footnotes);
   await disposeProgress(finalSummary, acpxResult.status === 'completed');
 
   if (acpxResult.status === 'interrupted') {
@@ -636,6 +643,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     output: participantResult?.summary || acpxResult.summary || `${targetMember.displayName} completed`,
     threadId: refreshedParticipantSession?.continuationSessionId || session.threadId,
     remoteTiming: null,
+    footnotes,
   };
   } finally {
     await disposeProgress(`${targetMember.displayName} 执行失败`, false);

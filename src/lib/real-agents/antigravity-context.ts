@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 
 export type AntigravityContextUsage = {
   lastRunInputTokens: number;
+  outputTokens?: number;
   contextWindow: number | null;
   updatedAt: string;
   modelAlias?: string;
@@ -61,6 +62,7 @@ export const getAntigravityProviderContextUsage = (
 ): {
   usagePercentage: number | null;
   lastRunInputTokens: number;
+  outputTokens?: number;
   contextWindow: number;
   contextWindowAssumed: boolean;
 } | null => {
@@ -162,6 +164,8 @@ export const parseAntigravityUsageFromText = (
             return {
               confidence: measuredWindow ? 'measured_exact' : 'assumed_window',
               lastRunInputTokens: inputTokens,
+              ...(typeof usageObj.output_tokens === 'number' && Number.isFinite(usageObj.output_tokens) && usageObj.output_tokens >= 0
+                ? { outputTokens: usageObj.output_tokens } : {}),
               contextWindow: measuredWindow ?? contextWindow,
               updatedAt: new Date().toISOString(),
               ...(detectedModel ? { modelAlias: detectedModel } : {}),

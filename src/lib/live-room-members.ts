@@ -1,3 +1,4 @@
+import { formatContextUsage } from '@/lib/live-room-footnotes';
 import { readContextUsage, contextUsagePercentage } from '@/lib/context-usage';
 import { prisma } from "@/lib/prisma";
 import { deriveGatewayHarnessOptions } from "@/lib/acpx/catalog";
@@ -529,6 +530,8 @@ export const getLiveRoomMemberContextWatermark = async ({
     dominantLabel: providerUsage
       ? `${{ turn_input: 'latest turn input', session_context: 'session context', cumulative: 'cumulative tokens' }[providerUsage.metricKind]} · ${{ measured_exact: 'measured', inferred_text: 'inferred from text', assumed_window: 'window unverified' }[providerUsage.confidence]}`
       : `agent signal · ${estimatedDominantLabel}`,
+    telemetryLabel: formatContextUsage(providerUsage),
+    modelLabel: `最近确认模型：${providerUsage?.model || '未确认'} · 思考强度：未确认`,
     ...(providerUsage ? {
       usedTokens: providerUsage.usedTokens,
       contextWindow: providerUsage.contextWindow,

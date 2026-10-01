@@ -30,6 +30,8 @@ export class FeishuProgressTracker {
   private entries: ToolEntry[] = [];
   private systemEntries: SystemEntry[] = [];
   private replyContent: { text: string; details: string; usage: string } | null = null;
+  private footnotes: string[] = [];
+  setFootnotes(lines: string[]): void { this.footnotes = lines; }
   private lastEditAt = 0;
   private flushTimer?: ReturnType<typeof setTimeout>;
   private finalized = false;
@@ -131,7 +133,7 @@ export class FeishuProgressTracker {
           ) } }],
         },
         { tag: 'note', elements: [{ tag: 'plain_text', content:
-          `本轮耗时 ${this.elapsedText()}${reply.usage ? ` · ${reply.usage}` : ' · Token 用量未提供'}`,
+          this.footnotes.length ? this.footnotes.join('\n') : `本轮耗时 ${this.elapsedText()}${reply.usage ? ` · ${reply.usage}` : ' · Token 用量未提供'}`,
         }] },
       ],
     };
@@ -187,6 +189,7 @@ export class FeishuProgressTracker {
           }],
     });
 
+    if (this.footnotes.length) elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content: this.footnotes.join('\n') }] });
     return {
       config: { wide_screen_mode: true },
       header: {

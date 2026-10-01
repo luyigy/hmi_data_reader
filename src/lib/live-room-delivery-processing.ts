@@ -451,6 +451,7 @@ export const processLiveRoomDelivery = async ({
               ? { skipFeishuRelay: true } : {}),
             chainDepth,
             remoteTiming,
+            footnotes: acpxResult.footnotes,
             targetLocked: isDirectedVisibleReply,
             targetMemberName: handoffIntent.kind === 'target'
               ? room.members.find((member) => member.id === handoffIntent.targetMemberId)?.displayName || null

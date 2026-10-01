@@ -6,8 +6,11 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { runPiRpc } from './pi-rpc';
+import { normalizeMemberModelSettings, splitPiModel } from '../live-room-codex-settings';
 
 export interface PiAgentConfig {
+  model?: string;
+  reasoningEffort?: string;
   timeout?: number | null;
   workingDirectory?: string;
   streamCallbacks?: HarnessStreamCallbacks;
@@ -68,24 +71,33 @@ const buildPiArgs = ({
   sessionDir,
   continueSession,
   mode = 'json',
+  model,
+  reasoningEffort,
 }: {
   prompt: string;
   sessionDir?: string;
   continueSession?: boolean;
   mode?: 'json' | 'print' | 'rpc';
+  model?: string;
+  reasoningEffort?: string;
 }) => {
   const args = mode === 'print' ? ['--print'] : ['--mode', mode];
+  const settings = normalizeMemberModelSettings({ model, reasoningEffort }, 'pi-agent', 'platform_local');
+  const selection = splitPiModel(settings.model);
+  const provider = selection.provider || DEFAULT_PI_PROVIDER;
+  const selectedModel = selection.model || DEFAULT_PI_MODEL;
+  const thinking = settings.reasoningEffort || DEFAULT_PI_THINKING;
 
-  if (DEFAULT_PI_PROVIDER) {
-    args.push('--provider', DEFAULT_PI_PROVIDER);
+  if (provider) {
+    args.push('--provider', provider);
   }
 
-  if (DEFAULT_PI_MODEL) {
-    args.push('--model', DEFAULT_PI_MODEL);
+  if (selectedModel) {
+    args.push('--model', selectedModel);
   }
 
-  if (DEFAULT_PI_THINKING) {
-    args.push('--thinking', DEFAULT_PI_THINKING);
+  if (thinking) {
+    args.push('--thinking', thinking);
   }
 
   for (const extensionPath of DEFAULT_PI_EXTENSIONS) {
@@ -166,6 +178,8 @@ const jsonModeUnavailable = (value: string) =>
   /(?:unknown|unrecognized|unsupported|invalid)[^\n]*(?:--mode|mode[^\n]*json)|--mode[^\n]*(?:unknown|unrecognized|unsupported|invalid)/i.test(value);
 
 const runPiAgentCommand = async ({
+  model,
+  reasoningEffort,
   prompt,
   timeout,
   workingDirectory,
@@ -174,6 +188,8 @@ const runPiAgentCommand = async ({
   sessionDir,
   continueSession,
 }: {
+  model?: string;
+  reasoningEffort?: string;
   prompt: string;
   timeout: number | null;
   workingDirectory: string;
@@ -191,14 +207,14 @@ const runPiAgentCommand = async ({
   if (streamCallbacks?.onSteeringReady) {
     return runPiRpc({
       binary: DEFAULT_PI_AGENT_BIN,
-      args: buildPiArgs({ prompt, sessionDir, continueSession, mode: 'rpc' }),
+      args: buildPiArgs({ prompt, sessionDir, continueSession, model, reasoningEffort, mode: 'rpc' }),
       prompt, timeout, workingDirectory, streamCallbacks, onSpawn,
       onEvent: (line) => { processPiJsonLine(line, workingDirectory, streamCallbacks); },
     });
   }
 
   const run = (mode: 'json' | 'print') => new Promise<string>((resolve, reject) => {
-    const child = spawn(DEFAULT_PI_AGENT_BIN, buildPiArgs({ prompt, sessionDir, continueSession, mode }), {
+    const child = spawn(DEFAULT_PI_AGENT_BIN, buildPiArgs({ prompt, sessionDir, continueSession, model, reasoningEffort, mode }), {
       cwd: workingDirectory,
       env: { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -303,6 +319,8 @@ export const executePiAgentTask = async (
 
   try {
     const output = await runPiAgentCommand({
+      model: config.model,
+      reasoningEffort: config.reasoningEffort,
       prompt: buildPrompt(task),
       timeout: config.timeout ?? null,
       workingDirectory: config.workingDirectory || process.cwd(),
@@ -330,6 +348,8 @@ export const executePiAgentTask = async (
 };
 
 export const resumePiAgentSession = async ({
+  model,
+  reasoningEffort,
   sessionDir,
   prompt,
   timeout,
@@ -338,6 +358,8 @@ export const resumePiAgentSession = async ({
   onSpawn,
 }: {
   sessionDir: string;
+  model?: string;
+  reasoningEffort?: string;
   prompt: string;
   timeout: number | null;
   workingDirectory?: string;
@@ -348,6 +370,8 @@ export const resumePiAgentSession = async ({
 
   try {
     const output = await runPiAgentCommand({
+      model,
+      reasoningEffort,
       prompt,
       timeout,
       workingDirectory,

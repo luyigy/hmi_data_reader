@@ -668,10 +668,10 @@ export function useLiveRoomController({
     });
     const data = await response.json();
     if (!response.ok) {
-      setError(data.error || '更新 Codex 模型设置失败');
+      setError(data.error || '更新成员模型设置失败');
       return;
     }
-    setNotice('Codex 模型设置已更新，将在下一次 run / continuation 生效。');
+    setNotice('成员模型设置已更新，将在下一次 run / continuation 生效。');
     await refreshSelectedRoom(selectedRoom.id);
   };
 

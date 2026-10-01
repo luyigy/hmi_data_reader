@@ -100,6 +100,8 @@ export interface LiveRoomMember {
   codexModel?: string | null;
   codexReasoningEffort?: string | null;
   contextWatermark?: {
+    telemetryLabel?: string;
+    modelLabel?: string;
     source: 'provider' | 'unknown' | 'not_applicable';
     usagePercentage: number | null;
     usageStatus: 'light' | 'elevated' | 'high' | 'unknown' | 'not_applicable';

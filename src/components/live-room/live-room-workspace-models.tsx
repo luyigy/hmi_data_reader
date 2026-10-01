@@ -97,6 +97,7 @@ export const getWatermarkUsageLabel = (member: WorkspaceDetail['members'][number
       ? `Last run: ${watermark.usedTokens.toLocaleString()} tokens${watermark.contextWindow ? ` / ${watermark.contextWindow.toLocaleString()} max` : ''}`
       : 'Fresh conversation each turn';
   }
+  if (watermark.telemetryLabel) return watermark.telemetryLabel;
   if (watermark.usagePercentage == null) return 'No provider context telemetry';
   return `Used ${watermark.usagePercentage}%`;
 };

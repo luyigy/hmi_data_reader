@@ -7,6 +7,7 @@ async function collectContextUsage(sessionId?: string): Promise<NormalizedContex
   const usage = await collectKimiCodeProviderContextUsage({ sessionId });
   return usage ? {
     usedTokens: usage.usedTokens,
+    model: usage.modelAlias,
     contextWindow: usage.contextWindow,
     metricKind: 'session_context',
     confidence: 'measured_exact',

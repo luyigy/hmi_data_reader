@@ -14,6 +14,7 @@ function contextTelemetry(context: HarnessExecutionContext) {
       onCodexTokenUsage: async (usage: import('@/lib/codex-telemetry').CodexProviderTokenUsage) => {
         const next: NormalizedContextUsage = {
           usedTokens: usage.last.inputTokens,
+          outputTokens: usage.last.outputTokens,
           contextWindow: usage.modelContextWindow,
           metricKind: 'turn_input',
           confidence: 'measured_exact',

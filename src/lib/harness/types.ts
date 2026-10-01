@@ -52,6 +52,9 @@ export interface HarnessResumeArgs {
 }
 
 export interface NormalizedContextUsage {
+  /** Provider-reported values only; never copy requested settings here. */
+  model?: string;
+  outputTokens?: number;
   usedTokens: number;
   contextWindow?: number;
   usagePercentage?: number;

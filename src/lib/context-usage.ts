@@ -20,6 +20,8 @@ export function readContextUsage(value: string | null | undefined, now = Date.no
     || typeof sessionId !== 'string' || !sessionId || usage.sessionId !== sessionId
     || !['turn_input', 'session_context', 'cumulative'].includes(usage.metricKind)
     || !['measured_exact', 'inferred_text', 'assumed_window'].includes(usage.confidence)
+    || (usage.model !== undefined && (typeof usage.model !== 'string' || usage.model.length > 200))
+    || (usage.outputTokens !== undefined && !nonNegative(usage.outputTokens))
     || (usage.contextWindow !== undefined && (!nonNegative(usage.contextWindow) || usage.contextWindow === 0))
     || (usage.usagePercentage !== undefined && !nonNegative(usage.usagePercentage))) return null;
   return usage;

@@ -95,6 +95,12 @@ export const buildAssistantRelayCard = (
     { tag: 'markdown', content: message.content },
   ];
 
+  if (Array.isArray(message.metadata?.footnotes)) {
+    elements.push({ tag: 'note', elements: [{ tag: 'plain_text', content:
+      message.metadata.footnotes.filter((line): line is string => typeof line === 'string').join('\n'),
+    }] });
+  }
+
   if (deliveryIntent === 'handoff' && targetMemberName) {
     elements.push({
       tag: 'note',

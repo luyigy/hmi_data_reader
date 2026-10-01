@@ -32,6 +32,8 @@ async function run({ task, context }: HarnessExecuteArgs, sessionId?: string, pr
   const usage = result.contextUsage;
   const contextUsage: NormalizedContextUsage | undefined = usage ? {
     usedTokens: usage.lastRunInputTokens,
+    model: usage.modelAlias,
+    outputTokens: usage.outputTokens,
     contextWindow: usage.contextWindow ?? undefined,
     metricKind: 'turn_input',
     confidence: usage.confidence ?? 'assumed_window',

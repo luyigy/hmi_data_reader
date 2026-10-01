@@ -1,0 +1,61 @@
+import { parseAntigravityUsageFromText } from '../src/lib/real-agents/antigravity-context';
+import { parseFeishuCommand } from '../src/lib/feishu-command-parser';
+import assert from 'node:assert/strict';
+import { buildLiveRoomFootnotes, formatContextUsage } from '../src/lib/live-room-footnotes';
+import { normalizeMemberModelSettings } from '../src/lib/live-room-codex-settings';
+import { FeishuProgressTracker } from '../src/lib/feishu-progress';
+import { buildAssistantRelayCard } from '../src/lib/feishu-live-room-relay';
+import type { NormalizedContextUsage } from '../src/lib/harness/types';
+import type { LiveRoomMessagePayload } from '../src/lib/live-room-types';
+
+const now = Date.now();
+const usage: NormalizedContextUsage = { usedTokens: 50, contextWindow: 100, outputTokens: 5,
+  metricKind: 'turn_input', confidence: 'measured_exact', sessionId: 'a', collectedAt: now, model: 'reported-model' };
+const snapshot = (patch: Partial<NormalizedContextUsage> = {}, sessionId = 'a') => buildLiveRoomFootnotes({
+  metadata: JSON.stringify({ lastSessionId: sessionId, contextUsage: { ...usage, ...patch } }),
+  model: 'requested-model', reasoningEffort: 'high', startedAt: now - 1000, now,
+});
+assert.match(snapshot().join('\n'), /reported-model.*实际值未确认.*requested-model/);
+assert.match(snapshot()[1], /最近一轮输入：50 \/ 100 tokens \(50%\)/);
+assert.match(snapshot()[2], /输入 50 \/ 输出 5 tokens · 耗时 1.0秒/);
+assert.match(snapshot({ confidence: 'assumed_window' })[1], /50 tokens · 窗口未确认/);
+for (const patch of [{ confidence: 'assumed_window' }, { confidence: 'inferred_text' }, { metricKind: 'cumulative' }] as Partial<NormalizedContextUsage>[]) {
+  assert.doesNotMatch(snapshot(patch)[1], /%|\/ 100/);
+}
+for (const patch of [{ collectedAt: now - 900_001 }, { collectedAt: now - 1001 }, { outputTokens: -1 }, { usedTokens: NaN }]) {
+  assert.match(snapshot(patch)[1], /未知/);
+}
+assert.match(snapshot({}, 'other')[1], /未知/);
+assert.match(formatContextUsage({ ...usage, usedTokens: 0 }), /0 \/ 100/);
+const saved = JSON.stringify(snapshot());
+snapshot({ model: 'different-model', sessionId: 'b' }, 'b');
+assert.equal(JSON.stringify(snapshot()), saved, 'other member/session cannot rewrite a saved snapshot');
+
+assert.deepEqual(normalizeMemberModelSettings({ model: 'new-model', reasoningEffort: 'HIGH' }, 'antigravity', 'platform_local'), { model: 'new-model', reasoningEffort: 'high' });
+assert.equal(normalizeMemberModelSettings({ model: 'kimi' }, 'kimi-code', 'platform_local').model, 'kimi');
+assert.equal(normalizeMemberModelSettings({ reasoningEffort: 'xhigh' }, 'codex', 'platform_local').reasoningEffort, 'xhigh');
+assert.deepEqual(normalizeMemberModelSettings({ model: '', reasoningEffort: null }, 'codex'), { model: null, reasoningEffort: null });
+for (const [input, harness, backend] of [
+  [{ model: 3 }, 'codex', 'platform_local'], [{ reasoningEffort: {} }, 'codex', 'platform_local'],
+  [{ model: '--bad model' }, 'codex', 'platform_local'], [{ reasoningEffort: 'ultra' }, 'antigravity', 'platform_local'],
+  [{ reasoningEffort: 'high' }, 'kimi-code', 'platform_local'], [{ model: 'x' }, 'antigravity', 'remote_ssh'],
+  [{ model: 'x' }, 'unknown', 'platform_local'],
+] as const) assert.throws(() => normalizeMemberModelSettings(input, harness, backend));
+
+const footnotes = snapshot();
+const tracker = new FeishuProgressTracker('test');
+tracker.setFootnotes(footnotes);
+// Inspect rendering without contacting Feishu.
+const internals = tracker as unknown as { buildCard(): unknown; replyContent: unknown };
+assert.match(JSON.stringify(internals.buildCard()), /reported-model/);
+internals.replyContent = { text: 'answer', details: 'tools', usage: '' };
+assert.match(JSON.stringify(internals.buildCard()), /窗口|50%/);
+const card = buildAssistantRelayCard({ content: 'answer', senderName: 'Agent', metadata: { footnotes } } as unknown as LiveRoomMessagePayload);
+assert.match(JSON.stringify(card), /reported-model/);
+assert.match(JSON.stringify(card), /最近一轮输入/);
+console.log('live-room footnotes and member settings tests passed');
+
+assert.equal(parseFeishuCommand({ text: '/ap model-config --agent=antigravity --thinking=high', chatId: 'chat', chatType: 'p2p', messageId: 'message', senderOpenId: 'user', messageType: 'text', mentions: [], mentionNames: [] })?.command, 'model-config');
+
+assert.equal(parseAntigravityUsageFromText('{"event":"result","result":{"usage":{"input_tokens":50,"output_tokens":7}}}')?.outputTokens, 7);
+assert.equal(parseAntigravityUsageFromText('{"usage":{"input_tokens":50,"output_tokens":-7}}')?.outputTokens, undefined);

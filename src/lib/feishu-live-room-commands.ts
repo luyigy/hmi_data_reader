@@ -15,7 +15,7 @@ import {
   type FeishuConversationContext,
 } from '@/lib/feishu-live-room';
 import { parseLiveRoomMode } from '@/lib/live-room-scheduling';
-import { normalizeCodexMemberSettings } from '@/lib/live-room-codex-settings';
+import { normalizeMemberModelSettings, getMemberModelCapabilities, splitPiModel, joinPiModel } from '@/lib/live-room-codex-settings';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import {
   postLiveRoomMessage,
@@ -125,13 +125,7 @@ export async function handleMembersCommand(context?: FeishuConversationContext) 
   const lines = members.map((m) => {
     const tag = m.memberType === 'user' ? '(you)' : m.presenceStatus;
     const watermark = m.contextWatermark
-      ? m.contextWatermark.usagePercentage == null
-        ? m.contextWatermark.source === 'not_applicable'
-          ? m.contextWatermark.usedTokens
-            ? ` | 上下文 每轮新 conversation (单次输入: ${m.contextWatermark.usedTokens.toLocaleString()} tokens${m.contextWatermark.contextWindow ? ` / ${m.contextWatermark.contextWindow.toLocaleString()} max, ${Math.round(m.contextWatermark.usedTokens / m.contextWatermark.contextWindow * 100)}%` : ''}) | 策略 ${m.contextWatermark.policyLabel}`
-            : ` | 上下文 每轮新 conversation (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
-          : ` | 上下文 暂无 provider 遥测 (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
-        : ` | 用量 ${m.contextWatermark.usagePercentage}% (${m.contextWatermark.dominantLabel}) | 策略 ${m.contextWatermark.policyLabel}`
+      ? ` | ${m.contextWatermark.modelLabel || '实际模型未确认'} | ${m.contextWatermark.telemetryLabel || '上下文未知'} | 策略 ${m.contextWatermark.policyLabel}`
       : '';
     const permission = m.permissionLabel ? ` | ${m.permissionLabel}` : '';
     const role = ` | 角色: ${m.role || 'custom'}`;
@@ -316,28 +310,36 @@ export async function handleCodexConfigCommand(command: ParsedFeishuCommand, con
   const memberQuery = (command.options['agent'] || command.options['member'] || command.args[0] || '').trim();
   const member = resolveRoomMemberQuery({ room, query: memberQuery });
   if (!member) return memberQuery ? `找不到目标成员：${memberQuery}` : '当前房间没有可配置的 agent 成员。';
-  if (member.harnessType !== 'codex') return `${member.userNickname || member.displayName} 不是 Codex 成员。`;
+  if (command.command === 'codex-config' && member.harnessType !== 'codex') return `${member.userNickname || member.displayName} 不是 Codex 成员。`;
 
+  if (!getMemberModelCapabilities(member.harnessType, member.backend).model) return '该成员暂不支持模型/强度切换。';
   const hasModel = 'model' in command.options;
+  const hasProvider = 'provider' in command.options;
+  if (hasProvider && member.harnessType !== 'pi-agent') return 'Provider 切换仅支持 Pi Agent。';
   const hasThinking = 'thinking' in command.options || 'reasoning' in command.options;
-  if (!hasModel && !hasThinking) {
+  if (!hasModel && !hasThinking && !hasProvider) {
     return [
-      `${member.userNickname || member.displayName} Codex 配置`,
+      `${member.userNickname || member.displayName} 模型配置（下一轮请求值）`,
       `Model: ${member.codexModel || 'inherit'}`,
       `Thinking: ${member.codexReasoningEffort || 'inherit'}`,
     ].join('\n');
   }
 
-  const requestedModel = command.options['model'];
+  let requestedModel = hasModel ? command.options['model'] : member.codexModel;
+  if (requestedModel === 'inherit') requestedModel = '';
+  if (hasProvider) {
+    requestedModel = joinPiModel(
+      command.options['provider'] === 'inherit' ? '' : command.options['provider'],
+      hasModel ? requestedModel || '' : splitPiModel(member.codexModel).model,
+    );
+  }
   const requestedThinking = command.options['thinking'] ?? command.options['reasoning'];
-  const settings = normalizeCodexMemberSettings({
-    model: hasModel && requestedModel !== 'inherit' ? requestedModel : member.codexModel,
-    reasoningEffort: hasThinking && requestedThinking !== 'inherit'
-      ? requestedThinking
+  const settings = normalizeMemberModelSettings({
+    model: requestedModel,
+    reasoningEffort: hasThinking
+      ? requestedThinking === 'inherit' ? null : requestedThinking
       : member.codexReasoningEffort,
-  });
-  if (hasModel && requestedModel === 'inherit') settings.model = null;
-  if (hasThinking && requestedThinking === 'inherit') settings.reasoningEffort = null;
+  }, member.harnessType, member.backend);
 
   const updated = await prisma.liveRoomMember.update({
     where: { id: member.id },
@@ -348,7 +350,7 @@ export async function handleCodexConfigCommand(command: ParsedFeishuCommand, con
   });
 
   return [
-    `✅ 已更新 ${updated.userNickname || updated.displayName} 的 Codex 配置`,
+    `✅ 已更新 ${updated.userNickname || updated.displayName} 的模型配置`,
     `Model: ${updated.codexModel || 'inherit'}`,
     `Thinking: ${updated.codexReasoningEffort || 'inherit'}`,
     '将在下一次 run / continuation 生效。',
