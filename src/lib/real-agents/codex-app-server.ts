@@ -429,7 +429,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     });
     await turnDone;
     await telemetryCallbacks;
-    return { output: output || 'Task executed successfully', threadId: activeThreadId! };
+    return { output: output || 'Task executed successfully', threadId: activeThreadId!, turnId: activeTurnId };
   } catch (error) {
     throw new CodexAppServerError(
       error instanceof Error ? error.message : 'Codex app-server failed',

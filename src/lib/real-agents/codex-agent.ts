@@ -47,6 +47,7 @@ export interface CodexResult {
   executionTime: number;
   filesModified?: string[];
   threadId?: string;
+  turnId?: string;
 }
 
 /**
@@ -95,6 +96,7 @@ export const executeCodexTask = async (
       success: true,
       output: result.output,
       threadId: result.threadId ?? undefined,
+      turnId: result.turnId,
       executionTime: Date.now() - startTime,
     };
   } catch (error) {
@@ -132,6 +134,7 @@ interface CodexExecutionOptions {
 interface CodexCliResult {
   output: string;
   threadId: string | null;
+  turnId?: string;
 }
 
 const buildCodexChildEnv = (codexHome?: string) => {

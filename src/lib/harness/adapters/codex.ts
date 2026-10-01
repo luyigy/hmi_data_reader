@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { SHARED_ENTRIES } from '@/lib/real-agents/codex-home';
 import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
+import { collectCodexRuntimeState } from '@/lib/real-agents/codex-runtime-state';
 
 // Keep the native stream callback at the protocol boundary.
 function contextTelemetry(context: HarnessExecutionContext) {
@@ -62,6 +63,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
   },
 
   async execute({ task, context }) {
+    const startedAt = Date.now();
     const { executeCodexTask } = await loadCodexAgent();
     const telemetry = contextTelemetry(context);
     const workflowBoundary = resolveWorkflowCodexBoundary(
@@ -104,6 +106,11 @@ export const codexHarnessAdapter: HarnessAdapter = {
       sessionKind: result.threadId ? 'codex_thread' : undefined,
       threadId: result.threadId,
       contextUsage: telemetry.usage,
+      runtimeState: result.success ? await collectCodexRuntimeState({
+        executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
+        startedAt, completedAt: Date.now(), codexHome: workflowBoundary?.codexHome ?? context.codexHome,
+        ephemeral: context.ephemeralSession,
+      }) : undefined,
       liveStreaming: true,
     };
   },
@@ -154,6 +161,10 @@ export const codexHarnessAdapter: HarnessAdapter = {
         sessionKind: result.threadId ? 'codex_thread' : undefined,
         threadId: result.threadId ?? undefined,
         contextUsage: telemetry.usage,
+        runtimeState: await collectCodexRuntimeState({
+          executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
+          startedAt: startTime, completedAt: Date.now(), codexHome: workflowBoundary?.codexHome ?? context.codexHome,
+        }),
         liveStreaming: true,
       };
     } catch (error) {
