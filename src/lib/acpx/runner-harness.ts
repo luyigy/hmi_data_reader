@@ -9,6 +9,7 @@ import { getHarnessAdapter } from '@/lib/harness';
 import { resolveLocalRuntimeReadOnlyPaths } from './runtime-environments';
 import { resolvePlatformLocalCodexHome } from '@/lib/real-agents/codex-home';
 import { persistContextUsage } from '@/lib/context-usage';
+import { beginHarnessRuntimeExecution, persistHarnessRuntimeState } from '@/lib/harness-runtime-state';
 import { getRemoteHarnessHostById } from '@/lib/remote-harness/hosts';
 import { executeRemoteSshTask } from '@/lib/remote-harness/ssh-executor';
 import { executeRemoteRunnerTask } from '@/lib/remote-harness/runner-executor';
@@ -151,9 +152,29 @@ export const executeViaLocalHarness = async (
     onSpawn?.(child);
   };
 
+  const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
+  let metadataWrites = Promise.resolve();
+  let boundSessionId: string | undefined;
+  const onSessionStarted = (session: import('@/lib/harness/types').HarnessSessionStarted) => {
+    metadataWrites = metadataWrites.then(async () => {
+      try {
+        await persistPlatformLocalSessionMetadata(
+          taskRunId, participantId, session.sessionKind, session.sessionId, session.threadId,
+        );
+        boundSessionId = session.threadId || session.sessionId;
+      } catch {
+        boundSessionId = undefined;
+        console.warn('Runtime telemetry: could not bind session', participantId);
+      }
+    });
+    return metadataWrites;
+  };
   const onContextUsage = async (usage: import('@/lib/harness/types').NormalizedContextUsage) => {
-    try { await persistContextUsage(participantId, usage); }
-    catch { /* Diagnostic telemetry must not fail execution. */ }
+    metadataWrites = metadataWrites.then(async () => {
+      try { await persistContextUsage(participantId, usage); }
+      catch { console.warn('Context telemetry: could not persist usage', participantId); }
+    });
+    await metadataWrites;
   };
   const result = participant.continuationMessage && adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
     ? await adapter.resume({
@@ -161,6 +182,7 @@ export const executeViaLocalHarness = async (
         sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
         continuationMessage: withLongFileRuntimeContext(withFeishuBotContactInstructions(participant.continuationMessage), longFileContext),
         context: {
+          executionId: runtimeExecution.id,
           workingDirectory: request.workingDirectory || process.cwd(),
           workspaceRoot,
           extraWritableRoots,
@@ -187,19 +209,13 @@ export const executeViaLocalHarness = async (
           streamCallbacks: harnessCallbacks,
           onSpawn: registerSpawn,
           onContextUsage,
-          onSessionStarted: (session) =>
-            persistPlatformLocalSessionMetadata(
-              taskRunId,
-              participantId,
-              session.sessionKind,
-              session.sessionId,
-              session.threadId
-            ),
+          onSessionStarted,
         },
       })
     : await adapter.execute({
         task,
         context: {
+          executionId: runtimeExecution.id,
           workingDirectory: request.workingDirectory || process.cwd(),
           workspaceRoot,
           extraWritableRoots,
@@ -226,20 +242,23 @@ export const executeViaLocalHarness = async (
           streamCallbacks: harnessCallbacks,
           onSpawn: registerSpawn,
           onContextUsage,
-          onSessionStarted: (session) =>
-            persistPlatformLocalSessionMetadata(
-              taskRunId,
-              participantId,
-              session.sessionKind,
-              session.sessionId,
-              session.threadId
-            ),
+          onSessionStarted,
         },
       });
 
+  await metadataWrites;
+  if (result.runtimeState && result.sessionId && result.sessionKind) {
+    await onSessionStarted({ sessionId: result.sessionId, sessionKind: result.sessionKind, threadId: result.threadId });
+  }
   if (result.contextUsage) await onContextUsage(result.contextUsage);
   if (!result.success) {
     throw new Error(result.error || `${adapter.displayName} execution failed`);
+  }
+
+  if (result.runtimeState && result.runtimeState.sessionId === boundSessionId) {
+    await persistHarnessRuntimeState(runtimeExecution, result.runtimeState);
+  } else if (result.runtimeState) {
+    console.warn('Runtime telemetry: missing current execution session binding', participantId);
   }
 
   return {

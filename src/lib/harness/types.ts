@@ -20,6 +20,8 @@ export interface HarnessSessionStarted {
 }
 
 export interface HarnessExecutionContext {
+  /** Platform execution correlation; adapters must bind native evidence to this invocation. */
+  executionId?: string;
   workingDirectory: string;
   workspaceRoot?: string;
   extraWritableRoots?: string[];
@@ -75,6 +77,23 @@ export interface HarnessExecuteResult {
   threadId?: string;
   liveStreaming?: boolean;
   contextUsage?: NormalizedContextUsage;
+  runtimeState?: HarnessRuntimeState;
+}
+
+/** Confirmed native state only. Never populate from requested settings or defaults. */
+export interface HarnessRuntimeState {
+  executionId: string;
+  sessionId: string;
+  turnId?: string;
+  model?: string;
+  modelKind?: 'model_id' | 'alias';
+  provider?: string;
+  reasoning: { kind: 'level'; value: string } | { kind: 'toggle'; enabled: boolean }
+    | { kind: 'not_applicable' } | { kind: 'unknown' };
+  source: string;
+  evidence: 'runner' | 'provider';
+  /** Native observation time, not the time an old file was read. */
+  observedAt: number;
 }
 
 export interface HarnessAvailability {

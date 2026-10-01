@@ -1,3 +1,4 @@
+import { readHarnessRuntimeState, formatHarnessRuntimeState } from '@/lib/harness-runtime-state';
 import { formatContextUsage } from '@/lib/live-room-footnotes';
 import { readContextUsage, contextUsagePercentage } from '@/lib/context-usage';
 import { prisma } from "@/lib/prisma";
@@ -486,7 +487,7 @@ export const getLiveRoomMemberContextWatermark = async ({
             ...(latestResetAt ? { createdAt: { gt: latestResetAt } } : {}),
           },
           orderBy: { createdAt: 'desc' },
-          select: { controlMetadata: true },
+          select: { id: true, controlMetadata: true },
         })
       : Promise.resolve(null),
   ]);
@@ -531,7 +532,7 @@ export const getLiveRoomMemberContextWatermark = async ({
       ? `${{ turn_input: 'latest turn input', session_context: 'session context', cumulative: 'cumulative tokens' }[providerUsage.metricKind]} · ${{ measured_exact: 'measured', inferred_text: 'inferred from text', assumed_window: 'window unverified' }[providerUsage.confidence]}`
       : `agent signal · ${estimatedDominantLabel}`,
     telemetryLabel: formatContextUsage(providerUsage),
-    modelLabel: `最近确认模型：${providerUsage?.model || '未确认'} · 思考强度：未确认`,
+    modelLabel: formatHarnessRuntimeState(readHarnessRuntimeState(providerParticipant?.controlMetadata, { participantId: providerParticipant?.id })),
     ...(providerUsage ? {
       usedTokens: providerUsage.usedTokens,
       contextWindow: providerUsage.contextWindow,

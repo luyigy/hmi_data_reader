@@ -12,7 +12,12 @@ const now = Date.now();
 const usage: NormalizedContextUsage = { usedTokens: 50, contextWindow: 100, outputTokens: 5,
   metricKind: 'turn_input', confidence: 'measured_exact', sessionId: 'a', collectedAt: now, model: 'reported-model' };
 const snapshot = (patch: Partial<NormalizedContextUsage> = {}, sessionId = 'a') => buildLiveRoomFootnotes({
-  metadata: JSON.stringify({ lastSessionId: sessionId, contextUsage: { ...usage, ...patch } }),
+  participantId: 'participant',
+  metadata: JSON.stringify({ lastSessionId: sessionId, contextUsage: { ...usage, ...patch },
+    runtimeExecution: { id: 'execution', participantId: 'participant', startedAt: now - 1000, completedAt: now },
+    runtimeState: { executionId: 'execution', sessionId: 'a', model: 'reported-model', modelKind: 'model_id',
+      reasoning: { kind: 'unknown' }, evidence: 'runner', source: 'test', observedAt: now },
+  }),
   model: 'requested-model', reasoningEffort: 'high', startedAt: now - 1000, now,
 });
 assert.match(snapshot().join('\n'), /reported-model.*实际值未确认.*requested-model/);

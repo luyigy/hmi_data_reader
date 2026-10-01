@@ -1,5 +1,6 @@
 import { readContextUsage, contextUsagePercentage } from './context-usage';
 import type { NormalizedContextUsage } from './harness/types';
+import { readHarnessRuntimeState, formatHarnessRuntimeState } from './harness-runtime-state';
 import { prisma } from './prisma';
 
 export function formatContextUsage(usage: NormalizedContextUsage | null): string {
@@ -15,6 +16,7 @@ export function formatContextUsage(usage: NormalizedContextUsage | null): string
 
 export function buildLiveRoomFootnotes(input: {
   metadata?: string | null;
+  participantId?: string;
   model?: string | null;
   reasoningEffort?: string | null;
   startedAt: number;
@@ -24,15 +26,16 @@ export function buildLiveRoomFootnotes(input: {
   const candidate = readContextUsage(input.metadata, now);
   // A fresh record from an earlier turn is still not this turn's telemetry.
   const usage = candidate && candidate.collectedAt >= input.startedAt ? candidate : null;
+  const runtimeState = readHarnessRuntimeState(input.metadata, { participantId: input.participantId, startedAt: input.startedAt, now });
   return [
-    `模型：${usage?.model || '实际值未确认'} · 思考强度：实际值未确认（本轮请求：${input.model || '继承默认'} · ${input.reasoningEffort || '继承默认'}）`,
+    `${formatHarnessRuntimeState(runtimeState)}（本轮请求：${input.model || '继承默认'} · ${input.reasoningEffort || '继承默认'}）`,
     formatContextUsage(usage),
     `${usage?.metricKind === 'turn_input' ? `本轮输入 ${usage.usedTokens.toLocaleString('en-US')} / 输出 ${usage.outputTokens?.toLocaleString('en-US') ?? '未提供'} tokens` : '本轮 token 用量未提供'} · 耗时 ${Math.max(0, (now - input.startedAt) / 1000).toFixed(1)}秒`,
     ...(usage ? [`采集时间：${new Date(usage.collectedAt).toISOString()} · ${usage.metricKind} · ${usage.confidence}`] : []),
   ];
 }
 
-export async function collectLiveRoomFootnotes(input: Omit<Parameters<typeof buildLiveRoomFootnotes>[0], 'metadata'> & { participantId?: string }) {
+export async function collectLiveRoomFootnotes(input: Omit<Parameters<typeof buildLiveRoomFootnotes>[0], 'metadata'>) {
   const participant = input.participantId ? await prisma.taskRunParticipant.findUnique({
     where: { id: input.participantId }, select: { controlMetadata: true },
   }).catch((error) => {
