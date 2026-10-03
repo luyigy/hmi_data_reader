@@ -11,6 +11,7 @@ import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
 import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
 import { handleFeishuDocumentCommand } from '@/lib/feishu-document-command';
+import { handleFeishuMarkdownCommand } from '@/lib/feishu-markdown-picker';
 import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
 import { handleWorkflowInboxCommand } from '@/lib/feishu-workflow-inbox';
 import { formatFeishuHelp, sendFeishuCommandCenter } from '@/lib/feishu-help';
@@ -128,6 +129,8 @@ export async function handleFeishuCommand(args: {
       return handleFeishuPlanCommand(args.command, args.context);
     case 'doc':
       return handleFeishuDocumentCommand(args.command, args.context);
+    case 'md':
+      return handleFeishuMarkdownCommand(args.command, args.context);
     case 'approvals':
       return handleApprovalsCommand(args.context);
     case 'approve':

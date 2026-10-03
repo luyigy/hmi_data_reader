@@ -44,6 +44,7 @@ import {
   type WorkflowReviewDecision,
 } from '@/lib/scheduled-jobs/workflow-review';
 import { handleWorkflowDashboardCardAction } from '@/lib/feishu-scheduled-jobs';
+import { handleMarkdownPickerCardCallback } from '@/lib/feishu-markdown-picker';
 import {
   resolveFeishuCardActionIdentity,
   type FeishuCardActionIdentity,
@@ -330,6 +331,8 @@ export function buildCardActionHandler(prefix: string) {
       });
       return { toast: { type: 'success', content: '操作已接收；完成后会回复结果' } };
     }
+
+    if (cmd === 'markdown-picker') return handleMarkdownPickerCardCallback({ action, openId, chatId, messageId, prefix });
 
     if (cmd === 'handoff-plan') return handleLiveRoomHandoffPlanCardAction({
       value: data.action.value as Record<string, unknown>,

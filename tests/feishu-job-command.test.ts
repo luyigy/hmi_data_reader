@@ -55,6 +55,9 @@ assert.deepEqual(parseFeishuCommand(message('/ap dashboard custom-watcher')), {
   args: ['dashboard', 'custom-watcher'],
   options: {},
 });
+assert.deepEqual(parseFeishuCommand(message('/ap md HANDOVER')), {
+  command: 'md', args: ['HANDOVER'], options: {},
+});
 assert.deepEqual(parseFeishuCommand(message('/ap workflow policy set --preset=workspace')), {
   command: 'workflow',
   args: ['policy', 'set'],
