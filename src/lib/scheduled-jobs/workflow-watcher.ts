@@ -201,7 +201,8 @@ const sendReviewCard = (
 });
 
 const execute = async (
-  pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext' | 'roleWorkflowLevel'> & {
+  pending: Pick<Pending, 'key' | 'prompt' | 'workflowContext' | 'roleWorkflowLevel'>
+    & Partial<Pick<Pending, 'reviewState' | 'reviewMessageId' | 'action'>> & {
     roleWorkflow?: boolean;
     type?: string;
   },
@@ -218,13 +219,19 @@ const execute = async (
     '完成前必须以目标 HEAD 中的 docs/workflow/workflow-contract.yaml 为唯一规则源，',
     '只修订并提交本次相关 PLAN/HANDOVER；平台 completion gate 会在 Session 结束后统一校验。',
   ].join('\n');
+  const approvalNotice = pending.type === 'PLAN' && pending.reviewState === 'approved' && pending.reviewMessageId
+    ? `**平台审批状态**：人工审批卡已批准（消息 ${pending.reviewMessageId}）。watcher 已将本次运行时动作转换为 ${pending.action}；下方 await_approval 是已提交 PLAN 的提审时原值，不表示仍待审批。请直接执行获批的首个 Slice，无需再次请求批准。`
+    : '';
+  const workflowContext = approvalNotice
+    ? `${approvalNotice}\n${pending.workflowContext}`
+    : pending.workflowContext;
   return (await runWorkflow({
     projectId,
     jobId,
     chatId: codingBotChatId,
     chatType: codingBotChatType,
-    prompt: `${pending.workflowContext}\n\n${pending.prompt}\n${validationReminder}`,
-    workflowContext: pending.workflowContext,
+    prompt: `${workflowContext}\n\n${pending.prompt}\n${validationReminder}`,
+    workflowContext,
     executionPolicy,
     eventKey: pending.key,
     roleWorkflow: pending.roleWorkflow ?? ['PLAN', 'HANDOVER'].includes(pending.type || ''),

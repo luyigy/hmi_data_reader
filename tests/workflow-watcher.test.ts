@@ -166,6 +166,7 @@ S01 then S02
     chatId: string;
     chatType: 'group' | 'p2p';
     prompt: string;
+    workflowContext?: string;
     eventKey: string;
     roleWorkflow: boolean;
     roleWorkflowLevel?: 'full' | 'lean' | 'fast' | 'implement';
@@ -754,6 +755,10 @@ NEXT PROMPT 004_HANDOVER_20260725_s01.md 003_PLAN_20260725_review.md 000_ROADMAP
   process.env.LARK_FAIL_MESSAGES = '0';
   assert.match(approved.summary, /result=session_started/);
   assert.equal(importedDocuments.length, 2, 'pending retry must reuse the revised document');
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /平台审批状态.*人工审批卡已批准/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /运行时动作转换为 start_first_slice/);
+  assert.match(workflowRuns.at(-1)?.prompt ?? '', /await_approval 是已提交 PLAN 的提审时原值/);
+  assert.match(workflowRuns.at(-1)?.workflowContext ?? '', /人工审批卡已批准/);
 
   await rm(path.resolve(root, git('rev-parse', '--git-path', 'hooks/reference-transaction')), { force: true });
   const contractPath = path.join(root, 'docs/workflow/workflow-contract.yaml');
