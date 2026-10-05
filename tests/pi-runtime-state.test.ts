@@ -25,6 +25,7 @@ async function main() {
   assert.equal(state?.sessionId, '/session');
   assert.equal(parsePiSessionTelemetry(lines, scope)?.contextUsage?.usedTokens, 140);
   assert.equal(parsePiSessionTelemetry(lines, scope)?.contextUsage?.outputTokens, 20);
+  assert.equal(parsePiSessionTelemetry(lines, scope)?.contextUsage?.totalTokens, 160);
   assert.equal(parsePiSessionTelemetry(lines, { ...scope, contextWindow: 1000 })?.contextUsage?.contextWindow, 1000);
   assert.equal(parsePiSessionTelemetry(lines, { ...scope, contextWindow: -1 })?.contextUsage?.contextWindow, undefined);
   assert.match(buildLiveRoomFootnotes({ metadata: JSON.stringify({ lastSessionId: '/session',

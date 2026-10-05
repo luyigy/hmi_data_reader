@@ -8,8 +8,11 @@ const warning = (providerUsagePercentage: number | null, hardReasons: string[] =
   });
 
 assert.equal(warning(29, ['任务室已有 164 条消息']), null);
-assert.match(warning(60) || '', /真实上下文占用已达 60%/);
+assert.equal(warning(60), null);
+assert.match(warning(75) || '', /真实上下文占用已达 75%/);
 assert.match(warning(85) || '', /系统警告.*真实上下文占用已达 85%/);
+assert.match(buildContextWatermarkWarning({ providerUsagePercentage: 75,
+  hardReasons: [], estimatedWindow: true }) || '', /估算上下文占用已达 75%/);
 assert.equal(warning(null), null);
 assert.match(warning(null, ['已累计 629 条运行事件']) || '', /缺少 provider 上下文遥测.*无法确认/);
 assert.doesNotMatch(warning(null, ['已累计 629 条运行事件']) || '', /严重超载|立即/);

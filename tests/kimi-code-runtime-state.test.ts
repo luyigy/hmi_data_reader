@@ -12,6 +12,8 @@ const request = (time: number, model = 'k3', thinkingEffort: unknown = 'high') =
 const wire = [
   line({ type: 'turn.prompt', agentId: 'main', time: 100 }),
   request(110, 'old'),
+  line({ type: 'context.append_loop_event', agentId: 'main', time: 115,
+    event: { type: 'step.end', usage: { inputCacheRead: 5, inputCacheCreation: 0, inputOther: 3, output: 2 } } }),
   line({ type: 'turn.ended', agentId: 'main', time: 120, turnId: 0, reason: 'completed' }),
   'damaged json',
   line({ type: 'turn.prompt', agentId: 'main', time: 200 }),
@@ -25,7 +27,7 @@ assert.deepEqual(parseKimiCodeSessionTelemetry(wire, scope), {
   runtimeState: { executionId: 'exec', sessionId: 'session-1', turnId: '1',
     model: 'k3', modelKind: 'model_id', reasoning: { kind: 'level', value: 'high' },
     source: 'kimi_wire.llm.request', evidence: 'runner', observedAt: 210 },
-  contextUsage: { usedTokens: 30, metricKind: 'session_context', confidence: 'assumed_window',
+  contextUsage: { usedTokens: 30, totalTokens: 40, metricKind: 'session_context', confidence: 'assumed_window',
     sessionId: 'session-1', collectedAt: 230, model: 'k3' },
   modelAlias: 'kimi-code/k3',
 });

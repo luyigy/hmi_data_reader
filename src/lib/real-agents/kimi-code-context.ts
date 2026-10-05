@@ -15,13 +15,28 @@ export function parseKimiCodeSessionTelemetry(wire: string, scope: {
   let usedTokens: number | undefined;
   let endedAt = -1;
   let turnId: string | undefined;
+  let totalTokens = 0;
+  let sawStepUsage = false;
+  let invalidStepUsage = false;
   for (const line of wire.split('\n')) {
     let record: Record<string, unknown>;
     try { record = JSON.parse(line); } catch { continue; }
     if (!record || typeof record !== 'object' || Array.isArray(record)
       || typeof record.time !== 'number' || !Number.isSafeInteger(record.time)
-      || record.time < scope.startedAt || record.time > scope.completedAt
+      || record.time > scope.completedAt
       || (record.agentId !== undefined && record.agentId !== 'main')) continue;
+    if (record.type === 'context.append_loop_event') {
+      const event = record.event as Record<string, unknown> | undefined;
+      if (event?.type === 'step.end' && event.usage && typeof event.usage === 'object') {
+        const usage = event.usage as Record<string, unknown>;
+        const values = ['inputCacheRead', 'inputCacheCreation', 'inputOther', 'output'].map(key => usage[key]);
+        if (values.every(value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0)) {
+          totalTokens += (values as number[]).reduce((sum, value) => sum + value, 0);
+          sawStepUsage = true;
+        } else invalidStepUsage = true;
+      }
+    }
+    if (record.time < scope.startedAt) continue;
     if (record.type === 'turn.prompt') {
       promptAt = record.time;
       request = undefined;
@@ -67,6 +82,7 @@ export function parseKimiCodeSessionTelemetry(wire: string, scope: {
   };
   const contextUsage = usedTokens === undefined ? undefined : {
     usedTokens, metricKind: 'session_context' as const,
+    ...(sawStepUsage && !invalidStepUsage ? { totalTokens } : {}),
     confidence: 'assumed_window' as const, sessionId: scope.sessionId,
     collectedAt: endedAt,
     ...(scope.contextWindow ? { contextWindow: scope.contextWindow } : {}),

@@ -15,7 +15,7 @@ import { encodeLiveRoomRoleLabel, extractRemoteHostIdFromRoleLabel, getLiveRoomP
 const CONTEXT_HARD_ROOM_MESSAGE_THRESHOLD = 60;
 const CONTEXT_HARD_EVENT_THRESHOLD = 400;
 const CONTEXT_HARD_TRANSCRIPT_LIMIT = 4000;
-const CONTEXT_USAGE_ELEVATED_PERCENTAGE = 60;
+const CONTEXT_USAGE_ELEVATED_PERCENTAGE = 75;
 const CONTEXT_USAGE_HIGH_PERCENTAGE = 85;
 
 function normalizeLiveRoomAgentSelector(value: string): string {

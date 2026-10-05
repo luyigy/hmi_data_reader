@@ -8,7 +8,8 @@ export function readLegacyContextUsage(
 ): NormalizedContextUsage | undefined {
   const codex = readCodexTokenUsageMetadata(metadata, new Date(now));
   if (codex) return {
-    usedTokens: codex.last.inputTokens, contextWindow: codex.modelContextWindow,
+    usedTokens: codex.last.inputTokens, totalTokens: codex.total.totalTokens,
+    contextWindow: codex.modelContextWindow,
     metricKind: 'turn_input', confidence: 'measured_exact',
     sessionId: codex.threadId, collectedAt: Date.parse(codex.collectedAt),
   };

@@ -55,8 +55,16 @@ export function parsePiSessionTelemetry(lines: string[], scope: {
   };
   const usage = assistant.message?.usage;
   const values = [usage?.input, usage?.output, usage?.cacheRead, usage?.cacheWrite];
+  const branchUsage = branch.filter(entry => entry.type === 'message' && entry.message?.role === 'assistant')
+    .map(entry => entry.message?.usage);
+  const totalTokens = branchUsage.length && branchUsage.every(item =>
+    [item?.input, item?.output, item?.cacheRead, item?.cacheWrite]
+      .every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0))
+    ? branchUsage.reduce((sum, item) => sum + item!.input! + item!.output!
+      + item!.cacheRead! + item!.cacheWrite!, 0) : undefined;
   const contextUsage = values.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)
     ? { usedTokens: usage!.input! + usage!.cacheRead! + usage!.cacheWrite!, outputTokens: usage!.output!,
+        ...(totalTokens !== undefined ? { totalTokens } : {}),
         metricKind: 'turn_input' as const, confidence: 'measured_exact' as const,
         sessionId: scope.sessionDir, collectedAt: scope.completedAt,
         ...(typeof scope.contextWindow === 'number' && Number.isFinite(scope.contextWindow) && scope.contextWindow > 0

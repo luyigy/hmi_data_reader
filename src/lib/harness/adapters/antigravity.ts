@@ -36,7 +36,7 @@ async function run({ task, context }: HarnessExecuteArgs, sessionId?: string, pr
     model: usage.modelAlias || result.runtimeState?.model,
     outputTokens: usage.outputTokens,
     contextWindow: usage.contextWindow ?? undefined,
-    metricKind: 'turn_input',
+    metricKind: 'cumulative',
     confidence: usage.confidence ?? 'assumed_window',
     sessionId: result.sessionId,
     collectedAt: Date.parse(usage.updatedAt),

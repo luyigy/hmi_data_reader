@@ -11,11 +11,11 @@ async function main() {
   const telemetry = require('../src/lib/real-agents/kimi-code-telemetry');
   const antigravity = require('../src/lib/real-agents/antigravity-agent');
   const originals = [codex.executeCodexTask, codex.resumeCodexSession, kimi.executeKimiCodeTask,
-    telemetry.collectKimiCodeProviderContextUsage, antigravity.executeAntigravityTask];
+    telemetry.collectKimiCodeSessionTelemetry, antigravity.executeAntigravityTask];
   let started = '';
   let streamed: NormalizedContextUsage | undefined;
   const context: HarnessExecutionContext = {
-    workingDirectory: process.cwd(), executionBackend: 'platform_local', timeout: 1000,
+    workingDirectory: process.cwd(), executionBackend: 'platform_local', executionId: 'execution', timeout: 1000,
     onSessionStarted: session => { started = session.sessionId; },
     onContextUsage: usage => { assert.equal(started, usage.sessionId); streamed = usage; },
   };
@@ -28,16 +28,17 @@ async function main() {
     await options.onThreadStarted('codex');
     await options.streamCallbacks.onCodexTokenUsage({
       threadId: 'codex', collectedAt: now, last: { inputTokens: 85, outputTokens: 7 },
-      total: { inputTokens: 9000 }, modelContextWindow: 100,
+      total: { inputTokens: 9000, totalTokens: 9007 }, modelContextWindow: 100,
     });
     return { success: true, threadId: 'codex', executionTime: 1 };
   };
   codex.executeCodexTask = (_task: unknown, options: Parameters<typeof nativeCodex>[0]) => nativeCodex(options);
   codex.resumeCodexSession = nativeCodex;
   kimi.executeKimiCodeTask = async () => ({ success: true, sessionId: 'kimi', executionTime: 1 });
-  telemetry.collectKimiCodeProviderContextUsage = async () => {
+  telemetry.collectKimiCodeSessionTelemetry = async () => {
     assert.equal(started, 'kimi', 'session must be persisted before telemetry is returned');
-    return { usedTokens: 85, contextWindow: 100, collectedAt: now, modelAlias: 'kimi-model' };
+    return { contextUsage: { usedTokens: 85, contextWindow: 100, collectedAt: Date.parse(now),
+      sessionId: 'kimi', metricKind: 'session_context', confidence: 'assumed_window', model: 'kimi-model' } };
   };
   antigravity.executeAntigravityTask = async (_task: unknown, options: {
     onSessionStarted: (id: string) => Promise<void>;
@@ -56,15 +57,17 @@ async function main() {
         assert.equal(result.contextUsage?.usedTokens, 85);
         assert.equal(result.contextUsage?.contextWindow, 100);
         assert.equal(result.contextUsage?.sessionId, started);
-        assert.equal(result.contextUsage?.confidence, 'measured_exact');
+        if (adapter === antigravityHarnessAdapter) assert.equal(result.contextUsage?.metricKind, 'cumulative');
+        assert.equal(result.contextUsage?.confidence, adapter === kimiCodeHarnessAdapter ? 'assumed_window' : 'measured_exact');
         if (adapter === codexHarnessAdapter) assert.deepEqual(result.contextUsage, streamed);
+        if (adapter === codexHarnessAdapter) assert.equal(result.contextUsage?.totalTokens, 9007);
         assert.equal(result.contextUsage?.outputTokens, adapter === kimiCodeHarnessAdapter ? undefined : 7);
         assert.equal(result.contextUsage?.model, adapter === kimiCodeHarnessAdapter ? 'kimi-model' : adapter === antigravityHarnessAdapter ? 'agy-model' : undefined);
       }
     }
   } finally {
     [codex.executeCodexTask, codex.resumeCodexSession, kimi.executeKimiCodeTask,
-      telemetry.collectKimiCodeProviderContextUsage, antigravity.executeAntigravityTask] = originals;
+      telemetry.collectKimiCodeSessionTelemetry, antigravity.executeAntigravityTask] = originals;
   }
   console.log('harness context usage tests passed (execute + resume, all three adapters)');
 }

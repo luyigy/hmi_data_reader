@@ -16,6 +16,7 @@ function contextTelemetry(context: HarnessExecutionContext) {
         const next: NormalizedContextUsage = {
           usedTokens: usage.last.inputTokens,
           outputTokens: usage.last.outputTokens,
+          totalTokens: usage.total.totalTokens,
           contextWindow: usage.modelContextWindow,
           metricKind: 'turn_input',
           confidence: 'measured_exact',

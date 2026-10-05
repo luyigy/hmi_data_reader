@@ -58,7 +58,11 @@ export interface NormalizedContextUsage {
   model?: string;
   outputTokens?: number;
   usedTokens: number;
+  /** Full session input + output spend, when the provider exposes enough data. */
+  totalTokens?: number;
   contextWindow?: number;
+  /** The 1M fallback is an estimate, never a provider reported limit. */
+  isDefaultWindow?: boolean;
   usagePercentage?: number;
   metricKind: 'turn_input' | 'session_context' | 'cumulative';
   confidence: 'measured_exact' | 'inferred_text' | 'assumed_window';

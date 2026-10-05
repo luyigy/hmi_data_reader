@@ -16,11 +16,12 @@ for (const patch of [
   { sessionId: undefined }, { collectedAt: now - 900_001 },
   { collectedAt: now + 60_001 }, { contextWindow: 0 },
   { confidence: 'guess' }, { metricKind: 'quota' }, { usagePercentage: -1 },
+  { totalTokens: -1 }, { isDefaultWindow: true },
 ]) assert.equal(readContextUsage(metadata({ ...usage, ...patch }), now), null);
-for (const patch of [
-  { metricKind: 'cumulative' }, { confidence: 'inferred_text' },
-  { confidence: 'assumed_window' }, { contextWindow: undefined },
-]) assert.equal(contextUsagePercentage(readContextUsage(metadata({ ...usage, ...patch }), now)), null);
+assert.equal(contextUsagePercentage(readContextUsage(metadata({ ...usage, metricKind: 'cumulative' }), now)), null);
+assert.equal(contextUsagePercentage(readContextUsage(metadata({ ...usage, confidence: 'inferred_text' }), now)), 85);
+assert.equal(contextUsagePercentage(readContextUsage(metadata({ ...usage, confidence: 'assumed_window' }), now)), 85);
+assert.equal(contextUsagePercentage(readContextUsage(metadata({ ...usage, contextWindow: undefined }), now)), 0);
 assert.equal(readContextUsage('{invalid'), null);
 assert.equal(readContextUsage('null'), null);
 assert.equal(contextUsagePercentage(readContextUsage(metadata({ ...usage, usedTokens: 12 }), now)), 12,
@@ -51,10 +52,17 @@ assert.equal(parseAntigravityUsageFromText('tokens: 1\n{"usage":{"input_tokens":
 
 async function main() {
   const find = prisma.taskRunParticipant.findUnique;
+  const findMany = prisma.taskRunParticipant.findMany;
   const update = prisma.taskRunParticipant.update;
   let stored = { lastSessionId: 'session', continuationKey: 'member', contextUsage: usage };
   let writes = 0;
-  prisma.taskRunParticipant.findUnique = (async () => ({ controlMetadata: JSON.stringify(stored) })) as unknown as typeof find;
+  let antigravity = false;
+  let prior: { controlMetadata: string }[] = [];
+  let priorLookups = 0;
+  prisma.taskRunParticipant.findUnique = (async () => ({ controlMetadata: JSON.stringify(stored),
+    harnessType: antigravity ? 'antigravity' : 'codex', executionBackend: 'platform_local',
+    taskRun: { taskId: 'task' } })) as unknown as typeof find;
+  prisma.taskRunParticipant.findMany = (async () => { priorLookups++; return prior; }) as unknown as typeof findMany;
   prisma.taskRunParticipant.update = (async (args: { data: { controlMetadata: string } }) => {
     stored = JSON.parse(args.data.controlMetadata); writes++;
   }) as unknown as typeof update;
@@ -66,8 +74,23 @@ async function main() {
     assert.equal(writes, 1);
     assert.equal(stored.contextUsage.usedTokens, 12);
     assert.equal(stored.continuationKey, 'member');
+    await persistContextUsage('participant', { ...usage, contextWindow: undefined, collectedAt: now + 2 });
+    assert.equal(stored.contextUsage.contextWindow, 1_000_000);
+    assert.equal(stored.contextUsage.isDefaultWindow, true);
+    antigravity = true;
+    prior = [];
+    await persistContextUsage('participant', { ...usage, metricKind: 'cumulative', usedTokens: 10, outputTokens: 2, collectedAt: now + 3 });
+    assert.equal(priorLookups, 1);
+    assert.equal(stored.contextUsage.totalTokens, 12);
+    prior = [{ controlMetadata: JSON.stringify(stored) }];
+    await persistContextUsage('participant', { ...usage, metricKind: 'cumulative', usedTokens: 20, outputTokens: 3, collectedAt: now + 4 });
+    assert.equal(stored.contextUsage.totalTokens, 35);
+    prior = [{ controlMetadata: JSON.stringify({ ...stored, contextUsage: { ...usage, totalTokens: undefined } }) }];
+    await persistContextUsage('participant', { ...usage, metricKind: 'cumulative', usedTokens: 30, outputTokens: 4, collectedAt: now + 5 });
+    assert.equal(stored.contextUsage.totalTokens, undefined, 'unknown prior spend cannot become a complete total');
   } finally {
     prisma.taskRunParticipant.findUnique = find;
+    prisma.taskRunParticipant.findMany = findMany;
     prisma.taskRunParticipant.update = update;
   }
   console.log('normalized context usage tests passed');
