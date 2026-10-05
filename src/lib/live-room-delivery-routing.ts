@@ -9,8 +9,6 @@ import {
   syncLiveRoomSourceTask,
 } from '@/lib/live-room';
 import { orderMembersByRole, shouldRunRoleQueue } from '@/lib/live-room-scheduling';
-import { stripLeadingMentionForTarget } from '@/lib/live-room-protocol';
-import { getMentionAliases, type LiveRoomMemberWithAgent } from '@/lib/agent-identity';
 
 export type DeliveryRoomMember = {
   id: string;
@@ -325,8 +323,13 @@ export const inferDirectedVisibleRelayTargets = ({
   if (eligibleTargets.length > 0) return eligibleTargets;
 
   if (sourceMessage.senderMember?.memberType !== 'user') return [];
-
-  const mentionedIds = metadata?.mentionedMemberIds || [];
+  const explicitMentions = detectMentionedLiveRoomMembers({
+    content: sourceMessage.content,
+    members: room.members,
+    senderMemberId: sourceMessage.senderMember.id,
+  });
+  if (explicitMentions.matchType !== 'explicit') return [];
+  const mentionedIds = explicitMentions.memberIds;
   const currentIndex = mentionedIds.indexOf(currentTargetMember.id);
   if (currentIndex >= 0) {
     const remainingMentionedTargets = mentionedIds.slice(currentIndex + 1)
@@ -335,21 +338,5 @@ export const inferDirectedVisibleRelayTargets = ({
     if (remainingMentionedTargets.length > 0) return remainingMentionedTargets;
   }
 
-  const stripped = stripLeadingMentionForTarget({
-    content: sourceMessage.content,
-    targetDisplayName: currentTargetMember.displayName,
-    targetAliases: getMentionAliases(currentTargetMember as LiveRoomMemberWithAgent),
-  });
-
-  if (!stripped || stripped === sourceMessage.content) return [];
-
-  const detection = detectMentionedLiveRoomMembers({
-    content: stripped,
-    members: room.members.filter((member) => member.canReply && member.id !== currentTargetMember.id),
-    senderMemberId: sourceMessage.senderMember?.id || null,
-  });
-
-  return detection.memberIds
-    .map((memberId) => room.members.find((member) => member.id === memberId))
-    .filter((member): member is DeliveryRoomMember => Boolean(member));
+  return [];
 };

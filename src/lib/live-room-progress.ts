@@ -61,7 +61,22 @@ export const attachLiveRoomProgress = async ({
       }
     : null;
   if (participant.harnessType === 'antigravity') {
-    return attachLiveRoomStructuredOutput({ progressTarget, displayName: participant.displayName });
+    return attachLiveRoomStructuredOutput({
+      progressTarget,
+      displayName: participant.displayName,
+      onHeartbeat: async () => {
+        await postLiveRoomMessage({
+          roomId: room.id,
+          content: `系统提示：${participant.displayName} 仍在处理中，当前步骤耗时较长。`,
+          messageType: 'system',
+          metadata: resolveLiveRoomMessageMetadata({
+            senderKind: 'system',
+            targetMemberId: participant.id,
+            extras: { systemEvent: 'member_reply_progress', progressKind: 'heartbeat', skipFeishuRelay: Boolean(progressTarget) },
+          }),
+        });
+      },
+    });
   }
   const progressTracker = progressTarget ? new FeishuProgressTracker(progressTarget) : null;
   const relayOrigin = {

@@ -181,7 +181,8 @@ export async function inspectWorkflowOverview(
   }).filter(Boolean));
   const planRows = documents.filter(({ type }) => type === 'PLAN').map((plan) => {
     const planHandovers = handovers
-      .filter(({ metadata, filePath }) => planReference(metadata, filePath) === plan.filePath)
+      .filter(({ metadata, filePath }) => metadata.doc_status !== 'draft'
+        && planReference(metadata, filePath) === plan.filePath)
       .sort((left, right) => left.number - right.number);
     const latest = planHandovers.at(-1)?.metadata;
     const completed = new Set(planHandovers.flatMap(({ metadata }) => (
@@ -202,7 +203,7 @@ export async function inspectWorkflowOverview(
             || ['await_approval', 'await_plan_approval'].includes(String(plan.metadata.next_action)) ? '待提审'
             : queuedPlans.has(plan.filePath) ? '等待 watcher 领取'
               : '等待启动（未进入 watcher 队列）';
-    const slices = Array.from(plan.content.matchAll(/^#{2,6}\s+(S\d{2,})[：:\s-]+(.+)$/gm), (match) => ({
+    const slices = Array.from(plan.content.matchAll(/^#{2,6}\s+(?:\d+\.?\s+)?(S\d{2,})[：:\s-]+(.+)$/gm), (match) => ({
       id: match[1],
       title: match[2].trim(),
       state: completed.has(match[1]) ? '已完成'

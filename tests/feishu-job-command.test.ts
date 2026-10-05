@@ -370,6 +370,30 @@ assert.match(JSON.stringify(activationCard), /查看所选文档/);
 assert.equal(JSON.stringify(activationCard).match(/查看所选文档/g)?.length, 1);
 assert.doesNotMatch(JSON.stringify(activationCard), /查看 (Inbox|PLAN|HANDOVER|其他)/);
 assert.match(JSON.stringify(activationCard), /"action":"document"/);
+const denseOverview = {
+  ...activationStatus.overview,
+  planDocuments: Array.from({ length: 30 }, (_, index) => ({
+    ...activationStatus.overview.planDocuments[0], path: `docs/${index}_PLAN.md`, number: index,
+  })),
+  handovers: Array.from({ length: 100 }, (_, index) => ({
+    ...activationStatus.overview.handovers[0], path: `docs/${index}_HANDOVER.md`, number: index,
+  })),
+  queue: Array.from({ length: 13 }, (_, index) => ({
+    ...activationStatus.overview.queue[0], path: `docs/${index === 12 ? 499 : index}_PLAN.md`,
+    number: index === 12 ? 499 : index, queuePosition: index + 1,
+  })),
+};
+const denseCard = buildWorkflowDashboardCard({
+  status: { ...activationStatus, overview: denseOverview }, cursor: activationCursor, pending: null,
+});
+assert(Buffer.byteLength(JSON.stringify(denseCard)) < 20_000);
+assert.match(JSON.stringify(denseCard), /docs\/99_HANDOVER\.md/);
+assert.match(JSON.stringify(denseCard), /docs\/499_PLAN\.md/);
+assert.doesNotMatch(JSON.stringify(denseCard), /docs\/0_HANDOVER\.md/);
+assert.doesNotMatch(JSON.stringify(denseCard), /docs\/0_PLAN\.md/);
+assert(JSON.stringify(denseCard).indexOf('docs/499_PLAN.md') < JSON.stringify(denseCard).indexOf('docs/11_PLAN.md'));
+assert(JSON.stringify(denseCard).indexOf('docs/99_HANDOVER.md') < JSON.stringify(denseCard).indexOf('docs/98_HANDOVER.md'));
+assert.doesNotMatch(JSON.stringify(denseCard), /selectedRawDocument/);
 assert.match(JSON.stringify(activationCard), /选择要校验的 PLAN 或 HANDOVER/);
 assert.match(JSON.stringify(activationCard), /校验所选 PLAN \/ HANDOVER/);
 assert.match(JSON.stringify(activationCard), /"action":"document_validate"/);
@@ -531,11 +555,12 @@ async function testWorkflowOverview() {
     const initial = git('rev-parse', 'HEAD');
     write('docs/010_PLAN_20260801_approval.md', plan('draft', 'await_plan_approval', '待审批'));
     write('docs/011_PLAN_20260801_duplicate.md', plan('ready', 'await_approval', '重复标题'));
-    write('docs/012_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题'));
+    write('docs/012_PLAN_20260801_duplicate.md', plan('ready', 'start_first_slice', '重复标题').replace('### S01', '### 1. S01'));
     write('docs/013_PLAN_20260801_blocked.md', plan('blocked', 'blocked', '阻塞计划'));
     write('docs/014_HANDOVER_20260801_progress.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: next_slice\nplan: docs/011_PLAN_20260801_duplicate.md\nslice: S01\nplan_progress: in_progress\n---\n\n# HANDOVER · 第一阶段完成\n`);
     write('docs/015_PLAN_20260801_complete.md', plan('ready', 'start_first_slice', '完成计划'));
     write('docs/016_HANDOVER_20260801_complete.md', `---\ndoc_type: HANDOVER\ndoc_status: completed\nnext_action: await_acceptance\nplan: docs/015_PLAN_20260801_complete.md\nslice: S01\nplan_progress: complete\n---\n\n# HANDOVER\n`);
+    write('docs/018_HANDOVER_20260801_draft.md', `---\ndoc_type: HANDOVER\ndoc_status: draft\nnext_action: none\nplan: docs/012_PLAN_20260801_duplicate.md\nslice: S02\nplan_progress: in_progress\n---\n\n# HANDOVER · 执行底稿\n`);
     write('docs/008_PLAN_20260722_legacy.md', '# Legacy PLAN without frontmatter\n');
     write('docs/009_HANDOVER_20260722_legacy.md', '# Legacy HANDOVER without frontmatter\n');
     write('docs/017_REPORT_20260801_summary.md', `---\ndoc_type: REPORT\ndoc_status: completed\nnext_action: none\n---\n\n# REPORT · 汇总报告\n`);
@@ -566,13 +591,15 @@ async function testWorkflowOverview() {
       [
         [14, 'S01', 'in_progress', 'next_slice'],
         [16, 'S01', 'complete', 'await_acceptance'],
+        [18, 'S02', 'in_progress', 'none'],
       ],
     );
     assert.deepEqual(overview.others.map(({ number, type, title }) => [number, type, title]), [
       [17, 'REPORT', '汇总报告'],
     ]);
     assert.deepEqual(overview.plans.find(({ number }) => number === 11)?.slices.map(({ id }) => id), ['S02']);
-    assert.match(formatWorkflowOverview(overview), /队列分类：Inbox 1 · PLAN 4 · HANDOVER 2[\s\S]*未完成 PLAN 与 Slice：[\s\S]*S02[\s\S]*相关 HANDOVER：[\s\S]*next_slice[\s\S]*await_acceptance[\s\S]*排队序列：[\s\S]*1\. 10[\s\S]*异常：/);
+    assert.deepEqual(overview.plans.find(({ number }) => number === 12)?.slices.map(({ state }) => state), ['未开始', '未开始']);
+    assert.match(formatWorkflowOverview(overview), /队列分类：Inbox 1 · PLAN 4 · HANDOVER 3[\s\S]*未完成 PLAN 与 Slice：[\s\S]*S02[\s\S]*相关 HANDOVER：[\s\S]*next_slice[\s\S]*await_acceptance[\s\S]*排队序列：[\s\S]*1\. 10[\s\S]*异常：/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

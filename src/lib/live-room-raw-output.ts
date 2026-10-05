@@ -3,9 +3,10 @@ import { createStreamWriteBuffer } from '@/lib/acpx/stream-write-buffer';
 import { FeishuProgressTracker, type FeishuProgressTarget } from '@/lib/feishu-progress';
 import { PROGRESS_HEARTBEAT_MS, redactHarnessOutput, sanitizePreview } from '@/lib/acpx/harness-events';
 
-export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayName }: {
+export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayName, onHeartbeat }: {
   progressTarget: FeishuProgressTarget | null;
   displayName: string;
+  onHeartbeat?: () => Promise<void>;
 }) => {
   const progressTracker = progressTarget ? new FeishuProgressTracker(progressTarget, process.cwd(), displayName) : null;
   let tail = '';
@@ -78,10 +79,12 @@ export const attachLiveRoomStructuredOutput = async ({ progressTarget, displayNa
   // Show the same reply card before the CLI emits its first complete event.
   const reportUpdateError = (error: unknown) => console.error('[LiveRoomStructuredOutput] card update failed:', error);
   await update()?.catch(reportUpdateError);
-  const heartbeatTimer = progressTracker ? setInterval(() => {
+  let heartbeatCount = 0;
+  const heartbeatTimer = setInterval(() => {
     void update()?.catch(reportUpdateError);
-  }, PROGRESS_HEARTBEAT_MS) : undefined;
-  heartbeatTimer?.unref();
+    if (++heartbeatCount % 2 === 0) void onHeartbeat?.().catch(reportUpdateError);
+  }, PROGRESS_HEARTBEAT_MS);
+  heartbeatTimer.unref();
   const writes = createStreamWriteBuffer(async (batch) => {
     for (const { content } of batch) {
       for (const line of content.split('\n')) processLine(line);

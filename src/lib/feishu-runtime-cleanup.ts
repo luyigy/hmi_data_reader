@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { sendFeishuTextMessage } from '@/lib/feishu-api';
-import { getLiveRoomRunningProcess } from '@/lib/live-room-process-registry';
+import { getLiveRoomRunningProcess, hasLiveRoomMemberExecution } from '@/lib/live-room-process-registry';
 import { resolveRunningDeliveryStaleAfterMs } from '@/lib/live-room-execution-timeout';
 
 export function buildFeishuRuntimeRecoveryCommand(content: string) {
@@ -86,8 +86,7 @@ export function startPeriodicWatchdog(prefix: string) {
       if (runningDeliveries.length === 0) return;
 
       const isPlatformLocal = (delivery: typeof runningDeliveries[number]) =>
-        delivery.targetMember.backend === 'platform_local'
-        && ['codex', 'claude', 'kimi-code'].includes(delivery.targetMember.harnessType ?? '');
+        delivery.targetMember.backend === 'platform_local';
 
       // The reclaim threshold is per delivery: the owning room's effective execution
       // timeout (explicit value or the 10-minute remote default) plus grace. Deliveries
@@ -100,6 +99,7 @@ export function startPeriodicWatchdog(prefix: string) {
 
       const trulyStale: typeof staleDeliveries = [];
       for (const delivery of staleDeliveries) {
+        if (isPlatformLocal(delivery) && hasLiveRoomMemberExecution(delivery.targetMemberId)) continue;
         const process = getLiveRoomRunningProcess(delivery.targetMemberId);
         if (!process) {
           trulyStale.push(delivery);

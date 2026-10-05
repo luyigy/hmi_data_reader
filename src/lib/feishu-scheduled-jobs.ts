@@ -169,6 +169,9 @@ export const buildWorkflowDashboardCard = (args: {
   cursor: Awaited<ReturnType<typeof inspectWorkflowCursor>>;
   pending: Record<string, unknown> | null;
 }) => {
+  const overview = args.status.overview;
+  const compact = !!overview && overview.inbox.length + (overview.planDocuments ?? overview.plans).length
+    + overview.handovers.length + (overview.others?.length ?? 0) > 15;
   const reviewState = String(args.pending?.reviewState || '');
   const stage = !args.status.enabled
     ? '⏸️ 已停用'
@@ -264,7 +267,7 @@ export const buildWorkflowDashboardCard = (args: {
           required: true,
           width: 'fill',
           placeholder: { tag: 'plain_text', content: '选择要提审的 PLAN' },
-          options: args.status.overview.queue.map((plan) => ({
+          options: (compact ? args.status.overview.queue.slice(-5).reverse() : args.status.overview.queue.slice().reverse()).map((plan) => ({
             text: { tag: 'plain_text', content: `${plan.number} ${plan.title}` },
             value: plan.path,
           })),
@@ -286,7 +289,7 @@ export const buildWorkflowDashboardCard = (args: {
         },
       ],
     }] : []),
-    ...buildWorkflowDocumentPanels(args),
+    ...buildWorkflowDocumentPanels({ ...args, compact }),
   ];
 
   return {
@@ -363,7 +366,9 @@ export const buildWorkflowDashboardCard = (args: {
         elements: [
           ...(args.status.overview ? [{
             tag: 'markdown',
-            content: formatWorkflowOverview(args.status.overview),
+            content: compact
+              ? `队列分类：Inbox ${overview!.inbox.length} · PLAN ${overview!.plans.length} · HANDOVER ${overview!.handovers.length} · 其他 ${overview!.others?.length ?? 0}。详情可用 \`/ap workflow status\` 查询。`
+              : formatWorkflowOverview(args.status.overview),
           }] : []),
           {
             tag: 'markdown',

@@ -18,6 +18,7 @@ assert.match(manual, /Do not use spawn_agent, send_message/);
 assert.match(manual, /`@member` is a visible reference only/);
 assert.doesNotMatch(manual, /`\$member`/);
 assert.match(manual, /canonical handoff token from the list below/);
+assert.match(manual, /A mention of future work is not permission/);
 assert.match(manual, /Never hand off to yourself/);
 assert.match(manual, /Structured \/ap plan and \/run workflows keep their orchestrated order/);
 assert.match(manual, /use \$claude once/);
@@ -63,7 +64,7 @@ assert.deepEqual(
   inferDirectedVisibleRelayTargets({
     room,
     sourceMessage: {
-      content: '$A 请 B、C 依次讨论',
+      content: '$A 请 $B、$C 依次讨论',
       metadata: JSON.stringify({ mentionedMemberIds: ['a', 'b', 'c'] }),
       senderMember: { id: 'user', displayName: 'User', memberType: 'user' },
     },
@@ -84,7 +85,19 @@ assert.deepEqual(
     },
     currentTargetMember: { ...room.members[0], shortAlias: 'lag' },
   }).map((member) => member.id),
-  ['b', 'c'],
+  [],
+);
+assert.deepEqual(
+  inferDirectedVisibleRelayTargets({
+    room,
+    sourceMessage: {
+      content: '先让 A 调查；之后再考虑 B，其他先不要动',
+      metadata: JSON.stringify({ mentionedMemberIds: ['a', 'b'] }),
+      senderMember: { id: 'user', displayName: 'User', memberType: 'user' },
+    },
+    currentTargetMember: room.members[0],
+  }),
+  [],
 );
 assert.deepEqual(
   inferDirectedVisibleRelayTargets({

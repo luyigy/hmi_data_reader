@@ -6,12 +6,13 @@ import { prisma } from '../src/lib/prisma';
 
 async function main() {
   const sent: any[] = [];
+  const roomProgress: any[] = [];
   const cards = new Map<string, any>();
   (prisma as any).feishuConversationBinding.findUnique = async () => ({
     chatId: 'chat', threadId: 'thread', rootMessageId: 'root', liveRoomId: 'room',
   });
   (prisma as any).$queryRaw = async () => { throw new Error('must use exact binding'); };
-  Object.assign(messages, { postLiveRoomMessage: async () => { throw new Error('stream must not create room messages'); } });
+  Object.assign(messages, { postLiveRoomMessage: async (message: any) => { roomProgress.push(message); } });
   Object.assign(api, {
     getFeishuTenantAccessToken: async () => 'test',
     sendFeishuTextMessage: async () => { throw new Error('must use one card'); },
@@ -147,10 +148,16 @@ async function main() {
     const start = originalNow();
     Date.now = () => start + 45000;
     heartbeat!();
+    assert.equal(roomProgress.length, 0, 'no room heartbeat before 90 seconds');
+    Date.now = () => start + 90000;
+    heartbeat!();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(roomProgress.length, 1, 'long Antigravity work is visible in the room');
+    assert.match(roomProgress[0].content, /仍在处理中/);
     await idle.progressTracker!.flush();
     assert.equal(sent.length, count, 'silent heartbeat edits the original card');
     assert.match(body(cards.get(idleCard)), /Antigravity 正在处理信息/);
-    assert.match(note(cards.get(idleCard)), /45秒/);
+    assert.match(note(cards.get(idleCard)), /1分30秒/);
     await idle.dispose('done', true);
     assert.ok(stopped, 'completion stops heartbeat');
   } finally {

@@ -320,9 +320,10 @@ export async function handleCodexConfigCommand(command: ParsedFeishuCommand, con
   const hasThinking = 'thinking' in command.options || 'reasoning' in command.options;
   if ('list' in command.options) {
     if (hasModel || hasThinking || hasProvider) return '--list 仅用于查询，请与修改配置的参数分开发送。';
-    if ((member.harnessType !== 'codex' && member.harnessType !== 'pi-agent') || member.backend !== 'platform_local') return '模型目录查询目前仅支持 Platform Local Codex / Pi，不能使用本机目录代表远程成员。';
+    if (!['codex', 'pi-agent', 'kimi-code'].includes(member.harnessType || '') || member.backend !== 'platform_local') return '模型目录查询目前仅支持 Platform Local Codex / Pi / Kimi，不能使用本机目录代表远程成员。';
     try {
       if (member.harnessType === 'pi-agent') return await (await import('@/lib/real-agents/pi-agent')).listPiAgentModels(room.workingDirectory);
+      if (member.harnessType === 'kimi-code') return await (await import('@/lib/real-agents/kimi-code-model-catalog')).listKimiCodeModels(room.workingDirectory);
       return formatCodexModelCatalog(await loadCodexModelCatalog(room.workingDirectory));
     } catch (error) {
       return (error as Error).message;
@@ -335,6 +336,7 @@ export async function handleCodexConfigCommand(command: ParsedFeishuCommand, con
       `Thinking: ${member.codexReasoningEffort || 'inherit'}`,
       ...(member.harnessType === 'codex' ? ['查看模型及对应档位：/ap codex-config --agent=<成员名> --list'] : []),
       ...(member.harnessType === 'pi-agent' ? ['查看 Provider 与模型：/ap model-config --agent=<成员名> --list'] : []),
+      ...(member.harnessType === 'kimi-code' ? ['查看本机模型及 CLI 报告的思考档位：/ap model-config --agent=<成员名> --list（Kimi 暂不支持 --thinking 设置）'] : []),
     ].join('\n');
   }
 

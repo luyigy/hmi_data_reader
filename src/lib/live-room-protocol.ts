@@ -34,6 +34,7 @@ export const buildLiveRoomControlManual = ({
   '- A named live-room member is not an internal sub-agent. Do not use spawn_agent, send_message, or another private delegation mechanism to contact them.',
   '- `@member` is a visible reference only; it never schedules another turn.',
   '- When another room member must continue the current request, end with exactly one canonical handoff token from the list below; otherwise emit no handoff token.',
+  '- Hand off only when the latest user instruction asks that member to act now. A mention of future work is not permission; if the user says other members should wait, stop after your own reply.',
   '- Never hand off to yourself.',
   '- Never emit multiple handoff tokens. Structured /ap plan and /run workflows keep their orchestrated order.',
   directedTargetAlias

@@ -7,15 +7,17 @@ const documentNumber = (filePath: string) =>
 export function buildWorkflowDocumentPanels(args: {
   status: WorkflowStatus;
   pending: Record<string, unknown> | null;
+  compact?: boolean;
 }) {
   const overview = args.status.overview;
   if (!overview) return [];
-  const groups = [
-    ...overview.inbox.map((document) => ({ ...document, type: 'Inbox' })),
-    ...(overview.planDocuments ?? overview.plans).map((document) => ({ ...document, type: 'PLAN' })),
-    ...overview.handovers.map((document) => ({ ...document, type: 'HANDOVER' })),
-    ...(overview.others ?? []),
-  ];
+  const inbox = overview.inbox.slice().reverse().map((document) => ({ ...document, type: 'Inbox' }));
+  const plans = (overview.planDocuments ?? overview.plans).slice().reverse().map((document) => ({ ...document, type: 'PLAN' }));
+  const handovers = overview.handovers.slice().reverse().map((document) => ({ ...document, type: 'HANDOVER' }));
+  const others = (overview.others ?? []).slice().reverse();
+  const groups = args.compact
+    ? [...inbox.slice(0, 1), ...plans.slice(0, 2), ...handovers.slice(0, 3), ...others.slice(0, 1)]
+    : [...inbox, ...plans, ...handovers, ...others];
   const workflowDocuments = groups.filter(({ type }) => ['PLAN', 'HANDOVER'].includes(type));
   const button = (label: string, action: string, path: string, type = 'default') => ({
     tag: 'button', type,
@@ -39,7 +41,7 @@ export function buildWorkflowDocumentPanels(args: {
       tag: 'collapsible_panel', expanded: false,
       header: { title: { tag: 'plain_text', content: '✅ PLAN 人工完成 / 取消' } },
       elements: overview.plans.length
-        ? overview.plans.flatMap((plan) => [{
+        ? (args.compact ? overview.plans.slice(-3).reverse() : overview.plans.slice().reverse()).flatMap((plan) => [{
           tag: 'markdown', content: `[编号 ${documentNumber(plan.path)}] PLAN · ${plan.title}`,
         }, {
           tag: 'action', actions: [
@@ -49,6 +51,7 @@ export function buildWorkflowDocumentPanels(args: {
         }])
         : [{ tag: 'markdown', content: '当前没有可人工完成或取消的未完成 PLAN。' }],
     },
+    ...(args.compact ? [{ tag: 'markdown', content: `文档较多，Dashboard 每类只显示少量条目。用 \`/ap md\` 浏览全部原始文件；指定路径可用 \`/ap doc <路径>\` 转为飞书文档。` }] : []),
     ...(groups.length ? [{
       tag: 'form', name: 'workflow-document-view',
       elements: [{
