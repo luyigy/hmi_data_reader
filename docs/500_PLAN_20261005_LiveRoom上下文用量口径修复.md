@@ -1,7 +1,7 @@
 ---
 doc_type: PLAN
-doc_status: ready
-next_action: await_approval
+doc_status: completed
+next_action: none
 plan_kind: phase
 roadmap: null
 parent_plan: null
@@ -30,8 +30,3 @@ return_to: null
 ## 验收与退出
 
 上述检查通过且交接文档说明口径和限制后结束。历史总消耗是窗口当量，可超过 100%，不能用于判断当前上下文是否已满；真实飞书房间数值以运行时 provider 遥测为准。
-
-<!-- WORKFLOW_PROMPT_START -->
-执行 `docs/500_PLAN_20261005_LiveRoom上下文用量口径修复.md` 的 S01；读取目标 HEAD 的 `AGENTS.md`、
-`docs/workflow/workflow-contract.yaml` 和本 PLAN。完成验证、创建下一 HANDOVER、提交后停止。
-<!-- WORKFLOW_PROMPT_END -->
