@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Profile 注册表 v1.0.0。profile_id 格式 <controller-family>.<page>.<layout-family>（稳定 slug，不含 git hash 或机器号）。status 生命周期：unknown -> candidate -> verified -> quarantined。verified 标注 grandfathered 的条目沿用并仓前品牌门禁的生产行为，CT-S02 必须在 >=5 张独立 holdout 上通过 verify_accuracy 全部硬门禁复核，未通过或连续 2 次反馈不符即降级。 注记（026_FIX，field_catalog v2.0.0）：demag.injection_metering.multi_stage_injection 字段语义经领域操作者确认修正（段表上 row=射胶速度、下 row=段起点位置、左列=保压/V-P、右上=全局压力上限），profile 注册状态不变。",
   "apply_thresholds": {
     "verified_min_confidence": 0.9,
@@ -165,6 +165,15 @@
       "layout_variant": "z0z6",
       "status": "verified",
       "lifecycle_note": "2026-08-16 083 PLAN S07 登记并豁免晋级（verified）。证据：trd6.temperature 模板首版（083 S07，054 S01 注明该布局未在当期 release 应安全拒识，083 收口期按「不支持=待修」口径纳入支持）；S07 B007 553fc2de（沙迪克 TRD6 温度设定页实拍，Z0-Z2/Z4-Z6 六段+ZH+油温）经大模型两遍判读逐值一致——设定 415/385/385/385/380/365、现在 415.3/385.1/385.0/384.9/380.1/364.9、上限幅 50×6、下限幅 20/20/20/20/30/25、ZH 80.2/80.0、油温 55.6、进入保温 0.0；同布局旁证 datasets/holdout barrel_A06×3。偏差披露：仅 1 张校准样本、无独立未调参 holdout 与契约真值；段序为判读假设（Z0=415°C 全表最高=喷嘴侧，区号升序映射 entity 列序 喷嘴1/区1..区5，本布局无 Z3）；ZH→drop_port 为料斗侧温区同义映射（TACT 落下口/KEBA 法兰先例，80°C 量级一致）；机台先验（Z019=TACT）与实拍冲突时经模板指纹 FAMILY_LABEL_OVERRIDE 路由。Web 映射经 sciHmiPrefill 单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。"
+    },
+    {
+      "profile_id": "tact5.process_settings.injection_holding_metering",
+      "controller_family": "TACT5",
+      "page_type": "process_settings",
+      "layout_variant": "injection_holding_metering",
+      "status": "candidate",
+      "template": "tact5.process_settings.injection_holding_metering.json",
+      "lifecycle_note": "2026-10-08：Z077/Z078 射出·计量组合页，开发样本已暴露；仅人工核对，不代表独立识别验收通过。"
     }
   ]
 }

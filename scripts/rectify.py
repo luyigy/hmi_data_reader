@@ -85,6 +85,7 @@ def rectify(image_path: Path, output_path: Path, meta_path: Path | None = None,
         "method": method,
         "screen_quad": src,
         "screen_size": size,
+        "original_size": [img.shape[1], img.shape[0]],
         "output_path": str(output_path),
         "warnings": [],
     }

@@ -98,7 +98,7 @@ def _resolve_layout_variant(result: dict) -> str | None:
     if isinstance(detail, dict) and detail.get("engine") == "spatial-kv+dynamic-grid":
         return "spatial"
     page_type = result.get("page_type")
-    if page_type == "injection_metering":
+    if page_type in ("injection_metering", "process_settings"):
         detail = result.get("extraction_detail")
         if isinstance(detail, dict):
             variant = detail.get("page_variant")

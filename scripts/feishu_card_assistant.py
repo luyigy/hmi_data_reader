@@ -45,7 +45,7 @@ try:
     from rectify import rectify
     from classify_ui import find_ui_family, find_page
     from extract_fields import (
-        route_family, norm_tokens, TEMPLATES_DIR, RECORD_REPORT, MACHINE_LABELS,
+        route_family, route_page, load_template, norm_tokens, TEMPLATES_DIR, RECORD_REPORT, MACHINE_LABELS,
         extract_temperature, extract_temperature_tact, extract_temperature_keba,
         extract_temperature_b_and_r, extract_temperature_fanuc, extract_temperature_demag,
         extract_injection_tact, extract_injection_demag, extract_injection_fanuc,
@@ -156,8 +156,13 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
     if resolved_family != "unknown":
         ui_family = resolved_family
 
+    page, _ = route_page(stem, lines, ui_family, TEMPLATES_DIR)
     page_key = page
+    selected_template = load_template(ui_family, page, TEMPLATES_DIR)
     template_name = f"{ui_family.lower()}.{page_key}.json"
+    if selected_template and selected_template.get("profile_id"):
+        template_name = selected_template["profile_id"] + ".json"
+        ui_family = selected_template["ui_family"]
     tpl_path = TEMPLATES_DIR / template_name
 
     fields = None
@@ -172,7 +177,10 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
             toks = norm_tokens(ocr_data, rect_meta.get("screen_size", [1920, 1080]))
 
             # 根据 family & page_key 提取字段
-            if page_key == "injection_metering":
+            if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
+                from extract_families.tact5_process import extract_tact5
+                ext = extract_tact5(lines, template, rect_meta)
+            elif page_key == "injection_metering":
                 if ui_family == "TACT": ext = extract_injection_tact(toks, template)
                 elif ui_family == "DEMAG": ext = extract_injection_demag(toks, template)
                 elif ui_family == "FANUC": ext = extract_injection_fanuc(toks, template)
@@ -222,7 +230,7 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
 
     elapsed = round(time.time() - t0, 2)
 
-    return {
+    result = {
         "stem": stem,
         "image_path": str(img_path),
         "rectified_image_path": str(rect_img_path) if rect_img_path.is_file() else str(img_path),
@@ -241,8 +249,14 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
         "heater_columns": heater_cols,
         "fields": fields,
         "ocr_line_count": len(lines),
+        "page_observations": extraction_detail.get("page_observations"),
         "extraction_detail": extraction_detail
     }
+    if selected_template and selected_template.get("profile_id"):
+        from contract import attach_contract
+        result.update(controller_family=ui_family, page_type=page)
+        attach_contract(result)
+    return result
 
 
 # -----------------------------------------------------------------------------

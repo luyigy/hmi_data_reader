@@ -1,0 +1,32 @@
+{
+  "version": "1.0",
+  "profile_id": "tact5.process_settings.injection_holding_metering",
+  "response_key": "page_observations",
+  "coordinate_space": "original_percent",
+  "description": "Additive page observations; values include disabled residues and must not be automatically imported. bbox uses rectified pixels; original_bbox uses original-image percentages and is null without an invertible known transform. Unknown stage counts are absent, not guessed. Existing stage_enabled remains boolean-only.",
+  "field_keys": [
+    "label",
+    "value",
+    "unit",
+    "role",
+    "section",
+    "stage",
+    "state",
+    "text",
+    "confidence",
+    "bbox",
+    "original_bbox",
+    "line_indexes",
+    "reasons"
+  ],
+  "state": [
+    "enabled",
+    "disabled",
+    "unknown"
+  ],
+  "role": [
+    "setting",
+    "actual",
+    "unknown"
+  ]
+}

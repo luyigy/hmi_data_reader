@@ -1,0 +1,240 @@
+{
+  "version": "0.1.0",
+  "profile_id": "tact5.process_settings.injection_holding_metering",
+  "ui_family": "TACT5",
+  "page": "process_settings",
+  "layout_variant": "injection_holding_metering",
+  "coordinate_system": "rectified_pixels",
+  "source": "Z077/Z078 nissei-tact5-20260926；人工确认 TACT5；开发样本，非独立验收",
+  "layout_anchors": [
+    "VSL1",
+    "Pp1",
+    "SM",
+    "计量前",
+    "计量后"
+  ],
+  "stage_limits": {
+    "injection": 6,
+    "holding": 3,
+    "plasticizing": 3
+  },
+  "field_labels": {
+    "V1": {
+      "section": "injection",
+      "stage": 1,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V2": {
+      "section": "injection",
+      "stage": 2,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V3": {
+      "section": "injection",
+      "stage": 3,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V4": {
+      "section": "injection",
+      "stage": 4,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V5": {
+      "section": "injection",
+      "stage": 5,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "V6": {
+      "section": "injection",
+      "stage": 6,
+      "direction": "below",
+      "unit": "mm/s"
+    },
+    "Sv1": {
+      "section": "injection",
+      "stage": 1,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv2": {
+      "section": "injection",
+      "stage": 2,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv3": {
+      "section": "injection",
+      "stage": 3,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv4": {
+      "section": "injection",
+      "stage": 4,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Sv5": {
+      "section": "injection",
+      "stage": 5,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Pp1": {
+      "section": "holding",
+      "stage": 1,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pp2": {
+      "section": "holding",
+      "stage": 2,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pp3": {
+      "section": "holding",
+      "stage": 3,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Tp1": {
+      "section": "holding",
+      "stage": 1,
+      "direction": "below",
+      "unit": "s"
+    },
+    "Tp2": {
+      "section": "holding",
+      "stage": 2,
+      "direction": "below",
+      "unit": "s"
+    },
+    "VS1": {
+      "section": "plasticizing",
+      "stage": 1,
+      "direction": "below",
+      "unit": "rpm"
+    },
+    "VS2": {
+      "section": "plasticizing",
+      "stage": 2,
+      "direction": "below",
+      "unit": "rpm"
+    },
+    "VS3": {
+      "section": "plasticizing",
+      "stage": 3,
+      "direction": "below",
+      "unit": "rpm"
+    },
+    "PB1": {
+      "section": "plasticizing",
+      "stage": 1,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "PB2": {
+      "section": "plasticizing",
+      "stage": 2,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "PB3": {
+      "section": "plasticizing",
+      "stage": 3,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "VSL1": {
+      "section": "plasticizing",
+      "stage": 1,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "VSL2": {
+      "section": "plasticizing",
+      "stage": 2,
+      "direction": "below",
+      "unit": "mm"
+    },
+    "Pv1": {
+      "section": "pressure",
+      "stage": 1,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pv2": {
+      "section": "pressure",
+      "stage": 2,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "Pv3": {
+      "section": "pressure",
+      "stage": 3,
+      "direction": "below",
+      "unit": "MPa"
+    },
+    "SM": {
+      "section": "scalar",
+      "direction": "below",
+      "unit": "mm",
+      "role": "setting"
+    },
+    "LV": {
+      "section": "scalar",
+      "direction": "below",
+      "unit": "mm/s",
+      "role": "setting"
+    },
+    "射出": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting"
+    },
+    "冷却": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting"
+    },
+    "中间": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting"
+    },
+    "螺杆位置": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "mm",
+      "role": "actual"
+    },
+    "树脂压力": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "MPa",
+      "role": "actual"
+    },
+    "旋转速度": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "rpm",
+      "role": "actual"
+    },
+    "位置": {
+      "section": "scalar",
+      "direction": "below",
+      "unit": "mm",
+      "role": "setting",
+      "label": "VP转换位置"
+    }
+  }
+}

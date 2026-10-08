@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hmac
 import json
 import logging
@@ -134,7 +135,7 @@ async def readiness_check():
 
 @app.post("/api/v1/recognize")
 @app.post("/recognize")
-async def recognize_image(file: UploadFile = File(...)):
+async def recognize_image(file: UploadFile = File(...), include_review_image: bool = False):
     if not is_ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -342,6 +343,24 @@ async def recognize_image(file: UploadFile = File(...)):
                 record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
                 machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
                 extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates")
+                if (extract_res.get("profile_id") == "tact5.process_settings.injection_holding_metering"
+                        and rr.get("ok")):
+                    try:
+                        from extract_families.tact5_process import recover_stage_counts
+                        counts = ((extract_res.get("extraction_detail") or {})
+                                  .get("page_observations") or {}).get("stage_counts", {})
+                        missing = {"injection", "plasticizing"} - counts.keys()
+                        extra = recover_stage_counts(ocr_model, ocr_target, lines,
+                                                     rr["screen_size"], missing)
+                        if extra:
+                            lines.extend(extra)
+                            ocr_data["lines"] = lines
+                            ocr_data["line_count"] = len(lines)
+                            ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
+                            extract_res = extract_one(stem, rect_dir, record_report,
+                                                      machine_labels, HERE / "templates")
+                    except Exception as rescue_error:  # noqa: BLE001
+                        logger.warning("TACT5 stage count rescue failed: %s", rescue_error)
                 # 6b. 083 S03 温度表逐格重读救援：B&R/DEMAG 温度页缺格/列结构失败时，
                 # 按实测网格逐格 rec 重读生成旁车（ocr_tcells）后重提取一次；
                 # 仅缺格变少才采用，网格实测失败不生成旁车、保持原结果。
@@ -370,7 +389,15 @@ async def recognize_image(file: UploadFile = File(...)):
                         logger.warning("temperature cell rescue failed: %s", rescue_error)
                 # 带分类置信度重算契约键（幂等，extract 内已算过一次无分类版本）
                 attach_contract(extract_res, cls_res)
+                review_image = {}
+                if include_review_image:
+                    ok, jpeg = cv2.imencode(".jpg", cv2.imread(str(ocr_target)),
+                                            [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    if not ok or jpeg.nbytes > 4_000_000:
+                        raise ValueError("OCR review image could not be encoded within limit")
+                    review_image["_review_image"] = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
                 return cls_res, extract_res, {
+                    **review_image,
                     "model": ocr_data["model"],
                     "screen_size": rr["screen_size"],
                     "lines": [{
@@ -396,7 +423,9 @@ async def recognize_image(file: UploadFile = File(...)):
 
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
 
+            review_image = ocr_evidence.pop("_review_image", None)
             response = {
+                **({"ocr_review_image": review_image} if review_image else {}),
                 "success": True,
                 "processing_time_ms": elapsed_ms,
                 "quality": {
@@ -428,6 +457,7 @@ async def recognize_image(file: UploadFile = File(...)):
                 # OCR evidence is independently useful even when template extraction rejects.
                 # Import safety remains governed by status/profile/contract in the Web layer.
                 "ocr_evidence": ocr_evidence,
+                "page_observations": (extract_res.get("extraction_detail") or {}).get("page_observations"),
             }
             # Layer 1 禁用段图像观测（契约 2.4.0 additive）：无图像观测时缺省不出
             stage_enabled = (extract_res.get("extraction_detail") or {}).get("stage_enabled")
