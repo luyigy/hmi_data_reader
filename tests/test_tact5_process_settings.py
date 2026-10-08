@@ -157,3 +157,47 @@ def test_cropped_count_requires_printed_suffix_and_section_anchor(tmp_path):
     lines[1]['text'] = 'unknown'
     assert [item['text'] for item in recover_stage_counts(
         OCR(), image, lines, [1000, 700], {'injection', 'plasticizing'})] == ['3段']
+
+
+def test_cropped_time_unit_requires_printed_suffix(tmp_path):
+    import cv2
+    import numpy as np
+    from extract_families.tact5_process import recover_time_units
+
+    image = tmp_path/'screen.png'
+    cv2.imwrite(str(image), np.full((700, 1000, 3), 255, dtype=np.uint8))
+    tpl = template()
+    # 射出 value read without its unit (the Z078 gap); glyph evidence is added by rescue.
+    lines = sample() + [line('射出', 20, 120), line('3.5', 100, 120)]
+    facts = extract_tact5(lines, tpl, dict(screen_size=[1000, 700]))
+    rows = {f['label']: f for f in facts['detail']['page_observations']['fields']}
+    assert rows['射出']['value'] == 3.5 and rows['射出']['unit'] is None
+    assert rows['冷却']['unit'] == 's'  # Embedded unit is not a rescue candidate.
+    observations = [rows['射出'], rows['冷却']]
+
+    class Glyph:
+        def ocr(self, crop, cls=False):
+            # Box in padded (30px) scaled crop coordinates, right of the value edge.
+            return [[([[40, 35], [60, 35], [60, 65], [40, 65]], ('S', .95))]]
+
+    extra = recover_time_units(Glyph(), image, observations, tpl, [1000, 700])
+    assert [item['text'] for item in extra] == ['s']
+    assert extra[0]['bbox']['x_max'] >= rows['射出']['bbox'][2]
+    # The rescued line lets the stock unit lookup attach 's' on re-extract.
+    facts2 = extract_tact5(lines + extra, tpl, dict(screen_size=[1000, 700]))
+    rows2 = {f['label']: f for f in facts2['detail']['page_observations']['fields']}
+    assert rows2['射出']['unit'] == 's'
+    assert rows2['射出']['line_indexes'][-1] == len(lines)
+
+    class Blank:
+        def ocr(self, crop, cls=False):
+            return [[]]
+
+    assert recover_time_units(Blank(), image, observations, tpl, [1000, 700]) == []
+
+    class Ambiguous:
+        def ocr(self, crop, cls=False):
+            return [[([[5, 5], [25, 5], [25, 35], [5, 35]], ('S', .95)),
+                     ([[30, 5], [55, 5], [55, 35], [30, 35]], ('5', .9))]]
+
+    assert recover_time_units(Ambiguous(), image, observations, tpl, [1000, 700]) == []

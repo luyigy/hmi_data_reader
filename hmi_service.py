@@ -352,15 +352,28 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                         missing = {"injection", "plasticizing"} - counts.keys()
                         extra = recover_stage_counts(ocr_model, ocr_target, lines,
                                                      rr["screen_size"], missing)
-                        if extra:
-                            lines.extend(extra)
-                            ocr_data["lines"] = lines
-                            ocr_data["line_count"] = len(lines)
-                            ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
-                            extract_res = extract_one(stem, rect_dir, record_report,
-                                                      machine_labels, HERE / "templates")
                     except Exception as rescue_error:  # noqa: BLE001
                         logger.warning("TACT5 stage count rescue failed: %s", rescue_error)
+                        extra = []
+                    try:
+                        # 小字时间单位（射出/中间的 s）整屏漏检：仅在值框右侧裁出
+                        # 唯一高置信单位字符时补行，与段数补读同次重提取生效。
+                        from extract_families.tact5_process import recover_time_units
+                        observations = ((extract_res.get("extraction_detail") or {})
+                                        .get("page_observations") or {}).get("fields", [])
+                        template = json.loads(
+                            (HERE / "templates" / f"{extract_res['profile_id']}.json").read_text())
+                        extra += recover_time_units(ocr_model, ocr_target, observations,
+                                                    template, rr["screen_size"])
+                    except Exception as rescue_error:  # noqa: BLE001
+                        logger.warning("TACT5 time unit rescue failed: %s", rescue_error)
+                    if extra:
+                        lines.extend(extra)
+                        ocr_data["lines"] = lines
+                        ocr_data["line_count"] = len(lines)
+                        ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
+                        extract_res = extract_one(stem, rect_dir, record_report,
+                                                  machine_labels, HERE / "templates")
                 # 6b. 083 S03 温度表逐格重读救援：B&R/DEMAG 温度页缺格/列结构失败时，
                 # 按实测网格逐格 rec 重读生成旁车（ocr_tcells）后重提取一次；
                 # 仅缺格变少才采用，网格实测失败不生成旁车、保持原结果。

@@ -192,6 +192,59 @@ def recover_stage_counts(ocr, image_path, lines, screen_size, missing):
     return recovered
 
 
+def recover_time_units(ocr, image_path, observations, template, screen_size):
+    """Retry a missing scalar time unit only when the printed suffix glyph is itself located.
+
+    Full-screen OCR drops the small 's' next to 射出/中间 values (Z078). The crop overlaps
+    the value's right edge by a few pixels and is padded with a white border—without both,
+    detection returns nothing for the thin strip—and is accepted only when the sole confident
+    detection is the expected unit glyph. Case is normalized to the template unit, matching
+    NUMBER's case-insensitive embedded units.
+    """
+    import cv2
+
+    specs = {name: spec for name, spec in template.get('field_labels', {}).items()
+             if spec.get('section') == 'scalar' and spec.get('direction') == 'right'
+             and spec.get('unit') == 's'}
+    if not specs:
+        return []
+    image = cv2.imread(str(image_path))
+    if image is None:
+        return []
+    width, height = screen_size
+    scale, pad = 3, 30
+    recovered = []
+    for observation in observations:
+        if (observation.get('label') not in specs or observation.get('value') is None
+                or observation.get('unit') is not None or not observation.get('bbox')):
+            continue
+        vx1, vy1, vx2, vy2 = observation['bbox']
+        x1, y1 = max(0, int(vx2 - 4)), max(0, int(vy1 - height * .01))
+        x2, y2 = min(width, int(vx2 + width * .05)), min(height, int(vy2 + height * .01))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        crop = cv2.resize(image[y1:y2, x1:x2], None, fx=scale, fy=scale,
+                          interpolation=cv2.INTER_CUBIC)
+        crop = cv2.copyMakeBorder(crop, pad, pad, pad, pad, cv2.BORDER_CONSTANT,
+                                  value=(255, 255, 255))
+        result = ocr.ocr(crop, cls=False)
+        detected = [(box, text, conf) for box, (text, conf) in
+                    (result[0] if result and result[0] else []) if conf >= .8]
+        glyphs = [(box, conf) for box, text, conf in detected
+                  if text.strip().casefold() == 's']
+        if len(detected) != 1 or len(glyphs) != 1:
+            continue
+        (glyph_box, glyph_conf), = glyphs
+        xs = [x1 + (p[0] - pad) / scale for p in glyph_box]
+        ys = [y1 + (p[1] - pad) / scale for p in glyph_box]
+        if max(xs) < vx2:  # glyph must sit at the value's right edge, not inside it
+            continue
+        recovered.append(dict(text='s', conf=glyph_conf, _src='tact5_unit_rescue',
+                              bbox=dict(x_min=min(xs), y_min=min(ys),
+                                        x_max=max(xs), y_max=max(ys))))
+    return recovered
+
+
 def project_boxes(observations, meta):
     """Invert the same ordered screen quad used by rectify; absent metadata stays unlocated."""
     if not meta.get('original_size') or not meta.get('screen_quad'):
