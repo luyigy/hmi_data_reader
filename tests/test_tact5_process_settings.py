@@ -135,6 +135,32 @@ def test_fixed_real_ocr_does_not_guess_missing_counts():
     assert facts['stage_counts']['holding']['value'] == 2
     assert 'injection' not in facts['stage_counts'] and 'plasticizing' not in facts['stage_counts']
     assert rows['Sv3']['state'] == 'unknown'
+    assert rows['V-P转换方式']['value'] == '位置'
+    assert rows['V-P切换应答']['value'] == '高应答'
+    assert rows['手动背压']['value'] == 'OFF'
+    assert rows['充填过量防止时间']['value'] == 0
+    assert rows['充填过量防止时间']['unit'] is None
+    assert all(rows[name]['line_indexes'] for name in ('V-P转换方式', 'V-P切换应答', '手动背压'))
+
+
+def test_enum_requires_unique_printed_value_near_anchor():
+    lines = [line('手动背压', 100, 100), line('OFF', 100, 135), line('ON', 105, 140),
+             line('V-P转换', 100, 200), line('位置', 100, 240, .7)]
+    rows = extract_tact5(lines, template(), dict(screen_size=[1000, 700]))['detail']['page_observations']['fields']
+    assert not any(row['label'] in ('手动背压', 'V-P转换方式') for row in rows)
+
+
+def test_named_time_field_is_eligible_for_evidence_based_unit_retry(tmp_path):
+    import cv2
+    import numpy as np
+    from extract_families.tact5_process import recover_time_units
+    image = tmp_path/'screen.png'
+    cv2.imwrite(str(image), np.full((700, 1000, 3), 255, dtype=np.uint8))
+    observation = dict(label='充填过量防止时间', value=0, unit=None, bbox=[600, 300, 650, 320])
+    class OCR:
+        def ocr(self, crop, cls=False):
+            return [[([[45, 30], [60, 30], [60, 60], [45, 60]], ('s', .95))]]
+    assert recover_time_units(OCR(), image, [observation], template(), [1000, 700])[0]['text'] == 's'
 
 
 def test_cropped_count_requires_printed_suffix_and_section_anchor(tmp_path):

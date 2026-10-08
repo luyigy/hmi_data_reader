@@ -18,6 +18,11 @@
     "holding": 3,
     "plasticizing": 3
   },
+  "enum_labels": {
+    "V-P转换": {"label": "V-P转换方式", "values": ["位置", "时间", "压力"]},
+    "V-P切换应答": {"label": "V-P切换应答", "values": ["高应答", "低应答"]},
+    "手动背压": {"label": "手动背压", "values": ["ON", "OFF"]}
+  },
   "field_labels": {
     "V1": {
       "section": "injection",
@@ -228,6 +233,13 @@
       "direction": "right",
       "unit": "rpm",
       "role": "actual"
+    },
+    "充填过量防止": {
+      "section": "scalar",
+      "direction": "right",
+      "unit": "s",
+      "role": "setting",
+      "label": "充填过量防止时间"
     },
     "位置": {
       "section": "scalar",

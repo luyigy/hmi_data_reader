@@ -124,6 +124,22 @@ def extract_tact5(lines, template, meta):
                          ([unit_cell['index']] if unit_cell else []), reasons=reason))
     located = {o['label'] for o in observations if o['value'] is not None}
     observations = [o for o in observations if o['value'] is not None or o['label'] not in located]
+    for anchor_text, spec in template.get('enum_labels', {}).items():
+        anchors = [c for c in cells if c['text'] == anchor_text]
+        if len(anchors) != 1:
+            continue
+        anchor = anchors[0]
+        ax, ay = center(anchor)
+        candidates = [c for c in cells if c['text'] in spec['values'] and c['confidence'] >= .8
+                      and abs(center(c)[0] - ax) < width * .1
+                      and 0 < center(c)[1] - ay < (anchor['bbox'][3] - anchor['bbox'][1]) * 3]
+        if len(candidates) != 1:
+            continue
+        chosen = candidates[0]
+        observations.append(dict(label=spec['label'], value=chosen['text'], unit=None,
+            role='setting', section='scalar', stage=None, state='unknown', text=chosen['text'],
+            confidence=min(anchor['confidence'], chosen['confidence']), bbox=chosen['bbox'],
+            original_bbox=None, line_indexes=[anchor['index'], chosen['index']], reasons=[]))
     project_boxes(observations, meta)
     detail = dict(page_variant=template['layout_variant'], page_observations=dict(
         version='1.0', profile_id=template['profile_id'], coordinate_space='original_percent',
@@ -203,7 +219,7 @@ def recover_time_units(ocr, image_path, observations, template, screen_size):
     """
     import cv2
 
-    specs = {name: spec for name, spec in template.get('field_labels', {}).items()
+    specs = {spec.get('label', name): spec for name, spec in template.get('field_labels', {}).items()
              if spec.get('section') == 'scalar' and spec.get('direction') == 'right'
              and spec.get('unit') == 's'}
     if not specs:
