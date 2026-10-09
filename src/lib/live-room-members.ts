@@ -529,7 +529,7 @@ export const getLiveRoomMemberContextWatermark = async ({
     policyLabel: getContextWatermarkPolicyLabel(policyStatus, source),
     dominantReason: providerUsage ? 'provider' : estimatedDominantReason,
     dominantLabel: providerUsage
-      ? `${{ turn_input: 'latest turn input', session_context: 'session context', cumulative: 'cumulative tokens' }[providerUsage.metricKind]} · ${{ measured_exact: 'measured', inferred_text: 'inferred from text', assumed_window: 'window unverified' }[providerUsage.confidence]}`
+      ? `${{ turn_input: 'latest model input context', session_context: 'session context', cumulative: 'cumulative tokens' }[providerUsage.metricKind]} · ${{ measured_exact: 'measured', inferred_text: 'inferred from text', assumed_window: 'window unverified' }[providerUsage.confidence]}`
       : `agent signal · ${estimatedDominantLabel}`,
     telemetryLabel: formatContextUsage(providerUsage),
     modelLabel: formatHarnessRuntimeState(readHarnessRuntimeState(providerParticipant?.controlMetadata, { participantId: providerParticipant?.id })),

@@ -98,8 +98,8 @@ export const buildContextWatermarkWarning = ({
 }): string | null => {
   if (contextStatus === 'not_applicable') return null;
   const usageLabel = metricKind === 'turn_input'
-    ? `最近一轮输入占${estimatedWindow ? '默认估算' : ''}上下文窗口`
-    : `当前 session ${estimatedWindow ? '估算' : '真实'}上下文占用`;
+    ? `最近一次模型输入占${estimatedWindow ? '默认估算' : ''}上下文窗口`
+    : `当前 session ${estimatedWindow ? '估算' : '最近观测'}上下文占用`;
   if (providerUsagePercentage != null) {
     if (providerUsagePercentage >= CONTEXT_USAGE_HIGH_PERCENTAGE) {
       return [`[系统警告] ${usageLabel}已达 ${providerUsagePercentage}%。`, '请在完成本次任务后立即执行以下操作：', '1. 用 2-3 句话总结你到目前为止完成的工作和关键发现', '2. 告知用户需要通过 /ap new-session 开始新 session 以避免上下文丢失', '不要继续累积新的上下文，先完成当前指令，然后输出总结。'].join('\n');

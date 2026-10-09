@@ -9,8 +9,8 @@ const warning = (providerUsagePercentage: number | null, hardReasons: string[] =
 
 assert.equal(warning(29, ['任务室已有 164 条消息']), null);
 assert.equal(warning(60), null);
-assert.match(warning(75) || '', /真实上下文占用已达 75%/);
-assert.match(warning(85) || '', /系统警告.*真实上下文占用已达 85%/);
+assert.match(warning(75) || '', /最近观测上下文占用已达 75%/);
+assert.match(warning(85) || '', /系统警告.*最近观测上下文占用已达 85%/);
 assert.match(buildContextWatermarkWarning({ providerUsagePercentage: 75,
   hardReasons: [], estimatedWindow: true }) || '', /估算上下文占用已达 75%/);
 assert.equal(warning(null), null);
@@ -27,4 +27,4 @@ console.log('context watermark warning tests passed');
 
 assert.match(buildContextWatermarkWarning({
   providerUsagePercentage: 85, hardReasons: [], metricKind: 'turn_input',
-}) || '', /最近一轮输入占上下文窗口已达 85%/);
+}) || '', /最近一次模型输入占上下文窗口已达 85%/);
