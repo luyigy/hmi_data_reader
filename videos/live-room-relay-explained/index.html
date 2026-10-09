@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1280, height=720">
+  <title>一张任务卡怎样安全走完</title>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #0b1220; }
+    body { color: #f4f7fb; font-family: sans-serif; }
+    #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: radial-gradient(circle at 80% 15%, #23365a, #0b1220 48%); }
+    .clip { position: absolute; inset: 0; }
+    .scene { padding: 112px 90px 84px; }
+    .top { position: absolute; top: 28px; left: 90px; right: 90px; display: flex; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid #34445e; color: #91a6c2; font-size: 18px; }
+    .top b, .label { color: #68ddc0; }
+    .top b { font-size: 21px; }
+    .label { font-size: 22px; font-weight: 700; letter-spacing: 2px; }
+    h1, h2 { margin: 20px 0; line-height: 1.18; letter-spacing: -1px; }
+    h1 { font-size: 66px; } h2 { font-size: 57px; }
+    p { margin: 0; color: #c7d2e4; font-size: 30px; line-height: 1.5; }
+    .footer { position: absolute; bottom: 28px; left: 90px; right: 90px; display: flex; justify-content: space-between; color: #91a6c2; font-size: 17px; }
+    .pill { display: inline-block; padding: 13px 21px; border-radius: 99px; background: #173a40; color: #8af0d4; font-size: 21px; font-weight: 700; }
+    .cards { display: flex; gap: 18px; margin-top: 50px; }
+    .card { flex: 1; min-height: 150px; padding: 25px; border: 1px solid #3a4d69; border-radius: 18px; background: #18243a; }
+    .card strong { display: block; margin-bottom: 15px; font-size: 30px; }
+    .card span { font-size: 22px; line-height: 1.4; color: #aebed5; }
+    .flow { display: flex; align-items: center; gap: 15px; margin-top: 50px; }
+    .flow .box { flex: 1; padding: 25px 16px; text-align: center; border: 1px solid #486783; border-radius: 16px; background: #1b2a41; font-size: 27px; font-weight: 700; }
+    .arrow { color: #68ddc0; font-size: 35px; }
+    .note { margin-top: 38px; padding: 20px 26px; border-left: 5px solid #68ddc0; background: #16283d; font-size: 27px; }
+    .pass { border-color: #3fae92; } .fail { border-color: #dba659; } .fail strong { color: #ffd494; }
+    .num { position: absolute; right: 90px; top: 110px; color: #779bbd; font-size: 120px; font-weight: 800; }
+  </style>
+</head>
+<body>
+<div data-hf-id="hf-kj1i" id="root" data-composition-id="main" data-start="0" data-duration="50" data-width="1280" data-height="720">
+  <section data-hf-id="hf-uonj" id="opening" class="clip scene" data-start="0" data-duration="7"><div data-hf-id="hf-sijt" class="top"><b data-hf-id="hf-fhfe">LIVE ROOM · 机制讲解</b><span data-hf-id="hf-51sb">01 / 06</span></div><div data-hf-id="hf-mcm7" class="content"><span data-hf-id="hf-f8jb" class="pill">拟议流程 · 尚未上线</span><h1 data-hf-id="hf-zi0u">一张任务卡，<br data-hf-id="hf-x5px">怎样安全走完？</h1><p data-hf-id="hf-8tr4">把复杂的接力，变成看得懂的六步。</p></div><div data-hf-id="hf-yh7l" class="footer"><span data-hf-id="hf-7sle">实施 → 验收 → 通过 / 返修</span><span data-hf-id="hf-0rvo">约 50 秒</span></div></section>
+  <section data-hf-id="hf-8osj" id="task-card" class="clip scene" data-start="7" data-duration="8"><div data-hf-id="hf-8kpp" class="top"><b data-hf-id="hf-n1r2">LIVE ROOM · 机制讲解</b><span data-hf-id="hf-ui0s">02 / 06</span></div><div data-hf-id="hf-1dhv" class="num">1</div><div data-hf-id="hf-i7rz" class="content"><div data-hf-id="hf-ofqg" class="label">先发任务卡</div><h2 data-hf-id="hf-47w4">一次只推进一项</h2><p data-hf-id="hf-85ta">卡上写清：要做什么、谁来做、怎样算通过。</p><div data-hf-id="hf-5cwd" class="cards"><div data-hf-id="hf-vn2y" class="card"><strong data-hf-id="hf-c1yp">目标</strong><span data-hf-id="hf-9uqv">这一项交付什么</span></div><div data-hf-id="hf-i08u" class="card"><strong data-hf-id="hf-2mze">负责人</strong><span data-hf-id="hf-8vnw">一位成员认领</span></div><div data-hf-id="hf-iejv" class="card"><strong data-hf-id="hf-ykoj">验收条件</strong><span data-hf-id="hf-5j52">事先写清检查办法</span></div></div></div><div data-hf-id="hf-ll85" class="footer"><span data-hf-id="hf-k2yi">每项任务有独立记录</span><span data-hf-id="hf-7ds4">拟议流程</span></div></section>
+  <section data-hf-id="hf-0nk8" id="implementation" class="clip scene" data-start="15" data-duration="8"><div data-hf-id="hf-9rms" class="top"><b data-hf-id="hf-ng23">LIVE ROOM · 机制讲解</b><span data-hf-id="hf-si15">03 / 06</span></div><div data-hf-id="hf-0z6u" class="num">2</div><div data-hf-id="hf-htgy" class="content"><div data-hf-id="hf-swba" class="label">实施成员动手</div><h2 data-hf-id="hf-awcw">做完，交出真实提交</h2><p data-hf-id="hf-yoao">平台核对代码提交、修改文件和检查结果。</p><div data-hf-id="hf-ck2w" class="flow"><div data-hf-id="hf-wki5" class="box">认领任务</div><div data-hf-id="hf-drib" class="arrow">→</div><div data-hf-id="hf-y506" class="box">修改代码</div><div data-hf-id="hf-yhhf" class="arrow">→</div><div data-hf-id="hf-tg3s" class="box">提交记录</div></div><div data-hf-id="hf-ud4j" class="note">同一项任务只允许一人同时实施。</div></div><div data-hf-id="hf-ms58" class="footer"><span data-hf-id="hf-2x5s">避免重复唤醒导致两份冲突结果</span><span data-hf-id="hf-ig8s">拟议流程</span></div></section>
+  <section data-hf-id="hf-7009" id="verification" class="clip scene" data-start="23" data-duration="9"><div data-hf-id="hf-9dbr" class="top"><b data-hf-id="hf-nud4">LIVE ROOM · 机制讲解</b><span data-hf-id="hf-xz5e">04 / 06</span></div><div data-hf-id="hf-0kvt" class="num">3</div><div data-hf-id="hf-hf5x" class="content"><div data-hf-id="hf-bj7t" class="label">另一位成员验收</div><h2 data-hf-id="hf-4td8">不是说“通过”就算通过</h2><p data-hf-id="hf-ez5f">平台实际运行检查，保存结果；验收人不能是实施人。</p><div data-hf-id="hf-cr7l" class="cards"><div data-hf-id="hf-isuw" class="card"><strong data-hf-id="hf-to4l">检查提交</strong><span data-hf-id="hf-e2yj">确认代码确实存在</span></div><div data-hf-id="hf-byql" class="card"><strong data-hf-id="hf-mgbx">运行验证</strong><span data-hf-id="hf-8kc2">看命令退出结果</span></div><div data-hf-id="hf-cd1m" class="card"><strong data-hf-id="hf-isoh">留下证据</strong><span data-hf-id="hf-y3fg">以后能追查原因</span></div></div></div><div data-hf-id="hf-mdu7" class="footer"><span data-hf-id="hf-imhk">机器证据和人工判断一起看</span><span data-hf-id="hf-h9bp">拟议流程</span></div></section>
+  <section data-hf-id="hf-6ejq" id="outcome" class="clip scene" data-start="32" data-duration="9"><div data-hf-id="hf-ak8u" class="top"><b data-hf-id="hf-l27x">LIVE ROOM · 机制讲解</b><span data-hf-id="hf-lp8f">05 / 06</span></div><div data-hf-id="hf-06ks" class="num">4</div><div data-hf-id="hf-k7b4" class="content"><div data-hf-id="hf-hfr6" class="label">分叉点</div><h2 data-hf-id="hf-7zdh">通过就继续；没过就返修</h2><div data-hf-id="hf-dy4o" class="cards"><div data-hf-id="hf-zr75" class="card pass"><strong data-hf-id="hf-qxlw">✓ 验收通过</strong><span data-hf-id="hf-21d4">完成这一项，给下一项发新任务卡。</span></div><div data-hf-id="hf-jnpq" class="card fail"><strong data-hf-id="hf-t0iv">↩ 验收失败</strong><span data-hf-id="hf-bwqa">带着具体问题返修；两次仍不行就暂停，请人判断。</span></div></div><div data-hf-id="hf-3yp8" class="note">不让整串任务一直消耗同一条消息的预算。</div></div><div data-hf-id="hf-nkra" class="footer"><span data-hf-id="hf-cg0z">失败有出口，链条不会无限重试</span><span data-hf-id="hf-hnmq">拟议流程</span></div></section>
+  <section data-hf-id="hf-usdt" id="recovery" class="clip scene" data-start="41" data-duration="9"><div data-hf-id="hf-a5xt" class="top"><b data-hf-id="hf-lgiy">LIVE ROOM · 机制讲解</b><span data-hf-id="hf-axi8">06 / 06</span></div><div data-hf-id="hf-jt03" class="content"><div data-hf-id="hf-ek61" class="label">服务重启怎么办？</div><h2 data-hf-id="hf-fsie">从保存的任务状态接着走</h2><p data-hf-id="hf-d06o">重启后找回未完成任务，确认没有人正在做，再恢复接力。</p><div data-hf-id="hf-tuhs" class="flow"><div data-hf-id="hf-wmnv" class="box">保存进度</div><div data-hf-id="hf-y36e" class="arrow">→</div><div data-hf-id="hf-3ak7" class="box">检查是否重复</div><div data-hf-id="hf-xovd" class="arrow">→</div><div data-hf-id="hf-3s60" class="box">继续 / 暂停</div></div><div data-hf-id="hf-bjqw" class="note">你能看到：谁做了、验了什么、卡在哪里。</div></div><div data-hf-id="hf-n6g9" class="footer"><span data-hf-id="hf-eg5a">这是准备建设的机制，不代表目前已经自动运行</span><span data-hf-id="hf-exjr">完</span></div></section>
+  <audio id="voice-1" src="assets/voice/scene-1.mp3" data-start="0.2" data-duration="5.304" data-track-index="1"></audio>
+  <audio id="voice-2" src="assets/voice/scene-2.mp3" data-start="7.2" data-duration="5.448" data-track-index="1"></audio>
+  <audio id="voice-3" src="assets/voice/scene-3.mp3" data-start="15.2" data-duration="7.272" data-track-index="1"></audio>
+  <audio id="voice-4" src="assets/voice/scene-4.mp3" data-start="23.2" data-duration="6.552" data-track-index="1"></audio>
+  <audio id="voice-5" src="assets/voice/scene-5.mp3" data-start="32.2" data-duration="6.888" data-track-index="1"></audio>
+  <audio id="voice-6" src="assets/voice/scene-6.mp3" data-start="41.2" data-duration="8.064" data-track-index="1"></audio>
+</div>
+<script>
+  const tl = gsap.timeline({ paused: true });
+  [0, 7, 15, 23, 32, 41].forEach((start, i) => {
+    const content = document.querySelectorAll('.scene .content')[i];
+    tl.fromTo(content, { y: 35, opacity: 0 }, { y: 0, opacity: 1, duration: 0.65, ease: 'power2.out' }, start + 0.2);
+  });
+  window.__timelines.main = tl;
+</script>
+</body>
+</html>
