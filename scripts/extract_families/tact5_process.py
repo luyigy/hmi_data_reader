@@ -247,8 +247,12 @@ def extract_tact5(lines, template, meta, image_path=None):
         anchor = anchors[0]
         ax, ay = center(anchor)
         candidates = [c for c in cells if c['text'] in spec['values'] and c['confidence'] >= .8
-                      and abs(center(c)[0] - ax) < width * .1
-                      and 0 < center(c)[1] - ay < (anchor['bbox'][3] - anchor['bbox'][1]) * 3]
+                      and ((spec.get('direction') == 'right'
+                            and 0 < center(c)[0] - ax < width * .2
+                            and abs(center(c)[1] - ay) < height * .05)
+                           or (spec.get('direction') != 'right'
+                               and abs(center(c)[0] - ax) < width * .1
+                               and 0 < center(c)[1] - ay < (anchor['bbox'][3] - anchor['bbox'][1]) * 3))]
         if len(candidates) != 1:
             continue
         chosen = candidates[0]

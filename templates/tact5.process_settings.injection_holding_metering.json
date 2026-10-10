@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "profile_id": "tact5.process_settings.injection_holding_metering",
   "ui_family": "TACT5",
   "page": "process_settings",
@@ -30,7 +30,8 @@
         "位置",
         "时间",
         "压力"
-      ]
+      ],
+      "direction": "right"
     },
     "V-P切换应答": {
       "label": "V-P切换应答",

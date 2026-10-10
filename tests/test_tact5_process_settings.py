@@ -69,14 +69,16 @@ def test_registered_page_layouts_select_by_evidence(tmp_path):
 def test_export_pinned_page_package_keeps_previous_version():
     from export_page_package import export_page_package
     profile_id = 'tact5.process_settings.injection_holding_metering'
-    current = export_page_package(profile_id, '0.2.0', ROOT)
+    current = export_page_package(profile_id, '0.2.1', ROOT)
+    archived = export_page_package(profile_id, '0.2.0', ROOT)
     previous = export_page_package(profile_id, '0.1.1', ROOT)
-    assert current['template']['version'] == '0.2.0'
+    assert current['template']['version'] == '0.2.1'
+    assert archived['template']['version'] == '0.2.0'
     assert current['samples'][0]['manifest']['sample_id'] == 'Z078_20260910_shebao'
     assert current['samples'][0]['ocr'] == json.loads((ROOT/'tests/fixtures/tact5_process_ocr.json').read_text())
     assert previous['template']['version'] == '0.1.1' and previous['samples'] == []
     with pytest.raises(ValueError, match='Invalid page version'):
-        export_page_package(profile_id, '../0.2.0', ROOT)
+        export_page_package(profile_id, '../0.2.1', ROOT)
 
 
 def test_page_route_keeps_controller_and_reports_conflicting_templates(tmp_path):
@@ -323,6 +325,8 @@ def test_fixed_real_ocr_does_not_guess_missing_counts():
     assert 'injection' not in facts['stage_counts'] and 'plasticizing' not in facts['stage_counts']
     assert rows['Sv3']['state'] == 'unknown'
     assert rows['V-P转换方式']['value'] == '位置'
+    assert rows['V-P转换方式']['line_indexes'][-1] == 81
+    assert rows['V-P转换方式']['bbox'] == [323.0, 647.0, 374.0, 675.0]
     assert rows['V-P切换应答']['value'] == '高应答'
     assert rows['手动背压']['value'] == 'OFF'
     assert rows['充填过量防止时间']['value'] == 0
@@ -335,6 +339,13 @@ def test_enum_requires_unique_printed_value_near_anchor():
              line('V-P转换', 100, 200), line('位置', 100, 240, .7)]
     rows = extract_tact5(lines, template(), dict(screen_size=[1000, 700]))['detail']['page_observations']['fields']
     assert not any(row['label'] in ('手动背压', 'V-P转换方式') for row in rows)
+
+
+def test_vp_mode_requires_one_value_to_the_right():
+    lines = [line('V-P转换', 100, 100), line('位置', 250, 100),
+             line('时间', 280, 100)]
+    rows = extract_tact5(lines, template(), dict(screen_size=[1000, 700]))['detail']['page_observations']['fields']
+    assert not any(row['label'] == 'V-P转换方式' for row in rows)
 
 
 def test_named_time_field_is_eligible_for_evidence_based_unit_retry(tmp_path):
