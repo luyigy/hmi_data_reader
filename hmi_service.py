@@ -42,6 +42,7 @@ from postprocess import postprocess_one
 from quality import THRESHOLD_PERSPECTIVE, assess, measure_perspective
 from rectify import DEFAULT_MAX_SIZE, rectify
 from vlm_qwen import VlmError, draft_from_ocr
+from page_template_admin import router as page_template_router
 
 # 083 S01 分辨率救援：提取失败时按此 max_size 重跑一轮矫正+OCR（见 run_attempt 调用处）
 RESCUE_MAX_SIZE = 4000
@@ -55,6 +56,7 @@ for k in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy",
     os.environ.pop(k, None)
 
 app = FastAPI(title="HMI GPU Recognition Service", version="1.0.0")
+app.include_router(page_template_router)
 cors_origins = [origin.strip() for origin in os.getenv("HMI_CORS_ORIGINS", "*").split(",")
                 if origin.strip()]
 app.add_middleware(
@@ -69,7 +71,9 @@ app.add_middleware(
 async def authenticate_recognition(request: Request, call_next):
     """Optional shared Bearer token; unset HMI_API_KEY keeps current open behavior."""
     expected = os.getenv("HMI_API_KEY", "").strip()
-    if expected and request.url.path in ("/api/v1/recognize", "/recognize", "/api/v1/draft"):
+    protected = request.url.path in ("/api/v1/recognize", "/recognize", "/api/v1/draft") or (
+        request.method == "GET" and request.url.path.startswith("/api/v1/page-templates"))
+    if expected and protected:
         supplied = request.headers.get("authorization", "")
         if not supplied.startswith("Bearer ") or not hmac.compare_digest(
                 supplied.removeprefix("Bearer ").strip(), expected):

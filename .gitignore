@@ -48,3 +48,4 @@ docs/*sample*/
 # 历史样本目录迁移后留下的兼容符号链接。
 docs/samples*
 docs/feedback_samples
+templates/.page-template.lock
