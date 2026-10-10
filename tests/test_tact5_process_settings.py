@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from extract_fields import extract_one, load_template, route_page
+from extract_fields import extract_one, load_template, route_family, route_page
 from extract_families.tact5_process import extract_tact5, recover_stage_counts
 from extract_families.tact_injection import extract_injection_tact
 
@@ -42,6 +42,43 @@ def test_template_route_does_not_mistake_old_tact():
     assert extract_injection_tact([], load_template('TACT', 'injection_metering', ROOT/'templates'))['fields']['fill_stages'] == 3
 
 
+def test_page_route_keeps_controller_and_reports_conflicting_templates(tmp_path):
+    lines = [line('DEMAG', 0, 0), line('温度', 0, 20),
+             line('实际', 0, 40), line('设定', 0, 60),
+             line('上偏差', 0, 80), line('下偏差', 0, 100), line('喷嘴', 0, 120)]
+    family, _ = route_family('raw_upload', lines, None, None)
+    assert family == 'DEMAG'
+    assert route_page('raw_upload', lines, family, ROOT / 'templates') == (
+        'temperature', 'template_anchors')
+    injection = [line('多级注射', 0, 0), line('工艺优化', 0, 20),
+                 line('切换条件', 0, 40)]
+    family, _ = route_family('raw_upload', injection, None, None)
+    assert family == 'DEMAG'
+    assert route_page('raw_upload', injection, family, ROOT / 'templates') == (
+        'injection_metering', 'template_anchors')
+    tact5 = [line('TACT5', 0, 0), *sample()]
+    family, _ = route_family('raw_upload', tact5, None, None)
+    assert family == 'TACT'
+    assert route_page('raw_upload', tact5, family, ROOT / 'templates') == (
+        'process_settings', 'template_anchors')
+    assert route_page('raw_upload', tact5, 'DEMAG', ROOT / 'templates')[0] != 'process_settings'
+
+    for page in ('injection_metering', 'settings'):
+        (tmp_path / f'demag.{page}.json').write_text(json.dumps({
+            'page_detect_anchors': ['共同标签', '共同数值']}))
+    conflict = [line('共同标签', 0, 0), line('共同数值', 0, 20)]
+    assert route_page('raw_upload', conflict, 'DEMAG', tmp_path) == (
+        'unknown', 'ambiguous_template_anchors')
+    (tmp_path / 'raw_upload.ocr.json').write_text(json.dumps({
+        'lines': [line('DEMAG', 0, 40), *conflict]}))
+    (tmp_path / 'raw_upload.rectify.json').write_text(json.dumps({
+        'ok': True, 'screen_size': [1000, 700]}))
+    result = extract_one('raw_upload', tmp_path, None, None, tmp_path)
+    assert result['page_type'] == 'unknown'
+    assert result['provenance']['page_source'] == 'ambiguous_template_anchors'
+    assert result['status'] != 'ok'
+
+
 def test_counts_residuals_chinese_and_original_boxes():
     meta = dict(screen_size=[1000, 700], original_size=[2000, 1400],
                 screen_quad=[[0,0],[1998,0],[1998,1398],[0,1398]])
@@ -67,6 +104,118 @@ def test_missing_count_and_unit_stay_unknown_and_ambiguous_values_unset():
     assert rows['V3']['state'] == 'unknown'
     assert rows['冷却']['value'] is None
     assert all(f['original_bbox'] is None for f in facts['fields'])
+
+
+def test_visual_count_requires_a_clear_complete_row_and_agrees_with_printed_count(tmp_path):
+    import cv2
+    import numpy as np
+    from extract_families.common import bbox_grayscale_contrast
+
+    lines = [line('充填速度', 20, 180)]
+    image = np.full((700, 1000), 180, dtype=np.uint8)
+    for stage in range(1, 7):
+        x = 80 + 130 * (stage - 1)
+        lines.extend([line(f'V{stage}', x, 180), line(f'{stage}mm/s', x + 20, 210)])
+        image[210:230, x + 20:x + 40] = 60 if stage <= 3 else 140
+    path = tmp_path / 'screen.png'
+
+    def states(ocr_lines=lines):
+        cv2.imwrite(str(path), image)
+        fields = extract_tact5(ocr_lines, template(), dict(screen_size=[1000, 700]), path)['detail']['page_observations']['fields']
+        return {field['label']: field for field in fields}
+
+    assert bbox_grayscale_contrast(image, [100, 210, 140, 230]) == 120
+    rows = states()
+    assert [rows[f'V{i}']['state'] for i in range(1, 7)] == ['enabled'] * 3 + ['disabled'] * 3
+    assert rows['V4']['reasons'] == []
+    facts = extract_tact5(lines, template(), dict(screen_size=[1000, 700]), path)['detail']['page_observations']
+    assert facts['stage_counts'] == {} and facts['visual_stage_counts'] == {'injection': 3}
+    assert states(lines + [line('3段', 20, 210)])['V4']['state'] == 'disabled'
+    conflict = states(lines + [line('2段', 20, 210)])
+    assert conflict['V1']['state'] == 'unknown'
+    assert conflict['V1']['reasons'] == ['visual_stage_count_conflict']
+
+    image[210:230, 100:120] = 140  # A glare/occlusion-like outlier breaks the active group.
+    assert states()['V4']['state'] == 'unknown'
+    image[210:230, 100:120] = 60
+    assert states([item for item in lines if item['text'] != '4mm/s'])['V4']['state'] == 'unknown'
+    missing_v6 = states([item for item in lines if item['text'] != '6mm/s'])
+    assert missing_v6['V1']['state'] == 'enabled'
+    assert missing_v6['V6']['state'] == 'unknown'
+    missing_v5_lines = [item for item in lines if item['text'] != '5mm/s']
+    missing_v5 = states(missing_v5_lines)
+    assert [missing_v5[f'V{i}']['state'] for i in (1, 2, 3, 4, 5, 6)] == [
+        'enabled', 'enabled', 'enabled', 'disabled', 'unknown', 'disabled']
+    assert missing_v5['V1']['state_basis'] == 'grayscale_v_row_reference'
+    assert extract_tact5(missing_v5_lines, template(), dict(screen_size=[1000, 700]), path)[
+        'detail']['page_observations']['visual_stage_counts'] == {}
+    low_confidence = states([dict(item, conf=.7) if item['text'] == '1mm/s' else item for item in lines])
+    assert low_confidence['V1']['state'] == 'unknown'
+    assert low_confidence['V2']['state'] == 'enabled'
+    image[210:230, 490:510] = 60
+    image[210:230, 620:640] = 60
+    image[210:230, 750:770] = 60  # No strong boundary remains.
+    assert states()['V4']['state'] == 'unknown'
+    assert bbox_grayscale_contrast(image, [-1, 0, 10, 10]) is None
+
+
+def test_retract_phases_use_same_page_brightness_evidence(tmp_path):
+    import cv2
+    import numpy as np
+
+    lines = [line('PB1', 100, 300), line('5MPa', 100, 330),
+             line('PB2', 200, 300), line('5MPa', 200, 330),
+             line('PB3', 300, 300), line('5MPa', 300, 330),
+             line('计量前', 800, 580), line('计量后', 900, 580),
+             line('速度', 730, 610), line('距离', 730, 650),
+             line('速度', 830, 610), line('距离', 830, 650),
+             line('0', 800, 610), line('30', 900, 610),
+             line('0', 800, 650), line('10', 900, 650)]
+    image = np.full((700, 1000), 180, dtype=np.uint8)
+    for item in lines:
+        if item['text'] in ('5MPa', '0', '30', '10'):
+            box = item['bbox']
+            x, y = int(box['x_min']), int(box['y_min'])
+            image[y:y+20, x:x+40] = 220 if x == 100 else 160 if x in (200, 300) else 205
+    path = tmp_path/'screen.png'
+
+    def states():
+        cv2.imwrite(str(path), image)
+        facts = extract_tact5(lines, template(), dict(screen_size=[1000, 700]), path)['detail']['page_observations']
+        return {field['label']: field for field in facts['fields']}
+
+    rows = states()
+    assert all(rows[label]['state'] == 'enabled' for label in
+               ('计量前速度', '计量前距离', '计量后速度', '计量后距离'))
+    assert rows['计量后距离']['state_basis'] == 'grayscale_pb_reference'
+    assert rows['计量前速度']['value'] == 0
+    for x, y, above, inside in ((100, 330, 220, 241), (200, 330, 210, 194),
+                                 (300, 330, 198, 191), (800, 610, 195, 217),
+                                 (800, 650, 201, 210), (900, 610, 189, 209),
+                                 (900, 650, 190, 204)):
+        image[y-20:y, x:x+40] = above
+        image[y:y+20, x:x+40] = inside
+    gradient_rows = states()
+    assert all(gradient_rows[label]['state'] == 'enabled' for label in
+               ('计量前速度', '计量前距离', '计量后速度', '计量后距离'))
+    image[:] = 180
+    for item in lines:
+        if item['text'] in ('5MPa', '0', '30', '10'):
+            box = item['bbox']
+            x, y = int(box['x_min']), int(box['y_min'])
+            image[y:y+20, x:x+40] = 220 if x == 100 else 160 if x in (200, 300) else 205
+    image[610:630, 800:840] = image[650:670, 800:840] = 160
+    rows = states()
+    assert rows['计量前速度']['state'] == rows['计量前距离']['state'] == 'disabled'
+    assert rows['计量后速度']['state'] == 'enabled'
+    image[650:670, 800:840] = 205
+    assert states()['计量前速度']['state'] == 'unknown'
+    assert states()['计量前速度']['state_basis'] is None
+    image[330:350, 200:240] = 205
+    assert states()['计量后速度']['state'] == 'unknown'
+    image[330:350, 200:240] = 160
+    next(item for item in lines if item['text'] == '30')['conf'] = .7
+    assert states()['计量后速度']['state'] == 'unknown'
 
 
 def test_extract_one_publishes_registered_candidate(tmp_path):

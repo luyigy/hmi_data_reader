@@ -411,6 +411,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                     review_image["_review_image"] = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode()
                 return cls_res, extract_res, {
                     **review_image,
+                    "_rectify_meta": rr,
                     "model": ocr_data["model"],
                     "screen_size": rr["screen_size"],
                     "lines": [{
@@ -437,6 +438,27 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
 
             review_image = ocr_evidence.pop("_review_image", None)
+            rectify_meta = ocr_evidence.pop("_rectify_meta", {})
+            field_sources = {}
+            source_rows = (extract_res.get("extraction_detail") or {}).get("field_sources", {})
+            if source_rows:
+                from extract_families.tact5_process import project_boxes
+                for name, sources in source_rows.items():
+                    observations = []
+                    for source in sources:
+                        index = source["line_index"]
+                        if index >= len(ocr_evidence["lines"]) or ocr_evidence["lines"][index]["text"] != source["text"]:
+                            continue
+                        bbox = ocr_evidence["lines"][index]["bbox"]
+                        width, height = ocr_evidence["screen_size"]
+                        center = [(bbox[0] + bbox[2]) / (2 * width), (bbox[1] + bbox[3]) / (2 * height)]
+                        if "center" in source and any(abs(a - b) > 0.0001 for a, b in zip(source["center"], center)):
+                            continue
+                        observations.append({"line_index": index, "bbox": bbox,
+                                             "original_bbox": None})
+                    project_boxes(observations, rectify_meta)
+                    if observations:
+                        field_sources[name] = observations
             response = {
                 **({"ocr_review_image": review_image} if review_image else {}),
                 "success": True,
@@ -465,6 +487,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 "profile_confidence": extract_res.get("profile_confidence"),
                 "profile_status": extract_res.get("profile_status"),
                 "field_meta": extract_res.get("field_meta", {}),
+                "field_sources": field_sources,
                 "status": extract_res.get("status"),
                 "warnings": extract_res.get("warnings", []),
                 # OCR evidence is independently useful even when template extraction rejects.

@@ -1,7 +1,21 @@
 """家族提取器共享小工具（026_PLAN S7 自 extract_fields.py 拆出，行为不变）。"""
 import re
 
+import numpy as np
+
 NUM_RE = re.compile(r"\d+\.?\d*")
+
+
+def bbox_grayscale_contrast(gray, bbox):
+    """5–95 percentile contrast inside a rectified-image OCR value box."""
+    if gray is None or gray.ndim != 2 or bbox is None or len(bbox) != 4:
+        return None
+    height, width = gray.shape
+    x1, y1, x2, y2 = map(int, bbox)
+    if not (0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height) or (x2-x1)*(y2-y1) < 100:
+        return None
+    low, high = np.percentile(gray[y1:y2, x1:x2], [5, 95])
+    return float(high - low)
 
 # 繁简归一（083 S01）：TACT5 等界面行标签实测为繁体（設定温度/現在溫度/控制輸出），
 # OCR 原样输出后简体锚点失配导致整行丢失。锚点均为简体，仅归一 OCR 文本侧；

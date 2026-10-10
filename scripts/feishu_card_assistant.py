@@ -179,7 +179,8 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
             # 根据 family & page_key 提取字段
             if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
                 from extract_families.tact5_process import extract_tact5
-                ext = extract_tact5(lines, template, rect_meta)
+                ext = extract_tact5(lines, template, rect_meta,
+                                    image_path=rect_img_path if rect_img_path.is_file() else None)
             elif page_key == "injection_metering":
                 if ui_family == "TACT": ext = extract_injection_tact(toks, template)
                 elif ui_family == "DEMAG": ext = extract_injection_demag(toks, template)

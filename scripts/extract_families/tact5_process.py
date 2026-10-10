@@ -1,11 +1,77 @@
-"""TACT5 page observations. Unknown enablement never becomes an active setpoint."""
+"""提取 TACT5 组合工艺页的字段观测；不把未知启用状态当作有效设定。"""
 import re
 from collections import Counter
+import numpy as np
+
+from .common import bbox_grayscale_contrast
 
 NUMBER = re.compile(r'([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*(mm/s|MPa|rpm|mm|s|段)?', re.I)
 
 
-def extract_tact5(lines, template, meta):
+def _visual_stage_states(rows, gray):
+    """比较已定位的 V 段数值格；仅在亮格与灰格分界唯一且清晰时判定各段状态。"""
+    stages = sorted(rows)
+    if gray is None or len(stages) < 4:
+        return {}
+    values = [bbox_grayscale_contrast(gray, rows[stage]['bbox']) for stage in stages]
+    if any(value is None for value in values):
+        return {}
+    candidates = []
+    for split in range(2, len(values) - 1):
+        active, disabled = values[:split], values[split:]
+        gap = min(active) - max(disabled)
+        if gap >= 25 and min(active) >= 1.6 * max(disabled) and \
+                max(max(active) - min(active), max(disabled) - min(disabled)) <= gap / 2:
+            candidates.append(split)
+    if len(candidates) != 1:
+        return {}
+    split = candidates[0]
+    return {stage: 'enabled' if index < split else 'disabled'
+            for index, stage in enumerate(stages)}
+
+
+def _visual_retract_states(proposals, uses, gray):
+    """以本页 PB 计量格为亮度基准，核对计量前后速度和距离是否同时启用或禁用。"""
+    # shortcut: 仅用本页 PB1/PB2/PB3 作亮度基准；扩展到其他布局时须重新标定。
+    if gray is None:
+        return {}
+    boxes = {}
+    for label, spec, match in proposals:
+        if match and uses[match[0]['index']] == 1 and min(label['confidence'], match[0]['confidence']) >= .8:
+            boxes.setdefault(spec.get('label', label['text']), []).append(match[0]['bbox'])
+
+    def brightness(name):
+        """计算唯一数值格相对上方背景的亮度差；框缺失或无效时返回未知。"""
+        candidates = boxes.get(name, [])
+        if len(candidates) != 1 or bbox_grayscale_contrast(gray, candidates[0]) is None:
+            return None
+        x1, y1, x2, y2 = map(int, candidates[0])
+        height = y2 - y1
+        if y1 < height:
+            return None
+        return float(np.percentile(gray[y1:y2, x1:x2], 85) - np.median(gray[y1-height:y1, x1:x2]))
+
+    reference = [brightness(name) for name in ('PB1', 'PB2', 'PB3')]
+    if any(value is None for value in reference):
+        return {}
+    active, *grey = reference
+    if active - max(grey) < 25 or max(grey) - min(grey) > 15:
+        return {}
+    midpoint = (active + sum(grey) / len(grey)) / 2
+    states = {}
+    for phase in ('计量前', '计量后'):
+        values = [brightness(phase + kind) for kind in ('速度', '距离')]
+        if any(value is None or abs(value - midpoint) < 3 for value in values):
+            continue
+        if all(value > midpoint for value in values):
+            states[phase] = 'enabled'
+        elif all(value < midpoint for value in values):
+            states[phase] = 'disabled'
+    return states
+
+
+def extract_tact5(lines, template, meta, image_path=None):
+    """按组合页模板关联 OCR 标签、数值、单位与段状态，组织待人工复核的 Reader 字段观测。"""
     width, height = meta['screen_size']
     cells = []
     for index, line in enumerate(lines):
@@ -14,10 +80,12 @@ def extract_tact5(lines, template, meta):
                           bbox=[box[k] for k in ('x_min', 'y_min', 'x_max', 'y_max')]))
 
     def center(cell):
+        """求 OCR 文本框中心，供标签和数值的位置匹配使用。"""
         x1, y1, x2, y2 = cell['bbox']
         return (x1 + x2) / 2, (y1 + y2) / 2
 
     def nearby(label, direction):
+        """寻找标签右侧或下方的数字候选；是否唯一由调用处判断。"""
         lx, ly = center(label)
         lh = label['bbox'][3] - label['bbox'][1]
         found = []
@@ -79,6 +147,33 @@ def extract_tact5(lines, template, meta):
                         row_index=row['index'])
             proposals.append((header, spec, matches[0] if len(matches) == 1 else None))
     uses = Counter(match[0]['index'] for _, _, match in proposals if match)
+    gray = None
+    if image_path is not None:
+        import cv2
+        gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+        if gray is not None and gray.shape[::-1] != tuple(meta['screen_size']):
+            gray = None
+    visual_counts = {}
+    visual_states = {}
+    retract_states = _visual_retract_states(proposals, uses, gray)
+    if gray is not None:
+        rows = {}
+        duplicate = False
+        for label, spec, match in proposals:
+            name = label['text'].casefold()
+            if (match and uses[match[0]['index']] == 1 and
+                    min(label['confidence'], match[0]['confidence']) >= .8 and re.fullmatch(r'v\d+', name)
+                    and spec.get('section') == 'injection'):
+                duplicate = duplicate or spec['stage'] in rows
+                rows[spec['stage']] = match[0]
+        if not duplicate:
+            visual_states = _visual_stage_states(rows, gray)
+            limit = template['stage_limits']['injection']
+            if visual_states and set(visual_states) == set(range(1, limit + 1)):
+                visual_counts['injection'] = sum(state == 'enabled' for state in visual_states.values())
+    visual_conflict = 'injection' in counts and any(
+        (stage <= counts['injection'][0]) != (state == 'enabled')
+        for stage, state in visual_states.items())
     for label, spec, match in proposals:
         chosen = match if match and uses[match[0]['index']] == 1 else None
         value = float(chosen[1][1]) if chosen else None
@@ -106,6 +201,17 @@ def extract_tact5(lines, template, meta):
             state = 'enabled' if stage <= count else 'disabled'
             if label['text'].lower().startswith(('tp', 'vsl', 'sv')) and stage >= count:
                 state = 'disabled'
+            if section == 'injection' and visual_conflict:
+                state = 'unknown'
+        elif stage and section == 'injection' and re.fullmatch(r'v\d+', label['text'], re.I):
+            state = visual_states.get(stage, 'unknown')
+        elif stage and visual_counts.get(section) is not None:
+            count = visual_counts[section]
+            state = 'enabled' if stage <= count else 'disabled'
+            if label['text'].lower().startswith(('tp', 'vsl', 'sv')) and stage >= count:
+                state = 'disabled'
+        if spec.get('label', '').startswith(('计量前', '计量后')) and chosen and min(label['confidence'], chosen[0]['confidence']) >= .8:
+            state = retract_states.get(spec['label'][:3], 'unknown')
         reason = []
         if chosen and min(label['confidence'], chosen[0]['confidence']) < .8:
             reason.append('low_confidence')
@@ -114,9 +220,19 @@ def extract_tact5(lines, template, meta):
         if not unit:
             reason.append('unit_unobserved')
         if stage and state == 'unknown':
-            reason.append('stage_count_unobserved')
+            reason.append('visual_stage_count_conflict' if section == 'injection' and visual_conflict
+                          else 'stage_count_unobserved')
+        if spec.get('label', '').startswith(('计量前', '计量后')) and state == 'unknown':
+            reason.append('visual_phase_state_unobserved')
+        state_basis = None
+        if state != 'unknown':
+            if spec.get('label', '').startswith(('计量前', '计量后')):
+                state_basis = 'grayscale_pb_reference'
+            elif section == 'injection' and re.fullmatch(r'v\d+', label['text'], re.I) and stage in visual_states:
+                state_basis = 'grayscale_v_row_reference'
         observations.append(dict(label=spec.get('label', label['text']), value=value, unit=unit,
             role=spec.get('role', 'setting'), section=section, stage=stage, state=state,
+            state_basis=state_basis,
             text=chosen[0]['text'] if chosen else None,
             confidence=min(label['confidence'], chosen[0]['confidence']) if chosen else 0,
             bbox=chosen[0]['bbox'] if chosen else None, original_bbox=None,
@@ -144,13 +260,14 @@ def extract_tact5(lines, template, meta):
     detail = dict(page_variant=template['layout_variant'], page_observations=dict(
         version='1.0', profile_id=template['profile_id'], coordinate_space='original_percent',
         fields=observations, stage_counts={k: dict(value=v, line_indexes=[c['index']])
-                                         for k, (v, c) in counts.items()}))
-    # Candidate observations require human confirmation; no legacy auto-import view is produced.
+                                         for k, (v, c) in counts.items()},
+        visual_stage_counts={k: v for k, v in visual_counts.items() if v is not None}))
+    # 只返回待确认观测，不生成旧版自动导入字段。
     return dict(fields={}, heater_columns=0, warnings=['TACT5_REVIEW_REQUIRED'], detail=detail)
 
 
 def recover_stage_counts(ocr, image_path, lines, screen_size, missing):
-    """Retry only a missing count whose printed 段 and section anchor are both located."""
+    """仅对缺失且能定位到区域锚点与“段”字的段数局部重识别，返回补充 OCR 行。"""
     import cv2
 
     width, height = screen_size
@@ -209,13 +326,10 @@ def recover_stage_counts(ocr, image_path, lines, screen_size, missing):
 
 
 def recover_time_units(ocr, image_path, observations, template, screen_size):
-    """Retry a missing scalar time unit only when the printed suffix glyph is itself located.
+    """仅重识别时间标量值右侧漏读的印刷单位 s，证据唯一且可信时返回补充 OCR 行。
 
-    Full-screen OCR drops the small 's' next to 射出/中间 values (Z078). The crop overlaps
-    the value's right edge by a few pixels and is padded with a white border—without both,
-    detection returns nothing for the thin strip—and is accepted only when the sole confident
-    detection is the expected unit glyph. Case is normalized to the template unit, matching
-    NUMBER's case-insensitive embedded units.
+    全屏 OCR 会漏掉射出/中间值旁的小字 s；裁剪区覆盖数值右缘并补白边，
+    仅接受唯一高置信的 s 字形，大小写按模板单位归一。
     """
     import cv2
 
@@ -253,7 +367,7 @@ def recover_time_units(ocr, image_path, observations, template, screen_size):
         (glyph_box, glyph_conf), = glyphs
         xs = [x1 + (p[0] - pad) / scale for p in glyph_box]
         ys = [y1 + (p[1] - pad) / scale for p in glyph_box]
-        if max(xs) < vx2:  # glyph must sit at the value's right edge, not inside it
+        if max(xs) < vx2:  # 单位字形须在数值右缘，不能落在数值框内
             continue
         recovered.append(dict(text='s', conf=glyph_conf, _src='tact5_unit_rescue',
                               bbox=dict(x_min=min(xs), y_min=min(ys),
@@ -262,7 +376,7 @@ def recover_time_units(ocr, image_path, observations, template, screen_size):
 
 
 def project_boxes(observations, meta):
-    """Invert the same ordered screen quad used by rectify; absent metadata stays unlocated."""
+    """用矫正时的屏幕四角将字段框投回原图百分比坐标；元数据缺失则保持未定位。"""
     if not meta.get('original_size') or not meta.get('screen_quad'):
         return
     import cv2

@@ -1,11 +1,12 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "profile_id": "tact5.process_settings.injection_holding_metering",
   "ui_family": "TACT5",
   "page": "process_settings",
   "layout_variant": "injection_holding_metering",
   "coordinate_system": "rectified_pixels",
   "source": "Z077/Z078 nissei-tact5-20260926；人工确认 TACT5；开发样本，非独立验收",
+  "route_families": ["TACT", "TACT5", "unknown"],
   "layout_anchors": [
     "VSL1",
     "Pp1",

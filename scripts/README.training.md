@@ -1,5 +1,58 @@
 # HMI 视觉微调准备
 
+## 第二轮流程修正（2026-09-27，尚未启动）
+
+上一轮65张确实用于梯度更新；漏接的是6张验证集与9张测试集。
+训练loss下降、权重能重载只证明训练流程执行，不能代表识别效果通过。
+旧67.5%为训练集严格字段召回，未惩罚485个多报字段；字段名差异与漏识别混在一起，
+不能解释成文字识别准确率，也不能靠降低loss自动解决。
+
+新入口必须显式传 `--round2`，从冻结的BF16底座重新训练双侧LoRA，默认6轮，
+每轮固定种子打乱65张训练顺序。学习率1e-4、rank 8、图像边长1024保持原值，
+先避免同时改动过多变量。6轮是本次实验上限，不是已证明的最佳轮数。
+
+- 启动前核验65/6/9清单、图像与评测标注哈希、集合无完全相同图片、测试锁；
+  快照写入独立输出目录。现有机台隔离检查另由 `tests.check_evaluation_sets` 完成；
+  哈希隔离不替代跨来源机台别名与近重复人工审查。
+- 每轮生成固定6张验证图，记录严格字段precision/recall/F1、漏项、多报、值/单位错误、
+  JSON有效性与整页严格匹配；F1相同时保留较早权重。bbox及解释文本未纳入此分数。
+  不做同义字段名宽松合并，不修改既有标签来迎合模型。
+- `adapter/`始终保存验证F1最好的轮次，`after.json`是该权重的训练loss重载参照，
+  不再生成全部65张训练预测。正式验证最多36次生成，另有训练loss前向与重载开销；
+  不能用此前8003的39秒推算BF16总耗时。
+- 独立重载通过后，单独执行9张锁定测试；已有test.json则拒绝重复执行。
+  测试失败后保留原产物，不删除后反复调参刷分。测试结果不用于选择轮数。
+- 基座小样本对照继续保留已完成的8003三张结果，不新增GPU0基座对照；
+  它是INT4训练集参考，不是本轮同精度验证基线，因此不宣称严格训练收益。
+- 验证标签是agent_visual_verified，测试有历史CV使用和机台别名限制；
+  测试跑完也不能写成严格零历史盲测。部署前仍需用户认可效果与关键字段检查。
+
+离线验收（不加载模型）：
+
+```bash
+python3 -m tests.check_round2_training
+python3 -m tests.check_evaluation_sets
+python3 -m scripts.train_small_sample --round2 --check --output output/training/round2-check
+```
+
+下面是**待执行**的阶段顺序，不会自动停服务或启动GPU。
+用户此前限制GPU0使用，需先明确第二轮资源安排；本次只完成CPU检查，
+每轮训练/推理切换、择优保存与独立重载尚未做GPU运行验收。
+先在独立目录运行旧 `--smoke` 和对应reload验证基本更新，再运行第二轮。
+旧smoke不覆盖新逐轮验证分支；首次正式验证结束必须检查该分支日志。
+以下三条需分别使用 `CUDA_VISIBLE_DEVICES=0 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1`，
+前一阶段成功后才进入下一阶段，输出目录ROUND2_DIR必须是新目录：
+
+```bash
+/data/venvs/hmi-unsloth/bin/python -u -m scripts.train_small_sample --round2 --epochs 6 --output ROUND2_DIR
+/data/venvs/hmi-unsloth/bin/python -u -m scripts.train_small_sample --round2 --phase reload --output ROUND2_DIR
+/data/venvs/hmi-unsloth/bin/python -u -m scripts.train_small_sample --round2 --phase test --output ROUND2_DIR
+```
+
+监控以本次输出目录、阶段和manifest ID集合检查完整性，不能递归混计smoke。
+区分训练结束、重载通过、测试完成、效果验收通过四个状态；任何阶段不能代替下一阶段。
+GitNexus impact仍被数据库43/运行时41不兼容阻断，风险UNKNOWN；已核查源码调用方。
+
 ## BF16 首轮训练（2026-09-26）
 
 `scripts.train_small_sample` 现默认加载原始 BF16 权重，关闭 4/8-bit 量化，

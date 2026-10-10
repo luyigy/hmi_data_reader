@@ -19,7 +19,7 @@ def route_page(stem: str, lines: list[dict], family: str,
     extra_anchor_lines（042 S04）：模温机旁车等附加 OCR 行，仅参与模板锚点
     文本匹配，不进 find_page 的位置启发（坐标系可能不同）。"""
     explicit = load_template("TACT5", "process_settings", templates_dir)
-    if explicit and family in ("TACT", "TACT5", "unknown"):
+    if explicit and family in explicit.get("route_families", ("TACT", "TACT5", "unknown")):
         texts = [line["text"].strip() for line in lines]
         if all(any(re.fullmatch(anchor, text, re.I) for text in texts)
                for anchor in explicit["layout_anchors"]):
@@ -46,6 +46,7 @@ def route_page(stem: str, lines: list[dict], family: str,
         # 042 S04：模温机等独立设备家族没有 temperature 模板——锚点循环移出
         # if tpl 分支，否则设备面板的「温度循环控制机」「冷却」字样会被
         # find_page 误分为注塑机 temperature/storage_cooling 后 NO_TEMPLATE 误拒。
+        matches = []
         for tp in sorted(templates_dir.glob(f"{family.lower()}.*.json")):
             page_name = tp.stem.split(".", 1)[1]
             if page_name == "temperature":
@@ -53,7 +54,11 @@ def route_page(stem: str, lines: list[dict], family: str,
             t2 = json.loads(tp.read_text())
             anchors2 = t2.get("page_detect_anchors")
             if anchors2 and all(_anchor_hits(a, texts) for a in anchors2):
-                return page_name, "template_anchors"
+                matches.append(page_name)
+        if len(matches) > 1:
+            return "unknown", "ambiguous_template_anchors"
+        if matches:
+            return matches[0], "template_anchors"
     page, _ = find_page(lines)
     if page != "unknown":
         return page, "find_page"

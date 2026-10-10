@@ -9,26 +9,25 @@ description: 将复核图片、文件和说明发送到 Agent Platform 飞书任
 
 ## 定位当前话题
 
-从本轮房间上下文、平台绑定或已核验发送记录取得三件套：群 `chat_id`、话题 `thread_id`、根消息 `root_message_id`。只知道大群名字不足以定位任务。用根消息回读核对标题、群和话题；冲突时停止发送并查绑定，不退回大群。
-
-“准备hmi页面识别训练集”房间在 2026-09-27 的已核验绑定如下，只适用于这个任务，其他房间必须重新取绑定：
+从本轮房间上下文、平台绑定或已核验发送记录取得三件套：群 `chat_id`、话题 `thread_id`、根消息 `root_message_id`。以下仅为格式占位符，不是可用的绑定：
 
 ```text
-chat_id = oc_5c8067219168958335bfc59d5fbb2b11
-thread_id = omt_19d207da838f1a4b
-root_message_id = om_x100b644cbff7d4a0de7bfb226961961
+chat_id = <CURRENT_ROOM_CHAT_ID>
+thread_id = <CURRENT_ROOM_THREAD_ID>
+root_message_id = <CURRENT_ROOM_ROOT_MESSAGE_ID>
 ```
 
-依据：`output/reviews/user-image-review-20260927/state.json` 的 `channel`；根消息内容为本任务卡片，已用飞书读接口重新核验。
+只知道群名不足以定位任务。发送前用根消息回读核对群、话题和任务标题；冲突时停止发送并查绑定。若当前房间没有专属话题，按 `lark-im` 的群主会话流程发送，不套用本技能的话题回复命令。
 
 ## 命令
 
-使用发送 bot 自己的独立配置，不覆盖其他 bot。此房间已验证的本地AI助手配置是 `/home/hello/.lark-local-ai`；其他机器先确认当地配置。不要读取或输出凭据内容。
+使用发送 bot 自己的独立配置，不覆盖其他 bot。先确认当前环境的配置目录，不要读取或输出凭据内容。将下面的占位符替换为当前房间已核验的值后再运行。
 
 ```bash
-export LARKSUITE_CLI_CONFIG_DIR=/home/hello/.lark-local-ai
-TASK_ROOT=om_x100b644cbff7d4a0de7bfb226961961
-TASK_THREAD=omt_19d207da838f1a4b
+export LARKSUITE_CLI_CONFIG_DIR="<SENDING_BOT_CONFIG_DIR>"
+TASK_CHAT="<CURRENT_ROOM_CHAT_ID>"
+TASK_ROOT="<CURRENT_ROOM_ROOT_MESSAGE_ID>"
+TASK_THREAD="<CURRENT_ROOM_THREAD_ID>"
 
 # 只输出定位所需字段，避免根消息自动展开大量历史回复。
 lark-cli im +messages-mget --message-ids "$TASK_ROOT" --as bot --no-reactions \

@@ -21,6 +21,35 @@
 `output/training-prep/*` 已保留为兼容链接；新产物按上表存放，不再往旧目录平铺。
 图片、标注、权重被 Git 忽略，必须单独备份；Git 仓库不是训练数据备份。
 
+## HMI 页面模板与代码入口（2026-10-10）
+
+在线上传、CLI 和飞书提取共用同一条识别路径：
+
+```text
+原图 → 矫正与 OCR → 控制器家族 → 页面类型/布局 → 页面模板与提取器
+     → 带原图证据的字段观测 → 主仓人工核对及保存
+```
+
+| 职责 | 当前入口 |
+| --- | --- |
+| 控制器家族 | `scripts/extract_fields.py` 的 `route_family`：离线报告、已确认机台先验、单图 OCR 关键词、模板指纹依次判定；HTTP 上传名为 `raw_upload`，不能靠样本文件名推断机台 |
+| 页面类型 | `scripts/page_template_registry.py` 的 `route_page`：先匹配该家族的页面结构锚点，再使用 `classify_ui.find_page` 关键词兜底；多个普通页面模板同时命中时返回 `ambiguous_template_anchors` 待核对 |
+| 布局及字段 | `templates/` 放已确认页面布局和标签关系，`scripts/extract_families/` 按布局组装数值、单位、角色、物理段号及坐标证据 |
+| 身份及契约 | `contracts/profiles.json` 注册完整 `profile_id`、状态与模板；`contracts/field_catalog.json` 定义物理字段；`contracts/page_observations.v1.json` 约束 TACT5 页面观测 |
+| 共同调用 | `scripts/extract_fields.py` 的 `extract_one` 供 HTTP 与 CLI 使用；`scripts/feishu_card_assistant.py` 使用同一页面路由与模板 |
+
+已确认的组合页示例是 `tact5.process_settings.injection_holding_metering`：
+`templates/tact5.process_settings.injection_holding_metering.json` 的 `layout_anchors`
+结合 `route_families` 识别布局，`field_labels` 定义 V1、Pp1 等屏幕标签与相邻数值的关系；
+`scripts/extract_families/tact5_process.py` 输出 `page_observations`。
+页面上的 `V1 → 120` 必须由标签、相邻数值和坐标共同支持；模板中的单位是已确认的页面知识，不能冒充 OCR 读到的单位。
+Reader 不决定主仓目标槽位，也不写试模业务数据。
+
+新增页面按一份实图布局交付：先确认标题、控制器证据、与现有布局的差异和人工真值，
+再登记完整 `profile_id`，补模板、路由、提取器、契约与页面测试；主仓另核对业务映射和保存重开。
+沿用现有模板文件加载关系，不根据 `profile_id` 字符串批量改名。当前 TACT5 布局仍是
+`candidate`，不能把路由命中当成独立实图准确率或自动写入许可。
+
 ## 数据源
 
 - 飞书多维表格 **生产工艺日报表**（base_token: `Vz2QbZ0lkagmVJsrMZ7cQwbSnZc`，table_id: `tbl5KKYuANqGpycE`）

@@ -64,3 +64,12 @@
 当前训练脚本默认仍为历史28张且视觉LoRA开关为False，不能直接复跑作为新方案。GitNexus upstream impact仍因数据库43/运行时41不兼容失败，本轮未修改训练函数、未启动GPU训练。先恢复影响分析，再接通新清单和双侧LoRA。
 
 可重跑数据验收：`python3 -m tests.check_tact5_intake`。清理前后文本、分组、读取器输入快照、验收日志与本轮文件清单见 `output/reviews/tact5-intake-20260927/`。
+
+## 2026-09-27 当前训练与评测
+
+- 训练入口默认读取 `catalog/training-manifest-20260927-tact5.json`：65张、2116字段；视觉与语言均开启 LoRA，基座冻结。
+- 测试集 `catalog/test-manifest-20260927.json`：9张、211字段，Z033/Z007/Z051/Z006；按来源机台 ID 与训练隔离。Z007/Z051 有历史传统 CV 使用，Z006 实体别名未经现场确认，因此不声称9张都是零历史盲测。
+- 验证集 `catalog/validation-manifest-20260927.json`：6张、120字段，Z030/Z002/Z005。
+- 标注统一在 `annotations/annotation-eval-reviewed-20260927/`，状态为 `agent_visual_verified`，不是新增用户逐值确认。原图已从飞书批次下载，全部可解码，无缺图。
+- 重打包：`python3 -m scripts.package_reviewed_evaluation`；验收：`python3 -m tests.check_evaluation_sets`。
+- 训练任务：`hmi-train-vision-20260927.service`；日志 `output/logs/training/vision-20260927.log`；输出 `output/training/vision-20260927/`。先两张最长样本 smoke 和独立进程重载，通过后自动训练65张、3轮、195步，再重载。运行期间暂时停止GPU0旧测图服务，任务退出后恢复。

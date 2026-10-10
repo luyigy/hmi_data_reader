@@ -23,6 +23,7 @@ def extract_injection_tact(toks: list[dict], template: dict) -> dict:
 
     fields: dict[str, float | list | int | None] = {}
     detail = {}
+    sources = {}
     for name, spec in anchors.items():
         hits = [t for t in toks if _anchor_match(spec["label"], t["text"])]
         if not hits:
@@ -48,6 +49,8 @@ def extract_injection_tact(toks: list[dict], template: dict) -> dict:
         if chosen:
             fields[name] = chosen[1]
             detail[name] = {"text": chosen[2]["text"], "conf": round(chosen[2]["conf"], 3)}
+            sources[name] = {"line_index": next(i for i, token in enumerate(toks) if token is chosen[2]),
+                             "text": chosen[2]["text"], "center": [chosen[2]["x"], chosen[2]["y"]]}
             if chosen[2]["conf"] < 0.8:
                 warnings.append(f"LOW_CONF({name},{chosen[2]['conf']:.2f})")
         else:
@@ -79,4 +82,9 @@ def extract_injection_tact(toks: list[dict], template: dict) -> dict:
         "decompress_velocity_mms": fields["decompress_velocity_mms"],
         "sd_position_mm": fields["sd_position_mm"],
     }
+    detail["field_sources"] = {name: [sources[name]] for name in out if name in sources}
+    detail["field_sources"].update({
+        "fill_velocity_mms": [sources[name] for name in ("fill_velocity_v1_mms", "fill_velocity_v2_mms", "fill_velocity_v3_mms") if name in sources],
+        "holding_pressure_mpa": [sources[name] for name in ("holding_pressure_p1_mpa", "holding_pressure_p2_mpa") if name in sources],
+    })
     return {"fields": out, "heater_columns": 0, "warnings": warnings, "detail": detail}
