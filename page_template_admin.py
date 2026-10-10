@@ -110,6 +110,8 @@ def save_template(profile_id: str, draft: TemplateSave, root: Path = ROOT) -> di
             raise HTTPException(422, "当前页面版本无效")
         version = f"{parts[0]}.{parts[1]}.{int(parts[2]) + 1}"
         archive = root / "templates/versions" / profile_id / f"{current['version']}.json"
+        if (root / "templates/versions" / profile_id / f"{version}.json").exists():
+            raise HTTPException(409, "下一版本已存在，不能复用版本号")
         if archive.exists():
             if json.loads(archive.read_text(encoding="utf-8")) != current:
                 raise HTTPException(409, "历史版本内容冲突")

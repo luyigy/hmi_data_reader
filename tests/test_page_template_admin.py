@@ -43,6 +43,11 @@ def test_admin_save_keeps_old_version_and_rejects_stale_or_unauthorized(tmp_path
     preview = client.post(url + "/preview", json=body, headers=headers)
     assert preview.status_code == 200, preview.text
     assert any(field["label"] == "冷却" for field in preview.json()["fields"])
+    future = tmp_path / "templates/versions" / profile_id / "0.2.2.json"
+    future.parent.mkdir(parents=True)
+    future.write_text("{}")
+    assert client.put(url, json=body, headers=headers).status_code == 409
+    future.unlink()
     saved = client.put(url, json=body, headers=headers)
     assert saved.status_code == 200, saved.text
     assert saved.json()["version"] == "0.2.2"
