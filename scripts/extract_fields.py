@@ -318,7 +318,7 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     result["controller_family"] = family
     result["page_type"] = page
 
-    template = load_template(family, page, templates_dir)
+    template = load_template(family, page, templates_dir, lines=lines)
     if template is None and family == "DEMAG" and page in ("injection_metering", "monitor_curve"):
         # DEMAG 多级注射曲线页被分类器记为 monitor_curve，统一走射保模板（035 第二波）
         template = load_template(family, "injection_metering", templates_dir)

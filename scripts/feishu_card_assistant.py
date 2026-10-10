@@ -158,7 +158,7 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
 
     page, _ = route_page(stem, lines, ui_family, TEMPLATES_DIR)
     page_key = page
-    selected_template = load_template(ui_family, page, TEMPLATES_DIR)
+    selected_template = load_template(ui_family, page, TEMPLATES_DIR, lines=lines)
     template_name = f"{ui_family.lower()}.{page_key}.json"
     if selected_template and selected_template.get("profile_id"):
         template_name = selected_template["profile_id"] + ".json"
@@ -173,7 +173,7 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
 
     if tpl_path.is_file():
         try:
-            template = json.loads(tpl_path.read_text())
+            template = selected_template or json.loads(tpl_path.read_text())
             toks = norm_tokens(ocr_data, rect_meta.get("screen_size", [1920, 1080]))
 
             # 根据 family & page_key 提取字段
@@ -243,7 +243,8 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
             "page": page,
             "page_name_cn": PAGE_NAME_MAP.get(page, page),
             "page_confidence": round(page_conf, 2),
-            "template_name": template_name if tpl_path.is_file() else None
+            "template_name": template_name if tpl_path.is_file() else None,
+            "template_version": selected_template["version"] if selected_template else None,
         },
         "status": status,
         "warnings": warnings,

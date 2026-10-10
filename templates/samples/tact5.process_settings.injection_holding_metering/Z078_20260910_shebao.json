@@ -1,0 +1,11 @@
+{
+  "profile_id": "tact5.process_settings.injection_holding_metering",
+  "sample_id": "Z078_20260910_shebao",
+  "purpose": "development_exposed_not_independent_test",
+  "original_sha256": "3f0cd45905b1b33b2f837b19f23003c26a563976bdde02988ef6ea4ddc18dc9d",
+  "original_size": [1920, 1080],
+  "ocr_fixture": "tests/fixtures/tact5_process_ocr.json",
+  "ocr_sha256": "fa47e053bbf0584641c4197fab6e9fe423899a2f170ed2a3b7ac759196bf7fce",
+  "truth_scope": "已确认有效设定、SM 与计量前后抽距离、灰显排除及非目标字段；末段保压有效时间仍待确认",
+  "photo_distribution": "original image retained outside Git; resolve by hash in approved sample storage"
+}

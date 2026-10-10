@@ -7,6 +7,34 @@ from extract_families.common import _anchor_hits
 
 TEMPLATES_DIR = Path("templates")
 
+def registered_page_templates(family: str, templates_dir: Path,
+                              page: str | None = None,
+                              lines: list[dict] | None = None) -> list[dict]:
+    registry = templates_dir.parent / "contracts" / "profiles.json"
+    if not registry.is_file():
+        return []
+    texts = [line["text"].strip() for line in lines] if lines is not None else None
+    matches = []
+    for profile in json.loads(registry.read_text()).get("profiles", []):
+        filename = profile.get("template")
+        if not filename:
+            continue
+        path = templates_dir / filename
+        template = json.loads(path.read_text())
+        if template.get("profile_id") != profile["profile_id"]:
+            raise ValueError(f"Registered template identity mismatch: {path}")
+        if page is not None and template.get("page") != page:
+            continue
+        if family not in template.get("route_families", [template.get("ui_family")]):
+            continue
+        if texts is not None:
+            anchors = template.get("layout_anchors", [])
+            if not anchors or not all(any(re.fullmatch(anchor, text, re.I) for text in texts)
+                                      for anchor in anchors):
+                continue
+        matches.append(template)
+    return matches
+
 def route_page(stem: str, lines: list[dict], family: str,
                templates_dir: Path = TEMPLATES_DIR,
                extra_anchor_lines: list[dict] | None = None) -> tuple[str, str]:
@@ -18,12 +46,11 @@ def route_page(stem: str, lines: list[dict], family: str,
 
     extra_anchor_lines（042 S04）：模温机旁车等附加 OCR 行，仅参与模板锚点
     文本匹配，不进 find_page 的位置启发（坐标系可能不同）。"""
-    explicit = load_template("TACT5", "process_settings", templates_dir)
-    if explicit and family in explicit.get("route_families", ("TACT", "TACT5", "unknown")):
-        texts = [line["text"].strip() for line in lines]
-        if all(any(re.fullmatch(anchor, text, re.I) for text in texts)
-               for anchor in explicit["layout_anchors"]):
-            return "process_settings", "template_anchors"
+    registered = registered_page_templates(family, templates_dir, lines=lines)
+    if len(registered) > 1:
+        return "unknown", "ambiguous_template_anchors"
+    if registered:
+        return registered[0]["page"], "template_anchors"
     tpl = load_template(family, "temperature", templates_dir) if family != "unknown" else None
     texts = [l["text"] for l in lines + (extra_anchor_lines or [])]
     if tpl:
@@ -67,10 +94,16 @@ def route_page(stem: str, lines: list[dict], family: str,
     return "unknown", "none"
 
 
-def load_template(family: str, page: str, templates_dir: Path = TEMPLATES_DIR) -> dict | None:
-    filename = ("tact5.process_settings.injection_holding_metering.json"
-                if family in ("TACT", "TACT5", "unknown") and page == "process_settings"
-                else f"{family.lower()}.{page}.json")
+def load_template(family: str, page: str, templates_dir: Path = TEMPLATES_DIR,
+                  lines: list[dict] | None = None) -> dict | None:
+    registered = registered_page_templates(family, templates_dir, page=page, lines=lines)
+    if lines is not None and not registered:
+        registered = registered_page_templates(family, templates_dir, page=page)
+    if len(registered) > 1:
+        return None
+    if registered:
+        return registered[0]
+    filename = f"{family.lower()}.{page}.json"
     path = templates_dir / filename
     if not path.is_file():
         return None

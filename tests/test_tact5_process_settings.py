@@ -42,6 +42,43 @@ def test_template_route_does_not_mistake_old_tact():
     assert extract_injection_tact([], load_template('TACT', 'injection_metering', ROOT/'templates'))['fields']['fill_stages'] == 3
 
 
+def test_registered_page_layouts_select_by_evidence(tmp_path):
+    from page_template_registry import registered_page_templates
+    templates = tmp_path / 'templates'
+    contracts = tmp_path / 'contracts'
+    templates.mkdir()
+    contracts.mkdir()
+    profiles = []
+    for variant, anchor in [('first', 'FIRST'), ('second', 'SECOND')]:
+        profile_id = f'tact5.process_settings.{variant}'
+        filename = profile_id + '.json'
+        (templates / filename).write_text(json.dumps(dict(
+            profile_id=profile_id, page='process_settings', ui_family='TACT5',
+            route_families=['TACT'], layout_anchors=[anchor], version='1.0.0')))
+        profiles.append(dict(profile_id=profile_id, template=filename))
+    (contracts / 'profiles.json').write_text(json.dumps(dict(profiles=profiles)))
+    first = [line('FIRST', 0, 0)]
+    assert route_page('photo', first, 'TACT', templates) == ('process_settings', 'template_anchors')
+    assert load_template('TACT', 'process_settings', templates, lines=first)['profile_id'].endswith('.first')
+    assert load_template('TACT', 'process_settings', templates) is None
+    assert route_page('photo', [*first, line('SECOND', 0, 20)], 'TACT', templates) == (
+        'unknown', 'ambiguous_template_anchors')
+    assert registered_page_templates('DEMAG', templates, lines=first) == []
+
+
+def test_export_pinned_page_package_keeps_previous_version():
+    from export_page_package import export_page_package
+    profile_id = 'tact5.process_settings.injection_holding_metering'
+    current = export_page_package(profile_id, '0.2.0', ROOT)
+    previous = export_page_package(profile_id, '0.1.1', ROOT)
+    assert current['template']['version'] == '0.2.0'
+    assert current['samples'][0]['manifest']['sample_id'] == 'Z078_20260910_shebao'
+    assert current['samples'][0]['ocr'] == json.loads((ROOT/'tests/fixtures/tact5_process_ocr.json').read_text())
+    assert previous['template']['version'] == '0.1.1' and previous['samples'] == []
+    with pytest.raises(ValueError, match='Invalid page version'):
+        export_page_package(profile_id, '../0.2.0', ROOT)
+
+
 def test_page_route_keeps_controller_and_reports_conflicting_templates(tmp_path):
     lines = [line('DEMAG', 0, 0), line('温度', 0, 20),
              line('实际', 0, 40), line('设定', 0, 60),
@@ -269,6 +306,7 @@ def test_http_and_feishu_keep_the_same_page_observations(tmp_path, monkeypatch):
     response=asyncio.run(run())
     assert response['page_observations'] == result['page_observations']
     assert response['profile_id'] == result['profile_id'] == template()['profile_id']
+    assert response['template'].endswith('v' + result['classification']['template_version'])
     assert response['status'] == result['status'] == 'review'
 
 
