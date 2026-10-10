@@ -132,9 +132,11 @@ large_files:
     - build
     - coverage
     - .venv
+    - .venv-paddleocr-vl
     - venv
     - __pycache__
     - generated
+    - unsloth_compiled_cache
     - vendor
     - migrations
 
