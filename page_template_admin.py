@@ -6,6 +6,7 @@ import json
 import os
 import re
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException
@@ -69,7 +70,7 @@ def _atomic_json(path: Path, value: dict) -> None:
 
 
 def save_template(profile_id: str, draft: TemplateSave, root: Path = ROOT) -> dict:
-    if draft.confirmation != "save_confirmed":
+    if draft.confirmation not in ("save_confirmed", "rollback_confirmed"):
         raise HTTPException(422, "请确认保存")
     if len(json.dumps(draft.template, ensure_ascii=False)) > 256_000:
         raise HTTPException(413, "页面模板过大")
@@ -103,7 +104,7 @@ def save_template(profile_id: str, draft: TemplateSave, root: Path = ROOT) -> di
         if not isinstance(new_candidate, dict) or any(new_candidate.get(key) != old_candidate.get(key)
                 for key in ("page_id", "algorithm", "controller", "page_version", "rule_version", "field_write_review")):
             raise HTTPException(422, "业务目标身份和写入审核不能在此修改")
-        if draft.template == current:
+        if draft.template == current and draft.confirmation == "save_confirmed":
             return {"profile_id": profile_id, "version": current["version"], "template": current}
         parts = current["version"].split(".")
         if len(parts) != 3 or not all(part.isdigit() for part in parts):
@@ -139,9 +140,49 @@ def list_templates():
 
 
 @router.get("/{profile_id}")
-def get_template(profile_id: str):
-    template = _active(profile_id, ROOT)
+def get_template(profile_id: str, version: str | None = None):
+    current = _active(profile_id, ROOT)
+    if version is None or version == current["version"]:
+        template = current
+    else:
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+            raise HTTPException(404, "页面版本不存在")
+        path = ROOT / "templates/versions" / profile_id / f"{version}.json"
+        if not path.resolve().is_relative_to((ROOT / "templates/versions" / profile_id).resolve()) or not path.is_file():
+            raise HTTPException(404, "页面版本不存在")
+        try:
+            template = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise HTTPException(409, "历史版本文件无效") from None
+        if template.get("profile_id") != profile_id or template.get("version") != version:
+            raise HTTPException(409, "历史版本身份不一致")
     return {"profile_id": profile_id, "version": template["version"], "template": template}
+
+
+@router.get("/{profile_id}/versions")
+def get_template_versions(profile_id: str):
+    current = _active(profile_id, ROOT)
+    active = _registered_path(profile_id, ROOT)
+    archive_dir = ROOT / "templates/versions" / profile_id
+    versions = []
+    for path in archive_dir.glob("*.json"):
+        version = path.stem
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+            raise HTTPException(409, "历史版本文件名无效")
+        if tuple(map(int, version.split("."))) >= tuple(map(int, current["version"].split("."))):
+            raise HTTPException(409, "历史版本不能晚于或等于生效版本")
+        get_template(profile_id, version)
+        versions.append({"version": version, "file_time": datetime.fromtimestamp(
+            path.stat().st_mtime, timezone.utc).isoformat(), "active": False})
+    versions.append({"version": current["version"], "file_time": datetime.fromtimestamp(
+        active.stat().st_mtime, timezone.utc).isoformat(), "active": True})
+    versions.sort(key=lambda item: tuple(map(int, item["version"].split("."))))
+    for before, after in zip(versions, versions[1:]):
+        old_parts = tuple(map(int, before["version"].split(".")))
+        new_parts = tuple(map(int, after["version"].split(".")))
+        if old_parts[:2] == new_parts[:2] and new_parts[2] != old_parts[2] + 1:
+            raise HTTPException(409, "历史版本归档有缺口")
+    return versions
 
 
 @router.get("/{profile_id}/package")

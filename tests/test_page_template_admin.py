@@ -16,7 +16,9 @@ def test_admin_save_keeps_old_version_and_rejects_stale_or_unauthorized(tmp_path
     template_file = f"{profile_id}.json"
     (tmp_path / "templates").mkdir()
     (tmp_path / "contracts").mkdir()
-    (tmp_path / "templates" / template_file).write_bytes((source / "templates" / template_file).read_bytes())
+    fixture = json.loads((source / "templates" / template_file).read_text())
+    fixture["version"] = "0.2.1"
+    (tmp_path / "templates" / template_file).write_text(json.dumps(fixture))
     (tmp_path / "contracts/profiles.json").write_text(json.dumps({
         "profiles": [{"profile_id": profile_id, "template": template_file}]}))
     sample_path = Path("templates/samples") / profile_id / "Z078_20260910_shebao.json"
@@ -54,8 +56,26 @@ def test_admin_save_keeps_old_version_and_rejects_stale_or_unauthorized(tmp_path
     assert client.put(url, json=body, headers=headers).status_code == 409
     archived = tmp_path / "templates/versions" / profile_id / "0.2.1.json"
     assert json.loads(archived.read_text()) == current
+    history = client.get(url + "/versions")
+    assert history.status_code == 200, history.text
+    assert [(item["version"], item["active"]) for item in history.json()] == [
+        ("0.2.1", False), ("0.2.2", True)]
+    assert all(item["file_time"] for item in history.json())
+    assert client.get(url, params={"version": "0.2.1"}).json()["template"] == current
+    assert client.get(url, params={"version": "../0.2.1"}).status_code == 404
     assert client.get(url).json()["template"]["field_labels"]["冷却"]["unit"] == "ms"
     changed_identity = deepcopy(saved.json()["template"])
     changed_identity["sample_ids"] = []
     assert client.put(url, json={"expected_version": "0.2.2", "template": changed_identity,
                                  "confirmation": "save_confirmed"}, headers=headers).status_code == 422
+    rollback = client.put(url, json={"expected_version": "0.2.2", "template": saved.json()["template"],
+                                     "confirmation": "rollback_confirmed"}, headers=headers)
+    assert rollback.status_code == 200, rollback.text
+    assert rollback.json()["version"] == "0.2.3"
+    assert json.loads((archived.parent / "0.2.2.json").read_text()) == saved.json()["template"]
+    archived.write_text("{}")
+    assert client.get(url + "/versions").status_code == 409
+    archived.unlink()
+    older = archived.with_name("0.2.0.json")
+    older.write_text(json.dumps({**current, "version": "0.2.0"}))
+    assert client.get(url + "/versions").status_code == 409
