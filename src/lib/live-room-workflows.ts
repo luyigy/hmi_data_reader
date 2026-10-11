@@ -350,16 +350,16 @@ export const buildLiveRoomWorkflowStages = (
 
   if (level === 'full' && !approvedPlan && name === 'debug') {
     addStage(stages, 'reproduce-plan', '复现方案', tester, '根据已有分析制定最小复现步骤、回归范围和通过标准。此阶段不要修改代码。');
-    addStage(stages, 'fix-plan', '修复计划', planner, '结合复现方案确定根因修复计划、涉及文件和验证方式。此阶段不要修改代码。');
+    addStage(stages, 'fix-plan', '修复计划', planner, '结合复现方案读取相关代码，追踪根因、调用链和职责边界；说明修复会影响哪些接口、数据和调用方。若涉及共享模块或跨功能边界，比较两种整体方案并选出最小可行方案。给出接口或模块草图、涉及文件、风险和验证方式。不要修改代码。');
   } else if (level === 'full' && !approvedPlan) {
-    addStage(stages, 'plan', '实施计划', planner, '给出最小实施计划、涉及文件、风险和验证方式。此阶段不要修改代码。');
+    addStage(stages, 'plan', '实施计划', planner, '先读取相关代码，说明现有调用链、模块职责和用户目标；识别改动对接口、数据及调用方的影响。若涉及共享模块或跨功能边界，比较两种整体方案并选出最小可行方案。给出接口或模块草图、实施步骤、涉及文件、风险和验证方式。不要修改代码。');
   }
 
   if (level === 'full' || level === 'lean') {
-    addStage(stages, 'plan-review', '计划审查', reviewer, '审查已有计划是否足以直接实施、是否遗漏边界或过度设计。明确给出 APPROVED 或 CHANGES_REQUESTED，并列出具体理由。不要修改代码。');
+    addStage(stages, 'plan-review', '计划审查', reviewer, '读取相关代码，核对计划对调用链、职责边界、接口、数据和调用方的判断；检查方案取舍、遗漏影响及过度设计。指出有证据的架构问题和具体修改建议。明确给出 APPROVED 或 CHANGES_REQUESTED，并列出理由。不要修改代码。');
   }
   if (level === 'full' && !approvedPlan) {
-    addStage(stages, 'plan-final', '计划定稿', planner, '根据计划审查意见修订并输出最终实施计划。不要修改代码。');
+    addStage(stages, 'plan-final', '计划定稿', planner, '根据计划审查意见修订方案、职责边界和接口草图，说明采纳或拒绝每项架构意见的依据，输出最终实施计划。不要修改代码。');
   }
   if (level === 'full') {
     addStage(
@@ -384,7 +384,7 @@ export const buildLiveRoomWorkflowStages = (
         : '依据已有 PLAN 和原始任务直接完成最小必要实现与自测，并列出修改文件。不要重新制定完整计划。'
   );
   if (level === 'full') {
-    addStage(stages, 'code-review', '代码审查', reviewer, '审查实际代码改动的正确性、回归风险、安全性和是否符合计划。运行必要的轻量检查。明确给出 APPROVED 或 CHANGES_REQUESTED；发现问题时给出文件和位置。');
+    addStage(stages, 'code-review', '代码审查', reviewer, '审查实际代码改动的正确性、回归风险、安全性，以及模块职责和接口是否符合最终计划；若实现偏离架构草图，判断是否需要重新设计。运行必要的轻量检查。明确给出 APPROVED 或 CHANGES_REQUESTED；发现问题时给出文件和位置。');
   }
   if (level !== 'implement') {
     addStage(

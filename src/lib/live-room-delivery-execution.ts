@@ -117,11 +117,6 @@ const shouldRetryCodexEphemeral = ({
   && CODEX_EPHEMERAL_RETRY_PATTERNS.some((pattern) => pattern.test(message))
 );
 
-// Local Codex receives the task-room transcript, so avoid reusing CLI threads that
-// may retain incomplete tool calls after an interruption.
-const shouldPreferTranscriptContinuation = (participant: ReturnType<typeof buildLiveRoomAcpxParticipant>) =>
-  participant.executionBackend === 'platform_local' && participant.harnessType === 'codex';
-
 const markParticipantContinuationStale = async ({
   participantId,
   reason,
@@ -276,7 +271,6 @@ const runLiveRoomAcpxAttempt = async ({
   const shouldUseContinuation =
     !useFreshSession
     && !forceEphemeral
-    && !shouldPreferTranscriptContinuation(participant)
     && Boolean(latestSession?.continuationSessionId);
 
   // Explicit room timeout overrides every backend (remote SSH and remote runner share
