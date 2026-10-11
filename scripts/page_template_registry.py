@@ -108,3 +108,20 @@ def load_template(family: str, page: str, templates_dir: Path = TEMPLATES_DIR,
     if not path.is_file():
         return None
     return json.loads(path.read_text())
+
+
+def resolve_page_template(stem: str, lines: list[dict], family: str,
+                          templates_dir: Path = TEMPLATES_DIR,
+                          extra_anchor_lines: list[dict] | None = None) -> tuple[str, str, dict | None]:
+    """Route one image and select its template with the shared legacy page aliases."""
+    page, source = route_page(stem, lines, family, templates_dir,
+                              extra_anchor_lines=extra_anchor_lines)
+    template = load_template(family, page, templates_dir, lines=lines)
+    if template is None and source != "ambiguous_template_anchors" and (
+                            (family == "DEMAG" and page in ("injection_metering", "monitor_curve"))
+                             or (family == "TRD6" and page in ("injection_metering", "settings"))
+                             or (family == "ARBURG" and page in ("injection_metering", "monitor_curve", "unknown"))):
+        template = load_template(family, "injection_metering", templates_dir)
+        if template is not None:
+            page = "injection_metering"
+    return page, source, template

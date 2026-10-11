@@ -66,6 +66,26 @@ def test_registered_page_layouts_select_by_evidence(tmp_path):
     assert registered_page_templates('DEMAG', templates, lines=first) == []
 
 
+@pytest.mark.parametrize(('family', 'classified_page'), [
+    ('DEMAG', 'monitor_curve'), ('TRD6', 'settings'), ('ARBURG', 'unknown'),
+])
+def test_shared_page_selection_preserves_legacy_aliases(tmp_path, monkeypatch, family, classified_page):
+    import page_template_registry as registry
+    (tmp_path / f'{family.lower()}.injection_metering.json').write_text(json.dumps({
+        'page': 'injection_metering', 'ui_family': family, 'version': '1'}))
+    monkeypatch.setattr(registry, 'route_page', lambda *args, **kwargs: (classified_page, 'find_page'))
+    page, source, selected = registry.resolve_page_template('photo', [], family, tmp_path)
+    assert (page, source, selected['page']) == ('injection_metering', 'find_page', 'injection_metering')
+
+
+def test_ambiguous_page_never_uses_legacy_alias(tmp_path, monkeypatch):
+    import page_template_registry as registry
+    (tmp_path / 'arburg.injection_metering.json').write_text(json.dumps({'page': 'injection_metering'}))
+    monkeypatch.setattr(registry, 'route_page', lambda *args, **kwargs: ('unknown', 'ambiguous_template_anchors'))
+    assert registry.resolve_page_template('photo', [], 'ARBURG', tmp_path) == (
+        'unknown', 'ambiguous_template_anchors', None)
+
+
 def test_export_pinned_page_package_keeps_previous_version():
     from export_page_package import export_page_package
     profile_id = 'tact5.process_settings.injection_holding_metering'

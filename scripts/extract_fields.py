@@ -119,7 +119,7 @@ def route_family(stem: str, lines: list[dict],
     return fam, "per_image_classify"
 
 
-from page_template_registry import route_page, load_template  # noqa: E402
+from page_template_registry import resolve_page_template, route_page, load_template  # noqa: E402
 
 # ---------------------------------------------------------------- 提取
 
@@ -355,32 +355,13 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         fam = detect_family_from_templates(det_lines + mt_lines, templates_dir)
         if fam:
             family, family_src = fam, "template_keywords"
-    page, page_src = route_page(stem, lines, family, templates_dir,
-                                extra_anchor_lines=mt_lines)
+    page, page_src, template = resolve_page_template(
+        stem, lines, family, templates_dir, extra_anchor_lines=mt_lines)
     if lcd_pv_set:
         page, page_src = "mold_temp", "mold_temp_lcd_signature"
+        template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
     result["page_type"] = page
-
-    template = load_template(family, page, templates_dir, lines=lines)
-    if template is None and family == "DEMAG" and page in ("injection_metering", "monitor_curve"):
-        # DEMAG 多级注射曲线页被分类器记为 monitor_curve，统一走射保模板（035 第二波）
-        template = load_template(family, "injection_metering", templates_dir)
-        if template is not None:
-            page = "injection_metering"
-            result["page_type"] = page
-    if template is None and family == "TRD6" and page in ("injection_metering", "settings"):
-        # TRD6 注射设定页被分类器记为 settings，统一走射保模板（049 A6）
-        template = load_template(family, "injection_metering", templates_dir)
-        if template is not None:
-            page = "injection_metering"
-            result["page_type"] = page
-    if template is None and family == "ARBURG" and page in ("injection_metering", "monitor_curve", "unknown"):
-        # ARBURG 注射页含曲线图被记为 monitor_curve/unknown，统一走射保模板（049 A7）
-        template = load_template(family, "injection_metering", templates_dir)
-        if template is not None:
-            page = "injection_metering"
-            result["page_type"] = page
     if template is None and family_src in ("machine_labels", "record_report"):
         # 083 S07：机台先验/record 聚合与图像内容冲突（先验家族无此页模板，如
         # Z019 先验 TACT 而实拍为沙迪克 TRD6 温度设定页）时的最后兜底——

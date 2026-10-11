@@ -45,9 +45,10 @@ try:
     from rectify import rectify
     from classify_ui import find_ui_family, find_page
     from extract_fields import (
-        route_family, route_page, load_template, norm_tokens, extract_page_fields,
+        route_family, detect_family_from_templates, norm_tokens, extract_page_fields,
         TEMPLATES_DIR, RECORD_REPORT, MACHINE_LABELS,
     )
+    from page_template_registry import resolve_page_template
 except ImportError as e:
     print(f"[WARN] 模块导入警告: {e}", file=sys.stderr)
 
@@ -147,29 +148,28 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
 
     # 如果无法判族，基于机台先验或模板兜底
     resolved_family, family_src = route_family(stem, lines, record_report, machine_labels)
+    if resolved_family == "unknown":
+        inferred = detect_family_from_templates(lines, TEMPLATES_DIR)
+        if inferred:
+            resolved_family, family_src = inferred, "template_keywords"
     if resolved_family != "unknown":
         ui_family = resolved_family
 
-    page, _ = route_page(stem, lines, ui_family, TEMPLATES_DIR)
-    page_key = page
-    selected_template = load_template(ui_family, page, TEMPLATES_DIR, lines=lines)
-    template_name = f"{ui_family.lower()}.{page_key}.json"
+    page, page_src, selected_template = resolve_page_template(stem, lines, ui_family, TEMPLATES_DIR)
+    template_name = f"{ui_family.lower()}.{page}.json"
     if selected_template and selected_template.get("profile_id"):
         template_name = selected_template["profile_id"] + ".json"
         ui_family = selected_template["ui_family"]
-    tpl_path = TEMPLATES_DIR / template_name
-
     fields = None
     warnings = []
     status = "reject"
     heater_cols = []
     extraction_detail = {}
 
-    if selected_template is not None or tpl_path.is_file():
+    if selected_template is not None:
         try:
-            template = selected_template or json.loads(tpl_path.read_text())
             toks = norm_tokens(ocr_data, rect_meta.get("screen_size", [1920, 1080]))
-            ext = extract_page_fields(toks, template, ocr_lines=lines, meta=rect_meta,
+            ext = extract_page_fields(toks, selected_template, ocr_lines=lines, meta=rect_meta,
                                       image_path=rect_img_path if rect_img_path.is_file() else None)
 
             fields = ext.get("fields")
@@ -202,10 +202,12 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
         "classification": {
             "ui_family": ui_family,
             "ui_family_confidence": round(family_conf, 2),
+            "family_source": family_src,
             "page": page,
+            "page_source": page_src,
             "page_name_cn": PAGE_NAME_MAP.get(page, page),
             "page_confidence": round(page_conf, 2),
-            "template_name": template_name if selected_template is not None or tpl_path.is_file() else None,
+            "template_name": template_name if selected_template is not None else None,
             "template_version": selected_template["version"] if selected_template else None,
         },
         "status": status,
