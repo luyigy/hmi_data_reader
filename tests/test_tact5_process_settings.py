@@ -329,6 +329,8 @@ def test_http_and_feishu_keep_the_same_page_observations(tmp_path, monkeypatch):
     assert response['page_observations'] == result['page_observations']
     assert response['profile_id'] == result['profile_id'] == template()['profile_id']
     assert response['template'].endswith('v' + result['classification']['template_version'])
+    assert response['template'] == result['provenance']['template']
+    assert result['classification']['page_source'] == 'template_anchors'
     assert response['status'] == result['status'] == 'review'
 
 

@@ -543,6 +543,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         "screen_size": meta["screen_size"],
         "rectify_method": meta.get("method"),
     }
+    result["template_name"] = f"{template.get('profile_id', family.lower() + '.' + page)}.json"
+    result["template_version"] = template["version"]
     if clahe_stats is not None:
         result["provenance"]["ocr_clahe_merge"] = clahe_stats
     if rates_stats is not None:

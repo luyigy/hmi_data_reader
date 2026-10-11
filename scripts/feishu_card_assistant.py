@@ -44,11 +44,7 @@ try:
     from quality import assess
     from rectify import rectify
     from classify_ui import find_ui_family, find_page
-    from extract_fields import (
-        route_family, detect_family_from_templates, norm_tokens, extract_page_fields,
-        TEMPLATES_DIR, RECORD_REPORT, MACHINE_LABELS,
-    )
-    from page_template_registry import resolve_page_template
+    from extract_fields import extract_one, TEMPLATES_DIR, RECORD_REPORT, MACHINE_LABELS
 except ImportError as e:
     print(f"[WARN] 模块导入警告: {e}", file=sys.stderr)
 
@@ -126,7 +122,7 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
     # Step 2: 透视矫正
     rect_json_path = rect_dir / f"{stem}.rectify.json"
     rect_img_path = rect_dir / f"{stem}.png"
-    rect_meta = rectify(img_path, rect_img_path, rect_json_path)
+    rectify(img_path, rect_img_path, rect_json_path)
 
     # 使用矫正图（如果成功）或原图进行 OCR
     ocr_target_img = rect_img_path if rect_img_path.is_file() else img_path
@@ -138,62 +134,24 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
         "line_count": len(lines)
     }
 
-    # Step 3: 页面 & UI 家族分类
+    # Step 3: Reader 共享页面处理入口；飞书只负责 OCR 适配与卡片展示。
+    (rect_dir / f"{stem}.ocr.json").write_text(json.dumps(ocr_data, ensure_ascii=False))
     ui_family, family_conf = find_ui_family(lines)
-    page, page_conf = find_page(lines)
-
-    # 路由尝试
+    page_guess, page_conf = find_page(lines)
     record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
     machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
-
-    # 如果无法判族，基于机台先验或模板兜底
-    resolved_family, family_src = route_family(stem, lines, record_report, machine_labels)
-    if resolved_family == "unknown":
-        inferred = detect_family_from_templates(lines, TEMPLATES_DIR)
-        if inferred:
-            resolved_family, family_src = inferred, "template_keywords"
-    if resolved_family != "unknown":
-        ui_family = resolved_family
-
-    page, page_src, selected_template = resolve_page_template(stem, lines, ui_family, TEMPLATES_DIR)
-    template_name = f"{ui_family.lower()}.{page}.json"
-    if selected_template and selected_template.get("profile_id"):
-        template_name = selected_template["profile_id"] + ".json"
-        ui_family = selected_template["ui_family"]
-    fields = None
-    warnings = []
-    status = "reject"
-    heater_cols = []
-    extraction_detail = {}
-
-    if selected_template is not None:
-        try:
-            toks = norm_tokens(ocr_data, rect_meta.get("screen_size", [1920, 1080]))
-            ext = extract_page_fields(toks, selected_template, ocr_lines=lines, meta=rect_meta,
-                                      image_path=rect_img_path if rect_img_path.is_file() else None)
-
-            fields = ext.get("fields")
-            warnings = ext.get("warnings", [])
-            heater_cols = ext.get("heater_columns", [])
-            extraction_detail = ext.get("detail", {})
-
-            if fields is None:
-                status = "reject"
-            elif warnings:
-                status = "review"
-            else:
-                status = "ok"
-
-        except Exception as ex:
-            warnings.append(f"字段提取过程中抛出异常: {str(ex)}")
-            status = "reject"
-    else:
-        warnings.append(f"缺少匹配模板: {template_name}")
-        status = "review" if lines else "reject"
+    try:
+        extracted = extract_one(stem, rect_dir, record_report, machine_labels, TEMPLATES_DIR)
+    except Exception as ex:
+        extracted = {"status": "reject", "warnings": [f"字段提取过程中抛出异常: {ex}"],
+                     "fields": None, "heater_columns": [], "extraction_detail": {}}
+    page = extracted.get("page_type", page_guess)
+    ui_family = extracted.get("controller_family", ui_family)
+    provenance = extracted.get("provenance") or {}
 
     elapsed = round(time.time() - t0, 2)
 
-    result = {
+    result = {**extracted,
         "stem": stem,
         "image_path": str(img_path),
         "rectified_image_path": str(rect_img_path) if rect_img_path.is_file() else str(img_path),
@@ -202,26 +160,17 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
         "classification": {
             "ui_family": ui_family,
             "ui_family_confidence": round(family_conf, 2),
-            "family_source": family_src,
+            "family_source": provenance.get("family_source"),
             "page": page,
-            "page_source": page_src,
+            "page_source": provenance.get("page_source"),
             "page_name_cn": PAGE_NAME_MAP.get(page, page),
             "page_confidence": round(page_conf, 2),
-            "template_name": template_name if selected_template is not None else None,
-            "template_version": selected_template["version"] if selected_template else None,
+            "template_name": extracted.get("template_name"),
+            "template_version": extracted.get("template_version"),
         },
-        "status": status,
-        "warnings": warnings,
-        "heater_columns": heater_cols,
-        "fields": fields,
         "ocr_line_count": len(lines),
-        "page_observations": extraction_detail.get("page_observations"),
-        "extraction_detail": extraction_detail
+        "page_observations": extracted.get("extraction_detail", {}).get("page_observations"),
     }
-    if selected_template and selected_template.get("profile_id"):
-        from contract import attach_contract
-        result.update(controller_family=ui_family, page_type=page)
-        attach_contract(result)
     return result
 
 

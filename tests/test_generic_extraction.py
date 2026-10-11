@@ -128,6 +128,33 @@ def test_extract_one_uses_review_fallback_and_generic_profile(tmp_path: Path):
                        "label_token_ids": ["t0"], "value_token_ids": ["t1"]}
 
 
+def test_feishu_uses_the_same_generic_page_result(tmp_path: Path, monkeypatch):
+    import cv2
+    import numpy as np
+    import feishu_card_assistant as card
+    from quality import QualityReport
+
+    source = tmp_path / 'unknown_screen.png'
+    cv2.imwrite(str(source), np.zeros((120, 300, 3), dtype=np.uint8))
+    lines = [_line('保压时间', 10, 10, 80, 25), _line('2.5', 90, 10, 120, 25)]
+    meta = {'ok': True, 'screen_size': [300, 120], 'method': 'test'}
+
+    def rectify(_source, target, metadata):
+        cv2.imwrite(str(target), np.zeros((120, 300, 3), dtype=np.uint8))
+        metadata.write_text(json.dumps(meta))
+        return meta
+
+    monkeypatch.setattr(card, 'rectify', rectify)
+    monkeypatch.setattr(card, 'assess', lambda _: QualityReport(filename='fixture', triage='green'))
+    monkeypatch.setattr(card, 'run_ocr_for_image', lambda _: lines)
+    monkeypatch.setattr(card, 'TEMPLATES_DIR', tmp_path / 'no_templates')
+    result = card.process_hmi_image(source, tmp_path / 'work')
+    direct = extract_one(source.stem, tmp_path / 'work/rectified', None, None, card.TEMPLATES_DIR)
+    assert (result['status'], result['fields'], result['profile_id']) == (
+        direct['status'], direct['fields'], direct['profile_id'])
+    assert result['provenance']['page_source'] == direct['provenance']['page_source']
+
+
 def test_optional_bearer_token(monkeypatch):
     async def ok(_request):
         return JSONResponse({"ok": True})
