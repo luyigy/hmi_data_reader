@@ -153,6 +153,7 @@ def test_feishu_uses_the_same_generic_page_result(tmp_path: Path, monkeypatch):
     assert (result['status'], result['fields'], result['profile_id']) == (
         direct['status'], direct['fields'], direct['profile_id'])
     assert result['provenance']['page_source'] == direct['provenance']['page_source']
+    assert card.build_feishu_card(result)['header']['template'] == 'orange'
 
 
 def test_optional_bearer_token(monkeypatch):
