@@ -45,14 +45,8 @@ try:
     from rectify import rectify
     from classify_ui import find_ui_family, find_page
     from extract_fields import (
-        route_family, route_page, load_template, norm_tokens, TEMPLATES_DIR, RECORD_REPORT, MACHINE_LABELS,
-        extract_temperature, extract_temperature_tact, extract_temperature_keba,
-        extract_temperature_b_and_r, extract_temperature_fanuc, extract_temperature_demag,
-        extract_injection_tact, extract_injection_demag, extract_injection_fanuc,
-        extract_injection_zizes, extract_injection_keba, extract_injection_b_and_r,
-        extract_injection_kaiming, extract_injection_est, extract_injection_trd6,
-        extract_injection_arburg, extract_molding_monitor_fanuc, extract_waveform_fanuc,
-        extract_hot_runner_tact, extract_mold_temp_fanuc
+        route_family, route_page, load_template, norm_tokens, extract_page_fields,
+        TEMPLATES_DIR, RECORD_REPORT, MACHINE_LABELS,
     )
 except ImportError as e:
     print(f"[WARN] 模块导入警告: {e}", file=sys.stderr)
@@ -171,44 +165,12 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
     heater_cols = []
     extraction_detail = {}
 
-    if tpl_path.is_file():
+    if selected_template is not None or tpl_path.is_file():
         try:
             template = selected_template or json.loads(tpl_path.read_text())
             toks = norm_tokens(ocr_data, rect_meta.get("screen_size", [1920, 1080]))
-
-            # 根据 family & page_key 提取字段
-            if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
-                from extract_families.tact5_process import extract_tact5
-                ext = extract_tact5(lines, template, rect_meta,
-                                    image_path=rect_img_path if rect_img_path.is_file() else None)
-            elif page_key == "injection_metering":
-                if ui_family == "TACT": ext = extract_injection_tact(toks, template)
-                elif ui_family == "DEMAG": ext = extract_injection_demag(toks, template)
-                elif ui_family == "FANUC": ext = extract_injection_fanuc(toks, template)
-                elif ui_family == "ZizES" or ui_family == "ZIZES": ext = extract_injection_zizes(toks, template)
-                elif ui_family == "KEBA": ext = extract_injection_keba(toks, template)
-                elif ui_family == "B_AND_R": ext = extract_injection_b_and_r(toks, template)
-                elif ui_family == "KAIMING": ext = extract_injection_kaiming(toks, template)
-                elif ui_family == "EST": ext = extract_injection_est(toks, template)
-                elif ui_family == "TRD6": ext = extract_injection_trd6(toks, template)
-                elif ui_family == "ARBURG": ext = extract_injection_arburg(toks, template)
-                else: ext = {"fields": None, "warnings": ["未知的射出保压控制器家族"], "heater_columns": [], "detail": {}}
-            elif page_key == "molding_monitor" and ui_family == "FANUC":
-                ext = extract_molding_monitor_fanuc(toks, template)
-            elif page_key == "waveform" and ui_family == "FANUC":
-                ext = extract_waveform_fanuc(toks, template)
-            elif page_key == "hot_runner_temp" and ui_family == "TACT":
-                ext = extract_hot_runner_tact(toks, template)
-            elif page_key == "mold_temp" and ui_family == "FANUC":
-                ext = extract_mold_temp_fanuc(toks, template)
-            else:
-                # 温度页逻辑
-                if ui_family == "KEBA": ext = extract_temperature_keba(toks, template)
-                elif ui_family == "B_AND_R": ext = extract_temperature_b_and_r(toks, template)
-                elif ui_family == "FANUC": ext = extract_temperature_fanuc(toks, template)
-                elif ui_family == "DEMAG": ext = extract_temperature_demag(toks, template)
-                elif ui_family == "TACT": ext = extract_temperature_tact(toks, template)
-                else: ext = extract_temperature(toks, template)
+            ext = extract_page_fields(toks, template, ocr_lines=lines, meta=rect_meta,
+                                      image_path=rect_img_path if rect_img_path.is_file() else None)
 
             fields = ext.get("fields")
             warnings = ext.get("warnings", [])
@@ -243,7 +205,7 @@ def process_hmi_image(image_path: str | Path, workdir: str | Path = "output") ->
             "page": page,
             "page_name_cn": PAGE_NAME_MAP.get(page, page),
             "page_confidence": round(page_conf, 2),
-            "template_name": template_name if tpl_path.is_file() else None,
+            "template_name": template_name if selected_template is not None or tpl_path.is_file() else None,
             "template_version": selected_template["version"] if selected_template else None,
         },
         "status": status,

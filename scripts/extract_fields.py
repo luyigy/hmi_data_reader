@@ -232,6 +232,50 @@ from extract_families.mold_temp_devices import (  # noqa: E402
     extract_mold_temp_thermoregulator, is_lcd_pv_set)
 
 
+def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dict] | None = None,
+                        meta: dict | None = None, image_path: Path | None = None) -> dict:
+    """Select one extractor for all Reader entry points; callers prepare their own OCR evidence."""
+    page = template.get("page")
+    ui = template.get("ui_family")
+    if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
+        from extract_families.tact5_process import extract_tact5
+        return extract_tact5(ocr_lines or [], template, meta or {}, image_path=image_path)
+    if page == "injection_metering":
+        extractors = {
+            "TACT": extract_injection_tact, "DEMAG": extract_injection_demag,
+            "FANUC": extract_injection_fanuc, "ZIZES": extract_injection_zizes,
+            "KEBA": extract_injection_keba, "B_AND_R": extract_injection_b_and_r,
+            "KAIMING": extract_injection_kaiming, "EST": extract_injection_est,
+            "TRD6": extract_injection_trd6, "ARBURG": extract_injection_arburg,
+        }
+        extractor = extractors.get(str(ui).upper())
+        if extractor:
+            return (extractor(toks, template, image_path=image_path) if ui == "DEMAG"
+                    else extractor(toks, template))
+    if page == "molding_monitor" and ui == "FANUC":
+        return extract_molding_monitor_fanuc(toks, template)
+    if page == "waveform" and ui == "FANUC":
+        return extract_waveform_fanuc(toks, template)
+    if page == "hot_runner_temp" and ui == "TACT":
+        return extract_hot_runner_tact(toks, template, image_path=image_path)
+    if page == "mold_temp":
+        mold_extractors = {
+            "FANUC": extract_mold_temp_fanuc, "OMRON_E5CC": extract_mold_temp_omron_e5cc,
+            "MOLD_THERMOREGULATOR": extract_mold_temp_thermoregulator,
+            "INDUSTRIAL_CHILLER": extract_mold_temp_industrial_chiller,
+        }
+        extractor = mold_extractors.get(ui)
+        if extractor:
+            return extractor(toks, template)
+    temperature_extractors = {
+        "TACT": extract_temperature_tact, "KEBA": extract_temperature_keba,
+        "B_AND_R": extract_temperature_b_and_r, "FANUC": extract_temperature_fanuc,
+        "DEMAG": extract_temperature_demag, "KAIMING": extract_temperature_kaiming,
+        "EST": extract_temperature_est, "TRD6": extract_temperature_trd6,
+    }
+    return temperature_extractors.get(ui, extract_temperature)(toks, template)
+
+
 # ---------------------------------------------------------------- 主流程
 # 083 S03 温度表逐格重读救援（service/retest 共用判定）：B&R/DEMAG 温度页
 # 提取出现缺格/列结构失败时，生成逐格 rec 旁车后重提取一次，仅缺格变少才采用。
@@ -504,71 +548,9 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             base_lines = merged_lines if clahe_stats is not None else ocr_data.get("lines", [])
             toks = norm_tokens({**ocr_data, "lines": base_lines + mt_lines},
                                meta["screen_size"])
-    page_key = template_page_key
-    if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
-        from extract_families.tact5_process import extract_tact5
-        png_path = rectified_dir / f"{stem}.png"
-        ext = extract_tact5(ocr_data.get("lines", []), template, meta,
-                            image_path=png_path if png_path.is_file() else None)
-    elif page_key == "injection_metering" and ui == "TACT":
-        ext = extract_injection_tact(toks, template)
-    elif page_key == "injection_metering" and ui == "DEMAG":
-        # Layer 1 禁用段图像观测：矫正 PNG 存在时传入（缺失则优雅降级，无观测输出）
-        png_path = rectified_dir / f"{stem}.png"
-        ext = extract_injection_demag(toks, template,
-                                      image_path=png_path if png_path.is_file() else None)
-    elif page_key == "injection_metering" and ui == "FANUC":
-        ext = extract_injection_fanuc(toks, template)
-    elif page_key == "injection_metering" and ui == "ZIZES":
-        ext = extract_injection_zizes(toks, template)
-    elif page_key == "injection_metering" and ui == "KEBA":
-        ext = extract_injection_keba(toks, template)
-    elif page_key == "injection_metering" and ui == "B_AND_R":
-        ext = extract_injection_b_and_r(toks, template)
-    elif page_key == "injection_metering" and ui == "KAIMING":
-        ext = extract_injection_kaiming(toks, template)
-    elif page_key == "injection_metering" and ui == "EST":
-        ext = extract_injection_est(toks, template)
-    elif page_key == "injection_metering" and ui == "TRD6":
-        ext = extract_injection_trd6(toks, template)
-    elif page_key == "injection_metering" and ui == "ARBURG":
-        ext = extract_injection_arburg(toks, template)
-    elif page_key == "molding_monitor" and ui == "FANUC":
-        ext = extract_molding_monitor_fanuc(toks, template)
-    elif page_key == "waveform" and ui == "FANUC":
-        ext = extract_waveform_fanuc(toks, template)
-    elif page_key == "hot_runner_temp" and ui == "TACT":
-        # 057 S02 动态槽位：黑屏（blackout）图像确认需矫正图探测显示区，
-        # 缺失时优雅降级 unreadable（同 DEMAG Layer 1 先例，不传则不出 blackout）
-        png_path = rectified_dir / f"{stem}.png"
-        ext = extract_hot_runner_tact(
-            toks, template, image_path=png_path if png_path.is_file() else None)
-    elif page_key == "mold_temp" and ui == "FANUC":
-        ext = extract_mold_temp_fanuc(toks, template)
-    elif page_key == "mold_temp" and ui == "OMRON_E5CC":
-        ext = extract_mold_temp_omron_e5cc(toks, template)
-    elif page_key == "mold_temp" and ui == "MOLD_THERMOREGULATOR":
-        ext = extract_mold_temp_thermoregulator(toks, template)
-    elif page_key == "mold_temp" and ui == "INDUSTRIAL_CHILLER":
-        ext = extract_mold_temp_industrial_chiller(toks, template)
-    elif ui == "TACT":
-        ext = extract_temperature_tact(toks, template)
-    elif ui == "KEBA":
-        ext = extract_temperature_keba(toks, template)
-    elif ui == "B_AND_R":
-        ext = extract_temperature_b_and_r(toks, template)
-    elif ui == "FANUC":
-        ext = extract_temperature_fanuc(toks, template)
-    elif ui == "DEMAG":
-        ext = extract_temperature_demag(toks, template)
-    elif ui == "KAIMING":
-        ext = extract_temperature_kaiming(toks, template)
-    elif ui == "EST":
-        ext = extract_temperature_est(toks, template)
-    elif ui == "TRD6":
-        ext = extract_temperature_trd6(toks, template)
-    else:
-        ext = extract_temperature(toks, template)
+    png_path = rectified_dir / f"{stem}.png"
+    ext = extract_page_fields(toks, template, ocr_lines=ocr_data.get("lines", []), meta=meta,
+                              image_path=png_path if png_path.is_file() else None)
     result["warnings"].extend(ext["warnings"])
     result["heater_columns"] = ext["heater_columns"]
     result["fields"] = ext["fields"]
