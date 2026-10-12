@@ -188,6 +188,17 @@ class DemagHoldingPageTest(unittest.TestCase):
         fallback = extract_demag([], {**temperature_template, "page": "unknown"})
         self.assertEqual(fallback, temperature)
 
+    def test_holding_observations_require_manual_stage_review(self):
+        result = extract_demag(self.HOLDING_TOKENS, {
+            "page": "injection_metering", "curve_page": self.TEMPLATE,
+        })
+        facts = result["detail"]["page_observations"]
+        assert facts["profile_id"] == "demag.injection_metering.multi_stage_holding"
+        pressure = [f for f in facts["fields"] if f["label"].startswith("保压压力")]
+        assert [(f["stage"], f["value"]) for f in pressure] == [(1, 65), (2, 60), (3, 55)]
+        assert all(f["state"] == "unknown" and f["original_bbox"] is None
+                   and not f["line_indexes"] for f in facts["fields"])
+
     def test_holding_variant_and_physical_stage_order(self):
         warnings = []
         fields = _extract_curve(list(self.HOLDING_TOKENS), self.TEMPLATE, warnings)

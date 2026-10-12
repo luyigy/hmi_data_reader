@@ -9,6 +9,7 @@
 import re
 
 from ..common import _anchor_match, _fit_slope, _num  # noqa: F401
+from .observations import holding_observations
 
 NUM_RE = re.compile(r"\d+\.?\d*")
 
@@ -623,6 +624,8 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
     detail = {"page_variant": variant}
     if variant in ("multi_stage_injection", "multi_stage_holding"):
         detail["pressure_unit_text"] = pressure_unit_text
+    if variant == "multi_stage_holding":
+        detail["page_observations"] = holding_observations(fields)
     if stage_enabled:
         detail["stage_enabled"] = stage_enabled
     return {"fields": fields, "heater_columns": 0,

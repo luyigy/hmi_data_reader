@@ -1,0 +1,14 @@
+{
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "sample_id": "Z002_ab30f6f6",
+  "purpose": "development_exposed_not_independent_test",
+  "original_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+  "original_size": [
+    994,
+    650
+  ],
+  "ocr_fixture": "tests/fixtures/demag_holding_z002_ocr.json",
+  "ocr_sha256": "65088d3a3e5dd310c7bc2ef5c5f68b205e247030c11a2a7c30b5e3b27a97d6d8",
+  "truth_scope": "Z002 保压压力、时间、速度由领域所有者核对；第 3 段压力 0 为禁用残值，压力基准和字段原图框仍待确认",
+  "photo_distribution": "原图保存在 Reader datasets/calibration/demag.injection_metering.multi_stage_holding；已参与识别修复，不作为独立留出图"
+}
