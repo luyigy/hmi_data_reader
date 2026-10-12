@@ -23,10 +23,10 @@ first_slice: S01
 ## 已核对的现场事实与不确定项
 
 - `contracts/profiles.json` 已登记 `demag.injection_metering.multi_stage_holding` 为 verified，说明保压识别并非从零开始；注册表也披露 Z002/Z005 的 17 份样本全部参与过迭代修复，没有独立留出图。
-- `scripts/page_template_registry.py` 已可按 `contracts/profiles.json` 的相对路径读取控制器子目录，无需新增一套目录扫描器；此前锚点未命中时会回退误选唯一的注册模板。`26ee50a` 加入模板可选择的 `require_anchor_match` 守卫，`b595562` 让历史别名回退也传入 OCR 行；实测 5 张保压 OCR 命中子目录、6 张射胶 OCR 仍使用平铺模板。真实 DEMAG 目录和模板尚未建立。
+- `scripts/page_template_registry.py` 已可按 `contracts/profiles.json` 的相对路径读取控制器子目录，无需新增一套目录扫描器；此前锚点未命中时会回退误选唯一的注册模板。`26ee50a` 加入模板可选择的 `require_anchor_match` 守卫，`b595562` 让历史别名回退也传入 OCR 行。`51b3e30` 建立 `templates/demag/holding.json` 并注册生效：5 张 Z002 保压 OCR 命中，6 张 Z002 射胶 OCR 仍使用平铺模板。
 - 本机 5 份 Z002 保压矫正产物当前均输出 `demag.injection_metering.multi_stage_holding`，结果摘要已在 `26ee50a` 前后保持一致。另 3 份 Z005 历史矫正产物以 `holding_Z005...` 裸文件名运行时家族为 unknown 并拒识；它们不能直接代表带机台上下文的现网请求，S01 要补证据。
-- `scripts/extract_fields.py` 已统一调用 `resolve_page_template()`，但 `extract_page_fields()` 直接知道 DEMAG 与 TACT5 的提取函数。`hmi_service.py` 还直接调用 TACT5 的局部补读函数。
-- TACT5 页面事实和三入口补读已有本仓 143 PLAN；本计划不重开那条路线。DEMAG 目录名只能根据图像或控制器资料确认，不能把品牌名直接当成型号。
+- `scripts/extract_fields.py` 已统一调用 `resolve_page_template()`；`51b3e30` 把 DEMAG 温度与工艺提取移入 `extract_families/demag/`，由 `extract_demag()` 接收共享分派。共享分派仍有 DEMAG 家族条目；`hmi_service.py` 仍直接调用 TACT5 的局部补读函数。
+- TACT5 页面事实和三入口补读已有本仓 143 PLAN；本计划不重开那条路线。`templates/demag/` 代表已确认的 DEMAG UI 家族，`controller.json` 明确记录具体控制器型号未知；不能把品牌名直接当成型号。
 
 ## 总体路线与归属
 
@@ -91,4 +91,4 @@ first_slice: S01
 
 Reader 每片完成后单独提交、验证和交接。S04 结束时交付 DEMAG 保压固定页面包版本、样本哈希、字段证据、旧路径回放和家族入口清单。TACT5 继续依 143 PLAN 处理，不以其进度阻断 DEMAG；主仓在 Reader 包可验收后，另立 PLAN 审核字段映射、人工确认与保存重开。DEMAG 射胶按实图另接，计量先确认实际页面，不以工艺优化或背压候选冒充。
 
-本计划仍为 `draft / await_plan_approval`，没有可执行 Prompt。关联主仓已废止的跨仓计划：`docs/dev/545_PLAN_20261012_HMI控制器目录与DEMAG首屏接入.md`。本仓现有未提交 TACT5 模板及归档不属于本计划提交。
+本计划仍为 `draft / await_plan_approval`，没有可执行 Prompt。`51b3e30` 是用户直接要求推进的 Reader 代码提交，不等于 PLAN 获批，也不等于 S01–S04 的全部验收已完成：Z005 带机台上下文回放、独立留出图、生产入口与主仓写入仍缺证据。关联主仓已废止的跨仓计划：`docs/dev/545_PLAN_20261012_HMI控制器目录与DEMAG首屏接入.md`。本仓现有未提交 TACT5 模板及归档不属于本计划提交。
