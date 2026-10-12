@@ -636,7 +636,7 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
     elif variant == "multi_stage_injection":
         detail["page_observations"] = injection_observations(fields)
     elif variant == "multi_stage_back_pressure":
-        detail["page_observations"] = metering_observations(fields)
+        detail["page_observations"] = metering_observations(fields, toks)
     if stage_enabled:
         detail["stage_enabled"] = stage_enabled
     return {"fields": fields, "heater_columns": 0,

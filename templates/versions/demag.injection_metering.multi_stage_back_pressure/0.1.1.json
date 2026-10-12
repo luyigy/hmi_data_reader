@@ -1,0 +1,46 @@
+{
+  "version": "0.1.1",
+  "profile_id": "demag.injection_metering.multi_stage_back_pressure",
+  "page_version": "1",
+  "rule_version": "s05.1",
+  "ui_family": "DEMAG",
+  "page": "injection_metering",
+  "layout_anchors": ["背压.*bar\\]", "螺杆转速.*", "多级背压"],
+  "require_anchor_match": true,
+  "coordinate_system": "normalized_screen",
+  "description": "DEMAG 多级预塑页；各行数值按实图倾斜校正提取，物理段序和位置含义待确认。",
+  "sample_ids": ["Z002_WeHdT"],
+  "business_profile_candidate": {
+    "page_id": "demag.injection_metering.multi_stage_back_pressure",
+    "page_version": "1",
+    "rule_version": "s05.1",
+    "algorithm": "protocol_replay_v1",
+    "decision_source": "Z002_WeHdT 与 Z005_WJROn 多级预塑实图；压力按用户确认的德马格机台液压压力，字段写入语义待裁定",
+    "verification_status": "sample_reviewed_partial",
+    "controller": "DEMAG",
+    "page_kind": "multi_stage_back_pressure",
+    "structural_markers": ["多级背压"],
+    "speed_unit": "mm/s",
+    "pressure_basis": "hydraulic_pressure",
+    "holding_time_meaning": "segment_duration",
+    "pre_suck_back": {"enabled": false},
+    "post_suck_back": {"enabled": false},
+    "possible_names": {},
+    "field_units": {},
+    "field_write_review": {
+      "stage_back_pressure_bar": "observation_only",
+      "stage_plasticizing_speed_rpm": "observation_only",
+      "stage_position_mm": "observation_only",
+      "stage_velocity_mms": "observation_only"
+    },
+    "migration_notes": ["压力侧别按机台液压压力；段位置含义与物理顺序未确认，全部保留识别观测，不授予业务写入目标。"]
+  },
+  "curve_page": {
+    "row_anchors": {
+      "pressure": ["背压[bar]", "背压"],
+      "velocity": ["螺杆转速[U/min]", "螺杆转速"],
+      "position": ["位置[mm]", "位置"]
+    },
+    "row_y_hint": {"pressure": 0.52, "velocity": 0.57, "position": 0.62}
+  }
+}
