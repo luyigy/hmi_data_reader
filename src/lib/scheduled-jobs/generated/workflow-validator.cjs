@@ -178,6 +178,10 @@ const readWorkflowContract = async (cwd, ref, contractPath, signal, reader = new
         throw new Error(`unsupported workflow schema_version: ${contract.schema_version}`);
     strings(contract.documents?.automation_types, 'documents.automation_types');
     required(contract.documents?.filename_pattern, 'documents.filename_pattern');
+    if (contract.documents?.plan_candidate_filename_pattern) {
+        new RegExp(contract.documents.plan_candidate_filename_pattern.replace(/\(\?P<[^>]+>/g, '('));
+        required(contract.templates?.plan_html_candidate, 'templates.plan_html_candidate');
+    }
     required(contract.documents?.slice_pattern, 'documents.slice_pattern');
     strings(contract.documents?.statuses, 'documents.statuses');
     strings(contract.documents?.common_required_fields, 'documents.common_required_fields');
@@ -231,7 +235,9 @@ const readWorkflowContract = async (cwd, ref, contractPath, signal, reader = new
 };
 exports.readWorkflowContract = readWorkflowContract;
 const workflowFrontMatter = (content) => {
-    const match = content.match(/^---\n([\s\S]*?)\n---\n/);
+    const match = content.startsWith('<!--\n')
+        ? content.match(/^<!--\n---\n([\s\S]*?)\n---\n-->\n/)
+        : content.match(/^---\n([\s\S]*?)\n---\n/);
     if (!match)
         throw new Error('missing YAML front matter');
     const metadata = (0, yaml_1.parse)(match[1]);
@@ -241,10 +247,14 @@ const workflowFrontMatter = (content) => {
     return metadata;
 };
 exports.workflowFrontMatter = workflowFrontMatter;
-const selectWorkflowCandidates = (filePaths, contract, watchRoot) => {
+const selectWorkflowCandidates = (filePaths, contract, watchRoot, includeHtmlPlanCandidates = false) => {
     const filename = new RegExp(contract.documents.filename_pattern.replace(/\(\?P<[^>]+>/g, '('));
+    const htmlPlan = includeHtmlPlanCandidates && contract.documents.plan_candidate_filename_pattern
+        ? new RegExp(contract.documents.plan_candidate_filename_pattern.replace(/\(\?P<[^>]+>/g, '('))
+        : null;
     return filePaths.flatMap((filePath) => {
-        const match = filename.exec(node_path_1.default.posix.basename(filePath));
+        const match = filename.exec(node_path_1.default.posix.basename(filePath))
+            ?? htmlPlan?.exec(node_path_1.default.posix.basename(filePath));
         if (!match
             || (watchRoot && node_path_1.default.posix.dirname(filePath) !== watchRoot)
             || !contract.documents.automation_types.includes(match[2]))
@@ -333,6 +343,9 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
         });
     };
     const has = (field) => field in metadata;
+    if (filePath.endsWith('.html') && /<\s*(?:script|iframe|object|embed|link|form|style|svg|math)\b|\s(?:on[a-z]+|src|href)\s*=|javascript:|data:|url\s*\(/i.test(content)) {
+        issue('HTML_ACTIVE_CONTENT', '正文', 'HTML PLAN 候选只能包含静态内容');
+    }
     const hasValue = (field) => has(field) && metadata[field] !== null && metadata[field] !== '';
     for (const field of contract.documents.common_required_fields) {
         if (!has(field))
@@ -564,7 +577,7 @@ const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePath
             template: `${type}: ${filePath}`,
         }
         : null))).filter(Boolean);
-    const candidates = (0, exports.selectWorkflowCandidates)(filePaths, contract);
+    const candidates = (0, exports.selectWorkflowCandidates)(filePaths, contract, undefined, true);
     if (candidates.length !== filePaths.length)
         throw new Error('candidate is not a PLAN/HANDOVER workflow document');
     // Branch-space numbering uniqueness (commit-time gate): scan the branch-space
@@ -578,7 +591,7 @@ const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePath
         const allPaths = Array.from(new Set([...await reader.list(contract.branch_spaces.root), ...filePaths]));
         for (const candidate of candidates) {
             const watchRoot = node_path_1.default.posix.dirname(candidate.filePath);
-            const collisions = (0, exports.selectWorkflowCandidates)(allPaths, contract, watchRoot).filter((item) => item.number === candidate.number && item.filePath !== candidate.filePath);
+            const collisions = (0, exports.selectWorkflowCandidates)(allPaths, contract, watchRoot, true).filter((item) => item.number === candidate.number && item.filePath !== candidate.filePath);
             if (collisions.length) {
                 const issue = {
                     code: 'DOCUMENT_NUMBER_DUPLICATE',
@@ -602,7 +615,7 @@ const validateWorkflowDocuments = async ({ cwd, ref, contractRef = ref, filePath
                 message: 'workflow document number has invalid width',
                 expected: String(contract.numbering.width),
                 actual: candidate.rawNumber.length,
-                template: `${'<编号>'.padStart(contract.numbering.width, '0')}_${candidate.type}_YYYYMMDD_<主题>.md`,
+                template: `${'<编号>'.padStart(contract.numbering.width, '0')}_${candidate.type}_YYYYMMDD_<主题>.${candidate.filePath.endsWith('.html') ? 'html' : 'md'}`,
             };
             throw new WorkflowDocumentValidationError(`${candidate.filePath}: ${issue.message}`, [issue]);
         }

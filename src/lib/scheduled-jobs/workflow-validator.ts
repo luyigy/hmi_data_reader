@@ -30,6 +30,7 @@ export type WorkflowContract = {
   documents: {
     automation_types: string[];
     filename_pattern: string;
+    plan_candidate_filename_pattern?: string;
     slice_pattern: string;
     statuses: string[];
     common_required_fields: string[];
@@ -55,7 +56,7 @@ export type WorkflowContract = {
   };
   actions: { executable: string[]; review?: string[]; terminal: string[] };
   prompt: { start_marker: string; end_marker: string };
-  templates?: { plan?: string; handover?: string };
+  templates?: { plan?: string; plan_html_candidate?: string; handover?: string };
   standards?: { plan?: string };
   validation?: { mode?: 'balanced' | 'strict'; rules?: Record<string, boolean> };
   completion_gate: { timeout_seconds: number };
@@ -95,6 +96,10 @@ export const readWorkflowContract = async (
   if (contract.schema_version !== 2) throw new Error(`unsupported workflow schema_version: ${contract.schema_version}`);
   strings(contract.documents?.automation_types, 'documents.automation_types');
   required(contract.documents?.filename_pattern, 'documents.filename_pattern');
+  if (contract.documents?.plan_candidate_filename_pattern) {
+    new RegExp(contract.documents.plan_candidate_filename_pattern.replace(/\(\?P<[^>]+>/g, '('));
+    required(contract.templates?.plan_html_candidate, 'templates.plan_html_candidate');
+  }
   required(contract.documents?.slice_pattern, 'documents.slice_pattern');
   strings(contract.documents?.statuses, 'documents.statuses');
   strings(contract.documents?.common_required_fields, 'documents.common_required_fields');
@@ -148,7 +153,9 @@ export const readWorkflowContract = async (
 };
 
 export const workflowFrontMatter = (content: string) => {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n/);
+  const match = content.startsWith('<!--\n')
+    ? content.match(/^<!--\n---\n([\s\S]*?)\n---\n-->\n/)
+    : content.match(/^---\n([\s\S]*?)\n---\n/);
   if (!match) throw new Error('missing YAML front matter');
   const metadata = parse(match[1]);
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
@@ -161,10 +168,15 @@ export const selectWorkflowCandidates = (
   filePaths: string[],
   contract: WorkflowContract,
   watchRoot?: string,
+  includeHtmlPlanCandidates = false,
 ) => {
   const filename = new RegExp(contract.documents.filename_pattern.replace(/\(\?P<[^>]+>/g, '('));
+  const htmlPlan = includeHtmlPlanCandidates && contract.documents.plan_candidate_filename_pattern
+    ? new RegExp(contract.documents.plan_candidate_filename_pattern.replace(/\(\?P<[^>]+>/g, '('))
+    : null;
   return filePaths.flatMap((filePath) => {
-    const match = filename.exec(path.posix.basename(filePath));
+    const match = filename.exec(path.posix.basename(filePath))
+      ?? htmlPlan?.exec(path.posix.basename(filePath));
     if (!match
       || (watchRoot && path.posix.dirname(filePath) !== watchRoot)
       || !contract.documents.automation_types.includes(match[2])) return [];
@@ -284,6 +296,9 @@ export const validateWorkflowDocument = async (
     });
   };
   const has = (field: string) => field in metadata;
+  if (filePath.endsWith('.html') && /<\s*(?:script|iframe|object|embed|link|form|style|svg|math)\b|\s(?:on[a-z]+|src|href)\s*=|javascript:|data:|url\s*\(/i.test(content)) {
+    issue('HTML_ACTIVE_CONTENT', '正文', 'HTML PLAN 候选只能包含静态内容');
+  }
   const hasValue = (field: string) => has(field) && metadata[field] !== null && metadata[field] !== '';
   for (const field of contract.documents.common_required_fields) {
     if (!has(field)) issue('REQUIRED_FIELD_MISSING', `YAML.${field}`, '缺少必填字段');
@@ -576,7 +591,7 @@ export const validateWorkflowDocuments = async ({
           template: `${type}: ${filePath}`,
         }
       : null))).filter(Boolean) as WorkflowValidationIssue[];
-  const candidates = selectWorkflowCandidates(filePaths, contract);
+  const candidates = selectWorkflowCandidates(filePaths, contract, undefined, true);
   if (candidates.length !== filePaths.length) throw new Error('candidate is not a PLAN/HANDOVER workflow document');
   // Branch-space numbering uniqueness (commit-time gate): scan the branch-space
   // tree of the target ref so a second document reusing an existing number in
@@ -589,7 +604,7 @@ export const validateWorkflowDocuments = async ({
     const allPaths = Array.from(new Set([...await reader.list(contract.branch_spaces.root), ...filePaths]));
     for (const candidate of candidates) {
       const watchRoot = path.posix.dirname(candidate.filePath);
-      const collisions = selectWorkflowCandidates(allPaths, contract, watchRoot).filter(
+      const collisions = selectWorkflowCandidates(allPaths, contract, watchRoot, true).filter(
         (item) => item.number === candidate.number && item.filePath !== candidate.filePath,
       );
       if (collisions.length) {
@@ -615,7 +630,7 @@ export const validateWorkflowDocuments = async ({
         message: 'workflow document number has invalid width',
         expected: String(contract.numbering.width),
         actual: candidate.rawNumber.length,
-        template: `${'<编号>'.padStart(contract.numbering.width, '0')}_${candidate.type}_YYYYMMDD_<主题>.md`,
+        template: `${'<编号>'.padStart(contract.numbering.width, '0')}_${candidate.type}_YYYYMMDD_<主题>.${candidate.filePath.endsWith('.html') ? 'html' : 'md'}`,
       };
       throw new WorkflowDocumentValidationError(`${candidate.filePath}: ${issue.message}`, [issue]);
     }

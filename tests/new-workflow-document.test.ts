@@ -4,7 +4,10 @@ import { mkdtemp, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createWorkflowDocument } from '../scripts/new-workflow-document';
-import { validateWorkflowDocuments, WorkingTreeReader } from '../src/lib/scheduled-jobs/workflow-validator';
+import {
+  readWorkflowContract, selectWorkflowCandidates, validateWorkflowDocuments, WorkingTreeReader,
+  WorkflowDocumentValidationError,
+} from '../src/lib/scheduled-jobs/workflow-validator';
 
 async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'workflow-scaffold-'));
@@ -13,7 +16,7 @@ async function main() {
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'Test');
   await mkdir(path.join(root, 'docs/workflow/templates'), { recursive: true });
-  for (const file of ['workflow-contract.yaml', 'PLAN-writing-standard.md', 'templates/PLAN.md', 'templates/HANDOVER.md']) {
+  for (const file of ['workflow-contract.yaml', 'PLAN-writing-standard.md', 'templates/PLAN.md', 'templates/PLAN-candidate.html', 'templates/HANDOVER.md']) {
     await writeFile(path.join(root, 'docs/workflow', file), await readFile(path.join(process.cwd(), 'docs/workflow', file)));
   }
   await writeFile(path.join(root, 'docs/007_REPORT_20260812_existing.md'), '# existing\n');
@@ -82,6 +85,35 @@ return_to: null
   for (const filePath of [phase.filePath, next.filePath, terminal.filePath, interrupt.filePath]) {
     await validateWorkflowDocuments({ cwd: root, ref: 'HEAD', filePaths: [filePath], reader });
   }
+  const html = await createWorkflowDocument(root, ['--kind', 'plan', '--title', 'HTML样例', '--format', 'html']);
+  assert.match(html.filePath, /^docs\/017_PLAN_\d{8}_HTML样例\.html$/);
+  const htmlContent = await readFile(path.join(root, html.filePath), 'utf8');
+  assert.match(htmlContent, /<!doctype html>/);
+  assert.match(htmlContent, /<h1>PLAN · HTML样例<\/h1>/);
+  assert.match(htmlContent, /<!-- WORKFLOW_PROMPT_START -->/);
+  await validateWorkflowDocuments({ cwd: root, ref: 'HEAD', filePaths: [html.filePath], reader });
+  const contract = await readWorkflowContract(root, 'HEAD', 'docs/workflow/workflow-contract.yaml', new AbortController().signal);
+  assert.deepEqual(selectWorkflowCandidates([html.filePath], contract), [], 'watcher must ignore HTML candidates');
+  assert.equal(selectWorkflowCandidates([html.filePath], contract, undefined, true).length, 1);
+  const afterHtml = await createWorkflowDocument(root, [
+    '--kind', 'handover', '--plan', 'docs/008_PLAN_20260812_fixture.md', '--slice', 'S02', '--title', '候选后交接',
+  ]);
+  assert.match(afterHtml.filePath, /^docs\/018_HANDOVER_\d{8}_候选后交接\.md$/);
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root, ref: 'HEAD', filePaths: [html.filePath], reader,
+      contentOverrides: { [html.filePath]: htmlContent.replace('doc_type: PLAN', 'doc_type: HANDOVER') },
+    }),
+    WorkflowDocumentValidationError,
+  );
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root, ref: 'HEAD', filePaths: [html.filePath], reader,
+      contentOverrides: { [html.filePath]: htmlContent.replace('</body>', '<script>alert(1)</script></body>') },
+    }),
+    (error: Error) => error instanceof WorkflowDocumentValidationError
+      && error.issues.some((issue) => issue.code === 'HTML_ACTIVE_CONTENT'),
+  );
   console.log('workflow scaffold checks passed');
 }
 

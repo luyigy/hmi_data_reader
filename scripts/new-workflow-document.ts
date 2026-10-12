@@ -11,7 +11,7 @@ import {
 type Options = Record<string, string>;
 
 const usage = `usage:
-  npm run workflow:new -- --kind plan --title <主题> [--plan-kind phase|interrupt]
+  npm run workflow:new -- --kind plan --title <主题> [--plan-kind phase|interrupt] [--format html]
     [--directory <分支空间>] [--parent-plan <PLAN>] [--parent-slice S01] [--return-to S02]
   npm run workflow:new -- --kind handover --plan <PLAN> --slice S01 [--title <主题>]`;
 
@@ -57,14 +57,14 @@ const workflowSlices = (content: string, pattern: string) => Array.from(new Set(
   (match) => match[1] ?? match[0].trim(),
 ))).sort((left, right) => Number(left.slice(1)) - Number(right.slice(1)));
 
-const nextNumber = async (cwd: string, directory: string, pattern: string, width: number) => {
+const nextNumber = async (cwd: string, directory: string, patterns: string[], width: number) => {
   await mkdir(path.resolve(cwd, directory), { recursive: true });
   const working = await readdir(path.resolve(cwd, directory));
   const tracked = (await git(cwd, 'ls-tree', '-r', '--name-only', 'HEAD', '--', directory))
     .split('\n').filter((file) => path.posix.dirname(file) === directory).map((file) => path.posix.basename(file));
-  const filename = new RegExp(pattern.replace(/\(\?P<[^>]+>/g, '('));
+  const filenames = patterns.map((pattern) => new RegExp(pattern.replace(/\(\?P<[^>]+>/g, '(')));
   const maximum = Array.from(new Set([...working, ...tracked])).reduce((current, file) => {
-    const match = filename.exec(file);
+    const match = filenames.map((filename) => filename.exec(file)).find(Boolean);
     return match ? Math.max(current, Number(match[1])) : current;
   }, 0);
   return String(maximum + 1).padStart(width, '0');
@@ -88,7 +88,13 @@ export const createWorkflowDocument = async (cwd: string, args: string[]) => {
     throw new Error(`workflow directory must stay inside ${contract.branch_spaces.root}`);
   }
 
-  const number = await nextNumber(cwd, directory, contract.documents.filename_pattern, contract.numbering.width);
+  const number = await nextNumber(
+    cwd, directory,
+    [contract.documents.filename_pattern, contract.documents.plan_candidate_filename_pattern].filter(
+      (pattern): pattern is string => Boolean(pattern),
+    ),
+    contract.numbering.width,
+  );
   const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
   let content: string;
   let filePath: string;
@@ -97,11 +103,22 @@ export const createWorkflowDocument = async (cwd: string, args: string[]) => {
     const title = cleanTitle(required(options, 'title'));
     const planKind = options['plan-kind'] || contract.documents.plan.phase_kind;
     if (!contract.documents.plan.kinds.includes(planKind)) throw new Error(`invalid --plan-kind: ${planKind}`);
-    filePath = path.posix.join(directory, `${number}_PLAN_${date}_${title}.md`);
-    const templatePath = contract.templates?.plan;
+    const format = options.format || 'md';
+    if (!['md', 'html'].includes(format)) throw new Error(`invalid --format: ${format}`);
+    if (format === 'html' && planKind !== contract.documents.plan.phase_kind) {
+      throw new Error('HTML PLAN candidate currently supports phase only');
+    }
+    if (format === 'html' && /[<>&"']/.test(title)) throw new Error('HTML PLAN title contains unsafe characters');
+    if (format === 'html' && !contract.documents.plan_candidate_filename_pattern) {
+      throw new Error('workflow contract does not define HTML PLAN candidates');
+    }
+    filePath = path.posix.join(directory, `${number}_PLAN_${date}_${title}.${format}`);
+    const templatePath = format === 'html' ? contract.templates?.plan_html_candidate : contract.templates?.plan;
     if (!templatePath) throw new Error('workflow contract missing templates.plan');
     const template = await refReader.read(templatePath);
-    if (planKind === contract.documents.plan.interrupt_kind) {
+    if (format === 'html') {
+      content = template.replaceAll('{{TITLE}}', title).replaceAll('{{PLAN_PATH}}', filePath);
+    } else if (planKind === contract.documents.plan.interrupt_kind) {
       const parentPlan = required(options, 'parent-plan').replace(/^\.\//, '');
       const parentSlice = required(options, 'parent-slice');
       const returnTo = required(options, 'return-to');

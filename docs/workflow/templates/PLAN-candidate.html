@@ -1,0 +1,34 @@
+<!--
+---
+doc_type: PLAN
+doc_status: ready
+next_action: await_approval
+plan_kind: phase
+roadmap: null
+parent_plan: null
+parent_slice: null
+return_to: null
+---
+-->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>PLAN · {{TITLE}}</title>
+</head>
+<body>
+  <main>
+    <h1>PLAN · {{TITLE}}</h1>
+    <section>
+      <h2>S01：待填写</h2>
+      <p>请填写范围与完成标准。</p>
+    </section>
+  </main>
+  <template>
+<!-- WORKFLOW_PROMPT_START -->
+执行 `{{PLAN_PATH}}` 的 S01；读取目标 HEAD 的 `AGENTS.md`、
+`docs/workflow/workflow-contract.yaml` 和本 PLAN。完成验证、创建下一 HANDOVER、提交后停止。
+<!-- WORKFLOW_PROMPT_END -->
+  </template>
+</body>
+</html>

@@ -410,7 +410,7 @@ S01
       ['NEXT_SLICE_MISSING', 'warning'],
     ],
   );
-  assert.equal(balanced.issues.filter(({ code }) => code === 'TEMPLATE_MISSING').length, 3);
+  assert.equal(balanced.issues.filter(({ code }) => code === 'TEMPLATE_MISSING').length, 4);
   await assert.rejects(
     validateWorkflowDocuments({
       cwd: root,
@@ -463,6 +463,8 @@ S01
   };
   await mkdir(path.join(root, 'docs/workflow/templates'), { recursive: true });
   await writeFile(path.join(root, 'docs/workflow/templates/PLAN.md'), planTemplate);
+  await writeFile(path.join(root, 'docs/workflow/templates/PLAN-candidate.html'),
+    await readFile(path.join(process.cwd(), 'docs/workflow/templates/PLAN-candidate.html'), 'utf8'));
   await writeFile(path.join(root, 'docs/workflow/templates/HANDOVER.md'), handoverTemplate);
   await writeFile(
     path.join(root, 'docs/workflow/PLAN-writing-standard.md'),

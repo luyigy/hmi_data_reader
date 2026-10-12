@@ -58,6 +58,10 @@ TaskRun 完成事件即时唤醒 + 每分钟调度补偿
 watcher 停用或合同 `automation_enabled: false` 时不会自动发卡，不得为了提审自行启用自动化。
 watcher 按变更中文档编号选择候选，多个候选应使用上述指定路径的选择入口，不能保证每份提交都会发卡。
 
+HTML PLAN 试点可用 `npm run workflow:new -- --kind plan --title <主题> --format html` 生成。
+目前只支持 phase 候选；生成器和校验器识别 `.html`，watcher 仍只派发正式的 Markdown PLAN。
+请勿把 HTML 候选当作已进入审批的计划。普通 HANDOVER 继续使用 Markdown。
+
 ### 3.2 HANDOVER
 
 | HANDOVER 动作 | 含义 | 后续 |
