@@ -1,0 +1,14 @@
+{
+  "profile_id": "demag.injection_metering.multi_stage_back_pressure",
+  "sample_id": "Z002_WeHdT",
+  "purpose": "development_exposed_not_independent_test",
+  "original_sha256": "8c670a92e7ce51d939c9422850402422aab7cf05b05798e71ead34e5053c0064",
+  "original_size": [
+    1920,
+    1080
+  ],
+  "ocr_fixture": "tests/fixtures/demag_metering_z002_ocr.json",
+  "ocr_sha256": "8fb447836fc602472cfed3961e6c99aa83ebf1a70995b9ad8d2571e27a2e547a",
+  "truth_scope": "Z002 可见背压 3/3/3/0 bar、螺杆转速 150/150/150/45 U/min；段终点/起点、压力侧别和启用状态未裁定",
+  "photo_distribution": "原图保存在 hmi_finetuning 原始飞书库存；用于开发，不作为独立留出图"
+}

@@ -9,7 +9,8 @@
 import re
 
 from ..common import _anchor_match, _fit_slope, _num  # noqa: F401
-from .observations import holding_observations
+from .metering_rows import metering_rows
+from .observations import holding_observations, injection_observations, metering_observations
 
 NUM_RE = re.compile(r"\d+\.?\d*")
 
@@ -382,6 +383,12 @@ def _extract_curve(toks, tpl, warnings, img=None):
         rpm_vals = _get_row_vals(r_rpm, min_x=0.45)
         pos_vals = _get_row_vals(r_pos, min_x=0.40)
         spd_vals = _get_row_vals(r_spd, min_x=0.40)
+        observed = metering_rows(toks)
+        if observed['stage_back_pressure_bar'] and observed['stage_plasticizing_speed_rpm']:
+            bp_vals = observed['stage_back_pressure_bar']
+            rpm_vals = observed['stage_plasticizing_speed_rpm']
+            pos_vals = observed['stage_position_mm']
+            spd_vals = observed['stage_velocity_mms']
 
         fields["stage_back_pressure_bar"] = bp_vals
         fields["stage_plasticizing_speed_rpm"] = rpm_vals
@@ -626,6 +633,10 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
         detail["pressure_unit_text"] = pressure_unit_text
     if variant == "multi_stage_holding":
         detail["page_observations"] = holding_observations(fields)
+    elif variant == "multi_stage_injection":
+        detail["page_observations"] = injection_observations(fields)
+    elif variant == "multi_stage_back_pressure":
+        detail["page_observations"] = metering_observations(fields)
     if stage_enabled:
         detail["stage_enabled"] = stage_enabled
     return {"fields": fields, "heater_columns": 0,

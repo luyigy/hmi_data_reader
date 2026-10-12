@@ -1,0 +1,60 @@
+{
+  "version": "0.1.0",
+  "profile_id": "demag.injection_metering.multi_stage_injection",
+  "page_version": "1",
+  "rule_version": "s03.1",
+  "ui_family": "DEMAG",
+  "page": "injection_metering",
+  "layout_anchors": ["压力\\[bar\\]", "速度\\[mm/s\\]", "移动曲线"],
+  "require_anchor_match": true,
+  "coordinate_system": "normalized_screen",
+  "description": "DEMAG 多级注射页；段表上行为射胶速度、下行为各段起点，末段终点为 V/P 切换位置。",
+  "sample_ids": ["Z002_WeHdT"],
+  "business_profile_candidate": {
+    "page_id": "demag.injection_metering.multi_stage_injection",
+    "page_version": "1",
+    "rule_version": "s03.1",
+    "algorithm": "protocol_replay_v1",
+    "decision_source": "contracts/field_catalog.json DEMAG 026_FIX；Z002_WeHdT 实图",
+    "verification_status": "sample_reviewed_partial",
+    "controller": "DEMAG",
+    "page_kind": "multi_stage_injection",
+    "structural_markers": ["多级注射"],
+    "speed_unit": "mm/s",
+    "pressure_basis": "hydraulic_pressure",
+    "injection_position_meaning": "stage_start_position",
+    "holding_time_meaning": "segment_duration",
+    "pre_suck_back": {"enabled": false},
+    "post_suck_back": {"enabled": false},
+    "possible_names": {
+      "injection.speed.{n}": ["射胶速度{n}"],
+      "injection.start.{n}": ["射胶起点{n}"],
+      "vp.position": ["VP转换位置"],
+      "injection.pressure.shared": ["射胶限压"]
+    },
+    "field_units": {
+      "injection.speed.{n}": "mm/s",
+      "injection.start.{n}": "mm",
+      "vp.position": "mm",
+      "injection.pressure.shared": "bar"
+    },
+    "field_write_review": {
+      "injection.speed.{n}": "validate_in_main",
+      "injection.start.{n}": "validate_in_main",
+      "vp.position": "validate_in_main",
+      "injection.pressure.shared": "validate_in_main",
+      "holding_pressure_bar": "observation_only",
+      "holding_velocity_mms": "observation_only"
+    },
+    "migration_notes": ["段位置是各段起点，不能当作同段终点；禁用段人工核对。左列保压值在本页仅作观测。"]
+  },
+  "curve_page": {
+    "row_anchors": {
+      "pressure": ["压力[bar]", "压力"],
+      "velocity": ["速度[mm/s]", "速度", "mm/s"],
+      "position": ["位置[mm]", "位置"]
+    },
+    "row_y_hint": {"pressure": 0.68, "velocity": 0.72, "position": 0.75},
+    "global_pressure": {"x_min": 0.75, "dy_above": [-0.005, 0.08]}
+  }
+}

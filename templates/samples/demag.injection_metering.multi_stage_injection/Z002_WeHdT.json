@@ -1,0 +1,14 @@
+{
+  "profile_id": "demag.injection_metering.multi_stage_injection",
+  "sample_id": "Z002_WeHdT",
+  "purpose": "development_exposed_not_independent_test",
+  "original_sha256": "bed6ac0d3fceb4f4c81ca3fbe758e2e98cf82c5f613b257849dfb2c582f588ca",
+  "original_size": [
+    1920,
+    1080
+  ],
+  "ocr_fixture": "tests/fixtures/demag_injection_z002_wehdt_ocr.json",
+  "ocr_sha256": "15bb48ac980c1468083f398343774b9752e2376f87edfc5e49b1028cdcdc7eb5",
+  "truth_scope": "Z002 实图核对段速度 75/25 mm/s、段起点 45/22.5 mm、V/P 17.5 mm、射胶限压 100 bar；禁用段和原图框仍须人工确认",
+  "photo_distribution": "原图保存在 hmi_finetuning 原始飞书库存；用于开发，不作为独立留出图"
+}
