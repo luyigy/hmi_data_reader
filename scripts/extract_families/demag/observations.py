@@ -1,4 +1,4 @@
-"""Conservative DEMAG holding facts for the capture review contract."""
+"""DEMAG page observations for holding, injection, and metering review."""
 
 
 def holding_observations(fields: dict) -> dict:
