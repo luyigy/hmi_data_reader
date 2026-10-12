@@ -177,13 +177,16 @@ class DemagHoldingPageTest(unittest.TestCase):
         self.assertEqual(result["detail"]["page_variant"], "multi_stage_holding")
         self.assertEqual(result["fields"]["stage_holding_pressure_bar"], [65, 60, 55])
 
-        temperature = extract_demag([], {
+        temperature_template = {
             "page": "temperature",
             "row_anchors": {"current": [], "set": [], "high_low_generic": []},
             "validation_rules": {},
-        })
+        }
+        temperature = extract_demag([], temperature_template)
         self.assertIsNone(temperature["fields"])
         self.assertIn("ROW_ANCHORS_NOT_FOUND", temperature["warnings"])
+        fallback = extract_demag([], {**temperature_template, "page": "unknown"})
+        self.assertEqual(fallback, temperature)
 
     def test_holding_variant_and_physical_stage_order(self):
         warnings = []
