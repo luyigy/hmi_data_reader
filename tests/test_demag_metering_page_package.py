@@ -11,8 +11,10 @@ PID = 'demag.injection_metering.multi_stage_back_pressure'
 
 
 def test_metering_rows_survive_two_distinct_photo_slopes_without_write_approval():
-    template = export_page_package(PID, '0.1.0')['template']
+    template = export_page_package(PID, '0.1.1')['template']
     assert set(template['business_profile_candidate']['field_write_review'].values()) == {'observation_only'}
+    assert template['business_profile_candidate']['pressure_basis'] == 'hydraulic_pressure'
+    assert export_page_package(PID, '0.1.0')['template']['business_profile_candidate']['pressure_basis'] is None
     for machine, speeds in (('z002', [150, 150, 150, 45]), ('z005', [150, 150, 150, 59])):
         fixture = json.loads((ROOT / f'tests/fixtures/demag_metering_{machine}_ocr.json').read_text())
         matches = registered_page_templates('DEMAG', ROOT / 'templates', page='injection_metering', lines=fixture['lines'])
