@@ -51,6 +51,10 @@ assert.equal(parseLiveRoomWorkflowCommand('/run build login'), null);
 assert.deepEqual(parseLiveRoomPlanCommand('/plan --host=codex design login'), {
   host: 'codex', task: 'design login',
 });
+assert.deepEqual(parseLiveRoomPlanCommand('/plan --format=html design login'), {
+  format: 'html', task: 'design login',
+});
+assert.equal(parseLiveRoomPlanCommand('/plan --format=html --revise=docs/288_PLAN_20260728_fix.md update it'), null);
 assert.deepEqual(parseLiveRoomPlanCommand('/plan --revise=docs/288_PLAN_20260728_fix.md update it'), {
   revisionPath: 'docs/288_PLAN_20260728_fix.md',
   task: 'update it',
@@ -62,6 +66,8 @@ assert.equal(
   'docs/codex/rebuild-postgres-auth-slice/178_PLAN_20260728_试模参数页面第三轮测试反馈修复.md'
 );
 assert.equal(planPathFrom('PLAN_PATH: docs/../178_PLAN_bad.md'), null);
+assert.equal(planPathFrom('PLAN_PATH: docs/504_PLAN_20261012_demo.html', 'html'), 'docs/504_PLAN_20261012_demo.html');
+assert.equal(planPathFrom('PLAN_PATH: docs/504_PLAN_20261012_demo.md', 'html'), null);
 assert.equal(
   workflowPlanRevisionPathFrom('PLAN_REVISE\nplan_path: docs/288_PLAN_20260728_fix.md\nfeedback:\nclarify'),
   'docs/288_PLAN_20260728_fix.md',

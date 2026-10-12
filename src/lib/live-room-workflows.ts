@@ -19,6 +19,7 @@ import {
 } from '@/lib/workflow-execution-policy';
 import { attachLiveRoomProgress } from '@/lib/live-room-progress';
 import type { WorkflowRoleLevel } from '@/lib/scheduled-jobs/workflow-autonomy';
+import { validateWorkflowDocuments, WorkingTreeReader } from '@/lib/scheduled-jobs/workflow-validator';
 
 export type LiveRoomWorkflowName = 'feature' | 'debug';
 export type LiveRoomWorkflowLevel = WorkflowRoleLevel;
@@ -86,17 +87,20 @@ export const parseLiveRoomPlanCommand = (content: string) => {
   const tokens = match[1].trim().split(/\s+/);
   let host: string | undefined;
   let revisionPath: string | undefined;
+  let format: 'md' | 'html' = 'md';
   while (tokens[0]?.startsWith('--')) {
     const option = tokens.shift()!;
     if (option.startsWith('--host=')) host = option.slice(7);
     else if (option.startsWith('--revise=')) revisionPath = option.slice(9);
+    else if (option === '--format=html') format = 'html';
     else return null;
   }
   const task = tokens.join(' ').trim();
-  if (!task || (revisionPath && !planPathFrom(`PLAN_PATH: ${revisionPath}`))) return null;
+  if (!task || (revisionPath && (format === 'html' || !planPathFrom(`PLAN_PATH: ${revisionPath}`)))) return null;
   return {
     ...(host ? { host } : {}),
     ...(revisionPath ? { revisionPath } : {}),
+    ...(format === 'html' ? { format } : {}),
     task,
   };
 };
@@ -115,7 +119,10 @@ export const selectLiveRoomPlanHost = <T extends WorkflowMember>(members: T[], r
     : { error: planners.length ? '存在多个 planner，请使用 --host=<成员> 指定主持人。' : '没有唯一 planner，请使用 --host=<成员> 指定主持人。' };
 };
 
-export const planPathFrom = (output: string) => output.match(/^PLAN_PATH:\s*(docs\/(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\/)*[0-9]{3}_PLAN_[^/\s]+\.md)\s*$/mi)?.[1] || null;
+export const planPathFrom = (output: string, format: 'md' | 'html' = 'md') => {
+  const planPath = output.match(/^PLAN_PATH:\s*(docs\/(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\/)*[0-9]{3}_PLAN_[^/\s]+\.(?:md|html))\s*$/mi)?.[1];
+  return planPath?.endsWith(`.${format}`) ? planPath : null;
+};
 
 export const workflowPlanRevisionPathFrom = (content: string) =>
   /(?:^|\n)PLAN_REVISE\s*(?:\n|$)/.test(content)
@@ -235,14 +242,21 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
           `只修订 ${command.revisionPath}，综合前述成员意见和审批反馈，不执行任何 Slice。`,
           `最后仅输出 PLAN_PATH: ${command.revisionPath}；由系统提交，随后由 workflow validator 复验。`,
         ].join(' ')
-        : [
-          '生成唯一 PLAN：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml。',
-          '写入 docs/ 下合法的三位编号 PLAN 文件，包含范围、方案、风险、验证和待确认项。',
-          'front matter 必须为 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: start_first_slice，并有完整 workflow prompt。',
-          '最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>；由系统提交，随后由 workflow validator 校验。',
-        ].join(' '),
+        : command.format === 'html'
+          ? [
+            '生成唯一静态 HTML PLAN 候选：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml 和合同声明的模板。',
+            '必须使用 npm run workflow:new -- --kind plan --title <主题> --format html 生成骨架，再填充范围、步骤和验收；不要执行任何 Slice。',
+            'YAML 注释中的 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: await_approval 和 workflow prompt 必须完整。',
+            'HTML 候选暂不进入 watcher 审批。最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>.html；由系统校验并提交。',
+          ].join(' ')
+          : [
+            '生成唯一 PLAN：先读取目标 HEAD 的 docs/workflow/workflow-contract.yaml。',
+            '写入 docs/ 下合法的三位编号 PLAN 文件，包含范围、方案、风险、验证和待确认项。',
+            'front matter 必须为 doc_type: PLAN、plan_kind: phase、doc_status: ready、next_action: start_first_slice，并有完整 workflow prompt。',
+            '最后仅输出 PLAN_PATH: docs/<可选目录>/<filename>；由系统提交，随后由 workflow validator 校验。',
+          ].join(' '),
     );
-    const planPath = planPathFrom(finalOutput);
+    const planPath = planPathFrom(finalOutput, command.format || 'md');
     if (!planPath) throw new WorkflowPlanError('主持人未返回合法 PLAN_PATH，未提交。', 'plan_path');
     if (command.revisionPath && planPath !== command.revisionPath) {
       throw new WorkflowPlanError(`主持人返回了其他 PLAN_PATH：${planPath}`, 'plan_path');
@@ -257,6 +271,16 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
     } catch (e: any) {
       throw new WorkflowPlanError(`git add 失败：${e?.stderr || e?.message || String(e)}`, 'git_commit');
     }
+    if (command.format === 'html') {
+      const cwd = sourceTask.workingDirectory || process.cwd();
+      try {
+        await validateWorkflowDocuments({
+          cwd, ref: 'HEAD', filePaths: [planPath], reader: new WorkingTreeReader(cwd),
+        });
+      } catch (error) {
+        throw new WorkflowPlanError(`HTML PLAN 候选校验失败：${error instanceof Error ? error.message : String(error)}`, 'plan_path');
+      }
+    }
     try {
       await execFileAsync('git', [
         'commit', '--only', '-m',
@@ -270,7 +294,9 @@ export const runLiveRoomPlan = async ({ roomId, sourceMessageId, content }: {
       roomId,
       content: command.revisionPath
         ? `系统提示：PLAN 已修订并提交：${planPath}。workflow validator 将复验该提交。`
-        : `系统提示：PLAN 已提交：${planPath}。后续由 workflow validator 校验；不合格会自动通知 Agent 修订，合格后才发送审批卡。`,
+        : command.format === 'html'
+          ? `系统提示：HTML PLAN 候选已校验并提交：${planPath}。当前不进入 watcher 审批或自动派发。`
+          : `系统提示：PLAN 已提交：${planPath}。后续由 workflow validator 校验；不合格会自动通知 Agent 修订，合格后才发送审批卡。`,
       messageType: 'system',
     });
   } catch (error) {

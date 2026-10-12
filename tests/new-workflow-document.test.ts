@@ -109,6 +109,14 @@ return_to: null
   await assert.rejects(
     validateWorkflowDocuments({
       cwd: root, ref: 'HEAD', filePaths: [html.filePath], reader,
+      contentOverrides: { [html.filePath]: htmlContent.replace('next_action: await_approval', 'next_action: start_first_slice') },
+    }),
+    (error: Error) => error instanceof WorkflowDocumentValidationError
+      && error.issues.some((issue) => issue.code === 'HTML_CANDIDATE_ACTION_INVALID'),
+  );
+  await assert.rejects(
+    validateWorkflowDocuments({
+      cwd: root, ref: 'HEAD', filePaths: [html.filePath], reader,
       contentOverrides: { [html.filePath]: htmlContent.replace('</body>', '<script>alert(1)</script></body>') },
     }),
     (error: Error) => error instanceof WorkflowDocumentValidationError

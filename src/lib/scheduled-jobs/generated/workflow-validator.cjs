@@ -363,6 +363,10 @@ const validateWorkflowDocument = async (cwd, ref, filePath, type, content, metad
     if (has('next_action') && !validAction) {
         issue('NEXT_ACTION_INVALID', 'YAML.next_action', '无效的下一步动作', [...contract.actions.executable, ...(contract.actions.review ?? []), ...contract.actions.terminal].join('、'), metadata.next_action);
     }
+    if (filePath.endsWith('.html') && has('next_action')
+        && action !== contract.documents.plan.review_action) {
+        issue('HTML_CANDIDATE_ACTION_INVALID', 'YAML.next_action', 'HTML PLAN 候选暂不能启动审批或执行', contract.documents.plan.review_action, action);
+    }
     let prompt = '';
     if (validAction) {
         try {

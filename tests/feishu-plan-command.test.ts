@@ -9,5 +9,8 @@ const message = (text: string) => ({
 assert.deepEqual(parseFeishuCommand(message('/ap plan --host=codex design login')), {
   command: 'plan', args: ['design', 'login'], options: { host: 'codex' },
 });
+assert.deepEqual(parseFeishuCommand(message('/ap plan --format=html design login')), {
+  command: 'plan', args: ['design', 'login'], options: { format: 'html' },
+});
 
 console.log('Feishu plan command checks passed');

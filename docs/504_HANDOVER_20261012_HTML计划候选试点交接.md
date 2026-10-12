@@ -18,6 +18,10 @@ plan_progress: complete
 - 校验器接受显式提交的 HTML 候选，继续校验字段、Slice、Prompt、编号及常见活动内容；旧 Markdown PLAN/HANDOVER 继续通过。watcher 的默认候选选择保持 Markdown，HTML 样例不会被派发。
 - [可打开的样例](workflow/examples/001_PLAN_20261012_HTML计划候选样例.html) 位于 watcher 不监控的示例目录。Chrome 无头打开检查显示了标题、S01 和验收内容，隐藏元数据与 Prompt 未显示；用户对可读性的评价仍待收集。
 
+## 飞书入口补充
+
+用户指出仓库内部的 `npm run workflow:new` 不是飞书操作入口。现已接入 `/ap plan --format=html <需求>`：它沿用现有房间内的计划讨论，由主持 Agent 调用仓库生成器填写 HTML 候选；平台提交前校验该文件，并在消息里明确提示“暂不进入 watcher 审批或自动派发”。原 `/ap plan <需求>` 仍生成正式 Markdown PLAN。HTML 候选的 `next_action` 必须为 `await_approval`，校验器拒绝执行动作。
+
 ## 验证
 
 - `npm run test:new-workflow-document`、`npm run test:workflow-validator`、`npm run test:git-history-guard`、`npm run test:workflow-watcher`、`npx tsc --noEmit`、`npm run check:long-files` 均通过。

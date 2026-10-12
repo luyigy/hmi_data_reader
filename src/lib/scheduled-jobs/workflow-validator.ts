@@ -321,6 +321,11 @@ export const validateWorkflowDocument = async (
       metadata.next_action,
     );
   }
+  if (filePath.endsWith('.html') && has('next_action')
+    && action !== contract.documents.plan.review_action) {
+    issue('HTML_CANDIDATE_ACTION_INVALID', 'YAML.next_action',
+      'HTML PLAN 候选暂不能启动审批或执行', contract.documents.plan.review_action, action);
+  }
   let prompt = '';
   if (validAction) {
     try {
