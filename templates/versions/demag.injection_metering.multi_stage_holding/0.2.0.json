@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "page_version": "1",
+  "rule_version": "s02.1",
+  "ui_family": "DEMAG",
+  "page": "injection_metering",
+  "layout_anchors": ["保压", "实际切换"],
+  "require_anchor_match": true,
+  "coordinate_system": "normalized_screen",
+  "description": "DEMAG 多级保压页；实际切换区是实测值，段表为设定值。选页须同时命中两个实图锚点。",
+  "sample_ids": ["Z002_ab30f6f6"],
+  "business_profile_candidate": {
+    "page_id": "demag.injection_metering.multi_stage_holding",
+    "page_version": "1",
+    "rule_version": "s02.1",
+    "algorithm": "protocol_replay_v1",
+    "decision_source": "ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json",
+    "verification_status": "sample_reviewed_partial",
+    "controller": "DEMAG",
+    "page_kind": "multi_stage_holding",
+    "structural_markers": ["多级保压"],
+    "speed_unit": "mm/s",
+    "pressure_basis": null,
+    "holding_time_meaning": "segment_duration",
+    "pre_suck_back": {"enabled": false},
+    "post_suck_back": {"enabled": false},
+    "possible_names": {
+      "holding.pressure.{n}": ["保压压力{n}"],
+      "holding.time.{n}": ["保压时间{n}"],
+      "holding.speed.uncollected.{n}": ["各段保压速度{n}"],
+      "holding.speed.uncollected": ["保压速度"]
+    },
+    "field_units": {
+      "holding.pressure.{n}": "bar",
+      "holding.time.{n}": "s",
+      "holding.speed.uncollected.{n}": "mm/s",
+      "holding.speed.uncollected": "mm/s"
+    },
+    "field_write_review": {
+      "holding.pressure.{n}": "validate_in_main",
+      "holding.time.{n}": "validate_in_main",
+      "holding.speed.uncollected.{n}": "observation_only",
+      "holding.speed.uncollected": "observation_only"
+    },
+    "migration_notes": ["压力基准尚未确认；各段速度在主仓无写入槽位。禁用段须对照原图人工确认。"]
+  },
+  "curve_page": {
+    "row_y_hint": {
+      "pressure": 0.68,
+      "velocity": 0.72,
+      "position": 0.75
+    }
+  }
+}

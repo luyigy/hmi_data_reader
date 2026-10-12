@@ -1,8 +1,8 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "profile_id": "demag.injection_metering.multi_stage_holding",
   "page_version": "1",
-  "rule_version": "s02.1",
+  "rule_version": "s02.2",
   "ui_family": "DEMAG",
   "page": "injection_metering",
   "layout_anchors": ["保压", "实际切换"],
@@ -13,7 +13,7 @@
   "business_profile_candidate": {
     "page_id": "demag.injection_metering.multi_stage_holding",
     "page_version": "1",
-    "rule_version": "s02.1",
+    "rule_version": "s02.2",
     "algorithm": "protocol_replay_v1",
     "decision_source": "ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json",
     "verification_status": "sample_reviewed_partial",
@@ -21,7 +21,7 @@
     "page_kind": "multi_stage_holding",
     "structural_markers": ["多级保压"],
     "speed_unit": "mm/s",
-    "pressure_basis": null,
+    "pressure_basis": "hydraulic_pressure",
     "holding_time_meaning": "segment_duration",
     "pre_suck_back": {"enabled": false},
     "post_suck_back": {"enabled": false},
@@ -43,7 +43,7 @@
       "holding.speed.uncollected.{n}": "observation_only",
       "holding.speed.uncollected": "observation_only"
     },
-    "migration_notes": ["压力基准尚未确认；各段速度在主仓无写入槽位。禁用段须对照原图人工确认。"]
+    "migration_notes": ["普通 bar 保压页按机台液压压力；明确 bar_spez 的塑料压力页须单独核对，不套用液压默认值。各段速度在主仓无写入槽位。禁用段须对照原图人工确认。"]
   },
   "curve_page": {
     "row_y_hint": {
