@@ -1,0 +1,6 @@
+{
+  "ui_family": "DEMAG",
+  "controller_model": null,
+  "evidence": "ground_truth/machine_labels.json confirms Z002 and Z005 as DEMAG; the available holding photos do not establish an exact controller model.",
+  "routing_registry": "contracts/profiles.json"
+}

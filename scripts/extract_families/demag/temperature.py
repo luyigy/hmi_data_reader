@@ -9,7 +9,7 @@ control 取列顶蓝框整数（表内速率行恒 0 不取，料口可为负值
 """
 import re
 
-from .common import _affine_fit_columns, _anchor_match, _fit_slope, _num  # noqa: F401
+from ..common import _affine_fit_columns, _anchor_match, _fit_slope, _num  # noqa: F401
 
 RATE_RE = re.compile(r"-?\d+\.?\d*")
 

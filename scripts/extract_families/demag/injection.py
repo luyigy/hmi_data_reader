@@ -8,7 +8,7 @@
 """
 import re
 
-from .common import _anchor_match, _fit_slope, _num  # noqa: F401
+from ..common import _anchor_match, _fit_slope, _num  # noqa: F401
 
 NUM_RE = re.compile(r"\d+\.?\d*")
 

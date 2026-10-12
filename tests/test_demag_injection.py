@@ -5,7 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from extract_families.demag_injection import _extract_curve, extract_injection_demag, _ocr_conflict_code
+from extract_families.demag.injection import _extract_curve, extract_injection_demag, _ocr_conflict_code
+from extract_families.demag import extract_demag
 
 
 class DemagStageGridTest(unittest.TestCase):
@@ -168,6 +169,21 @@ class DemagHoldingPageTest(unittest.TestCase):
         {"text": "2.000", "x": 0.81, "y": 0.779},
         {"text": "多级速度", "x": 0.90, "y": 0.955},
     ]
+
+    def test_controller_entry_dispatches_holding_and_temperature(self):
+        result = extract_demag(self.HOLDING_TOKENS, {
+            "page": "injection_metering", "curve_page": self.TEMPLATE,
+        })
+        self.assertEqual(result["detail"]["page_variant"], "multi_stage_holding")
+        self.assertEqual(result["fields"]["stage_holding_pressure_bar"], [65, 60, 55])
+
+        temperature = extract_demag([], {
+            "page": "temperature",
+            "row_anchors": {"current": [], "set": [], "high_low_generic": []},
+            "validation_rules": {},
+        })
+        self.assertIsNone(temperature["fields"])
+        self.assertIn("ROW_ANCHORS_NOT_FOUND", temperature["warnings"])
 
     def test_holding_variant_and_physical_stage_order(self):
         warnings = []

@@ -46,3 +46,17 @@ def test_nested_holding_template_requires_its_anchors(tmp_path, monkeypatch):
     monkeypatch.setattr(registry, "route_page", lambda *args, **kwargs: ("monitor_curve", "find_page"))
     page, _, selected = registry.resolve_page_template("photo", injection, "DEMAG", templates)
     assert (page, selected["version"]) == ("injection_metering", "legacy")
+
+
+def test_registered_demag_holding_page_does_not_claim_injection():
+    templates = Path(__file__).resolve().parents[1] / "templates"
+    holding = [line("保压"), line("实际切换")]
+    page, source, selected = resolve_page_template("photo", holding, "DEMAG", templates)
+    assert (page, source, selected["profile_id"]) == (
+        "injection_metering", "template_anchors", "demag.injection_metering.multi_stage_holding")
+    assert selected["require_anchor_match"] is True
+
+    injection = [line("多级注射"), line("保压")]
+    selected = load_template("DEMAG", "injection_metering", templates, lines=injection)
+    assert selected["version"] == "0.1.0"
+    assert "profile_id" not in selected

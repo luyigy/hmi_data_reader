@@ -17,7 +17,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from extract_families.demag_injection import _extract_curve, _extract_global_pressure
+from extract_families.demag.injection import _extract_curve, _extract_global_pressure
 from ocr_variants import moire_suppress
 
 

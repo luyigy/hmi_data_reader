@@ -812,7 +812,7 @@ def _demag_grid(toks, template):
     if len(clusters) != 5:
         # 083 S07：蓝底高亮选中列整列漏读导致簇数 3-4 时，用列头 token
         # （含模板登记的 OCR 误读变体）锚定仿射配准出 5 列网格（同
-        # extract_families/demag.py 列头锚定口径），让逐格 rec 补读缺列；
+        # extract_families/demag/temperature.py 列头锚定口径），让逐格 rec 补读缺列；
         # 无锚或配准不可信（残差>0.02）则放弃，维持不生成旁车。
         if 3 <= len(clusters) < 5:
             tpl_cols = template["layout_hint"]["column_x_centers"]

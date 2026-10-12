@@ -17,7 +17,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from extract_fields import extract_one
-from extract_families.demag_injection import (
+from extract_families.demag.injection import (
     DARK_CELL_RATIO,
     _extract_curve,
     _stage_enabled,

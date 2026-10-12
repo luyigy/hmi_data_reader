@@ -209,9 +209,8 @@ from extract_families.tact_temperature import extract_temperature_tact  # noqa: 
 from extract_families.keba import extract_temperature_keba  # noqa: E402
 from extract_families.b_and_r import extract_temperature_b_and_r  # noqa: E402
 from extract_families.fanuc import extract_temperature_fanuc  # noqa: E402
-from extract_families.demag import extract_temperature_demag  # noqa: E402
+from extract_families.demag import extract_demag  # noqa: E402
 from extract_families.tact_injection import extract_injection_tact  # noqa: E402
-from extract_families.demag_injection import extract_injection_demag  # noqa: E402
 from extract_families.fanuc_injection import extract_injection_fanuc  # noqa: E402
 from extract_families.zizes_injection import extract_injection_zizes  # noqa: E402
 from extract_families.keba_injection import extract_injection_keba  # noqa: E402
@@ -242,7 +241,7 @@ def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dic
         return extract_tact5(ocr_lines or [], template, meta or {}, image_path=image_path)
     if page == "injection_metering":
         extractors = {
-            "TACT": extract_injection_tact, "DEMAG": extract_injection_demag,
+            "TACT": extract_injection_tact, "DEMAG": extract_demag,
             "FANUC": extract_injection_fanuc, "ZIZES": extract_injection_zizes,
             "KEBA": extract_injection_keba, "B_AND_R": extract_injection_b_and_r,
             "KAIMING": extract_injection_kaiming, "EST": extract_injection_est,
@@ -270,7 +269,7 @@ def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dic
     temperature_extractors = {
         "TACT": extract_temperature_tact, "KEBA": extract_temperature_keba,
         "B_AND_R": extract_temperature_b_and_r, "FANUC": extract_temperature_fanuc,
-        "DEMAG": extract_temperature_demag, "KAIMING": extract_temperature_kaiming,
+        "DEMAG": extract_demag, "KAIMING": extract_temperature_kaiming,
         "EST": extract_temperature_est, "TRD6": extract_temperature_trd6,
     }
     return temperature_extractors.get(ui, extract_temperature)(toks, template)
