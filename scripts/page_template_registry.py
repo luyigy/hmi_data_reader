@@ -122,7 +122,7 @@ def resolve_page_template(stem: str, lines: list[dict], family: str,
                             (family == "DEMAG" and page in ("injection_metering", "monitor_curve"))
                              or (family == "TRD6" and page in ("injection_metering", "settings"))
                              or (family == "ARBURG" and page in ("injection_metering", "monitor_curve", "unknown"))):
-        template = load_template(family, "injection_metering", templates_dir)
+        template = load_template(family, "injection_metering", templates_dir, lines=lines)
         if template is not None:
             page = "injection_metering"
     return page, source, template

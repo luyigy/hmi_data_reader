@@ -14,7 +14,7 @@ def line(text):
             "bbox": {"x_min": 0, "y_min": 0, "x_max": 40, "y_max": 20}}
 
 
-def test_nested_holding_template_requires_its_anchors(tmp_path):
+def test_nested_holding_template_requires_its_anchors(tmp_path, monkeypatch):
     templates = tmp_path / "templates"
     (templates / "controller_a").mkdir(parents=True)
     (tmp_path / "contracts").mkdir()
@@ -41,3 +41,8 @@ def test_nested_holding_template_requires_its_anchors(tmp_path):
     injection = [line("多级注射")]
     selected = load_template("DEMAG", "injection_metering", templates, lines=injection)
     assert selected["version"] == "legacy"
+
+    import page_template_registry as registry
+    monkeypatch.setattr(registry, "route_page", lambda *args, **kwargs: ("monitor_curve", "find_page"))
+    page, _, selected = registry.resolve_page_template("photo", injection, "DEMAG", templates)
+    assert (page, selected["version"]) == ("injection_metering", "legacy")
