@@ -98,7 +98,8 @@ def load_template(family: str, page: str, templates_dir: Path = TEMPLATES_DIR,
                   lines: list[dict] | None = None) -> dict | None:
     registered = registered_page_templates(family, templates_dir, page=page, lines=lines)
     if lines is not None and not registered:
-        registered = registered_page_templates(family, templates_dir, page=page)
+        registered = [template for template in registered_page_templates(
+            family, templates_dir, page=page) if not template.get("require_anchor_match")]
     if len(registered) > 1:
         return None
     if registered:
