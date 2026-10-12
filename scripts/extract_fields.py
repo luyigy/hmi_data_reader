@@ -127,7 +127,7 @@ def norm_tokens(ocr_data: dict, screen_size: list[int]) -> list[dict]:
     """OCR 原始 lines -> 屏幕归一化坐标的 token 列表。"""
     W, H = screen_size
     toks = []
-    for l in ocr_data.get("lines", []):
+    for index, l in enumerate(ocr_data.get("lines", [])):
         b = l["bbox"]
         toks.append({
             "text": l["text"],
@@ -137,6 +137,8 @@ def norm_tokens(ocr_data: dict, screen_size: list[int]) -> list[dict]:
             "x0": b["x_min"] / W,
             "x1": b["x_max"] / W,
             "src": l.get("_src"),
+            "bbox": [b["x_min"], b["y_min"], b["x_max"], b["y_max"]],
+            "line_index": index,
         })
     return toks
 

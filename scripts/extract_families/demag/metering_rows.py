@@ -2,7 +2,7 @@
 import re
 
 
-def metering_rows(toks: list[dict]) -> dict[str, list[float]]:
+def metering_row_tokens(toks: list[dict]) -> dict[str, list[dict]]:
     # shortcut: calibrated on two photographed screens; expand samples before approving write targets.
     labels = {}
     for key, prefix in (("stage_back_pressure_bar", "背压"),
@@ -20,6 +20,22 @@ def metering_rows(toks: list[dict]) -> dict[str, list[float]]:
     slopes = [n / 200 for n in range(-30, 11)]
     slope = max(slopes, key=lambda k: (sum(any(abs(t["y"] - label["y"] - k * (t["x"] - label["x"])) <= 0.012
                                              for label in labels.values()) for t in numbers), -abs(k)))
-    return {key: [float(t["text"]) for t in sorted(numbers, key=lambda t: t["x"])
-                  if abs(t["y"] - label["y"] - slope * (t["x"] - label["x"])) <= 0.012]
-            for key, label in labels.items()}
+    rows = {}
+    for key, label in labels.items():
+        matched = sorted((t for t in numbers
+                          if abs(t["y"] - label["y"] - slope * (t["x"] - label["x"])) <= 0.012),
+                         key=lambda t: (t["x"], t.get("src") == "ocr_variant", -t.get("conf", 0)))
+        cells = []
+        for token in matched:
+            if cells and token["x"] - cells[-1]["x"] < 0.018 and token["text"] == cells[-1]["text"]:
+                if (cells[-1].get("src") == "ocr_variant" and token.get("src") != "ocr_variant"):
+                    cells[-1] = token
+                continue
+            cells.append(token)
+        rows[key] = cells
+    return rows
+
+
+def metering_rows(toks: list[dict]) -> dict[str, list[float]]:
+    return {key: [float(token["text"]) for token in row]
+            for key, row in metering_row_tokens(toks).items()}

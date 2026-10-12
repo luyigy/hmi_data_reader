@@ -4,6 +4,8 @@ from pathlib import Path
 from scripts.export_page_package import export_page_package
 from scripts.extract_families.demag import extract_demag
 from scripts.page_template_registry import registered_page_templates
+from scripts.extract_fields import norm_tokens
+from scripts.extract_families.tact5_process import project_boxes
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,3 +53,45 @@ def test_metering_unreadable_rotation_unit_stays_unknown():
                 extract_demag(tokens, template)['detail']['page_observations']['fields']}
     assert observed['预塑转速1']['unit'] is None
     assert 'unit_unobserved' in observed['预塑转速1']['reasons']
+
+
+def test_metering_duplicate_ocr_cells_keep_four_columns_and_source_boxes(tmp_path):
+    fixture = json.loads((ROOT / 'tests/fixtures/demag_metering_z005_ocr.json').read_text())
+    width, height = fixture['screen_size']
+    lines = [dict(text=line['text'], conf=line.get('confidence', 1.0),
+                  bbox=dict(zip(('x_min', 'y_min', 'x_max', 'y_max'), line['bbox'])))
+             for line in fixture['lines']]
+    duplicates = [{**line, '_src': 'ocr_variant'} for line in lines if line['text'] in
+                  ('3.0', '150', '59', '0.00', '10.00', '30.00', '40.00', '45.00', '45.0')]
+    tokens = norm_tokens({'lines': lines + duplicates}, fixture['screen_size'])
+    template = export_page_package(PID, '0.2.0')['template']
+    result = extract_demag(tokens, template)
+    fields = result['fields']
+    assert [len(fields[key]) for key in ('stage_back_pressure_bar', 'stage_plasticizing_speed_rpm',
+                                        'stage_position_mm', 'stage_velocity_mms')] == [4, 4, 6, 2]
+    observed = result['detail']['page_observations']['fields']
+    assert len(observed) == 12
+    project_boxes(observed, dict(screen_size=[width, height], original_size=[width, height],
+                                 screen_quad=[[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]]))
+    assert sum(field['original_bbox'] is not None for field in observed) == 11
+    assert next(field for field in observed if field['label'] == '后抽距离')['original_bbox'] is None
+
+    import cv2
+    import numpy as np
+    image = np.full((height, width), 200, dtype=np.uint8)
+    for key in ('背压', '螺杆转速'):
+        row = next(line for line in lines if line['text'].startswith(key) and line['bbox']['x_min'] > width * .2)
+        candidates = [line for line in lines if line['text'] in ('0.0', '59') and
+                      abs((line['bbox']['y_min'] + line['bbox']['y_max']) / 2 -
+                          (row['bbox']['y_min'] + row['bbox']['y_max']) / 2) < height * .02]
+        assert len(candidates) == 1
+        box = candidates[0]['bbox']
+        x, y = int((box['x_min'] + box['x_max']) / 2), int((box['y_min'] + box['y_max']) / 2)
+        image[y - int(height * .02):y + int(height * .02), x - 40:x + 40] = 80
+    path = tmp_path / 'metering.png'
+    assert cv2.imwrite(str(path), image)
+    verified = extract_demag(tokens, template, image_path=path)['detail']['page_observations']
+    assert verified['stage_counts']['plasticizing']['value'] == 3
+    assert all(field['state'] == 'enabled' for field in verified['fields'] if field['stage'])
+    assert all(field['state_basis'] == 'grayscale_metering_rows_reference'
+               for field in verified['fields'] if field['stage'])

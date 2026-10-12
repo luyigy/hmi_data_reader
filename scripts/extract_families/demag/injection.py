@@ -9,7 +9,7 @@
 import re
 
 from ..common import _anchor_match, _fit_slope, _num  # noqa: F401
-from .metering_rows import metering_rows
+from .metering_rows import metering_row_tokens, metering_rows
 from .observations import holding_observations, injection_observations, metering_observations
 
 NUM_RE = re.compile(r"\d+\.?\d*")
@@ -636,7 +636,26 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
     elif variant == "multi_stage_injection":
         detail["page_observations"] = injection_observations(fields)
     elif variant == "multi_stage_back_pressure":
-        detail["page_observations"] = metering_observations(fields, toks)
+        observations = metering_observations(fields, toks)
+        if img is not None and observations and len(observations["fields"]) == 12:
+            rows = metering_row_tokens(toks)
+            pressure = rows["stage_back_pressure_bar"]
+            rotation = rows["stage_plasticizing_speed_rpm"]
+            if len(pressure) == len(rotation) == 4:
+                states = _stage_enabled(img, {
+                    "pressure": [(token["x"], token["y"]) for token in pressure],
+                    "rotation": [(token["x"], token["y"]) for token in rotation],
+                })
+                if states.get("pressure") == states.get("rotation") == [True, True, True, False]:
+                    for field in observations["fields"]:
+                        if field["stage"] in (1, 2, 3):
+                            field["state"] = "enabled"
+                            field["state_basis"] = "grayscale_metering_rows_reference"
+                            field["reasons"] = [reason for reason in field["reasons"] if reason != "stage_state_unverified"]
+                    indexes = [token["line_index"] for token in pressure[:3] if "line_index" in token]
+                    if indexes:
+                        observations["stage_counts"]["plasticizing"] = {"value": 3, "line_indexes": indexes}
+        detail["page_observations"] = observations
     if stage_enabled:
         detail["stage_enabled"] = stage_enabled
     return {"fields": fields, "heater_columns": 0,

@@ -443,6 +443,13 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
 
             review_image = ocr_evidence.pop("_review_image", None)
             rectify_meta = ocr_evidence.pop("_rectify_meta", {})
+            page_observations = (extract_res.get("extraction_detail") or {}).get("page_observations")
+            if page_observations and page_observations.get("fields"):
+                from extract_families.tact5_process import project_boxes
+                project_boxes(page_observations["fields"], rectify_meta)
+                for observation in page_observations["fields"]:
+                    if observation.get("original_bbox") is None and "source_box_unavailable" not in observation["reasons"]:
+                        observation["reasons"].append("source_box_unavailable")
             field_sources = {}
             source_rows = (extract_res.get("extraction_detail") or {}).get("field_sources", {})
             if source_rows:
@@ -497,7 +504,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 # OCR evidence is independently useful even when template extraction rejects.
                 # Import safety remains governed by status/profile/contract in the Web layer.
                 "ocr_evidence": ocr_evidence,
-                "page_observations": (extract_res.get("extraction_detail") or {}).get("page_observations"),
+                "page_observations": page_observations,
             }
             # Layer 1 禁用段图像观测（契约 2.4.0 additive）：无图像观测时缺省不出
             stage_enabled = (extract_res.get("extraction_detail") or {}).get("stage_enabled")
