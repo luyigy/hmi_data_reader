@@ -83,6 +83,7 @@ def extract_injection_b_and_r(toks: list[dict], template: dict) -> dict:
     # 射胶表（区段：射胶头 ~ 保压头）
     inj_rows = _value_rows(toks, y_inj + 0.02, y_hold - 0.01, gap)
     inj: dict[str, list | None] = {"velocity": None, "pressure": None, "position": None}
+    inj_tokens: dict[str, list] = {}
     expect = [r for r in sc["injection"]["rows"] if r not in sc["injection"]["skip_rows"]]
     if len(inj_rows) < len(sc["injection"]["rows"]):
         warnings.append(f"ROW_COUNT_LOW(injection,{len(inj_rows)})")
@@ -91,15 +92,18 @@ def extract_injection_b_and_r(toks: list[dict], template: dict) -> dict:
             continue
         rng = vr["pct"] if name == "velocity" else (vr["bar"] if name == "pressure" else vr["mm"])
         inj[name] = _row_values(cl, rng, _first_num)[:max_stages]
+        inj_tokens[name] = cl[:max_stages]
 
     # 保压表（区段：保压头 ~ 保压切换头）
     hold_rows = _value_rows(toks, y_hold + 0.02, y_sw - 0.01, gap)
     hold: dict[str, list | None] = {"velocity": None, "pressure": None, "time": None}
+    hold_tokens: dict[str, list] = {}
     if len(hold_rows) < len(sc["holding"]["rows"]):
         warnings.append(f"ROW_COUNT_LOW(holding,{len(hold_rows)})")
     for name, cl in zip(sc["holding"]["rows"], hold_rows):
         rng = vr["pct"] if name == "velocity" else (vr["bar"] if name == "pressure" else vr["s"])
         hold[name] = _row_values(cl, rng, _first_num)[:max_stages]
+        hold_tokens[name] = cl[:max_stages]
 
     # 有效段
     n_inj = 0
@@ -128,11 +132,11 @@ def extract_injection_b_and_r(toks: list[dict], template: dict) -> dict:
                         and lab["x"] < t["x"] < lab["x"] + sc["switch"]["value_dx"]):
                     v = _first_num(t["text"])
                     if v is not None and lo <= v <= hi:
-                        return v
-        return None
+                        return v, t
+        return None, None
 
-    vp_pos = switch_value(sc["switch"]["position_label"], vr["mm"])
-    vp_time = switch_value(sc["switch"]["time_label"], vr["s"])
+    vp_pos, vp_pos_token = switch_value(sc["switch"]["position_label"], vr["mm"])
+    vp_time, vp_time_token = switch_value(sc["switch"]["time_label"], vr["s"])
     if vp_pos is None:
         warnings.append("VALUE_MISSING(vp_switch_position_mm)")
     if vp_time is None:
@@ -171,5 +175,15 @@ def extract_injection_b_and_r(toks: list[dict], template: dict) -> dict:
     detail["section_y"] = {"injection": y_inj, "holding": y_hold, "switch": y_sw}
     if template.get("profile_id") == "b_and_r.injection_holding.multi_stage_position_time":
         detail["page_variant"] = "multi_stage_position_time"
-        detail["page_observations"] = b_and_r_page_observations(fields, template)
+        source_tokens = {
+            "injection_velocity_pct": inj_tokens.get("velocity", [])[:n_inj],
+            "injection_pressure_bar": inj_tokens.get("pressure", [])[:n_inj],
+            "injection_position_mm": inj_tokens.get("position", [])[:n_inj],
+            "holding_velocity_pct": hold_tokens.get("velocity", [])[:n_hold],
+            "holding_pressure_bar": hold_tokens.get("pressure", [])[:n_hold],
+            "holding_time_s": hold_tokens.get("time", [])[:n_hold],
+            "vp_switch_position_mm": vp_pos_token,
+            "vp_switch_time_s": vp_time_token,
+        }
+        detail["page_observations"] = b_and_r_page_observations(fields, template, source_tokens)
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}

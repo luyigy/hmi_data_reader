@@ -33,14 +33,17 @@ def test_z050_page_routes_exports_and_matches_original_image_truth():
     assert candidate["vp_switch_mode"] == "position_or_time"
     width, height = fixture["screen_size"]
     tokens = [dict(text=row["text"], x=(row["bbox"][0] + row["bbox"][2]) / (2 * width),
-                   y=(row["bbox"][1] + row["bbox"][3]) / (2 * height))
-              for row in fixture["lines"]]
+                   y=(row["bbox"][1] + row["bbox"][3]) / (2 * height),
+                   bbox=row["bbox"], conf=row["confidence"], line_index=index)
+              for index, row in enumerate(fixture["lines"])]
     result = extract_injection_b_and_r(tokens, package["template"])
     truth = json.loads((ROOT / sample["truth_path"]).read_text())
     assert result["warnings"] == []
     assert result["fields"] == truth["fields"]
     observed = result["detail"]["page_observations"]
     assert len(observed["fields"]) == 20
+    assert all(row["bbox"] is not None for row in observed["fields"])
+    assert all("source_box_unavailable" not in row["reasons"] for row in observed["fields"])
     by_label = {row["label"]: row for row in observed["fields"]}
     assert by_label["射胶压力1"]["value"] == 100
     assert by_label["射胶终点位置3"]["value"] == 0
