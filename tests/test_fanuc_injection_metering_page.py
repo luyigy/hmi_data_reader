@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from export_page_package import export_page_package
+from contract import attach_contract
 from extract_families.fanuc_injection import extract_injection_fanuc
 from page_template_registry import registered_page_templates
 
@@ -102,3 +103,15 @@ def test_fanuc_full_page_values_reach_capture_review_contract():
         assert by_label[label]['value'] == expected['value']
         assert by_label[label]['unit'] == expected['unit']
         assert 'source_box_unavailable' in by_label[label]['reasons']
+
+
+def test_fanuc_reader_response_resolves_the_accepted_physical_page():
+    fixture = json.loads((ROOT / FIXTURE).read_text())
+    package = export_page_package(PID, '0.1.1')
+    extracted = extract_injection_fanuc(_tokens(fixture), package['template'])
+    result = dict(controller_family='FANUC', page_type='injection_metering',
+                  fields=extracted['fields'], extraction_detail=extracted['detail'])
+    attach_contract(result)
+    assert result['profile_id'] == PID
+    assert result['hmi_variant'] == 'injection_holding_metering'
+    assert result['extraction_detail']['page_observations']['profile_id'] == PID
