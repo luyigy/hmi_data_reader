@@ -3,6 +3,7 @@ from pathlib import Path
 
 from scripts.export_page_package import export_page_package
 from scripts.extract_families.demag import extract_demag
+from scripts.extract_families.demag.metering_rows import metering_row_tokens
 from scripts.page_template_registry import registered_page_templates
 from scripts.extract_fields import norm_tokens
 from scripts.extract_families.tact5_process import project_boxes
@@ -98,3 +99,14 @@ def test_metering_duplicate_ocr_cells_keep_four_columns_and_source_boxes(tmp_pat
                for field in verified['fields'] if field['stage'])
     assert all(field['state'] == 'enabled' and field['state_basis'] == 'grayscale_retract_cells_reference'
                for field in verified['fields'] if field['label'] in ('后抽目标位置', '后抽速度'))
+
+    dark = image.copy()
+    rows = metering_row_tokens(tokens)
+    for token in (rows['stage_position_mm'][5], rows['stage_velocity_mms'][1]):
+        x, y = int(token['x'] * width), int(token['y'] * height)
+        dark[y - 30:y + 30, x - 50:x + 50] = 80
+    dark_path = tmp_path / 'metering-dark-retract.png'
+    assert cv2.imwrite(str(dark_path), dark)
+    dark_observed = extract_demag(tokens, template, image_path=dark_path)['detail']['page_observations']['fields']
+    assert all(field['state'] == 'unknown' for field in dark_observed
+               if field['label'] in ('后抽目标位置', '后抽速度'))
