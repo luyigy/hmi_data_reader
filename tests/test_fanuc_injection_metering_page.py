@@ -52,7 +52,8 @@ def test_fanuc_extraction_matches_truth_metering_subset():
 def test_fanuc_full_page_visual_review_matches_original_and_extraction():
     review = json.loads((ROOT / 'ground_truth/mc_z036_injection/Z036_rank04_full_page_visual_review.json').read_text())
     assert sha256((ROOT / review['image']).read_bytes()).hexdigest() == review['image_sha256']
-    assert review['human_adjudication'] == 'pending'
+    assert review['human_adjudication'].startswith('injection_holding_13_confirmed_by_owner')
+    assert len(review['fields']) == 27
     fixture = json.loads((ROOT / FIXTURE).read_text())
     package = export_page_package(PID, '0.1.1')
     result = extract_injection_fanuc(_tokens(fixture), package['template'])['fields']
@@ -71,3 +72,33 @@ def test_fanuc_full_page_visual_review_matches_original_and_extraction():
               'injection.alarm.pressure': 'injection_alarm_pressure_mpa'}
     for field_id, key in scalar.items():
         assert result[key] == review['fields'][field_id]['value']
+    metering = {'plasticizing.pressure': 'metering_back_pressure_mpa',
+                'plasticizing.speed': 'metering_rpm_stages',
+                'plasticizing.end': 'metering_switch_positions_mm'}
+    for prefix, key in metering.items():
+        assert result[key] == [review['fields'][f'{prefix}.{n}']['value']
+                               for n in range(1, len(result[key]) + 1)]
+    for field_id, key in {'plasticizing.manual_back_pressure': 'back_pressure_mpa',
+                          'plasticizing.manual_rpm': 'metering_rpm',
+                          'metering.end': 'metering_position_mm',
+                          'retract.post.distance': 'decompress_position_mm',
+                          'retract.post.speed': 'decompress_mms',
+                          'cooling.time': 'cooling_time_s'}.items():
+        assert result[key] == review['fields'][field_id]['value']
+
+
+def test_fanuc_full_page_values_reach_capture_review_contract():
+    fixture = json.loads((ROOT / FIXTURE).read_text())
+    package = export_page_package(PID, '0.1.1')
+    result = extract_injection_fanuc(_tokens(fixture), package['template'])
+    observations = result['detail']['page_observations']
+    review = json.loads((ROOT / 'ground_truth/mc_z036_injection/Z036_rank04_full_page_visual_review.json').read_text())
+    by_label = {row['label']: row for row in observations['fields']}
+    aliases = package['template']['business_profile_candidate']['possible_names']
+    assert len(by_label) == len(review['fields']) == 27
+    for field_id, expected in review['fields'].items():
+        alias_id = '.'.join([*field_id.split('.')[:-1], '{n}']) if field_id.split('.')[-1].isdigit() else field_id
+        label = aliases[alias_id][0].replace('{n}', field_id.split('.')[-1])
+        assert by_label[label]['value'] == expected['value']
+        assert by_label[label]['unit'] == expected['unit']
+        assert 'source_box_unavailable' in by_label[label]['reasons']

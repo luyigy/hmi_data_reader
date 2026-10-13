@@ -4,8 +4,8 @@
   "review_date": "2026-10-13",
   "review_method": "direct_original_image_visual_check",
   "reviewer": "codex",
-  "human_adjudication": "pending",
-  "scope": "injection_and_holding_settings_only",
+  "human_adjudication": "injection_holding_13_confirmed_by_owner_2026-10-13; metering_14_from_049_truth_pending_independent_owner_confirmation",
+  "scope": "full_page_27_observations",
   "screen_column_order": "injection_stage_2_then_stage_1",
   "stage_order": "physical_stage_1_then_stage_2",
   "fields": {
@@ -21,8 +21,22 @@
     "holding.time.2": {"value": 0.5, "unit": "s", "screen": "保压, 2段秒"},
     "holding.speed.shared": {"value": 10.0, "unit": "mm/s", "screen": "最大保压速度"},
     "injection.time.limit": {"value": 0.5, "unit": "s", "screen": "最大射出时间"},
-    "injection.alarm.pressure": {"value": 175.0, "unit": "MPa", "screen": "射出压力报警, ON"}
+    "injection.alarm.pressure": {"value": 175.0, "unit": "MPa", "screen": "射出压力报警, ON"},
+    "plasticizing.manual_back_pressure": {"value": 5.0, "unit": "MPa", "screen": "手动计量, 背压"},
+    "plasticizing.manual_rpm": {"value": 100.0, "unit": "rpm", "screen": "手动计量, 转速"},
+    "plasticizing.pressure.1": {"value": 8.5, "unit": "MPa", "screen": "计量, 背压1"},
+    "plasticizing.pressure.2": {"value": 8.5, "unit": "MPa", "screen": "计量, 背压2"},
+    "plasticizing.pressure.3": {"value": 8.5, "unit": "MPa", "screen": "计量, 背压3"},
+    "plasticizing.speed.1": {"value": 200.0, "unit": "rpm", "screen": "计量, 转速1"},
+    "plasticizing.speed.2": {"value": 200.0, "unit": "rpm", "screen": "计量, 转速2"},
+    "plasticizing.speed.3": {"value": 200.0, "unit": "rpm", "screen": "计量, 转速3"},
+    "plasticizing.end.1": {"value": 10.0, "unit": "mm", "screen": "计量, 切换位置1"},
+    "plasticizing.end.2": {"value": 20.0, "unit": "mm", "screen": "计量, 切换位置2"},
+    "metering.end": {"value": 45.0, "unit": "mm", "screen": "计量位置"},
+    "retract.post.distance": {"value": 5.0, "unit": "mm", "screen": "减压位置"},
+    "retract.post.speed": {"value": 20.0, "unit": "mm/s", "screen": "减压速度"},
+    "cooling.time": {"value": 6.5, "unit": "s", "screen": "冷却时间"}
   },
   "excluded_observations": ["射出前停止 0.000秒", "现在值、最新数据和底部模次历史"],
-  "note": "本文件为代理逐格目视核对，不冒称用户或独立人工已签字；旧 049 储料/冷却真值保持原样。"
+  "note": "射出/保压 13 项经领域所有者于 2026-10-13 确认；计量/冷却 14 项来自既有 049 自动整批真值并由代理对照原图，尚待领域所有者独立确认。"
 }

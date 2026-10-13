@@ -12,6 +12,7 @@ token（避开段序号裸整数 1/2）。右上单值（背压/转速）用 x_h
 import re
 
 from .common import _anchor_match  # noqa: F401
+from .fanuc_page_observations import fanuc_page_observations
 
 DEC = re.compile(r"\d{1,3}\.\d")
 INT = re.compile(r"\d{1,3}")
@@ -214,4 +215,7 @@ def extract_injection_fanuc(toks: list[dict], template: dict) -> dict:
         "decompress_position_mm": one("decompress_position_mm"),
         "decompress_mms": one("decompress_mms"),
     }
+    if template.get("profile_id") == "fanuc.injection_metering.injection_holding_metering":
+        detail["page_variant"] = "injection_holding_metering"
+        detail["page_observations"] = fanuc_page_observations(fields, template)
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}
