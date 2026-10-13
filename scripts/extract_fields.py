@@ -345,8 +345,6 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
     mt_path = rectified_dir / f"{stem}.ocr_mt.json"
     mt_lines = json.loads(mt_path.read_text()).get("lines", []) if mt_path.is_file() else []
     lcd_pv_set = family == "unknown" and is_lcd_pv_set(mt_lines)
-    if lcd_pv_set:
-        family, family_src = "INDUSTRIAL_CHILLER", "mold_temp_lcd_signature"
     if family == "unknown":
         # 伯乐 KEBA/B_AND_R 等无 record/机台先验且单图关键词分类失败的图：
         # 合并 CLAHE 变体后按各模板的 family_detect_groups 判族（不改既有路由优先级）
@@ -356,9 +354,11 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         fam = detect_family_from_templates(det_lines + mt_lines, templates_dir)
         if fam:
             family, family_src = fam, "template_keywords"
+        elif lcd_pv_set:
+            family, family_src = "INDUSTRIAL_CHILLER", "mold_temp_lcd_signature"
     page, page_src, template = resolve_page_template(
         stem, lines, family, templates_dir, extra_anchor_lines=mt_lines)
-    if lcd_pv_set:
+    if family_src == "mold_temp_lcd_signature":
         page, page_src = "mold_temp", "mold_temp_lcd_signature"
         template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
