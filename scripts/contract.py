@@ -242,6 +242,13 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
             and isinstance(page_type, str) and page_type
             and layout_variant):
         profile_id = f"{family.lower()}.{page_type}.{layout_variant}"
+        detail = result.get("extraction_detail")
+        observations = detail.get("page_observations") if isinstance(detail, dict) else None
+        declared = observations.get("profile_id") if isinstance(observations, dict) else None
+        if (isinstance(declared, str) and declared in registry
+                and declared.startswith(f"{family.lower()}.")
+                and registry[declared].get("layout_variant") == layout_variant):
+            profile_id = declared
     result["profile_id"] = profile_id
 
     profile = registry.get(profile_id) if profile_id else None
