@@ -1,0 +1,16 @@
+{
+  "image": "datasets/hmi/raw/legacy/samples_inj_z050/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.jpeg",
+  "image_sha256": "03830ab484fc905a35947a0094e1d682c8287e1d397fe520d91f523ef6104962",
+  "decision_date": "2026-10-13",
+  "decision_source": "domain_owner_live_room_reply",
+  "field": "holding_switch_mode",
+  "screen_state": "position_and_time_both_checked",
+  "business_mode": "position_or_time",
+  "rule": "位置先到按位置切换；时间先到按时间切换。任一条件先满足即转保压。",
+  "position_mm": 15.8,
+  "time_s": 2.35,
+  "unresolved_for_write": [
+    "射胶和保压压力是液压压力还是塑料压力，射胶压力行是否为上限",
+    "射胶位置 42/21/0 mm 各段语义及第 3 段 0 mm 启用状态"
+  ]
+}
