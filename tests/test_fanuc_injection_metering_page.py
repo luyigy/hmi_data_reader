@@ -53,7 +53,7 @@ def test_fanuc_extraction_matches_truth_metering_subset():
 def test_fanuc_full_page_visual_review_matches_original_and_extraction():
     review = json.loads((ROOT / 'ground_truth/mc_z036_injection/Z036_rank04_full_page_visual_review.json').read_text())
     assert sha256((ROOT / review['image']).read_bytes()).hexdigest() == review['image_sha256']
-    assert review['human_adjudication'].startswith('injection_holding_13_confirmed_by_owner')
+    assert review['human_adjudication'] == 'full_page_27_confirmed_by_owner_2026-10-13'
     assert len(review['fields']) == 27
     fixture = json.loads((ROOT / FIXTURE).read_text())
     package = export_page_package(PID, '0.1.1')
