@@ -1,0 +1,28 @@
+{
+  "image": "datasets/hmi/raw/legacy/samples_mc_z036/inj_Z036_20250511_rank04_recuQJJFYYxREp.jpeg",
+  "image_sha256": "3c37a3f27ba80db8846375478e5dd068bcf195a918fd5a8439a553ca2bfad981",
+  "review_date": "2026-10-13",
+  "review_method": "direct_original_image_visual_check",
+  "reviewer": "codex",
+  "human_adjudication": "pending",
+  "scope": "injection_and_holding_settings_only",
+  "screen_column_order": "injection_stage_2_then_stage_1",
+  "stage_order": "physical_stage_1_then_stage_2",
+  "fields": {
+    "injection.speed.1": {"value": 220.0, "unit": "mm/s", "screen": "射出速度, 1列"},
+    "injection.speed.2": {"value": 185.0, "unit": "mm/s", "screen": "射出速度, 2列"},
+    "injection.pressure.1": {"value": 210.0, "unit": "MPa", "screen": "最大射出压, 1列"},
+    "injection.pressure.2": {"value": 210.0, "unit": "MPa", "screen": "最大射出压, 2列"},
+    "injection.end.1": {"value": 26.0, "unit": "mm", "screen": "射出切换位置"},
+    "vp.position": {"value": 22.8, "unit": "mm", "screen": "切换模式, 位置切换"},
+    "holding.pressure.1": {"value": 35.0, "unit": "MPa", "screen": "保压, 1段"},
+    "holding.pressure.2": {"value": 5.0, "unit": "MPa", "screen": "保压, 2段"},
+    "holding.time.1": {"value": 1.5, "unit": "s", "screen": "保压, 1段秒"},
+    "holding.time.2": {"value": 0.5, "unit": "s", "screen": "保压, 2段秒"},
+    "holding.speed.shared": {"value": 10.0, "unit": "mm/s", "screen": "最大保压速度"},
+    "injection.time.limit": {"value": 0.5, "unit": "s", "screen": "最大射出时间"},
+    "injection.alarm.pressure": {"value": 175.0, "unit": "MPa", "screen": "射出压力报警, ON"}
+  },
+  "excluded_observations": ["射出前停止 0.000秒", "现在值、最新数据和底部模次历史"],
+  "note": "本文件为代理逐格目视核对，不冒称用户或独立人工已签字；旧 049 储料/冷却真值保持原样。"
+}

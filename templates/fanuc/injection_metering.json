@@ -1,8 +1,8 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "profile_id": "fanuc.injection_metering.injection_holding_metering",
   "page_version": "1",
-  "rule_version": "s01.1",
+  "rule_version": "s01.2",
   "ui_family": "FANUC",
   "page": "injection_metering",
   "layout_anchors": ["射出速度", "最大保压速度", "手动计量"],
@@ -42,9 +42,9 @@
   "business_profile_candidate": {
     "page_id": "fanuc.injection_metering.injection_holding_metering",
     "page_version": "1",
-    "rule_version": "s01.1",
+    "rule_version": "s01.2",
     "algorithm": "protocol_replay_v1",
-    "decision_source": "049 B1 六图自动整批接受真值（2026-08-02，visual_skim 口径，用户保留事后否决权）；2026-10-13 对照 Z036 rank04 原图逐字段核对储料/冷却子集",
+    "decision_source": "049 B1 六图自动整批接受真值（2026-08-02，visual_skim 口径，用户保留事后否决权）；2026-10-13 对照 Z036 rank04 原图逐字段核对储料/冷却子集；2026-10-13 codex 对 Z036 rank04 原图逐格目视核对射出、保压设置，独立人工签字仍待完成",
     "verification_status": "sample_reviewed_partial",
     "controller": "FANUC",
     "page_kind": "process_settings",
@@ -116,7 +116,7 @@
       "cooling.time": "validate_in_main"
     },
     "migration_notes": [
-      "真值确认范围仅储料/冷却子集 9 字段（计量 3 段背压/转速/切换位置、冷却时间、计量位置、减压距离与速度、右上手动背压/转速）；射出与保压侧数值提取器已产出但未经人工真值确认，主仓不得据此自动写入。",
+      "Z036 rank04 射出/保压侧 13 项已由 codex 对原图逐格目视核对，记录见 ground_truth/mc_z036_injection/Z036_rank04_full_page_visual_review.json；独立人工签字待完成。",
       "原屏压力单位为 MPa（ROBOSHOT 全电机，plastic_pressure）；转速 min-1 记为 rpm；射出速度屏幕列序 [2段,1段]，提取器已逆序为物理段序。",
       "原图保留在 Reader datasets/hmi/raw/legacy/samples_mc_z036/，SHA-256 与尺寸见样本 manifest；六份真值均为 049 自动整批接受，非独立留出集。",
       "页面结构与 Z048 fanuc.injection_metering 同构（049 真值备注），同族其它机台复用本页面前仍需各自实图核对。"

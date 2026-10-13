@@ -1,5 +1,6 @@
 import json
 import sys
+from hashlib import sha256
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -46,3 +47,27 @@ def test_fanuc_extraction_matches_truth_metering_subset():
     # 射出侧仅固定当前提取观测：屏幕列序 [2段,1段] 已逆序为物理段序。
     assert result['fields']['injection_velocity_mms'] == [220.0, 185.0]
     assert result['fields']['holding_pressure_mpa'] == [35.0, 5.0]
+
+
+def test_fanuc_full_page_visual_review_matches_original_and_extraction():
+    review = json.loads((ROOT / 'ground_truth/mc_z036_injection/Z036_rank04_full_page_visual_review.json').read_text())
+    assert sha256((ROOT / review['image']).read_bytes()).hexdigest() == review['image_sha256']
+    assert review['human_adjudication'] == 'pending'
+    fixture = json.loads((ROOT / FIXTURE).read_text())
+    package = export_page_package(PID, '0.1.1')
+    result = extract_injection_fanuc(_tokens(fixture), package['template'])['fields']
+    expected = {
+        'injection.speed': ('injection_velocity_mms', 2),
+        'injection.pressure': ('injection_pressure_limit_mpa', 2),
+        'holding.pressure': ('holding_pressure_mpa', 2),
+        'holding.time': ('holding_time_s', 2),
+    }
+    for prefix, (key, count) in expected.items():
+        assert result[key] == [review['fields'][f'{prefix}.{n}']['value'] for n in range(1, count + 1)]
+    scalar = {'injection.end.1': 'injection_switch_position_mm',
+              'vp.position': 'vp_switch_position_mm',
+              'holding.speed.shared': 'holding_limit_speed_mms',
+              'injection.time.limit': 'max_injection_time_s',
+              'injection.alarm.pressure': 'injection_alarm_pressure_mpa'}
+    for field_id, key in scalar.items():
+        assert result[key] == review['fields'][field_id]['value']
