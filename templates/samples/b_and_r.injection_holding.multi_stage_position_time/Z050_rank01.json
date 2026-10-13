@@ -1,0 +1,15 @@
+{
+  "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+  "sample_id": "Z050_rank01",
+  "purpose": "development_exposed_not_independent_test",
+  "original_sha256": "03830ab484fc905a35947a0094e1d682c8287e1d397fe520d91f523ef6104962",
+  "original_size": [
+    4032,
+    3024
+  ],
+  "ocr_fixture": "tests/fixtures/b_and_r_z050_rank01_ocr.json",
+  "ocr_sha256": "b7b3062bfa4d3b3e7d90a0ff9058eb0d15a3cd16799a489f9fa52213169e73de",
+  "truth_path": "ground_truth/inj_z050_injection/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.truth.json",
+  "truth_scope": "six-image auto-batch acceptance; injection and holding values, no independent human field-by-field sign-off",
+  "photo_distribution": "datasets/hmi/raw/legacy/samples_inj_z050/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.jpeg"
+}
