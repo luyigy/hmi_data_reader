@@ -177,6 +177,15 @@
       "status": "candidate",
       "template": "tact5.process_settings.injection_holding_metering.json",
       "lifecycle_note": "2026-10-08：Z077/Z078 射出·计量组合页，开发样本已暴露；仅人工核对，不代表独立识别验收通过。"
+    },
+    {
+      "profile_id": "fanuc.injection_metering.injection_holding_metering",
+      "controller_family": "FANUC",
+      "page_type": "injection_metering",
+      "layout_variant": "injection_holding_metering",
+      "status": "candidate",
+      "template": "fanuc/injection_metering.json",
+      "lifecycle_note": "2026-10-13 登记：发那科 ROBOSHOT α-S30iA 射出·计量同屏页（射出 2 段 + 保压 2 段 + 计量 3 段同屏，Z036 模具 TX22049A；049 真值备注与 Z048 同构）。证据：6 份 049 自动整批接受真值（mc_z036 rank01-06，2026-08-02，用户保留事后否决权），覆盖储料/冷却子集 9 字段；2026-10-13 对照 rank04 原图（SHA-256 3c37a3f2…）逐字段核对一致，固定 OCR 回放零告警。偏差披露：射出/保压侧数值未入人工真值；样本全部参与过模板校准，非独立留出集；原图框坐标未核对。晋级 verified 需独立 holdout 或所有者豁免。"
     }
   ]
 }

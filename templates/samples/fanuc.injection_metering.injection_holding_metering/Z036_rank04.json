@@ -1,0 +1,11 @@
+{
+  "profile_id": "fanuc.injection_metering.injection_holding_metering",
+  "sample_id": "Z036_rank04",
+  "purpose": "development_exposed_not_independent_test",
+  "original_sha256": "3c37a3f27ba80db8846375478e5dd068bcf195a918fd5a8439a553ca2bfad981",
+  "original_size": [4032, 3024],
+  "ocr_fixture": "tests/fixtures/fanuc_injection_metering_z036_rank04_ocr.json",
+  "ocr_sha256": "ee5cdf65fd4e6b5b729586275adfb2eb3726d6e144ae1bed8e0f8c9878669c68",
+  "truth_scope": "Z036 rank04 原图逐字段核对储料/冷却子集：计量 3 段背压 8.5/8.5/8.5 MPa、转速 200/200/200 min-1、切换位置 10.00/20.00 mm、冷却时间 6.50 s、计量位置 45.00 mm、减压 5.00 mm + 20.0 mm/s、右上手动背压 5.0 MPa、手动转速 100 min-1；射出/保压侧数值未入真值，禁用态与原图框仍须人工确认",
+  "photo_distribution": "原图在 Reader datasets/hmi/raw/legacy/samples_mc_z036/（飞书库存源记录 recvr7ZON2CRwt）；真值系 049 自动整批接受（2026-08-02，用户保留事后否决权），用于开发，不作为独立留出图"
+}
