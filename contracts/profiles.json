@@ -185,7 +185,7 @@
       "layout_variant": "injection_holding_metering",
       "status": "candidate",
       "template": "fanuc/injection_metering.json",
-      "lifecycle_note": "2026-10-13 登记：发那科 ROBOSHOT α-S30iA 射出·计量同屏页（射出 2 段 + 保压 2 段 + 计量 3 段同屏，Z036 模具 TX22049A；049 真值备注与 Z048 同构）。证据：6 份 049 自动整批接受真值（mc_z036 rank01-06，2026-08-02，用户保留事后否决权），覆盖储料/冷却子集 9 字段；2026-10-13 对照 rank04 原图（SHA-256 3c37a3f2…）逐字段核对一致，固定 OCR 回放零告警。偏差披露：射出/保压侧已有 2026-10-13 codex 原图逐格目视复核记录，但独立人工签字仍待完成；样本全部参与过模板校准，非独立留出集；原图框坐标未核对。晋级 verified 需独立 holdout 或所有者豁免。"
+      "lifecycle_note": "2026-10-13 登记：发那科 ROBOSHOT α-S30iA 射出·计量同屏页（射出 2 段 + 保压 2 段 + 计量 3 段同屏，Z036 模具 TX22049A；049 真值备注与 Z048 同构）。证据：6 份 049 自动整批接受真值（mc_z036 rank01-06，2026-08-02，用户保留事后否决权），覆盖储料/冷却子集 9 字段；2026-10-13 对照 rank04 原图（SHA-256 3c37a3f2…）逐字段核对一致，固定 OCR 回放零告警。偏差披露：射出/保压侧 13 项已于 2026-10-13 经领域所有者确认；计量/冷却展开的 14 项仍沿用 049 自动整批真值，尚未获得逐项独立确认；样本全部参与过模板校准，非独立留出集；原图框坐标未核对。晋级 verified 需独立 holdout 或所有者豁免。"
     },
     {
       "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
