@@ -13,7 +13,7 @@ PID = 'demag.injection_metering.multi_stage_back_pressure'
 
 
 def test_metering_rows_follow_confirmed_end_positions_and_exclude_disabled_residue():
-    template = export_page_package(PID, '0.2.0')['template']
+    template = export_page_package(PID, '0.2.1')['template']
     assert set(template['business_profile_candidate']['field_write_review'].values()) == {'validate_in_main'}
     assert template['business_profile_candidate']['pressure_basis'] == 'hydraulic_pressure'
     assert export_page_package(PID, '0.1.0')['template']['business_profile_candidate']['pressure_basis'] is None
@@ -35,7 +35,8 @@ def test_metering_rows_follow_confirmed_end_positions_and_exclude_disabled_resid
         observed = {field['label']: field for field in facts['fields']}
         assert [observed[f'预塑终点{n}']['value'] for n in (1, 2)] == ends[:2]
         assert observed['熔料结束位置']['value'] == ends[2]
-        assert observed['后抽距离']['value'] == 5
+        assert observed['后抽目标位置']['value'] == 45
+        assert '后抽距离' not in observed
         assert observed['预塑转速1']['unit'] == rotation_unit
         assert '预塑背压4' not in observed and '预塑原始位置4' not in observed
         assert all(field['state'] == 'unknown' for field in facts['fields'])
@@ -43,7 +44,7 @@ def test_metering_rows_follow_confirmed_end_positions_and_exclude_disabled_resid
 
 def test_metering_unreadable_rotation_unit_stays_unknown():
     fixture = json.loads((ROOT / 'tests/fixtures/demag_metering_z002_ocr.json').read_text())
-    template = export_page_package(PID, '0.2.0')['template']
+    template = export_page_package(PID, '0.2.1')['template']
     width, height = fixture['screen_size']
     tokens = [dict(text='螺杆转速' if '螺杆转速[' in line['text'] else line['text'],
                    x=(line['bbox'][0] + line['bbox'][2]) / (2 * width),
@@ -64,17 +65,17 @@ def test_metering_duplicate_ocr_cells_keep_four_columns_and_source_boxes(tmp_pat
     duplicates = [{**line, '_src': 'ocr_variant'} for line in lines if line['text'] in
                   ('3.0', '150', '59', '0.00', '10.00', '30.00', '40.00', '45.00', '45.0')]
     tokens = norm_tokens({'lines': lines + duplicates}, fixture['screen_size'])
-    template = export_page_package(PID, '0.2.0')['template']
+    template = export_page_package(PID, '0.2.1')['template']
     result = extract_demag(tokens, template)
     fields = result['fields']
     assert [len(fields[key]) for key in ('stage_back_pressure_bar', 'stage_plasticizing_speed_rpm',
                                         'stage_position_mm', 'stage_velocity_mms')] == [4, 4, 6, 2]
     observed = result['detail']['page_observations']['fields']
-    assert len(observed) == 12
+    assert len(observed) == 11
     project_boxes(observed, dict(screen_size=[width, height], original_size=[width, height],
                                  screen_quad=[[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]]))
     assert sum(field['original_bbox'] is not None for field in observed) == 11
-    assert next(field for field in observed if field['label'] == '后抽距离')['original_bbox'] is None
+    assert all(field['label'] != '后抽距离' for field in observed)
 
     import cv2
     import numpy as np
@@ -95,3 +96,5 @@ def test_metering_duplicate_ocr_cells_keep_four_columns_and_source_boxes(tmp_pat
     assert all(field['state'] == 'enabled' for field in verified['fields'] if field['stage'])
     assert all(field['state_basis'] == 'grayscale_metering_rows_reference'
                for field in verified['fields'] if field['stage'])
+    assert all(field['state'] == 'enabled' and field['state_basis'] == 'grayscale_retract_cells_reference'
+               for field in verified['fields'] if field['label'] in ('后抽目标位置', '后抽速度'))

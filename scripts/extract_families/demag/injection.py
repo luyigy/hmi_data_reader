@@ -637,7 +637,7 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
         detail["page_observations"] = injection_observations(fields)
     elif variant == "multi_stage_back_pressure":
         observations = metering_observations(fields, toks)
-        if img is not None and observations and len(observations["fields"]) == 12:
+        if img is not None and observations and len(observations["fields"]) == 11:
             rows = metering_row_tokens(toks)
             pressure = rows["stage_back_pressure_bar"]
             rotation = rows["stage_plasticizing_speed_rpm"]
@@ -645,6 +645,8 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
                 states = _stage_enabled(img, {
                     "pressure": [(token["x"], token["y"]) for token in pressure],
                     "rotation": [(token["x"], token["y"]) for token in rotation],
+                    "retract_position": [(token["x"], token["y"]) for token in rows["stage_position_mm"][5:6]],
+                    "retract_speed": [(token["x"], token["y"]) for token in rows["stage_velocity_mms"][1:2]],
                 })
                 if states.get("pressure") == states.get("rotation") == [True, True, True, False]:
                     for field in observations["fields"]:
@@ -655,6 +657,11 @@ def extract_injection_demag(toks: list[dict], template: dict, image_path=None) -
                     indexes = [token["line_index"] for token in pressure[:3] if "line_index" in token]
                     if indexes:
                         observations["stage_counts"]["plasticizing"] = {"value": 3, "line_indexes": indexes}
+                if states.get("retract_position") == states.get("retract_speed") == [True]:
+                    for field in observations["fields"]:
+                        if field["label"] in ("后抽目标位置", "后抽速度") and field["value"] is not None:
+                            field["state"] = "enabled"
+                            field["state_basis"] = "grayscale_retract_cells_reference"
         detail["page_observations"] = observations
     if stage_enabled:
         detail["stage_enabled"] = stage_enabled

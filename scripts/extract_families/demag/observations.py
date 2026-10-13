@@ -78,7 +78,6 @@ def metering_observations(fields: dict, toks: list[dict]) -> dict:
                  ("预塑转速", rotation[:3], rotation_unit, True, rotation_src[:3]),
                  ("预塑终点", positions[1:3], "mm", True, position_src[1:3]),
                  ("熔料结束位置", [positions[4]], "mm", False, position_src[4:5]),
-                 ("后抽距离", [positions[5] - positions[4]], "mm", False, []),
                  ("后抽速度", [speeds[1]], "mm/s", False, speed_src[1:2]),
                  ("后抽目标位置", [positions[5]], "mm", False, position_src[5:6]))
     else:
