@@ -9,6 +9,7 @@
 import re
 
 from .common import _anchor_match  # noqa: F401
+from .b_and_r_page_observations import b_and_r_page_observations
 
 NUM = re.compile(r"\d+\.?\d*")
 
@@ -168,4 +169,7 @@ def extract_injection_b_and_r(toks: list[dict], template: dict) -> dict:
         "vp_switch_time_s": vp_time,
     }
     detail["section_y"] = {"injection": y_inj, "holding": y_hold, "switch": y_sw}
+    if template.get("profile_id") == "b_and_r.injection_holding.multi_stage_position_time":
+        detail["page_variant"] = "multi_stage_position_time"
+        detail["page_observations"] = b_and_r_page_observations(fields, template)
     return {"fields": fields, "heater_columns": 0, "warnings": warnings, "detail": detail}

@@ -10,6 +10,6 @@
   "ocr_fixture": "tests/fixtures/b_and_r_z050_rank01_ocr.json",
   "ocr_sha256": "b7b3062bfa4d3b3e7d90a0ff9058eb0d15a3cd16799a489f9fa52213169e73de",
   "truth_path": "ground_truth/inj_z050_injection/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.truth.json",
-  "truth_scope": "six-image auto-batch acceptance; injection and holding values, no independent human field-by-field sign-off",
+  "truth_scope": "Z050 rank01 原图 049 自动整批数值真值；2026-10-13 领域所有者确认压力为液压设定值、三段位置语义与末段 V/P 终点、位置或时间先到先切换。原图参与模板开发，不作独立留出集。",
   "photo_distribution": "datasets/hmi/raw/legacy/samples_inj_z050/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.jpeg"
 }

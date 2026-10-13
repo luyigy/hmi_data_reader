@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "ui_family": "B_AND_R",
   "page": "injection_metering",
   "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z050，B&R 贝加莱 UI）OCR 实测锚点",
@@ -89,7 +89,7 @@
   ],
   "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
   "page_version": "1",
-  "rule_version": "s01.1",
+  "rule_version": "s01.2",
   "layout_anchors": [
     "射胶",
     "保压切换",
@@ -102,9 +102,9 @@
   "business_profile_candidate": {
     "page_id": "b_and_r.injection_holding.multi_stage_position_time",
     "page_version": "1",
-    "rule_version": "s01.1",
+    "rule_version": "s01.2",
     "algorithm": "protocol_replay_v1",
-    "decision_source": "Z050 rank01 原图与 049 六图自动整批接受真值；压力基准、位置+时间双条件待领域裁定",
+    "decision_source": "Z050 rank01 原图、049 六图真值及领域所有者 2026-10-13 对压力侧别、设定值、段终点和 V/P 双条件的裁定",
     "verification_status": "sample_reviewed_partial",
     "controller": "B_AND_R",
     "page_kind": "process_settings",
@@ -113,7 +113,7 @@
       "保压切换"
     ],
     "speed_unit": "percent",
-    "pressure_basis": null,
+    "pressure_basis": "hydraulic_pressure",
     "injection_position_meaning": "stage_end_position",
     "holding_time_meaning": "segment_duration",
     "pre_suck_back": {
@@ -166,12 +166,16 @@
       "holding.speed.{n}": "validate_in_main",
       "holding.pressure.{n}": "validate_in_main",
       "holding.time.{n}": "validate_in_main",
-      "vp.switch.time": "observation_only_until_switch_semantics_confirmed"
+      "vp.switch.time": "validate_in_main"
     },
     "migration_notes": [
-      "物理页有射胶 3 段、保压 3 段；第 3 段射胶位置 0.0 为未到达的设置终点，保压切换位置 15.8 mm 与时间 2.35 s 同时勾选，组合条件尚未获主仓业务语义裁定。",
-      "压力单位原屏为 bar，但液压/塑料压力基准及射胶压力行应入压力上限还是其它设定，均没有独立证据；未裁定前不得自动写入压力槽位。",
-      "现有六图真值由 049 自动整批接受，不是独立人工逐字段签字。"
-    ]
+      "射胶位置 42/21/0 mm 是各段显示终点；第 3 段启用，但业务终点取 V/P 位置 15.8 mm，原屏 0 mm 保留为未写入观测。",
+      "射胶压力 100/115/91 bar 是液压压力设定值，写入 pressure_setpoint，不写入压力上限；保压压力同为液压压力。未提供增压比时只保留原值及侧别，不猜塑料压力 MPa。",
+      "位置 15.8 mm 与时间 2.35 s 同时勾选，任一条件先满足即切换；勾选状态的自动识别仍需逐图核对。",
+      "六图旧真值由 049 自动整批接受；Z050 rank01 的关键语义由领域所有者 2026-10-13 裁定，样本参与过模板开发，不是独立留出集。"
+    ],
+    "injection_pressure_meaning": "pressure_setpoint",
+    "last_injection_end_from_vp": true,
+    "vp_switch_mode": "position_or_time"
   }
 }

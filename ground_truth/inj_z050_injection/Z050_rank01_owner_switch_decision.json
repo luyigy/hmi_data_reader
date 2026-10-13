@@ -9,8 +9,13 @@
   "rule": "位置先到按位置切换；时间先到按时间切换。任一条件先满足即转保压。",
   "position_mm": 15.8,
   "time_s": 2.35,
-  "unresolved_for_write": [
-    "射胶和保压压力是液压压力还是塑料压力，射胶压力行是否为上限",
-    "射胶位置 42/21/0 mm 各段语义及第 3 段 0 mm 启用状态"
-  ]
+  "pressure_basis": "hydraulic_pressure",
+  "injection_pressure_meaning": "pressure_setpoint",
+  "injection_position_meaning": "stage_end_position",
+  "displayed_stage_end_positions_mm": [42.0, 21.0, 0.0],
+  "active_injection_stages": 3,
+  "last_stage_end_source": "vp_switch_position_mm",
+  "last_stage_displayed_zero": "active_stage_display_value_not_business_endpoint",
+  "business_stage_end_positions_mm": [42.0, 21.0, 15.8],
+  "unresolved_for_write": []
 }
