@@ -22,6 +22,19 @@ plan_progress: complete
 
 用户指出仓库内部的 `npm run workflow:new` 不是飞书操作入口。现已接入 `/ap plan --format=html <需求>`：它沿用现有房间内的计划讨论，由主持 Agent 调用仓库生成器填写 HTML 候选；平台提交前校验该文件，并在消息里明确提示“暂不进入 watcher 审批或自动派发”。原 `/ap plan <需求>` 仍生成正式 Markdown PLAN。HTML 候选的 `next_action` 必须为 `await_approval`，校验器拒绝执行动作。
 
+### 本轮实际改动与使用结果
+
+本轮分三次追加提交，分别为 `c10b7ba`（HTML 候选骨架与校验）、`1db257d`（样例及本交接）、`ca16357`（飞书入口）。具体改动如下：
+
+| 部分 | 主要文件 | 现在能做什么 |
+| --- | --- | --- |
+| 文档合同与生成 | `docs/workflow/workflow-contract.yaml`、`docs/workflow/templates/PLAN-candidate.html`、`scripts/new-workflow-document.ts` | 显式指定 `--format html` 时生成一份 HTML PLAN 候选；默认 PLAN 与 HANDOVER 仍是 MD。 |
+| 校验 | `src/lib/scheduled-jobs/workflow-validator.ts`、`scripts/generated/workflow-validator.cjs` | 校验 HTML 注释中的合同字段、Slice、Prompt 和静态内容；HTML 候选只能等待审批，不能声明启动执行。 |
+| 飞书入口 | `src/lib/feishu-plan.ts`、`src/lib/live-room-workflows.ts`、`src/lib/feishu-help.ts` | 在飞书发送 `/ap plan --format=html <需求>` 可启动候选计划讨论，完成后消息返回已提交的文件路径。 |
+| 示例与验收 | `docs/workflow/examples/001_PLAN_20261012_HTML计划候选样例.html`、对应测试和 `docs/workflow/AUTOMATION_GUIDE.md` | 可从仓库打开样例查看排版；自动测试覆盖生成、校验、飞书命令解析与 watcher 不派发。 |
+
+一次计划只生成一种格式：`/ap plan <需求>` 生成正式 MD；`/ap plan --format=html <需求>` 生成 HTML 候选，不同时生成同名 MD。HTML 候选需从仓库取得 `.html` 文件并在浏览器打开，飞书内尚无 HTML 预览或审批卡。PLAN 写作规范未改，因而本轮没有解决计划内容不可靠、伪阻塞等问题。`npm run workflow:new` 是 Agent 内部生成文件的命令，不是用户在飞书输入的命令。飞书服务未在本轮重启，`/ap plan --format=html` 只经过本地测试，尚未做飞书端到端验收。
+
 ## 验证
 
 - `npm run test:new-workflow-document`、`npm run test:workflow-validator`、`npm run test:git-history-guard`、`npm run test:workflow-watcher`、`npx tsc --noEmit`、`npm run check:long-files` 均通过。
