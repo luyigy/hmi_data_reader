@@ -99,6 +99,8 @@ model Task {
   taskSessions         TaskSession[]
   controlMessages      TaskRunControlMessage[]
   interactionRequests  TaskRunInteractionRequest[]
+  taskGraphRuns        TaskGraphRun[]          @relation("TaskGraphParent")
+  taskGraphExecutions  TaskGraphExecution[]    @relation("TaskGraphChild")
   currentTaskSession   TaskSession?            @relation("TaskCurrentSession", fields: [currentTaskSessionId], references: [id])
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
@@ -616,6 +618,93 @@ model WorkflowDispatch {
   updatedAt DateTime @updatedAt
 
   @@unique([projectId, jobId, eventKey])
+}
+
+// A confirmed graph is copied into snapshot at launch. Nodes and executions are
+// materialized separately so the frontier can be claimed atomically after restart.
+model TaskGraphRun {
+  id             String               @id @default(cuid())
+  parentTaskId   String
+  version        Int
+  requestKey     String               @unique
+  snapshotHash   String
+  snapshot       Json
+  status         String               @default("running") // running, attention, completed
+  parentTask     Task                 @relation("TaskGraphParent", fields: [parentTaskId], references: [id], onDelete: Restrict)
+  nodes          TaskGraphNode[]
+  events         TaskGraphEvent[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([parentTaskId, version])
+  @@index([status])
+}
+
+model TaskGraphNode {
+  id            String               @id @default(cuid())
+  runId         String
+  key           String
+  dependsOn     String[]
+  acceptance    String               // automatic, agent, human
+  reviewerId    String?
+  status        String               @default("planned") // planned, ready, claimed, verifying, awaiting_human, passed, attention
+  evidence      Json?
+  claimToken    String?
+  claimedAt     DateTime?
+  passedAt      DateTime?
+  run           TaskGraphRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  executions    TaskGraphExecution[]
+  events        TaskGraphEvent[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@unique([runId, key])
+  @@index([runId, status])
+}
+
+model TaskGraphExecution {
+  id             String         @id @default(cuid())
+  nodeId         String
+  key            String
+  repository     String
+  gitRef         String
+  baseCommit     String
+  agentSelector  String
+  launchConfig   Json?
+  status         String         @default("planned") // planned, ready, claimed, integrated, attention
+  issueKind      String?
+  claimToken     String?
+  claimedAt      DateTime?
+  childTaskId    String?        @unique
+  sessionId      String?
+  taskRunId      String?
+  worktreePath   String?
+  worktreeBranch String?
+  dispatchMetadata Json?
+  commit         String?
+  evidence       Json?
+  node           TaskGraphNode  @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  childTask      Task?          @relation("TaskGraphChild", fields: [childTaskId], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([nodeId, key])
+  @@index([nodeId, status])
+}
+
+model TaskGraphEvent {
+  id             String         @id @default(cuid())
+  runId          String
+  nodeId         String?
+  idempotencyKey String
+  kind           String
+  payload        Json
+  run            TaskGraphRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  node           TaskGraphNode? @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+
+  @@unique([runId, idempotencyKey])
+  @@index([runId, createdAt])
 }
 
 model FeishuProcessedMessage {

@@ -1,0 +1,101 @@
+import { createHash } from 'node:crypto';
+import { isAbsolute } from 'node:path';
+
+export type Acceptance = {
+  mode: 'automatic' | 'agent' | 'human';
+  reviewerId?: string;
+  checks: string[];
+};
+
+export type GraphExecution = {
+  key: string;
+  repository: string;
+  gitRef: string;
+  baseCommit: string;
+  agentSelector: string;
+  launchConfig?: unknown;
+};
+
+export type GraphNode = {
+  key: string;
+  dependsOn: string[];
+  acceptance: Acceptance;
+  executions: GraphExecution[];
+};
+
+export type GraphDefinition = {
+  specRef: string;
+  nodes: GraphNode[];
+};
+
+export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefinition {
+  if (!input.specRef?.trim() || !Array.isArray(input.nodes) || input.nodes.length === 0) {
+    throw new Error('Task graph requires a spec reference and at least one node');
+  }
+  const keys = new Set<string>();
+  for (const node of input.nodes) {
+    if (!node.key?.trim() || keys.has(node.key)) throw new Error(`Duplicate or empty node key: ${node.key}`);
+    keys.add(node.key);
+  }
+  for (const node of input.nodes) {
+    if (!Array.isArray(node.dependsOn) || new Set(node.dependsOn).size !== node.dependsOn.length ||
+        node.dependsOn.some((key) => !keys.has(key) || key === node.key)) {
+      throw new Error(`Invalid dependencies for ${node.key}`);
+    }
+    const gate = node.acceptance;
+    if (!gate || !['automatic', 'agent', 'human'].includes(gate.mode) || !Array.isArray(gate.checks) ||
+        gate.checks.length === 0 || gate.checks.some((check) => !check?.trim()) ||
+        (gate.mode !== 'automatic' && !gate.reviewerId?.trim())) {
+      throw new Error(`Invalid acceptance gate for ${node.key}`);
+    }
+    if (!Array.isArray(node.executions) || node.executions.length === 0) {
+      throw new Error(`Node ${node.key} needs at least one repository execution`);
+    }
+    const executionKeys = new Set<string>();
+    for (const job of node.executions) {
+      if (!job.key?.trim() || executionKeys.has(job.key) || !isAbsolute(job.repository) ||
+          !job.gitRef?.trim() || !/^[0-9a-f]{40,64}$/i.test(job.baseCommit) || !job.agentSelector?.trim()) {
+        throw new Error(`Invalid repository execution in ${node.key}: ${job.key}`);
+      }
+      executionKeys.add(job.key);
+    }
+  }
+  const byKey = new Map(input.nodes.map((node) => [node.key, node]));
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  function walk(key: string) {
+    if (visiting.has(key)) throw new Error(`Task graph cycle at ${key}`);
+    if (visited.has(key)) return;
+    visiting.add(key);
+    for (const dependency of byKey.get(key)!.dependsOn) walk(dependency);
+    visiting.delete(key);
+    visited.add(key);
+  }
+  for (const key of Array.from(keys)) walk(key);
+  // The serialized copy is the only value persisted. Reject functions, cycles,
+  // undefined and non-finite numbers rather than silently changing a plan.
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(input);
+  } catch {
+    throw new Error('Task graph must be JSON serializable');
+  }
+  if (!serialized || JSON.stringify(JSON.parse(serialized)) !== serialized ||
+      hasUnserializableValue(input)) throw new Error('Task graph contains non-JSON values');
+  return JSON.parse(serialized) as GraphDefinition;
+}
+
+function hasUnserializableValue(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol' ||
+      (typeof value === 'number' && !Number.isFinite(value))) return true;
+  if (value === null || typeof value !== 'object') return false;
+  if (seen.has(value)) return true;
+  seen.add(value);
+  const invalid = Object.values(value).some((child) => hasUnserializableValue(child, seen));
+  seen.delete(value);
+  return invalid;
+}
+
+export function taskGraphSnapshotHash(definition: GraphDefinition): string {
+  return createHash('sha256').update(JSON.stringify(validateTaskGraphDefinition(definition))).digest('hex');
+}
