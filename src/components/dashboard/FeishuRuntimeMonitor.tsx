@@ -12,6 +12,7 @@ type RuntimeMetrics = {
 
 type RuntimeStatus = {
   status: string;
+  transportState?: 'connecting' | 'healthy' | 'stalled';
   pid: number | null;
   startedAt: string | null;
   metrics?: RuntimeMetrics | null;
@@ -50,7 +51,11 @@ export function FeishuRuntimeMonitor() {
   }, []);
 
   const metrics = status?.metrics;
-  const health = metrics?.health ?? 'warning';
+  const health = status?.transportState === 'stalled'
+    ? 'critical'
+    : status?.transportState === 'connecting' ? 'warning' : metrics?.health ?? 'warning';
+  const connectionLabel = status?.transportState === 'healthy' ? '连接正常'
+    : status?.transportState === 'stalled' ? '连接异常' : '连接中';
   const values = metrics
     ? [
         ['线程', metrics.threads, baseline ? metrics.threads - baseline.threads : 0],
@@ -70,7 +75,7 @@ export function FeishuRuntimeMonitor() {
           </p>
         </div>
         <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-medium">
-          {metrics ? `${health} · PID ${status?.pid}` : `${status?.status ?? 'unavailable'} · 无指标`}
+          {metrics ? `${connectionLabel} · ${health} · PID ${status?.pid}` : `${status?.status ?? 'unavailable'} · 无指标`}
         </span>
       </div>
       {metrics ? (

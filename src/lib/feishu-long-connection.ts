@@ -1,4 +1,5 @@
 import * as Lark from '@larksuiteoapi/node-sdk';
+import { startFeishuConnectionSupervisor, stopFeishuConnectionSupervisor } from '@/lib/feishu-connection-supervisor';
 import { prisma } from '@/lib/prisma';
 import {
   hydrateFeishuMessageResources,
@@ -900,13 +901,6 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
     const appId = getRequiredEnv('FEISHU_APP_ID');
     const appSecret = getRequiredEnv('FEISHU_APP_SECRET');
     const eventDispatcher = attachRuntimeHandlers(prefix, host);
-    const wsClient = new Lark.WSClient({
-      appId,
-      appSecret,
-      domain: Lark.Domain.Feishu,
-      loggerLevel: Lark.LoggerLevel.info,
-    });
-
     console.log(`${prefix} starting`, {
       appIdSuffix: appId.slice(-4),
       baseUrl: resolveBaseUrl(),
@@ -914,7 +908,7 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
       host,
     });
 
-    await wsClient.start({ eventDispatcher });
+    startFeishuConnectionSupervisor({ appId, appSecret, eventDispatcher, prefix });
     void primeFeishuRoomCreationAgents();
 
     state.status = 'running';
@@ -965,6 +959,7 @@ export async function startFeishuLongConnectionRuntime() {
  * before the process exits. Must complete within the systemd TimeoutStopSec window.
  */
 export async function shutdownFeishuRuntime() {
+  stopFeishuConnectionSupervisor();
   console.log('[FeishuRuntime] shutting down — cleaning up in-flight deliveries...');
   try {
     // Kill any running claude/codex child processes tracked in the process registry

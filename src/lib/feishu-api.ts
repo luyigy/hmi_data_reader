@@ -56,7 +56,7 @@ function getRequiredEnv(name: string): string {
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
-export async function getFeishuTenantAccessToken(): Promise<string> {
+export async function getFeishuTenantAccessToken(signal?: AbortSignal): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.expiresAt) {
     return cachedToken.value;
   }
@@ -65,6 +65,7 @@ export async function getFeishuTenantAccessToken(): Promise<string> {
     `${FEISHU_API_BASE}/auth/v3/tenant_access_token/internal`,
     {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -140,18 +141,20 @@ export async function sendFeishuTextMessage(args: {
   receiveIdType?: FeishuReceiveIdType;
   threadRootMessageId?: string;
   replyId?: string;
+  signal?: AbortSignal;
 }) {
   if (args.threadRootMessageId !== undefined) {
     await replyFeishuMessage({ messageId: args.threadRootMessageId, msgType: 'text', content: { text: args.text }, replyInThread: true });
     return;
   }
-  const token = await getFeishuTenantAccessToken();
+  const token = await getFeishuTenantAccessToken(args.signal);
   const receiveIdType = args.receiveIdType || 'chat_id';
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
   url.searchParams.set('receive_id_type', receiveIdType);
 
   const response = await fetch(url.toString(), {
     method: 'POST',
+    signal: args.signal,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,

@@ -3,6 +3,8 @@ import path from 'node:path';
 
 export type FeishuRuntimeStatus = {
   status: 'idle' | 'disabled' | 'starting' | 'running' | 'error' | 'stopped';
+  transportState: 'connecting' | 'healthy' | 'stalled';
+  lastTransportAt: string | null;
   mode: string;
   host: 'standalone' | 'nextjs';
   pid: number | null;
@@ -54,6 +56,10 @@ export function classifyFeishuRuntimeMetrics(threads: number, sqliteFileDescript
   return 'healthy' as const;
 }
 
+export function isFeishuConnectionHealthy(status: Pick<FeishuRuntimeStatus, 'status' | 'transportState'>) {
+  return status.status === 'running' && status.transportState === 'healthy';
+}
+
 function readProcessMetrics(pid: number): FeishuRuntimeMetrics | null {
   try {
     const procDir = `/proc/${pid}`;
@@ -87,6 +93,8 @@ export function createFeishuRuntimeStatus(
 ): FeishuRuntimeStatus {
   return {
     status: 'idle',
+    transportState: 'connecting',
+    lastTransportAt: null,
     mode: process.env.FEISHU_CONNECTION_MODE?.trim() || 'long_connection',
     host: 'standalone',
     pid: process.pid,

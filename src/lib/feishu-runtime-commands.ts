@@ -118,6 +118,7 @@ export async function handleStatusCommand(
   const runtimeLines = runtime?.metrics
     ? [
         `飞书运行时：${runtime.metrics.health === 'healthy' ? '健康' : runtime.metrics.health}（PID ${runtime.pid}）`,
+        `飞书连接：${runtime.transportState === 'healthy' ? '正常' : runtime.transportState === 'stalled' ? '异常，自动重连中' : '连接中'}`,
         `线程数：${runtime.metrics.threads}`,
         `文件描述符：${runtime.metrics.openFileDescriptors}`,
         `SQLite 描述符：${runtime.metrics.sqliteFileDescriptors}`,
