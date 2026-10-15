@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Platform · 新用户入门</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; color: #243247; background: #f4f7fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; line-height: 1.65; }
+    main { max-width: 900px; margin: 0 auto; padding: 36px 20px 64px; }
+    header { padding: 36px; border-radius: 24px; color: white; background: linear-gradient(125deg, #1749a6, #547de2); box-shadow: 0 14px 32px #254d9b24; }
+    header p { max-width: 650px; margin-bottom: 0; color: #e4edff; }
+    h1 { margin: 0; font-size: clamp(28px, 5vw, 42px); line-height: 1.2; }
+    h2 { margin: 0 0 16px; font-size: 22px; color: #173b7b; }
+    h3 { margin: 0 0 8px; font-size: 17px; }
+    p { margin: 8px 0 0; }
+    section { margin-top: 20px; padding: 26px 30px; border: 1px solid #e2e9f4; border-radius: 20px; background: white; box-shadow: 0 5px 18px #254d9b0c; }
+    ol, ul { margin: 10px 0 0; padding-left: 22px; }
+    li + li { margin-top: 9px; }
+    code { padding: 2px 6px; border-radius: 5px; background: #edf3ff; color: #1749a6; font-size: .94em; overflow-wrap: anywhere; }
+    .lead { font-size: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .tile { padding: 18px; border-radius: 14px; background: #f3f7ff; }
+    .step { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; margin-right: 8px; border-radius: 50%; color: white; background: #315fc4; font-weight: 700; }
+    .note { padding: 14px 18px; border-left: 4px solid #e5a638; border-radius: 8px; background: #fff8e9; }
+    .example { margin-top: 12px; padding: 16px 18px; border-radius: 12px; background: #172b4d; color: #eef5ff; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .example code { padding: 0; background: none; color: inherit; }
+    footer { margin-top: 22px; text-align: center; color: #62728b; font-size: 13px; }
+    @media (max-width: 660px) { header, section { padding: 22px; } .grid { grid-template-columns: 1fr; } }
+    @media print { :root { background: white; } main { padding: 0; } header, section { box-shadow: none; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Agent Platform 新用户入门</h1>
+    <p class="lead">直接在飞书与 Agent 协作。私聊适合个人任务；群聊里的独立任务话题适合按项目或目标分开推进。</p>
+  </header>
+
+  <section>
+    <h2>1 · 第一次使用</h2>
+    <ol>
+      <li><span class="step">1</span>给 Agent Platform 机器人发一条私聊消息。首次使用可能需要管理员批准准入。</li>
+      <li><span class="step">2</span>管理员批准后，会给你的私聊分配工作目录和可用权限；收到批准通知后，重新发送你的需求。</li>
+      <li><span class="step">3</span>在同一个私聊里持续沟通。描述目标、背景、验收标准和相关文件，Agent 会沿用这个房间的上下文。</li>
+    </ol>
+    <p class="note">工作目录和权限由管理员配置。若路径或访问范围不对，请联系管理员调整，不要用其他人的目录代替。</p>
+  </section>
+
+  <section>
+    <h2>2 · 日常怎么用</h2>
+    <div class="grid">
+      <div class="tile"><h3>直接提需求</h3><p>像聊天一样说明要做什么，例如“检查这个页面的错误并修复，完成后说明改动和测试结果”。</p></div>
+      <div class="tile"><h3>先问再改</h3><p>需要讨论时直接说“先分析原因和方案，暂时不要改代码”。确定方向后再明确要求实施。</p></div>
+      <div class="tile"><h3>查看当前房间</h3><p><code>/ap status</code> 查看状态；<code>/ap members</code> 查看成员；<code>/ap help</code> 打开命令帮助。</p></div>
+      <div class="tile"><h3>检查目录与权限</h3><p><code>/ap workspace</code> 查看实际工作目录；<code>/ap rights</code> 查看 Agent 当前权限。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · 在群聊里开一个独立任务</h2>
+    <ol>
+      <li>请群管理员确认任务隔离已开启：<code>/ap isolation status</code>。</li>
+      <li>在<strong>群主聊天区</strong>发送 <code>/ap task new --title=任务名 --workdir=/绝对/目录</code>，或用 <code>/ap menu</code> 里的“新增独立任务”入口。</li>
+      <li>打开生成的任务入口卡片，在它的<strong>话题</strong>里发送 <code>/ap add --agents=local:codex</code> 添加 Agent，然后只在该话题继续任务讨论。</li>
+    </ol>
+    <p class="note">每个话题绑定一个独立任务和一个主工作目录。独立话题隔离对话与任务状态；如果多个任务写同一目录，文件仍可能互相影响。并行改代码时应安排独立 worktree 或不重叠的文件范围。</p>
+  </section>
+
+  <section>
+    <h2>4 · 常用控制命令</h2>
+    <div class="grid">
+      <div class="tile"><h3>停止当前运行</h3><p><code>/ap stop</code>；要查看运行中的会话，用 <code>/ap sessions</code>。</p></div>
+      <div class="tile"><h3>开始新会话</h3><p><code>/ap new-session</code>。适合上下文过长，或要从新的会话重新开始时使用。</p></div>
+      <div class="tile"><h3>查看可选 Agent</h3><p><code>/ap agents</code>；在房间中添加成员用 <code>/ap add --agents=&lt;agent-id&gt;</code>。</p></div>
+      <div class="tile"><h3>发现命令</h3><p><code>/ap menu</code> 是分类命令卡，<code>/ap help</code> 提供完整文字帮助。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>5 · 一个可直接复制的任务描述</h2>
+    <div class="example"><code>请检查当前项目的登录页。目标：修复提交后偶发的空白页。先定位原因，再实施最小修复。完成后告诉我修改了哪些文件、跑了什么验证，以及还需要我确认什么。</code></div>
+    <p>如果任务涉及多个仓库、需要联网、安装依赖或访问工作目录以外的文件，请在需求里提前说明；Agent 会按当前房间的实际权限执行。</p>
+  </section>
+
+  <footer>Agent Platform · 飞书使用速览 · 2026-10-15</footer>
+</main>
+</body>
+</html>
