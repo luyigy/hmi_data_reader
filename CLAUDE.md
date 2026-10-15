@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Agent skills
+
+### Issue tracker
+
+Matt Pocock's engineering skills use GitHub Issues in `luyigy/agent-platform-v2`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the five default triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use the single-context root glossary and architecture decisions. See `docs/agents/domain.md`.
+
 ## Commands
 
 ```bash

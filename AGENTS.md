@@ -1,3 +1,7 @@
+## Agent skills
+
+For Matt Pocock's engineering skills, read the repository configuration in `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and `docs/agents/domain.md`.
+
 ## GitNexus Usage
 
 GitNexus is an available code analysis tool, but it should not be executed blindly for every task.
