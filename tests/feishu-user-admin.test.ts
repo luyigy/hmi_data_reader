@@ -56,9 +56,13 @@ void (async () => {
   assert.match(JSON.stringify(card), /Member task/);
   assert.match(JSON.stringify(card), /授权根目录/);
   assert.ok(card.elements.some((element) => element.tag === 'form'));
+  assert.equal((card.elements.find((element) => element.tag === 'form') as { elements: Array<{ tag: string; action_type?: string }> })
+    .elements.find((element) => element.tag === 'button')?.action_type, 'form_submit');
   const list = await buildFeishuUserListCard('oc_admin');
   assert.match(JSON.stringify(list), /Member.*approved.*dev_local/);
   assert.match(JSON.stringify(list), /ap-feishu-user-admin/);
+  assert.equal((list.elements.find((element) => element.tag === 'form') as { elements: Array<{ tag: string; action_type?: string }> })
+    .elements.find((element) => element.tag === 'button')?.action_type, 'form_submit');
 
   await assert.rejects(updateFeishuUserAdmin({
     actorOpenId: 'ou_member', userOpenId: user.openId, workspaceRoot: workspace, profile: 'dev_local',
