@@ -23,7 +23,7 @@ assert.match(formatFeishuHelp(page2), /运行控制[\s\S]*\/ap run[\s\S]*第 2\/
 
 const page3 = parseFeishuCommand(message('/ap help --page=3'))!;
 assert.deepEqual(page3, { command: 'help', args: [], options: { page: '3' } });
-assert.match(formatFeishuHelp(page3), /Workflow \/ Jobs[\s\S]*diagnose workflow-watcher/);
+assert.match(formatFeishuHelp(page3), /任务图 \/ Jobs[\s\S]*\/ap graph status/);
 
 assert.match(formatFeishuHelp({ args: [], options: {} }), /房间与 Agent[\s\S]*\/ap room[\s\S]*第 1\/4 页/);
 assert.deepEqual(parseFeishuCommand(message('/ap handoff-limit 0')), {
@@ -82,13 +82,8 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
       : [
           '/ap dashboard',
           '/ap jobs',
-          '/ap workflow status',
+          '/ap graph status',
           '/ap branch status',
-          '/ap workflow validation show',
-          '/ap workflow validation template',
-          '/ap workflow policy show',
-          '/ap workflow policy edit',
-          '/ap job diagnose workflow-watcher',
         ].includes(command)
         ? 'workflow'
         : 'admin';
@@ -97,8 +92,8 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
     new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );
 }
-assert.match(JSON.stringify(workflowCard), /修改调度/);
-assert.match(JSON.stringify(workflowCard), /修改执行档位/);
+assert.match(JSON.stringify(workflowCard), /任务图进度/);
+assert.doesNotMatch(JSON.stringify(workflowCard), /创建 PLAN/);
 const menuCard = buildFeishuCommandCenterCard('group');
 assert.match(JSON.stringify(menuCard), /功能开发…/);
 assert.match(JSON.stringify(menuCard), /发现 Agents/);

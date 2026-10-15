@@ -175,7 +175,11 @@ function findWorkspace(trees: Worktree[], target: string): Worktree | undefined 
 }
 
 async function cleanWorkspace(target: string): Promise<boolean> {
-  return (await git(target, 'status', '--porcelain', '--untracked-files=all', '--ignored=matching')) === '';
+  return (await git(target, 'status', '--porcelain', '--untracked-files=all')) === '';
+}
+
+async function hasIgnoredFiles(target: string): Promise<boolean> {
+  return (await git(target, 'ls-files', '--others', '--ignored', '--exclude-standard')) !== '';
 }
 
 /** Make a per-run integration ref without moving or checking out the source branch. */
@@ -377,6 +381,7 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
   if (tree) {
     if (tree.branch !== branch) throw new TaskGraphGitError('workspace_collision', `Worktree branch changed: ${target}`, target);
     if (!(await cleanWorkspace(target))) throw new TaskGraphGitError('workspace_dirty', `Worktree is dirty: ${target}`, target);
+    if (await hasIgnoredFiles(target)) throw new TaskGraphGitError('workspace_dirty', `Worktree contains ignored files; keep it for review: ${target}`, target);
     await git(repo, 'worktree', 'remove', target);
   }
   await git(repo, 'update-ref', '-d', branch, jobHead);

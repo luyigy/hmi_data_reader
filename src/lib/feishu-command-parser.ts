@@ -1,7 +1,7 @@
 import type { ParsedFeishuMessage } from '@/lib/feishu-message-content';
 
 export type ParsedFeishuCommand = {
-  command: 'broadcast' | 'task' | 'isolation' | 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'discover-agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'timeout' | 'mode' | 'members' | 'nick' | 'role' | 'specialty' | 'restrict' | 'model-config' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'doc' | 'md' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'inbox' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job' | 'branch';
+  command: 'broadcast' | 'task' | 'isolation' | 'help' | 'menu' | 'status' | 'users' | 'user' | 'gateways' | 'agents' | 'discover-agents' | 'hosts' | 'run' | 'register' | 'room' | 'handoff-limit' | 'timeout' | 'mode' | 'members' | 'nick' | 'role' | 'specialty' | 'restrict' | 'model-config' | 'codex-config' | 'speaker' | 'kick' | 'add' | 'chat' | 'plan' | 'doc' | 'md' | 'approvals' | 'approve' | 'deny' | 'answer' | 'grant' | 'rights' | 'handover' | 'workspace' | 'workflow' | 'graph' | 'inbox' | 'new-session' | 'stop' | 'sessions' | 'jobs' | 'job' | 'branch';
   args: string[];
   options: Record<string, string>;
 };
@@ -93,9 +93,9 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   const command = commandAlias === 'new'
     ? 'new-session'
     : commandAlias === 'dashboard'
-      ? 'job'
+      ? 'graph'
       : commandAlias;
-  if (!['task', 'isolation', 'help', 'menu', 'status', 'users', 'user', 'gateways', 'agents', 'discover-agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'timeout', 'mode', 'members', 'nick', 'role', 'specialty', 'restrict', 'model-config', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'doc', 'md', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'inbox', 'new-session', 'stop', 'sessions', 'jobs', 'job', 'branch'].includes(command)) {
+  if (!['task', 'isolation', 'help', 'menu', 'status', 'users', 'user', 'gateways', 'agents', 'discover-agents', 'hosts', 'run', 'register', 'room', 'handoff-limit', 'timeout', 'mode', 'members', 'nick', 'role', 'specialty', 'restrict', 'model-config', 'codex-config', 'speaker', 'kick', 'add', 'chat', 'plan', 'doc', 'md', 'approvals', 'approve', 'deny', 'answer', 'grant', 'rights', 'handover', 'workspace', 'workflow', 'graph', 'inbox', 'new-session', 'stop', 'sessions', 'jobs', 'job', 'branch'].includes(command)) {
     return null;
   }
 
@@ -124,8 +124,7 @@ export function parseFeishuCommand(message: ParsedFeishuMessage): ParsedFeishuCo
   }
 
   if (commandAlias === 'dashboard') {
-    args.unshift('dashboard');
-    if (args.length === 1) args.push('workflow-watcher');
+    args.unshift('status');
   }
 
   return {

@@ -23,14 +23,6 @@ projects:
         enabled: true
         mode: shadow
         config: {}
-      - id: workflow-watcher
-        type: workflow_watcher
-        schedule: "*/10 * * * *"
-        enabled: true
-        mode: shadow
-        config:
-          coding_bot_chat_id: coding-chat-1
-          execution_policy: { preset: workspace }
 ${overrides}`;
 
   const load = async (source: string) => {
@@ -41,7 +33,6 @@ ${overrides}`;
 
   const valid = await load(config());
   assert.equal(findProjectByChatId(valid, 'chat-1')?.id, 'example');
-  assert.equal(findProjectByChatId(valid, 'coding-chat-1')?.id, 'example');
   assert.equal(findJob(valid, 'example', 'scan')?.type, 'long_file_detector');
 
   for (const [name, source] of [
@@ -49,18 +40,10 @@ ${overrides}`;
     ['unknown type', config().replace('long_file_detector', 'shell')],
     ['relative path', config().replace(root, 'relative/path')],
     ['invalid cron', config().replace('*/10 * * * *', 'sometimes')],
-    ['missing workflow policy', config().replace('          execution_policy: { preset: workspace }\n', '')],
-    ['expanded workflow policy', config().replace('{ preset: workspace }', '{ preset: workspace, writable_roots: [/tmp] }')],
+    ['retired watcher', config('      - id: old\n        type: workflow_watcher\n        schedule: "* * * * *"\n        enabled: true\n        mode: active\n        config: {}')],
   ] as const) {
     await assert.rejects(load(source), name);
   }
-  const missingPolicy = config().replace('          execution_policy: { preset: workspace }\n', '');
-  const missingPolicyFile = path.join(root, 'missing-policy.yaml');
-  await writeFile(missingPolicyFile, missingPolicy);
-  assert.equal(
-    (await loadProjectsConfig(missingPolicyFile, [root], { allowMissingWorkflowPolicy: true })).projects[0].id,
-    'example',
-  );
 
   console.log('project config checks passed');
 }

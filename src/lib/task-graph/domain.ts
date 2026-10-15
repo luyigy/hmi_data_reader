@@ -4,11 +4,14 @@ import { isAbsolute } from 'node:path';
 export type Acceptance = {
   mode: 'automatic' | 'agent' | 'human';
   reviewerId?: string;
+  reviewLaunchConfig?: unknown;
+  integrationChecks?: { name: string; repository: string; argv: string[] }[];
   checks: string[];
 };
 
 export type GraphExecution = {
   key: string;
+  instructions: string;
   repository: string;
   gitRef: string;
   baseCommit: string;
@@ -18,6 +21,7 @@ export type GraphExecution = {
 
 export type GraphNode = {
   key: string;
+  goal: string;
   dependsOn: string[];
   acceptance: Acceptance;
   executions: GraphExecution[];
@@ -34,7 +38,7 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
   }
   const keys = new Set<string>();
   for (const node of input.nodes) {
-    if (!node.key?.trim() || keys.has(node.key)) throw new Error(`Duplicate or empty node key: ${node.key}`);
+    if (!node.key?.trim() || !node.goal?.trim() || keys.has(node.key)) throw new Error(`Duplicate or empty node key/goal: ${node.key}`);
     keys.add(node.key);
   }
   for (const node of input.nodes) {
@@ -48,12 +52,21 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
         (gate.mode !== 'automatic' && !gate.reviewerId?.trim())) {
       throw new Error(`Invalid acceptance gate for ${node.key}`);
     }
+    if (gate.mode === 'agent' && !gate.reviewLaunchConfig) {
+      throw new Error(`Agent review launch config is required for ${node.key}`);
+    }
+    if (gate.integrationChecks !== undefined && (!Array.isArray(gate.integrationChecks) ||
+        gate.integrationChecks.some((check) => !check?.name?.trim() || !isAbsolute(check.repository) ||
+          !Array.isArray(check.argv) || !check.argv.length ||
+          check.argv.some((arg) => typeof arg !== 'string' || !arg.trim())))) {
+      throw new Error(`Invalid integrated checks for ${node.key}`);
+    }
     if (!Array.isArray(node.executions) || node.executions.length === 0) {
       throw new Error(`Node ${node.key} needs at least one repository execution`);
     }
     const executionKeys = new Set<string>();
     for (const job of node.executions) {
-      if (!job.key?.trim() || executionKeys.has(job.key) || !isAbsolute(job.repository) ||
+      if (!job.key?.trim() || !job.instructions?.trim() || executionKeys.has(job.key) || !isAbsolute(job.repository) ||
           !job.gitRef?.trim() || !/^[0-9a-f]{40,64}$/i.test(job.baseCommit) || !job.agentSelector?.trim()) {
         throw new Error(`Invalid repository execution in ${node.key}: ${job.key}`);
       }

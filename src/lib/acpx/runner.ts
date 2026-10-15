@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma';
-import { wakeWorkflowWatcherForTaskRun } from '@/lib/scheduled-jobs/runner';
 import { getHarnessCapabilities } from './capabilities';
 import { publishTaskRunEvent } from './event-bus';
 import { getLongFileRuntimeContext } from './long-file-runtime-context';
@@ -216,13 +215,6 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       summaries: participantResults,
     },
   });
-
-  if (runStatus === 'completed' && request.participants.some(
-    (participant) => participant.executionBackend === 'platform_local'
-  )) {
-    void wakeWorkflowWatcherForTaskRun(prisma, request.taskId, taskRun.id)
-      .catch((error) => console.error('[ACPX] workflow watcher wakeup failed:', error));
-  }
 
   return {
     taskRunId: taskRun.id,

@@ -1,5 +1,6 @@
 import { handleFeishuBroadcastCommand } from '@/lib/feishu-broadcast-command';
 import { handleFeishuTaskCommand } from '@/lib/feishu-task-entry';
+import { handleFeishuTaskGraphCommand } from '@/lib/feishu-task-graph-command';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 import {
@@ -9,11 +10,8 @@ import {
 } from '@/lib/feishu-access-approval';
 import { handleScheduledJobCommand } from '@/lib/feishu-scheduled-jobs';
 import { handleAgentSessionsCommand, handleStopAgentCommand } from '@/lib/feishu-agent-sessions';
-import { handleFeishuPlanCommand } from '@/lib/feishu-plan';
 import { handleFeishuDocumentCommand } from '@/lib/feishu-document-command';
 import { handleFeishuMarkdownCommand } from '@/lib/feishu-markdown-picker';
-import { handleWorkflowPolicyCommand } from '@/lib/feishu-workflow-policy';
-import { handleWorkflowInboxCommand } from '@/lib/feishu-workflow-inbox';
 import { formatFeishuHelp, sendFeishuCommandCenter } from '@/lib/feishu-help';
 import { handleNewSessionCommand } from '@/lib/feishu-new-session';
 import { handleRoomRestrictionCommand } from '@/lib/feishu-room-controls';
@@ -126,7 +124,7 @@ export async function handleFeishuCommand(args: {
     case 'chat':
       return handleChatCommand(args.command, args.baseUrl, args.context);
     case 'plan':
-      return handleFeishuPlanCommand(args.command, args.context);
+      return '旧 PLAN 文档接力已退役。请让 Agent 先提出原型、定稿 Spec 和任务图，再在父任务确认整条路线。';
     case 'doc':
       return handleFeishuDocumentCommand(args.command, args.context);
     case 'md':
@@ -151,9 +149,11 @@ export async function handleFeishuCommand(args: {
     case 'job':
       return handleScheduledJobCommand(args.command, args.context);
     case 'workflow':
-      return handleWorkflowPolicyCommand(args.command, args.context);
+      return '旧 workflow-watcher 已退役；新任务图在父任务页面确认一次后自动接力。';
+    case 'graph':
+      return handleFeishuTaskGraphCommand(args.command, args.context);
     case 'inbox':
-      return handleWorkflowInboxCommand(args.command, args.context);
+      return '旧 Workflow Inbox 已退役；请在父任务中整理 Spec 与任务图。';
     case 'new-session':
       return handleNewSessionCommand(args.command, args.context);
     case 'stop': return handleStopAgentCommand(args.command, args.context);

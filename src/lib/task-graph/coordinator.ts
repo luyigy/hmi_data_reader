@@ -1,0 +1,358 @@
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { promisify } from 'node:util';
+import type { TaskGraphExecution } from '@prisma/client';
+import type { AcpxParticipantRequest } from '../acpx/types';
+import { executeAcpxTaskRun } from '../acpx/runner';
+import { prisma } from '../prisma';
+import { ensureTaskChatRoom, postTaskRoomMessage } from '../task-room';
+import type { GraphDefinition } from './domain';
+import { ensureGraphChildTopic, postGraphParentProgress, sendGraphHumanReviewCard } from './feishu';
+import { withRepositoryLock } from './repository-lock';
+import { assertValidationWorkspacesClean, ensureValidationWorkspaces } from './validation-workspaces';
+import {
+  claimExecution, claimNode, completeExecution, listTaskGraphWork, markNodeIntegrationsReady,
+  flagStaleExecutionClaim, recordExecutionDispatch, recordExecutionIssue,
+  refreshTaskGraphRunStatus, releaseReadyNodes,
+  submitNodeVerification, type VerificationEvidence,
+} from './store';
+import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree } from './worktree';
+
+const runCommand = promisify(execFile);
+const activeJobs = new Set<string>();
+const activeReviews = new Set<string>();
+const activeVerifications = new Set<string>();
+const inflight = new Set<Promise<void>>();
+const maxConcurrentJobs = 4;
+
+type Check = { name: string; argv: string[] };
+type LaunchConfig = { participant: AcpxParticipantRequest; checks: Check[] };
+type CheckResult = VerificationEvidence['checks'][number];
+
+function launchConfig(execution: TaskGraphExecution): LaunchConfig {
+  const config = execution.launchConfig as unknown as LaunchConfig;
+  if (!config?.participant || !Array.isArray(config.checks)) throw new Error('Execution launch config is missing');
+  return config;
+}
+
+async function runChecks(checks: Check[], directory: string, extraEnv: Record<string, string> = {}): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  for (const check of checks) {
+    try {
+      const { stdout, stderr } = await runCommand(check.argv[0], check.argv.slice(1), {
+        cwd: directory, timeout: 180_000, maxBuffer: 256 * 1024, env: { ...process.env, ...extraEnv },
+      });
+      results.push({ name: check.name, passed: true, evidence: `${check.argv.join(' ')}\n${stdout}${stderr}`.slice(-4000) });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      results.push({ name: check.name, passed: false, evidence: `${check.argv.join(' ')}\n${detail}`.slice(-4000) });
+      throw Object.assign(new Error(`Verification ${check.name} failed: ${detail}`), { results });
+    }
+  }
+  return results;
+}
+
+async function createChildTask(runId: string, nodeKey: string, execution: TaskGraphExecution, directory: string) {
+  const run = await prisma.taskGraphRun.findUniqueOrThrow({
+    where: { id: runId }, include: { parentTask: { select: { ownerUserId: true } } },
+  });
+  const config = launchConfig(execution);
+  const definition = run.snapshot as unknown as GraphDefinition;
+  const plannedNode = definition.nodes.find((item) => item.key === nodeKey);
+  const plannedExecution = plannedNode?.executions.find((item) => item.key === execution.key);
+  if (!plannedNode || !plannedExecution) throw new Error('Execution instructions are missing from frozen graph');
+  const taskId = `task-graph-${execution.id}`;
+  const taskName = `${nodeKey} · ${execution.key}`;
+  const task = await prisma.task.upsert({
+    where: { id: taskId },
+    create: {
+      id: taskId, name: taskName,
+      description: `目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
+        `\nSpec：${definition.specRef}\n父任务：${run.parentTaskId}\n请只在本 worktree 修改，完成后提交并说明验证结果。`,
+      executionMode: 'acpx', status: 'pending', workingDirectory: directory,
+      ownerUserId: run.parentTask.ownerUserId, acpxParticipants: JSON.stringify([config.participant]),
+    },
+    update: {},
+  });
+  const room = await ensureTaskChatRoom(task.id, task.name);
+  return { task, room };
+}
+
+async function verifyNode(runId: string, nodeKey: string) {
+  const node = await markNodeIntegrationsReady(runId, nodeKey);
+  if (!node || node.status !== 'verifying') return;
+  const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
+  const definition = run.snapshot as unknown as GraphDefinition;
+  const policy = definition.nodes.find((item) => item.key === nodeKey)?.acceptance;
+  if (!policy) throw new Error(`Unknown acceptance policy for ${nodeKey}`);
+  const results = node.executions.flatMap((execution) => {
+    const evidence = execution.evidence as unknown as { checks?: CheckResult[] } | null;
+    return evidence?.checks || [];
+  });
+  const repositories = Array.from(new Map(node.executions.map((execution) =>
+    [execution.repository, execution])).values());
+  const commits = await Promise.all(repositories.map(async (execution) => {
+    const integration = await ensureIntegrationRef({
+      repoPath: execution.repository, runId, baseRef: execution.gitRef,
+      baseCommit: execution.baseCommit,
+    });
+    return { repository: execution.repository, commit: integration.commit };
+  }));
+  let workspaces: Awaited<ReturnType<typeof ensureValidationWorkspaces>> = [];
+  try {
+    workspaces = await ensureValidationWorkspaces({ runId, nodeKey, commits });
+    const env = { TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
+      workspaces.map((workspace) => [workspace.repository, workspace.path]),
+    )) };
+    for (const check of policy.integrationChecks || []) {
+      const workspace = workspaces.find((item) => item.repository === check.repository);
+      if (!workspace) throw new Error(`Missing pinned repository for ${check.name}`);
+      try {
+        results.push(...await runChecks([check], workspace.path, env));
+      } catch (error) {
+        const failed = error as Error & { results?: CheckResult[] };
+        results.push(...failed.results || [{ name: check.name, passed: false, evidence: failed.message }]);
+      }
+    }
+    await assertValidationWorkspacesClean(workspaces);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    for (const check of policy.checks) results.push({ name: check, passed: false, evidence: detail });
+  }
+  const evidence: VerificationEvidence = {
+    checks: policy.checks.map((name) => {
+      const matches = results.filter((item) => item.name === name);
+      return { name, passed: matches.length > 0 && matches.every((item) => item.passed),
+        evidence: matches.map((item) => item.evidence).join('\n') || '没有验证结果' };
+    }),
+    summary: `已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
+  };
+  if (policy.mode === 'agent') {
+    if (activeReviews.has(node.id)) return;
+    activeReviews.add(node.id);
+    try {
+    const review = policy.reviewLaunchConfig as { participant?: AcpxParticipantRequest } | undefined;
+    if (!review?.participant || !policy.reviewerId) throw new Error(`Review agent missing for ${nodeKey}`);
+    const claimKey = `node:${nodeKey}:review_claimed`;
+    try {
+      await prisma.taskGraphEvent.create({ data: {
+        runId, nodeId: node.id, idempotencyKey: claimKey, kind: 'review_claimed', payload: {},
+      } });
+    } catch (error) {
+      const existing = await prisma.taskGraphEvent.findUnique({
+        where: { runId_idempotencyKey: { runId, idempotencyKey: claimKey } },
+      });
+      if (existing) return;
+      throw error;
+    }
+    const taskId = `task-graph-review-${node.id}`;
+    const taskName = `${nodeKey} · 验收复核`;
+    const task = await prisma.task.upsert({
+      where: { id: taskId },
+      create: { id: taskId, name: taskName, executionMode: 'acpx', status: 'pending',
+        acpxParticipants: JSON.stringify([review.participant]),
+        description: `独立复核任务图 ${runId} / ${nodeKey} 的交付证据。`,
+        workingDirectory: workspaces[0]?.path || undefined },
+      update: {},
+    });
+    const prompt = `请只读复核 ${nodeKey} 的目标与证据，必要时检查代码。` +
+      `\nSpec: ${definition.specRef}\n固定提交组合: ${JSON.stringify(commits)}` +
+      `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
+      '\n最终答复仅用一行 TASK_GRAPH_REVIEW {"approved":true或false,"note":"理由"}。';
+    const reviewRun = await executeAcpxTaskRun({
+      taskId: task.id, taskName: task.name, taskDescription: prompt,
+      orchestrationMode: 'single', participants: [review.participant],
+      workingDirectory: task.workingDirectory || undefined,
+    }).catch((error) => ({ status: 'failed', taskRunId: 'not-created',
+      participants: [], summary: error instanceof Error ? error.message : String(error) }));
+    const response = reviewRun.participants[0]?.summary || reviewRun.summary || '';
+    const match = response.match(/TASK_GRAPH_REVIEW\s*(\{[^\r\n]+\})/);
+    let decision: { approved?: unknown; note?: unknown } = {};
+    try { decision = match ? JSON.parse(match[1]) as typeof decision : {}; } catch { /* invalid review is a failed gate */ }
+    const approved = reviewRun.status === 'completed' && decision.approved === true &&
+      typeof decision.note === 'string' && decision.note.trim().length > 0;
+    evidence.checks = evidence.checks.map((item) => ({
+      ...item, passed: item.passed && approved,
+      evidence: `${item.evidence}\nAgent review ${reviewRun.taskRunId}: ${String(decision.note || response || '无有效结论')}`,
+    }));
+    evidence.summary = `Agent 复核 ${approved ? '通过' : '未通过'}：${String(decision.note || response || '没有有效的结构化结论')}`;
+    try { await assertValidationWorkspacesClean(workspaces); } catch (error) {
+      evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
+        evidence: `${item.evidence}\n复核污染了固定提交工作区：${String(error)}` }));
+    }
+    } finally {
+      activeReviews.delete(node.id);
+    }
+  }
+  const updated = await submitNodeVerification({
+    runId, nodeKey, actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence,
+  });
+  if (updated.status === 'passed') await releaseReadyNodes(runId);
+  if (updated.status === 'awaiting_human') {
+    void sendGraphHumanReviewCard(runId, nodeKey)
+      .catch((error) => console.error('[TaskGraph] human review card failed:', error));
+  }
+  await refreshTaskGraphRunStatus(runId);
+  const parent = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
+  void postGraphParentProgress(parent.parentTaskId, runId, `${nodeKey}：${updated.status}`)
+    .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
+}
+
+async function executeJob(runId: string, nodeKey: string, execution: TaskGraphExecution, claimToken: string) {
+  const config = launchConfig(execution);
+  try {
+    const integration = await ensureIntegrationRef({
+      repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
+    });
+    const workspace = await ensureJobWorktree({
+      repoPath: execution.repository, runId, jobId: execution.id,
+      baseRef: integration.ref, baseCommit: integration.commit,
+    });
+    const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
+    await recordExecutionDispatch({
+      runId, nodeKey, executionKey: execution.key, claimToken,
+      childTaskId: task.id, worktreePath: workspace.path, worktreeBranch: workspace.branch,
+      dispatchMetadata: { integrationRef: integration.ref, workspaceBase: integration.commit },
+    });
+    const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
+    await ensureGraphChildTopic({
+      parentTaskId: graphRun.parentTaskId, executionId: execution.id, childTaskId: task.id,
+      title: task.name, workingDirectory: workspace.path,
+    });
+    void postGraphParentProgress(graphRun.parentTaskId, runId,
+      `${nodeKey}/${execution.key} 已启动，独立工作区 ${workspace.path}`)
+      .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
+    await postTaskRoomMessage({
+      roomId: room.id, userId: 'task-graph', userName: '任务图调度器',
+      content: `执行 ${nodeKey}/${execution.key}。基线 ${integration.commit}。请在此 worktree 提交全部修改并报告测试结果。`,
+    });
+    const result = await executeAcpxTaskRun({
+      taskId: task.id, taskName: task.name, taskDescription: task.description || undefined,
+      orchestrationMode: 'single', participants: [config.participant], workingDirectory: workspace.path,
+    });
+    await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
+    if (result.status !== 'completed') throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
+    let checks: CheckResult[] = [];
+    const integrated = await withRepositoryLock(execution.repository, async () => {
+      const latest = await ensureIntegrationRef({
+        repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
+      });
+      return integrateJobWorktree({
+        repoPath: execution.repository, runId, jobId: execution.id,
+        integrationRef: latest.ref, expectedIntegrationCommit: latest.commit,
+        baseCommit: workspace.baseCommit,
+        verify: async (staging) => { checks = await runChecks(config.checks, staging); },
+      });
+    });
+    await completeExecution({
+      runId, nodeKey, executionKey: execution.key, claimToken, commit: integrated.commit,
+      evidence: { checks, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
+    });
+    void postGraphParentProgress(graphRun.parentTaskId, runId,
+      `${nodeKey}/${execution.key} 已集成 ${integrated.commit.slice(0, 12)}`)
+      .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
+    await verifyNode(runId, nodeKey);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    const kind = detail.includes('Verification') ? 'test_failed'
+      : detail.includes('Merge') || detail.includes('merge') || detail.includes('conflict') ? 'integration_conflict'
+      : 'dispatch_failed';
+    const current = await prisma.taskGraphExecution.findUnique({ where: { id: execution.id } });
+    if (current?.status === 'claimed') {
+      await recordExecutionIssue({ runId, nodeKey, executionKey: execution.key, claimToken, kind, detail });
+    } else {
+      console.error(`[TaskGraph] verification failed after integration ${runId}/${nodeKey}:`, error);
+    }
+    await refreshTaskGraphRunStatus(runId);
+    const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
+    void postGraphParentProgress(graphRun.parentTaskId, runId, `${nodeKey}/${execution.key} 需要处理：${detail}`)
+      .catch((deliveryError) => console.error('[TaskGraph] parent progress delivery failed:', deliveryError));
+  }
+}
+
+/** One poll claims only ready work. Claimed work from a previous process is never replayed automatically. */
+export async function runTaskGraphCycle() {
+  const runs = await prisma.taskGraphRun.findMany({ where: { status: { in: ['running', 'attention'] } }, select: { id: true } });
+  for (const run of runs) {
+    await releaseReadyNodes(run.id);
+    const verifying = await prisma.taskGraphNode.findMany({
+      where: { runId: run.id, status: 'verifying' }, select: { id: true, key: true },
+    });
+    for (const node of verifying) {
+      const claim = await prisma.taskGraphEvent.findUnique({
+        where: { runId_idempotencyKey: { runId: run.id, idempotencyKey: `node:${node.key}:review_claimed` } },
+      });
+      if (claim && !activeReviews.has(node.id) && Date.now() - claim.createdAt.getTime() > 30 * 60_000) {
+        const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id }, select: { snapshot: true } });
+        const policy = (snapshot.snapshot as unknown as GraphDefinition).nodes.find((item) => item.key === node.key)?.acceptance;
+        if (policy?.mode === 'agent' && policy.reviewerId) {
+          await submitNodeVerification({ runId: run.id, nodeKey: node.key, actorId: policy.reviewerId,
+            evidence: { summary: 'Agent 复核中断或超时，需要人工处理后重新排期。',
+              checks: policy.checks.map((name) => ({ name, passed: false, evidence: '复核未形成可靠结论' })) } });
+          await refreshTaskGraphRunStatus(run.id);
+        }
+      } else if (!claim) {
+        if (!activeVerifications.has(node.id)) {
+          activeVerifications.add(node.id);
+          const task = verifyNode(run.id, node.key)
+            .catch((error) => console.error('[TaskGraph] verification failed:', error))
+            .finally(() => { activeVerifications.delete(node.id); inflight.delete(task); });
+          inflight.add(task);
+        }
+      }
+    }
+    const work = await listTaskGraphWork(run.id);
+    for (const execution of work) {
+      if (execution.status === 'claimed' && execution.claimToken && execution.claimedAt &&
+          !activeJobs.has(execution.id)) {
+        const taskRun = execution.taskRunId ? await prisma.taskRun.findUnique({
+          where: { id: execution.taskRunId }, select: { status: true },
+        }) : null;
+        const grace = taskRun?.status === 'running' ? 4 * 60 * 60_000 : 10 * 60_000;
+        if (execution.claimedAt.getTime() < Date.now() - grace) {
+          const flagged = await flagStaleExecutionClaim({
+            runId: run.id, nodeKey: execution.node.key, executionKey: execution.key,
+            claimToken: execution.claimToken, claimedBefore: new Date(Date.now() - grace),
+          });
+          if (flagged) {
+            await refreshTaskGraphRunStatus(run.id);
+            const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({
+              where: { id: run.id }, select: { parentTaskId: true },
+            });
+            void postGraphParentProgress(graphRun.parentTaskId, run.id,
+              `${execution.node.key}/${execution.key} 的执行状态不确定，已暂停。请核对 TaskRun 和 worktree 后重新排期。`)
+              .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
+          }
+        }
+      }
+      if (activeJobs.size >= maxConcurrentJobs) continue;
+      if (execution.status !== 'ready' || activeJobs.has(execution.id)) continue;
+      const token = randomUUID();
+      const node = await claimNode(run.id, execution.node.key, token);
+      if (!node) {
+        const current = await prisma.taskGraphNode.findUnique({
+          where: { runId_key: { runId: run.id, key: execution.node.key } }, select: { status: true },
+        });
+        if (current?.status !== 'claimed') continue;
+      }
+      const claimed = await claimExecution(run.id, execution.node.key, execution.key, token);
+      if (!claimed) continue;
+      activeJobs.add(execution.id);
+      const task = executeJob(run.id, execution.node.key, claimed, token)
+        .catch((error) => console.error('[TaskGraph] job failed:', error))
+        .finally(() => { activeJobs.delete(execution.id); inflight.delete(task); });
+      inflight.add(task);
+    }
+  }
+}
+
+export async function startTaskGraphCoordinator(signal: AbortSignal) {
+  while (!signal.aborted) {
+    await runTaskGraphCycle().catch((error) => console.error('[TaskGraph] cycle failed:', error));
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 2000);
+      signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+    });
+  }
+  await Promise.allSettled(Array.from(inflight));
+}

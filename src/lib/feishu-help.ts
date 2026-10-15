@@ -25,7 +25,7 @@ const HELP_PAGES = [
     '/ap kick <memberName>',
     '/ap chat [--agents=<agentId1,agentId2>] <message>',
     '/ap chat --from-member=<memberName> --to-member=<memberName> <message>',
-    '/ap plan [--host=<memberName|idSuffix>] [--format=html] <需求>  HTML 为试点候选，不进入审批',
+    '/ap graph status  在父任务话题查看任务图进度；路线在父任务页面一次确认',
     '/ap doc <仓库内已提交的 Markdown 路径>  转为飞书文档',
     '/ap md [关键词|完整路径.md]  按分区倒序浏览并发送原始 Markdown 文件',
     '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',
@@ -45,28 +45,14 @@ const HELP_PAGES = [
     '/ap new [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
     '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   ]],
-  ['Workflow / Jobs', [
-    '/ap workflow status',
-    '/ap workflow level show',
-    '/ap workflow level set <full|lean|fast|implement>  (管理员/项目审批人，后续 Slice 生效)',
-    '/ap workflow autonomy show',
-    '/ap workflow autonomy set <manual|semi_auto|auto> --head=<当前HEAD>  (管理员/项目审批人)',
-    '/ap workflow validation show',
-    '/ap workflow validation set <balanced|strict> --head=<当前HEAD>  (管理员/项目审批人)',
-    '/ap workflow validation template',
-    '/ap workflow validation repair --head=<当前HEAD>  (管理员/项目审批人)',
-    '/ap workflow policy show',
-    '/ap workflow policy set --preset=workspace [--extra-read/--extra-write=绝对路径]  (管理员)',
-    '/ap workflow policy edit  发送额外挂载配置卡片  (管理员)',
-    '/ap dashboard [job-id]  返回可点击的 Workflow 状态卡',
+  ['任务图 / Jobs', [
+    '/ap graph status  在父任务话题查看依赖放行、执行与验收状态',
     '/ap jobs',
     '/ap branch status  查询当前仓库实际分支、监控分支与漂移警告',
-    '/ap branch apply [new_branch] [--branch-space=name]  确认并申请同步分支与文档目录',
-    '/ap branch switch <new_branch> [--branch-space=name]  (管理员) 直接同步分支与文档目录',
+    '/ap branch apply [new_branch] [--branch-space=name]  确认并申请同步分支',
+    '/ap branch switch <new_branch> [--branch-space=name]  (管理员) 直接同步分支',
     '/ap branch approvals  查看所有待审批的分支切换申请单',
-    '/ap job <status|dashboard|cursor|diagnose|schedule|enable|disable|run|retry|resend|stop> <job-id>',
-    '/ap job diagnose workflow-watcher',
-    '/ap job cursor workflow-watcher [--latest|--clear-pending]',
+    '/ap job <status|dashboard|diagnose|schedule|enable|disable|run|retry|stop> <job-id>',
   ]],
   ['权限与管理', [
     '/ap users [--status=approved|pending|denied|revoked|blocked]  打开用户管理卡（管理员私聊）',
@@ -107,15 +93,9 @@ export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
   '/ap discover-agents',
   '/ap hosts',
   '/ap sessions',
-  '/ap dashboard',
   '/ap jobs',
-  '/ap workflow status',
+  '/ap graph status',
   '/ap branch status',
-  '/ap workflow validation show',
-  '/ap workflow validation template',
-  '/ap workflow policy show',
-  '/ap workflow policy edit',
-  '/ap job diagnose workflow-watcher',
   '/ap users',
   '/ap approvals',
   '/ap rights',
@@ -135,15 +115,9 @@ const QUICK_ACTIONS = [
     ['Sessions', '/ap sessions'],
   ],
   [
-    ['Workflow Dashboard', '/ap dashboard'],
-    ['Workflow 状态', '/ap workflow status'],
+    ['任务图进度', '/ap graph status'],
     ['分支状态', '/ap branch status'],
-    ['校验状态', '/ap workflow validation show'],
-    ['错误模板', '/ap workflow validation template'],
     ['Jobs', '/ap jobs'],
-    ['权限策略', '/ap workflow policy show'],
-    ['额外挂载配置…', '/ap workflow policy edit'],
-    ['诊断', '/ap job diagnose workflow-watcher'],
   ],
   [
     ['用户', '/ap users'],
@@ -382,17 +356,13 @@ export const buildFeishuCommandCenterCard = (
       callbackButton('排障修复…', { cmd: 'ap-menu', view: 'form-run-debug', chatType }),
       callbackButton('文档与记录…', { cmd: 'ap-menu', view: 'form-documentation', chatType }, 'primary_filled'),
       callbackButton('创建/配置房间…', { cmd: 'ap-room-create', chatType }),
-      callbackButton('创建 PLAN…', { cmd: 'ap-menu', view: 'form-plan', chatType }),
       callbackButton('设置角色…', { cmd: 'ap-room-control', view: 'role', chatType }),
       callbackButton('设置职责…', { cmd: 'ap-room-control', view: 'specialty', chatType }),
     ]
     : categoryView === 'runtime'
       ? [callbackButton('切换工作区…', { cmd: 'ap-menu', view: 'form-workspace', chatType })]
       : categoryView === 'workflow'
-        ? [
-          callbackButton('修改执行档位…', { cmd: 'ap-menu', view: 'form-workflow-level', chatType }, 'primary_filled'),
-          callbackButton('修改调度…', { cmd: 'ap-menu', view: 'form-schedule', chatType }),
-        ]
+        ? []
         : categoryView === 'admin'
           ? [callbackButton('权限约束…', { cmd: 'ap-room-control', view: 'permission', chatType })]
         : [];

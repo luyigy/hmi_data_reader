@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原型 · 007 路线自动接力</title>
+<style>
+  :root { font-family: system-ui, sans-serif; color: #233046; background: #f4f6fa; }
+  * { box-sizing: border-box; }
+  body { max-width: 1050px; margin: 24px auto; padding: 0 18px 40px; }
+  h1 { margin-bottom: 5px; font-size: 27px; }
+  h2 { font-size: 18px; margin: 0 0 12px; }
+  p { line-height: 1.55; }
+  .hint { color: #63718a; margin-top: 0; }
+  .banner { padding: 12px 16px; background: #fff4d8; border: 1px solid #edd28f; border-radius: 10px; margin: 18px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .panel { background: white; border: 1px solid #dce3ee; border-radius: 12px; padding: 17px; margin-bottom: 16px; }
+  .room { border-left: 4px solid #4869bb; }
+  .row { padding: 11px 0; border-top: 1px solid #e2e8f2; }
+  .row:first-child { border-top: 0; }
+  .row strong { display: inline-block; min-width: 48px; }
+  .row select { max-width: 100%; margin-left: 12px; padding: 7px; }
+  .task { padding: 12px; border: 1px solid #dce3ee; border-radius: 9px; margin: 10px 0; }
+  .task strong { display: block; margin-bottom: 5px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; background: #e8eefb; color: #32539b; font-size: 12px; margin-right: 5px; }
+  button { background: #fff; border: 1px solid #aebbd1; border-radius: 7px; padding: 9px 12px; margin: 4px 4px 4px 0; color: #233046; cursor: pointer; }
+  button:hover { background: #edf2fd; }
+  button.primary { background: #315cba; color: white; border-color: #315cba; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .log { max-height: 320px; overflow: auto; padding-left: 22px; }
+  .log li { margin: 7px 0; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+</style>
+<h1>007 路线图 · 一次排期，自动接力</h1>
+<p class="hint">这是可点击的流程模拟，不会创建真实飞书任务、工作区或提交。时间被压缩为每批约一秒；“Agent 交付、验收、自动接力”由页面模拟。</p>
+<div class="banner">人开始时确认依赖图和各 Slice 的验收方式，只点一次“确认排期并启动”。平台只在前置 Slice 通过后创建并启动后续执行任务。V4 在 V3 通过前不会出现在执行任务列表。只要任务并行，每个执行任务都使用独立 worktree，包括不同仓库的任务。自动检查仍要通过明确的验收条件；人工验收或合并冲突才暂停等待人处理。</div>
+<div class="panel">
+  <h2>父任务 · 开始前确认</h2>
+  <p><strong>007 的实际依赖：</strong>V1 → V2；V2 → V3、V5；V3 → V4。V3 与 V5 可并行，V4 等 V3 通过。</p>
+  <div id="policies"></div>
+  <p class="hint">“自动检查”指运行预先写明的测试和纵向验收用例；“指定 Agent”表示由所选 Agent 复核这些证据。需要人工裁定的样本不能选择自动通过。此原型假设各项检查通过。</p>
+  <button id="start" class="primary">人：确认排期并启动路线</button>
+  <button id="reset">重新体验</button>
+  <p id="summary"></p>
+</div>
+<div class="grid">
+  <div class="panel room">
+    <h2>父任务话题 · 进度</h2>
+    <ol class="log" id="feed"></ol>
+  </div>
+  <div class="panel">
+    <h2>当前执行任务</h2>
+    <div id="children"></div>
+    <div id="gates"></div>
+  </div>
+</div>
+<div class="panel">
+  <h2>异常演示</h2>
+  <label><input type="checkbox" id="conflict"> 下次遇到 worktree 合入时模拟冲突</label>
+  <p class="hint">真实运行中，测试失败、验收失败或合入冲突都会暂停受影响的后继；其他独立分支仍可继续。此处的“处理后继续”只模拟人工已在仓库解决并验证，不会修改 Git。</p>
+</div>
+<script>
+const plan = {
+  V1: { after: [], jobs: [['Reader · 页面观测', 'hmi_data_reader'], ['主仓 · 授权取图与草稿', 'mold-data-webpage-tool']] },
+  V2: { after: ['V1'], jobs: [['collector · 逐张事件', 'group-msg-collector'], ['主仓 · 自动写草稿', 'mold-data-webpage-tool']] },
+  V3: { after: ['V2'], jobs: [['collector · 追认补拍', 'group-msg-collector'], ['主仓 · 补拍反馈', 'mold-data-webpage-tool']] },
+  V4: { after: ['V3'], jobs: [['collector · 旧条件补录', 'group-msg-collector'], ['主仓 · 字段级覆盖', 'mold-data-webpage-tool']] },
+  V5: { after: ['V2'], jobs: [['Reader · 新页面包', 'hmi_data_reader'], ['主仓 · 新页面接纳', 'mold-data-webpage-tool']] },
+};
+const order = Object.keys(plan);
+const initial = () => ({ started: false, status: Object.fromEntries(order.map(id => [id, '未启动'])), policies: Object.fromEntries(order.map(id => [id, 'agent:pi-agent'])), jobs: [], feed: [], conflict: false });
+let state = initial();
+let timer;
+const el = id => document.getElementById(id);
+
+function releaseReady(next) {
+  const ready = order.filter(id => next.status[id] === '未启动' && plan[id].after.every(dep => next.status[dep] === '已通过'));
+  const parallel = next.jobs.filter(job => job.status === '执行中').length
+    + ready.reduce((count, id) => count + plan[id].jobs.length, 0) > 1;
+  for (const id of ready) {
+    next.status[id] = '执行中';
+    for (const [name, repo] of plan[id].jobs) {
+      next.jobs.push({ slice: id, name, repo, workspace: parallel ? '独立 worktree' : '现有工作区', status: '执行中' });
+    }
+    next.feed.push(`${id} 前置已通过；平台创建执行任务并自动启动。`);
+  }
+  return ready;
+}
+
+function advance(current) {
+  const next = structuredClone(current);
+  for (const id of order.filter(slice => next.status[slice] === '执行中')) {
+    const jobs = next.jobs.filter(job => job.slice === id);
+    jobs.forEach(job => { job.status = '已交付'; });
+    next.feed.push(`${id} 各仓 Agent 已交付提交、测试与执行记录。`);
+    if (next.conflict && jobs.some(job => job.workspace === '独立 worktree')) {
+      next.conflict = false;
+      next.status[id] = '合入冲突';
+      next.feed.push(`${id} worktree 合入冲突；该分支暂停，等待人解决并验证。`);
+      continue;
+    }
+    jobs.forEach(job => { job.status = job.workspace === '独立 worktree' ? '已合入' : '已核对'; });
+    const policy = next.policies[id];
+    if (policy === 'human') {
+      next.status[id] = '待人工验收';
+      next.feed.push(`${id} 已准备好纵向验收证据，等待人确认。`);
+    } else {
+      next.status[id] = '已通过';
+      next.feed.push(`${id} ${policy === 'checks' ? '自动检查' : policy.slice(6) + ' 复核'}通过；平台记录同图、同条件的验收结果。`);
+    }
+  }
+  releaseReady(next);
+  return next;
+}
+
+function resume(current, id) {
+  const next = structuredClone(current);
+  if (!['待人工验收', '合入冲突'].includes(next.status[id])) return current;
+  if (next.status[id] === '合入冲突') {
+    next.jobs.filter(job => job.slice === id).forEach(job => { job.status = '已合入'; });
+    next.status[id] = next.policies[id] === 'human' ? '待人工验收' : '已通过';
+    next.feed.push(`${id} 人工解决冲突并验证合入；${next.status[id] === '待人工验收' ? '接着等待人工纵向验收。' : '复核通过，平台继续排程。'}`);
+  } else {
+    next.status[id] = '已通过';
+    next.feed.push(`${id} 人工纵向验收通过；平台继续排程。`);
+  }
+  releaseReady(next);
+  return next;
+}
+
+function schedule() {
+  clearTimeout(timer);
+  if (Object.values(state.status).includes('执行中')) timer = setTimeout(() => { state = advance(state); render(); schedule(); }, 900);
+}
+
+function render() {
+  el('policies').replaceChildren(...order.map(id => {
+    const row = document.createElement('div'); row.className = 'row';
+    const title = document.createElement('strong'); title.textContent = id;
+    const deps = document.createElement('span'); deps.textContent = plan[id].after.length ? `依赖 ${plan[id].after.join('、')}` : '起点';
+    const select = document.createElement('select'); select.disabled = state.started;
+    for (const [value, label] of [['checks', '自动检查'], ['agent:pi-agent', '指定 pi-agent 验收'], ['agent:kimi-code', '指定 kimi-code 验收'], ['human', '人工验收']]) {
+      const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
+    }
+    select.value = state.policies[id];
+    select.onchange = () => { state.policies[id] = select.value; };
+    row.append(title, deps, select);
+    return row;
+  }));
+  el('start').disabled = state.started;
+  el('summary').textContent = state.started
+    ? order.map(id => `${id}：${state.status[id]}`).join('  ·  ')
+    : '尚未启动；后续任务只保留在排期图中。';
+  el('feed').replaceChildren(...state.feed.map(line => { const li = document.createElement('li'); li.textContent = line; return li; }));
+  el('children').replaceChildren(...(state.jobs.length ? state.jobs.map(job => {
+    const node = document.createElement('div'); node.className = 'task';
+    const title = document.createElement('strong'); title.textContent = `${job.slice} · ${job.name}`;
+    const detail = document.createElement('span'); detail.className = 'tag'; detail.textContent = `${job.repo} · ${job.workspace} · ${job.status}`;
+    node.append(title, detail); return node;
+  }) : [document.createTextNode('尚无执行任务。前置未通过的任务不会在这里出现。')]));
+  el('gates').replaceChildren(...order.filter(id => ['待人工验收', '合入冲突'].includes(state.status[id])).map(id => {
+    const button = document.createElement('button');
+    button.textContent = state.status[id] === '合入冲突' ? `人：已解决 ${id} 合入冲突并验证` : `人：确认 ${id} 纵向验收`;
+    button.onclick = () => { state = resume(state, id); render(); schedule(); };
+    return button;
+  }));
+  el('conflict').checked = state.conflict;
+}
+
+el('start').onclick = () => {
+  if (state.started) return;
+  state.started = true;
+  state.feed.push('人一次确认依赖图、并行分支和验收方式，启动整条路线。');
+  releaseReady(state);
+  render(); schedule();
+};
+el('reset').onclick = () => { clearTimeout(timer); state = initial(); render(); };
+el('conflict').onchange = event => { state.conflict = event.target.checked; };
+render();
+</script>
+</html>

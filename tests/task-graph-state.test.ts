@@ -4,13 +4,15 @@ import { validateTaskGraphDefinition, type GraphDefinition } from '../src/lib/ta
 import { claimNode, releaseReadyNodes } from '../src/lib/task-graph/store';
 
 const sha = 'a'.repeat(40);
-const job = (key: string) => ({ key, repository: '/data1/code/example', gitRef: 'main',
+const job = (key: string) => ({ key, instructions: `Implement ${key}`, repository: '/data1/code/example', gitRef: 'main',
   baseCommit: sha, agentSelector: 'local:codex' });
 const definition: GraphDefinition = { specRef: 'docs/spec.md@abc123', nodes: [
-  { key: 'V1', dependsOn: [], acceptance: { mode: 'automatic', checks: ['smoke'] }, executions: [job('server')] },
-  { key: 'V2', dependsOn: ['V1'], acceptance: { mode: 'agent', reviewerId: 'reviewer', checks: ['e2e'] }, executions: [job('ui')] },
-  { key: 'V3', dependsOn: ['V2'], acceptance: { mode: 'human', reviewerId: 'human', checks: ['visual'] }, executions: [job('reader')] },
-  { key: 'V5', dependsOn: ['V2'], acceptance: { mode: 'automatic', checks: ['smoke'] }, executions: [job('other')] },
+  { key: 'V1', goal: 'V1 works', dependsOn: [], acceptance: { mode: 'automatic', checks: ['smoke'] }, executions: [job('server')] },
+  { key: 'V2', goal: 'V2 works', dependsOn: ['V1'], acceptance: { mode: 'agent', reviewerId: 'reviewer',
+    reviewLaunchConfig: { participant: { gatewayId: 'local', harnessType: 'codex', role: 'reviewer', executionBackend: 'platform_local' } },
+    checks: ['e2e'] }, executions: [job('ui')] },
+  { key: 'V3', goal: 'V3 works', dependsOn: ['V2'], acceptance: { mode: 'human', reviewerId: 'human', checks: ['visual'] }, executions: [job('reader')] },
+  { key: 'V5', goal: 'V5 works', dependsOn: ['V2'], acceptance: { mode: 'automatic', checks: ['smoke'] }, executions: [job('other')] },
 ] };
 
 function fakeDb() {

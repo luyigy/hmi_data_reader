@@ -22,6 +22,7 @@ async function fixture() {
   git(repo, 'config', 'user.name', 'Test User');
   git(repo, 'config', 'user.email', 'test@example.com');
   await fs.writeFile(path.join(repo, 'shared.txt'), 'base\n');
+  await fs.writeFile(path.join(repo, '.gitignore'), 'cache/\n');
   git(repo, 'add', '.');
   git(repo, 'commit', '-m', 'base');
   return { root, repo, trees, base: git(repo, 'rev-parse', 'HEAD') };
@@ -75,6 +76,8 @@ async function run() {
       expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,
       verify: async (staging) => {
         assert.equal(await fs.readFile(path.join(staging, 'a.txt'), 'utf8'), 'A\n');
+        await fs.mkdir(path.join(staging, 'cache'));
+        await fs.writeFile(path.join(staging, 'cache', 'test.log'), 'ignored build output');
         verifiedA = true;
       },
     });

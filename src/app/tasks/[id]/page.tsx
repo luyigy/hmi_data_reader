@@ -121,6 +121,7 @@ export default function TaskDetailPage() {
             返回
           </button>
         </div>
+        <a href={`/tasks/${taskId}/graph`} className="mt-4 inline-block rounded border border-indigo-300 px-3 py-2 text-sm text-indigo-700">查看或确认任务路线</a>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr,1fr]">

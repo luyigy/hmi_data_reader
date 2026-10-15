@@ -22,27 +22,25 @@ GitNexus results should support engineering decisions, not replace understanding
 
 
 
-## 文档工作流
+## 任务图工作流
 
-- `docs/workflow/workflow-contract.yaml` 是 PLAN/HANDOVER 自动化的唯一规则源。
-- Agent 创建或修复 PLAN/HANDOVER 时读取合同声明的 PLAN 写作标准、`docs/workflow/templates/PLAN.md` 与
-  `docs/workflow/templates/HANDOVER.md`；缺失时报告未初始化，不回退到平台内置模板。
-- 新建 PLAN/HANDOVER 必须使用 `npm run workflow:new` 生成骨架，禁止手工创建结构；正文填写完成且
-  `git add` 后必须运行 `npm run workflow:validate -- --preflight <文档路径>`。
-- 新 PLAN/HANDOVER 必须使用合同定义的 YAML frontmatter、动作和 Prompt 标记。
-- 自动化只读取目标 Git ref 中已提交的文档，不消费工作区文件，也不从正文猜测动作。
-- `automation_enabled: false` 时只维护和校验文档，不启动 watcher 或下一 Session。
-- 合同要求 `prompt.repeat_in_final_reply: true` 时，最终回复必须原样附上工作流文档 Prompt 标记之间的下一 Session Prompt，供用户直接复制。
-- 可执行文档提交后，最终回复最后一行必须使用合同定义的 `WORKFLOW_READY` 标记。
+- 新工作使用经过讨论的原型、定稿 Spec 和依赖图定义纵向 Slice；参阅
+  `docs/architecture/task-graph-workflow-spec.md`。人确认整条路线后，平台按依赖图派发，
+  Agent 的提交、测试和验收证据写入执行账本。
+- 不为新任务创建 PLAN/HANDOVER 接力文档，不使用 `next_action`、Prompt 标记或
+  `WORKFLOW_READY` 启动下一 Session。任务图由父任务的任务图页面一次确认并启动；
+  旧 watcher 不再派发。
+- `docs/workflow/workflow-contract.yaml` 的 `automation_enabled` 已关闭。
+  历史 PLAN/HANDOVER 保留为只读材料；如必须修复历史文档，仍按该合同校验，但不得重新启用派发。
 
 ## 长文件守卫
 
 - 开工前运行 `npm run check:long-files`，确认当前已达阻断阈值的文件。
-- 这些文件不得增长。workflow completion gate 会在工作流 participant 完成时校验并阻止继续完成；需要新增职责时，先在同一提交中提取明确边界的模块。
+- 这些文件不得增长。需要新增职责时，先在同一提交中提取明确边界的模块。
 
 ## Workflow Git 历史
 
-当 workflow watcher 已启用，或提交已可能被 cursor、PLAN、HANDOVER、审批卡或其他 Agent
+当提交已可能被 cursor、历史 PLAN/HANDOVER、审批卡或其他 Agent
 读取后，Git 历史必须只追加：
 
 - 不执行 `git commit --amend`、rebase、reset 或强推改写已提交历史。

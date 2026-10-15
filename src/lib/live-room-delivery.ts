@@ -11,9 +11,8 @@ import {
 } from '@/lib/live-room';
 import { shouldRunRoleQueue } from '@/lib/live-room-scheduling';
 import {
+  parseLiveRoomPlanCommand,
   parseLiveRoomWorkflowCommand,
-  runLiveRoomPlan,
-  runLiveRoomWorkflow,
 } from '@/lib/live-room-workflows';
 import {
   ensureMemberSession,
@@ -351,26 +350,10 @@ export const triggerLiveRoomMessageReplies = async ({
     return;
   }
 
-  const planHandled = !requestedTargetMemberId && await runLiveRoomPlan({
-    roomId,
-    sourceMessageId: roomMessageId,
-    content: sourceMessage.content,
-  });
-  if (planHandled) return;
-
-  const workflow = parseLiveRoomWorkflowCommand(sourceMessage.content);
-  if (
-    workflow
-    && !requestedTargetMemberId
-    && shouldRunRoleQueue(room.mode, sourceMessage.content)
-  ) {
-    await runLiveRoomWorkflow({
-      roomId,
-      sourceMessageId: roomMessageId,
-      name: workflow.name,
-      level: workflow.level,
-      task: workflow.task,
-    });
+  if (!requestedTargetMemberId &&
+      (parseLiveRoomPlanCommand(sourceMessage.content) || parseLiveRoomWorkflowCommand(sourceMessage.content))) {
+    await postLiveRoomMessage({ roomId, messageType: 'system',
+      content: '系统提示：旧 PLAN/HANDOVER 编排已退役。请在父任务中先定稿 Spec 和任务图，再一次确认路线。' });
     return;
   }
 

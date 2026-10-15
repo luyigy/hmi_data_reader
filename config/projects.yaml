@@ -8,22 +8,6 @@ projects:
       approver_open_ids:
         - ou_16b82bdefeb4944108d62068e88a2f0c
     jobs:
-      - id: workflow-watcher
-        type: workflow_watcher
-        schedule: "* * * * *"
-        enabled: true
-        mode: active
-        config:
-          active_side_effects_enabled: true
-          coding_bot_chat_id: oc_b634823504e29e6220de0cfb5108a216
-          coding_bot_chat_type: p2p
-          coding_bot_app_id: cli_a8e5326f4e7f901c
-          contract_path: docs/workflow/workflow-contract.yaml
-          branch_space: .
-          initial_cursor_commit: c8d3ec5b24bc7e0165be31df02397813ff608a95
-          workflow_autonomy: semi_auto
-          execution_policy:
-            preset: workspace
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
@@ -47,22 +31,6 @@ projects:
       approver_open_ids:
         - ou_16b82bdefeb4944108d62068e88a2f0c
     jobs:
-      - id: workflow-watcher
-        type: workflow_watcher
-        schedule: "* * * * *"
-        enabled: true
-        mode: active
-        config:
-          active_side_effects_enabled: true
-          coding_bot_chat_id: oc_b4d2abbe3c16c3596631c3a9e756bd4f
-          coding_bot_chat_type: group
-          coding_bot_app_id: cli_a8e5326f4e7f901c
-          contract_path: docs/workflow/workflow-contract.yaml
-          branch_space: dev
-          initial_cursor_commit: cee29134fdfd35ca2f1955fd28e01e84d1d24f81
-          workflow_autonomy: semi_auto
-          execution_policy:
-            preset: full_access
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
@@ -77,23 +45,7 @@ projects:
       chat_id: oc_0684589953a98e6b17a8d148c6b77756
       approver_open_ids:
         - ou_16b82bdefeb4944108d62068e88a2f0c
-    jobs:
-      - id: workflow-watcher
-        type: workflow_watcher
-        schedule: "* * * * *"
-        enabled: true
-        mode: active
-        config:
-          active_side_effects_enabled: true
-          coding_bot_chat_id: oc_0684589953a98e6b17a8d148c6b77756
-          coding_bot_chat_type: group
-          coding_bot_app_id: cli_a8e5326f4e7f901c
-          contract_path: docs/workflow/workflow-contract.yaml
-          branch_space: .
-          initial_cursor_commit: 8157fc60a8067af781db67d8d807e1f9d62ce474
-          workflow_autonomy: semi_auto
-          execution_policy:
-            preset: workspace
+    jobs: []
   - id: hmi-data-reader
     name: HMI Reader
     path: /data1/code/hmi_data_reader
@@ -103,22 +55,6 @@ projects:
       approver_open_ids:
         - ou_16b82bdefeb4944108d62068e88a2f0c
     jobs:
-      - id: workflow-watcher
-        type: workflow_watcher
-        schedule: "* * * * *"
-        enabled: true
-        mode: active
-        config:
-          active_side_effects_enabled: true
-          coding_bot_chat_id: oc_5c8067219168958335bfc59d5fbb2b11
-          coding_bot_chat_type: group
-          coding_bot_app_id: cli_a8e5326f4e7f901c
-          contract_path: docs/workflow/workflow-contract.yaml
-          branch_space: .
-          initial_cursor_commit: 1a066152a1420f97b3a1cc6517937e48c3451b7e
-          workflow_autonomy: semi_auto
-          execution_policy:
-            preset: workspace
       - id: long-file-detector
         type: long_file_detector
         schedule: "*/10 * * * *"
