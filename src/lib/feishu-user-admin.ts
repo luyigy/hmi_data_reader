@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { resolveWorkspaceRoot } from '@/lib/feishu-workspace';
+import { ensureWorkspaceRoot } from '@/lib/feishu-workspace';
 import { permissionConfigForProfile, resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
 import { supportsRoomWorkspaceConstraint } from '@/lib/feishu-room-controls';
 import { interruptLiveRoomMemberReplies } from '@/lib/live-room-interrupt';
@@ -61,7 +61,6 @@ export async function updateFeishuUserAdmin(args: {
 }) {
   if (!isFeishuUserAdmin(args.actorOpenId)) throw new Error('仅配置的飞书管理员可以修改用户。');
   if (!['safe_local', 'dev_local'].includes(args.profile)) throw new Error('只支持 Safe Local 或 Dev Local。');
-  const workspaceRoot = await resolveWorkspaceRoot(args.workspaceRoot);
   const detail = await readFeishuUserAdminDetail(args.userOpenId);
   const room = detail.room;
   if (detail.user.status !== 'approved' || !room?.sourceTask) {
@@ -73,6 +72,7 @@ export async function updateFeishuUserAdmin(args: {
     throw new Error(`以下 Agent 不能真实应用所选目录和网络约束：${unsupported.map(({ member }) => member.displayName).join('、')}`);
   }
 
+  const workspaceRoot = await ensureWorkspaceRoot(args.workspaceRoot);
   const permission = JSON.stringify(permissionConfigForProfile(args.profile, [workspaceRoot]));
   await prisma.$transaction(async (transaction) => {
     await transaction.feishuUserAccess.update({

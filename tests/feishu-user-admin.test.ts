@@ -109,4 +109,10 @@ void (async () => {
     profile: 'dev_local', sandboxMode: 'workspace-write', networkAccess: 'enabled',
     approvalPolicy: 'on-request', writableRoots: [workspace],
   });
+  const createdWorkspace = path.join(workspace, 'new-user', 'project');
+  await updateFeishuUserAdmin({
+    actorOpenId: 'ou_admin', userOpenId: user.openId, workspaceRoot: createdWorkspace, profile: 'safe_local',
+  });
+  assert.equal((writes.at(-2)!.args as { data: { workingDirectory: string } }).data.workingDirectory, createdWorkspace);
+  assert.equal((writes.at(-1)!.args as { data: { workingDirectory: string } }).data.workingDirectory, createdWorkspace);
 })();

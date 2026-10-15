@@ -2,7 +2,7 @@ import { getFeishuUserDisplayName, sendFeishuInteractiveMessage, sendFeishuTextM
 import { prisma } from '@/lib/prisma';
 import { isFeishuUserAdmin, readFeishuUserAdminDetail, stopFeishuUserRoomRuns, updateFeishuUserAdmin } from '@/lib/feishu-user-admin';
 import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
-import { resolveWorkspaceRoot } from '@/lib/feishu-workspace';
+import { ensureWorkspaceRoot, resolveWorkspaceRoot } from '@/lib/feishu-workspace';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 
 const text = (content: string) => ({ tag: 'plain_text', content });
@@ -127,7 +127,7 @@ export async function buildFeishuUserDetailCard(openId: string, adminChatId: str
       }, {
         tag: 'form', name: 'feishu-user-admin-approve', elements: [
           { tag: 'input', name: 'approvalWorkspaceRoot', required: true,
-            default_value: user.workspaceRoot || '', label: text('批准后的授权根目录'),
+            default_value: user.workspaceRoot || '', label: text('批准后的授权根目录（不存在时自动创建）'),
             placeholder: text('/absolute/workspace/root') },
           { tag: 'button', name: 'approveFeishuUser', type: 'primary_filled', width: 'fill',
             text: text(user.status === 'pending' ? '批准准入申请' : '重新批准准入'),
@@ -153,7 +153,7 @@ export async function buildFeishuUserDetailCard(openId: string, adminChatId: str
       ...(user.status === 'approved' && room?.sourceTask ? [{
         tag: 'form', name: 'feishu-user-admin-edit', elements: [
           { tag: 'input', name: 'workspaceRoot', required: true, default_value: user.workspaceRoot || '',
-            label: text('授权根目录（必须已存在）'), placeholder: text('/absolute/workspace/root') },
+            label: text('授权根目录（不存在时自动创建）'), placeholder: text('/absolute/workspace/root') },
           { tag: 'select_static', name: 'profile', required: true, width: 'fill',
             placeholder: text('选择私聊 Agent 权限'),
             ...(selectedProfile === 'safe_local' || selectedProfile === 'dev_local' ? { initial_option: selectedProfile } : {}),
@@ -188,12 +188,14 @@ async function changeFeishuUserAccess(args: {
   }
   if (args.action === 'approveAccess' || args.action === 'denyAccess') {
     if (args.action === 'approveAccess') {
-      const requestedRoot = await resolveWorkspaceRoot(args.workspaceRoot || '');
       const detail = await readFeishuUserAdminDetail(args.userOpenId);
-      if (detail.room?.sourceTask && detail.user.workspaceRoot
-        && requestedRoot !== await resolveWorkspaceRoot(detail.user.workspaceRoot)) {
-        throw new Error('已有私聊房间：请先按当前授权根目录批准，再在批准后的卡片修改目录。');
+      if (detail.room?.sourceTask && detail.user.workspaceRoot) {
+        const requestedRoot = await resolveWorkspaceRoot(args.workspaceRoot || '');
+        if (requestedRoot !== await resolveWorkspaceRoot(detail.user.workspaceRoot)) {
+          throw new Error('已有私聊房间：请先按当前授权根目录批准，再在批准后的卡片修改目录。');
+        }
       }
+      args.workspaceRoot = await ensureWorkspaceRoot(args.workspaceRoot || '');
     }
     const approval = access.status === 'pending' ? await prisma.feishuAdminApproval.findFirst({
       where: { requesterOpenId: args.userOpenId, requesterChatId: access.chatId || undefined,
@@ -284,7 +286,7 @@ export async function handleFeishuUserAdminCardCallback(args: {
   const profile = args.formValue?.profile;
   if (typeof root !== 'string' || !root.trim()
     || (profile !== 'safe_local' && profile !== 'dev_local')) {
-    return { toast: { type: 'warning', content: '请填写现有目录并选择 Safe Local 或 Dev Local。' } };
+    return { toast: { type: 'warning', content: '请填写绝对目录并选择 Safe Local 或 Dev Local。' } };
   }
   const chatId = args.chatId;
   const actorOpenId = args.actorOpenId;

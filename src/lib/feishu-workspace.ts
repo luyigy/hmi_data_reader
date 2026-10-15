@@ -1,4 +1,4 @@
-import { realpath, stat } from 'node:fs/promises';
+import { mkdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 export async function resolveWorkspaceRoot(input: string) {
@@ -7,6 +7,17 @@ export async function resolveWorkspaceRoot(input: string) {
   const resolved = await realpath(value).catch(() => { throw new Error(`路径不存在：${value}`); });
   if (!(await stat(resolved)).isDirectory()) throw new Error(`路径不是目录：${value}`);
   return resolved;
+}
+
+export async function ensureWorkspaceRoot(input: string) {
+  const value = input.trim();
+  if (!path.isAbsolute(value)) throw new Error('授权根目录必须是绝对路径。');
+  try {
+    await mkdir(value, { recursive: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+  }
+  return resolveWorkspaceRoot(value);
 }
 
 export async function resolveWorkspaceDirectory(root: string, input?: string) {
