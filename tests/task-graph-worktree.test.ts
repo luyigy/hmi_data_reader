@@ -81,11 +81,34 @@ async function run() {
     assert(verifiedA);
     assert.equal(git(first.repo, 'rev-parse', integration.ref), mergedA.commit);
     assert.equal(git(first.repo, 'rev-parse', 'refs/heads/main'), first.base);
+    let reverified = false;
     assert.equal((await integrateJobWorktree({
       repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref,
       expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,
-      verify: async () => { throw new Error('should not verify twice'); },
+      verify: async (staging) => {
+        assert.equal(await fs.readFile(path.join(staging, 'a.txt'), 'utf8'), 'A\n');
+        reverified = true;
+      },
     })).alreadyIntegrated, true);
+    assert(reverified);
+    let failedStage = '';
+    await assert.rejects(() => integrateJobWorktree({
+      repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref,
+      expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,
+      verify: async () => { throw new Error('check failed after crash recovery'); },
+    }), (error: unknown) => {
+      if (!(error instanceof TaskGraphGitError) || error.code !== 'verification_failed') return false;
+      failedStage = error.workspacePath || '';
+      return true;
+    });
+    assert.equal(await fs.access(failedStage).then(() => true, () => false), true);
+    assert.equal(git(first.repo, 'rev-parse', integration.ref), mergedA.commit);
+    assert.equal((await integrateJobWorktree({
+      repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref,
+      expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,
+      verify: async () => undefined,
+    })).alreadyIntegrated, true);
+    assert.equal(await fs.access(failedStage).then(() => true, () => false), false);
     await expectCode(() => integrateJobWorktree({
       repoPath: first.repo, runId: 'run-1', jobId: 'B', integrationRef: integration.ref,
       expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,

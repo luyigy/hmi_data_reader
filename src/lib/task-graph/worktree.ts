@@ -266,11 +266,35 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
   const current = await refCommit(repo, request.integrationRef);
   if (!current) throw new TaskGraphGitError('invalid_ref', `Integration ref is missing: ${request.integrationRef}`);
   if (await isAncestor(repo, currentJob.head, current)) {
-    const previousStage = findWorkspace(await worktrees(repo), stagingPath(root, repo, request.runId, request.jobId));
-    if (previousStage && !previousStage.branch && (await isAncestor(repo, previousStage.head, current)) &&
-      (await cleanWorkspace(previousStage.path))) {
-      await git(repo, 'worktree', 'remove', previousStage.path);
+    const staging = stagingPath(root, repo, request.runId, request.jobId);
+    const previousStage = findWorkspace(await worktrees(repo), staging);
+    if (previousStage) {
+      if (previousStage.branch || !(await isAncestor(repo, previousStage.head, current))) {
+        throw new TaskGraphGitError('workspace_collision', `Integration staging tree is mismatched: ${staging}`, staging);
+      }
+      if (!(await cleanWorkspace(staging))) {
+        throw new TaskGraphGitError('workspace_dirty', `Integration staging tree has uncommitted changes: ${staging}`, staging);
+      }
+      if (previousStage.head !== current) await git(repo, 'worktree', 'remove', staging);
+    } else {
+      await assertUnoccupied(repo, staging);
     }
+    if (!previousStage || previousStage.head !== current) {
+      await fs.mkdir(path.dirname(staging), { recursive: true });
+      await git(repo, 'worktree', 'add', '--detach', staging, current);
+    }
+    try {
+      await request.verify(staging);
+    } catch (cause) {
+      throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${staging}`, staging, { cause });
+    }
+    if (!(await cleanWorkspace(staging))) {
+      throw new TaskGraphGitError('verification_failed', `Verification left changes in staging tree: ${staging}`, staging);
+    }
+    if ((await refCommit(repo, request.integrationRef)) !== current || (await refCommit(repo, branch)) !== currentJob.head) {
+      throw new TaskGraphGitError('integration_stale', `Integration or job ref moved during verification: ${staging}`, staging);
+    }
+    await git(repo, 'worktree', 'remove', staging);
     return { commit: current, alreadyIntegrated: true };
   }
   if (current !== request.expectedIntegrationCommit) {
