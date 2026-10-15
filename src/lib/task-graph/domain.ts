@@ -9,6 +9,11 @@ export type Acceptance = {
   checks: string[];
 };
 
+export type ArchitectureReview = {
+  reviewerId: string;
+  reviewLaunchConfig: unknown;
+};
+
 export type GraphExecution = {
   key: string;
   instructions: string;
@@ -24,24 +29,38 @@ export type GraphNode = {
   goal: string;
   dependsOn: string[];
   acceptance: Acceptance;
+  architectureReview?: ArchitectureReview;
   executions: GraphExecution[];
 };
 
 export type GraphDefinition = {
   specRef: string;
+  defaultArchitectureReview?: ArchitectureReview;
   nodes: GraphNode[];
 };
+
+export function effectiveArchitectureReview(graph: GraphDefinition, node: GraphNode) {
+  return node.architectureReview || graph.defaultArchitectureReview;
+}
 
 export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefinition {
   if (!input.specRef?.trim() || !Array.isArray(input.nodes) || input.nodes.length === 0) {
     throw new Error('Task graph requires a spec reference and at least one node');
   }
   const keys = new Set<string>();
+  const validArchitectureReview = (review: ArchitectureReview | undefined) =>
+    review === undefined || (!!review.reviewerId?.trim() && !!review.reviewLaunchConfig);
+  if (!validArchitectureReview(input.defaultArchitectureReview)) {
+    throw new Error('Invalid default architecture reviewer');
+  }
   for (const node of input.nodes) {
     if (!node.key?.trim() || !node.goal?.trim() || keys.has(node.key)) throw new Error(`Duplicate or empty node key/goal: ${node.key}`);
     keys.add(node.key);
   }
   for (const node of input.nodes) {
+    if (!validArchitectureReview(node.architectureReview)) {
+      throw new Error(`Invalid architecture reviewer for ${node.key}`);
+    }
     if (!Array.isArray(node.dependsOn) || new Set(node.dependsOn).size !== node.dependsOn.length ||
         node.dependsOn.some((key) => !keys.has(key) || key === node.key)) {
       throw new Error(`Invalid dependencies for ${node.key}`);

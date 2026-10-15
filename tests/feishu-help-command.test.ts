@@ -83,6 +83,7 @@ for (const command of Array.from(FEISHU_COMMAND_CARD_ACTIONS)) {
           '/ap dashboard',
           '/ap jobs',
           '/ap graph status',
+          '/ap graph propose',
           '/ap branch status',
         ].includes(command)
         ? 'workflow'

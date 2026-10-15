@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolveWorkspaceDirectory } from '../feishu-workspace';
 import type { AcpxParticipantRequest } from '../acpx/types';
-import type { GraphDefinition } from './domain';
+import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 
 const git = promisify(execFile);
 const workspaceRoot = process.env.SCHEDULED_JOB_WORKSPACE_ROOTS?.split(':')[0] || '/data1/code';
@@ -17,6 +17,15 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
   const repositories = new Map<string, string>();
   for (const node of definition.nodes) {
     const availableChecks = new Set<string>();
+    const architect = effectiveArchitectureReview(definition, node);
+    if (architect) {
+      const review = architect.reviewLaunchConfig as LaunchConfig | undefined;
+      if (!review?.participant?.gatewayId || !review.participant.harnessType ||
+          review.participant.executionBackend !== 'platform_local') {
+        throw new Error(`${node.key}: 架构复核需要完整的本机 Agent 配置`);
+      }
+      participants.push(review.participant);
+    }
     if (node.acceptance.mode === 'agent') {
       const reviewer = node.acceptance.reviewLaunchConfig as LaunchConfig | undefined;
       if (!reviewer?.participant?.gatewayId || !reviewer.participant.harnessType ||

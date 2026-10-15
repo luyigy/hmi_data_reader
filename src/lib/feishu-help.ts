@@ -26,6 +26,7 @@ const HELP_PAGES = [
     '/ap chat [--agents=<agentId1,agentId2>] <message>',
     '/ap chat --from-member=<memberName> --to-member=<memberName> <message>',
     '/ap graph status  在父任务话题查看任务图进度；路线由 Agent 提出后在飞书卡片确认',
+    '/ap graph propose [Spec 路径]  请当前 Agent 提出路线并发送飞书确认卡，不立即执行',
     '/ap doc <仓库内已提交的 Markdown 路径>  转为飞书文档',
     '/ap md [关键词|完整路径.md]  按分区倒序浏览并发送原始 Markdown 文件',
     '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',
@@ -46,6 +47,7 @@ const HELP_PAGES = [
     '/ap new-session [--all] [--blank] [--handover="docs/xx.md"] [--profile=safe|dev|full] [agentName|idSuffix]',
   ]],
   ['任务图 / Jobs', [
+    '/ap graph propose [Spec 路径]  请当前 Agent 提出路线并发送飞书确认卡',
     '/ap graph status  在父任务话题查看依赖放行、执行与验收状态',
     '/ap jobs',
     '/ap branch status  查询当前仓库实际分支、监控分支与漂移警告',
@@ -95,6 +97,7 @@ export const FEISHU_COMMAND_CARD_ACTIONS = new Set([
   '/ap sessions',
   '/ap jobs',
   '/ap graph status',
+  '/ap graph propose',
   '/ap branch status',
   '/ap users',
   '/ap approvals',
@@ -115,6 +118,7 @@ const QUICK_ACTIONS = [
     ['Sessions', '/ap sessions'],
   ],
   [
+    ['提出任务路线', '/ap graph propose'],
     ['任务图进度', '/ap graph status'],
     ['分支状态', '/ap branch status'],
     ['Jobs', '/ap jobs'],

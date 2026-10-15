@@ -39,7 +39,11 @@ Agent 在自己的 worktree 提交结果。平台按仓库串行集成，逐个�
 
 ## 飞书体验
 
-首版由 Agent 根据 Spec 提出 JSON 路线，并运行 `npm run task-graph:propose -- --parent-task-id=<id> --file=<json> --agent=<name>`。平台在父任务飞书话题展示依赖、仓库、Agent 和验收方式；人通过卡片确认一次后启动。飞书群聊中的子任务话题在节点放行时创建；未放行节点仅显示在任务图中。关键进度同步到父任务话题。预设人工验收会发卡，也可在任务图页面决定。首版尚无异常恢复卡。
+首版由人在父任务飞书话题发送 `/ap graph propose [Spec 路径]`，或在 `/ap menu` 的「任务图 / Jobs」点击「提出任务路线」。当前 Agent 根据 Spec 提出 JSON 路线，并运行 `npm run task-graph:propose -- --parent-task-id=<id> --file=<json> --agent=<name>`。平台在父任务飞书话题展示依赖关系图、仓库、Agent 和验收方式；人通过卡片确认一次后启动。飞书群聊中的子任务话题在节点放行时创建；未放行节点仅显示在任务图中。关键进度同步到父任务话题。预设人工验收会发卡，也可在任务图页面决定。首版尚无异常恢复卡。
+
+路线卡同时列出每个仓内任务的实施者、每个 Slice 的验收者，以及架构复核者。实施者按仓内任务分配，可选择不同的本机 harness；验收者按 Slice 分配，支持自动检查、指定本机 Agent 或人。架构复核者可作为全项目默认值，也可由单个 Slice 覆盖。人在卡片确认前，可在父任务话题发送 `/ap graph role <Slice|all> <仓内任务键|acceptance|architecture> <Agent selector|automatic|human>` 改派，例如 `/ap graph role V3 collector local:pi-agent`、`/ap graph role V3 acceptance local:kimi-code`、`/ap graph role all architecture local:codex`。平台更新原卡与快照哈希，旧卡动作失效；确认后冻结角色。
+
+仓内任务提交并集成后，平台先在固定提交的只读检出中执行纵向检查，再由指定架构 Agent 检查实施范围、共享接口和架构影响。架构结论写入事件账本；只有架构复核与验收均通过，依赖节点才放行。复核失败或中断会停在需处理状态，不能自动重试不确定的 Agent 运行。旧的已确认路线若没有架构配置，沿用原有验收路径。
 
 ## 与当前实现的切换
 

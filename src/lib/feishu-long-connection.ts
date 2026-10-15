@@ -304,7 +304,8 @@ export function buildCardActionHandler(prefix: string) {
       const value = data.action.value as Record<string, unknown>;
       if (typeof value.proposalId !== 'string' || typeof value.decision !== 'string') return {};
       return handleGraphProposalCardAction({ proposalId: value.proposalId,
-        decision: value.decision, openId: openId || null, chatId: chatId || null,
+        decision: value.decision, hash: typeof value.hash === 'string' ? value.hash : null,
+        openId: openId || null, chatId: chatId || null,
         messageId: messageId || null });
     }
 

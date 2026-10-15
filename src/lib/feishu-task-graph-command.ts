@@ -1,11 +1,54 @@
 import { prisma } from './prisma';
 import { getBoundLiveRoom, type FeishuConversationContext } from './feishu-live-room';
+import { ensureLiveRoomUserMember, postLiveRoomMessage, resolveLiveRoomMessageMetadata } from './live-room';
+import { triggerLiveRoomMessageReplies } from './live-room-delivery';
 import type { ParsedFeishuCommand } from './feishu-command-parser';
+import { updateGraphProposalRole } from './task-graph/proposals';
 
 export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
-  if (command.args[0] !== 'status' || command.args.length > 1) return '用法：/ap graph status。请直接在父任务话题让 Agent 提出路线；平台会发确认卡。';
+  if (!['status', 'propose', 'role'].includes(command.args[0])) {
+    return '用法：/ap graph propose [Spec 路径]、/ap graph role <Slice|all> <仓内任务|acceptance|architecture> <Agent|automatic|human>，或 /ap graph status。';
+  }
   const room = await getBoundLiveRoom(context);
   if (!room?.sourceTaskId) return '请在父任务话题内查询任务路线。';
+  if (command.args[0] === 'role') {
+    if (command.args.length !== 4) return '用法：/ap graph role <Slice|all> <仓内任务|acceptance|architecture> <Agent|automatic|human>。';
+    if (!context?.chatId || !context.senderOpenId) return '飞书身份信息不完整，无法调整路线角色。';
+    try {
+      const result = await updateGraphProposalRole({
+        parentTaskId: room.sourceTaskId, chatId: context.chatId, openId: context.senderOpenId,
+        nodeKey: command.args[1], target: command.args[2], selector: command.args[3],
+      });
+      return `路线 V${result.version} 的角色已更新，请查看本话题中的路线卡。`;
+    } catch (error) {
+      return `角色调整失败：${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  if (command.args[0] === 'propose') {
+    const target = room.members.find((member) => member.id === room.currentSpeakerMemberId && member.canReply)
+      || room.members.find((member) => member.memberType !== 'user' && member.canReply);
+    if (!target) return '父任务房间没有可回复的 Agent；请先加入 Agent。';
+    const spec = command.args.slice(1).join(' ').trim();
+    const user = await ensureLiveRoomUserMember(room.id);
+    const content = [
+      `请根据${spec ? ` ${spec} ` : '当前父任务已讨论的 Spec '}提出任务图路线，先审查依赖、仓库、并行任务和验收条件。`,
+      '将完整路线写成 JSON，校验仓库的已提交 Git 基线和 Agent 配置，',
+      `然后在平台仓执行 npm run task-graph:propose -- --parent-task-id=${room.sourceTaskId} --file=<路线JSON> --agent=<你的名称>。`,
+      '这一步只发飞书确认卡，不启动实施。若有缺少的实图、基准真值或脏工作区，请在路线卡前说明。',
+    ].join('');
+    const message = await postLiveRoomMessage({
+      roomId: room.id, senderMemberId: user.id, messageType: 'user', content,
+      metadata: resolveLiveRoomMessageMetadata({ senderKind: 'user', targetMemberId: target.id,
+        extras: { source: 'feishu_task_graph_propose', feishuChatId: context?.chatId,
+          feishuMessageId: context?.messageId } }),
+    });
+    void triggerLiveRoomMessageReplies({ roomId: room.id, roomMessageId: message.id,
+      requestedTargetMemberId: target.id }).catch((error) => {
+        console.error('[TaskGraph] proposal Agent trigger failed:', error);
+      });
+    return `已请 ${target.userNickname || target.displayName} 提出路线；完成后确认卡会发到本父任务话题。确认卡出现前不会启动实施。`;
+  }
+  if (command.args.length > 1) return '用法：/ap graph status';
   const proposal = await prisma.taskGraphProposal.findFirst({
     where: { parentTaskId: room.sourceTaskId }, orderBy: { version: 'desc' },
     select: { version: true, status: true, cardMessageId: true },

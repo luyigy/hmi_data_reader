@@ -7,6 +7,7 @@ import { executeAcpxTaskRun } from '../acpx/runner';
 import { prisma } from '../prisma';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '../task-room';
 import type { GraphDefinition } from './domain';
+import { runArchitectureReview } from './architecture-review';
 import { ensureGraphChildTopic, postGraphParentProgress, sendGraphHumanReviewCard } from './feishu';
 import { withRepositoryLock } from './repository-lock';
 import { assertValidationWorkspacesClean, ensureValidationWorkspaces } from './validation-workspaces';
@@ -127,6 +128,23 @@ async function verifyNode(runId: string, nodeKey: string) {
     }),
     summary: `已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
   };
+  const architecture = await runArchitectureReview({
+    runId, nodeId: node.id, nodeKey, definition, commits, workspaces, evidence,
+  });
+  if (architecture === 'running') return;
+  if (architecture === 'failed') {
+    const result = await prisma.taskGraphEvent.findUniqueOrThrow({
+      where: { runId_idempotencyKey: { runId, idempotencyKey: `node:${nodeKey}:architecture_result` } },
+    });
+    const note = String((result.payload as { note?: string }).note || '架构复核未通过');
+    evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
+      evidence: `${item.evidence}\n架构复核：${note}` }));
+    evidence.summary = `架构复核未通过：${note}`;
+    await submitNodeVerification({ runId, nodeKey,
+      actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence });
+    await refreshTaskGraphRunStatus(runId);
+    return;
+  }
   if (policy.mode === 'agent') {
     if (activeReviews.has(node.id)) return;
     activeReviews.add(node.id);
@@ -163,6 +181,8 @@ async function verifyNode(runId: string, nodeKey: string) {
       taskId: task.id, taskName: task.name, taskDescription: prompt,
       orchestrationMode: 'single', participants: [review.participant],
       workingDirectory: task.workingDirectory || undefined,
+      permissionConfig: { profile: 'safe_local', sandboxMode: 'read-only',
+        networkAccess: 'restricted', approvalPolicy: 'never', writableRoots: [] },
     }).catch((error) => ({ status: 'failed', taskRunId: 'not-created',
       participants: [], summary: error instanceof Error ? error.message : String(error) }));
     const response = reviewRun.participants[0]?.summary || reviewRun.summary || '';
@@ -279,6 +299,33 @@ export async function runTaskGraphCycle() {
       where: { runId: run.id, status: 'verifying' }, select: { id: true, key: true },
     });
     for (const node of verifying) {
+      const architectureClaim = await prisma.taskGraphEvent.findUnique({
+        where: { runId_idempotencyKey: { runId: run.id,
+          idempotencyKey: `node:${node.key}:architecture_claimed` } },
+      });
+      const architectureResult = architectureClaim && await prisma.taskGraphEvent.findUnique({
+        where: { runId_idempotencyKey: { runId: run.id,
+          idempotencyKey: `node:${node.key}:architecture_result` } },
+      });
+      if (architectureClaim && !architectureResult) {
+        if (!activeVerifications.has(node.id) &&
+            Date.now() - architectureClaim.createdAt.getTime() > 30 * 60_000) {
+          const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({
+            where: { id: run.id }, select: { snapshot: true },
+          });
+          const policy = (snapshot.snapshot as unknown as GraphDefinition).nodes
+            .find((item) => item.key === node.key)?.acceptance;
+          if (policy) {
+            await submitNodeVerification({ runId: run.id, nodeKey: node.key,
+              actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system',
+              evidence: { summary: '架构复核中断或超时，需人工核对 TaskRun 后处理。',
+                checks: policy.checks.map((name) => ({ name, passed: false,
+                  evidence: '架构复核未形成可靠结论' })) } });
+            await refreshTaskGraphRunStatus(run.id);
+          }
+        }
+        continue;
+      }
       const claim = await prisma.taskGraphEvent.findUnique({
         where: { runId_idempotencyKey: { runId: run.id, idempotencyKey: `node:${node.key}:review_claimed` } },
       });
