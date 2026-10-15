@@ -13,6 +13,7 @@
     "feishu:runtime": "FEISHU_RUNTIME_CODEX_HTTP_PROXY=${http_proxy:-${HTTP_PROXY:-}} FEISHU_RUNTIME_CODEX_HTTPS_PROXY=${https_proxy:-${HTTPS_PROXY:-}} FEISHU_RUNTIME_CODEX_ALL_PROXY=${all_proxy:-${ALL_PROXY:-}} FEISHU_RUNTIME_CODEX_NO_PROXY=${no_proxy:-${NO_PROXY:-}} env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY node scripts/feishu-standalone-monitor.js",
     "scheduled-jobs:runtime": "FEISHU_RUNTIME_CODEX_HTTP_PROXY=${http_proxy:-${HTTP_PROXY:-}} FEISHU_RUNTIME_CODEX_HTTPS_PROXY=${https_proxy:-${HTTPS_PROXY:-}} FEISHU_RUNTIME_CODEX_ALL_PROXY=${all_proxy:-${ALL_PROXY:-}} FEISHU_RUNTIME_CODEX_NO_PROXY=${no_proxy:-${NO_PROXY:-}} env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/scheduled-job-runner.ts",
     "task-graph:runtime": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-runner.ts",
+    "task-graph:propose": "bash scripts/run-task-graph-propose.sh",
     "remote-runner:gateway": "node scripts/remote-runner-gateway.js",
     "remote-runner:register": "node scripts/register-remote-node.js",
     "remote-runner": "node scripts/agent-platform-runner.js",

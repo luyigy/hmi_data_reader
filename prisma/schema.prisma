@@ -100,6 +100,7 @@ model Task {
   controlMessages      TaskRunControlMessage[]
   interactionRequests  TaskRunInteractionRequest[]
   taskGraphRuns        TaskGraphRun[]          @relation("TaskGraphParent")
+  taskGraphProposals   TaskGraphProposal[]
   taskGraphExecutions  TaskGraphExecution[]    @relation("TaskGraphChild")
   currentTaskSession   TaskSession?            @relation("TaskCurrentSession", fields: [currentTaskSessionId], references: [id])
   createdAt            DateTime                @default(now())
@@ -622,6 +623,25 @@ model WorkflowDispatch {
 
 // A confirmed graph is copied into snapshot at launch. Nodes and executions are
 // materialized separately so the frontier can be claimed atomically after restart.
+model TaskGraphProposal {
+  id             String    @id @default(cuid())
+  parentTaskId   String
+  version        Int
+  snapshotHash   String
+  definition     Json
+  status         String    @default("pending") // pending, processing, confirmed, rejected
+  createdBy      String
+  decidedBy      String?
+  decidedAt      DateTime?
+  cardMessageId  String?
+  parentTask     Task      @relation(fields: [parentTaskId], references: [id], onDelete: Restrict)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([parentTaskId, version])
+  @@index([parentTaskId, status])
+}
+
 model TaskGraphRun {
   id             String               @id @default(cuid())
   parentTaskId   String

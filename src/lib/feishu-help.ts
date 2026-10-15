@@ -25,7 +25,7 @@ const HELP_PAGES = [
     '/ap kick <memberName>',
     '/ap chat [--agents=<agentId1,agentId2>] <message>',
     '/ap chat --from-member=<memberName> --to-member=<memberName> <message>',
-    '/ap graph status  在父任务话题查看任务图进度；路线在父任务页面一次确认',
+    '/ap graph status  在父任务话题查看任务图进度；路线由 Agent 提出后在飞书卡片确认',
     '/ap doc <仓库内已提交的 Markdown 路径>  转为飞书文档',
     '/ap md [关键词|完整路径.md]  按分区倒序浏览并发送原始 Markdown 文件',
     '/ap chat --from=<gatewayId> --to=<gatewayId> <prompt>',

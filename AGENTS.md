@@ -27,8 +27,9 @@ GitNexus results should support engineering decisions, not replace understanding
 - 新工作使用经过讨论的原型、定稿 Spec 和依赖图定义纵向 Slice；参阅
   `docs/architecture/task-graph-workflow-spec.md`。人确认整条路线后，平台按依赖图派发，
   Agent 的提交、测试和验收证据写入执行账本。
+- 父任务 Agent 将路线写成 JSON 后运行 `npm run task-graph:propose -- --parent-task-id=<任务ID> --file=<路线JSON> --agent=<名称>`。平台在父任务的飞书话题发送路线卡；人只在飞书卡片确认或退回。未确认的提议不得派发。
 - 不为新任务创建 PLAN/HANDOVER 接力文档，不使用 `next_action`、Prompt 标记或
-  `WORKFLOW_READY` 启动下一 Session。任务图由父任务的任务图页面一次确认并启动；
+  `WORKFLOW_READY` 启动下一 Session。任务图由父任务的飞书确认卡一次确认并启动；
   旧 watcher 不再派发。
 - `docs/workflow/workflow-contract.yaml` 的 `automation_enabled` 已关闭。
   历史 PLAN/HANDOVER 保留为只读材料；如必须修复历史文档，仍按该合同校验，但不得重新启用派发。

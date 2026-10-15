@@ -149,7 +149,7 @@ export async function handleFeishuCommand(args: {
     case 'job':
       return handleScheduledJobCommand(args.command, args.context);
     case 'workflow':
-      return '旧 workflow-watcher 已退役；新任务图在父任务页面确认一次后自动接力。';
+      return '旧 workflow-watcher 已退役；请在父任务话题让 Agent 提出路线，并在飞书确认卡上启动。';
     case 'graph':
       return handleFeishuTaskGraphCommand(args.command, args.context);
     case 'inbox':

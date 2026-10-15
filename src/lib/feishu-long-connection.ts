@@ -38,6 +38,7 @@ import { checkFeishuDirectMessageAccess, resolveFeishuAdminApproval } from '@/li
 import { handleFeishuInteractionCardAction } from '@/lib/feishu-interaction-card-action';
 import { forwardMoldTrialCardAction } from '@/lib/mold-trial-card-action';
 import { handleGraphHumanReviewCardAction } from '@/lib/task-graph/feishu';
+import { handleGraphProposalCardAction } from '@/lib/task-graph/proposals';
 import { handleMarkdownPickerCardCallback } from '@/lib/feishu-markdown-picker';
 import {
   resolveFeishuCardActionIdentity,
@@ -295,6 +296,14 @@ export function buildCardActionHandler(prefix: string) {
       if (typeof value.runId !== 'string' || typeof value.nodeKey !== 'string' ||
           typeof value.decision !== 'string') return {};
       return handleGraphHumanReviewCardAction({ runId: value.runId, nodeKey: value.nodeKey,
+        decision: value.decision, openId: openId || null, chatId: chatId || null,
+        messageId: messageId || null });
+    }
+
+    if (cmd === 'task-graph-launch') {
+      const value = data.action.value as Record<string, unknown>;
+      if (typeof value.proposalId !== 'string' || typeof value.decision !== 'string') return {};
+      return handleGraphProposalCardAction({ proposalId: value.proposalId,
         decision: value.decision, openId: openId || null, chatId: chatId || null,
         messageId: messageId || null });
     }
