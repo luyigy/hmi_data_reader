@@ -57,6 +57,8 @@ void (async () => {
   assert.match(JSON.stringify(card), /Member task/);
   assert.match(JSON.stringify(card), /\*\*姓名\*\*：Member/);
   assert.match(JSON.stringify(card), /授权根目录/);
+  assert.match(JSON.stringify(card), /保存目录和权限/);
+  assert.match(JSON.stringify(card), /撤销准入/);
   assert.ok(card.elements.some((element) => element.tag === 'form'));
   assert.equal((card.elements.find((element) => element.tag === 'form') as { elements: Array<{ tag: string; action_type?: string }> })
     .elements.find((element) => element.tag === 'button')?.action_type, 'form_submit');
@@ -73,6 +75,14 @@ void (async () => {
   assert.match(JSON.stringify(renamed), /姓名已保存/);
   assert.match(JSON.stringify(renamed), /张三/);
   assert.match(JSON.stringify(await buildFeishuUserListCard('oc_admin')), /张三/);
+  user.status = 'pending';
+  const pendingCard = await buildFeishuUserDetailCard(user.openId, 'oc_admin');
+  assert.match(JSON.stringify(pendingCard), /批准准入申请/);
+  assert.match(JSON.stringify(pendingCard), /拒绝准入申请/);
+  assert.match(JSON.stringify(pendingCard), /approvalWorkspaceRoot/);
+  assert.match(JSON.stringify(pendingCard), /action_type":"form_submit/);
+  assert.doesNotMatch(JSON.stringify(pendingCard), /此用户尚无已批准的私聊房间/);
+  user.status = 'approved';
 
   await assert.rejects(updateFeishuUserAdmin({
     actorOpenId: 'ou_member', userOpenId: user.openId, workspaceRoot: workspace, profile: 'dev_local',

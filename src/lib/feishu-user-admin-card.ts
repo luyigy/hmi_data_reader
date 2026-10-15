@@ -1,7 +1,8 @@
 import { getFeishuUserDisplayName, sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { prisma } from '@/lib/prisma';
-import { isFeishuUserAdmin, readFeishuUserAdminDetail, updateFeishuUserAdmin } from '@/lib/feishu-user-admin';
+import { isFeishuUserAdmin, readFeishuUserAdminDetail, stopFeishuUserRoomRuns, updateFeishuUserAdmin } from '@/lib/feishu-user-admin';
 import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
+import { resolveWorkspaceRoot } from '@/lib/feishu-workspace';
 import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 
 const text = (content: string) => ({ tag: 'plain_text', content });
@@ -108,7 +109,7 @@ export async function buildFeishuUserDetailCard(openId: string, adminChatId: str
     elements: [
       { tag: 'markdown', content: `**姓名**：${plain(isPlaceholderName(name, user.openId) ? '未获取' : name)}\n**open_id**：\`${user.openId}\`\n**准入状态**：${user.status}\n**授权根目录**：\`${user.workspaceRoot || '未设置'}\`\n**私聊工作目录**：\`${room?.workingDirectory || '未创建'}\`\n**私聊任务**：${room?.sourceTask?.name || '未创建'}\n**私聊 Agent 实际权限**：\n${effective}\n\n以下修改只作用于该用户的私聊房间；群聊任务须在各自房间管理。` },
       ...(isPlaceholderName(name, user.openId) ? [{ tag: 'markdown', content: lookupError
-        ? '当前应用无法读取此用户的飞书姓名。请在下方填写姓名，或让管理员将该用户加入应用的通讯录数据权限范围。'
+        ? '自动获取姓名失败：请为机器人应用开通 contact:user.basic_profile:readonly；也可在下方手动填写姓名。'
         : '暂未获取飞书姓名，可在下方填写。' }] : []),
       { tag: 'form', name: 'feishu-user-admin-name', elements: [
         { tag: 'input', name: 'displayName', required: true,
@@ -119,6 +120,36 @@ export async function buildFeishuUserDetailCard(openId: string, adminChatId: str
           value: { cmd: 'feishu-user-admin', action: 'saveName', userOpenId: openId, adminChatId },
         },
       ] },
+      ...(['pending', 'denied', 'revoked'].includes(user.status) ? [{
+        tag: 'markdown', content: room?.sourceTask
+          ? '此用户已有私聊房间：先按当前授权根目录批准，再在批准后的卡片修改目录和 Agent 权限。'
+          : '批准时会为该用户创建私聊房间。',
+      }, {
+        tag: 'form', name: 'feishu-user-admin-approve', elements: [
+          { tag: 'input', name: 'approvalWorkspaceRoot', required: true,
+            default_value: user.workspaceRoot || '', label: text('批准后的授权根目录'),
+            placeholder: text('/absolute/workspace/root') },
+          { tag: 'button', name: 'approveFeishuUser', type: 'primary_filled', width: 'fill',
+            text: text(user.status === 'pending' ? '批准准入申请' : '重新批准准入'),
+            action_type: 'form_submit',
+            value: { cmd: 'feishu-user-admin', action: 'approveAccess', userOpenId: openId, adminChatId },
+          },
+        ],
+      }] : []),
+      ...(user.status === 'pending' ? [{ tag: 'action', actions: [{
+        tag: 'button', type: 'danger', text: text('拒绝准入申请'),
+        value: { cmd: 'feishu-user-admin', action: 'denyAccess', userOpenId: openId, adminChatId },
+      }] }] : []),
+      ...(user.status === 'approved' ? [{ tag: 'action', actions: [
+        { tag: 'button', type: 'default', text: text('撤销准入'),
+          value: { cmd: 'feishu-user-admin', action: 'revokeAccess', userOpenId: openId, adminChatId } },
+        { tag: 'button', type: 'danger', text: text('封禁用户'),
+          value: { cmd: 'feishu-user-admin', action: 'blockAccess', userOpenId: openId, adminChatId } },
+      ] }] : []),
+      ...(user.status === 'blocked' ? [{ tag: 'action', actions: [{
+        tag: 'button', type: 'default', text: text('解除封禁'),
+        value: { cmd: 'feishu-user-admin', action: 'unblockAccess', userOpenId: openId, adminChatId },
+      }] }] : []),
       ...(user.status === 'approved' && room?.sourceTask ? [{
         tag: 'form', name: 'feishu-user-admin-edit', elements: [
           { tag: 'input', name: 'workspaceRoot', required: true, default_value: user.workspaceRoot || '',
@@ -135,9 +166,64 @@ export async function buildFeishuUserDetailCard(openId: string, adminChatId: str
             value: { cmd: 'feishu-user-admin', action: 'save', userOpenId: openId, adminChatId },
           },
         ],
-      }] : [{ tag: 'markdown', content: '此用户尚无已批准的私聊房间；请先处理准入申请。' }]),
+      }] : [{ tag: 'markdown', content: user.status === 'approved'
+        ? '私聊房间尚未就绪；请先完成房间创建。'
+        : '批准准入后，可继续在此卡片调整私聊权限和工作目录。' }]),
     ],
   };
+}
+
+async function changeFeishuUserAccess(args: {
+  action: string; userOpenId: string; actorOpenId: string; workspaceRoot?: string;
+}) {
+  const { handleFeishuUserManagementCommand, resolveFeishuAdminApproval } = await import('@/lib/feishu-access-approval');
+  const access = await prisma.feishuUserAccess.findUnique({ where: { openId: args.userOpenId } });
+  if (!access) throw new Error('找不到该飞书用户。');
+  const allowedStatuses: Record<string, string[]> = {
+    approveAccess: ['pending', 'denied', 'revoked'], denyAccess: ['pending'],
+    revokeAccess: ['approved'], blockAccess: ['approved'], unblockAccess: ['blocked'],
+  };
+  if (!allowedStatuses[args.action]?.includes(access.status)) {
+    throw new Error('用户状态已变化，请重新打开管理卡片。');
+  }
+  if (args.action === 'approveAccess' || args.action === 'denyAccess') {
+    if (args.action === 'approveAccess') {
+      const requestedRoot = await resolveWorkspaceRoot(args.workspaceRoot || '');
+      const detail = await readFeishuUserAdminDetail(args.userOpenId);
+      if (detail.room?.sourceTask && detail.user.workspaceRoot
+        && requestedRoot !== await resolveWorkspaceRoot(detail.user.workspaceRoot)) {
+        throw new Error('已有私聊房间：请先按当前授权根目录批准，再在批准后的卡片修改目录。');
+      }
+    }
+    const approval = access.status === 'pending' ? await prisma.feishuAdminApproval.findFirst({
+      where: { requesterOpenId: args.userOpenId, requesterChatId: access.chatId || undefined,
+        kind: 'user_pairing', status: 'pending' },
+      orderBy: { createdAt: 'desc' },
+    }) : null;
+    if (approval) {
+      const resolved = await resolveFeishuAdminApproval({
+        approvalId: approval.id, approved: args.action === 'approveAccess',
+        actorOpenId: args.actorOpenId, workspaceRoot: args.workspaceRoot,
+      });
+      return resolved ? args.action === 'approveAccess' ? '准入申请已批准。' : '准入申请已拒绝。'
+        : '准入申请已由其他操作处理，请刷新卡片。';
+    }
+    if (args.action === 'denyAccess') throw new Error('找不到待处理的准入申请，请刷新卡片。');
+  }
+  const commandAction = {
+    approveAccess: 'approve', revokeAccess: 'revoke', blockAccess: 'block', unblockAccess: 'unblock',
+  }[args.action];
+  if (!commandAction) throw new Error('不支持此准入操作。');
+  const result = await handleFeishuUserManagementCommand({
+    command: { command: 'user', args: [commandAction, args.userOpenId],
+      options: args.workspaceRoot ? { 'workspace-root': args.workspaceRoot } : {} },
+    senderOpenId: args.actorOpenId,
+  });
+  if (args.action === 'revokeAccess' || args.action === 'blockAccess') {
+    const warning = await stopFeishuUserRoomRuns(args.userOpenId);
+    return warning ? `${result} 但${warning}` : result;
+  }
+  return result;
 }
 
 export async function handleFeishuUserAdminCardCallback(args: {
@@ -174,6 +260,24 @@ export async function handleFeishuUserAdminCardCallback(args: {
     });
     return { toast: { type: 'success', content: '姓名已保存；重新打开 /ap users 可在列表中看到。' },
       card: { type: 'raw', data: await buildFeishuUserDetailCard(selected, args.chatId) } };
+  }
+  if (['approveAccess', 'denyAccess', 'revokeAccess', 'blockAccess', 'unblockAccess'].includes(String(args.value.action))) {
+    const root = args.formValue?.approvalWorkspaceRoot;
+    if (args.value.action === 'approveAccess' && (typeof root !== 'string' || !root.trim())) {
+      return { toast: { type: 'warning', content: '请填写批准后的授权根目录。' } };
+    }
+    const chatId = args.chatId;
+    const action = String(args.value.action);
+    void changeFeishuUserAccess({ action, userOpenId: selected, actorOpenId: args.actorOpenId!,
+      workspaceRoot: typeof root === 'string' ? root : undefined })
+      .then(async (result) => {
+        await sendFeishuTextMessage({ receiveId: chatId, receiveIdType: 'chat_id', text: result });
+        await sendFeishuInteractiveMessage({ receiveId: chatId, receiveIdType: 'chat_id',
+          card: await buildFeishuUserDetailCard(selected, chatId) });
+      })
+      .catch((error) => sendFeishuTextMessage({ receiveId: chatId, receiveIdType: 'chat_id',
+        text: `❌ 准入操作失败：${error instanceof Error ? error.message : String(error)}` }).catch(() => undefined));
+    return { toast: { type: 'success', content: '准入操作已接收，结果将发到当前私聊。' } };
   }
   if (args.value.action !== 'save') return {};
   const root = args.formValue?.workspaceRoot;

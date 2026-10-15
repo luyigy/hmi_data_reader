@@ -34,6 +34,25 @@ export async function readFeishuUserAdminDetail(openId: string) {
   };
 }
 
+export async function stopFeishuUserRoomRuns(openId: string) {
+  const detail = await readFeishuUserAdminDetail(openId);
+  if (!detail.room) return null;
+  const members = detail.agents.map(({ member }) => member);
+  members.forEach((member) => cancelQueuedLiveRoomMemberExecutions(member.id));
+  const stops = await Promise.allSettled(members.map((member) => interruptLiveRoomMemberReplies({
+    roomId: detail.room!.id, memberId: member.id, controlAction: 'stop_run',
+  })));
+  if (stops.some((result) => result.status === 'rejected' || result.value.failedRunningCount > 0)) {
+    return '有旧运行未停止；请在该用户房间执行 /ap stop。';
+  }
+  try {
+    await Promise.all(members.map((member) => waitForLiveRoomMemberExecutionStop(member.id)));
+  } catch {
+    return '等待旧运行停止超时；请在该用户房间确认 /ap stop。';
+  }
+  return null;
+}
+
 export async function updateFeishuUserAdmin(args: {
   actorOpenId: string | null | undefined;
   userOpenId: string;
@@ -73,18 +92,7 @@ export async function updateFeishuUserAdmin(args: {
     });
   });
 
-  const members = detail.agents.map(({ member }) => member);
-  members.forEach((member) => cancelQueuedLiveRoomMemberExecutions(member.id));
-  const stops = await Promise.allSettled(members.map((member) => interruptLiveRoomMemberReplies({
-    roomId: room.id, memberId: member.id, controlAction: 'stop_run',
-  })));
-  if (stops.some((result) => result.status === 'rejected' || result.value.failedRunningCount > 0)) {
-    return '配置已保存，但有旧运行未停止；请在该用户房间执行 /ap stop。';
-  }
-  try {
-    await Promise.all(members.map((member) => waitForLiveRoomMemberExecutionStop(member.id)));
-  } catch {
-    return '配置已保存，但等待旧运行停止超时；请在该用户房间确认 /ap stop。';
-  }
+  const stopWarning = await stopFeishuUserRoomRuns(args.userOpenId);
+  if (stopWarning) return `配置已保存，但${stopWarning}`;
   return `已更新：${workspaceRoot} · ${args.profile === 'safe_local' ? 'Safe Local（离线）' : 'Dev Local（联网）'}。后续运行使用新权限。`;
 }

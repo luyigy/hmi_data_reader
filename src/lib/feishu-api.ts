@@ -90,11 +90,29 @@ export async function getFeishuTenantAccessToken(): Promise<string> {
 
 export async function getFeishuUserDisplayName(openId: string): Promise<string | null> {
   const token = await getFeishuTenantAccessToken();
+  const basicUrl = new URL(`${FEISHU_API_BASE}/contact/v3/users/basic_batch`);
+  basicUrl.searchParams.set('user_id_type', 'open_id');
+  const basicResponse = await fetch(basicUrl, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_ids: [openId] }),
+  });
+  const basic = await basicResponse.json() as {
+    code?: number; msg?: string;
+    data?: { users?: Array<{ user_id?: string; name?: string; i18n_name?: { zh_cn?: string } }> };
+  };
+  if (basicResponse.ok && basic.code === 0) {
+    const user = basic.data?.users?.find((item) => item.user_id === openId);
+    const name = user?.i18n_name?.zh_cn?.trim() || user?.name?.trim();
+    if (name) return name;
+  }
   const url = new URL(`${FEISHU_API_BASE}/contact/v3/users/${encodeURIComponent(openId)}`);
   url.searchParams.set('user_id_type', 'open_id');
   const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const data = await response.json() as { code?: number; msg?: string; data?: { user?: { name?: string } } };
-  if (!response.ok || data.code !== 0) throw new Error(data.msg || `Failed to get Feishu user: HTTP ${response.status}`);
+  if (!response.ok || data.code !== 0) {
+    throw new Error(`姓名接口：${basic.msg || basic.code || basicResponse.status}；用户详情接口：${data.msg || data.code || response.status}`);
+  }
   return data.data?.user?.name?.trim() || null;
 }
 
