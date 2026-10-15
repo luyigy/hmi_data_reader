@@ -18,6 +18,7 @@ void (async () => {
   Object.assign(prisma.feishuUserAccess, {
     findUnique: async () => user,
     findMany: async () => [user],
+    update: async (args: { data: { displayName: string } }) => { user.displayName = args.data.displayName; return user; },
   });
   Object.assign(prisma.feishuConversationBinding, {
     findFirst: async () => ({ liveRoomId: room.id }),
@@ -54,6 +55,7 @@ void (async () => {
 
   const card = await buildFeishuUserDetailCard(user.openId, 'oc_admin');
   assert.match(JSON.stringify(card), /Member task/);
+  assert.match(JSON.stringify(card), /\*\*姓名\*\*：Member/);
   assert.match(JSON.stringify(card), /授权根目录/);
   assert.ok(card.elements.some((element) => element.tag === 'form'));
   assert.equal((card.elements.find((element) => element.tag === 'form') as { elements: Array<{ tag: string; action_type?: string }> })
@@ -63,6 +65,14 @@ void (async () => {
   assert.match(JSON.stringify(list), /ap-feishu-user-admin/);
   assert.equal((list.elements.find((element) => element.tag === 'form') as { elements: Array<{ tag: string; action_type?: string }> })
     .elements.find((element) => element.tag === 'button')?.action_type, 'form_submit');
+
+  const renamed = await handleFeishuUserAdminCardCallback({
+    value: { action: 'saveName', userOpenId: user.openId, adminChatId: 'oc_admin' },
+    formValue: { displayName: '张三' }, actorOpenId: 'ou_admin', chatId: 'oc_admin',
+  });
+  assert.match(JSON.stringify(renamed), /姓名已保存/);
+  assert.match(JSON.stringify(renamed), /张三/);
+  assert.match(JSON.stringify(await buildFeishuUserListCard('oc_admin')), /张三/);
 
   await assert.rejects(updateFeishuUserAdmin({
     actorOpenId: 'ou_member', userOpenId: user.openId, workspaceRoot: workspace, profile: 'dev_local',

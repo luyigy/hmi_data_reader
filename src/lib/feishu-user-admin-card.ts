@@ -1,4 +1,4 @@
-import { sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
+import { getFeishuUserDisplayName, sendFeishuInteractiveMessage, sendFeishuTextMessage } from '@/lib/feishu-api';
 import { prisma } from '@/lib/prisma';
 import { isFeishuUserAdmin, readFeishuUserAdminDetail, updateFeishuUserAdmin } from '@/lib/feishu-user-admin';
 import { resolveLiveRoomMemberPermission } from '@/lib/live-room-permissions';
@@ -7,6 +7,25 @@ import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 const text = (content: string) => ({ tag: 'plain_text', content });
 const short = (value: string, limit = 60) => value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
 const plain = (value: string) => value.replace(/[\\`*_\[\]<>]/g, '\\$&').replace(/[\r\n]/g, ' ');
+const isPlaceholderName = (name: string | null | undefined, openId: string) =>
+  !name || name === openId || name.startsWith('openid:');
+
+async function resolveManagedUserName(user: { openId: string; displayName: string | null }) {
+  if (!isPlaceholderName(user.displayName, user.openId)) return { name: user.displayName!, lookupError: false };
+  try {
+    const name = await getFeishuUserDisplayName(user.openId);
+    if (name && !isPlaceholderName(name, user.openId)) {
+      await prisma.feishuUserAccess.updateMany({
+        where: { openId: user.openId, displayName: user.displayName },
+        data: { displayName: name, nameUpdatedAt: new Date() },
+      });
+      return { name, lookupError: false };
+    }
+  } catch {
+    return { name: user.displayName || user.openId, lookupError: true };
+  }
+  return { name: user.displayName || user.openId, lookupError: false };
+}
 
 export async function buildFeishuUserListCard(chatId: string, status?: string) {
   const users = await prisma.feishuUserAccess.findMany({
@@ -76,6 +95,7 @@ export async function sendFeishuUserAdminCard(context: FeishuConversationContext
 
 export async function buildFeishuUserDetailCard(openId: string, adminChatId: string) {
   const { user, room, agents } = await readFeishuUserAdminDetail(openId);
+  const { name, lookupError } = await resolveManagedUserName(user);
   const currentProfiles = Array.from(new Set(agents.map(({ permission }) => permission.profile)));
   const selectedProfile = currentProfiles.length === 1 ? currentProfiles[0]
     : room?.sourceTask ? resolveLiveRoomMemberPermission(null, room.sourceTask.acpxPermissionConfig).profile : undefined;
@@ -84,9 +104,21 @@ export async function buildFeishuUserDetailCard(openId: string, adminChatId: str
     : '无已绑定 Agent';
   return {
     config: { wide_screen_mode: true },
-    header: { template: 'blue', title: text(short(`管理用户 · ${user.displayName || user.openId}`)) },
+    header: { template: 'blue', title: text(short(`管理用户 · ${name}`)) },
     elements: [
-      { tag: 'markdown', content: `**open_id**：\`${user.openId}\`\n**准入状态**：${user.status}\n**授权根目录**：\`${user.workspaceRoot || '未设置'}\`\n**私聊工作目录**：\`${room?.workingDirectory || '未创建'}\`\n**私聊任务**：${room?.sourceTask?.name || '未创建'}\n**私聊 Agent 实际权限**：\n${effective}\n\n以下修改只作用于该用户的私聊房间；群聊任务须在各自房间管理。` },
+      { tag: 'markdown', content: `**姓名**：${plain(isPlaceholderName(name, user.openId) ? '未获取' : name)}\n**open_id**：\`${user.openId}\`\n**准入状态**：${user.status}\n**授权根目录**：\`${user.workspaceRoot || '未设置'}\`\n**私聊工作目录**：\`${room?.workingDirectory || '未创建'}\`\n**私聊任务**：${room?.sourceTask?.name || '未创建'}\n**私聊 Agent 实际权限**：\n${effective}\n\n以下修改只作用于该用户的私聊房间；群聊任务须在各自房间管理。` },
+      ...(isPlaceholderName(name, user.openId) ? [{ tag: 'markdown', content: lookupError
+        ? '当前应用无法读取此用户的飞书姓名。请在下方填写姓名，或让管理员将该用户加入应用的通讯录数据权限范围。'
+        : '暂未获取飞书姓名，可在下方填写。' }] : []),
+      { tag: 'form', name: 'feishu-user-admin-name', elements: [
+        { tag: 'input', name: 'displayName', required: true,
+          default_value: isPlaceholderName(name, user.openId) ? '' : name,
+          label: text('用户姓名'), placeholder: text('填写中文姓名') },
+        { tag: 'button', name: 'saveFeishuUserName', type: 'primary_filled', width: 'fill',
+          text: text('保存姓名'), action_type: 'form_submit',
+          value: { cmd: 'feishu-user-admin', action: 'saveName', userOpenId: openId, adminChatId },
+        },
+      ] },
       ...(user.status === 'approved' && room?.sourceTask ? [{
         tag: 'form', name: 'feishu-user-admin-edit', elements: [
           { tag: 'input', name: 'workspaceRoot', required: true, default_value: user.workspaceRoot || '',
@@ -130,6 +162,18 @@ export async function handleFeishuUserAdminCardCallback(args: {
     } catch (error) {
       return { toast: { type: 'warning', content: error instanceof Error ? error.message : '用户详情读取失败' } };
     }
+  }
+  if (args.value.action === 'saveName') {
+    const name = args.formValue?.displayName;
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 64) {
+      return { toast: { type: 'warning', content: '请填写不超过 64 个字符的姓名。' } };
+    }
+    await prisma.feishuUserAccess.update({
+      where: { openId: selected },
+      data: { displayName: name.trim(), nameUpdatedAt: new Date() },
+    });
+    return { toast: { type: 'success', content: '姓名已保存；重新打开 /ap users 可在列表中看到。' },
+      card: { type: 'raw', data: await buildFeishuUserDetailCard(selected, args.chatId) } };
   }
   if (args.value.action !== 'save') return {};
   const root = args.formValue?.workspaceRoot;
