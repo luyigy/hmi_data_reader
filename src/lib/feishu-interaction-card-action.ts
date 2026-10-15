@@ -3,15 +3,22 @@ import { isFeishuAdmin } from '@/lib/feishu-access-approval';
 import { updateFeishuApprovalCardResolved } from '@/lib/feishu-api';
 import { applyWorkflowPolicyCard } from '@/lib/feishu-workflow-policy';
 import { prisma } from '@/lib/prisma';
+import { handleFeishuUserAdminCardCallback } from '@/lib/feishu-user-admin-card';
 
 export async function handleFeishuInteractionCardAction(args: {
   cmd: string;
+  value?: Record<string, unknown>;
   formValue?: Record<string, unknown>;
   openId?: string;
   messageId?: string;
+  chatId?: string;
   actorName: string;
   prefix: string;
 }) {
+  if (args.cmd === 'feishu-user-admin') return handleFeishuUserAdminCardCallback({
+    value: args.value || {},
+    formValue: args.formValue, actorOpenId: args.openId, chatId: args.chatId,
+  });
   const match = /^(approve|deny|answer):(.+)$/.exec(args.cmd);
   if (!match) {
     const policyMatch = /^workflow-policy:(.+):(.+)$/.exec(args.cmd);

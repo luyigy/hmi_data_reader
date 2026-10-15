@@ -3,6 +3,8 @@ import { getFeishuUserDisplayName, sendFeishuInteractiveMessage, sendFeishuTextM
 import { ensureFeishuConversationBinding } from '@/lib/feishu-live-room';
 import { resolveWorkspaceDirectory, resolveWorkspaceRoot } from '@/lib/feishu-workspace';
 import { interruptLiveRoomRunningProcess } from '@/lib/live-room-process-registry';
+import { sendFeishuUserAdminCard } from '@/lib/feishu-user-admin-card';
+import type { FeishuConversationContext } from '@/lib/feishu-live-room';
 
 type StoredCommand = {
   command: Parameters<typeof import('@/lib/feishu').handleFeishuCommand>[0]['command'];
@@ -231,6 +233,7 @@ type UserCommand = { command: string; args: string[]; options: Record<string, st
 export async function handleFeishuUserManagementCommand(args: {
   command: UserCommand;
   senderOpenId: string | null | undefined;
+  context?: FeishuConversationContext;
 }) {
   if (!isFeishuAdmin(args.senderOpenId)) return '仅配置的 Feishu 管理员可以管理用户。';
 
@@ -238,6 +241,7 @@ export async function handleFeishuUserManagementCommand(args: {
     const status = args.command.options.status?.trim().toLowerCase();
     const allowed = ['approved', 'pending', 'denied', 'revoked', 'blocked'];
     if (status && !allowed.includes(status)) return `无效状态：${status}`;
+    if (args.context) return sendFeishuUserAdminCard(args.context, status);
     const users = await prisma.feishuUserAccess.findMany({
       where: status ? { status } : undefined,
       orderBy: { updatedAt: 'desc' },

@@ -585,8 +585,10 @@ export function buildCardActionHandler(prefix: string) {
 
     return await handleFeishuInteractionCardAction({
       cmd,
+      value: action.value,
       formValue: (data.action as unknown as { form_value?: Record<string, unknown> }).form_value,
       openId,
+      chatId,
       messageId,
       actorName,
       prefix,

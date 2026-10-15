@@ -69,7 +69,7 @@ const HELP_PAGES = [
     '/ap job cursor workflow-watcher [--latest|--clear-pending]',
   ]],
   ['权限与管理', [
-    '/ap users [--status=approved|pending|denied|revoked|blocked]  (管理员)',
+    '/ap users [--status=approved|pending|denied|revoked|blocked]  打开用户管理卡（管理员私聊）',
     '/ap user approve <open_id> --workspace-root=/absolute/path  (管理员)',
     '/ap user workspace <open_id> <absolute_root>  (管理员)',
     '/ap user <revoke|block|unblock> <open_id>  (管理员)',
