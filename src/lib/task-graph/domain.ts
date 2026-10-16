@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
+import type { SpecPackageRef } from './spec-package';
 
 export type Acceptance = {
   mode: 'automatic' | 'agent' | 'human';
@@ -28,6 +29,7 @@ export type GraphNode = {
   key: string;
   goal: string;
   dependsOn: string[];
+  executionMode?: 'full' | 'lean' | 'implement';
   acceptance: Acceptance;
   architectureReview?: ArchitectureReview;
   executions: GraphExecution[];
@@ -35,12 +37,18 @@ export type GraphNode = {
 
 export type GraphDefinition = {
   specRef: string;
+  specPackage?: SpecPackageRef;
   defaultArchitectureReview?: ArchitectureReview;
   nodes: GraphNode[];
 };
 
 export function effectiveArchitectureReview(graph: GraphDefinition, node: GraphNode) {
+  if (node.executionMode === 'lean' || node.executionMode === 'implement') return undefined;
   return node.architectureReview || graph.defaultArchitectureReview;
+}
+
+export function isCompletedNodeStatus(status: string) {
+  return status === 'passed' || status === 'delivered_unverified';
 }
 
 export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefinition {
@@ -48,12 +56,18 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     throw new Error('Task graph requires a spec reference and at least one node');
   }
   const keys = new Set<string>();
+  if (input.specPackage && (!isAbsolute(input.specPackage.repository) ||
+      !/^[a-f0-9]{40}$/.test(input.specPackage.commit) || !/^[a-f0-9]{64}$/.test(input.specPackage.hash) ||
+      !input.specPackage.manifestPath?.startsWith('docs/specs/'))) throw new Error('Invalid frozen Spec package');
   const validArchitectureReview = (review: ArchitectureReview | undefined) =>
     review === undefined || (!!review.reviewerId?.trim() && !!review.reviewLaunchConfig);
   if (!validArchitectureReview(input.defaultArchitectureReview)) {
     throw new Error('Invalid default architecture reviewer');
   }
   for (const node of input.nodes) {
+    if (node.executionMode !== undefined && !['full', 'lean', 'implement'].includes(node.executionMode)) {
+      throw new Error(`Invalid execution mode for ${node.key}`);
+    }
     if (!node.key?.trim() || !node.goal?.trim() || keys.has(node.key)) throw new Error(`Duplicate or empty node key/goal: ${node.key}`);
     keys.add(node.key);
   }
@@ -67,7 +81,7 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     }
     const gate = node.acceptance;
     if (!gate || !['automatic', 'agent', 'human'].includes(gate.mode) || !Array.isArray(gate.checks) ||
-        gate.checks.length === 0 || gate.checks.some((check) => !check?.trim()) ||
+        (node.executionMode !== 'implement' && gate.checks.length === 0) || gate.checks.some((check) => !check?.trim()) ||
         (gate.mode !== 'automatic' && !gate.reviewerId?.trim())) {
       throw new Error(`Invalid acceptance gate for ${node.key}`);
     }

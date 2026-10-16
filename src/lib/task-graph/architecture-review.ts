@@ -5,6 +5,7 @@ import { prisma } from '../prisma';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 import type { VerificationEvidence } from './store';
 import { assertValidationWorkspacesClean, type ValidationWorkspace } from './validation-workspaces';
+import { architectureReviewInstructions } from './prompts';
 
 const readOnlyPermission = {
   profile: 'safe_local' as const, sandboxMode: 'read-only' as const,
@@ -47,7 +48,7 @@ export async function runArchitectureReview(args: {
     description: `独立检查任务图 ${args.runId} / ${args.nodeKey} 的变更范围与架构影响。`,
     workingDirectory: args.workspaces[0]?.path,
   }, update: {} });
-  const prompt = `请只读检查 ${args.nodeKey} 的实施是否越过 Spec 范围、破坏共享接口或影响其他节点。` +
+  const prompt = `${architectureReviewInstructions}\n请检查 ${args.nodeKey}。` +
     `\n目标：${node.goal}\nSpec：${args.definition.specRef}` +
     `\n固定提交：${JSON.stringify(args.commits)}` +
     `\n仓库检出目录：${JSON.stringify(args.workspaces)}` +

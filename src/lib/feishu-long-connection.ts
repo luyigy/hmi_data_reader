@@ -40,6 +40,7 @@ import { forwardMoldTrialCardAction } from '@/lib/mold-trial-card-action';
 import { handleGraphHumanReviewCardAction } from '@/lib/task-graph/feishu';
 import { handleGraphProposalCardAction } from '@/lib/task-graph/proposals';
 import { handleMarkdownPickerCardCallback } from '@/lib/feishu-markdown-picker';
+import { graphCardContext, handleGraphSpecPicker } from '@/lib/feishu-graph-picker';
 import {
   resolveFeishuCardActionIdentity,
   type FeishuCardActionIdentity,
@@ -56,6 +57,7 @@ import {
   buildFeishuRoomControlCard,
   FEISHU_COMMAND_CARD_ACTIONS,
   isFeishuCommandCenterView,
+  withCommandRoom,
 } from '@/lib/feishu-help';
 export { resolveFeishuCardActionIdentity } from '@/lib/feishu-card-action';
 
@@ -285,11 +287,13 @@ export function buildCardActionHandler(prefix: string) {
       }
       return {
         toast: { type: 'success', content: '命令中心已切换' },
-        card: buildFeishuCommandCenterCardUpdate(chatType, value.view),
+        card: buildFeishuCommandCenterCardUpdate(chatType, value.view, typeof value.graphRoomId === 'string' ? value.graphRoomId : undefined),
       };
     }
 
     if (cmd === 'markdown-picker') return handleMarkdownPickerCardCallback({ action, openId, chatId, messageId, prefix });
+    if (cmd === 'graph-spec-picker') return handleGraphSpecPicker({ value: action.value || {},
+      formValue: action.form_value || {}, openId, chatId, messageId });
 
     if (cmd === 'task-graph-decision') {
       const value = data.action.value as Record<string, unknown>;
@@ -305,6 +309,7 @@ export function buildCardActionHandler(prefix: string) {
       if (typeof value.proposalId !== 'string' || typeof value.decision !== 'string') return {};
       return handleGraphProposalCardAction({ proposalId: value.proposalId,
         decision: value.decision, hash: typeof value.hash === 'string' ? value.hash : null,
+        formValue: action.form_value,
         openId: openId || null, chatId: chatId || null,
         messageId: messageId || null });
     }
@@ -350,28 +355,25 @@ export function buildCardActionHandler(prefix: string) {
       void handleFeishuCommand({
         command,
         baseUrl: resolveBaseUrl(),
-        context: {
-          chatId,
-          chatType,
-          senderOpenId: openId,
-          messageId: messageId || '',
-        },
+        context: await graphCardContext({ roomId: typeof value.graphRoomId === 'string' ? value.graphRoomId : undefined,
+          chatId, chatType, openId, messageId: messageId || '' }),
       }).then((result) => sendFeishuInteractiveMessage({
         receiveId: chatId,
         receiveIdType: 'chat_id',
         replyId: messageId,
-        card: buildFeishuCommandResultCard(commandText, result, chatType),
+        card: withCommandRoom(buildFeishuCommandResultCard(commandText, result, chatType),
+          typeof value.graphRoomId === 'string' ? value.graphRoomId : undefined),
       })).catch((err) => {
         console.error(`${prefix} AP command card action failed`, { command: commandText, err });
         return sendFeishuInteractiveMessage({
           receiveId: chatId,
           receiveIdType: 'chat_id',
           replyId: messageId,
-          card: buildFeishuCommandResultCard(
+          card: withCommandRoom(buildFeishuCommandResultCard(
             commandText,
             `❌ 命令执行失败：${err instanceof Error ? err.message : String(err)}`,
             chatType,
-          ),
+          ), typeof value.graphRoomId === 'string' ? value.graphRoomId : undefined),
         });
       });
       return { toast: { type: 'success', content: `${commandText} 已接收，结果稍后回复` } };
@@ -494,7 +496,6 @@ function attachRuntimeHandlers(prefix: string, host: 'standalone' | 'nextjs') {
       state.messageIds.set(parsedMessage.messageId, Date.now());
 
       void (async () => {
-        const parentMessageId = parsedMessage.parentId;
         const topicIdentity = buildFeishuTopicIdentity(parsedMessage);
         const topicScoped = hasFeishuTopicIdentityFields(topicIdentity);
         const message = await hydrateFeishuMessageResources(parsedMessage);

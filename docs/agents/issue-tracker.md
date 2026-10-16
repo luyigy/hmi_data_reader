@@ -2,7 +2,7 @@
 
 Issues and specs for this repo live in `luyigy/agent-platform-v2` on GitHub. Use the `gh` CLI with `-R luyigy/agent-platform-v2` for issue and pull-request commands. For `gh api`, use explicit `repos/luyigy/agent-platform-v2/...` paths.
 
-This config tells Matt Pocock’s skills where to manage issues. PLAN and HANDOVER documents continue to follow `docs/workflow/workflow-contract.yaml`.
+This config tells Matt Pocock’s skills where to manage issues. New work uses Spec packages and approved task graphs; historical PLAN/HANDOVER documents are read-only references. The retired document watcher must not dispatch new work.
 
 ## Conventions
 

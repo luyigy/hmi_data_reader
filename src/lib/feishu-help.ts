@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ParsedFeishuCommand } from '@/lib/feishu-command-parser';
 import { sendFeishuInteractiveMessage } from '@/lib/feishu-api';
-import type { FeishuConversationContext } from '@/lib/feishu-live-room';
+import { getBoundLiveRoom, type FeishuConversationContext } from '@/lib/feishu-live-room';
 
 const HELP_PAGES = [
   ['房间与 Agent', [
@@ -602,10 +602,18 @@ export const buildFeishuCommandCenterCards = (chatType: 'p2p' | 'group') => [
 export const buildFeishuCommandCenterCardUpdate = (
   chatType: 'p2p' | 'group',
   view: FeishuCommandCenterView,
+  roomId?: string,
 ) => ({
   type: 'raw',
-  data: buildFeishuCommandCenterCard(chatType, view),
+  data: withCommandRoom(buildFeishuCommandCenterCard(chatType, view), roomId),
 });
+
+export function withCommandRoom<T>(card: T, roomId?: string): T {
+  if (!roomId) return card;
+  return JSON.parse(JSON.stringify(card, (key, value) => key === 'value' && value &&
+    typeof value === 'object' && ['ap-command', 'ap-menu'].includes(value.cmd)
+    ? { ...value, graphRoomId: roomId } : value));
+}
 
 export const buildFeishuCommandFromForm = (
   form: unknown,
@@ -698,7 +706,7 @@ export async function sendFeishuCommandCenter(context?: FeishuConversationContex
   await sendFeishuInteractiveMessage({
     receiveId: context.chatId,
     receiveIdType: 'chat_id',
-    card: buildFeishuCommandCenterCard(context.chatType === 'p2p' ? 'p2p' : 'group'),
+    card: withCommandRoom(buildFeishuCommandCenterCard(context.chatType === 'p2p' ? 'p2p' : 'group'), (await getBoundLiveRoom(context))?.id),
   });
   return '✅ AP 命令中心已发送；分类会在同一张卡片内切换，只有以 /ap 开头的消息才会被识别为命令。';
 }

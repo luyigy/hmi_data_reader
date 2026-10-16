@@ -1,58 +1,19 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
-import { sendFeishuInteractiveMessage } from '../feishu-api';
+import { sendFeishuInteractiveMessage, sendFeishuMarkdownFile } from '../feishu-api';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
 import { listLiveRoomCatalogAgents, resolveLiveRoomAgentSelectors } from '../live-room';
 import { postGraphParentProgress } from './feishu';
-import { effectiveArchitectureReview, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from './domain';
+import { taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from './domain';
 import { validateExecutionTargets } from './launch';
 import { createTaskGraphRun, releaseReadyNodes } from './store';
 import type { AcpxParticipantRequest } from '../acpx/types';
-
-export function formatGraphProposal(definition: GraphDefinition, version: number) {
-  const lines = [`任务路线 V${version}`, `Spec：${definition.specRef}`, '**依赖关系图**'];
-  const successors = new Map(definition.nodes.map((node) => [node.key, [] as string[]]));
-  for (const node of definition.nodes) {
-    for (const dependency of node.dependsOn) successors.get(dependency)?.push(node.key);
-  }
-  for (const [key, next] of Array.from(successors)) {
-    if (next.length) lines.push(`${key} → ${next.join(' ∥ ')}${next.length > 1 ? '（前置通过后可并行）' : ''}`);
-  }
-  lines.push('每个节点只等待其声明的前置；不同仓和同仓并行均使用独立 worktree。', '**各节点交付**');
-  for (const node of definition.nodes) {
-    const jobs = node.executions.map((job) => `${job.repository} / ${job.agentSelector}`).join('；');
-    lines.push(`**${node.key} · ${node.goal}**`);
-    lines.push(`前置：${node.dependsOn.join('、') || '无'}`);
-    lines.push(`实施者：${jobs}`);
-    lines.push(`验收者：${node.acceptance.mode === 'automatic' ? '自动检查' : node.acceptance.reviewerId || '未配置'}；验收项：${node.acceptance.checks.join('、')}`);
-    lines.push(`架构复核者：${effectiveArchitectureReview(definition, node)?.reviewerId || '未配置'}`);
-  }
-  return lines.join('\n');
-}
-
-export function buildGraphProposalCard(id: string, definition: GraphDefinition, version: number, hash: string) {
-  const ready = definition.nodes.every((node) => !!effectiveArchitectureReview(definition, node));
-  return {
-    config: { wide_screen_mode: true },
-    header: { template: ready ? 'blue' : 'orange', title: { tag: 'plain_text', content: `任务路线待确认 · V${version}` } },
-    elements: [
-      { tag: 'markdown', content: formatGraphProposal(definition, version) },
-      { tag: 'div', text: { tag: 'plain_text', content: ready
-        ? '确认后，无前置任务自动启动；后续任务通过架构复核与验收后接力。并行任务各用独立 worktree。'
-        : '请先用 /ap graph role all architecture <本机 Agent> 指定架构复核者。角色调整后本卡会更新。' } },
-      { tag: 'div', text: { tag: 'plain_text', content:
-        '改派示例：/ap graph role V3 collector local:pi-agent；/ap graph role V3 acceptance local:kimi-code；/ap graph role V3 architecture local:codex。' } },
-      { tag: 'action', actions: [
-        ...(ready ? [{ tag: 'button', type: 'primary', text: { tag: 'plain_text', content: '确认并启动路线' },
-          value: { cmd: 'task-graph-launch', proposalId: id, decision: 'approve', hash } }] : []),
-        { tag: 'button', type: 'danger', text: { tag: 'plain_text', content: '退回修改' },
-          value: { cmd: 'task-graph-launch', proposalId: id, decision: 'reject', hash } },
-      ] },
-    ],
-  };
-}
+import { buildGraphProposalCard, graphRolesReady } from './proposal-card';
+import { configureGraphRoles, graphRoleOptions } from './role-configuration';
+import { assertSpecPackage } from './spec-package';
+export { buildGraphProposalCard, formatGraphProposal } from './proposal-card';
 
 export async function updateGraphProposalRole(args: {
   parentTaskId: string; chatId: string; openId: string;
@@ -79,9 +40,10 @@ export async function updateGraphProposalRole(args: {
     if (!agent || agent.backend !== 'platform_local') {
       throw new Error('首版任务图角色只能选择已登记的本机 Agent');
     }
-    participant = { gatewayId: agent.gatewayId, gatewayName: agent.gatewayName,
+    participant = { gatewayId: agent.gatewayId, ...(agent.gatewayName ? { gatewayName: agent.gatewayName } : {}),
       executionBackend: 'platform_local', harnessType: agent.harnessType,
-      agentId: agent.runtimeAgentId, agentName: agent.agentName,
+      ...(agent.runtimeAgentId ? { agentId: agent.runtimeAgentId } : {}),
+      ...(agent.agentName ? { agentName: agent.agentName } : {}),
       role: args.target === 'architecture' ? 'reviewer' : args.target === 'acceptance' ? 'tester' : 'implementer' };
   }
   if (args.target === 'architecture') {
@@ -91,12 +53,13 @@ export async function updateGraphProposalRole(args: {
     else node!.architectureReview = review;
   } else if (args.target === 'acceptance' && node) {
     if (args.selector === 'automatic') {
-      const { reviewerId: _reviewerId, reviewLaunchConfig: _reviewLaunchConfig, ...rest } = node.acceptance;
-      node.acceptance = { ...rest, mode: 'automatic' };
+      node.acceptance = { ...node.acceptance, mode: 'automatic' };
+      delete node.acceptance.reviewerId;
+      delete node.acceptance.reviewLaunchConfig;
     } else if (args.selector === 'human') {
       const parent = await prisma.task.findUniqueOrThrow({ where: { id: args.parentTaskId }, select: { ownerUserId: true } });
-      const { reviewLaunchConfig: _reviewLaunchConfig, ...rest } = node.acceptance;
-      node.acceptance = { ...rest, mode: 'human', reviewerId: parent.ownerUserId || 'admin' };
+      node.acceptance = { ...node.acceptance, mode: 'human', reviewerId: parent.ownerUserId || 'admin' };
+      delete node.acceptance.reviewLaunchConfig;
     } else {
       node.acceptance = { ...node.acceptance, mode: 'agent', reviewerId: args.selector,
         reviewLaunchConfig: { participant } };
@@ -120,7 +83,7 @@ export async function updateGraphProposalRole(args: {
   });
   if (updated.count !== 1) throw new Error('路线已被其他操作修改，请重新查看卡片');
   await updateFeishuTaskEntryCard(proposal.cardMessageId,
-    buildGraphProposalCard(proposal.id, definition, proposal.version, hash));
+    buildGraphProposalCard(proposal.id, definition, proposal.version, hash, await graphRoleOptions(args.parentTaskId)));
   return { version: proposal.version, hash };
 }
 
@@ -131,6 +94,7 @@ export async function createGraphProposal(args: {
   const parent = await prisma.task.findUnique({ where: { id: args.parentTaskId }, select: { id: true } });
   if (!parent) throw new Error('父任务不存在');
   const definition = validateTaskGraphDefinition(args.definition);
+  const specPackage = await assertSpecPackage(definition.specPackage);
   for (const node of definition.nodes) {
     if (node.acceptance.mode === 'human' && node.acceptance.reviewerId === 'self') {
       node.acceptance.reviewerId = (await prisma.task.findUniqueOrThrow({
@@ -164,9 +128,14 @@ export async function createGraphProposal(args: {
     definition: definition as unknown as Prisma.InputJsonValue, createdBy: args.createdBy.trim() || 'local-agent',
   } });
   if (proposal.cardMessageId) return proposal;
+  if (specPackage) for (const artifact of specPackage.artifacts) await sendFeishuMarkdownFile({
+    chatId: binding.chatId, fileName: artifact.path.split('/').pop()!, content: artifact.content,
+    replyId: binding.rootMessageId || binding.latestMessageId || undefined,
+    replyInThread: !!binding.rootMessageId,
+  });
   const messageId = await sendFeishuInteractiveMessage({
     receiveId: binding.chatId,
-    card: buildGraphProposalCard(proposal.id, definition, version, hash),
+    card: buildGraphProposalCard(proposal.id, definition, version, hash, await graphRoleOptions(args.parentTaskId)),
     uuid: `task-graph-proposal-${proposal.id}`,
     ...(binding.rootMessageId ? { threadRootMessageId: binding.rootMessageId } : {}),
   });
@@ -179,9 +148,10 @@ export async function createGraphProposal(args: {
 export async function handleGraphProposalCardAction(args: {
   proposalId: string; decision: string; hash: string | null; openId: string | null;
   chatId: string | null; messageId: string | null;
+  formValue?: Record<string, unknown>;
 }) {
   if (!args.openId || !args.chatId || !args.messageId ||
-      !['approve', 'reject'].includes(args.decision)) {
+      !['approve', 'reject', 'configure', 'suggest'].includes(args.decision)) {
     return { toast: { type: 'warning', content: '路线卡身份信息不完整' } };
   }
   const proposal = await prisma.taskGraphProposal.findUnique({ where: { id: args.proposalId } });
@@ -198,9 +168,28 @@ export async function handleGraphProposalCardAction(args: {
       !(binding.chatType === 'group' && await isFeishuGroupAdmin(args.chatId, args.openId)))) {
     return { toast: { type: 'warning', content: '只有父任务所在群的管理员可确认路线' } };
   }
+  if (args.decision === 'configure' || args.decision === 'suggest' ||
+      (args.decision === 'approve' && Object.keys(args.formValue || {}).length > 0)) {
+    const parent = await prisma.task.findUniqueOrThrow({ where: { id: proposal.parentTaskId }, select: { ownerUserId: true } });
+    const options = await graphRoleOptions(proposal.parentTaskId);
+    const definition = configureGraphRoles({ definition: proposal.definition as unknown as GraphDefinition,
+      options, form: args.formValue || {}, suggest: args.decision === 'suggest', humanId: parent.ownerUserId || 'admin' });
+    validateTaskGraphDefinition(definition);
+    await validateExecutionTargets(definition);
+    const hash = taskGraphSnapshotHash(definition);
+    if (args.decision !== 'approve' || hash !== proposal.snapshotHash) {
+      const changed = await prisma.taskGraphProposal.updateMany({
+        where: { id: proposal.id, status: 'pending', snapshotHash: args.hash },
+        data: { snapshotHash: hash, definition: definition as unknown as Prisma.InputJsonValue },
+      });
+      if (changed.count !== 1) return { toast: { type: 'warning', content: '路线已更新，请使用最新卡片' } };
+      await updateFeishuTaskEntryCard(proposal.cardMessageId!, buildGraphProposalCard(proposal.id, definition, proposal.version, hash, options));
+      return { toast: { type: 'success', content: '模式与角色已保存，请核对更新后的卡片再确认' } };
+    }
+  }
   if (args.decision === 'reject') {
     const changed = await prisma.taskGraphProposal.updateMany({
-      where: { id: proposal.id, status: 'pending' },
+      where: { id: proposal.id, status: 'pending', snapshotHash: proposal.snapshotHash },
       data: { status: 'rejected', decidedBy: args.openId, decidedAt: new Date() },
     });
     if (changed.count !== 1) return { toast: { type: 'warning', content: '路线状态已变化' } };
@@ -208,16 +197,17 @@ export async function handleGraphProposalCardAction(args: {
     return { toast: { type: 'success', content: '已退回；Agent 可提出下一版' } };
   }
   const configured = proposal.definition as unknown as GraphDefinition;
-  if (!configured.nodes.every((node) => !!effectiveArchitectureReview(configured, node))) {
+  if (!graphRolesReady(configured)) {
     return { toast: { type: 'warning', content: '请先指定所有 Slice 的架构复核者' } };
   }
   const claim = await prisma.taskGraphProposal.updateMany({
-    where: { id: proposal.id, status: 'pending' }, data: { status: 'processing' },
+    where: { id: proposal.id, status: 'pending', snapshotHash: proposal.snapshotHash }, data: { status: 'processing' },
   });
   if (claim.count !== 1) return { toast: { type: 'warning', content: '路线正在由另一请求处理' } };
   try {
     const definition = validateTaskGraphDefinition(proposal.definition as unknown as GraphDefinition);
     if (taskGraphSnapshotHash(definition) !== proposal.snapshotHash) throw new Error('路线快照校验失败');
+    await assertSpecPackage(definition.specPackage);
     await validateExecutionTargets(definition);
     const run = await createTaskGraphRun({
       parentTaskId: proposal.parentTaskId, version: proposal.version,

@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { resolveWorkspaceDirectory } from '../feishu-workspace';
 import type { AcpxParticipantRequest } from '../acpx/types';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
+import { assertSpecPackage } from './spec-package';
 
 const git = promisify(execFile);
 const workspaceRoot = process.env.SCHEDULED_JOB_WORKSPACE_ROOTS?.split(':')[0] || '/data1/code';
@@ -13,6 +14,10 @@ type LaunchConfig = {
 };
 
 export const validateExecutionTargets = async (definition: GraphDefinition) => {
+  if (definition.specPackage) {
+    definition.specPackage.repository = await resolveWorkspaceDirectory(workspaceRoot, definition.specPackage.repository);
+    await assertSpecPackage(definition.specPackage);
+  }
   const participants: AcpxParticipantRequest[] = [];
   const repositories = new Map<string, string>();
   for (const node of definition.nodes) {
@@ -26,7 +31,7 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
       }
       participants.push(review.participant);
     }
-    if (node.acceptance.mode === 'agent') {
+    if (node.executionMode !== 'implement' && node.acceptance.mode === 'agent') {
       const reviewer = node.acceptance.reviewLaunchConfig as LaunchConfig | undefined;
       if (!reviewer?.participant?.gatewayId || !reviewer.participant.harnessType ||
           reviewer.participant.executionBackend !== 'platform_local') {
@@ -75,12 +80,12 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
       check.repository = repository;
       availableChecks.add(check.name);
     }
-    if (nodeRepositories.size > 1 && node.acceptance.mode !== 'human' &&
+    if (node.executionMode !== 'implement' && nodeRepositories.size > 1 && node.acceptance.mode !== 'human' &&
         (!node.acceptance.integrationChecks?.length ||
           node.acceptance.checks.some((check) => !node.acceptance.integrationChecks?.some((item) => item.name === check)))) {
       throw new Error(`${node.key}: 多仓自动或 Agent 验收需要覆盖所有验收项的固定版本纵向检查`);
     }
-    if (node.acceptance.checks.some((check) => !availableChecks.has(check))) {
+    if (node.executionMode !== 'implement' && node.acceptance.checks.some((check) => !availableChecks.has(check))) {
       throw new Error(`${node.key}: 验收项必须关联至少一个仓内验证命令`);
     }
   }

@@ -26,6 +26,7 @@ const statusText: Record<string, string> = {
   planned: '等待前置', ready: '已放行', claimed: '执行中', verifying: '验收中',
   awaiting_human: '待人工验收', passed: '已通过', attention: '需处理',
   running: '进行中', completed: '已完成', integrated: '已集成',
+  delivered_unverified: '已交付（未验收）', completed_unverified: '已结束（含未验收交付）',
 };
 
 export default function TaskGraphPage() {

@@ -31,6 +31,18 @@
 
 无人工验收不等于无验证。缺失基准、真图或必须人工裁定的分歧时，自动策略不能把节点标记通过。
 
+### 按片执行模式与 Spec 包
+
+新卡片按 Slice 选择 `full`（实施、架构审查、测试）、`lean`（实施、测试）、`implement`（仅实施）。旧快照未指定模式时保留原先架构配置的行为。完整模式须指定架构审查者才可确认；精简不调用架构审查；仅实施自动集成后写 `delivered_unverified`，按事先批准的模式释放后继，整条运行结束时标为 `completed_unverified`，不能显示成已验收。修改模式不删除预先准备的验证命令，因此改回完整/精简后仍可校验。
+
+项目使用 `docs/specs/<主题>/spec-package.json` 登记提审包：`title`、`status: ready`、`spec: spec.md`、`route: route.json`、`artifacts: [route-review.html, feature-prototype.html]`。所有引用局限于同一包目录，最多六个附加 HTML/MD。ready 表示可提审，不能派发。飞书 `/ap menu` → 任务图 / Jobs → 提出任务路线，会列出 HEAD 已提交的 ready 包；选择后唤醒父任务 Agent 整理可执行图。未经提交或列表版本变化的材料不得被选择。
+
+Agent 提交命令支持 `--spec-repository=<仓库>`、`--spec-package=<manifest路径>`，冻结整个包的提交和内容哈希。提议发送原始 HTML/MD 附件到父话题，然后发送含角色矩阵的路线卡。矩阵可按房间角色建议分配、设置项目默认架构审查者、逐片覆盖并保存；未保存的选择点击确认时先更新卡片，须核对后再次确认。角色保存会更换快照哈希，旧卡动作不能启动新配置。
+
+文件只作为审议输入；自动推进始终由数据库任务图与执行账本驱动。首次业务试运行包位于 mold 仓 `docs/specs/hmi-screen-projection/`，包含 S03→S04→S05→Reader R02→S06；R02 若需细分由提审 Agent 在整条路线中表达，不另立 PLAN/HANDOVER。该业务路线没有并行支线，不能替代隔离并行调度验证。
+
+Issue 的自动发布/结果对账与异常恢复卡尚未接入本轮入口改造；当前不得把已连接 tracker 的 CLI 描述成任务图已完成 Issue 同步。已有中断与合入失败仍停在需处理，不自动重跑不确定的 Agent Session。
+
 ## 工作区、合入与失败
 
 并行执行的每一个仓内任务都使用独立 Git worktree，包括分属不同仓库的任务。第一版可统一让任务图中的所有写入任务使用 worktree，以避免动态放行时重新判定是否并发。每个 worktree 从运行快照指定的仓库集成分支提交创建，记录路径、分支和基线提交。不得让两个 Agent 写同一检出目录。

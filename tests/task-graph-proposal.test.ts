@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { buildGraphProposalCard, formatGraphProposal, handleGraphProposalCardAction } from '../src/lib/task-graph/proposals';
 import type { GraphDefinition } from '../src/lib/task-graph/domain';
+import { graphCardContext } from '../src/lib/feishu-graph-picker';
 
 async function main() {
   const id = randomUUID();
@@ -30,15 +31,16 @@ async function main() {
   assert.match(cardText, /前置：V1/);
   assert.match(cardText, /local:pi-agent/);
   const incompleteCard = buildGraphProposalCard('proposal', definition, 1, 'hash');
-  assert.equal(incompleteCard.elements.at(-1)?.actions?.length, 1);
+  assert.doesNotMatch(JSON.stringify(incompleteCard), /确认并启动路线/);
   const withArchitect: GraphDefinition = { ...definition, defaultArchitectureReview: {
     reviewerId: 'local:codex', reviewLaunchConfig: { participant: { gatewayId: 'local',
       executionBackend: 'platform_local', harnessType: 'codex', role: 'reviewer' } },
   } };
   const readyCard = buildGraphProposalCard('proposal', withArchitect, 1, 'hash');
-  assert.equal(readyCard.elements.at(-1)?.actions?.length, 2);
+  assert.match(JSON.stringify(readyCard), /确认并启动路线/);
   assert.match(formatGraphProposal(withArchitect, 1), /架构复核者：local:codex/);
   const parent = await prisma.task.create({ data: { name: `task-graph-proposal-test-${id}` } });
+  const room = await prisma.liveRoom.create({ data: { title: `graph-test-${id}`, sourceTaskId: parent.id } });
   try {
     const proposal = await prisma.taskGraphProposal.create({ data: {
       parentTaskId: parent.id, version: 1, snapshotHash: 'test', definition: definition as unknown as Prisma.InputJsonValue,
@@ -50,9 +52,21 @@ async function main() {
     assert.equal(forged.toast.type, 'warning');
     assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0);
     assert.equal((await prisma.taskGraphProposal.findUniqueOrThrow({ where: { id: proposal.id } })).status, 'pending');
+    await prisma.feishuConversationBinding.create({ data: { scopeKey: `test-${id}`, chatId: `chat-${id}`,
+      chatType: 'group', appId: 'test-app', threadId: `thread-${id}`, rootMessageId: `root-${id}`, liveRoomId: room.id } });
+    const context = await graphCardContext({ roomId: room.id, chatId: `chat-${id}`, openId: 'admin', messageId: 'card', chatType: 'group' });
+    assert.equal(context.rootId, `root-${id}`);
+    assert.equal(context.threadId, `thread-${id}`);
+    await assert.rejects(() => graphCardContext({ roomId: room.id, chatId: 'other-chat', openId: 'admin', messageId: 'card', chatType: 'group' }), /绑定不匹配/);
+    await prisma.taskGraphProposal.update({ where: { id: proposal.id }, data: { snapshotHash: 'changed' } });
+    const stale = await handleGraphProposalCardAction({ proposalId: proposal.id, decision: 'approve', hash: 'test',
+      openId: 'admin', chatId: `chat-${id}`, messageId: 'test-card' });
+    assert.match(stale.toast.content, /失效/);
+    assert.equal(await prisma.taskGraphRun.count({ where: { parentTaskId: parent.id } }), 0);
     console.log('Task graph proposal approval boundary checks passed');
   } finally {
     await prisma.taskGraphProposal.deleteMany({ where: { parentTaskId: parent.id } });
+    await prisma.liveRoom.delete({ where: { id: room.id } });
     await prisma.task.delete({ where: { id: parent.id } });
     await prisma.$disconnect();
   }

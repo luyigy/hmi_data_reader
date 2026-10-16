@@ -254,6 +254,7 @@ export async function sendFeishuMarkdownFile(args: {
   fileName: string;
   content: Buffer;
   replyId?: string;
+  replyInThread?: boolean;
 }): Promise<string | undefined> {
   if (!args.content.length || args.content.length > 30 * 1024 * 1024) {
     throw new Error('飞书文件须为非空且不超过 30 MB');
@@ -262,7 +263,7 @@ export async function sendFeishuMarkdownFile(args: {
   const form = new FormData();
   form.set('file_type', 'stream');
   form.set('file_name', args.fileName);
-  form.set('file', new Blob([new Uint8Array(args.content)], { type: 'text/markdown' }), args.fileName);
+  form.set('file', new Blob([new Uint8Array(args.content)], { type: args.fileName.endsWith('.html') ? 'text/html' : 'text/markdown' }), args.fileName);
   const uploadResponse = await fetch(`${FEISHU_API_BASE}/im/v1/files`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -274,7 +275,7 @@ export async function sendFeishuMarkdownFile(args: {
     throw new Error(uploadData.msg || `Failed to upload Feishu file: HTTP ${uploadResponse.status}`);
   }
   if (args.replyId) {
-    return replyFeishuMessage({ messageId: args.replyId, msgType: 'file', content: { file_key: fileKey } });
+    return replyFeishuMessage({ messageId: args.replyId, msgType: 'file', content: { file_key: fileKey }, replyInThread: args.replyInThread });
   }
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
   url.searchParams.set('receive_id_type', 'chat_id');

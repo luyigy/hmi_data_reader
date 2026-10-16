@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../prisma';
-import { taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from './domain';
+import { isCompletedNodeStatus, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from './domain';
 
 type Database = PrismaClient;
 
@@ -64,7 +64,7 @@ export async function releaseReadyNodes(runId: string, db: Database = prisma): P
   required(runId, 'runId');
   return db.$transaction(async (tx) => {
     const nodes = await tx.taskGraphNode.findMany({ where: { runId }, select: { id: true, key: true, dependsOn: true, status: true } });
-    const passed = new Set(nodes.filter((node) => node.status === 'passed').map((node) => node.key));
+    const passed = new Set(nodes.filter((node) => isCompletedNodeStatus(node.status)).map((node) => node.key));
     const released: string[] = [];
     for (const node of nodes) {
       if (node.status !== 'planned' || !node.dependsOn.every((key) => passed.has(key))) continue;
@@ -212,6 +212,29 @@ export type VerificationEvidence = {
   summary: string;
 };
 
+/** An approved implement-only policy permits relay, while retaining the unverified result. */
+export async function completeUnverifiedNode(runId: string, nodeKey: string, db: Database = prisma) {
+  return db.$transaction(async (tx) => {
+    const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
+    const definition = run.snapshot as unknown as GraphDefinition;
+    if (definition.nodes.find((node) => node.key === nodeKey)?.executionMode !== 'implement') {
+      throw new Error('Only an approved implement-only node may finish without verification');
+    }
+    const node = await tx.taskGraphNode.findUniqueOrThrow({
+      where: { runId_key: { runId, key: nodeKey } }, include: { executions: true },
+    });
+    if (node.status === 'delivered_unverified') return node;
+    if (node.status !== 'verifying' || node.executions.some((job) => job.status !== 'integrated')) {
+      throw new Error('All executions must be integrated before unverified delivery');
+    }
+    const changed = await tx.taskGraphNode.updateMany({ where: { id: node.id, status: 'verifying' },
+      data: { status: 'delivered_unverified', evidence: { summary: '按已批准的仅实施模式交付；未执行独立架构审查或测试验收。' } } });
+    if (changed.count === 1) await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id,
+      idempotencyKey: `node:${nodeKey}:delivered_unverified`, kind: 'delivered_unverified', payload: {} } });
+    return tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
+  });
+}
+
 /** Agent review requires the configured reviewer; human review creates a pause. */
 export async function submitNodeVerification(args: {
   runId: string; nodeKey: string; actorId: string; evidence: VerificationEvidence;
@@ -336,7 +359,8 @@ export async function refreshTaskGraphRunStatus(runId: string, db: Database = pr
   return db.$transaction(async (tx) => {
     const nodes = await tx.taskGraphNode.findMany({ where: { runId }, select: { status: true } });
     if (nodes.length === 0) throw new Error('Unknown or empty task graph run');
-    const status = nodes.every((node) => node.status === 'passed') ? 'completed'
+    const status = nodes.every((node) => isCompletedNodeStatus(node.status))
+      ? nodes.some((node) => node.status === 'delivered_unverified') ? 'completed_unverified' : 'completed'
       : nodes.some((node) => node.status === 'attention') ? 'attention' : 'running';
     return tx.taskGraphRun.update({ where: { id: runId }, data: { status } });
   });

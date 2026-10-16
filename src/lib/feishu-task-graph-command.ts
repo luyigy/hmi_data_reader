@@ -4,6 +4,7 @@ import { ensureLiveRoomUserMember, postLiveRoomMessage, resolveLiveRoomMessageMe
 import { triggerLiveRoomMessageReplies } from './live-room-delivery';
 import type { ParsedFeishuCommand } from './feishu-command-parser';
 import { updateGraphProposalRole } from './task-graph/proposals';
+import { openGraphSpecPicker } from './feishu-graph-picker';
 
 export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
   if (!['status', 'propose', 'role'].includes(command.args[0])) {
@@ -25,6 +26,7 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
     }
   }
   if (command.args[0] === 'propose') {
+    if (!command.args.slice(1).join(' ').trim() && context) return openGraphSpecPicker(context);
     const target = room.members.find((member) => member.id === room.currentSpeakerMemberId && member.canReply)
       || room.members.find((member) => member.memberType !== 'user' && member.canReply);
     if (!target) return '父任务房间没有可回复的 Agent；请先加入 Agent。';
@@ -34,6 +36,10 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
       `请根据${spec ? ` ${spec} ` : '当前父任务已讨论的 Spec '}提出任务图路线，先审查依赖、仓库、并行任务和验收条件。`,
       '将完整路线写成 JSON，校验仓库的已提交 Git 基线和 Agent 配置，',
       `然后在平台仓执行 npm run task-graph:propose -- --parent-task-id=${room.sourceTaskId} --file=<路线JSON> --agent=<你的名称>。`,
+      ...(command.options['spec-package'] ? [
+        `提交命令还须加 --spec-repository=${command.options['spec-repository']} --spec-package=${command.options['spec-package']}，所选包提交为 ${command.options['spec-commit']}；如版本变化重新提审。`,
+      ] : []),
+      '沿 Spec 包生成纵向 tickets 和路线，不再创建 PLAN/HANDOVER。实施者按房间角色建议；完整/精简/仅实施模式逐片明确。',
       '这一步只发飞书确认卡，不启动实施。若有缺少的实图、基准真值或脏工作区，请在路线卡前说明。',
     ].join('');
     const message = await postLiveRoomMessage({
@@ -62,7 +68,7 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
     : '当前父任务还没有任务路线。请让 Agent 根据定稿 Spec 提出排期，平台会在本话题发确认卡。';
   const labels: Record<string, string> = {
     planned: '等待前置', ready: '已放行', claimed: '执行中', verifying: '验收中',
-    awaiting_human: '待人工验收', passed: '已通过', attention: '需处理',
+    awaiting_human: '待人工验收', passed: '已通过', attention: '需处理', delivered_unverified: '已交付（未验收）',
   };
   return [`任务路线 V${run.version} · ${run.status} · ${run.id}`,
     ...(proposal && proposal.version > run.version ? [`待确认提议 V${proposal.version} · ${proposal.status}`] : []),

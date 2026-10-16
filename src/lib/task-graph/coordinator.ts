@@ -8,11 +8,12 @@ import { prisma } from '../prisma';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '../task-room';
 import type { GraphDefinition } from './domain';
 import { runArchitectureReview } from './architecture-review';
+import { acceptanceReviewInstructions, implementationInstructions } from './prompts';
 import { ensureGraphChildTopic, postGraphParentProgress, sendGraphHumanReviewCard } from './feishu';
 import { withRepositoryLock } from './repository-lock';
 import { assertValidationWorkspacesClean, ensureValidationWorkspaces } from './validation-workspaces';
 import {
-  claimExecution, claimNode, completeExecution, listTaskGraphWork, markNodeIntegrationsReady,
+  claimExecution, claimNode, completeExecution, completeUnverifiedNode, listTaskGraphWork, markNodeIntegrationsReady,
   flagStaleExecutionClaim, recordExecutionDispatch, recordExecutionIssue,
   refreshTaskGraphRunStatus, releaseReadyNodes,
   submitNodeVerification, type VerificationEvidence,
@@ -69,7 +70,7 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
     create: {
       id: taskId, name: taskName,
       description: `目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
-        `\nSpec：${definition.specRef}\n父任务：${run.parentTaskId}\n请只在本 worktree 修改，完成后提交并说明验证结果。`,
+        `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}`,
       executionMode: 'acpx', status: 'pending', workingDirectory: directory,
       ownerUserId: run.parentTask.ownerUserId, acpxParticipants: JSON.stringify([config.participant]),
     },
@@ -82,10 +83,17 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
 async function verifyNode(runId: string, nodeKey: string) {
   const node = await markNodeIntegrationsReady(runId, nodeKey);
   if (!node || node.status !== 'verifying') return;
-  const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
+  const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true, parentTaskId: true } });
   const definition = run.snapshot as unknown as GraphDefinition;
   const policy = definition.nodes.find((item) => item.key === nodeKey)?.acceptance;
   if (!policy) throw new Error(`Unknown acceptance policy for ${nodeKey}`);
+  if (definition.nodes.find((item) => item.key === nodeKey)?.executionMode === 'implement') {
+    await completeUnverifiedNode(runId, nodeKey);
+    await releaseReadyNodes(runId);
+    await refreshTaskGraphRunStatus(runId);
+    await postGraphParentProgress(run.parentTaskId, runId, `${nodeKey} 已交付（未验收），按批准的仅实施模式放行后继。`);
+    return;
+  }
   const results = node.executions.flatMap((execution) => {
     const evidence = execution.evidence as unknown as { checks?: CheckResult[] } | null;
     return evidence?.checks || [];
@@ -173,7 +181,7 @@ async function verifyNode(runId: string, nodeKey: string) {
         workingDirectory: workspaces[0]?.path || undefined },
       update: {},
     });
-    const prompt = `请只读复核 ${nodeKey} 的目标与证据，必要时检查代码。` +
+    const prompt = `${acceptanceReviewInstructions}\n请只读复核 ${nodeKey} 的目标与证据。` +
       `\nSpec: ${definition.specRef}\n固定提交组合: ${JSON.stringify(commits)}` +
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n最终答复仅用一行 TASK_GRAPH_REVIEW {"approved":true或false,"note":"理由"}。';
@@ -235,6 +243,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       dispatchMetadata: { integrationRef: integration.ref, workspaceBase: integration.commit },
     });
     const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
+    const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
+    const definition = snapshot.snapshot as unknown as GraphDefinition;
+    const implementOnly = definition.nodes.find((node) => node.key === nodeKey)?.executionMode === 'implement';
     await ensureGraphChildTopic({
       parentTaskId: graphRun.parentTaskId, executionId: execution.id, childTaskId: task.id,
       title: task.name, workingDirectory: workspace.path,
@@ -261,7 +272,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         repoPath: execution.repository, runId, jobId: execution.id,
         integrationRef: latest.ref, expectedIntegrationCommit: latest.commit,
         baseCommit: workspace.baseCommit,
-        verify: async (staging) => { checks = await runChecks(config.checks, staging); },
+        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging); },
       });
     });
     await completeExecution({
