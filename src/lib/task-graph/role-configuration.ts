@@ -5,14 +5,29 @@ import type { GraphDefinition } from './domain';
 
 export type RoleOption = { value: string; label: string; role: string; participant: AcpxParticipantRequest };
 
+type RoomRoleMember = { joinStatus: string; backend: string | null; gatewayId: string | null;
+  harnessType: string | null; role: string; displayName: string; userNickname?: string | null };
+
+function matchingRoomMember(agent: { backend: string; gatewayId: string; harnessType: string }, members: RoomRoleMember[]) {
+  return members.find((item) => item.joinStatus === 'joined' && item.backend === agent.backend &&
+    item.harnessType === agent.harnessType && (!item.gatewayId || item.gatewayId === agent.gatewayId));
+}
+
+export function roomRoleCandidates<T extends { backend: string; gatewayId: string; harnessType: string }>(
+  candidates: T[], members: RoomRoleMember[],
+): T[] {
+  const joined = candidates.filter((agent) => matchingRoomMember(agent, members));
+  return joined.length ? joined : candidates;
+}
+
 export async function graphRoleOptions(parentTaskId: string): Promise<RoleOption[]> {
   const [catalog, room] = await Promise.all([
     listLiveRoomCatalogAgents(),
     prisma.liveRoom.findFirst({ where: { sourceTaskId: parentTaskId }, include: { members: true } }),
   ]);
-  return catalog.filter((agent) => agent.backend === 'platform_local' && agent.harnessType).map((agent) => {
-    const member = room?.members.find((item) => item.joinStatus === 'joined' &&
-      item.backend === agent.backend && item.gatewayId === agent.gatewayId && item.harnessType === agent.harnessType);
+  const candidates = catalog.filter((agent) => agent.backend === 'platform_local' && agent.harnessType);
+  return roomRoleCandidates(candidates, room?.members || []).map((agent) => {
+    const member = matchingRoomMember(agent, room?.members || []);
     return { value: agent.id, label: member?.userNickname || member?.displayName || agent.label,
       role: member?.role || 'custom', participant: { gatewayId: agent.gatewayId,
         ...(agent.gatewayName ? { gatewayName: agent.gatewayName } : {}),

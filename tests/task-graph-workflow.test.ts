@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { effectiveArchitectureReview, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from '../src/lib/task-graph/domain';
 import { buildGraphProposalCard, graphRolesReady } from '../src/lib/task-graph/proposal-card';
-import { configureGraphRoles, type RoleOption } from '../src/lib/task-graph/role-configuration';
+import { configureGraphRoles, roomRoleCandidates, type RoleOption } from '../src/lib/task-graph/role-configuration';
 import { assertSpecPackage, listSpecPackages, loadSpecPackage } from '../src/lib/task-graph/spec-package';
 import { buildGraphSpecPicker } from '../src/lib/feishu-graph-picker';
 import { withCommandRoom } from '../src/lib/feishu-help';
@@ -35,6 +35,12 @@ async function main() {
   assert.doesNotMatch(card, /architecture_0/);
   assert.doesNotMatch(card, /acceptance_0/);
   assert.throws(() => configureGraphRoles({ definition: graph, options, form: { job_0_0: 'remote:unregistered' }, suggest: false, humanId: 'human' }), /不可用/);
+  const catalog = ['codex', 'pi-agent', 'kimi-code', 'claude'].map((harnessType) =>
+    ({ backend: 'platform_local', gatewayId: 'platform-local', harnessType }));
+  const joined = [{ joinStatus: 'joined', backend: 'platform_local', gatewayId: null,
+    harnessType: 'codex', role: 'custom', displayName: 'codex' }];
+  assert.deepEqual(roomRoleCandidates(catalog, joined).map((item) => item.harnessType), ['codex']);
+  assert.equal(roomRoleCandidates(catalog, []).length, catalog.length);
   const menu = withCommandRoom({ nested: { behaviors: [{ type: 'callback', value: { cmd: 'ap-menu', view: 'workflow' } }] } }, 'parent-room');
   assert.match(JSON.stringify(menu), /"graphRoomId":"parent-room"/);
 
