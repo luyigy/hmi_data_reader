@@ -7,6 +7,15 @@
   },
   "profiles": [
     {
+      "profile_id": "yizumi.injection_metering.injection_holding_f2",
+      "controller_family": "YIZUMI",
+      "page_type": "injection_metering",
+      "layout_variant": "injection_holding_f2",
+      "status": "candidate",
+      "template": "yizumi/injection_holding.json",
+      "lifecycle_note": "伊之密 31 两张 F2 射胶保压开发样本；逐字段真值未裁定，仅核对观测，禁自动写入。"
+    },
+    {
       "profile_id": "demag.injection_metering.multi_stage_injection",
       "controller_family": "DEMAG",
       "page_type": "injection_metering",

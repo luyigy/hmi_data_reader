@@ -78,9 +78,17 @@ def detect_family_from_templates(lines: list[dict], templates_dir: Path) -> str 
     全部组命中则判为该模板的 ui_family。仅在 record/机台/单图分类全部失败时调用，
     不影响 ZizES/TACT 等既有路由。
     039_FIX：glob 从 *.temperature.json 放宽到全部模板——EST 等只有注射页模板的
-    家族此前永远无法走该兜底（整族 unknown 误拒）。各组按模板文件名序取先命中者。"""
+    家族此前永远无法走该兜底（整族 unknown 误拒）。优先锚点组更多的模板；
+    同分时保持既有的模板文件名序。"""
     texts = [l["text"] for l in lines]
-    for tpl_path in sorted(Path(templates_dir).glob("*.json")):
+    paths = set(Path(templates_dir).glob("*.json"))
+    registry = Path(templates_dir).parent / "contracts" / "profiles.json"
+    if registry.is_file():
+        for profile in json.loads(registry.read_text()).get("profiles", []):
+            if profile.get("template"):
+                paths.add(Path(templates_dir) / profile["template"])
+    matches = []
+    for tpl_path in sorted(paths):
         try:
             tpl = json.loads(tpl_path.read_text())
         except Exception:
@@ -89,8 +97,10 @@ def detect_family_from_templates(lines: list[dict], templates_dir: Path) -> str 
         if not groups:
             continue
         if all(_anchor_hits(g, texts) for g in groups):
-            return tpl.get("ui_family")
-    return None
+            matches.append((len(groups), tpl.get("ui_family")))
+    if not matches:
+        return None
+    return max(matches, key=lambda item: item[0])[1]
 
 
 def route_family(stem: str, lines: list[dict],
@@ -238,6 +248,19 @@ def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dic
     """Select one extractor for all Reader entry points; callers prepare their own OCR evidence."""
     page = template.get("page")
     ui = template.get("ui_family")
+    if template.get("extractor") == "page_module":
+        from importlib import import_module
+        profile_id = template.get("profile_id", "")
+        if not isinstance(profile_id, str) or not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+){2}", profile_id):
+            return dict(fields=None, heater_columns=0, warnings=["PAGE_EXTRACTOR_INVALID"], detail={})
+        module_name = "extract_families.pages." + profile_id.replace(".", "_")
+        try:
+            module = import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name != module_name:
+                raise
+            return dict(fields=None, heater_columns=0, warnings=["PAGE_EXTRACTOR_MISSING"], detail={})
+        return module.extract(ocr_lines or [], template, meta or {}, image_path=image_path)
     if template.get("profile_id") == "tact5.process_settings.injection_holding_metering":
         from extract_families.tact5_process import extract_tact5
         return extract_tact5(ocr_lines or [], template, meta or {}, image_path=image_path)
@@ -363,6 +386,9 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
     result["page_type"] = page
+    if page_src == "disabled_template":
+        result["warnings"].append("PAGE_TEMPLATE_DISABLED")
+        return result
     if template is None and family_src in ("machine_labels", "record_report"):
         # 083 S07：机台先验/record 聚合与图像内容冲突（先验家族无此页模板，如
         # Z019 先验 TACT 而实拍为沙迪克 TRD6 温度设定页）时的最后兜底——

@@ -9,7 +9,8 @@ TEMPLATES_DIR = Path("templates")
 
 def registered_page_templates(family: str, templates_dir: Path,
                               page: str | None = None,
-                              lines: list[dict] | None = None) -> list[dict]:
+                              lines: list[dict] | None = None,
+                              include_disabled: bool = False) -> list[dict]:
     registry = templates_dir.parent / "contracts" / "profiles.json"
     if not registry.is_file():
         return []
@@ -23,6 +24,8 @@ def registered_page_templates(family: str, templates_dir: Path,
         template = json.loads(path.read_text())
         if template.get("profile_id") != profile["profile_id"]:
             raise ValueError(f"Registered template identity mismatch: {path}")
+        if not include_disabled and template.get("enabled", True) is not True:
+            continue
         if page is not None and template.get("page") != page:
             continue
         if family not in template.get("route_families", [template.get("ui_family")]):
@@ -46,6 +49,11 @@ def route_page(stem: str, lines: list[dict], family: str,
 
     extra_anchor_lines（042 S04）：模温机旁车等附加 OCR 行，仅参与模板锚点
     文本匹配，不进 find_page 的位置启发（坐标系可能不同）。"""
+    disabled = [template for template in registered_page_templates(
+        family, templates_dir, lines=lines, include_disabled=True)
+        if template.get("enabled", True) is not True]
+    if disabled:
+        return "unknown", "disabled_template"
     registered = registered_page_templates(family, templates_dir, lines=lines)
     if len(registered) > 1:
         return "unknown", "ambiguous_template_anchors"

@@ -13,11 +13,11 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from scripts.export_page_package import export_page_package
-from scripts.extract_families.tact5_process import extract_tact5
+from scripts.extract_fields import extract_page_fields
 
 ROOT = Path(__file__).resolve().parent
 router = APIRouter(prefix="/api/v1/page-templates", tags=["page-templates"])
-EDITABLE = {"field_labels", "enum_labels", "business_profile_candidate", "layout_anchors", "stage_limits"}
+EDITABLE = {"field_labels", "enum_labels", "business_profile_candidate", "layout_anchors", "stage_limits", "enabled"}
 PROFILE_ID = re.compile(r"[a-z0-9_]+(?:\.[a-z0-9_]+){2}")
 
 
@@ -85,7 +85,7 @@ def save_template(profile_id: str, draft: TemplateSave, root: Path = ROOT) -> di
             draft.template[key] != current[key] for key in current if key not in EDITABLE
         ):
             raise HTTPException(422, "页面身份、版本和样本不能在字段编辑中修改")
-        if any(not isinstance(draft.template[key], type(current[key])) for key in EDITABLE):
+        if any(not isinstance(draft.template[key], type(current[key])) for key in EDITABLE & current.keys()):
             raise HTTPException(422, "页面字段结构无效")
         if (not isinstance(draft.template["field_labels"], dict)
                 or not all(isinstance(value, dict) for value in draft.template["field_labels"].values())
@@ -135,7 +135,8 @@ def list_templates():
                 if exc.status_code == 422:
                     continue
                 raise
-            result.append({"profile_id": item["profile_id"], "version": template["version"]})
+            result.append({"profile_id": item["profile_id"], "version": template["version"],
+                           "enabled": template.get("enabled", True)})
     return result
 
 
@@ -203,14 +204,14 @@ def preview_template(profile_id: str, draft: TemplateSave, authorization: str = 
     if draft.template.get("profile_id") != profile_id or draft.template.get("sample_ids") != current.get("sample_ids"):
         raise HTTPException(422, "页面身份或样本不一致")
     sample_id = current.get("sample_ids", [None])[0]
-    if not sample_id or profile_id != "tact5.process_settings.injection_holding_metering":
+    if not sample_id:
         raise HTTPException(422, "此页面还没有可预览的固定样本")
     manifest = json.loads((ROOT / "templates/samples" / profile_id / f"{sample_id}.json").read_text())
     package = export_page_package(profile_id, current["version"], ROOT)
     fixture = package["samples"][0]["ocr"]
     try:
-        result = extract_tact5(fixture["lines"], draft.template,
-                               {"screen_size": manifest["original_size"]})
+        result = extract_page_fields([], draft.template, ocr_lines=fixture["lines"],
+                                     meta={"screen_size": manifest.get("screen_size", manifest["original_size"])})
         fields = result["detail"]["page_observations"]["fields"]
     except (KeyError, TypeError, ValueError, IndexError) as exc:
         raise HTTPException(422, f"样本预览失败：{exc}") from None
