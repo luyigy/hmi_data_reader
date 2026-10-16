@@ -61,7 +61,7 @@ def test_same_layout_auto_routes_to_one_review_only_page(tmp_path):
 def test_other_f2_page_does_not_reuse_injection_template(tmp_path):
     result = replay(tmp_path, "p12")
     assert result.get("profile_id") != PROFILE
-    assert result["page_type"] != "injection_metering"
+    assert result["profile_id"] == "yizumi.injection_metering.metering_f2"
 
 
 def test_disabled_template_stops_collection_even_with_legacy_fallback(tmp_path):

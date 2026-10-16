@@ -7,6 +7,15 @@
   },
   "profiles": [
     {
+      "profile_id": "yizumi.injection_metering.metering_f2",
+      "controller_family": "YIZUMI",
+      "page_type": "injection_metering",
+      "layout_variant": "metering_f2",
+      "status": "candidate",
+      "template": "yizumi/metering_f2.json",
+      "lifecycle_note": "伊之密 31 P12 F2 熔胶实图；段速度百分比与主仓 rpm 不相容，全部字段待核对，禁止自动写入。"
+    },
+    {
       "profile_id": "yizumi.injection_metering.injection_holding_f2",
       "controller_family": "YIZUMI",
       "page_type": "injection_metering",

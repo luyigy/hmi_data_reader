@@ -1,0 +1,59 @@
+{
+  "version": "0.1.0",
+  "ui_family": "YIZUMI",
+  "page": "injection_metering",
+  "profile_id": "yizumi.injection_metering.metering_f2",
+  "page_version": "1",
+  "rule_version": "s01.1",
+  "layout_variant": "metering_f2",
+  "extractor": "page_module",
+  "enabled": true,
+  "field_labels": {},
+  "enum_labels": {},
+  "stage_limits": {},
+  "description": "伊之密 31 F2 熔胶页；OCR 原图的段速度为百分比，不等同于螺杆 rpm。段启用、位置与压力语义未核定，全部字段只作待核对观测。",
+  "family_detect_groups": [["熔胶1"], ["熔胶2"], ["前松退"], ["后松退"]],
+  "layout_anchors": ["熔胶1", "熔胶2", "前松退", "后松退"],
+  "require_anchor_match": true,
+  "sample_ids": ["P12_31_20260930"],
+  "business_profile_candidate": {
+    "page_id": "yizumi.injection_metering.metering_f2",
+    "page_version": "1",
+    "rule_version": "s01.1",
+    "algorithm": "protocol_replay_v1",
+    "decision_source": "伊之密 31 同机台 P12 熔胶原图；逐字段含义、段启用和百分比速度与主仓单位关系尚未裁定",
+    "verification_status": "sample_reviewed_partial",
+    "reviewed_destinations": false,
+    "auto_preselect_ocr": false,
+    "controller": "YIZUMI",
+    "page_kind": "multi_stage_back_pressure",
+    "structural_markers": ["熔胶1", "熔胶2", "后松退"],
+    "speed_unit": "percent",
+    "pressure_basis": null,
+    "holding_time_meaning": "segment_duration",
+    "pre_suck_back": {"enabled": false},
+    "post_suck_back": {"enabled": false},
+    "possible_names": {
+      "plasticizing.end.{n}": ["熔胶位置{n}"],
+      "plasticizing.pressure.{n}": ["熔胶背压{n}"],
+      "plasticizing.speed.{n}": ["熔胶转速{n}"],
+      "metering.end": ["熔胶终点设定"],
+      "retract.post.distance": ["后松退距离"]
+    },
+    "field_units": {
+      "plasticizing.end.{n}": "mm",
+      "plasticizing.pressure.{n}": "bar",
+      "plasticizing.speed.{n}": "rpm",
+      "metering.end": "mm",
+      "retract.post.distance": "mm"
+    },
+    "field_write_review": {
+      "plasticizing.end.{n}": "observation_only",
+      "plasticizing.pressure.{n}": "observation_only",
+      "plasticizing.speed.{n}": "observation_only",
+      "metering.end": "observation_only",
+      "retract.post.distance": "observation_only"
+    },
+    "migration_notes": ["阶段速度在图片上为百分比，不能写进 rpm 槽位；背压第一段 OCR 缺失。只展示证据，待人工确认字段语义及机台换算。"]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "profile_id": "yizumi.injection_metering.metering_f2",
+  "sample_id": "P12_31_20260930",
+  "purpose": "development_exposed_not_independent_test",
+  "original_sha256": "360af3737a4489fc4292c1caa3b6853336c790be21981208a81b3aa3aeb4289c",
+  "original_size": [
+    1080,
+    1920
+  ],
+  "ocr_fixture": "tests/fixtures/yizumi_p12_rectified_31_ocr.json",
+  "ocr_sha256": "8314b572e4ed161b907f1c7f4e3b3bd2721768fbfff864770da1811560c4c20f",
+  "truth_scope": "同机台异页面开发样本；数字按原屏目视核对，段启用和物理含义未裁定，不得自动写入。",
+  "photo_distribution": "hmi_finetuning/datasets/raw/feishu/20260930-focus-yizumi/伊之密/31",
+  "screen_size": [
+    1400,
+    1203
+  ],
+  "screen_quad": [
+    [
+      -2.7040203775629927e-14,
+      465.6000061035156
+    ],
+    [
+      1027.2000732421875,
+      465.6000061035156
+    ],
+    [
+      1027.2000732421875,
+      1348.800048828125
+    ],
+    [
+      0.0,
+      1348.800048828125
+    ]
+  ],
+  "rectify_method": "corners"
+}
