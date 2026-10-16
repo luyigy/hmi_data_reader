@@ -47,7 +47,10 @@ export function wrapWithBubblewrap(args: {
   const cwd = realpathSync(args.cwd);
   if (!isWithin(workspaceRoot, cwd)) throw new Error('Bubblewrap cwd is outside the authorized workspace');
   const executable = executablePath(args.command, args.env);
-  const executableMount = executable.endsWith('.js') ? path.dirname(path.dirname(executable)) : executable;
+  const packagedCodex = path.basename(executable) === 'codex'
+    && existsSync(path.join(path.dirname(executable), 'codex-code-mode-host'));
+  const executableMount = executable.endsWith('.js') ? path.dirname(path.dirname(executable))
+    : packagedCodex ? path.dirname(executable) : executable;
   const systemCertificates = '/etc/ssl/certs';
   const systemHosts = '/etc/hosts';
   const systemResolvConf = '/etc/resolv.conf';
