@@ -6,7 +6,7 @@ from scripts.extract_families.demag import extract_demag
 from scripts.extract_families.demag.metering_rows import metering_row_tokens
 from scripts.page_template_registry import registered_page_templates
 from scripts.extract_fields import norm_tokens
-from scripts.extract_families.tact5_process import project_boxes
+from scripts.extract_families.coordinates import project_boxes
 
 
 ROOT = Path(__file__).resolve().parents[1]

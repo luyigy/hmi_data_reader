@@ -1,7 +1,7 @@
 """YIZUMI F2 injection/holding table: observed cells only, with uncertain stage state."""
 import re
 
-from extract_families.tact5_process import project_boxes
+from extract_families.coordinates import project_boxes
 
 NUMBER = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*(mm|bar|%|s)?", re.I)
 STAGE = {"一段": 1, "二段": 2, "三段": 3, "四段": 4, "五段": 5, "六段": 6}

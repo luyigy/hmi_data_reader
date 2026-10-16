@@ -1,7 +1,7 @@
 """YIZUMI 31 F2 metering screen: keep photographed settings as reviewable facts."""
 import re
 
-from extract_families.tact5_process import project_boxes
+from extract_families.coordinates import project_boxes
 
 
 NUMBER = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*(mm|bar|%|s)?", re.I)
