@@ -1,4 +1,5 @@
-import { existsSync, lstatSync, mkdirSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, symlinkSync, realpathSync, readlinkSync, renameSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { workspaceGitDirectory } from './git-worktree-paths';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -15,9 +16,18 @@ export const prepareCodexHome = (
   for (const entry of SHARED_ENTRIES) {
     const source = path.join(sharedHome, entry);
     const target = path.join(codexHome, entry);
-    if (!existsSync(source) || existsSync(target)) continue;
+    if (!existsSync(source)) continue;
+    const canonicalSource = realpathSync(source);
+    if (existsSync(target)) {
+      if (lstatSync(target).isSymbolicLink() && realpathSync(target) === canonicalSource && readlinkSync(target) !== canonicalSource) {
+        const temporary = `${target}.${randomUUID()}.link`;
+        symlinkSync(canonicalSource, temporary);
+        renameSync(temporary, target);
+      }
+      continue;
+    }
     try {
-      symlinkSync(source, target, lstatSync(source).isDirectory() ? 'dir' : 'file');
+      symlinkSync(canonicalSource, target, lstatSync(canonicalSource).isDirectory() ? 'dir' : 'file');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     }

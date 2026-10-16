@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync, symlinkSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { linkedWorktreeGitDirectories } from '../src/lib/real-agents/git-worktree-paths';
@@ -19,6 +19,14 @@ try {
   assert.equal(realpathSync(path.join(room, 'auth.json')), path.join(shared, 'auth.json'));
   assert.equal(realpathSync(path.join(room, 'skills')), path.join(shared, 'skills'));
   assert.equal(existsSync(path.join(room, 'sessions')), false);
+  const intermediate = path.join(root, 'another-room');
+  mkdirSync(intermediate);
+  symlinkSync(path.join(shared, 'auth.json'), path.join(intermediate, 'auth.json'));
+  const migrated = path.join(root, 'migrated-room');
+  mkdirSync(migrated);
+  symlinkSync(path.join(intermediate, 'auth.json'), path.join(migrated, 'auth.json'));
+  prepareCodexHome(migrated, intermediate);
+  assert.equal(readlinkSync(path.join(migrated, 'auth.json')), path.join(shared, 'auth.json'), 'Shared credentials must not depend on an unmounted intermediate room');
   const repository = path.join(root, 'repo');
   mkdirSync(repository);
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
