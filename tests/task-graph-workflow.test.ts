@@ -4,10 +4,12 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { effectiveArchitectureReview, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from '../src/lib/task-graph/domain';
-import { buildGraphProposalCard, graphRolesReady } from '../src/lib/task-graph/proposal-card';
+import { assertGraphCardBudget, buildGraphProposalCard, graphRolesReady } from '../src/lib/task-graph/proposal-card';
 import { configureGraphRoles, roomRoleCandidates, type RoleOption } from '../src/lib/task-graph/role-configuration';
 import { assertSpecPackage, listSpecPackages, loadSpecPackage } from '../src/lib/task-graph/spec-package';
 import { buildGraphSpecPicker } from '../src/lib/feishu-graph-picker';
+import { graphFormAction, graphFormButtonName } from '../src/lib/task-graph/card-actions';
+import { layoutGraph, graphSvg, renderGraphPng } from '../src/lib/task-graph/route-diagram';
 import { withCommandRoom } from '../src/lib/feishu-help';
 
 async function main() {
@@ -35,7 +37,7 @@ async function main() {
   assert.doesNotMatch(card, /architecture_0/);
   assert.doesNotMatch(card, /acceptance_0/);
   const longGraph = { ...full, nodes: Array.from({ length: 6 }, (_, index) => ({
-    ...full.nodes[0], key: `S${index + 1}`, dependsOn: index ? [`S${index}`] : [],
+    ...structuredClone(full.nodes[0]), key: `S${index + 1}`, dependsOn: index ? [`S${index}`] : [],
   })) };
   const compactCard = buildGraphProposalCard('p', longGraph, 3, 'hash', options);
   const compactJson = JSON.stringify(compactCard);
@@ -46,9 +48,36 @@ async function main() {
     return Number(typeof record.tag === 'string') + Object.values(record).reduce<number>((count, item) => count + componentCount(item), 0);
   };
   assert.ok(componentCount(compactCard) <= 200);
-  assert.match(compactJson, /mode_5/);
-  assert.doesNotMatch(compactJson, /job_5_0/);
+  assert.match(compactJson, /job_0_0/);
+  assert.match(compactJson, /architecture_0/);
+  assert.match(compactJson, /acceptance_0/);
   assert.match(compactJson, /确认并启动路线/);
+  const hash = 'a'.repeat(64);
+  for (let page = 0; page < 3; page++) {
+    const pageCard = buildGraphProposalCard('proposal', longGraph, 3, hash, options, page, 'image-key');
+    assertGraphCardBudget(pageCard);
+    const json = JSON.stringify(pageCard);
+    for (const field of ['job', 'architecture', 'acceptance']) assert.match(json, new RegExp(`${field}_${page * 2}`));
+    const form = pageCard.body.elements.find((item) => 'elements' in item && item.tag === 'form');
+    assert.ok(form && 'elements' in form);
+    for (const item of (form.elements || []).filter((item) => item.tag === 'button')) {
+      assert.ok(!('behaviors' in item), 'Native form submission must not have callback behaviors');
+      assert.equal(graphFormAction('name' in item && typeof item.name === 'string' ? item.name : undefined)?.proposalId, 'proposal');
+    }
+  }
+  assert.deepEqual(graphFormAction(graphFormButtonName('proposal', hash, 'page', 2)),
+    { cmd: 'task-graph-launch', proposalId: 'proposal', hash, decision: 'page', page: 2 });
+  const changedPage = configureGraphRoles({ definition: longGraph, options, form: { job_2_0: 'local:tester' }, suggest: false, humanId: 'human' });
+  assert.equal(changedPage.nodes[2].executions[0].agentSelector, 'local:tester');
+  assert.deepEqual(changedPage.nodes[0], longGraph.nodes[0]);
+  const branched = { ...longGraph, nodes: longGraph.nodes.slice(0, 4).map((node, i) => ({ ...node,
+    goal: i === 0 ? '输入 <图像> 与数据' : node.goal, dependsOn: i === 0 ? [] : i === 3 ? ['S2', 'S3'] : ['S1'] })) };
+  const layout = layoutGraph(branched);
+  assert.equal(layout.nodes.find((node) => node.key === 'S2')!.y, layout.nodes.find((node) => node.key === 'S3')!.y);
+  assert.equal(layout.edges.length, 4);
+  assert.match(graphSvg(branched), /&lt;图像&gt;/);
+  assert.equal(Buffer.from(renderGraphPng(branched)).subarray(1, 4).toString(), 'PNG');
+
   assert.throws(() => configureGraphRoles({ definition: graph, options, form: { job_0_0: 'remote:unregistered' }, suggest: false, humanId: 'human' }), /不可用/);
   const catalog = ['codex', 'pi-agent', 'kimi-code', 'claude'].map((harnessType) =>
     ({ backend: 'platform_local', gatewayId: 'platform-local', harnessType }));

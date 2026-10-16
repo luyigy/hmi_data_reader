@@ -39,6 +39,7 @@ import { handleFeishuInteractionCardAction } from '@/lib/feishu-interaction-card
 import { forwardMoldTrialCardAction } from '@/lib/mold-trial-card-action';
 import { handleGraphHumanReviewCardAction } from '@/lib/task-graph/feishu';
 import { handleGraphProposalCardAction } from '@/lib/task-graph/proposals';
+import { graphFormAction } from '@/lib/task-graph/card-actions';
 import { handleMarkdownPickerCardCallback } from '@/lib/feishu-markdown-picker';
 import { graphCardContext, handleGraphSpecPicker } from '@/lib/feishu-graph-picker';
 import {
@@ -217,6 +218,8 @@ export function buildCardActionHandler(prefix: string) {
       value?: Record<string, unknown>;
       form_value?: Record<string, unknown>;
     };
+    const graphForm = graphFormAction(action.name);
+    if (graphForm) action.value = graphForm;
     const submittedChatType = action.name?.endsWith('_p2p')
       ? 'p2p'
       : action.name?.endsWith('_group')
@@ -224,7 +227,7 @@ export function buildCardActionHandler(prefix: string) {
         : undefined;
     const submitName = action.name?.replace(/_(p2p|group)$/, '');
     const submittedForm = AP_COMMAND_FORMS[submitName?.replace(/^submitTask:[0-9a-f-]{36}$/, 'submitTask') as keyof typeof AP_COMMAND_FORMS];
-    const cmd = typeof data?.action?.value?.cmd === 'string' ? (data.action.value.cmd as string) : null;
+    const cmd = typeof action.value?.cmd === 'string' ? action.value.cmd : null;
     const trialAction = data?.action?.value?.trial_action;
     if (!cmd && !submittedForm && !['approve', 'reject'].includes(String(trialAction))) {
       return {};
@@ -305,11 +308,12 @@ export function buildCardActionHandler(prefix: string) {
     }
 
     if (cmd === 'task-graph-launch') {
-      const value = data.action.value as Record<string, unknown>;
+      const value = action.value || {};
       if (typeof value.proposalId !== 'string' || typeof value.decision !== 'string') return {};
       return handleGraphProposalCardAction({ proposalId: value.proposalId,
         decision: value.decision, hash: typeof value.hash === 'string' ? value.hash : null,
         formValue: action.form_value,
+        page: typeof value.page === 'number' ? value.page : undefined,
         openId: openId || null, chatId: chatId || null,
         messageId: messageId || null });
     }

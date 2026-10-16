@@ -101,6 +101,7 @@ model Task {
   interactionRequests  TaskRunInteractionRequest[]
   taskGraphRuns        TaskGraphRun[]          @relation("TaskGraphParent")
   taskGraphProposals   TaskGraphProposal[]
+  taskGraphArtifacts   TaskGraphArtifactDelivery[]
   taskGraphExecutions  TaskGraphExecution[]    @relation("TaskGraphChild")
   currentTaskSession   TaskSession?            @relation("TaskCurrentSession", fields: [currentTaskSessionId], references: [id])
   createdAt            DateTime                @default(now())
@@ -634,11 +635,26 @@ model TaskGraphProposal {
   decidedBy      String?
   decidedAt      DateTime?
   cardMessageId  String?
+  routeImageKey  String?
   parentTask     Task      @relation(fields: [parentTaskId], references: [id], onDelete: Restrict)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   @@unique([parentTaskId, version])
+  @@index([parentTaskId, status])
+}
+
+model TaskGraphArtifactDelivery {
+  key          String   @id
+  parentTaskId String
+  artifactPath String
+  contentHash  String
+  status       String   @default("sending") // sending, sent, failed, uncertain
+  messageId    String?
+  parentTask   Task     @relation(fields: [parentTaskId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
   @@index([parentTaskId, status])
 }
 

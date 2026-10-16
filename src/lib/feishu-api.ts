@@ -3,6 +3,14 @@ import { promises as fs } from 'node:fs';
 
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis';
 
+export class FeishuApiError extends Error {
+  constructor(public readonly code: number, message: string) {
+    super(message);
+    this.name = 'FeishuApiError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
 type FeishuReactionResponse = {
   code: number;
   msg?: string;
@@ -244,7 +252,7 @@ export async function replyFeishuMessage(args: {
 
   const data = (await response.json()) as FeishuSendMessageResponse;
   if (!response.ok || data.code !== 0) {
-    throw new Error(data.msg || `Failed to reply Feishu message: HTTP ${response.status}`);
+    throw new FeishuApiError(data.code, data.msg || `Failed to reply Feishu message: HTTP ${response.status}`);
   }
   return data.data?.message_id;
 }
@@ -255,6 +263,7 @@ export async function sendFeishuMarkdownFile(args: {
   content: Buffer;
   replyId?: string;
   replyInThread?: boolean;
+  uuid?: string;
 }): Promise<string | undefined> {
   if (!args.content.length || args.content.length > 30 * 1024 * 1024) {
     throw new Error('飞书文件须为非空且不超过 30 MB');
@@ -272,23 +281,38 @@ export async function sendFeishuMarkdownFile(args: {
   const uploadData = await uploadResponse.json() as FeishuFileResponse;
   const fileKey = uploadData.data?.file_key;
   if (!uploadResponse.ok || uploadData.code !== 0 || !fileKey) {
-    throw new Error(uploadData.msg || `Failed to upload Feishu file: HTTP ${uploadResponse.status}`);
+    throw new FeishuApiError(uploadData.code, uploadData.msg || `Failed to upload Feishu file: HTTP ${uploadResponse.status}`);
   }
   if (args.replyId) {
-    return replyFeishuMessage({ messageId: args.replyId, msgType: 'file', content: { file_key: fileKey }, replyInThread: args.replyInThread });
+    return replyFeishuMessage({ messageId: args.replyId, msgType: 'file', content: { file_key: fileKey }, replyInThread: args.replyInThread, uuid: args.uuid });
   }
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);
   url.searchParams.set('receive_id_type', 'chat_id');
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ receive_id: args.chatId, msg_type: 'file', content: JSON.stringify({ file_key: fileKey }) }),
+    body: JSON.stringify({ receive_id: args.chatId, msg_type: 'file', content: JSON.stringify({ file_key: fileKey }), ...(args.uuid ? { uuid: args.uuid } : {}) }),
   });
   const data = await response.json() as FeishuSendMessageResponse;
   if (!response.ok || data.code !== 0) {
-    throw new Error(data.msg || `Failed to send Feishu file: HTTP ${response.status}`);
+    throw new FeishuApiError(data.code, data.msg || `Failed to send Feishu file: HTTP ${response.status}`);
   }
   return data.data?.message_id;
+}
+
+export async function uploadFeishuCardImage(content: Buffer): Promise<string> {
+  const token = await getFeishuTenantAccessToken();
+  const form = new FormData();
+  form.set('image_type', 'message');
+  form.set('image', new Blob([new Uint8Array(content)], { type: 'image/png' }), 'task-route.png');
+  const response = await fetch(`${FEISHU_API_BASE}/im/v1/images`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+  });
+  const result = await response.json() as FeishuImageResponse;
+  if (!response.ok || result.code !== 0 || !result.data?.image_key) {
+    throw new FeishuApiError(result.code, result.msg || '路线图片上传失败');
+  }
+  return result.data.image_key;
 }
 
 export async function sendFeishuLocalImageMessage(args: {

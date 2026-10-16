@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
-import { sendFeishuInteractiveMessage, sendFeishuMarkdownFile } from '../feishu-api';
+import { sendFeishuInteractiveMessage } from '../feishu-api';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
@@ -10,9 +10,11 @@ import { taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinitio
 import { validateExecutionTargets } from './launch';
 import { createTaskGraphRun, releaseReadyNodes } from './store';
 import type { AcpxParticipantRequest } from '../acpx/types';
-import { buildGraphProposalCard, graphRolesReady } from './proposal-card';
+import { assertGraphCardBudget, buildGraphProposalCard, graphRolesReady } from './proposal-card';
 import { configureGraphRoles, graphRoleOptions } from './role-configuration';
 import { assertSpecPackage } from './spec-package';
+import { deliverGraphArtifact } from './artifact-delivery';
+import { ensureGraphRouteImage } from './route-image';
 export { buildGraphProposalCard, formatGraphProposal } from './proposal-card';
 
 export async function updateGraphProposalRole(args: {
@@ -83,7 +85,7 @@ export async function updateGraphProposalRole(args: {
   });
   if (updated.count !== 1) throw new Error('路线已被其他操作修改，请重新查看卡片');
   await updateFeishuTaskEntryCard(proposal.cardMessageId,
-    buildGraphProposalCard(proposal.id, definition, proposal.version, hash, await graphRoleOptions(args.parentTaskId)));
+    buildGraphProposalCard(proposal.id, definition, proposal.version, hash, await graphRoleOptions(args.parentTaskId), 0, proposal.routeImageKey));
   return { version: proposal.version, hash };
 }
 
@@ -128,14 +130,17 @@ export async function createGraphProposal(args: {
     definition: definition as unknown as Prisma.InputJsonValue, createdBy: args.createdBy.trim() || 'local-agent',
   } });
   if (proposal.cardMessageId) return proposal;
-  if (specPackage) for (const artifact of specPackage.artifacts) await sendFeishuMarkdownFile({
-    chatId: binding.chatId, fileName: artifact.path.split('/').pop()!, content: artifact.content,
-    replyId: binding.rootMessageId || binding.latestMessageId || undefined,
-    replyInThread: !!binding.rootMessageId,
+  const imageKey = await ensureGraphRouteImage(proposal.id, definition);
+  const card = buildGraphProposalCard(proposal.id, definition, version, hash, await graphRoleOptions(args.parentTaskId), 0, imageKey);
+  assertGraphCardBudget(card);
+  if (specPackage) for (const artifact of specPackage.artifacts) await deliverGraphArtifact({
+    parentTaskId: args.parentTaskId, chatId: binding.chatId, appId: binding.appId,
+    rootMessageId: binding.rootMessageId, replyId: binding.rootMessageId || binding.latestMessageId || undefined,
+    path: artifact.path, content: artifact.content,
   });
   const messageId = await sendFeishuInteractiveMessage({
     receiveId: binding.chatId,
-    card: buildGraphProposalCard(proposal.id, definition, version, hash, await graphRoleOptions(args.parentTaskId)),
+    card,
     uuid: `task-graph-proposal-${proposal.id}`,
     ...(binding.rootMessageId ? { threadRootMessageId: binding.rootMessageId } : {}),
   });
@@ -149,9 +154,10 @@ export async function handleGraphProposalCardAction(args: {
   proposalId: string; decision: string; hash: string | null; openId: string | null;
   chatId: string | null; messageId: string | null;
   formValue?: Record<string, unknown>;
+  page?: number;
 }) {
   if (!args.openId || !args.chatId || !args.messageId ||
-      !['approve', 'reject', 'configure', 'suggest'].includes(args.decision)) {
+      !['approve', 'reject', 'configure', 'suggest', 'page'].includes(args.decision)) {
     return { toast: { type: 'warning', content: '路线卡身份信息不完整' } };
   }
   const proposal = await prisma.taskGraphProposal.findUnique({ where: { id: args.proposalId } });
@@ -168,7 +174,7 @@ export async function handleGraphProposalCardAction(args: {
       !(binding.chatType === 'group' && await isFeishuGroupAdmin(args.chatId, args.openId)))) {
     return { toast: { type: 'warning', content: '只有父任务所在群的管理员可确认路线' } };
   }
-  if (args.decision === 'configure' || args.decision === 'suggest' ||
+  if (args.decision === 'configure' || args.decision === 'suggest' || args.decision === 'page' ||
       (args.decision === 'approve' && Object.keys(args.formValue || {}).length > 0)) {
     const parent = await prisma.task.findUniqueOrThrow({ where: { id: proposal.parentTaskId }, select: { ownerUserId: true } });
     const options = await graphRoleOptions(proposal.parentTaskId);
@@ -178,13 +184,15 @@ export async function handleGraphProposalCardAction(args: {
     await validateExecutionTargets(definition);
     const hash = taskGraphSnapshotHash(definition);
     if (args.decision !== 'approve' || hash !== proposal.snapshotHash) {
+      const card = buildGraphProposalCard(proposal.id, definition, proposal.version, hash, options, args.page, proposal.routeImageKey);
+      assertGraphCardBudget(card);
       const changed = await prisma.taskGraphProposal.updateMany({
         where: { id: proposal.id, status: 'pending', snapshotHash: args.hash },
         data: { snapshotHash: hash, definition: definition as unknown as Prisma.InputJsonValue },
       });
       if (changed.count !== 1) return { toast: { type: 'warning', content: '路线已更新，请使用最新卡片' } };
-      await updateFeishuTaskEntryCard(proposal.cardMessageId!, buildGraphProposalCard(proposal.id, definition, proposal.version, hash, options));
-      return { toast: { type: 'success', content: '模式与角色已保存，请核对更新后的卡片再确认' } };
+      await updateFeishuTaskEntryCard(proposal.cardMessageId!, card);
+      return { toast: { type: 'success', content: args.decision === 'page' ? '已保存本页并切换角色配置页' : '模式与角色已保存，请核对更新后的卡片再确认' } };
     }
   }
   if (args.decision === 'reject') {

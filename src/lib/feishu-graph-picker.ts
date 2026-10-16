@@ -13,9 +13,9 @@ export function buildGraphSpecPicker(args: { roomId: string; commit: string; pac
         { tag: 'select_static', name: 'selectedSpec', width: 'fill', required: true,
           placeholder: { tag: 'plain_text', content: '选择待提审 Spec' },
           options: args.packages.slice(0, 100).map((item) => ({ value: item.manifestPath, text: { tag: 'plain_text', content: item.title } })) },
-        { tag: 'button', name: 'proposeGraphSpec', form_action_type: 'submit', type: 'primary_filled',
+        { tag: 'button', name: `tgs:${args.roomId}:${args.commit}`, form_action_type: 'submit', type: 'primary_filled',
           text: { tag: 'plain_text', content: '发送路线提审' },
-          behaviors: [{ type: 'callback', value: { cmd: 'graph-spec-picker', roomId: args.roomId, commit: args.commit } }] },
+        },
       ] },
     ] } };
 }

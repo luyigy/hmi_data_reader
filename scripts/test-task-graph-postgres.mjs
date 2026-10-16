@@ -32,7 +32,7 @@ try {
   }
   await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
   execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'], { env, stdio: 'pipe' });
-  for (const file of ['task-graph-db', 'task-graph-proposal']) {
+  for (const file of ['task-graph-db', 'task-graph-proposal', 'task-graph-proposal-delivery']) {
     execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register', `tests/${file}.test.ts`], { env, stdio: 'inherit' });
   }
 } finally {
