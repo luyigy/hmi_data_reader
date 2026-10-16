@@ -70,3 +70,10 @@ def test_p12_has_exportable_independent_version_package():
     listed = {item["profile_id"]: item for item in list_templates()}
     assert listed[PROFILE]["enabled"] is True
     assert listed[P11]["enabled"] is True
+
+
+def test_printed_metering_count_is_evidence_not_role_approval(tmp_path):
+    from test_yizumi_injection_holding_page import replay
+    facts = replay(tmp_path, 'p12')['extraction_detail']['page_observations']
+    assert facts['stage_counts']['plasticizing'] == {'value': 2, 'line_indexes': [5, 6]}
+    assert all(item['role'] == 'unknown' for item in facts['fields'])

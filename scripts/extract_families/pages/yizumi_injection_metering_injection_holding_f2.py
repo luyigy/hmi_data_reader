@@ -62,11 +62,13 @@ def extract(lines, template, meta, image_path=None):
         if not headings or len(stage_ids) != len(set(stage_ids)):
             continue
         count_labels = [cell for cell in cells if re.fullmatch(r"段数\s*[1-6]?", cell["text"])
-                        and top - height * .05 <= center(cell)[1] <= top + height * .05]
+                        and center(cell)[0] > width * .55 and cell["confidence"] >= .8
+                        and top - height * .09 <= center(cell)[1] <= top + height * .05]
         if len(count_labels) == 1:
             label = count_labels[0]
             match = re.search(r"([1-6])$", label["text"])
             options = [cell for cell in cells if re.fullmatch(r"[1-6]", cell["text"])
+                       and cell["confidence"] >= .8
                        and 0 < center(cell)[0] - center(label)[0] < width * .12
                        and abs(center(cell)[1] - center(label)[1]) < height * .012]
             if match or len(options) == 1:

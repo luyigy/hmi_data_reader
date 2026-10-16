@@ -124,3 +124,29 @@ def test_admin_can_preview_then_disable_this_page(tmp_path, monkeypatch):
     assert client.get("/api/v1/page-templates").json()[0]["enabled"] is False
     result = replay(tmp_path, "p11", tmp_path / "templates")
     assert result["warnings"] == ["PAGE_TEMPLATE_DISABLED"]
+
+
+def test_printed_injection_count_has_traceable_ocr_lines(tmp_path):
+    for stem in ('p11', 'p11b'):
+        result = replay(tmp_path, stem)
+        facts = result['extraction_detail']['page_observations']
+        assert facts['stage_counts']['injection']['value'] == 3
+        assert facts['stage_counts']['injection']['line_indexes']
+        assert 'holding' not in facts['stage_counts']  # The photographed number was not read.
+
+
+def test_uncertain_or_duplicate_printed_count_stays_unobserved():
+    from copy import deepcopy
+    from extract_families.pages.yizumi_injection_metering_injection_holding_f2 import extract
+    lines = json.loads((ROOT / 'tests/fixtures/yizumi_p11_31_ocr.json').read_text())['lines']
+    template = json.loads((ROOT / 'templates/yizumi/injection_holding.json').read_text())
+    meta = dict(screen_size=[1381, 1400])
+    low = deepcopy(lines)
+    low[20]['conf'] = .2
+    duplicate = deepcopy(lines)
+    duplicate.append(deepcopy(duplicate[20]))
+    missing = deepcopy(lines)
+    missing[19]['text'] = '未读出'
+    for changed in (low, duplicate, missing):
+        facts = extract(changed, template, meta)['detail']['page_observations']
+        assert 'injection' not in facts['stage_counts']

@@ -35,6 +35,19 @@ def extract(lines, template, meta, image_path=None):
                     warnings=["YIZUMI_METERING_GRID_MISSING"], detail={})
     columns = {stage: xy(cell)[0] for stage, cell in headings}
     spacing = abs(columns[2] - columns[1])
+    counts = {}
+    count_labels = [cell for cell in cells if cell['text'] == '段数' and cell['confidence'] >= .8
+                    and width * .55 < xy(cell)[0] < width * .85
+                    and height * .33 < xy(cell)[1] < height * .43]
+    if len(count_labels) == 1:
+        label = count_labels[0]
+        numbers = [cell for cell in cells if re.fullmatch(r'[1-2]', cell['text'])
+                   and cell['confidence'] >= .8
+                   and 0 < xy(cell)[0] - xy(label)[0] < width * .12
+                   and abs(xy(cell)[1] - xy(label)[1]) < height * .012]
+        if len(numbers) == 1:
+            counts['plasticizing'] = dict(value=int(numbers[0]['text']),
+                                          line_indexes=[label['index'], numbers[0]['index']])
     observations = []
     for label, declared_unit in ROWS.items():
         row = row_labels[label]
@@ -66,5 +79,5 @@ def extract(lines, template, meta, image_path=None):
     project_boxes(observations, meta)
     detail = dict(page_variant=template["layout_variant"], page_observations=dict(
         version="1.0", profile_id=template["profile_id"], coordinate_space="original_percent",
-        fields=observations, stage_counts={}, visual_stage_counts={}))
+        fields=observations, stage_counts=counts, visual_stage_counts={}))
     return dict(fields={}, heater_columns=0, warnings=["YIZUMI_REVIEW_REQUIRED"], detail=detail)
