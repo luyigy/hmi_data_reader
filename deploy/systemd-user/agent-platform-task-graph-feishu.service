@@ -1,0 +1,16 @@
+[Unit]
+Description=Agent Platform Task Graph Feishu Replies
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data1/code/agent-platform-v2
+ExecStart=/data1/code/agent-platform-v2/scripts/run-task-graph-feishu-runner.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

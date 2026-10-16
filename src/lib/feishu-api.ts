@@ -854,7 +854,14 @@ export const buildFeishuPermissionCard = (args: {
 
 export async function sendFeishuApprovalCard(args: Parameters<typeof buildFeishuPermissionCard>[0] & {
   chatId: string;
+  threadRootMessageId?: string;
 }): Promise<string> {
+  if (args.threadRootMessageId) {
+    const id = await sendFeishuInteractiveMessage({ receiveId: args.chatId, threadRootMessageId: args.threadRootMessageId,
+      card: buildFeishuPermissionCard(args), uuid: `permission-${args.interactionRequestId}` });
+    if (!id) throw new Error('Feishu approval card returned no message id');
+    return id;
+  }
   const token = await getFeishuTenantAccessToken();
   const receiveIdType = 'chat_id';
   const url = new URL(`${FEISHU_API_BASE}/im/v1/messages`);

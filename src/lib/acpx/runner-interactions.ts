@@ -191,11 +191,12 @@ export const handleHarnessInteractionRequest = async ({
     if (isWaitingUser) {
       prisma.feishuConversationBinding.findFirst({
         where: { liveRoom: { sourceTaskId: taskId } },
-        select: { chatId: true },
+        select: { chatId: true, rootMessageId: true },
       }).then(async (binding) => {
         if (!binding) return;
         await sendFeishuApprovalCard({
           chatId: binding.chatId,
+          threadRootMessageId: binding.rootMessageId || undefined,
           interactionRequestId: persistedRequest.id,
           command: request.rawContent.slice(0, 800),
           kind: request.kind,

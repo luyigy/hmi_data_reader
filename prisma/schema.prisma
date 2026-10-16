@@ -136,6 +136,7 @@ model TaskRun {
   completedAt       DateTime?
   participants      TaskRunParticipant[]
   events            TaskRunEvent[]
+  feishuRelay       TaskRunFeishuRelay?
   controlMessages   TaskRunControlMessage[]
   interactionRequests TaskRunInteractionRequest[]
   createdAt         DateTime                @default(now())
@@ -144,6 +145,17 @@ model TaskRun {
   @@index([taskId, createdAt])
   @@index([taskSessionId, createdAt])
   @@index([status])
+}
+
+model TaskRunFeishuRelay {
+  taskRunId         String   @id
+  bindingId         String
+  messageId         String?
+  deliveredSequence Int      @default(-1)
+  lastStatus        String   @default("")
+  taskRun           TaskRun  @relation(fields: [taskRunId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model TaskRunParticipant {

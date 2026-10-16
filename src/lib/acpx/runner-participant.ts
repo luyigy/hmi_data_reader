@@ -1,3 +1,4 @@
+import { redactSensitiveText } from '../redact-sensitive';
 import { prisma } from '@/lib/prisma';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
 import { prepareFeishuBroadcastPrompt, ackFeishuBroadcastPrompt } from '@/lib/feishu-task-broadcast';
@@ -164,9 +165,16 @@ export const executeParticipant = async (
         }
       }
     },
-    onToolEvent: request.streamCallbacks?.onToolEvent
-      ? (event) => { void request.streamCallbacks!.onToolEvent!(event); }
-      : undefined,
+    onToolEvent: (event) => {
+      subagentEventWrites = subagentEventWrites.then(async () => {
+        await publishTaskRunEvent({ taskId: request.taskId, taskRunId, participantId,
+          participant: participantPayload, eventType: 'control_message',
+          content: redactSensitiveText(`工具：${event.toolName} · ${event.preview}`),
+          metadata: { kind: 'tool', toolName: event.toolName } });
+        await request.streamCallbacks?.onToolEvent?.(event);
+      }).catch((error) => console.error('[ACPX] tool event persistence failed:', error));
+      return subagentEventWrites;
+    },
     onSubagentEvent: (event) => {
       subagentEventWrites = subagentEventWrites.then(async () => {
         const completed = event.status === 'completed';
