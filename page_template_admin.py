@@ -13,7 +13,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from scripts.export_page_package import export_page_package
-from scripts.extract_fields import extract_page_fields
+from scripts.extract_fields import extract_page_fields, norm_tokens
 
 ROOT = Path(__file__).resolve().parent
 router = APIRouter(prefix="/api/v1/page-templates", tags=["page-templates"])
@@ -215,8 +215,15 @@ def preview_template(profile_id: str, draft: TemplateSave, authorization: str = 
     package = export_page_package(profile_id, current["version"], ROOT)
     fixture = package["samples"][0]["ocr"]
     try:
-        result = extract_page_fields([], draft.template, ocr_lines=fixture["lines"],
-                                     meta={"screen_size": manifest.get("screen_size", manifest["original_size"])})
+        screen_size = manifest.get("screen_size", manifest["original_size"])
+        lines = []
+        for line in fixture["lines"]:
+            box = line["bbox"]
+            lines.append({"text": line["text"], "conf": line.get("conf", line.get("confidence")),
+                          "bbox": dict(zip(("x_min", "y_min", "x_max", "y_max"), box))
+                          if isinstance(box, list) else box})
+        result = extract_page_fields(norm_tokens({"lines": lines}, screen_size), draft.template,
+                                     ocr_lines=lines, meta={"screen_size": screen_size})
         fields = result["detail"]["page_observations"]["fields"]
     except (KeyError, TypeError, ValueError, IndexError) as exc:
         raise HTTPException(422, f"样本预览失败：{exc}") from None

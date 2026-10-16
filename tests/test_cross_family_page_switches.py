@@ -3,10 +3,12 @@ import json
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 from extract_fields import extract_one
 from page_template_admin import TemplateSave, save_template
+import page_template_admin as admin
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,3 +103,20 @@ def test_legacy_demag_template_can_add_enabled_switch_and_archive_version(tmp_pa
         confirmation="rollback_confirmed"), tmp_path)
     assert restored["version"] == f"{major}.{minor}.{patch + 2}"
     assert replay(tmp_path, sample, templates)["profile_id"] == profile
+
+
+@pytest.mark.parametrize("profile,minimum", [(DEMAG_INJECTION, 10), (DEMAG_HOLDING, 7)])
+def test_legacy_demag_preview_uses_its_fixed_ocr_cells(monkeypatch, profile, minimum):
+    monkeypatch.setenv("HMI_TEMPLATE_WRITE_KEY", "test-write-key")
+    app = FastAPI()
+    app.include_router(admin.router)
+    with TestClient(app) as client:
+        url = "/api/v1/page-templates/" + profile
+        current = client.get(url).json()
+        preview = client.post(url + "/preview", json={
+            "expected_version": current["version"],
+            "template": {**current["template"], "enabled": False},
+            "confirmation": "save_confirmed",
+        }, headers={"Authorization": "Bearer test-write-key"})
+    assert preview.status_code == 200, preview.text
+    assert len(preview.json()["fields"]) >= minimum
