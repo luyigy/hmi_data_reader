@@ -81,16 +81,21 @@ def save_template(profile_id: str, draft: TemplateSave, root: Path = ROOT) -> di
         current = _active(profile_id, root)
         if current["version"] != draft.expected_version:
             raise HTTPException(409, "页面版本已变化，请刷新后重试")
-        if set(draft.template) != set(current) or any(
+        added = set(draft.template) - set(current)
+        if added not in (set(), {"enabled"}) or set(current) - set(draft.template) or any(
             draft.template[key] != current[key] for key in current if key not in EDITABLE
         ):
             raise HTTPException(422, "页面身份、版本和样本不能在字段编辑中修改")
+        if "enabled" in draft.template and type(draft.template["enabled"]) is not bool:
+            raise HTTPException(422, "页面启停状态无效")
         if any(not isinstance(draft.template[key], type(current[key])) for key in EDITABLE & current.keys()):
             raise HTTPException(422, "页面字段结构无效")
-        if (not isinstance(draft.template["field_labels"], dict)
-                or not all(isinstance(value, dict) for value in draft.template["field_labels"].values())
-                or not isinstance(draft.template["enum_labels"], dict)
-                or not all(isinstance(value, dict) for value in draft.template["enum_labels"].values())
+        field_labels = draft.template.get("field_labels", {})
+        enum_labels = draft.template.get("enum_labels", {})
+        if (not isinstance(field_labels, dict)
+                or not all(isinstance(value, dict) for value in field_labels.values())
+                or not isinstance(enum_labels, dict)
+                or not all(isinstance(value, dict) for value in enum_labels.values())
                 or not isinstance(draft.template["layout_anchors"], list)
                 or not all(isinstance(value, str) and len(value) <= 100 for value in draft.template["layout_anchors"])):
             raise HTTPException(422, "页面字段或定位规则无效")
