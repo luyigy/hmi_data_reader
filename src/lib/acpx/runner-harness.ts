@@ -1,3 +1,4 @@
+import { linkedWorktreeGitDirectories } from '../real-agents/git-worktree-paths';
 import type { ChildProcess } from 'child_process';
 import { updateCodexQuotaCache } from '@/lib/codex-telemetry';
 import {
@@ -123,7 +124,7 @@ export const executeViaLocalHarness = async (
     : permissionConfig.writableRoots[0] || request.workingDirectory || process.cwd();
   const extraWritableRoots = permissionConfig.profile === 'full_access'
     ? []
-    : permissionConfig.writableRoots.slice(1).filter((root, index, all) => all.indexOf(root) === index);
+    : [...permissionConfig.writableRoots.slice(1), ...linkedWorktreeGitDirectories(workspaceRoot)].filter((root, index, all) => all.indexOf(root) === index);
   const extraReadOnlyPaths = resolveLocalRuntimeReadOnlyPaths(
     request.workingDirectory || process.cwd(), permissionConfig,
   );

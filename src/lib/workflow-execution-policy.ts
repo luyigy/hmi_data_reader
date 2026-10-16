@@ -1,3 +1,4 @@
+import { resolvePlatformLocalCodexHome } from './real-agents/codex-home';
 import os from 'node:os';
 import path from 'node:path';
 import type { AcpxPermissionSupportState } from './acpx/permissions';
@@ -299,13 +300,7 @@ export const resolveWorkflowCodexBoundary = (
     sandboxMode: WORKFLOW_CODEX_INNER_SANDBOX_MODE,
     approvalPolicy: snapshot.effective.approval,
     readOnlyPaths: snapshot.exceptions.map((exception) => exception.path),
-    codexHome: path.join(
-      snapshot.effective.workdir,
-      '.git',
-      'agent-platform',
-      'codex',
-      path.basename(currentCodexHome || 'workflow'),
-    ),
+    codexHome: resolvePlatformLocalCodexHome(snapshot.effective.workdir, currentCodexHome || 'workflow'),
   } as const;
 };
 

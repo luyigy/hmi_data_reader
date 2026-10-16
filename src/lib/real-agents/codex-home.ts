@@ -1,4 +1,5 @@
 import { existsSync, lstatSync, mkdirSync, symlinkSync } from 'node:fs';
+import { workspaceGitDirectory } from './git-worktree-paths';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -27,5 +28,5 @@ export const resolvePlatformLocalCodexHome = (
   workspaceRoot: string | undefined,
   requestedHome?: string
 ) => workspaceRoot
-  ? path.join(workspaceRoot, '.git', 'agent-platform', 'codex', path.basename(requestedHome || 'session'))
+  ? path.join(workspaceGitDirectory(workspaceRoot), 'agent-platform', 'codex', path.basename(requestedHome || 'session'))
   : requestedHome;

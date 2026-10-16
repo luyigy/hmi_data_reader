@@ -93,7 +93,7 @@ export async function claimNode(runId: string, nodeKey: string, claimToken: stri
     });
     if (updated.count !== 1) return null;
     await tx.taskGraphEvent.create({
-      data: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:claimed`, kind: 'node_claimed', payload: { claimToken } },
+      data: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:claimed:${claimToken}`, kind: 'node_claimed', payload: { claimToken } },
     });
     return tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
   });
@@ -115,7 +115,7 @@ export async function claimExecution(
     });
     if (updated.count !== 1) return null;
     await tx.taskGraphEvent.create({
-      data: { runId, nodeId: node.id, idempotencyKey: `execution:${nodeKey}:${executionKey}:claimed`,
+      data: { runId, nodeId: node.id, idempotencyKey: `execution:${nodeKey}:${executionKey}:claimed:${claimToken}`,
         kind: 'execution_claimed', payload: { claimToken } },
     });
     return tx.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
@@ -316,7 +316,7 @@ export async function recordExecutionIssue(args: {
     await tx.taskGraphExecution.update({ where: { id: execution.id }, data: { status: 'attention', issueKind: args.kind } });
     await tx.taskGraphNode.update({ where: { id: execution.nodeId }, data: { status: 'attention' } });
     await tx.taskGraphEvent.create({ data: { runId: args.runId, nodeId: execution.nodeId,
-      idempotencyKey: `execution:${args.nodeKey}:${args.executionKey}:issue`, kind: args.kind,
+      idempotencyKey: `execution:${args.nodeKey}:${args.executionKey}:issue:${args.claimToken}`, kind: args.kind,
       payload: { detail: args.detail } } });
   });
 }
