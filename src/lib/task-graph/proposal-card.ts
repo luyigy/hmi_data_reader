@@ -26,6 +26,7 @@ export function formatGraphProposal(definition: GraphDefinition, version: number
 
 export function buildGraphProposalCard(id: string, definition: GraphDefinition, version: number, hash: string, agents: RoleOption[] = []) {
   const ready = graphRolesReady(definition);
+  const compact = definition.nodes.length > 4;
   const callback = (decision: string) => ({ cmd: 'task-graph-launch', proposalId: id, decision, hash });
   const button = (text: string, decision: string, submit = false) => ({ tag: 'button',
     text: { tag: 'plain_text', content: text }, type: decision === 'approve' ? 'primary_filled' : 'default',
@@ -48,6 +49,13 @@ export function buildGraphProposalCard(id: string, definition: GraphDefinition, 
     body: { elements: [text(formatGraphProposal(definition, version)),
       text('**一次确认后自动接力。** 每项写入使用独立 worktree，自动集成到本次运行分支。仅实施会放行未验收结果；异常或选定的人工验收会暂停。'),
       ...(agents.length ? [{ tag: 'form', name: 'graph_roles', elements: [
+        ...(compact ? [text('长路线卡可逐片调整执行模式；实施、架构复核与验收角色见上方路线。需要换人时可用任务路线角色命令更新确认卡。'),
+          ...definition.nodes.flatMap((node, i) => [text(`**${node.key} · 执行模式**`),
+            { tag: 'select_static', name: `mode_${i}`, width: 'fill', required: true,
+              initial_option: node.executionMode || 'full', options: Object.entries(graphModeLabels).map(([value, label]) =>
+                ({ value, text: { tag: 'plain_text', content: label } })) }]),
+          button('保存模式，更新确认卡', 'configure', true),
+          ...(ready ? [button('确认并启动路线', 'approve', true)] : [])] : [
         ...(definition.nodes.some((node) => !node.executionMode || node.executionMode === 'full') ? [
           text('完整模式的项目默认架构审查者（各片可覆盖）：'),
           select('architecture_default', definition.defaultArchitectureReview?.reviewerId || 'none', [{ value: 'none', label: '未设置' }]),
@@ -65,6 +73,7 @@ export function buildGraphProposalCard(id: string, definition: GraphDefinition, 
         ])),
         button('按房间角色填建议分配', 'suggest', true), button('保存模式与角色，更新确认卡', 'configure', true),
         ...(ready ? [button('确认并启动路线', 'approve', true)] : []),
+        ]),
       ] }] : []),
       text(ready ? '当前配置可确认。' : '完整模式仍缺架构审查者；请先调整并保存。精简和仅实施不要求架构审查者。'),
       ...(ready && !agents.length ? [button('确认并启动路线', 'approve')] : []), button('退回修改', 'reject'),

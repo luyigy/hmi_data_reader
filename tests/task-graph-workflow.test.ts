@@ -34,6 +34,21 @@ async function main() {
   assert.match(card, /未验收/);
   assert.doesNotMatch(card, /architecture_0/);
   assert.doesNotMatch(card, /acceptance_0/);
+  const longGraph = { ...full, nodes: Array.from({ length: 6 }, (_, index) => ({
+    ...full.nodes[0], key: `S${index + 1}`, dependsOn: index ? [`S${index}`] : [],
+  })) };
+  const compactCard = buildGraphProposalCard('p', longGraph, 3, 'hash', options);
+  const compactJson = JSON.stringify(compactCard);
+  const componentCount = (value: unknown): number => {
+    if (Array.isArray(value)) return value.reduce((count, item) => count + componentCount(item), 0);
+    if (!value || typeof value !== 'object') return 0;
+    const record = value as Record<string, unknown>;
+    return Number(typeof record.tag === 'string') + Object.values(record).reduce<number>((count, item) => count + componentCount(item), 0);
+  };
+  assert.ok(componentCount(compactCard) <= 200);
+  assert.match(compactJson, /mode_5/);
+  assert.doesNotMatch(compactJson, /job_5_0/);
+  assert.match(compactJson, /确认并启动路线/);
   assert.throws(() => configureGraphRoles({ definition: graph, options, form: { job_0_0: 'remote:unregistered' }, suggest: false, humanId: 'human' }), /不可用/);
   const catalog = ['codex', 'pi-agent', 'kimi-code', 'claude'].map((harnessType) =>
     ({ backend: 'platform_local', gatewayId: 'platform-local', harnessType }));
