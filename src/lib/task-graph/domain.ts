@@ -143,5 +143,12 @@ function hasUnserializableValue(value: unknown, seen = new WeakSet<object>()): b
 }
 
 export function taskGraphSnapshotHash(definition: GraphDefinition): string {
-  return createHash('sha256').update(JSON.stringify(validateTaskGraphDefinition(definition))).digest('hex');
+  // JSONB reorders object keys; approval hashes must depend on content, while preserving array order.
+  const serialized = JSON.stringify(validateTaskGraphDefinition(definition), (_key, value: unknown) => {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0));
+    }
+    return value;
+  });
+  return createHash('sha256').update(serialized).digest('hex');
 }

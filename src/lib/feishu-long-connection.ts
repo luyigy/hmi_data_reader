@@ -310,12 +310,20 @@ export function buildCardActionHandler(prefix: string) {
     if (cmd === 'task-graph-launch') {
       const value = action.value || {};
       if (typeof value.proposalId !== 'string' || typeof value.decision !== 'string') return {};
-      return handleGraphProposalCardAction({ proposalId: value.proposalId,
-        decision: value.decision, hash: typeof value.hash === 'string' ? value.hash : null,
-        formValue: action.form_value,
-        page: typeof value.page === 'number' ? value.page : undefined,
-        openId: openId || null, chatId: chatId || null,
-        messageId: messageId || null });
+      try {
+        return await handleGraphProposalCardAction({ proposalId: value.proposalId,
+          decision: value.decision, hash: typeof value.hash === 'string' ? value.hash : null,
+          formValue: action.form_value,
+          page: typeof value.page === 'number' ? value.page : undefined,
+          openId: openId || null, chatId: chatId || null,
+          messageId: messageId || null });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : '未知错误';
+        console.error(`${prefix} task graph card action failed`, {
+          proposalId: value.proposalId, decision: value.decision, messageId, reason,
+        });
+        return { toast: { type: 'error', content: `路线操作失败：${reason}`.slice(0, 200) } };
+      }
     }
 
     if (cmd === 'new-session-confirm') return handleNewSessionConfirmationCardAction({
