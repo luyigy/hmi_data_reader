@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/lib/prisma';
-import { claimExecution, claimNode, createTaskGraphRun, recordExecutionIssue, releaseReadyNodes } from '../src/lib/task-graph/store';
+import { claimExecution, claimNode, createTaskGraphRun, recordExecutionIssue, recordExecutionDispatch, releaseReadyNodes } from '../src/lib/task-graph/store';
 
 async function main() {
   const parent = await prisma.task.create({ data: { name: `startup-retry-${randomUUID()}` } });
@@ -15,6 +15,10 @@ async function main() {
       assert.ok(await claimNode(run.id, 'S03', token));
       const execution = await claimExecution(run.id, 'S03', 'mold', token);
       assert.ok(execution);
+      const dispatch = { runId: run.id, nodeKey: 'S03', executionKey: 'mold', claimToken: token,
+        dispatchMetadata: { integrationRef: 'refs/heads/integration', workspaceBase: 'a'.repeat(40) } };
+      await recordExecutionDispatch(dispatch);
+      await recordExecutionDispatch(dispatch);
       await recordExecutionIssue({ runId: run.id, nodeKey: 'S03', executionKey: 'mold', claimToken: token,
         kind: 'dispatch_failed', detail: `Startup failed ${token}` });
       if (token === 'first') {

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../prisma';
 import { isCompletedNodeStatus, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from './domain';
@@ -141,7 +142,7 @@ export async function recordExecutionDispatch(args: {
       }
     }
     if (args.dispatchMetadata !== undefined && execution.dispatchMetadata !== null &&
-        JSON.stringify(execution.dispatchMetadata) !== JSON.stringify(args.dispatchMetadata)) {
+        !isDeepStrictEqual(execution.dispatchMetadata, args.dispatchMetadata)) {
       throw new Error('Conflicting execution dispatchMetadata');
     }
     return tx.taskGraphExecution.update({
