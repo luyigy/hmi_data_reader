@@ -618,6 +618,7 @@ export async function downloadFeishuMessageResource(args: {
   messageId: string;
   fileKey: string;
   type: 'image' | 'file' | 'audio' | 'video' | 'media';
+  signal?: AbortSignal;
 }): Promise<FeishuMessageResourceDownloadResult> {
   const token = await getFeishuTenantAccessToken();
   const url = new URL(
@@ -627,6 +628,7 @@ export async function downloadFeishuMessageResource(args: {
 
   const response = await fetch(url.toString(), {
     method: 'GET',
+    signal: args.signal,
     headers: {
       Authorization: `Bearer ${token}`,
     },

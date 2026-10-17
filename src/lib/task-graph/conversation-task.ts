@@ -1,3 +1,4 @@
+import { syncGraphConversationMaterials } from './conversation-materials';
 import { existsSync } from 'node:fs';
 import { prisma } from '../prisma';
 import type { syncLiveRoomSourceTask } from '../live-room-members';
@@ -28,6 +29,7 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
       participants: { select: { harnessType: true, summary: true, error: true } } } });
   const supplements = await prisma.liveRoomMessage.findMany({ where: { room: { sourceTaskId: source.id }, messageType: 'user' },
     orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true } });
+  const materials = await syncGraphConversationMaterials(source.id);
   const description = redactSensitiveText([
     '你在回答原任务话题的问题。这个会话仅用于只读问答、澄清材料与说明进度。',
     '不得重复实施、改代码、提交、合并、关闭 Issue，或仅凭用户提问宣布验收通过。',
@@ -39,6 +41,7 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
     `当前只读目录：${directory}。${directory === execution.repository ? '这是源仓，只能用固定提交读取交付版本，不要把源仓 HEAD 当交付结果。' : '可查阅 scratch 或 files 下保存的原始报告、截图和 JSON。'}`,
     `已保存检查：${JSON.stringify(execution.evidence).slice(-12000)}`,
     `原话题材料与澄清：${JSON.stringify(supplements.reverse()).slice(-10000)}`,
+    materials,
     `最近执行与验收历史：${JSON.stringify(history).slice(-10000)}`,
   ].join('\n'));
   return prisma.task.upsert({ where: { id: `task-graph-discussion-${execution.id}` }, create: {

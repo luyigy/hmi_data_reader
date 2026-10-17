@@ -32,7 +32,7 @@ try {
   }
   await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
   execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'db', 'push', '--skip-generate'], { env, stdio: 'pipe' });
-  for (const file of ['task-graph-issue-adoption', 'task-graph-issue-execution', 'task-graph-issues', 'task-graph-issue-proposal', 'task-graph-sandbox', 'task-graph-conversation', 'task-graph-completed-workspaces', 'task-graph-worktree', 'task-graph-review-workspaces', 'task-graph-check-runner', 'task-graph-feishu-relay', 'task-graph-retry', 'task-graph-snapshot', 'task-graph-db', 'task-graph-proposal', 'task-graph-proposal-delivery']) {
+  for (const file of ['task-graph-conversation-materials', 'task-graph-issue-adoption', 'task-graph-issue-execution', 'task-graph-issues', 'task-graph-issue-proposal', 'task-graph-sandbox', 'task-graph-conversation', 'task-graph-completed-workspaces', 'task-graph-worktree', 'task-graph-review-workspaces', 'task-graph-check-runner', 'task-graph-feishu-relay', 'task-graph-retry', 'task-graph-snapshot', 'task-graph-db', 'task-graph-proposal', 'task-graph-proposal-delivery']) {
     execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register', `tests/${file}.test.ts`], { env, stdio: 'inherit' });
   }
 } finally {

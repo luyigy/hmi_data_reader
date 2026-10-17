@@ -167,3 +167,14 @@ W4 的提交也补上平台 Git 的 smudge、merge driver 和 textconv 限制。
 空闲发布脚本为 `.runtime/w5-adoption/reload-after-idle.cjs`，入口 `run-reload.sh` 显式加载飞书独立服务所需环境。它在新版接收端健康后提出关联 V4，记录 proposalId、cardMessageId 并回读话题归属和标题；不确定发送不得盲目重发。`.runtime/w5-adoption/reload-receipt.json` 尚不存在时，不能说卡片已发送。
 
 此前 W1–W4 的飞书重载实际上已健康运行；旧回执 attention 来自后续通知进程没有加载 Feishu 环境而失败，并非重载失败。本轮认证预检成功，真实用户问答已验证旧服务工作。不重跑旧 helper。
+
+## W5 后续修复：S05 无法读取已发图片
+
+- W5 来源关联卡已在新版接收端健康后发到科学试模父话题，proposal `cmvc7o11f0001vtj9dyhxd62y`、消息 `om_x100b620072ca50a8b4aa06f465cb0b7`，归属与标题回读通过。通知也已回读；发送不是人工确认，不据此恢复 S05。
+- 2026-10-17 用户反馈子任务无法通过 lark-cli 看群中原图。真实问答日志显示沙箱没有 CLI 配置，返回 `not_configured`，并误用“工作流自动化”群 ID。宿主已有 bot 认证有效，无需要求用户重新登录。
+- 图片实际上在 S05 话题，消息 `om_x100b6200d66a8cb0cf039dc937098a7`，时间 2026-10-17 18:10。群主线 API 未展开它；真实 thread 查询和资源下载成功，已打开原图确认可显示。它尚未被业务验收，不能继续说用户没有发图。
+- 新增平台话题图片输入模块，绑定来源校验、分页、原消息索引、哈希、独立只读挂载；问答和恢复验收都读取同一来源。不把全部飞书凭据暴露给模型，也不将图片取得等同验收通过。
+- 原图 SHA-256 `6ae209d5e7047dd8fc4892646a308d1b37179196105fdf185696fdfb35d36c7b`。真实 S05 Bubblewrap 探针已验证可读、不可写、Feishu CLI 配置仍隐藏；原执行与节点前后逐字段相等。原图索引及探针回执在 `.runtime/s05-topic-material-receipt.json`。
+- 自动回归使用真实临时 PostgreSQL、真实 Bubblewrap、外部飞书传输模拟，检查实际问答 Prompt、验收任务挂载、错误群归属拒绝、重复取得不重复材料，以及无执行状态变更。GitNexus 本轮仍因 LadybugDB 只读 replay 错误不可用；用实际调用路径和边界回归核对，未重建索引。
+
+本次发布以 `.runtime/s05-topic-materials-deploy/reload-receipt.json` 为准；当前会话结束并空闲后重载飞书接收端。不得在新代码实际加载前声称子话题已能读图。用户可以在原 S05 话题请求只读查看已有图片；是否满足 Spec、参数真值和正式验收仍应独立判断。

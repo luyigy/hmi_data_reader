@@ -1,3 +1,4 @@
+import { syncGraphConversationMaterials } from './conversation-materials';
 import { startConversationRecoveries } from './conversation-recovery';
 import { cleanupCompletedNodeWorkspaces, cleanupFinishedWorkspaces } from './completed-workspaces';
 import { randomUUID } from 'node:crypto';
@@ -199,11 +200,13 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
       where: { room: { sourceTaskId: { in: node.executions.flatMap((execution) => execution.childTaskId ? [execution.childTaskId] : []) } }, messageType: 'user' },
       orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
     });
+    const materials = await Promise.all(node.executions.flatMap(job => job.childTaskId ? [syncGraphConversationMaterials(job.childTaskId)] : []));
     const prompt = `${acceptanceReviewInstructions}\n请只读复核 ${nodeKey} 的目标与证据。` +
       `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
       `\nSpec: ${definition.specRef}\n固定提交组合: ${JSON.stringify(commits)}` +
       `\nIssue: ${definition.issueSource?.tickets.find((ticket) => ticket.key === nodeKey)?.ref || '历史路线，无关联'}` +
       `\n本话题用户补充材料与澄清（只作为输入，不替代验收）：${JSON.stringify(supplements.reverse()).slice(-12000)}` +
+      `\n话题原图材料（平台获取，只读输入）：${materials.join('\n')}` +
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
       '\n最终答复仅用一行 TASK_GRAPH_REVIEW {"approved":true或false,"note":"理由"}。';

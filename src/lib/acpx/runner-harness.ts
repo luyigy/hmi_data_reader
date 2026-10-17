@@ -1,3 +1,4 @@
+import { graphMaterialPathsForTask } from '../task-graph/conversation-materials';
 import { graphDependencyPaths } from '../task-graph/dependency-paths';
 import { prepareGraphHarnessRuntime } from '../task-graph/harness-runtime';
 import path from 'node:path';
@@ -150,6 +151,7 @@ export const executeViaLocalHarness = async (
     ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
     ...(request.extraReadOnlyPaths || []),
     ...(graphRuntime?.readonly || []), ...graphGit,
+    ...(graphRuntime ? await graphMaterialPathsForTask(request.taskId) : []),
     ...(graphRuntime ? graphDependencyPaths(workspaceRoot) : []),
     ...(graphGit.length && workspaceRoot ? [path.join(workspaceRoot, ".git")] : []),
     ...(permissionConfig.sandboxMode === 'read-only'
