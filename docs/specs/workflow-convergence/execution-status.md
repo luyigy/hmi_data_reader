@@ -1,6 +1,6 @@
 # 实施检查点
 
-记录时间：2026-10-17，Asia/Shanghai。最新发布记录见本文末尾。
+记录时间：2026-10-17，Asia/Shanghai。当前事实汇总见 [本轮集中变更记录](change-record-20261017.md)。下文按时间追加，早期阶段的“未实施/待发布”不代表最新状态。
 
 上轮要求拆成独立 Session，已在 W4 收尾后停止。随后用户明确授权利用当前 Session 剩余上下文继续发布验证，本轮仍不推进 W5。本文件记录当前事实，不触发 watcher 或任务派发。
 
@@ -232,3 +232,7 @@ GitNexus 仍受 LadybugDB 只读 replay 故障影响；未重建索引，用调�
 回归先复现未选项目环境导致导入失败，再验证真实 linked worktree 的实施 shell、平台检查、独立验收目录使用同一环境；覆盖依赖只读、凭据不可见、既有解释器符号链接、显式配置错误不回退、任务不创建 .venv。完整任务图 PostgreSQL 套件、TypeScript、lint、长文件守卫通过。GitNexus 对共享启动器的 impact 仍为 LadybugDB 故障/UNKNOWN，未重建，已按实际调用点及边界回归核对。
 
 项目环境属于项目，不随任务清理删除。宿主外部变更环境仍需协调；本轮不引入逐任务环境快照或容器。当前业务图 S03/S04/S05/R02A/R02B 已通过，S06 为仅实施交付（delivered_unverified），不能说 S06 完成了独立验收。此次环境改造不重跑或修改这些业务状态。部署回执 `.runtime/project-env-deploy/reload-receipt.json`；需服务空闲加载后才生效。
+
+## 发布结果归档
+
+`7cd673a` 发布回执已 verified，2026-10-17 22:29:15 +08:00 确认协调器和飞书接收端已加载，transport healthy，通知回读通过。当前业务图 S03/S04/S05/R02A/R02B passed，S06 delivered_unverified。此次文档归档不派发任务、不重新执行验收。集中记录见 `change-record-20261017.md`，其中明确私有包扫描已被项目环境复用替代，以及验收运行目录归档清理仍待处理。

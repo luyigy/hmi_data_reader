@@ -21,6 +21,9 @@ W1/W2/W3 无前置，W4 被三者阻塞，W5 被 W4 阻塞。每张 Issue 的 `a
 
 ## 执行状态
 
+- [本轮集中变更记录](change-record-20261017.md)：当前约定、替代方案、提交、发布、实际业务状态和遗留问题。
+- [项目运行环境配置](../../architecture/project-runtime-environments.md)：复用已有虚拟环境的选择规则与权限。
+
 逐次实施结果、提交与未验证项见同目录 `execution-status.md`。按用户最新要求，后续每个 Session 只推进一个可验收单元。
 
 用户随后明确授权 Codex 按 W1→W5 顺序亲自实施。代码在 `feat/workflow-convergence-20261017` 集成分支开发，逐片验证并回写对应 Issue；未部署及未完成真实业务验收的部分不关闭为完成。
