@@ -1,3 +1,4 @@
+import { ensureGraphConversationMembers } from './task-graph/conversation-members';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 import type { AcpxPermissionConfig } from '@/lib/acpx/types';
@@ -598,9 +599,6 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
       select: { id: true },
     });
     if (existingMessage) {
-      const roomMembers = await prisma.liveRoomMember.findMany({
-        where: { roomId: binding.liveRoomId },
-      });
       return {
         liveRoomId: binding.liveRoomId,
         targetedMembers: [],
@@ -610,6 +608,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     }
   }
 
+  await ensureGraphConversationMembers(binding.liveRoomId);
   const userMember = await ensureLiveRoomUserMember(binding.liveRoomId);
   await syncLiveRoomSourceTask(binding.liveRoomId);
 

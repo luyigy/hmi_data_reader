@@ -1,3 +1,4 @@
+import { ensureGraphRoomParticipants } from './conversation-members';
 import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
@@ -51,6 +52,7 @@ export async function ensureGraphChildTopic(args: {
   if (!room.sourceTaskId) {
     await prisma.liveRoom.update({ where: { id: room.id }, data: { sourceTaskId: args.childTaskId } });
   }
+  await ensureGraphRoomParticipants(room.id, args.executionId);
   await updateFeishuTaskEntryCard(rootMessageId, childCard(args.title, 'ready'));
   return binding;
 }

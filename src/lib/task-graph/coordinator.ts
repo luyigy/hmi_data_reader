@@ -1,3 +1,4 @@
+import { startConversationRecoveries } from './conversation-recovery';
 import { cleanupCompletedNodeWorkspaces, cleanupFinishedWorkspaces } from './completed-workspaces';
 import { randomUUID } from 'node:crypto';
 import type { TaskGraphExecution } from '@prisma/client';
@@ -188,9 +189,14 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
         workingDirectory: workspaces.at(-1)?.path || null },
       update: { workingDirectory: workspaces.at(-1)?.path || null },
     });
+    const supplements = await prisma.liveRoomMessage.findMany({
+      where: { room: { sourceTaskId: { in: node.executions.flatMap((execution) => execution.childTaskId ? [execution.childTaskId] : []) } }, messageType: 'user' },
+      orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
+    });
     const prompt = `${acceptanceReviewInstructions}\n请只读复核 ${nodeKey} 的目标与证据。` +
       `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
       `\nSpec: ${definition.specRef}\n固定提交组合: ${JSON.stringify(commits)}` +
+      `\n本话题用户补充材料与澄清（只作为输入，不替代验收）：${JSON.stringify(supplements.reverse()).slice(-12000)}` +
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
       '\n最终答复仅用一行 TASK_GRAPH_REVIEW {"approved":true或false,"note":"理由"}。';
@@ -251,14 +257,12 @@ export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: s
     where: { runId_key: { runId, key: nodeKey } }, include: { executions: true },
   });
   if (node.status === 'passed') return node;
-  if (!['attention', 'verifying'].includes(node.status)) throw new Error(`${nodeKey} is not waiting for verification recovery`);
+  if (node.status !== 'attention') throw new Error(`${nodeKey} is not paused for verification recovery`);
   if (activeReviews.has(node.id)) throw new Error(`${nodeKey} verification is already running`);
-  if (node.status === 'verifying') {
-    const activeReview = await prisma.taskRun.findFirst({
-      where: { taskId: `task-graph-review-${node.id}`, status: { in: ['pending', 'running'] } }, select: { id: true },
-    });
-    if (activeReview) throw new Error(`${nodeKey} verification is already running`);
-  }
+  const activeReview = await prisma.taskRun.findFirst({
+    where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } }, select: { id: true },
+  });
+  if (activeReview) throw new Error(`${nodeKey} verification is already running`);
   if (node.executions.some((execution) => execution.status !== 'integrated')) {
     throw new Error(`${nodeKey} has unfinished repository executions`);
   }
@@ -357,6 +361,11 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
 
 /** One poll claims only ready work. Claimed work from a previous process is never replayed automatically. */
 export async function runTaskGraphCycle() {
+  for (const recovery of await startConversationRecoveries(recoverTaskGraphNodeVerification)) {
+    activeVerifications.add(recovery.nodeId);
+    const pending = recovery.promise.finally(() => { activeVerifications.delete(recovery.nodeId); inflight.delete(pending); });
+    inflight.add(pending);
+  }
   const runs = await prisma.taskGraphRun.findMany({ where: { status: { in: ['running', 'attention'] } }, select: { id: true } });
   for (const run of runs) {
     await releaseReadyNodes(run.id);

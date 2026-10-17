@@ -11,7 +11,7 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, include: { executions: true } });
   if (!['passed', 'delivered_unverified'].includes(node.status)) return;
   const childIds = node.executions.flatMap((execution) => execution.childTaskId ? [execution.childTaskId] : []);
-  const active = await prisma.taskRun.count({ where: { taskId: { in: [...childIds, `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['running', 'pending'] } } });
+  const active = await prisma.taskRun.count({ where: { taskId: { in: [...childIds, ...node.executions.map((execution) => `task-graph-discussion-${execution.id}`), `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['running', 'pending'] } } });
   if (active) return;
   for (const execution of node.executions) {
     if (!execution.commit || !execution.worktreePath || !execution.childTaskId) continue;

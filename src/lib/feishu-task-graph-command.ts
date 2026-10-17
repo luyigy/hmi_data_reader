@@ -1,3 +1,4 @@
+import { requestGraphConversationRecovery } from './task-graph/conversation-recovery';
 import { prisma } from './prisma';
 import { getBoundLiveRoom, type FeishuConversationContext } from './feishu-live-room';
 import { ensureLiveRoomUserMember, postLiveRoomMessage, resolveLiveRoomMessageMetadata } from './live-room';
@@ -7,11 +8,18 @@ import { updateGraphProposalRole } from './task-graph/proposals';
 import { openGraphSpecPicker } from './feishu-graph-picker';
 
 export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand, context?: FeishuConversationContext) {
-  if (!['status', 'propose', 'role'].includes(command.args[0])) {
+  if (!['status', 'propose', 'role', 'resume'].includes(command.args[0])) {
     return '用法：/ap graph propose [Spec 路径]、/ap graph role <Slice|all> <仓内任务|acceptance|architecture> <Agent|automatic|human>，或 /ap graph status。';
   }
   const room = await getBoundLiveRoom(context);
   if (!room?.sourceTaskId) return '请在父任务话题内查询任务路线。';
+  if (command.args[0] === 'resume') {
+    if (!context?.senderOpenId || command.args.length !== 1) return '请在对应 Slice 子话题发送 /ap graph resume。';
+    try {
+      await requestGraphConversationRecovery({ roomId: room.id, chatId: context.chatId, openId: context.senderOpenId, messageId: context.messageId });
+      return '验收恢复请求已登记。调度器将读取本话题补充的材料，重跑该片验收；不重做实施，不直接放行后继。';
+    } catch (error) { return `恢复失败：${error instanceof Error ? error.message : String(error)}`; }
+  }
   if (command.args[0] === 'role') {
     if (command.args.length !== 4) return '用法：/ap graph role <Slice|all> <仓内任务|acceptance|architecture> <Agent|automatic|human>。';
     if (!context?.chatId || !context.senderOpenId) return '飞书身份信息不完整，无法调整路线角色。';

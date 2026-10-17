@@ -664,6 +664,7 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
       sourceTask: {
         include: {
           currentTaskSession: true,
+          taskGraphExecutions: { select: { id: true }, take: 1 },
         },
       },
     },
@@ -672,6 +673,9 @@ export const syncLiveRoomSourceTask = async (roomId: string) => {
   if (!room) {
     return null;
   }
+
+  // Graph execution metadata is immutable; conversation runs have their own identity.
+  if (room.sourceTask?.taskGraphExecutions.length) return room.sourceTask;
 
   const workingDirectoryRows = await prisma.$queryRaw<Array<{ workingDirectory: string | null }>>`
     SELECT "workingDirectory"

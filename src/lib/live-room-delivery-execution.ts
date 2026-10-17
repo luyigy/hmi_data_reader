@@ -1,3 +1,5 @@
+import { taskGraphAgentReviewPermissionConfig } from './task-graph/review-permissions';
+import { prepareGraphConversationTask } from './task-graph/conversation-task';
 import { collectLiveRoomFootnotes } from '@/lib/live-room-footnotes';
 import { prisma } from '@/lib/prisma';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
@@ -313,7 +315,7 @@ const runLiveRoomAcpxAttempt = async ({
           ? latestSession?.continuationSessionId || undefined
           : undefined,
       continuationMessage: shouldUseContinuation
-        ? buildLiveRoomContinuationMessage(liveRoomControlManual, contentForAgent)
+        ? buildLiveRoomContinuationMessage(directedVisibleProtocol, contentForAgent)
         : undefined,
       ephemeralSession: forceEphemeral,
       codexHome:
@@ -363,7 +365,8 @@ export const executeLiveRoomReplyViaAcpx = async ({
 }) => {
   const startedAt = Date.now();
   const executionGeneration = getLiveRoomExecutionGeneration(targetMember.id);
-  const sourceTask = await syncLiveRoomSourceTask(room.id);
+  const originalSourceTask = await syncLiveRoomSourceTask(room.id);
+  const sourceTask = originalSourceTask ? await prepareGraphConversationTask(originalSourceTask) : null;
   if (!sourceTask) {
     throw new Error('Live room source ACPX task is unavailable');
   }
@@ -406,7 +409,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     sourceMetadata?.workflowPermissionSnapshot,
     sourceTask.workingDirectory || process.cwd(),
   );
-  const permissionConfig = applyWorkflowPermissionSnapshot(
+  const permissionConfig = sourceTask.id !== originalSourceTask?.id ? taskGraphAgentReviewPermissionConfig : applyWorkflowPermissionSnapshot(
     resolveLiveRoomMemberPermission(targetMember.acpxPermissionConfig, sourceTask.acpxPermissionConfig),
     workflowPermissionSnapshot,
   );
@@ -430,7 +433,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
   });
   const desiredDirectedTarget = directedRelayTargets[0] || null;
 
-  if (shouldInjectLatestInstruction && contentForAgent) {
+  if ((shouldInjectLatestInstruction || sourceTask.id !== originalSourceTask?.id) && contentForAgent) {
     await postTaskRoomMessage({
       roomId: taskRoom.id,
       content: contentForAgent,
