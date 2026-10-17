@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 import { wrapWithBubblewrap } from '../src/lib/harness/bubblewrap';
+import { linkedWorktreeGitDirectories } from '../src/lib/real-agents/git-worktree-paths';
 import { assertReviewWorkspacesClean, resolveReviewWorkspaces } from '../src/lib/task-graph/review-workspaces';
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 async function main() {
@@ -26,13 +27,14 @@ async function main() {
     assert.deepEqual(executions.map((e) => git(e.repository, 'worktree', 'list', '--porcelain')), before);
     assert.equal(readFileSync(path.join(pinned[0].path, 'scratch/roundtrip.json'), 'utf8'), '{"saved":true}');
     const wrapped = wrapWithBubblewrap({ command: '/usr/bin/sh',
-      commandArgs: ['-c', `cat scratch/roundtrip.json && cat '${pinned[1].path}/file.txt' && ! touch file.txt && ! touch '${pinned[1].path}/file.txt'`],
+      commandArgs: ['-c', `cat scratch/roundtrip.json && git rev-parse HEAD && git -C '${pinned[1].path}' log -1 --oneline && cat '${pinned[1].path}/file.txt' && ! touch file.txt && ! touch '${pinned[1].path}/file.txt' && ! touch '${linkedWorktreeGitDirectories(pinned[0].path)[0]}/config'`],
       cwd: pinned[0].path, workspaceRoot: pinned[0].path, sandboxMode: 'read-only',
-      readOnlyPaths: [pinned[1].path], env: process.env });
+      readOnlyPaths: [pinned[1].path, ...pinned.flatMap((workspace) => linkedWorktreeGitDirectories(workspace.path))], env: process.env });
     const probe = spawnSync(wrapped.command, wrapped.args, { encoding: 'utf8', env: { ...process.env, LC_ALL: 'C' } });
     assert.equal(probe.status, 0, probe.stderr);
     assert.match(probe.stdout, /saved/);
     assert.match(probe.stdout, /ui/);
+    assert.match(probe.stdout, new RegExp(executions[0].commit), 'Reviewers can inspect Git commits without gaining write access');
     assert.match(probe.stderr, /Read-only file system/);
     writeFileSync(path.join(executions[0].repository, 'file.txt'), 'changed source');
     await assertReviewWorkspacesClean(pinned);

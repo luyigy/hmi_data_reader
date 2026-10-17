@@ -142,6 +142,9 @@ export const executeViaLocalHarness = async (
   const extraReadOnlyPaths = Array.from(new Set([
     ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
     ...(request.extraReadOnlyPaths || []),
+    ...(permissionConfig.sandboxMode === 'read-only'
+      ? [workspaceRoot, ...(request.extraReadOnlyPaths || [])].flatMap(linkedWorktreeGitDirectories)
+      : []),
   ]));
   const codexHome = participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
