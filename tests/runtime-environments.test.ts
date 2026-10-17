@@ -69,12 +69,15 @@ async function main() {
     const originalExecute = agent.executeCodexTask;
     const originalResume = agent.resumeCodexSession;
     const seen: unknown[] = [];
+    const sandboxModes: unknown[] = [];
     agent.executeCodexTask = async (_task, options) => {
       seen.push(options?.readOnlyPaths);
+      sandboxModes.push(options?.sandboxMode);
       return { success: true, output: 'ok', executionTime: 0, filesModified: [] };
     };
     agent.resumeCodexSession = async (options) => {
       seen.push(options.readOnlyPaths);
+      sandboxModes.push(options.sandboxMode);
       return { output: 'ok', threadId: 'test' };
     };
     try {
@@ -86,6 +89,11 @@ async function main() {
       const sharedHome = process.env.CODEX_HOME?.trim() || path.join(homedir(), '.codex');
       const expectedPaths = [...SHARED_ENTRIES.map((entry) => path.join(sharedHome, entry)), runtime];
       assert.deepEqual(seen, [expectedPaths, expectedPaths]);
+      assert.deepEqual(sandboxModes, ['danger-full-access', 'danger-full-access'], 'Bubblewrap must be the sole write boundary for workspace-write Codex sessions');
+      await codexHarnessAdapter.execute({ task, context: { ...context, workspaceRoot: undefined } });
+      assert.equal(sandboxModes.at(-1), 'workspace-write', 'Keep the native sandbox when no external boundary exists');
+      await codexHarnessAdapter.execute({ task, context: { ...context, permissionConfig: { ...permission, sandboxMode: 'read-only' } } });
+      assert.equal(sandboxModes.at(-1), 'read-only', 'Read-only reviewers must remain read-only');
       assert.ok(!expectedPaths.includes(sharedHome), 'do not expose unrelated Codex session history');
     } finally {
       agent.executeCodexTask = originalExecute;

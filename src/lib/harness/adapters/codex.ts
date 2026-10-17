@@ -38,6 +38,12 @@ const codexReadOnlyPaths = (extra?: string[]) => extra?.length
   ? [...SHARED_ENTRIES.map((entry) => path.join(process.env.CODEX_HOME?.trim() || path.join(homedir(), '.codex'), entry)), ...extra]
   : undefined;
 
+// Bubblewrap enforces the write boundary; nesting workspace-write blocks Git metadata.
+const innerSandboxMode = (context: HarnessExecutionContext) =>
+  context.workspaceRoot && context.permissionConfig?.sandboxMode === 'workspace-write'
+    ? 'danger-full-access'
+    : context.permissionConfig?.sandboxMode;
+
 async function loadCodexAgent() {
   return import('@/lib/real-agents/codex-agent');
 }
@@ -82,7 +88,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
       ephemeral: context.ephemeralSession,
       codexHome: context.codexHome,
       streamCallbacks: telemetry.callbacks,
-      sandboxMode: context.permissionConfig?.sandboxMode,
+      sandboxMode: innerSandboxMode(context),
       approvalPolicy: context.permissionConfig?.approvalPolicy,
       model: context.model,
       reasoningEffort: context.reasoningEffort,
@@ -138,7 +144,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
         networkAccess: context.networkAccess,
         codexHome: context.codexHome,
         streamCallbacks: telemetry.callbacks,
-        sandboxMode: context.permissionConfig?.sandboxMode,
+        sandboxMode: innerSandboxMode(context),
         approvalPolicy: context.permissionConfig?.approvalPolicy,
         model: context.model,
         reasoningEffort: context.reasoningEffort,
