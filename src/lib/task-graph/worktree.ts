@@ -290,7 +290,7 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
     try {
       await request.verify(staging);
     } catch (cause) {
-      throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${staging}`, staging, { cause });
+      throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${staging}\n${cause instanceof Error ? cause.message : String(cause)}`, staging, { cause });
     }
     if (!(await cleanWorkspace(staging))) {
       throw new TaskGraphGitError('verification_failed', `Verification left changes in staging tree: ${staging}`, staging);
@@ -324,7 +324,7 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
       throw new TaskGraphGitError('integration_conflict', `Merge conflict needs resolution: ${staging}`, staging);
     }
   }
-  if (staged.head === current) {
+  if (!(await isAncestor(repo, currentJob.head, staged.head))) {
     if (!(await cleanWorkspace(staging))) {
       throw new TaskGraphGitError('workspace_dirty', `Integration staging tree has uncommitted changes: ${staging}`, staging);
     }
@@ -344,7 +344,7 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
   try {
     await request.verify(staging);
   } catch (cause) {
-    throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${staging}`, staging, { cause });
+    throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${staging}\n${cause instanceof Error ? cause.message : String(cause)}`, staging, { cause });
   }
   if (!(await cleanWorkspace(staging))) {
     throw new TaskGraphGitError('verification_failed', `Verification left changes in staging tree: ${staging}`, staging);

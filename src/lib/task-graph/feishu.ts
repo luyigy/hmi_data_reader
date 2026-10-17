@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
-import { sendFeishuInteractiveMessage } from '../feishu-api';
+import { redactSensitiveText } from '../redact-sensitive';
+import { replyFeishuMessage, sendFeishuInteractiveMessage } from '../feishu-api';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { getFeishuTaskThread, updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
@@ -120,4 +122,16 @@ export async function handleGraphHumanReviewCardAction(args: {
   await postGraphParentProgress(node.run.parentTaskId, args.runId,
     `${args.nodeKey} 人工验收${args.decision === 'approve' ? '通过' : '未通过'}${released.length ? `，放行 ${released.join('、')}` : ''}`);
   return { toast: { type: 'success', content: '验收决定已记录' } };
+}
+
+/** Keep integration failures visible in the same topic as the implementation. */
+export async function postGraphChildProgress(childTaskId: string, eventKey: string, text: string) {
+  const binding = await prisma.feishuConversationBinding.findFirst({
+    where: { liveRoom: { sourceTaskId: childTaskId }, rootMessageId: { not: null } },
+    orderBy: { updatedAt: 'desc' },
+  });
+  if (!binding?.rootMessageId) return null;
+  return replyFeishuMessage({ messageId: binding.rootMessageId, msgType: 'text',
+    content: { text: redactSensitiveText(text).slice(-10_000) }, replyInThread: true,
+    uuid: `graph-child-${createHash('sha256').update(`${childTaskId}:${eventKey}`).digest('hex').slice(0, 32)}` });
 }

@@ -19,6 +19,8 @@ import {
   submitNodeVerification, type VerificationEvidence,
 } from './store';
 import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree } from './worktree';
+import { executionCheckInstructions } from './execution-instructions';
+import { postGraphChildProgress } from './feishu';
 
 const runCommand = promisify(execFile);
 const activeJobs = new Set<string>();
@@ -65,16 +67,18 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   if (!plannedNode || !plannedExecution) throw new Error('Execution instructions are missing from frozen graph');
   const taskId = `task-graph-${execution.id}`;
   const taskName = `${nodeKey} · ${execution.key}`;
+  const description = `目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
+    `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}` +
+    executionCheckInstructions(config.checks);
   const task = await prisma.task.upsert({
     where: { id: taskId },
     create: {
       id: taskId, name: taskName,
-      description: `目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
-        `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}`,
+      description,
       executionMode: 'acpx', status: 'pending', workingDirectory: directory,
       ownerUserId: run.parentTask.ownerUserId, acpxParticipants: JSON.stringify([config.participant]),
     },
-    update: {},
+    update: { description },
   });
   const room = await ensureTaskChatRoom(task.id, task.name);
   return { task, room };
@@ -285,12 +289,15 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     await verifyNode(runId, nodeKey);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    const kind = detail.includes('Verification') ? 'test_failed'
+    const kind = /verification/i.test(detail) ? 'test_failed'
       : detail.includes('Merge') || detail.includes('merge') || detail.includes('conflict') ? 'integration_conflict'
       : 'dispatch_failed';
     const current = await prisma.taskGraphExecution.findUnique({ where: { id: execution.id } });
     if (current?.status === 'claimed') {
       await recordExecutionIssue({ runId, nodeKey, executionKey: execution.key, claimToken, kind, detail });
+      if (current.childTaskId) await postGraphChildProgress(current.childTaskId, `issue-${claimToken}`,
+        `${nodeKey}/${execution.key} 暂停，尚未完成集成和验收。\n${detail}\n后继继续等待，无需重复启动。`)
+        .catch((deliveryError) => console.error('[TaskGraph] child issue delivery failed:', deliveryError));
     } else {
       console.error(`[TaskGraph] verification failed after integration ${runId}/${nodeKey}:`, error);
     }

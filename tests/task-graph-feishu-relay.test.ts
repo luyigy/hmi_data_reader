@@ -8,9 +8,11 @@ async function main() {
   const require = createRequire(__filename);
   const api = require('../src/lib/feishu-api');
   const cards = require('../src/lib/feishu-task-entry-api');
-  const original = { send: api.sendFeishuInteractiveMessage, update: cards.updateFeishuTaskEntryCard };
+  const original = { send: api.sendFeishuInteractiveMessage, update: cards.updateFeishuTaskEntryCard, reply: api.replyFeishuMessage };
   const sent: { threadRootMessageId: string; card: unknown }[] = [];
   const updated: { id: string; card: unknown }[] = [];
+  const replies: { messageId: string; uuid: string; content: { text: string }; replyInThread: boolean }[] = [];
+  api.replyFeishuMessage = async (args: typeof replies[number]) => { replies.push(args); return `progress-${replies.length}`; };
   let rejectUpdate = false;
   api.sendFeishuInteractiveMessage = async (args: { threadRootMessageId: string; card: unknown }) => { sent.push(args); return `reply-${sent.length}`; };
   cards.updateFeishuTaskEntryCard = async (id: string, card: unknown) => { if (rejectUpdate) throw new Error('update failed'); updated.push({ id, card }); };
@@ -33,16 +35,28 @@ async function main() {
     assert.doesNotMatch(json, /secretvalue/);
     assert.equal(await relayTaskGraphRunReply(run.id), false);
     assert.equal(sent.length, 1, 'History replay must not resend an existing card');
+    await prisma.taskRunEvent.create({ data: { taskRunId: run.id, sequence: 4, eventType: 'stdout_chunk', content: '正在检查' } });
+    await relayTaskGraphRunReply(run.id);
+    assert.equal(replies.length, 0, 'Do not publish unfinished paragraphs');
+    await prisma.taskRunEvent.create({ data: { taskRunId: run.id, sequence: 5, eventType: 'stdout_chunk', content: '保存读回。\n\n' } });
+    await relayTaskGraphRunReply(run.id);
+    assert.equal(replies.length, 1, 'Progress must be a new visible thread reply, not just a card patch');
+    assert.equal(replies[0].messageId, 'child-root');
+    assert.equal(replies[0].replyInThread, true);
+    assert.match(replies[0].content.text, /正在实现 S03。正在检查保存读回/);
+    await relayTaskGraphRunReply(run.id);
+    assert.equal(replies.length, 1, 'Repeated polls must not duplicate progress');
+    updated.length = 0;
     await prisma.taskRun.update({ where: { id: run.id }, data: { status: 'waiting_for_input' } });
     const request = await prisma.taskRunInteractionRequest.create({ data: { taskId: task.id, taskRunId: run.id,
       requestKind: 'permission_request', message: '暂存 S03 文件', rawPayload: JSON.stringify({ approvalSupported: true }), expiresAt: new Date(Date.now() + 60_000) } });
     await relayTaskGraphRunReply(run.id);
     assert.equal(updated[0].id, 'reply-1');
     assert.match(JSON.stringify(updated[0].card), new RegExp(`approve:${request.id}`));
-    await prisma.taskRunEvent.create({ data: { taskRunId: run.id, sequence: 4, eventType: 'control_message', content: '等待权限确认' } });
+    await prisma.taskRunEvent.create({ data: { taskRunId: run.id, sequence: 6, eventType: 'control_message', content: '等待权限确认' } });
     rejectUpdate = true;
     await assert.rejects(() => relayTaskGraphRunReply(run.id), /update failed/);
-    assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).deliveredSequence, 3);
+    assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).deliveredSequence, 5);
     rejectUpdate = false;
     await Promise.all([relayTaskGraphRunReply(run.id), relayTaskGraphRunReply(run.id)]);
     assert.equal(updated.length, 2, 'Concurrent relays must update once');
@@ -54,6 +68,11 @@ async function main() {
     assert.match(JSON.stringify(updated.at(-1)?.card), /S03 已提交，等待验收/);
     assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).lastStatus, 'completed');
     assert.equal(sent.length, 1);
+    assert.equal(replies.length, 2, 'The final result must arrive as its own thread reply');
+    assert.match(replies[1].content.text, /会话结束[\s\S]*S03 已提交/);
+    assert.match(replies[1].content.text, /不代表 Slice 验收通过/);
+    await relayTaskGraphReplies();
+    assert.equal(replies.length, 2, 'The final result must not be sent twice');
     console.log('Feishu child replies replay history, preserve identity, redact secrets, update status and recover without duplicates');
   } finally {
     api.sendFeishuInteractiveMessage = original.send; cards.updateFeishuTaskEntryCard = original.update;

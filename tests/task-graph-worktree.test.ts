@@ -101,6 +101,7 @@ async function run() {
       verify: async () => { throw new Error('check failed after crash recovery'); },
     }), (error: unknown) => {
       if (!(error instanceof TaskGraphGitError) || error.code !== 'verification_failed') return false;
+      assert.match(error.message, /check failed after crash recovery/, 'Surface the check failure instead of only the staging path');
       failedStage = error.workspacePath || '';
       return true;
     });
@@ -229,11 +230,16 @@ async function run() {
     });
     assert.equal(git(third.repo, 'rev-parse', integration.ref), third.base);
     assert.equal(await fs.access(stagingPath).then(() => true, () => false), true);
+    await fs.writeFile(path.join(job.path, 'verification-entry.sh'), 'echo verified\n');
+    git(job.path, 'add', 'verification-entry.sh');
+    git(job.path, 'commit', '-m', 'add missing verification entry');
+    const fixedHead = git(job.path, 'rev-parse', 'HEAD');
     const merged = await integrateJobWorktree({
       repoPath: third.repo, runId: 'verify', jobId: 'one', integrationRef: integration.ref,
       expectedIntegrationCommit: third.base, baseCommit: third.base, worktreeRoot: third.trees,
-      verify: async () => undefined,
+      verify: async (staging) => assert.equal(await fs.readFile(path.join(staging, 'verification-entry.sh'), 'utf8'), 'echo verified\n'),
     });
+    assert.equal(git(third.repo, 'merge-base', '--is-ancestor', fixedHead, merged.commit), '');
     assert.equal(git(third.repo, 'rev-parse', integration.ref), merged.commit);
     git(third.repo, 'worktree', 'add', '--detach', path.join(third.root, 'checked-out'), integration.ref);
     git(path.join(third.root, 'checked-out'), 'switch', integration.ref.slice('refs/heads/'.length));

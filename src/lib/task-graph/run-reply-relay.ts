@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto';
+import { redactSensitiveText } from '../redact-sensitive';
+import { completedReplyParagraphs } from './run-reply-progress';
 import { prisma } from '../prisma';
-import { sendFeishuInteractiveMessage } from '../feishu-api';
+import { replyFeishuMessage, sendFeishuInteractiveMessage } from '../feishu-api';
 import { updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
 import { buildRunReplyCard } from './run-reply-card';
 
@@ -41,12 +44,31 @@ export async function relayTaskGraphRunReply(taskRunId: string) {
     }
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
     const history = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: { notIn: ['stdout_chunk', 'stderr_chunk', 'summary'] } }, orderBy: { sequence: 'desc' }, take: 100 });
-    const card = buildRunReplyCard(run, output.reverse(), history.reverse(), requests);
+    output.reverse();
+    const card = buildRunReplyCard(run, output, history.reverse(), requests);
     let messageId = cursor.messageId;
     if (messageId) await updateFeishuTaskEntryCard(messageId, card);
     else messageId = await sendFeishuInteractiveMessage({ receiveId: binding.chatId, threadRootMessageId: rootMessageId,
       uuid: `graph-run-reply-${run.id}`, card }) || null;
     if (!messageId) throw new Error('Reply card send returned no message id');
+    const identity = run.participants.map((participant) => participant.harnessNameSnapshot || participant.harnessType || participant.runner).join(' / ') || 'Harness';
+    const terminal = ['completed', 'failed', 'stopped', 'interrupted'].includes(run.status);
+    const notices = terminal
+      ? cursor.lastStatus === run.status ? [] : [{
+        key: `terminal-${run.status}`,
+        text: `${identity} · ${run.status === 'completed' ? '会话结束' : '执行结束（未成功）'}\n\n` +
+          (run.participants.map((participant) => participant.summary || participant.error || '').filter(Boolean).join('\n\n') || run.summary || run.error || '无最终回复。') +
+          '\n\n会话结束不代表 Slice 验收通过；集成和验收状态以路线进度为准。',
+      }]
+      : completedReplyParagraphs(output, cursor.deliveredSequence).map((paragraph) => ({
+        key: `progress-${paragraph.sequence}-${createHash('sha256').update(paragraph.text).digest('hex').slice(0, 16)}`,
+        text: `${identity}\n${paragraph.text}`,
+      }));
+    for (const notice of notices) {
+      await replyFeishuMessage({ messageId: rootMessageId, msgType: 'text',
+        content: { text: redactSensitiveText(notice.text).slice(-10_000) }, replyInThread: true,
+        uuid: `graph-note-${createHash('sha256').update(`${run.id}:${notice.key}`).digest('hex').slice(0, 32)}` });
+    }
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
       data: { messageId, deliveredSequence: sequence, lastStatus: run.status } });
     return true;
