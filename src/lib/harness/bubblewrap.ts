@@ -1,3 +1,4 @@
+import { sandboxProjectEnvironment } from './project-environment';
 import { sandboxEnvironmentRemovals } from './sandbox-env';
 import { localToolchainPaths } from './toolchain-paths';
 import { existsSync, lstatSync, readdirSync, realpathSync } from 'node:fs';
@@ -50,7 +51,13 @@ export function wrapWithBubblewrap(args: {
   const workspaceRoot = realpathSync(args.workspaceRoot);
   const cwd = realpathSync(args.cwd);
   if (!isWithin(workspaceRoot, cwd)) throw new Error('Bubblewrap cwd is outside the authorized workspace');
-  const executable = executablePath(args.command, args.env);
+  const project = args.env.AP_TASK_SANDBOX === '1' ? sandboxProjectEnvironment(workspaceRoot, args.readOnlyPaths) : undefined;
+  const launchEnv = { ...args.env, ...project?.env };
+  const executable = executablePath(args.command, launchEnv);
+  // Python determines its venv from the invoked symlink, not its resolved base binary.
+  const projectCommand = project && path.join(project.directory, 'bin', args.command);
+  const invocation = project && path.isAbsolute(args.command) && isWithin(path.join(project.directory, 'bin'), args.command)
+    ? args.command : projectCommand && !args.command.includes('/') && existsSync(projectCommand) ? projectCommand : executable;
   const packagedCodex = path.basename(executable) === 'codex'
     && existsSync(path.join(path.dirname(executable), 'codex-code-mode-host'));
   const executableMount = executable.endsWith('.js') ? path.dirname(path.dirname(executable))
@@ -80,6 +87,7 @@ export function wrapWithBubblewrap(args: {
   const readOnlyMounts = [
     executableMount,
     ...localToolchainPaths(),
+    ...(project ? [project.directory] : []),
     ...systemTopologyPaths,
     ...(explicitReadOnlyPaths ?? configPaths.flatMap(symlinkTargets)),
   ]
@@ -87,6 +95,7 @@ export function wrapWithBubblewrap(args: {
   const bwrapArgs = [
     '--die-with-parent', '--new-session', '--unshare-all',
     ...sandboxEnvironmentRemovals(args.env).flatMap((key) => ['--unsetenv', key]),
+    ...Object.entries(project?.env || {}).flatMap(([key, value]) => ['--setenv', key, value]),
     ...(args.networkAccess === 'enabled' ? ['--share-net'] : []),
     '--tmpfs', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
     '--dir', '/usr', '--ro-bind', '/usr', '/usr',
@@ -98,7 +107,7 @@ export function wrapWithBubblewrap(args: {
     ...allWritableMounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),
     ...readOnlyMounts.flatMap((source) => [...parentDirs(source), '--ro-bind', source, source]),
     '--chdir', cwd,
-    executable,
+    invocation,
     ...args.commandArgs,
   ];
   return { command: '/usr/bin/bwrap', args: bwrapArgs };

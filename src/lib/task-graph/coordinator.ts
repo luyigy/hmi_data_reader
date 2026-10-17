@@ -1,6 +1,5 @@
 import { prepareAcceptanceRuntime } from './acceptance-runtime';
 import { prepareGraphSpecInput } from './spec-input';
-import { graphPythonPackagePaths } from './harness-runtime';
 import { scheduleGraphRepair, latestGraphRepair, type ReviewDecision } from './repair';
 import { graphGit } from './git-command';
 import { syncGraphConversationMaterials } from './conversation-materials';
@@ -49,11 +48,11 @@ function launchConfig(execution: TaskGraphExecution): LaunchConfig {
   return config;
 }
 
-async function runChecks(checks: Check[], directory: string, extraEnv: Record<string, string> = {}, readOnlyWorkspaces: string[] = [], taskId?: string): Promise<CheckResult[]> {
+async function runChecks(checks: Check[], directory: string, extraEnv: Record<string, string> = {}, readOnlyWorkspaces: string[] = []): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   for (const check of checks) {
     try {
-      const { stdout, stderr } = await runSandboxedGraphCheck(check.argv, directory, extraEnv, readOnlyWorkspaces, taskId);
+      const { stdout, stderr } = await runSandboxedGraphCheck(check.argv, directory, extraEnv, readOnlyWorkspaces);
       results.push({ name: check.name, passed: true, evidence: `${check.argv.join(' ')}\n${stdout}${stderr}`.slice(-4000) });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -127,8 +126,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
       const workspace = workspaces.slice().reverse().find((item) => item.repository === check.repository);
       if (!workspace) throw new Error(`Missing pinned repository for ${check.name}`);
       try {
-        const job = node.executions.find(item => item.worktreePath === workspace.path);
-        results.push(...await runChecks([check], workspace.path, env, workspaces.map((workspace) => workspace.path), job?.childTaskId || undefined));
+        results.push(...await runChecks([check], workspace.path, env, workspaces.map((workspace) => workspace.path)));
       } catch (error) {
         const failed = error as Error & { results?: CheckResult[] };
         results.push(...failed.results || [{ name: check.name, passed: false, evidence: failed.message }]);
@@ -194,7 +192,6 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     }
     const runtime = await prepareAcceptanceRuntime(node.id, reviewAttempt || 'initial', workspaces);
     const specInput = await prepareGraphSpecInput(definition);
-    const pythonPackages = node.executions.flatMap(job => job.childTaskId ? graphPythonPackagePaths(job.childTaskId) : []);
     await prisma.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: claimKey + ':runtime', kind: 'acceptance_runtime_prepared', payload: { directory: runtime.directory, commits } } });
     const taskId = `task-graph-review-${node.id}`;
     const taskName = `${nodeKey} · 验收复核`;
@@ -214,7 +211,6 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     const prompt = `${acceptanceReviewInstructions}\n请实际验收 ${nodeKey} 的目标与证据。` +
       `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
       `\nSpec: ${definition.specRef}${specInput.instructions}\n固定提交组合: ${JSON.stringify(commits)}` +
-      (pythonPackages.length ? `\n实施任务安装的 Python 依赖（只读，运行 Python 时设置 PYTHONPATH=${pythonPackages.join(':')}）：${JSON.stringify(pythonPackages)}` : '') +
       `\nIssue: ${definition.issueSource?.tickets.find((ticket) => ticket.key === nodeKey)?.ref || '历史路线，无关联'}` +
       `\n本话题用户补充材料与澄清（只作为输入，不替代验收）：${JSON.stringify(supplements.reverse()).slice(-12000)}` +
       `\n上轮验收证据（保留已通过项，补验缺口）：${JSON.stringify(node.evidence)}` +
@@ -227,7 +223,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     const reviewRun = await executeAcpxTaskRun({
       taskId: task.id, taskName: task.name, taskDescription: prompt,
       orchestrationMode: 'single', participants: [review.participant],
-      extraReadOnlyPaths: [...runtime.readOnlyPaths, ...specInput.paths, ...pythonPackages],
+      extraReadOnlyPaths: [...runtime.readOnlyPaths, ...specInput.paths],
       workingDirectory: task.workingDirectory || undefined,
       permissionConfig: runtime.permissionConfig,
     }).catch((error) => ({ status: 'failed', taskRunId: 'not-created',
@@ -366,7 +362,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         repoPath: execution.repository, runId, jobId: execution.id,
         integrationRef: latest.ref, expectedIntegrationCommit: latest.commit,
         baseCommit: workspace.baseCommit,
-        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, {}, [], task.id); },
+        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging); },
       });
     });
     await completeExecution({

@@ -222,3 +222,13 @@ GitNexus 仍受 LadybugDB 只读 replay 故障影响；未重建索引，用调�
 本次不重新实施 R02A、不跳过测试或验收、不改角色与依赖、不触碰 Reader 主检出的已有改动。恢复时先核对原 TaskRun 已结束、工作树干净、受控提交与基线，复用同一工作区重做集成检查，通过后交原验收者继续；实际恢复和服务加载以 `.runtime/r02a-diagnosis/recovery-receipt.json` 为准。44 项测试通过不代表 R02A 已获独立验收通过。
 
 本轮 TypeScript、变更文件 lint、完整任务图 PostgreSQL 套件、长文件守卫通过。GitNexus impact 仍返回 LadybugDB 只读 shadow-page replay 故障，风险为 UNKNOWN；未重建索引，已按实际 runChecks 两个调用点与沙箱边界回归核对。真实批准 Spec 副本已在 R02A 沙箱内验证可读。
+
+## 项目既有环境复用
+
+用户明确要求默认使用项目已有虚拟环境，不为每个任务另建和下载。本轮按该要求替代 `ccf7973` 的私有 HOME 包扫描：源仓 `.venv` 默认或源仓配置的既有环境只读挂载，统一在 Bubblewrap 启动入口注入工具路径、VIRTUAL_ENV 和禁用用户包设置；实施、检查、验收共享同一选择，Harness 认证隔离。没有新增环境创建/安装步骤。验收涉及多个不同 Python 环境时拒绝隐式混用。
+
+真实 Reader 三阶段探针均使用 `/data1/code/hmi_data_reader/.venv/bin/python3`，Python 3.10.12、OpenCV 4.6.0；原 R02A 固定提交在该项目环境跑出 44 passed、22 subtests passed。探针及检查分别在 `.runtime/r02a-diagnosis/project-env-probe.json` 和 `project-env-r02a-check.json`，临时验证检出已移除，未改 Reader 主检出的已有内容。
+
+回归先复现未选项目环境导致导入失败，再验证真实 linked worktree 的实施 shell、平台检查、独立验收目录使用同一环境；覆盖依赖只读、凭据不可见、既有解释器符号链接、显式配置错误不回退、任务不创建 .venv。完整任务图 PostgreSQL 套件、TypeScript、lint、长文件守卫通过。GitNexus 对共享启动器的 impact 仍为 LadybugDB 故障/UNKNOWN，未重建，已按实际调用点及边界回归核对。
+
+项目环境属于项目，不随任务清理删除。宿主外部变更环境仍需协调；本轮不引入逐任务环境快照或容器。当前业务图 S03/S04/S05/R02A/R02B 已通过，S06 为仅实施交付（delivered_unverified），不能说 S06 完成了独立验收。此次环境改造不重跑或修改这些业务状态。部署回执 `.runtime/project-env-deploy/reload-receipt.json`；需服务空闲加载后才生效。
