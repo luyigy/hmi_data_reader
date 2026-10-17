@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -89,6 +90,22 @@ export async function claimNode(runId: string, nodeKey: string, claimToken: stri
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId, key: nodeKey } } });
     if (!node) throw new Error('Unknown graph node');
     if (node.status === 'claimed' && node.claimToken === claimToken) return node;
+    const repositories = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id }, select: { repository: true } });
+    const canonical = async (repository: string) => realpath(repository).catch(() => repository);
+    const roots = await Promise.all(repositories.map(job => canonical(job.repository)));
+    for (const repository of Array.from(new Set(roots)).sort()) {
+      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${runId + ':' + repository}, 0))`;
+      const blockers = await tx.taskGraphExecution.findMany({ where: { node: { runId, id: { not: node.id },
+        status: { in: ['claimed', 'verifying', 'awaiting_human', 'attention'] } } }, select: { repository: true, node: { select: { key: true } } } });
+      const normalized = await Promise.all(blockers.map(async job => ({ ...job, repository: await canonical(job.repository) })));
+      const blocker = normalized.find(job => job.repository === repository);
+      if (blocker) {
+        await tx.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:repository-wait:${blocker.node.key}`,
+          kind: 'repository_gate_waiting', payload: { repository, blockedBy: blocker.node.key } }], skipDuplicates: true });
+        return null;
+      }
+    }
+
     const updated = await tx.taskGraphNode.updateMany({
       where: { id: node.id, status: 'ready', claimToken: null },
       data: { status: 'claimed', claimToken, claimedAt: new Date() },
@@ -305,7 +322,7 @@ export async function approveHumanNode(args: {
 
 export async function recordExecutionIssue(args: {
   runId: string; nodeKey: string; executionKey: string; claimToken: string;
-  kind: 'integration_conflict' | 'test_failed' | 'dispatch_failed'; detail: string;
+  kind: 'integration_conflict' | 'test_failed' | 'dispatch_failed' | 'input_preparation_failed'; detail: string;
 }, db: Database = prisma) {
   required(args.detail, 'issue detail');
   return db.$transaction(async (tx) => {

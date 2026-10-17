@@ -27,6 +27,7 @@ export interface CodexConfig {
   ephemeral?: boolean;
   codexHome?: string;
   runtimeHome?: string;
+  taskEnvironment?: Record<string, string>;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
@@ -84,6 +85,7 @@ export const executeCodexTask = async (
       ephemeral,
       codexHome: config.codexHome,
       runtimeHome: config.runtimeHome,
+      taskEnvironment: config.taskEnvironment,
       streamCallbacks,
       skipGitRepoCheck,
       sandboxMode,
@@ -124,6 +126,7 @@ interface CodexExecutionOptions {
   ephemeral?: boolean;
   codexHome?: string;
   runtimeHome?: string;
+  taskEnvironment?: Record<string, string>;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck: boolean;
   sandboxMode: string;
@@ -140,8 +143,8 @@ interface CodexCliResult {
   turnId?: string;
 }
 
-const buildCodexChildEnv = (codexHome?: string, runtimeHome?: string) => {
-  const env = { ...process.env } as NodeJS.ProcessEnv;
+const buildCodexChildEnv = (codexHome?: string, runtimeHome?: string, taskEnvironment?: Record<string, string>) => {
+  const env = { ...process.env, ...taskEnvironment } as NodeJS.ProcessEnv;
 
   if (runtimeHome) { env.HOME = runtimeHome; env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = '/tmp/cache'; env.NPM_CONFIG_CACHE = '/tmp/npm'; env.PYTHONPYCACHEPREFIX = '/tmp/python'; }
   if (codexHome) {
@@ -197,7 +200,7 @@ Take your time and be thorough.`;
       return await runCodexAppServer({
         prompt,
         ...options,
-        env: buildCodexChildEnv(options.codexHome, options.runtimeHome),
+        env: buildCodexChildEnv(options.codexHome, options.runtimeHome, options.taskEnvironment),
       });
     } catch (error) {
       if (!canRetryCodexAppServerWithJson(error, options.workspaceRoot)) throw error;
@@ -230,6 +233,7 @@ export const resumeCodexSession = async ({
   readOnlyPaths,
   codexHome,
   runtimeHome,
+  taskEnvironment,
   streamCallbacks,
   skipGitRepoCheck = true,
   sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
@@ -249,6 +253,7 @@ export const resumeCodexSession = async ({
   readOnlyPaths?: string[];
   codexHome?: string;
   runtimeHome?: string;
+  taskEnvironment?: Record<string, string>;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
@@ -270,7 +275,7 @@ export const resumeCodexSession = async ({
         networkAccess,
         readOnlyPaths,
         codexHome,
-  runtimeHome,
+        runtimeHome,
         sandboxMode,
         approvalPolicy,
         model,
@@ -278,7 +283,7 @@ export const resumeCodexSession = async ({
         streamCallbacks,
         onSpawn,
         onThreadStarted,
-        env: buildCodexChildEnv(codexHome, runtimeHome),
+        env: buildCodexChildEnv(codexHome, runtimeHome, taskEnvironment),
       });
     } catch (error) {
       if (!canRetryCodexAppServerWithJson(error, workspaceRoot)) throw error;
@@ -309,7 +314,8 @@ export const resumeCodexSession = async ({
       model,
       reasoningEffort,
       codexHome,
-  runtimeHome,
+      runtimeHome,
+      taskEnvironment,
       readOnlyPaths,
       onSpawn,
       onThreadStarted,
@@ -403,7 +409,7 @@ const runCodexJsonCommand = async ({
     let stdoutBuffer = '';
     let turnFailureMessage: string | null = null;
 
-    const env = buildCodexChildEnv(options.codexHome, options.runtimeHome);
+    const env = buildCodexChildEnv(options.codexHome, options.runtimeHome, options.taskEnvironment);
     const wrapped = wrapWithBubblewrap({ command: 'codex', commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, sandboxMode: options.sandboxMode, env, configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`], readOnlyPaths: options.readOnlyPaths });
     const child = spawn(wrapped.command, wrapped.args, {
       cwd: options.workingDirectory,

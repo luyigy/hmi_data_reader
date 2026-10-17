@@ -30,6 +30,7 @@ export type GraphNode = {
   key: string;
   goal: string;
   dependsOn: string[];
+  consumeUpstream?: 'direct' | 'none' | string[];
   executionMode?: 'full' | 'lean' | 'implement';
   acceptance: Acceptance;
   architectureReview?: ArchitectureReview;
@@ -83,6 +84,8 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
         node.dependsOn.some((key) => !keys.has(key) || key === node.key)) {
       throw new Error(`Invalid dependencies for ${node.key}`);
     }
+    if (node.consumeUpstream !== undefined && node.consumeUpstream !== 'direct' && node.consumeUpstream !== 'none' &&
+        (!Array.isArray(node.consumeUpstream) || node.consumeUpstream.some(ref => typeof ref !== 'string' || !input.nodes.some(parent => parent.executions.some(job => `${parent.key}/${job.key}` === ref))) || new Set(node.consumeUpstream).size !== node.consumeUpstream.length)) throw new Error('Invalid upstream consumption references');
     const gate = node.acceptance;
     if (!gate || !['automatic', 'agent', 'human'].includes(gate.mode) || !Array.isArray(gate.checks) ||
         (node.executionMode !== 'implement' && gate.checks.length === 0) || gate.checks.some((check) => !check?.trim()) ||
@@ -108,6 +111,15 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
         throw new Error(`Invalid repository execution in ${node.key}: ${job.key}`);
       }
       executionKeys.add(job.key);
+    }
+  }
+  for (const node of input.nodes) {
+    const ancestors = new Set<string>();
+    const visit = (key: string) => { for (const predecessor of input.nodes.find(item => item.key === key)!.dependsOn) if (!ancestors.has(predecessor)) { ancestors.add(predecessor); visit(predecessor); } };
+    // Consumption references must resolve within the approved dependency closure.
+    if (Array.isArray(node.consumeUpstream)) {
+      visit(node.key);
+      if (node.consumeUpstream.some(ref => !input.nodes.some(parent => ancestors.has(parent.key) && parent.executions.some(job => `${parent.key}/${job.key}` === ref)))) throw new Error('Consumption must reference an approved predecessor');
     }
   }
   const byKey = new Map(input.nodes.map((node) => [node.key, node]));

@@ -6,8 +6,9 @@ import { linkedWorktreeGitDirectories } from '../real-agents/git-worktree-paths'
 export function graphDependencyPaths(workspace: string | undefined) {
   if (!workspace) return [];
   const common = linkedWorktreeGitDirectories(workspace)[0];
-  if (!common || path.basename(common) !== '.git') return [];
-  const repository = path.dirname(common);
+  if (common && path.basename(common) !== '.git') return [];
+  if (!common && !existsSync(path.join(workspace, '.git'))) return [];
+  const repository = common ? path.dirname(common) : realpathSync(workspace);
   return ['node_modules', 'frontend/node_modules'].map((name) => path.join(repository, name))
     .filter(existsSync).map((entry) => realpathSync(entry));
 }

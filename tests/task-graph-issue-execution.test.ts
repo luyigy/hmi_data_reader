@@ -21,6 +21,9 @@ async function main() {
   git('init', '-b', 'main'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.test');
   writeFileSync(path.join(repository, 'baseline'), 'base'); git('add', '.'); git('commit', '-m', 'base');
   const baseline = git('rev-parse', 'HEAD');
+  const secondRepository = path.join(root, 'second-repo');
+  execFileSync('git', ['clone', '--quiet', repository, secondRepository]);
+  process.env.TASK_GRAPH_UPSTREAM_ROOT = path.join(root, 'upstream');
   const parentRef = 'gitee:org/app#IPARENT';
   const body = (key: string, parent: string | null = parentRef) => `criteria\n<!-- ap-ticket-v1 ${JSON.stringify({ version: 1, project: 'execution-test', sliceKey: key, parent, blockedBy: key === 'C' ? ['gitee:org/app#IA', 'gitee:org/app#IB'] : [] })} -->`;
   const remote = [{ number: 'IPARENT', title: 'Spec', state: 'open', body: body('SPEC', null) }, ...['A', 'B', 'C'].map((key) => ({ number: 'I' + key, title: key, body: body(key), state: 'open' }))];
@@ -59,7 +62,11 @@ async function main() {
     const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { childTaskId: task.id }, include: { node: true } });
     const key = job.node.key; const directory = context.workingDirectory!;
     starts.push({ key, directory });
-    if (key === 'C') assert.ok(existsSync(path.join(directory, 'A.txt')) && existsSync(path.join(directory, 'B.txt')), 'Join must inherit both integrated branches');
+    if (key === 'C') {
+      assert.ok(existsSync(path.join(directory, 'A.txt')), 'Same repository delivery is inherited');
+      const manifests = JSON.parse(context.taskEnvironment?.TASK_GRAPH_UPSTREAM_INPUTS_JSON || '[]');
+      assert.ok(manifests.some((manifest: { inputs: { sourcePath: string }[] }) => manifest.inputs.some(input => existsSync(path.join(input.sourcePath, 'B.txt')))), 'Cross-repository join consumes the fixed input');
+    }
     writeFileSync(path.join(directory, key + '.txt'), key + (key === 'B' && starts.filter(item => item.key === 'B').length > 1 ? '-fixed' : ''));
     await new Promise((resolve) => setTimeout(resolve, 60));
     return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION ' + JSON.stringify({ status: 'delivered', note: 'Implemented ' + key, evidence: [key + '.txt'] }), executionTime: 1 };
@@ -80,7 +87,7 @@ async function main() {
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
   const slices = Object.fromEntries(['A', 'B', 'C'].map((key) => [key, {
     executionMode: 'lean' as const, acceptance: { mode: 'agent' as const, reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: { ...participant, harnessType: 'kimi-code', role: 'tester' } }, checks: ['smoke'] },
-    executions: [{ key: 'app', instructions: 'fixture', repository, gitRef: 'refs/heads/main', baseCommit: baseline, agentSelector: 'local:codex', launchConfig: { participant, checks: [{ name: 'smoke', argv: ['test', '-f', key + '.txt'] }] } }],
+    executions: [{ key: 'app', instructions: 'fixture', repository: key === 'B' ? secondRepository : repository, gitRef: 'refs/heads/main', baseCommit: baseline, agentSelector: 'local:codex', launchConfig: { participant, checks: [{ name: 'smoke', argv: ['test', '-f', key + '.txt'] }] } }],
   }]));
   const definition = await buildIssueGraph('test://spec', { parent: parentRef, slices }, request);
   const parent = await prisma.task.create({ data: { name: 'Issue execution fixture' } });

@@ -1,3 +1,5 @@
+import { materializeUpstream } from './upstream-source';
+import { withRepositoryLock } from './repository-lock';
 import { graphValidationArchiveForTask } from './validation-archive-access';
 import { syncGraphConversationMaterials } from './conversation-materials';
 import { existsSync } from 'node:fs';
@@ -22,7 +24,9 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
     payload: { path: ['executionId'], equals: execution.id } }, orderBy: { createdAt: 'desc' } });
   const archived = record(receipt?.payload) && typeof receipt.payload.resultsDirectory === 'string' ? receipt.payload.resultsDirectory : null;
   const validationArchive = await graphValidationArchiveForTask(source.id);
-  const directory = [execution.worktreePath, archived, validationArchive, execution.repository].find((value): value is string => !!value && existsSync(value));
+  const fixedSource = !execution.worktreePath || !existsSync(execution.worktreePath)
+    ? execution.commit ? await withRepositoryLock(execution.repository, () => materializeUpstream(execution.repository, execution.commit!)) : null : null;
+  const directory = [execution.worktreePath, fixedSource, archived, validationArchive, ...(!execution.commit ? [execution.repository] : [])].find((value): value is string => !!value && existsSync(value));
   if (!directory) throw new Error('任务工作区和证据目录不可用；不能隐式重新实施，请检查保存结果。');
   const snapshot = execution.node.run.snapshot;
   const planned = record(snapshot) && Array.isArray(snapshot.nodes)

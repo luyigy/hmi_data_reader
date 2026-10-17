@@ -33,6 +33,7 @@ export interface HarnessExecutionContext {
   ephemeralSession?: boolean;
   codexHome?: string;
   runtimeHome?: string;
+  taskEnvironment?: Record<string, string>;
   model?: string;
   reasoningEffort?: string;
   sessionKey?: string;

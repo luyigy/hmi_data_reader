@@ -53,6 +53,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       onSpawn: context.onSpawn,
       model: context.model,
       runtimeHome: context.runtimeHome,
+      taskEnvironment: context.taskEnvironment,
     });
     if (result.sessionId) {
       await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
@@ -83,6 +84,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       onSpawn: context.onSpawn,
       model: context.model,
       runtimeHome: context.runtimeHome,
+      taskEnvironment: context.taskEnvironment,
       prompt: continuationMessage,
       sessionId,
     });

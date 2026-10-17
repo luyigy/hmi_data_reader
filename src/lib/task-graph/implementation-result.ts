@@ -31,7 +31,7 @@ export function parseImplementationResult(output: string): ImplementationResult 
 
 export async function pauseGraphImplementation(args: {
   runId: string; nodeKey: string; executionId: string; claimToken: string;
-  checkpointCommit: string; workspaceBase: string; taskRunId: string;
+  checkpointCommit: string; workspaceBase: string; taskRunId: string; blockedPhase?: 'implementation' | 'input_preparation';
   result: Extract<ImplementationResult, { status: 'blocked' }> | { status: 'invalid'; note: string; blockerKind: 'invalid_result' };
 }) {
   return prisma.$transaction(async tx => {
@@ -42,7 +42,7 @@ export async function pauseGraphImplementation(args: {
     if (job.status !== 'claimed' || job.claimToken !== args.claimToken) throw new Error('Implementation claim mismatch');
     await tx.taskGraphEvent.create({ data: { runId: args.runId, nodeId: job.nodeId,
       idempotencyKey: `execution:${job.id}:implementation:${args.claimToken}`, kind: 'implementation_blocked',
-      payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', executionId: job.id,
+      payload: { recoveryKind: 'implementation', blockedPhase: args.blockedPhase || 'implementation', executionId: job.id,
         checkpointCommit: args.checkpointCommit, workspaceBase: args.workspaceBase, taskRunId: args.taskRunId,
         claimToken: args.claimToken, result: args.result } } });
     await tx.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'attention', issueKind: args.result.blockerKind } });

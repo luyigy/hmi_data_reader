@@ -1,3 +1,4 @@
+import { isRecord } from './task-graph/implementation-result';
 import { requestGraphConversationRecovery } from './task-graph/conversation-recovery';
 import { prisma } from './prisma';
 import { getBoundLiveRoom, type FeishuConversationContext } from './feishu-live-room';
@@ -80,9 +81,14 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
   };
   const issueSyncPending = await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'issue_sync_requested',
     node: { events: { none: { kind: 'issue_sync_completed' } } } } });
+  const gates = await prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: 'repository_gate_waiting' }, orderBy: { createdAt: 'desc' } });
+  const waiting = (nodeId: string) => gates.find(event => {
+    const payload = event.payload;
+    return event.nodeId === nodeId && isRecord(payload) && run.nodes.some(node => node.key === payload.blockedBy && ['claimed', 'verifying', 'awaiting_human', 'attention'].includes(node.status));
+  });
   return [`任务路线 V${run.version} · ${run.status} · ${run.id}`,
     ...(issueSyncPending ? [`Issue 回写待完成：${issueSyncPending} 项。任务结果已保存在账本，无需重跑实施。`] : []),
     ...(proposal && proposal.version > run.version && ['pending', 'processing'].includes(proposal.status) ? [`待确认提议 V${proposal.version} · ${proposal.status}`] : []),
-    ...run.nodes.map((node) => `${node.key}：${labels[node.status] || node.status}${node.dependsOn.length ? `（前置 ${node.dependsOn.join('、')}）` : ''}`),
+    ...run.nodes.map((node) => `${node.key}：${node.status === 'ready' && waiting(node.id) ? '等待同仓任务完成门禁' : labels[node.status] || node.status}${node.dependsOn.length ? `（前置 ${node.dependsOn.join('、')}）` : ''}`),
   ].join('\n');
 }

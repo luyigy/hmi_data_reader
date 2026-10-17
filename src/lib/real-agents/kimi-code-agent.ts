@@ -25,6 +25,7 @@ export interface KimiCodeConfig {
   sandboxMode?: string;
   permissionProfile?: string;
   runtimeHome?: string;
+  taskEnvironment?: Record<string, string>;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   model?: string;
@@ -312,6 +313,7 @@ const runKimiCodeCommand = async ({
   sandboxMode,
   permissionProfile,
   runtimeHome,
+  taskEnvironment,
   streamCallbacks,
   onSpawn,
   model,
@@ -327,6 +329,7 @@ const runKimiCodeCommand = async ({
   sandboxMode?: string;
   permissionProfile?: string;
   runtimeHome?: string;
+  taskEnvironment?: Record<string, string>;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   model?: string;
@@ -336,7 +339,7 @@ const runKimiCodeCommand = async ({
     throw new Error('Kimi Code requires Bubblewrap unless full access is explicitly selected.');
   }
 
-  const env = buildKimiCodeChildEnv();
+  const env = { ...buildKimiCodeChildEnv(), ...taskEnvironment };
   if (runtimeHome) { env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = '/tmp/cache'; env.NPM_CONFIG_CACHE = '/tmp/npm'; env.PYTHONPYCACHEPREFIX = '/tmp/python'; env.HOME = runtimeHome; env.KIMI_CODE_HOME = path.join(runtimeHome, '.kimi-code'); }
   const activeHome = runtimeHome ? path.join(runtimeHome, '.kimi-code') : getKimiCodeHome();
   env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(KIMI_CODE_MAX_SUBAGENTS);
@@ -490,6 +493,7 @@ export const executeKimiCodeTask = async (
       permissionProfile: config.permissionProfile,
       sandboxMode: config.sandboxMode,
       runtimeHome: config.runtimeHome,
+      taskEnvironment: config.taskEnvironment,
       streamCallbacks: config.streamCallbacks,
       onSpawn: config.onSpawn,
       model: config.model,

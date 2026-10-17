@@ -1,3 +1,4 @@
+import { graphInputsForTask } from '../task-graph/upstream-inputs';
 import { graphValidationArchiveForTask } from '../task-graph/validation-archive-access';
 import { graphMaterialPathsForTask } from '../task-graph/conversation-materials';
 import { graphDependencyPaths } from '../task-graph/dependency-paths';
@@ -148,10 +149,13 @@ export const executeViaLocalHarness = async (
   const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
+  const inputs = graphRuntime ? await graphInputsForTask(request.taskId) : null;
+  if (inputs) task.description += inputs.instructions;
   const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
     ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
     ...(request.extraReadOnlyPaths || []),
+    ...(inputs?.paths || []),
     ...(validationArchive ? [validationArchive] : []),
     ...(graphRuntime?.readonly || []), ...graphGit,
     ...(graphRuntime ? await graphMaterialPathsForTask(request.taskId) : []),
@@ -232,6 +236,7 @@ export const executeViaLocalHarness = async (
           ephemeralSession: participant.ephemeralSession,
           codexHome,
           runtimeHome: graphRuntime?.home,
+          taskEnvironment: inputs?.env,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
@@ -266,6 +271,7 @@ export const executeViaLocalHarness = async (
           ephemeralSession: participant.ephemeralSession,
           codexHome,
           runtimeHome: graphRuntime?.home,
+          taskEnvironment: inputs?.env,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({

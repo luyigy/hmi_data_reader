@@ -51,7 +51,7 @@ export function wrapWithBubblewrap(args: {
   const workspaceRoot = realpathSync(args.workspaceRoot);
   const cwd = realpathSync(args.cwd);
   if (!isWithin(workspaceRoot, cwd)) throw new Error('Bubblewrap cwd is outside the authorized workspace');
-  const project = args.env.AP_TASK_SANDBOX === '1' ? sandboxProjectEnvironment(workspaceRoot, args.readOnlyPaths) : undefined;
+  const project = args.env.AP_TASK_SANDBOX === '1' ? sandboxProjectEnvironment(workspaceRoot, args.readOnlyPaths, args.env.AP_PROJECT_REPOSITORY) : undefined;
   const launchEnv = { ...args.env, ...project?.env };
   const executable = executablePath(args.command, launchEnv);
   // Python determines its venv from the invoked symlink, not its resolved base binary.

@@ -1,3 +1,4 @@
+import { cleanupUpstreamSources } from './upstream-cache-cleanup';
 import { archiveValidationResults } from './validation-results';
 import { clearGraphHarnessRuntime } from './harness-runtime';
 import { createHash } from 'node:crypto';
@@ -58,7 +59,7 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
         const directory = path.join(path.dirname(node.executions[0].repository), '.agent-platform-task-graph-results', hash(runId), 'validation', hash(node.id), ...(attempt ? [hash(attempt)] : []));
         const archive = await archiveValidationResults(node.id, directory, async () => !await hasActiveRuns());
         await prisma.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key,
-          kind: 'validation_workspace_cleaned', payload: archive } });
+          kind: 'validation_workspace_cleaned', payload: { ...archive, deliveryCommits: node.executions.map(job => ({ executionId: job.id, commit: job.commit })) } } });
         clearGraphHarnessRuntime(`task-graph-review-${node.id}`);
         clearGraphHarnessRuntime(`task-graph-architecture-${node.id}`);
         await prisma.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id,
@@ -91,4 +92,5 @@ export async function cleanupFinishedWorkspaces() {
     ORDER BY n."updatedAt" ASC LIMIT 20`;
 
   for (const node of nodes) await cleanupCompletedNodeWorkspaces(node.runId, node.key);
+  await cleanupUpstreamSources();
 }

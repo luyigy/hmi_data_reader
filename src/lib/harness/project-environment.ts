@@ -24,7 +24,8 @@ export function projectEnvironment(workspace: string): ProjectEnvironment | unde
 }
 
 /** Review runtimes use their pinned source checkouts; never choose between distinct environments. */
-export function sandboxProjectEnvironment(workspace: string, readOnlyPaths: string[] = []) {
+export function sandboxProjectEnvironment(workspace: string, readOnlyPaths: string[] = [], primaryRepository?: string) {
+  if (primaryRepository) return projectEnvironment(primaryRepository);
   const own = projectEnvironment(workspace);
   if (own) return own;
   const environments = readOnlyPaths.map(entry => projectEnvironment(entry)).filter((entry): entry is ProjectEnvironment => !!entry);

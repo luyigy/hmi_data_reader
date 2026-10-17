@@ -1,4 +1,5 @@
-import { graphRecoveryKind, latestImplementationRecovery, implementationCheckpoint, parseImplementationResult, pauseGraphImplementation, scheduleImplementationRecovery } from './implementation-result';
+import { prepareUpstreamInputs, TaskInputPreparationError } from './upstream-inputs';
+import { isRecord, graphRecoveryKind, latestImplementationRecovery, implementationCheckpoint, parseImplementationResult, pauseGraphImplementation, scheduleImplementationRecovery } from './implementation-result';
 import { prepareAcceptanceRuntime } from './acceptance-runtime';
 import { prepareGraphSpecInput } from './spec-input';
 import { scheduleGraphRepair, latestGraphRepair, type ReviewDecision } from './repair';
@@ -126,14 +127,16 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
   try {
     workspaces = await resolveReviewWorkspaces(node.executions);
     commits = Array.from(new Map(workspaces.map(({ repository, commit }) => [repository, { repository, commit }])).values());
-    const env = { TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
+    const upstream = await Promise.all(node.executions.map(job => prepareUpstreamInputs(job.id)));
+    const upstreamPaths = Array.from(new Set(upstream.flatMap(input => input.readOnlyPaths)));
+    const env = { TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(upstream.map(input => input.manifest)), TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
       workspaces.map((workspace) => [workspace.repository, workspace.path]),
     )) };
     for (const check of policy.integrationChecks || []) {
       const workspace = workspaces.slice().reverse().find((item) => item.repository === check.repository);
       if (!workspace) throw new Error(`Missing pinned repository for ${check.name}`);
       try {
-        results.push(...await runChecks([check], workspace.path, env, workspaces.map((workspace) => workspace.path)));
+        results.push(...await runChecks([check], workspace.path, { ...env, AP_PROJECT_REPOSITORY: check.repository }, [...workspaces.map((workspace) => workspace.path), ...upstreamPaths]));
       } catch (error) {
         const failed = error as Error & { results?: CheckResult[] };
         results.push(...failed.results || [{ name: check.name, passed: false, evidence: failed.message }]);
@@ -369,6 +372,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       parentTaskId: graphRun.parentTaskId, executionId: execution.id, childTaskId: task.id,
       title: task.name, workingDirectory: workspace.path,
     });
+    const inputs = await prepareUpstreamInputs(execution.id);
     void postGraphParentProgress(graphRun.parentTaskId, runId,
       `${nodeKey}/${execution.key} 已启动，独立工作区 ${workspace.path}`)
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
@@ -377,8 +381,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       content: `执行 ${nodeKey}/${execution.key}。基线 ${integration.commit}。请在此 worktree 编辑代码并报告结果；平台负责受控提交，不要自行运行 git add/commit/merge。`,
     });
     const result = await executeAcpxTaskRun({
-      taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions,
-      extraReadOnlyPaths: specInput.paths,
+      taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions,
+      extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths],
       orchestrationMode: 'single', participants: [config.participant], workingDirectory: workspace.path,
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
@@ -409,7 +413,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         repoPath: execution.repository, runId, jobId: execution.id,
         integrationRef: latest.ref, expectedIntegrationCommit: latest.commit,
         baseCommit: workspace.baseCommit,
-        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging); },
+        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, inputs.env, inputs.readOnlyPaths); },
       });
     });
     await completeExecution({
@@ -422,12 +426,20 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     await verifyNode(runId, nodeKey, checkpoint ? `continuation:${claimToken}` : repair ? `repair:${repair.id}` : undefined);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    const kind = /verification/i.test(detail) ? 'test_failed'
+    const kind = error instanceof TaskInputPreparationError ? 'input_preparation_failed' : /verification/i.test(detail) ? 'test_failed'
       : detail.includes('Merge') || detail.includes('merge') || detail.includes('conflict') ? 'integration_conflict'
       : 'dispatch_failed';
     const current = await prisma.taskGraphExecution.findUnique({ where: { id: execution.id } });
     if (current?.status === 'claimed') {
-      await recordExecutionIssue({ runId, nodeKey, executionKey: execution.key, claimToken, kind, detail });
+      if (error instanceof TaskInputPreparationError && current.worktreePath) {
+        const checkpointCommit = await withRepositoryLock(execution.repository, () => commitJobWorktree({
+          repoPath: execution.repository, runId, jobId: execution.id, message: `Input preparation checkpoint ${nodeKey}/${execution.key}`,
+        }));
+        await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken, checkpointCommit,
+          workspaceBase: isRecord(current.dispatchMetadata) && typeof current.dispatchMetadata.workspaceBase === 'string' ? current.dispatchMetadata.workspaceBase : execution.baseCommit,
+          taskRunId: current.taskRunId || 'not-created', blockedPhase: 'input_preparation',
+          result: { status: 'blocked', blockerKind: 'missing_upstream_input', note: detail } });
+      } else await recordExecutionIssue({ runId, nodeKey, executionKey: execution.key, claimToken, kind, detail });
       if (current.childTaskId) await postGraphChildProgress(current.childTaskId, `issue-${claimToken}`,
         `${nodeKey}/${execution.key} 暂停，尚未完成集成和验收。\n${detail}\n后继继续等待，无需重复启动。`)
         .catch((deliveryError) => console.error('[TaskGraph] child issue delivery failed:', deliveryError));

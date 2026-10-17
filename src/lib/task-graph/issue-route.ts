@@ -4,7 +4,7 @@ import { validateTaskGraphDefinition, type GraphDefinition, type GraphNode } fro
 
 export type IssueRouteSettings = {
   parent: string; repositories?: string[];
-  slices?: Record<string, Pick<GraphNode, 'acceptance' | 'executions' | 'executionMode' | 'architectureReview'>>;
+  slices?: Record<string, Pick<GraphNode, 'acceptance' | 'executions' | 'executionMode' | 'architectureReview' | 'consumeUpstream'>>;
   existingRun?: { runId: string; snapshotHash: string };
 };
 

@@ -21,6 +21,8 @@ W1/W2/W3 无前置，W4 被三者阻塞，W5 被 W4 阻塞。每张 Issue 的 `a
 
 ## 执行状态
 
+D1 已发布；D2 本轮完成固定输入、项目环境与同仓门禁，发布状态见执行记录；下一单元为 D3 临时联调。真实 S06 尚未重分类或恢复。
+
 - [接力评审后的通用交付实施建议](show-me-workflow-delivery-plan.html)：三个实施单元与六种通用情形的离线演示；以 D1–D3 为最新顺序，不启动业务任务。
 - [通用交付与恢复父 Spec](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS26)。新计划独立于 W1–W5，避免改变旧路线来源。
 - 新增 tickets：[D1](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS16) → [D2](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS1A) → [D3](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS1B)。
