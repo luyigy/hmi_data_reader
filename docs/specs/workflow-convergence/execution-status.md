@@ -209,3 +209,16 @@ W4 的提交也补上平台 Git 的 smudge、merge driver 和 textconv 限制。
 - 原 S05 新图仍为 `6ae209d5…`，无需用户重发。发布后从用户原先明确“用后发图片验收”的原消息接续一次，须先通过 Feishu GET 验证原发言者及话题，复用消息幂等键。请求登记、服务状态和后续运行以 `.runtime/continuation-deploy/reload-receipt.json` 为准。不能把登记请求写成验收通过。
 
 GitNexus 仍受 LadybugDB 只读 replay 故障影响；未重建索引，用调用链和真实边界回归核验。旧业务未提交代码不属于本次平台改动。W5 继续开放，实际新图、Reader 接力和 S06 必须看真实运行结果。
+
+
+## R02A 后续修复：平台复验无法导入任务依赖
+
+2026-10-17 R02A 实施 TaskRun `cmvcffpoh0184d9ozdv2eb9n4` 已完成；暂停发生在受控提交后的集成检查，尚未进入独立验收。原检查 `env PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q tests/test_r02_extractor_registry.py tests/test_contract.py` 在真实工作区稳定复现 `ModuleNotFoundError: No module named cv2`。实施者已将 OpenCV 与 multipart 装入本任务私有 HOME 的用户包目录；平台检查把 HOME 改为 /tmp，既未挂载包目录也未设置 Python 搜索路径，导致同一命令的环境不同。
+
+修复只把原实施任务的 Python site-packages 只读挂载给平台复验与独立验收，不挂载其认证目录，不改共享 Python 或源码。自动检查保留批准 argv，按服务端 childTaskId 定位依赖；验收 Prompt 给出同一依赖路径。原真实 R02A 检查在修复后已通过 44 项测试和 22 项子测试。真实 sandbox 回归覆盖同任务可导入、不同任务不可导入、依赖不可写和凭据不可见。
+
+跨仓 Spec 路径不可读也属实，新增按批准包 hash 校验并从冻结 commit 导出的只读附件副本，Prompt 明确副本位置，不能把当前工作副本当成批准版本。Reader 的项目 verify skill 实际不存在；缺少可选 skill 时按 ticket 明确入口验证并报告，不伪造 skill 已加载。失败报告保留批准命令、退出码和实际 stdout/stderr，移除冗长 Bubblewrap 启动参数。独立回归覆盖冻结副本不受原仓未批准修改影响及失败可读性。
+
+本次不重新实施 R02A、不跳过测试或验收、不改角色与依赖、不触碰 Reader 主检出的已有改动。恢复时先核对原 TaskRun 已结束、工作树干净、受控提交与基线，复用同一工作区重做集成检查，通过后交原验收者继续；实际恢复和服务加载以 `.runtime/r02a-diagnosis/recovery-receipt.json` 为准。44 项测试通过不代表 R02A 已获独立验收通过。
+
+本轮 TypeScript、变更文件 lint、完整任务图 PostgreSQL 套件、长文件守卫通过。GitNexus impact 仍返回 LadybugDB 只读 shadow-page replay 故障，风险为 UNKNOWN；未重建索引，已按实际 runChecks 两个调用点与沙箱边界回归核对。真实批准 Spec 副本已在 R02A 沙箱内验证可读。

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, realpathSync, symlinkSync, copyFileSync, chmodSync, rmSync, constants } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, readdirSync, symlinkSync, copyFileSync, chmodSync, rmSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -44,6 +44,15 @@ function graphRuntimeHome(taskId: string) {
   const root = process.env.TASK_GRAPH_RUNTIME_ROOT || path.join(homedir(), '.agent-platform', 'task-runtime');
   if (!path.isAbsolute(root)) throw new Error('Task runtime root must be absolute');
   return path.join(root, createHash('sha256').update(taskId).digest('hex').slice(0, 24));
+}
+
+/** Share only this task's installed Python packages, never its model credentials or HOME. */
+export function graphPythonPackagePaths(taskId: string) {
+  const root = path.join(graphRuntimeHome(taskId), '.local', 'lib');
+  if (!existsSync(root) || realpathSync(root) !== root) return [];
+  return readdirSync(root).filter(name => /^python\d+\.\d+$/.test(name))
+    .map(name => path.join(root, name, 'site-packages'))
+    .filter(entry => existsSync(entry) && realpathSync(entry) === entry);
 }
 
 /** Removes only the task's private state; rm does not traverse credential symlinks. */

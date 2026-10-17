@@ -5,9 +5,10 @@ import { wrapWithBubblewrap } from '../harness/bubblewrap';
 import { linkedWorktreeGitDirectories } from '../real-agents/git-worktree-paths';
 import { graphGit } from './git-command';
 import { runGraphCheck } from './check-runner';
+import { graphPythonPackagePaths } from './harness-runtime';
 
 /** Check code stays readonly; only ignored, task-local output directories can be written. */
-export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraEnv: Record<string, string> = {}, readOnlyWorkspaces: string[] = []) {
+export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraEnv: Record<string, string> = {}, readOnlyWorkspaces: string[] = [], taskId?: string) {
   if (!argv.length) throw new Error('Check command is empty');
   const root = realpathSync(cwd);
   const outputs: string[] = [];
@@ -28,13 +29,14 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
     mkdirSync(target, { recursive: true }); outputs.push(target);
   }
   const metadata = linkedWorktreeGitDirectories(root);
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp', TMPDIR: '/tmp', XDG_CACHE_HOME: '/tmp/cache' };
+  const packages = taskId ? graphPythonPackagePaths(taskId) : [];
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, PYTHONPATH: packages.join(path.delimiter), AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp', TMPDIR: '/tmp', XDG_CACHE_HOME: '/tmp/cache' };
   for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY']) {
     const value = process.env[name] || process.env[name.toLowerCase()] || process.env['FEISHU_RUNTIME_CODEX_' + name];
     if (value) { env[name] = value; env[name.toLowerCase()] = value; }
   }
   const wrapped = wrapWithBubblewrap({ command: argv[0], commandArgs: argv.slice(1), cwd: root, workspaceRoot: root,
     sandboxMode: 'read-only', networkAccess: 'enabled', env, outputPaths: outputs,
-    readOnlyPaths: [...protectedInputs, ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
-  return runGraphCheck([wrapped.command, ...wrapped.args], root, env);
+    readOnlyPaths: [...packages, ...protectedInputs, ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
+  return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv);
 }

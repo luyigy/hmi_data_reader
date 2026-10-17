@@ -9,7 +9,7 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',
     node.executionMode === 'implement'
       ? '本片为仅实施模式，不安排独立测试或审查；结果将明确标为未验收。'
-      : '按当前 ticket 验收要求验证；查阅项目 verify skill，用真实输入、API 读回或浏览器行为证明结果。未执行的检查标待办，不得声称通过。',
+      : '按当前 ticket 验收要求验证；项目存在 verify skill 时查阅它，没有时按 ticket 明确的入口执行并说明，不把缺少可选 skill 当成执行失败。用真实输入、API 读回或浏览器行为证明结果。未执行的检查标待办，不得声称通过。',
   ].join('\n');
 }
 
