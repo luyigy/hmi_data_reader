@@ -21,6 +21,7 @@ W1/W2/W3 无前置，W4 被三者阻塞，W5 被 W4 阻塞。每张 Issue 的 `a
 
 ## 执行状态
 
+- [跨仓交付交互演示](show-me-cross-repository-delivery.html)：按 show-me 技能制作的单文件 HTML，以 S06 演示正常接力与平台阻塞，手机可用，未接真实执行。
 - [跨仓交付与消费实施方案](cross-repository-inputs.md)：Antigravity 评审后的最终设计、S06 恢复路径与 C1–C3 划分，尚未实施。
 
 - [本轮集中变更记录](change-record-20261017.md)：当前约定、替代方案、提交、发布、实际业务状态和遗留问题。
