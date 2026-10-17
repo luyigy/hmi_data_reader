@@ -1,47 +1,42 @@
-# Issue tracker: GitHub
+# Issue tracker: Gitee
 
-Issues and specs for this repo live in `luyigy/agent-platform-v2` on GitHub. Use the `gh` CLI with `-R luyigy/agent-platform-v2` for issue and pull-request commands. For `gh api`, use explicit `repos/luyigy/agent-platform-v2/...` paths.
+本项目新工作的 Spec 与 Slice tickets 发布到 Gitee 仓库 `luyi1678/agent-platform-v2`。用户于 2026-10-17 指定改用 Gitee，以便在当前网络与登录环境打开和操作。Matt 的 `to-spec`、`to-tickets` 和相关工程 skills 使用此配置。
 
-This config tells Matt Pocock’s skills where to manage issues. New work uses Spec packages and approved task graphs; historical PLAN/HANDOVER documents are read-only references. The retired document watcher must not dispatch new work.
+GitHub `luyigy/agent-platform-v2` 已发布的工作流 Spec 与五张 tickets 保留作历史参考，本轮不再从它们调度。不得同时把两边当成实时任务来源；本次未关闭或修改 GitHub 旧单。
 
-## Conventions
+## 目标与认证
 
-- **Create an issue**: `gh issue create -R luyigy/agent-platform-v2 --title "..." --body "..."`. Use a body file for multi-line bodies.
-- **Read an issue**: `gh issue view <number> -R luyigy/agent-platform-v2 --comments`, filtering comments by `jq` and also fetching labels.
-- **List issues**: `gh issue list -R luyigy/agent-platform-v2 --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
-- **Comment on an issue**: `gh issue comment <number> -R luyigy/agent-platform-v2 --body "..."`
-- **Apply / remove labels**: `gh issue edit <number> -R luyigy/agent-platform-v2 --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> -R luyigy/agent-platform-v2 --comment "..."`
+- 每条 Issue 命令指定 `--hostname gitee.com -R luyi1678/agent-platform-v2 --no-tui`，不从多个 Git remote 猜测仓库。
+- 用 `gitee auth status --json` 检查 API 登录态。Git SSH/HTTPS 推拉认证不代表 Issues API 已登录；仅在现有 API 认证确实失效时要求重新登录。
+- 凭据由 CLI 保管，不写入仓库、命令正文、Issue 或证据日志。
+- Issue ID 是字符串，完整保留字母数字编号。跨仓引用使用 `gitee:<owner>/<repo>#<issue-id>`；兼容外部 GitHub 时使用相应 provider 的全限定引用。
+- 创建、评论、编辑、关闭是外部写入，须有用户任务授权。创建 tickets 不等于批准实施，`ready-for-agent` 不代替飞书执行审批。
 
-Pass `-R luyigy/agent-platform-v2` on every repository command. Do not rely on `gh` inferring from this clone’s multiple remotes.
+## Issue 操作
 
-## Pull requests as a triage surface
+- 列表：`gitee issue list --hostname gitee.com -R luyi1678/agent-platform-v2 --no-tui -s open --json=number,title,state,labels,assignee`。
+- 读取：`gitee issue view <issue-id> --hostname gitee.com -R luyi1678/agent-platform-v2 --no-tui --json=number,title,body,state,labels,assignee`。
+- 创建：`gitee issue create --hostname gitee.com -R luyi1678/agent-platform-v2 --no-tui -t "<title>" -b "<body>" --labels ready-for-agent --json`。多行正文通过结构化参数或脚本读取文件后传递，避免 shell 展开。
+- 评论：`gitee issue comment <issue-id> --hostname gitee.com -R luyi1678/agent-platform-v2 --no-tui -b "<comment>"`。
+- 编辑、修改标签、指派和关闭先读取 `gitee issue <command> --help`，只更新授权字段，保留无关标签及他人内容。
+- 原始 API 使用 `gitee api /repos/luyi1678/agent-platform-v2/... --hostname gitee.com --no-tui`，认证由 CLI 注入。
 
-**PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
+“发布到 issue tracker”表示发布到上述 Gitee 仓库；“读取 ticket”表示按 Gitee 字符串编号读取。PR 不作为本项目的请求入口。
 
-When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
+## Spec、子任务与阻塞关系
 
-- **Read a PR**: `gh pr view <number> -R luyigy/agent-platform-v2 --comments` and `gh pr diff <number> -R luyigy/agent-platform-v2` for the diff.
-- **List external PRs for triage**: `gh pr list -R luyigy/agent-platform-v2 --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
-- **Comment / label / close**: pass `-R luyigy/agent-platform-v2` to `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, and `gh pr close`.
+- `to-spec` 创建包含完整规格的父 Issue；`to-tickets` 按前置顺序创建独立子 Issue。每张子 Issue 的 Parent 指向父 Issue，Blocked by 提供可点击的完整 blocker 链接。
+- 本轮使用正文受控注释块记录关系，不声称 Gitee 原生提供 GitHub 同款 blocked-by 或 sub-issue API。
+- 注释格式为 `<!-- ap-ticket-v1 {JSON} -->`。JSON 包含 `version: 1`、稳定的 `project`、`sliceKey`、全限定 `parent` 和全限定引用数组 `blockedBy`。父 Spec 的 parent 为 null。
+- 每张单据另有稳定发布标记。写入前检查标记与同名条目；超时先对账，再恢复，不能盲目重复创建。
+- 引用和依赖须读取真实 Issues 后解析、校验；缺失、歧义、版本错误或循环阻塞应报错，不能从自然语言推测。读取后生成的关系图和本地索引是投影，不是第二编写源。
+- 规划 frontier 为未领取且没有未完成前置的子任务。实际执行仍以飞书批准的快照及账本完成条件放行，远端 Issue 关闭不能替代验收和集成。
+- 完成后按批准模式写入交付证据，再幂等回写 tracker。仅实施模式必须明确“未验收”，不得把关闭单据解释为已通过全部检查。
 
-GitHub shares one number space across issues and PRs, so a bare `#42` may be either: resolve with `gh pr view 42 -R luyigy/agent-platform-v2` and fall back to `gh issue view 42 -R luyigy/agent-platform-v2`.
+## Wayfinder
 
-## When a skill says "publish to the issue tracker"
+Wayfinder 决策地图与实施 tickets 分开：地图 Issue 列出目标、已决事项及待澄清问题；决策子 Issue 标明 research/prototype/grilling/task 类型和父地图。跨决策阻塞复用上述受控字段。若类型标签尚不存在，先核实命令与授权后创建，不依赖自然语言标签推断执行状态。
 
-Create a GitHub issue.
+## 本轮实际包
 
-## When a skill says "fetch the relevant ticket"
-
-Run `gh issue view <number> -R luyigy/agent-platform-v2 --comments`.
-
-## Wayfinding operations
-
-Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
-
-- **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `gh issue create -R luyigy/agent-platform-v2 --label wayfinder:map`.
-- **Child ticket**: an issue linked to the map as a GitHub sub-issue (`gh api` on the sub-issues endpoint). Where sub-issues aren't enabled, add the child to a task list in the map body and put `Part of #<map>` at the top of the child body. Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
-- **Blocking**: GitHub's **native issue dependencies**, the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/luyigy/agent-platform-v2/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/luyigy/agent-platform-v2/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only, the live gate). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. A ticket is unblocked when every blocker is closed.
-- **Frontier query**: list the map's open children (`gh issue list -R luyigy/agent-platform-v2 --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
-- **Claim**: `gh issue edit <n> -R luyigy/agent-platform-v2 --add-assignee @me`, the session's first write.
-- **Resolve**: `gh issue comment <n> -R luyigy/agent-platform-v2 --body "<answer>"`, then `gh issue close <n> -R luyigy/agent-platform-v2`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+工作流收敛包位于 `docs/specs/workflow-convergence/`。索引列出真实 Gitee Spec 与五张 Slice 的链接；GitHub 的上一版发布可在历史记录中追溯。当前运行时的从 Issues 提审与自动派发能力仍由该包的 W3/W4 实现，不因配置切换就宣称已具备。
