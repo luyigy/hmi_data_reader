@@ -13,11 +13,17 @@ async function main() {
     const one = await prepareAcceptanceRuntime('node', 'one', []);
     const two = await prepareAcceptanceRuntime('node', 'two', []);
     await fs.writeFile(path.join(one.directory, 'report.json'), '{"saved":true}');
+    await fs.symlink('report.json', path.join(one.directory, 'report-link'));
+    await fs.symlink(path.basename(one.directory), path.join(path.dirname(one.directory), 'current'));
     await fs.mkdir(path.join(two.directory, '.cache')); await fs.writeFile(path.join(two.directory, '.cache', 'discard'), 'cache');
     await fs.writeFile(path.join(two.directory, 'test.log'), 'passed');
     const archive = path.join(root, 'archive');
     const saved = await archiveValidationResults('node', archive);
     assert.equal(saved.files, 2);
+    assert.equal(saved.symlinks, 2);
+    const manifest = JSON.parse(await fs.readFile(path.join(archive, 'manifest.json'), 'utf8'));
+    assert.equal(manifest.links.length, 2, 'Internal aliases are recorded without following or recreating links');
+    assert.equal(await fs.lstat(path.join(archive, 'files', path.basename(one.directory), 'report-link')).then(() => true, () => false), false);
     assert.equal(await fs.readFile(path.join(archive, 'files', path.basename(one.directory), 'report.json'), 'utf8'), '{"saved":true}');
     assert.equal(await fs.access(path.dirname(one.directory)).then(() => true, () => false), false);
     assert.deepEqual(await archiveValidationResults('node', archive), saved, 'Retry after deletion verifies archive and returns same receipt');
