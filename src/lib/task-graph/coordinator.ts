@@ -1,6 +1,4 @@
-import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { promisify } from 'node:util';
 import type { TaskGraphExecution } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
 import { executeAcpxTaskRun } from '../acpx/runner';
@@ -19,10 +17,10 @@ import {
   submitNodeVerification, type VerificationEvidence,
 } from './store';
 import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree } from './worktree';
+import { runGraphCheck } from './check-runner';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
 
-const runCommand = promisify(execFile);
 const activeJobs = new Set<string>();
 const activeReviews = new Set<string>();
 const activeVerifications = new Set<string>();
@@ -43,9 +41,7 @@ async function runChecks(checks: Check[], directory: string, extraEnv: Record<st
   const results: CheckResult[] = [];
   for (const check of checks) {
     try {
-      const { stdout, stderr } = await runCommand(check.argv[0], check.argv.slice(1), {
-        cwd: directory, timeout: 180_000, maxBuffer: 256 * 1024, env: { ...process.env, ...extraEnv },
-      });
+      const { stdout, stderr } = await runGraphCheck(check.argv, directory, extraEnv);
       results.push({ name: check.name, passed: true, evidence: `${check.argv.join(' ')}\n${stdout}${stderr}`.slice(-4000) });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
