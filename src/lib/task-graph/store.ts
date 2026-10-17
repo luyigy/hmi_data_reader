@@ -19,6 +19,7 @@ export async function createTaskGraphRun(
   required(args.requestKey, 'requestKey');
   if (!Number.isInteger(args.version) || args.version < 1) throw new Error('version must be a positive integer');
   const definition = validateTaskGraphDefinition(args.definition);
+  if (definition.adoptRun) throw new Error('Existing run association must not create a second task graph');
   const snapshotHash = taskGraphSnapshotHash(definition);
   const create = () => db.$transaction(async (tx) => {
     const existing = await tx.taskGraphRun.findUnique({ where: { requestKey: args.requestKey } });

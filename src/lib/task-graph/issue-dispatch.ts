@@ -5,12 +5,13 @@ import { readIssueRoute } from './issue-source';
 import { trackerRequest, type TrackerRequest } from './issue-tracker';
 import { postGraphParentProgress } from './feishu';
 import { refreshTaskGraphRunStatus } from './store';
+import { resolveRunIssueSource } from './issue-adoption';
 
 const unavailableUntil = new Map<string, number>();
 
 /** Approval drift blocks only affected future work; an API outage holds dispatch without rerunning agents. */
 export async function inspectIssueDispatch(runId: string, definition: GraphDefinition, request: TrackerRequest = trackerRequest) {
-  const source = definition.issueSource;
+  const source = definition.issueSource || await resolveRunIssueSource(runId);
   if (!source) return new Set<string>(); // Historical frozen runs retain their original policy.
   if ((unavailableUntil.get(runId) || 0) > Date.now()) return new Set(definition.nodes.map((node) => node.key));
   let blocked = new Set<string>();

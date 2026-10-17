@@ -3,14 +3,16 @@ import { prisma } from '../prisma';
 import { redactSensitiveText } from '../redact-sensitive';
 import type { GraphDefinition } from './domain';
 import { assertIssueSource } from './issue-source';
+import { resolveRunIssueSource } from './issue-adoption';
 import { issueEndpoint, parseIssueRef, readTrackerIssue, trackerPages, trackerRequest, type TrackerRequest } from './issue-tracker';
 
 /** The ledger is the durable outbox. A completed node never needs another agent run to sync its Issue. */
 export async function enqueueIssueSync() {
-  const nodes = await prisma.taskGraphNode.findMany({ where: { status: { in: ['passed', 'delivered_unverified'] }, run: { snapshot: { path: ['issueSource'], not: Prisma.AnyNull } }, events: { none: { kind: 'issue_sync_requested' } } }, include: { run: true, executions: true }, take: 100 });
+  const nodes = await prisma.taskGraphNode.findMany({ where: { status: { in: ['passed', 'delivered_unverified'] }, OR: [{ run: { snapshot: { path: ['issueSource'], not: Prisma.AnyNull } } }, { run: { events: { some: { kind: 'issue_source_adopted' } } } }], events: { none: { kind: 'issue_sync_requested' } } }, include: { run: true, executions: true }, take: 100 });
   for (const node of nodes) {
     const graph = node.run.snapshot as unknown as GraphDefinition;
-    const ticket = graph.issueSource?.tickets.find((ticket) => ticket.key === node.key);
+    const source = graph.issueSource || await resolveRunIssueSource(node.runId);
+    const ticket = source?.tickets.find((ticket) => ticket.key === node.key);
     if (!ticket) continue;
     if (node.executions.some((execution) => execution.status !== 'integrated' || !execution.commit)) throw new Error(`Completed node lacks integrated commits: ${node.id}`);
     const idempotencyKey = `issues:sync:${node.key}:requested`;
@@ -32,7 +34,7 @@ export async function syncIssueDelivery(eventId: string, request: TrackerRequest
     create: { runId: event.runId, nodeId: event.nodeId, idempotencyKey: key + suffix, kind, payload }, update: {} });
   if (await find(':completed')) return 'completed';
   const graph = event.run.snapshot as unknown as GraphDefinition;
-  await assertIssueSource(graph.issueSource, request);
+  await assertIssueSource(graph.issueSource || await resolveRunIssueSource(event.runId), request);
   const payload = event.payload as { ref: string; status: string; commits: { repository: string; commit: string }[]; evidence: unknown };
   const ref = parseIssueRef(payload.ref);
   const endpoint = issueEndpoint(ref);

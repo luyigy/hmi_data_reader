@@ -37,7 +37,8 @@ export async function loadSpecPackage(repository: string, commit: string, manife
     || manifest.artifacts.length > 6) throw new Error('Spec 包必须指定 MD Spec、Issue 路线和不超过 6 个附件');
   let issueRoute: IssueRouteSettings | undefined;
   if (manifest.issueRoute) {
-    if (!record(manifest.issueRoute) || typeof manifest.issueRoute.parent !== 'string' || !record(manifest.issueRoute.slices)) throw new Error('Spec 包 Issue 执行配置无效');
+    if (!record(manifest.issueRoute) || typeof manifest.issueRoute.parent !== 'string' || (!record(manifest.issueRoute.slices) && !record(manifest.issueRoute.existingRun)) ||
+      (record(manifest.issueRoute.slices) && record(manifest.issueRoute.existingRun))) throw new Error('Spec 包 Issue 执行配置无效');
     issueRoute = manifest.issueRoute as IssueRouteSettings;
   }
   const artifactPaths = Array.from(new Set([specPath, ...manifest.artifacts.map((value) => packageFile(directory, value))]));

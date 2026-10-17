@@ -82,7 +82,7 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
     node: { events: { none: { kind: 'issue_sync_completed' } } } } });
   return [`任务路线 V${run.version} · ${run.status} · ${run.id}`,
     ...(issueSyncPending ? [`Issue 回写待完成：${issueSyncPending} 项。任务结果已保存在账本，无需重跑实施。`] : []),
-    ...(proposal && proposal.version > run.version ? [`待确认提议 V${proposal.version} · ${proposal.status}`] : []),
+    ...(proposal && proposal.version > run.version && ['pending', 'processing'].includes(proposal.status) ? [`待确认提议 V${proposal.version} · ${proposal.status}`] : []),
     ...run.nodes.map((node) => `${node.key}：${labels[node.status] || node.status}${node.dependsOn.length ? `（前置 ${node.dependsOn.join('、')}）` : ''}`),
   ].join('\n');
 }

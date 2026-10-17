@@ -14,6 +14,7 @@ export function graphRolesReady(graph: GraphDefinition) {
 const text = (content: string) => ({ tag: 'markdown', content });
 const inline = (value: string) => value.replace(/`/g, "'").replace(/\s+/g, ' ').trim();
 const shortRepository = (repository: string) => repository.replace(/\\/g, '/').split('/').filter(Boolean).pop() || repository;
+const shortSelector = (selector: string) => selector.startsWith('platform_local:') ? selector.split(':').pop() || selector : selector;
 
 function shortGoal(goal: string) {
   const characters = Array.from(inline(goal));
@@ -43,7 +44,7 @@ function implementationSummary(node: GraphNode) {
   const multipleJobs = node.executions.length > 1;
   return node.executions.map((job) => {
     const jobLabel = multipleJobs ? `${job.key}${multipleRepositories ? `@${shortRepository(job.repository)}` : ''}:` : '';
-    return `${jobLabel}${job.agentSelector}`;
+    return `${jobLabel}${shortSelector(job.agentSelector)}`;
   }).join('、');
 }
 
@@ -51,13 +52,13 @@ function acceptanceSummary(node: GraphNode) {
   if (node.executionMode === 'implement') return '未验收';
   if (node.acceptance.mode === 'automatic') return '自动';
   if (node.acceptance.mode === 'human') return '人工';
-  return node.acceptance.reviewerId || '未配置';
+  return node.acceptance.reviewerId ? shortSelector(node.acceptance.reviewerId) : '未配置';
 }
 
 function roleSummary(definition: GraphDefinition, node: GraphNode) {
   const mode = node.executionMode || 'full';
   const roles = [`实施:${implementationSummary(node)}`];
-  if (mode === 'full') roles.push(`审查:${effectiveArchitectureReview(definition, node)?.reviewerId || '未配置'}`);
+  if (mode === 'full') roles.push(`审查:${shortSelector(effectiveArchitectureReview(definition, node)?.reviewerId || '未配置')}`);
   roles.push(`验收:${acceptanceSummary(node)}`);
   return `${shortModeLabels[mode]} · ${roles.join(' / ')}`;
 }
@@ -115,6 +116,16 @@ export function formatGraphProposal(definition: GraphDefinition) {
 
 export function buildGraphProposalCard(id: string, definition: GraphDefinition, version: number, hash: string,
   agents: RoleOption[] = [], requestedPage = -1) {
+  if (definition.adoptRun) return {
+    schema: '2.0', config: { update_multi: true },
+    header: { template: 'blue', title: { tag: 'plain_text', content: '现有路线关联 Issues' } },
+    body: { elements: [text(formatGraphProposal(definition)),
+      text('只关联任务来源。已完成结果不重跑；待补材料、原话题、分工、模式与提交保持。确认不会启动或放行任务。'),
+      ...(['approve', 'reject'] as const).map((decision) => ({ tag: 'button', type: decision === 'approve' ? 'primary_filled' : 'default',
+        text: { tag: 'plain_text', content: decision === 'approve' ? '确认关联，保留进度' : '退回' },
+        behaviors: [{ type: 'callback', value: { cmd: 'task-graph-launch', proposalId: id, decision, hash } }] })),
+    ] },
+  };
   const ready = graphRolesReady(definition);
   const editing = agents.length > 0 && Number.isInteger(requestedPage) && requestedPage >= 0;
   const pageSize = agents.length > 8 ? 1 : 2;

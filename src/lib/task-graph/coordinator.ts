@@ -25,6 +25,8 @@ import { postGraphChildProgress } from './feishu';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 import { inspectIssueDispatch } from './issue-dispatch';
 import { drainIssueSync } from './issue-sync';
+import { resolveRunIssueSource } from './issue-adoption';
+import { processPendingIssueAdoptions } from './issue-adoption-worker';
 
 const activeJobs = new Set<string>();
 const activeReviews = new Set<string>();
@@ -62,7 +64,8 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
     where: { id: runId }, include: { parentTask: { select: { ownerUserId: true } } },
   });
   const config = launchConfig(execution);
-  const definition = run.snapshot as unknown as GraphDefinition;
+  const source = await resolveRunIssueSource(runId);
+  const definition = { ...run.snapshot as unknown as GraphDefinition, ...(source ? { issueSource: source } : {}) };
   const plannedNode = definition.nodes.find((item) => item.key === nodeKey);
   const plannedExecution = plannedNode?.executions.find((item) => item.key === execution.key);
   if (!plannedNode || !plannedExecution) throw new Error('Execution instructions are missing from frozen graph');
@@ -89,7 +92,8 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
   const node = await markNodeIntegrationsReady(runId, nodeKey);
   if (!node || node.status !== 'verifying') return;
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true, parentTaskId: true } });
-  const definition = run.snapshot as unknown as GraphDefinition;
+  const source = await resolveRunIssueSource(runId);
+  const definition = { ...run.snapshot as unknown as GraphDefinition, ...(source ? { issueSource: source } : {}) };
   const policy = definition.nodes.find((item) => item.key === nodeKey)?.acceptance;
   if (!policy) throw new Error(`Unknown acceptance policy for ${nodeKey}`);
   if (definition.nodes.find((item) => item.key === nodeKey)?.executionMode === 'implement') {
@@ -198,6 +202,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     const prompt = `${acceptanceReviewInstructions}\n请只读复核 ${nodeKey} 的目标与证据。` +
       `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
       `\nSpec: ${definition.specRef}\n固定提交组合: ${JSON.stringify(commits)}` +
+      `\nIssue: ${definition.issueSource?.tickets.find((ticket) => ticket.key === nodeKey)?.ref || '历史路线，无关联'}` +
       `\n本话题用户补充材料与澄清（只作为输入，不替代验收）：${JSON.stringify(supplements.reverse()).slice(-12000)}` +
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
@@ -477,8 +482,11 @@ export async function runTaskGraphCycle() {
 export async function startTaskGraphCoordinator(signal: AbortSignal) {
   let lastCleanup = 0;
   let syncing: Promise<void> | undefined;
+  let adopting: Promise<void> | undefined;
   while (!signal.aborted) {
     await runTaskGraphCycle().catch((error) => console.error('[TaskGraph] cycle failed:', error));
+    if (!adopting) adopting = processPendingIssueAdoptions().catch((error) => console.error('[TaskGraph] Issue association failed:', error))
+      .finally(() => { adopting = undefined; });
     if (!syncing) syncing = drainIssueSync().catch((error) => console.error('[TaskGraph] Issue outbox failed:', error))
       .finally(() => { syncing = undefined; });
     if (Date.now() - lastCleanup > 60_000) {
@@ -492,4 +500,5 @@ export async function startTaskGraphCoordinator(signal: AbortSignal) {
   }
   await Promise.allSettled(Array.from(inflight));
   await syncing;
+  await adopting;
 }

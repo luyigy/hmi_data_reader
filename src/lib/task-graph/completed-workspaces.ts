@@ -40,18 +40,16 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
     } catch (error) {
       const key = `execution:${execution.id}:workspace_cleanup_deferred`;
       const detail = error instanceof Error ? error.message : String(error);
-      await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } },
-        create: { runId, nodeId: node.id, idempotencyKey: key, kind: 'workspace_cleanup_deferred', payload: { detail } }, update: {} });
+      await prisma.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id, idempotencyKey: key,
+        kind: 'workspace_cleanup_deferred', payload: { detail } }], skipDuplicates: true });
     }
   }
   const receipts = await prisma.taskGraphEvent.count({ where: { runId, nodeId: node.id, kind: 'workspace_cleaned' } });
   if (receipts === node.executions.length) {
     clearGraphHarnessRuntime(`task-graph-review-${node.id}`);
     clearGraphHarnessRuntime(`task-graph-architecture-${node.id}`);
-    await prisma.taskGraphEvent.upsert({
-    where: { runId_idempotencyKey: { runId, idempotencyKey: `node:${nodeKey}:workspaces_cleaned` } },
-    create: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:workspaces_cleaned`, kind: 'node_workspaces_cleaned', payload: {} }, update: {},
-  });
+    await prisma.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id,
+      idempotencyKey: `node:${nodeKey}:workspaces_cleaned`, kind: 'node_workspaces_cleaned', payload: {} }], skipDuplicates: true });
   }
 }
 

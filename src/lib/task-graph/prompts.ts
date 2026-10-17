@@ -3,6 +3,7 @@ import type { GraphDefinition, GraphNode } from './domain';
 export function implementationInstructions(graph: GraphDefinition, node: GraphNode) {
   return [
     `本次执行采用已确认任务图，模式 ${node.executionMode || 'full'}；Spec：${graph.specRef}。`,
+    ...(graph.issueSource ? [`关联 Issue：${graph.issueSource.tickets.find((ticket) => ticket.key === node.key)?.ref}。Issue 范围与依赖已由平台校验，使用本次冻结的目标和指令；不要求在沙箱内读取宿主 tracker 凭据。`] : []),
     '只实施当前 ticket 范围。在指定 worktree 编辑代码，汇报改动和实际验证证据。Git 元数据只读，由平台受控提交和集成；不要自行 git add/commit/merge。',
     '使用本次任务图替代历史 PLAN/HANDOVER 接力要求；不要创建新的 PLAN/HANDOVER、next_action 或 WORKFLOW_READY。',
     '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',

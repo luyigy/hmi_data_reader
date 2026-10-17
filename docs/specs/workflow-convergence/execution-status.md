@@ -144,3 +144,26 @@ W4 的提交也补上平台 Git 的 smudge、merge driver 和 textconv 限制。
 先读上述重载回执及服务状态，确认新服务健康。用户回到 S05 话题询问“当前还缺什么验收材料？只回答状态，不重新实施”，观察实际 Harness 回复，并核对只读问答 TaskRun 与原执行状态未改变。这里尚未伪造用户提问或代替用户完成客户端点击验收。
 
 当前平台 Spec 尚无 ready 的 Issue-backed 提审包；科学试模的旧包仍是历史 route.json。新菜单不会将旧包冒充为新 Issue 路线。这部分准备与业务迁移需继续 W3 未验收项或 W5 的对应单元，本轮没有偷偷改写旧包和已获批快照。
+
+## W5：现有业务关联 Issues 的实施检查点
+
+用户确认 S05 话题的 Codex / Kimi 已能正常回复，并授权推进 W5。本次只推进 W5 的来源关联单元；真实跨仓续跑尚未完成。
+
+- 已发布父 Spec `luyi1678/mold-data-webpage-tool#IKMGQ4`，六张 Slice 为 S03 `IKMGQ5`、S04 `IKMGQ6`、S05 `IKMGQ9`、Reader R02A `IKMGQC`、R02B `IKMGQM`、S06 `IKMGQX`。六片真实串行依赖已从 Gitee 回读；未人为关闭单据。
+- mold 的文档提交 `470bf95b` 登记 `existingRun` 关联配置和说明 HTML。Reader 的文档提交 `47ad710` 登记实际 tracker。仅合入这两份文档工作，Reader 原有未提交文件逐文件摘要和状态保持，mold 未跟踪 contracts 保留。两个临时文档 worktree 已安全移除。
+- 平台增加现有运行关联提审及后台确认。关联事件与原快照分开存储，禁止通过关联标记另建运行。确认后，历史完成结果进入既有 Issue outbox；实施和验收 Prompt 获得准确 Issue 引用。
+- 真实原运行已只读验证可准备关联，但尚无已批准的来源事件。生产 S03/S04 保持 passed，S05 attention，后继 planned。提审卡必须待新版接收服务加载后发送，实际发送以 `.runtime/w5-adoption/reload-receipt.json` 为准。
+- 关联测试使用真实临时 PostgreSQL 和 Git，验证卡片回调、后台核对、漂移退回、重复确认、账本不变和只同步两张完成单；外部传输模拟。全回归还发现并修复清理回执的并发唯一键冲突，改用数据库 `ON CONFLICT DO NOTHING`。
+- S05 尚缺第二张不同的伊之密 P12 熔胶页现场原图、机台页面信息及参数答案来源。已有重用同一原图的两条记录不能替代。原 API/双视口脚本通过不等于真实材料验收已通过。
+
+本轮重载必须在当前会话退出且系统持续空闲后进行；不能在承载本会话的飞书服务内直接重启。独立 helper 核对 Git HEAD 和服务 PID，重载并验证健康后才发关联卡。卡片只关联，用户确认之前不启用来源、不恢复 S05。W5 Issue 继续开放。
+
+下次从本节及部署回执接续，先核对来源关联是否实际确认，再看 S05 材料是否补齐；不要重做 S03/S04，也不要跳过 S05 直接启动 Reader。
+
+### W5 本轮验证与交付边界
+
+已通过 PostgreSQL 全套任务图回归、任务图工作流测试、TypeScript、变更 TS 文件 lint、长文件守卫及 diff 空白检查。实际 Gitee 提审准备也已验证，原业务账本没有变化。GitNexus 的 AP 索引因 LadybugDB shadow-page replay 不可用，本轮采用调用链追踪和真实边界回归，没有重建或删除索引。
+
+空闲发布脚本为 `.runtime/w5-adoption/reload-after-idle.cjs`，入口 `run-reload.sh` 显式加载飞书独立服务所需环境。它在新版接收端健康后提出关联 V4，记录 proposalId、cardMessageId 并回读话题归属和标题；不确定发送不得盲目重发。`.runtime/w5-adoption/reload-receipt.json` 尚不存在时，不能说卡片已发送。
+
+此前 W1–W4 的飞书重载实际上已健康运行；旧回执 attention 来自后续通知进程没有加载 Feishu 环境而失败，并非重载失败。本轮认证预检成功，真实用户问答已验证旧服务工作。不重跑旧 helper。

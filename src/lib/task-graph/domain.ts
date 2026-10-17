@@ -40,6 +40,7 @@ export type GraphDefinition = {
   specRef: string;
   specPackage?: SpecPackageRef;
   issueSource?: IssueSource;
+  adoptRun?: { runId: string; snapshotHash: string };
   defaultArchitectureReview?: ArchitectureReview;
   nodes: GraphNode[];
 };
@@ -58,6 +59,7 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     throw new Error('Task graph requires a spec reference and at least one node');
   }
   const keys = new Set<string>();
+  if (input.adoptRun && (!input.adoptRun.runId?.trim() || !/^[a-f0-9]{64}$/.test(input.adoptRun.snapshotHash))) throw new Error('Invalid existing run association');
   if (input.specPackage && (!isAbsolute(input.specPackage.repository) ||
       !/^[a-f0-9]{40}$/.test(input.specPackage.commit) || !/^[a-f0-9]{64}$/.test(input.specPackage.hash) ||
       !input.specPackage.manifestPath?.startsWith('docs/specs/'))) throw new Error('Invalid frozen Spec package');

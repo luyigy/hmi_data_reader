@@ -5,6 +5,7 @@ import type { AcpxParticipantRequest } from '../acpx/types';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 import { assertSpecPackage } from './spec-package';
 import { assertIssueSource } from './issue-source';
+import { assertExistingIssueAdoption } from './issue-adoption';
 
 const git = promisify(execFile);
 const workspaceRoot = process.env.SCHEDULED_JOB_WORKSPACE_ROOTS?.split(':')[0] || '/data1/code';
@@ -15,6 +16,7 @@ type LaunchConfig = {
 };
 
 export const validateExecutionTargets = async (definition: GraphDefinition) => {
+  if (definition.adoptRun) { await assertExistingIssueAdoption(definition); return []; }
   const issueRoute = await assertIssueSource(definition.issueSource);
   if (issueRoute) {
     const byRef = new Map(issueRoute.tickets.map((ticket) => [ticket.ref, ticket.key]));

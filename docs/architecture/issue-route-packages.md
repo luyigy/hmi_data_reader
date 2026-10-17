@@ -48,3 +48,21 @@
 确认时重新读取 Issue，冻结目标、依赖、仓库基线、角色、模式与验收条件。JSONB 回读不会改变冻结哈希。普通评论、Issue 关闭不改变目标哈希，也不能代替账本验收。
 
 CLI 提审使用 `task-graph:propose -- --parent-task-id=... --spec-repository=... --spec-package=...`。新提审不接受手写 `--file` 依赖图。历史 `route.json` 仅为读取旧包和旧运行保留，飞书选择列表只展示 Issue 包。
+
+## 关联已获批的历史运行
+
+已有运行迁移至 Issues 时，`issueRoute` 使用 `existingRun` 替代 `slices`：
+
+```json
+{
+  "parent": "gitee:owner/repo#IPARENT",
+  "repositories": ["gitee:owner/reader"],
+  "existingRun": { "runId": "原运行 ID", "snapshotHash": "原获批快照的 SHA-256" }
+}
+```
+
+两种配置不能同时填写。Issue 必须逐片保留原目标、仓内范围及依赖；原角色、模式、Git 基线与验收条件不能借迁移修改。平台验证固定提交仍然存在，不纳入源目录的未提交文件。
+
+关联卡仅有“确认关联，保留进度”和“退回”。回调先持久化人的确认，再由现有协调器在后台复核远端来源，避免 Gitee 网络请求超出飞书回调时限。成功时追加唯一的 `issue_source_adopted` 账本事件，原运行快照与哈希不变，不复制运行、任务或工作区。暂时网络失败稍后重查，范围变化则退回待审。
+
+确认关联后，后续派发核对该来源，已通过的节点经现有 outbox 回写交付证据。Issue 关闭仍不能放行待验收节点。补材料、恢复验收沿用原话题与原执行，不因关联自动重启。

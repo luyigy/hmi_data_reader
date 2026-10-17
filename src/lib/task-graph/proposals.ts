@@ -101,7 +101,7 @@ export async function createGraphProposal(args: {
       node.acceptance.reviewerId = parent.ownerUserId || 'admin';
     }
   }
-  const options = await graphRoleOptions(args.parentTaskId);
+  const options = definition.adoptRun ? [] : await graphRoleOptions(args.parentTaskId);
   definition = validateTaskGraphDefinition(configureGraphRoles({
     definition, options, form: {}, suggest: true, humanId: parent.ownerUserId || 'admin', preserveExplicitRoles: true,
   }));
@@ -174,6 +174,8 @@ export async function handleGraphProposalCardAction(args: {
       !(binding.chatType === 'group' && await isFeishuGroupAdmin(args.chatId, args.openId)))) {
     return { toast: { type: 'warning', content: '只有父任务所在群的管理员可确认路线' } };
   }
+  const adoption = (proposal.definition as unknown as GraphDefinition).adoptRun;
+  if (adoption && (!['approve', 'reject'].includes(args.decision) || Object.keys(args.formValue || {}).length)) return { toast: { type: 'warning', content: '关联保留原分工与模式，不在此卡改派或重启' } };
   if (args.decision === 'expand') {
     const options = await graphRoleOptions(proposal.parentTaskId);
     const card = buildGraphProposalCard(proposal.id, proposal.definition as unknown as GraphDefinition,
@@ -217,9 +219,11 @@ export async function handleGraphProposalCardAction(args: {
     return { toast: { type: 'warning', content: '请先指定所有 Slice 的架构复核者' } };
   }
   const claim = await prisma.taskGraphProposal.updateMany({
-    where: { id: proposal.id, status: 'pending', snapshotHash: proposal.snapshotHash }, data: { status: 'processing' },
+    where: { id: proposal.id, status: 'pending', snapshotHash: proposal.snapshotHash }, data: { status: 'processing',
+      ...(adoption ? { decidedBy: args.openId, decidedAt: new Date() } : {}) },
   });
   if (claim.count !== 1) return { toast: { type: 'warning', content: '路线正在由另一请求处理' } };
+  if (adoption) return { toast: { type: 'success', content: '已收到关联确认，后台核对 Issues 后回报；现有任务进度保持' } };
   try {
     const definition = validateTaskGraphDefinition(proposal.definition as unknown as GraphDefinition);
     if (taskGraphSnapshotHash(definition) !== proposal.snapshotHash) throw new Error('路线快照校验失败');
