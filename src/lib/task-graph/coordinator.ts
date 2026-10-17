@@ -225,6 +225,14 @@ async function verifyNode(runId: string, nodeKey: string) {
       .catch((error) => console.error('[TaskGraph] human review card failed:', error));
   }
   await refreshTaskGraphRunStatus(runId);
+  const outcome = updated.status === 'passed' ? '验收通过，Slice 已完成；符合条件的后继将自动启动。'
+    : updated.status === 'awaiting_human' ? '自动检查已结束，等待已配置的人工验收。'
+    : '验收未通过，Slice 尚未完成，后继继续等待。';
+  await Promise.all(node.executions.flatMap((execution) => execution.childTaskId ? [
+    postGraphChildProgress(execution.childTaskId, `verification-${updated.id}-${updated.updatedAt.getTime()}`,
+      `${nodeKey}：${outcome}\n${evidence.summary}`)
+      .catch((error) => console.error('[TaskGraph] child verification delivery failed:', error)),
+  ] : []));
   const parent = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
   void postGraphParentProgress(parent.parentTaskId, runId, `${nodeKey}：${updated.status}`)
     .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
