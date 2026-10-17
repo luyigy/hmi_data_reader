@@ -62,7 +62,11 @@ export async function materializeUpstream(repository: string, commit: string) {
       if (oid !== file.oid) throw new Error('上游固定源码内容与 Git 不一致，保留现场');
     }
   }
-  if (await fs.access(directory).then(() => true, () => false)) { await verify(directory); await touch(); return directory; }
+  async function preserveFileModes(target: string) {
+    // Readonly binds enforce access; Git's normal modes must survive copies into writable test fixtures.
+    for (const file of files) await fs.chmod(path.join(target, file.name), file.mode === '100755' ? 0o755 : 0o644);
+  }
+  if (await fs.access(directory).then(() => true, () => false)) { await verify(directory); await preserveFileModes(directory); await touch(); return directory; }
   await fs.mkdir(path.dirname(directory), { recursive: true, mode: 0o700 });
   const temporary = directory + '.preparing-' + randomUUID();
   const archive = temporary + '.tar';
@@ -71,7 +75,7 @@ export async function materializeUpstream(repository: string, commit: string) {
     await graphGit(repository, 'archive', '--format=tar', `--output=${archive}`, commit);
     await exec('tar', ['-xf', archive, '-C', temporary, '--no-same-owner', '--no-same-permissions'], { timeout: 60_000 });
     await verify(temporary);
-    for (const file of files) await fs.chmod(path.join(temporary, file.name), file.mode === '100755' ? 0o555 : 0o444);
+    await preserveFileModes(temporary);
     await fs.rename(temporary, directory);
     await touch();
     return directory;

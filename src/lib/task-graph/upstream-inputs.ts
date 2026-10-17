@@ -149,7 +149,7 @@ export async function graphInputsForTask(taskId: string): Promise<{ paths: strin
 }
 
 export class TaskInputPreparationError extends Error {
-  constructor(cause: unknown) { super(`固定输入准备失败：${cause instanceof Error ? cause.message : String(cause)}`); this.name = 'TaskInputPreparationError'; Object.setPrototypeOf(this, new.target.prototype); }
+  constructor(cause: unknown, public readonly blockerKind: 'missing_upstream_input' | 'environment_failed' = 'missing_upstream_input', public readonly blockedPhase: 'input_preparation' | 'service_runtime' = 'input_preparation') { super(`固定输入准备失败：${cause instanceof Error ? cause.message : String(cause)}`); this.name = 'TaskInputPreparationError'; Object.setPrototypeOf(this, new.target.prototype); }
 }
 export async function prepareUpstreamInputs(executionId: string): Promise<PreparedInputs> {
   try { return await resolveUpstreamInputs(executionId); }

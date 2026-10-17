@@ -1,3 +1,4 @@
+import { ServiceRuntimeError } from './attempt-services';
 import { prepareUpstreamInputs, TaskInputPreparationError } from './upstream-inputs';
 import { isRecord, graphRecoveryKind, latestImplementationRecovery, implementationCheckpoint, parseImplementationResult, pauseGraphImplementation, scheduleImplementationRecovery } from './implementation-result';
 import { prepareAcceptanceRuntime } from './acceptance-runtime';
@@ -59,6 +60,7 @@ async function runChecks(checks: Check[], directory: string, extraEnv: Record<st
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       results.push({ name: check.name, passed: false, evidence: `${check.argv.join(' ')}\n${detail}`.slice(-4000) });
+      if (error instanceof ServiceRuntimeError) throw new TaskInputPreparationError(detail, 'environment_failed', 'service_runtime');
       throw Object.assign(new Error(`Verification ${check.name} failed: ${detail}`), { results });
     }
   }
@@ -102,7 +104,16 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   return { task, room };
 }
 
-async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string) {
+const nodeVerifications = new Map<string, Promise<void>>();
+function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string): Promise<void> {
+  const key = `${runId}/${nodeKey}`;
+  const active = nodeVerifications.get(key);
+  if (active) return active;
+  const pending = verifyNodeOnce(runId, nodeKey, reviewAttempt).finally(() => nodeVerifications.delete(key));
+  nodeVerifications.set(key, pending);
+  return pending;
+}
+async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: string) {
   const node = await markNodeIntegrationsReady(runId, nodeKey);
   if (!node || node.status !== 'verifying') return;
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true, parentTaskId: true } });
@@ -129,7 +140,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     commits = Array.from(new Map(workspaces.map(({ repository, commit }) => [repository, { repository, commit }])).values());
     const upstream = await Promise.all(node.executions.map(job => prepareUpstreamInputs(job.id)));
     const upstreamPaths = Array.from(new Set(upstream.flatMap(input => input.readOnlyPaths)));
-    const env = { TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(upstream.map(input => input.manifest)), TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
+    const env = { AP_GRAPH_SERVICE_TASK_ID: `task-graph-review-${node.id}`, TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(upstream.map(input => input.manifest)), TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
       workspaces.map((workspace) => [workspace.repository, workspace.path]),
     )) };
     for (const check of policy.integrationChecks || []) {
@@ -386,7 +397,11 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       orchestrationMode: 'single', participants: [config.participant], workingDirectory: workspace.path,
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
-    if (result.status !== 'completed') throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
+    if (result.status !== 'completed') {
+      const serviceFailure = await prisma.taskGraphEvent.findFirst({ where: { nodeId: execution.nodeId, kind: 'service_attempt_failed', payload: { path: ['taskRunId'], equals: result.taskRunId } } });
+      if (serviceFailure) throw new TaskInputPreparationError('临时联调服务启动或运行失败，见本次服务回执；不是业务材料缺失', 'environment_failed', 'service_runtime');
+      throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
+    }
     let conclusion;
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || ''); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
@@ -413,7 +428,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         repoPath: execution.repository, runId, jobId: execution.id,
         integrationRef: latest.ref, expectedIntegrationCommit: latest.commit,
         baseCommit: workspace.baseCommit,
-        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, inputs.env, inputs.readOnlyPaths); },
+        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id }, inputs.readOnlyPaths); },
       });
     });
     await completeExecution({
@@ -437,8 +452,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         }));
         await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken, checkpointCommit,
           workspaceBase: isRecord(current.dispatchMetadata) && typeof current.dispatchMetadata.workspaceBase === 'string' ? current.dispatchMetadata.workspaceBase : execution.baseCommit,
-          taskRunId: current.taskRunId || 'not-created', blockedPhase: 'input_preparation',
-          result: { status: 'blocked', blockerKind: 'missing_upstream_input', note: detail } });
+          taskRunId: current.taskRunId || 'not-created', blockedPhase: error.blockedPhase,
+          result: { status: 'blocked', blockerKind: error.blockerKind, note: detail } });
       } else await recordExecutionIssue({ runId, nodeKey, executionKey: execution.key, claimToken, kind, detail });
       if (current.childTaskId) await postGraphChildProgress(current.childTaskId, `issue-${claimToken}`,
         `${nodeKey}/${execution.key} 暂停，尚未完成集成和验收。\n${detail}\n后继继续等待，无需重复启动。`)

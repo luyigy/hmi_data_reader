@@ -31,7 +31,7 @@ export function parseImplementationResult(output: string): ImplementationResult 
 
 export async function pauseGraphImplementation(args: {
   runId: string; nodeKey: string; executionId: string; claimToken: string;
-  checkpointCommit: string; workspaceBase: string; taskRunId: string; blockedPhase?: 'implementation' | 'input_preparation';
+  checkpointCommit: string; workspaceBase: string; taskRunId: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime';
   result: Extract<ImplementationResult, { status: 'blocked' }> | { status: 'invalid'; note: string; blockerKind: 'invalid_result' };
 }) {
   return prisma.$transaction(async tx => {

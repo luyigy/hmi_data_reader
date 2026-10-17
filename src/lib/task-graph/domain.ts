@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
+import { validateServices, validateServiceLaunch, type GraphService } from './service-contract';
 import type { SpecPackageRef } from './spec-package';
 import type { IssueSource } from './issue-source';
 
@@ -31,6 +32,7 @@ export type GraphNode = {
   goal: string;
   dependsOn: string[];
   consumeUpstream?: 'direct' | 'none' | string[];
+  services?: GraphService[];
   executionMode?: 'full' | 'lean' | 'implement';
   acceptance: Acceptance;
   architectureReview?: ArchitectureReview;
@@ -86,6 +88,8 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     }
     if (node.consumeUpstream !== undefined && node.consumeUpstream !== 'direct' && node.consumeUpstream !== 'none' &&
         (!Array.isArray(node.consumeUpstream) || node.consumeUpstream.some(ref => typeof ref !== 'string' || !input.nodes.some(parent => parent.executions.some(job => `${parent.key}/${job.key}` === ref))) || new Set(node.consumeUpstream).size !== node.consumeUpstream.length)) throw new Error('Invalid upstream consumption references');
+    validateServices(node.services);
+    if (node.services?.some(service => !input.nodes.some(parent => parent.executions.some(job => `${parent.key}/${job.key}` === service.input)))) throw new Error('Service input must name an approved execution');
     const gate = node.acceptance;
     if (!gate || !['automatic', 'agent', 'human'].includes(gate.mode) || !Array.isArray(gate.checks) ||
         (node.executionMode !== 'implement' && gate.checks.length === 0) || gate.checks.some((check) => !check?.trim()) ||
@@ -104,8 +108,15 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     if (!Array.isArray(node.executions) || node.executions.length === 0) {
       throw new Error(`Node ${node.key} needs at least one repository execution`);
     }
+    if (node.services?.length) {
+      if (node.consumeUpstream === 'none') throw new Error('Services require consumed upstream input');
+      if (gate.mode === 'agent') validateServiceLaunch(gate.reviewLaunchConfig);
+      const architecture = effectiveArchitectureReview(input, node);
+      if (architecture) validateServiceLaunch(architecture.reviewLaunchConfig);
+    }
     const executionKeys = new Set<string>();
     for (const job of node.executions) {
+      if (node.services?.length) validateServiceLaunch(job.launchConfig);
       if (!job.key?.trim() || !job.instructions?.trim() || executionKeys.has(job.key) || !isAbsolute(job.repository) ||
           !job.gitRef?.trim() || !/^[0-9a-f]{40,64}$/i.test(job.baseCommit) || !job.agentSelector?.trim()) {
         throw new Error(`Invalid repository execution in ${node.key}: ${job.key}`);
@@ -117,8 +128,9 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     const ancestors = new Set<string>();
     const visit = (key: string) => { for (const predecessor of input.nodes.find(item => item.key === key)!.dependsOn) if (!ancestors.has(predecessor)) { ancestors.add(predecessor); visit(predecessor); } };
     // Consumption references must resolve within the approved dependency closure.
+    if (Array.isArray(node.consumeUpstream) || node.services?.length) visit(node.key);
+    if (node.services?.some(service => !input.nodes.some(parent => ancestors.has(parent.key) && parent.executions.some(job => `${parent.key}/${job.key}` === service.input)))) throw new Error('Service must reference an approved predecessor');
     if (Array.isArray(node.consumeUpstream)) {
-      visit(node.key);
       if (node.consumeUpstream.some(ref => !input.nodes.some(parent => ancestors.has(parent.key) && parent.executions.some(job => `${parent.key}/${job.key}` === ref)))) throw new Error('Consumption must reference an approved predecessor');
     }
   }

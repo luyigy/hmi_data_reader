@@ -1,3 +1,4 @@
+import { withGraphTaskServices } from '../task-graph/graph-services';
 import { graphInputsForTask } from '../task-graph/upstream-inputs';
 import { graphValidationArchiveForTask } from '../task-graph/validation-archive-access';
 import { graphMaterialPathsForTask } from '../task-graph/conversation-materials';
@@ -180,7 +181,12 @@ export const executeViaLocalHarness = async (
   if (workspaceRoot && !['codex', 'claude', 'claude-haha', 'kimi-code', 'antigravity', 'deepseek', 'pi-agent'].includes(participant.harnessType)) {
     throw new Error(`受限 Feishu 工作区暂不支持 harness: ${participant.harnessType}`);
   }
+  let serviceSignal: AbortSignal | undefined;
   const registerSpawn = (child: ChildProcess) => {
+    const abort = () => child.kill('SIGKILL');
+    serviceSignal?.addEventListener('abort', abort, { once: true });
+    child.once('exit', () => serviceSignal?.removeEventListener('abort', abort));
+    if (serviceSignal?.aborted) abort();
     registerRunningProcess({
       taskRunId,
       participantId,
@@ -191,6 +197,10 @@ export const executeViaLocalHarness = async (
     onSpawn?.(child);
   };
 
+  return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
+  serviceSignal = services.signal;
+  if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
+  const taskEnvironment = { ...inputs?.env, ...services.env };
   const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
   let metadataWrites = Promise.resolve();
   let boundSessionId: string | undefined;
@@ -236,7 +246,7 @@ export const executeViaLocalHarness = async (
           ephemeralSession: participant.ephemeralSession,
           codexHome,
           runtimeHome: graphRuntime?.home,
-          taskEnvironment: inputs?.env,
+          taskEnvironment,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
@@ -271,7 +281,7 @@ export const executeViaLocalHarness = async (
           ephemeralSession: participant.ephemeralSession,
           codexHome,
           runtimeHome: graphRuntime?.home,
-          taskEnvironment: inputs?.env,
+          taskEnvironment,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
@@ -313,6 +323,7 @@ export const executeViaLocalHarness = async (
     sessionKind: result.sessionKind,
     threadId: result.threadId,
   };
+  });
 };
 
 export const executeViaRemoteSshHarness = async (

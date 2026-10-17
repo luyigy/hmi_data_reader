@@ -294,3 +294,27 @@ D1 发布回执已核验：`.runtime/delivery-relay-deploy/reload-receipt.json` 
 生产只读审计：R02A `c5aa25a`、R02B `982ef2d` 与 S06 `2fcd0d3` 均仍有 Git 引用保护，三棵树未发现本轮不支持的条目；Reader 现有 `.venv` 可定位，mold 无已登记 Python 环境。审计仅查询账本与 Git，没有重分类、恢复或创建真实业务执行，审批 hash 仍为 `9390aa3f6aaf2329973dfeada55045d9684c2a1a7e2aea083d9fc12deac57bb2`。
 
 发布继续使用独立空闲重载：会话结束且无活跃工作后生效，以发布回执为准。D2 仅保证固定输入与工具环境可提供；实际服务入口/模块来源、HTTP 健康与退出回收由 D3 验证。本轮面向宿主可访问的已登记仓库，未加入跨主机源码传输或新的沙箱系统。
+
+## 2026-10-18 · D3 尝试内临时联调与历史交付纠正
+
+范围：用户要求继续 D3，本轮完成一个实施单元；D2 发布回执已 verified、连接健康、通知回读。通过 Gitee 原生 API 补回 D2 评论 51652694，并回读其 Issue 已 closed，未重新登录或重复发评论。
+
+实现：
+
+- 新增 `service-contract.ts`、`attempt-services.ts`、`graph-services.ts`。批准配置中的前置服务入口从固定输入取源码和已有环境，Bubblewrap 只挂载只读代码及独立可写数据，验证 socket 进程归属与 HTTP 健康，生成阶段回执；结束、失败、超时、取消和父进程崩溃回收服务。
+- 本机原生实施、平台检查、集成检查、架构与验收共用资源入口；只读话题问答不启动服务。服务失败区分 environment_failed / service_runtime，保存原阶段进度。未新增队列、worker 或数据库表。
+- 修复实施结束与协调器轮询同时验收的竞态。同节点仅保留一次正在运行的验收，不重复启动检查服务。
+- 固定源码保留 Git 文件模式，仍经 Bubblewrap 只读挂载和 Git blob 校验。修正从源码复制测试夹具时继承 0444 导致 PermissionError 的普遍问题，没有修改 Reader 测试或放宽沙箱写权限。
+- 新增管理员历史交付纠正入口，校验审批、执行、TaskRun、受保护 Git 提交、活跃进程和已执行后继；只追加事件。旧恢复请求作废，新请求仍走原恢复流程。
+- Issue 回执与执行尝试绑定，历史错误交付请求重开 Issue，新交付独立回写；旧回执不能冒充新结果。节点事务锁串行外部写入与重分类，评论超时仍先回读。兼容既有回执，不批量重发历史评论。
+
+验证与证据：
+
+- PostgreSQL 独立测试 schema、真实 Git、Bubblewrap 回归；新增服务资源、五阶段接入、历史交付重分类与 Issue 接续检查。
+- 服务实测覆盖固定入口、现有 Python/Node 依赖复用、独立数据、并发实例、启动异常、旧端口冲突、超时、取消及执行进程被杀后的端口回收。坏入口会在模型启动前暂停，阻塞阶段保存为 service_runtime。
+- Reader 固定源码 `982ef2d` 与现有 `.venv` 的 R02A/R02B 合同检查 43 项通过；临时目录已删除。完整 HTTP 实例尚缺隔离数据根启动契约，不把合同测试当成完整业务验收。
+- 详细日志与生产回执位于工作检出的 `.runtime/delivery-d3/`，包括 `reader-check.json`、`s06-audit.json`、`s06-reclassification.json`。GitNexus impact 因 LadybugDB 只读 shadow replay 故障返回 UNKNOWN，未重建索引；直接追踪调用链与真实回归验证影响。
+
+生产变更：S06 追加重分类事件 `cmvcnpecr000288wvxv7j5lu3`，由 delivered_unverified 纠正为 attention，指明恢复 implementation。保留原 TaskRun `cmvchfru801klerlet4wg2ya7`、提交 `2fcd0d3`、原审批摘要和前五个 passed 节点。父/子话题补发纠正说明；S06 对应 Issue 重开已回读并登记 issue_reopen_completed，没有自动启动模型或擅改批准模式。Reader 管理数据根配置与新图、选择时间、答案来源、目的地核准仍待业务流程补齐。
+
+发布：代码提交后沿用独立空闲重载，当前会话退出且无活跃工作时执行；以 `.runtime/delivery-d3-deploy/reload-receipt.json` 的 verified 和通知回读为准。

@@ -1,3 +1,4 @@
+import { withGraphTaskServices } from './graph-services';
 import { graphDependencyPaths } from './dependency-paths';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
@@ -28,7 +29,8 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
     mkdirSync(target, { recursive: true }); outputs.push(target);
   }
   const metadata = linkedWorktreeGitDirectories(root);
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp', TMPDIR: '/tmp', XDG_CACHE_HOME: '/tmp/cache' };
+  return withGraphTaskServices(extraEnv.AP_GRAPH_SERVICE_TASK_ID, 'platform-check', async services => {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...services.env, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp', TMPDIR: '/tmp', XDG_CACHE_HOME: '/tmp/cache' };
   for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY']) {
     const value = process.env[name] || process.env[name.toLowerCase()] || process.env['FEISHU_RUNTIME_CODEX_' + name];
     if (value) { env[name] = value; env[name.toLowerCase()] = value; }
@@ -36,5 +38,6 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
   const wrapped = wrapWithBubblewrap({ command: argv[0], commandArgs: argv.slice(1), cwd: root, workspaceRoot: root,
     sandboxMode: 'read-only', networkAccess: 'enabled', env, outputPaths: outputs,
     readOnlyPaths: [...protectedInputs, ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
-  return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv);
+  return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv, services.signal);
+  });
 }
