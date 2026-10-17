@@ -16,29 +16,31 @@ async function main() {
       executions: [{ key: 'app', instructions: 'Implement', repository: '/data1/code/app',
         gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:pi-agent' }] },
   ] };
-  const cardText = formatGraphProposal(definition, 1);
-  assert.match(cardText, /V2 · Next result/);
-  assert.match(cardText, /V1 → V2/);
+  const cardText = formatGraphProposal(definition);
+  assert.match(cardText, /\[V1 First result\]/);
+  assert.match(cardText, /\[V2 Next result \(app\)\]/);
+  assert.match(cardText, /^  ↓$/m);
   const roadmap = formatGraphProposal({ ...definition, nodes: [
     definition.nodes[0],
     { ...definition.nodes[1], acceptance: { mode: 'automatic', checks: ['smoke'] } },
     { ...definition.nodes[1], key: 'V3', dependsOn: ['V2'] },
     { ...definition.nodes[1], key: 'V4', dependsOn: ['V3'] },
     { ...definition.nodes[1], key: 'V5', dependsOn: ['V2'] },
-  ] }, 1);
-  assert.match(roadmap, /V2 → V3 ∥ V5/);
-  assert.match(roadmap, /V3 → V4/);
-  assert.match(cardText, /前置：V1/);
+  ] });
+  assert.match(roadmap, /┌ 并行阶段/);
+  assert.match(roadmap, /├─ \[V3 Next result \(app\)\] \(← V2\)/);
+  assert.match(roadmap, /└─ \[V5 Next result \(app\)\] \(← V2\)/);
+  assert.match(roadmap, /\[V4 Next result \(app\)\] \(← V3\)/);
   assert.match(cardText, /local:pi-agent/);
   const incompleteCard = buildGraphProposalCard('proposal', definition, 1, 'hash');
-  assert.doesNotMatch(JSON.stringify(incompleteCard), /确认并启动路线/);
+  assert.doesNotMatch(JSON.stringify(incompleteCard), /确认并启动/);
   const withArchitect: GraphDefinition = { ...definition, defaultArchitectureReview: {
     reviewerId: 'local:codex', reviewLaunchConfig: { participant: { gatewayId: 'local',
       executionBackend: 'platform_local', harnessType: 'codex', role: 'reviewer' } },
   } };
   const readyCard = buildGraphProposalCard('proposal', withArchitect, 1, 'hash');
-  assert.match(JSON.stringify(readyCard), /确认并启动路线/);
-  assert.match(formatGraphProposal(withArchitect, 1), /架构复核者：local:codex/);
+  assert.match(JSON.stringify(readyCard), /确认并启动/);
+  assert.match(formatGraphProposal(withArchitect), /审查:local:codex/);
   const parent = await prisma.task.create({ data: { name: `task-graph-proposal-test-${id}` } });
   const room = await prisma.liveRoom.create({ data: { title: `graph-test-${id}`, sourceTaskId: parent.id } });
   try {

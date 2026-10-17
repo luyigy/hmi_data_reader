@@ -14,7 +14,6 @@ import { assertGraphCardBudget, buildGraphProposalCard, graphRolesReady } from '
 import { configureGraphRoles, graphRoleOptions } from './role-configuration';
 import { assertSpecPackage } from './spec-package';
 import { deliverGraphArtifact } from './artifact-delivery';
-import { ensureGraphRouteImage } from './route-image';
 export { buildGraphProposalCard, formatGraphProposal } from './proposal-card';
 
 export async function updateGraphProposalRole(args: {
@@ -85,7 +84,7 @@ export async function updateGraphProposalRole(args: {
   });
   if (updated.count !== 1) throw new Error('路线已被其他操作修改，请重新查看卡片');
   await updateFeishuTaskEntryCard(proposal.cardMessageId,
-    buildGraphProposalCard(proposal.id, definition, proposal.version, hash, await graphRoleOptions(args.parentTaskId), 0, proposal.routeImageKey));
+    buildGraphProposalCard(proposal.id, definition, proposal.version, hash, await graphRoleOptions(args.parentTaskId)));
   return { version: proposal.version, hash };
 }
 
@@ -93,17 +92,19 @@ export async function updateGraphProposalRole(args: {
 export async function createGraphProposal(args: {
   parentTaskId: string; version?: number; definition: GraphDefinition; createdBy: string;
 }) {
-  const parent = await prisma.task.findUnique({ where: { id: args.parentTaskId }, select: { id: true } });
+  const parent = await prisma.task.findUnique({ where: { id: args.parentTaskId }, select: { id: true, ownerUserId: true } });
   if (!parent) throw new Error('父任务不存在');
-  const definition = validateTaskGraphDefinition(args.definition);
+  let definition = validateTaskGraphDefinition(args.definition);
   const specPackage = await assertSpecPackage(definition.specPackage);
   for (const node of definition.nodes) {
     if (node.acceptance.mode === 'human' && node.acceptance.reviewerId === 'self') {
-      node.acceptance.reviewerId = (await prisma.task.findUniqueOrThrow({
-        where: { id: args.parentTaskId }, select: { ownerUserId: true },
-      })).ownerUserId || 'admin';
+      node.acceptance.reviewerId = parent.ownerUserId || 'admin';
     }
   }
+  const options = await graphRoleOptions(args.parentTaskId);
+  definition = validateTaskGraphDefinition(configureGraphRoles({
+    definition, options, form: {}, suggest: true, humanId: parent.ownerUserId || 'admin', preserveExplicitRoles: true,
+  }));
   await validateExecutionTargets(definition);
   const hash = taskGraphSnapshotHash(definition);
   const binding = await prisma.feishuConversationBinding.findFirst({
@@ -130,8 +131,7 @@ export async function createGraphProposal(args: {
     definition: definition as unknown as Prisma.InputJsonValue, createdBy: args.createdBy.trim() || 'local-agent',
   } });
   if (proposal.cardMessageId) return proposal;
-  const imageKey = await ensureGraphRouteImage(proposal.id, definition);
-  const card = buildGraphProposalCard(proposal.id, definition, version, hash, await graphRoleOptions(args.parentTaskId), 0, imageKey);
+  const card = buildGraphProposalCard(proposal.id, definition, version, hash, options);
   assertGraphCardBudget(card);
   if (specPackage) for (const artifact of specPackage.artifacts) await deliverGraphArtifact({
     parentTaskId: args.parentTaskId, chatId: binding.chatId, appId: binding.appId,
@@ -157,7 +157,7 @@ export async function handleGraphProposalCardAction(args: {
   page?: number;
 }) {
   if (!args.openId || !args.chatId || !args.messageId ||
-      !['approve', 'reject', 'configure', 'suggest', 'page'].includes(args.decision)) {
+      !['approve', 'reject', 'configure', 'suggest', 'page', 'expand'].includes(args.decision)) {
     return { toast: { type: 'warning', content: '路线卡身份信息不完整' } };
   }
   const proposal = await prisma.taskGraphProposal.findUnique({ where: { id: args.proposalId } });
@@ -174,6 +174,14 @@ export async function handleGraphProposalCardAction(args: {
       !(binding.chatType === 'group' && await isFeishuGroupAdmin(args.chatId, args.openId)))) {
     return { toast: { type: 'warning', content: '只有父任务所在群的管理员可确认路线' } };
   }
+  if (args.decision === 'expand') {
+    const options = await graphRoleOptions(proposal.parentTaskId);
+    const card = buildGraphProposalCard(proposal.id, proposal.definition as unknown as GraphDefinition,
+      proposal.version, proposal.snapshotHash, options, args.page ?? 0);
+    assertGraphCardBudget(card);
+    await updateFeishuTaskEntryCard(proposal.cardMessageId, card);
+    return { toast: { type: 'success', content: '已展开角色配置' } };
+  }
   if (args.decision === 'configure' || args.decision === 'suggest' || args.decision === 'page' ||
       (args.decision === 'approve' && Object.keys(args.formValue || {}).length > 0)) {
     const parent = await prisma.task.findUniqueOrThrow({ where: { id: proposal.parentTaskId }, select: { ownerUserId: true } });
@@ -184,7 +192,7 @@ export async function handleGraphProposalCardAction(args: {
     await validateExecutionTargets(definition);
     const hash = taskGraphSnapshotHash(definition);
     if (args.decision !== 'approve' || hash !== proposal.snapshotHash) {
-      const card = buildGraphProposalCard(proposal.id, definition, proposal.version, hash, options, args.page, proposal.routeImageKey);
+      const card = buildGraphProposalCard(proposal.id, definition, proposal.version, hash, options, args.page);
       assertGraphCardBudget(card);
       const changed = await prisma.taskGraphProposal.updateMany({
         where: { id: proposal.id, status: 'pending', snapshotHash: args.hash },

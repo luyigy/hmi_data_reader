@@ -35,7 +35,7 @@
 
 新卡片按 Slice 选择 `full`（实施、架构审查、测试）、`lean`（实施、测试）、`implement`（仅实施）。旧快照未指定模式时保留原先架构配置的行为。完整模式须指定架构审查者才可确认；精简不调用架构审查；仅实施自动集成后写 `delivered_unverified`，按事先批准的模式释放后继，整条运行结束时标为 `completed_unverified`，不能显示成已验收。修改模式不删除预先准备的验证命令，因此改回完整/精简后仍可校验。
 
-项目使用 `docs/specs/<主题>/spec-package.json` 登记提审包：`title`、`status: ready`、`spec: spec.md`、`route: route.json`、`artifacts: [route-review.html, feature-prototype.html]`。所有引用局限于同一包目录，最多六个附加 HTML/MD。ready 表示可提审，不能派发。飞书 `/ap menu` → 任务图 / Jobs → 提出任务路线，会列出 HEAD 已提交的 ready 包；选择后唤醒父任务 Agent 整理可执行图。未经提交或列表版本变化的材料不得被选择。
+项目使用 `docs/specs/<主题>/spec-package.json` 登记提审包：`title`、`status: ready`、`spec: spec.md`、`issueRoute: { parent, repositories, slices }`、`artifacts: [route-review.html, feature-prototype.html]`。所有引用局限于同一包目录，最多六个附加 HTML/MD。ready 表示可提审，不能派发。飞书 `/ap menu` → 任务图 / Jobs → 提出任务路线，会列出 HEAD 已提交的 ready 包；选择后由平台直接读取 Issues 生成可执行图。包内只登记执行配置，格式见 `issue-route-packages.md`。未经提交或列表版本变化的材料不得被选择。
 
 Agent 提交命令支持 `--spec-repository=<仓库>`、`--spec-package=<manifest路径>`，冻结整个包的提交和内容哈希。提议发送原始 HTML/MD 附件到父话题，然后发送含角色矩阵的路线卡。矩阵可按房间角色建议分配、设置项目默认架构审查者、逐片覆盖并保存；未保存的选择点击确认时先更新卡片，须核对后再次确认。角色保存会更换快照哈希，旧卡动作不能启动新配置。
 
@@ -51,7 +51,7 @@ Issue 的自动发布/结果对账与异常恢复卡尚未接入本轮入口改�
 
 ## 飞书体验
 
-首版由人在父任务飞书话题发送 `/ap graph propose [Spec 路径]`，或在 `/ap menu` 的「任务图 / Jobs」点击「提出任务路线」。当前 Agent 根据 Spec 提出 JSON 路线，并运行 `npm run task-graph:propose -- --parent-task-id=<id> --file=<json> --agent=<name>`。平台在父任务飞书话题展示依赖关系图、仓库、Agent 和验收方式；人通过卡片确认一次后启动。飞书群聊中的子任务话题在节点放行时创建；未放行节点仅显示在任务图中。关键进度同步到父任务话题。预设人工验收会发卡，也可在任务图页面决定。首版尚无异常恢复卡。
+首版由人在父任务飞书话题发送 `/ap graph propose [Spec 路径]`，或在 `/ap menu` 的「任务图 / Jobs」点击「提出任务路线」。Agent 根据 Spec 生成或导入 tickets 后，运行 `npm run task-graph:propose -- --parent-task-id=<id> --spec-repository=<repo> --spec-package=docs/specs/<slug>/spec-package.json --agent=<name>`。依赖只从 Issues 读取。平台在父任务飞书话题展示依赖关系图、仓库、Agent 和验收方式；人通过卡片确认一次后启动。飞书群聊中的子任务话题在节点放行时创建；未放行节点仅显示在任务图中。关键进度同步到父任务话题。预设人工验收会发卡，也可在任务图页面决定。子话题可发送 `/ap graph resume` 登记已集成节点的验收恢复请求；不会重做实施。
 
 路线卡同时列出每个仓内任务的实施者、每个 Slice 的验收者，以及架构复核者。实施者按仓内任务分配，可选择不同的本机 harness；验收者按 Slice 分配，支持自动检查、指定本机 Agent 或人。架构复核者可作为全项目默认值，也可由单个 Slice 覆盖。人在卡片确认前，可在父任务话题发送 `/ap graph role <Slice|all> <仓内任务键|acceptance|architecture> <Agent selector|automatic|human>` 改派，例如 `/ap graph role V3 collector local:pi-agent`、`/ap graph role V3 acceptance local:kimi-code`、`/ap graph role all architecture local:codex`。平台更新原卡与快照哈希，旧卡动作失效；确认后冻结角色。
 
@@ -75,8 +75,8 @@ Issue 的自动发布/结果对账与异常恢复卡尚未接入本轮入口改�
 
 ## 路线卡的展示与发送
 
-- 路线卡直接展示按依赖层级排布的节点框图；串行用箭头连接，同层分支并排，图片可点开查看。图中的连线来自实际 `dependsOn`，不额外推测依赖。
-- 角色矩阵分页配置，每页保留实施、架构、测试职责的下拉框；翻页提交并保存当前页，其余节点保持原配置。建议分配作用于整条路线，最终确认仍批准整条路线。
+- 路线卡默认展示窄屏文本线框及简短角色摘要。串行箭头、分支和汇合来自实际依赖，不生成 PNG。Spec 和说明 HTML 作为附件发送。
+- 展开角色配置后按 Slice 纵向显示模式和各职责下拉框；翻页提交并保存当前页，其余节点保持原配置。建议分配作用于整条路线，最终确认仍批准整条路线。
 - Card 2.0 表单按钮通过 `name` 和 `form_value` 提交，禁止同时设置 `behaviors`。发送前检查元素数量和载荷大小，不能通过删除职责选项规避飞书限制。
 - Spec 附件按父任务、话题、路径和内容哈希记录发送回执。审批卡重试和相同附件的路线版本更新复用回执；发送结果不确定时停止重发，核对实际消息后恢复。
 

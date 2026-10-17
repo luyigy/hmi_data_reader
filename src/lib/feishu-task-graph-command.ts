@@ -42,8 +42,8 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
     const user = await ensureLiveRoomUserMember(room.id);
     const content = [
       `请根据${spec ? ` ${spec} ` : '当前父任务已讨论的 Spec '}提出任务图路线，先审查依赖、仓库、并行任务和验收条件。`,
-      '将完整路线写成 JSON，校验仓库的已提交 Git 基线和 Agent 配置，',
-      `然后在平台仓执行 npm run task-graph:propose -- --parent-task-id=${room.sourceTaskId} --file=<路线JSON> --agent=<你的名称>。`,
+      '使用 Matt 的 to-spec/to-tickets 生成或对账已有父子 Issues；依赖只在 tracker 中维护，不再手写 route.json。',
+      `在 docs/specs/<主题>/spec-package.json 登记 issueRoute.parent、扫描的 tracker repositories 和 slices 执行配置；然后执行 npm run task-graph:propose -- --parent-task-id=${room.sourceTaskId} --spec-repository=<仓库> --spec-package=<包路径> --agent=<你的名称>。`,
       ...(command.options['spec-package'] ? [
         `提交命令还须加 --spec-repository=${command.options['spec-repository']} --spec-package=${command.options['spec-package']}，所选包提交为 ${command.options['spec-commit']}；如版本变化重新提审。`,
       ] : []),

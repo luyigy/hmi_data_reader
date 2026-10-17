@@ -25,7 +25,7 @@ export async function graphRoleOptions(parentTaskId: string): Promise<RoleOption
     listLiveRoomCatalogAgents(),
     prisma.liveRoom.findFirst({ where: { sourceTaskId: parentTaskId }, include: { members: true } }),
   ]);
-  const candidates = catalog.filter((agent) => agent.backend === 'platform_local' && agent.harnessType);
+  const candidates = catalog.filter((agent) => agent.backend === 'platform_local' && ['codex', 'kimi-code'].includes(agent.harnessType));
   return roomRoleCandidates(candidates, room?.members || []).map((agent) => {
     const member = matchingRoomMember(agent, room?.members || []);
     return { value: agent.id, label: member?.userNickname || member?.displayName || agent.label,
@@ -39,7 +39,7 @@ export async function graphRoleOptions(parentTaskId: string): Promise<RoleOption
 
 export function configureGraphRoles(args: {
   definition: GraphDefinition; options: RoleOption[]; form: Record<string, unknown>;
-  suggest: boolean; humanId: string;
+  suggest: boolean; humanId: string; preserveExplicitRoles?: boolean;
 }): GraphDefinition {
   const graph = structuredClone(args.definition);
   const selected = (name: string) => typeof args.form[name] === 'string' ? args.form[name] : undefined;
@@ -49,7 +49,11 @@ export function configureGraphRoles(args: {
     return { ...option.participant, role };
   };
   const suggested = (role: string) => args.options.find((item) => item.role === role)?.value;
-  const projectArchitect = (args.suggest ? suggested('reviewer') : undefined) || selected('architecture_default');
+  const recommendation = (role: string, configured: boolean) =>
+    args.suggest && (!args.preserveExplicitRoles || !configured) ? suggested(role) : undefined;
+  const hadProjectArchitect = !!graph.defaultArchitectureReview;
+  const needsProjectArchitect = graph.nodes.some((node) => !node.executionMode || node.executionMode === 'full');
+  const projectArchitect = recommendation('reviewer', hadProjectArchitect || !needsProjectArchitect) || selected('architecture_default');
   if (projectArchitect === 'none') delete graph.defaultArchitectureReview;
   else if (projectArchitect) graph.defaultArchitectureReview = { reviewerId: projectArchitect,
     reviewLaunchConfig: { participant: participant(projectArchitect, 'reviewer') } };
@@ -60,19 +64,22 @@ export function configureGraphRoles(args: {
       node.executionMode = mode;
     }
     node.executions.forEach((job, j) => {
-      const selector = (args.suggest ? suggested('implementer') : undefined) || selected(`job_${i}_${j}`);
+      const selector = recommendation('implementer', !!job.agentSelector) || selected(`job_${i}_${j}`);
       if (selector) {
         const current = job.launchConfig && typeof job.launchConfig === 'object' ? job.launchConfig : {};
         job.launchConfig = { ...current, participant: participant(selector, 'implementer') };
         job.agentSelector = selector;
       }
     });
-    const architecture = (args.suggest ? suggested('reviewer') : undefined) || selected(`architecture_${i}`);
+    const needsArchitecture = !node.executionMode || node.executionMode === 'full';
+    const hasArchitecture = !!node.architectureReview || hadProjectArchitect;
+    const architecture = recommendation('reviewer', !needsArchitecture || hasArchitecture) || selected(`architecture_${i}`);
     if (architecture && architecture !== 'inherit') node.architectureReview = {
       reviewerId: architecture, reviewLaunchConfig: { participant: participant(architecture, 'reviewer') },
     };
     if (architecture === 'inherit') delete node.architectureReview;
-    const acceptance = (args.suggest ? suggested('tester') : undefined) || selected(`acceptance_${i}`);
+    const acceptanceConfigured = node.acceptance.mode === 'automatic' || !!node.acceptance.reviewerId;
+    const acceptance = recommendation('tester', acceptanceConfigured) || selected(`acceptance_${i}`);
     if (acceptance) {
       const checks = { ...node.acceptance };
       delete checks.reviewerId;

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import type { SpecPackageRef } from './spec-package';
+import type { IssueSource } from './issue-source';
 
 export type Acceptance = {
   mode: 'automatic' | 'agent' | 'human';
@@ -38,6 +39,7 @@ export type GraphNode = {
 export type GraphDefinition = {
   specRef: string;
   specPackage?: SpecPackageRef;
+  issueSource?: IssueSource;
   defaultArchitectureReview?: ArchitectureReview;
   nodes: GraphNode[];
 };

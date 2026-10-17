@@ -27,7 +27,7 @@ GitNexus results should support engineering decisions, not replace understanding
 - 新工作使用经过讨论的原型、定稿 Spec 和依赖图定义纵向 Slice；参阅
   `docs/architecture/task-graph-workflow-spec.md`。人确认整条路线后，平台按依赖图派发，
   Agent 的提交、测试和验收证据写入执行账本。
-- 父任务 Agent 将路线写成 JSON 后运行 `npm run task-graph:propose -- --parent-task-id=<任务ID> --file=<路线JSON> --agent=<名称>`。平台在父任务的飞书话题发送路线卡；人只在飞书卡片确认或退回。未确认的提议不得派发。
+- 父任务 Agent 按 `docs/agents/issue-tracker.md` 发布或导入 tickets，在 `docs/specs/<主题>/spec-package.json` 登记 `issueRoute` 执行配置；依赖直接从 Issues 读取。运行 `npm run task-graph:propose -- --parent-task-id=<任务ID> --spec-repository=<仓库> --spec-package=<包路径> --agent=<名称>`。包格式参见 `docs/architecture/issue-route-packages.md`。平台在父任务的飞书话题发送路线卡；人只在飞书卡片确认或退回。未确认的提议不得派发。
 - 人可在父任务话题发送 `/ap graph propose [Spec 路径]`，或在 `/ap menu` 的「任务图 / Jobs」中点击「提出任务路线」，唤醒当前 Agent 准备并提交路线卡；`/ap graph status` 查询进度。
 - 在确认卡前可用 `/ap graph role <Slice|all> <仓内任务键|acceptance|architecture> <Agent selector|automatic|human>` 改派实施者、验收者和架构复核者；`all architecture` 设置项目默认复核者。并行仓内任务可选择不同本机 harness。
 - 不为新任务创建 PLAN/HANDOVER 接力文档，不使用 `next_action`、Prompt 标记或

@@ -1,82 +1,182 @@
-import { effectiveArchitectureReview, type GraphDefinition } from './domain';
+import { effectiveArchitectureReview, type GraphDefinition, type GraphNode } from './domain';
 import type { RoleOption } from './role-configuration';
 import { graphFormButtonName, type GraphFormDecision } from './card-actions';
 
 export const graphModeLabels = { full: '完整 · 实施/架构/测试', lean: '精简 · 实施/测试', implement: '仅实施 · 未验收' };
+const shortModeLabels = { full: '完整', lean: '精简', implement: '仅实施' };
+type SelectOption = { value: string; label: string };
+
 export function graphRolesReady(graph: GraphDefinition) {
   return graph.nodes.every((node) => node.executionMode === 'lean' || node.executionMode === 'implement'
     || !!effectiveArchitectureReview(graph, node));
 }
 
-export function formatGraphProposal(definition: GraphDefinition, version: number, includeEdges = true) {
-  const lines = [`任务路线 V${version}`, `Spec：${definition.specRef}`,
-    ...(definition.specPackage ? [`Spec 包 SHA-256：${definition.specPackage.hash}`] : []), ...(includeEdges ? ['**依赖关系图**'] : [])];
-  for (const node of includeEdges ? definition.nodes : []) {
-    const next = definition.nodes.filter((item) => item.dependsOn.includes(node.key)).map((item) => item.key);
-    if (next.length) lines.push(`${node.key} → ${next.join(' ∥ ')}${next.length > 1 ? '（前置通过后可并行）' : ''}`);
-  }
-  lines.push('所有前置达到该片批准的完成条件后自动启动；各仓实施、集成和验收进度回到父任务。');
-  for (const node of definition.nodes) {
-    lines.push(`**${node.key} · ${node.goal}**`, `前置：${node.dependsOn.join('、') || '无'} · ${graphModeLabels[node.executionMode || 'full']}`,
-      `实施者：${node.executions.map((job) => `${job.repository} / ${job.agentSelector}`).join('；')}`,
-      `验收者：${node.executionMode === 'implement' ? '不启用，结果未验收' : node.acceptance.mode === 'automatic' ? '自动检查' : node.acceptance.reviewerId || '未配置'}；验收项：${node.acceptance.checks.join('、')}`,
-      `架构复核者：${effectiveArchitectureReview(definition, node)?.reviewerId || (node.executionMode === 'lean' || node.executionMode === 'implement' ? '此模式不启用' : '未配置')}`);
-  }
-  return lines.join('\n');
+const text = (content: string) => ({ tag: 'markdown', content });
+const inline = (value: string) => value.replace(/`/g, "'").replace(/\s+/g, ' ').trim();
+const shortRepository = (repository: string) => repository.replace(/\\/g, '/').split('/').filter(Boolean).pop() || repository;
+
+function shortGoal(goal: string) {
+  const characters = Array.from(inline(goal));
+  return characters.length > 24 ? `${characters.slice(0, 24).join('')}…` : characters.join('');
 }
 
-export function buildGraphProposalCard(id: string, definition: GraphDefinition, version: number, hash: string, agents: RoleOption[] = [], requestedPage = 0, imageKey?: string | null) {
+function specName(definition: GraphDefinition) {
+  if (definition.specPackage) {
+    const parts = definition.specPackage.manifestPath.split('/');
+    return parts[parts.length - 2] || definition.specRef;
+  }
+  const name = definition.specRef.replace(/\\/g, '/').split('/').pop() || definition.specRef;
+  return name.endsWith('.md') ? name.slice(0, -3) : name;
+}
+
+function nodeRepositories(node: GraphNode) {
+  return Array.from(new Set(node.executions.map((job) => shortRepository(job.repository))));
+}
+
+function nodeLabel(node: GraphNode, primaryRepository: string) {
+  const otherRepositories = nodeRepositories(node).filter((repository) => repository !== primaryRepository);
+  return `${node.key} ${shortGoal(node.goal)}${otherRepositories.length ? ` (${otherRepositories.join(', ')})` : ''}`;
+}
+
+function implementationSummary(node: GraphNode) {
+  const multipleRepositories = new Set(node.executions.map((job) => job.repository)).size > 1;
+  const multipleJobs = node.executions.length > 1;
+  return node.executions.map((job) => {
+    const jobLabel = multipleJobs ? `${job.key}${multipleRepositories ? `@${shortRepository(job.repository)}` : ''}:` : '';
+    return `${jobLabel}${job.agentSelector}`;
+  }).join('、');
+}
+
+function acceptanceSummary(node: GraphNode) {
+  if (node.executionMode === 'implement') return '未验收';
+  if (node.acceptance.mode === 'automatic') return '自动';
+  if (node.acceptance.mode === 'human') return '人工';
+  return node.acceptance.reviewerId || '未配置';
+}
+
+function roleSummary(definition: GraphDefinition, node: GraphNode) {
+  const mode = node.executionMode || 'full';
+  const roles = [`实施:${implementationSummary(node)}`];
+  if (mode === 'full') roles.push(`审查:${effectiveArchitectureReview(definition, node)?.reviewerId || '未配置'}`);
+  roles.push(`验收:${acceptanceSummary(node)}`);
+  return `${shortModeLabels[mode]} · ${roles.join(' / ')}`;
+}
+
+function nodeRanks(definition: GraphDefinition) {
+  const nodes = new Map(definition.nodes.map((node) => [node.key, node]));
+  const ranks = new Map<string, number>();
+  const visiting = new Set<string>();
+  const rank = (key: string): number => {
+    const existing = ranks.get(key);
+    if (existing !== undefined) return existing;
+    const node = nodes.get(key);
+    if (!node || visiting.has(key)) throw new Error('Cannot format an invalid task graph');
+    visiting.add(key);
+    const value = node.dependsOn.length ? Math.max(...node.dependsOn.map(rank)) + 1 : 0;
+    visiting.delete(key);
+    ranks.set(key, value);
+    return value;
+  };
+  definition.nodes.forEach((node) => rank(node.key));
+  return ranks;
+}
+
+function dependencyLabel(node: GraphNode, previousLevel: GraphNode[], currentLevel: GraphNode[]) {
+  if (!node.dependsOn.length) return '';
+  const simpleSerial = currentLevel.length === 1 && node.dependsOn.length === 1
+    && previousLevel.length === 1 && previousLevel[0].key === node.dependsOn[0];
+  return simpleSerial ? '' : ` (← ${node.dependsOn.join(', ')})`;
+}
+
+export function formatGraphProposal(definition: GraphDefinition) {
+  const ranks = nodeRanks(definition);
+  const levels = Array.from({ length: Math.max(...Array.from(ranks.values())) + 1 }, (_, level) =>
+    definition.nodes.filter((node) => ranks.get(node.key) === level));
+  const primaryRepository = shortRepository(definition.specPackage?.repository || definition.nodes[0].executions[0].repository);
+  const lines: string[] = [];
+  levels.forEach((nodes, level) => {
+    if (level > 0) lines.push('  ↓');
+    if (nodes.length === 1) {
+      const node = nodes[0];
+      lines.push(`[${nodeLabel(node, primaryRepository)}]${dependencyLabel(node, levels[level - 1] || [], nodes)}`);
+      lines.push(`  └ ${roleSummary(definition, node)}`);
+      return;
+    }
+    lines.push('┌ 并行阶段');
+    nodes.forEach((node, index) => {
+      const last = index === nodes.length - 1;
+      lines.push(`${last ? '└─' : '├─'} [${nodeLabel(node, primaryRepository)}]${dependencyLabel(node, levels[level - 1] || [], nodes)}`);
+      lines.push(`${last ? '     ' : '│    '}└ ${roleSummary(definition, node)}`);
+    });
+  });
+  const attachment = definition.specPackage ? '（完整目标、路径与验收细节见上方话题附件）' : '';
+  return `Spec：${specName(definition)}${attachment}\n\n\`\`\`text\n${lines.join('\n')}\n\`\`\``;
+}
+
+export function buildGraphProposalCard(id: string, definition: GraphDefinition, version: number, hash: string,
+  agents: RoleOption[] = [], requestedPage = -1) {
   const ready = graphRolesReady(definition);
+  const editing = agents.length > 0 && Number.isInteger(requestedPage) && requestedPage >= 0;
   const pageSize = agents.length > 8 ? 1 : 2;
   const pageCount = Math.ceil(definition.nodes.length / pageSize);
-  const page = Math.min(Math.max(Number.isInteger(requestedPage) ? requestedPage : 0, 0), pageCount - 1);
-  const callback = (decision: string) => ({ cmd: 'task-graph-launch', proposalId: id, decision, hash });
-  const button = (text: string, decision: GraphFormDecision | 'reject', submit = false, targetPage = page) => ({ tag: 'button',
-    text: { tag: 'plain_text', content: text }, type: decision === 'approve' ? 'primary_filled' : 'default',
-    ...(submit && decision !== 'reject' ? { name: graphFormButtonName(id, hash, decision, targetPage), form_action_type: 'submit' }
-      : { behaviors: [{ type: 'callback', value: callback(decision) }] }) });
-  const choices = agents.map((agent) => ({ value: agent.value, label: `${agent.label} · ${agent.participant.harnessType}` }));
-  const select = (name: string, value: string, extra: { value: string; label: string }[] = []) => {
-    const options = [...extra, ...choices];
-    if (value && !options.some((option) => option.value === value)) options.push({ value, label: value });
+  const page = editing ? Math.min(Math.max(requestedPage, 0), pageCount - 1) : 0;
+  const callbackButton = (label: string, decision: 'approve' | 'reject' | 'expand', targetPage?: number) => ({
+    tag: 'button', text: { tag: 'plain_text', content: label }, type: decision === 'approve' ? 'primary_filled' : 'default',
+    behaviors: [{ type: 'callback', value: { cmd: 'task-graph-launch', proposalId: id, decision, hash,
+      ...(targetPage !== undefined ? { page: targetPage } : {}) } }],
+  });
+  const formButton = (label: string, decision: GraphFormDecision, targetPage: number, confirmation?: string) => ({
+    tag: 'button', text: { tag: 'plain_text', content: label }, type: decision === 'approve' ? 'primary_filled' : 'default',
+    ...(confirmation ? { confirm: { title: { tag: 'plain_text', content: label },
+      text: { tag: 'plain_text', content: confirmation } } } : {}),
+    name: graphFormButtonName(id, hash, decision, targetPage), form_action_type: 'submit',
+  });
+  const agentChoices = agents.map((agent) => ({ value: agent.value, label: `${agent.label} · ${agent.participant.harnessType}` }));
+  const select = (name: string, fieldLabel: string, value: string, options: SelectOption[]) => {
+    const choices = [...options];
+    if (value && !choices.some((option) => option.value === value)) choices.push({ value, label: value });
     return { tag: 'select_static', name, width: 'fill', required: true,
       placeholder: { tag: 'plain_text', content: '请选择' },
-      options: options.map((option) => ({ text: { tag: 'plain_text', content: option.label }, value: option.value })),
+      options: choices.map((option) => ({ text: { tag: 'plain_text', content: `${fieldLabel}${option.label}` }, value: option.value })),
       ...(value ? { initial_option: value } : {}) };
   };
-  const columns = (cells: Record<string, unknown>[][]) => ({ tag: 'column_set',
-    flex_mode: 'none', columns: cells.map((elements) => ({ tag: 'column', width: 'weighted', weight: 1, elements })) });
-  const text = (content: string) => ({ tag: 'markdown', content });
+  const primaryRepository = shortRepository(definition.specPackage?.repository || definition.nodes[0].executions[0].repository);
+  const operationText = ready ? '确认后按依赖自动推进，异常时暂停。'
+    : '确认后按依赖自动推进，异常时暂停。\n⚠️ 仍有完整模式 Slice 未指定架构审查者，请展开调整。';
+  const form = editing ? { tag: 'form', name: 'graph_roles', elements: [
+    text(`**角色配置 · 第 ${page + 1}/${pageCount} 页**。翻页会保存本页；其他 Slice 的已保存配置保持。`),
+    ...definition.nodes.map((node, i) => ({ node, i })).slice(page * pageSize, (page + 1) * pageSize).flatMap(({ node, i }) => {
+      const mode = node.executionMode || 'full';
+      const multipleJobs = node.executions.length > 1;
+      return [
+        text(`**${node.key} · ${shortGoal(node.goal)}${nodeRepositories(node).filter((repository) => repository !== primaryRepository).length
+          ? ` (${nodeRepositories(node).filter((repository) => repository !== primaryRepository).join(', ')})` : ''}**`),
+        select(`mode_${i}`, '模式：', mode, Object.entries(graphModeLabels).map(([value, label]) => ({ value, label }))),
+        ...node.executions.map((job, j) => select(`job_${i}_${j}`, multipleJobs ? `实施(${job.key})：` : '实施：', job.agentSelector, agentChoices)),
+        mode === 'lean' || mode === 'implement' ? text('审查：此模式不启用')
+          : select(`architecture_${i}`, '审查：', effectiveArchitectureReview(definition, node)?.reviewerId || '', agentChoices),
+        mode === 'implement' ? text('验收：仅交付，未验收')
+          : select(`acceptance_${i}`, '验收：', node.acceptance.mode === 'automatic' ? 'automatic'
+            : node.acceptance.mode === 'human' ? 'human' : node.acceptance.reviewerId || '',
+          [{ value: 'automatic', label: '自动检查' }, { value: 'human', label: '人工验收' }, ...agentChoices]),
+      ];
+    }),
+    ...(page > 0 ? [formButton('◀ 保存并上一页', 'page', page - 1)] : []),
+    ...(page + 1 < pageCount ? [formButton('保存并下一页 ▶', 'page', page + 1)] : []),
+    formButton('保存并收起', 'configure', -1),
+    formButton('重置推荐分配', 'suggest', page, '这会覆盖整条路线已手动调整的实施、架构和验收角色。'),
+    text(operationText),
+    ...(ready ? [formButton('确认并启动', 'approve', -1)] : []),
+  ] } : null;
   return { schema: '2.0', config: { update_multi: true },
     header: { template: ready ? 'blue' : 'orange', title: { tag: 'plain_text', content: `任务路线待确认 · V${version}` } },
     body: { elements: [
-      ...(imageKey ? [{ tag: 'img', img_key: imageKey, alt: { tag: 'plain_text', content: 'Slice 依赖与并行路线图' }, scale_type: 'fit_horizontal', preview: true }] : []),
-      text(formatGraphProposal(definition, version, !imageKey)),
-      text('**一次确认后自动接力。** 每项写入使用独立 worktree，自动集成到本次运行分支。仅实施会放行未验收结果；异常或选定的人工验收会暂停。'),
-      ...(agents.length ? [{ tag: 'form', name: 'graph_roles', elements: [
-        text(`**角色配置 · 第 ${page + 1}/${pageCount} 页**。翻页会保存本页选择；其他 Slice 的已保存配置保持。确认按钮批准整条路线。`),
-        ...(definition.nodes.some((node) => !node.executionMode || node.executionMode === 'full') ? [
-          text('完整模式的项目默认架构审查者（各片可覆盖）：'),
-          select('architecture_default', definition.defaultArchitectureReview?.reviewerId || 'none', [{ value: 'none', label: '未设置' }]),
-        ] : []),
-        columns(['阶段 / 模式', '实施 harness', '架构审查', '测试验收'].map((label) => [text(`**${label}**`)])),
-        ...definition.nodes.map((node, i) => ({ node, i })).slice(page * pageSize, (page + 1) * pageSize).map(({ node, i }) => columns([
-          [text(`**${node.key}**`), { tag: 'select_static', name: `mode_${i}`, width: 'fill', required: true,
-            initial_option: node.executionMode || 'full', options: Object.entries(graphModeLabels).map(([value, label]) => ({ value, text: { tag: 'plain_text', content: label } })) }],
-          node.executions.flatMap((job, j) => [text(job.key), select(`job_${i}_${j}`, job.agentSelector)]),
-          node.executionMode === 'lean' || node.executionMode === 'implement' ? [text('此模式不启用')]
-            : [select(`architecture_${i}`, node.architectureReview?.reviewerId || 'inherit', [{ value: 'inherit', label: `继承项目默认${definition.defaultArchitectureReview ? ` · ${definition.defaultArchitectureReview.reviewerId}` : '（未设置）'}` }])],
-          node.executionMode === 'implement' ? [text('仅交付，未验收')]
-            : [select(`acceptance_${i}`, node.acceptance.mode === 'automatic' ? 'automatic' : node.acceptance.mode === 'human' ? 'human' : node.acceptance.reviewerId || '',
-              [{ value: 'automatic', label: '自动检查' }, { value: 'human', label: '人工验收' }])],
-        ])),
-        ...(page > 0 ? [button('保存本页并上一页', 'page', true, page - 1)] : []),
-        ...(page + 1 < pageCount ? [button('保存本页并下一页', 'page', true, page + 1)] : []),
-        button('整条路线按房间角色填建议分配', 'suggest', true), button('保存本页模式与角色', 'configure', true),
-        ...(ready ? [button('确认并启动路线', 'approve', true)] : []),
-      ] }] : []),
-      text(ready ? '当前配置可确认。' : '完整模式仍缺架构审查者；请先调整并保存。精简和仅实施不要求架构审查者。'),
-      ...(ready && !agents.length ? [button('确认并启动路线', 'approve')] : []), button('退回修改', 'reject'),
+      text(formatGraphProposal(definition)),
+      ...(form ? [form] : []),
+      ...(!form ? [text(operationText)] : []),
+      ...(!form && ready ? [callbackButton('确认并启动', 'approve')] : []),
+      ...(!form && agents.length ? [callbackButton('展开调整配置', 'expand', 0)] : []),
+      callbackButton('退回修改', 'reject'),
     ] } };
 }
 

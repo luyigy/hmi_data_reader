@@ -4,15 +4,19 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { effectiveArchitectureReview, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from '../src/lib/task-graph/domain';
-import { assertGraphCardBudget, buildGraphProposalCard, graphRolesReady } from '../src/lib/task-graph/proposal-card';
+import { assertGraphCardBudget, buildGraphProposalCard, formatGraphProposal, graphRolesReady } from '../src/lib/task-graph/proposal-card';
 import { configureGraphRoles, roomRoleCandidates, type RoleOption } from '../src/lib/task-graph/role-configuration';
 import { assertSpecPackage, listSpecPackages, loadSpecPackage } from '../src/lib/task-graph/spec-package';
 import { buildGraphSpecPicker } from '../src/lib/feishu-graph-picker';
 import { graphFormAction, graphFormButtonName } from '../src/lib/task-graph/card-actions';
 import { layoutGraph, graphSvg, renderGraphPng } from '../src/lib/task-graph/route-diagram';
+import { taskGraphAgentReviewPermissionConfig } from '../src/lib/task-graph/review-permissions';
 import { withCommandRoom } from '../src/lib/feishu-help';
 
 async function main() {
+  assert.deepEqual(taskGraphAgentReviewPermissionConfig, {
+    profile: 'custom', sandboxMode: 'read-only', networkAccess: 'enabled', approvalPolicy: 'never', writableRoots: [],
+  });
   const participant = { gatewayId: 'local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' } as const;
   const options: RoleOption[] = ['implementer', 'reviewer', 'tester'].map((role) => ({ value: `local:${role}`, label: role, role, participant }));
   const graph: GraphDefinition = { specRef: 'spec.md@frozen', nodes: [{ key: 'S03', goal: 'Raw input projection', dependsOn: [],
@@ -23,6 +27,11 @@ async function main() {
   assert.equal(full.nodes[0].architectureReview?.reviewerId, 'local:reviewer');
   assert.equal(full.nodes[0].acceptance.reviewerId, 'local:tester');
   assert.equal(graphRolesReady(full), true);
+  const prefilled = configureGraphRoles({ definition: graph, options, form: {}, suggest: true, humanId: 'human', preserveExplicitRoles: true });
+  assert.equal(prefilled.nodes[0].architectureReview?.reviewerId, 'local:reviewer');
+  assert.equal(prefilled.nodes[0].executions[0].agentSelector, 'local:implementer');
+  assert.equal(prefilled.nodes[0].acceptance.mode, 'automatic');
+  assert.deepEqual(configureGraphRoles({ definition: full, options, form: {}, suggest: true, humanId: 'human', preserveExplicitRoles: true }), full);
   const lean = configureGraphRoles({ definition: full, options, form: { mode_0: 'lean' }, suggest: false, humanId: 'human' });
   assert.equal(effectiveArchitectureReview(lean, lean.nodes[0]), undefined);
   assert.equal(graphRolesReady(lean), true);
@@ -31,15 +40,20 @@ async function main() {
   implement.nodes[0].acceptance.checks = [];
   validateTaskGraphDefinition(implement);
   assert.equal(graphRolesReady(implement), true);
-  const card = JSON.stringify(buildGraphProposalCard('p', implement, 1, 'hash', options));
-  assert.match(card, /确认并启动路线/);
+  const hash = 'a'.repeat(64);
+  const card = JSON.stringify(buildGraphProposalCard('p', implement, 1, hash, options));
+  assert.match(card, /确认并启动/);
   assert.match(card, /未验收/);
-  assert.doesNotMatch(card, /architecture_0/);
-  assert.doesNotMatch(card, /acceptance_0/);
+  assert.match(card, /展开调整配置/);
+  assert.doesNotMatch(card, /"tag":"form"|architecture_0|acceptance_0|column_set|"tag":"img"/);
+  const editingImplement = JSON.stringify(buildGraphProposalCard('p', implement, 1, hash, options, 0));
+  assert.match(editingImplement, /审查：此模式不启用/);
+  assert.match(editingImplement, /验收：仅交付，未验收/);
+  assert.doesNotMatch(editingImplement, /architecture_0|acceptance_0|column_set|"tag":"img"/);
   const longGraph = { ...full, nodes: Array.from({ length: 6 }, (_, index) => ({
     ...structuredClone(full.nodes[0]), key: `S${index + 1}`, dependsOn: index ? [`S${index}`] : [],
   })) };
-  const compactCard = buildGraphProposalCard('p', longGraph, 3, 'hash', options);
+  const compactCard = buildGraphProposalCard('p', longGraph, 3, hash, options);
   const compactJson = JSON.stringify(compactCard);
   const componentCount = (value: unknown): number => {
     if (Array.isArray(value)) return value.reduce((count, item) => count + componentCount(item), 0);
@@ -48,16 +62,22 @@ async function main() {
     return Number(typeof record.tag === 'string') + Object.values(record).reduce<number>((count, item) => count + componentCount(item), 0);
   };
   assert.ok(componentCount(compactCard) <= 200);
-  assert.match(compactJson, /job_0_0/);
-  assert.match(compactJson, /architecture_0/);
-  assert.match(compactJson, /acceptance_0/);
-  assert.match(compactJson, /确认并启动路线/);
-  const hash = 'a'.repeat(64);
+  assert.match(compactJson, /\[S1 /);
+  assert.match(compactJson, /\[S6 /);
+  assert.match(compactJson, /"decision":"expand"/);
+  assert.match(compactJson, /确认并启动/);
+  assert.doesNotMatch(compactJson, /"tag":"form"|"tag":"img"|"tag":"column_set"|"tag":"collapsible_panel"|architecture_default/);
   for (let page = 0; page < 3; page++) {
-    const pageCard = buildGraphProposalCard('proposal', longGraph, 3, hash, options, page, 'image-key');
+    const pageCard = buildGraphProposalCard('proposal', longGraph, 3, hash, options, page);
     assertGraphCardBudget(pageCard);
     const json = JSON.stringify(pageCard);
     for (const field of ['job', 'architecture', 'acceptance']) assert.match(json, new RegExp(`${field}_${page * 2}`));
+    assert.match(json, /模式：完整/);
+    assert.match(json, /实施：implementer · codex/);
+    assert.match(json, /保存并收起/);
+    assert.match(json, /重置推荐分配/);
+    assert.match(json, /"confirm"/);
+    assert.doesNotMatch(json, /column_set|"tag":"img"|architecture_default/);
     const form = pageCard.body.elements.find((item) => 'elements' in item && item.tag === 'form');
     assert.ok(form && 'elements' in form);
     for (const item of (form.elements || []).filter((item) => item.tag === 'button')) {
@@ -67,11 +87,36 @@ async function main() {
   }
   assert.deepEqual(graphFormAction(graphFormButtonName('proposal', hash, 'page', 2)),
     { cmd: 'task-graph-launch', proposalId: 'proposal', hash, decision: 'page', page: 2 });
+  assert.deepEqual(graphFormAction(graphFormButtonName('proposal', hash, 'configure', -1)),
+    { cmd: 'task-graph-launch', proposalId: 'proposal', hash, decision: 'configure', page: -1 });
   const changedPage = configureGraphRoles({ definition: longGraph, options, form: { job_2_0: 'local:tester' }, suggest: false, humanId: 'human' });
   assert.equal(changedPage.nodes[2].executions[0].agentSelector, 'local:tester');
   assert.deepEqual(changedPage.nodes[0], longGraph.nodes[0]);
+  const reset = configureGraphRoles({ definition: changedPage, options, form: {}, suggest: true, humanId: 'human' });
+  assert.equal(reset.nodes[2].executions[0].agentSelector, 'local:implementer');
+  assert.equal(reset.nodes[0].acceptance.reviewerId, 'local:tester');
   const branched = { ...longGraph, nodes: longGraph.nodes.slice(0, 4).map((node, i) => ({ ...node,
     goal: i === 0 ? '输入 <图像> 与数据' : node.goal, dependsOn: i === 0 ? [] : i === 3 ? ['S2', 'S3'] : ['S1'] })) };
+  const roadmap = formatGraphProposal(branched);
+  assert.match(roadmap, /┌ 并行阶段/);
+  assert.match(roadmap, /├─ \[S2 /);
+  assert.match(roadmap, /└─ \[S3 /);
+  assert.match(roadmap, /\[S4 .*\] \(← S2, S3\)/);
+  assert.match(roadmap, /审查:local:reviewer/);
+  const readerExecution = { ...structuredClone(full.nodes[0].executions[0]), key: 'reader',
+    repository: '/data1/code/reader', agentSelector: 'local:reviewer' };
+  const multiRepo: GraphDefinition = { ...full, specPackage: { repository: '/data1/code/mold', commit: 'a'.repeat(40),
+    manifestPath: 'docs/specs/hmi-screen-projection/spec-package.json', hash: 'a'.repeat(64) }, nodes: [{
+    ...full.nodes[0], key: 'R02A', goal: 'Reader 提取能力',
+    executions: [structuredClone(full.nodes[0].executions[0]), readerExecution],
+  }] };
+  const multiOverview = formatGraphProposal(multiRepo);
+  assert.match(multiOverview, /Spec：hmi-screen-projection（完整目标、路径与验收细节见上方话题附件）/);
+  assert.match(multiOverview, /\[R02A Reader 提取能力 \(reader\)\]/);
+  assert.ok(multiOverview.includes('实施:main@mold:local:implementer、reader@reader:local:reviewer'));
+  const multiCard = JSON.stringify(buildGraphProposalCard('proposal', multiRepo, 3, hash, options, 0));
+  assert.match(multiCard, /实施\(main\)：/);
+  assert.match(multiCard, /实施\(reader\)：/);
   const layout = layoutGraph(branched);
   assert.equal(layout.nodes.find((node) => node.key === 'S2')!.y, layout.nodes.find((node) => node.key === 'S3')!.y);
   assert.equal(layout.edges.length, 4);

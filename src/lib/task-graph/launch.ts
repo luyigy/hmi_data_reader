@@ -4,6 +4,7 @@ import { resolveWorkspaceDirectory } from '../feishu-workspace';
 import type { AcpxParticipantRequest } from '../acpx/types';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 import { assertSpecPackage } from './spec-package';
+import { assertIssueSource } from './issue-source';
 
 const git = promisify(execFile);
 const workspaceRoot = process.env.SCHEDULED_JOB_WORKSPACE_ROOTS?.split(':')[0] || '/data1/code';
@@ -14,6 +15,15 @@ type LaunchConfig = {
 };
 
 export const validateExecutionTargets = async (definition: GraphDefinition) => {
+  const issueRoute = await assertIssueSource(definition.issueSource);
+  if (issueRoute) {
+    const byRef = new Map(issueRoute.tickets.map((ticket) => [ticket.ref, ticket.key]));
+    if (definition.nodes.length !== issueRoute.tickets.length || definition.nodes.some((node) => {
+      const ticket = issueRoute.tickets.find((ticket) => ticket.key === node.key);
+      return !ticket || node.goal !== ticket.title || JSON.stringify([...node.dependsOn].sort()) !== JSON.stringify(ticket.blockedBy.map((ref) => byRef.get(ref)).sort())
+        || node.executions.some((job) => !job.instructions.startsWith(`Issue：${ticket.ref}\n${ticket.body}\n\n本仓范围：`));
+    })) throw new Error('路线目标或依赖未对应 Issue 来源，请重新生成');
+  }
   if (definition.specPackage) {
     definition.specPackage.repository = await resolveWorkspaceDirectory(workspaceRoot, definition.specPackage.repository);
     await assertSpecPackage(definition.specPackage);
@@ -89,6 +99,7 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
       throw new Error(`${node.key}: 验收项必须关联至少一个仓内验证命令`);
     }
   }
+  if (definition.issueSource && participants.some((participant) => !['codex', 'kimi-code'].includes(participant.harnessType))) throw new Error('本轮 Issue 路线只支持已实测的 Codex / Kimi Code 沙箱；请调整角色');
   return participants;
 };
 

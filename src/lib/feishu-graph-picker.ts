@@ -25,8 +25,9 @@ export async function openGraphSpecPicker(context: FeishuConversationContext) {
   const repository = room?.sourceTask?.workingDirectory || room?.workingDirectory;
   if (!room?.sourceTaskId || !repository) return '当前父任务没有可选择 Spec 的工作目录。';
   await assertFeishuDocumentAccess(context, repository);
-  const { commit, packages } = await listSpecPackages(repository);
-  if (!packages.length) return '当前仓库没有已提交且 ready 的 Spec 包。请先让 Agent 在 docs/specs/<主题>/ 准备 spec-package.json、spec.md、route.json 与提审 HTML。';
+  const { commit, packages: allPackages } = await listSpecPackages(repository);
+  const packages = allPackages.filter((item) => item.issueRoute);
+  if (!packages.length) return '当前仓库没有已提交且 ready 的 Issue Spec 包。请先让 Agent 在 docs/specs/<主题>/ 准备 spec.md、提审 HTML 和 spec-package.json，登记父 Issue 与各片执行配置。依赖从 Issues 读取。';
   await replyFeishuMessage({ messageId: context.messageId, msgType: 'interactive',
     content: buildGraphSpecPicker({ roomId: room.id, commit, packages }) });
   return '已发送 Spec 选择卡；选中后点击“发送路线提审”。';
@@ -59,8 +60,8 @@ export async function handleGraphSpecPicker(args: {
   const { commit, packages } = await listSpecPackages(repository);
   const selected = packages.find((item) => item.manifestPath === args.formValue.selectedSpec);
   if (commit !== args.value.commit || !selected) return { toast: { type: 'warning', content: 'Spec 列表已变化，请重新打开选择卡' } };
-  const { handleFeishuTaskGraphCommand } = await import('./feishu-task-graph-command');
-  const result = await handleFeishuTaskGraphCommand({ command: 'graph', args: ['propose', `${repository}/${selected.specPath}`],
-    options: { 'spec-package': selected.manifestPath, 'spec-repository': repository, 'spec-commit': selected.commit } }, context);
-  return { toast: { type: 'success', content: result.slice(0, 180) } };
+  const { proposeIssueSpec } = await import('./task-graph/propose-spec');
+  const proposal = await proposeIssueSpec({ repository, commit, manifestPath: selected.manifestPath,
+    parentTaskId: room!.sourceTaskId!, createdBy: args.openId });
+  return { toast: { type: 'success', content: `已从 Issues 生成路线 V${proposal.version}，请核对确认卡。尚未启动。` } };
 }
