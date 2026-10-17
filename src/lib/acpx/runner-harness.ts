@@ -1,3 +1,4 @@
+import { graphValidationArchiveForTask } from '../task-graph/validation-archive-access';
 import { graphMaterialPathsForTask } from '../task-graph/conversation-materials';
 import { graphDependencyPaths } from '../task-graph/dependency-paths';
 import { prepareGraphHarnessRuntime } from '../task-graph/harness-runtime';
@@ -147,9 +148,11 @@ export const executeViaLocalHarness = async (
   const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
+  const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
     ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
     ...(request.extraReadOnlyPaths || []),
+    ...(validationArchive ? [validationArchive] : []),
     ...(graphRuntime?.readonly || []), ...graphGit,
     ...(graphRuntime ? await graphMaterialPathsForTask(request.taskId) : []),
     ...(graphRuntime ? graphDependencyPaths(workspaceRoot) : []),

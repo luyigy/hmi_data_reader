@@ -1,3 +1,4 @@
+import { graphValidationArchiveForTask } from './validation-archive-access';
 import { syncGraphConversationMaterials } from './conversation-materials';
 import { existsSync } from 'node:fs';
 import { prisma } from '../prisma';
@@ -20,7 +21,8 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
   const receipt = await prisma.taskGraphEvent.findFirst({ where: { runId: execution.node.runId, kind: 'workspace_cleaned',
     payload: { path: ['executionId'], equals: execution.id } }, orderBy: { createdAt: 'desc' } });
   const archived = record(receipt?.payload) && typeof receipt.payload.resultsDirectory === 'string' ? receipt.payload.resultsDirectory : null;
-  const directory = [execution.worktreePath, archived, execution.repository].find((value): value is string => !!value && existsSync(value));
+  const validationArchive = await graphValidationArchiveForTask(source.id);
+  const directory = [execution.worktreePath, archived, validationArchive, execution.repository].find((value): value is string => !!value && existsSync(value));
   if (!directory) throw new Error('任务工作区和证据目录不可用；不能隐式重新实施，请检查保存结果。');
   const snapshot = execution.node.run.snapshot;
   const planned = record(snapshot) && Array.isArray(snapshot.nodes)
@@ -42,6 +44,7 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
     `目标：${goal}；固定提交：${execution.commit || '尚未集成'}`,
     `Spec：${record(execution.node.run.snapshot) ? String(execution.node.run.snapshot.specRef) : ''}`,
     `当前只读目录：${directory}。${directory === execution.repository ? '这是源仓，只能用固定提交读取交付版本，不要把源仓 HEAD 当交付结果。' : '可查阅 scratch 或 files 下保存的原始报告、截图和 JSON。'}`,
+    ...(validationArchive ? [`验收报告已归档：${validationArchive}/files。manifest.json 保存原临时目录与相对路径，请按它定位旧报告，不再使用已清理的旧路径。`] : []),
     `已保存检查：${JSON.stringify(execution.evidence).slice(-12000)}`,
     `原话题材料与澄清：${JSON.stringify(supplements.reverse()).slice(-10000)}`,
     materials,

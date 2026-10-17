@@ -1,3 +1,4 @@
+import { archiveValidationResults } from './validation-results';
 import { clearGraphHarnessRuntime } from './harness-runtime';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
@@ -12,8 +13,8 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, include: { executions: true } });
   if (!['passed', 'delivered_unverified'].includes(node.status)) return;
   const childIds = node.executions.flatMap((execution) => execution.childTaskId ? [execution.childTaskId] : []);
-  const active = await prisma.taskRun.count({ where: { taskId: { in: [...childIds, ...node.executions.map((execution) => `task-graph-discussion-${execution.id}`), `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['running', 'pending'] } } });
-  if (active) return;
+  const hasActiveRuns = () => prisma.taskRun.count({ where: { taskId: { in: [...childIds, ...node.executions.map((execution) => `task-graph-discussion-${execution.id}`), `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['running', 'pending'] } } });
+  if (await hasActiveRuns()) return;
   for (const execution of node.executions) {
     if (!execution.commit || !execution.worktreePath || !execution.childTaskId) continue;
     const commit = execution.commit;
@@ -45,11 +46,26 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
     }
   }
   const receipts = await prisma.taskGraphEvent.count({ where: { runId, nodeId: node.id, kind: 'workspace_cleaned' } });
-  if (receipts === node.executions.length) {
-    clearGraphHarnessRuntime(`task-graph-review-${node.id}`);
-    clearGraphHarnessRuntime(`task-graph-architecture-${node.id}`);
-    await prisma.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id,
-      idempotencyKey: `node:${nodeKey}:workspaces_cleaned`, kind: 'node_workspaces_cleaned', payload: {} }], skipDuplicates: true });
+  if (receipts === node.executions.length && node.executions.length) {
+    try {
+      await withRepositoryLock(node.executions[0].repository, async () => {
+        const key = `node:${nodeKey}:validation_workspace_cleaned:v1`;
+        if (await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } })) return;
+        if (await hasActiveRuns()) return;
+        const directory = path.join(path.dirname(node.executions[0].repository), '.agent-platform-task-graph-results', hash(runId), 'validation', hash(node.id));
+        const archive = await archiveValidationResults(node.id, directory, async () => !await hasActiveRuns());
+        await prisma.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key,
+          kind: 'validation_workspace_cleaned', payload: archive } });
+        clearGraphHarnessRuntime(`task-graph-review-${node.id}`);
+        clearGraphHarnessRuntime(`task-graph-architecture-${node.id}`);
+        await prisma.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id,
+          idempotencyKey: `node:${nodeKey}:workspaces_cleaned`, kind: 'node_workspaces_cleaned', payload: {} }], skipDuplicates: true });
+      });
+    } catch (error) {
+      await prisma.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id,
+        idempotencyKey: `node:${nodeKey}:validation_cleanup_deferred:v1`, kind: 'validation_workspace_cleanup_deferred',
+        payload: { detail: error instanceof Error ? error.message : String(error) } }], skipDuplicates: true });
+    }
   }
 }
 
@@ -57,7 +73,10 @@ export async function cleanupFinishedWorkspaces() {
   const nodes = await prisma.taskGraphNode.findMany({
     where: { status: { in: ['passed', 'delivered_unverified'] },
       executions: { some: { childTaskId: { not: null }, worktreePath: { not: null } } },
-      events: { none: { kind: { in: ['node_workspaces_cleaned', 'workspace_cleanup_deferred'] } } } },
+      AND: [
+        { events: { none: { kind: { in: ['validation_workspace_cleaned', 'validation_workspace_cleanup_deferred'] } } } },
+        { OR: [{ events: { none: { kind: 'workspace_cleanup_deferred' } } }, { events: { some: { kind: 'node_workspaces_cleaned' } } }] },
+      ] },
     orderBy: { updatedAt: 'asc' }, take: 20, select: { runId: true, key: true },
   });
   for (const node of nodes) await cleanupCompletedNodeWorkspaces(node.runId, node.key);

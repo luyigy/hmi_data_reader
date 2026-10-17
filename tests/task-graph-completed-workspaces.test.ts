@@ -1,3 +1,4 @@
+import { graphValidationArchiveForTask } from '../src/lib/task-graph/validation-archive-access';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { executeViaLocalHarness } from '../src/lib/acpx/runner-harness';
@@ -6,13 +7,16 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { prisma } from '../src/lib/prisma';
-import { cleanupCompletedNodeWorkspaces } from '../src/lib/task-graph/completed-workspaces';
+import { prepareAcceptanceRuntime } from '../src/lib/task-graph/acceptance-runtime';
+import { cleanupFinishedWorkspaces, cleanupCompletedNodeWorkspaces } from '../src/lib/task-graph/completed-workspaces';
 import { createTaskGraphRun, releaseReadyNodes, claimNode, claimExecution, recordExecutionDispatch,
   completeExecution, markNodeIntegrationsReady, submitNodeVerification } from '../src/lib/task-graph/store';
 import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree } from '../src/lib/task-graph/worktree';
 
 async function main() {
   const root = await fs.mkdtemp(path.join(tmpdir(), 'graph-completion-'));
+  const previousValidationRoot = process.env.TASK_GRAPH_VALIDATION_ROOT;
+  process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
   const repo = path.join(root, 'repo'); await fs.mkdir(repo);
   const git = (cwd: string, ...argv: string[]) => execFileSync('git', argv, { cwd, encoding: 'utf8' }).trim();
   git(repo, 'init', '-b', 'main'); git(repo, 'config', 'user.name', 'Test'); git(repo, 'config', 'user.email', 'test@example.test');
@@ -42,9 +46,12 @@ async function main() {
         await fs.writeFile(path.join(directory, 'node_modules', 'cache.txt'), 'disposable');
       } });
     await completeExecution({ runId: run.id, nodeKey: 'S1', executionKey: 'repo', claimToken: 'claim', commit: result.commit, evidence: {} });
+    const validation = await prepareAcceptanceRuntime(execution.nodeId, 'first-review', []);
+    await fs.writeFile(path.join(validation.directory, 'acceptance.json'), '{"reviewed":true}');
     await markNodeIntegrationsReady(run.id, 'S1');
     await cleanupCompletedNodeWorkspaces(run.id, 'S1');
     assert.equal(await fs.readFile(path.join(workspace.path, 'scratch/roundtrip.json'), 'utf8'), '{"saved":true}', 'Keep evidence while awaiting review');
+    assert.equal(await fs.readFile(path.join(validation.directory, 'acceptance.json'), 'utf8'), '{"reviewed":true}', 'Unfinished verification retains runtime');
     await submitNodeVerification({ runId: run.id, nodeKey: 'S1', actorId: 'system', evidence: {
       checks: [{ name: 'roundtrip', passed: true, evidence: 'saved and reopened' }], summary: 'pass' } });
     const participant = { gatewayId: 'local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
@@ -58,6 +65,7 @@ async function main() {
     const active = await prisma.taskRun.create({ data: { taskId: child.id, mode: 'acpx', status: 'running' } });
     await cleanupCompletedNodeWorkspaces(run.id, 'S1');
     assert.equal(await fs.access(workspace.path).then(() => true, () => false), true, 'Keep active sessions');
+    assert.equal(await fs.access(validation.directory).then(() => true, () => false), true, 'Active roles retain validation runtime');
     await prisma.taskRun.update({ where: { id: active.id }, data: { status: 'completed' } });
     await Promise.all([cleanupCompletedNodeWorkspaces(run.id, 'S1'), cleanupCompletedNodeWorkspaces(run.id, 'S1')]);
     assert.equal(await fs.access(workspace.path).then(() => true, () => false), false, 'Release the completed checkout');
@@ -69,12 +77,27 @@ async function main() {
     assert.ok(payload && typeof payload === 'object' && !Array.isArray(payload) && typeof payload.resultsDirectory === 'string');
     assert.equal(await fs.readFile(path.join(payload.resultsDirectory, 'files/scratch/roundtrip.json'), 'utf8'), '{"saved":true}');
     assert.equal(await fs.access(path.join(payload.resultsDirectory, 'files/node_modules')).then(() => true, () => false), false);
+    const archives = await prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: 'validation_workspace_cleaned' } });
+    assert.equal(archives.length, 1, 'Concurrent cleanup archives validation once');
+    const saved = archives[0].payload;
+    assert.ok(saved && typeof saved === 'object' && !Array.isArray(saved) && typeof saved.directory === 'string');
+    assert.equal(await fs.readFile(path.join(saved.directory, 'files', path.basename(validation.directory), 'acceptance.json'), 'utf8'), '{"reviewed":true}');
+    assert.equal(await fs.access(validation.directory).then(() => true, () => false), false);
+    assert.equal(await graphValidationArchiveForTask(child.id), saved.directory);
+    assert.equal(await graphValidationArchiveForTask(`task-graph-discussion-${execution.id}`), saved.directory);
+    assert.equal(await graphValidationArchiveForTask('task-graph-unrelated'), null);
+    await prisma.taskGraphEvent.delete({ where: { id: archives[0].id } });
+    await fs.mkdir(validation.directory, { recursive: true }); await fs.writeFile(path.join(validation.directory, 'acceptance.json'), '{"reviewed":true}');
+    await cleanupFinishedWorkspaces();
+    assert.equal(await fs.access(validation.directory).then(() => true, () => false), false, 'Legacy worktree-cleaned nodes are still scanned for runtime cleanup');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'validation_workspace_cleaned' } }), 1);
     await cleanupCompletedNodeWorkspaces(run.id, 'S1');
     console.log('Completed jobs archive evidence and release worktrees; active, unreviewed and dirty jobs are retained');
   } finally {
     if (runId) await prisma.taskGraphRun.delete({ where: { id: runId } });
     await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } });
     await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true });
+    if (previousValidationRoot === undefined) delete process.env.TASK_GRAPH_VALIDATION_ROOT; else process.env.TASK_GRAPH_VALIDATION_ROOT = previousValidationRoot;
   }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });
