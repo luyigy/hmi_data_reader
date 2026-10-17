@@ -7,6 +7,7 @@
 import type { HarnessStreamCallbacks } from '@/lib/acpx/types';
 import { getToolEmoji, buildToolPreview } from '@/lib/acpx/tool-emojis';
 import type { ChildProcess } from 'child_process';
+import { readdirSync } from 'node:fs';
 import { resolveClaudeInstallation } from './claude-installations';
 import { wrapWithBubblewrap } from '@/lib/harness/bubblewrap';
 
@@ -19,6 +20,7 @@ export interface ClaudeConfig {
   extraWritableRoots?: string[];
   extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
+  sandboxMode?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   resumeSessionId?: string;
@@ -68,6 +70,7 @@ export const executeClaudeTask = async (
       extraWritableRoots: config.extraWritableRoots,
       extraReadOnlyPaths: config.extraReadOnlyPaths,
       networkAccess: config.networkAccess,
+      sandboxMode: config.sandboxMode,
       streamCallbacks,
       harnessType,
       onSpawn: config.onSpawn,
@@ -100,6 +103,7 @@ export const resumeClaudeSession = async ({
   extraWritableRoots,
   extraReadOnlyPaths,
   networkAccess,
+  sandboxMode,
   streamCallbacks,
   onSpawn,
   onSessionStarted,
@@ -113,6 +117,7 @@ export const resumeClaudeSession = async ({
   extraWritableRoots?: string[];
   extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
+  sandboxMode?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   onSessionStarted?: (sessionId: string) => void;
@@ -134,6 +139,7 @@ export const resumeClaudeSession = async ({
         extraWritableRoots,
         extraReadOnlyPaths,
         networkAccess,
+        sandboxMode,
         streamCallbacks,
         onSpawn,
         resumeSessionId: sessionId,
@@ -171,6 +177,7 @@ const executeClaudeCLI = async (
     extraWritableRoots?: string[];
     extraReadOnlyPaths?: string[];
     networkAccess?: 'restricted' | 'enabled';
+    sandboxMode?: string;
     streamCallbacks?: HarnessStreamCallbacks;
     onSpawn?: (child: ChildProcess) => void;
     resumeSessionId?: string;
@@ -190,7 +197,6 @@ const executeClaudeCLI = async (
     const nvmVersionsDir = `${nvmDir}/versions/node`;
     let nvmBinPaths: string[] = [];
     try {
-      const { readdirSync } = require('fs') as typeof import('fs');
       nvmBinPaths = readdirSync(nvmVersionsDir).map((v) => `${nvmVersionsDir}/${v}/bin`);
     } catch {
       nvmBinPaths = [`${nvmVersionsDir}/${process.version}/bin`];
@@ -290,7 +296,7 @@ Take your time and be thorough.`;
     // On Unix/Linux, use shell: false for better security and performance
     const shell = process.platform === 'win32';
     const env = buildClaudeChildEnv();
-    const wrapped = wrapWithBubblewrap({ command: installation.binaryPath, commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, env, configPaths: installation.configDir ? [installation.configDir] : [], readOnlyPaths: options.extraReadOnlyPaths?.length ? options.extraReadOnlyPaths : undefined });
+    const wrapped = wrapWithBubblewrap({ command: installation.binaryPath, commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, sandboxMode: options.sandboxMode, env, configPaths: installation.configDir ? [installation.configDir] : [], readOnlyPaths: options.extraReadOnlyPaths?.length ? options.extraReadOnlyPaths : undefined });
     const child = spawn(wrapped.command, wrapped.args, {
       cwd: options.workingDirectory,
       env,

@@ -32,6 +32,7 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
       extraWritableRoots: context.extraWritableRoots,
       extraReadOnlyPaths: context.extraReadOnlyPaths,
       networkAccess: context.networkAccess,
+      sandboxMode: context.permissionConfig?.sandboxMode,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
       harnessType,
@@ -66,6 +67,7 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
       extraWritableRoots: context.extraWritableRoots,
       extraReadOnlyPaths: context.extraReadOnlyPaths,
       networkAccess: context.networkAccess,
+      sandboxMode: context.permissionConfig?.sandboxMode,
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
       harnessType,
@@ -129,15 +131,16 @@ const buildClaudeAdapter = (harnessType: 'claude' | 'claude-haha', displayName: 
     };
   },
 
-  getPermissionSupport() {
+  getPermissionSupport(executionBackend) {
+    const local = executionBackend === 'platform_local';
     return {
       scope: 'next_run_or_continuation',
       hotReloadSupported: false,
-      summary: '当前这类 harness 还没有接入 launch-time 权限下发；设置会先记录到 run metadata，供后续能力对齐。',
-      sandboxMode: 'recorded_only',
+      summary: '本机文件写入边界和网络由外层沙箱执行；原生审批策略单独记录。',
+      sandboxMode: local ? 'applied' : 'recorded_only',
       approvalPolicy: 'recorded_only',
-      networkAccess: 'recorded_only',
-      writableRoots: 'recorded_only',
+      networkAccess: local ? 'applied' : 'recorded_only',
+      writableRoots: local ? 'applied' : 'recorded_only',
     };
   },
 

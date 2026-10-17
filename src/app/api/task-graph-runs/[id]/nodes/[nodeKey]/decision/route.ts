@@ -1,3 +1,4 @@
+import { cleanupCompletedNodeWorkspaces } from '@/lib/task-graph/completed-workspaces';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticationErrorResponse, ownedByCurrentUser, requireCurrentUser } from '@/lib/auth-users';
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       runId: run.id, nodeKey: params.nodeKey, reviewerId: user.id,
       approved: body.approved, note: body.note.trim(),
     });
+    if (body.approved) await cleanupCompletedNodeWorkspaces(run.id, params.nodeKey);
     const released = body.approved ? await releaseReadyNodes(run.id) : [];
     await refreshTaskGraphRunStatus(run.id);
     void postGraphParentProgress(run.parentTaskId, run.id,

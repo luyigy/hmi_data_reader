@@ -106,6 +106,7 @@ export const executeDeepSeekTask = async (
       extraReadOnlyPaths,
       networkAccess,
       streamCallbacks,
+      sandboxMode,
       threadConfig: resolveDeepSeekThreadConfig(sandboxMode, approvalPolicy),
       onSpawn,
       resumeThreadId: config.resumeThreadId,
@@ -207,6 +208,7 @@ const executeDeepSeekTurn = async (
     extraWritableRoots?: string[];
     extraReadOnlyPaths?: string[];
     networkAccess?: 'restricted' | 'enabled';
+    sandboxMode?: string;
     streamCallbacks?: HarnessStreamCallbacks;
     threadConfig: {
       allowShell: boolean;
@@ -228,6 +230,7 @@ const executeDeepSeekTurn = async (
     extraWritableRoots: options.extraWritableRoots,
     extraReadOnlyPaths: options.extraReadOnlyPaths,
     networkAccess: options.networkAccess,
+    sandboxMode: options.sandboxMode,
     timeoutMs: options.timeout,
     streamCallbacks: options.streamCallbacks,
     threadConfig: options.threadConfig,

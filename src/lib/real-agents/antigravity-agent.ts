@@ -138,6 +138,7 @@ const executeAntigravityTurn = (
     workspaceRoot: config.workspaceRoot,
     writableRoots: config.extraWritableRoots,
     networkAccess: config.networkAccess,
+    sandboxMode: config.sandboxMode,
     env,
     configPaths: [path.join(env.HOME || '/home/hello', '.gemini')],
     readOnlyPaths: config.extraReadOnlyPaths?.length ? config.extraReadOnlyPaths : undefined,

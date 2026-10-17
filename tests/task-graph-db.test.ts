@@ -49,6 +49,14 @@ async function main() {
         } });
       }
     }
+    const recovered = nodes.find((node) => node.key === 'V2')!;
+    await prisma.taskGraphNode.update({ where: { id: recovered.id }, data: { status: 'verifying' } });
+    await submitNodeVerification({ runId: run.id, nodeKey: 'V2', actorId: 'system', attempt: 'recovery:test', evidence: {
+      summary: 'Recovered evidence', checks: [{ name: 'smoke', passed: true, evidence: 'recovery passed' }],
+    } });
+    assert.ok(await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: {
+      runId: run.id, idempotencyKey: 'node:V2:verified:recovery:test',
+    } } }));
     assert.equal((await refreshTaskGraphRunStatus(run.id)).status, 'completed_unverified');
     console.log('Task graph PostgreSQL persistence checks passed');
   } finally {

@@ -1,3 +1,5 @@
+import { prisma } from '../prisma';
+import { existsSync } from 'node:fs';
 import { linkedWorktreeGitDirectories } from '../real-agents/git-worktree-paths';
 import type { ChildProcess } from 'child_process';
 import { updateCodexQuotaCache } from '@/lib/codex-telemetry';
@@ -119,15 +121,28 @@ export const executeViaLocalHarness = async (
     throw new Error(`本地暂不支持 harness: ${participant.harnessType}`);
   }
   const permissionConfig = request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG;
+  if (request.taskId.startsWith('task-graph-') && request.workingDirectory && !existsSync(request.workingDirectory)) {
+    throw new Error('任务工作区已清理或不可用。历史回复和提交仍保留；继续实施请创建后续任务工作区。');
+  }
+  if (request.taskId.startsWith('task-graph-') && permissionConfig.sandboxMode !== 'read-only') {
+    const execution = await prisma.taskGraphExecution.findFirst({ where: { childTaskId: request.taskId }, select: { node: { select: { status: true } } } });
+    if (execution && !['ready', 'claimed', 'attention'].includes(execution.node.status)) {
+      throw new Error('任务处于验证或完成阶段，代码已冻结；修改代码请创建后续任务工作区。');
+    }
+  }
+  if (permissionConfig.sandboxMode === 'read-only' && adapter.getPermissionSupport('platform_local').sandboxMode !== 'applied') {
+    throw new Error(`${adapter.displayName} 尚不支持强制只读工作区，不能执行此验收角色。`);
+  }
   const workspaceRoot = permissionConfig.profile === 'full_access'
     ? undefined
     : permissionConfig.writableRoots[0] || request.workingDirectory || process.cwd();
-  const extraWritableRoots = permissionConfig.profile === 'full_access'
+  const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...linkedWorktreeGitDirectories(workspaceRoot)].filter((root, index, all) => all.indexOf(root) === index);
-  const extraReadOnlyPaths = resolveLocalRuntimeReadOnlyPaths(
-    request.workingDirectory || process.cwd(), permissionConfig,
-  );
+  const extraReadOnlyPaths = Array.from(new Set([
+    ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
+    ...(request.extraReadOnlyPaths || []),
+  ]));
   const codexHome = participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
     : participant.codexHome;

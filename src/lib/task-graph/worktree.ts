@@ -1,3 +1,4 @@
+import { preserveWorktreeResults } from './worktree-results';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -54,7 +55,7 @@ export interface IntegrationRequest {
   expectedIntegrationCommit: string;
   baseCommit: string;
   worktreeRoot?: string;
-  verify: (stagingPath: string) => Promise<void>;
+  verify: (jobPath: string) => Promise<void>;
 }
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
@@ -159,10 +160,6 @@ function jobPath(root: string, repo: string, runId: string, jobId: string): stri
   return path.join(root, hash(repo), hash(runId), 'jobs', hash(jobId));
 }
 
-function stagingPath(root: string, repo: string, runId: string, jobId: string): string {
-  return path.join(root, hash(repo), hash(runId), 'integrations', hash(jobId));
-}
-
 async function assertUnoccupied(repo: string, target: string): Promise<void> {
   if ((await worktrees(repo)).some((tree) => tree.path === target)) return;
   if (await fs.lstat(target).then(() => true, () => false)) {
@@ -247,8 +244,8 @@ async function assertIntegrationNotCheckedOut(repo: string, ref: string): Promis
   }
 }
 
-/** Merge into a detached staging checkout, verify, then atomically advance the integration ref. */
-export async function integrateJobWorktree(request: IntegrationRequest): Promise<{ commit: string; alreadyIntegrated: boolean; stagingPath?: string }> {
+/** Merge the latest integration baseline into the job, verify there, then advance the ref. */
+export async function integrateJobWorktree(request: IntegrationRequest): Promise<{ commit: string; alreadyIntegrated: boolean }> {
   const repo = await repositoryRoot(request.repoPath);
   await exactCommit(repo, request.expectedIntegrationCommit);
   await exactCommit(repo, request.baseCommit);
@@ -264,105 +261,54 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
   if (!currentJob || currentJob.branch !== branch || !(await isAncestor(repo, request.baseCommit, currentJob.head))) {
     throw new TaskGraphGitError('workspace_collision', `Job worktree is missing or mismatched: ${job}`, job);
   }
+  const gitDir = await git(job, 'rev-parse', '--absolute-git-dir');
+  if (await fs.access(path.join(gitDir, 'MERGE_HEAD')).then(() => true, () => false)) {
+    throw new TaskGraphGitError('integration_conflict', `Merge conflict needs resolution: ${job}`, job);
+  }
   if (!(await cleanWorkspace(job))) {
     throw new TaskGraphGitError('workspace_dirty', `Job worktree has uncommitted changes: ${job}`, job);
   }
   const current = await refCommit(repo, request.integrationRef);
   if (!current) throw new TaskGraphGitError('invalid_ref', `Integration ref is missing: ${request.integrationRef}`);
-  if (await isAncestor(repo, currentJob.head, current)) {
-    const staging = stagingPath(root, repo, request.runId, request.jobId);
-    const previousStage = findWorkspace(await worktrees(repo), staging);
-    if (previousStage) {
-      if (previousStage.branch || !(await isAncestor(repo, previousStage.head, current))) {
-        throw new TaskGraphGitError('workspace_collision', `Integration staging tree is mismatched: ${staging}`, staging);
-      }
-      if (!(await cleanWorkspace(staging))) {
-        throw new TaskGraphGitError('workspace_dirty', `Integration staging tree has uncommitted changes: ${staging}`, staging);
-      }
-      if (previousStage.head !== current) await git(repo, 'worktree', 'remove', staging);
-    } else {
-      await assertUnoccupied(repo, staging);
-    }
-    if (!previousStage || previousStage.head !== current) {
-      await fs.mkdir(path.dirname(staging), { recursive: true });
-      await git(repo, 'worktree', 'add', '--detach', staging, current);
-    }
-    try {
-      await request.verify(staging);
-    } catch (cause) {
-      throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${staging}\n${cause instanceof Error ? cause.message : String(cause)}`, staging, { cause });
-    }
-    if (!(await cleanWorkspace(staging))) {
-      throw new TaskGraphGitError('verification_failed', `Verification left changes in staging tree: ${staging}`, staging);
-    }
-    if ((await refCommit(repo, request.integrationRef)) !== current || (await refCommit(repo, branch)) !== currentJob.head) {
-      throw new TaskGraphGitError('integration_stale', `Integration or job ref moved during verification: ${staging}`, staging);
-    }
-    await git(repo, 'worktree', 'remove', staging);
-    return { commit: current, alreadyIntegrated: true };
-  }
-  if (current !== request.expectedIntegrationCommit) {
+  const alreadyIntegrated = await isAncestor(repo, currentJob.head, current);
+  if (!alreadyIntegrated && current !== request.expectedIntegrationCommit) {
     throw new TaskGraphGitError('integration_stale', `Integration ref moved from ${request.expectedIntegrationCommit} to ${current}`);
   }
   if (!(await isAncestor(repo, request.baseCommit, current))) {
     throw new TaskGraphGitError('invalid_base', 'Integration ref diverged from job base');
   }
-  const staging = stagingPath(root, repo, request.runId, request.jobId);
-  let staged = findWorkspace(await worktrees(repo), staging);
-  if (!staged) {
-    await assertUnoccupied(repo, staging);
-    await fs.mkdir(path.dirname(staging), { recursive: true });
-    await git(repo, 'worktree', 'add', '--detach', staging, current);
-    staged = findWorkspace(await worktrees(repo), staging);
-  }
-  if (!staged || staged.branch || !(await isAncestor(repo, current, staged.head))) {
-    throw new TaskGraphGitError('workspace_collision', `Integration staging tree is mismatched: ${staging}`, staging);
-  }
-  if (await fs.access(path.join(staging, '.git')).then(() => true, () => false)) {
-    const gitDir = await git(staging, 'rev-parse', '--git-dir');
-    if (await fs.access(path.join(path.resolve(staging, gitDir), 'MERGE_HEAD')).then(() => true, () => false)) {
-      throw new TaskGraphGitError('integration_conflict', `Merge conflict needs resolution: ${staging}`, staging);
-    }
-  }
-  if (!(await isAncestor(repo, currentJob.head, staged.head))) {
-    if (!(await cleanWorkspace(staging))) {
-      throw new TaskGraphGitError('workspace_dirty', `Integration staging tree has uncommitted changes: ${staging}`, staging);
-    }
+  if (!(await isAncestor(repo, current, currentJob.head))) {
     try {
-      await git(staging, 'merge', '--no-ff', '--no-edit', branch);
+      // Existing runs may have a merge commit from the retired staging checkout.
+      if (alreadyIntegrated) await git(job, 'merge', '--ff-only', current);
+      else await git(job, 'merge', '--no-ff', '--no-edit', current);
     } catch (cause) {
-      throw new TaskGraphGitError('integration_conflict', `Merge needs manual resolution: ${staging}`, staging, { cause });
+      throw new TaskGraphGitError('integration_conflict', `Merge needs manual resolution: ${job}`, job, { cause });
     }
   }
-  const result = await git(staging, 'rev-parse', 'HEAD');
+  const result = await git(job, 'rev-parse', 'HEAD');
   if (!(await isAncestor(repo, currentJob.head, result)) || !(await isAncestor(repo, current, result))) {
-    throw new TaskGraphGitError('workspace_collision', `Staged commit excludes job or integration baseline: ${staging}`, staging);
+    throw new TaskGraphGitError('workspace_collision', `Job excludes its delivery or integration baseline: ${job}`, job);
   }
-  if (!(await cleanWorkspace(staging))) {
-    throw new TaskGraphGitError('workspace_dirty', `Integration staging tree has uncommitted changes: ${staging}`, staging);
+  try { await request.verify(job); } catch (cause) {
+    throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${job}\n${cause instanceof Error ? cause.message : String(cause)}`, job, { cause });
   }
-  try {
-    await request.verify(staging);
-  } catch (cause) {
-    throw new TaskGraphGitError('verification_failed', `Integration verification failed: ${staging}\n${cause instanceof Error ? cause.message : String(cause)}`, staging, { cause });
+  if (!(await cleanWorkspace(job))) {
+    throw new TaskGraphGitError('verification_failed', `Verification left changes in job worktree: ${job}`, job);
   }
-  if (!(await cleanWorkspace(staging))) {
-    throw new TaskGraphGitError('verification_failed', `Verification left changes in staging tree: ${staging}`, staging);
+  if ((await refCommit(repo, branch)) !== result || (await refCommit(repo, request.integrationRef)) !== current) {
+    throw new TaskGraphGitError('integration_stale', `Integration or job ref moved during verification: ${job}`, job);
   }
-  if ((await refCommit(repo, branch)) !== currentJob.head || !(await cleanWorkspace(job))) {
-    throw new TaskGraphGitError('integration_stale', `Job branch changed during integration: ${branch}`, staging);
+  if (result !== current) {
+    try { await git(repo, 'update-ref', request.integrationRef, result, current); } catch (cause) {
+      throw new TaskGraphGitError('integration_stale', `Integration ref changed before update: ${request.integrationRef}`, job, { cause });
+    }
   }
-  try {
-    await git(repo, 'update-ref', request.integrationRef, result, current);
-  } catch (cause) {
-    throw new TaskGraphGitError('integration_stale', `Integration ref changed before update: ${request.integrationRef}`, staging, { cause });
-  }
-  await git(repo, 'worktree', 'remove', staging);
-  return { commit: result, alreadyIntegrated: false };
+  return { commit: result, alreadyIntegrated };
 }
 
 /** Never force-remove: only a clean job tree whose head reached the integration ref can be removed. */
-export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef' | 'baseCommit'> & { integrationRef: string }): Promise<void> {
+export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef' | 'baseCommit'> & { integrationRef: string; expectedCommit?: string; resultsDirectory?: string }): Promise<void> {
   const repo = await repositoryRoot(request.repoPath);
   requireBranchRef(request.integrationRef);
   if (request.integrationRef !== integrationBranch(request.runId)) {
@@ -374,6 +320,7 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
   const tree = findWorkspace(await worktrees(repo), target);
   const jobHead = tree?.head || await refCommit(repo, branch);
   if (!jobHead) return;
+  if (request.expectedCommit && jobHead !== request.expectedCommit) throw new TaskGraphGitError('workspace_dirty', 'Completed worktree moved; keep it for review', target);
   const integratedHead = await refCommit(repo, request.integrationRef);
   if (!integratedHead || !(await isAncestor(repo, jobHead, integratedHead))) {
     throw new TaskGraphGitError('not_integrated', `Job has not reached integration ref: ${branch}`, target);
@@ -381,7 +328,13 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
   if (tree) {
     if (tree.branch !== branch) throw new TaskGraphGitError('workspace_collision', `Worktree branch changed: ${target}`, target);
     if (!(await cleanWorkspace(target))) throw new TaskGraphGitError('workspace_dirty', `Worktree is dirty: ${target}`, target);
-    if (await hasIgnoredFiles(target)) throw new TaskGraphGitError('workspace_dirty', `Worktree contains ignored files; keep it for review: ${target}`, target);
+    if (await hasIgnoredFiles(target)) {
+      if (!request.resultsDirectory) throw new TaskGraphGitError('workspace_dirty', `Worktree contains ignored files; keep it for review: ${target}`, target);
+      await preserveWorktreeResults(target, request.resultsDirectory, jobHead);
+    }
+    if (!(await cleanWorkspace(target)) || await hasIgnoredFiles(target) || await git(target, 'rev-parse', 'HEAD') !== jobHead) {
+      throw new TaskGraphGitError('workspace_dirty', `Worktree changed during cleanup: ${target}`, target);
+    }
     await git(repo, 'worktree', 'remove', target);
   }
   await git(repo, 'update-ref', '-d', branch, jobHead);

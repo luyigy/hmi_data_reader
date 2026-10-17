@@ -40,7 +40,6 @@ type DeepSeekRuntimeStreamCallbacks = {
   onToolEvent?: (event: { toolName: string; preview: string; emoji: string }) => Promise<void> | void;
 };
 
-let runtimeProcess: ChildProcess | null = null;
 let runtimeReadyPromise: Promise<string> | null = null;
 
 const getRuntimeBaseUrl = () => `http://${DEFAULT_DEEPSEEK_RUNTIME_HOST}:${DEFAULT_DEEPSEEK_RUNTIME_PORT}`;
@@ -101,6 +100,7 @@ export const ensureDeepSeekRuntime = async (options?: {
   writableRoots?: string[];
   readOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
+  sandboxMode?: string;
   onSpawn?: (child: ChildProcess) => void;
 }) => {
   const baseUrl = getRuntimeBaseUrl();
@@ -132,6 +132,7 @@ export const ensureDeepSeekRuntime = async (options?: {
       writableRoots: options?.writableRoots,
       readOnlyPaths: options?.readOnlyPaths,
       networkAccess: options?.networkAccess,
+      sandboxMode: options?.sandboxMode,
       env: process.env,
     });
 
@@ -147,7 +148,6 @@ export const ensureDeepSeekRuntime = async (options?: {
     );
 
     options?.onSpawn?.(child);
-    runtimeProcess = child;
 
     let startupLog = '';
     child.stdout.on('data', (chunk) => {
@@ -160,7 +160,6 @@ export const ensureDeepSeekRuntime = async (options?: {
     try {
       return await waitForRuntimeReady(baseUrl, DEFAULT_DEEPSEEK_RUNTIME_STARTUP_TIMEOUT_MS);
     } catch (error) {
-      runtimeProcess = null;
       throw new Error(
         startupLog.trim()
           ? `Failed to start DeepSeek runtime: ${startupLog.trim()}`
@@ -256,6 +255,7 @@ export const runDeepSeekRuntimeTurn = async ({
   networkAccess,
   timeoutMs,
   streamCallbacks,
+  sandboxMode,
   threadConfig,
   onSpawn,
 }: {
@@ -268,6 +268,7 @@ export const runDeepSeekRuntimeTurn = async ({
   networkAccess?: 'restricted' | 'enabled';
   timeoutMs?: number | null;
   streamCallbacks?: DeepSeekRuntimeStreamCallbacks;
+  sandboxMode?: string;
   threadConfig?: {
     allowShell?: boolean;
     trustMode?: boolean;
@@ -280,6 +281,7 @@ export const runDeepSeekRuntimeTurn = async ({
     writableRoots: extraWritableRoots,
     readOnlyPaths: extraReadOnlyPaths,
     networkAccess,
+    sandboxMode,
     onSpawn,
   });
   const resolvedThreadId =

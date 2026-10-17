@@ -75,6 +75,7 @@ async function run() {
       repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref,
       expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,
       verify: async (staging) => {
+        assert.equal(staging, jobA.path, 'Implementation and checks must use the same worktree');
         assert.equal(await fs.readFile(path.join(staging, 'a.txt'), 'utf8'), 'A\n');
         await fs.mkdir(path.join(staging, 'cache'));
         await fs.writeFile(path.join(staging, 'cache', 'test.log'), 'ignored build output');
@@ -82,6 +83,8 @@ async function run() {
       },
     });
     assert(verifiedA);
+    assert.equal(await fs.readFile(path.join(jobA.path, 'cache/test.log'), 'utf8'), 'ignored build output', 'Keep evidence for read-only review');
+    assert.equal(git(first.repo, 'worktree', 'list', '--porcelain').split('worktree ').length - 1, 3, 'Integration must not create another checkout');
     assert.equal(git(first.repo, 'rev-parse', integration.ref), mergedA.commit);
     assert.equal(git(first.repo, 'rev-parse', 'refs/heads/main'), first.base);
     let reverified = false;
@@ -112,7 +115,7 @@ async function run() {
       expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,
       verify: async () => undefined,
     })).alreadyIntegrated, true);
-    assert.equal(await fs.access(failedStage).then(() => true, () => false), false);
+    assert.equal(await fs.access(failedStage).then(() => true, () => false), true);
     await expectCode(() => integrateJobWorktree({
       repoPath: first.repo, runId: 'run-1', jobId: 'B', integrationRef: integration.ref,
       expectedIntegrationCommit: first.base, baseCommit: first.base, worktreeRoot: first.trees,
@@ -128,6 +131,8 @@ async function run() {
     });
     assert.notEqual(mergedB.commit, mergedA.commit);
     assert.equal(git(first.repo, 'merge-base', '--is-ancestor', mergedA.commit, mergedB.commit), '');
+    await expectCode(() => cleanupIntegratedJobWorktree({ repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref, worktreeRoot: first.trees }), 'workspace_dirty');
+    await fs.rm(path.join(jobA.path, 'cache'), { recursive: true });
     await cleanupIntegratedJobWorktree({
       repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref,
       worktreeRoot: first.trees,

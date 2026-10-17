@@ -238,7 +238,7 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
 
 /** Agent review requires the configured reviewer; human review creates a pause. */
 export async function submitNodeVerification(args: {
-  runId: string; nodeKey: string; actorId: string; evidence: VerificationEvidence;
+  runId: string; nodeKey: string; actorId: string; evidence: VerificationEvidence; attempt?: string;
 }, db: Database = prisma) {
   return db.$transaction(async (tx) => {
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId: args.runId, key: args.nodeKey } } });
@@ -264,7 +264,7 @@ export async function submitNodeVerification(args: {
         passedAt: status === 'passed' ? new Date() : undefined },
     });
     await tx.taskGraphEvent.create({
-      data: { runId: args.runId, nodeId: node.id, idempotencyKey: `node:${args.nodeKey}:verified`,
+      data: { runId: args.runId, nodeId: node.id, idempotencyKey: `node:${args.nodeKey}:verified${args.attempt ? `:${args.attempt}` : ''}`,
         kind: status === 'passed' ? 'node_passed' : status === 'awaiting_human' ? 'human_review_requested' : 'verification_failed',
         payload: { actorId: args.actorId, evidence: args.evidence as unknown as Prisma.InputJsonValue } },
     });

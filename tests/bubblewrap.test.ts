@@ -89,6 +89,26 @@ void (async () => {
   assert.ok(!writableBinds.includes(path.join(root, 'nested')));
   assert.equal(writableBinds.filter((arg) => arg === sibling).length, 1);
 
+  const readOnly = wrapWithBubblewrap({
+    command: '/usr/bin/sh',
+    commandArgs: ['-c', `! touch ${JSON.stringify(path.join(root, 'forbidden'))} && echo refreshed > ${JSON.stringify(sharedAuth)}`],
+    cwd: root,
+    workspaceRoot: root,
+    networkAccess: 'enabled',
+    sandboxMode: 'read-only',
+    env: process.env,
+    configPaths: [shared],
+    writableRoots: [sibling],
+  });
+  assert.ok(readOnly.args.includes('--share-net'));
+  assert.ok(readOnly.args.some((arg, index) => arg === '--ro-bind'
+    && readOnly.args[index + 1] === root && readOnly.args[index + 2] === root));
+  assert.ok(!readOnly.args.some((arg, index) => arg === '--bind'
+    && (readOnly.args[index + 1] === root || readOnly.args[index + 1] === sibling)));
+  const readOnlyResult = spawnSync(readOnly.command, readOnly.args, { encoding: 'utf8' });
+  assert.equal(readOnlyResult.status, 0, readOnlyResult.stderr);
+  assert.equal(await readFile(sharedAuth, 'utf8'), 'refreshed\n');
+
   const approvalSource = await readFile(path.join(process.cwd(), 'src/lib/feishu-access-approval.ts'), 'utf8');
   assert.equal(approvalSource.match(/networkAccess: 'enabled'/g)?.length, 3);
   assert.doesNotMatch(approvalSource, /networkAccess: 'restricted'/);

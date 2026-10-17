@@ -109,10 +109,11 @@ async function main() {
     const originalResolver = resolver.resolveLocalRuntimeReadOnlyPaths;
     const originalKimi = kimi.executeKimiCodeTask;
     const kimiSessions: Array<string | undefined> = [];
+    const secondWorkspace = path.join(root, 'second-workspace'); mkdirSync(secondWorkspace);
     configure([runtime]);
     resolver.resolveLocalRuntimeReadOnlyPaths = (cwd, config) => originalResolver(cwd, config, file);
     kimi.executeKimiCodeTask = async (_task, options) => {
-      assert.deepEqual(options?.extraReadOnlyPaths, [runtime]);
+      assert.deepEqual(options?.extraReadOnlyPaths, [runtime, secondWorkspace]);
       assert.equal(options?.permissionProfile, 'dev_local');
       assert.equal(options?.workspaceRoot, workspace);
       kimiSessions.push(options?.sessionId);
@@ -121,12 +122,14 @@ async function main() {
     try {
       const participant = { gatewayId: 'local', executionBackend: 'platform_local' as const, harnessType: 'kimi-code', role: 'custom' };
       const request = { taskId: 'test', taskName: 'test', orchestrationMode: 'single' as const,
-        workingDirectory: workspace, participants: [participant], permissionConfig: permission };
+        workingDirectory: workspace, participants: [participant], permissionConfig: permission, extraReadOnlyPaths: [secondWorkspace] };
       const room = { transcript: '', latestUserMessage: null };
       await executeViaLocalHarness(request, 'run', 'member', participant, {}, [], room);
       await executeViaLocalHarness(request, 'run', 'member',
         { ...participant, resumeSessionId: 'existing-session', continuationMessage: 'continue' }, {}, [], room);
       assert.deepEqual(kimiSessions, [undefined, 'existing-session']);
+      await assert.rejects(executeViaLocalHarness({ ...request, permissionConfig: { ...permission, sandboxMode: 'read-only' } },
+        'run', 'member', { ...participant, harnessType: 'pi-agent' }, {}, [], room), /尚不支持强制只读/);
     } finally {
       resolver.resolveLocalRuntimeReadOnlyPaths = originalResolver;
       kimi.executeKimiCodeTask = originalKimi;

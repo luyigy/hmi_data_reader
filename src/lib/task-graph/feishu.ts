@@ -1,3 +1,4 @@
+import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
 import { redactSensitiveText } from '../redact-sensitive';
@@ -117,6 +118,7 @@ export async function handleGraphHumanReviewCardAction(args: {
     runId: args.runId, nodeKey: args.nodeKey, reviewerId: node.reviewerId,
     approved: args.decision === 'approve', note: `飞书管理员 ${args.openId} 在卡片 ${args.messageId} 确认`,
   });
+  if (args.decision === 'approve') await cleanupCompletedNodeWorkspaces(args.runId, args.nodeKey);
   const released = args.decision === 'approve' ? await releaseReadyNodes(args.runId) : [];
   await refreshTaskGraphRunStatus(args.runId);
   await postGraphParentProgress(node.run.parentTaskId, args.runId,

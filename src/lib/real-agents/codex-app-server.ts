@@ -148,6 +148,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       workspaceRoot: options.workspaceRoot,
       writableRoots: options.extraWritableRoots,
       networkAccess: options.networkAccess,
+      sandboxMode: options.sandboxMode,
       env: options.env ?? process.env,
       configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
       readOnlyPaths: options.readOnlyPaths,

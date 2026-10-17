@@ -36,6 +36,7 @@ export function wrapWithBubblewrap(args: {
   workspaceRoot?: string;
   writableRoots?: string[];
   networkAccess?: 'restricted' | 'enabled';
+  sandboxMode?: string;
   env: NodeJS.ProcessEnv;
   configPaths?: string[];
   readOnlyPaths?: string[];
@@ -62,7 +63,7 @@ export function wrapWithBubblewrap(args: {
   });
   const writableMounts = configPaths.map((source) => realpathSync(source))
     .filter((source) => !isWithin(workspaceRoot, source));
-  const extraWritableMounts = (args.writableRoots || [])
+  const extraWritableMounts = (args.sandboxMode === 'read-only' ? [] : args.writableRoots || [])
     .filter(existsSync)
     .map((source) => realpathSync(source))
     .filter((source) => !isWithin(workspaceRoot, source));
@@ -83,7 +84,7 @@ export function wrapWithBubblewrap(args: {
     ...(existsSync(systemCertificates) ? [...parentDirs(systemCertificates), '--ro-bind', systemCertificates, systemCertificates] : []),
     ...(existsSync(systemHosts) ? [...parentDirs(systemHosts), '--ro-bind', realpathSync(systemHosts), systemHosts] : []),
     ...(existsSync(systemResolvConf) ? [...parentDirs(systemResolvConf), '--ro-bind', realpathSync(systemResolvConf), systemResolvConf] : []),
-    ...parentDirs(workspaceRoot), '--bind', workspaceRoot, workspaceRoot,
+    ...parentDirs(workspaceRoot), args.sandboxMode === 'read-only' ? '--ro-bind' : '--bind', workspaceRoot, workspaceRoot,
     ...allWritableMounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),
     ...readOnlyMounts.flatMap((source) => [...parentDirs(source), '--ro-bind', source, source]),
     '--chdir', cwd,

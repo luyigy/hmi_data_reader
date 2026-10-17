@@ -4,18 +4,14 @@ import { executeAcpxTaskRun } from '../acpx/runner';
 import { prisma } from '../prisma';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 import type { VerificationEvidence } from './store';
-import { assertValidationWorkspacesClean, type ValidationWorkspace } from './validation-workspaces';
+import { assertReviewWorkspacesClean, type ReviewWorkspace } from './review-workspaces';
 import { architectureReviewInstructions } from './prompts';
-
-const readOnlyPermission = {
-  profile: 'safe_local' as const, sandboxMode: 'read-only' as const,
-  networkAccess: 'restricted' as const, approvalPolicy: 'never' as const, writableRoots: [],
-};
+import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 
 export async function runArchitectureReview(args: {
   runId: string; nodeId: string; nodeKey: string; definition: GraphDefinition;
   commits: { repository: string; commit: string }[];
-  workspaces: ValidationWorkspace[]; evidence: VerificationEvidence;
+  workspaces: ReviewWorkspace[]; evidence: VerificationEvidence;
 }): Promise<'passed' | 'failed' | 'running'> {
   const node = args.definition.nodes.find((item) => item.key === args.nodeKey);
   if (!node) throw new Error(`Unknown graph node ${args.nodeKey}`);
@@ -46,8 +42,8 @@ export async function runArchitectureReview(args: {
     id: taskId, name: `${args.nodeKey} · 架构复核`, executionMode: 'acpx', status: 'pending',
     acpxParticipants: JSON.stringify([participant]),
     description: `独立检查任务图 ${args.runId} / ${args.nodeKey} 的变更范围与架构影响。`,
-    workingDirectory: args.workspaces[0]?.path,
-  }, update: {} });
+    workingDirectory: args.workspaces.at(-1)?.path || null,
+  }, update: { workingDirectory: args.workspaces.at(-1)?.path || null } });
   const prompt = `${architectureReviewInstructions}\n请检查 ${args.nodeKey}。` +
     `\n目标：${node.goal}\nSpec：${args.definition.specRef}` +
     `\n固定提交：${JSON.stringify(args.commits)}` +
@@ -57,7 +53,8 @@ export async function runArchitectureReview(args: {
   const reviewRun = await executeAcpxTaskRun({
     taskId: task.id, taskName: task.name, taskDescription: prompt,
     orchestrationMode: 'single', participants: [participant],
-    workingDirectory: task.workingDirectory || undefined, permissionConfig: readOnlyPermission,
+    extraReadOnlyPaths: args.workspaces.map((workspace) => workspace.path),
+    workingDirectory: task.workingDirectory || undefined, permissionConfig: taskGraphAgentReviewPermissionConfig,
   }).catch((error) => ({ status: 'failed', taskRunId: 'not-created', participants: [],
     summary: error instanceof Error ? error.message : String(error) }));
   const response = reviewRun.participants[0]?.summary || reviewRun.summary || '';
@@ -67,7 +64,7 @@ export async function runArchitectureReview(args: {
   let approved = reviewRun.status === 'completed' && decision.approved === true &&
     typeof decision.note === 'string' && decision.note.trim().length > 0;
   let note = String(decision.note || response || '没有有效的结构化结论');
-  try { await assertValidationWorkspacesClean(args.workspaces); } catch (error) {
+  try { await assertReviewWorkspacesClean(args.workspaces); } catch (error) {
     approved = false;
     note += `；固定提交工作区被修改：${String(error)}`;
   }

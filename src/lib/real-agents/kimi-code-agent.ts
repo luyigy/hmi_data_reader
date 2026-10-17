@@ -21,6 +21,7 @@ export interface KimiCodeConfig {
   extraWritableRoots?: string[];
   extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
+  sandboxMode?: string;
   permissionProfile?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
@@ -47,6 +48,25 @@ export interface KimiCodeResult {
 const getKimiCodeBinary = () => process.env.KIMI_CODE_CLI_PATH?.trim() || 'kimi';
 export const getKimiCodeHome = () =>
   process.env.KIMI_CODE_HOME?.trim() || path.join(homedir(), '.kimi-code');
+
+const proxyVariables = [
+  ['HTTP_PROXY', 'http_proxy', 'FEISHU_RUNTIME_CODEX_HTTP_PROXY'],
+  ['HTTPS_PROXY', 'https_proxy', 'FEISHU_RUNTIME_CODEX_HTTPS_PROXY'],
+  ['ALL_PROXY', 'all_proxy', 'FEISHU_RUNTIME_CODEX_ALL_PROXY'],
+  ['NO_PROXY', 'no_proxy', 'FEISHU_RUNTIME_CODEX_NO_PROXY'],
+] as const;
+
+export function buildKimiCodeChildEnv() {
+  const env = { ...process.env };
+  for (const [upper, lower, fallback] of proxyVariables) {
+    const value = env[upper]?.trim() || env[lower]?.trim() || process.env[fallback]?.trim();
+    if (value) {
+      env[upper] = value;
+      env[lower] = value;
+    }
+  }
+  return env;
+}
 
 const buildPrompt = (task: KimiCodeTask) => `Task: ${task.name}
 
@@ -287,6 +307,7 @@ const runKimiCodeCommand = async ({
   extraWritableRoots,
   extraReadOnlyPaths,
   networkAccess,
+  sandboxMode,
   permissionProfile,
   streamCallbacks,
   onSpawn,
@@ -300,6 +321,7 @@ const runKimiCodeCommand = async ({
   extraWritableRoots?: string[];
   extraReadOnlyPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
+  sandboxMode?: string;
   permissionProfile?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
@@ -310,7 +332,7 @@ const runKimiCodeCommand = async ({
     throw new Error('Kimi Code requires Bubblewrap unless full access is explicitly selected.');
   }
 
-  const env = { ...process.env };
+  const env = buildKimiCodeChildEnv();
   env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(KIMI_CODE_MAX_SUBAGENTS);
   // Prompt mode is implicitly Kimi's fully autonomous `auto` mode; Bubblewrap is the safety boundary.
   const args = [
@@ -329,6 +351,7 @@ const runKimiCodeCommand = async ({
     workspaceRoot,
     writableRoots: extraWritableRoots,
     networkAccess,
+    sandboxMode,
     env,
     configPaths: [getKimiCodeHome()],
     readOnlyPaths: extraReadOnlyPaths?.length ? extraReadOnlyPaths : undefined,

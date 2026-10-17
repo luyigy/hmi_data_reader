@@ -111,6 +111,7 @@ export interface AcpxRunRequest {
   orchestrationMode: AcpxOrchestrationMode;
   participants: AcpxParticipantRequest[];
   workingDirectory?: string;
+  extraReadOnlyPaths?: string[];
   permissionConfig?: AcpxPermissionConfig;
   watchdogConfig?: WatchdogConfig;
   streamCallbacks?: HarnessStreamCallbacks;

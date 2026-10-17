@@ -1,3 +1,4 @@
+import { cleanupCompletedNodeWorkspaces, cleanupFinishedWorkspaces } from './completed-workspaces';
 import { randomUUID } from 'node:crypto';
 import type { TaskGraphExecution } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
@@ -9,7 +10,7 @@ import { runArchitectureReview } from './architecture-review';
 import { acceptanceReviewInstructions, implementationInstructions } from './prompts';
 import { ensureGraphChildTopic, postGraphParentProgress, sendGraphHumanReviewCard } from './feishu';
 import { withRepositoryLock } from './repository-lock';
-import { assertValidationWorkspacesClean, ensureValidationWorkspaces } from './validation-workspaces';
+import { assertReviewWorkspacesClean, resolveReviewWorkspaces } from './review-workspaces';
 import {
   claimExecution, claimNode, completeExecution, completeUnverifiedNode, listTaskGraphWork, markNodeIntegrationsReady,
   flagStaleExecutionClaim, recordExecutionDispatch, recordExecutionIssue,
@@ -20,6 +21,7 @@ import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree } from '.
 import { runGraphCheck } from './check-runner';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
+import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 
 const activeJobs = new Set<string>();
 const activeReviews = new Set<string>();
@@ -80,7 +82,7 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   return { task, room };
 }
 
-async function verifyNode(runId: string, nodeKey: string) {
+async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string) {
   const node = await markNodeIntegrationsReady(runId, nodeKey);
   if (!node || node.status !== 'verifying') return;
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true, parentTaskId: true } });
@@ -89,6 +91,7 @@ async function verifyNode(runId: string, nodeKey: string) {
   if (!policy) throw new Error(`Unknown acceptance policy for ${nodeKey}`);
   if (definition.nodes.find((item) => item.key === nodeKey)?.executionMode === 'implement') {
     await completeUnverifiedNode(runId, nodeKey);
+    await cleanupCompletedNodeWorkspaces(runId, nodeKey);
     await releaseReadyNodes(runId);
     await refreshTaskGraphRunStatus(runId);
     await postGraphParentProgress(run.parentTaskId, runId, `${nodeKey} 已交付（未验收），按批准的仅实施模式放行后继。`);
@@ -98,23 +101,16 @@ async function verifyNode(runId: string, nodeKey: string) {
     const evidence = execution.evidence as unknown as { checks?: CheckResult[] } | null;
     return evidence?.checks || [];
   });
-  const repositories = Array.from(new Map(node.executions.map((execution) =>
-    [execution.repository, execution])).values());
-  const commits = await Promise.all(repositories.map(async (execution) => {
-    const integration = await ensureIntegrationRef({
-      repoPath: execution.repository, runId, baseRef: execution.gitRef,
-      baseCommit: execution.baseCommit,
-    });
-    return { repository: execution.repository, commit: integration.commit };
-  }));
-  let workspaces: Awaited<ReturnType<typeof ensureValidationWorkspaces>> = [];
+  let workspaces: Awaited<ReturnType<typeof resolveReviewWorkspaces>> = [];
+  let commits: { repository: string; commit: string }[] = [];
   try {
-    workspaces = await ensureValidationWorkspaces({ runId, nodeKey, commits });
+    workspaces = await resolveReviewWorkspaces(node.executions);
+    commits = Array.from(new Map(workspaces.map(({ repository, commit }) => [repository, { repository, commit }])).values());
     const env = { TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
       workspaces.map((workspace) => [workspace.repository, workspace.path]),
     )) };
     for (const check of policy.integrationChecks || []) {
-      const workspace = workspaces.find((item) => item.repository === check.repository);
+      const workspace = workspaces.slice().reverse().find((item) => item.repository === check.repository);
       if (!workspace) throw new Error(`Missing pinned repository for ${check.name}`);
       try {
         results.push(...await runChecks([check], workspace.path, env));
@@ -123,10 +119,20 @@ async function verifyNode(runId: string, nodeKey: string) {
         results.push(...failed.results || [{ name: check.name, passed: false, evidence: failed.message }]);
       }
     }
-    await assertValidationWorkspacesClean(workspaces);
+    await assertReviewWorkspacesClean(workspaces);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    for (const check of policy.checks) results.push({ name: check, passed: false, evidence: detail });
+    const changed = await prisma.taskGraphNode.updateMany({ where: { id: node.id, status: 'verifying' }, data: { status: 'attention' } });
+    if (changed.count) await prisma.taskGraphEvent.create({ data: {
+      runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:review_workspace_failed:${reviewAttempt || 'initial'}`,
+      kind: 'review_workspace_failed', payload: { detail, actorId: 'system' },
+    } });
+    await refreshTaskGraphRunStatus(runId);
+    const message = `${nodeKey} 验收工作区准备失败，尚未启动复核 Agent：${detail}`;
+    await Promise.all(node.executions.flatMap((execution) => execution.childTaskId
+      ? [postGraphChildProgress(execution.childTaskId, `workspace-failed-${node.updatedAt.getTime()}`, message)] : []));
+    await postGraphParentProgress(run.parentTaskId, runId, message);
+    return;
   }
   const evidence: VerificationEvidence = {
     checks: policy.checks.map((name) => {
@@ -149,7 +155,7 @@ async function verifyNode(runId: string, nodeKey: string) {
       evidence: `${item.evidence}\n架构复核：${note}` }));
     evidence.summary = `架构复核未通过：${note}`;
     await submitNodeVerification({ runId, nodeKey,
-      actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence });
+      actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: reviewAttempt });
     await refreshTaskGraphRunStatus(runId);
     return;
   }
@@ -159,10 +165,11 @@ async function verifyNode(runId: string, nodeKey: string) {
     try {
     const review = policy.reviewLaunchConfig as { participant?: AcpxParticipantRequest } | undefined;
     if (!review?.participant || !policy.reviewerId) throw new Error(`Review agent missing for ${nodeKey}`);
-    const claimKey = `node:${nodeKey}:review_claimed`;
+    const claimKey = `node:${nodeKey}:review_claimed${reviewAttempt ? `:${reviewAttempt}` : ''}`;
     try {
       await prisma.taskGraphEvent.create({ data: {
-        runId, nodeId: node.id, idempotencyKey: claimKey, kind: 'review_claimed', payload: {},
+        runId, nodeId: node.id, idempotencyKey: claimKey, kind: 'review_claimed',
+        payload: reviewAttempt ? { attempt: reviewAttempt } : {},
       } });
     } catch (error) {
       const existing = await prisma.taskGraphEvent.findUnique({
@@ -178,19 +185,21 @@ async function verifyNode(runId: string, nodeKey: string) {
       create: { id: taskId, name: taskName, executionMode: 'acpx', status: 'pending',
         acpxParticipants: JSON.stringify([review.participant]),
         description: `独立复核任务图 ${runId} / ${nodeKey} 的交付证据。`,
-        workingDirectory: workspaces[0]?.path || undefined },
-      update: {},
+        workingDirectory: workspaces.at(-1)?.path || null },
+      update: { workingDirectory: workspaces.at(-1)?.path || null },
     });
     const prompt = `${acceptanceReviewInstructions}\n请只读复核 ${nodeKey} 的目标与证据。` +
+      `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
       `\nSpec: ${definition.specRef}\n固定提交组合: ${JSON.stringify(commits)}` +
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
+      '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
       '\n最终答复仅用一行 TASK_GRAPH_REVIEW {"approved":true或false,"note":"理由"}。';
     const reviewRun = await executeAcpxTaskRun({
       taskId: task.id, taskName: task.name, taskDescription: prompt,
       orchestrationMode: 'single', participants: [review.participant],
+      extraReadOnlyPaths: workspaces.map((workspace) => workspace.path),
       workingDirectory: task.workingDirectory || undefined,
-      permissionConfig: { profile: 'safe_local', sandboxMode: 'read-only',
-        networkAccess: 'restricted', approvalPolicy: 'never', writableRoots: [] },
+      permissionConfig: taskGraphAgentReviewPermissionConfig,
     }).catch((error) => ({ status: 'failed', taskRunId: 'not-created',
       participants: [], summary: error instanceof Error ? error.message : String(error) }));
     const response = reviewRun.participants[0]?.summary || reviewRun.summary || '';
@@ -204,7 +213,7 @@ async function verifyNode(runId: string, nodeKey: string) {
       evidence: `${item.evidence}\nAgent review ${reviewRun.taskRunId}: ${String(decision.note || response || '无有效结论')}`,
     }));
     evidence.summary = `Agent 复核 ${approved ? '通过' : '未通过'}：${String(decision.note || response || '没有有效的结构化结论')}`;
-    try { await assertValidationWorkspacesClean(workspaces); } catch (error) {
+    try { await assertReviewWorkspacesClean(workspaces); } catch (error) {
       evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
         evidence: `${item.evidence}\n复核污染了固定提交工作区：${String(error)}` }));
     }
@@ -213,9 +222,12 @@ async function verifyNode(runId: string, nodeKey: string) {
     }
   }
   const updated = await submitNodeVerification({
-    runId, nodeKey, actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence,
+    runId, nodeKey, actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: reviewAttempt,
   });
-  if (updated.status === 'passed') await releaseReadyNodes(runId);
+  if (updated.status === 'passed') {
+    await cleanupCompletedNodeWorkspaces(runId, nodeKey);
+    await releaseReadyNodes(runId);
+  }
   if (updated.status === 'awaiting_human') {
     void sendGraphHumanReviewCard(runId, nodeKey)
       .catch((error) => console.error('[TaskGraph] human review card failed:', error));
@@ -232,6 +244,37 @@ async function verifyNode(runId: string, nodeKey: string) {
   const parent = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
   void postGraphParentProgress(parent.parentTaskId, runId, `${nodeKey}：${updated.status}`)
     .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
+}
+
+export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: string) {
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({
+    where: { runId_key: { runId, key: nodeKey } }, include: { executions: true },
+  });
+  if (node.status === 'passed') return node;
+  if (!['attention', 'verifying'].includes(node.status)) throw new Error(`${nodeKey} is not waiting for verification recovery`);
+  if (activeReviews.has(node.id)) throw new Error(`${nodeKey} verification is already running`);
+  if (node.status === 'verifying') {
+    const activeReview = await prisma.taskRun.findFirst({
+      where: { taskId: `task-graph-review-${node.id}`, status: { in: ['pending', 'running'] } }, select: { id: true },
+    });
+    if (activeReview) throw new Error(`${nodeKey} verification is already running`);
+  }
+  if (node.executions.some((execution) => execution.status !== 'integrated')) {
+    throw new Error(`${nodeKey} has unfinished repository executions`);
+  }
+  const reviewAttempt = `recovery:${randomUUID()}`;
+  await prisma.$transaction(async (tx) => {
+    const changed = await tx.taskGraphNode.updateMany({
+      where: { id: node.id, status: node.status }, data: { status: 'verifying' },
+    });
+    if (changed.count !== 1) throw new Error(`${nodeKey} verification state changed before recovery`);
+    await tx.taskGraphEvent.create({ data: {
+      runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:verifying:${reviewAttempt}`,
+      kind: 'node_verifying', payload: { recovery: true },
+    } });
+  });
+  await verifyNode(runId, nodeKey, reviewAttempt);
+  return prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
 }
 
 async function executeJob(runId: string, nodeKey: string, execution: TaskGraphExecution, claimToken: string) {
@@ -416,8 +459,13 @@ export async function runTaskGraphCycle() {
 }
 
 export async function startTaskGraphCoordinator(signal: AbortSignal) {
+  let lastCleanup = 0;
   while (!signal.aborted) {
     await runTaskGraphCycle().catch((error) => console.error('[TaskGraph] cycle failed:', error));
+    if (Date.now() - lastCleanup > 60_000) {
+      lastCleanup = Date.now();
+      await cleanupFinishedWorkspaces().catch((error) => console.error('[TaskGraph] workspace cleanup failed:', error));
+    }
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 2000);
       signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
