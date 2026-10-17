@@ -244,3 +244,11 @@ GitNexus 仍受 LadybugDB 只读 replay 故障影响；未重建索引，用调�
 新增验收归档模块：节点完成且没有活跃会话、工作树清理完成后，归档全部验收轮次，逐文件 SHA-256 与大小核验，再检查源内容和会话状态，最后只删除对应节点的临时验收目录。常见缓存不归档，内部符号链接只记录关系而不跟随复制；外部/失效链接、特殊文件、过量、变化或损坏均保留现场并记 deferred。清理是幂等的，旧 worktree 已清理的节点仍可补扫验收目录。归档目录与 manifest 写入账本，子话题问答可只读查看，避免旧报告路径失效后无法定位。
 
 回归覆盖临时 PostgreSQL 的完成状态、并发清理、活跃任务、脏工作区、旧节点补扫、归档访问归属，真实文件系统覆盖多轮报告、缓存、归档校验、中断重试、损坏、符号链接和途中变化。完整任务图 PostgreSQL 套件、类型、lint、长文件检查通过。GitNexus impact 仍因 LadybugDB 现有 replay 故障返回 UNKNOWN，未重建索引。规范见 `docs/architecture/validation-result-lifecycle.md`。实际补清与服务加载证据在 `.runtime/cleanup-review/`，须按回执区分已执行与待发布。
+
+### 实际补清结果
+
+`7c8f314` 完成验收目录归档清理与归档只读问答接入。首次补清 R02A 时因 pytest 的内部 current 符号链接保留了现场；追加提交 `6af4d0a` 将内部链接的 target 和相对目标记录在 manifest，不跟随复制、不重建链接，外部链接继续阻止清理。没有改写已提交历史。
+
+2026-10-17 22:49:33 +08:00，真实业务运行的补清回执 `production-final-receipt.json` 为 verified：S05 45 个文件、R02A 505 个文件、R02B 28 个文件，共 578 个文件、14,482,450 字节已归档并独立回读逐文件校验；R02A 另保留两条内部链接关系，S05 的一个缓存目录未归档。三片临时验收目录已删除；S03/S04/S06 无遗留验收目录，也已记录清理回执。项目 Reader `.venv` 和图片输入目录保留。节点状态、交付提交、验收结论与冻结快照在操作前后逐字段一致。
+
+本机回执位于 `.runtime/cleanup-review/production-final-receipt.json`。新版本服务加载另以 `.runtime/validation-archive-deploy/reload-receipt.json` 为准；原有运行结果不因重载而重跑。S06 的前置仓库固定源码/合同输入缺口及新业务材料缺口均仍未修复，此次没有提升其 delivered_unverified 状态。
