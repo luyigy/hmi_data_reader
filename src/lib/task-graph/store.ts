@@ -184,7 +184,7 @@ export async function completeExecution(args: {
     if (changed.count !== 1) throw new Error('Execution result changed concurrently');
     await tx.taskGraphEvent.create({
       data: { runId: args.runId, nodeId: execution.nodeId,
-        idempotencyKey: `execution:${args.nodeKey}:${args.executionKey}:integrated`,
+        idempotencyKey: `execution:${args.nodeKey}:${args.executionKey}:integrated:${args.commit}`,
         kind: 'execution_integrated', payload: { commit: args.commit } },
     });
     return tx.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
@@ -203,7 +203,7 @@ export async function markNodeIntegrationsReady(runId: string, nodeKey: string, 
     const updated = await tx.taskGraphNode.updateMany({ where: { id: node.id, status: 'claimed' }, data: { status: 'verifying' } });
     if (updated.count !== 1) return null;
     await tx.taskGraphEvent.create({
-      data: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:verifying`, kind: 'node_verifying', payload: {} },
+      data: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:verifying:${node.claimToken}`, kind: 'node_verifying', payload: {} },
     });
     return tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
   });

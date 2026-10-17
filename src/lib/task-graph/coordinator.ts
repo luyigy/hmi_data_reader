@@ -1,3 +1,6 @@
+import { prepareAcceptanceRuntime } from './acceptance-runtime';
+import { scheduleGraphRepair, latestGraphRepair, type ReviewDecision } from './repair';
+import { graphGit } from './git-command';
 import { syncGraphConversationMaterials } from './conversation-materials';
 import { startConversationRecoveries } from './conversation-recovery';
 import { cleanupCompletedNodeWorkspaces, cleanupFinishedWorkspaces } from './completed-workspaces';
@@ -23,7 +26,6 @@ import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree, commitJo
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
-import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 import { inspectIssueDispatch } from './issue-dispatch';
 import { drainIssueSync } from './issue-sync';
 import { resolveRunIssueSource } from './issue-adoption';
@@ -72,9 +74,11 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   if (!plannedNode || !plannedExecution) throw new Error('Execution instructions are missing from frozen graph');
   const taskId = `task-graph-${execution.id}`;
   const taskName = `${nodeKey} · ${execution.key}`;
+  const repair = await latestGraphRepair(execution.nodeId);
+  const materials = repair ? await syncGraphConversationMaterials(`task-graph-${execution.id}`) : '';
   const description = `目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
     `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}` +
-    executionCheckInstructions(config.checks);
+    executionCheckInstructions(config.checks) + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
   const task = await prisma.task.upsert({
     where: { id: taskId },
     create: {
@@ -142,6 +146,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     await postGraphParentProgress(run.parentTaskId, runId, message);
     return;
   }
+  let reviewDecision: ReviewDecision = {};
   const evidence: VerificationEvidence = {
     checks: policy.checks.map((name) => {
       const matches = results.filter((item) => item.name === name);
@@ -155,9 +160,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
   });
   if (architecture === 'running') return;
   if (architecture === 'failed') {
-    const result = await prisma.taskGraphEvent.findUniqueOrThrow({
-      where: { runId_idempotencyKey: { runId, idempotencyKey: `node:${nodeKey}:architecture_result` } },
-    });
+    const result = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: { in: ['architecture_passed', 'architecture_failed'] } }, orderBy: { createdAt: 'desc' } });
     const note = String((result.payload as { note?: string }).note || '架构复核未通过');
     evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
       evidence: `${item.evidence}\n架构复核：${note}` }));
@@ -186,6 +189,8 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
       if (existing) return;
       throw error;
     }
+    const runtime = await prepareAcceptanceRuntime(node.id, reviewAttempt || 'initial', workspaces);
+    await prisma.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: claimKey + ':runtime', kind: 'acceptance_runtime_prepared', payload: { directory: runtime.directory, commits } } });
     const taskId = `task-graph-review-${node.id}`;
     const taskName = `${nodeKey} · 验收复核`;
     const task = await prisma.task.upsert({
@@ -193,35 +198,39 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
       create: { id: taskId, name: taskName, executionMode: 'acpx', status: 'pending',
         acpxParticipants: JSON.stringify([review.participant]),
         description: `独立复核任务图 ${runId} / ${nodeKey} 的交付证据。`,
-        workingDirectory: workspaces.at(-1)?.path || null },
-      update: { workingDirectory: workspaces.at(-1)?.path || null },
+        workingDirectory: runtime.directory },
+      update: { workingDirectory: runtime.directory },
     });
     const supplements = await prisma.liveRoomMessage.findMany({
-      where: { room: { sourceTaskId: { in: node.executions.flatMap((execution) => execution.childTaskId ? [execution.childTaskId] : []) } }, messageType: 'user' },
+      where: { room: { sourceTaskId: { in: [run.parentTaskId, ...node.executions.flatMap((execution) => execution.childTaskId ? [execution.childTaskId] : [])] } }, messageType: 'user' },
       orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
     });
     const materials = await Promise.all(node.executions.flatMap(job => job.childTaskId ? [syncGraphConversationMaterials(job.childTaskId)] : []));
-    const prompt = `${acceptanceReviewInstructions}\n请只读复核 ${nodeKey} 的目标与证据。` +
+    const prompt = `${acceptanceReviewInstructions}\n请实际验收 ${nodeKey} 的目标与证据。` +
       `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
       `\nSpec: ${definition.specRef}\n固定提交组合: ${JSON.stringify(commits)}` +
       `\nIssue: ${definition.issueSource?.tickets.find((ticket) => ticket.key === nodeKey)?.ref || '历史路线，无关联'}` +
       `\n本话题用户补充材料与澄清（只作为输入，不替代验收）：${JSON.stringify(supplements.reverse()).slice(-12000)}` +
+      `\n上轮验收证据（保留已通过项，补验缺口）：${JSON.stringify(node.evidence)}` +
+      `\n测试运行目录（可写，仅隔离数据和报告）：${runtime.directory}` +
       `\n话题原图材料（平台获取，只读输入）：${materials.join('\n')}` +
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
-      '\n最终答复仅用一行 TASK_GRAPH_REVIEW {"approved":true或false,"note":"理由"}。';
+      '\n失败必须区分 in_scope_defect（原范围内代码或测试缺口）与 blocked_require_human（图片模糊、材料缺失、范围变化或权限越界）。缺少有效结构化结论时不会自动回修。' +
+      '\n最终答复仅用一行 TASK_GRAPH_REVIEW {"approved":true或false,"note":"实际证据与理由","failureKind":"in_scope_defect 或 blocked_require_human（失败时必填）","failureKey":"本次失败的验收项完整名称"}。';
     const reviewRun = await executeAcpxTaskRun({
       taskId: task.id, taskName: task.name, taskDescription: prompt,
       orchestrationMode: 'single', participants: [review.participant],
-      extraReadOnlyPaths: workspaces.map((workspace) => workspace.path),
+      extraReadOnlyPaths: runtime.readOnlyPaths,
       workingDirectory: task.workingDirectory || undefined,
-      permissionConfig: taskGraphAgentReviewPermissionConfig,
+      permissionConfig: runtime.permissionConfig,
     }).catch((error) => ({ status: 'failed', taskRunId: 'not-created',
       participants: [], summary: error instanceof Error ? error.message : String(error) }));
     const response = reviewRun.participants[0]?.summary || reviewRun.summary || '';
     const match = response.match(/TASK_GRAPH_REVIEW\s*(\{[^\r\n]+\})/);
-    let decision: { approved?: unknown; note?: unknown } = {};
+    let decision: ReviewDecision = {};
     try { decision = match ? JSON.parse(match[1]) as typeof decision : {}; } catch { /* invalid review is a failed gate */ }
+    if (reviewRun.status === 'completed') reviewDecision = decision;
     const approved = reviewRun.status === 'completed' && decision.approved === true &&
       typeof decision.note === 'string' && decision.note.trim().length > 0;
     evidence.checks = evidence.checks.map((item) => ({
@@ -230,6 +239,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     }));
     evidence.summary = `Agent 复核 ${approved ? '通过' : '未通过'}：${String(decision.note || response || '没有有效的结构化结论')}`;
     try { await assertReviewWorkspacesClean(workspaces); } catch (error) {
+      reviewDecision = {};
       evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
         evidence: `${item.evidence}\n复核污染了固定提交工作区：${String(error)}` }));
     }
@@ -240,6 +250,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
   const updated = await submitNodeVerification({
     runId, nodeKey, actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: reviewAttempt,
   });
+  const repairing = updated.status === 'attention' && await scheduleGraphRepair(runId, nodeKey, reviewDecision, evidence);
   if (updated.status === 'passed') {
     await cleanupCompletedNodeWorkspaces(runId, nodeKey);
     await releaseReadyNodes(runId);
@@ -249,16 +260,18 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
       .catch((error) => console.error('[TaskGraph] human review card failed:', error));
   }
   await refreshTaskGraphRunStatus(runId);
-  const outcome = updated.status === 'passed' ? '验收通过，Slice 已完成；符合条件的后继将自动启动。'
+  const outcome = repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? '验收通过，Slice 已完成；符合条件的后继将自动启动。'
     : updated.status === 'awaiting_human' ? '自动检查已结束，等待已配置的人工验收。'
-    : '验收未通过，Slice 尚未完成，后继继续等待。';
+    : reviewDecision.failureKind === 'in_scope_defect' ? '自动回修已停止或达到两轮上限，保留各轮报告，需核对后处理；后继继续等待。'
+    : reviewDecision.failureKind === 'blocked_require_human' ? '需补材料、裁定范围或权限；原因见复核结论。补齐后在这里说继续验收即可。'
+    : '验收未通过，结论尚不足以自动回修；后继继续等待。';
   await Promise.all(node.executions.flatMap((execution) => execution.childTaskId ? [
     postGraphChildProgress(execution.childTaskId, `verification-${updated.id}-${updated.updatedAt.getTime()}`,
       `${nodeKey}：${outcome}\n${evidence.summary}`)
       .catch((error) => console.error('[TaskGraph] child verification delivery failed:', error)),
   ] : []));
   const parent = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
-  void postGraphParentProgress(parent.parentTaskId, runId, `${nodeKey}：${updated.status}`)
+  void postGraphParentProgress(parent.parentTaskId, runId, `${nodeKey}：${repairing ? '自动回修中' : updated.status}`)
     .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
 }
 
@@ -293,14 +306,20 @@ export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: s
 
 async function executeJob(runId: string, nodeKey: string, execution: TaskGraphExecution, claimToken: string) {
   const config = launchConfig(execution);
+  const repair = await latestGraphRepair(execution.nodeId);
   try {
     const integration = await ensureIntegrationRef({
       repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
+    });
+    if (repair && execution.worktreePath) await withRepositoryLock(execution.repository, async () => {
+      if (await graphGit(execution.worktreePath!, 'status', '--porcelain', '--untracked-files=all')) throw new Error('回修工作区存在未提交改动，保留现场');
+      await graphGit(execution.worktreePath!, 'merge', '--ff-only', integration.commit);
     });
     const workspace = await ensureJobWorktree({
       repoPath: execution.repository, runId, jobId: execution.id,
       baseRef: integration.ref, baseCommit: integration.commit,
     });
+    const implementationBase = await graphGit(workspace.path, 'rev-parse', 'HEAD');
     const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
     await recordExecutionDispatch({
       runId, nodeKey, executionKey: execution.key, claimToken,
@@ -330,7 +349,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     if (result.status !== 'completed') throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
     let checks: CheckResult[] = [];
     const integrated = await withRepositoryLock(execution.repository, async () => {
-      await commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph ${nodeKey}/${execution.key}` });
+      const submitted = await commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph ${nodeKey}/${execution.key}` });
+      if (repair && submitted === implementationBase) throw new Error('自动回修无有效代码变更，停止重试并保留现场');
       const latest = await ensureIntegrationRef({
         repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
       });
@@ -348,7 +368,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     void postGraphParentProgress(graphRun.parentTaskId, runId,
       `${nodeKey}/${execution.key} 已集成 ${integrated.commit.slice(0, 12)}`)
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
-    await verifyNode(runId, nodeKey);
+    await verifyNode(runId, nodeKey, repair ? `repair:${repair.id}` : undefined);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     const kind = /verification/i.test(detail) ? 'test_failed'
@@ -384,14 +404,8 @@ export async function runTaskGraphCycle() {
       where: { runId: run.id, status: 'verifying' }, select: { id: true, key: true },
     });
     for (const node of verifying) {
-      const architectureClaim = await prisma.taskGraphEvent.findUnique({
-        where: { runId_idempotencyKey: { runId: run.id,
-          idempotencyKey: `node:${node.key}:architecture_claimed` } },
-      });
-      const architectureResult = architectureClaim && await prisma.taskGraphEvent.findUnique({
-        where: { runId_idempotencyKey: { runId: run.id,
-          idempotencyKey: `node:${node.key}:architecture_result` } },
-      });
+      const architectureClaim = await prisma.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'architecture_claimed' }, orderBy: { createdAt: 'desc' } });
+      const architectureResult = architectureClaim && await prisma.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: { in: ['architecture_passed', 'architecture_failed'] }, createdAt: { gte: architectureClaim.createdAt } }, orderBy: { createdAt: 'desc' } });
       if (architectureClaim && !architectureResult) {
         if (!activeVerifications.has(node.id) &&
             Date.now() - architectureClaim.createdAt.getTime() > 30 * 60_000) {
@@ -411,9 +425,7 @@ export async function runTaskGraphCycle() {
         }
         continue;
       }
-      const claim = await prisma.taskGraphEvent.findUnique({
-        where: { runId_idempotencyKey: { runId: run.id, idempotencyKey: `node:${node.key}:review_claimed` } },
-      });
+      const claim = await prisma.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'review_claimed' }, orderBy: { createdAt: 'desc' } });
       if (claim && !activeReviews.has(node.id) && Date.now() - claim.createdAt.getTime() > 30 * 60_000) {
         const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id }, select: { snapshot: true } });
         const policy = (snapshot.snapshot as unknown as GraphDefinition).nodes.find((item) => item.key === node.key)?.acceptance;

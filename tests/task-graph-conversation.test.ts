@@ -26,6 +26,7 @@ async function main() {
   const originalAdmin = process.env.FEISHU_ADMIN_OPEN_ID; process.env.FEISHU_ADMIN_OPEN_ID = 'fixture-admin';
   const fixtureRuntime = mkdtempSync(path.join(tmpdir(), 'graph-conversation-runtime-'));
   const originalRuntimeRoot = process.env.TASK_GRAPH_RUNTIME_ROOT; process.env.TASK_GRAPH_RUNTIME_ROOT = fixtureRuntime;
+  const oldValidation = process.env.TASK_GRAPH_VALIDATION_ROOT; process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(fixtureRuntime, 'validation');
   let recoverySawSupplement = false;
   const require = createRequire(__filename);
   const api = require('../src/lib/feishu-api');
@@ -40,7 +41,7 @@ async function main() {
   api.getFeishuTenantAccessToken = async () => 'test-token';
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, tenant_access_token: 'fixture-token', expire: 3600, data: { message_id: 'fixture-message' } }), { status: 200 });
   adapter.execute = async ({ task, context }) => {
-    assert.equal(context.permissionConfig?.sandboxMode, 'read-only');
+    assert.equal(context.permissionConfig?.sandboxMode, task.id.startsWith('task-graph-review-') ? 'workspace-write' : 'read-only');
     assert.match(task.description || '', /Answer questions in the child topic/);
     if (task.id.startsWith('task-graph-review-')) {
       assert.match(task.description || '', /补充材料 SOURCE-42/, 'Recovery must use the new material from the original topic');
@@ -127,6 +128,7 @@ async function main() {
     if (originalAdmin === undefined) delete process.env.FEISHU_ADMIN_OPEN_ID; else process.env.FEISHU_ADMIN_OPEN_ID = originalAdmin;
     await prisma.task.deleteMany({ where: { id: { in: runId ? await prisma.task.findMany({ where: { description: { contains: runId } }, select: { id: true } }).then((tasks) => tasks.map((task) => task.id)) : [] } } });
     if (originalRuntimeRoot === undefined) delete process.env.TASK_GRAPH_RUNTIME_ROOT; else process.env.TASK_GRAPH_RUNTIME_ROOT = originalRuntimeRoot;
+    if (oldValidation === undefined) delete process.env.TASK_GRAPH_VALIDATION_ROOT; else process.env.TASK_GRAPH_VALIDATION_ROOT = oldValidation;
     await prisma.$disconnect(); rmSync(workspace, { recursive: true, force: true }); rmSync(fixtureRuntime, { recursive: true, force: true });
   }
 }

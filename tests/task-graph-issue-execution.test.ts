@@ -52,21 +52,29 @@ async function main() {
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   const codex = getHarnessAdapter('codex')!; const kimi = getHarnessAdapter('kimi-code')!;
   const starts: { key: string; directory: string }[] = []; const reviews: string[] = [];
+  const oldValidation = process.env.TASK_GRAPH_VALIDATION_ROOT; process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
   let rejectB = true;
+  let defectReported = false;
   codex.execute = async ({ task, context }) => {
     const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { childTaskId: task.id }, include: { node: true } });
     const key = job.node.key; const directory = context.workingDirectory!;
     starts.push({ key, directory });
     if (key === 'C') assert.ok(existsSync(path.join(directory, 'A.txt')) && existsSync(path.join(directory, 'B.txt')), 'Join must inherit both integrated branches');
-    writeFileSync(path.join(directory, key + '.txt'), key);
+    writeFileSync(path.join(directory, key + '.txt'), key + (key === 'B' && starts.filter(item => item.key === 'B').length > 1 ? '-fixed' : ''));
     await new Promise((resolve) => setTimeout(resolve, 60));
     return { success: true, output: 'Implemented ' + key, executionTime: 1 };
   };
   kimi.execute = async ({ task, context }) => {
-    assert.equal(context.permissionConfig?.sandboxMode, 'read-only');
+    assert.equal(context.permissionConfig?.sandboxMode, 'workspace-write');
     const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: task.id.slice('task-graph-review-'.length) }, include: { executions: true } });
-    assert.equal(context.workingDirectory, node.executions[0].worktreePath, 'Review must use implementation directory');
+    assert.ok(context.extraReadOnlyPaths?.includes(node.executions[0].worktreePath!), 'Use the original implementation code readonly');
+    assert.notEqual(context.workingDirectory, node.executions[0].worktreePath, 'Test runtime must be isolated from frozen code');
+    writeFileSync(path.join(context.workingDirectory, 'report.json'), '{}');
     reviews.push(node.key);
+    if (node.key === 'B' && !rejectB && !defectReported) {
+      defectReported = true;
+      return { success: true, output: 'TASK_GRAPH_REVIEW {"approved":false,"note":"new input found an in-scope defect","failureKind":"in_scope_defect","failureKey":"smoke"}', executionTime: 1 };
+    }
     return { success: true, output: `TASK_GRAPH_REVIEW ${JSON.stringify({ approved: node.key !== 'B' || !rejectB, note: 'explicit fixture evidence' })}`, executionTime: 1 };
   };
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
@@ -80,7 +88,7 @@ async function main() {
   const { runTaskGraphCycle, recoverTaskGraphNodeVerification } = await import('../src/lib/task-graph/coordinator');
   async function until(predicate: () => Promise<boolean>) {
     for (let i = 0; i < 500; i++) { await runTaskGraphCycle(); if (await predicate()) return; await new Promise((resolve) => setTimeout(resolve, 30)); }
-    throw new Error('Graph did not reach expected state');
+    throw Object.assign(new Error('Graph did not reach expected state'), { nodes: await prisma.taskGraphNode.findMany({ where: { runId: run.id }, include: { executions: true } }), events: await prisma.taskGraphEvent.findMany({ where: { runId: run.id }, orderBy: { createdAt: 'desc' }, take: 8 }) });
   }
   try {
     await until(async () => (await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { key: true, status: true } })).filter((node) => node.key !== 'C').every((node) => ['passed', 'attention'].includes(node.status)));
@@ -91,8 +99,8 @@ async function main() {
     rejectB = false;
     await recoverTaskGraphNodeVerification(run.id, 'B');
     await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed');
-    assert.deepEqual(starts.map((item) => item.key).sort(), ['A', 'B', 'C'], 'Recovery and repeated polls must never reimplement completed code');
-    assert.equal(reviews.filter((key) => key === 'B').length, 2);
+    assert.deepEqual(starts.map((item) => item.key).sort(), ['A', 'B', 'B', 'C'], 'Only the failed Slice may receive one classified repair; completed independent branches never rerun');
+    assert.equal(reviews.filter((key) => key === 'B').length, 3);
     assert.equal(git('rev-parse', 'main'), baseline, 'Run integration must not move source main');
     await enqueueIssueSync(); await enqueueIssueSync();
     const events = await prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: 'issue_sync_requested' }, orderBy: { createdAt: 'asc' } });
@@ -127,6 +135,7 @@ async function main() {
     const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { id: true } });
     await prisma.taskGraphRun.deleteMany({ where: { parentTaskId: parent.id } });
     await prisma.task.deleteMany({ where: { id: { in: [parent.id, ...children.flatMap((job) => job.childTaskId ? [job.childTaskId] : []), ...nodes.map((node) => `task-graph-review-${node.id}`)] } } });
+    if (oldValidation === undefined) delete process.env.TASK_GRAPH_VALIDATION_ROOT; else process.env.TASK_GRAPH_VALIDATION_ROOT = oldValidation;
     await prisma.$disconnect(); rmSync(root, { recursive: true, force: true });
   }
 }

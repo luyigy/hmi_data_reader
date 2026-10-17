@@ -296,7 +296,9 @@ const runLiveRoomAcpxAttempt = async ({
     replyableMemberTokens: replyableMembers.map((member) => member.token),
     directedTargetAlias,
     directedTargetDisplayName: desiredDirectedTarget?.displayName || null,
-  });
+  }) + (sourceTask.description?.includes('<graph-control>')
+    ? '\n任务图：用户明确说继续、接着或往下走时，输出 <graph-control>{"action":"resume_acceptance","nodeKey":"当前实际 Slice 键"}</graph-control>，平台会核验原用户权限并接续。只问状态、仅发图片、否定继续时不得输出。不要要求搬图或再发 resume。'
+    : '');
   const directedVisibleProtocol = [
     sourceTask.description || '',
     '',
@@ -620,7 +622,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
     model: participant.model, reasoningEffort: participant.reasoningEffort,
   });
   progress.progressTracker?.setFootnotes(footnotes);
-  await disposeProgress(finalSummary, acpxResult.status === 'completed');
+  await disposeProgress(finalSummary.replace(/<graph-control>[\s\S]*?<\/graph-control>/g, '').trim(), acpxResult.status === 'completed');
 
   if (acpxResult.status === 'interrupted') {
     throw new Error('Interrupted by user');

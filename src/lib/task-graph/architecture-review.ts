@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
 import { executeAcpxTaskRun } from '../acpx/runner';
@@ -17,12 +18,16 @@ export async function runArchitectureReview(args: {
   if (!node) throw new Error(`Unknown graph node ${args.nodeKey}`);
   const review = effectiveArchitectureReview(args.definition, node);
   if (!review) return 'passed'; // Runs created before architecture review was introduced.
-  const resultKey = `node:${args.nodeKey}:architecture_result`;
+  const baseKey = `node:${args.nodeKey}:architecture_result`;
+  const initial = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: baseKey } } });
+  const changed = initial && JSON.stringify((initial.payload as { commits?: unknown }).commits) !== JSON.stringify(args.commits);
+  const suffix = changed ? `:${createHash('sha256').update(JSON.stringify(args.commits)).digest('hex').slice(0, 16)}` : '';
+  const resultKey = baseKey + suffix;
   const existing = await prisma.taskGraphEvent.findUnique({
     where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: resultKey } },
   });
   if (existing) return (existing.payload as { approved?: boolean }).approved === true ? 'passed' : 'failed';
-  const claimKey = `node:${args.nodeKey}:architecture_claimed`;
+  const claimKey = `node:${args.nodeKey}:architecture_claimed${suffix}`;
   try {
     await prisma.taskGraphEvent.create({ data: {
       runId: args.runId, nodeId: args.nodeId, idempotencyKey: claimKey,

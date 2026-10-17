@@ -1,3 +1,4 @@
+import { applyGraphControlOutput } from './task-graph/conversation-intent';
 import { prisma } from '@/lib/prisma';
 import {
   clearLiveRoomRunningProcess,
@@ -319,7 +320,7 @@ export const processLiveRoomDelivery = async ({
       },
     });
 
-    let output = acpxResult.output;
+    let output = await applyGraphControlOutput({ output: acpxResult.output, roomId: room.id, sourceContent: sourceMessage.content, sourceMetadata: sourceMessage.metadata || null });
     const threadId = acpxResult.threadId;
     const remoteTiming = acpxResult.remoteTiming;
 

@@ -14,10 +14,10 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
   const room = await getBoundLiveRoom(context);
   if (!room?.sourceTaskId) return '请在父任务话题内查询任务路线。';
   if (command.args[0] === 'resume') {
-    if (!context?.senderOpenId || command.args.length !== 1) return '请在对应 Slice 子话题发送 /ap graph resume。';
+    if (!context?.senderOpenId || command.args.length > 2) return '可在父话题或子话题直接说继续验收，也可用 /ap graph resume [Slice]。';
     try {
-      await requestGraphConversationRecovery({ roomId: room.id, chatId: context.chatId, openId: context.senderOpenId, messageId: context.messageId });
-      return '验收恢复请求已登记。调度器将读取本话题补充的材料，重跑该片验收；不重做实施，不直接放行后继。';
+      const event = await requestGraphConversationRecovery({ roomId: room.id, chatId: context.chatId, openId: context.senderOpenId, messageId: context.messageId, nodeKey: command.args[1] });
+      return event.kind === 'conversation_review_already_running' ? '这个任务正在执行，无需重复启动。' : event.kind === 'conversation_review_already_complete' ? '这个任务已完成验收。' : '已接续原任务验收。父子话题材料会自动读取，范围内缺口自动回修，进度回到原话题。';
     } catch (error) { return `恢复失败：${error instanceof Error ? error.message : String(error)}`; }
   }
   if (command.args[0] === 'role') {

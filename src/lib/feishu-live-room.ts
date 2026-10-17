@@ -1,3 +1,4 @@
+import { handleGraphConversationIntent } from './task-graph/conversation-intent';
 import { ensureGraphConversationMembers } from './task-graph/conversation-members';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
@@ -599,6 +600,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
       select: { id: true },
     });
     if (existingMessage) {
+      await handleGraphConversationIntent({ roomId: binding.liveRoomId, chatId: args.context.chatId, openId: args.context.senderOpenId, messageId: args.context.messageId, text: args.content });
       return {
         liveRoomId: binding.liveRoomId,
         targetedMembers: [],
@@ -670,6 +672,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
         feishuBindingId: binding.id,
         feishuChatId: args.context.chatId,
         feishuMessageId: args.context.messageId,
+        feishuSenderOpenId: args.context.senderOpenId,
         targetLocked: explicitMentionMemberIds.length === 1 && !mentionedAll,
         targetResolutionSource: documentationSpecialist
           ? 'specialty_documentation'
@@ -679,7 +682,8 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     }),
   });
 
-  void triggerLiveRoomMessageReplies({
+  const continued = await handleGraphConversationIntent({ roomId: binding.liveRoomId, chatId: args.context.chatId, openId: args.context.senderOpenId, messageId: args.context.messageId, text: args.content });
+  if (!continued) void triggerLiveRoomMessageReplies({
     roomId: binding.liveRoomId,
     roomMessageId: message.id,
     requestedTargetMemberId: effectiveTargetMemberId || null,

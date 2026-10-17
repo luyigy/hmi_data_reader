@@ -13,7 +13,10 @@ function record(value: unknown): value is Record<string, unknown> {
 /** Questions never continue an implementation session or mutate its execution state. */
 export async function prepareGraphConversationTask(source: SourceTask): Promise<SourceTask> {
   const execution = await prisma.taskGraphExecution.findFirst({ where: { childTaskId: source.id }, include: { node: { include: { run: true } } } });
-  if (!execution) return source;
+  if (!execution) {
+    const parent = await prisma.taskGraphRun.findFirst({ where: { parentTaskId: source.id }, orderBy: { version: 'desc' } });
+    return parent ? { ...source, description: `${source.description || ''}\n用户明确要求继续时可输出 <graph-control>{"action":"resume_acceptance","nodeKey":"实际节点键"}</graph-control>。只问状态或只发图不得恢复，不让用户搬图或补发 resume。` } : source;
+  }
   const receipt = await prisma.taskGraphEvent.findFirst({ where: { runId: execution.node.runId, kind: 'workspace_cleaned',
     payload: { path: ['executionId'], equals: execution.id } }, orderBy: { createdAt: 'desc' } });
   const archived = record(receipt?.payload) && typeof receipt.payload.resultsDirectory === 'string' ? receipt.payload.resultsDirectory : null;
@@ -27,14 +30,14 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
     `task-graph-review-${execution.nodeId}`, `task-graph-architecture-${execution.nodeId}`] } },
     orderBy: { createdAt: 'desc' }, take: 3, select: { id: true, status: true, summary: true,
       participants: { select: { harnessType: true, summary: true, error: true } } } });
-  const supplements = await prisma.liveRoomMessage.findMany({ where: { room: { sourceTaskId: source.id }, messageType: 'user' },
+  const supplements = await prisma.liveRoomMessage.findMany({ where: { room: { sourceTaskId: { in: [source.id, execution.node.run.parentTaskId] } }, messageType: 'user' },
     orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true } });
   const materials = await syncGraphConversationMaterials(source.id);
   const description = redactSensitiveText([
     '你在回答原任务话题的问题。这个会话仅用于只读问答、澄清材料与说明进度。',
     '不得重复实施、改代码、提交、合并、关闭 Issue，或仅凭用户提问宣布验收通过。',
     '执行中的写操作由原任务负责。需要补充资料时根据 Spec 明确机台品牌、页面、原图和答案来源；缺少规定时明确指出待裁定项，不猜测。',
-    '补充资料记录在原任务话题。用户要求继续执行时说明当前阻塞和恢复条件，材料齐备后由用户在本子话题发送 /ap graph resume 请求恢复验收；不得把普通问题当成恢复授权，不另起实施；问答结论本身不改变执行状态。',
+    '用户在父话题或子话题补材料都可使用。明确要求继续验收时，输出 <graph-control>{"action":"resume_acceptance","nodeKey":"<当前 Slice 键>"}</graph-control>，由平台核验原用户权限并登记恢复；不要让用户搬图或补发 resume。仅发图、只读提问、否定继续时不得输出控制块。问答结论不代表验收通过。',
     `父任务：${execution.node.run.parentTaskId}；Slice：${execution.node.key}；当前状态：${execution.node.status}`,
     `目标：${goal}；固定提交：${execution.commit || '尚未集成'}`,
     `Spec：${record(execution.node.run.snapshot) ? String(execution.node.run.snapshot.specRef) : ''}`,

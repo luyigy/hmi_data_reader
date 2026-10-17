@@ -25,20 +25,22 @@ async function main() {
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
     assert.equal(url.searchParams.get('container_id_type'), 'thread', 'A group list never expands topic photos');
-    assert.equal(url.searchParams.get('container_id'), 'omt_fixture');
+    assert.ok(['omt_fixture', 'omt_parent'].includes(url.searchParams.get('container_id')!));
+    const parentTopic = url.searchParams.get('container_id') === 'omt_parent';
     calls.push(String(input));
     return new Response(JSON.stringify({ code: 0, data: { has_more: false, items: [
-      { message_id: 'om_photo', chat_id: foreign ? 'foreign' : 'oc_fixture', thread_id: 'omt_fixture', msg_type: 'image', create_time: '1792231800000', sender: { sender_type: 'user', id: 'user' }, body: { content: JSON.stringify({ image_key: 'img_fixture' }) } },
+      { message_id: parentTopic ? 'om_parent_photo' : 'om_photo', chat_id: foreign ? 'foreign' : 'oc_fixture', thread_id: parentTopic ? 'omt_parent' : 'omt_fixture', msg_type: 'image', create_time: '1792231800000', sender: { sender_type: 'user', id: 'user' }, body: { content: JSON.stringify({ image_key: 'img_fixture' }) } },
       { message_id: 'om_bot', chat_id: 'oc_fixture', thread_id: 'omt_fixture', msg_type: 'image', sender: { sender_type: 'app' }, body: { content: JSON.stringify({ image_key: 'img_bot' }) } },
     ] } }));
   };
   api.downloadFeishuMessageResource = async (args: { messageId: string }) => {
-    assert.equal(args.messageId, 'om_photo', 'Bot screenshots are not user materials');
+    assert.ok(['om_photo', 'om_parent_photo'].includes(args.messageId), 'Bot screenshots are not user materials');
     return { filePath: image, contentType: 'image/png', sizeBytes: 27 };
   };
   const parent = await prisma.task.create({ data: { name: 'materials-parent' } });
   const child = await prisma.task.create({ data: { name: 'materials-child' } });
   const room = await prisma.liveRoom.create({ data: { title: 'materials', sourceTaskId: child.id } });
+  let parentRoomId: string | undefined;
   let runId: string | undefined;
   let discussionId: string | undefined;
   try {
@@ -68,6 +70,10 @@ async function main() {
     execFileSync(wrapped.command, wrapped.args, { env: process.env, stdio: 'pipe' });
     await syncGraphConversationMaterials(child.id);
     assert.equal(JSON.parse(readFileSync(path.join(paths[0], 'index.json'), 'utf8')).items.length, 1);
+    const parentRoom = await prisma.liveRoom.create({ data: { title: 'parent', sourceTaskId: parent.id } }); parentRoomId = parentRoom.id;
+    await prisma.feishuConversationBinding.create({ data: { appId: 'fixture', chatId: 'oc_fixture', chatType: 'group', threadId: 'omt_parent', rootMessageId: 'om_parent_root', scopeKey: root + ':parent', liveRoomId: parentRoom.id } });
+    assert.match(await syncGraphConversationMaterials(child.id), /om_parent_photo/);
+    assert.equal(JSON.parse(readFileSync(path.join(paths[0], 'index.json'), 'utf8')).items.length, 2, 'Parent and child material are collected without reposting');
     foreign = true;
     assert.match(await syncGraphConversationMaterials(child.id), /归属/);
     assert.equal(existsSync(photo), true, 'Transient failures retain previously obtained material');
@@ -78,6 +84,7 @@ async function main() {
     globalThis.fetch = originalFetch; api.getFeishuTenantAccessToken = original.token; api.downloadFeishuMessageResource = original.download;
     if (discussionId) await prisma.task.delete({ where: { id: discussionId } });
     if (runId) await prisma.taskGraphRun.delete({ where: { id: runId } });
+    if (parentRoomId) await prisma.liveRoom.delete({ where: { id: parentRoomId } });
     await prisma.liveRoom.delete({ where: { id: room.id } });
     await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } });
     if (originalRoot === undefined) delete process.env.TASK_GRAPH_MATERIAL_ROOT; else process.env.TASK_GRAPH_MATERIAL_ROOT = originalRoot;
