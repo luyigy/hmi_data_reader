@@ -78,7 +78,10 @@ export async function handleFeishuTaskGraphCommand(command: ParsedFeishuCommand,
     planned: '等待前置', ready: '已放行', claimed: '执行中', verifying: '验收中',
     awaiting_human: '待人工验收', passed: '已通过', attention: '需处理', delivered_unverified: '已交付（未验收）',
   };
+  const issueSyncPending = await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'issue_sync_requested',
+    node: { events: { none: { kind: 'issue_sync_completed' } } } } });
   return [`任务路线 V${run.version} · ${run.status} · ${run.id}`,
+    ...(issueSyncPending ? [`Issue 回写待完成：${issueSyncPending} 项。任务结果已保存在账本，无需重跑实施。`] : []),
     ...(proposal && proposal.version > run.version ? [`待确认提议 V${proposal.version} · ${proposal.status}`] : []),
     ...run.nodes.map((node) => `${node.key}：${labels[node.status] || node.status}${node.dependsOn.length ? `（前置 ${node.dependsOn.join('、')}）` : ''}`),
   ].join('\n');

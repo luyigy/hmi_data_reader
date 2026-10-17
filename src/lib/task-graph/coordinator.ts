@@ -23,6 +23,8 @@ import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
+import { inspectIssueDispatch } from './issue-dispatch';
+import { drainIssueSync } from './issue-sync';
 
 const activeJobs = new Set<string>();
 const activeReviews = new Set<string>();
@@ -424,6 +426,9 @@ export async function runTaskGraphCycle() {
       }
     }
     const work = await listTaskGraphWork(run.id);
+    const snapshot = work.some((execution) => execution.status === 'ready')
+      ? await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id }, select: { snapshot: true } }) : null;
+    const blockedByIssues = snapshot ? await inspectIssueDispatch(run.id, snapshot.snapshot as unknown as GraphDefinition) : new Set<string>();
     for (const execution of work) {
       if (execution.status === 'claimed' && execution.claimToken && execution.claimedAt &&
           !activeJobs.has(execution.id)) {
@@ -449,6 +454,7 @@ export async function runTaskGraphCycle() {
       }
       if (activeJobs.size >= maxConcurrentJobs) continue;
       if (execution.status !== 'ready' || activeJobs.has(execution.id)) continue;
+      if (blockedByIssues.has(execution.node.key)) continue;
       const token = randomUUID();
       const node = await claimNode(run.id, execution.node.key, token);
       if (!node) {
@@ -470,8 +476,11 @@ export async function runTaskGraphCycle() {
 
 export async function startTaskGraphCoordinator(signal: AbortSignal) {
   let lastCleanup = 0;
+  let syncing: Promise<void> | undefined;
   while (!signal.aborted) {
     await runTaskGraphCycle().catch((error) => console.error('[TaskGraph] cycle failed:', error));
+    if (!syncing) syncing = drainIssueSync().catch((error) => console.error('[TaskGraph] Issue outbox failed:', error))
+      .finally(() => { syncing = undefined; });
     if (Date.now() - lastCleanup > 60_000) {
       lastCleanup = Date.now();
       await cleanupFinishedWorkspaces().catch((error) => console.error('[TaskGraph] workspace cleanup failed:', error));
@@ -482,4 +491,5 @@ export async function startTaskGraphCoordinator(signal: AbortSignal) {
     });
   }
   await Promise.allSettled(Array.from(inflight));
+  await syncing;
 }

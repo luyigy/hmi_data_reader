@@ -62,6 +62,7 @@ printf '%s\\n' '{"role":"assistant","content":"credential refresh writable; code
     writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\ntouch '+hookMarker+'\n', { mode: 0o700 });
     git(repository, 'config', 'core.hooksPath', hooks);
     git(repository, 'config', 'filter.escape.clean', 'touch '+filterMarker);
+    git(repository, 'config', 'filter.escape.smudge', 'touch '+filterMarker);
     writeFileSync(path.join(job.path, '.gitattributes'), '*.txt filter=escape');
     const commit = await commitJobWorktree({ repoPath: repository, runId: 'sandbox', jobId: 'one', message: 'Controlled task delivery' });
     assert.equal(existsSync(hookMarker), false, 'Controlled commit must never execute task hooks on the host');
@@ -73,6 +74,8 @@ printf '%s\\n' '{"role":"assistant","content":"credential refresh writable; code
       assert.equal(cwd, job.path);
     } });
     assert.equal(git(repository, 'rev-parse', integration.ref), commit);
+    await ensureJobWorktree({ repoPath: repository, runId: 'sandbox', jobId: 'two', baseRef: integration.ref, baseCommit: commit });
+    assert.equal(existsSync(filterMarker), false, 'New worktrees must not execute task-selected smudge filters');
     assert.equal(git(repository, 'rev-parse', 'refs/heads/main'), base);
     writeFileSync(path.join(job.path, '.gitignore'), 'scratch/\n');
     mkdirSync(path.join(job.path, 'scratch', 'inputs'), { recursive: true }); writeFileSync(path.join(job.path, 'scratch', 'inputs', 'answer.txt'), 'answer');
@@ -82,6 +85,17 @@ printf '%s\\n' '{"role":"assistant","content":"credential refresh writable; code
       { PLATFORM_PRIVATE_TOKEN: 'fixture-only', DATABASE_URL: 'fixture-only', OPENAI_API_KEY: 'fixture-only' });
     assert.match(checked.stdout, /Python/);
     assert.match(checked.stdout, /v[0-9]+/);
+    const driverRepo = path.join(root, 'driver-repo'); mkdirSync(driverRepo);
+    git(driverRepo, 'init', '-b', 'main'); git(driverRepo, 'config', 'user.name', 'Test'); git(driverRepo, 'config', 'user.email', 'test@example.test');
+    const driverMarker = path.join(root, 'merge-driver-escaped');
+    git(driverRepo, 'config', 'merge.escape.driver', 'touch ' + driverMarker);
+    writeFileSync(path.join(driverRepo, '.gitattributes'), 'value merge=escape\n'); writeFileSync(path.join(driverRepo, 'value'), 'base\n');
+    git(driverRepo, 'add', '.'); git(driverRepo, 'commit', '-m', 'base'); git(driverRepo, 'checkout', '-b', 'other');
+    writeFileSync(path.join(driverRepo, 'value'), 'other\n'); git(driverRepo, 'commit', '-am', 'other'); git(driverRepo, 'checkout', 'main');
+    writeFileSync(path.join(driverRepo, 'value'), 'main\n'); git(driverRepo, 'commit', '-am', 'main');
+    const { graphGit } = await import('../src/lib/task-graph/git-command');
+    await assert.rejects(() => graphGit(driverRepo, 'merge', '--no-edit', 'other'));
+    assert.equal(existsSync(driverMarker), false, 'Platform merges must not execute custom attribute merge drivers');
     console.log('Native Kimi sandbox enforces the requested readonly phase');
   } finally {
     if (original === undefined) delete process.env.KIMI_CODE_CLI_PATH; else process.env.KIMI_CODE_CLI_PATH = original;
