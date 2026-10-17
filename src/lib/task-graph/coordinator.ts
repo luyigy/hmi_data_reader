@@ -18,8 +18,8 @@ import {
   refreshTaskGraphRunStatus, releaseReadyNodes,
   submitNodeVerification, type VerificationEvidence,
 } from './store';
-import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree } from './worktree';
-import { runGraphCheck } from './check-runner';
+import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree, commitJobWorktree } from './worktree';
+import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
@@ -40,11 +40,11 @@ function launchConfig(execution: TaskGraphExecution): LaunchConfig {
   return config;
 }
 
-async function runChecks(checks: Check[], directory: string, extraEnv: Record<string, string> = {}): Promise<CheckResult[]> {
+async function runChecks(checks: Check[], directory: string, extraEnv: Record<string, string> = {}, readOnlyWorkspaces: string[] = []): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   for (const check of checks) {
     try {
-      const { stdout, stderr } = await runGraphCheck(check.argv, directory, extraEnv);
+      const { stdout, stderr } = await runSandboxedGraphCheck(check.argv, directory, extraEnv, readOnlyWorkspaces);
       results.push({ name: check.name, passed: true, evidence: `${check.argv.join(' ')}\n${stdout}${stderr}`.slice(-4000) });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -114,7 +114,7 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
       const workspace = workspaces.slice().reverse().find((item) => item.repository === check.repository);
       if (!workspace) throw new Error(`Missing pinned repository for ${check.name}`);
       try {
-        results.push(...await runChecks([check], workspace.path, env));
+        results.push(...await runChecks([check], workspace.path, env, workspaces.map((workspace) => workspace.path)));
       } catch (error) {
         const failed = error as Error & { results?: CheckResult[] };
         results.push(...failed.results || [{ name: check.name, passed: false, evidence: failed.message }]);
@@ -310,7 +310,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
     await postTaskRoomMessage({
       roomId: room.id, userId: 'task-graph', userName: '任务图调度器',
-      content: `执行 ${nodeKey}/${execution.key}。基线 ${integration.commit}。请在此 worktree 提交全部修改并报告测试结果。`,
+      content: `执行 ${nodeKey}/${execution.key}。基线 ${integration.commit}。请在此 worktree 编辑代码并报告结果；平台负责受控提交，不要自行运行 git add/commit/merge。`,
     });
     const result = await executeAcpxTaskRun({
       taskId: task.id, taskName: task.name, taskDescription: task.description || undefined,
@@ -320,6 +320,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     if (result.status !== 'completed') throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
     let checks: CheckResult[] = [];
     const integrated = await withRepositoryLock(execution.repository, async () => {
+      await commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph ${nodeKey}/${execution.key}` });
       const latest = await ensureIntegrationRef({
         repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
       });

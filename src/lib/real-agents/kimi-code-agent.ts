@@ -1,3 +1,4 @@
+import { existsSync, realpathSync } from 'node:fs';
 import { execFile, spawn, type ChildProcess } from 'child_process';
 import { homedir } from 'os';
 import path from 'path';
@@ -23,6 +24,7 @@ export interface KimiCodeConfig {
   networkAccess?: 'restricted' | 'enabled';
   sandboxMode?: string;
   permissionProfile?: string;
+  runtimeHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   model?: string;
@@ -309,6 +311,7 @@ const runKimiCodeCommand = async ({
   networkAccess,
   sandboxMode,
   permissionProfile,
+  runtimeHome,
   streamCallbacks,
   onSpawn,
   model,
@@ -323,6 +326,7 @@ const runKimiCodeCommand = async ({
   networkAccess?: 'restricted' | 'enabled';
   sandboxMode?: string;
   permissionProfile?: string;
+  runtimeHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   onSpawn?: (child: ChildProcess) => void;
   model?: string;
@@ -333,6 +337,8 @@ const runKimiCodeCommand = async ({
   }
 
   const env = buildKimiCodeChildEnv();
+  if (runtimeHome) { env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = '/tmp/cache'; env.NPM_CONFIG_CACHE = '/tmp/npm'; env.PYTHONPYCACHEPREFIX = '/tmp/python'; env.HOME = runtimeHome; env.KIMI_CODE_HOME = path.join(runtimeHome, '.kimi-code'); }
+  const activeHome = runtimeHome ? path.join(runtimeHome, '.kimi-code') : getKimiCodeHome();
   env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(KIMI_CODE_MAX_SUBAGENTS);
   // Prompt mode is implicitly Kimi's fully autonomous `auto` mode; Bubblewrap is the safety boundary.
   const args = [
@@ -353,7 +359,7 @@ const runKimiCodeCommand = async ({
     networkAccess,
     sandboxMode,
     env,
-    configPaths: [getKimiCodeHome()],
+    configPaths: [runtimeHome || activeHome, ...(runtimeHome ? ['credentials', 'oauth'].map((name) => path.join(activeHome, name)).filter(existsSync).map((entry) => realpathSync(entry)) : [])],
     readOnlyPaths: extraReadOnlyPaths?.length ? extraReadOnlyPaths : undefined,
   });
   const child = spawn(wrapped.command, wrapped.args, {
@@ -482,6 +488,8 @@ export const executeKimiCodeTask = async (
       extraReadOnlyPaths: config.extraReadOnlyPaths,
       networkAccess: config.networkAccess,
       permissionProfile: config.permissionProfile,
+      sandboxMode: config.sandboxMode,
+      runtimeHome: config.runtimeHome,
       streamCallbacks: config.streamCallbacks,
       onSpawn: config.onSpawn,
       model: config.model,

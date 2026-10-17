@@ -270,7 +270,10 @@ const runLiveRoomAcpxAttempt = async ({
   forceEphemeral?: boolean; workflowCompletionGate: boolean;
   streamCallbacks?: HarnessStreamCallbacks;
 }) => {
+  const discussion = sourceTask.id.startsWith('task-graph-discussion-');
   const shouldUseContinuation =
+    !discussion
+    &&
     !useFreshSession
     && !forceEphemeral
     && Boolean(latestSession?.continuationSessionId);
@@ -317,7 +320,7 @@ const runLiveRoomAcpxAttempt = async ({
       continuationMessage: shouldUseContinuation
         ? buildLiveRoomContinuationMessage(directedVisibleProtocol, contentForAgent)
         : undefined,
-      ephemeralSession: forceEphemeral,
+      ephemeralSession: forceEphemeral || discussion,
       codexHome:
         participant.executionBackend === 'platform_local' && participant.harnessType === 'codex'
           ? `/data1/.agent-platform/codex-rooms/${room.id}`

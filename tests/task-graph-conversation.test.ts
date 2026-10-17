@@ -24,6 +24,8 @@ async function main() {
   writeFileSync(path.join(workspace, 'fixture.txt'), 'conversation'); git('add', '.'); git('commit', '-m', 'fixture');
   const head = git('rev-parse', 'HEAD');
   const originalAdmin = process.env.FEISHU_ADMIN_OPEN_ID; process.env.FEISHU_ADMIN_OPEN_ID = 'fixture-admin';
+  const fixtureRuntime = mkdtempSync(path.join(tmpdir(), 'graph-conversation-runtime-'));
+  const originalRuntimeRoot = process.env.TASK_GRAPH_RUNTIME_ROOT; process.env.TASK_GRAPH_RUNTIME_ROOT = fixtureRuntime;
   let recoverySawSupplement = false;
   const require = createRequire(__filename);
   const api = require('../src/lib/feishu-api');
@@ -124,7 +126,8 @@ async function main() {
     await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } });
     if (originalAdmin === undefined) delete process.env.FEISHU_ADMIN_OPEN_ID; else process.env.FEISHU_ADMIN_OPEN_ID = originalAdmin;
     await prisma.task.deleteMany({ where: { id: { in: runId ? await prisma.task.findMany({ where: { description: { contains: runId } }, select: { id: true } }).then((tasks) => tasks.map((task) => task.id)) : [] } } });
-    await prisma.$disconnect(); rmSync(workspace, { recursive: true, force: true });
+    if (originalRuntimeRoot === undefined) delete process.env.TASK_GRAPH_RUNTIME_ROOT; else process.env.TASK_GRAPH_RUNTIME_ROOT = originalRuntimeRoot;
+    await prisma.$disconnect(); rmSync(workspace, { recursive: true, force: true }); rmSync(fixtureRuntime, { recursive: true, force: true });
   }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

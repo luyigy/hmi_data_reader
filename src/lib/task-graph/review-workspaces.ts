@@ -1,12 +1,8 @@
-import { execFile } from 'node:child_process';
+import { graphGit as git } from './git-command';
 import { realpath } from 'node:fs/promises';
-import { promisify } from 'node:util';
 
-const exec = promisify(execFile);
 const oid = /^[a-f0-9]{40,64}$/;
-async function git(cwd: string, ...args: string[]) {
-  return (await exec('git', args, { cwd, maxBuffer: 2 * 1024 * 1024 })).stdout.trim();
-}
+
 export type ReviewWorkspace = { repository: string; path: string; commit: string };
 type Execution = { repository: string; worktreePath: string | null; commit: string | null };
 
@@ -30,7 +26,7 @@ export async function resolveReviewWorkspaces(executions: Execution[]): Promise<
     for (const candidate of siblings) {
       let containsAll = true;
       for (const sibling of siblings) {
-        if (!await exec('git', ['merge-base', '--is-ancestor', sibling.commit, candidate.commit], { cwd: candidate.repository }).then(() => true, () => false)) containsAll = false;
+        if (!await git(candidate.repository, 'merge-base', '--is-ancestor', sibling.commit, candidate.commit).then(() => true, () => false)) containsAll = false;
       }
       if (containsAll) { combined = candidate; break; }
     }

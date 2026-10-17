@@ -31,6 +31,7 @@ export interface CodexAppServerOptions {
   networkAccess?: 'restricted' | 'enabled';
   readOnlyPaths?: string[];
   codexHome?: string;
+  runtimeHome?: string;
   sandboxMode: string;
   approvalPolicy: 'never' | 'on-request';
   timeout: number | null;
@@ -150,7 +151,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
       networkAccess: options.networkAccess,
       sandboxMode: options.sandboxMode,
       env: options.env ?? process.env,
-      configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
+      configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
       readOnlyPaths: options.readOnlyPaths,
     });
     child = spawn(wrapped.command, wrapped.args, {

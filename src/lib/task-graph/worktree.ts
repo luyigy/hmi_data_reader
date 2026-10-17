@@ -1,11 +1,9 @@
+import { graphGit as git } from './git-command';
 import { preserveWorktreeResults } from './worktree-results';
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
 const oidPattern = /^[0-9a-f]{40,64}$/;
 
 type Worktree = { path: string; head: string; branch?: string };
@@ -60,14 +58,7 @@ export interface IntegrationRequest {
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
 
-async function git(cwd: string, ...args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    maxBuffer: 4 * 1024 * 1024,
-  });
-  return stdout.trimEnd();
-}
+
 
 async function succeeds(cwd: string, ...args: string[]): Promise<boolean> {
   try {
@@ -305,6 +296,25 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
     }
   }
   return { commit: result, alreadyIntegrated };
+}
+
+/** Platform-owned commit step. Native agents never receive writable shared Git metadata. */
+export async function commitJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef' | 'baseCommit'> & { message: string }): Promise<string> {
+  const repo = await repositoryRoot(request.repoPath);
+  const target = jobPath(await workspaceRoot(repo, request.worktreeRoot), repo, request.runId, request.jobId);
+  const branch = jobBranch(request.runId, request.jobId);
+  const tree = findWorkspace(await worktrees(repo), target);
+  if (!tree || tree.branch !== branch || await git(target, 'symbolic-ref', 'HEAD') !== branch ||
+      await git(target, 'rev-parse', '--path-format=absolute', '--git-common-dir') !== await git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')) {
+    throw new TaskGraphGitError('workspace_collision', 'Controlled commit requires the registered task branch', target);
+  }
+  const gitDirectory = await git(target, 'rev-parse', '--absolute-git-dir');
+  if (await fs.access(path.join(gitDirectory, 'MERGE_HEAD')).then(() => true, () => false)) throw new TaskGraphGitError('integration_conflict', 'Resolve the pending merge before committing', target);
+  await git(target, 'add', '--all', '--', '.');
+  const staged = await git(target, 'diff', '--cached', '--no-ext-diff', '--no-textconv', '--name-only');
+  if (staged) await git(target, '-c', 'commit.gpgsign=false', '-c', 'user.name=Agent Platform', '-c', 'user.email=agent-platform@localhost',
+    'commit', '-m', request.message.slice(0, 160));
+  return git(target, 'rev-parse', 'HEAD');
 }
 
 /** Never force-remove: only a clean job tree whose head reached the integration ref can be removed. */

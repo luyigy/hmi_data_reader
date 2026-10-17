@@ -1,3 +1,5 @@
+import { sandboxEnvironmentRemovals } from './sandbox-env';
+import { localToolchainPaths } from './toolchain-paths';
 import { existsSync, lstatSync, readdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
@@ -35,6 +37,7 @@ export function wrapWithBubblewrap(args: {
   cwd: string;
   workspaceRoot?: string;
   writableRoots?: string[];
+  outputPaths?: string[];
   networkAccess?: 'restricted' | 'enabled';
   sandboxMode?: string;
   env: NodeJS.ProcessEnv;
@@ -67,16 +70,23 @@ export function wrapWithBubblewrap(args: {
     .filter(existsSync)
     .map((source) => realpathSync(source))
     .filter((source) => !isWithin(workspaceRoot, source));
-  const allWritableMounts = [...writableMounts, ...extraWritableMounts]
+  const outputs = (args.outputPaths || []).filter(existsSync).map((entry) => {
+    const canonical = realpathSync(entry);
+    if (canonical === workspaceRoot || !isWithin(workspaceRoot, canonical)) throw new Error('Output path escapes the task workspace');
+    return canonical;
+  });
+  const allWritableMounts = [...writableMounts, ...extraWritableMounts, ...outputs]
     .filter((source, index, all) => all.indexOf(source) === index);
   const readOnlyMounts = [
     executableMount,
+    ...localToolchainPaths(),
     ...systemTopologyPaths,
     ...(explicitReadOnlyPaths ?? configPaths.flatMap(symlinkTargets)),
   ]
     .filter((source, index, all) => !source.startsWith('/usr/') && all.indexOf(source) === index);
   const bwrapArgs = [
     '--die-with-parent', '--new-session', '--unshare-all',
+    ...sandboxEnvironmentRemovals(args.env).flatMap((key) => ['--unsetenv', key]),
     ...(args.networkAccess === 'enabled' ? ['--share-net'] : []),
     '--tmpfs', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
     '--dir', '/usr', '--ro-bind', '/usr', '/usr',

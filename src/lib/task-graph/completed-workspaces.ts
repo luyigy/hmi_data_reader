@@ -1,3 +1,4 @@
+import { clearGraphHarnessRuntime } from './harness-runtime';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
@@ -28,6 +29,8 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
           integrationRef: `refs/heads/task-graph/integration/${hash(runId)}`,
           expectedCommit: commit, resultsDirectory,
         });
+        clearGraphHarnessRuntime(childTaskId);
+        clearGraphHarnessRuntime(`task-graph-discussion-${execution.id}`);
         await prisma.$transaction([
           prisma.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: receipt,
             kind: 'workspace_cleaned', payload: { executionId: execution.id, commit: execution.commit, worktreePath: execution.worktreePath, resultsDirectory: existsSync(resultsDirectory) ? resultsDirectory : null } } }),
@@ -42,10 +45,14 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
     }
   }
   const receipts = await prisma.taskGraphEvent.count({ where: { runId, nodeId: node.id, kind: 'workspace_cleaned' } });
-  if (receipts === node.executions.length) await prisma.taskGraphEvent.upsert({
+  if (receipts === node.executions.length) {
+    clearGraphHarnessRuntime(`task-graph-review-${node.id}`);
+    clearGraphHarnessRuntime(`task-graph-architecture-${node.id}`);
+    await prisma.taskGraphEvent.upsert({
     where: { runId_idempotencyKey: { runId, idempotencyKey: `node:${nodeKey}:workspaces_cleaned` } },
     create: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:workspaces_cleaned`, kind: 'node_workspaces_cleaned', payload: {} }, update: {},
   });
+  }
 }
 
 export async function cleanupFinishedWorkspaces() {

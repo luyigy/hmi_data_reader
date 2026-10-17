@@ -26,6 +26,7 @@ export interface CodexConfig {
   readOnlyPaths?: string[];
   ephemeral?: boolean;
   codexHome?: string;
+  runtimeHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
@@ -82,6 +83,7 @@ export const executeCodexTask = async (
       readOnlyPaths: config.readOnlyPaths,
       ephemeral,
       codexHome: config.codexHome,
+      runtimeHome: config.runtimeHome,
       streamCallbacks,
       skipGitRepoCheck,
       sandboxMode,
@@ -121,6 +123,7 @@ interface CodexExecutionOptions {
   readOnlyPaths?: string[];
   ephemeral?: boolean;
   codexHome?: string;
+  runtimeHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck: boolean;
   sandboxMode: string;
@@ -137,9 +140,10 @@ interface CodexCliResult {
   turnId?: string;
 }
 
-const buildCodexChildEnv = (codexHome?: string) => {
+const buildCodexChildEnv = (codexHome?: string, runtimeHome?: string) => {
   const env = { ...process.env } as NodeJS.ProcessEnv;
 
+  if (runtimeHome) { env.HOME = runtimeHome; env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = '/tmp/cache'; env.NPM_CONFIG_CACHE = '/tmp/npm'; env.PYTHONPYCACHEPREFIX = '/tmp/python'; }
   if (codexHome) {
     prepareCodexHome(codexHome);
     env.CODEX_HOME = codexHome;
@@ -193,7 +197,7 @@ Take your time and be thorough.`;
       return await runCodexAppServer({
         prompt,
         ...options,
-        env: buildCodexChildEnv(options.codexHome),
+        env: buildCodexChildEnv(options.codexHome, options.runtimeHome),
       });
     } catch (error) {
       if (!canRetryCodexAppServerWithJson(error, options.workspaceRoot)) throw error;
@@ -225,6 +229,7 @@ export const resumeCodexSession = async ({
   networkAccess,
   readOnlyPaths,
   codexHome,
+  runtimeHome,
   streamCallbacks,
   skipGitRepoCheck = true,
   sandboxMode = process.env.ACPX_CODEX_SANDBOX_MODE?.trim() || 'workspace-write',
@@ -243,6 +248,7 @@ export const resumeCodexSession = async ({
   networkAccess?: 'restricted' | 'enabled';
   readOnlyPaths?: string[];
   codexHome?: string;
+  runtimeHome?: string;
   streamCallbacks?: HarnessStreamCallbacks;
   skipGitRepoCheck?: boolean;
   sandboxMode?: string;
@@ -264,6 +270,7 @@ export const resumeCodexSession = async ({
         networkAccess,
         readOnlyPaths,
         codexHome,
+  runtimeHome,
         sandboxMode,
         approvalPolicy,
         model,
@@ -271,7 +278,7 @@ export const resumeCodexSession = async ({
         streamCallbacks,
         onSpawn,
         onThreadStarted,
-        env: buildCodexChildEnv(codexHome),
+        env: buildCodexChildEnv(codexHome, runtimeHome),
       });
     } catch (error) {
       if (!canRetryCodexAppServerWithJson(error, workspaceRoot)) throw error;
@@ -302,6 +309,7 @@ export const resumeCodexSession = async ({
       model,
       reasoningEffort,
       codexHome,
+  runtimeHome,
       readOnlyPaths,
       onSpawn,
       onThreadStarted,
@@ -395,8 +403,8 @@ const runCodexJsonCommand = async ({
     let stdoutBuffer = '';
     let turnFailureMessage: string | null = null;
 
-    const env = buildCodexChildEnv(options.codexHome);
-    const wrapped = wrapWithBubblewrap({ command: 'codex', commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, sandboxMode: options.sandboxMode, env, configPaths: [options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`], readOnlyPaths: options.readOnlyPaths });
+    const env = buildCodexChildEnv(options.codexHome, options.runtimeHome);
+    const wrapped = wrapWithBubblewrap({ command: 'codex', commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, sandboxMode: options.sandboxMode, env, configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`], readOnlyPaths: options.readOnlyPaths });
     const child = spawn(wrapped.command, wrapped.args, {
       cwd: options.workingDirectory,
       env,

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { HarnessAdapter, HarnessExecuteArgs } from '../types';
 
 import { collectKimiCodeSessionTelemetry } from '@/lib/real-agents/kimi-code-telemetry';
@@ -5,7 +6,7 @@ import { collectKimiCodeSessionTelemetry } from '@/lib/real-agents/kimi-code-tel
 const collectTelemetry = (sessionId: string | undefined, context: HarnessExecuteArgs['context'], startedAt: number) =>
   sessionId && context.executionId
     ? collectKimiCodeSessionTelemetry({ sessionId, executionId: context.executionId,
-      startedAt, completedAt: Date.now() }) : undefined;
+      startedAt, completedAt: Date.now(), home: context.runtimeHome ? path.join(context.runtimeHome, '.kimi-code') : undefined }) : undefined;
 
 async function loadKimiCodeAgent() {
   return import('@/lib/real-agents/kimi-code-agent');
@@ -51,6 +52,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
       model: context.model,
+      runtimeHome: context.runtimeHome,
     });
     if (result.sessionId) {
       await context.onSessionStarted?.({ sessionId: result.sessionId, sessionKind: 'kimi_session' });
@@ -80,6 +82,7 @@ export const kimiCodeHarnessAdapter: HarnessAdapter = {
       streamCallbacks: context.streamCallbacks,
       onSpawn: context.onSpawn,
       model: context.model,
+      runtimeHome: context.runtimeHome,
       prompt: continuationMessage,
       sessionId,
     });

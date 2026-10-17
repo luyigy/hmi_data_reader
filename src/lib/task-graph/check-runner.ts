@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 export const GRAPH_CHECK_TIMEOUT_MS = 10 * 60_000;
 
 /** Bound the whole check and terminate its process group before reporting a timeout. */
-export function runGraphCheck(argv: string[], cwd: string, extraEnv: Record<string, string> = {}, timeoutMs = GRAPH_CHECK_TIMEOUT_MS) {
+export function runGraphCheck(argv: string[], cwd: string, extraEnv: Record<string, string | undefined> = {}, timeoutMs = GRAPH_CHECK_TIMEOUT_MS) {
   return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(argv[0], argv.slice(1), {
       cwd, env: { ...process.env, ...extraEnv }, detached: process.platform !== 'win32',

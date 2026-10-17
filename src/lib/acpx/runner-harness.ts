@@ -1,3 +1,6 @@
+import { graphDependencyPaths } from '../task-graph/dependency-paths';
+import { prepareGraphHarnessRuntime } from '../task-graph/harness-runtime';
+import path from 'node:path';
 import { prisma } from '../prisma';
 import { existsSync } from 'node:fs';
 import { linkedWorktreeGitDirectories } from '../real-agents/git-worktree-paths';
@@ -136,17 +139,25 @@ export const executeViaLocalHarness = async (
   const workspaceRoot = permissionConfig.profile === 'full_access'
     ? undefined
     : permissionConfig.writableRoots[0] || request.workingDirectory || process.cwd();
+  const graphRuntime = request.taskId.startsWith('task-graph-')
+    ? prepareGraphHarnessRuntime(request.taskId, participant.harnessType) : null;
+  if (graphRuntime && !workspaceRoot) throw new Error('任务图执行需要受限工作区，不能使用 full_access。');
+  const graphGit = graphRuntime ? linkedWorktreeGitDirectories(workspaceRoot) : [];
   const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
-    : [...permissionConfig.writableRoots.slice(1), ...linkedWorktreeGitDirectories(workspaceRoot)].filter((root, index, all) => all.indexOf(root) === index);
+    : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
   const extraReadOnlyPaths = Array.from(new Set([
     ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
     ...(request.extraReadOnlyPaths || []),
+    ...(graphRuntime?.readonly || []), ...graphGit,
+    ...(graphRuntime ? graphDependencyPaths(workspaceRoot) : []),
+    ...(graphGit.length && workspaceRoot ? [path.join(workspaceRoot, ".git")] : []),
     ...(permissionConfig.sandboxMode === 'read-only'
       ? [workspaceRoot, ...(request.extraReadOnlyPaths || [])].flatMap(linkedWorktreeGitDirectories)
       : []),
   ]));
-  const codexHome = participant.harnessType === 'codex'
+  if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
+  const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
     : participant.codexHome;
   const harnessCallbacks = participant.harnessType === 'codex'
@@ -215,6 +226,7 @@ export const executeViaLocalHarness = async (
           ),
           ephemeralSession: participant.ephemeralSession,
           codexHome,
+          runtimeHome: graphRuntime?.home,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({
@@ -248,6 +260,7 @@ export const executeViaLocalHarness = async (
           ),
           ephemeralSession: participant.ephemeralSession,
           codexHome,
+          runtimeHome: graphRuntime?.home,
           model: participant.model,
           reasoningEffort: participant.reasoningEffort,
           sessionKey: getParticipantContinuationKey({

@@ -32,6 +32,7 @@ export interface HarnessExecutionContext {
   timeout: number | null;
   ephemeralSession?: boolean;
   codexHome?: string;
+  runtimeHome?: string;
   model?: string;
   reasoningEffort?: string;
   sessionKey?: string;
