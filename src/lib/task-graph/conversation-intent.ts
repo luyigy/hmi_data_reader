@@ -1,3 +1,4 @@
+import { isRecord } from './implementation-result';
 import { prisma } from '../prisma';
 import { replyFeishuMessage } from '../feishu-api';
 import { requestGraphConversationRecovery, GraphRecoveryTargetAmbiguous } from './conversation-recovery';
@@ -9,7 +10,9 @@ export function hasContinuationAuthorization(text: string) {
   return !/(?:不要|不需要|不用|不必|不想|先别|暂不|别)[\s\S]{0,10}(?:继续|恢复|启动|验收|测试|复核|跑)|不(?:再|去|马上|现在|想)?\s*(?:继续|恢复|启动|验收|测试|复核|跑)/.test(action);
 }
 export function resumeIntent(text: string) {
-  return hasContinuationAuthorization(text) && /(?:继续|恢复|重新|接着)[\s\S]{0,10}(?:验收|测试|复测|复核|验证|跑)|用[\s\S]{0,70}(?:验收|测试|复测|复核|测一下)/.test(text);
+  if (!hasContinuationAuthorization(text)) return false;
+  const action = text.split(/[，,。！!；;\n]/).filter(part => /继续|恢复|接着|往下走|用[\s\S]{0,70}(?:验收|测试|复测|复核|测一下)/.test(part)).at(-1) || '';
+  return !/(?:继续|恢复|接着)[\s\S]{0,8}(?:讨论|聊天|设计|规划|写方案)|(?:以后|下次|明天|稍后|等[\s\S]+(?:后|再)|如果)[\s\S]*(?:继续|恢复|接着)/.test(action);
 }
 export type GraphContinuationInput = { roomId: string; chatId: string; openId: string; messageId: string; text: string; nodeKey?: string };
 
@@ -38,9 +41,10 @@ export async function handleGraphConversationIntent(args: GraphContinuationInput
   let uuid: string;
   try {
     const event = await requestGraphConversationRecovery(args);
+    const payload = isRecord(event.payload) ? event.payload : {};
     text = event.kind === 'conversation_review_already_running' ? '这个任务正在执行，无需重复启动。'
-      : event.kind === 'conversation_review_already_complete' ? '这个任务已完成验收，无需重复启动。'
-      : '已接续原任务验收。平台会读取父子话题中的材料，结果回到原话题。';
+      : event.kind === 'conversation_review_already_complete' ? payload.nodeStatus === 'delivered_unverified' ? '这个任务已按仅实施模式交付，尚未独立验收。若要独立验收，需明确调整批准的模式；本次不会重复实施。' : '这个任务已完成验收，无需重复启动。'
+      : payload.recoveryKind === 'implementation' ? '已登记接续原任务实施，平台会从已保存进度读取父子话题新材料；输入或现场存在问题时会明确暂停，不会误作已交付。' : '已接续原任务验收。平台会读取父子话题中的材料，结果回到原话题。';
     uuid = `graph-continue-${event.id}`;
     if (selectedPendingId) await prisma.taskGraphEvent.createMany({ data: [{ runId: event.runId, nodeId: event.nodeId, idempotencyKey: `${selectedPendingId}:resolved`, kind: 'conversation_recovery_target_resolved', payload: { messageId: args.messageId } }], skipDuplicates: true });
   } catch (error) {
@@ -62,7 +66,7 @@ export async function applyGraphControlOutput(args: { output: string; roomId: st
   if (blocks.length === 1 && metadata.source === 'feishu' && typeof metadata.feishuSenderOpenId === 'string' && typeof metadata.feishuChatId === 'string' && typeof metadata.feishuMessageId === 'string') {
     try {
       const command = JSON.parse(blocks[0][1]);
-      if (command.action !== 'resume_acceptance' || typeof command.nodeKey !== 'string') throw new Error('无效的任务恢复指令');
+      if (!['resume_task', 'resume_acceptance'].includes(command.action) || typeof command.nodeKey !== 'string') throw new Error('无效的任务恢复指令');
       const handled = await handleGraphConversationIntent({ roomId: args.roomId, chatId: metadata.feishuChatId, openId: metadata.feishuSenderOpenId,
         messageId: metadata.feishuMessageId, text: args.sourceContent, nodeKey: command.nodeKey }, true);
       message = handled ? '平台已回复本次继续请求，请以平台状态回报为准。' : '本条消息没有明确要求继续执行，任务状态保持。';

@@ -62,7 +62,7 @@ async function main() {
     if (key === 'C') assert.ok(existsSync(path.join(directory, 'A.txt')) && existsSync(path.join(directory, 'B.txt')), 'Join must inherit both integrated branches');
     writeFileSync(path.join(directory, key + '.txt'), key + (key === 'B' && starts.filter(item => item.key === 'B').length > 1 ? '-fixed' : ''));
     await new Promise((resolve) => setTimeout(resolve, 60));
-    return { success: true, output: 'Implemented ' + key, executionTime: 1 };
+    return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION ' + JSON.stringify({ status: 'delivered', note: 'Implemented ' + key, evidence: [key + '.txt'] }), executionTime: 1 };
   };
   kimi.execute = async ({ task, context }) => {
     assert.equal(context.permissionConfig?.sandboxMode, 'workspace-write');

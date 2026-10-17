@@ -21,8 +21,12 @@ W1/W2/W3 无前置，W4 被三者阻塞，W5 被 W4 阻塞。每张 Issue 的 `a
 
 ## 执行状态
 
+- [接力评审后的通用交付实施建议](show-me-workflow-delivery-plan.html)：三个实施单元与六种通用情形的离线演示；以 D1–D3 为最新顺序，不启动业务任务。
+- [通用交付与恢复父 Spec](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS26)。新计划独立于 W1–W5，避免改变旧路线来源。
+- 新增 tickets：[D1](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS16) → [D2](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS1A) → [D3](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS1B)。
+
 - [跨仓交付交互演示](show-me-cross-repository-delivery.html)：按 show-me 技能制作的单文件 HTML，以 S06 演示正常接力与平台阻塞，手机可用，未接真实执行。
-- [跨仓交付与消费实施方案](cross-repository-inputs.md)：Antigravity 评审后的最终设计、S06 恢复路径与 C1–C3 划分，尚未实施。
+- [跨仓交付与消费实施方案](cross-repository-inputs.md)：三棒评审后的通用交付设计、D1–D3 顺序与 S06 示例；用户已授权实施，逐单元结果见执行记录。
 
 - [本轮集中变更记录](change-record-20261017.md)：当前约定、替代方案、提交、发布、实际业务状态和遗留问题。
 - [项目运行环境配置](../../architecture/project-runtime-environments.md)：复用已有虚拟环境的选择规则与权限。

@@ -1,3 +1,4 @@
+import { graphRecoveryKind, latestImplementationRecovery, implementationCheckpoint, parseImplementationResult, pauseGraphImplementation, scheduleImplementationRecovery } from './implementation-result';
 import { prepareAcceptanceRuntime } from './acceptance-runtime';
 import { prepareGraphSpecInput } from './spec-input';
 import { scheduleGraphRepair, latestGraphRepair, type ReviewDecision } from './repair';
@@ -76,10 +77,16 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   const taskId = `task-graph-${execution.id}`;
   const taskName = `${nodeKey} · ${execution.key}`;
   const repair = await latestGraphRepair(execution.nodeId);
-  const materials = repair ? await syncGraphConversationMaterials(`task-graph-${execution.id}`) : '';
+  const resumed = await latestImplementationRecovery(execution.nodeId);
+  const continuation = resumed && (!repair || resumed.createdAt > repair.createdAt) ? resumed : null;
+  const materials = repair || continuation ? await syncGraphConversationMaterials(`task-graph-${execution.id}`) : '';
+  const supplements = repair || continuation ? await prisma.liveRoomMessage.findMany({
+    where: { room: { sourceTaskId: { in: [run.parentTaskId, taskId] } }, messageType: 'user' },
+    orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
+  }) : [];
   const description = `目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
     `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}` +
-    executionCheckInstructions(config.checks) + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
+    executionCheckInstructions(config.checks) + (continuation ? `\n继续原任务实施：${JSON.stringify(continuation.payload)}\n${materials}\n父子话题补充：${JSON.stringify(supplements.reverse()).slice(-12000)}\n读取保存进度和话题新材料，按原批准范围接续，不把恢复请求当作完成证据。` : '') + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
   const task = await prisma.task.upsert({
     where: { id: taskId },
     create: {
@@ -277,6 +284,27 @@ async function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string
     .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
 }
 
+export async function recoverTaskGraphNode(runId: string, nodeKey: string, recoveryKind: 'implementation' | 'verification', requestId: string) {
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
+  try {
+    const actual = await graphRecoveryKind(node.id);
+    if (actual !== recoveryKind) throw new Error('恢复阶段已改变，请根据当前阻塞重新继续');
+    if (recoveryKind === 'implementation') {
+      await scheduleImplementationRecovery(runId, nodeKey, requestId);
+      return;
+    }
+    await recoverTaskGraphNodeVerification(runId, nodeKey);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
+    const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id }, select: { childTaskId: true } });
+    const message = `${nodeKey} 暂未接续：${detail}。保留原任务与证据，后继继续等待。`;
+    await Promise.allSettled([postGraphParentProgress(run.parentTaskId, runId, message), ...jobs.flatMap(job => job.childTaskId
+      ? [postGraphChildProgress(job.childTaskId, `recovery-failed-${requestId}`, message)] : [])]);
+    throw error;
+  }
+}
+
 export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: string) {
   const node = await prisma.taskGraphNode.findUniqueOrThrow({
     where: { runId_key: { runId, key: nodeKey } }, include: { executions: true },
@@ -309,24 +337,28 @@ export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: s
 async function executeJob(runId: string, nodeKey: string, execution: TaskGraphExecution, claimToken: string) {
   const config = launchConfig(execution);
   const repair = await latestGraphRepair(execution.nodeId);
+  const continuation = await latestImplementationRecovery(execution.nodeId);
+  const checkpoint = continuation && (!repair || continuation.createdAt > repair.createdAt)
+    ? implementationCheckpoint(continuation.payload, execution.id) : null;
   try {
     const integration = await ensureIntegrationRef({
       repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
     });
-    if (repair && execution.worktreePath) await withRepositoryLock(execution.repository, async () => {
+    if (repair && !checkpoint && execution.worktreePath) await withRepositoryLock(execution.repository, async () => {
       if (await graphGit(execution.worktreePath!, 'status', '--porcelain', '--untracked-files=all')) throw new Error('回修工作区存在未提交改动，保留现场');
       await graphGit(execution.worktreePath!, 'merge', '--ff-only', integration.commit);
     });
     const workspace = await ensureJobWorktree({
       repoPath: execution.repository, runId, jobId: execution.id,
-      baseRef: integration.ref, baseCommit: integration.commit,
+      baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || integration.commit,
+      ...(checkpoint ? { resumeCommit: checkpoint.checkpointCommit } : {}),
     });
     const implementationBase = await graphGit(workspace.path, 'rev-parse', 'HEAD');
     const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
     await recordExecutionDispatch({
       runId, nodeKey, executionKey: execution.key, claimToken,
       childTaskId: task.id, worktreePath: workspace.path, worktreeBranch: workspace.branch,
-      dispatchMetadata: { integrationRef: integration.ref, workspaceBase: integration.commit },
+      dispatchMetadata: { integrationRef: integration.ref, workspaceBase: workspace.baseCommit, ...(checkpoint ? { resumedFrom: checkpoint.checkpointCommit, attemptId: continuation?.id } : {}) },
     });
     const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
     const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
@@ -351,10 +383,25 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
     if (result.status !== 'completed') throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
+    let conclusion;
+    try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || ''); }
+    catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
+    if (conclusion.status !== 'delivered') {
+      const saved = await withRepositoryLock(execution.repository, () => commitJobWorktree({
+        repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph checkpoint ${nodeKey}/${execution.key}`,
+      }));
+      await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken,
+        checkpointCommit: saved, workspaceBase: workspace.baseCommit, taskRunId: result.taskRunId, result: conclusion });
+      await refreshTaskGraphRunStatus(runId);
+      const message = `${nodeKey}/${execution.key} 实施暂停（${conclusion.blockerKind}）：${conclusion.note}\n进度已保存，尚未交付，后继等待。补齐后在原话题说“继续”即可接续实施。`;
+      await postGraphChildProgress(task.id, `implementation-blocked-${claimToken}`, message);
+      await postGraphParentProgress(graphRun.parentTaskId, runId, message);
+      return;
+    }
     let checks: CheckResult[] = [];
     const integrated = await withRepositoryLock(execution.repository, async () => {
       const submitted = await commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph ${nodeKey}/${execution.key}` });
-      if (repair && submitted === implementationBase) throw new Error('自动回修无有效代码变更，停止重试并保留现场');
+      if (repair && !checkpoint && submitted === implementationBase) throw new Error('自动回修无有效代码变更，停止重试并保留现场');
       const latest = await ensureIntegrationRef({
         repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
       });
@@ -367,12 +414,12 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     });
     await completeExecution({
       runId, nodeKey, executionKey: execution.key, claimToken, commit: integrated.commit,
-      evidence: { checks, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
+      evidence: { checks, implementation: conclusion, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
     });
     void postGraphParentProgress(graphRun.parentTaskId, runId,
       `${nodeKey}/${execution.key} 已集成 ${integrated.commit.slice(0, 12)}`)
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
-    await verifyNode(runId, nodeKey, repair ? `repair:${repair.id}` : undefined);
+    await verifyNode(runId, nodeKey, checkpoint ? `continuation:${claimToken}` : repair ? `repair:${repair.id}` : undefined);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     const kind = /verification/i.test(detail) ? 'test_failed'
@@ -396,7 +443,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
 
 /** One poll claims only ready work. Claimed work from a previous process is never replayed automatically. */
 export async function runTaskGraphCycle() {
-  for (const recovery of await startConversationRecoveries(recoverTaskGraphNodeVerification)) {
+  for (const recovery of await startConversationRecoveries(recoverTaskGraphNode)) {
     activeVerifications.add(recovery.nodeId);
     const pending = recovery.promise.finally(() => { activeVerifications.delete(recovery.nodeId); inflight.delete(pending); });
     inflight.add(pending);

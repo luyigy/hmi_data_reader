@@ -16,7 +16,7 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
   const execution = await prisma.taskGraphExecution.findFirst({ where: { childTaskId: source.id }, include: { node: { include: { run: true } } } });
   if (!execution) {
     const parent = await prisma.taskGraphRun.findFirst({ where: { parentTaskId: source.id }, orderBy: { version: 'desc' } });
-    return parent ? { ...source, description: `${source.description || ''}\n用户明确要求继续时可输出 <graph-control>{"action":"resume_acceptance","nodeKey":"实际节点键"}</graph-control>。只问状态或只发图不得恢复，不让用户搬图或补发 resume。` } : source;
+    return parent ? { ...source, description: `${source.description || ''}\n用户明确要求继续时可输出 <graph-control>{"action":"resume_task","nodeKey":"实际节点键"}</graph-control>。只问状态或只发图不得恢复，不让用户搬图或补发 resume。` } : source;
   }
   const receipt = await prisma.taskGraphEvent.findFirst({ where: { runId: execution.node.runId, kind: 'workspace_cleaned',
     payload: { path: ['executionId'], equals: execution.id } }, orderBy: { createdAt: 'desc' } });
@@ -39,7 +39,7 @@ export async function prepareGraphConversationTask(source: SourceTask): Promise<
     '你在回答原任务话题的问题。这个会话仅用于只读问答、澄清材料与说明进度。',
     '不得重复实施、改代码、提交、合并、关闭 Issue，或仅凭用户提问宣布验收通过。',
     '执行中的写操作由原任务负责。需要补充资料时根据 Spec 明确机台品牌、页面、原图和答案来源；缺少规定时明确指出待裁定项，不猜测。',
-    '用户在父话题或子话题补材料都可使用。明确要求继续验收时，输出 <graph-control>{"action":"resume_acceptance","nodeKey":"<当前 Slice 键>"}</graph-control>，由平台核验原用户权限并登记恢复；不要让用户搬图或补发 resume。仅发图、只读提问、否定继续时不得输出控制块。问答结论不代表验收通过。',
+    '用户在父话题或子话题补材料都可使用。明确要求继续任务时，输出 <graph-control>{"action":"resume_task","nodeKey":"<当前 Slice 键>"}</graph-control>，由平台核验原用户权限并登记恢复；不要让用户搬图或补发 resume。仅发图、只读提问、否定继续时不得输出控制块。问答结论不代表验收通过。',
     `父任务：${execution.node.run.parentTaskId}；Slice：${execution.node.key}；当前状态：${execution.node.status}`,
     `目标：${goal}；固定提交：${execution.commit || '尚未集成'}`,
     `Spec：${record(execution.node.run.snapshot) ? String(execution.node.run.snapshot.specRef) : ''}`,

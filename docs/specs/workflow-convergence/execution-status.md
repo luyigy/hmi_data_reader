@@ -256,3 +256,22 @@ GitNexus 仍受 LadybugDB 只读 replay 故障影响；未重建索引，用调�
 ## 跨仓方案评审收敛
 
 已收到 Antigravity 返回的评审并核对当前实现，定稿 `cross-repository-inputs.md`。采纳固定前置输入、多仓环境挂载、实施 blocked 与交付区分；纠正祖先检查不能证明无夹带、源码缓存跨运行引用、S06 旧工作区已清理及现有入口只恢复验收等边界。分 C1 固定输入、C2 阻塞接续、C3 隔离联调与 S06 修复，顺序独立验证。本轮未实施这些功能或重分类 S06。上一轮验收归档发布回执已 verified，协调器与飞书接收端已加载，通知回读通过。
+
+
+## 2026-10-18 · D1 阻塞后恢复原实施阶段
+
+范围：用户批准三棒评审后的方案；按“一 Session 一单元”，本轮完成 D1。D2 固定跨仓输入、D3 临时联调尚未实施，不据此重分类或恢复真实 S06。
+
+- 父 Spec [IKMS26](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS26)，tickets D1 [IKMS16](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS16) → D2 [IKMS1A](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS1A) → D3 [IKMS1B](https://gitee.com/luyi1678/agent-platform-v2/issues/IKMS1B)。使用独立父 Spec，原 W1–W5 不改。已通过平台真实 tracker 解析器回读三节点关系。
+- 新增 `implementation-result.ts`，解析唯一 `TASK_GRAPH_IMPLEMENTATION` 结论。delivered 要求说明与证据；blocked 要求明确阻塞类别。正常进程退出、缺结论或格式错误不能自动视作交付。
+- 实施阻塞保存到任务私有分支，并追加 `implementation_blocked` 事件，记录提交、原基线、TaskRun、原因和恢复阶段。缺结论也保留现场并暂停。不进入共享集成、不完成仅实施节点、不放行后继。
+- 复用原 conversation recovery 持久请求、管理员检查、消息去重及协调器 in-flight/claim。新请求保存 recoveryKind；实施恢复追加新尝试记录，保留旧派发元数据、TaskRun 和证据，然后用新 claim/TaskRun 接续。原验收恢复继续走原入口。已集成但实施未完成的旧结果必须先经受控重分类，不能按 integrated 猜阶段。
+- “继续”“用这张图继续”可直接接续原阶段；讨论、未来条件句、提问和否定不直接触发。新 Agent 控制块使用 resume_task，运行中的旧 resume_acceptance 输出保持可读兼容，最终恢复阶段由账本决定。终态仅实施答复明确未独立验收，不误称已通过。
+- 恢复实施读取父子话题文本与已绑定原图。工作区干净且与保存点一致时复用；已删除则按固定保存点重建；脏目录、分支移动或分叉时保留并说明。恢复准备不合并最新集成 HEAD。修复 `git worktree add` 使用完整 refs/heads 引用时变成 detached HEAD、随后无法受控提交的问题。
+- 重新交付及清理回执按执行尝试区分，避免旧 delivered_unverified/清理事件碰撞或隐藏新工作区。原报告不覆盖；运行目录归档位置追加尝试维度，后台清理按本轮回执选取任务。
+
+验证：独立 PostgreSQL 临时 schema 与真实 Git 工作区覆盖两次阻塞、缺结论、删除目录后恢复、dirty/分支移动保护、同消息及并发恢复去重、越权拒绝、父话题新材料进入实施、旧 integrated 结果恢复实施并重新交付、两轮清理历史独立、未验收终态。Harness 和外部消息适配器使用测试替身，不调用真实模型或业务数据。原任务图全套 PostgreSQL/Git/Bubblewrap 回归、TypeScript、定向 lint 和长文件检查作为提交门禁。
+
+发布：本轮代码完成后合入主检出，运行中的服务须在本会话结束且无活跃任务时安全重载；以独立发布回执确认生效，不以 Git 提交代替服务已加载。未改变真实 S03–S06/R02A/R02B 的状态或原审批。
+
+后续：D2 先审计跨仓交付来源，补统一输入清单、同仓完成门禁及多仓环境；D3 再验证临时服务与历史 S06 恢复，包括旧 Issue 同步回执与重分类后的新交付对账，禁止复用旧回执冒充新结果。

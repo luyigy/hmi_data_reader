@@ -232,7 +232,7 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
     const changed = await tx.taskGraphNode.updateMany({ where: { id: node.id, status: 'verifying' },
       data: { status: 'delivered_unverified', evidence: { summary: '按已批准的仅实施模式交付；未执行独立架构审查或测试验收。' } } });
     if (changed.count === 1) await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id,
-      idempotencyKey: `node:${nodeKey}:delivered_unverified`, kind: 'delivered_unverified', payload: {} } });
+      idempotencyKey: `node:${nodeKey}:delivered_unverified:${node.claimToken}`, kind: 'delivered_unverified', payload: {} } });
     return tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
   });
 }

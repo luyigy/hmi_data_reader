@@ -30,6 +30,7 @@ export interface JobWorktreeRequest {
   baseRef: string;
   baseCommit: string;
   worktreeRoot?: string;
+  resumeCommit?: string;
 }
 
 export interface JobWorktree {
@@ -200,6 +201,23 @@ export async function ensureJobWorktree(request: JobWorktreeRequest): Promise<Jo
   const root = await workspaceRoot(repo, request.worktreeRoot);
   const target = jobPath(root, repo, request.runId, request.jobId);
   const registered = findWorkspace(await worktrees(repo), target);
+  if (request.resumeCommit) {
+    await exactCommit(repo, request.resumeCommit);
+    if (!(await isAncestor(repo, request.baseCommit, request.resumeCommit))) throw new TaskGraphGitError('invalid_base', 'Checkpoint diverged from recorded workspace base');
+    const tip = await refCommit(repo, branch);
+    if (tip && tip !== request.resumeCommit) throw new TaskGraphGitError('workspace_collision', 'Checkpoint branch moved; preserve it for review', target);
+    if (registered) {
+      if (registered.branch !== branch || registered.head !== request.resumeCommit || !(await cleanWorkspace(target))) {
+        throw new TaskGraphGitError('workspace_dirty', '恢复工作区有改动或历史分叉，保留现场', target);
+      }
+    } else {
+      await assertUnoccupied(repo, target);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      if (tip) await git(repo, 'worktree', 'add', target, branch.slice('refs/heads/'.length));
+      else await git(repo, 'worktree', 'add', '-b', branch.slice('refs/heads/'.length), target, request.resumeCommit);
+    }
+    return { path: target, branch, baseCommit: request.baseCommit };
+  }
   if (registered) {
     if (registered.branch !== branch || !(await isAncestor(repo, request.baseCommit, registered.head))) {
       throw new TaskGraphGitError('workspace_collision', `Existing worktree does not match job identity: ${target}`, target);
@@ -217,7 +235,7 @@ export async function ensureJobWorktree(request: JobWorktreeRequest): Promise<Jo
   }
   await fs.mkdir(path.dirname(target), { recursive: true });
   try {
-    if (existingBranch) await git(repo, 'worktree', 'add', target, branch);
+    if (existingBranch) await git(repo, 'worktree', 'add', target, branch.slice('refs/heads/'.length));
     else await git(repo, 'worktree', 'add', '-b', branch.slice('refs/heads/'.length), target, request.baseCommit);
   } catch (cause) {
     const concurrent = findWorkspace(await worktrees(repo), target);
