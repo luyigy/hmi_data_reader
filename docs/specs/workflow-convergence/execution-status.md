@@ -252,3 +252,7 @@ GitNexus 仍受 LadybugDB 只读 replay 故障影响；未重建索引，用调�
 2026-10-17 22:49:33 +08:00，真实业务运行的补清回执 `production-final-receipt.json` 为 verified：S05 45 个文件、R02A 505 个文件、R02B 28 个文件，共 578 个文件、14,482,450 字节已归档并独立回读逐文件校验；R02A 另保留两条内部链接关系，S05 的一个缓存目录未归档。三片临时验收目录已删除；S03/S04/S06 无遗留验收目录，也已记录清理回执。项目 Reader `.venv` 和图片输入目录保留。节点状态、交付提交、验收结论与冻结快照在操作前后逐字段一致。
 
 本机回执位于 `.runtime/cleanup-review/production-final-receipt.json`。新版本服务加载另以 `.runtime/validation-archive-deploy/reload-receipt.json` 为准；原有运行结果不因重载而重跑。S06 的前置仓库固定源码/合同输入缺口及新业务材料缺口均仍未修复，此次没有提升其 delivered_unverified 状态。
+
+## 跨仓方案评审收敛
+
+已收到 Antigravity 返回的评审并核对当前实现，定稿 `cross-repository-inputs.md`。采纳固定前置输入、多仓环境挂载、实施 blocked 与交付区分；纠正祖先检查不能证明无夹带、源码缓存跨运行引用、S06 旧工作区已清理及现有入口只恢复验收等边界。分 C1 固定输入、C2 阻塞接续、C3 隔离联调与 S06 修复，顺序独立验证。本轮未实施这些功能或重分类 S06。上一轮验收归档发布回执已 verified，协调器与飞书接收端已加载，通知回读通过。
