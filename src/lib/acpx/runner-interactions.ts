@@ -10,7 +10,9 @@ import {
 import { parseJsonObject, stringifyJson } from './runner-metadata';
 import type { AcpxLiveEventPayload, AcpxRunRequest, HarnessInteractionRequest } from './types';
 
-export const detectHarnessInteractionRequest = (chunk: string): HarnessInteractionRequest | null => {
+export const detectHarnessInteractionRequest = (chunk: string, harnessType: string): HarnessInteractionRequest | null => {
+  // Structured adapters expose output, not terminal prompts. Native requests use onInteractionRequest.
+  if (['codex', 'kimi-code', 'antigravity'].includes(harnessType)) return null;
   const normalized = chunk.toLowerCase();
 
   if (

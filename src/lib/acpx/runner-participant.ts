@@ -119,8 +119,8 @@ export const executeParticipant = async (
       && !request.workflowCompletionGate
       ? request.streamCallbacks?.onSteeringReady : undefined,
     onStdoutChunk: async (chunk) => {
-      // Raw JSON can quote permission questions in tool output; it is not an input request.
-      const interactionRequest = participant.harnessType === 'antigravity' ? null : detectHarnessInteractionRequest(chunk);
+      // Only legacy terminal output may carry implicit interaction prompts.
+      const interactionRequest = detectHarnessInteractionRequest(chunk, participant.harnessType);
       streamWrites.push({ stream: 'stdout', content: chunk, interactionDetected: Boolean(interactionRequest) });
       if (interactionRequest) {
         await handleHarnessInteractionRequest({
@@ -143,7 +143,7 @@ export const executeParticipant = async (
       }
     },
     onStderrChunk: async (chunk) => {
-      const interactionRequest = participant.harnessType === 'antigravity' ? null : detectHarnessInteractionRequest(chunk);
+      const interactionRequest = detectHarnessInteractionRequest(chunk, participant.harnessType);
       streamWrites.push({ stream: 'stderr', content: chunk, interactionDetected: Boolean(interactionRequest) });
       if (interactionRequest) {
         await handleHarnessInteractionRequest({

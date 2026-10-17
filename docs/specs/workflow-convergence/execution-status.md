@@ -178,3 +178,13 @@ W4 的提交也补上平台 Git 的 smudge、merge driver 和 textconv 限制。
 - 自动回归使用真实临时 PostgreSQL、真实 Bubblewrap、外部飞书传输模拟，检查实际问答 Prompt、验收任务挂载、错误群归属拒绝、重复取得不重复材料，以及无执行状态变更。GitNexus 本轮仍因 LadybugDB 只读 replay 错误不可用；用实际调用路径和边界回归核对，未重建索引。
 
 本次发布以 `.runtime/s05-topic-materials-deploy/reload-receipt.json` 为准；当前会话结束并空闲后重载飞书接收端。不得在新代码实际加载前声称子话题已能读图。用户可以在原 S05 话题请求只读查看已有图片；是否满足 Spec、参数真值和正式验收仍应独立判断。
+
+## W5 后续修复：验收输出误触发权限卡
+
+用户在 S05 恢复验收后看到只有“拒绝”的权限卡。生产运行 `cmvcb8i7n02iovltn937jhz1t` 已于 2026-10-17T11:29:45Z completed，两条交互均 cancelled；父节点仍 attention，最终卡片也已刷新为 completed，不在等待人的批准。
+
+根因是通用 stdout/stderr 启发式把 JUnit XML 中的 `permission` 测试名与 XML 的 `?` 当成权限请求，又把“验收复核报告（只读）”当成 workspace_issue。伪请求的 resumeStrategy 为 rerun_continuation，Kimi 不支持这种原进程批准，因此 UI 正确隐藏批准按钮，却把错误识别本身暴露给用户。
+
+修复使 Codex / Kimi Code / Antigravity 的普通输出不参与终端提示猜测；真正的 Codex 原生请求继续通过独立 onInteractionRequest 事件。回归在真实隔离 PostgreSQL 中调用实际 executeParticipant 的 stdout/stderr 回调，Harness 执行边界模拟；修复前复现两条伪请求，修复后没有交互记录，正常输出与参与者完成状态保留。另行验证原生 Codex 权限和生命周期、飞书权限卡边界，未增加虚假的批准能力或提高沙箱权限。
+
+业务边界：新图已取得且与旧图不同，但本次复核确认它尚未走完整业务链路。误报修复不等于 S05 通过，也不重复 resume 或重新实施。真实材料、实际补验与权限误报应分别记录。发布回执在 `.runtime/s05-false-approval-deploy/reload-receipt.json`，须待本会话退出和系统空闲再重载飞书接收端。
