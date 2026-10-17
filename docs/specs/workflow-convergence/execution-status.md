@@ -188,3 +188,11 @@ W4 的提交也补上平台 Git 的 smudge、merge driver 和 textconv 限制。
 修复使 Codex / Kimi Code / Antigravity 的普通输出不参与终端提示猜测；真正的 Codex 原生请求继续通过独立 onInteractionRequest 事件。回归在真实隔离 PostgreSQL 中调用实际 executeParticipant 的 stdout/stderr 回调，Harness 执行边界模拟；修复前复现两条伪请求，修复后没有交互记录，正常输出与参与者完成状态保留。另行验证原生 Codex 权限和生命周期、飞书权限卡边界，未增加虚假的批准能力或提高沙箱权限。
 
 业务边界：新图已取得且与旧图不同，但本次复核确认它尚未走完整业务链路。误报修复不等于 S05 通过，也不重复 resume 或重新实施。真实材料、实际补验与权限误报应分别记录。发布回执在 `.runtime/s05-false-approval-deploy/reload-receipt.json`，须待本会话退出和系统空闲再重载飞书接收端。
+
+## 任务图输出布局调整
+
+用户要求执行输出沿用普通话题的呈现方式。任务图进度卡只展示状态，系统信息和工具调用分别放入默认收起的折叠区；Agent 的完整段落与最终回复各自使用独立卡片，不在进度卡重复正文。保留原回复 UUID、游标、并发锁、脱敏和权限操作。结束的运行不再显示待处理按钮。
+
+针对 PostgreSQL 飞书转发边界验证分区、正文独立卡片、连续 token 拼段、并发轮询不重复发、失败游标保持与最终回报不重复。旧断言要求正文和技术事件在同卡，已按用户要求改为检查相互隔离。TypeScript、变更文件 lint 和长文件守卫通过。GitNexus 仍因 LadybugDB 只读 replay 不可用，用调用路径核对：本次只影响独立 `agent-platform-task-graph-feishu.service`，不需要重启承载聊天的飞书接收服务或重新执行业务任务。
+
+发布后将原 S05 已结束运行的现有进度卡刷新为新布局，不重发历史正文、不修改验收状态。投递及服务加载结果保存在 `.runtime/graph-output-layout-deployment.json`；完整正文仍留在执行账本，卡片只展示受限长度预览。
