@@ -24,7 +24,7 @@ import { withRepositoryLock } from './repository-lock';
 import { assertReviewWorkspacesClean, resolveReviewWorkspaces } from './review-workspaces';
 import {
   claimExecution, claimNode, completeExecution, completeUnverifiedNode, listTaskGraphWork, markNodeIntegrationsReady,
-  flagStaleExecutionClaim, recordExecutionDispatch, recordExecutionIssue,
+  recordExecutionDispatch, recordExecutionIssue,
   refreshTaskGraphRunStatus, releaseReadyNodes,
   submitNodeVerification, type VerificationEvidence,
 } from './store';
@@ -33,6 +33,7 @@ import { integrateJobWithRetry } from './integration-retry';
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
+import { recoverGraphExecution, recoverGraphReview } from './restart-recovery';
 import { requestGraphChildTopic } from './notifications';
 import { inspectIssueDispatch } from './issue-dispatch';
 import { drainIssueSync } from './issue-sync';
@@ -379,6 +380,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   };
   try {
     const { integration, workspace } = await withRepositoryLock(execution.repository, async () => {
+      await assertExecutionOwnership(execution.id, claimToken);
       const integration = await ensureIntegrationRef({
         repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
       });
@@ -457,10 +459,12 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       if (serviceFailure) throw new TaskInputPreparationError('临时联调服务启动或运行失败，见本次服务回执；不是业务材料缺失', 'environment_failed', 'service_runtime');
       throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
     }
-    await assertExecutionOwnership(execution.id, claimToken);
-    const candidate = await withRepositoryLock(execution.repository, () => commitJobWorktree({
-      repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph candidate ${nodeKey}/${execution.key}`,
-    }));
+    const candidate = await withRepositoryLock(execution.repository, async () => {
+      await assertExecutionOwnership(execution.id, claimToken);
+      return commitJobWorktree({
+        repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph candidate ${nodeKey}/${execution.key}`,
+      });
+    });
     await outcome({ kind: 'checkpoint', phase: progress.phase === 'collect_result' ? 'collect_result' : 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit });
     let conclusion;
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || ''); }
@@ -510,9 +514,12 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const current = await prisma.taskGraphExecution.findUnique({ where: { id: execution.id } });
     if (current?.status === 'claimed') {
       if (error instanceof TaskInputPreparationError && current.worktreePath) {
-        const checkpointCommit = await withRepositoryLock(execution.repository, () => commitJobWorktree({
-          repoPath: execution.repository, runId, jobId: execution.id, message: `Input preparation checkpoint ${nodeKey}/${execution.key}`,
-        }));
+        const checkpointCommit = await withRepositoryLock(execution.repository, async () => {
+          await assertExecutionOwnership(execution.id, claimToken);
+          return commitJobWorktree({
+            repoPath: execution.repository, runId, jobId: execution.id, message: `Input preparation checkpoint ${nodeKey}/${execution.key}`,
+          });
+        });
         await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken, checkpointCommit,
           workspaceBase: isRecord(current.dispatchMetadata) && typeof current.dispatchMetadata.workspaceBase === 'string' ? current.dispatchMetadata.workspaceBase : execution.baseCommit,
           taskRunId: current.taskRunId || 'not-created', blockedPhase: error.blockedPhase,
@@ -521,9 +528,12 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         const failedCheck = checkFailure(error);
         if (failedCheck) {
           await assertExecutionOwnership(execution.id, claimToken);
-          const candidateCommit = await withRepositoryLock(execution.repository, () => commitJobWorktree({
-            repoPath: execution.repository, runId, jobId: execution.id, message: `Checked candidate ${nodeKey}/${execution.key}`,
-          }));
+          const candidateCommit = await withRepositoryLock(execution.repository, async () => {
+            await assertExecutionOwnership(execution.id, claimToken);
+            return commitJobWorktree({
+              repoPath: execution.repository, runId, jobId: execution.id, message: `Checked candidate ${nodeKey}/${execution.key}`,
+            });
+          });
           await outcome({ kind: 'checkpoint', phase: 'check', candidateCommit });
           await outcome({ kind: 'repair_required', failure: {
           code: 'test_failed', checkId: `execution:${execution.key}:${failedCheck.check.name}`,
@@ -551,7 +561,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   }
 }
 
-/** One poll claims only ready work. Claimed work from a previous process is never replayed automatically. */
+/** Prior writers retain ownership until their actual exit is proven. */
 export async function runTaskGraphCycle() {
   for (const recovery of await startConversationRecoveries(recoverTaskGraphNode)) {
     activeVerifications.add(recovery.nodeId);
@@ -565,46 +575,14 @@ export async function runTaskGraphCycle() {
       where: { runId: run.id, status: 'verifying' }, select: { id: true, key: true },
     });
     for (const node of verifying) {
-      const architectureClaim = await prisma.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'architecture_claimed' }, orderBy: { createdAt: 'desc' } });
-      const architectureResult = architectureClaim && await prisma.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: { in: ['architecture_passed', 'architecture_failed'] }, createdAt: { gte: architectureClaim.createdAt } }, orderBy: { createdAt: 'desc' } });
-      if (architectureClaim && !architectureResult) {
-        if (!activeVerifications.has(node.id) &&
-            Date.now() - architectureClaim.createdAt.getTime() > 30 * 60_000) {
-          const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({
-            where: { id: run.id }, select: { snapshot: true },
-          });
-          const policy = (snapshot.snapshot as unknown as GraphDefinition).nodes
-            .find((item) => item.key === node.key)?.acceptance;
-          if (policy) {
-            await submitNodeVerification({ runId: run.id, nodeKey: node.key,
-              actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system',
-              evidence: { summary: '架构复核中断或超时，需人工核对 TaskRun 后处理。',
-                checks: policy.checks.map((name) => ({ name, passed: false,
-                  evidence: '架构复核未形成可靠结论' })) } });
-            await refreshTaskGraphRunStatus(run.id);
-          }
-        }
-        continue;
-      }
-      const claim = await prisma.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'review_claimed' }, orderBy: { createdAt: 'desc' } });
-      if (claim && !activeReviews.has(node.id) && Date.now() - claim.createdAt.getTime() > 30 * 60_000) {
-        const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id }, select: { snapshot: true } });
-        const policy = (snapshot.snapshot as unknown as GraphDefinition).nodes.find((item) => item.key === node.key)?.acceptance;
-        if (policy?.mode === 'agent' && policy.reviewerId) {
-          await submitNodeVerification({ runId: run.id, nodeKey: node.key, actorId: policy.reviewerId,
-            evidence: { summary: 'Agent 复核中断或超时，需要人工处理后重新排期。',
-              checks: policy.checks.map((name) => ({ name, passed: false, evidence: '复核未形成可靠结论' })) } });
-          await refreshTaskGraphRunStatus(run.id);
-        }
-      } else if (!claim) {
-        if (!activeVerifications.has(node.id)) {
-          activeVerifications.add(node.id);
-          const task = verifyNode(run.id, node.key)
-            .catch((error) => console.error('[TaskGraph] verification failed:', error))
-            .finally(() => { activeVerifications.delete(node.id); inflight.delete(task); });
-          inflight.add(task);
-        }
-      }
+      if (activeVerifications.has(node.id) || activeReviews.has(node.id)) continue;
+      const pickup = await recoverGraphReview(node.id);
+      if (pickup === 'waiting') continue;
+      activeVerifications.add(node.id);
+      const task = verifyNode(run.id, node.key)
+        .catch((error) => console.error('[TaskGraph] verification failed:', error))
+        .finally(() => { activeVerifications.delete(node.id); inflight.delete(task); });
+      inflight.add(task);
     }
     const work = await listTaskGraphWork(run.id);
     const snapshot = work.some((execution) => execution.status === 'ready')
@@ -613,25 +591,7 @@ export async function runTaskGraphCycle() {
     for (const execution of work) {
       if (execution.status === 'claimed' && execution.claimToken && execution.claimedAt &&
           !activeJobs.has(execution.id)) {
-        const taskRun = execution.taskRunId ? await prisma.taskRun.findUnique({
-          where: { id: execution.taskRunId }, select: { status: true },
-        }) : null;
-        const grace = taskRun?.status === 'running' ? 4 * 60 * 60_000 : 10 * 60_000;
-        if (execution.claimedAt.getTime() < Date.now() - grace) {
-          const flagged = await flagStaleExecutionClaim({
-            runId: run.id, nodeKey: execution.node.key, executionKey: execution.key,
-            claimToken: execution.claimToken, claimedBefore: new Date(Date.now() - grace),
-          });
-          if (flagged) {
-            await refreshTaskGraphRunStatus(run.id);
-            const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({
-              where: { id: run.id }, select: { parentTaskId: true },
-            });
-            void postGraphParentProgress(graphRun.parentTaskId, run.id,
-              `${execution.node.key}/${execution.key} 的执行状态不确定，已暂停。请核对 TaskRun 和 worktree 后重新排期。`)
-              .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
-          }
-        }
+        await recoverGraphExecution(execution.id);
       }
       if (activeJobs.size >= maxConcurrentJobs) continue;
       if (execution.status !== 'ready' || activeJobs.has(execution.id)) continue;

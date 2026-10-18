@@ -1,3 +1,4 @@
+import { graphWriterEnvironment } from './writer-ownership';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../prisma';
 import type { GraphDefinition } from './domain';
@@ -18,7 +19,8 @@ export async function withGraphTaskServices<T>(taskId: string | undefined, taskR
   if (!services.length) return action({ env: {}, signal: controller.signal, receipts: [] });
   const prepared = await Promise.all(jobs.map(job => prepareUpstreamInputs(job.id)));
   const attempt = randomUUID();
-  return withAttemptServices({ services, manifests: prepared.map(input => input.manifest), directory: validationRuntimeDirectory(node.id),
+  const writer = await graphWriterEnvironment(taskRunId);
+  return withAttemptServices({ writerNonce: writer.AP_GRAPH_WRITER_NONCE, services, manifests: prepared.map(input => input.manifest), directory: validationRuntimeDirectory(node.id),
     record: async (kind, payload) => { await prisma.taskGraphEvent.create({ data: { runId: node.runId, nodeId: node.id,
       kind, idempotencyKey: `services:${attempt}:${kind}`, payload: JSON.parse(JSON.stringify({ ...payload, taskId, taskRunId, attempt })) } }); } }, action);
 }

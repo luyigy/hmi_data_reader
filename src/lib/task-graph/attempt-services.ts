@@ -59,7 +59,7 @@ async function stop(child: ChildProcess) {
 
 /** Every phase owns its services. Bubblewrap kills descendants if this owner crashes. */
 export async function withAttemptServices<T>(args: {
-  services: GraphService[]; manifests: TaskInputManifest[]; directory: string; signal?: AbortSignal; timeoutMs?: number;
+  services: GraphService[]; manifests: TaskInputManifest[]; directory: string; signal?: AbortSignal; timeoutMs?: number; writerNonce?: string;
   record?: (kind: string, payload: object) => Promise<void>;
 }, action: (context: ServiceContext) => Promise<T>): Promise<T> {
   validateServices(args.services);
@@ -97,7 +97,7 @@ export async function withAttemptServices<T>(args: {
       const argv = [...(service.runtime === 'python' ? ['-E', '-s', '-B'] : []), entry,
         ...service.args.map(arg => arg.replaceAll('{port}', String(port)).replaceAll('{data}', data))];
       // Do not inherit model, database, proxy or host project import credentials into a test service.
-      const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', PATH: '/usr/bin:/bin', HOME: '/tmp', TMPDIR: '/tmp', LANG: 'C.UTF-8', AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0',
+      const env: NodeJS.ProcessEnv = { ...(args.writerNonce ? { AP_GRAPH_WRITER_NONCE: args.writerNonce } : {}), NODE_ENV: 'test', PATH: '/usr/bin:/bin', HOME: '/tmp', TMPDIR: '/tmp', LANG: 'C.UTF-8', AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0',
         NODE_PATH: input.dependencyPaths.filter(directory => path.basename(directory) === 'node_modules').join(path.delimiter),
         AP_PROJECT_REPOSITORY: input.repository, AP_SERVICE_DATA_DIR: data, AP_SERVICE_PORT: String(port), AP_SERVICE_HOST: '127.0.0.1' };
       const wrapped = wrapWithBubblewrap({ command, commandArgs: argv, cwd: data, workspaceRoot: data, env, networkAccess: 'enabled',

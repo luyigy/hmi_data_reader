@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { getHarnessAdapter } from '../src/lib/harness';
@@ -14,7 +15,7 @@ async function main() {
   const repository = path.join(root, 'api'); mkdirSync(repository);
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
   git('init', '-b', 'main'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.test');
-  writeFileSync(path.join(repository, 'server.js'), `const http=require('http'),fs=require('fs');const[host,port,data]=process.argv.slice(2);fs.writeFileSync(data+'/state','test');http.createServer((q,s)=>s.end('fixed-api')).listen(Number(port),host);`);
+  writeFileSync(path.join(repository, 'server.js'), `const http=require('http'),fs=require('fs');const[host,port,data]=process.argv.slice(2);fs.writeFileSync(data+'/state','test');http.createServer((q,s)=>s.end(q.url==='/nonce'?(process.env.AP_GRAPH_WRITER_NONCE||''):'fixed-api')).listen(Number(port),host);`);
   git('add', '.'); git('commit', '-m', 'api'); const commit = git('rev-parse', 'HEAD');
   const app = path.join(root, 'app'); execFileSync('git', ['clone', '--quiet', repository, app]);
   process.env.TASK_GRAPH_UPSTREAM_ROOT = path.join(root, 'upstream'); process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'harness'); process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
@@ -28,13 +29,13 @@ async function main() {
   const urls: string[] = []; const phases = new Set<string>();
   getHarnessAdapter('codex')!.execute = async ({ context }) => {
     const inputs = context.taskEnvironment?.TASK_GRAPH_SERVICES_JSON;
-    if (inputs) { const [service] = JSON.parse(inputs); urls.push(service.url); assert.equal(await (await fetch(service.url)).text(), 'fixed-api'); phases.add('implementation'); }
+    if (inputs) { const [service] = JSON.parse(inputs); urls.push(service.url); assert.equal(await (await fetch(service.url)).text(), 'fixed-api'); assert.ok(context.taskEnvironment?.AP_GRAPH_WRITER_NONCE); assert.equal(await (await fetch(service.url + '/nonce')).text(), context.taskEnvironment.AP_GRAPH_WRITER_NONCE, 'Implementation service inherits the durable TaskRun nonce'); phases.add('implementation'); }
     writeFileSync(path.join(context.workingDirectory!, 'done'), 'delivered');
     return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":["done"]}', executionTime: 1 };
   };
   getHarnessAdapter('kimi-code')!.execute = async ({ task, context }) => {
     const [service] = JSON.parse(context.taskEnvironment!.TASK_GRAPH_SERVICES_JSON);
-    urls.push(service.url); assert.equal(await (await fetch(service.url)).text(), 'fixed-api');
+    urls.push(service.url); assert.equal(await (await fetch(service.url)).text(), 'fixed-api'); assert.ok(context.taskEnvironment?.AP_GRAPH_WRITER_NONCE); assert.equal(await (await fetch(service.url + '/nonce')).text(), context.taskEnvironment.AP_GRAPH_WRITER_NONCE, 'Review service inherits the durable TaskRun nonce');
     const architecture = task.id.startsWith('task-graph-architecture-'); phases.add(architecture ? 'architecture' : 'acceptance');
     return { success: true, output: architecture ? 'TASK_GRAPH_ARCH_REVIEW {"approved":true,"note":"contract checked"}' : 'TASK_GRAPH_REVIEW {"approved":true,"note":"live service checked"}', executionTime: 1 };
   };
@@ -69,14 +70,15 @@ async function main() {
     const previousModelStarts = urls.length;
     for (let n = 0; n < 300; n++) {
       await runTaskGraphCycle();
-      if (await prisma.taskGraphEvent.count({ where: { runId: bad.id, kind: 'implementation_blocked' } })) break;
+      if (await prisma.taskGraphNode.count({ where: { runId: bad.id, status: 'attention' } })) break;
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     const failed = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: bad.id, key: 'APP' } }, include: { executions: true } });
-    assert.equal(failed.status, 'attention'); assert.equal(failed.executions[0].issueKind, 'environment_failed');
+    assert.equal(failed.status, 'attention'); assert.equal(failed.executions[0].issueKind, 'retry_exhausted');
+    const progress = executionProgress(failed.executions[0].dispatchMetadata);
+    assert.equal(progress?.state, 'exhausted'); assert.equal(progress?.lastFailure?.code, 'environment_failed');
     assert.equal(urls.length, previousModelStarts, 'Bad service entry must not start another implementation model');
-    const blocked = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: failed.id, kind: 'implementation_blocked' } });
-    assert.ok(blocked.payload && typeof blocked.payload === 'object' && !Array.isArray(blocked.payload)); assert.equal(blocked.payload.blockedPhase, 'service_runtime');
+    assert.ok(await prisma.taskGraphEvent.count({ where: { nodeId: failed.id, kind: 'service_attempt_failed' } }));
     console.log('Implementation, platform check, integration check, architecture and acceptance use attempt-owned services and release all ports');
   } finally { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); globalThis.fetch = realFetch; if (badRunId) await prisma.taskGraphRun.delete({ where: { id: badRunId } }); await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
 }

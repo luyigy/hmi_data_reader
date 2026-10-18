@@ -6,7 +6,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { prisma } from '../src/lib/prisma';
-import { createTaskGraphRun, claimNode, claimExecution, recordExecutionDispatch } from '../src/lib/task-graph/store';
+import { createTaskGraphRun, releaseReadyNodes, claimNode, claimExecution, recordExecutionDispatch } from '../src/lib/task-graph/store';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 import { executionProgress, applyExecutionOutcome, bindExecutionTaskRun } from '../src/lib/task-graph/execution-progress';
@@ -90,7 +90,7 @@ getHarnessAdapter('codex').execute=async({task,context})=>{
     const secondParent = await prisma.task.create({ data: { name: 'completed candidate pickup' } });
     const second = await createTaskGraphRun({ parentTaskId: secondParent.id, version: 1, requestKey: secondParent.id, definition });
     const token = 'completed-candidate-owner';
-    await claimNode(second.id, 'N', token); const job = await claimExecution(second.id, 'N', 'repo', token); assert(job);
+    await releaseReadyNodes(second.id); await claimNode(second.id, 'N', token); const job = await claimExecution(second.id, 'N', 'repo', token); assert(job);
     const integration = await ensureIntegrationRef({ repoPath: repository, runId: second.id, baseRef: job.gitRef, baseCommit: job.baseCommit });
     const workspace = await ensureJobWorktree({ repoPath: repository, runId: second.id, jobId: job.id, baseRef: integration.ref, baseCommit: job.baseCommit });
     await fs.writeFile(path.join(workspace.path, 'partial'), 'preserved'); await fs.writeFile(path.join(workspace.path, 'done'), 'done');
