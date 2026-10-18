@@ -360,13 +360,16 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       const integration = await ensureIntegrationRef({
         repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
       });
+      let workspaceBase = integration.commit;
       if (repair && !checkpoint && execution.worktreePath) {
-        if (await graphGit(execution.worktreePath, 'status', '--porcelain', '--untracked-files=all')) throw new Error('回修工作区存在未提交改动，保留现场');
-        await graphGit(execution.worktreePath, 'merge', '--ff-only', integration.commit);
+        // Dirty repairs keep their original baseline; final integration merges and checks the latest ref.
+        if (!await graphGit(execution.worktreePath, 'status', '--porcelain', '--untracked-files=all')) {
+          await graphGit(execution.worktreePath, 'merge', '--ff-only', integration.commit);
+        } else workspaceBase = execution.baseCommit;
       }
       const workspace = await ensureJobWorktree({
         repoPath: execution.repository, runId, jobId: execution.id,
-        baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || integration.commit,
+        baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || workspaceBase,
         ...(checkpoint ? { resumeCommit: checkpoint.checkpointCommit } : {}),
       });
       return { integration, workspace };

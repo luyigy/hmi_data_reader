@@ -207,8 +207,8 @@ export async function ensureJobWorktree(request: JobWorktreeRequest): Promise<Jo
     const tip = await refCommit(repo, branch);
     if (tip && tip !== request.resumeCommit) throw new TaskGraphGitError('workspace_collision', 'Checkpoint branch moved; preserve it for review', target);
     if (registered) {
-      if (registered.branch !== branch || registered.head !== request.resumeCommit || !(await cleanWorkspace(target))) {
-        throw new TaskGraphGitError('workspace_dirty', '恢复工作区有改动或历史分叉，保留现场', target);
+      if (registered.branch !== branch || registered.head !== request.resumeCommit) {
+        throw new TaskGraphGitError('workspace_collision', '恢复工作区身份或提交已改变，保留现场', target);
       }
     } else {
       await assertUnoccupied(repo, target);

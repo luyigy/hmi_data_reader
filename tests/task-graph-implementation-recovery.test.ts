@@ -56,6 +56,10 @@ async function main() {
       writeFileSync(path.join(context.workingDirectory!, 'saved.txt'), 'progress ' + calls);
       if (calls === 1) return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"missing_business_material","note":"need source photo"}', executionTime: 1 };
       assert.match(task.description || '', /NEW-MATERIAL/);
+      if (calls === 3) {
+        assert.equal(readFileSync(path.join(context.workingDirectory!, 'baseline'), 'utf8'), 'approved correction during pause');
+        assert.equal(readFileSync(path.join(context.workingDirectory!, 'supplement.txt'), 'utf8'), 'new material');
+      }
       if (calls === 2) return { success: true, output: 'Process ended without a delivery decision', executionTime: 1 };
     }
     return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"implementation finished","evidence":["saved.txt"]}', executionTime: 1 };
@@ -87,8 +91,14 @@ async function main() {
     const checkpoint = git('rev-parse', first.worktreeBranch);
     const integrationRef = git('for-each-ref', '--format=%(refname)', 'refs/heads/task-graph/integration/');
     assert.equal(git('rev-parse', integrationRef), baseline, 'Blocked progress must stay out of integration');
+    writeFileSync(path.join(first.worktreePath, 'baseline'), 'pause-time spec correction');
     writeFileSync(path.join(first.worktreePath, 'dirty.txt'), 'preserve');
-    await assert.rejects(ensureJobWorktree({ repoPath: repository, runId: run.id, jobId: first.id, baseRef: integrationRef, baseCommit: baseline, resumeCommit: checkpoint }), /保留现场/);
+    const resumedDirty = await ensureJobWorktree({ repoPath: repository, runId: run.id, jobId: first.id, baseRef: integrationRef, baseCommit: baseline, resumeCommit: checkpoint });
+    assert.equal(resumedDirty.path, first.worktreePath);
+    assert.equal(readFileSync(path.join(first.worktreePath, 'dirty.txt'), 'utf8'), 'preserve', 'Resume preserves pause-time supplementary files');
+    assert.equal(readFileSync(path.join(first.worktreePath, 'baseline'), 'utf8'), 'pause-time spec correction');
+    assert.equal(git('-C', first.worktreePath, 'rev-parse', 'HEAD'), checkpoint);
+    writeFileSync(path.join(first.worktreePath, 'baseline'), 'base');
     rmSync(path.join(first.worktreePath, 'dirty.txt'));
     await assert.rejects(ensureJobWorktree({ repoPath: repository, runId: run.id, jobId: first.id, baseRef: integrationRef, baseCommit: baseline, resumeCommit: baseline }), /Checkpoint branch moved/);
     git('worktree', 'remove', first.worktreePath);
@@ -113,6 +123,8 @@ async function main() {
     assert.equal(readFileSync(path.join(second.worktreePath!, 'saved.txt'), 'utf8'), 'progress 2');
     assert.equal(git('rev-parse', integrationRef), baseline, 'Missing conclusion must not integrate');
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status, 'attention');
+    writeFileSync(path.join(second.worktreePath!, 'baseline'), 'approved correction during pause');
+    writeFileSync(path.join(second.worktreePath!, 'supplement.txt'), 'new material');
     await requestGraphConversationRecovery({ ...request, messageId: 'continue-second' });
     await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed_unverified');
     assert.equal(calls, 4, 'Three attempts for A and exactly one for B');
