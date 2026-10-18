@@ -176,7 +176,9 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     let issueKind: string | null = null;
     if (outcome.kind === 'operator_resume') {
       if (before.lastFailure?.code === 'integration_conflict') throw new Error('Pending merge requires a bounded conflict repair decision; ordinary resume cannot restart implementation');
-      status = 'ready'; progress.phase = before.conflictRepair ? 'integrate' : 'implement'; progress.state = 'ready'; delete progress.review;
+      status = 'ready'; progress.phase = before.conflictRepair ? 'integrate'
+        : before.lastFailure?.owner === 'platform' && before.lastFailure.blockedPhase === 'input_preparation' && ['check', 'integrate'].includes(before.phase) ? before.phase : 'implement';
+      progress.state = 'ready'; delete progress.review;
     } else if (outcome.kind === 'delivery_reclassified') {
       status = 'attention'; issueKind = outcome.failure.code; progress.phase = 'implement'; progress.state = 'waiting_decision';
       progress.lastFailure = outcome.failure; delete progress.review;

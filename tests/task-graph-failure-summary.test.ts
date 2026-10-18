@@ -7,7 +7,7 @@ const card = buildRunReplyCard({ id: 'fixture', status: 'completed', summary: 'r
 const visible = card.body.elements[0]; assert.ok('content' in visible && typeof visible.content === 'string');
 assert.match(visible.content, /backend\/app\/contract.py/); assert.match(visible.content, /下一步：/); assert.match(visible.content, /负责人：平台/); assert.match(visible.content, /需要你决定：否/);
 assert.doesNotMatch(visible.content, /Merge failed|candidateCommit|integrationCommit|mergeHead|"paths"/);
-const detail = card.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header.title.content === '当前阶段故障详情'); assert.ok(detail && 'expanded' in detail && detail.expanded === false);
+const detail = card.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header?.title.content === '当前阶段故障详情'); assert.ok(detail && 'expanded' in detail && detail.expanded === false);
 assert.match(JSON.stringify(detail), /candidateCommit/);
 console.log('Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded');
 

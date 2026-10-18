@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, fork, type ChildProcess } from 'node:child_process';
+import { once } from 'node:events';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -35,6 +36,7 @@ async function main() {
   notices.ensureGraphChildTopic = async () => null; notices.postGraphParentProgress = async () => {}; notices.postGraphChildProgress = async () => {};
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   const fetch = globalThis.fetch; globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
+  let child: ChildProcess | undefined;
   try {
     await releaseReadyNodes(run.id); await claimNode(run.id, 'N', 'seed');
     const integration = await ensureIntegrationRef({ repoPath: repository, runId: run.id, baseRef: 'refs/heads/main', baseCommit: base });
@@ -73,12 +75,35 @@ async function main() {
     assert.equal(waiting.status, 'attention'); assert.equal(executionProgress(waiting.dispatchMetadata)?.revision, beforeProgress.revision);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: b.nodeId, kind: 'writer_observation' } }), 1, 'Unknown writer observations are idempotent and do not consume repair attempts');
     await prisma.taskGraphExecution.update({ where: { id: b.id }, data: { dispatchMetadata: metadataWithProgress(before.dispatchMetadata, beforeProgress) } });
+    const cwd = process.cwd(), script = path.join(root, 'interrupted-repair.cjs');
+    await fs.writeFile(script, `
+const {getHarnessAdapter}=require(${JSON.stringify(path.join(cwd, 'src/lib/harness/index.ts'))});
+const feishu=require(${JSON.stringify(path.join(cwd, 'src/lib/task-graph/feishu.ts'))});
+feishu.ensureGraphChildTopic=async()=>null;feishu.postGraphParentProgress=async()=>{};feishu.postGraphChildProgress=async()=>{};
+require(${JSON.stringify(path.join(cwd, 'src/lib/feishu-api.ts'))}).getFeishuTenantAccessToken=async()=>'fixture';
+globalThis.fetch=async()=>new Response(JSON.stringify({code:0,data:{message_id:'fixture'}}));
+getHarnessAdapter('codex').execute=async({context})=>{process.send({directory:context.workingDirectory,output:context.taskEnvironment.AP_GRAPH_OUTPUT_DIR});return new Promise(()=>{});};
+const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-graph/coordinator.ts'))});
+(async()=>{await runTaskGraphCycle();setInterval(()=>{},1000)})().catch(e=>{console.error(e);process.exit(1)});
+`);
+    child = fork(script, [], { cwd, env: process.env, execArgv: ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register'], stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+    let diagnostics = ''; child.stderr?.on('data', chunk => { diagnostics += chunk; });
+    const deadline = setTimeout(() => child?.kill('SIGTERM'), 30_000);
+    const [interrupted] = await Promise.race([once(child, 'message'), once(child, 'exit').then(() => { throw new Error(diagnostics); })]); clearTimeout(deadline);
+    assert(interrupted && typeof interrupted === 'object');
+    const pending = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: b.id } });
+    assert.equal(pending.status, 'claimed'); assert(executionProgress(pending.dispatchMetadata)?.conflictRepair);
+    const exit = once(child, 'exit'); child.kill('SIGKILL'); await exit;
+    assert.equal(git(trees.get('B')!, 'rev-parse', 'MERGE_HEAD'), first.commit);
     let repairs = 0, successors = 0, architecture = 0;
     getHarnessAdapter('codex')!.execute = async ({ task, context }) => {
       if (task.name.startsWith('N ·')) {
         repairs++; assert.match(task.description || '', /受控冲突修复/); assert.notEqual(context.workingDirectory, trees.get('B'));
+        assert.notEqual(context.workingDirectory, Reflect.get(interrupted, 'directory'), 'Interrupted repair retains its original output directory and starts a fresh artifact attempt');
+        assert.notEqual(context.taskEnvironment?.AP_GRAPH_OUTPUT_DIR, Reflect.get(interrupted, 'output'));
         assert.match(task.description || '', /Preserve both contract sections/);
-        await fs.writeFile(path.join(context.workingDirectory!, 'resolution.json'), JSON.stringify({ files: [{ path: 'contract.md', content: 'base\nfirst\nsecond\n' }] }));
+        assert(context.taskEnvironment?.AP_GRAPH_OUTPUT_DIR);
+        await fs.writeFile(path.join(context.taskEnvironment.AP_GRAPH_OUTPUT_DIR, 'resolution.json'), JSON.stringify({ files: [{ path: 'contract.md', content: 'base\nfirst\nsecond\n' }] }));
       } else { successors++; await fs.writeFile(path.join(context.workingDirectory!, 'next'), 'done'); }
       return { success: true, executionTime: 1, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"preserved delivery","evidence":["resolution"]}' };
     };
@@ -94,10 +119,11 @@ async function main() {
     assert.equal((await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status, 'completed', JSON.stringify(failures));
     assert.equal(repairs, 1); assert.equal(successors, 1); assert.equal(architecture, 1);
     assert.equal(executionProgress(final.dispatchMetadata)?.repairAttempts, 1);
+    assert.equal(executionProgress(final.dispatchMetadata)?.platformAttempts, 1, 'Actual repair process exit uses the existing bounded restart budget');
     git(repository, 'merge-base', '--is-ancestor', advanced.commit, final.commit!);
     assert.equal(git(repository, 'show', `${final.commit}:contract.md`), 'base\nfirst\nsecond');
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'implementation_recovery_scheduled' } }), 0);
-    console.log('Legacy waiting conflict + advanced approved integration: automatic bounded repair, merged checks, independent architecture, acceptance and successor once; human resume 0');
-  } finally { globalThis.fetch = fetch; await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true }); }
+    console.log('Legacy waiting conflict + advanced approved integration + SIGKILL during repair: automatic fresh artifact attempt, merged checks, independent architecture, acceptance and successor once; human resume 0');
+  } finally { if (child && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); globalThis.fetch = fetch; await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

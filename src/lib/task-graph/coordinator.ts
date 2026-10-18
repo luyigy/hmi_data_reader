@@ -35,9 +35,10 @@ import {
 } from './store';
 import { ensureIntegrationRef, ensureJobWorktree, TaskGraphGitError, commitJobWorktree } from './worktree';
 import { integrateJobWithRetry } from './integration-retry';
-import { approvedConflictCommits, prepareConflictRepair, finishConflictRepair, assertConflictIntegrationBaseline } from './conflict-repair';
+import { approvedConflictCommits, prepareConflictRepair, finishConflictRepair, assertConflictIntegrationBaseline, conflictResolutionFile } from './conflict-repair';
 import { recoverPendingConflictRepairs } from './conflict-repair-recovery';
-import path from 'node:path';
+import { RuntimePreparationError } from './runtime-preflight';
+import { formatGraphFailureSummary, graphFailureSummary } from './failure-summary';
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
@@ -67,6 +68,10 @@ export class GraphCheckError extends Error {
 function checkFailure(error: unknown): GraphCheckError | null {
   if (error instanceof GraphCheckError) return error;
   return error instanceof Error && 'cause' in error ? checkFailure((error as Error & { cause?: unknown }).cause) : null;
+}
+function runtimePreparationError(error: unknown): RuntimePreparationError | null {
+  if (error instanceof RuntimePreparationError) return error;
+  return error instanceof Error && 'cause' in error ? runtimePreparationError(error.cause) : null;
 }
 type CheckResult = VerificationEvidence['checks'][number];
 
@@ -502,12 +507,14 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const result = storedRun ? { taskRunId: storedRun.id, status: storedRun.status, summary: storedRun.summary, participants: storedRun.participants } : await executeAcpxTaskRun({
       graphExecution: { executionId: execution.id, claimToken, revision: dispatchProgress.revision },
       taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions + (repairRuntime
-        ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。只能在当前输出目录写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
+        ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。必须在本次 AP_GRAPH_OUTPUT_DIR 中写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台按本次 TaskRun 的产物回执读取解决文件、完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
         : recoveryInstructions),
       extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths, ...(repairRuntime?.readOnlyPaths || [])],
       ...(repairRuntime ? { permissionConfig: repairRuntime.permissionConfig } : {}),
       orchestrationMode: 'single', participants: [config.participant], workingDirectory: repairRuntime?.directory || workspace.path,
     }).catch(error => {
+      const preparation = runtimePreparationError(error);
+      if (preparation) throw preparation;
       if (error instanceof AcpxRunStartupError) throw new TaskInputPreparationError(`执行器启动失败（${error.taskRunId}）：${error.message}`, 'environment_failed');
       throw error;
     });
@@ -535,7 +542,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       await assertExecutionOwnership(execution.id, claimToken);
       if (progress.conflictRepair && repairRuntime) return finishConflictRepair({
         repoPath: execution.repository, runId, jobId: execution.id, baseCommit: workspace.baseCommit, integrationRef: integration.ref,
-        checkpoint: progress.conflictRepair, resolutionFile: path.join(repairRuntime.directory, 'resolution.json'),
+        checkpoint: progress.conflictRepair, resolutionFile: await conflictResolutionFile({ nodeId: execution.nodeId, taskId: task.id, taskRunId: result.taskRunId }),
         approvedCommits: await approvedConflictCommits(runId, execution.repository),
         assertOwnership: () => assertExecutionOwnership(execution.id, claimToken).then(() => undefined),
       });
@@ -596,7 +603,18 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       : error instanceof TaskGraphGitError ? error.code : checkFailure(error) ? 'test_failed' : 'dispatch_failed';
     const current = await prisma.taskGraphExecution.findUnique({ where: { id: execution.id } });
     if (current?.status === 'claimed') {
-      if (error instanceof TaskInputPreparationError && current.worktreePath) {
+      const preparation = runtimePreparationError(error);
+      if (preparation) {
+        const saved = executionProgress(current.dispatchMetadata)!;
+        if (current.worktreePath && !saved.conflictRepair) {
+          const candidateCommit = await withRepositoryLock(execution.repository, async () => {
+            await assertExecutionOwnership(execution.id, claimToken);
+            return commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Runtime preparation checkpoint ${nodeKey}/${execution.key}` });
+          });
+          await outcome({ kind: 'checkpoint', phase: saved.phase, candidateCommit });
+        }
+        await outcome({ kind: preparation.kind === 'transient' ? 'platform_retry' : 'decision_required', failure: { ...preparation.failure, blockedPhase: 'input_preparation' } });
+      } else if (error instanceof TaskInputPreparationError && current.worktreePath) {
         const checkpointCommit = executionProgress(current.dispatchMetadata)?.conflictRepair?.candidateCommit || await withRepositoryLock(execution.repository, async () => {
           await assertExecutionOwnership(execution.id, claimToken);
           return commitJobWorktree({
@@ -652,9 +670,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       const progress = executionProgress(latest.dispatchMetadata);
       const state = latest.status === 'ready' ? '正在自动修复或重试，无需人工继续。'
         : progress?.state === 'exhausted' ? '自动处理已达上限，保留现场和失败证据。'
-        : '需要处理一项具体决定，原因见下方详情。';
+        : progress?.lastFailure && graphFailureSummary(progress.lastFailure, progress.state).requiresUserDecision ? '需要你确认下方具体请求。' : '平台正在处理，现场和证据已保留。';
       if (current.childTaskId) await postGraphChildProgress(current.childTaskId, `issue-${claimToken}`,
-        `${nodeKey}/${execution.key}：${state}\n${detail}`)
+        `${nodeKey}/${execution.key}：${state}\n${progress?.lastFailure ? formatGraphFailureSummary(progress.lastFailure, progress.state) : '平台将补充处理说明。'}`)
         .catch((deliveryError) => console.error('[TaskGraph] child issue delivery failed:', deliveryError));
     } else {
       console.error(`[TaskGraph] verification failed after integration ${runId}/${nodeKey}:`, error);
@@ -665,7 +683,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const finalProgress = executionProgress(finalJob.dispatchMetadata);
     const status = finalJob.status === 'ready' ? '正在自动修复或重试，无需人工继续。'
       : finalProgress?.state === 'exhausted' ? '自动处理已达上限，现场已保留。'
-      : '需要处理一项具体决定。';
+      : finalProgress?.lastFailure && graphFailureSummary(finalProgress.lastFailure, finalProgress.state).requiresUserDecision ? '需要你确认一项具体请求。' : '待平台处理，无需你决定技术细节。';
     void postGraphParentProgress(graphRun.parentTaskId, runId, `${nodeKey}/${execution.key}：${status}详情见仓库群原任务话题。`)
       .catch((deliveryError) => console.error('[TaskGraph] parent progress delivery failed:', deliveryError));
   } finally {

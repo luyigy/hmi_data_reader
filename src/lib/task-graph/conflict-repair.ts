@@ -5,6 +5,7 @@ import { graphGit as git } from './git-command';
 import { inspectJobWorktree, type JobWorktreeRequest } from './worktree';
 import type { IntegrationConflict } from './integration-failure';
 import { prisma } from '../prisma';
+import { validationRuntimeDirectory } from './acceptance-runtime';
 
 export type ConflictRepair = {
   candidateCommit: string; integrationCommit: string; mergeHead: string; paths: string[];
@@ -47,6 +48,19 @@ export async function approvedConflictCommits(runId: string, repository: string)
     if (typeof commit === 'string' && oid.test(commit)) commits.add(commit);
   }
   return Array.from(commits);
+}
+
+export async function conflictResolutionFile(args: { nodeId: string; taskId: string; taskRunId: string }): Promise<string> {
+  const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: args.taskRunId }, include: { participants: true } });
+  if (run.taskId !== args.taskId || run.status !== 'completed' || run.participants.length !== 1) throw new Error('Conflict resolution requires its completed single-writer TaskRun');
+  const attempt = `harness:${run.id}:${run.participants[0].id}`;
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: args.nodeId }, select: { runId: true } });
+  const receipt = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: `output:${args.nodeId}:${attempt}` } } });
+  const payload = receipt.payload;
+  const directory = path.join(validationRuntimeDirectory(args.nodeId), digest('outputs:' + attempt).slice(0, 24));
+  if (receipt.nodeId !== args.nodeId || receipt.kind !== 'output_runtime_prepared' || !payload || typeof payload !== 'object' || Array.isArray(payload) ||
+      payload.taskId !== args.taskId || payload.attempt !== attempt || payload.directory !== directory) throw new Error('Conflict resolution output receipt does not match its TaskRun');
+  return path.join(directory, 'resolution.json');
 }
 
 async function regularFile(workspace: string, name: string) {
