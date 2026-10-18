@@ -13,6 +13,10 @@ import { getParticipantContinuationKey } from './session-tracking';
 import { ensureTaskSession, setTaskSessionActiveRun } from './session';
 import type { AcpxRunRequest, TaskRunStatus } from './types';
 
+export class AcpxRunStartupError extends Error {
+  constructor(readonly taskRunId: string, message: string) { super(message); Object.setPrototypeOf(this, new.target.prototype); }
+}
+
 export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   const taskSession =
     request.taskSessionId
@@ -107,60 +111,73 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     return created;
   }) : await createRun(prisma);
 
-  await setTaskSessionActiveRun(taskSession.id, taskRun.id);
-
-  await publishTaskRunEvent({
-    taskId: request.taskId,
-    taskRunId: taskRun.id,
-    eventType: 'runner_started',
-    content: `ACPX 运行开始，共 ${request.participants.length} 个参与方`,
-      metadata: {
-        mode: 'acpx',
-        taskSessionId: taskSession.id,
-        orchestrationMode: request.orchestrationMode,
-        workingDirectory: request.workingDirectory ?? null,
-        permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
-        permissionSupport: request.participants.map((participant) => ({
-          executionBackend: participant.executionBackend,
-          harnessType: participant.harnessType,
-          role: participant.role,
-          support: getLocalHarnessPermissionSupport(
-            participant.harnessType,
-            participant.executionBackend
-          ),
-        })),
-        watchdogConfig: request.watchdogConfig ?? null,
-        participants: request.participants,
-      },
-  });
-
-  const previousSummaries: string[] = [];
-  const longFileContext = request.participants.some((participant) => participant.executionBackend === 'platform_local') ? await getLongFileRuntimeContext({ executionBackend: 'platform_local', workingDirectory: request.workingDirectory }) : null;
   const participantResults: Array<Awaited<ReturnType<typeof executeParticipant>>> = [];
+  try {
+    await setTaskSessionActiveRun(taskSession.id, taskRun.id);
 
-  for (let index = 0; index < taskRun.participants.length; index += 1) {
-    const participantRecord = taskRun.participants[index];
-    const requestParticipant = request.participants[index];
-    const result = await executeParticipant(
-      request,
-      taskRun.id,
-      participantRecord.id,
-      requestParticipant,
-      previousSummaries, longFileContext,
-    );
-    participantResults.push(result);
-    if (result.summary) {
-      previousSummaries.push(
-        `${requestParticipant.role} @ ${requestParticipant.gatewayName || requestParticipant.gatewayId} / ${requestParticipant.harnessType}: ${result.summary}`
+    await publishTaskRunEvent({
+      taskId: request.taskId,
+      taskRunId: taskRun.id,
+      eventType: 'runner_started',
+      content: `ACPX 运行开始，共 ${request.participants.length} 个参与方`,
+        metadata: {
+          mode: 'acpx',
+          taskSessionId: taskSession.id,
+          orchestrationMode: request.orchestrationMode,
+          workingDirectory: request.workingDirectory ?? null,
+          permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
+          permissionSupport: request.participants.map((participant) => ({
+            executionBackend: participant.executionBackend,
+            harnessType: participant.harnessType,
+            role: participant.role,
+            support: getLocalHarnessPermissionSupport(
+              participant.harnessType,
+              participant.executionBackend
+            ),
+          })),
+          watchdogConfig: request.watchdogConfig ?? null,
+          participants: request.participants,
+        },
+    });
+
+    const previousSummaries: string[] = [];
+    const longFileContext = request.participants.some((participant) => participant.executionBackend === 'platform_local') ? await getLongFileRuntimeContext({ executionBackend: 'platform_local', workingDirectory: request.workingDirectory }) : null;
+
+    for (let index = 0; index < taskRun.participants.length; index += 1) {
+      const participantRecord = taskRun.participants[index];
+      const requestParticipant = request.participants[index];
+      const result = await executeParticipant(
+        request,
+        taskRun.id,
+        participantRecord.id,
+        requestParticipant,
+        previousSummaries, longFileContext,
       );
-    }
+      participantResults.push(result);
+      if (result.summary) {
+        previousSummaries.push(
+          `${requestParticipant.role} @ ${requestParticipant.gatewayName || requestParticipant.gatewayId} / ${requestParticipant.harnessType}: ${result.summary}`
+        );
+      }
 
-    if (result.status === 'interrupted' || result.status === 'stopped') {
-      break;
+      if (result.status === 'interrupted' || result.status === 'stopped') {
+        break;
+      }
     }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    await prisma.$transaction(async tx => {
+      await tx.taskRunParticipant.updateMany({ where: { taskRunId: taskRun.id, status: { in: ['pending', 'running', 'waiting_for_input'] } },
+        data: { status: 'failed', activityState: 'stalled', completedAt: new Date(), error: detail } });
+      await tx.taskRun.update({ where: { id: taskRun.id }, data: { status: 'failed', activityState: 'stalled', completedAt: new Date(), error: detail, summary: detail } });
+      await tx.taskSession.updateMany({ where: { id: taskSession.id, activeRunId: taskRun.id },
+        data: { activeRunId: null, status: 'failed', attentionState: 'error', summary: detail } });
+    });
+    throw new AcpxRunStartupError(taskRun.id, detail);
+  } finally {
+    // executeParticipant settles its metadata writes and service cleanup before this boundary.
+    if (graphWriter) await releaseTaskRunWriter(taskRun.id, graphWriter.nonce);
   }
-
-  if (graphWriter) await releaseTaskRunWriter(taskRun.id, graphWriter.nonce);
 
   const failedParticipants = participantResults.filter((result) => result.status === 'failed');
   const completedParticipants = participantResults.filter((result) => result.status === 'completed');

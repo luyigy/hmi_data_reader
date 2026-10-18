@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { executeAcpxTaskRun } from '../acpx/runner';
+import { executeAcpxTaskRun, AcpxRunStartupError } from '../acpx/runner';
 import type { AcpxRunRequest } from '../acpx/types';
 import { assertGraphReviewOwnership, completedGraphReviewTaskRun } from './review-ownership';
 import { prisma } from '../prisma';
@@ -28,7 +28,7 @@ export async function collectGraphReview(args: {
     savedId = null;
     const saved = savedResultId ? await prisma.taskRun.findUniqueOrThrow({ where: { id: savedResultId }, include: { participants: true } }) : null;
     const result = saved ? { status: saved.status, taskRunId: saved.id, participants: saved.participants, summary: saved.summary } : await executeAcpxTaskRun({ ...args.request, taskDescription: (args.request.taskDescription || '') + feedback })
-      .catch(error => ({ status: 'failed', taskRunId: 'not-created', participants: [], summary: String(error) }));
+      .catch(error => ({ status: 'failed', taskRunId: error instanceof AcpxRunStartupError ? error.taskRunId : 'not-created', participants: [], summary: String(error) }));
     const response = result.participants[0]?.summary || result.summary || '';
     if (args.request.graphReview && result.taskRunId !== 'not-created') await assertGraphReviewOwnership(args.nodeId, args.request.graphReview.phase, args.claimKey, result.taskRunId);
     if (result.status !== 'completed' && !['failed', 'cancelled', 'interrupted'].includes(result.status)) throw new Error('Reviewer has not reached a terminal state');

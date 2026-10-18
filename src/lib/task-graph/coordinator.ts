@@ -18,7 +18,7 @@ import { cleanupCompletedNodeWorkspaces, cleanupFinishedWorkspaces } from './com
 import { createHash, randomUUID } from 'node:crypto';
 import type { TaskGraphExecution } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
-import { executeAcpxTaskRun } from '../acpx/runner';
+import { executeAcpxTaskRun, AcpxRunStartupError } from '../acpx/runner';
 import { prisma } from '../prisma';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '../task-room';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
@@ -494,6 +494,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions + recoveryInstructions,
       extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths],
       orchestrationMode: 'single', participants: [config.participant], workingDirectory: workspace.path,
+    }).catch(error => {
+      if (error instanceof AcpxRunStartupError) throw new TaskInputPreparationError(`执行器启动失败（${error.taskRunId}）：${error.message}`, 'environment_failed');
+      throw error;
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
     const extra = await prepareExtraRepositories(definition.nodes.find(node => node.key === nodeKey)?.extraRepositories);

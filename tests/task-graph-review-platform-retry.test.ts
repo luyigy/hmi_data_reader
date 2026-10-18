@@ -8,12 +8,13 @@ import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { runTaskGraphCycle, startTaskGraphCoordinator, recoverTaskGraphNodeVerification } from '../src/lib/task-graph/coordinator';
+import { observeTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import { TaskInputPreparationError } from '../src/lib/task-graph/upstream-inputs';
 import { GraphCheckTimeoutError } from '../src/lib/task-graph/check-runner';
 import type { GraphDefinition } from '../src/lib/task-graph/domain';
 
-async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-platform' | 'human' | 'preparation' | 'preparation-exhausted' | 'integration-timeout' | 'ownership') {
+async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-platform' | 'human' | 'preparation' | 'preparation-exhausted' | 'integration-timeout' | 'ownership' | 'startup') {
   const root = mkdtempSync(path.join(tmpdir(), 'graph-targeted-review-'));
   process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'harness'); process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
   const repositories = ['reader', 'model'].map(key => {
@@ -58,6 +59,18 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
   const require = createRequire(__filename);
   const checks: typeof import('../src/lib/task-graph/check-environment') = require('../src/lib/task-graph/check-environment');
   const runCheck = checks.runSandboxedGraphCheck;
+  const events: { publishTaskRunEvent: typeof import('../src/lib/acpx/event-bus').publishTaskRunEvent } = require('../src/lib/acpx/event-bus');
+  const publishEvent = events.publishTaskRunEvent;
+  let startupFailureRun: string | undefined;
+  events.publishTaskRunEvent = async event => {
+    if (mode === 'startup' && !startupFailureRun && event.eventType === 'participant_started' && event.taskId === `task-graph-${reader.id}`) {
+      startupFailureRun = event.taskRunId;
+      assert.equal(readerStarts, 0, 'Fault is injected before any model starts');
+      throw new Error('Injected participant_started persistence failure');
+    }
+    return publishEvent(event);
+  };
+
   let preparationAttempts = 0;
   checks.runSandboxedGraphCheck = async (...args: Parameters<typeof runCheck>) => {
     if (String(args[2]?.AP_GRAPH_SERVICE_TASK_ID).startsWith('task-graph-review-') && ['preparation', 'preparation-exhausted', 'integration-timeout', 'ownership'].includes(mode)) {
@@ -83,9 +96,18 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
     assert.equal(after.status, exhausted || human || ownership ? 'attention' : 'passed', JSON.stringify(await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id }, orderBy: { createdAt: 'desc' }, take: 8 })));
     assert.equal(readerStarts, 1); assert.equal(modelStarts, 1, 'Platform review failure never reruns implementation');
     assert.equal(nextStarts, exhausted || human || ownership ? 0 : 1);
-    assert.equal(architectureStarts + acceptanceStarts, mode === 'preparation-exhausted' || ownership ? 0 : exhausted ? 3 : human || mode === 'preparation' || mode === 'integration-timeout' ? 1 : mode === 'architecture-platform' ? 3 : 2);
+    assert.equal(architectureStarts + acceptanceStarts, mode === 'preparation-exhausted' || ownership ? 0 : exhausted ? 3 : human || mode === 'preparation' || mode === 'integration-timeout' || mode === 'startup' ? 1 : mode === 'architecture-platform' ? 3 : 2);
     assert.ok(after.executions.every(job => executionProgress(job.dispatchMetadata)?.state === (exhausted ? 'exhausted' : ownership ? 'ownership_attention' : human ? 'waiting_decision' : 'active')));
     assert.ok(after.executions.every(job => job.commit && job.evidence));
+    if (mode === 'startup') {
+      assert(startupFailureRun);
+      const failed = await prisma.taskRun.findUniqueOrThrow({ where: { id: startupFailureRun }, include: { participants: true } });
+      assert.equal(failed.status, 'failed');
+      assert.ok(failed.participants.every(participant => participant.status === 'failed'));
+      assert.equal((await observeTaskRunWriter(failed.id)).kind, 'exited', 'Failed prelaunch runner is released in the same live daemon');
+      assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_recovery_requested' } }), 0);
+    }
+
     if (exhausted || human || ownership) assert.ok(after.executions.every(job => executionProgress(job.dispatchMetadata)?.lastFailure));
     if (exhausted || ownership) await assert.rejects(recoverTaskGraphNodeVerification(run.id, 'BOTH'), /exhaustion or ownership/);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } }), 0);
@@ -98,8 +120,8 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
       assert.deepEqual(resumed.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts), budgets, 'Authorized review resume preserves retry budgets');
     }
 
-    console.log(`Targeted ${mode}: reader ${readerStarts}, successful model ${modelStarts}, architecture ${architectureStarts}, acceptance ${acceptanceStarts}, successor ${nextStarts}, no human resume`);
-  } finally { checks.runSandboxedGraphCheck = runCheck; await prisma.taskGraphRun.delete({ where: { id: run.id } }); rmSync(root, { recursive: true, force: true }); }
+    console.log(`Targeted ${mode}: reader ${readerStarts}, successful model ${modelStarts}, architecture ${architectureStarts}, acceptance ${acceptanceStarts}, successor ${nextStarts}, ${human ? 'one authorized human decision' : 'no human resume'}`);
+  } finally { events.publishTaskRunEvent = publishEvent; checks.runSandboxedGraphCheck = runCheck; await prisma.taskGraphRun.delete({ where: { id: run.id } }); rmSync(root, { recursive: true, force: true }); }
 }
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_[a-f0-9]+$/);
@@ -107,7 +129,7 @@ async function main() {
   feishu.ensureGraphChildTopic = async () => null; feishu.postGraphParentProgress = async () => {}; feishu.postGraphChildProgress = async () => {};
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   const original = globalThis.fetch; globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  try { for (const mode of ['platform', 'architecture-platform', 'platform-exhausted', 'human', 'preparation', 'preparation-exhausted', 'integration-timeout', 'ownership'] as const) await scenario(mode); }
+  try { for (const mode of ['platform', 'architecture-platform', 'platform-exhausted', 'human', 'preparation', 'preparation-exhausted', 'integration-timeout', 'ownership', 'startup'] as const) await scenario(mode); }
   finally { globalThis.fetch = original; await prisma.$disconnect(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
