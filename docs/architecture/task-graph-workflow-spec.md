@@ -53,7 +53,7 @@ Issue 的自动发布/结果对账与异常恢复卡尚未接入本轮入口改�
 
 ## 飞书体验
 
-首版由人在父任务飞书话题发送 `/ap graph propose [Spec 路径]`，或在 `/ap menu` 的「任务图 / Jobs」点击「提出任务路线」。Agent 根据 Spec 生成或导入 tickets 后，运行 `npm run task-graph:propose -- --parent-task-id=<id> --spec-repository=<repo> --spec-package=docs/specs/<slug>/spec-package.json --agent=<name>`。依赖只从 Issues 读取。平台在父任务飞书话题展示依赖关系图、仓库、Agent 和验收方式；人通过卡片确认一次后启动。飞书群聊中的子任务话题在节点放行时创建；未放行节点仅显示在任务图中。关键进度同步到父任务话题。预设人工验收会发卡，也可在任务图页面决定。子话题可发送 `/ap graph resume` 登记已集成节点的验收恢复请求；不会重做实施。
+首版由人在父任务飞书话题发送 `/ap graph propose [Spec 路径]`，或在 `/ap menu` 的「任务图 / Jobs」点击「提出任务路线」。Agent 根据 Spec 生成或导入 tickets 后，运行 `npm run task-graph:propose -- --parent-task-id=<id> --spec-repository=<repo> --spec-package=docs/specs/<slug>/spec-package.json --agent=<name>`。依赖只从 Issues 读取。平台在父任务飞书话题展示依赖关系图、仓库、Agent 和验收方式；卡片顶部先列出启动节点及具有相同前置的并行分支，再展示详细图与仓库授权。图的层级仅辅助阅读，不是整批等待屏障；每票只等待自身前置，并受并发上限和共享目录互斥限制。人通过卡片确认一次后启动。飞书群聊中的子任务话题在节点放行时创建；未放行节点仅显示在任务图中。关键进度同步到父任务话题。预设人工验收会发卡，也可在任务图页面决定。子话题可发送 `/ap graph resume` 登记已集成节点的验收恢复请求；不会重做实施。
 
 路线卡同时列出每个仓内任务的实施者、每个 Slice 的验收者，以及架构复核者。实施者按仓内任务分配，可选择不同的本机 harness；验收者按 Slice 分配，支持自动检查、指定本机 Agent 或人。架构复核者可作为全项目默认值，也可由单个 Slice 覆盖。人在卡片确认前，可在父任务话题发送 `/ap graph role <Slice|all> <仓内任务键|acceptance|architecture> <Agent selector|automatic|human>` 改派，例如 `/ap graph role V3 collector local:pi-agent`、`/ap graph role V3 acceptance local:kimi-code`、`/ap graph role all architecture local:codex`。平台更新原卡与快照哈希，旧卡动作失效；确认后冻结角色。
 

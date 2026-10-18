@@ -113,7 +113,17 @@ export function formatGraphProposal(definition: GraphDefinition) {
   const attachment = definition.specPackage ? '（完整目标、路径与验收细节见上方话题附件）' : '';
   const extra = definition.nodes.flatMap(node => (node.extraRepositories || []).map(repo => `${node.key}：${repo.access === 'write' ? '读写' : '只读'} ${repo.repository}`));
   const scope = extra.length ? `\n附加仓库授权：\n${extra.join('\n')}\n` : '';
-  return `Spec：${specName(definition)}${attachment}${scope}\n\n\`\`\`text\n${lines.join('\n')}\n\`\`\``;
+  const forks = new Map<string, GraphNode[]>();
+  for (const node of definition.nodes) {
+    const key = [...node.dependsOn].sort().join('、');
+    forks.set(key, [...(forks.get(key) || []), node]);
+  }
+  const summary = [`启动：${levels[0].map(node => node.key).join('、')}${levels[0].length > 1 ? ' 可并行' : ''}`];
+  for (const [dependencies, children] of Array.from(forks.entries())) {
+    if (dependencies && children.length > 1) summary.push(`${dependencies} 通过后：${children.map(node => node.key).join('、')} 可并行`);
+  }
+  summary.push('每票只等待自身前置；下图按依赖层级排列，不要求上一层全部结束。实际并发受运行上限与共享可写目录约束。');
+  return `Spec：${specName(definition)}${attachment}\n\n${summary.join('\n')}\n\n\`\`\`text\n${lines.join('\n')}\n\`\`\`\n${scope}`;
 }
 
 export function buildGraphProposalCard(id: string, definition: GraphDefinition, version: number, hash: string,
