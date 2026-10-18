@@ -1,0 +1,562 @@
+{
+  "profile_id": "demag.temperature.screen_order_5",
+  "version": "0.4.1",
+  "page_identity": {
+    "brand": "DEMAG",
+    "controller_family": "DEMAG",
+    "interface_generation": null,
+    "page_type": "temperature",
+    "layout_variant": "screen_order_5"
+  },
+  "header_region": [
+    0.12,
+    0.28,
+    0.94,
+    0.4
+  ],
+  "zones": [
+    {
+      "zone_id": "nozzle-1",
+      "zone_source": "nozzle",
+      "labels": [
+        "喷嘴1",
+        "喷1",
+        "喷剪1"
+      ]
+    },
+    {
+      "zone_id": "barrel-1",
+      "zone_source": "barrel",
+      "labels": [
+        "区1"
+      ]
+    },
+    {
+      "zone_id": "barrel-2",
+      "zone_source": "barrel",
+      "labels": [
+        "区2"
+      ]
+    },
+    {
+      "zone_id": "barrel-3",
+      "zone_source": "barrel",
+      "labels": [
+        "区3"
+      ]
+    },
+    {
+      "zone_id": "barrel-4",
+      "zone_source": "barrel",
+      "labels": [
+        "区4"
+      ]
+    },
+    {
+      "zone_id": "barrel-5",
+      "zone_source": "barrel",
+      "labels": [
+        "区5"
+      ]
+    },
+    {
+      "zone_id": "barrel-6",
+      "zone_source": "barrel",
+      "labels": [
+        "区6"
+      ]
+    },
+    {
+      "zone_id": "barrel-7",
+      "zone_source": "barrel",
+      "labels": [
+        "区7"
+      ]
+    },
+    {
+      "zone_id": "barrel-8",
+      "zone_source": "barrel",
+      "labels": [
+        "区8"
+      ]
+    },
+    {
+      "zone_id": "feed-throat",
+      "zone_source": "other",
+      "labels": [
+        "料口"
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "screen_field_key": "temperature.nozzle-1.actual",
+      "section": "barrel_temperature",
+      "zone_id": "nozzle-1",
+      "zone_source": "nozzle",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.nozzle-1.setting",
+      "section": "barrel_temperature",
+      "zone_id": "nozzle-1",
+      "zone_source": "nozzle",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-1.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-1",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-1.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-1",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-2.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-2",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-2.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-2",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-3.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-3",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-3.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-3",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-4.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-4",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-4.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-4",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-5.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-5",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-5.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-5",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-6.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-6",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-6.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-6",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-7.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-7",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-7.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-7",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-8.actual",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-8",
+      "zone_source": "barrel",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.barrel-8.setting",
+      "section": "barrel_temperature",
+      "zone_id": "barrel-8",
+      "zone_source": "barrel",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.feed-throat.actual",
+      "section": "barrel_temperature",
+      "zone_id": "feed-throat",
+      "zone_source": "other",
+      "role": "actual",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "实际",
+        "际"
+      ]
+    },
+    {
+      "screen_field_key": "temperature.feed-throat.setting",
+      "section": "barrel_temperature",
+      "zone_id": "feed-throat",
+      "zone_source": "other",
+      "role": "setting",
+      "unit": "°C",
+      "label_region": [
+        0,
+        0.3,
+        0.17,
+        0.53
+      ],
+      "labels": [
+        "设定"
+      ]
+    },
+    {
+      "screen_field_key": "cold_start.protection.setting",
+      "section": "temperature_timing",
+      "role": "setting",
+      "time_kind": "cold_start.protection.setting",
+      "unit": "min",
+      "labels": [
+        "冷启动保护"
+      ],
+      "label_region": [
+        0.3,
+        0.65,
+        0.59,
+        0.83
+      ],
+      "region": [
+        0.575,
+        0.69,
+        0.66,
+        0.74
+      ],
+      "value_format": "number"
+    },
+    {
+      "screen_field_key": "cold_start.protection.display",
+      "section": "temperature_timing",
+      "role": "unknown",
+      "time_kind": "cold_start.protection.display",
+      "unit": "min",
+      "labels": [
+        "冷启动保护"
+      ],
+      "label_region": [
+        0.3,
+        0.65,
+        0.59,
+        0.83
+      ],
+      "region": [
+        0.63,
+        0.69,
+        0.73,
+        0.74
+      ],
+      "value_format": "clock"
+    },
+    {
+      "screen_field_key": "temperature.manual_reduction.delay",
+      "section": "temperature_timing",
+      "role": "setting",
+      "time_kind": "temperature.manual_reduction.delay",
+      "unit": "min",
+      "labels": [
+        "延时手动降低"
+      ],
+      "label_region": [
+        0.3,
+        0.65,
+        0.59,
+        0.83
+      ],
+      "region": [
+        0.575,
+        0.78,
+        0.66,
+        0.825
+      ],
+      "value_format": "number",
+      "recovery_region": [
+        0.5895,
+        0.78564,
+        0.6025,
+        0.80753
+      ]
+    },
+    {
+      "screen_field_key": "temperature.manual_reduction.display",
+      "section": "temperature_timing",
+      "role": "unknown",
+      "time_kind": "temperature.manual_reduction.display",
+      "unit": "min",
+      "labels": [
+        "延时手动降低"
+      ],
+      "label_region": [
+        0.3,
+        0.65,
+        0.59,
+        0.83
+      ],
+      "region": [
+        0.63,
+        0.78,
+        0.73,
+        0.825
+      ],
+      "value_format": "clock"
+    }
+  ],
+  "samples": [
+    {
+      "image": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.jpg",
+      "image_sha256": "e54f3633e56de2890122d0e5365a1ba600bb175705e2883cae049e4e7a3a05a5",
+      "truth": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.truth.yml",
+      "purpose": "development",
+      "independent_acceptance": false
+    },
+    {
+      "image": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_b24ff33d.jpg",
+      "image_sha256": "b24ff33d96516a2b4d2f3642aa85abb23984f3a04cba9d61ecca70567d1467c9",
+      "truth": "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_b24ff33d.truth.yml",
+      "purpose": "development",
+      "independent_acceptance": false
+    }
+  ],
+  "coverage_scope": "Visible named nozzle, barrel and feed-throat set/actual cells; cold-start and manual-reduction timing. Other displayed controls not covered.",
+  "state_policy": "unknown without calibrated state evidence; color does not imply disabled",
+  "identity_basis": "templates/demag.temperature.json column labels; nozzle and barrel identities are original physical numbers, never array order",
+  "time_basis": "Original labels distinguish cold-start protection and manual reduction delay. Colon display remains text and role unknown; no seconds conversion.",
+  "ocr_alias_basis": "喷剪1 is observed OCR of the visible 喷嘴1 header in development photo b24ff33d; retain zone_label verbatim."
+}

@@ -20,6 +20,7 @@ from raw_temperature_time import (DEFINITIONS, VERSION, observe_temperature_time
 OUTPUT = Path(os.environ.get("AP_GRAPH_OUTPUT_DIR", ROOT / "output/r04"))
 SAMPLES = {
     "temperature": ROOT / "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_e54f3633.jpg",
+    "temperature_second": ROOT / "datasets/calibration/demag.temperature.screen_order_5/barrel_A02_b24ff33d.jpg",
     "cooling": ROOT / "ground_truth/bole_est/EST2/Luban_1775031270479feaa3644-985f-4b12-93b3-c275b9bbe27c.jpeg",
     "holding": ROOT / "ground_truth/demag_holding/holding_Z002_ab30f6f6.jpeg",
 }
@@ -84,6 +85,35 @@ def live_pages(tmp_path_factory):
 
 def by_key(record):
     return {field["screen_field_key"]: field for field in record["fields"]}
+
+
+def test_a11_a12_second_photo_retains_nozzle_and_all_timing_cells(live_pages):
+    for name in ("temperature", "temperature_second"):
+        for surface in ("script", "http"):
+            record = live_pages[name][surface]["page_observations"]
+            assert record["image_sha256"] == hashlib.sha256(SAMPLES[name].read_bytes()).hexdigest()
+            fields = by_key(record)
+            for order, (zone, value) in enumerate([("nozzle-1", 350), ("barrel-3", 295),
+                                                  ("barrel-2", 290), ("barrel-1", 285),
+                                                  ("feed-throat", 60)], 1):
+                for role in ("setting", "actual"):
+                    field = fields[f"temperature.{zone}.{role}"]
+                    assert field["original_value"] == value
+                    assert field["order"] == order and field["zone_id"] == zone
+                    assert field["state"] == "unknown" and field["reading"] == "known"
+                    assert field["original_unit"] in ("℃", "°C")
+                    assert field["bbox"] and field["original_bbox"]
+            for key, value in [("cold_start.protection.setting", 8),
+                               ("cold_start.protection.display", "8:00"),
+                               ("temperature.manual_reduction.delay", 0),
+                               ("temperature.manual_reduction.display", "0:00")]:
+                field = fields[key]
+                assert field["original_value"] == value, field
+                assert field["effective_unit"] == "min"
+                assert field["reading"] == ("known" if field["confidence"] >= .9 else "uncertain"), field
+                assert field["state"] == "unknown"
+                assert field["original_bbox"] and field["bbox"]
+            validate_temperature_time_record(record, temperature_time_package(record["profile_id"]))
 
 
 def test_a11_actual_reversed_physical_zone_identity(live_pages):
@@ -272,3 +302,36 @@ def test_a12_original_time_units_are_preserved_without_business_conversion(live_
         assert record["coverage"]["status"] == "partial"
         assert any(issue["code"] == "UNIT_TEMPLATE_CONFLICT" for issue in record["issues"])
         assert "standard_value" not in field
+
+
+def test_a12_missing_clock_does_not_reuse_numeric_setting(live_pages):
+    page = live_pages["temperature_second"]
+    record = page["http"]["page_observations"]
+    lines = [line for line in record["ocr_evidence"]["lines"] if line["text"] != "0:00"]
+    changed = observe_temperature_time_page(record["profile_id"], lines, page["meta"], record["image_sha256"])
+    fields = by_key(changed)
+    assert fields["temperature.manual_reduction.delay"]["original_value"] == 0
+    assert fields["temperature.manual_reduction.display"]["original_value"] is None
+    assert fields["temperature.manual_reduction.display"]["reading"] == "missing"
+
+
+def test_a18_previous_package_bytes_and_get_are_retained():
+    import httpx
+    import hmi_service as service
+    from export_page_package import export_page_package
+
+    for profile in DEFINITIONS:
+        frozen = json.loads((ROOT / "templates/raw-packages" / profile / "0.4.0.json").read_text())
+        package = temperature_time_package(profile, "0.4.0")
+        assert package == frozen == export_page_package(profile, "0.4.0")
+        archive = ROOT / "templates/raw-recognizers/temperature_time_ocr.v2/0.4.0/scripts/raw_temperature_time.py"
+        assert hashlib.sha256(archive.read_bytes()).hexdigest() == package["recognizer"]["files"]["scripts/raw_temperature_time.py"]
+        assert temperature_time_package(profile)["recognizer"] != package["recognizer"]
+
+        async def get_previous():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app), base_url="http://reader") as client:
+                return await client.get(f"/api/v1/page-templates/{profile}/package?version=0.4.0")
+
+        response = asyncio.run(get_previous())
+        assert response.status_code == 200, response.text
+        assert response.json() == package

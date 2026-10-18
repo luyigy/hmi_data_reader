@@ -185,7 +185,7 @@ def get_template_versions(profile_id: str):
 
 @router.get("/{profile_id}/package")
 def get_package(profile_id: str, version: str | None = None):
-    if version == "0.4.0":
+    if version in ("0.4.0", "0.4.1"):
         try:
             return export_page_package(profile_id, version, ROOT)
         except (ValueError, FileNotFoundError, KeyError) as exc:
