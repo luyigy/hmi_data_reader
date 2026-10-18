@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
-import { executionProgress, metadataWithProgress, type GraphReviewBinding } from './execution-progress';
+import { executionProgress, initialExecutionProgress, metadataWithProgress, type GraphReviewBinding } from './execution-progress';
 
 export async function graphReviewClaimKey(nodeId: string, phase: 'architecture' | 'acceptance', fallbackClaimKey: string) {
   const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId } });
@@ -18,8 +18,11 @@ export async function bindGraphReviewTaskRun(tx: Prisma.TransactionClient, args:
   const claim = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: args.claimKey } } });
   if (!claim || claim.nodeId !== node.id || claim.kind !== (args.phase === 'architecture' ? 'architecture_claimed' : 'review_claimed')) throw new Error('Review has no matching durable claim');
   for (const job of node.executions) {
-    const progress = executionProgress(job.dispatchMetadata);
-    if (job.status !== 'integrated' || !progress || !job.commit) throw new Error('Review input has no integrated progress');
+    if (job.status !== 'integrated' || !job.commit || !/^[0-9a-f]{40,64}$/.test(job.commit)) throw new Error('Review input has no integrated commit');
+    const previousProgress = executionProgress(job.dispatchMetadata);
+    const progress = previousProgress || { ...initialExecutionProgress(), phase: args.phase, workspaceBase: job.baseCommit, candidateCommit: job.commit };
+    if (!previousProgress) await tx.taskGraphEvent.create({ data: { runId: args.runId, nodeId: node.id,
+      idempotencyKey: `review-progress-adopted:${job.id}`, kind: 'review_progress_adopted', payload: { executionId: job.id, integratedCommit: job.commit, phase: args.phase } } });
     if (progress.review?.kind === 'running') {
       const previous = await tx.taskRun.findUnique({ where: { id: progress.review.taskRunId } });
       if (previous && ['pending', 'running', 'waiting_for_input'].includes(previous.status)) throw new Error('Previous review TaskRun still owns this input');
