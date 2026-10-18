@@ -87,6 +87,14 @@ async function main() {
     assert.match(JSON.stringify(updated.at(-1)?.card), /实施暂停/);
     assert.match(JSON.stringify(updated.at(-1)?.card), /project environment missing/);
     assert.equal(sent.length, 1); assert.equal(replies.length, 0);
+    const retry = await prisma.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'running',
+      createdAt: new Date(Date.now() + 1000), events: { create: { sequence: 1, eventType: 'runner_started', content: '自动回修已启动' } } } });
+    await relayTaskGraphRunReply(retry.id);
+    assert.equal(sent.length, 1, 'Automatic repair must reuse the task topic card across TaskRuns');
+    assert.equal(updated.at(-1)?.id, 'reply-1');
+    const latestCard = updated.at(-1)?.card;
+    assert.equal(await relayTaskGraphRunReply(run.id, true), false, 'An older TaskRun must not overwrite the current task card');
+    assert.deepEqual(updated.at(-1)?.card, latestCard);
     console.log('Feishu progress patches one card, folds details, preserves approvals and exposes blocked delivery');
   } finally {
     api.sendFeishuInteractiveMessage = original.send; cards.updateFeishuTaskEntryCard = original.update; api.replyFeishuMessage = original.reply;

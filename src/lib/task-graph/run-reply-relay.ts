@@ -36,10 +36,17 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
   await prisma.taskRunFeishuRelay.upsert({ where: { taskRunId: run.id },
     create: { taskRunId: run.id, bindingId: binding.id }, update: {} });
   return prisma.$transaction(async (tx) => {
-    const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext(${`graph-reply:${run.id}`})) AS locked`;
+    const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext(${`graph-reply-topic:${binding.id}`})) AS locked`;
     if (!lock.locked) return false;
     const cursor = await tx.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } });
     if (cursor.bindingId !== binding.id) throw new Error(`Reply target changed for ${run.id}; reconcile the original card`);
+    const newest = await tx.taskRunFeishuRelay.findFirstOrThrow({ where: { bindingId: binding.id },
+      orderBy: [{ taskRun: { createdAt: 'desc' } }, { taskRunId: 'desc' }] });
+    if (newest.taskRunId !== run.id) return false;
+    const first = await tx.taskRunFeishuRelay.findFirstOrThrow({ where: { bindingId: binding.id },
+      orderBy: [{ createdAt: 'asc' }, { taskRunId: 'asc' }] });
+    const existingCard = await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, messageId: { not: null } },
+      orderBy: [{ createdAt: 'asc' }, { taskRunId: 'asc' }] });
     const latest = await tx.taskRunEvent.findFirst({ where: { taskRunId: run.id }, orderBy: { sequence: 'desc' } });
     const sequence = latest?.sequence || 0;
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
@@ -47,7 +54,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     const execution = await tx.taskGraphExecution.findUnique({ where: { childTaskId: run.taskId }, select: { node: { select: { status: true, updatedAt: true } } } });
     const graphChanged = execution && execution.node.updatedAt > cursor.updatedAt;
     if (!forceRefresh && !graphChanged && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
-    if (!cursor.messageId && Date.now() - cursor.createdAt.getTime() > 50 * 60_000) {
+    if (!existingCard?.messageId && Date.now() - first.createdAt.getTime() > 50 * 60_000) {
       throw new Error(`Reply receipt uncertain for ${run.id}; reconcile before resending`);
     }
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
@@ -55,11 +62,11 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     output.reverse();
     const card = buildRunReplyCard({ ...run, graphStatus: execution?.node.status }, history.reverse(), requests, output);
     card.header.title.content = `${run.task.name} · ${card.header.title.content}`;
-    let messageId = cursor.messageId;
+    let messageId = existingCard?.messageId || cursor.messageId;
     if (messageId) await updateFeishuTaskEntryCard(messageId, card);
     else messageId = await sendFeishuInteractiveMessage({ receiveId: binding.chatId,
       ...(rootMessageId ? { threadRootMessageId: rootMessageId } : {}),
-      uuid: createHash('sha256').update(`graph-reply:${run.id}:${binding.id}`).digest('hex').slice(0, 48), card }) || null;
+      uuid: createHash('sha256').update(`graph-reply:${first.taskRunId}:${binding.id}`).digest('hex').slice(0, 48), card }) || null;
     if (!messageId) throw new Error('Reply card send returned no message id');
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
       data: { messageId, deliveredSequence: sequence, lastStatus: run.status } });

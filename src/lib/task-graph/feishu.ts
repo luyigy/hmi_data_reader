@@ -154,7 +154,9 @@ export async function deliverGraphChildProgress(childTaskId: string, eventKey: s
   const run = await prisma.taskRun.findFirst({ where: { taskId: childTaskId }, orderBy: { createdAt: 'desc' }, select: { id: true } });
   if (run) {
     const { relayTaskGraphRunReply } = await import('./run-reply-relay');
-    if (!await relayTaskGraphRunReply(run.id, true)) throw new Error('Task progress card is busy; retry delivery');
+    const current = await prisma.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id },
+      orderBy: [{ taskRun: { createdAt: 'desc' } }, { taskRunId: 'desc' }], select: { taskRunId: true } });
+    if (!await relayTaskGraphRunReply(current?.taskRunId || run.id, true)) throw new Error('Task progress card is busy; retry delivery');
     return true;
   }
   const detail = redactSensitiveText(text).slice(-10_000);
