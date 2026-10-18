@@ -1,0 +1,119 @@
+{
+  "at": "2026-10-18T14:12:58.596752Z",
+  "fixCommit": "b4dee813d37f27b8e20ce900b283a29c6e601275",
+  "test": "tests/feishu-startup-task-cleanup.test.ts",
+  "testExitCode": 0,
+  "testOutput": "Feishu startup preserves graph writers, legacy graph bindings, review owners, live native processes and pending work; unowned stale continuation cleanup remains idempotent\n",
+  "typecheckExitCode": 0,
+  "longFilesExitCode": 0,
+  "diffCheckExitCode": 0,
+  "reviewer": "gpt-6-sol @high",
+  "frontier": {
+    "at": "2026-10-18T14:12:25.406Z",
+    "nodes": [
+      {
+        "key": "R01",
+        "status": "passed",
+        "runs": [
+          {
+            "executionId": "cmvdmf87z04499xhg3j7qnblt",
+            "taskRunId": "cmvdvh93b004g10x0n0lwhezy",
+            "status": "completed",
+            "native": [
+              {
+                "status": "completed",
+                "pid": 4050836,
+                "alive": false
+              }
+            ],
+            "toolEvents": 20
+          }
+        ]
+      },
+      {
+        "key": "M01",
+        "status": "claimed",
+        "runs": [
+          {
+            "executionId": "cmvdmf87y043h9xhg2x2fqmku",
+            "taskRunId": "cmvdwahdu003vtwmkkkfnowas",
+            "status": "running",
+            "native": [
+              {
+                "status": "running",
+                "pid": 4152185,
+                "alive": true
+              }
+            ],
+            "toolEvents": 68
+          }
+        ]
+      },
+      {
+        "key": "R02",
+        "status": "claimed",
+        "runs": [
+          {
+            "executionId": "cmvdmf87z044b9xhg5x324xdu",
+            "taskRunId": "cmvdwaeda0020twmko41ha50g",
+            "status": "running",
+            "native": [
+              {
+                "status": "running",
+                "pid": 4150688,
+                "alive": true
+              }
+            ],
+            "toolEvents": 77
+          }
+        ]
+      },
+      {
+        "key": "R04",
+        "status": "claimed",
+        "runs": [
+          {
+            "executionId": "cmvdmf880044d9xhgoavvyi0i",
+            "taskRunId": "cmvdwaey1002ltwmkudyfbf4q",
+            "status": "running",
+            "native": [
+              {
+                "status": "running",
+                "pid": 4151128,
+                "alive": true
+              }
+            ],
+            "toolEvents": 96
+          }
+        ]
+      }
+    ]
+  },
+  "reconciliation": {
+    "at": "2026-10-18T14:09:59.790Z",
+    "receipts": [
+      {
+        "taskRunId": "cmvdwahdu003vtwmkkkfnowas",
+        "restored": true,
+        "priorCompletedAt": "2026-10-18T14:06:06.565Z"
+      },
+      {
+        "taskRunId": "cmvdwaeda0020twmko41ha50g",
+        "restored": true,
+        "priorCompletedAt": "2026-10-18T14:06:06.565Z"
+      },
+      {
+        "taskRunId": "cmvdwaey1002ltwmkudyfbf4q",
+        "restored": true,
+        "priorCompletedAt": "2026-10-18T14:06:06.565Z"
+      }
+    ]
+  },
+  "deployment": {
+    "state": "waiting_for_current_run_exit",
+    "currentRun": "cmvdwhylh000blysqb3fjl4g6",
+    "unit": "ap-feishu-startup-fix-idle-20261018.service",
+    "onlyServiceReloaded": "agent-platform-feishu.service",
+    "graphServicesRestarted": false
+  }
+}

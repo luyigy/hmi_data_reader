@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-18T14:09:59.790Z",
+  "receipts": [
+    {
+      "taskRunId": "cmvdwahdu003vtwmkkkfnowas",
+      "restored": true,
+      "priorCompletedAt": "2026-10-18T14:06:06.565Z"
+    },
+    {
+      "taskRunId": "cmvdwaeda0020twmko41ha50g",
+      "restored": true,
+      "priorCompletedAt": "2026-10-18T14:06:06.565Z"
+    },
+    {
+      "taskRunId": "cmvdwaey1002ltwmkudyfbf4q",
+      "restored": true,
+      "priorCompletedAt": "2026-10-18T14:06:06.565Z"
+    }
+  ]
+}

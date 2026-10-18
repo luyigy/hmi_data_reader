@@ -81,3 +81,15 @@ R01 已通过平台检查与独立业务验收，独立验收 TaskRun 为 `cmvdv
 原始追加证据为 `inherited-outputs-green.log`、`extra-upstream-merged-green.log`、`extra-upstream-typecheck.log`、`recover-normal-frontier.log`、`frontier-live-proof.json`、`m01-fixed-input-proof.json`。主飞书服务仍等待本会话实际退出后重载一次，不中断当前连接。
 
 追加审计回执见 [live-recovery-receipts.json](../evidence/workflow-reliability/live-recovery-receipts.json)，包含独立验收原始结论、三项后继实际进程、固定输入、服务启动时间、TypeScript 退出码及 tracker 状态。临时进程的网络超时和 routing 失败是直接记录；环境差异是依据启动方式推断，未取得进程环境逐项比对，不把推断当成额外实测。WR01 已关闭，WR07 与父单仍开启观察。
+
+## 2026-10-18 22:12 会话结束误报修复
+
+用户报告三项均显示会话结束。现场核对发现，飞书主服务于 22:06 重载时，旧启动清理将所有 running TaskRun 统一置为 completed，不区分独立协调器持有的任务。三项错误完成时间完全相同，但原生进程和工具调用一直持续，未出现真正的结束事件。本次没有恢复任务或创建新 attempt。
+
+已在核对实际写入者、原生进程存活且无真实终结事件后，以原 completedAt 和元数据 CAS 修正三项 TaskRun 与参与者的显示状态，并追加 `task_run_display_reconciled` 审计。22:12 三项原生进程仍存活、工具调用继续，卡片投递记录也已回到 running。
+
+`b4dee81` 将旧清理提取为 `cleanupFeishuOwnedStaleTaskRuns`。飞书启动不得修改任务图所属 TaskRun 或参与者，不论其写入者是否已退出；由任务图协调器负责恢复。规则同时识别 graphWriter、graphReview、旧执行绑定和复核任务。其余已知原生进程仍存活的会话也保留，仅处理无所属且无已知活跃进程的历史会话。
+
+新增真实隔离 PostgreSQL 回归复现旧行为，并验证新行为及重复清理。合并后该回归、TypeScript、长文件及 diff 检查通过，独立评审 gpt-6-sol @high 批准。未重新运行全量套件，不宣称三项已完成业务验收。
+
+主飞书进程尚未加载本次源码，已登记 `ap-feishu-startup-fix-idle-20261018.service`，等待当前会话 TaskRun `cmvdwhylh000blysqb3fjl4g6` 与原生进程退出后，仅重载主飞书一次。任务图协调器及执行进程保持运行。回执见 [startup-cleanup-verification.json](../evidence/workflow-reliability/startup-cleanup-verification.json)。
