@@ -21,9 +21,11 @@ async function seed(source: string, target: string, budget: { files: number; byt
     const protectedEntry = protectedInputs.some(input => within(input, from));
     if (entry.isDirectory()) { if (!protectedEntry || protectedInputs.includes(from)) await directory(to); await seed(from, to, budget, protectedInputs); }
     else {
-      budget.files++; budget.bytes += (await fs.stat(from)).size;
-      if (budget.files > 10_000 || budget.bytes > 256 * 1024 * 1024) throw new Error('Output seed exceeds archive limit');
       if (protectedEntry && !protectedInputs.includes(from)) continue;
+      if (!protectedEntry) {
+        budget.files++; budget.bytes += (await fs.stat(from)).size;
+        if (budget.files > 10_000 || budget.bytes > 256 * 1024 * 1024) throw new Error('Output seed exceeds archive limit');
+      }
       try { if (protectedEntry) await fs.writeFile(to, '', { flag: 'wx' }); else await fs.copyFile(from, to, constants.COPYFILE_EXCL); } catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error; }
     }
   }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, unlinkSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, truncateSync, unlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { prepareGraphOutputRuntime } from '../src/lib/task-graph/output-runtime';
@@ -37,6 +37,15 @@ async function main() {
     assert.equal(existsSync(path.join(copied, 'input-materials/original.jpeg')), false, 'Readonly original images are mounted, not copied into each stage archive');
     const originalAlias = wrapWithBubblewrap({ command: 'sh', commandArgs: ['-c', 'cat "$1"; ! echo corrupt > "$1"', 'sh', path.join(copied, 'input-materials/original.jpeg')], cwd: workspace, workspaceRoot: workspace, env: { ...process.env, ...first.env } });
     assert.match(execFileSync(originalAlias.command, originalAlias.args, { env: { ...process.env, ...first.env }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }), /original bytes/);
+    const largeInput = path.join(workspace, 'output/job/input-materials/full-book.bin');
+    writeFileSync(largeInput, 'original full book'); truncateSync(largeInput, 257 * 1024 * 1024);
+    const digestBefore = execFileSync('sha256sum', [largeInput], { encoding: 'utf8' });
+    await prepareGraphOutputRuntime('node-fixture', 'large-protected-input', [workspace]);
+    assert.equal(execFileSync('sha256sum', [largeInput], { encoding: 'utf8' }), digestBefore);
+    const largeOutput = path.join(workspace, 'output/job/oversized-report.bin');
+    writeFileSync(largeOutput, 'oversized report'); truncateSync(largeOutput, 257 * 1024 * 1024);
+    await assert.rejects(prepareGraphOutputRuntime('node-fixture', 'oversized-output', [workspace]), /archive limit/);
+    unlinkSync(largeOutput); unlinkSync(largeInput);
     const same = await prepareGraphOutputRuntime('node-fixture', 'implementation', [workspace]);
     assert.equal(same.directory, first.directory);
     assert.equal(readFileSync(path.join(same.directory, 'retained.txt'), 'utf8'), 'retained');
