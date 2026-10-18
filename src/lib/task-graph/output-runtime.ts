@@ -31,7 +31,6 @@ async function seed(source: string, target: string, budget: { files: number; byt
   }
 }
 
-/** Reports from every stage live under the existing node validation archive lifecycle. */
 export async function prepareGraphOutputRuntime(nodeId: string, attempt: string, workspaces: string[]) {
   const root = path.join(validationRuntimeDirectory(nodeId), hash('outputs:' + attempt));
   await directory(root);

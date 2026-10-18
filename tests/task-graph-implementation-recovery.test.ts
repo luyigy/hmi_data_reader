@@ -139,7 +139,6 @@ async function main() {
     await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, idempotencyKey: 'fixture-reclassify', kind: 'node_delivery_reclassified',
       payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', executionId: first.id, taskRunId: delivery.taskRunId, checkpointCommit: delivery.commit, workspaceBase: baseline, reason: 'fixture integrated delivery was actually incomplete' } } });
     const deliveredProgress = executionProgress(delivery.dispatchMetadata); assert.ok(deliveredProgress);
-    // Model an authorized reclassification migration updating current fact and appending history together.
     await prisma.taskGraphExecution.update({ where: { id: delivery.id }, data: { status: 'attention',
       dispatchMetadata: metadataWithProgress(delivery.dispatchMetadata, { ...deliveredProgress, revision: deliveredProgress.revision + 1,
         phase: 'implement', state: 'waiting_decision', candidateCommit: delivery.commit }),

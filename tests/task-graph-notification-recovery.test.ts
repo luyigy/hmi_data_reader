@@ -43,7 +43,6 @@ async function main() {
     starts++; writeFileSync(path.join(context.workingDirectory!, 'delivered'), 'done');
     return { success: true, executionTime: 1, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":["delivered"]}' };
   };
-  // All outbound surfaces unrelated to the injected task-graph calls remain local fixtures.
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: app, definition: {
     specRef: 'fixture://notification', nodes: [{ key: 'N', goal: 'deliver', dependsOn: [], executionMode: 'lean',

@@ -53,7 +53,6 @@ export async function deliverGraphNotificationOnce(args: { runId: string; identi
   return messageId;
 }
 
-/** Existing Feishu relay replays persisted intents independently of business workers. */
 export async function relayGraphNotifications() {
   const pending = await prisma.$queryRaw<{ id: string }[]>`
     SELECT e.id FROM "TaskGraphEvent" e

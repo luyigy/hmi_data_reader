@@ -392,7 +392,6 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
   await git(repo, 'update-ref', '-d', branch, jobHead);
 }
 
-/** Read-only ownership check for importing an existing registered execution into durable progress. */
 export async function inspectJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef'>): Promise<JobWorktree & { head: string }> {
   const repo = await repositoryRoot(request.repoPath);
   const root = await fs.realpath(request.worktreeRoot || path.join(path.dirname(repo), '.agent-platform-task-graph-worktrees'));
