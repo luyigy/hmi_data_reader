@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { prisma } from '../src/lib/prisma';
+import { getHarnessAdapter } from '../src/lib/harness';
+import { createTaskGraphRun } from '../src/lib/task-graph/store';
+import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
+
+async function main() {
+  assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
+  const root = mkdtempSync(path.join(tmpdir(), 'auto-completion-'));
+  const repository = path.join(root, 'repo'); mkdirSync(repository);
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.test');
+  writeFileSync(path.join(repository, 'baseline'), 'preserve'); git('add', '.'); git('commit', '-m', 'base');
+  const baseline = git('rev-parse', 'HEAD');
+  process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'runtime');
+  process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
+  const require = createRequire(__filename); const notices = require('../src/lib/task-graph/feishu');
+  notices.ensureGraphChildTopic = async () => null; notices.postGraphParentProgress = async () => {}; notices.postGraphChildProgress = async () => {};
+  require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
+  globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
+  const calls = new Map<string, number>();
+  const adapter = getHarnessAdapter('codex'); assert.ok(adapter);
+  const original = adapter.execute;
+  adapter.execute = async ({ task, context }) => {
+    const key = task.name.split(' · ')[0]; const count = (calls.get(key) || 0) + 1; calls.set(key, count);
+    const value = key === 'A' && count === 1 ? 'broken' : 'fixed';
+    writeFileSync(path.join(context.workingDirectory!, `${key}.txt`), value);
+    return { success: true, output: `TASK_GRAPH_IMPLEMENTATION ${JSON.stringify({ status: 'delivered', note: `${key} implemented`, evidence: [`${key}.txt`] })}`, executionTime: 1 };
+  };
+  const parent = await prisma.task.create({ data: { name: 'automatic repair fixture' } });
+  const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
+  const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
+    specRef: 'test://automatic-repair', nodes: ['A', 'B', 'C'].map(key => ({
+      key, goal: `Complete ${key}`, dependsOn: key === 'B' ? ['A'] : [], executionMode: 'lean',
+      acceptance: { mode: 'automatic', checks: ['behavior'] }, executions: [{ key: 'repo', repository,
+        gitRef: 'refs/heads/main', baseCommit: baseline, agentSelector: 'local:codex', instructions: `Implement ${key}`,
+        launchConfig: { participant, checks: [{ name: 'behavior', argv: [process.execPath, '-e', `if(require('node:fs').readFileSync('${key}.txt','utf8')!=='fixed')throw Error('required behavior is missing')`] }] },
+      }],
+    })),
+  } });
+  const drain = async () => { const signal = new AbortController(); signal.abort(); await startTaskGraphCoordinator(signal.signal); };
+  try {
+    let completed = false;
+    for (let i = 0; i < 350; i++) {
+      await runTaskGraphCycle();
+      const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { key: true, status: true } });
+      assert.ok(!nodes.some(node => node.key === 'A' && node.status === 'attention'), 'Repairable pre-integration failure must automatically return to implementation, not require human resume');
+      if (nodes.every(node => node.status === 'passed')) { completed = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    assert.ok(completed, 'The original ticket, successor and independent branch must finish without human resume');
+    assert.equal(calls.get('A'), 2); assert.equal(calls.get('B'), 1); assert.equal(calls.get('C'), 1);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: { in: ['conversation_review_recovery_requested', 'implementation_recovery_scheduled'] } } }), 0);
+    console.log('Real coordinator + Git + readonly checks: failed implementation automatically repairs, independent branch proceeds, successor passes, human resume calls 0');
+  } finally {
+    await drain(); adapter.execute = original;
+    const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, select: { childTaskId: true } });
+    await prisma.taskGraphRun.delete({ where: { id: run.id } });
+    await prisma.task.deleteMany({ where: { id: { in: [parent.id, ...jobs.flatMap(job => job.childTaskId ? [job.childTaskId] : [])] } } });
+    await prisma.$disconnect(); rmSync(root, { recursive: true, force: true });
+  }
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });
