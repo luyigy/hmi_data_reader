@@ -73,6 +73,16 @@ function runtimePreparationError(error: unknown): RuntimePreparationError | null
   if (error instanceof RuntimePreparationError) return error;
   return error instanceof Error && 'cause' in error ? runtimePreparationError(error.cause) : null;
 }
+function transientPlatformCode(error: unknown): string | null {
+  const seen = new Set<Error>();
+  while (error instanceof Error && !seen.has(error)) {
+    seen.add(error);
+    const code = 'code' in error ? error.code : 'errorCode' in error ? error.errorCode : undefined;
+    if (typeof code === 'string' && ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2034'].includes(code)) return code;
+    error = error.cause;
+  }
+  return null;
+}
 type CheckResult = VerificationEvidence['checks'][number];
 
 function launchConfig(execution: TaskGraphExecution): LaunchConfig {
@@ -515,7 +525,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     }).catch(error => {
       const preparation = runtimePreparationError(error);
       if (preparation) throw preparation;
-      if (error instanceof AcpxRunStartupError) throw new TaskInputPreparationError(`执行器启动失败（${error.taskRunId}）：${error.message}`, 'environment_failed');
+      if (error instanceof AcpxRunStartupError && !transientPlatformCode(error)) throw new TaskInputPreparationError(`执行器启动失败（${error.taskRunId}）：${error.message}`, 'environment_failed');
       throw error;
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
@@ -662,8 +672,10 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
             }
           } else await outcome({ kind: error.code === 'integration_retry_exhausted' ? 'retry_exhausted' : 'decision_required', failure });
         } else {
-          const temporary = error instanceof Error && 'code' in error && ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'].includes(String(error.code));
-          await outcome({ kind: temporary ? 'platform_retry' : 'decision_required', failure: { code: kind, detail } });
+          const temporary = transientPlatformCode(error);
+          await outcome({ kind: temporary ? 'platform_retry' : 'decision_required', failure: { code: kind, detail,
+            ...(temporary ? { fingerprint: temporary, owner: 'platform', requiresUserDecision: false, action: '平台按有限重试预算重新连接临时不可用的数据库或运行服务' } : {}),
+          } });
         }
       }
       const latest = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });

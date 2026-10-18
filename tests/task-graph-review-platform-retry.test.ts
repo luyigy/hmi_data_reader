@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Prisma } from '@prisma/client';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -14,7 +15,7 @@ import { TaskInputPreparationError } from '../src/lib/task-graph/upstream-inputs
 import { GraphCheckTimeoutError } from '../src/lib/task-graph/check-runner';
 import type { GraphDefinition } from '../src/lib/task-graph/domain';
 
-async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-platform' | 'human' | 'preparation' | 'preparation-exhausted' | 'integration-timeout' | 'ownership' | 'startup') {
+async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-platform' | 'human' | 'preparation' | 'preparation-exhausted' | 'integration-timeout' | 'ownership' | 'startup' | 'startup-network') {
   const root = mkdtempSync(path.join(tmpdir(), 'graph-targeted-review-'));
   process.env.TASK_GRAPH_RUNTIME_ROOT = path.join(root, 'harness'); process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
   const repositories = ['reader', 'model'].map(key => {
@@ -63,10 +64,11 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
   const publishEvent = events.publishTaskRunEvent;
   let startupFailureRun: string | undefined;
   events.publishTaskRunEvent = async event => {
-    if (mode === 'startup' && !startupFailureRun && event.eventType === 'participant_started' && event.taskId === `task-graph-${reader.id}`) {
+    if (mode.startsWith('startup') && !startupFailureRun && event.eventType === 'participant_started' && event.taskId === `task-graph-${reader.id}`) {
       startupFailureRun = event.taskRunId;
       assert.equal(readerStarts, 0, 'Fault is injected before any model starts');
-      throw new Error('Injected participant_started persistence failure');
+      if (mode === 'startup-network') throw new Error('Transport unavailable', { cause: Object.assign(new Error('Injected connection reset'), { code: 'ECONNRESET' }) });
+      throw new Prisma.PrismaClientKnownRequestError('Injected participant_started connection pool timeout', { code: 'P2024', clientVersion: Prisma.prismaVersion.client });
     }
     return publishEvent(event);
   };
@@ -96,11 +98,12 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
     assert.equal(after.status, exhausted || human || ownership ? 'attention' : 'passed', JSON.stringify(await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id }, orderBy: { createdAt: 'desc' }, take: 8 })));
     assert.equal(readerStarts, 1); assert.equal(modelStarts, 1, 'Platform review failure never reruns implementation');
     assert.equal(nextStarts, exhausted || human || ownership ? 0 : 1);
-    assert.equal(architectureStarts + acceptanceStarts, mode === 'preparation-exhausted' || ownership ? 0 : exhausted ? 3 : human || mode === 'preparation' || mode === 'integration-timeout' || mode === 'startup' ? 1 : mode === 'architecture-platform' ? 3 : 2);
+    assert.equal(architectureStarts + acceptanceStarts, mode === 'preparation-exhausted' || ownership ? 0 : exhausted ? 3 : human || mode === 'preparation' || mode === 'integration-timeout' || mode.startsWith('startup') ? 1 : mode === 'architecture-platform' ? 3 : 2);
     assert.ok(after.executions.every(job => executionProgress(job.dispatchMetadata)?.state === (exhausted ? 'exhausted' : ownership ? 'ownership_attention' : human ? 'waiting_decision' : 'active')));
     assert.ok(after.executions.every(job => job.commit && job.evidence));
-    if (mode === 'startup') {
+    if (mode.startsWith('startup')) {
       assert(startupFailureRun);
+      assert.equal(executionProgress(after.executions.find(job => job.id === reader.id)!.dispatchMetadata)?.platformAttempts, 1, 'Typed transient startup failure consumes exactly one platform retry');
       const failed = await prisma.taskRun.findUniqueOrThrow({ where: { id: startupFailureRun }, include: { participants: true } });
       assert.equal(failed.status, 'failed');
       assert.ok(failed.participants.every(participant => participant.status === 'failed'));
@@ -129,7 +132,7 @@ async function main() {
   feishu.ensureGraphChildTopic = async () => null; feishu.postGraphParentProgress = async () => {}; feishu.postGraphChildProgress = async () => {};
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   const original = globalThis.fetch; globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  const modes = ['platform', 'architecture-platform', 'platform-exhausted', 'human', 'preparation', 'preparation-exhausted', 'integration-timeout', 'ownership', 'startup'] as const;
+  const modes = ['platform', 'architecture-platform', 'platform-exhausted', 'human', 'preparation', 'preparation-exhausted', 'integration-timeout', 'ownership', 'startup', 'startup-network'] as const;
   const selected = process.env.TASK_GRAPH_REVIEW_RETRY_CASE;
   if (selected && !modes.some(mode => mode === selected)) throw new Error(`Unknown review retry case: ${selected}`);
   try { for (const mode of modes) if (!selected || selected === mode) await scenario(mode); }
