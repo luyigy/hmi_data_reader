@@ -1,3 +1,4 @@
+import { prepareExtraRepositories } from './extra-repositories';
 import { realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -48,6 +49,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
   const graph = node.run.snapshot as unknown as GraphDefinition;
   const planned = graph.nodes.find(item => item.key === node.key);
   if (!planned) throw new Error('任务不属于批准图');
+  await prepareExtraRepositories(planned.extraRepositories);
   const eventKey = `execution:${execution.id}:inputs:${execution.claimToken || 'legacy'}`;
   const existing = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: eventKey } } });
   if (existing) return hydrate(parseManifest(existing.payload));
@@ -63,7 +65,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
   const candidates = all.filter(item => required.has(item.key)).flatMap(item => item.executions.map(job => ({ ...job, nodeKey: item.key, quality: item.status })));
   const policy = planned.consumeUpstream || 'direct';
   const selected = policy === 'none' ? [] : candidates.filter(job => Array.isArray(policy) ? policy.includes(`${job.nodeKey}/${job.key}`) : planned.dependsOn.includes(job.nodeKey));
-  const repositories = Array.from(new Set(selected.map(job => job.repository).filter(repo => repo !== primaryRepository))).sort();
+  const repositories = Array.from(new Set(selected.map(job => job.repository).filter(repo => repo !== primaryRepository && (!planned.extraRepositories?.some(extra => extra.repository === repo) || planned.services?.some(service => candidates.some(job => `${job.nodeKey}/${job.key}` === service.input && job.repository === repo)))))).sort();
   const inputs: Input[] = [];
   for (const repository of repositories) {
     const jobs = candidates.filter(job => job.repository === repository);
@@ -134,18 +136,24 @@ function parseManifest(value: unknown): TaskInputManifest {
 }
 
 /** Readonly QA and all native roles receive the same claim-pinned manifests. */
-export async function graphInputsForTask(taskId: string): Promise<{ paths: string[]; instructions: string; env: Record<string, string> }> {
+export async function graphInputsForTask(taskId: string, forceReadOnly = false): Promise<{ paths: string[]; writablePaths: string[]; instructions: string; env: Record<string, string> }> {
   const jobId = /^task-graph-discussion-(.+)$/.exec(taskId)?.[1];
   const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
   const jobs = await prisma.taskGraphExecution.findMany({ where: jobId ? { id: jobId } : nodeId ? { nodeId } : { childTaskId: taskId }, orderBy: { key: 'asc' } });
   const prepared = await Promise.all(jobs.map(job => prepareUpstreamInputs(job.id)));
+  const nodeIds = Array.from(new Set(jobs.map(job => job.nodeId)));
+  const nodes = await prisma.taskGraphNode.findMany({ where: { id: { in: nodeIds } }, include: { run: true } });
+  const declarations = nodes.flatMap(node => (node.run.snapshot as unknown as GraphDefinition).nodes.find(planned => planned.key === node.key)?.extraRepositories || []);
+  const merged = new Map<string, (typeof declarations)[number]>();
+  for (const declaration of declarations) if (merged.get(declaration.repository)?.access !== 'write') merged.set(declaration.repository, declaration);
+  const extra = await prepareExtraRepositories(Array.from(merged.values()), forceReadOnly || !!nodeId || !!jobId);
   const archives = await prisma.taskGraphEvent.findMany({ where: { nodeId: { in: jobs.map(job => job.nodeId) }, kind: 'workspace_cleaned' }, select: { payload: true } });
   const reportPaths = archives.flatMap(event => {
     const payload = event.payload;
     return isRecord(payload) && jobs.some(job => job.id === payload.executionId && job.commit === payload.commit) && typeof payload.resultsDirectory === 'string' && existsSync(payload.resultsDirectory) ? [payload.resultsDirectory] : [];
   });
-  return { paths: Array.from(new Set([...prepared.flatMap(item => item.readOnlyPaths), ...reportPaths])), instructions: prepared.map(item => item.instructions).join('\n'),
-    env: prepared.length ? { TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(prepared.map(item => item.manifest)), AP_PROJECT_REPOSITORY: jobs.at(-1)!.repository } : {} };
+  return { paths: Array.from(new Set([...prepared.flatMap(item => item.readOnlyPaths), ...reportPaths, ...extra.paths])), writablePaths: extra.writablePaths, instructions: prepared.map(item => item.instructions).join('\n') + extra.instructions,
+    env: prepared.length ? { ...extra.env, TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(prepared.map(item => item.manifest)), AP_PROJECT_REPOSITORY: jobs.at(-1)!.repository } : {} };
 }
 
 export class TaskInputPreparationError extends Error {

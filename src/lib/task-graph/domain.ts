@@ -1,3 +1,4 @@
+import { validateExtraRepositories, type ExtraRepository } from './extra-repositories';
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { validateServices, validateServiceLaunch, type GraphService } from './service-contract';
@@ -31,6 +32,7 @@ export type GraphNode = {
   key: string;
   goal: string;
   dependsOn: string[];
+  extraRepositories?: ExtraRepository[];
   consumeUpstream?: 'direct' | 'none' | string[];
   services?: GraphService[];
   executionMode?: 'full' | 'lean' | 'implement';
@@ -88,6 +90,7 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     }
     if (node.consumeUpstream !== undefined && node.consumeUpstream !== 'direct' && node.consumeUpstream !== 'none' &&
         (!Array.isArray(node.consumeUpstream) || node.consumeUpstream.some(ref => typeof ref !== 'string' || !input.nodes.some(parent => parent.executions.some(job => `${parent.key}/${job.key}` === ref))) || new Set(node.consumeUpstream).size !== node.consumeUpstream.length)) throw new Error('Invalid upstream consumption references');
+    validateExtraRepositories(node.extraRepositories);
     validateServices(node.services);
     if (node.services?.some(service => !input.nodes.some(parent => parent.executions.some(job => `${parent.key}/${job.key}` === service.input)))) throw new Error('Service input must name an approved execution');
     const gate = node.acceptance;

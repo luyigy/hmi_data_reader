@@ -150,8 +150,8 @@ export const executeViaLocalHarness = async (
   const extraWritableRoots = permissionConfig.profile === 'full_access' || permissionConfig.sandboxMode === 'read-only'
     ? []
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
-  const inputs = graphRuntime ? await graphInputsForTask(request.taskId) : null;
-  if (inputs) task.description += inputs.instructions;
+  const inputs = graphRuntime ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only') : null;
+  if (inputs) { task.description += inputs.instructions; extraWritableRoots.push(...inputs.writablePaths); }
   const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
     ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),

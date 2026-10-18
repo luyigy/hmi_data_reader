@@ -1,3 +1,4 @@
+import { prepareExtraRepositories } from './extra-repositories';
 import { ServiceRuntimeError } from './attempt-services';
 import { prepareUpstreamInputs, TaskInputPreparationError } from './upstream-inputs';
 import { isRecord, graphRecoveryKind, latestImplementationRecovery, implementationCheckpoint, parseImplementationResult, pauseGraphImplementation, scheduleImplementationRecovery } from './implementation-result';
@@ -397,6 +398,10 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       orchestrationMode: 'single', participants: [config.participant], workingDirectory: workspace.path,
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
+    const extra = await prepareExtraRepositories(definition.nodes.find(node => node.key === nodeKey)?.extraRepositories);
+    const extraRepositoryState = await Promise.all(extra.details.map(async repo => ({ ...repo, workingTreeStatus: (await graphGit(repo.repository, 'status', '--porcelain', '--untracked-files=all')).slice(0, 8000) })));
+    if (extraRepositoryState.length) await prisma.taskGraphEvent.create({ data: { runId, nodeId: execution.nodeId,
+      idempotencyKey: `execution:${execution.id}:extra-repos:${claimToken}`, kind: 'extra_repository_state', payload: { executionId: execution.id, taskRunId: result.taskRunId, repositories: extraRepositoryState } } });
     if (result.status !== 'completed') {
       const serviceFailure = await prisma.taskGraphEvent.findFirst({ where: { nodeId: execution.nodeId, kind: 'service_attempt_failed', payload: { path: ['taskRunId'], equals: result.taskRunId } } });
       if (serviceFailure) throw new TaskInputPreparationError('临时联调服务启动或运行失败，见本次服务回执；不是业务材料缺失', 'environment_failed', 'service_runtime');
@@ -433,7 +438,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     });
     await completeExecution({
       runId, nodeKey, executionKey: execution.key, claimToken, commit: integrated.commit,
-      evidence: { checks, implementation: conclusion, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
+      evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
     });
     void postGraphParentProgress(graphRun.parentTaskId, runId,
       `${nodeKey}/${execution.key} 已集成 ${integrated.commit.slice(0, 12)}`)

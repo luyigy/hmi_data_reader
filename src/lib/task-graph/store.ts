@@ -92,13 +92,19 @@ export async function claimNode(runId: string, nodeKey: string, claimToken: stri
     if (node.status === 'claimed' && node.claimToken === claimToken) return node;
     const repositories = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id }, select: { repository: true } });
     const canonical = async (repository: string) => realpath(repository).catch(() => repository);
-    const roots = await Promise.all(repositories.map(job => canonical(job.repository)));
+    const snapshot = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
+    const graph = snapshot.snapshot as unknown as GraphDefinition;
+    const extra = (key: string) => graph.nodes.find(planned => planned.key === key)?.extraRepositories || [];
+    const requested = [...repositories.map(job => ({ repository: job.repository, access: 'write' })), ...extra(node.key)];
+    const scopes = await Promise.all(requested.map(async item => ({ ...item, repository: await canonical(item.repository) })));
+    const roots = scopes.map(item => item.repository);
     for (const repository of Array.from(new Set(roots)).sort()) {
       await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${runId + ':' + repository}, 0))`;
       const blockers = await tx.taskGraphExecution.findMany({ where: { node: { runId, id: { not: node.id },
         status: { in: ['claimed', 'verifying', 'awaiting_human', 'attention'] } } }, select: { repository: true, node: { select: { key: true } } } });
-      const normalized = await Promise.all(blockers.map(async job => ({ ...job, repository: await canonical(job.repository) })));
-      const blocker = normalized.find(job => job.repository === repository);
+      const expanded = blockers.flatMap(job => [{ ...job, access: 'write' }, ...extra(job.node.key).map(item => ({ ...item, node: job.node }))]);
+      const normalized = await Promise.all(expanded.map(async job => ({ ...job, repository: await canonical(job.repository) })));
+      const blocker = normalized.find(job => job.repository === repository && (job.access === 'write' || scopes.some(item => item.repository === repository && item.access === 'write')));
       if (blocker) {
         await tx.taskGraphEvent.createMany({ data: [{ runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:repository-wait:${blocker.node.key}`,
           kind: 'repository_gate_waiting', payload: { repository, blockedBy: blocker.node.key } }], skipDuplicates: true });

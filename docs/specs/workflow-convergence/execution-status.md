@@ -318,3 +318,16 @@ D1 发布回执已核验：`.runtime/delivery-relay-deploy/reload-receipt.json` 
 生产变更：S06 追加重分类事件 `cmvcnpecr000288wvxv7j5lu3`，由 delivered_unverified 纠正为 attention，指明恢复 implementation。保留原 TaskRun `cmvchfru801klerlet4wg2ya7`、提交 `2fcd0d3`、原审批摘要和前五个 passed 节点。父/子话题补发纠正说明；S06 对应 Issue 重开已回读并登记 issue_reopen_completed，没有自动启动模型或擅改批准模式。Reader 管理数据根配置与新图、选择时间、答案来源、目的地核准仍待业务流程补齐。
 
 发布：代码提交后沿用独立空闲重载，当前会话退出且无活跃工作时执行；以 `.runtime/delivery-d3-deploy/reload-receipt.json` 的 verified 和通知回读为准。
+
+## 2026-10-18 · 按用户缩小范围接入 extra repo
+
+用户明确保留现有 worktree 与清理机制，本轮只接通事前声明仓库范围、原路线卡授权、启动前检查和各阶段继承。未实施先前讨论的“默认使用主仓原目录”改造。
+
+- 新增 Slice 级 `extraRepositories`，通过 Issue 执行配置进入批准快照。原路线卡显示路径与 read/write 范围；提议、确认及派发输入准备均检查 Git 根目录和访问权限。
+- 本机 Harness 实施阶段复用现有 writableRoots/readOnlyPaths 挂载方式；审查、验收、平台检查和问答降为只读。项目已有依赖与 Python 环境只读复用，不自动创建环境。Git 元数据不开放写入。
+- 明确声明的 extra repo 直接使用原目录，默认不导出对应前置源码缓存；未声明 extra repo 的旧路线保持原行为。显式 D3 服务仍保留固定输入。执行账本记录额外仓的实际提交与目录状态，不自动提交额外仓修改。
+- 原同仓调度门禁扩展到同一路线的额外仓读写范围，允许共享只读访问，读写冲突等待；不改变 worktree 创建与集成策略。
+- 原仓不登记为任务 worktree，不改自动清理代码。回归中额外仓目录名包含 TMP，带 .tmp 文件与新文件在完成清理后均保留；正常实施可写，审查和检查不可写，未授权仓不可读，Git 元数据不可写，恢复仍继承批准权限。
+- 新增 PostgreSQL / 真 Git / Bubblewrap 测试，并经真实 Harness 调用链传递上下文，用本地探针核验挂载；没有调用真实模型。完整 task-graph 回归、TypeScript、定向 lint 与长文件守卫作为发布门禁。GitNexus 因既有 LadybugDB 故障返回 UNKNOWN，使用直接调用链与回归核验。
+
+本轮没有给历史 S06 偷加 extra repo、重写审批或启动业务任务。已有运行的补授权接续不在本次改动范围内，不通过修改旧快照扩权。配置与清理边界见 `docs/architecture/issue-route-packages.md` 的 extra repo 章节。

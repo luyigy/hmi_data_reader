@@ -1,3 +1,4 @@
+import { prepareExtraRepositories } from './extra-repositories';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { sendFeishuInteractiveMessage } from '../feishu-api';
@@ -95,6 +96,7 @@ export async function createGraphProposal(args: {
   const parent = await prisma.task.findUnique({ where: { id: args.parentTaskId }, select: { id: true, ownerUserId: true } });
   if (!parent) throw new Error('父任务不存在');
   let definition = validateTaskGraphDefinition(args.definition);
+  await Promise.all(definition.nodes.map(node => prepareExtraRepositories(node.extraRepositories)));
   const specPackage = await assertSpecPackage(definition.specPackage);
   for (const node of definition.nodes) {
     if (node.acceptance.mode === 'human' && node.acceptance.reviewerId === 'self') {
@@ -227,6 +229,7 @@ export async function handleGraphProposalCardAction(args: {
   try {
     const definition = validateTaskGraphDefinition(proposal.definition as unknown as GraphDefinition);
     if (taskGraphSnapshotHash(definition) !== proposal.snapshotHash) throw new Error('路线快照校验失败');
+    await Promise.all(definition.nodes.map(node => prepareExtraRepositories(node.extraRepositories)));
     await assertSpecPackage(definition.specPackage);
     await validateExecutionTargets(definition);
     const run = await createTaskGraphRun({

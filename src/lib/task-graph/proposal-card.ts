@@ -111,7 +111,9 @@ export function formatGraphProposal(definition: GraphDefinition) {
     });
   });
   const attachment = definition.specPackage ? '（完整目标、路径与验收细节见上方话题附件）' : '';
-  return `Spec：${specName(definition)}${attachment}\n\n\`\`\`text\n${lines.join('\n')}\n\`\`\``;
+  const extra = definition.nodes.flatMap(node => (node.extraRepositories || []).map(repo => `${node.key}：${repo.access === 'write' ? '读写' : '只读'} ${repo.repository}`));
+  const scope = extra.length ? `\n附加仓库授权：\n${extra.join('\n')}\n` : '';
+  return `Spec：${specName(definition)}${attachment}${scope}\n\n\`\`\`text\n${lines.join('\n')}\n\`\`\``;
 }
 
 export function buildGraphProposalCard(id: string, definition: GraphDefinition, version: number, hash: string,
