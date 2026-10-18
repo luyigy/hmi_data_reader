@@ -18,7 +18,7 @@ import { ensureTaskChatRoom, postTaskRoomMessage } from '../task-room';
 import type { GraphDefinition } from './domain';
 import { runArchitectureReview } from './architecture-review';
 import { acceptanceReviewInstructions, implementationInstructions } from './prompts';
-import { ensureGraphChildTopic, postGraphParentProgress, sendGraphHumanReviewCard } from './feishu';
+import { postGraphParentProgress, sendGraphHumanReviewCard } from './feishu';
 import { withRepositoryLock } from './repository-lock';
 import { assertReviewWorkspacesClean, resolveReviewWorkspaces } from './review-workspaces';
 import {
@@ -31,6 +31,7 @@ import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree, commitJo
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
+import { requestGraphChildTopic } from './notifications';
 import { inspectIssueDispatch } from './issue-dispatch';
 import { drainIssueSync } from './issue-sync';
 import { resolveRunIssueSource } from './issue-adoption';
@@ -386,13 +387,13 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const definition = snapshot.snapshot as unknown as GraphDefinition;
     const specInput = await prepareGraphSpecInput(definition);
     const implementOnly = definition.nodes.find((node) => node.key === nodeKey)?.executionMode === 'implement';
-    const topic = await ensureGraphChildTopic({
+    await requestGraphChildTopic({
       parentTaskId: graphRun.parentTaskId, executionId: execution.id, childTaskId: task.id,
       title: task.name, workingDirectory: workspace.path,
     });
     const inputs = await prepareUpstreamInputs(execution.id);
     void postGraphParentProgress(graphRun.parentTaskId, runId,
-      `${nodeKey}/${execution.key} 已启动。${topic ? `详细进度请查看仓库绑定群中的「${task.name}」子话题。` : '仓库群话题尚未绑定，详细进度保留在任务记录。'}`)
+      `${nodeKey}/${execution.key} 已启动。详细进度同步到仓库绑定群中的「${task.name}」子话题；投递期间记录仍保存在任务账本。`)
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
     await postTaskRoomMessage({
       roomId: room.id, userId: 'task-graph', userName: '任务图调度器',

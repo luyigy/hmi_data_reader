@@ -46,9 +46,9 @@ async function main() {
   // All outbound surfaces unrelated to the injected task-graph calls remain local fixtures.
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: app, definition: {
-    specRef: 'fixture://notification', nodes: [{ key: 'N', goal: 'deliver', dependsOn: [], executionMode: 'implement',
-      acceptance: { mode: 'automatic', checks: [] }, executions: [{ key: 'repo', repository, gitRef: 'refs/heads/main', baseCommit: git('rev-parse', 'HEAD'),
-        agentSelector: 'local:codex', instructions: 'fixture', launchConfig: { checks: [], participant: { gatewayId: 'platform-local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' } } }] }],
+    specRef: 'fixture://notification', nodes: [{ key: 'N', goal: 'deliver', dependsOn: [], executionMode: 'lean',
+      acceptance: { mode: 'automatic', checks: ['delivered'] }, executions: [{ key: 'repo', repository, gitRef: 'refs/heads/main', baseCommit: git('rev-parse', 'HEAD'),
+        agentSelector: 'local:codex', instructions: 'fixture', launchConfig: { checks: [{ name: 'delivered', argv: ['test', '-f', 'delivered'] }], participant: { gatewayId: 'platform-local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' } } }] }],
   } });
   try {
     for (let n = 0; n < 300; n++) {
@@ -65,15 +65,24 @@ async function main() {
     for (let n = 0; n < 3; n++) {
       await prisma.taskGraphEvent.updateMany({ where: { runId: run.id, kind: 'notification_failed' }, data: { createdAt: new Date(0) } });
       await relayGraphNotifications();
+      if (n === 0) {
+        const request = await prisma.feishuTaskBindingRequest.findFirstOrThrow({ where: { appId: app } });
+        await prisma.feishuTaskBindingRequest.update({ where: { id: request.id }, data: { createdAt: new Date(Date.now() - 51 * 60_000) } });
+        await prisma.taskGraphEvent.updateMany({ where: { runId: run.id, kind: 'notification_failed' }, data: { createdAt: new Date(0) } });
+        await relayGraphNotifications();
+        assert.equal(attempts.length, 1, 'Expired uncertain send must await reconciliation, never use a fresh UUID');
+        await prisma.feishuTaskBindingRequest.update({ where: { id: request.id }, data: { createdAt: new Date() } });
+        await prisma.feishuConversationBinding.updateMany({ where: { liveRoomId: project.id }, data: { chatId: 'new-project-group' } });
+      }
     }
     const job = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: run.id } } });
     const taskRun = await prisma.taskRun.findFirstOrThrow({ where: { taskId: job.childTaskId! } });
     const binding = await prisma.feishuConversationBinding.findFirstOrThrow({ where: { liveRoom: { sourceTaskId: job.childTaskId } } });
     assert.equal(binding.chatId, 'repo-group'); assert.equal(binding.threadId, 'repo-thread');
     assert.equal(await prisma.feishuTaskBindingRequest.count({ where: { sourceMessageId: `task-graph:${job.id}` } }), 1);
-    await assert.rejects(relayTaskGraphRunReply(taskRun.id), /response lost/);
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: job.nodeId } })).status, 'passed');
     await relayTaskGraphRunReply(taskRun.id);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'notification_requested' } }), await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'notification_delivered' } }));
     const receipt = await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: taskRun.id } });
     updateFailures = 1;
     await assert.rejects(relayTaskGraphRunReply(taskRun.id, true), /card update timeout/);

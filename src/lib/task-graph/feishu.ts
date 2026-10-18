@@ -1,10 +1,11 @@
 import { ensureGraphRoomParticipants } from './conversation-members';
+import { queueGraphNotification } from './notifications';
 import { graphTopicDestination } from './repository-topic';
 import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
 import { redactSensitiveText } from '../redact-sensitive';
-import { replyFeishuMessage, sendFeishuInteractiveMessage } from '../feishu-api';
+import { sendFeishuInteractiveMessage } from '../feishu-api';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { getFeishuTaskThread, updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
@@ -27,7 +28,11 @@ export async function ensureGraphChildTopic(args: {
   parentTaskId: string; executionId: string; childTaskId: string; title: string; workingDirectory: string;
 }) {
   const execution = await prisma.taskGraphExecution.findUnique({ where: { id: args.executionId }, select: { repository: true } });
-  const scope = await graphTopicDestination(args.parentTaskId, execution?.repository);
+  const originals = await prisma.feishuTaskBindingRequest.findMany({ where: { sourceMessageId: `task-graph:${args.executionId}` } });
+  if (originals.length > 1) throw new Error('Multiple child topic requests require reconciliation');
+  const original = originals[0];
+  const scope = original ? { appId: original.appId, chatId: original.chatId }
+    : await graphTopicDestination(args.parentTaskId, execution?.repository);
   if (!scope) return null;
   const request = await reserveFeishuTaskBinding({
     ...scope, sourceMessageId: `task-graph:${args.executionId}`,
@@ -67,13 +72,18 @@ export async function postGraphParentProgress(parentTaskId: string, runId: strin
 }
 
 export async function sendGraphHumanReviewCard(runId: string, nodeKey: string) {
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
+  await queueGraphNotification(runId, `human-review:${node.id}:${node.updatedAt.getTime()}`, { kind: 'human_review', nodeKey });
+}
+
+export async function deliverGraphHumanReviewCard(runId: string, nodeKey: string) {
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
+  if (node.status !== 'awaiting_human') return null;
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
   const binding = await prisma.feishuConversationBinding.findFirst({
     where: { liveRoom: { sourceTaskId: run.parentTaskId } }, orderBy: { updatedAt: 'desc' },
   });
-  if (!binding) return null;
-  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
-  if (node.status !== 'awaiting_human') return null;
+  if (!binding) throw new Error('Human review destination is not yet bound');
   const card = {
     config: { wide_screen_mode: true },
     header: { template: 'orange', title: { tag: 'plain_text', content: `任务图人工验收 · ${nodeKey}` } },
@@ -86,11 +96,13 @@ export async function sendGraphHumanReviewCard(runId: string, nodeKey: string) {
       })) },
     ],
   };
-  return sendFeishuInteractiveMessage({
+  const messageId = await sendFeishuInteractiveMessage({
     receiveId: binding.chatId, card,
     ...(binding.rootMessageId ? { threadRootMessageId: binding.rootMessageId } : {}),
     uuid: `task-graph-review-${node.id}`,
   });
+  if (!messageId) throw new Error('Human review card send returned no message id');
+  return messageId;
 }
 
 export async function handleGraphHumanReviewCardAction(args: {
@@ -128,12 +140,26 @@ export async function handleGraphHumanReviewCardAction(args: {
 
 /** Keep integration failures visible in the same topic as the implementation. */
 export async function postGraphChildProgress(childTaskId: string, eventKey: string, text: string) {
+  const execution = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { childTaskId }, select: { node: { select: { runId: true } } } });
+  await queueGraphNotification(execution.node.runId, `child-progress:${childTaskId}:${eventKey}`, { kind: 'child_progress', childTaskId, eventKey, text });
+}
+
+export async function deliverGraphChildProgress(childTaskId: string, eventKey: string, text: string) {
   const binding = await prisma.feishuConversationBinding.findFirst({
     where: { liveRoom: { sourceTaskId: childTaskId }, chatType: 'group', rootMessageId: { not: null } },
     orderBy: { updatedAt: 'desc' },
   });
   if (!binding?.rootMessageId) return null;
-  return replyFeishuMessage({ messageId: binding.rootMessageId, msgType: 'text',
-    content: { text: redactSensitiveText(text).slice(-10_000) }, replyInThread: true,
+  const run = await prisma.taskRun.findFirst({ where: { taskId: childTaskId }, orderBy: { createdAt: 'desc' }, select: { id: true } });
+  if (run) {
+    const { relayTaskGraphRunReply } = await import('./run-reply-relay');
+    if (!await relayTaskGraphRunReply(run.id, true)) throw new Error('Task progress card is busy; retry delivery');
+    return true;
+  }
+  const detail = redactSensitiveText(text).slice(-10_000);
+  return sendFeishuInteractiveMessage({ receiveId: binding.chatId, threadRootMessageId: binding.rootMessageId,
+    card: { schema: '2.0', config: { update_multi: true }, header: { template: 'orange', title: { tag: 'plain_text', content: '任务进度' } },
+      body: { elements: [{ tag: 'markdown', content: detail.split('\n')[0].slice(0, 300) },
+        { tag: 'collapsible_panel', expanded: false, header: { title: { tag: 'plain_text', content: '技术详情' } }, elements: [{ tag: 'markdown', content: detail }] }] } },
     uuid: `graph-child-${createHash('sha256').update(`${childTaskId}:${eventKey}`).digest('hex').slice(0, 32)}` });
 }

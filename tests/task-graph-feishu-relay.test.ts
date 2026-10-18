@@ -77,7 +77,8 @@ async function main() {
     assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).lastStatus, 'completed');
     assert.equal(sent.length, 1);
     assert.equal(replies.length, 0, 'Final result must not create another card');
-    assert.match(JSON.stringify(updated.at(-1)?.card), /不代表 Slice 验收通过/);
+    assert.match(JSON.stringify(updated.at(-1)?.card), /会话结束/);
+    assert.doesNotMatch(JSON.stringify(updated.at(-1)?.card), /Slice 已完成/);
     await relayTaskGraphReplies();
     assert.equal(replies.length, 0, 'The final result must not create a new reply');
     const marker = 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"environment_failed","note":"project environment missing"}';
