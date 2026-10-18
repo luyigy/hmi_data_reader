@@ -101,6 +101,7 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     const executions = current.executions.flatMap(job => {
       const progress = executionProgress(job.dispatchMetadata);
       if (progress?.state === 'exhausted') throw new Error('自动处理预算已耗尽，普通继续不能重置预算；请明确新的修复措施或授权');
+      if (progress?.state === 'ownership_attention') throw new Error('执行归属尚未核对，普通继续不能重新放行写入；须先完成归属核对');
       if (progress && job.status !== 'integrated') {
         if (!progress.candidateCommit || !progress.workspaceBase) throw new Error('缺少当前候选提交或原始基线');
         return [{ id: job.id, key: job.key, checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase,
