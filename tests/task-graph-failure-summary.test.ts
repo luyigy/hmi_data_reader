@@ -16,3 +16,8 @@ const scope = buildRunReplyCard({ id: 'scope', status: 'completed', summary: '',
 assert.match(JSON.stringify(scope.body.elements[0]), /伯乐科巴/); assert.match(scope.header.title.content, /需你确认/);
 const exhausted = buildRunReplyCard({ id: 'exhausted', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'exhausted', lastFailure: { code: 'unknown', detail: '{}' } } }, []);
 assert.match(exhausted.header.title.content, /待平台处理/); assert.doesNotMatch(JSON.stringify(exhausted.body.elements[0]), /需要你决定：是/);
+
+const material = buildRunReplyCard({ id: 'material', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'missing_business_material', detail: '缺少阿博格冷却页面原图，请提供这张原图后核验。' } } }, []);
+assert.match(material.header.title.content, /需你确认/); assert.match(JSON.stringify(material.body.elements[0]), /阿博格冷却页面/); assert.match(JSON.stringify(material.body.elements[0]), /负责人：你/);
+const explicit = buildRunReplyCard({ id: 'explicit', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { ...failure, action: '请选择是否保留新增机型的接口范围', owner: 'user', requiresUserDecision: true } } }, []);
+assert.match(explicit.header.title.content, /需你确认/); assert.match(JSON.stringify(explicit.body.elements[0]), /请选择是否保留新增机型/);

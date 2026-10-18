@@ -30,6 +30,10 @@ async function main() {
     assert.ok(prior[0].startsWith(path.join(root, 'archive/files') + path.sep)); assert.notEqual(prior[0], first.directory);
     assert.deepEqual(next.readOnlyPaths, prior);
     assert.equal(await fs.access(first.directory).then(() => true, () => false), false, 'Lookup never restores old writable runtime');
+    const injected = path.join(prior[0], 'ocr-models/unlisted.bin'); await fs.writeFile(injected, 'not in manifest');
+    await assert.rejects(prepareGraphOutputForTask(child.id, 'injected-file', []), /unlisted/); await fs.unlink(injected);
+    await fs.symlink(path.join(root, 'outside'), injected);
+    await assert.rejects(prepareGraphOutputForTask(child.id, 'injected-link', []), /unlisted/); await fs.unlink(injected);
     await fs.writeFile(path.join(prior[0], 'ocr-models/weights.bin'), 'tampered');
     await assert.rejects(prepareGraphOutputForTask(child.id, 'third', []), /archive differs/);
     console.log('Archived prior outputs retain original event identity and verified OCR bytes; missing live paths resolve read-only and corruption is refused');

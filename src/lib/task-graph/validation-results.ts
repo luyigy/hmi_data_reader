@@ -64,6 +64,22 @@ function parseManifest(text: string, nodeId: string, source: string) {
   return { files, links, bytes: files.reduce((sum, file) => sum + file.bytes, 0), skippedDirectories: raw.skippedDirectories };
 }
 async function verifyFiles(directory: string, files: ArchivedFile[]) {
+  const expected = new Set(files.map(file => file.path));
+  const root = path.join(directory, 'files');
+  const walk = async (relative: string) => {
+    const location = path.join(root, relative);
+    await realDirectory(location);
+    for (const entry of await fs.readdir(location, { withFileTypes: true })) {
+      const name = path.join(relative, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`Validation archive contains an unlisted link: ${name}`);
+      if (entry.isDirectory()) {
+        if (!files.some(file => file.path.startsWith(name + path.sep))) throw new Error(`Validation archive contains an unlisted directory: ${name}`);
+        await walk(name);
+      } else if (!entry.isFile() || !expected.has(name)) throw new Error(`Validation archive contains an unlisted file: ${name}`);
+    }
+  };
+  if (await exists(root)) await walk('');
+  else if (files.length) throw new Error('Validation archive files directory is missing');
   for (const file of files) {
     const target = path.join(directory, 'files', file.path);
     const stat = await fs.lstat(target);

@@ -25,6 +25,8 @@ export async function priorOutputArtifacts(nodeId: string, currentDirectory: str
       result.push({ eventId: event.id, directory: original, originalDirectory: original, archived: false }); continue;
     }
     const relative = path.relative(owner, original);
+    let selected: PriorOutputArtifact | undefined;
+    let selectedIdentity: string | undefined;
     for (const receipt of archives) {
       const saved = record(receipt.payload);
       if (saved.source !== owner || typeof saved.directory !== 'string' || !Array.isArray(saved.deliveryCommits) || !saved.deliveryCommits.length) continue;
@@ -35,8 +37,11 @@ export async function priorOutputArtifacts(nodeId: string, currentDirectory: str
       if (!archive.files.some(file => file.path.startsWith(relative + path.sep))) continue;
       const directory = path.join(archive.directory, 'files', relative);
       if (await fs.realpath(directory) !== directory || !(await fs.lstat(directory)).isDirectory()) throw new Error('Archived output directory is invalid');
-      result.push({ eventId: event.id, directory, originalDirectory: original, archived: true }); break;
+      const identity = JSON.stringify(archive.files.filter(file => file.path.startsWith(relative + path.sep)).map(file => ({ path: file.path, sha256: file.sha256, bytes: file.bytes })));
+      if (selectedIdentity && selectedIdentity !== identity) throw new Error('Prior output archives disagree for the same original event');
+      selectedIdentity = identity; selected = { eventId: event.id, directory, originalDirectory: original, archived: true };
     }
+    if (selected) result.push(selected);
   }
   return result;
 }

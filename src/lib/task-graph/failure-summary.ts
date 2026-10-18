@@ -10,7 +10,7 @@ export function graphFailureSummary(failure: Failure, _state: ExecutionProgress[
   }
   if (!paths.length) paths = (failure.command || []).filter(value => /\.(py|tsx?|jsx?|json|md|ya?ml)$/.test(value));
   const labels: Record<string, string> = { integration_conflict: '代码集成出现冲突，双方修改已保留', environment_failed: '运行环境尚未准备就绪', runtime_capability_missing: '缺少本次验证所需的运行能力', runtime_resource_invalid: '运行资源与声明不一致', runtime_preflight_transient: '运行能力检查暂时失败', test_failed: '检查未通过，成果已保留', ownership_mismatch: '执行目录归属需要核对', permission_required: '需要确认本次权限', scope_change: '需要确认需求范围', missing_business_material: '必要业务材料尚未齐备', missing_upstream_input: '前置交付尚未绑定' };
-  const humanKind = ['permission_required', 'scope_change'].includes(failure.code);
+  const humanKind = ['permission_required', 'scope_change', 'missing_business_material'].includes(failure.code);
   const plainNote = !/^[\s]*[\[{]/.test(failure.detail) ? redactSensitiveText(failure.detail).replace(/\s+/g, ' ').trim().slice(0, 220) : '';
   const concreteNote = plainNote.length >= 8 ? plainNote : '';
   let requiresDecision = failure.requiresUserDecision ?? (humanKind && Boolean(concreteNote));
