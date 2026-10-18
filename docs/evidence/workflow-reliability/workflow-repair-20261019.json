@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "at": "2026-10-18T16:33:45.874079+00:00",
+  "baseline": "997ab3d",
+  "reviewedCode": "e39ae7874a61fcde3ac5f238d241278af3d1c05d",
+  "verification": {
+    "totalRegisteredSuites": 58,
+    "passedBeforeCardSuite": 11,
+    "passedCardThroughValidationArchive": 24,
+    "passedRuntimeInputsThroughNewArchiveAndCardSuites": 23,
+    "resumedCoverageIsNotASingleFullCommandExitZero": true,
+    "affectedExtraRepositoryAndConflictSuites": {
+      "count": 4,
+      "exitCode": 0
+    },
+    "typecheckExitCode": 0,
+    "longFilesExitCode": 0,
+    "browserIntegrationExitCode": 0,
+    "browserVersion": "147.0.7727.137",
+    "reviewer": "gpt-6-sol @high",
+    "reviewVerdict": "No remaining material blocker for idle-only graph and card load",
+    "modelFamilyDiversity": "GPT-6 family only",
+    "logs": [
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/full-regression.log",
+        "sha256": "2cab7baf940510636ac69f40be712bedda5d84fa637a06e777270d0728a2be5b"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/full-regression-final.log",
+        "sha256": "1133cf486df276151cbb6222b613ad3638b7345524c822e33578312bd3435589"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/remaining-regression.log",
+        "sha256": "d77aff70b1b0464cd90c10c7516e77eeed081bebf2724275e1373042fb7bb884"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/remaining-regression-final.log",
+        "sha256": "945a6f597a0110b4dc124607ab4ef4f307019000e9aa1c89b2d99a9abd4c6ae1"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/last-regression.log",
+        "sha256": "155a7527d993377c2f823c185434d9aee84227bddedc061aace40a2a6d7b8f63"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/readonly-conflict-merged.log",
+        "sha256": "9fd84561a58918025b0ebb93e8eda1285c52e3733bc5ac661418ef787f69f546"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/runtime-integration-final.log",
+        "sha256": "d121d3d789ef657459d1a69e4f881eb6ac78b803bf8fce55bdf460ba7e94421e"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/typecheck-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": "output/reviews/workflow-repair-20261018-2338/long-files-final.log",
+        "sha256": "cca5604ffb20a84073ade177a9d2bb800ae7ddaa35cbde5cba7aad7c0c125516"
+      }
+    ]
+  },
+  "preLoad": {
+    "at": "2026-10-18T16:30:17.861Z",
+    "code": "e39ae7874a61fcde3ac5f238d241278af3d1c05d",
+    "active": 0,
+    "claimed": 0,
+    "writers": [
+      {
+        "executionId": "cmvb8easb000esnnickvyi2a2",
+        "observation": {
+          "kind": "exited",
+          "legacyProof": {
+            "taskRunId": "cmvdh6xai0e3f78ubdd1ghoht",
+            "completedAt": "2026-10-18T07:09:17.620Z",
+            "pids": [
+              2367517
+            ],
+            "processGroupsEmpty": true,
+            "terminalEvents": [
+              {
+                "eventType": "participant_completed",
+                "createdAt": "2026-10-18T07:09:17.614Z"
+              },
+              {
+                "eventType": "run_completed",
+                "createdAt": "2026-10-18T07:09:17.635Z"
+              }
+            ],
+            "stateUnchanged": true
+          }
+        }
+      },
+      {
+        "executionId": "cmvdmf87z044b9xhg5x324xdu",
+        "observation": {
+          "kind": "exited"
+        }
+      },
+      {
+        "executionId": "cmvdmf87y043r9xhgmka7pw7b",
+        "observation": {
+          "kind": "exited"
+        }
+      }
+    ],
+    "before": [
+      {
+        "service": "agent-platform-task-graph.service",
+        "pid": "4148918"
+      },
+      {
+        "service": "agent-platform-task-graph-feishu.service",
+        "pid": "4047172"
+      }
+    ],
+    "mainBefore": "21469"
+  },
+  "serviceLoad": {
+    "at": "2026-10-18T16:30:20.115Z",
+    "code": "e39ae7874a61fcde3ac5f238d241278af3d1c05d",
+    "before": [
+      {
+        "service": "agent-platform-task-graph.service",
+        "pid": "4148918"
+      },
+      {
+        "service": "agent-platform-task-graph-feishu.service",
+        "pid": "4047172"
+      }
+    ],
+    "after": [
+      {
+        "service": "agent-platform-task-graph.service",
+        "pid": "666364",
+        "state": "active"
+      },
+      {
+        "service": "agent-platform-task-graph-feishu.service",
+        "pid": "666657",
+        "state": "active"
+      }
+    ],
+    "mainBefore": "21469",
+    "mainAfter": "21469",
+    "currentChatUninterrupted": true,
+    "manualResumeCalls": 0
+  },
+  "liveNative": {
+    "at": "2026-10-18T16:32:56.349Z",
+    "proofs": [
+      {
+        "node": "R02",
+        "executionId": "cmvdmf87z044b9xhg5x324xdu",
+        "taskRunId": "cmve1ksr60026b0j3vouqy2zw",
+        "status": "running",
+        "native": [
+          {
+            "participantId": "cmve1ksr60027b0j3uexpx2d0",
+            "status": "running",
+            "pid": 669268,
+            "alive": true,
+            "spawnedAt": "2026-10-18T16:30:39.558Z",
+            "lastActivityAt": "2026-10-18T16:32:24.366Z"
+          }
+        ],
+        "toolCalls": 19,
+        "events": [
+          {
+            "_count": 3,
+            "eventType": "stdout_chunk"
+          },
+          {
+            "_count": 1,
+            "eventType": "runner_started"
+          },
+          {
+            "_count": 1,
+            "eventType": "participant_started"
+          },
+          {
+            "_count": 19,
+            "eventType": "control_message"
+          }
+        ],
+        "card": {
+          "messageId": "om_x100b6278aeda30a8b0b7a3189a72bd3",
+          "bindingId": "cmvdvraas0034uxuzmlnla2ho",
+          "lastStatus": "running",
+          "updatedAt": "2026-10-18T16:32:54.244Z",
+          "distinctCards": 1
+        }
+      },
+      {
+        "node": "M04T",
+        "executionId": "cmvdmf87y043r9xhgmka7pw7b",
+        "taskRunId": "cmve1kuia0038b0j30rp6hjbf",
+        "status": "running",
+        "native": [
+          {
+            "participantId": "cmve1kuia0039b0j3uhej416i",
+            "status": "running",
+            "pid": 670464,
+            "alive": true,
+            "spawnedAt": "2026-10-18T16:30:42.884Z",
+            "lastActivityAt": "2026-10-18T16:31:07.905Z"
+          }
+        ],
+        "toolCalls": 16,
+        "events": [
+          {
+            "_count": 2,
+            "eventType": "stdout_chunk"
+          },
+          {
+            "_count": 1,
+            "eventType": "runner_started"
+          },
+          {
+            "_count": 1,
+            "eventType": "participant_started"
+          },
+          {
+            "_count": 16,
+            "eventType": "control_message"
+          }
+        ],
+        "card": {
+          "messageId": "om_x100b6279bda080a0cfd24d28340d6da",
+          "bindingId": "cmvdydl2a01hzuxuzzfhtverj",
+          "lastStatus": "running",
+          "updatedAt": "2026-10-18T16:32:54.720Z",
+          "distinctCards": 1
+        }
+      }
+    ]
+  },
+  "originalRepositories": {
+    "before": {
+      "at": "2026-10-18T16:10:31.956Z",
+      "repositories": [
+        {
+          "repository": "/data1/code/hmi_data_reader",
+          "head": "a2b9de55225ce480cc8d17036938f92c396944be",
+          "statusHash": "5ce34c281f3c2824917d7490a2db9fa3aa26602974881617d49343b854bae202",
+          "trackedDiffHash": "889b6e64c18b1fc337365f17a8ed4331020be75dcdd94dfc60eb853e98cc1e36",
+          "untrackedCount": 59,
+          "untrackedHash": "cb7a970b163f997def950033f7437f30ea90b6a52838deedc44b0e15d88e0b88"
+        },
+        {
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "head": "f6a4c64e7dbd94431391e1018a1065df8221c75d",
+          "statusHash": "5974bc1f0f20c53b30a1b343aadb8267cf05ea987a12587611d96f52f5f5b477",
+          "trackedDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "untrackedCount": 40,
+          "untrackedHash": "ad1714a67321c6a9669d0d1bc2197638a67c179c087b5a18a4e702ba7f9481a8"
+        }
+      ]
+    },
+    "after": {
+      "at": "2026-10-18T16:32:56.866Z",
+      "repositories": [
+        {
+          "repository": "/data1/code/hmi_data_reader",
+          "head": "a2b9de55225ce480cc8d17036938f92c396944be",
+          "statusHash": "5ce34c281f3c2824917d7490a2db9fa3aa26602974881617d49343b854bae202",
+          "trackedDiffHash": "889b6e64c18b1fc337365f17a8ed4331020be75dcdd94dfc60eb853e98cc1e36",
+          "untrackedCount": 59,
+          "untrackedHash": "cb7a970b163f997def950033f7437f30ea90b6a52838deedc44b0e15d88e0b88"
+        },
+        {
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "head": "f6a4c64e7dbd94431391e1018a1065df8221c75d",
+          "statusHash": "5974bc1f0f20c53b30a1b343aadb8267cf05ea987a12587611d96f52f5f5b477",
+          "trackedDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "untrackedCount": 40,
+          "untrackedHash": "ad1714a67321c6a9669d0d1bc2197638a67c179c087b5a18a4e702ba7f9481a8"
+        }
+      ]
+    },
+    "unchanged": true
+  },
+  "limitations": [
+    "R02 and M04T are running; integration and business acceptance not yet established.",
+    "Runtime declaration is optional and absent from business repositories; no browser/OCR provisioning claimed.",
+    "Native acceptance does not yet read source repository runtime declarations.",
+    "Main Feishu chat service was not restarted.",
+    "Legacy S06 state and TaskRun remain unchanged; the pinned exit proof permits only a one-time idle service load."
+  ]
+}
