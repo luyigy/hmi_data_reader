@@ -1,4 +1,6 @@
 import type { Prisma } from '@prisma/client';
+import { createGraphWriter } from '../task-graph/writer-ownership';
+import { bindGraphReviewTaskRun } from '../task-graph/review-ownership';
 import { bindExecutionTaskRun } from '../task-graph/execution-progress';
 import { prisma } from '@/lib/prisma';
 import { getHarnessCapabilities } from './capabilities';
@@ -26,6 +28,10 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     throw new Error(`Task session not found for task "${request.taskId}"`);
   }
 
+  const graphTask = request.taskId.startsWith('task-graph-') && !request.taskId.startsWith('task-graph-discussion-');
+  const supportedWriter = request.participants.length > 0 && request.participants.every(participant => participant.executionBackend === 'platform_local' && ['codex', 'kimi-code'].includes(participant.harnessType));
+  const graphWriter = graphTask && supportedWriter ? await createGraphWriter() : undefined;
+  if (request.graphExecution && request.graphReview) throw new Error('A TaskRun cannot bind implementation and review simultaneously');
   const createRun = (tx: Pick<Prisma.TransactionClient, 'taskRun'>) => tx.taskRun.create({
     data: {
       taskId: request.taskId,
@@ -36,6 +42,8 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       activityState: 'quiet',
       watchdogConfig: stringifyJson(request.watchdogConfig ?? null),
       controlMetadata: stringifyJson({
+        ...(graphWriter ? { graphWriter } : {}),
+        ...(request.graphReview ? { graphReview: request.graphReview } : {}),
         permissionConfig: request.permissionConfig ?? DEFAULT_ACPX_PERMISSION_CONFIG,
         permissionSupport: request.participants.map((participant) => ({
           participantKey: `${participant.executionBackend}:${participant.harnessType}:${participant.role}`,
@@ -92,9 +100,10 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   });
 
   const graphExecution = request.graphExecution;
-  const taskRun = graphExecution ? await prisma.$transaction(async tx => {
+  const taskRun = graphExecution || request.graphReview ? await prisma.$transaction(async tx => {
     const created = await createRun(tx);
-    await bindExecutionTaskRun(tx, graphExecution, created.id);
+    if (graphExecution) await bindExecutionTaskRun(tx, graphExecution, created.id);
+    if (request.graphReview) await bindGraphReviewTaskRun(tx, request.graphReview, created.id);
     return created;
   }) : await createRun(prisma);
 

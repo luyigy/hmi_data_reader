@@ -103,6 +103,7 @@ export interface AcpxParticipantRequest {
 }
 
 export interface AcpxRunRequest {
+  graphReview?: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string };
   graphExecution?: { executionId: string; claimToken: string; revision: number };
   taskId: string;
   taskSessionId?: string;

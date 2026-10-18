@@ -1,4 +1,5 @@
 import { prepareGraphOutputForTask } from '../task-graph/output-task-context';
+import { graphWriterEnvironment } from '../task-graph/writer-ownership';
 import { withGraphTaskServices } from '../task-graph/graph-services';
 import { graphInputsForTask } from '../task-graph/upstream-inputs';
 import { graphValidationArchiveForTask } from '../task-graph/validation-archive-access';
@@ -207,7 +208,7 @@ export const executeViaLocalHarness = async (
   return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
-  const taskEnvironment = { ...inputs?.env, ...services.env, ...output?.env };
+  const taskEnvironment = { ...inputs?.env, ...services.env, ...output?.env, ...await graphWriterEnvironment(taskRunId) };
   const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
   let metadataWrites = Promise.resolve();
   let boundSessionId: string | undefined;

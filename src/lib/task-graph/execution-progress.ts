@@ -4,8 +4,10 @@ import { prisma } from '../prisma';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
 export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string };
+export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
+  review?: GraphReviewBinding;
   state: 'active' | 'ready' | 'waiting_decision' | 'exhausted' | 'ownership_attention';
   workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; taskRunId?: string;
   repairAttempts: number; formatAttempts: number; platformAttempts: number; integrationAttempts: number;
@@ -63,6 +65,18 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
   if (nextRetryAt) {
     if (!Number.isFinite(Date.parse(nextRetryAt))) throw new Error('Invalid retry deadline');
     progress.nextRetryAt = nextRetryAt;
+  }
+  if (value.review !== undefined) {
+    const review = record(value.review);
+    const phase = enumeration(review.phase, ['architecture', 'acceptance']);
+    const claimKey = optionalText(review.claimKey);
+    if (!claimKey) throw new Error('Review claim key missing');
+    const kind = enumeration(review.kind, ['running', 'ready']);
+    if (kind === 'running') {
+      const taskRunId = optionalText(review.taskRunId);
+      if (!taskRunId) throw new Error('Review TaskRun missing');
+      progress.review = { phase, claimKey, kind, taskRunId };
+    } else progress.review = { phase, claimKey, kind };
   }
   if (value.lastFailure !== undefined) {
     const failure = record(value.lastFailure);
