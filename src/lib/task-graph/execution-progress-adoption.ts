@@ -37,7 +37,8 @@ export async function adoptLegacyExecutionProgress(args: {
       kind: 'execution_progress_adopted', idempotencyKey: `execution:${job.id}:progress-adopted`,
       payload: { executionId: job.id, previousCandidateCommit: args.previousCandidateCommit,
         observedHead: checked.head, candidateCommit, workspaceBase: args.workspaceBase,
-        authorization: args.authorization, claimToken, ownership: { path: checked.path, branch: checked.branch, writerExited: true } },
+        authorization: args.authorization, claimToken, taskRunId: current.taskRunId, revision: progress.revision,
+        ownership: { path: checked.path, branch: checked.branch, writerExited: true } },
     } });
     return progress;
   }, { timeout: 30000 }));
