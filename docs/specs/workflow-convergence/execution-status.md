@@ -348,3 +348,17 @@ D1 发布回执已核验：`.runtime/delivery-relay-deploy/reload-receipt.json` 
 发布采用当前会话退出后的独立空闲重载，回执位于主检出 `.runtime/reply-card-deploy/reload-receipt.json`；只有 verified 才表示运行服务已更新。既有 S06 状态卡采用原 messageId 更新，保留原审批、历史事件与旧段落卡。
 
 生产回读：S06 最新运行的原卡 `om_x100b6270ee8d30accd115e48b7bf991` 已更新为“实施暂停”，确认 chat/root 仍归属于原 S06 话题；没有新发进度卡。回执 `.runtime/reply-card-fix/s06-card.json` 为 verified。
+
+
+## 2026-10-18 · 子话题直接接续的指令识别修复
+
+生产核对确认父、子话题均已接入同一恢复入口。S06 在 04:04 UTC 曾从自身话题成功恢复；04:18 / 04:20 UTC 的新指示却落入只读问答，直到 04:24 UTC 在父话题发“继续”才恢复。实际故障是自然语言识别只接受“继续/恢复”等词，漏掉用户明确的“你执行啊”，不是子话题没有绑定执行任务。
+
+- `conversation-intent.ts` 统一提取执行指令子句，识别明确的执行/实施祈使句、重跑与重新执行；移除飞书 mention 标记再判断，父、子话题共享规则。保持用户权限、原批准范围、保存点和恢复阶段不变。
+- 否定、问题和未来指示保持不恢复；未来指示校验同时覆盖自然语言入口与 Agent 控制块，Agent 不能把“稍后再重跑”变成立刻启动。
+- 子话题按绑定 execution 定位当前 Slice，不要求用户重述 Slice 代号或转到父话题。在两个 Slice 同时 attention 时，当前子话题仍只恢复自己；原消息 ID 重送和控制块重放继续使用相同幂等键。
+- 执行指令直接登记恢复并回复平台回执，不再落入只读讨论。父话题仍可继续任务，目标不明确时沿用原澄清流程。
+
+验证使用独立 PostgreSQL schema，通过 `postFeishuMessageToBoundLiveRoom` 重放“继续”、生产失败原句及“重新跑一下”；修复前原句缺少恢复事件，修复后正确落到当前节点且不启动只读讨论。测试还覆盖同消息重复投递、控制块重放、陌生用户、多个暂停节点及否定/提问/未来指示。实施保存点恢复、子话题问答及验收接续回归、TypeScript、定向 lint 和长文件守卫结果保存在工作检出 `.runtime/child-continuation-fix/`。测试不调用真实模型。
+
+本轮不自动重放历史请求或恢复生产 S06，防止已经执行过的消息再次启动。新版本在当前会话退出且服务空闲后加载，以主检出 `.runtime/child-continuation-deploy/reload-receipt.json` 为准。加载后可直接在原 S06 话题说“继续实施”。

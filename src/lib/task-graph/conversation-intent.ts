@@ -3,16 +3,20 @@ import { prisma } from '../prisma';
 import { replyFeishuMessage } from '../feishu-api';
 import { requestGraphConversationRecovery, GraphRecoveryTargetAmbiguous } from './conversation-recovery';
 
+function continuationAction(text: string) {
+  const clauses = text.replace(/@_user_\d+|\$[A-Za-z0-9_-]+/g, '').split(/[，,。！!；;\n]/).map(part => part.trim()).filter(Boolean);
+  const executionCommand = /^(?:[A-Za-z][A-Za-z0-9_-]{0,31}\s+)?(?:(?:你们?|请|麻烦|现在|直接|马上|开始|先|帮我)\s*)*(?:执行|实施)(?=$|[\s啊吧呀]|这个|本任务|原任务)/;
+  return clauses.filter(part => /继续|恢复|接着|往下走|重跑|重新(?:跑|执行|实施|验收)|用[\s\S]{0,70}(?:验收|测试|复测|复核|测一下|做验证)/.test(part) || executionCommand.test(part)).at(-1);
+}
+
 export function hasContinuationAuthorization(text: string) {
-  const clauses = text.split(/[，,。！!；;\n]/).map(part => part.trim()).filter(Boolean);
-  const action = clauses.filter(part => /继续|恢复|接着|往下走|用[\s\S]{0,70}(?:验收|测试|复测|复核|测一下|做验证)/.test(part)).at(-1);
+  const action = continuationAction(text);
   if (!action || /[?？]|(?:吗|么)[呀啊呢吧\s]*$|能不能|可不可以|是否|好不好|行不行|为什么|为何|怎么|如何|还缺/.test(action)) return false;
-  return !/(?:不要|不需要|不用|不必|不想|先别|暂不|别)[\s\S]{0,10}(?:继续|恢复|启动|验收|测试|复核|跑)|不(?:再|去|马上|现在|想)?\s*(?:继续|恢复|启动|验收|测试|复核|跑)/.test(action);
+  if (/(?:以后|下次|明天|稍后|等[\s\S]+(?:后|再)|如果)[\s\S]*(?:继续|恢复|接着|执行|实施|重跑|重新跑)/.test(action)) return false;
+  return !/(?:不要|不需要|不用|不必|不想|先别|暂不|别)[\s\S]{0,10}(?:继续|恢复|启动|执行|实施|重跑|验收|测试|复核|跑)|不(?:再|去|马上|现在|想)?\s*(?:继续|恢复|启动|执行|实施|重跑|验收|测试|复核|跑)/.test(action);
 }
 export function resumeIntent(text: string) {
-  if (!hasContinuationAuthorization(text)) return false;
-  const action = text.split(/[，,。！!；;\n]/).filter(part => /继续|恢复|接着|往下走|用[\s\S]{0,70}(?:验收|测试|复测|复核|测一下)/.test(part)).at(-1) || '';
-  return !/(?:继续|恢复|接着)[\s\S]{0,8}(?:讨论|聊天|设计|规划|写方案)|(?:以后|下次|明天|稍后|等[\s\S]+(?:后|再)|如果)[\s\S]*(?:继续|恢复|接着)/.test(action);
+  return hasContinuationAuthorization(text) && !/(?:继续|恢复|接着|重跑|执行|实施)[\s\S]{0,8}(?:讨论|聊天|设计|规划|写方案)/.test(continuationAction(text) || '');
 }
 export type GraphContinuationInput = { roomId: string; chatId: string; openId: string; messageId: string; text: string; nodeKey?: string };
 

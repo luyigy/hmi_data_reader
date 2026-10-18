@@ -19,15 +19,19 @@ async function main() {
   const originalAdmin = process.env.FEISHU_ADMIN_OPEN_ID; process.env.FEISHU_ADMIN_OPEN_ID = 'fixture-admin';
   const require = createRequire(__filename), api = require('../src/lib/feishu-api');
   const entry = require('../src/lib/feishu-task-entry-api');
+  const delivery = require('../src/lib/live-room-delivery');
+  const originalTrigger = delivery.triggerLiveRoomMessageReplies;
+  let discussionCalls = 0; delivery.triggerLiveRoomMessageReplies = async () => { discussionCalls++; };
   const originalGroupAdmin = entry.isFeishuGroupAdmin; entry.isFeishuGroupAdmin = async () => false;
   const originalReply = api.replyFeishuMessage; api.replyFeishuMessage = async () => 'ack';
   const parent = await prisma.task.create({ data: { name: 'continuation' } });
   const child = await prisma.task.create({ data: { name: 'S05 child' } });
   const room = await prisma.liveRoom.create({ data: { title: 'parent', sourceTaskId: parent.id } });
+  const childRoom = await prisma.liveRoom.create({ data: { title: 'child', sourceTaskId: child.id } });
   let runId: string | undefined;
   try {
     await prisma.feishuConversationBinding.create({ data: { liveRoomId: room.id, scopeKey: parent.id, appId: 'fixture', chatId: 'chat', chatType: 'group', threadId: 'parent-thread' } });
-    const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: { specRef: 'test://continue', nodes: ['S05', 'OTHER'].map(key => ({ key, goal: key, dependsOn: [], acceptance: { mode: 'automatic', checks: ['roundtrip'] }, executions: [{ key: 'mold', repository: '/tmp/fixture', gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', instructions: 'fixture' }] })) } });
+    const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: { specRef: 'test://continue', nodes: ['S05', 'OTHER'].map(key => ({ key, goal: key, dependsOn: [], acceptance: { mode: 'automatic', checks: ['roundtrip'] }, executions: [{ key: 'mold', repository: '/tmp/fixture', gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', instructions: 'fixture', launchConfig: { participant: { gatewayId: 'platform-local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' } } }] })) } });
     runId = run.id;
     const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'S05' } } });
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention' } });
@@ -58,6 +62,24 @@ async function main() {
     await handleGraphConversationIntent({ ...context, messageId: 'cancel-select', text: '继续验收' });
     assert.equal(await handleGraphConversationIntent({ ...context, messageId: 'cancel', text: '不用了' }), false);
     assert.equal(await handleGraphConversationIntent({ ...context, messageId: 'late-selection', text: 'S05' }), false);
+    await prisma.feishuConversationBinding.create({ data: { liveRoomId: childRoom.id, scopeKey: child.id, appId: 'fixture', chatId: 'child-chat', chatType: 'group', threadId: 'child-thread' } });
+    for (const [index, text] of Array.from(['继续', '@_user_1 你执行啊，那个多维表格里面也有其他品牌的 HMI 界面，正好来做这个验收啊。', 'S05 重新跑一下'].entries())) {
+      const childInbound = { context: { ...inbound.context, chatId: 'child-chat', threadId: 'child-thread', messageId: `child-continue-${index}` }, content: text };
+      await postFeishuMessageToBoundLiveRoom(childInbound);
+      await postFeishuMessageToBoundLiveRoom(childInbound);
+      const requested = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { runId_idempotencyKey: { runId: run.id, idempotencyKey: `conversation:review-recovery:${childInbound.context.messageId}` } } });
+      assert.equal(requested.nodeId, node.id, 'Child topic resumes its own Slice even when another Slice is paused');
+      assert.equal(requested.kind, 'conversation_review_recovery_requested');
+      assert.equal(await prisma.taskGraphEvent.count({ where: { runId, idempotencyKey: requested.idempotencyKey } }), 1);
+    }
+    const childControl = await applyGraphControlOutput({ roomId: childRoom.id, sourceContent: '@_user_1 你执行啊', sourceMetadata: JSON.stringify({ source: 'feishu', feishuSenderOpenId: 'fixture-admin', feishuChatId: 'child-chat', feishuMessageId: 'child-continue-1' }), output: '<graph-control>{"action":"resume_task","nodeKey":"S05"}</graph-control>' });
+    assert.match(childControl, /平台已回复/);
+    for (const [index, text] of Array.from(['稍后再重跑', '先别执行', '能不能重新跑一下？'].entries())) {
+      await applyGraphControlOutput({ roomId: childRoom.id, sourceContent: text, sourceMetadata: JSON.stringify({ source: 'feishu', feishuSenderOpenId: 'fixture-admin', feishuChatId: 'child-chat', feishuMessageId: `child-no-authorization-${index}` }), output: '<graph-control>{"action":"resume_task","nodeKey":"S05"}</graph-control>' });
+      assert.equal(await prisma.taskGraphEvent.count({ where: { runId, idempotencyKey: `conversation:review-recovery:child-no-authorization-${index}` } }), 0);
+    }
+    assert.equal(discussionCalls, 0, 'Execution instructions must not launch a readonly discussion');
+    for (const text of ['不要重跑', '先别执行', '你执行过了吗？', '现在重跑可以吗', '稍后再重跑', '等我确认后再执行', '继续讨论这个方案', '之前执行失败了', '执行分工是什么意思？']) assert.equal(resumeIntent(text), false, text);
     const evidence = { summary: 'save defect', checks: [{ name: 'roundtrip', passed: false, evidence: 'wrong value after reopen' }] };
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'blocked_require_human', note: 'photo blurred' }, evidence), false);
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'roundtrip', note: 'wrong save' }, evidence), true);
@@ -75,14 +97,15 @@ async function main() {
     const runtime = await prepareAcceptanceRuntime(node.id, 'test', [{ repository: temp, path: temp, commit: 'a'.repeat(40) }]);
     const command = wrapWithBubblewrap({ command: process.execPath, commandArgs: ['-e', `const f=require('fs'),a=require('assert');f.writeFileSync('test-db.json','{}');a.throws(()=>f.writeFileSync(${JSON.stringify(code)},'bad'));`], cwd: runtime.directory, workspaceRoot: runtime.directory, sandboxMode: runtime.permissionConfig.sandboxMode, env: process.env, readOnlyPaths: [code] });
     execFileSync(command.command, command.args, { env: process.env });
-    console.log('Parent-topic natural continuation is authorized/idempotent, ambiguity asks once, defects repair within two attempts and material gaps do not restart implementation');
+    console.log('Parent/child execution instructions resume the bound Slice idempotently without readonly discussion; questions, negation and future work stay paused');
   } finally {
+    delivery.triggerLiveRoomMessageReplies = originalTrigger;
     api.replyFeishuMessage = originalReply; entry.isFeishuGroupAdmin = originalGroupAdmin;
     if (originalAdmin === undefined) delete process.env.FEISHU_ADMIN_OPEN_ID; else process.env.FEISHU_ADMIN_OPEN_ID = originalAdmin;
     if (originalValidation === undefined) delete process.env.TASK_GRAPH_VALIDATION_ROOT; else process.env.TASK_GRAPH_VALIDATION_ROOT = originalValidation;
     rmSync(temp, { recursive: true, force: true });
     if (runId) await prisma.taskGraphRun.delete({ where: { id: runId } });
-    await prisma.liveRoom.delete({ where: { id: room.id } }); await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } }); await prisma.$disconnect();
+    await prisma.liveRoom.deleteMany({ where: { id: { in: [room.id, childRoom.id] } } }); await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } }); await prisma.$disconnect();
   }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
