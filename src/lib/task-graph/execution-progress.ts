@@ -1,4 +1,4 @@
-import { parseGraphWriter, type GraphWriter } from './writer-ownership';
+import { observeTaskRunWriter, parseGraphWriter, type GraphWriter } from './writer-ownership';
 import { isDeepStrictEqual } from 'node:util';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -101,7 +101,7 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
     const failure = record(value.lastFailure);
     if (typeof failure.code !== 'string' || typeof failure.detail !== 'string') throw new Error('Invalid execution failure');
     progress.lastFailure = { code: failure.code, detail: failure.detail };
-    if (failure.blockedPhase !== undefined) progress.lastFailure.blockedPhase = enumeration(failure.blockedPhase, ['implementation', 'input_preparation', 'service_runtime']);
+    if (failure.blockedPhase !== undefined) progress.lastFailure.blockedPhase = enumeration(failure.blockedPhase, ['implementation', 'input_preparation', 'service_runtime'] as const);
     for (const key of ['checkId', 'fingerprint', 'tree'] as const) {
       const text = optionalText(failure[key]); if (text) progress.lastFailure[key] = text;
     }
@@ -215,6 +215,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     }
     if (status === 'ready' || outcome.kind === 'integrated' || outcome.kind === 'review_retry') { delete progress.worker; delete progress.workerReleasedAt; }
     if (status === 'ready' && current.taskRunId && await tx.taskRun.count({ where: { id: current.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Cannot requeue a live TaskRun');
+    if (status === 'ready' && current.taskRunId && outcome.kind !== 'operator_resume' && (await observeTaskRunWriter(current.taskRunId)).kind !== 'exited') throw new Error('Cannot requeue a TaskRun without actual writer exit proof');
     await tx.taskGraphExecution.update({ where: { id: current.id }, data: {
       status, issueKind, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, progress),
       ...(status === 'ready' ? { claimToken: null, claimedAt: null, taskRunId: null, sessionId: null } : {}),

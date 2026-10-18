@@ -38,7 +38,7 @@ import { integrateJobWithRetry } from './integration-retry';
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
-import { createGraphWriter } from './writer-ownership';
+import { createGraphWriter, observeTaskRunWriter } from './writer-ownership';
 import { registerGraphReviewWorker, releaseGraphReviewWorker, releaseGraphExecutionWorker } from './phase-worker';
 import { recoverGraphExecution, recoverGraphReview } from './restart-recovery';
 import { requestGraphChildTopic } from './notifications';
@@ -389,6 +389,7 @@ export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: s
     if (current.executions.some(job => ['exhausted', 'ownership_attention'].includes(executionProgress(job.dispatchMetadata)?.state || ''))) throw new Error('Verification recovery requires an explicit exhaustion or ownership decision');
     for (const job of current.executions) {
       const progress = executionProgress(job.dispatchMetadata);
+      if (progress?.review?.kind === 'running' && (await observeTaskRunWriter(progress.review.taskRunId)).kind !== 'exited') throw new Error('Verification writer has not demonstrably exited');
       if (job.status === 'attention' && progress?.state === 'waiting_decision' && job.claimToken) await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision, outcomeId: `review-resume:${reviewAttempt}`, outcome: { kind: 'review_resumed' } });
       else if (job.status !== 'integrated') throw new Error('Verification inputs changed before recovery');
     }

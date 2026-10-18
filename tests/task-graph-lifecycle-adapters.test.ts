@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun, claimNode, claimExecution, completeExecution, releaseReadyNodes, flagStaleExecutionClaim } from '../src/lib/task-graph/store';
-import { applyExecutionOutcome, executionProgress } from '../src/lib/task-graph/execution-progress';
+import { applyExecutionOutcome, executionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import { pauseGraphImplementation, scheduleImplementationRecovery } from '../src/lib/task-graph/implementation-result';
+import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
+import { releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
@@ -23,7 +25,7 @@ async function main() {
       const job = await claimExecution(run.id, key, 'job', token); assert(job);
       await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { worktreePath: `/tmp/adapter-${job.id}`, worktreeBranch: `refs/heads/adapter-${job.id}` } });
       const progress = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: 0, outcomeId: 'implement',
-        outcome: { kind: 'checkpoint', phase: 'implement', workspaceBase: job.baseCommit, candidateCommit: 'b'.repeat(40) } });
+        outcome: { kind: 'checkpoint', phase: 'implement', workspaceBase: job.baseCommit, candidateCommit: 'b'.repeat(40), worker: await createGraphWriter() } });
       if (key === 'COMPLETE') {
         await assert.rejects(completeExecution({ runId: run.id, nodeKey: key, executionKey: 'job', claimToken: token,
           commit: 'b'.repeat(40), evidence: { checks: [] } }), /phase|阶段/i,
@@ -50,6 +52,9 @@ async function main() {
             failure: { code: 'missing_business_material', detail: 'Original delivery was incomplete' } } });
         assert.equal(corrected.phase, 'implement'); assert.equal(corrected.state, 'waiting_decision');
         assert.equal(corrected.candidateCommit, 'c'.repeat(40));
+        const owner = await createGraphWriter();
+        await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(null, { ...corrected, worker: owner }) } });
+        await releaseGraphExecutionWorker(job.id, token, owner.nonce);
         await scheduleImplementationRecovery(run.id, key, 'explicit-resume');
         const resumed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
         assert.equal(resumed.status, 'ready'); assert.equal(resumed.commit, 'c'.repeat(40));
@@ -60,11 +65,14 @@ async function main() {
           result: { status: 'blocked', blockerKind: 'scope_change', note: 'Scope now clarified' } });
         const blocked = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).dispatchMetadata); assert(blocked);
         assert.equal(blocked.workspaceBase, job.baseCommit, 'A stale adapter base cannot overwrite the authoritative workspace base');
+        assert(blocked.worker);
+        await releaseGraphExecutionWorker(job.id, token, blocked.worker.nonce);
+        const released = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).dispatchMetadata); assert(released);
         await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
         await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
         const resumed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
         const next = executionProgress(resumed.dispatchMetadata); assert(next);
-        assert.equal(resumed.status, 'ready'); assert.equal(next.revision, blocked.revision + 1);
+        assert.equal(resumed.status, 'ready'); assert.equal(next.revision, released.revision + 1);
         assert.equal(next.candidateCommit, blocked.candidateCommit); assert.equal(next.repairAttempts, blocked.repairAttempts);
         assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: job.nodeId, kind: 'execution_outcome',
           idempotencyKey: { contains: 'operator-resume:' } } }), 1);

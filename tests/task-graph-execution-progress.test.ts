@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { createGraphWriter, releaseTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { prisma } from '../src/lib/prisma';
 import { applyExecutionOutcome, executionProgress, type ExecutionOutcomeRequest } from '../src/lib/task-graph/execution-progress';
 import { claimExecution, claimNode, createTaskGraphRun, releaseReadyNodes, recordExecutionDispatch } from '../src/lib/task-graph/store';
@@ -13,7 +16,7 @@ async function main() {
   }
   const parent = await prisma.task.create({ data: { name: `progress-${randomUUID()}` } });
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
-    specRef: 'test://progress', nodes: ['A', 'B'].map(key => ({ key, goal: key, dependsOn: [], executionMode: 'implement' as const,
+    specRef: 'test://progress', nodes: ['A', 'B', 'ORPHAN'].map(key => ({ key, goal: key, dependsOn: [], executionMode: 'implement' as const,
       acceptance: { mode: 'automatic', checks: [] }, executions: [{ key: 'repo', repository: '/tmp/progress-fixture',
         gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', instructions: 'fixture' }] })),
   } });
@@ -65,6 +68,23 @@ async function main() {
     }
     const final = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: integration.id } });
     assert.equal(final.issueKind, 'retry_exhausted'); assert.equal(final.commit, null);
+    await claimNode(run.id, 'ORPHAN', 'orphan');
+    const orphanJob = await claimExecution(run.id, 'ORPHAN', 'repo', 'orphan'); assert(orphanJob);
+    await applyExecutionOutcome({ executionId: orphanJob.id, claimToken: 'orphan', expectedRevision: 0, outcomeId: 'implement', outcome: { kind: 'checkpoint', phase: 'implement' } });
+    const writer = await createGraphWriter();
+    const finishedRun = await prisma.taskRun.create({ data: { taskId: parent.id, status: 'completed', controlMetadata: JSON.stringify({ graphWriter: writer }),
+      participants: { create: [{ gatewayId: 'platform-local', gatewayNameSnapshot: 'Local', executionBackend: 'platform_local', harnessType: 'codex', harnessNameSnapshot: 'Codex', role: 'implementer', runner: 'codex', status: 'completed' }] } } });
+    await prisma.taskGraphExecution.update({ where: { id: orphanJob.id }, data: { taskRunId: finishedRun.id } });
+    await releaseTaskRunWriter(finishedRun.id, writer.nonce);
+    const child = spawn(process.execPath, ['-e', 'process.stdout.write("ready");setInterval(()=>{},1000)'], { env: { ...process.env, AP_GRAPH_WRITER_NONCE: writer.nonce }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const requeue: ExecutionOutcomeRequest = { executionId: orphanJob.id, claimToken: 'orphan', expectedRevision: 1, outcomeId: 'retry', outcome: { kind: 'platform_retry', failure: { code: 'environment_failed', detail: 'Retry after native cleanup' } } };
+    try {
+      await once(child.stdout, 'data');
+      await assert.rejects(applyExecutionOutcome(requeue), /actual writer exit proof/);
+      assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: orphanJob.id } })).status, 'claimed');
+    } finally { const exit = once(child, 'exit'); child.kill('SIGTERM'); await exit; }
+    assert.equal((await applyExecutionOutcome(requeue)).platformAttempts, 1);
+    await prisma.taskRun.delete({ where: { id: finishedRun.id } });
     console.log('Durable outcomes: revision/token fencing, duplicate budgets, immutable dispatch, candidate retention and explicit exhausted state');
   } finally {
     await prisma.taskGraphRun.delete({ where: { id: run.id } });
