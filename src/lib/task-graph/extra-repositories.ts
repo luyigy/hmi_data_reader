@@ -50,5 +50,5 @@ export async function prepareExtraRepositories(repositories: ExtraRepository[] =
   }
   const env: Record<string, string> = details.length ? { TASK_GRAPH_EXTRA_REPOS_JSON: JSON.stringify(details) } : {};
   return { paths: Array.from(new Set(paths)), writablePaths, details, env,
-    instructions: details.length ? `\n已批准 extra repo：${JSON.stringify(details)}。这些是项目现有目录，非固定版本副本；使用这里的实际路径与已有环境，不再复制源码。只可按所列权限访问；Git 提交/合并由平台或明确批准的仓内执行处理，不自动提交额外仓改动。额外仓不属于临时目录，不能删除或清理。存在未提交的额外仓修改时须明确报告，不能将其当成已集成交付。` : '' };
+    instructions: details.length ? `\n已批准 extra repo：${JSON.stringify(details)}。这些是项目现有目录，非固定版本副本；此声明提供目录权限；若固定输入清单包含同仓前置交付，消费交付必须使用清单的 sourcePath、commit 与环境，不能用此目录当前 HEAD 或未提交文件替代。只可按所列权限访问；Git 提交/合并由平台或明确批准的仓内执行处理，不自动提交额外仓改动。额外仓不属于临时目录，不能删除或清理。存在未提交的额外仓修改时须明确报告，不能将其当成已集成交付。` : '' };
 }

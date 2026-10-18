@@ -65,7 +65,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
   const candidates = all.filter(item => required.has(item.key)).flatMap(item => item.executions.map(job => ({ ...job, nodeKey: item.key, quality: item.status })));
   const policy = planned.consumeUpstream || 'direct';
   const selected = policy === 'none' ? [] : candidates.filter(job => Array.isArray(policy) ? policy.includes(`${job.nodeKey}/${job.key}`) : planned.dependsOn.includes(job.nodeKey));
-  const repositories = Array.from(new Set(selected.map(job => job.repository).filter(repo => repo !== primaryRepository && (!planned.extraRepositories?.some(extra => extra.repository === repo) || planned.services?.some(service => candidates.some(job => `${job.nodeKey}/${job.key}` === service.input && job.repository === repo)))))).sort();
+  const repositories = Array.from(new Set(selected.map(job => job.repository).filter(repo => repo !== primaryRepository))).sort();
   const inputs: Input[] = [];
   for (const repository of repositories) {
     const jobs = candidates.filter(job => job.repository === repository);

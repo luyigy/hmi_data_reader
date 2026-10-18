@@ -50,7 +50,8 @@ async function main() {
     unlinkSync(path.join(extra.directory, 'external-link'));
     writeFileSync(path.join(extra.directory, 'temporary.tmp'), 'keep original file');
     const pinned = await prepareUpstreamInputs(job.id);
-    assert.equal(pinned.manifest.inputs.length, 0, 'Explicit extra repo uses its existing directory rather than copying predecessor source');
+    assert.equal(pinned.manifest.inputs.length, 1, 'Extra repo permission preserves the predecessor delivery binding');
+    assert.equal(pinned.manifest.inputs[0].commit, extra.commit);
     const inputs = await graphInputsForTask(child.id); assert.deepEqual(inputs.writablePaths, [extra.directory]);
     assert.equal(JSON.parse(inputs.env.TASK_GRAPH_EXTRA_REPOS_JSON)[0].repository, extra.directory);
     assert.match(formatGraphProposal(definition), /附加仓库授权/); assert.match(formatGraphProposal(definition), /读写/);
