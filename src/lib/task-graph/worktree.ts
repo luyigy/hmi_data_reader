@@ -391,3 +391,24 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
   }
   await git(repo, 'update-ref', '-d', branch, jobHead);
 }
+
+/** Read-only ownership check for importing an existing registered execution into durable progress. */
+export async function inspectJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef'>): Promise<JobWorktree & { head: string }> {
+  const repo = await repositoryRoot(request.repoPath);
+  const root = await fs.realpath(request.worktreeRoot || path.join(path.dirname(repo), '.agent-platform-task-graph-worktrees'));
+  const target = jobPath(root, repo, request.runId, request.jobId);
+  const branch = jobBranch(request.runId, request.jobId);
+  const registered = findWorkspace(await worktrees(repo), target);
+  if (!registered || registered.branch !== branch || await git(target, 'symbolic-ref', 'HEAD') !== branch ||
+      await git(target, 'rev-parse', '--path-format=absolute', '--git-common-dir') !== await git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')) {
+    throw new TaskGraphGitError('workspace_collision', 'Legacy adoption requires registered run/job ownership', target);
+  }
+  const gitDirectory = await git(target, 'rev-parse', '--absolute-git-dir');
+  if (await fs.access(path.join(gitDirectory, 'MERGE_HEAD')).then(() => true, () => false)) throw new TaskGraphGitError('integration_conflict', 'Pending merge must remain intact during legacy adoption', target);
+  const head = await git(target, 'rev-parse', 'HEAD');
+  await exactCommit(repo, request.baseCommit);
+  if (!await isAncestor(repo, request.baseCommit, head) || request.resumeCommit && !await isAncestor(repo, request.resumeCommit, head)) {
+    throw new TaskGraphGitError('workspace_collision', 'Legacy candidate diverged from its recorded baseline or checkpoint', target);
+  }
+  return { path: target, branch, baseCommit: request.baseCommit, head };
+}

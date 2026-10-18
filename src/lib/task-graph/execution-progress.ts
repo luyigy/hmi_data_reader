@@ -110,7 +110,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       return progress;
     }
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
-    const reviewRepair = current.status === 'integrated' && args.outcome.kind === 'repair_required' && ['architecture', 'acceptance'].includes(before.phase);
+    const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     if ((!reviewRepair && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
     if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
         args.outcome.kind === 'repair_required' && !['check', 'integrate', 'architecture', 'acceptance'].includes(before.phase) ||
