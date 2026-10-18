@@ -229,6 +229,13 @@ def attach_contract(result: dict, classification: dict | None = None) -> dict:
     """把契约键写入 result 顶层并返回 result（原地修改，幂等）。"""
     catalog = _field_catalog()
     registry = _profile_registry()
+    binding = result.get("compatibility") or {}
+    if (binding.get("status") == "compatible"
+            and binding.get("profile_id") == result.get("template_name", "").removesuffix(".json")):
+        registry = {**registry, binding["profile_id"]: {
+            "template": "published/", "controller_family": result["controller_family"],
+            "page_type": result["page_type"], "layout_variant": binding["page_identity"]["layout_variant"],
+            "status": binding["profile_status"]}}
 
     layout_variant = _resolve_layout_variant(result)
     result["hmi_variant"] = layout_variant or "unknown"

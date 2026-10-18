@@ -91,3 +91,46 @@ coverage.status 为 complete/partial/not_observed/unsupported，按声明范围�
 Reader 修改规范、schema、页面定义及样例，生成版本/hash；Model 更新接纳快照和双端兼容测试。新字段验证、人工来源校验、旧响应适配、温区唯一性和状态穷尽测试同时交付。
 
 冻结旧合同哈希，历史记录按原版本回放。不得修改已发布版本文件内容。废弃版本仍可回放但可禁止用于新采集。工艺解释和正式业务 schema 始终由 Model 管理。
+
+## 8. R02 控制器绑定输入与兼容回执
+
+HTTP `POST /api/v1/recognize` 接受可选查询参数 `controller_hint`，值为 JSON 字符串。脚本 `extract_fields.py --controller-hint <JSON文件>` 使用相同结构。旧调用方不传提示时继续原路由。绑定由调用方按获批机台修订传入，Reader 不创建机台绑定，也不从品牌猜控制器。
+
+```json
+{
+  "brand": "BOLE",
+  "controller_family": "B_AND_R",
+  "interface_generation": null,
+  "binding_revision": 1,
+  "pages": [
+    {
+      "profile_id": "b_and_r.injection_metering.real_photo",
+      "version": "1.0.0",
+      "package_sha256": "由页面包 GET 响应计算的 SHA-256"
+    }
+  ]
+}
+```
+
+示例 profile 是行为验证在隔离目录发布的页面，不代表生产目录已发布。`pages` 是列表，以完整 `profile_id` 区分页型和版式，同页型可有多项；一个绑定中同一 profile 只允许一个版本。包哈希采用 UTF-8、`ensure_ascii=False`、排序键、紧凑分隔符、禁止非有限数值的完整包 JSON。绑定须固定版本和包哈希，不能只引用活动指针。
+
+新草稿可携带 `page_identity`，冻结在模板及包中，目录 GET 同时返回它。身份包含 `brand`、`controller_family`、`interface_generation`、`page_type`、`layout_variant` 和非空 `evidence_sample_ids`。页型/版式须与模板一致，证据样本必须在本包中。经管理员核对的控制器身份使用原样字符串；代际没有依据时为 null，只与 null 提示匹配，不代表已验证任何代际。审核仍由已有管理员发布权限约束，样本引用校验不替代语义审核。历史包不补写元数据，不自动变成已核实控制器包。
+
+带提示时，Reader 只从绑定冻结包中选页，必须命中 OCR 页锚点。图像分类和模板指纹分别保留，任一相反证据都不能被提示或另一分类结果覆盖。多个候选或绑定外相反页证据拒绝成功。即使冻结包可回放，当前页面停用也禁止新识读；读取旧包和离线回放仍保留。活动版本升级不改变旧绑定，回滚通过已有新版本发布流程复制旧配置，版本历史追加保留。
+
+识读响应的 `compatibility` 独立于字段识读 `status`。`compatible` 只表示页面/包匹配，不表示字段齐全或 Model 可写入。成功回执包含选择依据、图像家族证据、绑定修订、profile、固定包版本/哈希、页面身份和 profile 生命周期状态。Reader 不输出 Model 业务接纳资格。
+
+| compatibility.status | code | 行为 |
+| --- | --- | --- |
+| compatible | PAGE_COMPATIBLE | 使用 OCR 与固定包选定页面，保留实际字段识读结果 |
+| unknown | PAGE_UNKNOWN / CONTROLLER_UNKNOWN | 未找到已绑定页或注册控制器；带提示时不输出通用字段 |
+| disabled | PAGE_TEMPLATE_DISABLED | 页面停用，新识读拒绝；旧包 GET 保留 |
+| conflict | PAGE_BINDING_MISMATCH / PAGE_TEMPLATE_CONFLICT | 控制器/代际错绑、相反图像证据或多个页候选，拒绝输出字段 |
+| incompatible | PAGE_PACKAGE_INCOMPATIBLE | 包版本不存在、包结构不支持或哈希不符，拒绝输出字段 |
+| incompatible | CONTROLLER_METADATA_UNVERIFIED | 冻结模板无经核实身份，禁止提示强制选页 |
+| incompatible | EXTRACTOR_VERSION_INCOMPATIBLE / EXTRACTOR_PAGE_INCOMPATIBLE / EXTRACTOR_CONTRACT_INCOMPATIBLE | 既有提取器/合同检查拒绝，不进入通用提取 |
+| incompatible | CONTROLLER_HINT_INVALID | HTTP 输入返回 422；CLI 无效 JSON 文件返回参数错误 |
+
+停用、冲突、不兼容在任何分辨率救援或重提取中都保留提示并拒绝 generic fallback。带提示的未知页也拒绝通用提取。无提示未知页保留旧通用提取行为，同时报告 `compatibility.status=unknown`。`observations_version=v2` 的现有拒绝 HTTP 422 继续保留相同原因 code；R02 不扩展 DEMAG 原屏 v2 的页面支持范围。
+
+行为入口为 `tests/test_hmi_protocol_library_r02.py`，用已有原图、实时 CPU OCR、真实 HTTP multipart、CLI 子进程、受控发布和包 GET/新客户端读回分别验证。所有新发布仅在受管输出的隔离目录。样本已用于开发，不作独立留出集。Model 机台持久化、浏览器和业务保存重开由相应 Model 票及平台独立验收负责。

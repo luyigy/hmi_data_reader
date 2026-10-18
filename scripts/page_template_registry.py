@@ -17,6 +17,8 @@ BLOCKED_PAGE_SOURCES = {
     "EXTRACTOR_PAGE_INCOMPATIBLE": "EXTRACTOR_PAGE_INCOMPATIBLE",
     "EXTRACTOR_CONTRACT_INCOMPATIBLE": "EXTRACTOR_CONTRACT_INCOMPATIBLE",
 }
+from controller_binding import BLOCKED_CODES
+BLOCKED_PAGE_SOURCES.update({code: code for code in BLOCKED_CODES})
 
 def registered_page_templates(family: str, templates_dir: Path,
                               page: str | None = None,

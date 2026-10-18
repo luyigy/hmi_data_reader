@@ -348,7 +348,8 @@ def cell_rescue_better(old: dict, new: dict) -> bool:
 
 
 def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
-                machine_labels: dict | None, templates_dir: Path) -> dict:
+                machine_labels: dict | None, templates_dir: Path,
+                controller_hint: dict | None = None) -> dict:
     ocr_path = rectified_dir / f"{stem}.ocr.json"
     meta_path = rectified_dir / f"{stem}.rectify.json"
     result = {"image": stem, "status": "reject", "warnings": []}
@@ -363,6 +364,14 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         return result
 
     lines = ocr_data.get("lines", [])
+    if controller_hint is not None:
+        from controller_binding import parse_hint
+        try:
+            controller_hint = parse_hint(controller_hint)
+        except (ValueError, TypeError):
+            result.update(compatibility={"status": "incompatible", "code": "CONTROLLER_HINT_INVALID"})
+            result["warnings"].append("CONTROLLER_HINT_INVALID")
+            return result
     family, family_src = route_family(stem, lines, record_report, machine_labels)
     clahe_path = rectified_dir / f"{stem}.ocr_clahe.json"
     clahe_lines = None
@@ -388,7 +397,25 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             family, family_src = "INDUSTRIAL_CHILLER", "mold_temp_lcd_signature"
     page, page_src, template = resolve_page_template(
         stem, lines, family, templates_dir, extra_anchor_lines=mt_lines)
-    if family_src == "mold_temp_lcd_signature":
+    if controller_hint is not None:
+        from controller_binding import select_bound_page
+        evidence = lines + mt_lines
+        image_family, _ = route_family("", evidence, None, None)
+        detected = detect_family_from_templates(evidence, templates_dir)
+        page, page_src, template, receipt = select_bound_page(
+            controller_hint, evidence, image_family, templates_dir, detected_family=detected)
+        if template is None:
+            receipt.update(status={"PAGE_UNKNOWN": "unknown", "CONTROLLER_UNKNOWN": "unknown",
+                                   "PAGE_TEMPLATE_DISABLED": "disabled",
+                                   "PAGE_BINDING_MISMATCH": "conflict",
+                                   "PAGE_TEMPLATE_CONFLICT": "conflict"}.get(page_src, "incompatible"),
+                           code=page_src)
+            result.update(compatibility=receipt, page_type=page, controller_family=image_family)
+            result["warnings"].append(page_src)
+            return result
+        family, family_src = template["ui_family"], "controller_binding"
+        result["compatibility"] = receipt
+    if family_src == "mold_temp_lcd_signature" and controller_hint is None:
         page, page_src = "mold_temp", "mold_temp_lcd_signature"
         template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
@@ -420,6 +447,7 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                 template = alt_tpl
     if template is None:
         # Unrecognized screens retain observations for operator review.
+        result["compatibility"] = {"status": "unknown", "code": "PAGE_UNKNOWN"}
         generic_lines = lines
         if clahe_lines is not None:
             generic_lines, _ = merge_variant_lines(lines, clahe_lines)
@@ -608,7 +636,15 @@ def main():
     ap.add_argument("--capabilities", action="store_true", help="输出受控提取能力目录 JSON")
     ap.add_argument("--observations-version", choices=("v1", "v2"), default="v1")
     ap.add_argument("--original-image", type=Path, help="v2 requires the actual source image")
+    ap.add_argument("--controller-hint", type=Path, help="JSON pinned controller binding")
     args = ap.parse_args()
+    controller_hint = None
+    if args.controller_hint:
+        from controller_binding import parse_hint
+        try:
+            controller_hint = parse_hint(args.controller_hint.read_text())
+        except (OSError, ValueError, TypeError):
+            ap.error("CONTROLLER_HINT_INVALID")
     if args.observations_version == "v2" and (not args.original_image or len(args.stems) != 1 or args.all):
         ap.error("v2 requires one stem and --original-image")
     if args.capabilities:
@@ -632,7 +668,8 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     counts = {"ok": 0, "review": 0, "reject": 0}
     for stem in stems:
-        r = extract_one(stem, rectified_dir, record_report, machine_labels, Path(args.templates_dir))
+        r = extract_one(stem, rectified_dir, record_report, machine_labels, Path(args.templates_dir),
+                        controller_hint=controller_hint)
         if args.observations_version == "v2":
             import hashlib
             import cv2

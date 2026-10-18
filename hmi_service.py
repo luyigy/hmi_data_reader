@@ -143,7 +143,13 @@ async def readiness_check():
 @app.post("/api/v1/recognize")
 @app.post("/recognize")
 async def recognize_image(file: UploadFile = File(...), include_review_image: bool = False,
-                          observations_version: str = "v1"):
+                          observations_version: str = "v1", controller_hint: str | None = None):
+    if controller_hint is not None:
+        from controller_binding import parse_hint
+        try:
+            controller_hint = parse_hint(controller_hint)
+        except (ValueError, TypeError):
+            raise HTTPException(422, detail={"code": "CONTROLLER_HINT_INVALID"}) from None
     if observations_version not in ("v1", "v2"):
         raise HTTPException(status_code=422, detail="OBSERVATIONS_VERSION_UNSUPPORTED")
     if not is_ready:
@@ -352,7 +358,8 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 # 6. 字段提取
                 record_report = json.loads(RECORD_REPORT.read_text()) if RECORD_REPORT.is_file() else None
                 machine_labels = json.loads(MACHINE_LABELS.read_text()) if MACHINE_LABELS.is_file() else None
-                extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates")
+                extract_res = extract_one(stem, rect_dir, record_report, machine_labels, HERE / "templates",
+                                          controller_hint=controller_hint)
                 if (extract_res.get("profile_id") == "tact5.process_settings.injection_holding_metering"
                         and rr.get("ok")):
                     try:
@@ -383,7 +390,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                         ocr_data["line_count"] = len(lines)
                         ocr_json.write_text(json.dumps(ocr_data, ensure_ascii=False, indent=2))
                         extract_res = extract_one(stem, rect_dir, record_report,
-                                                  machine_labels, HERE / "templates")
+                                                  machine_labels, HERE / "templates", controller_hint=controller_hint)
                 # 6b. 083 S03 温度表逐格重读救援：B&R/DEMAG 温度页缺格/列结构失败时，
                 # 按实测网格逐格 rec 重读生成旁车（ocr_tcells）后重提取一次；
                 # 仅缺格变少才采用，网格实测失败不生成旁车、保持原结果。
@@ -403,7 +410,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                             measured=extract_res.get("extraction_detail"))
                         if n_cells:
                             ext2 = extract_one(stem, rect_dir, record_report,
-                                               machine_labels, HERE / "templates")
+                                               machine_labels, HERE / "templates", controller_hint=controller_hint)
                             if cell_rescue_better(extract_res, ext2):
                                 ext2.setdefault("warnings", []).append(
                                     f"CELL_GRID_RESCUE({n_cells})")
@@ -513,6 +520,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                     "page_confidence": cls_res.get("page_confidence"),
                 },
                 "fields": extract_res.get("fields", {}),
+                "compatibility": extract_res.get("compatibility"),
                 "hmi_variant": extract_res.get("hmi_variant"),
                 # 039_FIX：模板指纹兜底解析出的家族/页面（classify_ui 关键词表之外的家族
                 # 如 EST）必须透出，否则响应里只剩 classification 的 unknown，Web 门禁误杀。

@@ -129,7 +129,9 @@ def list_templates():
                     continue
                 raise
             result.append({"profile_id": item["profile_id"], "version": template["version"],
-                           "enabled": template.get("enabled", True)})
+                           "enabled": template.get("enabled", True),
+                           **({"page_identity": template["page_identity"]}
+                              if template.get("page_identity") else {})})
     return result
 
 

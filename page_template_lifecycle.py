@@ -52,6 +52,11 @@ def _check_base(current, expected_version):
 
 
 def _validate(profile_id, template, samples):
+    from scripts.controller_binding import validate_identity
+    try:
+        validate_identity(template, samples)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise HTTPException(422, str(exc)) from None
     if template.get("profile_id") != profile_id or not VERSION.fullmatch(str(template.get("version", ""))):
         raise HTTPException(422, "Invalid template identity or version")
     if template.get("extractor") != "registered_extractor":
@@ -210,6 +215,8 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
                 registry["profiles"].append(entry)
             entry.update(template=relative, controller_family=template["ui_family"],
                          page_type=template["page"], layout_variant=template.get("layout_variant", ""))
+            if template.get("page_identity"):
+                entry["page_identity"] = template["page_identity"]
             atomic_json(root / "contracts/profiles.json", registry)
         except OSError as exc:
             raise HTTPException(503, f"Publication storage failed: {exc}") from None
