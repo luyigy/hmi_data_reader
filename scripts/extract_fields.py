@@ -606,7 +606,11 @@ def main():
     ap.add_argument("--labels", default=str(MACHINE_LABELS))
     ap.add_argument("--templates-dir", default=str(TEMPLATES_DIR))
     ap.add_argument("--capabilities", action="store_true", help="输出受控提取能力目录 JSON")
+    ap.add_argument("--observations-version", choices=("v1", "v2"), default="v1")
+    ap.add_argument("--original-image", type=Path, help="v2 requires the actual source image")
     args = ap.parse_args()
+    if args.observations_version == "v2" and (not args.original_image or len(args.stems) != 1 or args.all):
+        ap.error("v2 requires one stem and --original-image")
     if args.capabilities:
         print(json.dumps(capabilities(), ensure_ascii=False))
         return
@@ -629,6 +633,34 @@ def main():
     counts = {"ok": 0, "review": 0, "reject": 0}
     for stem in stems:
         r = extract_one(stem, rectified_dir, record_report, machine_labels, Path(args.templates_dir))
+        if args.observations_version == "v2":
+            import hashlib
+            import cv2
+            from raw_page import observe_raw_page
+            if r.get("profile_id") != "demag.injection_metering.multi_stage_holding":
+                ap.error(next((warning for warning in r.get("warnings", [])
+                               if warning in BLOCKED_PAGE_SOURCES.values()), "RAW_PAGE_UNSUPPORTED"))
+            original_bytes = args.original_image.read_bytes()
+            original = cv2.imread(str(args.original_image))
+            meta = json.loads((rectified_dir / f"{stem}.rectify.json").read_text())
+            if original is None or list(reversed(original.shape[:2])) != meta.get("original_size"):
+                ap.error("Original image dimensions disagree with rectification evidence")
+            if meta.get("original_sha256") != hashlib.sha256(original_bytes).hexdigest():
+                ap.error("Original image hash disagrees with rectification evidence")
+            ocr = json.loads((rectified_dir / f"{stem}.ocr.json").read_text())
+            rectified = cv2.imread(str(rectified_dir / f"{stem}.png"), cv2.IMREAD_GRAYSCALE)
+            if r.get("profile_id") == "demag.injection_metering.multi_stage_holding" and rectified is not None:
+                from paddleocr import PaddleOCR
+                from raw_page_ocr import engine_identity, recover_raw_cells
+                engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+                ocr["lines"] = recover_raw_cells(engine, rectified, meta, ocr["lines"])
+            r["page_observations"] = observe_raw_page(
+                r.get("profile_id"), ocr["lines"], meta,
+                hashlib.sha256(original_bytes).hexdigest(),
+                rectified)
+            r["raw_ocr_evidence"] = ocr
+            r["page_observations"]["engine"] = (engine_identity(engine) if r.get("profile_id") == "demag.injection_metering.multi_stage_holding" and rectified is not None
+                                                  else {"library": "provided_ocr_sidecar", "version": ocr.get("model")})
         counts[r["status"]] += 1
         out_path = out_dir / f"{stem}.fields.json"
         out_path.write_text(json.dumps(r, ensure_ascii=False, indent=2))

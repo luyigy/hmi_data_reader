@@ -96,3 +96,32 @@ The current playbook is Session pickup. The Feature record above is inherited ev
 Evidence: resume-probes.json, resume-vlm.json, resume-ticket-behavior.log, resume-read-versions.json. The playbook anchor check ran successfully again. Skill and playbook SHA-256 values are recorded in resume-read-versions.json.
 
 The throughput checkpoint remains unchanged: one writer; primary worktree only; extra source and Python environments read-only; no database; material validation before freezing page identities or fields. No code symbols changed, so no new symbol impact analysis is required. No PR, dispatch, Git mutation, dependency installation, or source-repository write.
+
+## Resume at f0f4b05, OCR-only implementation
+
+- Session pickup steps above applied to current checkpoint f0f4b05d6b48fbe9c40bae8b3608aebe730f215a. Existing Spec correction preserved byte for byte.
+- Prior material blocker overridden by current approved Spec section 识读路径更正. Existing image suffices to implement; disputed facts remain explicit unknown. No VLM or external material fetch used.
+- Architecture ground/sketch/agree completed. Read-only helper compared modifying legacy extractors with explicit v2 boundaries. Chose the latter to retain v1 replay. No additional writer. Platform owns acceptance.
+- Data shape: immutable raw field definition plus versioned observations. Definition owns physical identity and display order; OCR owns text/confidence/boxes; Model owns business interpretation. One module owns numeric page adaptation, no business engine.
+- Throughput: one assigned writer; read-only upstream f6a4c64e7dbd94431391e1018a1065df8221c75d; no database/shared environment writes; verify v2 then pinned legacy regression.
+- Scope reaches HTTP, CLI, raw package export, schema, fixed field definitions, required behavior tests. Feishu remains a v1 caller using extract_one unchanged.
+- Impact warning: extract_one CRITICAL from prior graph; main LOW; recognize_image LOW; exporter LOW; rectify CRITICAL (6 direct callers, 7 affected processes). Rectify change adds source hash only. No algorithm change.
+- GitNexus test symbols absent from stale graph; index rebuild started before test edits.
+- [ ] Complete source provenance and offline validation.
+- [ ] Execute exact behavior entry and regressions.
+- [ ] Report actual A01/A04/A05/A18 boundaries and platform acceptance pending.
+
+## Current attempt completion evidence
+
+- [x] Remaining Feature implementation completed for this Reader numeric-page slice. Explicit v2 boundary keeps v1 default and legacy replay. Full declared field definition, source union, template-unit provenance, actual OCR coordinates and frozen offline package are present.
+- [x] Package integrity strengthened after advisory review. Missing frozen artifacts, component drift, missing provenance, hash tampering, duplicates, nonfinite values and invalid manual recognition evidence reject explicitly.
+- [x] Exact ticket-behavior command completed with 11 passed. Actual OCR, ASGI multipart HTTP, CLI subprocess, offline form/schema import and v1 replay were executed.
+- [x] Matching shared-geometry/legacy/R02 regression command completed with 110 passed, 22 subtests passed and 2 explicit historical-artifact skips. Initial collection-path failure is retained alongside the corrected result.
+- [x] Package GET, new-client reopen and CLI export matched without invoking OCR. This is not Model business/browser reopen.
+- [x] Coverage and unresolved original-screen facts are reported explicitly. 27 fields are declared, 17 readings known; checkbox controls unsupported, unverified status readings uncertain, disputed third-pressure state unknown. No blanket complete-page reliability claim.
+- [x] Current Model HEAD and read tracked files checked against approved Git objects. Untracked material excluded; no source/DB/environment writes.
+- [x] detect_changes all/compare-master executed. CRITICAL shared-entry/geometry scope recorded. New untracked files separately inventoried and hashed; graph results are not a complete new-file review.
+- [x] Existing Spec correction preserved. No add, commit, merge, reset, stash, PR, scheduling or other Slice execution.
+- [ ] Platform independent acceptance, Model business GET/reopen and final integration SHA remain coordinator-owned and are not claimed by the author.
+
+Bundled Session pickup was completed and routed back to Feature. Original Feature steps remain above. Step 4 and Step 6/8 use the approved project substitutions. Step 2 compared two shapes through a read-only helper and author analysis, not a full diverse-model arena. Step 7 skip: no contested implementation design remained. Advisory review is not the platform acceptance verdict. Current report: current-report.md. Current receipt: current-receipt.json.

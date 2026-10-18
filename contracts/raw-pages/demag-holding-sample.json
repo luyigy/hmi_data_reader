@@ -1,0 +1,56 @@
+{
+  "sample_id": "Z002_ab30f6f6",
+  "purpose": "development_exposed_not_independent_test",
+  "original_path": "ground_truth/demag_holding/holding_Z002_ab30f6f6.jpeg",
+  "original_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+  "original_size": [
+    994,
+    650
+  ],
+  "human_truth": {
+    "path": "ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json",
+    "sha256": "b2e3364d636067b5f0b19b1b19b4c1025afa6fb38dd376ca628d457a8bcf9755",
+    "scope": "holding pressure stages 1-3, duration stages 1-2, velocity stages 1-3; state of pressure stage 3 is disputed"
+  },
+  "full_page_transcription": {
+    "source": "R01 implementer visual audit of repository original, 2026-10-18",
+    "independent": false,
+    "values": {
+      "holding.velocity.stage-1": 15,
+      "holding.velocity.stage-2": 10,
+      "holding.velocity.stage-3": 5,
+      "holding.velocity.stage-4": 0,
+      "holding.pressure.stage-1": 65,
+      "holding.pressure.stage-2": 50,
+      "holding.pressure.stage-3": 0,
+      "holding.pressure.stage-4": 0,
+      "holding.duration.stage-1": 2,
+      "holding.duration.stage-2": 3,
+      "holding.duration.stage-3": 0,
+      "actual.switch_pressure": 38,
+      "actual.holding_pressure": 53.1,
+      "actual.position": 12.52,
+      "actual.cushion": 12.52,
+      "chart.time_extent": 5,
+      "chart.time_origin": 0,
+      "status.left_displacement": 0,
+      "status.middle_displacement": -0.52,
+      "status.right_displacement": 12.52,
+      "status.integer_display": 15070717,
+      "status.duration_display": 0.456
+    },
+    "unverified_semantics": [
+      "status.*",
+      "chart.*",
+      "controller_family",
+      "interface_generation"
+    ],
+    "uncertain_ocr": [
+      "status.middle_displacement"
+    ],
+    "unsupported_readings": [
+      "checkbox controls"
+    ],
+    "state_arbitration": "Third pressure state remains unknown because the dated source rulings conflict. No updated human ruling is invented."
+  }
+}

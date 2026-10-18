@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -86,6 +87,7 @@ def rectify(image_path: Path, output_path: Path, meta_path: Path | None = None,
         "screen_quad": src,
         "screen_size": size,
         "original_size": [img.shape[1], img.shape[0]],
+        "original_sha256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
         "output_path": str(output_path),
         "warnings": [],
     }

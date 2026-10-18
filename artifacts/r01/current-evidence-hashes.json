@@ -1,0 +1,20 @@
+{
+  "artifacts/r01/current-changed-files.txt": "cd67af3d222f80fa7c13c7537a1008254fc31183836ddc72cea1deb91efa430f",
+  "artifacts/r01/current-exported-package.json": "8e0fdd8a9373ebbfe6896ccf165a0bb32b937f385e7beb55f9c91bf581989305",
+  "artifacts/r01/current-final-regression-corrected.log": "d655c6e12be1a25158f6e9969f844dd0d010564ff561705326fa714c5a2e0638",
+  "artifacts/r01/current-final-regression.log": "ac2475acdf0561feb9fff695b34f81d08a5fd5a894ce3949654ed17d2d0a5b02",
+  "artifacts/r01/current-final-ticket-behavior.log": "164448cf5c195a75b4675e278aa71a81f01f2bdf20560bcb434105275938c5b1",
+  "artifacts/r01/current-gitnexus-scope.json": "da34d965543504e32f1784d59e0eacb9e21f50c0191fdd0f4d7f876873ead5b3",
+  "artifacts/r01/current-live-http.json": "a48b3fe2c297aefd95368b110a175b362a2a510589f6a584698d79d1e0986198",
+  "artifacts/r01/current-live-lines.json": "ac8cef94fcbc7311240b5253b4f9c862a42e1a88e7f6522a30ddf5b1bed4c32a",
+  "artifacts/r01/current-live-rectify.json": "96c831b9cd42d2c201446603bf6e1be54bacf00aa22afbf9f44a69025b4bb02a",
+  "artifacts/r01/current-live-script.json": "ad28e748bc836a2626bf481efb1f80cee938dbe96e3e7cb7ba08ca832a8780bf",
+  "artifacts/r01/current-model-live-schema.txt": "98ed81cb49fe2c87d3b48de091c8c1281ac3431353e173c9f1c9529bc0a9cc69",
+  "artifacts/r01/current-model-offline-import.json": "e6971f85cf31e34a769897669a1f23fa1724aee04eb4aa2c07d446665e51a895",
+  "artifacts/r01/current-package-get-reopen.json": "5a80e2c50be0053c8ba5bd7e962e050618c0ca947f52bf83aebd8702ca4e3171",
+  "artifacts/r01/current-read-versions.json": "d8bb6a142cbac48bc3ce527dbc8eb604bf3fbd6f32c2321b46f5c945b61a3df1",
+  "artifacts/r01/current-receipt.json": "529e3b4675738758e66eafb899432386222a83bdfec0f07b5ea1b49948baa837",
+  "artifacts/r01/current-report.md": "ede31f85db527f0e6ab47a145d41027239542b3b6c5b49a006b3db0b5c7ffb4d",
+  "artifacts/r01/current-source-hashes.json": "00470547ff53bae992a8aa36b0ea0919ccac77647c132da0e2e7798c4c83b408",
+  "artifacts/r01/current-upstream-verification.json": "52c46bde23c07914b3e9328db6bd4a865715bbfdeb9c1998695c61aef86a969d"
+}

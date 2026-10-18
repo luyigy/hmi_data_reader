@@ -1,0 +1,26 @@
+{
+  "checkpoint": "f0f4b05d6b48fbe9c40bae8b3608aebe730f215a",
+  "workspace_base": "63054287203bbceb7d07d3d96520eb4ede2dc235",
+  "reused_commits": [
+    "c5aa25a752d7912f114e30970c55b594346dd0f5",
+    "982ef2d021286ffff4e2e352af68b2efd6f0bf77"
+  ],
+  "reuse_evidence": "artifacts/r01/reuse.json; artifacts/r01/source-verification.json",
+  "final_integration_sha": null,
+  "integration_owner": "Agent Platform",
+  "original_repositories_written": false,
+  "git_metadata_written": false,
+  "model_source_sha": "f6a4c64e7dbd94431391e1018a1065df8221c75d",
+  "image_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+  "package_version": "0.3.0",
+  "package_sha256": "5a80e2c50be0053c8ba5bd7e962e050618c0ca947f52bf83aebd8702ca4e3171",
+  "raw_contract_sha256": "199b61caa60c60e3e5984c8e99034d0a7d9d06e820d3c1a6b90cae899f6215f6",
+  "raw_field_definition_sha256": "b0a574430a5c8e7fba72eebe534c9f0a1f4c0b29741205621fecd168166c7307",
+  "coverage": {
+    "status": "partial",
+    "declared": 27,
+    "known": 17
+  },
+  "automatic_business_write_eligibility": "not supplied by Reader",
+  "platform_independent_acceptance": "pending"
+}

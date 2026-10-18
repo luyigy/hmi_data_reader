@@ -142,7 +142,10 @@ async def readiness_check():
 
 @app.post("/api/v1/recognize")
 @app.post("/recognize")
-async def recognize_image(file: UploadFile = File(...), include_review_image: bool = False):
+async def recognize_image(file: UploadFile = File(...), include_review_image: bool = False,
+                          observations_version: str = "v1"):
+    if observations_version not in ("v1", "v2"):
+        raise HTTPException(status_code=422, detail="OBSERVATIONS_VERSION_UNSUPPORTED")
     if not is_ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -419,6 +422,8 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 return cls_res, extract_res, {
                     **review_image,
                     "_rectify_meta": rr,
+                    **({"_raw_gray": cv2.imread(str(ocr_target), cv2.IMREAD_GRAYSCALE)}
+                       if observations_version == "v2" else {}),
                     "model": ocr_data["model"],
                     "screen_size": rr["screen_size"],
                     "lines": [{
@@ -447,6 +452,24 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             review_image = ocr_evidence.pop("_review_image", None)
             rectify_meta = ocr_evidence.pop("_rectify_meta", {})
             page_observations = (extract_res.get("extraction_detail") or {}).get("page_observations")
+            if observations_version == "v2":
+                import hashlib
+                from raw_page import observe_raw_page
+                from raw_page_ocr import engine_identity, recover_raw_cells
+                if extract_res.get("profile_id") != "demag.injection_metering.multi_stage_holding":
+                    reason = next((warning for warning in extract_res.get("warnings", [])
+                                   if warning in BLOCKED_PAGE_SOURCES.values()), "RAW_PAGE_UNSUPPORTED")
+                    raise HTTPException(status_code=422, detail={"code": reason,
+                                                                "profile_id": extract_res.get("profile_id")})
+                raw_gray = ocr_evidence.pop("_raw_gray", None)
+                if extract_res.get("profile_id") == "demag.injection_metering.multi_stage_holding" and raw_gray is not None:
+                    ocr_evidence["lines"] = recover_raw_cells(ocr_model, raw_gray, rectify_meta,
+                                                            ocr_evidence["lines"])
+                page_observations = observe_raw_page(
+                    extract_res.get("profile_id"), ocr_evidence["lines"], rectify_meta,
+                    hashlib.sha256(content).hexdigest(),
+                    raw_gray)
+                page_observations["engine"] = engine_identity(ocr_model)
             if page_observations and page_observations.get("fields"):
                 from extract_families.tact5_process import project_boxes
                 project_boxes(page_observations["fields"], rectify_meta)

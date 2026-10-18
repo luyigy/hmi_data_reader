@@ -1,0 +1,548 @@
+{
+  "package_schema": "hmi_page_package.v1",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "samples": [
+    {
+      "manifest": {
+        "ocr_fixture": "tests/fixtures/demag_holding_z002_ocr.json",
+        "ocr_sha256": "65088d3a3e5dd310c7bc2ef5c5f68b205e247030c11a2a7c30b5e3b27a97d6d8",
+        "original_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+        "original_size": [
+          994,
+          650
+        ],
+        "photo_distribution": "原图保存在 Reader datasets/calibration/demag.injection_metering.multi_stage_holding；已参与识别修复，不作为独立留出图",
+        "profile_id": "demag.injection_metering.multi_stage_holding",
+        "purpose": "development_exposed_not_independent_test",
+        "sample_id": "Z002_ab30f6f6",
+        "truth_scope": "Z002 保压压力、时间、速度由领域所有者核对；第 3 段压力 0 为禁用残值，压力基准和字段原图框仍待确认"
+      },
+      "ocr": {
+        "lines": [
+          {
+            "bbox": [
+              3.0,
+              33.0,
+              111.0,
+              63.0
+            ],
+            "confidence": 0.9951691627502441,
+            "text": "实际切换"
+          },
+          {
+            "bbox": [
+              3.0,
+              76.0,
+              95.0,
+              106.0
+            ],
+            "confidence": 0.9886428117752075,
+            "text": "38.0bar"
+          },
+          {
+            "bbox": [
+              41.0,
+              124.0,
+              92.0,
+              153.0
+            ],
+            "confidence": 0.9988064765930176,
+            "text": "保压"
+          },
+          {
+            "bbox": [
+              9.0,
+              163.0,
+              99.0,
+              193.0
+            ],
+            "confidence": 0.9941279292106628,
+            "text": "53.1bar"
+          },
+          {
+            "bbox": [
+              45.0,
+              210.0,
+              102.0,
+              243.0
+            ],
+            "confidence": 0.9921557903289795,
+            "text": "位置"
+          },
+          {
+            "bbox": [
+              4.0,
+              250.0,
+              112.0,
+              280.0
+            ],
+            "confidence": 0.9971851110458374,
+            "text": "12.52mm"
+          },
+          {
+            "bbox": [
+              41.0,
+              294.0,
+              120.0,
+              326.0
+            ],
+            "confidence": 0.9675886034965515,
+            "text": "余料量"
+          },
+          {
+            "bbox": [
+              13.0,
+              336.0,
+              118.0,
+              361.0
+            ],
+            "confidence": 0.9961951375007629,
+            "text": "12.52mm"
+          },
+          {
+            "bbox": [
+              226.0,
+              481.0,
+              308.0,
+              506.0
+            ],
+            "confidence": 0.920070469379425,
+            "text": "5.000s"
+          },
+          {
+            "bbox": [
+              930.0,
+              526.0,
+              967.0,
+              547.0
+            ],
+            "confidence": 0.9873058199882507,
+            "text": "0.0"
+          },
+          {
+            "bbox": [
+              1016.0,
+              521.0,
+              1060.0,
+              548.0
+            ],
+            "confidence": 0.9942197799682617,
+            "text": "5.0"
+          },
+          {
+            "bbox": [
+              1095.0,
+              520.0,
+              1143.0,
+              547.0
+            ],
+            "confidence": 0.9972567558288574,
+            "text": "10.0"
+          },
+          {
+            "bbox": [
+              219.0,
+              530.0,
+              335.0,
+              556.0
+            ],
+            "confidence": 0.856703519821167,
+            "text": "速度（mm/s）"
+          },
+          {
+            "bbox": [
+              1176.0,
+              518.0,
+              1227.0,
+              549.0
+            ],
+            "confidence": 0.9957562685012817,
+            "text": "15.0"
+          },
+          {
+            "bbox": [
+              220.0,
+              568.0,
+              321.0,
+              598.0
+            ],
+            "confidence": 0.8529254198074341,
+            "text": "压力ba]"
+          },
+          {
+            "bbox": [
+              1016.0,
+              566.0,
+              1056.0,
+              591.0
+            ],
+            "confidence": 0.9966788291931152,
+            "text": "0.0"
+          },
+          {
+            "bbox": [
+              1091.0,
+              567.0,
+              1140.0,
+              588.0
+            ],
+            "confidence": 0.9980876445770264,
+            "text": "50.0"
+          },
+          {
+            "bbox": [
+              1172.0,
+              564.0,
+              1224.0,
+              590.0
+            ],
+            "confidence": 0.9967279434204102,
+            "text": "65.0"
+          },
+          {
+            "bbox": [
+              221.0,
+              605.0,
+              307.0,
+              640.0
+            ],
+            "confidence": 0.849783718585968,
+            "text": "时间]"
+          },
+          {
+            "bbox": [
+              909.0,
+              613.0,
+              961.0,
+              628.0
+            ],
+            "confidence": 0.9961577653884888,
+            "text": "0.000"
+          },
+          {
+            "bbox": [
+              989.0,
+              607.0,
+              1054.0,
+              633.0
+            ],
+            "confidence": 0.9966837763786316,
+            "text": "3.000"
+          },
+          {
+            "bbox": [
+              1075.0,
+              608.0,
+              1135.0,
+              630.0
+            ],
+            "confidence": 0.9977937936782837,
+            "text": "2.000"
+          },
+          {
+            "bbox": [
+              1174.0,
+              731.0,
+              1267.0,
+              757.0
+            ],
+            "confidence": 0.996672511100769,
+            "text": "多级速度"
+          },
+          {
+            "bbox": [
+              906.0,
+              783.0,
+              1006.0,
+              807.0
+            ],
+            "confidence": 0.9995224475860596,
+            "text": "保压"
+          },
+          {
+            "bbox": [
+              1126.0,
+              783.0,
+              1213.0,
+              803.0
+            ],
+            "confidence": 0.9786849021911621,
+            "text": "0.52mm"
+          },
+          {
+            "bbox": [
+              1263.0,
+              784.0,
+              1327.0,
+              800.0
+            ],
+            "confidence": 0.9926063418388367,
+            "text": "12.52mm"
+          },
+          {
+            "bbox": [
+              693.0,
+              814.0,
+              774.0,
+              834.0
+            ],
+            "confidence": 0.9982624053955078,
+            "text": "15070717"
+          },
+          {
+            "bbox": [
+              863.0,
+              813.0,
+              926.0,
+              834.0
+            ],
+            "confidence": 0.9866993427276611,
+            "text": "0.456s"
+          },
+          {
+            "bbox": [
+              1302.0,
+              807.0,
+              1324.0,
+              827.0
+            ],
+            "confidence": 0.6961517930030823,
+            "text": "M"
+          },
+          {
+            "bbox": [
+              281.0,
+              861.0,
+              328.0,
+              888.0
+            ],
+            "confidence": 0.9996512532234192,
+            "text": "多级"
+          },
+          {
+            "bbox": [
+              427.0,
+              860.0,
+              475.0,
+              888.0
+            ],
+            "confidence": 0.9982545375823975,
+            "text": "多级"
+          },
+          {
+            "bbox": [
+              575.0,
+              860.0,
+              621.0,
+              887.0
+            ],
+            "confidence": 0.998540997505188,
+            "text": "多级"
+          },
+          {
+            "bbox": [
+              863.0,
+              857.0,
+              916.0,
+              884.0
+            ],
+            "confidence": 0.8980510234832764,
+            "text": "MVE"
+          },
+          {
+            "bbox": [
+              988.0,
+              852.0,
+              1081.0,
+              881.0
+            ],
+            "confidence": 0.9984070062637329,
+            "text": "动作调节"
+          },
+          {
+            "bbox": [
+              1155.0,
+              853.0,
+              1203.0,
+              880.0
+            ],
+            "confidence": 0.9962515830993652,
+            "text": "注射"
+          },
+          {
+            "bbox": [
+              133.0,
+              863.0,
+              181.0,
+              890.0
+            ],
+            "confidence": 0.998508632183075,
+            "text": "工艺"
+          },
+          {
+            "bbox": [
+              719.0,
+              871.0,
+              769.0,
+              898.0
+            ],
+            "confidence": 0.9987497329711914,
+            "text": "射座"
+          },
+          {
+            "bbox": [
+              132.0,
+              886.0,
+              184.0,
+              913.0
+            ],
+            "confidence": 0.9906384348869324,
+            "text": "优化"
+          },
+          {
+            "bbox": [
+              280.0,
+              887.0,
+              330.0,
+              913.0
+            ],
+            "confidence": 0.9956436157226562,
+            "text": "注射"
+          },
+          {
+            "bbox": [
+              429.0,
+              888.0,
+              474.0,
+              911.0
+            ],
+            "confidence": 0.9989815950393677,
+            "text": "保压"
+          },
+          {
+            "bbox": [
+              573.0,
+              885.0,
+              623.0,
+              913.0
+            ],
+            "confidence": 0.997389554977417,
+            "text": "预塑"
+          },
+          {
+            "bbox": [
+              866.0,
+              884.0,
+              914.0,
+              911.0
+            ],
+            "confidence": 0.995955765247345,
+            "text": "曲线"
+          },
+          {
+            "bbox": [
+              987.0,
+              883.0,
+              1078.0,
+              907.0
+            ],
+            "confidence": 0.9946388006210327,
+            "text": "注射单元"
+          },
+          {
+            "bbox": [
+              1152.0,
+              881.0,
+              1200.0,
+              905.0
+            ],
+            "confidence": 0.9981767535209656,
+            "text": "选项"
+          }
+        ],
+        "model": "paddleocr-2.7.3 (GPU singleton)",
+        "screen_size": [
+          1400,
+          914
+        ]
+      }
+    }
+  ],
+  "template": {
+    "business_profile_candidate": {
+      "algorithm": "protocol_replay_v1",
+      "controller": "DEMAG",
+      "decision_source": "ground_truth/demag_holding/holding_Z002_ab30f6f6.truth.json",
+      "field_units": {
+        "holding.pressure.{n}": "bar",
+        "holding.speed.uncollected": "mm/s",
+        "holding.speed.uncollected.{n}": "mm/s",
+        "holding.time.{n}": "s"
+      },
+      "field_write_review": {
+        "holding.pressure.{n}": "validate_in_main",
+        "holding.speed.uncollected": "observation_only",
+        "holding.speed.uncollected.{n}": "observation_only",
+        "holding.time.{n}": "validate_in_main"
+      },
+      "holding_time_meaning": "segment_duration",
+      "migration_notes": [
+        "普通 bar 保压页按机台液压压力；明确 bar_spez 的塑料压力页须单独核对，不套用液压默认值。各段速度在主仓无写入槽位。禁用段须对照原图人工确认。"
+      ],
+      "page_id": "demag.injection_metering.multi_stage_holding",
+      "page_kind": "multi_stage_holding",
+      "page_version": "1",
+      "possible_names": {
+        "holding.pressure.{n}": [
+          "保压压力{n}"
+        ],
+        "holding.speed.uncollected": [
+          "保压速度"
+        ],
+        "holding.speed.uncollected.{n}": [
+          "各段保压速度{n}"
+        ],
+        "holding.time.{n}": [
+          "保压时间{n}"
+        ]
+      },
+      "post_suck_back": {
+        "enabled": false
+      },
+      "pre_suck_back": {
+        "enabled": false
+      },
+      "pressure_basis": "hydraulic_pressure",
+      "rule_version": "s02.2",
+      "speed_unit": "mm/s",
+      "structural_markers": [
+        "多级保压"
+      ],
+      "verification_status": "sample_reviewed_partial"
+    },
+    "coordinate_system": "normalized_screen",
+    "curve_page": {
+      "row_y_hint": {
+        "position": 0.75,
+        "pressure": 0.68,
+        "velocity": 0.72
+      }
+    },
+    "description": "DEMAG 多级保压页；实际切换区是实测值，段表为设定值。选页须同时命中两个实图锚点。",
+    "layout_anchors": [
+      "保压",
+      "实际切换"
+    ],
+    "page": "injection_metering",
+    "page_version": "1",
+    "profile_id": "demag.injection_metering.multi_stage_holding",
+    "require_anchor_match": true,
+    "rule_version": "s02.2",
+    "sample_ids": [
+      "Z002_ab30f6f6"
+    ],
+    "ui_family": "DEMAG",
+    "version": "0.2.1"
+  },
+  "version": "0.2.1"
+}

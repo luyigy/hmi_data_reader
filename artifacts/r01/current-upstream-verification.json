@@ -1,0 +1,29 @@
+{
+  "head": "f6a4c64e7dbd94431391e1018a1065df8221c75d",
+  "tracked_inputs": [
+    {
+      "path": "docs/specs/hmi-protocol-library/spec.md",
+      "git_sha256": "98020d8ac1a013bf0e2dae5e67eb7bc8cd9fa7d002f03b698a1d8e50698c682a",
+      "working_bytes_match": true
+    },
+    {
+      "path": "docs/specs/hmi-protocol-library/acceptance.md",
+      "git_sha256": "0649015821dd7e47bbf9aa6df0377d1f571e3dc0b729afb482e99ec57c0f035c",
+      "working_bytes_match": true
+    },
+    {
+      "path": "backend/app/hmi_mapping/raw_capture.py",
+      "git_sha256": "b414b069e01b7e997a9d21a6c6617fc42c1d32fd4a65fd3125dc2bc9af1cc6eb",
+      "working_bytes_match": true
+    },
+    {
+      "path": "backend/app/hmi_mapping/page_package.py",
+      "git_sha256": "12f570469ee5dd6dae56877d26a6483fcf8427e21ac8b8039816783963eed4b9",
+      "working_bytes_match": true
+    }
+  ],
+  "untracked_status": "?? .agent-platform/\n?? contracts/hmi-reader/process-screen/\n",
+  "untracked_inputs_used": false,
+  "writes_to_source": false,
+  "database_access": false
+}
