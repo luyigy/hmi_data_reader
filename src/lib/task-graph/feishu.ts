@@ -1,4 +1,5 @@
 import { ensureGraphRoomParticipants } from './conversation-members';
+import { graphTopicDestination } from './repository-topic';
 import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
@@ -16,7 +17,7 @@ function childCard(title: string, state: 'pending' | 'ready') {
     config: { wide_screen_mode: true },
     header: { template: state === 'ready' ? 'green' : 'grey', title: { tag: 'plain_text', content: title } },
     elements: [{ tag: 'div', text: { tag: 'plain_text', content: state === 'ready'
-      ? '任务已放行，Agent 在独立 Git worktree 执行。进度与验收结论会同步到父任务话题。'
+      ? '详细进度与验收结论在当前子话题展示。路线摘要与状态入口同步到父任务。'
       : '正在绑定任务话题。' } }],
   };
 }
@@ -25,12 +26,9 @@ function childCard(title: string, state: 'pending' | 'ready') {
 export async function ensureGraphChildTopic(args: {
   parentTaskId: string; executionId: string; childTaskId: string; title: string; workingDirectory: string;
 }) {
-  const parent = await prisma.feishuConversationBinding.findFirst({
-    where: { liveRoom: { sourceTaskId: args.parentTaskId }, chatType: 'group', appId: { not: null } },
-    orderBy: { updatedAt: 'desc' },
-  });
-  if (!parent?.appId) return null;
-  const scope = { appId: parent.appId, chatId: parent.chatId };
+  const execution = await prisma.taskGraphExecution.findUnique({ where: { id: args.executionId }, select: { repository: true } });
+  const scope = await graphTopicDestination(args.parentTaskId, execution?.repository);
+  if (!scope) return null;
   const request = await reserveFeishuTaskBinding({
     ...scope, sourceMessageId: `task-graph:${args.executionId}`,
     title: args.title, workingDirectory: args.workingDirectory,
@@ -131,7 +129,7 @@ export async function handleGraphHumanReviewCardAction(args: {
 /** Keep integration failures visible in the same topic as the implementation. */
 export async function postGraphChildProgress(childTaskId: string, eventKey: string, text: string) {
   const binding = await prisma.feishuConversationBinding.findFirst({
-    where: { liveRoom: { sourceTaskId: childTaskId }, rootMessageId: { not: null } },
+    where: { liveRoom: { sourceTaskId: childTaskId }, chatType: 'group', rootMessageId: { not: null } },
     orderBy: { updatedAt: 'desc' },
   });
   if (!binding?.rootMessageId) return null;

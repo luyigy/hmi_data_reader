@@ -127,8 +127,8 @@ async function main() {
     const gate = await createTaskGraphRun({ parentTaskId: parent.id, version: 2, requestKey: parent.id + ':gate', definition: { specRef: 'gate', nodes: ['X', 'Y', 'Z'].map(key => ({ ...common, key, goal: key, dependsOn: [], executions: execution(key === 'Z' ? consumer : producer, key === 'Z' ? baseConsumer : baseProducer) })) } });
     await releaseReadyNodes(gate.id);
     const claims = await Promise.all([claimNode(gate.id, 'X', 'x'), claimNode(gate.id, 'Y', 'y')]);
-    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: gate.id, kind: 'repository_gate_waiting' } }), 1);
-    assert.equal(claims.filter(Boolean).length, 1, 'Same-repository claims are serialized atomically');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: gate.id, kind: 'repository_gate_waiting' } }), 0);
+    assert.equal(claims.filter(Boolean).length, 2, 'Independent same-repository worktrees can both be claimed');
     assert.ok(await claimNode(gate.id, 'Z', 'z'), 'Another repository remains parallel');
     await prisma.taskGraphRun.update({ where: { id: gate.id }, data: { status: 'completed' } });
     const require = createRequire(__filename); const feishu = require('../src/lib/task-graph/feishu');

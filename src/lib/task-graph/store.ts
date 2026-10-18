@@ -90,19 +90,23 @@ export async function claimNode(runId: string, nodeKey: string, claimToken: stri
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId, key: nodeKey } } });
     if (!node) throw new Error('Unknown graph node');
     if (node.status === 'claimed' && node.claimToken === claimToken) return node;
-    const repositories = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id }, select: { repository: true } });
     const canonical = async (repository: string) => realpath(repository).catch(() => repository);
     const snapshot = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
     const graph = snapshot.snapshot as unknown as GraphDefinition;
     const extra = (key: string) => graph.nodes.find(planned => planned.key === key)?.extraRepositories || [];
-    const requested = [...repositories.map(job => ({ repository: job.repository, access: 'write' })), ...extra(node.key)];
+    const requested = extra(node.key);
     const scopes = await Promise.all(requested.map(async item => ({ ...item, repository: await canonical(item.repository) })));
     const roots = scopes.map(item => item.repository);
     for (const repository of Array.from(new Set(roots)).sort()) {
-      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${runId + ':' + repository}, 0))`;
-      const blockers = await tx.taskGraphExecution.findMany({ where: { node: { runId, id: { not: node.id },
-        status: { in: ['claimed', 'verifying', 'awaiting_human', 'attention'] } } }, select: { repository: true, node: { select: { key: true } } } });
-      const expanded = blockers.flatMap(job => [{ ...job, access: 'write' }, ...extra(job.node.key).map(item => ({ ...item, node: job.node }))]);
+      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${'task-graph-extra:' + repository}, 0))`;
+      const blockers = await tx.taskGraphNode.findMany({ where: { id: { not: node.id },
+        status: { in: ['claimed', 'verifying', 'awaiting_human', 'attention'] } },
+        select: { id: true, key: true, run: { select: { snapshot: true } } } });
+      const expanded = blockers.flatMap(blocker => {
+        const approved = blocker.run.snapshot as unknown as GraphDefinition;
+        return (approved.nodes.find(planned => planned.key === blocker.key)?.extraRepositories || [])
+          .map(item => ({ ...item, node: blocker }));
+      });
       const normalized = await Promise.all(expanded.map(async job => ({ ...job, repository: await canonical(job.repository) })));
       const blocker = normalized.find(job => job.repository === repository && (job.access === 'write' || scopes.some(item => item.repository === repository && item.access === 'write')));
       if (blocker) {
@@ -129,11 +133,15 @@ export async function claimExecution(
 ) {
   required(claimToken, 'claimToken');
   return db.$transaction(async (tx) => {
-    const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId, key: nodeKey } } });
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${runId} AND "key" = ${nodeKey} FOR UPDATE`;
+    const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId, key: nodeKey } }, include: { run: true } });
     if (!node || node.status !== 'claimed') return null;
     const execution = await tx.taskGraphExecution.findUnique({ where: { nodeId_key: { nodeId: node.id, key: executionKey } } });
     if (!execution) throw new Error('Unknown graph execution');
     if (execution.status === 'claimed' && execution.claimToken === claimToken) return execution;
+    const approved = node.run.snapshot as unknown as GraphDefinition;
+    const sharedWriter = approved.nodes.find(planned => planned.key === node.key)?.extraRepositories?.some(extra => extra.access === 'write');
+    if (sharedWriter && await tx.taskGraphExecution.count({ where: { nodeId: node.id, id: { not: execution.id }, status: 'claimed' } })) return null;
     const updated = await tx.taskGraphExecution.updateMany({
       where: { id: execution.id, status: 'ready', claimToken: null },
       data: { status: 'claimed', claimToken, claimedAt: new Date() },

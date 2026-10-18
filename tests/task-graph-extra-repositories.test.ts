@@ -55,6 +55,7 @@ async function main() {
     assert.equal(JSON.parse(inputs.env.TASK_GRAPH_EXTRA_REPOS_JSON)[0].repository, extra.directory);
     assert.match(formatGraphProposal(definition), /附加仓库授权/); assert.match(formatGraphProposal(definition), /读写/);
     const writer = repo('writer');
+    await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'passed' } });
     const gateRun = await createTaskGraphRun({ parentTaskId: task.id, version: 2, requestKey: task.id + '-gates', definition: { specRef: 'test://gates', nodes: [
       { ...definition.nodes[1], key: 'R1', dependsOn: [], extraRepositories: [{ repository: extra.directory, access: 'read' }] },
       { ...definition.nodes[1], key: 'R2', dependsOn: [], executions: [{ ...definition.nodes[1].executions[0], repository: hidden.directory, baseCommit: hidden.commit }], extraRepositories: [{ repository: extra.directory, access: 'read' }] },
@@ -69,6 +70,7 @@ async function main() {
       await prisma.taskGraphNode.update({ where: { runId_key: { runId: gateRun.id, key: 'R1' } }, data: { status: 'ready', claimToken: null } });
       assert.equal(await claimNode(gateRun.id, 'R1', 'r1-again'), null, 'An active writer blocks new readers');
     } finally { await prisma.taskGraphRun.delete({ where: { id: gateRun.id } }); }
+    await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'claimed' } });
     const readonlyDefinition = structuredClone(definition); readonlyDefinition.nodes[1].extraRepositories![0].access = 'read';
     assert.notEqual(taskGraphSnapshotHash(definition), taskGraphSnapshotHash(readonlyDefinition), 'Changing access requires new approval');
     await assert.rejects(prepareExtraRepositories([{ repository: path.join(root, 'missing'), access: 'write' }]));
@@ -105,7 +107,7 @@ async function main() {
     };
     const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
     const execution = await executeAcpxTaskRun({ taskId: child.id, taskName: 'extra implementation', participants: [participant], orchestrationMode: 'single', workingDirectory: main.directory });
-    assert.equal(execution.status, 'completed');
+    assert.equal(execution.status, 'completed', JSON.stringify(execution));
     const reviewTask = await prisma.task.create({ data: { id: 'task-graph-review-' + node.id, name: 'review' } });
     const review = await executeAcpxTaskRun({ taskId: reviewTask.id, taskName: 'extra review', participants: [{ ...participant, role: 'tester' }], orchestrationMode: 'single', workingDirectory: main.directory,
       permissionConfig: { profile: 'custom', sandboxMode: 'read-only', networkAccess: 'enabled', approvalPolicy: 'never', writableRoots: [] } });

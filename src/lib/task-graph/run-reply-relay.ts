@@ -1,11 +1,12 @@
 import { prisma } from '../prisma';
+import { createHash } from 'node:crypto';
 import { sendFeishuInteractiveMessage } from '../feishu-api';
 import { updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
 import { buildRunReplyCard } from './run-reply-card';
 
 async function runBinding(taskId: string) {
   const direct = await prisma.feishuConversationBinding.findFirst({
-    where: { liveRoom: { sourceTaskId: taskId }, rootMessageId: { not: null } }, orderBy: { updatedAt: 'desc' },
+    where: { liveRoom: { sourceTaskId: taskId }, chatType: 'group', rootMessageId: { not: null } }, orderBy: { updatedAt: 'desc' },
   });
   if (direct) return direct;
   const review = taskId.match(/^task-graph-(?:review|architecture)-(.+)$/);
@@ -17,14 +18,11 @@ async function runBinding(taskId: string) {
   const childIds = node.executions.flatMap((execution) => execution.childTaskId ? [execution.childTaskId] : []);
   if (review) {
     const child = await prisma.feishuConversationBinding.findFirst({
-      where: { liveRoom: { sourceTaskId: { in: childIds } }, rootMessageId: { not: null } }, orderBy: { createdAt: 'asc' },
+      where: { liveRoom: { sourceTaskId: { in: childIds } }, chatType: 'group', rootMessageId: { not: null } }, orderBy: { createdAt: 'asc' },
     });
     if (child) return child;
   }
-  return prisma.feishuConversationBinding.findFirst({
-    where: { liveRoom: { sourceTaskId: node.run.parentTaskId }, chatType: 'p2p', appId: { not: null } },
-    orderBy: { updatedAt: 'desc' },
-  });
+  return null;
 }
 
 /** Relay persisted events, including history, without coupling delivery to the running harness. */
@@ -59,7 +57,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     if (messageId) await updateFeishuTaskEntryCard(messageId, card);
     else messageId = await sendFeishuInteractiveMessage({ receiveId: binding.chatId,
       ...(rootMessageId ? { threadRootMessageId: rootMessageId } : {}),
-      uuid: `graph-run-reply-${run.id}`, card }) || null;
+      uuid: createHash('sha256').update(`graph-reply:${run.id}:${binding.id}`).digest('hex').slice(0, 48), card }) || null;
     if (!messageId) throw new Error('Reply card send returned no message id');
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
       data: { messageId, deliveredSequence: sequence, lastStatus: run.status } });

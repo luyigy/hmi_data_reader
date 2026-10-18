@@ -356,17 +356,20 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   const checkpoint = continuation && (!repair || continuation.createdAt > repair.createdAt)
     ? implementationCheckpoint(continuation.payload, execution.id) : null;
   try {
-    const integration = await ensureIntegrationRef({
-      repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
-    });
-    if (repair && !checkpoint && execution.worktreePath) await withRepositoryLock(execution.repository, async () => {
-      if (await graphGit(execution.worktreePath!, 'status', '--porcelain', '--untracked-files=all')) throw new Error('回修工作区存在未提交改动，保留现场');
-      await graphGit(execution.worktreePath!, 'merge', '--ff-only', integration.commit);
-    });
-    const workspace = await ensureJobWorktree({
-      repoPath: execution.repository, runId, jobId: execution.id,
-      baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || integration.commit,
-      ...(checkpoint ? { resumeCommit: checkpoint.checkpointCommit } : {}),
+    const { integration, workspace } = await withRepositoryLock(execution.repository, async () => {
+      const integration = await ensureIntegrationRef({
+        repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
+      });
+      if (repair && !checkpoint && execution.worktreePath) {
+        if (await graphGit(execution.worktreePath, 'status', '--porcelain', '--untracked-files=all')) throw new Error('回修工作区存在未提交改动，保留现场');
+        await graphGit(execution.worktreePath, 'merge', '--ff-only', integration.commit);
+      }
+      const workspace = await ensureJobWorktree({
+        repoPath: execution.repository, runId, jobId: execution.id,
+        baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || integration.commit,
+        ...(checkpoint ? { resumeCommit: checkpoint.checkpointCommit } : {}),
+      });
+      return { integration, workspace };
     });
     const implementationBase = await graphGit(workspace.path, 'rev-parse', 'HEAD');
     const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
@@ -380,13 +383,13 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const definition = snapshot.snapshot as unknown as GraphDefinition;
     const specInput = await prepareGraphSpecInput(definition);
     const implementOnly = definition.nodes.find((node) => node.key === nodeKey)?.executionMode === 'implement';
-    await ensureGraphChildTopic({
+    const topic = await ensureGraphChildTopic({
       parentTaskId: graphRun.parentTaskId, executionId: execution.id, childTaskId: task.id,
       title: task.name, workingDirectory: workspace.path,
     });
     const inputs = await prepareUpstreamInputs(execution.id);
     void postGraphParentProgress(graphRun.parentTaskId, runId,
-      `${nodeKey}/${execution.key} 已启动，独立工作区 ${workspace.path}`)
+      `${nodeKey}/${execution.key} 已启动。${topic ? `详细进度请查看仓库绑定群中的「${task.name}」子话题。` : '仓库群话题尚未绑定，详细进度保留在任务记录。'}`)
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
     await postTaskRoomMessage({
       roomId: room.id, userId: 'task-graph', userName: '任务图调度器',
