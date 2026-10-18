@@ -28,7 +28,8 @@ import {
   refreshTaskGraphRunStatus, releaseReadyNodes,
   submitNodeVerification, type VerificationEvidence,
 } from './store';
-import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree, commitJobWorktree } from './worktree';
+import { ensureIntegrationRef, ensureJobWorktree, TaskGraphGitError, commitJobWorktree } from './worktree';
+import { integrateJobWithRetry } from './integration-retry';
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
@@ -479,19 +480,21 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     }
     await outcome({ kind: 'checkpoint', phase: 'integrate' });
     let checks: CheckResult[] = [];
-    const integrated = await withRepositoryLock(execution.repository, async () => {
+    const latest = await withRepositoryLock(execution.repository, async () => {
       await assertExecutionOwnership(execution.id, claimToken);
-      const submitted = await commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph ${nodeKey}/${execution.key}` });
-      if (repair && !checkpoint && submitted === implementationBase) throw new Error('自动回修无有效代码变更，停止重试并保留现场');
-      const latest = await ensureIntegrationRef({
-        repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
-      });
-      return integrateJobWorktree({
-        repoPath: execution.repository, runId, jobId: execution.id,
-        integrationRef: latest.ref, expectedIntegrationCommit: latest.commit,
-        baseCommit: workspace.baseCommit,
-        verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id }, inputs.readOnlyPaths); },
-      });
+      return ensureIntegrationRef({ repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit });
+    });
+    const beforeIntegration = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } })).dispatchMetadata);
+    const integrated = await integrateJobWithRetry({
+      repoPath: execution.repository, runId, jobId: execution.id,
+      integrationRef: latest.ref, expectedIntegrationCommit: latest.commit, baseCommit: workspace.baseCommit,
+      maxAttempts: Math.max(1, 3 - (beforeIntegration?.integrationAttempts || 0)),
+      assertOwnership: async () => { await assertExecutionOwnership(execution.id, claimToken); },
+      onRetry: async (failure) => {
+        await outcome({ kind: 'checkpoint', phase: 'integrate', candidateCommit: await graphGit(workspace.path, 'rev-parse', 'HEAD') });
+        await outcome({ kind: 'integration_stale', failure: { code: 'integration_stale', detail: JSON.stringify(failure.integration) } });
+      },
+      verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id }, inputs.readOnlyPaths); },
     });
     await outcome({ kind: 'integrated', commit: integrated.commit,
       evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
@@ -502,9 +505,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     await verifyNode(runId, nodeKey, checkpoint ? `continuation:${claimToken}` : repair ? `repair:${repair.id}` : undefined);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    const kind = error instanceof TaskInputPreparationError ? 'input_preparation_failed' : /verification/i.test(detail) ? 'test_failed'
-      : detail.includes('Merge') || detail.includes('merge') || detail.includes('conflict') ? 'integration_conflict'
-      : 'dispatch_failed';
+    const kind = error instanceof TaskInputPreparationError ? 'input_preparation_failed'
+      : error instanceof TaskGraphGitError ? error.code : checkFailure(error) ? 'test_failed' : 'dispatch_failed';
     const current = await prisma.taskGraphExecution.findUnique({ where: { id: execution.id } });
     if (current?.status === 'claimed') {
       if (error instanceof TaskInputPreparationError && current.worktreePath) {
@@ -527,6 +529,10 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           code: 'test_failed', checkId: `execution:${execution.key}:${failedCheck.check.name}`,
           command: failedCheck.check.argv, detail: failedCheck.detail,
         } });
+        } else if (error instanceof TaskGraphGitError) {
+          const failure = { code: error.integration?.kind === 'ownership_mismatch' ? 'ownership_mismatch' : error.code,
+            detail: error.integration ? JSON.stringify({ message: detail, integration: error.integration }) : detail };
+          await outcome({ kind: error.code === 'integration_retry_exhausted' ? 'retry_exhausted' : 'decision_required', failure });
         } else {
           const temporary = error instanceof Error && 'code' in error && ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'].includes(String(error.code));
           await outcome({ kind: temporary ? 'platform_retry' : 'decision_required', failure: { code: kind, detail } });
