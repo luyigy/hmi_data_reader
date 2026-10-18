@@ -6,6 +6,7 @@ import { createGraphWriter, observeGraphWriter } from '../src/lib/task-graph/wri
 async function main() {
   const writer = await createGraphWriter();
   assert.equal((await observeGraphWriter(writer)).kind, 'alive');
+  assert.equal((await observeGraphWriter(writer, true)).kind, 'exited', 'Cleanup receipt may release the daemon supervisor, but never bypass child scanning');
   const departed = { ...writer, supervisor: { ...writer.supervisor, pid: 2147483647 } };
   assert.equal((await observeGraphWriter(departed)).kind, 'exited', 'An absent supervisor is distinguished from an unknown owner');
   const child = spawn(process.execPath, ['-e', 'process.stdout.write("ready\\n");setInterval(()=>{},1000)'], {
@@ -13,6 +14,7 @@ async function main() {
   });
   try {
     await once(child.stdout, 'data');
+    assert.equal((await observeGraphWriter(writer, true)).kind, 'alive', 'Released supervisor still cannot hide a live nonce child');
     const observation = await observeGraphWriter(departed);
     assert.equal(observation.kind, 'alive', 'A child survives its supervisor and must prevent takeover');
     if (observation.kind === 'alive') assert(child.pid && observation.pids.includes(child.pid));

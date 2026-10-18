@@ -51,7 +51,7 @@ getHarnessAdapter('codex').execute=async({task,context})=>{
 };
 (async()=>{await runTaskGraphCycle();setInterval(()=>{},1000)})().catch(e=>{console.error(e);process.exit(1)});
 `);
-  let supervisor: ChildProcess | undefined; let orphanPid: number | undefined;
+  let phaseOwner: ChildProcess | undefined; let supervisor: ChildProcess | undefined; let orphanPid: number | undefined;
   try {
     supervisor = fork(script, [], { cwd, env: { ...process.env, TS_NODE_BASEURL: '.', TS_NODE_COMPILER_OPTIONS: '{"module":"commonjs","moduleResolution":"node"}' },
       execArgv: ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register'], stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
@@ -106,13 +106,52 @@ getHarnessAdapter('codex').execute=async({task,context})=>{
     await runTaskGraphCycle();
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).claimToken, token, 'Completed database status without process proof must not authorize takeover');
     await prisma.taskRun.update({ where: { id: saved.id }, data: { controlMetadata: JSON.stringify({ graphWriter: writer }) } });
-    for (let n = 0; n < 300; n++) { await runTaskGraphCycle(); if ((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: second.id, key: 'N' } } })).status === 'passed') break; await new Promise(resolve => setTimeout(resolve, 25)); }
+    const phaseScript = path.join(root, 'phase-owner.cjs');
+    const gate = path.join(root, 'release-check');
+    await fs.writeFile(phaseScript, `
+const fs=require('node:fs');
+const {prisma}=require(${JSON.stringify(path.join(cwd, 'src/lib/prisma.ts'))});
+const checks=require(${JSON.stringify(path.join(cwd, 'src/lib/task-graph/check-environment.ts'))});
+const originalCheck=checks.runSandboxedGraphCheck;
+let notified=false;
+checks.runSandboxedGraphCheck=async(...args)=>{
+ if(!notified){notified=true;process.send({kind:'checking'});while(!fs.existsSync(${JSON.stringify(gate)}))await new Promise(r=>setTimeout(r,10));}
+ return originalCheck(...args);
+};
+const {runTaskGraphCycle,startTaskGraphCoordinator}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-graph/coordinator.ts'))});
+globalThis.fetch=async()=>new Response(JSON.stringify({code:0,data:{message_id:'fixture'}}));
+(async()=>{
+ for(let n=0;n<1000;n++){
+  await runTaskGraphCycle();
+  const node=await prisma.taskGraphNode.findUniqueOrThrow({where:{runId_key:{runId:${JSON.stringify(second.id)},key:'N'}}});
+  if(node.status==='passed'){const abort=new AbortController();abort.abort();await startTaskGraphCoordinator(abort.signal);process.send({kind:'done'});await prisma.$disconnect();process.exit(0);}
+  await new Promise(r=>setTimeout(r,20));
+ }
+ throw new Error('Phase worker did not finish');
+})().catch(e=>{console.error(e);process.exit(1)});
+`);
+    phaseOwner = fork(phaseScript, [], { cwd, env: { ...process.env, TS_NODE_BASEURL: '.', TS_NODE_COMPILER_OPTIONS: '{"module":"commonjs","moduleResolution":"node"}' }, execArgv: ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register'], stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    const phaseDeadline = setTimeout(() => phaseOwner?.kill('SIGTERM'), 30_000);
+    const [checking] = await Promise.race([once(phaseOwner, 'message'), once(phaseOwner, 'exit').then(() => { throw new Error('Phase owner exited before check'); })]);
+    assert.deepEqual(checking, { kind: 'checking' });
+    const activePhase = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    const phaseProgress = executionProgress(activePhase.dispatchMetadata);
+    assert.equal(phaseProgress?.worker?.supervisor.pid, phaseOwner.pid, 'Resumed platform check persists its current owner before running');
+    assert.equal(activePhase.taskRunId, saved.id, 'Old model TaskRun is retained as evidence, independently of the live phase owner');
+    for (let n = 0; n < 3; n++) await runTaskGraphCycle();
+    const duringCheck = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    assert.equal(duringCheck.claimToken, activePhase.claimToken, 'Second coordinator cannot reclaim a live post-Agent phase');
+    assert.equal(executionProgress(duringCheck.dispatchMetadata)?.worker?.nonce, phaseProgress?.worker?.nonce);
+    assert.equal(newStarts, 1, 'Concurrent coordinator does not launch another implementation or check owner');
+    const phaseExit = once(phaseOwner, 'exit'); await fs.writeFile(gate, 'release'); await phaseExit; clearTimeout(phaseDeadline);
+    assert.equal(phaseOwner.exitCode, 0);
     const drain = new AbortController(); drain.abort(); await startTaskGraphCoordinator(drain.signal);
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: second.id, key: 'N' } } })).status, 'passed');
     assert.equal(newStarts, 1, 'Completed candidate resumes checks/integration without another implementation Agent');
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).commit, candidate);
     console.log('Real coordinator death preserves an orphan writer; confirmed exit automatically resumes once with source preserved and zero human resume');
   } finally {
+    if (phaseOwner && phaseOwner.exitCode === null && phaseOwner.signalCode === null) phaseOwner.kill('SIGKILL');
     if (orphanPid) try { process.kill(orphanPid, 'SIGKILL'); } catch {}
     if (supervisor && supervisor.exitCode === null && supervisor.signalCode === null) supervisor.kill('SIGKILL');
     const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal);

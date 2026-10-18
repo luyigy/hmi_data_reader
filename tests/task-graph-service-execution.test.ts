@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { once } from 'node:events';
+import { execFileSync, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { observeTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
@@ -11,6 +13,7 @@ import { getHarnessAdapter } from '../src/lib/harness';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 
 async function main() {
+  const fixtureStarted = new Date();
   const root = mkdtempSync(path.join(tmpdir(), 'graph-services-'));
   const repository = path.join(root, 'api'); mkdirSync(repository);
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
@@ -64,6 +67,17 @@ async function main() {
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'service_attempt_ready' } }), 5);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'service_attempt_closed' } }), 5);
     for (const url of urls) await assert.rejects(realFetch(url), /fetch failed/);
+    const finished = await prisma.taskRun.findMany({ where: { taskId: { startsWith: 'task-graph-' }, status: 'completed', createdAt: { gte: fixtureStarted } } });
+    assert.ok(finished.length >= 4);
+    for (const taskRun of finished) {
+      const metadata = JSON.parse(taskRun.controlMetadata || '{}');
+      assert.equal(metadata.graphWriterReleased?.nonce, metadata.graphWriter.nonce, 'Runner records cleanup after services have stopped');
+      assert.equal((await observeTaskRunWriter(taskRun.id)).kind, 'exited', 'Completed runner can retry in the same still-live daemon');
+    }
+    const orphanNonce = JSON.parse(finished[0].controlMetadata!).graphWriter.nonce;
+    const orphan = spawn(process.execPath, ['-e', 'process.stdout.write("ready");setInterval(()=>{},1000)'], { env: { ...process.env, AP_GRAPH_WRITER_NONCE: orphanNonce }, stdio: ['ignore', 'pipe', 'pipe'] });
+    try { await once(orphan.stdout, 'data'); assert.equal((await observeTaskRunWriter(finished[0].id)).kind, 'alive', 'Cleanup receipt cannot hide a surviving nonce child'); }
+    finally { const exit = once(orphan, 'exit'); orphan.kill('SIGTERM'); await exit; }
     const broken = structuredClone(definition); broken.nodes[1].services![0].entry = 'missing.js';
     const badParent = await prisma.task.create({ data: { name: 'bad service input' } });
     const bad = await createTaskGraphRun({ parentTaskId: badParent.id, version: 1, requestKey: badParent.id, definition: broken }); badRunId = bad.id;
