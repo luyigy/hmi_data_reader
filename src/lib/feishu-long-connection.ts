@@ -1,3 +1,4 @@
+import { cleanupFeishuOwnedStaleTaskRuns } from './feishu-startup-task-cleanup';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { startFeishuConnectionSupervisor, stopFeishuConnectionSupervisor } from '@/lib/feishu-connection-supervisor';
 import { prisma } from '@/lib/prisma';
@@ -721,29 +722,7 @@ async function startRuntime(host: 'standalone' | 'nextjs', prefix: string) {
         data: { status: 'online' },
       });
 
-      // Fix stale task run participants: those with session IDs -> completed (eligible for
-      // session continuation on the next message); those without -> failed.
-      const staleParticipants = await prisma.taskRunParticipant.findMany({
-        where: { status: 'running' },
-        select: { id: true, controlMetadata: true },
-      });
-      for (const pt of staleParticipants) {
-        let meta: Record<string, unknown> = {};
-        try { meta = JSON.parse(pt.controlMetadata || '{}'); } catch { /* ignore */ }
-        const hasSession = typeof meta.lastSessionId === 'string' || typeof meta.claudeSessionId === 'string' || typeof meta.codexThreadId === 'string';
-        await prisma.taskRunParticipant.update({
-          where: { id: pt.id },
-          data: hasSession
-            ? { status: 'completed', completedAt: new Date(), error: null }
-            : { status: 'failed', completedAt: new Date(), error: 'Stale: process killed before session started' },
-        });
-      }
-      // Mark stale task runs as completed (not failed — failed runs are excluded from
-      // the continuation session lookup in findLatestParticipantSession).
-      await prisma.taskRun.updateMany({
-        where: { status: 'running' },
-        data: { status: 'completed', completedAt: new Date() },
-      });
+      await cleanupFeishuOwnedStaleTaskRuns();
     } catch (cleanupError) {
       console.warn(`${prefix} startup cleanup failed (non-fatal):`, cleanupError);
     }
