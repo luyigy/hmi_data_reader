@@ -541,7 +541,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           });
         });
         await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken, checkpointCommit,
-          workspaceBase: isRecord(current.dispatchMetadata) && typeof current.dispatchMetadata.workspaceBase === 'string' ? current.dispatchMetadata.workspaceBase : execution.baseCommit,
+          workspaceBase: executionProgress(current.dispatchMetadata)?.workspaceBase || (isRecord(current.dispatchMetadata) && typeof current.dispatchMetadata.workspaceBase === 'string' ? current.dispatchMetadata.workspaceBase : execution.baseCommit),
           taskRunId: current.taskRunId || 'not-created', blockedPhase: error.blockedPhase,
           result: { status: 'blocked', blockerKind: error.blockerKind, note: detail } });
       } else {

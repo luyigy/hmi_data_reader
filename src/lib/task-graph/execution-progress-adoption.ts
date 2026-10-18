@@ -1,4 +1,5 @@
 import { prisma } from '../prisma';
+import { randomUUID } from 'node:crypto';
 import { graphGit } from './git-command';
 import { executionProgress, initialExecutionProgress, metadataWithProgress } from './execution-progress';
 import { withRepositoryLock } from './repository-lock';
@@ -30,12 +31,13 @@ export async function adoptLegacyExecutionProgress(args: {
       state: current.status === 'ready' ? 'ready' as const : 'waiting_decision' as const,
       candidateCommit, workspaceBase: args.workspaceBase, ...(current.taskRunId ? { taskRunId: current.taskRunId } : {}),
     };
-    await tx.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(current.dispatchMetadata, progress) } });
+    const claimToken = current.claimToken || (current.status === 'attention' ? `adoption:${randomUUID()}` : null);
+    await tx.taskGraphExecution.update({ where: { id: job.id }, data: { claimToken, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, progress) } });
     await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId,
       kind: 'execution_progress_adopted', idempotencyKey: `execution:${job.id}:progress-adopted`,
       payload: { executionId: job.id, previousCandidateCommit: args.previousCandidateCommit,
         observedHead: checked.head, candidateCommit, workspaceBase: args.workspaceBase,
-        authorization: args.authorization, ownership: { path: checked.path, branch: checked.branch, writerExited: true } },
+        authorization: args.authorization, claimToken, ownership: { path: checked.path, branch: checked.branch, writerExited: true } },
     } });
     return progress;
   }, { timeout: 30000 }));

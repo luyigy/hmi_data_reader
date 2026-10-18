@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun, claimNode, claimExecution, completeExecution, releaseReadyNodes, flagStaleExecutionClaim } from '../src/lib/task-graph/store';
 import { applyExecutionOutcome, executionProgress } from '../src/lib/task-graph/execution-progress';
-import { scheduleImplementationRecovery } from '../src/lib/task-graph/implementation-result';
+import { pauseGraphImplementation, scheduleImplementationRecovery } from '../src/lib/task-graph/implementation-result';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
@@ -55,8 +55,11 @@ async function main() {
         assert.equal(resumed.status, 'ready'); assert.equal(resumed.commit, 'c'.repeat(40));
         assert.deepEqual(resumed.evidence, { preserved: true });
       } else {
-        const blocked = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: progress.revision,
-          outcomeId: 'human-decision', outcome: { kind: 'decision_required', failure: { code: 'scope_change', detail: 'Scope now clarified' } } });
+        await pauseGraphImplementation({ executionId: job.id, runId: run.id, nodeKey: key, claimToken: token,
+          checkpointCommit: 'd'.repeat(40), workspaceBase: 'e'.repeat(40), taskRunId: 'not-created',
+          result: { status: 'blocked', blockerKind: 'scope_change', note: 'Scope now clarified' } });
+        const blocked = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).dispatchMetadata); assert(blocked);
+        assert.equal(blocked.workspaceBase, job.baseCommit, 'A stale adapter base cannot overwrite the authoritative workspace base');
         await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
         await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
         const resumed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });

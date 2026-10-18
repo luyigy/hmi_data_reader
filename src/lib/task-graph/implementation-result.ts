@@ -37,10 +37,10 @@ export async function pauseGraphImplementation(args: {
 }) {
   const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
   let progress = executionProgress(current.dispatchMetadata);
-  if (progress && (progress.candidateCommit !== args.checkpointCommit || progress.workspaceBase !== args.workspaceBase)) {
+  if (progress && (progress.candidateCommit !== args.checkpointCommit || !progress.workspaceBase)) {
     progress = await applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
       expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:paused-candidate`,
-      outcome: { kind: 'checkpoint', phase: progress.phase, candidateCommit: args.checkpointCommit, workspaceBase: args.workspaceBase },
+      outcome: { kind: 'checkpoint', phase: progress.phase, candidateCommit: args.checkpointCommit, workspaceBase: progress.workspaceBase || args.workspaceBase },
     });
   }
   if (progress) return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
