@@ -1,8 +1,8 @@
-import { parseImplementationResult } from './implementation-result';
+import { parseImplementationResult, type ImplementationResult } from './implementation-result';
 import type { TaskRun, TaskRunEvent, TaskRunParticipant, TaskRunInteractionRequest } from '@prisma/client';
 import { redactSensitiveText } from '../redact-sensitive';
 
-type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[] };
+type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[]; graphStatus?: string };
 const labels: Record<string, string> = { running: '执行中', waiting_for_input: '等待确认', completed: '会话结束', failed: '执行失败', interrupted: '已中断', stopped: '已停止' };
 const roles: Record<string, string> = { implementer: '实施者', reviewer: '架构审查', tester: '测试验收' };
 const bounded = (content: string, limit: number) => {
@@ -22,12 +22,21 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
   const active = ['running', 'waiting_for_input', 'pending'].includes(run.status);
   const streamed = output.map(event => event.content).join('');
   const finalReply = run.participants.map(participant => participant.summary || participant.error || '').filter(Boolean).join('\n\n') || run.summary || run.error || streamed;
-  let blocked: string | null = null;
+  let conclusion: ImplementationResult | null = null;
   if (!active && run.status === 'completed') {
-    try { const result = parseImplementationResult(finalReply); if (result.status === 'blocked') blocked = result.note; } catch { /* Review and legacy replies have no implementation marker. */ }
+    try { conclusion = parseImplementationResult(finalReply); } catch { /* Review and legacy replies have no implementation marker. */ }
   }
   const response = active ? streamed || '正在准备执行，尚无 Agent 回复。' : finalReply || '本轮没有最终回复。';
-  const visible = blocked ? `实施暂停：${bounded(blocked, 1200)}\n\n进度已保存，尚未交付。` : bounded(response, active ? 1000 : 2500);
+  const blocked = conclusion?.status === 'blocked' ? conclusion.note : null;
+  const snippet = (value: string) => {
+    const safe = redactSensitiveText(value).replace(/^TASK_GRAPH_IMPLEMENTATION.*$/gm, '').trim();
+    const paragraph = safe.split(/\n\s*\n/).filter(Boolean).pop() || '详细记录见下方展开内容。';
+    const plain = paragraph.replace(/[`*#]/g, '').replace(/\s+/g, ' ').trim();
+    return plain.length > 180 ? plain.slice(0, 180) + '…' : plain;
+  };
+  const status = blocked ? '实施暂停，尚未交付' : run.graphStatus === 'attention' ? '任务需处理，尚未通过平台检查或验收'
+    : conclusion?.status === 'delivered' ? '实施已提交结果，尚未代表验收通过' : labels[run.status] || run.status;
+  const visible = `${status}\n${snippet(conclusion?.note || response)}`;
   const actions = (active ? requests : []).filter((request) => request.status === 'pending' && (!request.expiresAt || request.expiresAt.getTime() > Date.now()))
     .flatMap((request) => {
       let payload: unknown;
@@ -42,8 +51,8 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
       ];
     });
   return { schema: '2.0', config: { update_multi: true },
-    header: { template: run.status === 'failed' ? 'red' : blocked || run.status === 'waiting_for_input' ? 'orange' : 'blue',
-      title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${blocked ? '实施暂停' : labels[run.status] || run.status}` } },
+    header: { template: run.status === 'failed' ? 'red' : blocked || run.graphStatus === 'attention' || run.status === 'waiting_for_input' ? 'orange' : 'blue',
+      title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${blocked ? '实施暂停' : run.graphStatus === 'attention' ? '任务需处理' : labels[run.status] || run.status}` } },
     body: { elements: [
       { tag: 'markdown', content: visible },
       { tag: 'collapsible_panel', expanded: false,
@@ -51,11 +60,11 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
         elements: [{ tag: 'markdown', content: bounded(response, active ? 4000 : 2500) }] },
       { tag: 'collapsible_panel', expanded: false,
         header: { title: { tag: 'plain_text', content: '系统信息详情' } },
-        elements: [{ tag: 'markdown', content: bounded(lines(systems) || '暂无系统信息。', 1200) }] },
+        elements: [{ tag: 'markdown', content: bounded(`运行：${run.id}\n${lines(systems) || '暂无系统信息。'}`, 1200) }] },
       { tag: 'collapsible_panel', expanded: false,
         header: { title: { tag: 'plain_text', content: `工具调用详情 · 最近 ${tools.length} 条` } },
         elements: [{ tag: 'markdown', content: bounded(lines(tools) || '暂无工具调用。', 1800) }] },
       ...actions,
-      { tag: 'markdown', content: `运行：${run.id}\n会话结束不代表 Slice 验收通过；路线进度回到父话题。` },
+      { tag: 'markdown', content: '总体进度见父话题；详细记录可展开查看。' },
     ] } };
 }

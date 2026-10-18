@@ -44,14 +44,16 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     const sequence = latest?.sequence || 0;
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
     const expiredSinceDelivery = requests.some((request) => request.expiresAt && request.expiresAt <= new Date() && request.expiresAt > cursor.updatedAt);
-    if (!forceRefresh && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
+    const execution = await tx.taskGraphExecution.findUnique({ where: { childTaskId: run.taskId }, select: { node: { select: { status: true, updatedAt: true } } } });
+    const graphChanged = execution && execution.node.updatedAt > cursor.updatedAt;
+    if (!forceRefresh && !graphChanged && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
     if (!cursor.messageId && Date.now() - cursor.createdAt.getTime() > 50 * 60_000) {
       throw new Error(`Reply receipt uncertain for ${run.id}; reconcile before resending`);
     }
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
     const history = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: { notIn: ['stdout_chunk', 'stderr_chunk', 'summary'] } }, orderBy: { sequence: 'desc' }, take: 100 });
     output.reverse();
-    const card = buildRunReplyCard(run, history.reverse(), requests, output);
+    const card = buildRunReplyCard({ ...run, graphStatus: execution?.node.status }, history.reverse(), requests, output);
     card.header.title.content = `${run.task.name} · ${card.header.title.content}`;
     let messageId = cursor.messageId;
     if (messageId) await updateFeishuTaskEntryCard(messageId, card);

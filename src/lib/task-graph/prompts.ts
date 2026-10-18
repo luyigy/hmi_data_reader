@@ -7,6 +7,7 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     '只实施当前 ticket 范围。在指定 worktree 编辑代码，汇报改动和实际验证证据。Git 元数据只读，由平台受控提交和集成；不要自行 git add/commit/merge。',
     '平台默认只读复用源项目已配置的 Python 环境，PATH 自动提供同一解释器和命令。不要另建虚拟环境、pip install --user 或修改共享依赖；缺依赖/版本冲突请明确报告，单独处理项目环境变更。',
     '使用本次任务图替代历史 PLAN/HANDOVER 接力要求；不要创建新的 PLAN/HANDOVER、next_action 或 WORKFLOW_READY。',
+    '面向用户的进度每次用一至三句说明已完成什么、当前在做什么、是否需要用户处理；不用源码清单、哈希或审查原文充当进度。最终先给不超过三条的简明结论，详细技术报告写证据文件；结构化结论仍单独保留。',
     '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',
     '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
     '先使用仓内已有输入、任务已挂载材料和已配置工具完成当前 ticket。可选外部工具未配置、可选辅助模型失败或缺少可选 skill，不得作为 blocked 理由；使用已批准的可用路径继续实施和验证。功能尚未实现、测试暴露缺陷属于本票待解决工作，不能仅改写成缺材料报告后退出。保留暂停期间新增的源码、Spec 和材料更正，不 reset、stash 或删除这些改动。',
