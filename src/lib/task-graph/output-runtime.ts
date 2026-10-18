@@ -54,6 +54,10 @@ export async function prepareGraphOutputRuntime(nodeId: string, attempt: string,
       for (const input of policy.readOnlyPaths.filter(input => within(name, input))) {
         const protectedSource = path.join(source, path.relative(name, input));
         const protectedTarget = path.join(canonical, input);
+        try { await fs.lstat(protectedTarget); } catch (error) {
+          if (error instanceof Error && 'code' in error && error.code === 'ENOENT') continue;
+          throw error;
+        }
         if (await fs.realpath(protectedTarget) !== protectedTarget || await fs.realpath(protectedSource) !== protectedSource) throw new Error('Protected output input is symlinked');
         bindings.push({ source: protectedTarget, target: protectedTarget, readOnly: true });
         bindings.push({ source: protectedTarget, target: protectedSource, readOnly: true });
