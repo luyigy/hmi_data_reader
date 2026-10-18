@@ -25,10 +25,10 @@ async function main() {
     assert.equal(await runtimeDeclaration(repo), null, 'Unborn repository without a runtime declaration keeps the original execution flow');
     const branchFile = path.join(repo, '.git/refs/heads/main');
     writeFileSync(branchFile, 'ref: refs/heads/redirected\n');
-    await assert.rejects(runtimeDeclaration(repo), undefined, 'Indirect unborn reference is not treated as an ordinary empty repository');
+    await assert.rejects(runtimeDeclaration(repo), error => error instanceof Error && 'code' in error && error.code === 128, 'Indirect unborn reference is not treated as an ordinary empty repository');
     rmSync(branchFile);
     writeFileSync(branchFile, 'invalid-object-id\n');
-    await assert.rejects(runtimeDeclaration(repo), undefined, 'Corrupt branch reference remains an explicit error');
+    await assert.rejects(runtimeDeclaration(repo), error => error instanceof Error && 'code' in error && error.code === 128, 'Corrupt branch reference remains an explicit error');
     rmSync(branchFile);
     const version = execFileSync('python3', ['-c', 'import sys;print(f"python{sys.version_info.major}.{sys.version_info.minor}")'], { encoding: 'utf8' }).trim();
     const runtime = prepareGraphHarnessRuntime('task-graph-python-fixture', 'codex');
