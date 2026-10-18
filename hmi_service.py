@@ -454,9 +454,12 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             page_observations = (extract_res.get("extraction_detail") or {}).get("page_observations")
             if observations_version == "v2":
                 import hashlib
-                from raw_page import observe_raw_page
+                from raw_temperature_time import (observe_temperature_time_page, select_raw_profile,
+                                                  recover_temperature_time_cells, DEFINITIONS)
                 from raw_page_ocr import engine_identity, recover_raw_cells
-                if extract_res.get("profile_id") != "demag.injection_metering.multi_stage_holding":
+                try:
+                    raw_profile = select_raw_profile(extract_res.get("profile_id"), ocr_evidence["lines"])
+                except ValueError:
                     reason = next((warning for warning in extract_res.get("warnings", [])
                                    if warning in BLOCKED_PAGE_SOURCES.values()), "RAW_PAGE_UNSUPPORTED")
                     raise HTTPException(status_code=422, detail={"code": reason,
@@ -465,8 +468,11 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 if extract_res.get("profile_id") == "demag.injection_metering.multi_stage_holding" and raw_gray is not None:
                     ocr_evidence["lines"] = recover_raw_cells(ocr_model, raw_gray, rectify_meta,
                                                             ocr_evidence["lines"])
-                page_observations = observe_raw_page(
-                    extract_res.get("profile_id"), ocr_evidence["lines"], rectify_meta,
+                if raw_profile in DEFINITIONS and raw_gray is not None:
+                    ocr_evidence["lines"] = recover_temperature_time_cells(
+                        ocr_model, raw_gray, rectify_meta, ocr_evidence["lines"], raw_profile)
+                page_observations = observe_temperature_time_page(
+                    raw_profile, ocr_evidence["lines"], rectify_meta,
                     hashlib.sha256(content).hexdigest(),
                     raw_gray)
                 page_observations["engine"] = engine_identity(ocr_model)
