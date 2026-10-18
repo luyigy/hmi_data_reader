@@ -4,7 +4,7 @@ import { prisma } from '../prisma';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
 export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string };
-export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
+export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string; candidateCommit: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
   review?: GraphReviewBinding;
@@ -19,6 +19,7 @@ export type ExecutionOutcome =
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
+  | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string }
   | { kind: 'decision_required'; failure: ExecutionFailure }
   | { kind: 'retry_exhausted'; failure: ExecutionFailure }
   | { kind: 'integrated'; commit: string; evidence: Prisma.InputJsonValue };
@@ -69,14 +70,16 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
   if (value.review !== undefined) {
     const review = record(value.review);
     const phase = enumeration(review.phase, ['architecture', 'acceptance']);
+    const candidateCommit = optionalCommit(review.candidateCommit);
+    if (!candidateCommit) throw new Error('Review candidate missing');
     const claimKey = optionalText(review.claimKey);
     if (!claimKey) throw new Error('Review claim key missing');
     const kind = enumeration(review.kind, ['running', 'ready']);
     if (kind === 'running') {
       const taskRunId = optionalText(review.taskRunId);
       if (!taskRunId) throw new Error('Review TaskRun missing');
-      progress.review = { phase, claimKey, kind, taskRunId };
-    } else progress.review = { phase, claimKey, kind };
+      progress.review = { phase, claimKey, kind, taskRunId, candidateCommit };
+    } else progress.review = { phase, claimKey, kind, candidateCommit };
   }
   if (value.lastFailure !== undefined) {
     const failure = record(value.lastFailure);
@@ -124,7 +127,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       return progress;
     }
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
-    const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
+    const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     if ((!reviewRepair && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
     if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
         args.outcome.kind === 'repair_required' && !['check', 'integrate', 'architecture', 'acceptance'].includes(before.phase) ||
@@ -150,6 +153,16 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       progress.lastFailure = outcome.failure;
       if (progress.integrationAttempts >= 3) {
         status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
+      }
+    } else if (outcome.kind === 'review_retry') {
+      progress.lastFailure = outcome.failure;
+      if (!['architecture', 'acceptance'].includes(before.phase)) throw new Error('Review retry is outside a review phase');
+      if (progress.platformAttempts >= 2) {
+        status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
+      } else {
+        progress.platformAttempts++; progress.state = 'ready';
+        if (!current.commit) throw new Error('Review restart has no integrated candidate');
+        progress.review = { candidateCommit: current.commit, phase: before.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
       }
     } else {
       progress.lastFailure = outcome.failure;

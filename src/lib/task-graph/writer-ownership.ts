@@ -93,3 +93,12 @@ export async function graphWriterEnvironment(taskRunId: string): Promise<Record<
   const writer = metadata && typeof metadata === 'object' ? parseGraphWriter(Reflect.get(metadata, 'graphWriter')) : null;
   return writer ? { AP_GRAPH_WRITER_NONCE: writer.nonce } : {};
 }
+
+export async function observeTaskRunWriter(taskRunId: string): Promise<WriterObservation> {
+  const run = await prisma.taskRun.findUnique({ where: { id: taskRunId }, include: { participants: true } });
+  if (!run || !run.participants.length || run.participants.some(participant => participant.executionBackend !== 'platform_local' || !['codex', 'kimi-code'].includes(participant.harnessType || ''))) return { kind: 'unknown', reason: 'Writer backend has no local process proof' };
+  try {
+    const metadata: unknown = JSON.parse(run.controlMetadata || '{}');
+    return observeGraphWriter(metadata && typeof metadata === 'object' ? Reflect.get(metadata, 'graphWriter') : undefined);
+  } catch (error) { return { kind: 'unknown', reason: error instanceof Error ? error.message : String(error) }; }
+}
