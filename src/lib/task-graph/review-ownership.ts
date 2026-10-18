@@ -9,7 +9,10 @@ export async function graphReviewClaimKey(nodeId: string, phase: 'architecture' 
     .filter((binding): binding is GraphReviewBinding => binding !== undefined);
   if (!bindings.length) return fallbackClaimKey;
   const keys = new Set(bindings.map(binding => binding.claimKey));
-  if (keys.size !== 1 || bindings.length !== jobs.length) throw new Error('Review restart identity is inconsistent');
+  if (keys.size !== 1 || bindings.length !== jobs.length) {
+    if (bindings.some(binding => binding.kind === 'ready')) throw new Error('Review restart identity is inconsistent');
+    return fallbackClaimKey;
+  }
   return bindings[0].claimKey;
 }
 
