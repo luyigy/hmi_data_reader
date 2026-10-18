@@ -1,0 +1,64 @@
+{
+  "project": "workflow-reliability-20261018",
+  "status": "draft-awaiting-breakdown-review",
+  "specCommit": "7c0d70b",
+  "implementationRepository": "/data1/code/agent-platform-v2",
+  "trackerRepository": "gitee:luyi1678/agent-platform-v2",
+  "tickets": [
+    {
+      "key": "WR01",
+      "title": "自测与平台检查使用一致的报告运行目录",
+      "blockedBy": [],
+      "document": "tickets/WR01.md"
+    },
+    {
+      "key": "WR02",
+      "title": "检查失败后在同票内自动修复并接续最新成果",
+      "blockedBy": [
+        "WR01"
+      ],
+      "document": "tickets/WR02.md"
+    },
+    {
+      "key": "WR03",
+      "title": "架构和测试发现缺陷后只回修受影响仓内执行",
+      "blockedBy": [
+        "WR02"
+      ],
+      "document": "tickets/WR03.md"
+    },
+    {
+      "key": "WR04",
+      "title": "集成引用变化和合并冲突有明确的恢复出口",
+      "blockedBy": [
+        "WR02"
+      ],
+      "document": "tickets/WR04.md"
+    },
+    {
+      "key": "WR05",
+      "title": "重启后接续当前阶段且不重复启动写入者",
+      "blockedBy": [
+        "WR02"
+      ],
+      "document": "tickets/WR05.md"
+    },
+    {
+      "key": "WR06",
+      "title": "飞书投递超时不拖停业务执行",
+      "blockedBy": [],
+      "document": "tickets/WR06.md"
+    },
+    {
+      "key": "WR07",
+      "title": "完整故障闭环通过后无损接续现有路线",
+      "blockedBy": [
+        "WR03",
+        "WR04",
+        "WR05",
+        "WR06"
+      ],
+      "document": "tickets/WR07.md"
+    }
+  ]
+}
