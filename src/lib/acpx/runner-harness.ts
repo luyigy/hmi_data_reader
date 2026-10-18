@@ -1,3 +1,5 @@
+import { prepareDeclaredRuntime } from '../task-graph/runtime-preflight';
+import { projectEnvironment } from '../harness/project-environment';
 import { prepareGraphOutputForTask } from '../task-graph/output-task-context';
 import { graphWriterEnvironment } from '../task-graph/writer-ownership';
 import { withGraphTaskServices } from '../task-graph/graph-services';
@@ -174,6 +176,9 @@ export const executeViaLocalHarness = async (
       ? [workspaceRoot, ...(request.extraReadOnlyPaths || [])].flatMap(linkedWorktreeGitDirectories)
       : []),
   ]));
+  const project = workspaceRoot ? projectEnvironment(workspaceRoot) : undefined;
+  const declaredRuntime = output && workspaceRoot ? await prepareDeclaredRuntime({ workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths, ...(project ? [project.directory] : [])], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
+  if (declaredRuntime) task.description += declaredRuntime.instructions;
   if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
   const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)
@@ -208,7 +213,7 @@ export const executeViaLocalHarness = async (
   return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
-  const taskEnvironment = { ...inputs?.env, ...services.env, ...output?.env, ...await graphWriterEnvironment(taskRunId) };
+  const taskEnvironment = { ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };
   const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
   let metadataWrites = Promise.resolve();
   let boundSessionId: string | undefined;

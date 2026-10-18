@@ -1,3 +1,4 @@
+import { RuntimePreparationError } from '../task-graph/runtime-preflight';
 import { redactSensitiveText } from '../redact-sensitive';
 import { prisma } from '@/lib/prisma';
 import { buildTaskRoomPromptContext } from '@/lib/task-room';
@@ -400,6 +401,7 @@ export const executeParticipant = async (
       console.error('[ACPX] Failed to persist buffered stream output:', streamError);
     }
     clearRunningProcess(registryParticipantId);
+    if (error instanceof RuntimePreparationError) throw error;
     const longFileError = longFileContext && await assertLongFileRuntimeContext(longFileContext).catch((guardError) => guardError);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'; const message = longFileError instanceof Error && longFileError.message !== errorMessage ? `${errorMessage}\n\n${longFileError.message}` : errorMessage;
     await finishPendingTaskRunInteractionRequests({

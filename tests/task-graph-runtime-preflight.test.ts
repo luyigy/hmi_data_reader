@@ -17,13 +17,13 @@ async function main() {
   await commit({ version: 1, browser: { module: { path: 'missing-playwright', sha256: '0'.repeat(64) }, executable: { path: 'missing-browser', sha256: '0'.repeat(64) } } });
   try {
     await assert.rejects(runSandboxedGraphCheck(['sh', '-c', 'echo command-ran'], repository), error => error instanceof Error && error.name === 'RuntimePreparationError' && /缺少 Playwright/.test(error.message), 'Missing required capability must be found before the approved check executes');
-  const inherited = { AP_TASK_SANDBOX: '1', PLAYWRIGHT_MODULE: '/host/module', PLAYWRIGHT_CHROMIUM_EXECUTABLE: '/host/chrome' };
-  assert.deepEqual(sandboxEnvironmentRemovals(inherited), ['PLAYWRIGHT_MODULE', 'PLAYWRIGHT_CHROMIUM_EXECUTABLE']);
+  const inherited = { NODE_ENV: process.env.NODE_ENV, AP_TASK_SANDBOX: '1', PLAYWRIGHT_MODULE: '/host/module', PLAYWRIGHT_CHROMIUM_EXECUTABLE: '/host/chrome' };
+  assert.deepEqual(sandboxEnvironmentRemovals(inherited), ['NODE_ENV', 'PLAYWRIGHT_MODULE', 'PLAYWRIGHT_CHROMIUM_EXECUTABLE']);
   const declared = { ...inherited, AP_GRAPH_RUNTIME_IDENTITY: 'a'.repeat(64), AP_GRAPH_BROWSER_MODULE: '/host/module', AP_GRAPH_BROWSER_EXECUTABLE: '/host/chrome' };
-  assert.deepEqual(sandboxEnvironmentRemovals(declared), []);
-  assert.deepEqual(sandboxEnvironmentRemovals({ ...declared, PLAYWRIGHT_MODULE: '/other/module' }), ['PLAYWRIGHT_MODULE']);
+  assert.deepEqual(sandboxEnvironmentRemovals(declared), ['NODE_ENV']);
+  assert.deepEqual(sandboxEnvironmentRemovals({ ...declared, PLAYWRIGHT_MODULE: '/other/module' }), ['NODE_ENV', 'PLAYWRIGHT_MODULE']);
     const { prepareDeclaredRuntime, RuntimePreparationError } = await import('../src/lib/task-graph/runtime-preflight');
-    const { runtimeResourceDigest } = await import('../src/lib/task-graph/runtime-contract');
+    const { runtimeResourceDigest, runtimeDeclaration } = await import('../src/lib/task-graph/runtime-contract');
     const output = path.join(root, 'output'); await fs.mkdir(output);
     const module = await fs.realpath('/data1/code/agent-platform-v2/node_modules/playwright');
     const core = await fs.realpath('/data1/code/agent-platform-v2/node_modules/playwright-core');
@@ -46,6 +46,11 @@ async function main() {
     const next = await prepareDeclaredRuntime({ workspace: repository, approvedReadOnlyRoots: [archived], outputDirectory: output, priorArtifacts: [{ ...firstArtifact, directory: archived, archived: true }] });
     assert.equal(next.identity, first.identity, 'Archiving a verified resource must not change its content/event identity');
     assert.equal(next.env.AP_GRAPH_OCR_MODEL_DIR, path.join(archived, 'ocr-models'));
+    await fs.writeFile(declarationPath, '{uncommitted');
+    assert.equal((await runtimeDeclaration(repository))?.declaration.version, 1, 'Read committed declaration, not unapproved edits');
+    await fs.unlink(declarationPath);
+    await assert.rejects(runtimeDeclaration(repository), /缺失/, 'Removing a tracked declaration cannot disable preflight');
+    await fs.writeFile(declarationPath, JSON.stringify({ version: 1, ocr }));
     await fs.writeFile(path.join(archived, 'ocr-models/weights.bin'), 'tampered');
     await assert.rejects(prepareDeclaredRuntime({ workspace: repository, approvedReadOnlyRoots: [archived], outputDirectory: output, priorArtifacts: [{ ...firstArtifact, directory: archived, archived: true }] }), error => error instanceof RuntimePreparationError && error.kind === 'invalid');
     console.log(`Declared runtime: real Chromium ${receipt.browserVersion} launched in Bubblewrap; missing/out-of-scope/corrupt resources refused before check; OCR identity survives archive relocation`);

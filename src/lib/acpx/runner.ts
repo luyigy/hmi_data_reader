@@ -14,7 +14,7 @@ import { ensureTaskSession, setTaskSessionActiveRun } from './session';
 import type { AcpxRunRequest, TaskRunStatus } from './types';
 
 export class AcpxRunStartupError extends Error {
-  constructor(readonly taskRunId: string, message: string) { super(message); Object.setPrototypeOf(this, new.target.prototype); }
+  constructor(readonly taskRunId: string, message: string, readonly cause?: unknown) { super(message); Object.setPrototypeOf(this, new.target.prototype); }
 }
 
 export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
@@ -173,7 +173,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       await tx.taskSession.updateMany({ where: { id: taskSession.id, activeRunId: taskRun.id },
         data: { activeRunId: null, status: 'failed', attentionState: 'error', summary: detail } });
     });
-    throw new AcpxRunStartupError(taskRun.id, detail);
+    throw new AcpxRunStartupError(taskRun.id, detail, error);
   } finally {
     // executeParticipant settles its metadata writes and service cleanup before this boundary.
     if (graphWriter) await releaseTaskRunWriter(taskRun.id, graphWriter.nonce);
