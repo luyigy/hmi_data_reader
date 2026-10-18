@@ -50,3 +50,15 @@
 原图及 `input-materials`、项目原仓和既有 `.venv` 不进入清理候选。清理只针对登记归属于平台、且无活跃使用者的受管资源，不依据文件名是否带 `tmp` 判断。合并冲突、脏文件或归属不明时保留现场，不执行 reset、stash 或自动删除。
 
 独立评审完成后才统一更新运行服务。真实 R01 必须按原批准模式通过原要求；不放宽业务指标，不用模拟数据证明实际后继运行。
+
+## 2026-10-18 21:41 实施结果
+
+- `npm run test:task-graph-postgres` 退出码 0，完整 50 套测试通过。另在合并后的代码上运行启动失败单例，确认自动重试与后继启动，人工 resume 为零。
+- `npx tsc --noEmit --incremental false`、`npm run check:long-files` 和 `git diff --check` 通过。
+- 独立评审使用 gpt-6-sol @high，最终结论无剩余具体阻断问题。先前还使用 gpt-6-astra 和 gpt-6-luna。可用评审模型均属 GPT-6 系列，不能视为跨模型家族验证。
+- 部署代码 `ab1764d` 已发布到 [修复分支](https://gitee.com/luyi1678/agent-platform-v2/tree/fix/workflow-reliability-20261018)。协调器和进度卡服务于 21:39 统一重启一次，MainPID 分别为 4046945 和 4047172。重启前没有被领取的任务图执行。
+- 主飞书服务没有中断当前会话，已登记一次延后重载。必须确认当前会话 TaskRun 结束且原生进程退出后才执行；不会顺带重启正在实施的任务图服务。
+- R01 原候选 `0d91d8931f` 保留，仅增加输出声明提交 `c7b74e9054`。已核对旧原生进程 3327097 退出，原工作区干净；迁移审计与原审批保留。原图 SHA256 为 `03830ab484fc905a35947a0094e1d682c8287e1d397fe520d91f523ef6104962`，保护输入未修改。
+- 真实新 TaskRun `cmvdvh93b004g10x0n0lwhezy` 已进入 running，原生进程 4050836 存活，正在执行项目测试。此处不宣称 R01 已验收通过或后继已启动。
+
+本地原始记录位于 `output/reviews/workflow-reliability-20261018/implementation/`，包括 `full-regression-final.log`、`startup-merged-green.log`、`final-typecheck.log`、`r01-controlled-resume.json` 和 `r01-progress.json`。提交的决策记录见 [decisions.tsv](../evidence/workflow-reliability/decisions.tsv)。
