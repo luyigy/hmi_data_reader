@@ -5,6 +5,7 @@ import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { initialExecutionProgress, executionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import { bindGraphReviewTaskRun, graphReviewClaimKey, completedGraphReviewTaskRun, assertGraphReviewOwnership } from '../src/lib/task-graph/review-ownership';
 import { recoverGraphReview } from '../src/lib/task-graph/restart-recovery';
+import { registerGraphReviewWorker, releaseGraphReviewWorker, assertExecutionWriterExited } from '../src/lib/task-graph/phase-worker';
 import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
 
 async function main() {
@@ -23,8 +24,22 @@ async function main() {
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'verifying' } });
     for (const job of node.executions) await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', commit, claimToken: job.id,
       dispatchMetadata: metadataWithProgress({}, { ...initialExecutionProgress(), phase, candidateCommit: commit, workspaceBase: commit }) } });
-    const claimKey = `${phase}:repair:first`;
+    let claimKey = `${phase}:repair:first`;
     const eventKind = phase === 'architecture' ? 'architecture_claimed' : 'review_claimed';
+    await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: eventKind, idempotencyKey: claimKey, payload: {} } });
+    for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
+      const progress = executionProgress(job.dispatchMetadata); assert(progress);
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
+        { ...progress, worker: writer, review: { kind: 'ready', claimKey, phase, candidateCommit: commit } }) } });
+    }
+    assert.equal(await recoverGraphReview(node.id), 'waiting', 'Reserved prelaunch claim cannot replace a live phase owner');
+    for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
+      const progress = executionProgress(job.dispatchMetadata); assert(progress);
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, worker: departed }) } });
+    }
+    assert.equal(await recoverGraphReview(node.id), 'ready', 'Exited reserved prelaunch claim receives a fresh generation without TaskRun binding');
+    const prelaunchKey = await graphReviewClaimKey(node.id, phase, 'initial'); assert.notEqual(prelaunchKey, claimKey);
+    claimKey = prelaunchKey;
     await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: eventKind, idempotencyKey: claimKey, payload: {} } });
     const task = await prisma.task.create({ data: { id: `task-graph-${phase === 'architecture' ? 'architecture' : 'review'}-${node.id}`, name: phase } });
     const createReview = async (key: string, owner: typeof writer) => prisma.$transaction(async tx => {
@@ -47,12 +62,34 @@ async function main() {
     assert.equal(await graphReviewClaimKey(node.id, phase, 'initial'), replacement, 'Saved repaired review keeps its exact noninitial key');
     for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
       const progress = executionProgress(job.dispatchMetadata); assert(progress);
-      assert.equal(progress.platformAttempts, 1); assert.equal(progress.review?.candidateCommit, commit);
+      assert.equal(progress.platformAttempts, 2); assert.equal(progress.review?.candidateCommit, commit);
     }
+    const phaseWorker = await registerGraphReviewWorker(run.id, 'N'); assert(phaseWorker);
+    assert.equal(await recoverGraphReview(node.id), 'waiting', 'Saved completed review cannot race another live platform phase');
+    await releaseGraphReviewWorker(node.id, phaseWorker.worker.nonce);
+    const released = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: node.executions[0].id } });
+    await releaseGraphReviewWorker(node.id, phaseWorker.worker.nonce);
+    assert.equal(executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: released.id } })).dispatchMetadata)?.revision,
+      executionProgress(released.dispatchMetadata)?.revision, 'Repeated phase release is idempotent');
+    assert.equal(await recoverGraphReview(node.id), 'ready', 'Explicit phase cleanup permits same-daemon saved review pickup');
     await prisma.taskGraphExecution.update({ where: { id: node.executions[0].id }, data: { commit: 'b'.repeat(40) } });
     assert.equal(await graphReviewClaimKey(node.id, phase, 'new-combination'), 'new-combination', 'Reader-only repair starts a fresh combination while model retains old evidence');
     assert.equal(await completedGraphReviewTaskRun(node.id, phase, replacement), null);
     assert.equal(await recoverGraphReview(node.id), 'none', 'Old sibling review must not strand a new commit combination');
+    const legacy = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: node.executions[0].id } });
+    const legacyProgress = executionProgress(legacy.dispatchMetadata); assert(legacyProgress);
+    delete legacyProgress.worker; delete legacyProgress.workerReleasedAt;
+    const legacySnapshot = { ...legacy, taskRunId: null, dispatchMetadata: metadataWithProgress(legacy.dispatchMetadata, legacyProgress) };
+    await assert.rejects(prisma.$transaction(tx => assertExecutionWriterExited(tx, legacySnapshot)), /无法确认退出/);
+    await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: 'execution_progress_adopted', idempotencyKey: `execution:${legacy.id}:progress-adopted`,
+      payload: { executionId: legacy.id, taskRunId: null, revision: legacyProgress.revision, claimToken: legacy.claimToken,
+        candidateCommit: legacyProgress.candidateCommit, workspaceBase: legacyProgress.workspaceBase, authorization: 'explicit fixture exit proof',
+        ownership: { writerExited: true, path: legacy.worktreePath, branch: legacy.worktreeBranch } } } });
+    await prisma.$transaction(tx => assertExecutionWriterExited(tx, legacySnapshot));
+    await assert.rejects(prisma.$transaction(tx => assertExecutionWriterExited(tx, { ...legacySnapshot,
+      dispatchMetadata: metadataWithProgress(legacy.dispatchMetadata, { ...legacyProgress, revision: legacyProgress.revision + 1 }) })), /无法确认退出/, 'Adoption exit proof cannot be replayed after current revision changes');
+    await assert.rejects(prisma.$transaction(tx => assertExecutionWriterExited(tx, { ...legacySnapshot,
+      dispatchMetadata: metadataWithProgress(legacy.dispatchMetadata, { ...legacyProgress, worker: writer }) })), /仍存活/, 'Legacy audit cannot override a current live phase owner');
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'passed' } });
     await prisma.taskGraphRun.update({ where: { id: run.id }, data: { status: 'completed' } });
   }

@@ -12,7 +12,7 @@ import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-gr
 import { executionProgress, applyExecutionOutcome, bindExecutionTaskRun } from '../src/lib/task-graph/execution-progress';
 import { ensureIntegrationRef, ensureJobWorktree, commitJobWorktree } from '../src/lib/task-graph/worktree';
 import type { GraphDefinition } from '../src/lib/task-graph/domain';
-import { observeGraphWriter } from '../src/lib/task-graph/writer-ownership';
+import { observeGraphWriter, parseGraphWriter } from '../src/lib/task-graph/writer-ownership';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
@@ -149,7 +149,19 @@ globalThis.fetch=async()=>new Response(JSON.stringify({code:0,data:{message_id:'
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: second.id, key: 'N' } } })).status, 'passed');
     assert.equal(newStarts, 1, 'Completed candidate resumes checks/integration without another implementation Agent');
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).commit, candidate);
-    console.log('Real coordinator death preserves an orphan writer; confirmed exit automatically resumes once with source preserved and zero human resume');
+    const earlyParent = await prisma.task.create({ data: { name: 'claim before executeJob crash' } });
+    const early = await createTaskGraphRun({ parentTaskId: earlyParent.id, version: 1, requestKey: earlyParent.id, definition });
+    await releaseReadyNodes(early.id); await claimNode(early.id, 'N', 'preentry-owner');
+    const earlyWriter = parseGraphWriter(writer); assert(earlyWriter);
+    const earlyClaim = await claimExecution(early.id, 'N', 'repo', 'preentry-owner', prisma, earlyWriter); assert(earlyClaim);
+    assert.equal(earlyClaim.taskRunId, null);
+    assert.equal(executionProgress(earlyClaim.dispatchMetadata)?.worker?.nonce, earlyWriter.nonce, 'Claim CAS stores its owner before executeJob entry');
+    getHarnessAdapter('codex')!.execute = async ({ context }) => { newStarts++; await fs.writeFile(path.join(context.workingDirectory!, 'done'), 'done'); return { success: true, executionTime: 1, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"early claim recovered","evidence":["done"]}' }; };
+    for (let n = 0; n < 300; n++) { await runTaskGraphCycle(); if ((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: early.id, key: 'N' } } })).status === 'passed') break; await new Promise(resolve => setTimeout(resolve, 25)); }
+    const earlyDrain = new AbortController(); earlyDrain.abort(); await startTaskGraphCoordinator(earlyDrain.signal);
+    assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: early.id, key: 'N' } } })).status, 'passed', 'Proven departed pre-entry claim recovers without a TaskRun or human resume');
+    assert.equal(newStarts, 2);
+    console.log('Real coordinator death preserves orphan and post-Agent owners; exited pre-entry claim resumes automatically with zero human resume');
   } finally {
     if (phaseOwner && phaseOwner.exitCode === null && phaseOwner.signalCode === null) phaseOwner.kill('SIGKILL');
     if (orphanPid) try { process.kill(orphanPid, 'SIGKILL'); } catch {}
