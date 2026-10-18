@@ -62,3 +62,20 @@
 - 真实新 TaskRun `cmvdvh93b004g10x0n0lwhezy` 已进入 running，原生进程 4050836 存活，正在执行项目测试。此处不宣称 R01 已验收通过或后继已启动。
 
 本地原始记录位于 `output/reviews/workflow-reliability-20261018/implementation/`，包括 `full-regression-final.log`、`startup-merged-green.log`、`final-typecheck.log`、`r01-controlled-resume.json` 和 `r01-progress.json`。提交的决策记录见 [decisions.tsv](../evidence/workflow-reliability/decisions.tsv)。
+
+## 2026-10-18 22:03 真实接续与补充修复
+
+R01 已通过平台检查与独立业务验收，独立验收 TaskRun 为 `cmvdvm9mh011010x0rxroyh9j`。实际后继 M01、R02、R04 随后自动派发。本轮没有用模拟数据或放宽业务指标证明后继启动，也不代表其余品牌和 Model 保存回读已经完成。
+
+后继暴露两项原回归遗漏，均已增加真实回归并修复：
+
+- `bb2088b` 修复新 worktree 继承输出声明时，对不存在的受保护原图路径强制 `realpath` 的 ENOENT。只跳过确实不存在的路径；已有原图保持只读，不创建假材料目录，不吞权限或软链错误。
+- `139bf8c` 修复 extra repo 权限误删前置固定交付绑定。M01 原输入清单为空，误读 Reader 原仓旧合同；现在固定清单包含已验收 R01 提交 `c7b74e905401356878e355a60b6afba64d2ae835`、固定源码、项目环境及归档证据。原仓权限和固定交付各有用途，原仓 HEAD 与未提交文件不被修改。
+
+中途使用的临时协调器未加载正式服务的网络环境，导致 R02、R04 原生启动失败。该路径已停止，失败记录保留。22:02 在确认无任务图写入者后，仅重启正式协调器加载修复，MainPID 为 `4148918`，然后由恢复接口将三项置为 ready，由正式服务领取；恢复脚本不再自行启动执行器。
+
+22:03 已核对三项实际原生进程存活且有工具调用：M01 `4152185`、R02 `4150688`、R04 `4151128`。M01 新输入清单 hash 为 `badc88e2ae541e46940e17b783427fa49ff9a493cdc5603acacc620aa32059c7`，包含 R01 固定提交和实施及验收归档。此处仅证明真实接续，三项业务结果仍在执行。
+
+合并后新 extra repo 回归、现有 extra repo 回归、upstream inputs 回归、TypeScript、长文件检查及 diff 检查通过；独立评审 gpt-6-sol @high 批准 `139bf8c`。原 50 套全量通过的记录仍有效，但发生在这两项追加修复之前；追加修复运行了对应受影响测试，没有冒称重新跑过全部 51 套。
+
+原始追加证据为 `inherited-outputs-green.log`、`extra-upstream-merged-green.log`、`extra-upstream-typecheck.log`、`recover-normal-frontier.log`、`frontier-live-proof.json`、`m01-fixed-input-proof.json`。主飞书服务仍等待本会话实际退出后重载一次，不中断当前连接。
