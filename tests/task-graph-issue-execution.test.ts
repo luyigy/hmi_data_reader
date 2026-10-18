@@ -82,7 +82,7 @@ async function main() {
       defectReported = true;
       return { success: true, output: 'TASK_GRAPH_REVIEW {"approved":false,"note":"new input found an in-scope defect","failureKind":"in_scope_defect","failureKey":"smoke"}', executionTime: 1 };
     }
-    return { success: true, output: `TASK_GRAPH_REVIEW ${JSON.stringify({ approved: node.key !== 'B' || !rejectB, note: 'explicit fixture evidence' })}`, executionTime: 1 };
+    return { success: true, output: `TASK_GRAPH_REVIEW ${JSON.stringify({ approved: node.key !== 'B' || !rejectB, note: 'explicit fixture evidence', ...(node.key === 'B' && rejectB ? { failureKind: 'blocked_require_human' } : {}) })}`, executionTime: 1 };
   };
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
   const slices = Object.fromEntries(['A', 'B', 'C'].map((key) => [key, {

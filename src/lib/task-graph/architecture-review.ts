@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
-import { executeAcpxTaskRun } from '../acpx/runner';
+import { collectGraphReview } from './review-result';
+import { graphReviewChecks, reviewResultInstructions } from './review-contract';
+import { graphReviewClaimKey, assertGraphReviewOwnershipTx, completedGraphReviewTaskRun } from './review-ownership';
 import { prisma } from '../prisma';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 import type { VerificationEvidence } from './store';
@@ -10,7 +12,7 @@ import { architectureReviewInstructions } from './prompts';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 
 export async function runArchitectureReview(args: {
-  runId: string; nodeId: string; nodeKey: string; definition: GraphDefinition;
+  runId: string; nodeId: string; nodeKey: string; definition: GraphDefinition; reviewAttempt?: string;
   commits: { repository: string; commit: string }[];
   workspaces: ReviewWorkspace[]; evidence: VerificationEvidence;
 }): Promise<'passed' | 'failed' | 'running'> {
@@ -18,16 +20,13 @@ export async function runArchitectureReview(args: {
   if (!node) throw new Error(`Unknown graph node ${args.nodeKey}`);
   const review = effectiveArchitectureReview(args.definition, node);
   if (!review) return 'passed'; // Runs created before architecture review was introduced.
-  const baseKey = `node:${args.nodeKey}:architecture_result`;
-  const initial = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: baseKey } } });
-  const changed = initial && JSON.stringify((initial.payload as { commits?: unknown }).commits) !== JSON.stringify(args.commits);
-  const suffix = changed ? `:${createHash('sha256').update(JSON.stringify(args.commits)).digest('hex').slice(0, 16)}` : '';
-  const resultKey = baseKey + suffix;
-  const existing = await prisma.taskGraphEvent.findUnique({
-    where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: resultKey } },
-  });
+  const basis = createHash('sha256').update(JSON.stringify(args.commits)).digest('hex').slice(0, 24);
+  const manualAttempt = args.reviewAttempt?.startsWith('recovery:') ? args.reviewAttempt : null;
+  const fallbackClaimKey = `node:${args.nodeKey}:architecture_claimed:${manualAttempt || basis}`;
+  const claimKey = manualAttempt ? fallbackClaimKey : await graphReviewClaimKey(args.nodeId, 'architecture', fallbackClaimKey);
+  const resultKey = `node:${args.nodeKey}:architecture_result:${createHash('sha256').update(claimKey).digest('hex').slice(0, 24)}`;
+  const existing = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: resultKey } } });
   if (existing) return (existing.payload as { approved?: boolean }).approved === true ? 'passed' : 'failed';
-  const claimKey = `node:${args.nodeKey}:architecture_claimed${suffix}`;
   try {
     await prisma.taskGraphEvent.create({ data: {
       runId: args.runId, nodeId: args.nodeId, idempotencyKey: claimKey,
@@ -37,8 +36,8 @@ export async function runArchitectureReview(args: {
     const claim = await prisma.taskGraphEvent.findUnique({
       where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: claimKey } },
     });
-    if (claim) return 'running';
-    throw error;
+    if (claim && !await completedGraphReviewTaskRun(args.nodeId, 'architecture', claimKey)) return 'running';
+    if (!claim) throw error;
   }
   const participant = (review.reviewLaunchConfig as { participant?: AcpxParticipantRequest }).participant;
   if (!participant) throw new Error(`Architecture reviewer missing for ${args.nodeKey}`);
@@ -49,35 +48,36 @@ export async function runArchitectureReview(args: {
     description: `独立检查任务图 ${args.runId} / ${args.nodeKey} 的变更范围与架构影响。`,
     workingDirectory: args.workspaces.at(-1)?.path || null,
   }, update: { workingDirectory: args.workspaces.at(-1)?.path || null } });
+  const executions = await prisma.taskGraphExecution.findMany({ where: { nodeId: args.nodeId }, select: { id: true, repository: true } });
+  const checks = graphReviewChecks(args.definition, args.nodeKey, executions);
   const prompt = `${architectureReviewInstructions}\n请检查 ${args.nodeKey}。` +
     `\n目标：${node.goal}\nSpec：${args.definition.specRef}` +
     `\n固定提交：${JSON.stringify(args.commits)}` +
     `\n仓库检出目录：${JSON.stringify(args.workspaces)}` +
     `\n交付证据：${JSON.stringify(args.evidence)}` +
-    '\n最终答复仅用一行 TASK_GRAPH_ARCH_REVIEW {"approved":true或false,"note":"具体依据"}。';
-  const reviewRun = await executeAcpxTaskRun({
-    taskId: task.id, taskName: task.name, taskDescription: prompt,
-    orchestrationMode: 'single', participants: [participant],
-    extraReadOnlyPaths: args.workspaces.map((workspace) => workspace.path),
-    workingDirectory: task.workingDirectory || undefined, permissionConfig: taskGraphAgentReviewPermissionConfig,
-  }).catch((error) => ({ status: 'failed', taskRunId: 'not-created', participants: [],
-    summary: error instanceof Error ? error.message : String(error) }));
-  const response = reviewRun.participants[0]?.summary || reviewRun.summary || '';
-  const match = response.match(/TASK_GRAPH_ARCH_REVIEW\s*(\{[^\r\n]+\})/);
-  let decision: { approved?: unknown; note?: unknown } = {};
-  try { decision = match ? JSON.parse(match[1]) as typeof decision : {}; } catch { /* invalid result fails closed */ }
-  let approved = reviewRun.status === 'completed' && decision.approved === true &&
-    typeof decision.note === 'string' && decision.note.trim().length > 0;
-  let note = String(decision.note || response || '没有有效的结构化结论');
+    reviewResultInstructions('TASK_GRAPH_ARCH_REVIEW', checks);
+  const result = await collectGraphReview({ runId: args.runId, nodeId: args.nodeId, claimKey, marker: 'TASK_GRAPH_ARCH_REVIEW', checks,
+    request: { graphReview: { runId: args.runId, nodeId: args.nodeId, phase: 'architecture', claimKey },
+      taskId: task.id, taskName: task.name, taskDescription: prompt,
+      orchestrationMode: 'single', participants: [participant],
+      extraReadOnlyPaths: args.workspaces.map(workspace => workspace.path),
+      workingDirectory: task.workingDirectory || undefined, permissionConfig: taskGraphAgentReviewPermissionConfig } });
+  if (result.taskRunId === 'not-created') throw new Error(result.kind === 'classified' ? 'Review did not launch' : result.note);
+  let workspaceInvalid = false;
+  let approved = result.kind === 'classified' && result.decision.approved;
+  let note = result.kind === 'classified' ? result.decision.note : result.note;
   try { await assertReviewWorkspacesClean(args.workspaces); } catch (error) {
-    approved = false;
+    approved = false; workspaceInvalid = true;
     note += `；固定提交工作区被修改：${String(error)}`;
   }
-  await prisma.taskGraphEvent.create({ data: {
+  await prisma.$transaction(async tx => {
+  await assertGraphReviewOwnershipTx(tx, args.nodeId, 'architecture', claimKey, result.taskRunId);
+  await tx.taskGraphEvent.create({ data: {
     runId: args.runId, nodeId: args.nodeId, idempotencyKey: resultKey,
     kind: approved ? 'architecture_passed' : 'architecture_failed',
-    payload: { approved, note, reviewerId: review.reviewerId,
-      taskRunId: reviewRun.taskRunId, commits: args.commits } as Prisma.InputJsonValue,
+    payload: { ...(workspaceInvalid ? { failureKind: 'ownership_mismatch' } : result.kind === 'classified' ? result.decision : { failureKind: result.kind }), approved, note, reviewerId: review.reviewerId,
+      taskRunId: result.taskRunId, claimKey, commits: args.commits } as Prisma.InputJsonValue,
   } });
+  });
   return approved ? 'passed' : 'failed';
 }

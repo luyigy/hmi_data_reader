@@ -1,3 +1,4 @@
+import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -70,15 +71,15 @@ async function main() {
     const previousModelStarts = urls.length;
     for (let n = 0; n < 300; n++) {
       await runTaskGraphCycle();
-      if (await prisma.taskGraphNode.count({ where: { runId: bad.id, status: 'attention' } })) break;
+      if (await prisma.taskGraphNode.count({ where: { runId: bad.id, key: 'APP', status: 'attention' } })) break;
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     const failed = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: bad.id, key: 'APP' } }, include: { executions: true } });
     assert.equal(failed.status, 'attention'); assert.equal(failed.executions[0].issueKind, 'retry_exhausted');
-    const progress = executionProgress(failed.executions[0].dispatchMetadata);
-    assert.equal(progress?.state, 'exhausted'); assert.equal(progress?.lastFailure?.code, 'environment_failed');
+    const progress = executionProgress(failed.executions[0].dispatchMetadata); assert.ok(progress);
+    assert.equal(progress.state, 'exhausted'); assert.equal(progress.platformAttempts, 2); assert.equal(progress.lastFailure?.code, 'environment_failed');
     assert.equal(urls.length, previousModelStarts, 'Bad service entry must not start another implementation model');
-    assert.ok(await prisma.taskGraphEvent.count({ where: { nodeId: failed.id, kind: 'service_attempt_failed' } }));
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: failed.id, kind: 'service_attempt_failed' } }), 3, 'Two bounded retries retain each service failure receipt, then explicitly exhaust');
     console.log('Implementation, platform check, integration check, architecture and acceptance use attempt-owned services and release all ports');
   } finally { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); globalThis.fetch = realFetch; if (badRunId) await prisma.taskGraphRun.delete({ where: { id: badRunId } }); await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
 }

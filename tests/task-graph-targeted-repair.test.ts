@@ -27,11 +27,16 @@ async function main() {
     const before = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: model.id } });
     const decision = { failureKind: 'in_scope_defect', failureKey: 'contract', note: 'Reader misses required raw field', executionIds: [reader.id] };
     const evidence = { summary: 'Joint check found a reader defect', checks: [{ name: 'contract', passed: false, evidence: 'missing field' }] };
+    assert.equal(await scheduleGraphRepair(run.id, 'BOTH', { ...decision, executionIds: ['another-node'] }, evidence), false);
+    assert.equal(await scheduleGraphRepair(run.id, 'BOTH', { ...decision, failureKey: 'unknown' }, evidence), false);
+    assert.equal(await scheduleGraphRepair(run.id, 'BOTH', { ...decision, executionIds: undefined }, evidence), false, 'Multi-execution defect needs explicit attribution');
     assert.equal(await scheduleGraphRepair(run.id, 'BOTH', decision, evidence), true);
     const after = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: model.id } });
     assert.equal(after.status, 'integrated', 'Successful sibling must stay integrated and never be dispatched again');
     assert.equal(after.commit, before.commit);
     assert.deepEqual(after.evidence, before.evidence);
+    assert.deepEqual(after.dispatchMetadata, before.dispatchMetadata);
+    assert.equal(after.taskRunId, before.taskRunId);
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: reader.id } })).status, 'ready');
     console.log('Only affected execution is requeued; successful sibling commit and evidence remain unchanged');
   } finally {

@@ -1,3 +1,4 @@
+import { executionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -83,16 +84,23 @@ async function main() {
     const evidence = { summary: 'save defect', checks: [{ name: 'roundtrip', passed: false, evidence: 'wrong value after reopen' }] };
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'blocked_require_human', note: 'photo blurred' }, evidence), false);
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'roundtrip', note: 'wrong save' }, evidence), true);
-    assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status, 'ready');
+    assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status, 'claimed');
     const event = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } });
     assert.ok(JSON.stringify(event.payload).includes('bbbbbbbb'), 'Keep previous delivery/evidence before repair');
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention' } });
-    await prisma.taskGraphExecution.updateMany({ where: { nodeId: node.id }, data: { status: 'integrated' } });
+    for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
+      const progress = executionProgress(job.dispatchMetadata); assert.ok(progress);
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', claimToken: 'completed-repair-' + progress.repairAttempts, dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, phase: 'acceptance' }) } });
+    }
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'roundtrip', note: 'same defect' }, evidence), true);
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention' } });
-    await prisma.taskGraphExecution.updateMany({ where: { nodeId: node.id }, data: { status: 'integrated' } });
+    for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
+      const progress = executionProgress(job.dispatchMetadata); assert.ok(progress);
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', claimToken: 'completed-repair-' + progress.repairAttempts, dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, phase: 'acceptance' }) } });
+    }
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'roundtrip', note: 'same defect' }, evidence), false);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } }), 2);
+    assert.equal((await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } })).issueKind, 'retry_exhausted');
     const code = path.join(temp, 'source.js'); writeFileSync(code, 'source');
     const runtime = await prepareAcceptanceRuntime(node.id, 'test', [{ repository: temp, path: temp, commit: 'a'.repeat(40) }]);
     const command = wrapWithBubblewrap({ command: process.execPath, commandArgs: ['-e', `const f=require('fs'),a=require('assert');f.writeFileSync('test-db.json','{}');a.throws(()=>f.writeFileSync(${JSON.stringify(code)},'bad'));`], cwd: runtime.directory, workspaceRoot: runtime.directory, sandboxMode: runtime.permissionConfig.sandboxMode, env: process.env, readOnlyPaths: [code] });

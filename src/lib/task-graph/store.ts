@@ -1,4 +1,6 @@
-import { executionProgress, immutableDispatchMetadata, applyExecutionOutcome } from './execution-progress';
+import { assertGraphReviewOwnershipTx } from './review-ownership';
+import { createHash } from 'node:crypto';
+import { executionProgress, immutableDispatchMetadata, applyExecutionOutcome, applyExecutionOutcomeTx } from './execution-progress';
 import { realpath } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -210,6 +212,12 @@ export async function completeExecution(args: {
       return execution;
     }
     if (execution.status !== 'claimed') throw new Error('Execution is not claimed');
+    const progress = executionProgress(execution.dispatchMetadata);
+    if (progress) {
+      await applyExecutionOutcomeTx(tx, { executionId: execution.id, claimToken: args.claimToken, expectedRevision: progress.revision,
+        outcomeId: `complete:${args.commit}`, outcome: { kind: 'integrated', commit: args.commit, evidence: args.evidence as Prisma.InputJsonValue } });
+      return tx.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+    }
     if (!execution.worktreePath || !execution.worktreeBranch) throw new Error('Worktree evidence is required');
     const changed = await tx.taskGraphExecution.updateMany({
       where: { id: execution.id, status: 'claimed', claimToken: args.claimToken },
@@ -237,7 +245,7 @@ export async function markNodeIntegrationsReady(runId: string, nodeKey: string, 
     const updated = await tx.taskGraphNode.updateMany({ where: { id: node.id, status: 'claimed' }, data: { status: 'verifying' } });
     if (updated.count !== 1) return null;
     await tx.taskGraphEvent.create({
-      data: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:verifying:${node.claimToken}`, kind: 'node_verifying', payload: {} },
+      data: { runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:verifying:${createHash('sha256').update(JSON.stringify(node.executions.map(job => [job.id, job.commit, executionProgress(job.dispatchMetadata)?.revision]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))))).digest('hex').slice(0, 24)}`, kind: 'node_verifying', payload: {} },
     });
     return tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
   });
@@ -274,6 +282,7 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
 /** Agent review requires the configured reviewer; human review creates a pause. */
 export async function submitNodeVerification(args: {
   runId: string; nodeKey: string; actorId: string; evidence: VerificationEvidence; attempt?: string;
+  review?: { phase: 'architecture' | 'acceptance'; claimKey: string; taskRunId: string; outcome: 'classified' | 'protocol_exhausted' | 'platform_failure' };
 }, db: Database = prisma) {
   return db.$transaction(async (tx) => {
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId: args.runId, key: args.nodeKey } } });
@@ -281,6 +290,7 @@ export async function submitNodeVerification(args: {
     if (['passed', 'awaiting_human', 'attention'].includes(node.status) &&
         JSON.stringify(node.evidence) === JSON.stringify(args.evidence)) return node;
     if (node.status !== 'verifying') throw new Error('Node is not ready for verification');
+    if (args.review) await assertGraphReviewOwnershipTx(tx, node.id, args.review.phase, args.review.claimKey, args.review.taskRunId);
     const snapshot = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
     const definition = snapshot.snapshot as unknown as GraphDefinition;
     const checks = definition.nodes.find((item) => item.key === args.nodeKey)?.acceptance.checks;
@@ -292,12 +302,21 @@ export async function submitNodeVerification(args: {
         checks.some((check) => !results.some((item) => item.name === check && item.evidence?.trim()))) {
       throw new Error('Required verification evidence is missing');
     }
-    const allPassed = checks.every((check) => results.some((item) => item.name === check && item.passed));
+    const allPassed = results.every(item => item.passed) && checks.every((check) => results.some((item) => item.name === check && item.passed));
     const status = allPassed ? (node.acceptance === 'human' ? 'awaiting_human' : 'passed') : 'attention';
     const updated = await tx.taskGraphNode.update({
       where: { id: node.id }, data: { status, evidence: args.evidence as unknown as Prisma.InputJsonValue,
         passedAt: status === 'passed' ? new Date() : undefined },
     });
+    if (args.review?.outcome === 'protocol_exhausted') {
+      const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
+      for (const job of jobs) {
+        const progress = executionProgress(job.dispatchMetadata);
+        if (!progress || !job.claimToken) throw new Error('Exhausted review has no owned execution progress');
+        await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision,
+          outcomeId: `review-protocol-exhausted:${args.review.taskRunId}`, outcome: { kind: 'retry_exhausted', failure: { code: 'invalid_review_result', detail: args.evidence.summary } } });
+      }
+    }
     await tx.taskGraphEvent.create({
       data: { runId: args.runId, nodeId: node.id, idempotencyKey: `node:${args.nodeKey}:verified${args.attempt ? `:${args.attempt}` : ''}`,
         kind: status === 'passed' ? 'node_passed' : status === 'awaiting_human' ? 'human_review_requested' : 'verification_failed',
