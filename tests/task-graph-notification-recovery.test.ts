@@ -46,7 +46,7 @@ async function main() {
   // All outbound surfaces unrelated to the injected task-graph calls remain local fixtures.
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: app, definition: {
-    specRef: 'fixture://notification', nodes: [{ key: 'N', goal: 'deliver', dependsOn: [], executionMode: 'lean',
+    specRef: 'fixture://notification', nodes: [{ key: 'N', goal: 'deliver', dependsOn: [], executionMode: 'implement',
       acceptance: { mode: 'automatic', checks: [] }, executions: [{ key: 'repo', repository, gitRef: 'refs/heads/main', baseCommit: git('rev-parse', 'HEAD'),
         agentSelector: 'local:codex', instructions: 'fixture', launchConfig: { checks: [], participant: { gatewayId: 'platform-local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' } } }] }],
   } });
