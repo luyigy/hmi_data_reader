@@ -1,6 +1,6 @@
 {
   "project": "workflow-reliability-20261018",
-  "status": "draft-awaiting-breakdown-review",
+  "status": "published-awaiting-user-review",
   "specCommit": "7c0d70b",
   "implementationRepository": "/data1/code/agent-platform-v2",
   "trackerRepository": "gitee:luyi1678/agent-platform-v2",
@@ -60,5 +60,7 @@
       ],
       "document": "tickets/WR07.md"
     }
-  ]
+  ],
+  "parentIssue": "gitee:luyi1678/agent-platform-v2#IKNBDN",
+  "publishedIndex": "published-issues.json"
 }

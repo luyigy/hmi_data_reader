@@ -1,0 +1,83 @@
+{
+  "project": "workflow-reliability-20261018",
+  "dependencyAuthority": "Gitee Issues ap-ticket-v1; local index is readback projection",
+  "parent": {
+    "number": "IKNBDN",
+    "title": "[Spec] 任务图可靠性：失败自动回修、保留成果与无损接续",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDN",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKNBDN",
+    "blockedBy": [],
+    "verified": true
+  },
+  "tickets": {
+    "WR01": {
+      "number": "IKNBDO",
+      "title": "[WR01] 自测与平台检查使用一致的报告运行目录",
+      "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDO",
+      "ref": "gitee:luyi1678/agent-platform-v2#IKNBDO",
+      "blockedBy": [],
+      "verified": true
+    },
+    "WR02": {
+      "number": "IKNBDP",
+      "title": "[WR02] 检查失败后在同票内自动修复并接续最新成果",
+      "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDP",
+      "ref": "gitee:luyi1678/agent-platform-v2#IKNBDP",
+      "blockedBy": [
+        "gitee:luyi1678/agent-platform-v2#IKNBDO"
+      ],
+      "verified": true
+    },
+    "WR03": {
+      "number": "IKNBDQ",
+      "title": "[WR03] 架构和测试发现缺陷后只回修受影响仓内执行",
+      "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDQ",
+      "ref": "gitee:luyi1678/agent-platform-v2#IKNBDQ",
+      "blockedBy": [
+        "gitee:luyi1678/agent-platform-v2#IKNBDP"
+      ],
+      "verified": true
+    },
+    "WR04": {
+      "number": "IKNBDR",
+      "title": "[WR04] 集成引用变化和合并冲突有明确的恢复出口",
+      "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDR",
+      "ref": "gitee:luyi1678/agent-platform-v2#IKNBDR",
+      "blockedBy": [
+        "gitee:luyi1678/agent-platform-v2#IKNBDP"
+      ],
+      "verified": true
+    },
+    "WR05": {
+      "number": "IKNBDS",
+      "title": "[WR05] 重启后接续当前阶段且不重复启动写入者",
+      "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDS",
+      "ref": "gitee:luyi1678/agent-platform-v2#IKNBDS",
+      "blockedBy": [
+        "gitee:luyi1678/agent-platform-v2#IKNBDP"
+      ],
+      "verified": true
+    },
+    "WR06": {
+      "number": "IKNBDT",
+      "title": "[WR06] 飞书投递超时不拖停业务执行",
+      "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDT",
+      "ref": "gitee:luyi1678/agent-platform-v2#IKNBDT",
+      "blockedBy": [],
+      "verified": true
+    },
+    "WR07": {
+      "number": "IKNBDU",
+      "title": "[WR07] 完整故障闭环通过后无损接续现有路线",
+      "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKNBDU",
+      "ref": "gitee:luyi1678/agent-platform-v2#IKNBDU",
+      "blockedBy": [
+        "gitee:luyi1678/agent-platform-v2#IKNBDQ",
+        "gitee:luyi1678/agent-platform-v2#IKNBDR",
+        "gitee:luyi1678/agent-platform-v2#IKNBDS",
+        "gitee:luyi1678/agent-platform-v2#IKNBDT"
+      ],
+      "verified": true
+    }
+  }
+}
