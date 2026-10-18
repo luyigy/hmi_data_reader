@@ -1,3 +1,4 @@
+import { executionProgress } from './execution-progress';
 import { prepareExtraRepositories } from './extra-repositories';
 import { realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -146,7 +147,8 @@ export async function graphInputsForTask(taskId: string, forceReadOnly = false):
   const declarations = nodes.flatMap(node => (node.run.snapshot as unknown as GraphDefinition).nodes.find(planned => planned.key === node.key)?.extraRepositories || []);
   const merged = new Map<string, (typeof declarations)[number]>();
   for (const declaration of declarations) if (merged.get(declaration.repository)?.access !== 'write') merged.set(declaration.repository, declaration);
-  const extra = await prepareExtraRepositories(Array.from(merged.values()), forceReadOnly || !!nodeId || !!jobId);
+  const conflictRepair = jobs.some(job => executionProgress(job.dispatchMetadata)?.conflictRepair);
+  const extra = await prepareExtraRepositories(Array.from(merged.values()), forceReadOnly || !!nodeId || !!jobId || conflictRepair);
   const archives = await prisma.taskGraphEvent.findMany({ where: { nodeId: { in: jobs.map(job => job.nodeId) }, kind: 'workspace_cleaned' }, select: { payload: true } });
   const reportPaths = archives.flatMap(event => {
     const payload = event.payload;

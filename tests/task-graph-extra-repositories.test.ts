@@ -9,6 +9,7 @@ import path from 'node:path';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun, claimNode, releaseReadyNodes } from '../src/lib/task-graph/store';
 import { graphInputsForTask, prepareUpstreamInputs } from '../src/lib/task-graph/upstream-inputs';
+import { initialExecutionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import { prepareExtraRepositories } from '../src/lib/task-graph/extra-repositories';
 import { formatGraphProposal } from '../src/lib/task-graph/proposal-card';
 import { validateTaskGraphDefinition, taskGraphSnapshotHash, type GraphDefinition } from '../src/lib/task-graph/domain';
@@ -115,6 +116,21 @@ async function main() {
     assert.equal(review.status, 'completed'); assert.equal(nativeCalls, 2);
     assert.equal(readFileSync(path.join(extra.directory, 'native-written'), 'utf8'), 'native');
     assert.equal(existsSync(path.join(extra.directory, 'native-denied')), false);
+    const saved = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(saved.dispatchMetadata, {
+      ...initialExecutionProgress(), phase: 'integrate', conflictRepair: {
+        candidateCommit: main.commit, integrationCommit: main.commit, mergeHead: main.commit, paths: ['value'],
+        indexOutside: '0'.repeat(64), worktreeOutside: '0'.repeat(64), originals: { value: '0'.repeat(64) }, stages: { value: '0'.repeat(64) },
+      },
+    }) } });
+    const repair = await graphInputsForTask(child.id);
+    assert.deepEqual(repair.writablePaths, [], 'Artifact-only conflict repair removes the approved extra repository write grant');
+    assert.ok(repair.paths.includes(extra.directory), 'Conflict repair retains read access to the extra repository');
+    const repairSandbox = wrapWithBubblewrap({ command: process.execPath, commandArgs: ['-e', `require('fs').writeFileSync(${JSON.stringify(path.join(extra.directory, 'repair-denied'))},'bad')`],
+      cwd: main.directory, workspaceRoot: main.directory, writableRoots: repair.writablePaths, readOnlyPaths: repair.paths, networkAccess: 'enabled', env });
+    await assert.rejects(runGraphCheck([repairSandbox.command, ...repairSandbox.args], main.directory, env), /EROFS|EACCES|Read-only|read-only|Permission/);
+    assert.equal(existsSync(path.join(extra.directory, 'repair-denied')), false);
+    await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(saved.dispatchMetadata, initialExecutionProgress()) } });
     const replay = await graphInputsForTask(child.id); assert.deepEqual(replay.writablePaths, inputs.writablePaths, 'Resume inherits the approved grant');
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'delivered_unverified' } });
     await cleanupCompletedNodeWorkspaces(run.id, 'B');
