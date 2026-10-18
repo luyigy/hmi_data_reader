@@ -1,0 +1,95 @@
+import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import { prisma } from '../prisma';
+
+export type GraphWriter = {
+  version: 1;
+  nonce: string;
+  hostname: string;
+  uid: number;
+  supervisor: { pid: number; startTime: string; bootId: string };
+};
+
+export type WriterObservation =
+  | { kind: 'alive'; pids: number[] }
+  | { kind: 'exited' }
+  | { kind: 'unknown'; reason: string };
+
+async function processIdentity(pid: number) {
+  const stat = await fs.readFile(`/proc/${pid}/stat`, 'utf8');
+  const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+  if (!fields[19] || !fields[0]) throw new Error('Incomplete process identity');
+  return { state: fields[0], startTime: fields[19] };
+}
+
+export async function createGraphWriter(): Promise<GraphWriter> {
+  if (!process.getuid) throw new Error('Graph writer observation requires a local Linux process');
+  const identity = await processIdentity(process.pid);
+  return { version: 1, nonce: randomUUID(), hostname: os.hostname(), uid: process.getuid(),
+    supervisor: { pid: process.pid, startTime: identity.startTime,
+      bootId: (await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() } };
+}
+
+function parseGraphWriter(value: unknown): GraphWriter | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const version: unknown = Reflect.get(value, 'version');
+  const nonce: unknown = Reflect.get(value, 'nonce');
+  const hostname: unknown = Reflect.get(value, 'hostname');
+  const uid: unknown = Reflect.get(value, 'uid');
+  const supervisor: unknown = Reflect.get(value, 'supervisor');
+  if (version !== 1 || typeof nonce !== 'string' || !/^[0-9a-f-]{36}$/.test(nonce) || typeof hostname !== 'string'
+      || typeof uid !== 'number' || !Number.isInteger(uid) || !supervisor || typeof supervisor !== 'object') return null;
+  const pid: unknown = Reflect.get(supervisor, 'pid');
+  const startTime: unknown = Reflect.get(supervisor, 'startTime');
+  const bootId: unknown = Reflect.get(supervisor, 'bootId');
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0 || typeof startTime !== 'string'
+      || !/^\d+$/.test(startTime) || typeof bootId !== 'string' || !bootId) return null;
+  return { version, nonce, hostname, uid, supervisor: { pid, startTime, bootId } };
+}
+
+function missing(error: unknown) {
+  return error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ESRCH');
+}
+
+/** A lease timeout is not evidence that a process stopped. Inspect the local owner and its children. */
+export async function observeGraphWriter(value: unknown): Promise<WriterObservation> {
+  const writer = parseGraphWriter(value);
+  if (!writer) return { kind: 'unknown', reason: 'No durable writer identity' };
+  if (writer.hostname !== os.hostname() || writer.uid !== process.getuid?.()) return { kind: 'unknown', reason: 'Writer belongs to another host or user' };
+  try {
+    const bootId = (await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+    if (bootId === writer.supervisor.bootId) {
+      try {
+        const owner = await processIdentity(writer.supervisor.pid);
+        if (owner.startTime === writer.supervisor.startTime && !['Z', 'X'].includes(owner.state)) return { kind: 'alive', pids: [writer.supervisor.pid] };
+      } catch (error) { if (!missing(error)) throw error; }
+    }
+    const pids: number[] = [];
+    const marker = `AP_GRAPH_WRITER_NONCE=${writer.nonce}`;
+    for (const entry of await fs.readdir('/proc', { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+      try {
+        if ((await fs.stat(`/proc/${entry.name}`)).uid !== writer.uid) continue;
+        const identity = await processIdentity(Number(entry.name));
+        // A nonce is supplied only to newly spawned harnesses, never to a pre-existing server.
+        if (BigInt(identity.startTime) < BigInt(writer.supervisor.startTime)) continue;
+        const environment = await fs.readFile(`/proc/${entry.name}/environ`);
+        if (environment.toString().split('\0').includes(marker)) {
+          if (!['Z', 'X'].includes(identity.state)) pids.push(Number(entry.name));
+        }
+      } catch (error) { if (!missing(error)) throw error; }
+    }
+    return pids.length ? { kind: 'alive', pids } : { kind: 'exited' };
+  } catch (error) {
+    return { kind: 'unknown', reason: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function graphWriterEnvironment(taskRunId: string): Promise<Record<string, string>> {
+  const run = await prisma.taskRun.findUnique({ where: { id: taskRunId }, select: { controlMetadata: true } });
+  if (!run?.controlMetadata) return {};
+  const metadata: unknown = JSON.parse(run.controlMetadata);
+  const writer = metadata && typeof metadata === 'object' ? parseGraphWriter(Reflect.get(metadata, 'graphWriter')) : null;
+  return writer ? { AP_GRAPH_WRITER_NONCE: writer.nonce } : {};
+}
