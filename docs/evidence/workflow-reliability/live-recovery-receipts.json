@@ -1,0 +1,308 @@
+{
+  "acceptance": {
+    "at": "2026-10-18T14:05:31.466Z",
+    "nodeStatus": "passed",
+    "acceptanceTaskRunId": "cmvdvm9mh011010x0rxroyh9j",
+    "run": {
+      "status": "completed",
+      "startedAt": "2026-10-18T13:43:49.815Z",
+      "lastActivityAt": "2026-10-18T13:47:25.073Z",
+      "native": [
+        {
+          "status": "completed",
+          "pid": 4069063,
+          "alive": false
+        }
+      ]
+    },
+    "acceptanceResult": [
+      {
+        "eventType": "stdout_chunk",
+        "content": "TASK_GRAPH_REVIEW {\"approved\":true,\"note\":\"固定提交 c7b74e9 独立复验通过：实际 OCR、HTTP/CLI、冻结包导出与重新 GET、离线消费、v1 回放共11项通过；兼容回归110项及22子测试通过，2项跳过。补验非法输入、哈希不符、冻结包变更均正确拒绝。coverage=partial，未决字段保留；不包含 Model 保存重开。源码未修改。报告：/home/hello/.agent-platform/task-validation/0f7e507522cdbdea8ba219d8/1032c44b29669beaba0dfd7d/acceptance-report.md\"}",
+        "createdAt": "2026-10-18T13:47:25.080Z"
+      }
+    ]
+  },
+  "frontier": {
+    "at": "2026-10-18T14:04:48.272Z",
+    "nodes": [
+      {
+        "key": "R01",
+        "status": "passed",
+        "runs": [
+          {
+            "executionId": "cmvdmf87z04499xhg3j7qnblt",
+            "taskRunId": "cmvdvh93b004g10x0n0lwhezy",
+            "status": "completed",
+            "native": [
+              {
+                "status": "completed",
+                "pid": 4050836,
+                "alive": false
+              }
+            ],
+            "toolEvents": 20
+          }
+        ]
+      },
+      {
+        "key": "M01",
+        "status": "claimed",
+        "runs": [
+          {
+            "executionId": "cmvdmf87y043h9xhg2x2fqmku",
+            "taskRunId": "cmvdwahdu003vtwmkkkfnowas",
+            "status": "running",
+            "native": [
+              {
+                "status": "running",
+                "pid": 4152185,
+                "alive": true
+              }
+            ],
+            "toolEvents": 27
+          }
+        ]
+      },
+      {
+        "key": "R02",
+        "status": "claimed",
+        "runs": [
+          {
+            "executionId": "cmvdmf87z044b9xhg5x324xdu",
+            "taskRunId": "cmvdwaeda0020twmko41ha50g",
+            "status": "running",
+            "native": [
+              {
+                "status": "running",
+                "pid": 4150688,
+                "alive": true
+              }
+            ],
+            "toolEvents": 31
+          }
+        ]
+      },
+      {
+        "key": "R04",
+        "status": "claimed",
+        "runs": [
+          {
+            "executionId": "cmvdmf880044d9xhgoavvyi0i",
+            "taskRunId": "cmvdwaey1002ltwmkudyfbf4q",
+            "status": "running",
+            "native": [
+              {
+                "status": "running",
+                "pid": 4151128,
+                "alive": true
+              }
+            ],
+            "toolEvents": 48
+          }
+        ]
+      }
+    ]
+  },
+  "fixedInput": {
+    "at": "2026-10-18T14:03:01.867Z",
+    "createdAt": "2026-10-18T14:02:38.692Z",
+    "manifestHash": "badc88e2ae541e46940e17b783427fa49ff9a493cdc5603acacc620aa32059c7",
+    "inputs": [
+      {
+        "commit": "c7b74e905401356878e355a60b6afba64d2ae835",
+        "quality": [
+          "passed"
+        ],
+        "executions": [
+          "R01/reader"
+        ],
+        "repository": "/data1/code/hmi_data_reader",
+        "sourcePath": "/home/hello/.agent-platform/task-upstream-sources/4ca3456d86e44cdc854f1b53/c7b74e905401356878e355a60b6afba64d2ae835",
+        "projectEnvPath": "/data1/code/hmi_data_reader/.venv",
+        "dependencyPaths": [],
+        "pythonExecutable": "/data1/code/hmi_data_reader/.venv/bin/python",
+        "resultsDirectories": [
+          "/data1/code/.agent-platform-task-graph-results/06360cdbe0d418bf/f587b072f282bfa0/c7b74e905401356878e355a60b6afba64d2ae835/bc4ecf8eac40d463",
+          "/data1/code/.agent-platform-task-graph-results/06360cdbe0d418bf/validation/0f7e507522cdbdea/bc4ecf8eac40d463"
+        ]
+      }
+    ]
+  },
+  "services": {
+    "at": "2026-10-18T14:05:14.692391+00:00",
+    "services": [
+      {
+        "command": [
+          "systemctl",
+          "--user",
+          "show",
+          "agent-platform-task-graph.service",
+          "-p",
+          "ActiveState",
+          "-p",
+          "SubState",
+          "-p",
+          "MainPID",
+          "-p",
+          "ExecMainStartTimestamp"
+        ],
+        "exitCode": 0,
+        "stdout": "MainPID=4148918\nExecMainStartTimestamp=Sun 2026-10-18 22:02:22 CST\nActiveState=active\nSubState=running\n"
+      },
+      {
+        "command": [
+          "systemctl",
+          "--user",
+          "show",
+          "agent-platform-task-graph-feishu.service",
+          "-p",
+          "ActiveState",
+          "-p",
+          "SubState",
+          "-p",
+          "MainPID",
+          "-p",
+          "ExecMainStartTimestamp"
+        ],
+        "exitCode": 0,
+        "stdout": "MainPID=4047172\nExecMainStartTimestamp=Sun 2026-10-18 21:39:23 CST\nActiveState=active\nSubState=running\n"
+      },
+      {
+        "command": [
+          "systemctl",
+          "--user",
+          "show",
+          "agent-platform-feishu.service",
+          "-p",
+          "ActiveState",
+          "-p",
+          "SubState",
+          "-p",
+          "MainPID",
+          "-p",
+          "ExecMainStartTimestamp"
+        ],
+        "exitCode": 0,
+        "stdout": "MainPID=3139856\nExecMainStartTimestamp=Sun 2026-10-18 18:26:45 CST\nActiveState=active\nSubState=running\n"
+      },
+      {
+        "command": [
+          "systemctl",
+          "--user",
+          "show",
+          "ap-feishu-reliability-idle-20261018.service",
+          "-p",
+          "ActiveState",
+          "-p",
+          "SubState",
+          "-p",
+          "MainPID",
+          "-p",
+          "ExecMainStartTimestamp"
+        ],
+        "exitCode": 0,
+        "stdout": "MainPID=4052562\nExecMainStartTimestamp=Sun 2026-10-18 21:40:16 CST\nActiveState=active\nSubState=running\n"
+      }
+    ]
+  },
+  "typecheck": {
+    "at": "2026-10-18T14:05:18.463823+00:00",
+    "command": [
+      "npx",
+      "tsc",
+      "--noEmit",
+      "--pretty",
+      "false"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "tracker": [
+    {
+      "issue": "IKNBDO",
+      "exitCode": 0,
+      "stdout": "{\"number\":\"IKNBDO\",\"state\":\"closed\"}\n"
+    },
+    {
+      "issue": "IKNBDU",
+      "exitCode": 0,
+      "stdout": "{\"number\":\"IKNBDU\",\"state\":\"open\"}\n"
+    },
+    {
+      "issue": "IKNBDN",
+      "exitCode": 0,
+      "stdout": "{\"number\":\"IKNBDN\",\"state\":\"open\"}\n"
+    }
+  ],
+  "temporaryRuntimeFailures": [
+    {
+      "id": "cmvdvxotj001jykbwqqkr2yhx",
+      "status": "failed",
+      "startedAt": "2026-10-18T13:52:42.725Z",
+      "lastActivityAt": "2026-10-18T13:54:19.681Z",
+      "events": [
+        {
+          "eventType": "run_failed",
+          "sequence": 9,
+          "content": "ACPX 运行失败，失败 1 个参与方"
+        },
+        {
+          "eventType": "participant_failed",
+          "sequence": 8,
+          "content": "implementer 执行失败: workspace routing discovery failed"
+        },
+        {
+          "eventType": "stderr_chunk",
+          "sequence": 7,
+          "content": "\u001b[2m2026-10-18T13:54:19.581397Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mrmcp::transport::worker\u001b[0m\u001b[2m:\u001b[0m worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest(\"http/request failed: error sending request for url (https://chatgpt.com/backend-api/ps/mcp)\")))\n"
+        },
+        {
+          "eventType": "stderr_chunk",
+          "sequence": 6,
+          "content": "\u001b[2m2026-10-18T13:53:49.581278Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mrmcp::transport::worker\u001b[0m\u001b[2m:\u001b[0m worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest(\"http/request failed: error sending request for url (https://chatgpt.com/backend-api/ps/mcp)\")))\n"
+        },
+        {
+          "eventType": "stderr_chunk",
+          "sequence": 5,
+          "content": "\u001b[2m2026-10-18T13:53:19.504355Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_models_manager::manager\u001b[0m\u001b[2m:\u001b[0m failed to refresh available models: request timed out\n"
+        }
+      ]
+    },
+    {
+      "id": "cmvdvxpc50026ykbwqefg3lfl",
+      "status": "failed",
+      "startedAt": "2026-10-18T13:52:43.396Z",
+      "lastActivityAt": "2026-10-18T13:54:20.330Z",
+      "events": [
+        {
+          "eventType": "run_failed",
+          "sequence": 9,
+          "content": "ACPX 运行失败，失败 1 个参与方"
+        },
+        {
+          "eventType": "participant_failed",
+          "sequence": 8,
+          "content": "implementer 执行失败: workspace routing discovery failed"
+        },
+        {
+          "eventType": "stderr_chunk",
+          "sequence": 7,
+          "content": "\u001b[2m2026-10-18T13:54:20.229669Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mrmcp::transport::worker\u001b[0m\u001b[2m:\u001b[0m worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest(\"http/request failed: error sending request for url (https://chatgpt.com/backend-api/ps/mcp)\")))\n"
+        },
+        {
+          "eventType": "stderr_chunk",
+          "sequence": 6,
+          "content": "\u001b[2m2026-10-18T13:53:50.230126Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mrmcp::transport::worker\u001b[0m\u001b[2m:\u001b[0m worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest(\"http/request failed: error sending request for url (https://chatgpt.com/backend-api/ps/mcp)\")))\n"
+        },
+        {
+          "eventType": "stderr_chunk",
+          "sequence": 5,
+          "content": "\u001b[2m2026-10-18T13:53:20.154846Z\u001b[0m \u001b[31mERROR\u001b[0m \u001b[2mcodex_models_manager::manager\u001b[0m\u001b[2m:\u001b[0m failed to refresh available models: request timed out\n"
+        }
+      ]
+    }
+  ],
+  "temporaryRuntimeEnvironmentDiagnosis": "Inference from routing/network timeout events and temporary startup script using only loadEnvConfig rather than configured interactive service runner; not a captured environment diff."
+}

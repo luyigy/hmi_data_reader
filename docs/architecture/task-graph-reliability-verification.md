@@ -79,3 +79,5 @@ R01 已通过平台检查与独立业务验收，独立验收 TaskRun 为 `cmvdv
 合并后新 extra repo 回归、现有 extra repo 回归、upstream inputs 回归、TypeScript、长文件检查及 diff 检查通过；独立评审 gpt-6-sol @high 批准 `139bf8c`。原 50 套全量通过的记录仍有效，但发生在这两项追加修复之前；追加修复运行了对应受影响测试，没有冒称重新跑过全部 51 套。
 
 原始追加证据为 `inherited-outputs-green.log`、`extra-upstream-merged-green.log`、`extra-upstream-typecheck.log`、`recover-normal-frontier.log`、`frontier-live-proof.json`、`m01-fixed-input-proof.json`。主飞书服务仍等待本会话实际退出后重载一次，不中断当前连接。
+
+追加审计回执见 [live-recovery-receipts.json](../evidence/workflow-reliability/live-recovery-receipts.json)，包含独立验收原始结论、三项后继实际进程、固定输入、服务启动时间、TypeScript 退出码及 tracker 状态。临时进程的网络超时和 routing 失败是直接记录；环境差异是依据启动方式推断，未取得进程环境逐项比对，不把推断当成额外实测。WR01 已关闭，WR07 与父单仍开启观察。
