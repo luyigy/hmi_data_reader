@@ -16,13 +16,14 @@ async function main() {
     const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8' }).trim();
     git('init', '-q'); git('config', 'user.email', 'test@example.test'); git('config', 'user.name', 'Test');
     mkdirSync(path.join(repository, '.agent-platform'));
-    writeFileSync(path.join(repository, '.agent-platform/outputs.json'), JSON.stringify({ version: 1, paths: ['output/job'], readOnlyPaths: ['output/job/input-materials'] }));
+    writeFileSync(path.join(repository, '.agent-platform/outputs.json'), JSON.stringify({ version: 1, paths: ['output/job'], readOnlyPaths: ['output/job/input-materials', 'output/job/MATERIALS_READY.md'] }));
     writeFileSync(path.join(repository, '.gitignore'), 'output/\n'); writeFileSync(path.join(repository, 'source.txt'), 'protected');
     git('add', '.'); git('commit', '-qm', 'fixture');
     const workspace = path.join(root, 'job'); git('worktree', 'add', '--detach', workspace);
     mkdirSync(path.join(workspace, 'output/job/input-materials'), { recursive: true });
     writeFileSync(path.join(workspace, 'output/job/input-materials/original.jpeg'), 'original bytes');
     writeFileSync(path.join(workspace, 'output/job/report.json'), 'historical report');
+    writeFileSync(path.join(workspace, 'output/job/MATERIALS_READY.md'), 'original manifest');
     const command = ['python3', '-c', 'from pathlib import Path; import os; p=Path("output/job"); assert (p/"input-materials/original.jpeg").read_text()=="original bytes"; (p/"report.json").write_text("new report"); out=Path(os.environ["AP_GRAPH_OUTPUT_DIR"]); (out/"proof.txt").write_text("ok"); print(out)'];
     const result = await runSandboxedGraphCheck(command, workspace);
     assert.equal(readFileSync(path.join(result.stdout.trim(), 'proof.txt'), 'utf8'), 'ok');
@@ -61,6 +62,25 @@ async function main() {
     await assert.rejects(prepareGraphOutputRuntime('node-fixture', 'symlink', [workspace]), /symlink/);
     unlinkSync(path.join(workspace, 'output/job/external'));
     await assert.rejects(prepareGraphOutputRuntime('node-fixture', 'original', [repository]), /original repository/);
+    const downstream = path.join(root, 'downstream'); git('worktree', 'add', '--detach', downstream);
+    const originalDigest = execFileSync('sha256sum', [path.join(workspace, 'output/job/input-materials/original.jpeg'), path.join(workspace, 'output/job/MATERIALS_READY.md')], { encoding: 'utf8' });
+    const inherited = await prepareGraphOutputRuntime('downstream-node', 'implementation', [downstream]);
+    const inheritedAlias = JSON.parse(inherited.env.AP_GRAPH_OUTPUT_PATHS_JSON)[path.join(downstream, 'output/job')];
+    for (const base of [path.join(downstream, 'output/job'), inheritedAlias]) {
+      assert.equal(existsSync(path.join(base, 'input-materials')), false, 'Output protection does not fabricate missing input directories');
+      assert.equal(existsSync(path.join(base, 'MATERIALS_READY.md')), false, 'Inherited declaration does not fabricate truth manifests');
+    }
+    const downstreamHarness = wrapWithBubblewrap({ command: 'sh', commandArgs: ['-c', 'test ! -e output/job/input-materials && test ! -e output/job/MATERIALS_READY.md && echo harness > output/job/harness-report.txt && echo proof > "$AP_GRAPH_OUTPUT_DIR/proof.txt"'], cwd: downstream, workspaceRoot: downstream, env: { ...process.env, ...inherited.env } });
+    execFileSync(downstreamHarness.command, downstreamHarness.args, { env: { ...process.env, ...inherited.env }, stdio: 'pipe' });
+    assert.equal(readFileSync(path.join(inheritedAlias, 'harness-report.txt'), 'utf8'), 'harness\n');
+    assert.equal(readFileSync(path.join(inherited.directory, 'proof.txt'), 'utf8'), 'proof\n');
+    await runSandboxedGraphCheck(['sh', '-c', 'test ! -e output/job/input-materials && test ! -e output/job/MATERIALS_READY.md && echo check > output/job/check-report.txt && echo proof > "$AP_GRAPH_OUTPUT_DIR/check-proof.txt"'], downstream);
+    assert.equal(existsSync(path.join(downstream, 'output/job/input-materials')), false);
+    assert.equal(existsSync(path.join(downstream, 'output/job/MATERIALS_READY.md')), false);
+    assert.equal(execFileSync('sha256sum', [path.join(workspace, 'output/job/input-materials/original.jpeg'), path.join(workspace, 'output/job/MATERIALS_READY.md')], { encoding: 'utf8' }), originalDigest, 'Downstream execution never changes the upstream original or manifest');
+    symlinkSync(path.join(root, 'absent-materials'), path.join(downstream, 'output/job/input-materials'));
+    await assert.rejects(prepareGraphOutputRuntime('downstream-node', 'dangling-protected-symlink', [downstream]), /symlink/);
+    unlinkSync(path.join(downstream, 'output/job/input-materials'));
     const jobGit = (...args: string[]) => execFileSync('git', args, { cwd: workspace, encoding: 'utf8' }).trim();
     jobGit('add', '--force', 'output/job/input-materials/original.jpeg'); jobGit('commit', '-qm', 'tracked source fixture');
     await assert.rejects(prepareGraphOutputRuntime('node-fixture', 'tracked', [workspace]), /tracked input/);
