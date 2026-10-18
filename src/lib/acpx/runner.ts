@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+import { bindExecutionTaskRun } from '../task-graph/execution-progress';
 import { prisma } from '@/lib/prisma';
 import { getHarnessCapabilities } from './capabilities';
 import { publishTaskRunEvent } from './event-bus';
@@ -24,7 +26,7 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     throw new Error(`Task session not found for task "${request.taskId}"`);
   }
 
-  const taskRun = await prisma.taskRun.create({
+  const createRun = (tx: Pick<Prisma.TransactionClient, 'taskRun'>) => tx.taskRun.create({
     data: {
       taskId: request.taskId,
       taskSessionId: taskSession.id,
@@ -88,6 +90,13 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       participants: true,
     },
   });
+
+  const graphExecution = request.graphExecution;
+  const taskRun = graphExecution ? await prisma.$transaction(async tx => {
+    const created = await createRun(tx);
+    await bindExecutionTaskRun(tx, graphExecution, created.id);
+    return created;
+  }) : await createRun(prisma);
 
   await setTaskSessionActiveRun(taskSession.id, taskRun.id);
 

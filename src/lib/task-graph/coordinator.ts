@@ -1,3 +1,4 @@
+import { applyExecutionOutcome, executionProgress, initialExecutionProgress, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
 import { prepareExtraRepositories } from './extra-repositories';
 import { ServiceRuntimeError } from './attempt-services';
 import { prepareUpstreamInputs, TaskInputPreparationError } from './upstream-inputs';
@@ -45,6 +46,16 @@ const maxConcurrentJobs = 4;
 
 type Check = { name: string; argv: string[] };
 type LaunchConfig = { participant: AcpxParticipantRequest; checks: Check[] };
+export class GraphCheckError extends Error {
+  constructor(readonly check: Check, readonly detail: string, readonly results: CheckResult[]) {
+    super(`Verification ${check.name} failed: ${detail}`);
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+function checkFailure(error: unknown): GraphCheckError | null {
+  if (error instanceof GraphCheckError) return error;
+  return error instanceof Error && 'cause' in error ? checkFailure((error as Error & { cause?: unknown }).cause) : null;
+}
 type CheckResult = VerificationEvidence['checks'][number];
 
 function launchConfig(execution: TaskGraphExecution): LaunchConfig {
@@ -63,7 +74,7 @@ async function runChecks(checks: Check[], directory: string, extraEnv: Record<st
       const detail = error instanceof Error ? error.message : String(error);
       results.push({ name: check.name, passed: false, evidence: `${check.argv.join(' ')}\n${detail}`.slice(-4000) });
       if (error instanceof ServiceRuntimeError) throw new TaskInputPreparationError(detail, 'environment_failed', 'service_runtime');
-      throw Object.assign(new Error(`Verification ${check.name} failed: ${detail}`), { results });
+      throw new GraphCheckError(check, detail, results);
     }
   }
   return results;
@@ -354,8 +365,17 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   const config = launchConfig(execution);
   const repair = await latestGraphRepair(execution.nodeId);
   const continuation = await latestImplementationRecovery(execution.nodeId);
-  const checkpoint = continuation && (!repair || continuation.createdAt > repair.createdAt)
-    ? implementationCheckpoint(continuation.payload, execution.id) : null;
+  const persisted = executionProgress(execution.dispatchMetadata);
+  const checkpoint = persisted?.candidateCommit && persisted.workspaceBase
+    ? { checkpointCommit: persisted.candidateCommit, workspaceBase: persisted.workspaceBase }
+    : continuation && (!repair || continuation.createdAt > repair.createdAt)
+      ? implementationCheckpoint(continuation.payload, execution.id) : null;
+  const outcome = async (result: ExecutionOutcome) => {
+    const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+    const progress = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
+    return applyExecutionOutcome({ executionId: execution.id, claimToken, expectedRevision: progress.revision,
+      outcomeId: `${claimToken}:${progress.revision}:${result.kind}`, outcome: result });
+  };
   try {
     const { integration, workspace } = await withRepositoryLock(execution.repository, async () => {
       const integration = await ensureIntegrationRef({
@@ -368,20 +388,28 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           await graphGit(execution.worktreePath, 'merge', '--ff-only', integration.commit);
         } else workspaceBase = execution.baseCommit;
       }
+      let resumeCommit = checkpoint?.checkpointCommit;
+      if (persisted && checkpoint && execution.worktreeBranch) {
+        const tip = await graphGit(execution.repository, 'rev-parse', execution.worktreeBranch);
+        await graphGit(execution.repository, 'merge-base', '--is-ancestor', checkpoint.checkpointCommit, tip);
+        resumeCommit = tip;
+      }
       const workspace = await ensureJobWorktree({
         repoPath: execution.repository, runId, jobId: execution.id,
         baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || workspaceBase,
-        ...(checkpoint ? { resumeCommit: checkpoint.checkpointCommit } : {}),
+        ...(resumeCommit ? { resumeCommit } : {}),
       });
       return { integration, workspace };
     });
+    await assertExecutionOwnership(execution.id, claimToken);
     const implementationBase = await graphGit(workspace.path, 'rev-parse', 'HEAD');
     const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
     await recordExecutionDispatch({
       runId, nodeKey, executionKey: execution.key, claimToken,
       childTaskId: task.id, worktreePath: workspace.path, worktreeBranch: workspace.branch,
-      dispatchMetadata: { integrationRef: integration.ref, workspaceBase: workspace.baseCommit, ...(checkpoint ? { resumedFrom: checkpoint.checkpointCommit, attemptId: continuation?.id } : {}) },
+      dispatchMetadata: execution.dispatchMetadata ? undefined : { integrationRef: integration.ref, workspaceBase: workspace.baseCommit, ...(checkpoint ? { resumedFrom: checkpoint.checkpointCommit, attemptId: continuation?.id } : {}) },
     });
+    await outcome({ kind: 'checkpoint', phase: persisted?.phase || 'implement', workspaceBase: workspace.baseCommit, candidateCommit: implementationBase });
     const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
     const snapshot = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
     const definition = snapshot.snapshot as unknown as GraphDefinition;
@@ -399,8 +427,17 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       roomId: room.id, userId: 'task-graph', userName: '任务图调度器',
       content: `执行 ${nodeKey}/${execution.key}。基线 ${integration.commit}。请在此 worktree 编辑代码并报告结果；平台负责受控提交，不要自行运行 git add/commit/merge。`,
     });
-    const result = await executeAcpxTaskRun({
-      taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions,
+    const beforeRun = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+    const progress = executionProgress(beforeRun.dispatchMetadata)!;
+    const recoveryInstructions = progress.phase === 'collect_result'
+      ? '\n仅补收已有成果的 TASK_GRAPH_IMPLEMENTATION 结论，不重新实施或修改源码。不得合成没有证据的交付。'
+      : progress.lastFailure ? `\n本票自动回修：${JSON.stringify(progress.lastFailure)}\n使用保留的当前源码修复上述故障，并重新运行相同检查。` : '';
+    const storedRun = ['check', 'integrate'].includes(progress.phase) && progress.taskRunId
+      ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
+    if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
+    const result = storedRun ? { taskRunId: storedRun.id, status: storedRun.status, summary: storedRun.summary, participants: storedRun.participants } : await executeAcpxTaskRun({
+      graphExecution: { executionId: execution.id, claimToken, revision: progress.revision },
+      taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions + recoveryInstructions,
       extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths],
       orchestrationMode: 'single', participants: [config.participant], workingDirectory: workspace.path,
     });
@@ -414,23 +451,31 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       if (serviceFailure) throw new TaskInputPreparationError('临时联调服务启动或运行失败，见本次服务回执；不是业务材料缺失', 'environment_failed', 'service_runtime');
       throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
     }
+    await assertExecutionOwnership(execution.id, claimToken);
+    const candidate = await withRepositoryLock(execution.repository, () => commitJobWorktree({
+      repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph candidate ${nodeKey}/${execution.key}`,
+    }));
+    await outcome({ kind: 'checkpoint', phase: 'collect_result', candidateCommit: candidate, workspaceBase: workspace.baseCommit });
     let conclusion;
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || ''); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
     if (conclusion.status !== 'delivered') {
-      const saved = await withRepositoryLock(execution.repository, () => commitJobWorktree({
-        repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph checkpoint ${nodeKey}/${execution.key}`,
-      }));
-      await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken,
-        checkpointCommit: saved, workspaceBase: workspace.baseCommit, taskRunId: result.taskRunId, result: conclusion });
+      if (conclusion.status === 'invalid') {
+        await outcome({ kind: 'result_incomplete', failure: { code: 'invalid_result', detail: conclusion.note } });
+      } else {
+        await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken,
+          checkpointCommit: candidate, workspaceBase: workspace.baseCommit, taskRunId: result.taskRunId, result: conclusion });
+      }
       await refreshTaskGraphRunStatus(runId);
-      const message = `${nodeKey}/${execution.key} 实施暂停（${conclusion.blockerKind}）：${conclusion.note}\n进度已保存，尚未交付，后继等待。补齐后在原话题说“继续”即可接续实施。`;
-      await postGraphChildProgress(task.id, `implementation-blocked-${claimToken}`, message);
-      await postGraphParentProgress(graphRun.parentTaskId, runId, message);
+      void postGraphChildProgress(task.id, `implementation-outcome-${claimToken}`,
+        conclusion.status === 'invalid' ? '实施成果已保存，自动补收交付结论；尚未交付。' : `实施暂停，尚未交付：${conclusion.note}`)
+        .catch(error => console.error('[TaskGraph] outcome delivery failed:', error));
       return;
     }
+    await outcome({ kind: 'checkpoint', phase: 'integrate' });
     let checks: CheckResult[] = [];
     const integrated = await withRepositoryLock(execution.repository, async () => {
+      await assertExecutionOwnership(execution.id, claimToken);
       const submitted = await commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph ${nodeKey}/${execution.key}` });
       if (repair && !checkpoint && submitted === implementationBase) throw new Error('自动回修无有效代码变更，停止重试并保留现场');
       const latest = await ensureIntegrationRef({
@@ -443,8 +488,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id }, inputs.readOnlyPaths); },
       });
     });
-    await completeExecution({
-      runId, nodeKey, executionKey: execution.key, claimToken, commit: integrated.commit,
+    await outcome({ kind: 'integrated', commit: integrated.commit,
       evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
     });
     void postGraphParentProgress(graphRun.parentTaskId, runId,
@@ -466,7 +510,23 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           workspaceBase: isRecord(current.dispatchMetadata) && typeof current.dispatchMetadata.workspaceBase === 'string' ? current.dispatchMetadata.workspaceBase : execution.baseCommit,
           taskRunId: current.taskRunId || 'not-created', blockedPhase: error.blockedPhase,
           result: { status: 'blocked', blockerKind: error.blockerKind, note: detail } });
-      } else await recordExecutionIssue({ runId, nodeKey, executionKey: execution.key, claimToken, kind, detail });
+      } else {
+        const failedCheck = checkFailure(error);
+        if (failedCheck) {
+          await assertExecutionOwnership(execution.id, claimToken);
+          const candidateCommit = await withRepositoryLock(execution.repository, () => commitJobWorktree({
+            repoPath: execution.repository, runId, jobId: execution.id, message: `Checked candidate ${nodeKey}/${execution.key}`,
+          }));
+          await outcome({ kind: 'checkpoint', phase: 'check', candidateCommit });
+          await outcome({ kind: 'repair_required', failure: {
+          code: 'test_failed', checkId: `execution:${execution.key}:${failedCheck.check.name}`,
+          command: failedCheck.check.argv, detail: failedCheck.detail,
+        } });
+        } else {
+          const temporary = error instanceof Error && 'code' in error && ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'].includes(String(error.code));
+          await outcome({ kind: temporary ? 'platform_retry' : 'decision_required', failure: { code: kind, detail } });
+        }
+      }
       if (current.childTaskId) await postGraphChildProgress(current.childTaskId, `issue-${claimToken}`,
         `${nodeKey}/${execution.key} 暂停，尚未完成集成和验收。\n${detail}\n后继继续等待，无需重复启动。`)
         .catch((deliveryError) => console.error('[TaskGraph] child issue delivery failed:', deliveryError));

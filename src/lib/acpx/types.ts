@@ -103,6 +103,7 @@ export interface AcpxParticipantRequest {
 }
 
 export interface AcpxRunRequest {
+  graphExecution?: { executionId: string; claimToken: string; revision: number };
   taskId: string;
   taskSessionId?: string;
   taskName: string;

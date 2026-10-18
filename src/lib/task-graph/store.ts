@@ -1,3 +1,4 @@
+import { executionProgress, immutableDispatchMetadata, applyExecutionOutcome } from './execution-progress';
 import { realpath } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -138,6 +139,8 @@ export async function claimExecution(
     if (!node || node.status !== 'claimed') return null;
     const execution = await tx.taskGraphExecution.findUnique({ where: { nodeId_key: { nodeId: node.id, key: executionKey } } });
     if (!execution) throw new Error('Unknown graph execution');
+    const progress = executionProgress(execution.dispatchMetadata);
+    if (progress?.state === 'exhausted' || (progress?.nextRetryAt && Date.parse(progress.nextRetryAt) > Date.now())) return null;
     if (execution.status === 'claimed' && execution.claimToken === claimToken) return execution;
     const approved = node.run.snapshot as unknown as GraphDefinition;
     const sharedWriter = approved.nodes.find(planned => planned.key === node.key)?.extraRepositories?.some(extra => extra.access === 'write');
@@ -174,7 +177,7 @@ export async function recordExecutionDispatch(args: {
       }
     }
     if (args.dispatchMetadata !== undefined && execution.dispatchMetadata !== null &&
-        !isDeepStrictEqual(execution.dispatchMetadata, args.dispatchMetadata)) {
+        !isDeepStrictEqual(immutableDispatchMetadata(execution.dispatchMetadata), immutableDispatchMetadata(args.dispatchMetadata))) {
       throw new Error('Conflicting execution dispatchMetadata');
     }
     return tx.taskGraphExecution.update({
@@ -182,7 +185,7 @@ export async function recordExecutionDispatch(args: {
       data: {
         childTaskId: args.childTaskId, sessionId: args.sessionId, taskRunId: args.taskRunId,
         worktreePath: args.worktreePath, worktreeBranch: args.worktreeBranch,
-        dispatchMetadata: args.dispatchMetadata === undefined ? undefined : args.dispatchMetadata as Prisma.InputJsonValue,
+        dispatchMetadata: args.dispatchMetadata === undefined ? undefined : { ...immutableDispatchMetadata(args.dispatchMetadata), ...(executionProgress(execution.dispatchMetadata) ? { progress: executionProgress(execution.dispatchMetadata) } : {}) } as unknown as Prisma.InputJsonValue,
       },
     });
   });
@@ -339,6 +342,12 @@ export async function recordExecutionIssue(args: {
   kind: 'integration_conflict' | 'test_failed' | 'dispatch_failed' | 'input_preparation_failed'; detail: string;
 }, db: Database = prisma) {
   required(args.detail, 'issue detail');
+  const current = await db.taskGraphExecution.findFirst({ where: { key: args.executionKey, node: { runId: args.runId, key: args.nodeKey } } });
+  const progress = executionProgress(current?.dispatchMetadata);
+  if (current && progress) return applyExecutionOutcome({ executionId: current.id, claimToken: args.claimToken,
+    expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:issue`,
+    outcome: { kind: 'decision_required', failure: { code: args.kind, detail: args.detail } },
+  }, db);
   return db.$transaction(async (tx) => {
     const execution = await tx.taskGraphExecution.findFirst({
       where: { key: args.executionKey, node: { runId: args.runId, key: args.nodeKey } },

@@ -1,3 +1,4 @@
+import { applyExecutionOutcome, executionProgress, metadataWithProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
@@ -34,6 +35,18 @@ export async function pauseGraphImplementation(args: {
   checkpointCommit: string; workspaceBase: string; taskRunId: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime';
   result: Extract<ImplementationResult, { status: 'blocked' }> | { status: 'invalid'; note: string; blockerKind: 'invalid_result' };
 }) {
+  const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+  let progress = executionProgress(current.dispatchMetadata);
+  if (progress && (progress.candidateCommit !== args.checkpointCommit || progress.workspaceBase !== args.workspaceBase)) {
+    progress = await applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
+      expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:paused-candidate`,
+      outcome: { kind: 'checkpoint', phase: progress.phase, candidateCommit: args.checkpointCommit, workspaceBase: args.workspaceBase },
+    });
+  }
+  if (progress) return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
+    expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:decision_required`,
+    outcome: { kind: args.result.blockerKind === 'environment_failed' ? 'platform_retry' : 'decision_required', failure: { code: args.result.blockerKind, detail: args.result.note } },
+  });
   return prisma.$transaction(async tx => {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
@@ -51,6 +64,9 @@ export async function pauseGraphImplementation(args: {
 }
 
 export async function graphRecoveryKind(nodeId: string): Promise<RecoveryKind> {
+  const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId } });
+  const current = jobs.map(job => executionProgress(job.dispatchMetadata)).filter(value => value !== null);
+  if (current.length) return current.some(value => !['architecture', 'acceptance'].includes(value.phase)) ? 'implementation' : 'verification';
   const event = await prisma.taskGraphEvent.findFirst({ where: { nodeId,
     kind: { in: ['implementation_blocked', 'node_delivery_reclassified', 'implementation_recovery_scheduled',
       'verification_failed', 'review_workspace_failed', 'architecture_failed', 'human_review_rejected', 'node_repair_scheduled'] } },
@@ -83,6 +99,14 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
       `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } } })) throw new Error('原任务进程仍在执行，请等待结束');
     const blocks = await tx.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: { in: ['implementation_blocked', 'node_delivery_reclassified'] } }, orderBy: { createdAt: 'desc' } });
     const executions = current.executions.flatMap(job => {
+      const progress = executionProgress(job.dispatchMetadata);
+      if (progress?.state === 'exhausted') throw new Error('自动处理预算已耗尽，普通继续不能重置预算；请明确新的修复措施或授权');
+      if (progress && job.status !== 'integrated') {
+        if (!progress.candidateCommit || !progress.workspaceBase) throw new Error('缺少当前候选提交或原始基线');
+        return [{ id: job.id, key: job.key, checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase,
+          previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId, previousCommit: job.commit,
+          previousDispatch: job.dispatchMetadata, previousEvidence: job.evidence }];
+      }
       const event = blocks.find(block => isRecord(block.payload) && block.payload.executionId === job.id);
       const payload = event?.payload;
       if (job.status === 'integrated' && !(event?.kind === 'node_delivery_reclassified' && isRecord(payload) && payload.taskRunId === job.taskRunId)) return [];
@@ -95,8 +119,14 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     if (!executions.length) throw new Error('没有可恢复的实施保存点');
     await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key, kind: 'implementation_recovery_scheduled',
       payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', requestId, executions } } });
-    await tx.taskGraphExecution.updateMany({ where: { id: { in: executions.map(job => job.id) } },
-      data: { status: 'ready', claimToken: null, claimedAt: null, issueKind: null, taskRunId: null, sessionId: null, dispatchMetadata: Prisma.DbNull } });
+    for (const saved of executions) {
+      const job = current.executions.find(item => item.id === saved.id)!;
+      const progress = executionProgress(job.dispatchMetadata);
+      await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
+        status: 'ready', claimToken: null, claimedAt: null, issueKind: null, taskRunId: null, sessionId: null,
+        dispatchMetadata: progress ? metadataWithProgress(job.dispatchMetadata, { ...progress, revision: progress.revision + 1, phase: 'implement', state: 'ready' }) : Prisma.DbNull,
+      } });
+    }
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'ready', passedAt: null, claimToken: null, claimedAt: null } });
     await tx.taskGraphRun.update({ where: { id: runId }, data: { status: 'running' } });
   });
