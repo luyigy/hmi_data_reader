@@ -128,3 +128,7 @@ R01 已通过平台检查与独立业务验收，独立验收 TaskRun 为 `cmvdv
 上述接续只证明真实回修已经运行，不代表 R02/M04T 已合并或通过独立业务验收，也不代表 24 节点路线已完成。WR04、WR06、WR07 和父单继续保留业务观察；无声明的资源预检、独立验收资源绑定等边界见 [运行资源声明](task-graph-runtime-resources.md)。
 
 结构化回执：[workflow-repair-20261019.json](../evidence/workflow-reliability/workflow-repair-20261019.json)。原始日志保留在 `output/reviews/workflow-repair-20261018-2338/`。
+
+### 00:35 真实合流进展
+
+R02 已自动集成为 `cd92faeb2cfb86486fc9b65d2053e50a31fede2f`，节点进入 `verifying`、阶段为 `acceptance`。直接核对该提交同时以原 R02 候选 `29b0b7f` 和最新 R04 交付 `d0b2fdb` 为祖先，合同保留 R02、R04 及 `0.4.1` 内容。此证据补充了前面的真实启动记录，仍不表示独立验收已通过。M04T 同期仍在受控回修，未重复恢复或重启服务。

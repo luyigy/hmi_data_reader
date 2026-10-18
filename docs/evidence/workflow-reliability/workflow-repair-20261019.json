@@ -285,5 +285,22 @@
     "Native acceptance does not yet read source repository runtime declarations.",
     "Main Feishu chat service was not restarted.",
     "Legacy S06 state and TaskRun remain unchanged; the pinned exit proof permits only a one-time idle service load."
-  ]
+  ],
+  "laterR02Integration": {
+    "at": "2026-10-18T16:35:25.297Z",
+    "node": "R02",
+    "status": "verifying",
+    "phase": "acceptance",
+    "integratedCommit": "cd92faeb2cfb86486fc9b65d2053e50a31fede2f",
+    "preservedAncestors": {
+      "R02_original_candidate": "29b0b7f46abfb8895c7d1183f9d49653e4618e40",
+      "R04_latest_delivery": "d0b2fdb8381be4405427a30753b6253629a0503e"
+    },
+    "contractMarkers": {
+      "R02": true,
+      "R04": true,
+      "0.4.1": true
+    },
+    "independentAcceptancePassed": false
+  }
 }
