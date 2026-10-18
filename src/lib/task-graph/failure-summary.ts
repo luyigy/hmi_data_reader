@@ -2,7 +2,7 @@ import { redactSensitiveText } from '../redact-sensitive';
 import type { ExecutionProgress } from './execution-progress';
 
 type Failure = { code: string; detail: string; command?: string[]; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
-export function graphFailureSummary(failure: Failure, _state: ExecutionProgress['state']) {
+export function graphFailureSummary(failure: Failure, state: ExecutionProgress['state']) {
   const conflict = failure.code === 'integration_conflict';
   let paths = failure.affectedPaths || [];
   if (!paths.length && conflict) {
@@ -19,6 +19,10 @@ export function graphFailureSummary(failure: Failure, _state: ExecutionProgress[
   let problem = labels[failure.code] || '本次执行需要处理';
   if (requiresDecision && !failure.action?.trim() && !concreteNote) { requiresDecision = false; owner = 'platform'; problem = '待补充决定说明'; action = '平台先说明具体问题和可选处理办法'; }
   if (['scope_change', 'permission_required', 'missing_business_material', 'missing_upstream_input'].includes(failure.code) && concreteNote) problem += `：${concreteNote}`;
+  if (state === 'exhausted') {
+    problem = `自动处理已耗尽：${problem}`;
+    if (!requiresDecision) { owner = 'platform'; action = '平台提出新的修复措施并明确执行方式；普通继续不会重置自动处理额度'; }
+  }
   const safePaths = paths.slice(0, 3).map(value => { const safe = redactSensitiveText(value); return safe.length <= 120 ? safe : '…/' + safe.split(/[\\/]/).slice(-2).join('/').slice(-116); });
   return { problem, action: redactSensitiveText(action).slice(0, 260), owner, requiresUserDecision: requiresDecision, affectedPaths: safePaths };
 }

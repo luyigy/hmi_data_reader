@@ -22,3 +22,9 @@ assert.match(material.header.title.content, /需你确认/); assert.match(JSON.s
 const explicitFailure: typeof failure & { action: string; owner: 'user'; requiresUserDecision: boolean } = { ...failure, action: '请选择是否保留新增机型的接口范围', owner: 'user', requiresUserDecision: true };
 const explicit = buildRunReplyCard({ id: 'explicit', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: explicitFailure } }, []);
 assert.match(explicit.header.title.content, /需你确认/); assert.match(JSON.stringify(explicit.body.elements[0]), /请选择是否保留新增机型/);
+
+const exhaustedChecks = buildRunReplyCard({ id: 'exhausted-checks', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'exhausted', repairAttempts: 2, lastFailure: { code: 'test_failed', detail: '相同检查再次失败。' } } }, []);
+assert.match(exhaustedChecks.header.title.content, /待平台处理/);
+const exhaustedBody = JSON.stringify(exhaustedChecks.body.elements[0]);
+assert.match(exhaustedBody, /自动处理已耗尽/); assert.match(exhaustedBody, /普通继续不会重置自动处理额度/);
+assert.match(exhaustedBody, /负责人：平台/); assert.doesNotMatch(exhaustedBody, /修复失败检查后重新验证|待实施回修/);
