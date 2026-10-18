@@ -45,7 +45,21 @@ export async function runtimeDeclaration(workspace: string) {
   }
   const gitRoot = await graphGit(workspace, 'rev-parse', '--show-toplevel');
   if (gitRoot !== workspace) { if (!local) return null; throw new Error('运行能力声明必须位于实际执行仓库根目录'); }
-  const tracked = await graphGit(workspace, 'ls-tree', '--name-only', 'HEAD', '--', name);
+  let tracked: string;
+  try { tracked = await graphGit(workspace, 'ls-tree', '--name-only', 'HEAD', '--', name); }
+  catch (error) {
+    if (local || !error || typeof error !== 'object' || Reflect.get(error, 'code') !== 128) throw error;
+    const headFile = path.resolve(workspace, await graphGit(workspace, 'rev-parse', '--git-path', 'HEAD'));
+    const direct = (await fs.readFile(headFile, 'utf8')).match(/^ref: (refs\/heads\/[^\r\n]+)\r?\n?$/)?.[1];
+    const resolved = await graphGit(workspace, 'symbolic-ref', '--quiet', 'HEAD');
+    if (!direct || direct !== resolved) throw error;
+    try { await graphGit(workspace, 'show-ref', '--verify', '--quiet', direct); }
+    catch (referenceError) {
+      if (referenceError && typeof referenceError === 'object' && Reflect.get(referenceError, 'code') === 1) return null;
+      throw referenceError;
+    }
+    throw error;
+  }
   if (!tracked && !local) return null;
   if (!tracked) throw new Error('运行能力声明必须纳入 Git 版本');
   if (!local) throw new Error('已版本化的运行能力声明在工作区中缺失');
