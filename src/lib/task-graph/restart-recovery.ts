@@ -1,9 +1,11 @@
+import path from 'node:path';
+import { graphGit } from './git-command';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { applyExecutionOutcomeTx, executionProgress, assertExecutionOwnership } from './execution-progress';
 import { observeTaskRunWriter, type WriterObservation } from './writer-ownership';
 import { withRepositoryLock } from './repository-lock';
-import { commitJobWorktree, TaskGraphGitError } from './worktree';
+import { commitJobWorktree, inspectJobWorktree, TaskGraphGitError } from './worktree';
 import { parseImplementationResult } from './implementation-result';
 
 async function recordObservation(runId: string, nodeId: string, identity: string, observation: WriterObservation) {
@@ -31,8 +33,13 @@ export async function recoverGraphExecution(executionId: string) {
   let phase = progress.phase;
   let candidate = progress.candidateCommit;
   if (job.worktreePath && job.worktreeBranch && progress.workspaceBase) {
+    const recordedPath = job.worktreePath; const recordedBranch = job.worktreeBranch; const workspaceBase = progress.workspaceBase;
     try {
       candidate = await withRepositoryLock(job.repository, async () => {
+        await assertExecutionOwnership(job.id, claimToken, progress.revision);
+        const inspected = await inspectJobWorktree({ repoPath: job.repository, runId: job.node.runId, jobId: job.id,
+          baseCommit: workspaceBase, ...(progress.candidateCommit ? { resumeCommit: progress.candidateCommit } : {}) });
+        if (path.resolve(inspected.path) !== path.resolve(recordedPath) || inspected.branch !== recordedBranch) throw new TaskGraphGitError('workspace_collision', 'Restart workspace path or branch differs from the execution ledger', inspected.path);
         await assertExecutionOwnership(job.id, claimToken, progress.revision);
         return commitJobWorktree({ repoPath: job.repository, runId: job.node.runId, jobId: job.id, message: `Task graph restart checkpoint ${job.node.key}/${job.key}` });
       });
@@ -40,7 +47,18 @@ export async function recoverGraphExecution(executionId: string) {
       const detail = error instanceof Error ? error.message : String(error);
       const code = error instanceof TaskGraphGitError && error.code === 'integration_conflict' ? 'integration_conflict' : 'ownership_mismatch';
       await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
+        const owned = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+        if (owned.status !== 'claimed' || owned.claimToken !== claimToken || executionProgress(owned.dispatchMetadata)?.revision !== progress.revision) return;
         await interruptExitedRun(tx, taskRunId);
+        const metadata = job.dispatchMetadata && typeof job.dispatchMetadata === 'object' ? job.dispatchMetadata : {};
+        const ref: unknown = Reflect.get(metadata, 'integrationRef');
+        const mergeHead = code === 'integration_conflict' ? await graphGit(recordedPath, 'rev-parse', '--verify', 'MERGE_HEAD').catch(() => null) : null;
+        const head = code === 'integration_conflict' ? await graphGit(recordedPath, 'rev-parse', 'HEAD').catch(() => null) : null;
+        const integrationCommit = typeof ref === 'string' && ref.startsWith('refs/heads/') ? await graphGit(job.repository, 'rev-parse', '--verify', `${ref}^{commit}`).catch(() => null) : mergeHead;
+        const paths = code === 'integration_conflict' ? (await graphGit(recordedPath, 'diff', '--name-only', '--diff-filter=U', '-z')).split('\0').filter(Boolean).sort() : [];
+        await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId, kind: 'restart_workspace_failed',
+          idempotencyKey: `restart-workspace-evidence:${claimToken}`, payload: { executionId: job.id, code, detail, ...(head && integrationCommit ? { integration: { kind: 'conflict', candidateCommit: head, integrationCommit, mergeHead, paths } } : {}) } } });
         await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken, expectedRevision: progress.revision,
           outcomeId: `restart-workspace:${claimToken}`, outcome: { kind: 'decision_required', failure: { code, detail } } });
       });
