@@ -2,7 +2,7 @@ import { ensureGraphRoomParticipants } from './conversation-members';
 import { queueGraphNotification, deliverGraphNotificationOnce } from './notifications';
 import { graphTopicDestination } from './repository-topic';
 import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
-import { createHash } from 'node:crypto';
+import { deliverProgressCard } from './progress-card-delivery';
 import { prisma } from '../prisma';
 import { redactSensitiveText } from '../redact-sensitive';
 import { sendFeishuInteractiveMessage } from '../feishu-api';
@@ -161,10 +161,14 @@ export async function deliverGraphChildProgress(childTaskId: string, eventKey: s
   }
   const detail = redactSensitiveText(text).slice(-10_000);
   const execution = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { childTaskId }, select: { node: { select: { runId: true } } } });
-  return deliverGraphNotificationOnce({ runId: execution.node.runId, identity: `child-progress:${childTaskId}:${eventKey}`,
-    send: () => sendFeishuInteractiveMessage({ receiveId: binding.chatId, threadRootMessageId: rootMessageId,
-    card: { schema: '2.0', config: { update_multi: true }, header: { template: 'orange', title: { tag: 'plain_text', content: '任务进度' } },
+  return prisma.$transaction(async tx => {
+    const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext(${`graph-reply-topic:${binding.id}`})) AS locked`;
+    if (!lock.locked) return null;
+    const existing = await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, messageId: { not: null } }, orderBy: { createdAt: 'asc' } });
+    return deliverProgressCard({ bindingId: binding.id, runId: execution.node.runId, childTaskId,
+      chatId: binding.chatId, rootMessageId, messageId: existing?.messageId,
+      card: { schema: '2.0', config: { update_multi: true }, header: { template: 'orange', title: { tag: 'plain_text', content: '任务进度' } },
       body: { elements: [{ tag: 'markdown', content: detail.split('\n')[0].slice(0, 300) },
-        { tag: 'collapsible_panel', expanded: false, header: { title: { tag: 'plain_text', content: '技术详情' } }, elements: [{ tag: 'markdown', content: detail }] }] } },
-    uuid: `graph-child-${createHash('sha256').update(`${childTaskId}:${eventKey}`).digest('hex').slice(0, 32)}` }) });
+        { tag: 'collapsible_panel', expanded: false, header: { title: { tag: 'plain_text', content: '技术详情' } }, elements: [{ tag: 'markdown', content: detail }] }] } } });
+  }, { timeout: 25_000 });
 }

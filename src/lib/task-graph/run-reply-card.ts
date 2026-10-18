@@ -1,8 +1,9 @@
 import { parseImplementationResult, type ImplementationResult } from './implementation-result';
 import type { TaskRun, TaskRunEvent, TaskRunParticipant, TaskRunInteractionRequest } from '@prisma/client';
 import { redactSensitiveText } from '../redact-sensitive';
+import type { ExecutionProgress } from './execution-progress';
 
-type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[]; graphStatus?: string };
+type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[]; graphStatus?: string; graphProgress?: ExecutionProgress | null };
 const labels: Record<string, string> = { running: '执行中', waiting_for_input: '等待确认', completed: '会话结束', failed: '执行失败', interrupted: '已中断', stopped: '已停止' };
 const roles: Record<string, string> = { implementer: '实施者', reviewer: '架构审查', tester: '测试验收' };
 const bounded = (content: string, limit: number) => {
@@ -34,9 +35,17 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
     const plain = paragraph.replace(/[`*#]/g, '').replace(/\s+/g, ' ').trim();
     return plain.length > 180 ? plain.slice(0, 180) + '…' : plain;
   };
-  const status = blocked ? '实施暂停，尚未交付' : run.graphStatus === 'attention' ? '任务需处理，尚未通过平台检查或验收'
-    : conclusion?.status === 'delivered' ? '实施已提交结果，尚未代表验收通过' : labels[run.status] || run.status;
-  const visible = `${status}\n${snippet(conclusion?.note || response)}`;
+  const progress = run.graphProgress;
+  const repairing = progress?.phase === 'implement' && progress.repairAttempts > 0 && ['ready', 'active'].includes(progress.state);
+  const phaseFailure = progress?.lastFailure && (progress.state !== 'active' || repairing || run.graphStatus === 'attention') ? progress.lastFailure.detail : null;
+  const progressStatus = progress?.state === 'exhausted' ? '自动处理已耗尽，需决定新的修复措施'
+    : progress?.state === 'ownership_attention' ? '执行归属需核对，请确认当前写入者'
+    : progress?.state === 'waiting_decision' ? '需决定，当前执行已暂停'
+    : repairing ? '自动修复中，完成后重新检查'
+    : progress?.state === 'ready' && progress.lastFailure ? '自动恢复中，等待下一轮执行' : null;
+  const status = run.graphStatus === 'passed' ? '已完成，平台检查与验收通过' : progressStatus || (blocked ? '实施暂停，尚未交付' : run.graphStatus === 'attention' ? '任务需处理，尚未通过平台检查或验收'
+    : conclusion?.status === 'delivered' ? '实施已提交结果，尚未代表验收通过' : labels[run.status] || run.status);
+  const visible = `${status}\n${snippet(phaseFailure || conclusion?.note || response)}`;
   const actions = (active ? requests : []).filter((request) => request.status === 'pending' && (!request.expiresAt || request.expiresAt.getTime() > Date.now()))
     .flatMap((request) => {
       let payload: unknown;
@@ -52,9 +61,12 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
     });
   return { schema: '2.0', config: { update_multi: true },
     header: { template: run.status === 'failed' ? 'red' : blocked || run.graphStatus === 'attention' || run.status === 'waiting_for_input' ? 'orange' : 'blue',
-      title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${blocked ? '实施暂停' : run.graphStatus === 'attention' ? '任务需处理' : labels[run.status] || run.status}` } },
+      title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${progressStatus || (blocked ? '实施暂停' : run.graphStatus === 'attention' ? '任务需处理' : labels[run.status] || run.status)}` } },
     body: { elements: [
       { tag: 'markdown', content: visible },
+      ...(phaseFailure ? [{ tag: 'collapsible_panel', expanded: false,
+        header: { title: { tag: 'plain_text', content: '当前阶段故障详情' } },
+        elements: [{ tag: 'markdown', content: bounded(`阶段：${progress?.phase}\n故障：${progress?.lastFailure?.code}\n${phaseFailure}\n${progress?.lastFailure?.command?.join(' ') || ''}`, 10_000) }] }] : []),
       { tag: 'collapsible_panel', expanded: false,
         header: { title: { tag: 'plain_text', content: active ? '展开本轮完整进度' : '展开本轮回复' } },
         elements: [{ tag: 'markdown', content: bounded(response, active ? 4000 : 2500) }] },
