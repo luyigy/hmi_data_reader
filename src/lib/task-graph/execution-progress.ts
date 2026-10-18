@@ -8,7 +8,7 @@ export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
   state: 'active' | 'ready' | 'waiting_decision' | 'exhausted' | 'ownership_attention';
   workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; taskRunId?: string;
-  repairAttempts: number; formatAttempts: number; platformAttempts: number;
+  repairAttempts: number; formatAttempts: number; platformAttempts: number; integrationAttempts: number;
   nextRetryAt?: string; lastFailure?: ExecutionFailure;
 };
 export type ExecutionOutcome =
@@ -16,6 +16,7 @@ export type ExecutionOutcome =
   | { kind: 'repair_required'; failure: ExecutionFailure }
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
   | { kind: 'platform_retry'; failure: ExecutionFailure }
+  | { kind: 'integration_stale'; failure: ExecutionFailure }
   | { kind: 'decision_required'; failure: ExecutionFailure }
   | { kind: 'retry_exhausted'; failure: ExecutionFailure }
   | { kind: 'integrated'; commit: string; evidence: Prisma.InputJsonValue };
@@ -43,14 +44,15 @@ function optionalCommit(value: unknown): string | undefined {
   return text;
 }
 export function executionProgress(metadata: unknown): ExecutionProgress | null {
-  const value = record(record(metadata).progress);
-  if (value.version === undefined) return null;
+  const raw = record(metadata).progress;
+  if (raw === undefined) return null;
+  const value = record(raw);
   if (value.version !== 1) throw new Error('Unsupported execution progress version');
   const progress: ExecutionProgress = {
     version: 1, revision: count(value.revision),
     phase: enumeration(value.phase, ['prepare', 'implement', 'collect_result', 'check', 'integrate', 'architecture', 'acceptance']),
     state: enumeration(value.state, ['active', 'ready', 'waiting_decision', 'exhausted', 'ownership_attention']),
-    repairAttempts: count(value.repairAttempts), formatAttempts: count(value.formatAttempts), platformAttempts: count(value.platformAttempts),
+    repairAttempts: count(value.repairAttempts), formatAttempts: count(value.formatAttempts), platformAttempts: count(value.platformAttempts), integrationAttempts: value.integrationAttempts === undefined ? 0 : count(value.integrationAttempts),
   };
   const workspaceBase = optionalCommit(value.workspaceBase), candidateCommit = optionalCommit(value.candidateCommit);
   const runtimeDirectory = optionalText(value.runtimeDirectory), taskRunId = optionalText(value.taskRunId), nextRetryAt = optionalText(value.nextRetryAt);
@@ -84,7 +86,7 @@ export function immutableDispatchMetadata(metadata: unknown) {
   return dispatch;
 }
 export function initialExecutionProgress(): ExecutionProgress {
-  return { version: 1, revision: 0, phase: 'prepare', state: 'active', repairAttempts: 0, formatAttempts: 0, platformAttempts: 0 };
+  return { version: 1, revision: 0, phase: 'prepare', state: 'active', repairAttempts: 0, formatAttempts: 0, platformAttempts: 0, integrationAttempts: 0 };
 }
 
 /** Only this transaction advances versioned execution phases or spends retry budgets. */
@@ -110,7 +112,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
     const reviewRepair = current.status === 'integrated' && args.outcome.kind === 'repair_required' && ['architecture', 'acceptance'].includes(before.phase);
     if ((!reviewRepair && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
-    if (args.outcome.kind === 'integrated' && before.phase !== 'integrate' ||
+    if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
         args.outcome.kind === 'repair_required' && !['check', 'integrate', 'architecture', 'acceptance'].includes(before.phase) ||
         args.outcome.kind === 'result_incomplete' && !['implement', 'collect_result', 'check'].includes(before.phase)) throw new Error('Execution outcome does not belong to current phase');
     const progress: ExecutionProgress = { ...before, revision: before.revision + 1, state: 'active' };
@@ -128,11 +130,17 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       if (outcome.runtimeDirectory) progress.runtimeDirectory = outcome.runtimeDirectory;
     } else if (outcome.kind === 'integrated') {
       if (!/^[0-9a-f]{40,64}$/.test(outcome.commit) || !current.worktreePath || !current.worktreeBranch) throw new Error('Missing integration identity');
-      status = 'integrated'; progress.phase = 'architecture';
+      status = 'integrated'; progress.phase = 'architecture'; progress.candidateCommit = outcome.commit;
+    } else if (outcome.kind === 'integration_stale') {
+      progress.integrationAttempts++;
+      progress.lastFailure = outcome.failure;
+      if (progress.integrationAttempts >= 3) {
+        status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
+      }
     } else {
       progress.lastFailure = outcome.failure;
       if (outcome.kind === 'decision_required') {
-        status = 'attention'; issueKind = outcome.failure.code; progress.state = 'waiting_decision';
+        status = 'attention'; issueKind = outcome.failure.code; progress.state = outcome.failure.code === 'ownership_mismatch' ? 'ownership_attention' : 'waiting_decision';
       } else {
         const budget = outcome.kind === 'result_incomplete' ? 'formatAttempts' : outcome.kind === 'platform_retry' ? 'platformAttempts' : 'repairAttempts';
         const limit = budget === 'formatAttempts' ? 1 : 2;

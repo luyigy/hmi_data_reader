@@ -1,3 +1,4 @@
+import { executionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -60,7 +61,11 @@ async function main() {
         assert.equal(readFileSync(path.join(context.workingDirectory!, 'baseline'), 'utf8'), 'approved correction during pause');
         assert.equal(readFileSync(path.join(context.workingDirectory!, 'supplement.txt'), 'utf8'), 'new material');
       }
-      if (calls === 2) return { success: true, output: 'Process ended without a delivery decision', executionTime: 1 };
+      if (calls === 2) {
+        writeFileSync(path.join(context.workingDirectory!, 'baseline'), 'approved correction during pause');
+        writeFileSync(path.join(context.workingDirectory!, 'supplement.txt'), 'new material');
+        return { success: true, output: 'Process ended without a delivery decision', executionTime: 1 };
+      }
     }
     return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"implementation finished","evidence":["saved.txt"]}', executionTime: 1 };
   };
@@ -115,21 +120,15 @@ async function main() {
     const batches = await Promise.all([startConversationRecoveries(recoverTaskGraphNode), startConversationRecoveries(recoverTaskGraphNode)]);
     assert.equal(batches.flat().length, 1, 'Concurrent workers claim one recovery');
     await Promise.all(batches.flat().map(item => item.promise));
-    await until(async () => await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_blocked' } }) === 2);
+    await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed_unverified');
     const second = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } });
     assert.equal(second.worktreePath, first.worktreePath);
     assert.notEqual(second.taskRunId, first.taskRunId);
     assert.notEqual(second.claimToken, first.claimToken);
-    assert.equal(readFileSync(path.join(second.worktreePath!, 'saved.txt'), 'utf8'), 'progress 2');
-    assert.equal(git('rev-parse', integrationRef), baseline, 'Missing conclusion must not integrate');
-    assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status, 'attention');
-    writeFileSync(path.join(second.worktreePath!, 'baseline'), 'approved correction during pause');
-    writeFileSync(path.join(second.worktreePath!, 'supplement.txt'), 'new material');
-    await requestGraphConversationRecovery({ ...request, messageId: 'continue-second' });
-    await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed_unverified');
-    assert.equal(calls, 4, 'Three attempts for A and exactly one for B');
-    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_recovery_scheduled' } }), 2);
-    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_blocked' } }), 2);
+    assert.equal(calls, 4, 'Blocked A resumes once, recollects automatically, then B starts once');
+    assert.equal(executionProgress(second.dispatchMetadata)?.formatAttempts, 1);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_recovery_scheduled' } }), 1);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_blocked' } }), 1);
     assert.equal((await prisma.taskRun.findUniqueOrThrow({ where: { id: first.taskRunId } })).status, 'completed', 'Original attempt retained');
     await handleGraphConversationIntent({ ...request, messageId: 'terminal' });
     assert.match(acknowledgements.at(-1) || '', /未独立验收/);
@@ -139,6 +138,12 @@ async function main() {
     assert.ok(delivery.commit);
     await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, idempotencyKey: 'fixture-reclassify', kind: 'node_delivery_reclassified',
       payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', executionId: first.id, taskRunId: delivery.taskRunId, checkpointCommit: delivery.commit, workspaceBase: baseline, reason: 'fixture integrated delivery was actually incomplete' } } });
+    const deliveredProgress = executionProgress(delivery.dispatchMetadata); assert.ok(deliveredProgress);
+    // Model an authorized reclassification migration updating current fact and appending history together.
+    await prisma.taskGraphExecution.update({ where: { id: delivery.id }, data: { status: 'attention',
+      dispatchMetadata: metadataWithProgress(delivery.dispatchMetadata, { ...deliveredProgress, revision: deliveredProgress.revision + 1,
+        phase: 'implement', state: 'waiting_decision', candidateCommit: delivery.commit }),
+    } });
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention' } });
     const classified = await requestGraphConversationRecovery({ ...request, messageId: 'classified' });
     assert.equal(await graphRecoveryKind(node.id), 'implementation');

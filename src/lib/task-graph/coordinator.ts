@@ -390,9 +390,14 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       }
       let resumeCommit = checkpoint?.checkpointCommit;
       if (persisted && checkpoint && execution.worktreeBranch) {
-        const tip = await graphGit(execution.repository, 'rev-parse', execution.worktreeBranch);
-        await graphGit(execution.repository, 'merge-base', '--is-ancestor', checkpoint.checkpointCommit, tip);
-        resumeCommit = tip;
+        let exists = true;
+        try { await graphGit(execution.repository, 'show-ref', '--verify', '--quiet', execution.worktreeBranch); }
+        catch (error) { if (error instanceof Error && 'code' in error && error.code === 1) exists = false; else throw error; }
+        if (exists) {
+          const tip = await graphGit(execution.repository, 'rev-parse', execution.worktreeBranch);
+          await graphGit(execution.repository, 'merge-base', '--is-ancestor', checkpoint.checkpointCommit, tip);
+          resumeCommit = tip;
+        }
       }
       const workspace = await ensureJobWorktree({
         repoPath: execution.repository, runId, jobId: execution.id,
@@ -455,7 +460,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const candidate = await withRepositoryLock(execution.repository, () => commitJobWorktree({
       repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph candidate ${nodeKey}/${execution.key}`,
     }));
-    await outcome({ kind: 'checkpoint', phase: 'collect_result', candidateCommit: candidate, workspaceBase: workspace.baseCommit });
+    await outcome({ kind: 'checkpoint', phase: progress.phase === 'collect_result' ? 'collect_result' : 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit });
     let conclusion;
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || ''); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
