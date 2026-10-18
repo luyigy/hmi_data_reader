@@ -36,10 +36,13 @@ async function main() {
 test -r "$HOME/.kimi-code/config.toml" || exit 20
 echo refreshed > "$HOME/.kimi-code/oauth/token" || exit 21
 test "$TASK_GRAPH_UPSTREAM_INPUTS_JSON" = fixed-input-fixture || exit 23
+test "$XDG_CACHE_HOME" = /tmp/attempt-cache || exit 25
+test "$NPM_CONFIG_CACHE" = /tmp/attempt-npm || exit 26
+test "$PYTHONPYCACHEPREFIX" = /tmp/attempt-python || exit 27
 if touch forbidden-code-write 2>/dev/null; then exit 22; fi
 printf '%s\\n' '{"role":"assistant","content":"credential refresh writable; code readonly"}'
 `, { mode: 0o700 });
-    const taskEnvironment = { AP_PROJECT_REPOSITORY: workspace, TASK_GRAPH_UPSTREAM_INPUTS_JSON: 'fixed-input-fixture' };
+    const taskEnvironment = { AP_PROJECT_REPOSITORY: workspace, TASK_GRAPH_UPSTREAM_INPUTS_JSON: 'fixed-input-fixture', XDG_CACHE_HOME: '/tmp/attempt-cache', NPM_CONFIG_CACHE: '/tmp/attempt-npm', PYTHONPYCACHEPREFIX: '/tmp/attempt-python' };
     const refresh = await executeKimiCodeTask({ id: 'refresh-probe', name: 'refresh probe' }, { workingDirectory: workspace, workspaceRoot: workspace,
       sandboxMode: 'read-only', permissionProfile: 'custom', runtimeHome: kimiRuntime.home, taskEnvironment, extraReadOnlyPaths: kimiRuntime.readonly, extraWritableRoots: kimiRuntime.writable, timeout: 5000 });
     assert.equal(refresh.success, true, refresh.error);
@@ -50,6 +53,9 @@ printf '%s\\n' '{"role":"assistant","content":"credential refresh writable; code
     const bin = path.join(root, 'bin'); mkdirSync(bin);
     writeFileSync(path.join(bin, 'codex'), `#!/bin/sh
 test "$TASK_GRAPH_UPSTREAM_INPUTS_JSON" = fixed-input-fixture || exit 24
+test "$XDG_CACHE_HOME" = /tmp/attempt-cache || exit 25
+test "$NPM_CONFIG_CACHE" = /tmp/attempt-npm || exit 26
+test "$PYTHONPYCACHEPREFIX" = /tmp/attempt-python || exit 27
 printf '%s\\n' '{"type":"item.completed","item":{"type":"agent_message","text":"graph env propagated"}}'
 printf '%s\\n' '{"type":"turn.completed"}'
 `, { mode: 0o700 });

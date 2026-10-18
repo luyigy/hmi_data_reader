@@ -340,7 +340,7 @@ const runKimiCodeCommand = async ({
   }
 
   const env = { ...buildKimiCodeChildEnv(), ...taskEnvironment };
-  if (runtimeHome) { env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = '/tmp/cache'; env.NPM_CONFIG_CACHE = '/tmp/npm'; env.PYTHONPYCACHEPREFIX = '/tmp/python'; env.HOME = runtimeHome; env.KIMI_CODE_HOME = path.join(runtimeHome, '.kimi-code'); }
+  if (runtimeHome) { env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = taskEnvironment?.XDG_CACHE_HOME || '/tmp/cache'; env.NPM_CONFIG_CACHE = taskEnvironment?.NPM_CONFIG_CACHE || '/tmp/npm'; env.PYTHONPYCACHEPREFIX = taskEnvironment?.PYTHONPYCACHEPREFIX || '/tmp/python'; env.HOME = runtimeHome; env.KIMI_CODE_HOME = path.join(runtimeHome, '.kimi-code'); }
   const activeHome = runtimeHome ? path.join(runtimeHome, '.kimi-code') : getKimiCodeHome();
   env.KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY = String(KIMI_CODE_MAX_SUBAGENTS);
   // Prompt mode is implicitly Kimi's fully autonomous `auto` mode; Bubblewrap is the safety boundary.

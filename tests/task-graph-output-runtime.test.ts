@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, symlinkSync, unlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { prepareGraphOutputRuntime } from '../src/lib/task-graph/output-runtime';
+import { wrapWithBubblewrap } from '../src/lib/harness/bubblewrap';
 import { runSandboxedGraphCheck } from '../src/lib/task-graph/check-environment';
 
 async function main() {
@@ -28,6 +30,31 @@ async function main() {
     await assert.rejects(runSandboxedGraphCheck(['sh', '-c', 'echo bad > source.txt'], workspace), /Read-only file system/);
     await assert.rejects(runSandboxedGraphCheck(['sh', '-c', 'echo bad > output/job/input-materials/original.jpeg'], workspace), /Read-only file system/);
     assert.equal(readFileSync(path.join(workspace, 'output/job/input-materials/original.jpeg'), 'utf8'), 'original bytes');
+    const first = await prepareGraphOutputRuntime('node-fixture', 'implementation', [workspace]);
+    writeFileSync(path.join(first.directory, 'retained.txt'), 'retained');
+    const copied = JSON.parse(first.env.AP_GRAPH_OUTPUT_PATHS_JSON)[path.join(workspace, 'output/job')];
+    assert.equal(readFileSync(path.join(copied, 'report.json'), 'utf8'), 'historical report');
+    assert.equal(existsSync(path.join(copied, 'input-materials/original.jpeg')), false, 'Readonly original images are mounted, not copied into each stage archive');
+    const originalAlias = wrapWithBubblewrap({ command: 'sh', commandArgs: ['-c', 'cat "$1"; ! echo corrupt > "$1"', 'sh', path.join(copied, 'input-materials/original.jpeg')], cwd: workspace, workspaceRoot: workspace, env: { ...process.env, ...first.env } });
+    assert.match(execFileSync(originalAlias.command, originalAlias.args, { env: { ...process.env, ...first.env }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }), /original bytes/);
+    const same = await prepareGraphOutputRuntime('node-fixture', 'implementation', [workspace]);
+    assert.equal(same.directory, first.directory);
+    assert.equal(readFileSync(path.join(same.directory, 'retained.txt'), 'utf8'), 'retained');
+    const next = await prepareGraphOutputRuntime('node-fixture', 'acceptance', [workspace]);
+    assert.notEqual(first.directory, next.directory);
+    const env = { ...process.env, ...first.env };
+    const forged = { ...env, AP_GRAPH_OUTPUT_BINDINGS_JSON: JSON.stringify([{ source: first.directory, target: path.join(workspace, 'source.txt'), readOnly: false }]) };
+    assert.throws(() => wrapWithBubblewrap({ command: 'sh', commandArgs: [], cwd: workspace, workspaceRoot: workspace, env: forged }), /not explicitly declared/);
+    mkdirSync(path.join(workspace, 'unapproved'));
+    assert.throws(() => wrapWithBubblewrap({ command: 'sh', commandArgs: [], cwd: workspace, workspaceRoot: workspace, env: { ...env, AP_GRAPH_OUTPUT_BINDINGS_JSON: JSON.stringify([{ source: first.directory, target: path.join(workspace, 'unapproved'), readOnly: false }]) } }), /not explicitly declared/);
+    rmSync(path.join(workspace, 'unapproved'), { recursive: true });
+    symlinkSync(repository, path.join(workspace, 'output/job/external'));
+    await assert.rejects(prepareGraphOutputRuntime('node-fixture', 'symlink', [workspace]), /symlink/);
+    unlinkSync(path.join(workspace, 'output/job/external'));
+    await assert.rejects(prepareGraphOutputRuntime('node-fixture', 'original', [repository]), /original repository/);
+    const jobGit = (...args: string[]) => execFileSync('git', args, { cwd: workspace, encoding: 'utf8' }).trim();
+    jobGit('add', '--force', 'output/job/input-materials/original.jpeg'); jobGit('commit', '-qm', 'tracked source fixture');
+    await assert.rejects(prepareGraphOutputRuntime('node-fixture', 'tracked', [workspace]), /tracked input/);
     assert.equal(git('status', '--porcelain'), '');
     console.log('Declared legacy reports and AP_GRAPH_OUTPUT_DIR write into isolated runtime; source, original input and old reports remain unchanged');
   } finally {

@@ -1,3 +1,4 @@
+import { sandboxOutputBindings } from './output-bindings';
 import { sandboxProjectEnvironment } from './project-environment';
 import { sandboxEnvironmentRemovals } from './sandbox-env';
 import { localToolchainPaths } from './toolchain-paths';
@@ -82,6 +83,7 @@ export function wrapWithBubblewrap(args: {
     if (canonical === workspaceRoot || !isWithin(workspaceRoot, canonical)) throw new Error('Output path escapes the task workspace');
     return canonical;
   });
+  const runtimeOutputs = sandboxOutputBindings(args.env, workspaceRoot, args.readOnlyPaths?.filter(existsSync) || []);
   const allWritableMounts = [...writableMounts, ...extraWritableMounts, ...outputs]
     .filter((source, index, all) => all.indexOf(source) === index);
   const readOnlyMounts = [
@@ -106,6 +108,7 @@ export function wrapWithBubblewrap(args: {
     ...parentDirs(workspaceRoot), args.sandboxMode === 'read-only' ? '--ro-bind' : '--bind', workspaceRoot, workspaceRoot,
     ...allWritableMounts.flatMap((source) => [...parentDirs(source), '--bind', source, source]),
     ...readOnlyMounts.flatMap((source) => [...parentDirs(source), '--ro-bind', source, source]),
+    ...runtimeOutputs.flatMap(({ source, target, readOnly }) => [...parentDirs(target), readOnly ? '--ro-bind' : '--bind', source, target]),
     '--chdir', cwd,
     invocation,
     ...args.commandArgs,

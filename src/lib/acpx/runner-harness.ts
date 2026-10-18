@@ -1,3 +1,4 @@
+import { prepareGraphOutputForTask } from '../task-graph/output-task-context';
 import { withGraphTaskServices } from '../task-graph/graph-services';
 import { graphInputsForTask } from '../task-graph/upstream-inputs';
 import { graphValidationArchiveForTask } from '../task-graph/validation-archive-access';
@@ -152,10 +153,16 @@ export const executeViaLocalHarness = async (
     : [...permissionConfig.writableRoots.slice(1), ...(graphRuntime ? [] : linkedWorktreeGitDirectories(workspaceRoot))].filter((root, index, all) => all.indexOf(root) === index);
   const inputs = graphRuntime ? await graphInputsForTask(request.taskId, permissionConfig.sandboxMode === 'read-only') : null;
   if (inputs) { task.description += inputs.instructions; extraWritableRoots.push(...inputs.writablePaths); }
+  const outputWorkspaces = request.taskId.startsWith('task-graph-review-') || request.taskId.startsWith('task-graph-architecture-')
+    ? await prisma.taskGraphExecution.findMany({ where: { nodeId: request.taskId.replace(/^task-graph-(?:review|architecture)-/, '') }, select: { worktreePath: true } }).then(jobs => jobs.flatMap(job => job.worktreePath ? [job.worktreePath] : []))
+    : request.workingDirectory ? [request.workingDirectory] : [];
+  const output = graphRuntime && !request.taskId.startsWith('task-graph-discussion-') ? await prepareGraphOutputForTask(request.taskId, `harness:${taskRunId}:${participantId}`, outputWorkspaces) : null;
+  if (output) task.description += output.instructions;
   const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
     ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
     ...(request.extraReadOnlyPaths || []),
+    ...(output?.readOnlyPaths || []),
     ...(inputs?.paths || []),
     ...(validationArchive ? [validationArchive] : []),
     ...(graphRuntime?.readonly || []), ...graphGit,
@@ -200,7 +207,7 @@ export const executeViaLocalHarness = async (
   return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
-  const taskEnvironment = { ...inputs?.env, ...services.env };
+  const taskEnvironment = { ...inputs?.env, ...services.env, ...output?.env };
   const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
   let metadataWrites = Promise.resolve();
   let boundSessionId: string | undefined;

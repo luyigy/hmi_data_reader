@@ -146,7 +146,7 @@ interface CodexCliResult {
 const buildCodexChildEnv = (codexHome?: string, runtimeHome?: string, taskEnvironment?: Record<string, string>) => {
   const env = { ...process.env, ...taskEnvironment } as NodeJS.ProcessEnv;
 
-  if (runtimeHome) { env.HOME = runtimeHome; env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = '/tmp/cache'; env.NPM_CONFIG_CACHE = '/tmp/npm'; env.PYTHONPYCACHEPREFIX = '/tmp/python'; }
+  if (runtimeHome) { env.HOME = runtimeHome; env.AP_TASK_SANDBOX = '1'; env.AP_SANDBOX_MODEL_ACCESS = '1'; env.XDG_CACHE_HOME = taskEnvironment?.XDG_CACHE_HOME || '/tmp/cache'; env.NPM_CONFIG_CACHE = taskEnvironment?.NPM_CONFIG_CACHE || '/tmp/npm'; env.PYTHONPYCACHEPREFIX = taskEnvironment?.PYTHONPYCACHEPREFIX || '/tmp/python'; }
   if (codexHome) {
     prepareCodexHome(codexHome);
     env.CODEX_HOME = codexHome;

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { prepareGraphOutputForTask } from './output-task-context';
 import { graphInputsForTask } from './upstream-inputs';
 import { withGraphTaskServices } from './graph-services';
 import { graphDependencyPaths } from './dependency-paths';
@@ -30,16 +32,17 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
     }
     mkdirSync(target, { recursive: true }); outputs.push(target);
   }
+  const output = await prepareGraphOutputForTask(extraEnv.AP_GRAPH_SERVICE_TASK_ID, extraEnv.AP_GRAPH_OUTPUT_ATTEMPT || `check:${randomUUID()}`, [root]);
   const metadata = linkedWorktreeGitDirectories(root);
   return withGraphTaskServices(extraEnv.AP_GRAPH_SERVICE_TASK_ID, 'platform-check', async services => {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...(extra?.env.TASK_GRAPH_EXTRA_REPOS_JSON ? { TASK_GRAPH_EXTRA_REPOS_JSON: extra.env.TASK_GRAPH_EXTRA_REPOS_JSON } : {}), ...services.env, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp', TMPDIR: '/tmp', XDG_CACHE_HOME: '/tmp/cache' };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...(extra?.env.TASK_GRAPH_EXTRA_REPOS_JSON ? { TASK_GRAPH_EXTRA_REPOS_JSON: extra.env.TASK_GRAPH_EXTRA_REPOS_JSON } : {}), ...services.env, ...output.env, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp' };
   for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY']) {
     const value = process.env[name] || process.env[name.toLowerCase()] || process.env['FEISHU_RUNTIME_CODEX_' + name];
     if (value) { env[name] = value; env[name.toLowerCase()] = value; }
   }
   const wrapped = wrapWithBubblewrap({ command: argv[0], commandArgs: argv.slice(1), cwd: root, workspaceRoot: root,
     sandboxMode: 'read-only', networkAccess: 'enabled', env, outputPaths: outputs,
-    readOnlyPaths: [...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
+    readOnlyPaths: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
   return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv, services.signal);
   });
 }
