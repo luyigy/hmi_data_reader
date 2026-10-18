@@ -25,7 +25,7 @@ async function main() {
     const model = node.executions.find(job => job.key === 'model');
     assert(reader && model);
     const before = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: model.id } });
-    const decision = { failureKind: 'in_scope_defect', failureKey: 'contract', note: 'Reader misses required raw field', executionIds: [reader.id] };
+    const decision = { failureKind: 'in_scope_defect', failureKey: 'acceptance:contract', note: 'Reader misses required raw field', executionIds: [reader.id] };
     const evidence = { summary: 'Joint check found a reader defect', checks: [{ name: 'contract', passed: false, evidence: 'missing field' }] };
     assert.equal(await scheduleGraphRepair(run.id, 'BOTH', { ...decision, executionIds: ['another-node'] }, evidence), false);
     assert.equal(await scheduleGraphRepair(run.id, 'BOTH', { ...decision, failureKey: 'unknown' }, evidence), false);

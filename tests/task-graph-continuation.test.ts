@@ -83,7 +83,7 @@ async function main() {
     for (const text of ['不要重跑', '先别执行', '你执行过了吗？', '现在重跑可以吗', '稍后再重跑', '等我确认后再执行', '继续讨论这个方案', '之前执行失败了', '执行分工是什么意思？']) assert.equal(resumeIntent(text), false, text);
     const evidence = { summary: 'save defect', checks: [{ name: 'roundtrip', passed: false, evidence: 'wrong value after reopen' }] };
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'blocked_require_human', note: 'photo blurred' }, evidence), false);
-    assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'roundtrip', note: 'wrong save' }, evidence), true);
+    assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'acceptance:roundtrip', note: 'wrong save' }, evidence), true);
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status, 'claimed');
     const event = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } });
     assert.ok(JSON.stringify(event.payload).includes('bbbbbbbb'), 'Keep previous delivery/evidence before repair');
@@ -92,13 +92,13 @@ async function main() {
       const progress = executionProgress(job.dispatchMetadata); assert.ok(progress);
       await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', claimToken: 'completed-repair-' + progress.repairAttempts, dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, phase: 'acceptance' }) } });
     }
-    assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'roundtrip', note: 'same defect' }, evidence), true);
+    assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'acceptance:roundtrip', note: 'same defect' }, evidence), true);
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention' } });
     for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
       const progress = executionProgress(job.dispatchMetadata); assert.ok(progress);
       await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', claimToken: 'completed-repair-' + progress.repairAttempts, dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, phase: 'acceptance' }) } });
     }
-    assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'roundtrip', note: 'same defect' }, evidence), false);
+    assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'in_scope_defect', failureKey: 'acceptance:roundtrip', note: 'same defect' }, evidence), false);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } }), 2);
     assert.equal((await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } })).issueKind, 'retry_exhausted');
     const code = path.join(temp, 'source.js'); writeFileSync(code, 'source');

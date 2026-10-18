@@ -80,7 +80,7 @@ async function main() {
     reviews.push(node.key);
     if (node.key === 'B' && !rejectB && !defectReported) {
       defectReported = true;
-      return { success: true, output: 'TASK_GRAPH_REVIEW {"approved":false,"note":"new input found an in-scope defect","failureKind":"in_scope_defect","failureKey":"smoke"}', executionTime: 1 };
+      return { success: true, output: 'TASK_GRAPH_REVIEW {"approved":false,"note":"new input found an in-scope defect","failureKind":"in_scope_defect","failureKey":"acceptance:smoke"}', executionTime: 1 };
     }
     return { success: true, output: `TASK_GRAPH_REVIEW ${JSON.stringify({ approved: node.key !== 'B' || !rejectB, note: 'explicit fixture evidence', ...(node.key === 'B' && rejectB ? { failureKind: 'blocked_require_human' } : {}) })}`, executionTime: 1 };
   };

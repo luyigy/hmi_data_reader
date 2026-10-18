@@ -51,7 +51,7 @@ async function scenario(mode: 'architecture' | 'integration' | 'acceptance' | 'i
     const marker = architecture ? 'TASK_GRAPH_ARCH_REVIEW' : 'TASK_GRAPH_REVIEW';
     if (mode === 'invalid') return { success: true, output: `${marker} {"approved":false,"note":"bad identity","failureKind":"in_scope_defect","failureKey":"unknown","executionIds":["other-node"]}`, executionTime: 1 };
     if (readerStarts === 1 && (mode === 'architecture' && architecture || mode === 'acceptance' && !architecture)) {
-      if (mode === 'acceptance' && acceptanceStarts === 1) return { success: true, output: `${marker} {"approved":false,"note":"wrong check identity","failureKind":"in_scope_defect","failureKey":"unknown","executionIds":["${reader.id}"]}`, executionTime: 1 };
+      if (mode === 'acceptance' && acceptanceStarts === 1) return { success: true, output: `${marker} {"approved":false,"note":"wrong check identity","failureKind":"in_scope_defect","failureKey":"joint","executionIds":["${reader.id}"]}`, executionTime: 1 };
       return { success: true, output: `${marker} ${JSON.stringify({ approved: false, note: 'reader defect within approved scope', failureKind: 'in_scope_defect', failureKey: architecture ? 'architecture:scope' : 'acceptance:joint', executionIds: [reader.id] })}`, executionTime: 1 };
     }
     return { success: true, output: `${marker} {"approved":true,"note":"joint behavior checked"}`, executionTime: 1 };

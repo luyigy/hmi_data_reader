@@ -19,7 +19,7 @@ export function graphReviewChecks(definition: GraphDefinition, nodeKey: string, 
 
 export function resolveReviewCheck(key: unknown, checks: ReviewCheck[]) {
   if (typeof key !== 'string') return undefined;
-  return checks.find(check => check.id === key) || checks.find(check => check.id.startsWith('acceptance:') && check.name === key);
+  return checks.find(check => check.id === key);
 }
 
 export function classifyReview(value: unknown, checks: ReviewCheck[]): ClassifiedReview | null {
