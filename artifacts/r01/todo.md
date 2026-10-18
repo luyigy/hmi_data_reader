@@ -64,3 +64,35 @@ BLOCKED: missing_business_material. No registered sample currently combines an a
 - Step 8 report-only project substitution; independent platform acceptance still pending and not replaced by author testing.
 - No project verify skill exists in the supplied workspace; used the exact ticket entry.
 - No DB accessed, extra source tree written, dependency installed, or new environment created. PaddleOCR downloaded model assets into isolated runtime HOME.
+
+## Resume at checkpoint 1172836
+
+The current playbook is Session pickup. The Feature record above is inherited evidence, not work repeated in this session.
+
+### Original Session pickup steps, verbatim
+
+### Session pickup
+
+**You own the resume point. Read the prior trail, don't redo it.**
+
+1. Read the project checkpoint first using [Resume storage](../references/resume-storage.md). A successful read gives the note and artifacts without requiring a path from the previous session. If the pointer is missing, locate the prior trail through a local transcript under Claude Code's per-project transcripts directory at `~/.claude/projects/<encoded-cwd>/*.jsonl` (where `<encoded-cwd>` is the workspace cwd with `/` → `-`. Do not glob across other directories under `~/.claude/projects/`, that crosses workspace boundaries and reads private chats from unrelated projects), a cloud-agent URL, or a pushed branch. An unavailable or incomplete checkpoint needs diagnosis rather than a silent fallback. For transcript fallback, read the metadata overview and last messages first, then scan back for the decision points. Parse a long transcript in a subagent and keep the reduced timeline in the main thread (the **principle-guard-the-context-window** skill).
+2. Reconstruct operational state. The branch and worktree, what already landed (`git log`, `git diff` against the base), the open todos, the decisions made. Use the prior trail to recover progress. For claims about human rulings, follow [Claims about human decisions](../../why/references/epistemics.md#claims-about-human-decisions). An agent summary is not the original ruling.
+3. Diff done vs pending. Compare what shipped against what was planned, name the resume point, do not re-run the prior repro or redo completed work. Recheck claims that affect the remaining work without repeating completed investigations. Read artifacts linked by the resume note, including requested questions or checklists.
+4. Route the remaining work to the matching playbook and pick the verdict: continue the execution, ship a finished recommendation, ratify or override a prior conclusion, or postmortem a failed run. The pickup playbook ends here. The routed playbook owns the rest.
+5. Verify the inherited claims against the original goal on the real artifact (the **principle-prove-it-works** skill). A passing prior self-report is not the proof.
+
+**Reply:** where the prior agent stopped, what you inherited vs redid (ideally nothing redone), the resume point, and the outcome.
+
+### Actual project adaptation and execution
+
+- [x] Step 1 uses the platform checkpoint 1172836fe6f044b32e9709ea6957dc4c63f8c8ed and the existing artifacts/r01 report, todo, material inventory and source verification. The project substitution owns checkpoint storage. No Git metadata writes or separate pstack resume store.
+- [x] Step 2 reconstructed the clean inherited worktree, R02 reuse, open v2 requirements and fixed Model HEAD bc3f7069f6bf973c04ffb9fde3bbb3f21c18bdd0. Extra repository untracked files remain excluded.
+- [x] Step 3 compared inherited results with current inputs. The material index checkedAt 2026-10-18T10:29:33.848Z has no items. Fixed input manifest 65c17a0d1a33375be049b78273960fa6e165270a5455c47878f5ff1705dba274 has inputs=[].
+- [x] Step 4 routed back to the unfinished Feature prerequisites. User permission for model-generated annotations is accepted. Human annotation is not a new prerequisite. A read-only Feishu table probe failed with config/not_configured. An existing local VLM did receive the actual representative image and returned candidates.
+- [x] Step 5 checked actual behavior and the VLM response. The candidate contains five out-of-image bboxes and wrong physical stage numbering. It is not a valid frozen full-page truth. The exact ticket behavior command ran again and failed on the inherited missing v2 behavior.
+- [ ] Feature implementation remains blocked on usable representative-page material and the configured material retrieval environment. No v2 schema, package or behavior has been declared delivered.
+- [ ] Independent platform acceptance remains pending. Self-testing does not fill that gate.
+
+Evidence: resume-probes.json, resume-vlm.json, resume-ticket-behavior.log, resume-read-versions.json. The playbook anchor check ran successfully again. Skill and playbook SHA-256 values are recorded in resume-read-versions.json.
+
+The throughput checkpoint remains unchanged: one writer; primary worktree only; extra source and Python environments read-only; no database; material validation before freezing page identities or fields. No code symbols changed, so no new symbol impact analysis is required. No PR, dispatch, Git mutation, dependency installation, or source-repository write.

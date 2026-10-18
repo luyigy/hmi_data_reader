@@ -1,0 +1,91 @@
+{
+  "checkpoint": "1172836fe6f044b32e9709ea6957dc4c63f8c8ed",
+  "image_size": [
+    994,
+    650
+  ],
+  "image_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+  "vlm_response_sha256": "22d41d8bd344c1b208cd1b98a6ecc3521a11158ca2c553b93e24b6465702c5a7",
+  "model": "Qwen3.8-27B-FP8",
+  "candidate_count": 21,
+  "out_of_bounds_count": 5,
+  "out_of_bounds": [
+    {
+      "label": "保压",
+      "bbox": [
+        730,
+        850,
+        800,
+        890
+      ]
+    },
+    {
+      "label": "unknown",
+      "bbox": [
+        800,
+        850,
+        870,
+        890
+      ]
+    },
+    {
+      "label": "unknown",
+      "bbox": [
+        870,
+        850,
+        940,
+        890
+      ]
+    },
+    {
+      "label": "unknown",
+      "bbox": [
+        530,
+        850,
+        600,
+        890
+      ]
+    },
+    {
+      "label": "unknown",
+      "bbox": [
+        600,
+        850,
+        670,
+        890
+      ]
+    }
+  ],
+  "reviewed_pressure_by_physical_stage": [
+    65.0,
+    50.0,
+    0.0
+  ],
+  "vlm_pressure_by_claimed_stage": [
+    "0.0",
+    "0.0",
+    "50.0",
+    "65.0"
+  ],
+  "candidate_accepted": false,
+  "reason": [
+    "bbox outside original image",
+    "physical stage order conflicts with reviewed truth",
+    "unresolved labels and physical identity on bottom status bar"
+  ],
+  "bitable_probe": {
+    "method": "POST",
+    "path": "/open-apis/bitable/v1/apps/Vz2QbZ0lkagmVJsrMZ7cQwbSnZc/tables/tbl5KKYuANqGpycE/records/search",
+    "scope": "read one Z002 record, machine ID only",
+    "exit_code": 3,
+    "error": {
+      "type": "config",
+      "subtype": "not_configured",
+      "message": "not configured"
+    }
+  },
+  "input_manifest_hash": "65c17a0d1a33375be049b78273960fa6e165270a5455c47878f5ff1705dba274",
+  "bound_inputs": [],
+  "source_changes": false,
+  "external_writes": false
+}
