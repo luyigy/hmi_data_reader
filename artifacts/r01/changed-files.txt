@@ -1,0 +1,35 @@
+ M hmi_service.py
+ M page_template_admin.py
+ M scripts/contract.py
+ M scripts/export_page_package.py
+ M scripts/extract_fields.py
+ M scripts/page_template_registry.py
+?? artifacts/r01/additional-regression.log
+?? artifacts/r01/cpu-ocr.json
+?? artifacts/r01/cpu-ocr.log
+?? artifacts/r01/exported-package.json
+?? artifacts/r01/gitnexus-detect-changes.json
+?? artifacts/r01/gitnexus-impact.json
+?? artifacts/r01/live-http.json
+?? artifacts/r01/live-lines.json
+?? artifacts/r01/live-ocr.log
+?? artifacts/r01/live-rectify.json
+?? artifacts/r01/live-script.json
+?? artifacts/r01/material-inventory.json
+?? artifacts/r01/r02-changed-symbols.json
+?? artifacts/r01/read-versions.json
+?? artifacts/r01/report.md
+?? artifacts/r01/reuse-tests.log
+?? artifacts/r01/reuse.json
+?? artifacts/r01/source-verification.json
+?? artifacts/r01/ticket-behavior.log
+?? artifacts/r01/todo.md
+?? extractor_capabilities.py
+?? page_template_drafts.py
+?? page_template_lifecycle.py
+?? page_template_store.py
+?? scripts/extractor_registry.py
+?? scripts/manage_page_templates.py
+?? tests/test_hmi_protocol_library_r01.py
+?? tests/test_r02_extractor_registry.py
+?? tests/test_r02_template_lifecycle.py

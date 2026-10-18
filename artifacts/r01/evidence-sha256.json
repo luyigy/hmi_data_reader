@@ -1,0 +1,23 @@
+{
+  "artifacts/r01/additional-regression.log": "36169fb3b162b402c19262f03ea3417a8dfa884f35a8d34264aa85ce6ead8e8e",
+  "artifacts/r01/changed-files.txt": "68796a63bf427aff2c92893f9929af11609e76cfddd192f7d187190d4c9557c4",
+  "artifacts/r01/cpu-ocr.json": "980b839f23e07005145171cd1a1b33aa09473c9f77eab2fa195615306aa55b53",
+  "artifacts/r01/cpu-ocr.log": "a8642ebbcfed134fd6b451b30b6965da4e5ae2336a9ffd0f819723328f46dd86",
+  "artifacts/r01/exported-package.json": "8e11aab460f437624ebdfd602e29f27bf077569d03a57657073940d8aafc2522",
+  "artifacts/r01/gitnexus-detect-changes.json": "a6f8a63e59c8c98e25a1f67a8d58bb4a470443753b5d8689d3b437266516fc36",
+  "artifacts/r01/gitnexus-impact.json": "0dbd2d22a60566975389bdc6f287bad29cc19e0f1cd420b9b969a5445d8dab2c",
+  "artifacts/r01/live-http.json": "dc2561a2bf84690f3220c2081f2f0d3698a17798df6a2492d16210f30eeb1604",
+  "artifacts/r01/live-lines.json": "ac8cef94fcbc7311240b5253b4f9c862a42e1a88e7f6522a30ddf5b1bed4c32a",
+  "artifacts/r01/live-ocr.log": "6d23bc0360366c447565fdbc4d74cdcd7ee10b4683a61b808a8359098fc210aa",
+  "artifacts/r01/live-rectify.json": "73859149545a1e988cd6fa0215a1bc9f413a799b85e57f5edb240afff3e044b5",
+  "artifacts/r01/live-script.json": "4dd1c3a4b48a44ad2bc6f4ee30cd1b3defbfbb9989fc77855b3a481fe19c3cac",
+  "artifacts/r01/material-inventory.json": "848ca5111856135e1c852eec84232064b94ec3c3a456011d81c00d70f162793f",
+  "artifacts/r01/r02-changed-symbols.json": "fdc08b0ba5f1a10dd5ed0b98bb921d7c6f62ff388255167a5a6c8ddeb3115ea7",
+  "artifacts/r01/read-versions.json": "1af287bf9ba33d6604d6e9ba81e3a898998a81ca056424b31ed3603883377360",
+  "artifacts/r01/report.md": "3f3844275b1e2e77ca696f48c9ef44f725f1d0084446d4a8ba6db752d6d7e403",
+  "artifacts/r01/reuse-tests.log": "e3394d9b1ac7fab65a7498ec04a198e456b6fb9756543140529b66e26dee4612",
+  "artifacts/r01/reuse.json": "e9aab17a2db5bff4737b2b2937f1ec4260c38c34f7aa0c0eda4b416046aab998",
+  "artifacts/r01/source-verification.json": "516a634ea92c6882c4ee82436a8cc13ed12597a78643aed3a2017ac2452c438a",
+  "artifacts/r01/ticket-behavior.log": "49fe795bd93c040ed2873123814deab73912659c139d56193f401d19850eaddf",
+  "artifacts/r01/todo.md": "d85627118919f3c63faf1958dd1e87ff6168f594563e0a1826ba2cda27a34f04"
+}

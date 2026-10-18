@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from classify_ui import find_page, find_ui_family  # noqa: E402
 from contract import attach_contract  # noqa: E402
 from extract_generic import extract_generic  # noqa: E402
+from extractor_registry import capabilities, extract_registered, template_error  # noqa: E402
 from extract_families.common import _anchor_hits  # noqa: E402
 
 TEMPLATES_DIR = Path("templates")
@@ -129,7 +130,8 @@ def route_family(stem: str, lines: list[dict],
     return fam, "per_image_classify"
 
 
-from page_template_registry import resolve_page_template, route_page, load_template  # noqa: E402
+from page_template_registry import (BLOCKED_PAGE_SOURCES, resolve_page_template,
+                                    route_page, load_template)  # noqa: E402
 
 # ---------------------------------------------------------------- 提取
 
@@ -248,6 +250,11 @@ def extract_page_fields(toks: list[dict], template: dict, *, ocr_lines: list[dic
     """Select one extractor for all Reader entry points; callers prepare their own OCR evidence."""
     page = template.get("page")
     ui = template.get("ui_family")
+    error = template_error(template)
+    if error:
+        return dict(fields=None, heater_columns=0, warnings=[error], detail={})
+    if template.get("extractor") == "registered_extractor":
+        return extract_registered(toks, template, ocr_lines=ocr_lines, meta=meta, image_path=image_path)
     if template.get("extractor") == "page_module":
         from importlib import import_module
         profile_id = template.get("profile_id", "")
@@ -386,8 +393,8 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
         template = load_template(family, page, templates_dir, lines=lines)
     result["controller_family"] = family
     result["page_type"] = page
-    if page_src == "disabled_template":
-        result["warnings"].append("PAGE_TEMPLATE_DISABLED")
+    if page_src in BLOCKED_PAGE_SOURCES:
+        result["warnings"].append(BLOCKED_PAGE_SOURCES[page_src])
         return result
     if template is None and family_src in ("machine_labels", "record_report"):
         # 083 S07：机台先验/record 聚合与图像内容冲突（先验家族无此页模板，如
@@ -399,9 +406,11 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
             det_lines, _ = merge_variant_lines(lines, clahe_lines)
         alt = detect_family_from_templates(det_lines + mt_lines, templates_dir)
         if alt and alt != family:
-            alt_page, alt_page_src = route_page(stem, lines, alt, templates_dir,
-                                                extra_anchor_lines=mt_lines)
-            alt_tpl = load_template(alt, alt_page, templates_dir)
+            alt_page, alt_page_src, alt_tpl = resolve_page_template(
+                stem, lines, alt, templates_dir, extra_anchor_lines=mt_lines)
+            if alt_page_src in BLOCKED_PAGE_SOURCES:
+                result["warnings"].append(BLOCKED_PAGE_SOURCES[alt_page_src])
+                return result
             if alt_tpl is not None:
                 result["warnings"].append(f"FAMILY_LABEL_OVERRIDE({family}->{alt})")
                 family, family_src = alt, "template_keywords"
@@ -410,8 +419,7 @@ def extract_one(stem: str, rectified_dir: Path, record_report: dict | None,
                 result["page_type"] = page
                 template = alt_tpl
     if template is None:
-        # Unknown/variant screens are still useful as operator-reviewed drafts. Keep every
-        # known-template path untouched and replace only the former hard reject here.
+        # Unrecognized screens retain observations for operator review.
         generic_lines = lines
         if clahe_lines is not None:
             generic_lines, _ = merge_variant_lines(lines, clahe_lines)
@@ -597,7 +605,11 @@ def main():
     ap.add_argument("--record-report", default=str(RECORD_REPORT))
     ap.add_argument("--labels", default=str(MACHINE_LABELS))
     ap.add_argument("--templates-dir", default=str(TEMPLATES_DIR))
+    ap.add_argument("--capabilities", action="store_true", help="输出受控提取能力目录 JSON")
     args = ap.parse_args()
+    if args.capabilities:
+        print(json.dumps(capabilities(), ensure_ascii=False))
+        return
 
     rectified_dir = Path(args.rectified_dir)
     stems = list(args.stems)

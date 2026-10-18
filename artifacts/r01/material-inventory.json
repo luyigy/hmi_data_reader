@@ -1,0 +1,219 @@
+[
+  {
+    "profile_id": "tact5.process_settings.injection_holding_metering",
+    "sample_id": "Z078_20260910_shebao",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "3f0cd45905b1b33b2f837b19f23003c26a563976bdde02988ef6ea4ddc18dc9d",
+    "original_size": [
+      1920,
+      1080
+    ],
+    "ocr_fixture": "tests/fixtures/tact5_process_ocr.json",
+    "ocr_sha256": "fa47e053bbf0584641c4197fab6e9fe423899a2f170ed2a3b7ac759196bf7fce",
+    "truth_scope": "已确认有效设定、SM 与计量前后抽距离、灰显排除及非目标字段；末段保压有效时间仍待确认",
+    "photo_distribution": "original image retained outside Git; resolve by hash in approved sample storage",
+    "manifest": "templates/samples/tact5.process_settings.injection_holding_metering/Z078_20260910_shebao.json",
+    "available_originals": []
+  },
+  {
+    "profile_id": "demag.injection_metering.multi_stage_injection",
+    "sample_id": "Z002_WeHdT",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "bed6ac0d3fceb4f4c81ca3fbe758e2e98cf82c5f613b257849dfb2c582f588ca",
+    "original_size": [
+      1920,
+      1080
+    ],
+    "ocr_fixture": "tests/fixtures/demag_injection_z002_wehdt_ocr.json",
+    "ocr_sha256": "15bb48ac980c1468083f398343774b9752e2376f87edfc5e49b1028cdcdc7eb5",
+    "truth_scope": "Z002 实图核对段速度 75/25 mm/s、段起点 45/22.5 mm、V/P 17.5 mm、射胶限压 100 bar；禁用段和原图框仍须人工确认",
+    "photo_distribution": "原图保存在 hmi_finetuning 原始飞书库存；用于开发，不作为独立留出图",
+    "manifest": "templates/samples/demag.injection_metering.multi_stage_injection/Z002_WeHdT.json",
+    "available_originals": []
+  },
+  {
+    "profile_id": "fanuc.injection_metering.injection_holding_metering",
+    "sample_id": "Z036_rank04",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "3c37a3f27ba80db8846375478e5dd068bcf195a918fd5a8439a553ca2bfad981",
+    "original_size": [
+      4032,
+      3024
+    ],
+    "ocr_fixture": "tests/fixtures/fanuc_injection_metering_z036_rank04_ocr.json",
+    "ocr_sha256": "ee5cdf65fd4e6b5b729586275adfb2eb3726d6e144ae1bed8e0f8c9878669c68",
+    "truth_scope": "Z036 rank04 原图逐字段核对储料/冷却子集：计量 3 段背压 8.5/8.5/8.5 MPa、转速 200/200/200 min-1、切换位置 10.00/20.00 mm、冷却时间 6.50 s、计量位置 45.00 mm、减压 5.00 mm + 20.0 mm/s、右上手动背压 5.0 MPa、手动转速 100 min-1；射出/保压侧数值未入真值，禁用态与原图框仍须人工确认",
+    "photo_distribution": "原图在 Reader datasets/hmi/raw/legacy/samples_mc_z036/（飞书库存源记录 recvr7ZON2CRwt）；真值系 049 自动整批接受（2026-08-02，用户保留事后否决权），用于开发，不作为独立留出图",
+    "manifest": "templates/samples/fanuc.injection_metering.injection_holding_metering/Z036_rank04.json",
+    "available_originals": []
+  },
+  {
+    "profile_id": "yizumi.injection_metering.injection_holding_f2",
+    "sample_id": "P11_31_20260930",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "044ef2442f72b168ec01b45becfe8ebcdcbfc6ec1dbdfa0b948b93fc72ff73a0",
+    "original_size": [
+      1080,
+      1920
+    ],
+    "ocr_fixture": "tests/fixtures/yizumi_p11_31_ocr.json",
+    "ocr_sha256": "d292fd3dffd2ac28e64b74829f11e7092db6ee90f112133e93e2900bed2a96f1",
+    "truth_scope": "同机台同布局开发样本；OCR 数值未逐字段裁定，不是独立留出集；不得据此放开自动写入。",
+    "photo_distribution": "hmi_finetuning/datasets/raw/feishu/20260930-focus-yizumi/伊之密/31",
+    "screen_size": [
+      1381,
+      1400
+    ],
+    "screen_quad": [
+      [
+        -3.343286137844591e-14,
+        446.4000244140625
+      ],
+      [
+        1077.60009765625,
+        446.4000244140625
+      ],
+      [
+        1077.60009765625,
+        1538.4000244140625
+      ],
+      [
+        0.0,
+        1538.4000244140625
+      ]
+    ],
+    "rectify_method": "corners",
+    "manifest": "templates/samples/yizumi.injection_metering.injection_holding_f2/P11_31_20260930.json",
+    "available_originals": []
+  },
+  {
+    "profile_id": "yizumi.injection_metering.injection_holding_f2",
+    "sample_id": "P11_31_20260929",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "a22834128bc9f73b1d3373f9c59335b041fd478e08fb9dc213cfcf2d01aaa6bc",
+    "original_size": [
+      1080,
+      1920
+    ],
+    "ocr_fixture": "tests/fixtures/yizumi_p11b_31_ocr.json",
+    "ocr_sha256": "b470c4ca9e02702b6c4223666ba06882a77a9c838875f0cf33867e4d68b41488",
+    "truth_scope": "同机台同布局开发样本；OCR 数值未逐字段裁定，不是独立留出集；不得据此放开自动写入。",
+    "photo_distribution": "hmi_finetuning/datasets/raw/feishu/20260930-focus-yizumi/伊之密/31",
+    "screen_size": [
+      1400,
+      1114
+    ],
+    "screen_quad": [
+      [
+        0.3612304925918579,
+        265.6528015136719
+      ],
+      [
+        962.627685546875,
+        309.39215087890625
+      ],
+      [
+        927.8153076171875,
+        1075.264404296875
+      ],
+      [
+        -34.451148986816406,
+        1031.5250244140625
+      ]
+    ],
+    "rectify_method": "corners",
+    "manifest": "templates/samples/yizumi.injection_metering.injection_holding_f2/P11_31_20260929.json",
+    "available_originals": []
+  },
+  {
+    "profile_id": "demag.injection_metering.multi_stage_holding",
+    "sample_id": "Z002_ab30f6f6",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "186a514d33458a612eee4479082a2f731cbabf93168f39d8119f11ced5931676",
+    "original_size": [
+      994,
+      650
+    ],
+    "ocr_fixture": "tests/fixtures/demag_holding_z002_ocr.json",
+    "ocr_sha256": "65088d3a3e5dd310c7bc2ef5c5f68b205e247030c11a2a7c30b5e3b27a97d6d8",
+    "truth_scope": "Z002 保压压力、时间、速度由领域所有者核对；第 3 段压力 0 为禁用残值，压力基准和字段原图框仍待确认",
+    "photo_distribution": "原图保存在 Reader datasets/calibration/demag.injection_metering.multi_stage_holding；已参与识别修复，不作为独立留出图",
+    "manifest": "templates/samples/demag.injection_metering.multi_stage_holding/Z002_ab30f6f6.json",
+    "available_originals": [
+      "ground_truth/demag_holding/holding_Z002_ab30f6f6.jpeg",
+      "datasets/calibration/demag.injection_metering.multi_stage_holding/holding_Z002_ab30f6f6.jpeg"
+    ]
+  },
+  {
+    "profile_id": "demag.injection_metering.multi_stage_back_pressure",
+    "sample_id": "Z002_WeHdT",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "8c670a92e7ce51d939c9422850402422aab7cf05b05798e71ead34e5053c0064",
+    "original_size": [
+      1920,
+      1080
+    ],
+    "ocr_fixture": "tests/fixtures/demag_metering_z002_ocr.json",
+    "ocr_sha256": "8fb447836fc602472cfed3961e6c99aa83ebf1a70995b9ad8d2571e27a2e547a",
+    "truth_scope": "Z002 可见背压 3/3/3/0 bar、螺杆转速 150/150/150/45 U/min；段终点/起点、压力侧别和启用状态未裁定",
+    "photo_distribution": "原图保存在 hmi_finetuning 原始飞书库存；用于开发，不作为独立留出图",
+    "manifest": "templates/samples/demag.injection_metering.multi_stage_back_pressure/Z002_WeHdT.json",
+    "available_originals": []
+  },
+  {
+    "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+    "sample_id": "Z050_rank01",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "03830ab484fc905a35947a0094e1d682c8287e1d397fe520d91f523ef6104962",
+    "original_size": [
+      4032,
+      3024
+    ],
+    "ocr_fixture": "tests/fixtures/b_and_r_z050_rank01_ocr.json",
+    "ocr_sha256": "b7b3062bfa4d3b3e7d90a0ff9058eb0d15a3cd16799a489f9fa52213169e73de",
+    "truth_path": "ground_truth/inj_z050_injection/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.truth.json",
+    "truth_scope": "Z050 rank01 原图 049 自动整批数值真值；2026-10-13 领域所有者确认压力为液压设定值、三段位置语义与末段 V/P 终点、位置或时间先到先切换。原图参与模板开发，不作独立留出集。",
+    "photo_distribution": "datasets/hmi/raw/legacy/samples_inj_z050/inj_Z050_20250422_rank01_recuQJJFYYzLcJ.jpeg",
+    "manifest": "templates/samples/b_and_r.injection_holding.multi_stage_position_time/Z050_rank01.json",
+    "available_originals": []
+  },
+  {
+    "profile_id": "yizumi.injection_metering.metering_f2",
+    "sample_id": "P12_31_20260930",
+    "purpose": "development_exposed_not_independent_test",
+    "original_sha256": "360af3737a4489fc4292c1caa3b6853336c790be21981208a81b3aa3aeb4289c",
+    "original_size": [
+      1080,
+      1920
+    ],
+    "ocr_fixture": "tests/fixtures/yizumi_p12_rectified_31_ocr.json",
+    "ocr_sha256": "8314b572e4ed161b907f1c7f4e3b3bd2721768fbfff864770da1811560c4c20f",
+    "truth_scope": "同机台异页面开发样本；数字按原屏目视核对，段启用和物理含义未裁定，不得自动写入。",
+    "photo_distribution": "hmi_finetuning/datasets/raw/feishu/20260930-focus-yizumi/伊之密/31",
+    "screen_size": [
+      1400,
+      1203
+    ],
+    "screen_quad": [
+      [
+        -2.7040203775629927e-14,
+        465.6000061035156
+      ],
+      [
+        1027.2000732421875,
+        465.6000061035156
+      ],
+      [
+        1027.2000732421875,
+        1348.800048828125
+      ],
+      [
+        0.0,
+        1348.800048828125
+      ]
+    ],
+    "rectify_method": "corners",
+    "manifest": "templates/samples/yizumi.injection_metering.metering_f2/P12_31_20260930.json",
+    "available_originals": []
+  }
+]

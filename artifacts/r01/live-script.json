@@ -1,0 +1,268 @@
+{
+  "image": "holding_Z002_ab30f6f6",
+  "status": "ok",
+  "warnings": [],
+  "controller_family": "DEMAG",
+  "page_type": "injection_metering",
+  "heater_columns": 0,
+  "fields": {
+    "stage_holding_pressure_bar": [
+      65.0,
+      50.0,
+      0.0
+    ],
+    "stage_holding_time_s": [
+      2.0,
+      3.0
+    ],
+    "stage_holding_velocity_mms": [
+      15.0,
+      10.0,
+      5.0
+    ]
+  },
+  "provenance": {
+    "family_source": "per_image_classify",
+    "page_source": "template_anchors",
+    "template": "demag.injection_metering.multi_stage_holding.json v0.2.1",
+    "ocr_file": "/tmp/pytest-of-hello/pytest-2/r01-live0/holding_Z002_ab30f6f6.ocr.json",
+    "screen_size": [
+      1400,
+      914
+    ],
+    "rectify_method": "corners"
+  },
+  "template_name": "demag.injection_metering.multi_stage_holding.json",
+  "template_version": "0.2.1",
+  "extraction_detail": {
+    "page_variant": "multi_stage_holding",
+    "pressure_unit_text": null,
+    "page_observations": {
+      "version": "1.0",
+      "profile_id": "demag.injection_metering.multi_stage_holding",
+      "coordinate_space": "original_percent",
+      "fields": [
+        {
+          "label": "保压压力1",
+          "value": 65.0,
+          "unit": "bar",
+          "role": "setting",
+          "section": "holding",
+          "stage": 1,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        },
+        {
+          "label": "保压压力2",
+          "value": 50.0,
+          "unit": "bar",
+          "role": "setting",
+          "section": "holding",
+          "stage": 2,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        },
+        {
+          "label": "保压压力3",
+          "value": 0.0,
+          "unit": "bar",
+          "role": "setting",
+          "section": "holding",
+          "stage": 3,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        },
+        {
+          "label": "保压时间1",
+          "value": 2.0,
+          "unit": "s",
+          "role": "setting",
+          "section": "holding",
+          "stage": 1,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        },
+        {
+          "label": "保压时间2",
+          "value": 3.0,
+          "unit": "s",
+          "role": "setting",
+          "section": "holding",
+          "stage": 2,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        },
+        {
+          "label": "各段保压速度1",
+          "value": 15.0,
+          "unit": "mm/s",
+          "role": "setting",
+          "section": "holding",
+          "stage": 1,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        },
+        {
+          "label": "各段保压速度2",
+          "value": 10.0,
+          "unit": "mm/s",
+          "role": "setting",
+          "section": "holding",
+          "stage": 2,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        },
+        {
+          "label": "各段保压速度3",
+          "value": 5.0,
+          "unit": "mm/s",
+          "role": "setting",
+          "section": "holding",
+          "stage": 3,
+          "state": "unknown",
+          "state_basis": null,
+          "text": null,
+          "confidence": 0.0,
+          "bbox": null,
+          "original_bbox": null,
+          "line_indexes": [],
+          "reasons": [
+            "source_box_unavailable",
+            "stage_state_unverified"
+          ]
+        }
+      ],
+      "stage_counts": {}
+    },
+    "stage_enabled": {
+      "stage_holding_pressure_bar": [
+        true,
+        true,
+        true
+      ],
+      "stage_holding_velocity_mms": [
+        true,
+        true,
+        true
+      ],
+      "stage_holding_time_s": [
+        true,
+        true
+      ]
+    }
+  },
+  "hmi_variant": "multi_stage_holding",
+  "profile_id": "demag.injection_metering.multi_stage_holding",
+  "profile_status": "verified",
+  "profile_confidence": 0.7,
+  "contract_version": "2.11.0",
+  "field_meta": {
+    "stage_holding_pressure_bar": {
+      "label_zh": "各段保压压力",
+      "page_label_zh": "保压页面",
+      "unit": "bar",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_pressure",
+      "physical_semantics": {
+        "pressure_basis": null
+      }
+    },
+    "stage_holding_time_s": {
+      "label_zh": "各段保压时间",
+      "page_label_zh": "保压页面",
+      "unit": "s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order"
+      },
+      "value_type": "list[float]",
+      "web_target": "holding_segment_time",
+      "physical_semantics": {
+        "time_definition": "segment_duration"
+      }
+    },
+    "stage_holding_velocity_mms": {
+      "label_zh": "各段保压速度",
+      "page_label_zh": "保压页面",
+      "unit": "mm/s",
+      "role": "setpoint",
+      "entity": {
+        "kind": "holding_segment",
+        "identity": "array_order",
+        "order": "physical_stage"
+      },
+      "value_type": "list[float]",
+      "web_target": null
+    }
+  }
+}

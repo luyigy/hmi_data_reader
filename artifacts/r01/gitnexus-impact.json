@@ -1,0 +1,170 @@
+[
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "authenticate_recognition",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:hmi_service.py:authenticate_recognition\",\n    \"name\": \"authenticate_recognition\",\n    \"type\": \"Function\",\n    \"filePath\": \"hmi_service.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 0,\n  \"risk\": \"LOW\",\n  \"summary\": {\n    \"direct\": 0,\n    \"processes_affected\": 0,\n    \"modules_affected\": 0\n  },\n  \"byDepthCounts\": {},\n  \"affected_processes\": [],\n  \"affected_modules\": []\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "recognize_image",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:hmi_service.py:recognize_image\",\n    \"name\": \"recognize_image\",\n    \"type\": \"Function\",\n    \"filePath\": \"hmi_service.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 0,\n  \"risk\": \"LOW\",\n  \"summary\": {\n    \"direct\": 0,\n    \"processes_affected\": 0,\n    \"modules_affected\": 0\n  },\n  \"byDepthCounts\": {},\n  \"affected_processes\": [],\n  \"affected_modules\": []\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "_atomic_json",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:page_template_admin.py:_atomic_json\",\n    \"name\": \"_atomic_json\",\n    \"type\": \"Function\",\n    \"filePath\": \"page_template_admin.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 2,\n  \"risk\": \"LOW\",\n  \"summary\": {\n    \"direct\": 1,\n    \"processes_affected\": 1,\n    \"modules_affected\": 1\n  },\n  \"byDepthCounts\": {\n    \"1\": 1,\n    \"2\": 1\n  },\n  \"affected_processes\": [\n    {\n      \"name\": \"put_template\",\n      \"type\": \"Function\",\n      \"filePath\": \"page_template_admin.py\",\n      \"affected_process_count\": 2,\n      \"total_hits\": 4,\n      \"earliest_broken_step\": 1\n    }\n  ],\n  \"affected_modules\": [\n    {\n      \"name\": \"Cluster_5\",\n      \"hits\": 2,\n      \"impact\": \"direct\"\n    }\n  ]\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "save_template",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:page_template_admin.py:save_template\",\n    \"name\": \"save_template\",\n    \"type\": \"Function\",\n    \"filePath\": \"page_template_admin.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 1,\n  \"risk\": \"LOW\",\n  \"summary\": {\n    \"direct\": 1,\n    \"processes_affected\": 1,\n    \"modules_affected\": 1\n  },\n  \"byDepthCounts\": {\n    \"1\": 1\n  },\n  \"affected_processes\": [\n    {\n      \"name\": \"put_template\",\n      \"type\": \"Function\",\n      \"filePath\": \"page_template_admin.py\",\n      \"affected_process_count\": 2,\n      \"total_hits\": 2,\n      \"earliest_broken_step\": 1\n    }\n  ],\n  \"affected_modules\": [\n    {\n      \"name\": \"Cluster_5\",\n      \"hits\": 1,\n      \"impact\": \"direct\"\n    }\n  ]\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "get_template_versions",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:page_template_admin.py:get_template_versions\",\n    \"name\": \"get_template_versions\",\n    \"type\": \"Function\",\n    \"filePath\": \"page_template_admin.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 0,\n  \"risk\": \"LOW\",\n  \"summary\": {\n    \"direct\": 0,\n    \"processes_affected\": 0,\n    \"modules_affected\": 0\n  },\n  \"byDepthCounts\": {},\n  \"affected_processes\": [],\n  \"affected_modules\": []\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "preview_template",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:page_template_admin.py:preview_template\",\n    \"name\": \"preview_template\",\n    \"type\": \"Function\",\n    \"filePath\": \"page_template_admin.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 0,\n  \"risk\": \"LOW\",\n  \"summary\": {\n    \"direct\": 0,\n    \"processes_affected\": 0,\n    \"modules_affected\": 0\n  },\n  \"byDepthCounts\": {},\n  \"affected_processes\": [],\n  \"affected_modules\": []\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "_profile_registry",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:scripts/contract.py:_profile_registry\",\n    \"name\": \"_profile_registry\",\n    \"type\": \"Function\",\n    \"filePath\": \"scripts/contract.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 12,\n  \"risk\": \"CRITICAL\",\n  \"summary\": {\n    \"direct\": 1,\n    \"processes_affected\": 11,\n    \"modules_affected\": 2\n  },\n  \"byDepthCounts\": {\n    \"1\": 1,\n    \"2\": 2,\n    \"3\": 9\n  },\n  \"affected_processes\": [\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/explain_case.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 12,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/extract_fields.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s02_barrel_repro.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_attempt\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"recognize_image\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s03_hot_runner_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s04_mold_temp_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 2\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/run_pipeline.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"do_POST\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 2\n    },\n    {\n      \"name\": \"run_text_evaluation\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/vlm_text_eval.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 4,\n      \"earliest_broken_step\": 1\n    }\n  ],\n  \"affected_modules\": [\n    {\n      \"name\": \"Scripts\",\n      \"hits\": 9,\n      \"impact\": \"indirect\"\n    },\n    {\n      \"name\": \"Tests\",\n      \"hits\": 3,\n      \"impact\": \"direct\"\n    }\n  ]\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "attach_contract",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:scripts/contract.py:attach_contract\",\n    \"name\": \"attach_contract\",\n    \"type\": \"Function\",\n    \"filePath\": \"scripts/contract.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 20,\n  \"risk\": \"CRITICAL\",\n  \"summary\": {\n    \"direct\": 2,\n    \"processes_affected\": 11,\n    \"modules_affected\": 2\n  },\n  \"byDepthCounts\": {\n    \"1\": 2,\n    \"2\": 9,\n    \"3\": 9\n  },\n  \"affected_processes\": [\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/explain_case.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 12,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 11,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"do_POST\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/extract_fields.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s02_barrel_repro.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_attempt\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"recognize_image\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s03_hot_runner_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s04_mold_temp_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/run_pipeline.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_text_evaluation\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/vlm_text_eval.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 4,\n      \"earliest_broken_step\": 1\n    }\n  ],\n  \"affected_modules\": [\n    {\n      \"name\": \"Scripts\",\n      \"hits\": 12,\n      \"impact\": \"direct\"\n    },\n    {\n      \"name\": \"Tests\",\n      \"hits\": 2,\n      \"impact\": \"direct\"\n    }\n  ]\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "extract_page_fields",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:scripts/extract_fields.py:extract_page_fields\",\n    \"name\": \"extract_page_fields\",\n    \"type\": \"Function\",\n    \"filePath\": \"scripts/extract_fields.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 21,\n  \"risk\": \"CRITICAL\",\n  \"summary\": {\n    \"direct\": 2,\n    \"processes_affected\": 12,\n    \"modules_affected\": 3\n  },\n  \"byDepthCounts\": {\n    \"1\": 2,\n    \"2\": 9,\n    \"3\": 10\n  },\n  \"affected_processes\": [\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/explain_case.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 12,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 11,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"do_POST\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/extract_fields.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"preview_template\",\n      \"type\": \"Function\",\n      \"filePath\": \"page_template_admin.py\",\n      \"affected_process_count\": 9,\n      \"total_hits\": 9,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_attempt\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s02_barrel_repro.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"recognize_image\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s03_hot_runner_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s04_mold_temp_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/run_pipeline.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_text_evaluation\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/vlm_text_eval.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 4,\n      \"earliest_broken_step\": 1\n    }\n  ],\n  \"affected_modules\": [\n    {\n      \"name\": \"Scripts\",\n      \"hits\": 12,\n      \"impact\": \"indirect\"\n    },\n    {\n      \"name\": \"Tests\",\n      \"hits\": 2,\n      \"impact\": \"direct\"\n    },\n    {\n      \"name\": \"Cluster_5\",\n      \"hits\": 1,\n      \"impact\": \"direct\"\n    }\n  ]\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "extract_one",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:scripts/extract_fields.py:extract_one\",\n    \"name\": \"extract_one\",\n    \"type\": \"Function\",\n    \"filePath\": \"scripts/extract_fields.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 25,\n  \"risk\": \"CRITICAL\",\n  \"summary\": {\n    \"direct\": 9,\n    \"processes_affected\": 11,\n    \"modules_affected\": 2\n  },\n  \"byDepthCounts\": {\n    \"1\": 9,\n    \"2\": 10,\n    \"3\": 6\n  },\n  \"affected_processes\": [\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 11,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"do_POST\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_attempt\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s02_barrel_repro.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/explain_case.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s03_hot_runner_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"recognize_image\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s04_mold_temp_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/extract_fields.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/run_pipeline.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_text_evaluation\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/vlm_text_eval.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 4,\n      \"earliest_broken_step\": 1\n    }\n  ],\n  \"affected_modules\": [\n    {\n      \"name\": \"Scripts\",\n      \"hits\": 12,\n      \"impact\": \"direct\"\n    },\n    {\n      \"name\": \"Tests\",\n      \"hits\": 1,\n      \"impact\": \"direct\"\n    }\n  ]\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "main",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:scripts/extract_fields.py:main\",\n    \"name\": \"main\",\n    \"type\": \"Function\",\n    \"filePath\": \"scripts/extract_fields.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 12,\n  \"risk\": \"LOW\",\n  \"summary\": {\n    \"direct\": 1,\n    \"processes_affected\": 0,\n    \"modules_affected\": 0\n  },\n  \"byDepthCounts\": {\n    \"1\": 1,\n    \"2\": 11\n  },\n  \"affected_processes\": [],\n  \"affected_modules\": []\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "status": "fulfilled",
+    "value": {
+      "target": "resolve_page_template",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"target\": {\n    \"id\": \"Function:scripts/page_template_registry.py:resolve_page_template\",\n    \"name\": \"resolve_page_template\",\n    \"type\": \"Function\",\n    \"filePath\": \"scripts/page_template_registry.py\"\n  },\n  \"direction\": \"upstream\",\n  \"impactedCount\": 20,\n  \"risk\": \"CRITICAL\",\n  \"summary\": {\n    \"direct\": 1,\n    \"processes_affected\": 11,\n    \"modules_affected\": 2\n  },\n  \"byDepthCounts\": {\n    \"1\": 1,\n    \"2\": 9,\n    \"3\": 10\n  },\n  \"affected_processes\": [\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/explain_case.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 12,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 11,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"do_POST\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/feishu_card_assistant.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/extract_fields.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 10,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s02_barrel_repro.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_attempt\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 7,\n      \"total_hits\": 7,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"recognize_image\",\n      \"type\": \"Function\",\n      \"filePath\": \"hmi_service.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s03_hot_runner_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/s04_mold_temp_repro.py\",\n      \"affected_process_count\": 6,\n      \"total_hits\": 6,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"main\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/run_pipeline.py\",\n      \"affected_process_count\": 5,\n      \"total_hits\": 5,\n      \"earliest_broken_step\": 1\n    },\n    {\n      \"name\": \"run_text_evaluation\",\n      \"type\": \"Function\",\n      \"filePath\": \"scripts/vlm_text_eval.py\",\n      \"affected_process_count\": 4,\n      \"total_hits\": 4,\n      \"earliest_broken_step\": 1\n    }\n  ],\n  \"affected_modules\": [\n    {\n      \"name\": \"Scripts\",\n      \"hits\": 12,\n      \"impact\": \"indirect\"\n    },\n    {\n      \"name\": \"Tests\",\n      \"hits\": 2,\n      \"impact\": \"direct\"\n    }\n  ]\n}\n\n---\n**Next:** Review d=1 items first (WILL BREAK). To check affected execution flows, READ gitnexus://repo/hmi_data_reader/processes."
+          }
+        ]
+      }
+    }
+  }
+]

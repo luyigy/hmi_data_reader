@@ -16,8 +16,19 @@ def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dic
                        if p["profile_id"] == profile_id), None)
     if not registered or not registered.get("template"):
         raise ValueError(f"Unregistered page template: {profile_id}")
+    if not re.fullmatch(r"[a-z0-9_]+(?:\.[a-z0-9_]+){2}", profile_id):
+        raise ValueError("Invalid profile ID")
     active = root / "templates" / registered["template"]
     current = json.loads(active.read_text())
+    archive = root / "templates/versions" / profile_id / f"{version}.json"
+    frozen = root / "templates/packages" / profile_id / f"{version}.json"
+    if frozen.is_file() and (current["version"] == version or archive.is_file()):
+        package = json.loads(frozen.read_text())
+        if (package.get("profile_id") != profile_id or package.get("version") != version
+                or package["template"].get("profile_id") != profile_id
+                or package["template"].get("version") != version):
+            raise ValueError("Frozen package identity mismatch")
+        return package
     if current["version"] == version:
         path = active
     else:

@@ -43,6 +43,8 @@ from quality import THRESHOLD_PERSPECTIVE, assess, measure_perspective
 from rectify import DEFAULT_MAX_SIZE, rectify
 from vlm_qwen import VlmError, draft_from_ocr
 from page_template_admin import router as page_template_router
+from extractor_capabilities import router as capabilities_router
+from page_template_registry import BLOCKED_PAGE_SOURCES
 
 # 083 S01 分辨率救援：提取失败时按此 max_size 重跑一轮矫正+OCR（见 run_attempt 调用处）
 RESCUE_MAX_SIZE = 4000
@@ -57,6 +59,7 @@ for k in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy",
 
 app = FastAPI(title="HMI GPU Recognition Service", version="1.0.0")
 app.include_router(page_template_router)
+app.include_router(capabilities_router)
 cors_origins = [origin.strip() for origin in os.getenv("HMI_CORS_ORIGINS", "*").split(",")
                 if origin.strip()]
 app.add_middleware(
@@ -72,7 +75,7 @@ async def authenticate_recognition(request: Request, call_next):
     """Optional shared Bearer token; unset HMI_API_KEY keeps current open behavior."""
     expected = os.getenv("HMI_API_KEY", "").strip()
     protected = request.url.path in ("/api/v1/recognize", "/recognize", "/api/v1/draft") or (
-        request.method == "GET" and request.url.path.startswith("/api/v1/page-templates"))
+        request.method == "GET" and request.url.path.startswith(("/api/v1/page-templates", "/api/v1/capabilities")))
     if expected and protected:
         supplied = request.headers.get("authorization", "")
         if not supplied.startswith("Bearer ") or not hmac.compare_digest(
@@ -428,7 +431,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
 
             cls_res, extract_res, ocr_evidence = run_attempt(DEFAULT_MAX_SIZE)
             if extract_res.get("fields") is None and not any(
-                    "NO_TEMPLATE" in w or "RECTIF" in w
+                    "NO_TEMPLATE" in w or "RECTIF" in w or w in BLOCKED_PAGE_SOURCES.values()
                     for w in extract_res.get("warnings", [])):
                 # 083 S01 分辨率救援：提取失败（非路由/模板缺失）时以更高 max_size
                 # 重跑一轮——4K 原图经 2000 长边封顶后小字表格（B&R 灰底温度表等）
