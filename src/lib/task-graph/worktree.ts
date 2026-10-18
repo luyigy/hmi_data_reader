@@ -1,3 +1,4 @@
+import type { IntegrationFailure, IntegrationConflict } from './integration-failure';
 import { graphGit as git } from './git-command';
 import { preserveWorktreeResults } from './worktree-results';
 import { createHash } from 'node:crypto';
@@ -12,13 +13,15 @@ export class TaskGraphGitError extends Error {
   constructor(
     public readonly code: 'invalid_repository' | 'invalid_ref' | 'invalid_base' | 'workspace_collision' |
       'workspace_dirty' | 'integration_checked_out' | 'integration_stale' | 'integration_conflict' |
-      'verification_failed' | 'not_integrated',
+      'verification_failed' | 'not_integrated' | 'ownership_mismatch' | 'integration_retry_exhausted',
     message: string,
     public readonly workspacePath?: string,
     options?: ErrorOptions,
+    public readonly integration?: IntegrationFailure,
   ) {
     super(message, options);
     this.name = 'TaskGraphGitError';
+    if (options && 'cause' in options) this.cause = options.cause;
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -55,6 +58,7 @@ export interface IntegrationRequest {
   baseCommit: string;
   worktreeRoot?: string;
   verify: (jobPath: string) => Promise<void>;
+  assertOwnership?: () => Promise<void>;
 }
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
@@ -253,6 +257,12 @@ async function assertIntegrationNotCheckedOut(repo: string, ref: string): Promis
   }
 }
 
+async function conflictEvidence(job: string, candidateCommit: string, integrationCommit: string): Promise<IntegrationConflict> {
+  const mergeHead = await git(job, 'rev-parse', '--verify', 'MERGE_HEAD').catch(() => null);
+  const paths = (await git(job, 'diff', '--name-only', '--diff-filter=U', '-z')).split('\0').filter(Boolean).sort();
+  return { kind: 'conflict', candidateCommit, integrationCommit, mergeHead, paths };
+}
+
 /** Merge the latest integration baseline into the job, verify there, then advance the ref. */
 export async function integrateJobWorktree(request: IntegrationRequest): Promise<{ commit: string; alreadyIntegrated: boolean }> {
   const repo = await repositoryRoot(request.repoPath);
@@ -270,29 +280,33 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
   if (!currentJob || currentJob.branch !== branch || !(await isAncestor(repo, request.baseCommit, currentJob.head))) {
     throw new TaskGraphGitError('workspace_collision', `Job worktree is missing or mismatched: ${job}`, job);
   }
+  const current = await refCommit(repo, request.integrationRef);
+  if (!current) throw new TaskGraphGitError('invalid_ref', `Integration ref is missing: ${request.integrationRef}`);
   const gitDir = await git(job, 'rev-parse', '--absolute-git-dir');
   if (await fs.access(path.join(gitDir, 'MERGE_HEAD')).then(() => true, () => false)) {
-    throw new TaskGraphGitError('integration_conflict', `Merge conflict needs resolution: ${job}`, job);
+    throw new TaskGraphGitError('integration_conflict', `Merge conflict needs resolution: ${job}`, job, undefined,
+      await conflictEvidence(job, currentJob.head, current));
   }
   if (!(await cleanWorkspace(job))) {
     throw new TaskGraphGitError('workspace_dirty', `Job worktree has uncommitted changes: ${job}`, job);
   }
-  const current = await refCommit(repo, request.integrationRef);
-  if (!current) throw new TaskGraphGitError('invalid_ref', `Integration ref is missing: ${request.integrationRef}`);
   const alreadyIntegrated = await isAncestor(repo, currentJob.head, current);
   if (!alreadyIntegrated && current !== request.expectedIntegrationCommit) {
-    throw new TaskGraphGitError('integration_stale', `Integration ref moved from ${request.expectedIntegrationCommit} to ${current}`);
+    throw new TaskGraphGitError('integration_stale', `Integration ref moved from ${request.expectedIntegrationCommit} to ${current}`, job, undefined,
+      { kind: 'stale', candidateCommit: currentJob.head, expectedIntegrationCommit: request.expectedIntegrationCommit, integrationCommit: current });
   }
   if (!(await isAncestor(repo, request.baseCommit, current))) {
     throw new TaskGraphGitError('invalid_base', 'Integration ref diverged from job base');
   }
   if (!(await isAncestor(repo, current, currentJob.head))) {
+    await request.assertOwnership?.();
     try {
       // Existing runs may have a merge commit from the retired staging checkout.
       if (alreadyIntegrated) await git(job, 'merge', '--ff-only', current);
       else await git(job, 'merge', '--no-ff', '--no-edit', current);
     } catch (cause) {
-      throw new TaskGraphGitError('integration_conflict', `Merge needs manual resolution: ${job}`, job, { cause });
+      throw new TaskGraphGitError('integration_conflict', `Merge needs manual resolution: ${job}`, job, { cause },
+        await conflictEvidence(job, currentJob.head, current));
     }
   }
   const result = await git(job, 'rev-parse', 'HEAD');
@@ -305,12 +319,22 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
   if (!(await cleanWorkspace(job))) {
     throw new TaskGraphGitError('verification_failed', `Verification left changes in job worktree: ${job}`, job);
   }
-  if ((await refCommit(repo, branch)) !== result || (await refCommit(repo, request.integrationRef)) !== current) {
-    throw new TaskGraphGitError('integration_stale', `Integration or job ref moved during verification: ${job}`, job);
+  const latestWorkspace = findWorkspace(await worktrees(repo), job);
+  if (latestWorkspace?.branch !== branch || latestWorkspace.head !== result || (await refCommit(repo, branch)) !== result) {
+    throw new TaskGraphGitError('ownership_mismatch', `Job identity changed during verification: ${job}`, job, undefined,
+      { kind: 'ownership_mismatch', candidateCommit: result, integrationCommit: current, detail: 'Candidate branch or checked-out commit changed' });
+  }
+  const latestIntegration = await refCommit(repo, request.integrationRef);
+  if (latestIntegration !== current) {
+    throw new TaskGraphGitError('integration_stale', `Integration ref moved during verification: ${job}`, job, undefined,
+      latestIntegration ? { kind: 'stale', candidateCommit: result, expectedIntegrationCommit: current, integrationCommit: latestIntegration } : undefined);
   }
   if (result !== current) {
+    await request.assertOwnership?.();
     try { await git(repo, 'update-ref', request.integrationRef, result, current); } catch (cause) {
-      throw new TaskGraphGitError('integration_stale', `Integration ref changed before update: ${request.integrationRef}`, job, { cause });
+      const advanced = await refCommit(repo, request.integrationRef);
+      throw new TaskGraphGitError('integration_stale', `Integration ref changed before update: ${request.integrationRef}`, job, { cause },
+        advanced ? { kind: 'stale', candidateCommit: result, expectedIntegrationCommit: current, integrationCommit: advanced } : undefined);
     }
   }
   return { commit: result, alreadyIntegrated };
