@@ -2,7 +2,7 @@
 
 状态：hmi-protocol-library Spec 1.0 的规范要求，2026-10-18。这里定义待实施的兼容扩展，不表示运行接口已支持。Reader 是规范唯一编辑源，Model 通过接纳保留固定版本/哈希只读快照及完整页面原屏字段定义，人工入口不依赖 Reader 网络。
 
-R01 实施范围：DEMAG 多级保压页现提供显式 `page_observations.v2`，JSON Schema 为 `contracts/page_observations.v2.schema.json`，完整字段定义为 `contracts/raw-pages/demag-holding-0.3.0.json`。冻结包位于 `templates/raw-packages/demag.injection_metering.multi_stage_holding/0.3.0.json`。其他页面及 Model `raw_page.v2` 持久化不由此声明为已支持。
+R01 实施范围：DEMAG 多级保压页现提供显式 `page_observations.v2`，JSON Schema 为 `contracts/page_observations.v2.schema.json`，完整字段定义为 `contracts/raw-pages/demag-holding-0.3.0.json`。冻结包位于 `templates/raw-packages/demag.injection_metering.multi_stage_holding/0.3.0.json`。本段仅声明 R01 的支持范围；R04 的温区与时间页面扩展见第 9 节。Model `raw_page.v2` 持久化不由 Reader 声明为已支持。
 
 HTTP 在既有 `/api/v1/recognize` 增加 `observations_version=v2` 查询参数；不传时保留 v1。脚本 `extract_fields.py` 使用 `--observations-version v2 --original-image <实际原图>`，并校验矫正证据的原图哈希。包仍通过既有页面包 GET 和 `export_page_package.py <profile_id> 0.3.0` 导出。新包不改变活动 v1 模板。
 
@@ -131,6 +131,23 @@ HTTP `POST /api/v1/recognize` 接受可选查询参数 `controller_hint`，值�
 | incompatible | EXTRACTOR_VERSION_INCOMPATIBLE / EXTRACTOR_PAGE_INCOMPATIBLE / EXTRACTOR_CONTRACT_INCOMPATIBLE | 既有提取器/合同检查拒绝，不进入通用提取 |
 | incompatible | CONTROLLER_HINT_INVALID | HTTP 输入返回 422；CLI 无效 JSON 文件返回参数错误 |
 
-停用、冲突、不兼容在任何分辨率救援或重提取中都保留提示并拒绝 generic fallback。带提示的未知页也拒绝通用提取。无提示未知页保留旧通用提取行为，同时报告 `compatibility.status=unknown`。`observations_version=v2` 的现有拒绝 HTTP 422 继续保留相同原因 code；R02 不扩展 DEMAG 原屏 v2 的页面支持范围。
+停用、冲突、不兼容在任何分辨率救援或重提取中都保留提示并拒绝 generic fallback。带提示的未知页也拒绝通用提取。无提示未知页保留旧通用提取行为，同时报告 `compatibility.status=unknown`。`observations_version=v2` 的兼容拒绝继续返回 HTTP 422 并保留相同原因 code。R02 本身不增加原屏 v2 页面；R01 与 R04 的明确页面支持范围分别见前文与第 9 节。
 
 行为入口为 `tests/test_hmi_protocol_library_r02.py`，用已有原图、实时 CPU OCR、真实 HTTP multipart、CLI 子进程、受控发布和包 GET/新客户端读回分别验证。所有新发布仅在受管输出的隔离目录。样本已用于开发，不作独立留出集。Model 机台持久化、浏览器和业务保存重开由相应 Model 票及平台独立验收负责。
+
+## 9. R04 温区与相关时间扩展
+
+R04 扩展原屏观测字段，不更改第 8 节的控制器绑定与兼容拒绝规则。新增冻结原屏包不自动成为已核实控制器绑定页，也不改变绑定引用的页面包版本或哈希。带提示的停用、冲突、不兼容或未知页仍按第 8 节拒绝，不能借温区与时间适配器绕过。下文储料页的 generic 适配限定在无提示的既有路由结果，不授权带提示时通用提取。
+
+`0.4.0` 是独立冻结的 OCR 识读包，合同仍标识 `page_observations.v2`，包内嵌 `contracts/page_observations.temperature-time.v2.schema.json`。保留 R01 的合同和 `0.3.0` 包字节及实现哈希。
+
+当前声明两个页面的有限字段范围。
+
+- `demag.temperature.screen_order_5` 按可见列头识别喷嘴1、区1至区8、料口的设定/实际值。`barrel-3` 等身份来自物理区号，`order` 按当次显示顺序记录。料口为 `feed-throat / other`，不冒充料筒或模具温区。未出现的列不会补零。冷启动保护与延时手动降低另有独立字段键。冒号显示保留文本，角色未核实保持 unknown，不转成秒。
+- `est.storage_cooling.cooling_delay` 从储料页分别读出储前冷却与模具冷却设定。严格匹配三个可见标签后使用此受控适配器，v1 的 generic 响应保留。它们不合并为一个 cooling_time，也不包含 Model 的业务目标。
+
+HTTP 继续使用 `/api/v1/recognize?observations_version=v2`，新观测的权威页面身份位于 `page_observations.profile_id`。顶层字段及 profile 保留原 v1 结果。脚本继续使用 `extract_fields.py --observations-version v2 --original-image <原图>`。新增版本须显式通过 `/api/v1/page-templates/<profile_id>/package?version=0.4.0` 或 `export_page_package.py <profile_id> 0.4.0` 获取，不改变活动 v1 模板。
+
+离线校验使用 `raw_temperature_time.validate_temperature_time_record`。同一 zone 的 setting/actual 可以并存；重复同角色身份、同物理分组 order 冲突和字段定义归属矛盾会拒绝。识读时重复列头保留候选并输出结构问题。单位冲突保留原单位，模板仅补 effective_unit。温度页没有已标定的启用状态解码器，state 均为 unknown；颜色和缺读不会推成 disabled。
+
+包内样本是开发验证材料。既有温度真值的模型与待人工确认来源原样保留，新增时间转录标为实施者目视核对，不是独立验收。Reader 的包 GET 和离线读回不等于 Model 草稿保存重开、温度换算、正式业务提交或双视口验收。具体本轮检查和缺口记录在任务受管结果区。

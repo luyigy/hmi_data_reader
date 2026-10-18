@@ -9,6 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dict:
+    if version == "0.4.0":
+        try:
+            from raw_temperature_time import DEFINITIONS, temperature_time_package
+        except ModuleNotFoundError:
+            from scripts.raw_temperature_time import DEFINITIONS, temperature_time_package
+        if profile_id in DEFINITIONS:
+            return temperature_time_package(profile_id, version, root)
     if version == "0.3.0" and profile_id == "demag.injection_metering.multi_stage_holding":
         try:
             from raw_page import raw_page_package

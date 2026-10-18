@@ -673,8 +673,12 @@ def main():
         if args.observations_version == "v2":
             import hashlib
             import cv2
-            from raw_page import observe_raw_page
-            if r.get("profile_id") != "demag.injection_metering.multi_stage_holding":
+            from raw_temperature_time import (observe_temperature_time_page, select_raw_profile,
+                                              recover_temperature_time_cells, DEFINITIONS)
+            try:
+                raw_profile = select_raw_profile(r.get("profile_id"), json.loads(
+                    (rectified_dir / f"{stem}.ocr.json").read_text())["lines"])
+            except ValueError:
                 ap.error(next((warning for warning in r.get("warnings", [])
                                if warning in BLOCKED_PAGE_SOURCES.values()), "RAW_PAGE_UNSUPPORTED"))
             original_bytes = args.original_image.read_bytes()
@@ -691,12 +695,17 @@ def main():
                 from raw_page_ocr import engine_identity, recover_raw_cells
                 engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
                 ocr["lines"] = recover_raw_cells(engine, rectified, meta, ocr["lines"])
-            r["page_observations"] = observe_raw_page(
-                r.get("profile_id"), ocr["lines"], meta,
+            if raw_profile in DEFINITIONS and rectified is not None:
+                from paddleocr import PaddleOCR
+                from raw_page_ocr import engine_identity
+                engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+                ocr["lines"] = recover_temperature_time_cells(engine, rectified, meta, ocr["lines"], raw_profile)
+            r["page_observations"] = observe_temperature_time_page(
+                raw_profile, ocr["lines"], meta,
                 hashlib.sha256(original_bytes).hexdigest(),
                 rectified)
             r["raw_ocr_evidence"] = ocr
-            r["page_observations"]["engine"] = (engine_identity(engine) if r.get("profile_id") == "demag.injection_metering.multi_stage_holding" and rectified is not None
+            r["page_observations"]["engine"] = (engine_identity(engine) if rectified is not None
                                                   else {"library": "provided_ocr_sidecar", "version": ocr.get("model")})
         counts[r["status"]] += 1
         out_path = out_dir / f"{stem}.fields.json"
