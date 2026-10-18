@@ -7,6 +7,8 @@ import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree, TaskGrap
 import { integrateJobWithRetry } from '../src/lib/task-graph/integration-retry';
 import { prepareConflictRepair, finishConflictRepair } from '../src/lib/task-graph/conflict-repair';
 import type { IntegrationConflict } from '../src/lib/task-graph/integration-failure';
+import { prepareAcceptanceRuntime } from '../src/lib/task-graph/acceptance-runtime';
+import { wrapWithBubblewrap } from '../src/lib/harness/bubblewrap';
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
 async function main() {
@@ -67,6 +69,21 @@ async function main() {
     await assert.rejects(finishConflictRepair({ ...fenced.request, checkpoint: fencedCheckpoint, resolutionFile: output, assertOwnership: async () => { throw new Error('ownership lost'); } }), /ownership lost/);
     assert.equal(git(fenced.b.path, 'rev-parse', 'HEAD'), fenced.candidate);
     assert.equal(git(repo, 'rev-parse', fenced.integration.ref), fenced.first.commit);
+    const partial = await setup('partial'); const partialCheckpoint = await prepareConflictRepair(partial.request);
+    let writes = 0;
+    await assert.rejects(finishConflictRepair({ ...partial.request, checkpoint: partialCheckpoint, resolutionFile: output,
+      assertOwnership: async () => { if (++writes === 3) throw new Error('simulated exit after staging'); } }), /simulated exit/);
+    assert.equal(git(partial.b.path, 'rev-parse', 'HEAD'), partial.candidate);
+    assert.equal(git(partial.b.path, 'rev-parse', 'MERGE_HEAD'), partial.first.commit);
+    const resumed = await finishConflictRepair({ ...partial.request, checkpoint: partialCheckpoint, resolutionFile: output });
+    assert.equal(git(partial.b.path, 'rev-parse', 'HEAD'), resumed);
+    process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'runtime');
+    const runtime = await prepareAcceptanceRuntime('readonly-repair', 'attempt', [{ repository: repo, path: fenced.b.path, commit: fenced.candidate }]);
+    const wrapped = wrapWithBubblewrap({ command: process.execPath, commandArgs: ['-e', `const fs=require('fs');for(const target of ${JSON.stringify([path.join(fenced.b.path, 'contract.md'), path.join(repo, '.git', 'config')])}){let denied=false;try{fs.writeFileSync(target,'forbidden')}catch{denied=true}if(!denied)throw Error('source or Git became writable')}fs.writeFileSync('resolution.json','artifact')`],
+      cwd: runtime.directory, workspaceRoot: runtime.directory, sandboxMode: 'workspace-write', networkAccess: 'restricted', readOnlyPaths: runtime.readOnlyPaths, env: { ...process.env, AP_TASK_SANDBOX: '1' } });
+    execFileSync(wrapped.command, wrapped.args, { cwd: runtime.directory, stdio: 'pipe' });
+    assert.equal(await fs.readFile(path.join(runtime.directory, 'resolution.json'), 'utf8'), 'artifact');
+    assert.equal(git(fenced.b.path, 'rev-parse', 'MERGE_HEAD'), fenced.first.commit);
     console.log('Bounded conflict repair preserves both deliveries, latest integration, commit-crash recovery, scope/provenance fences and external edits');
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 }

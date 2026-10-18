@@ -2,9 +2,10 @@ import { observeTaskRunWriter, parseGraphWriter, type GraphWriter } from './writ
 import { isDeepStrictEqual } from 'node:util';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
+import { parseConflictRepair, type ConflictRepair } from './conflict-repair';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
-export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime' };
+export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime'; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
 export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string; candidateCommit: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
@@ -15,10 +16,11 @@ export type ExecutionProgress = {
   workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; taskRunId?: string;
   repairAttempts: number; formatAttempts: number; platformAttempts: number; integrationAttempts: number;
   nextRetryAt?: string; lastFailure?: ExecutionFailure;
+  conflictRepair?: ConflictRepair;
 };
 export type ExecutionOutcome =
-  | { kind: 'checkpoint'; phase: ExecutionPhase; workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; worker?: GraphWriter }
-  | { kind: 'repair_required'; failure: ExecutionFailure }
+  | { kind: 'checkpoint'; phase: ExecutionPhase; workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; worker?: GraphWriter; conflictRepair?: ConflictRepair | null }
+  | { kind: 'repair_required'; failure: ExecutionFailure; conflictRepair?: ConflictRepair }
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
@@ -68,6 +70,7 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
   if (workspaceBase) progress.workspaceBase = workspaceBase;
   if (candidateCommit) progress.candidateCommit = candidateCommit;
   if (runtimeDirectory) progress.runtimeDirectory = runtimeDirectory;
+  if (value.conflictRepair !== undefined) progress.conflictRepair = parseConflictRepair(value.conflictRepair);
   if (taskRunId) progress.taskRunId = taskRunId;
   if (nextRetryAt) {
     if (!Number.isFinite(Date.parse(nextRetryAt))) throw new Error('Invalid retry deadline');
@@ -101,6 +104,16 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
     const failure = record(value.lastFailure);
     if (typeof failure.code !== 'string' || typeof failure.detail !== 'string') throw new Error('Invalid execution failure');
     progress.lastFailure = { code: failure.code, detail: failure.detail };
+    if (failure.action !== undefined) progress.lastFailure.action = optionalText(failure.action);
+    if (failure.owner !== undefined) progress.lastFailure.owner = enumeration(failure.owner, ['platform', 'implementer', 'user'] as const);
+    if (failure.requiresUserDecision !== undefined) {
+      if (typeof failure.requiresUserDecision !== 'boolean') throw new Error('Invalid execution decision flag');
+      progress.lastFailure.requiresUserDecision = failure.requiresUserDecision;
+    }
+    if (failure.affectedPaths !== undefined) {
+      if (!Array.isArray(failure.affectedPaths) || !failure.affectedPaths.every(item => typeof item === 'string' && item.length)) throw new Error('Invalid execution affected paths');
+      progress.lastFailure.affectedPaths = failure.affectedPaths;
+    }
     if (failure.blockedPhase !== undefined) progress.lastFailure.blockedPhase = enumeration(failure.blockedPhase, ['implementation', 'input_preparation', 'service_runtime'] as const);
     for (const key of ['checkId', 'fingerprint', 'tree'] as const) {
       const text = optionalText(failure[key]); if (text) progress.lastFailure[key] = text;
@@ -148,7 +161,9 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
     const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     const reviewResume = args.outcome.kind === 'review_resumed' && current.status === 'attention' && before.state === 'waiting_decision' && ['architecture', 'acceptance'].includes(before.phase);
-    if ((!reviewResume && !reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
+    const conflictRecovery = current.status === 'attention' && before.state === 'waiting_decision' && before.lastFailure?.code === 'integration_conflict' &&
+      (args.outcome.kind === 'repair_required' && !!args.outcome.conflictRepair || args.outcome.kind === 'decision_required' && args.outcome.failure.code === 'integration_conflict');
+    if ((!conflictRecovery && !reviewResume && !reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
     if (args.outcome.kind === 'operator_resume' && (!operatorResume || !args.outcome.requestId.trim()) ||
         args.outcome.kind === 'delivery_reclassified' && (!reclassification || !args.outcome.authorization.trim())) throw new Error('Operator outcome is not authorized for the current state');
     if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
@@ -160,7 +175,8 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     let status = current.status;
     let issueKind: string | null = null;
     if (outcome.kind === 'operator_resume') {
-      status = 'ready'; progress.phase = 'implement'; progress.state = 'ready'; delete progress.review;
+      if (before.lastFailure?.code === 'integration_conflict') throw new Error('Pending merge requires a bounded conflict repair decision; ordinary resume cannot restart implementation');
+      status = 'ready'; progress.phase = before.conflictRepair ? 'integrate' : 'implement'; progress.state = 'ready'; delete progress.review;
     } else if (outcome.kind === 'delivery_reclassified') {
       status = 'attention'; issueKind = outcome.failure.code; progress.phase = 'implement'; progress.state = 'waiting_decision';
       progress.lastFailure = outcome.failure; delete progress.review;
@@ -173,6 +189,9 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         progress.candidateCommit = outcome.candidateCommit;
       }
       if (outcome.runtimeDirectory) progress.runtimeDirectory = outcome.runtimeDirectory;
+      if (outcome.conflictRepair === null) delete progress.conflictRepair;
+      else if (outcome.conflictRepair) progress.conflictRepair = outcome.conflictRepair;
+      if (outcome.conflictRepair === null) delete progress.runtimeDirectory;
     } else if (outcome.kind === 'integrated') {
       if (!/^[0-9a-f]{40,64}$/.test(outcome.commit) || !current.worktreePath || !current.worktreeBranch) throw new Error('Missing integration identity');
       status = 'integrated'; progress.phase = 'architecture'; progress.candidateCommit = outcome.commit;
@@ -198,6 +217,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       }
     } else {
       progress.lastFailure = outcome.failure;
+      if (outcome.kind === 'repair_required' && outcome.conflictRepair) { progress.conflictRepair = outcome.conflictRepair; delete progress.runtimeDirectory; }
       if (outcome.kind === 'decision_required') {
         status = 'attention'; issueKind = outcome.failure.code; progress.state = outcome.failure.code === 'ownership_mismatch' ? 'ownership_attention' : 'waiting_decision';
       } else {
@@ -207,7 +227,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
           status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
         } else {
           progress[budget]++;
-          progress.phase = outcome.kind === 'result_incomplete' ? 'collect_result' : outcome.kind === 'repair_required' ? 'implement' : before.phase;
+          progress.phase = outcome.kind === 'result_incomplete' ? 'collect_result' : outcome.kind === 'repair_required' ? outcome.conflictRepair ? 'integrate' : 'implement' : before.phase;
           progress.state = 'ready'; status = 'ready';
           if (outcome.kind === 'platform_retry') progress.nextRetryAt = new Date(Date.now() + 1000 * progress[budget]).toISOString();
         }

@@ -44,9 +44,10 @@ export async function recoverGraphExecution(executionId: string) {
       candidate = await withRepositoryLock(job.repository, async () => {
         await assertExecutionOwnership(job.id, claimToken, progress.revision);
         const inspected = await inspectJobWorktree({ repoPath: job.repository, runId: job.node.runId, jobId: job.id,
-          baseCommit: workspaceBase, ...(progress.candidateCommit ? { resumeCommit: progress.candidateCommit } : {}) });
+          baseCommit: workspaceBase, ...(progress.candidateCommit ? { resumeCommit: progress.candidateCommit } : {}), ...(progress.conflictRepair ? { allowPendingMerge: true } : {}) });
         if (path.resolve(inspected.path) !== path.resolve(recordedPath) || inspected.branch !== recordedBranch) throw new TaskGraphGitError('workspace_collision', 'Restart workspace path or branch differs from the execution ledger', inspected.path);
         await assertExecutionOwnership(job.id, claimToken, progress.revision);
+        if (progress.conflictRepair) return progress.candidateCommit;
         return commitJobWorktree({ repoPath: job.repository, runId: job.node.runId, jobId: job.id, message: `Task graph restart checkpoint ${job.node.key}/${job.key}` });
       });
     } catch (error) {

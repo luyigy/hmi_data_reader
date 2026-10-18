@@ -35,6 +35,9 @@ import {
 } from './store';
 import { ensureIntegrationRef, ensureJobWorktree, TaskGraphGitError, commitJobWorktree } from './worktree';
 import { integrateJobWithRetry } from './integration-retry';
+import { approvedConflictCommits, prepareConflictRepair, finishConflictRepair, assertConflictIntegrationBaseline } from './conflict-repair';
+import { recoverPendingConflictRepairs } from './conflict-repair-recovery';
+import path from 'node:path';
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
@@ -486,14 +489,24 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const recoveryInstructions = progress.phase === 'collect_result'
       ? '\n仅补收已有成果的 TASK_GRAPH_IMPLEMENTATION 结论，不重新实施或修改源码。不得合成没有证据的交付。'
       : progress.lastFailure ? `\n本票自动回修：${JSON.stringify(progress.lastFailure)}\n使用保留的当前源码修复上述故障，并重新运行相同检查。` : '';
-    const storedRun = ['check', 'integrate'].includes(progress.phase) && progress.taskRunId
+    const previousRepairRun = progress.conflictRepair && progress.runtimeDirectory && progress.taskRunId
       ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
+    const repairRuntime = progress.conflictRepair ? await prepareAcceptanceRuntime(execution.nodeId, `conflict:${claimToken}`,
+      [{ repository: execution.repository, path: workspace.path, commit: progress.conflictRepair.candidateCommit }], previousRepairRun?.status === 'completed' ? progress.runtimeDirectory : undefined) : null;
+    if (repairRuntime) await outcome({ kind: 'checkpoint', phase: 'integrate', runtimeDirectory: repairRuntime.directory });
+    const dispatchProgress = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } })).dispatchMetadata)!;
+    const storedRun = progress.conflictRepair ? previousRepairRun?.status === 'completed' ? previousRepairRun : null
+      : ['check', 'integrate'].includes(progress.phase) && progress.taskRunId
+        ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
     const result = storedRun ? { taskRunId: storedRun.id, status: storedRun.status, summary: storedRun.summary, participants: storedRun.participants } : await executeAcpxTaskRun({
-      graphExecution: { executionId: execution.id, claimToken, revision: progress.revision },
-      taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions + recoveryInstructions,
-      extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths],
-      orchestrationMode: 'single', participants: [config.participant], workingDirectory: workspace.path,
+      graphExecution: { executionId: execution.id, claimToken, revision: dispatchProgress.revision },
+      taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions + (repairRuntime
+        ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。只能在当前输出目录写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
+        : recoveryInstructions),
+      extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths, ...(repairRuntime?.readOnlyPaths || [])],
+      ...(repairRuntime ? { permissionConfig: repairRuntime.permissionConfig } : {}),
+      orchestrationMode: 'single', participants: [config.participant], workingDirectory: repairRuntime?.directory || workspace.path,
     }).catch(error => {
       if (error instanceof AcpxRunStartupError) throw new TaskInputPreparationError(`执行器启动失败（${error.taskRunId}）：${error.message}`, 'environment_failed');
       throw error;
@@ -508,13 +521,29 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       if (serviceFailure) throw new TaskInputPreparationError('临时联调服务启动或运行失败，见本次服务回执；不是业务材料缺失', 'environment_failed', 'service_runtime');
       throw new Error(`Agent execution ended: ${result.status}: ${result.summary}`);
     }
+    if (progress.conflictRepair) {
+      if ((await observeTaskRunWriter(result.taskRunId)).kind !== 'exited') throw new TaskGraphGitError('ownership_mismatch', 'Conflict repair writer has not demonstrably exited; preserve source and resolution artifact', workspace.path);
+      const resolution = parseImplementationResult(result.participants[0]?.summary || result.summary || '');
+      if (resolution.status === 'blocked') {
+        await outcome({ kind: 'decision_required', failure: { code: resolution.blockerKind, detail: resolution.note,
+          action: '保留待完成合并，补齐所述材料、能力或明确范围决定后再解决冲突', owner: resolution.blockerKind === 'environment_failed' ? 'platform' : 'user',
+          requiresUserDecision: resolution.blockerKind !== 'environment_failed', affectedPaths: progress.conflictRepair.paths } });
+        await refreshTaskGraphRunStatus(runId); return;
+      }
+    }
     const candidate = await withRepositoryLock(execution.repository, async () => {
       await assertExecutionOwnership(execution.id, claimToken);
+      if (progress.conflictRepair && repairRuntime) return finishConflictRepair({
+        repoPath: execution.repository, runId, jobId: execution.id, baseCommit: workspace.baseCommit, integrationRef: integration.ref,
+        checkpoint: progress.conflictRepair, resolutionFile: path.join(repairRuntime.directory, 'resolution.json'),
+        approvedCommits: await approvedConflictCommits(runId, execution.repository),
+        assertOwnership: () => assertExecutionOwnership(execution.id, claimToken).then(() => undefined),
+      });
       return commitJobWorktree({
         repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph candidate ${nodeKey}/${execution.key}`,
       });
     });
-    await outcome({ kind: 'checkpoint', phase: progress.phase === 'collect_result' ? 'collect_result' : 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit });
+    await outcome({ kind: 'checkpoint', phase: progress.phase === 'collect_result' ? 'collect_result' : 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit, ...(progress.conflictRepair ? { conflictRepair: null } : {}) });
     let conclusion;
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || ''); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
@@ -542,7 +571,12 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       repoPath: execution.repository, runId, jobId: execution.id,
       integrationRef: latest.ref, expectedIntegrationCommit: latest.commit, baseCommit: workspace.baseCommit,
       maxAttempts: Math.max(1, 3 - (beforeIntegration?.integrationAttempts || 0)),
-      assertOwnership: async () => { await assertExecutionOwnership(execution.id, claimToken); },
+      assertOwnership: async () => {
+        await assertExecutionOwnership(execution.id, claimToken);
+        if (progress.conflictRepair) await assertConflictIntegrationBaseline({ repoPath: execution.repository, runId,
+          baseCommit: workspace.baseCommit, integrationRef: latest.ref, checkpoint: progress.conflictRepair,
+          approvedCommits: await approvedConflictCommits(runId, execution.repository) });
+      },
       onRetry: async (failure) => {
         await outcome({ kind: 'checkpoint', phase: 'integrate', candidateCommit: await graphGit(workspace.path, 'rev-parse', 'HEAD') });
         await outcome({ kind: 'integration_stale', failure: { code: 'integration_stale', detail: JSON.stringify(failure.integration) } });
@@ -563,7 +597,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const current = await prisma.taskGraphExecution.findUnique({ where: { id: execution.id } });
     if (current?.status === 'claimed') {
       if (error instanceof TaskInputPreparationError && current.worktreePath) {
-        const checkpointCommit = await withRepositoryLock(execution.repository, async () => {
+        const checkpointCommit = executionProgress(current.dispatchMetadata)?.conflictRepair?.candidateCommit || await withRepositoryLock(execution.repository, async () => {
           await assertExecutionOwnership(execution.id, claimToken);
           return commitJobWorktree({
             repoPath: execution.repository, runId, jobId: execution.id, message: `Input preparation checkpoint ${nodeKey}/${execution.key}`,
@@ -591,7 +625,24 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         } else if (error instanceof TaskGraphGitError) {
           const failure = { code: error.integration?.kind === 'ownership_mismatch' ? 'ownership_mismatch' : error.code,
             detail: error.integration ? JSON.stringify({ message: detail, integration: error.integration }) : detail };
-          await outcome({ kind: error.code === 'integration_retry_exhausted' ? 'retry_exhausted' : 'decision_required', failure });
+          if (error.integration?.kind === 'conflict') {
+            try {
+              if (current.taskRunId && (await observeTaskRunWriter(current.taskRunId)).kind !== 'exited') throw new Error('Previous implementation writer has not exited');
+              const saved = executionProgress(current.dispatchMetadata)!;
+              const metadata = isRecord(current.dispatchMetadata) ? current.dispatchMetadata : {};
+              if (typeof metadata.integrationRef !== 'string') throw new Error('Missing approved integration ref');
+              const conflict = error.integration;
+              const checkpoint = await withRepositoryLock(execution.repository, async () => prepareConflictRepair({
+                repoPath: execution.repository, runId, jobId: execution.id, baseCommit: saved.workspaceBase || execution.baseCommit,
+                integrationRef: metadata.integrationRef as string, evidence: conflict, approvedCommits: await approvedConflictCommits(runId, execution.repository),
+                assertOwnership: () => assertExecutionOwnership(execution.id, claimToken, saved.revision).then(() => undefined),
+              }));
+              await outcome({ kind: 'repair_required', conflictRepair: checkpoint, failure: { ...failure, action: '在原任务范围内解决所列文本冲突，平台完成合并并复验', owner: 'implementer', requiresUserDecision: false, affectedPaths: checkpoint.paths } });
+            } catch (repairError) {
+              await outcome({ kind: 'decision_required', failure: { ...failure, detail: `${failure.detail}\n${repairError instanceof Error ? repairError.message : String(repairError)}`,
+                action: '平台核验原执行者退出证据及账本中的候选、合并父提交与当前集成引用；保留待完成合并，由受控合并步骤处理所列文件', owner: 'platform', requiresUserDecision: false, affectedPaths: error.integration.paths } });
+            }
+          } else await outcome({ kind: error.code === 'integration_retry_exhausted' ? 'retry_exhausted' : 'decision_required', failure });
         } else {
           const temporary = error instanceof Error && 'code' in error && ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'].includes(String(error.code));
           await outcome({ kind: temporary ? 'platform_retry' : 'decision_required', failure: { code: kind, detail } });
@@ -631,9 +682,10 @@ export async function runTaskGraphCycle() {
   }
   const runs = await prisma.taskGraphRun.findMany({ where: { status: { in: ['running', 'attention'] } }, select: { id: true } });
   for (const run of runs) {
+    await recoverPendingConflictRepairs(run.id);
     await releaseReadyNodes(run.id);
     const verifying = await prisma.taskGraphNode.findMany({
-      where: { runId: run.id, status: 'verifying' }, select: { id: true, key: true },
+      where: { runId: run.id, OR: [{ status: 'verifying' }, { status: 'claimed', executions: { some: {}, every: { status: 'integrated' } } }] }, select: { id: true, key: true },
     });
     for (const node of verifying) {
       if (activeVerifications.has(node.id) || activeReviews.has(node.id)) continue;

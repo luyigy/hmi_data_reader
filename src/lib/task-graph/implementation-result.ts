@@ -2,10 +2,11 @@ import { assertExecutionWriterExited } from './phase-worker';
 import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
+import { graphGit } from './git-command';
 
 export type ImplementationResult =
   | { status: 'delivered'; note: string; evidence: string[] }
-  | { status: 'blocked'; note: string; blockerKind: 'missing_business_material' | 'missing_upstream_input' | 'environment_failed' | 'scope_change' | 'permission_required' };
+  | { status: 'blocked'; note: string; blockerKind: 'missing_business_material' | 'missing_upstream_input' | 'environment_failed' | 'scope_change' | 'permission_required'; blockerCause?: 'missing_capability' | 'transient' };
 export type RecoveryKind = 'implementation' | 'verification';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -24,9 +25,11 @@ export function parseImplementationResult(output: string): ImplementationResult 
     return { status: 'delivered', note, evidence: value.evidence };
   }
   const kind = value.blockerKind;
+  const cause = value.blockerCause;
+  if (cause !== undefined && (kind !== 'environment_failed' || cause !== 'missing_capability' && cause !== 'transient')) throw new Error('实施阻塞原因无效');
   if (value.status === 'blocked' && (kind === 'missing_business_material' || kind === 'missing_upstream_input' ||
       kind === 'environment_failed' || kind === 'scope_change' || kind === 'permission_required')) {
-    return { status: 'blocked', note, blockerKind: kind };
+    return { status: 'blocked', note, blockerKind: kind, ...(cause ? { blockerCause: cause } : {}) };
   }
   throw new Error('实施结论无效：交付须有证据，阻塞须有明确类别');
 }
@@ -46,7 +49,10 @@ export async function pauseGraphImplementation(args: {
   }
   if (progress) return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
     expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:decision_required`,
-    outcome: { kind: args.result.blockerKind === 'environment_failed' ? 'platform_retry' : 'decision_required', failure: { code: args.result.blockerKind, detail: args.result.note, blockedPhase: args.blockedPhase || 'implementation' } },
+    outcome: { kind: args.result.blockerKind === 'environment_failed' && args.result.status === 'blocked' && args.result.blockerCause === 'transient' ? 'platform_retry' : 'decision_required',
+      failure: { code: args.result.blockerKind, detail: args.result.note, blockedPhase: args.blockedPhase || 'implementation',
+        ...(args.result.blockerKind === 'environment_failed' ? { owner: 'platform' as const, requiresUserDecision: false,
+          action: args.result.status === 'blocked' && args.result.blockerCause === 'transient' ? '按已有预算重试暂时平台故障' : '准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施' } : {}) } },
   });
   return prisma.$transaction(async tx => {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
@@ -100,6 +106,10 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
       `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } } })) throw new Error('原任务进程仍在执行，请等待结束');
     for (const job of current.executions) {
       if (job.status !== 'integrated' && executionProgress(job.dispatchMetadata)?.state === 'waiting_decision') await assertExecutionWriterExited(tx, job);
+      if (job.status !== 'integrated' && job.worktreePath && !executionProgress(job.dispatchMetadata)?.conflictRepair &&
+          await graphGit(job.worktreePath, 'rev-parse', '--verify', 'MERGE_HEAD').then(() => true, () => false)) {
+        throw new Error('待完成合并尚无受控冲突修复方案；平台须先核验来源和文件范围，普通继续不能重新实施');
+      }
     }
     const blocks = await tx.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: { in: ['implementation_blocked', 'node_delivery_reclassified'] } }, orderBy: { createdAt: 'desc' } });
     const executions = current.executions.flatMap(job => {

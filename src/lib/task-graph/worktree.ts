@@ -392,7 +392,7 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
   await git(repo, 'update-ref', '-d', branch, jobHead);
 }
 
-export async function inspectJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef'>): Promise<JobWorktree & { head: string }> {
+export async function inspectJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef'> & { allowPendingMerge?: boolean }): Promise<JobWorktree & { head: string }> {
   const repo = await repositoryRoot(request.repoPath);
   const root = await fs.realpath(request.worktreeRoot || path.join(path.dirname(repo), '.agent-platform-task-graph-worktrees'));
   const target = jobPath(root, repo, request.runId, request.jobId);
@@ -403,7 +403,7 @@ export async function inspectJobWorktree(request: Omit<JobWorktreeRequest, 'base
     throw new TaskGraphGitError('workspace_collision', 'Legacy adoption requires registered run/job ownership', target);
   }
   const gitDirectory = await git(target, 'rev-parse', '--absolute-git-dir');
-  if (await fs.access(path.join(gitDirectory, 'MERGE_HEAD')).then(() => true, () => false)) throw new TaskGraphGitError('integration_conflict', 'Pending merge must remain intact during legacy adoption', target);
+  if (!request.allowPendingMerge && await fs.access(path.join(gitDirectory, 'MERGE_HEAD')).then(() => true, () => false)) throw new TaskGraphGitError('integration_conflict', 'Pending merge must remain intact during legacy adoption', target);
   const head = await git(target, 'rev-parse', 'HEAD');
   await exactCommit(repo, request.baseCommit);
   if (!await isAncestor(repo, request.baseCommit, head) || request.resumeCommit && !await isAncestor(repo, request.resumeCommit, head)) {

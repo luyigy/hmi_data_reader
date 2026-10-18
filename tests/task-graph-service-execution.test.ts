@@ -98,11 +98,12 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     const failed = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: bad.id, key: 'APP' } }, include: { executions: true } });
-    assert.equal(failed.status, 'attention'); assert.equal(failed.executions[0].issueKind, 'retry_exhausted');
+    assert.equal(failed.status, 'attention'); assert.equal(failed.executions[0].issueKind, 'environment_failed');
     const progress = executionProgress(failed.executions[0].dispatchMetadata); assert.ok(progress);
-    assert.equal(progress.state, 'exhausted'); assert.equal(progress.platformAttempts, 2); assert.equal(progress.lastFailure?.code, 'environment_failed');
+    assert.equal(progress.state, 'waiting_decision'); assert.equal(progress.platformAttempts, 0); assert.equal(progress.lastFailure?.code, 'environment_failed');
+    assert.equal(progress.lastFailure?.owner, 'platform'); assert.equal(progress.lastFailure?.requiresUserDecision, false);
     assert.equal(urls.length, previousModelStarts, 'Bad service entry must not start another implementation model');
-    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: failed.id, kind: 'service_attempt_failed' } }), 3, 'Two bounded retries retain each service failure receipt, then explicitly exhaust');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: failed.id, kind: 'service_attempt_failed' } }), 1, 'Missing service entry needs preparation; unchanged environment is not retried');
     console.log('Implementation, platform check, integration check, architecture and acceptance use attempt-owned services and release all ports');
   } finally { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); globalThis.fetch = realFetch; runnerMetadata.persistSpawnedHarnessMetadata = originalSpawnMetadata; if (badRunId) await prisma.taskGraphRun.delete({ where: { id: badRunId } }); await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
 }

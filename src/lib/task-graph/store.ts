@@ -240,12 +240,13 @@ export async function completeExecution(args: {
 /** No acceptance can begin while a repository execution is unfinished. */
 export async function markNodeIntegrationsReady(runId: string, nodeKey: string, db: Database = prisma) {
   return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${runId} AND key = ${nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({
       where: { runId_key: { runId, key: nodeKey } }, include: { executions: true },
     });
     if (!node) throw new Error('Unknown graph node');
     if (node.status === 'verifying' || node.status === 'awaiting_human' || node.status === 'passed') return node;
-    if (node.status !== 'claimed' || node.executions.some((job) => job.status !== 'integrated')) return null;
+    if (node.status !== 'claimed' || !node.executions.length || node.executions.some((job) => job.status !== 'integrated')) return null;
     const updated = await tx.taskGraphNode.updateMany({ where: { id: node.id, status: 'claimed' }, data: { status: 'verifying' } });
     if (updated.count !== 1) return null;
     await tx.taskGraphEvent.create({

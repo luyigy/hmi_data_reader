@@ -12,6 +12,7 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
     '先使用仓内已有输入、任务已挂载材料和已配置工具完成当前 ticket。可选外部工具未配置、可选辅助模型失败或缺少可选 skill，不得作为 blocked 理由；使用已批准的可用路径继续实施和验证。功能尚未实现、测试暴露缺陷属于本票待解决工作，不能仅改写成缺材料报告后退出。保留暂停期间新增的源码、Spec 和材料更正，不 reset、stash 或删除这些改动。',
     '只有完成本票所必需的输入、环境、材料或权限确实缺失，且已核查现有材料、尝试获批替代路径仍无法推进时，才用 TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"missing_business_material 或 missing_upstream_input 或 environment_failed 或 scope_change 或 permission_required","note":"具体缺失项与保存进度"}。阻塞不会集成或放行后继；平台保存进度，补齐后恢复实施。普通会话结束不代表交付，不得把阻塞报告当作实施完成。',
+    'environment_failed 可附 blockerCause：缺少必需运行能力用 missing_capability；有证据的暂时故障用 transient。缺少或不明确的原因交由平台准备环境，不重复运行未改变环境中的实施；transient 仅按有限预算重试。',
     node.executionMode === 'implement'
       ? '本片为仅实施模式，不安排独立测试或审查；结果将明确标为未验收。'
       : '按当前 ticket 验收要求验证；项目存在 verify skill 时查阅它，没有时按 ticket 明确的入口执行并说明，不把缺少可选 skill 当成执行失败。用真实输入、API 读回或浏览器行为证明结果。未执行的检查标待办，不得声称通过。',
