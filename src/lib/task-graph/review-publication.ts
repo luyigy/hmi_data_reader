@@ -1,0 +1,66 @@
+import { TaskInputPreparationError } from './upstream-inputs';
+import { ServiceRuntimeError } from './attempt-services';
+import { GraphCheckTimeoutError } from './check-runner';
+import type { Prisma } from '@prisma/client';
+import { prisma } from '../prisma';
+import { applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, metadataWithProgress, type ExecutionFailure } from './execution-progress';
+import { observeTaskRunWriter } from './writer-ownership';
+
+export type ReviewPublication = {
+  phase: 'architecture' | 'acceptance'; claimKey: string; taskRunId: string;
+  outcome: 'classified' | 'protocol_exhausted' | 'platform_failure';
+  decision?: { code: 'blocked_require_human' | 'ownership_mismatch'; detail: string };
+};
+
+/** All reviewed inputs move together; a platform retry never dispatches implementation again. */
+export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId: string, args: {
+  phase: 'architecture' | 'acceptance'; claimKey: string; identity: string;
+  failure: ExecutionFailure; kind: 'platform_failure' | 'protocol_exhausted' | 'decision_required';
+}) {
+  await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
+  const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+  if (node.status !== 'verifying' || !node.executions.length) throw new Error('Review failure no longer owns verification');
+  const exhausted = args.kind === 'protocol_exhausted' || args.kind === 'platform_failure' && node.executions.some(job => (executionProgress(job.dispatchMetadata)?.platformAttempts || 0) >= 2);
+  const nextClaim = `${args.claimKey}:platform:${Math.max(...node.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts || 0)) + 1}`;
+  for (const job of node.executions) {
+    if (job.status !== 'integrated' || !job.commit) throw new Error('Review failure input is not integrated');
+    let progress = executionProgress(job.dispatchMetadata);
+    if (!progress) {
+      progress = { ...initialExecutionProgress(), phase: args.phase, candidateCommit: job.commit, workspaceBase: job.baseCommit };
+      await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId, kind: 'review_progress_adopted', idempotencyKey: `review-failure-adopted:${job.id}`, payload: { executionId: job.id, integratedCommit: job.commit } } });
+    }
+    const token = job.claimToken || `review-preparation:${nodeId}`;
+    if (!executionProgress(job.dispatchMetadata)) await tx.taskGraphExecution.update({ where: { id: job.id }, data: { claimToken: token, dispatchMetadata: metadataWithProgress(job.dispatchMetadata, progress) } });
+    else if (!job.claimToken) throw new Error('Versioned review has no claim token');
+    await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: token, expectedRevision: progress.revision,
+      outcomeId: `review-failure:${args.identity}`, outcome: exhausted ? { kind: 'retry_exhausted', failure: args.failure }
+        : args.kind === 'decision_required' ? { kind: 'decision_required', failure: args.failure }
+        : { kind: 'review_retry', failure: args.failure, claimKey: nextClaim, phase: args.phase } });
+  }
+  const status = args.kind === 'platform_failure' && !exhausted ? 'verifying' : 'attention';
+  await tx.taskGraphNode.update({ where: { id: nodeId }, data: { status } });
+  if (status === 'verifying') await tx.taskGraphRun.update({ where: { id: node.runId }, data: { status: 'running' } });
+  return status;
+}
+
+/** Preparation failures have no reviewer TaskRun; require any previous reviewer to have exited. */
+export async function publishReviewPreparationFailure(nodeId: string, failure: ExecutionFailure, retry: boolean, phase: 'architecture' | 'acceptance') {
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
+    const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+    for (const job of node.executions) {
+      const binding = executionProgress(job.dispatchMetadata)?.review;
+      if (retry && binding?.kind === 'running' && (await observeTaskRunWriter(binding.taskRunId)).kind !== 'exited') throw new Error('Review preparation cannot replace an unproven writer');
+    }
+    const identity = `preparation:${node.executions.map(job => executionProgress(job.dispatchMetadata)?.revision || 0).join(':')}`;
+    const status = await applyReviewFailureTx(tx, nodeId, { phase, claimKey: `node:${node.key}:${phase}:preparation`, identity, failure,
+      kind: retry ? 'platform_failure' : 'decision_required' });
+    await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId, kind: 'review_workspace_failed', idempotencyKey: `review:${identity}`, payload: { failure, status } } });
+    return status;
+  });
+}
+
+export function reviewPreparationFailure(error: unknown) {
+  const retry = error instanceof TaskInputPreparationError || error instanceof ServiceRuntimeError || error instanceof GraphCheckTimeoutError || error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
+  return { retry, failure: { code: retry ? 'environment_failed' : 'ownership_mismatch', detail: error instanceof Error ? error.message : String(error) } };
+}

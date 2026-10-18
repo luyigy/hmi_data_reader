@@ -1,3 +1,5 @@
+import { observeTaskRunWriter } from './writer-ownership';
+import { applyReviewFailureTx, type ReviewPublication } from './review-publication';
 import { assertGraphReviewOwnershipTx } from './review-ownership';
 import { createHash } from 'node:crypto';
 import { executionProgress, immutableDispatchMetadata, applyExecutionOutcome, applyExecutionOutcomeTx } from './execution-progress';
@@ -282,7 +284,7 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
 /** Agent review requires the configured reviewer; human review creates a pause. */
 export async function submitNodeVerification(args: {
   runId: string; nodeKey: string; actorId: string; evidence: VerificationEvidence; attempt?: string;
-  review?: { phase: 'architecture' | 'acceptance'; claimKey: string; taskRunId: string; outcome: 'classified' | 'protocol_exhausted' | 'platform_failure' };
+  review?: ReviewPublication;
 }, db: Database = prisma) {
   return db.$transaction(async (tx) => {
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId: args.runId, key: args.nodeKey } } });
@@ -291,6 +293,10 @@ export async function submitNodeVerification(args: {
         JSON.stringify(node.evidence) === JSON.stringify(args.evidence)) return node;
     if (node.status !== 'verifying') throw new Error('Node is not ready for verification');
     if (args.review) await assertGraphReviewOwnershipTx(tx, node.id, args.review.phase, args.review.claimKey, args.review.taskRunId);
+    if (args.review?.outcome === 'platform_failure') {
+      const failed = await tx.taskRun.findUniqueOrThrow({ where: { id: args.review.taskRunId }, select: { status: true } });
+      if (!['failed', 'cancelled', 'interrupted'].includes(failed.status) || (await observeTaskRunWriter(args.review.taskRunId)).kind !== 'exited') throw new Error('Review platform retry requires a finished writer');
+    }
     const snapshot = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
     const definition = snapshot.snapshot as unknown as GraphDefinition;
     const checks = definition.nodes.find((item) => item.key === args.nodeKey)?.acceptance.checks;
@@ -303,22 +309,16 @@ export async function submitNodeVerification(args: {
       throw new Error('Required verification evidence is missing');
     }
     const allPassed = results.every(item => item.passed) && checks.every((check) => results.some((item) => item.name === check && item.passed));
-    const status = allPassed ? (node.acceptance === 'human' ? 'awaiting_human' : 'passed') : 'attention';
-    const updated = await tx.taskGraphNode.update({
-      where: { id: node.id }, data: { status, evidence: args.evidence as unknown as Prisma.InputJsonValue,
-        passedAt: status === 'passed' ? new Date() : undefined },
-    });
-    if (args.review?.outcome === 'protocol_exhausted') {
-      const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
-      for (const job of jobs) {
-        const progress = executionProgress(job.dispatchMetadata);
-        if (!progress || !job.claimToken) throw new Error('Exhausted review has no owned execution progress');
-        await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision,
-          outcomeId: `review-protocol-exhausted:${args.review.taskRunId}`, outcome: { kind: 'retry_exhausted', failure: { code: 'invalid_review_result', detail: args.evidence.summary } } });
-      }
+    let status = allPassed ? (node.acceptance === 'human' ? 'awaiting_human' : 'passed') : 'attention';
+    if (args.review && (args.review.outcome !== 'classified' || args.review.decision)) {
+      status = await applyReviewFailureTx(tx, node.id, { phase: args.review.phase, claimKey: args.review.claimKey, identity: args.review.taskRunId,
+        kind: args.review.decision ? 'decision_required' : args.review.outcome === 'platform_failure' ? 'platform_failure' : 'protocol_exhausted',
+        failure: args.review.decision || { code: args.review.outcome === 'platform_failure' ? 'review_platform_failure' : 'invalid_review_result', detail: args.evidence.summary } });
     }
+    const updated = await tx.taskGraphNode.update({ where: { id: node.id }, data: { status,
+      evidence: args.evidence as unknown as Prisma.InputJsonValue, passedAt: status === 'passed' ? new Date() : undefined } });
     await tx.taskGraphEvent.create({
-      data: { runId: args.runId, nodeId: node.id, idempotencyKey: `node:${args.nodeKey}:verified${args.attempt ? `:${args.attempt}` : ''}`,
+      data: { runId: args.runId, nodeId: node.id, idempotencyKey: `node:${args.nodeKey}:verified${args.review ? `:${args.review.taskRunId}` : args.attempt ? `:${args.attempt}` : ''}`,
         kind: status === 'passed' ? 'node_passed' : status === 'awaiting_human' ? 'human_review_requested' : 'verification_failed',
         payload: { actorId: args.actorId, evidence: args.evidence as unknown as Prisma.InputJsonValue } },
     });

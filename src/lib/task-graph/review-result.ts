@@ -31,6 +31,7 @@ export async function collectGraphReview(args: {
       .catch(error => ({ status: 'failed', taskRunId: 'not-created', participants: [], summary: String(error) }));
     const response = result.participants[0]?.summary || result.summary || '';
     if (args.request.graphReview && result.taskRunId !== 'not-created') await assertGraphReviewOwnership(args.nodeId, args.request.graphReview.phase, args.claimKey, result.taskRunId);
+    if (result.status !== 'completed' && !['failed', 'cancelled', 'interrupted'].includes(result.status)) throw new Error('Reviewer has not reached a terminal state');
     if (result.status !== 'completed') return { kind: 'platform_failure', note: response || '复核进程没有正常结束', taskRunId: result.taskRunId };
     const match = response.match(new RegExp(args.marker + '\\s*(\\{[^\\r\\n]+\\})'));
     let raw: unknown;

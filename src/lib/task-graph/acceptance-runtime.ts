@@ -14,9 +14,12 @@ export function validationRuntimeDirectory(nodeId: string) {
 }
 
 /** A writable test runtime beside readonly delivery workspaces; no additional Git checkout. */
-export async function prepareAcceptanceRuntime(nodeId: string, attempt: string, workspaces: ReviewWorkspace[]) {
-  const directory = path.join(validationRuntimeDirectory(nodeId), createHash('sha256').update(attempt).digest('hex').slice(0, 24));
-  await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+export async function prepareAcceptanceRuntime(nodeId: string, attempt: string, workspaces: ReviewWorkspace[], recordedDirectory?: string) {
+  const expected = path.join(validationRuntimeDirectory(nodeId), createHash('sha256').update(attempt).digest('hex').slice(0, 24));
+  const directory = recordedDirectory || expected;
+  if (path.dirname(directory) !== validationRuntimeDirectory(nodeId) || !/^[a-f0-9]{24}$/.test(path.basename(directory))) throw new Error('Acceptance runtime receipt is outside its node');
+  if (!recordedDirectory) await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  if (await fs.realpath(directory) !== directory) throw new Error('Acceptance runtime is redirected');
   const readOnlyPaths = Array.from(new Set(workspaces.flatMap(workspace => [workspace.path, ...linkedWorktreeGitDirectories(workspace.path), ...graphDependencyPaths(workspace.path)])));
   const permissionConfig: AcpxPermissionConfig = { profile: 'custom', sandboxMode: 'workspace-write', networkAccess: 'enabled', approvalPolicy: 'never', writableRoots: [] };
   return { directory, readOnlyPaths, permissionConfig };

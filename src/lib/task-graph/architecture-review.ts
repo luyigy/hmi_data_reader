@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
 import { collectGraphReview } from './review-result';
 import { graphReviewChecks, reviewResultInstructions } from './review-contract';
-import { graphReviewClaimKey, assertGraphReviewOwnershipTx, completedGraphReviewTaskRun } from './review-ownership';
+import { graphReviewClaimKey, reserveGraphReviewClaim, assertGraphReviewOwnershipTx, completedGraphReviewTaskRun } from './review-ownership';
 import { prisma } from '../prisma';
 import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 import type { VerificationEvidence } from './store';
@@ -27,18 +27,8 @@ export async function runArchitectureReview(args: {
   const resultKey = `node:${args.nodeKey}:architecture_result:${createHash('sha256').update(claimKey).digest('hex').slice(0, 24)}`;
   const existing = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: resultKey } } });
   if (existing) return (existing.payload as { approved?: boolean }).approved === true ? 'passed' : 'failed';
-  try {
-    await prisma.taskGraphEvent.create({ data: {
-      runId: args.runId, nodeId: args.nodeId, idempotencyKey: claimKey,
-      kind: 'architecture_claimed', payload: { reviewerId: review.reviewerId },
-    } });
-  } catch (error) {
-    const claim = await prisma.taskGraphEvent.findUnique({
-      where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: claimKey } },
-    });
-    if (claim && !await completedGraphReviewTaskRun(args.nodeId, 'architecture', claimKey)) return 'running';
-    if (!claim) throw error;
-  }
+  const claimed = await reserveGraphReviewClaim({ runId: args.runId, nodeId: args.nodeId, phase: 'architecture', claimKey, payload: { reviewerId: review.reviewerId } });
+  if (!claimed && !await completedGraphReviewTaskRun(args.nodeId, 'architecture', claimKey)) return 'running';
   const participant = (review.reviewLaunchConfig as { participant?: AcpxParticipantRequest }).participant;
   if (!participant) throw new Error(`Architecture reviewer missing for ${args.nodeKey}`);
   const taskId = `task-graph-architecture-${args.nodeId}`;

@@ -16,6 +16,34 @@ export async function graphReviewClaimKey(nodeId: string, phase: 'architecture' 
   return bindings[0].claimKey;
 }
 
+/** Reserve phase and claim together, before any reviewer process can launch. */
+export async function reserveGraphReviewClaim(args: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string; payload: Prisma.InputJsonValue }) {
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${args.nodeId} FOR UPDATE`;
+    const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: args.nodeId }, include: { executions: true } });
+    if (node.runId !== args.runId || node.status !== 'verifying' || !node.executions.length) throw new Error('Review reservation no longer owns verification');
+    const existing = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: args.claimKey } } });
+    if (existing) {
+      if (existing.nodeId !== node.id || existing.kind !== (args.phase === 'architecture' ? 'architecture_claimed' : 'review_claimed')) throw new Error('Review claim belongs to another phase');
+      return false;
+    }
+    for (const job of node.executions) {
+      if (job.status !== 'integrated' || !job.commit || !/^[a-f0-9]{40,64}$/.test(job.commit)) throw new Error('Review reservation has no integrated input');
+      const before = executionProgress(job.dispatchMetadata);
+      const progress = before || { ...initialExecutionProgress(), workspaceBase: job.baseCommit, candidateCommit: job.commit };
+      if (progress.review?.kind === 'ready' && progress.review.candidateCommit === job.commit && progress.review.claimKey !== args.claimKey) throw new Error('Review reservation was superseded');
+      if (progress.review?.kind === 'running' && await tx.taskRun.count({ where: { id: progress.review.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Previous reviewer still owns verification');
+      if (!before) await tx.taskGraphEvent.create({ data: { runId: args.runId, nodeId: node.id, kind: 'review_progress_adopted', idempotencyKey: `review-progress-adopted:${job.id}`, payload: { executionId: job.id, integratedCommit: job.commit, phase: args.phase } } });
+      await tx.taskGraphExecution.update({ where: { id: job.id }, data: { claimToken: job.claimToken || `review-reserved:${node.id}`,
+        dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, phase: args.phase, state: 'active', revision: progress.revision + 1,
+          review: { kind: 'ready', phase: args.phase, claimKey: args.claimKey, candidateCommit: job.commit } }) } });
+    }
+    await tx.taskGraphEvent.create({ data: { runId: args.runId, nodeId: node.id, idempotencyKey: args.claimKey,
+      kind: args.phase === 'architecture' ? 'architecture_claimed' : 'review_claimed', payload: args.payload } });
+    return true;
+  });
+}
+
 export async function bindGraphReviewTaskRun(tx: Prisma.TransactionClient, args: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string }, taskRunId: string) {
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${args.nodeId} FOR UPDATE`;
   const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: args.nodeId }, include: { executions: true } });
@@ -34,7 +62,7 @@ export async function bindGraphReviewTaskRun(tx: Prisma.TransactionClient, args:
     }
     if (progress.review?.kind === 'ready' && progress.review.claimKey !== args.claimKey) throw new Error('Review claim was superseded');
     await tx.taskGraphExecution.update({ where: { id: job.id }, data: { claimToken: job.claimToken || `review-owner:${taskRunId}`, dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
-      { ...progress, revision: progress.revision + 1, phase: args.phase, candidateCommit: job.commit,
+      { ...progress, revision: progress.revision + 1, state: 'active', phase: args.phase, candidateCommit: job.commit,
         review: { phase: args.phase, claimKey: args.claimKey, kind: 'running', taskRunId, candidateCommit: job.commit } }) } });
   }
   await tx.taskGraphEvent.create({ data: { runId: args.runId, nodeId: node.id, kind: 'review_dispatched',

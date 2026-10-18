@@ -19,7 +19,8 @@ export type ExecutionOutcome =
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
-  | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string }
+  | { kind: 'review_resumed' }
+  | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string; phase?: 'architecture' | 'acceptance' }
   | { kind: 'operator_resume'; requestId: string }
   | { kind: 'delivery_reclassified'; authorization: string; failure: ExecutionFailure }
   | { kind: 'decision_required'; failure: ExecutionFailure }
@@ -132,8 +133,9 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
     const operatorResume = args.outcome.kind === 'operator_resume' && current.status === 'attention' && before.state === 'waiting_decision';
     const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
-    const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
-    if ((!reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
+    const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
+    const reviewResume = args.outcome.kind === 'review_resumed' && current.status === 'attention' && before.state === 'waiting_decision' && ['architecture', 'acceptance'].includes(before.phase);
+    if ((!reviewResume && !reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
     if (args.outcome.kind === 'operator_resume' && (!operatorResume || !args.outcome.requestId.trim()) ||
         args.outcome.kind === 'delivery_reclassified' && (!reclassification || !args.outcome.authorization.trim())) throw new Error('Operator outcome is not authorized for the current state');
     if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
@@ -166,15 +168,19 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       if (progress.integrationAttempts >= 3) {
         status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
       }
+    } else if (outcome.kind === 'review_resumed') {
+      if (!reviewResume) throw new Error('Review has no authorized waiting decision');
+      status = 'integrated'; delete progress.review;
     } else if (outcome.kind === 'review_retry') {
       progress.lastFailure = outcome.failure;
+      progress.phase = outcome.phase || before.phase;
       if (!['architecture', 'acceptance'].includes(before.phase)) throw new Error('Review retry is outside a review phase');
       if (progress.platformAttempts >= 2) {
         status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
       } else {
         progress.platformAttempts++; progress.state = 'ready';
         if (!current.commit) throw new Error('Review restart has no integrated candidate');
-        progress.review = { candidateCommit: current.commit, phase: before.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
+        progress.review = { candidateCommit: current.commit, phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
       }
     } else {
       progress.lastFailure = outcome.failure;

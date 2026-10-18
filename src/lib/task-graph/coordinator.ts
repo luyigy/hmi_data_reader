@@ -1,4 +1,6 @@
-import { applyExecutionOutcome, executionProgress, initialExecutionProgress, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
+import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
+import { publishReviewPreparationFailure, reviewPreparationFailure, type ReviewPublication } from './review-publication';
+import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
 import { prepareExtraRepositories } from './extra-repositories';
 import { ServiceRuntimeError } from './attempt-services';
 import { prepareUpstreamInputs, TaskInputPreparationError } from './upstream-inputs';
@@ -7,7 +9,7 @@ import { prepareAcceptanceRuntime } from './acceptance-runtime';
 import { prepareGraphSpecInput } from './spec-input';
 import { graphReviewChecks, reviewResultInstructions } from './review-contract';
 import { collectGraphReview } from './review-result';
-import { graphReviewClaimKey, assertGraphReviewOwnership, completedGraphReviewTaskRun } from './review-ownership';
+import { graphReviewClaimKey, reserveGraphReviewClaim, assertGraphReviewOwnership, completedGraphReviewTaskRun } from './review-ownership';
 import { scheduleGraphRepair, latestGraphRepair, type ReviewDecision } from './repair';
 import { graphGit } from './git-command';
 import { syncGraphConversationMaterials } from './conversation-materials';
@@ -19,7 +21,7 @@ import type { AcpxParticipantRequest } from '../acpx/types';
 import { executeAcpxTaskRun } from '../acpx/runner';
 import { prisma } from '../prisma';
 import { ensureTaskChatRoom, postTaskRoomMessage } from '../task-room';
-import type { GraphDefinition } from './domain';
+import { effectiveArchitectureReview, type GraphDefinition } from './domain';
 import { runArchitectureReview } from './architecture-review';
 import { acceptanceReviewInstructions, implementationInstructions } from './prompts';
 import { postGraphParentProgress, sendGraphHumanReviewCard } from './feishu';
@@ -78,8 +80,10 @@ async function runChecks(checks: Check[], directory: string, extraEnv: Record<st
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       results.push({ name: check.name, passed: false, evidence: `${check.argv.join(' ')}\n${detail}`.slice(-4000) });
+      if (error instanceof GraphCheckTimeoutError) throw error;
       if (error instanceof ServiceRuntimeError) throw new TaskInputPreparationError(detail, 'environment_failed', 'service_runtime');
-      throw new GraphCheckError(check, detail, results);
+      if (error instanceof GraphCheckCommandError) throw new GraphCheckError(check, detail, results);
+      throw error;
     }
   }
   return results;
@@ -151,6 +155,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     const evidence = execution.evidence as unknown as { checks?: CheckResult[] } | null;
     return evidence?.checks || [];
   });
+  const reviewPhase = effectiveArchitectureReview(definition, definition.nodes.find(item => item.key === nodeKey)!) ? 'architecture' : 'acceptance';
   const reviewChecks = graphReviewChecks(definition, nodeKey, node.executions);
   const integrationResults: CheckResult[] = [];
   let platformDecision: ReviewDecision = {};
@@ -172,6 +177,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
         results.push(...checked);
         integrationResults.push(...checked.map(item => ({ ...item, name: `integration:${encodeURIComponent(check.repository)}:${encodeURIComponent(check.name)}` })));
       } catch (error) {
+        if (!(error instanceof GraphCheckError)) throw error;
         const failed = error as Error & { results?: CheckResult[] };
         const failures = failed.results || [{ name: check.name, passed: false, evidence: failed.message }];
         results.push(...failures);
@@ -183,11 +189,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     await assertReviewWorkspacesClean(workspaces);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    const changed = await prisma.taskGraphNode.updateMany({ where: { id: node.id, status: 'verifying' }, data: { status: 'attention' } });
-    if (changed.count) await prisma.taskGraphEvent.create({ data: {
-      runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:review_workspace_failed:${reviewAttempt || 'initial'}`,
-      kind: 'review_workspace_failed', payload: { detail, actorId: 'system' },
-    } });
+    const failure = reviewPreparationFailure(error);
+    await publishReviewPreparationFailure(node.id, failure.failure, failure.retry, reviewPhase);
     await refreshTaskGraphRunStatus(runId);
     const message = `${nodeKey} 验收工作区准备失败，尚未启动复核 Agent：${detail}`;
     await Promise.all(node.executions.flatMap((execution) => execution.childTaskId
@@ -197,7 +200,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
   }
   const verificationAttempt = reviewAttempt || `candidate:${createHash('sha256').update(JSON.stringify(commits)).digest('hex').slice(0, 24)}`;
   let reviewDecision: ReviewDecision = {};
-  let reviewOwner: { phase: 'architecture' | 'acceptance'; claimKey: string; taskRunId: string; outcome: 'classified' | 'protocol_exhausted' | 'platform_failure' } | undefined;
+  let reviewOwner: ReviewPublication | undefined;
   const evidence: VerificationEvidence = {
     checks: [...policy.checks.map((name) => {
       const matches = results.filter((item) => item.name === name);
@@ -208,7 +211,14 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
   };
   const architecture = await runArchitectureReview({
     runId, nodeId: node.id, nodeKey, definition, commits, workspaces, evidence, reviewAttempt,
+  }).catch(async error => {
+    const detail = error instanceof Error ? error.message : String(error);
+    const failure = reviewPreparationFailure(error);
+    await publishReviewPreparationFailure(node.id, failure.failure, failure.retry, reviewPhase);
+    await refreshTaskGraphRunStatus(runId);
+    return 'preparation_failed' as const;
   });
+  if (architecture === 'preparation_failed') return;
   if (architecture === 'running') return;
   if (architecture === 'failed') {
     const result = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: { in: ['architecture_passed', 'architecture_failed'] } }, orderBy: { createdAt: 'desc' } });
@@ -218,7 +228,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     evidence.checks.push({ name: 'architecture:scope', passed: false, evidence: note });
     evidence.summary = `架构复核未通过：${note}`;
     const owner = isRecord(result.payload) && typeof result.payload.claimKey === 'string' && typeof result.payload.taskRunId === 'string'
-      ? { phase: 'architecture' as const, claimKey: result.payload.claimKey, taskRunId: result.payload.taskRunId, outcome: result.payload.failureKind === 'protocol_exhausted' ? 'protocol_exhausted' as const : 'classified' as const } : undefined;
+      ? { phase: 'architecture' as const, claimKey: result.payload.claimKey, taskRunId: result.payload.taskRunId, outcome: result.payload.failureKind === 'protocol_exhausted' ? 'protocol_exhausted' as const : result.payload.failureKind === 'platform_failure' ? 'platform_failure' as const : 'classified' as const,
+        ...(['blocked_require_human', 'ownership_mismatch'].includes(String(result.payload.failureKind)) ? { decision: { code: result.payload.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: note } } : {}) } : undefined;
     await submitNodeVerification({ runId, nodeKey, review: owner,
       actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: verificationAttempt });
     const decision = result.payload && typeof result.payload === 'object' && !Array.isArray(result.payload) ? result.payload : {};
@@ -234,21 +245,14 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     if (!review?.participant || !policy.reviewerId) throw new Error(`Review agent missing for ${nodeKey}`);
     const fallbackClaimKey = `node:${nodeKey}:review_claimed:${verificationAttempt}`;
     const claimKey = reviewAttempt?.startsWith('recovery:') ? fallbackClaimKey : await graphReviewClaimKey(node.id, 'acceptance', fallbackClaimKey);
-    try {
-      await prisma.taskGraphEvent.create({ data: {
-        runId, nodeId: node.id, idempotencyKey: claimKey, kind: 'review_claimed',
-        payload: reviewAttempt ? { attempt: reviewAttempt } : {},
-      } });
-    } catch (error) {
-      const existing = await prisma.taskGraphEvent.findUnique({
-        where: { runId_idempotencyKey: { runId, idempotencyKey: claimKey } },
-      });
-      if (existing && !await completedGraphReviewTaskRun(node.id, 'acceptance', claimKey)) return;
-      if (!existing) throw error;
-    }
-    const runtime = await prepareAcceptanceRuntime(node.id, verificationAttempt, workspaces);
+    const claimed = await reserveGraphReviewClaim({ runId, nodeId: node.id, phase: 'acceptance', claimKey, payload: reviewAttempt ? { attempt: reviewAttempt } : {} });
+    if (!claimed && !await completedGraphReviewTaskRun(node.id, 'acceptance', claimKey)) return;
+    const recordedRuntime = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: claimKey + ':runtime' } } });
+    const recordedDirectory = recordedRuntime && isRecord(recordedRuntime.payload) && typeof recordedRuntime.payload.directory === 'string' ? recordedRuntime.payload.directory : undefined;
+    if (recordedRuntime && !recordedDirectory) throw new Error('Acceptance runtime receipt has no directory');
+    const runtime = await prepareAcceptanceRuntime(node.id, claimKey, workspaces, recordedDirectory);
     const specInput = await prepareGraphSpecInput(definition);
-    await prisma.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: claimKey + ':runtime', kind: 'acceptance_runtime_prepared', payload: { directory: runtime.directory, commits } } });
+    await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: claimKey + ':runtime' } }, update: {}, create: { runId, nodeId: node.id, idempotencyKey: claimKey + ':runtime', kind: 'acceptance_runtime_prepared', payload: { directory: runtime.directory, commits } } });
     const taskId = `task-graph-review-${node.id}`;
     const taskName = `${nodeKey} · 验收复核`;
     const task = await prisma.task.upsert({
@@ -299,7 +303,14 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
         evidence: `${item.evidence}\n复核污染了固定提交工作区：${String(error)}` }));
     }
     await assertGraphReviewOwnership(node.id, 'acceptance', claimKey, reviewed.taskRunId);
-    reviewOwner = { phase: 'acceptance', claimKey, taskRunId: reviewed.taskRunId, outcome: reviewed.kind };
+    reviewOwner = { phase: 'acceptance', claimKey, taskRunId: reviewed.taskRunId, outcome: reviewed.kind,
+      ...(['blocked_require_human', 'ownership_mismatch'].includes(String(reviewDecision.failureKind)) ? { decision: { code: reviewDecision.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: String(reviewDecision.note) } } : {}) };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      const failure = reviewPreparationFailure(error);
+      await publishReviewPreparationFailure(node.id, failure.failure, failure.retry, 'acceptance');
+      await refreshTaskGraphRunStatus(runId);
+      return;
     } finally {
       activeReviews.delete(node.id);
     }
@@ -317,7 +328,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
       .catch((error) => console.error('[TaskGraph] human review card failed:', error));
   }
   await refreshTaskGraphRunStatus(runId);
-  const outcome = repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? '验收通过，Slice 已完成；符合条件的后继将自动启动。'
+  const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? '验收通过，Slice 已完成；符合条件的后继将自动启动。'
     : updated.status === 'awaiting_human' ? '自动检查已结束，等待已配置的人工验收。'
     : reviewDecision.failureKind === 'in_scope_defect' ? '自动回修已停止或达到两轮上限，保留各轮报告，需核对后处理；后继继续等待。'
     : reviewDecision.failureKind === 'protocol_exhausted' ? '复核结论补收已耗尽，交付现场保留，需要明确处理方案后再排期。'
@@ -365,11 +376,17 @@ export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: s
     where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } }, select: { id: true },
   });
   if (activeReview) throw new Error(`${nodeKey} verification is already running`);
-  if (node.executions.some((execution) => execution.status !== 'integrated')) {
-    throw new Error(`${nodeKey} has unfinished repository executions`);
-  }
   const reviewAttempt = `recovery:${randomUUID()}`;
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
+    const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
+    if (current.executions.some(job => ['exhausted', 'ownership_attention'].includes(executionProgress(job.dispatchMetadata)?.state || ''))) throw new Error('Verification recovery requires an explicit exhaustion or ownership decision');
+    for (const job of current.executions) {
+      const progress = executionProgress(job.dispatchMetadata);
+      if (job.status === 'attention' && progress?.state === 'waiting_decision' && job.claimToken) await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision, outcomeId: `review-resume:${reviewAttempt}`, outcome: { kind: 'review_resumed' } });
+      else if (job.status !== 'integrated') throw new Error('Verification inputs changed before recovery');
+    }
+    if (await tx.taskRun.count({ where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Verification still has a live TaskRun');
     const changed = await tx.taskGraphNode.updateMany({
       where: { id: node.id, status: node.status }, data: { status: 'verifying' },
     });
