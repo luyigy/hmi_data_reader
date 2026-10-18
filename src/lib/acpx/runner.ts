@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import { createGraphWriter } from '../task-graph/writer-ownership';
+import { createGraphWriter, releaseTaskRunWriter } from '../task-graph/writer-ownership';
 import { bindGraphReviewTaskRun } from '../task-graph/review-ownership';
 import { bindExecutionTaskRun } from '../task-graph/execution-progress';
 import { prisma } from '@/lib/prisma';
@@ -159,6 +159,8 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
       break;
     }
   }
+
+  if (graphWriter) await releaseTaskRunWriter(taskRun.id, graphWriter.nonce);
 
   const failedParticipants = participantResults.filter((result) => result.status === 'failed');
   const completedParticipants = participantResults.filter((result) => result.status === 'completed');

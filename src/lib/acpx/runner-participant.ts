@@ -113,6 +113,7 @@ export const executeParticipant = async (
     }
   });
   let subagentEventWrites = Promise.resolve();
+  let spawnedMetadataWrites = Promise.resolve();
 
   const callbacks: HarnessStreamCallbacks = {
     onSteeringReady: participant.executionBackend === 'platform_local' && (participant.harnessType === 'pi-agent' || participant.harnessType === 'codex')
@@ -238,7 +239,8 @@ export const executeParticipant = async (
     );
     const localSpawnHandler = (child: { pid?: number }) => {
       if (participant.executionBackend === 'platform_local') {
-        void persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
+        spawnedMetadataWrites = spawnedMetadataWrites.then(() => persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid))
+          .catch(error => { console.error('[ACPX] Failed to persist spawned harness metadata:', error); });
       }
     };
 
@@ -269,6 +271,7 @@ export const executeParticipant = async (
           )
         : await executeViaGateway(request, participant, previousSummaries, taskRoomContext, contextWarning);
 
+    await spawnedMetadataWrites;
     await streamWrites.drain();
     await subagentEventWrites;
 
@@ -390,6 +393,7 @@ export const executeParticipant = async (
     };
   } catch (error) {
     try {
+      await spawnedMetadataWrites;
       await streamWrites.drain();
       await subagentEventWrites;
     } catch (streamError) {

@@ -25,6 +25,13 @@ async function main() {
   const require = createRequire(__filename); const feishu = require('../src/lib/task-graph/feishu');
   feishu.ensureGraphChildTopic = async () => null; feishu.postGraphParentProgress = async () => {}; feishu.postGraphChildProgress = async () => {};
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
+  const runnerMetadata = require('../src/lib/acpx/runner-metadata');
+  const originalSpawnMetadata = runnerMetadata.persistSpawnedHarnessMetadata;
+  runnerMetadata.persistSpawnedHarnessMetadata = async (taskRunId: string) => {
+    const snapshot = await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId } });
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await prisma.taskRun.update({ where: { id: taskRunId }, data: { controlMetadata: snapshot.controlMetadata } });
+  };
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => String(url).startsWith('http://127.0.0.1:') ? realFetch(url, options) : new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
@@ -33,6 +40,8 @@ async function main() {
   getHarnessAdapter('codex')!.execute = async ({ context }) => {
     const inputs = context.taskEnvironment?.TASK_GRAPH_SERVICES_JSON;
     if (inputs) { const [service] = JSON.parse(inputs); urls.push(service.url); assert.equal(await (await fetch(service.url)).text(), 'fixed-api'); assert.ok(context.taskEnvironment?.AP_GRAPH_WRITER_NONCE); assert.equal(await (await fetch(service.url + '/nonce')).text(), context.taskEnvironment.AP_GRAPH_WRITER_NONCE, 'Implementation service inherits the durable TaskRun nonce'); phases.add('implementation'); }
+    const harness = spawn(process.execPath, ['-e', 'process.exit(0)'], { env: { ...process.env, ...context.taskEnvironment }, stdio: 'ignore' });
+    context.onSpawn?.(harness); await once(harness, 'exit');
     writeFileSync(path.join(context.workingDirectory!, 'done'), 'delivered');
     return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":["done"]}', executionTime: 1 };
   };
@@ -67,6 +76,7 @@ async function main() {
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'service_attempt_ready' } }), 5);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'service_attempt_closed' } }), 5);
     for (const url of urls) await assert.rejects(realFetch(url), /fetch failed/);
+    await new Promise(resolve => setTimeout(resolve, 250));
     const finished = await prisma.taskRun.findMany({ where: { taskId: { startsWith: 'task-graph-' }, status: 'completed', createdAt: { gte: fixtureStarted } } });
     assert.ok(finished.length >= 4);
     for (const taskRun of finished) {
@@ -94,6 +104,6 @@ async function main() {
     assert.equal(urls.length, previousModelStarts, 'Bad service entry must not start another implementation model');
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: failed.id, kind: 'service_attempt_failed' } }), 3, 'Two bounded retries retain each service failure receipt, then explicitly exhaust');
     console.log('Implementation, platform check, integration check, architecture and acceptance use attempt-owned services and release all ports');
-  } finally { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); globalThis.fetch = realFetch; if (badRunId) await prisma.taskGraphRun.delete({ where: { id: badRunId } }); await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
+  } finally { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); globalThis.fetch = realFetch; runnerMetadata.persistSpawnedHarnessMetadata = originalSpawnMetadata; if (badRunId) await prisma.taskGraphRun.delete({ where: { id: badRunId } }); await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

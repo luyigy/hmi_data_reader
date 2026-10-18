@@ -31,7 +31,7 @@ export async function createGraphWriter(): Promise<GraphWriter> {
       bootId: (await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() } };
 }
 
-function parseGraphWriter(value: unknown): GraphWriter | null {
+export function parseGraphWriter(value: unknown): GraphWriter | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const version: unknown = Reflect.get(value, 'version');
   const nonce: unknown = Reflect.get(value, 'nonce');
@@ -53,13 +53,13 @@ function missing(error: unknown) {
 }
 
 /** A lease timeout is not evidence that a process stopped. Inspect the local owner and its children. */
-export async function observeGraphWriter(value: unknown): Promise<WriterObservation> {
+export async function observeGraphWriter(value: unknown, supervisorReleased = false): Promise<WriterObservation> {
   const writer = parseGraphWriter(value);
   if (!writer) return { kind: 'unknown', reason: 'No durable writer identity' };
   if (writer.hostname !== os.hostname() || writer.uid !== process.getuid?.()) return { kind: 'unknown', reason: 'Writer belongs to another host or user' };
   try {
     const bootId = (await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
-    if (bootId === writer.supervisor.bootId) {
+    if (!supervisorReleased && bootId === writer.supervisor.bootId) {
       try {
         const owner = await processIdentity(writer.supervisor.pid);
         if (owner.startTime === writer.supervisor.startTime && !['Z', 'X'].includes(owner.state)) return { kind: 'alive', pids: [writer.supervisor.pid] };
@@ -99,6 +99,23 @@ export async function observeTaskRunWriter(taskRunId: string): Promise<WriterObs
   if (!run || !run.participants.length || run.participants.some(participant => participant.executionBackend !== 'platform_local' || !['codex', 'kimi-code'].includes(participant.harnessType || ''))) return { kind: 'unknown', reason: 'Writer backend has no local process proof' };
   try {
     const metadata: unknown = JSON.parse(run.controlMetadata || '{}');
-    return observeGraphWriter(metadata && typeof metadata === 'object' ? Reflect.get(metadata, 'graphWriter') : undefined);
+    const writer = metadata && typeof metadata === 'object' ? parseGraphWriter(Reflect.get(metadata, 'graphWriter')) : null;
+    const release: unknown = metadata && typeof metadata === 'object' ? Reflect.get(metadata, 'graphWriterReleased') : undefined;
+    const released = Boolean(writer && release && typeof release === 'object' && Reflect.get(release, 'nonce') === writer.nonce && typeof Reflect.get(release, 'at') === 'string' && Number.isFinite(Date.parse(Reflect.get(release, 'at'))));
+    return observeGraphWriter(writer, released);
   } catch (error) { return { kind: 'unknown', reason: error instanceof Error ? error.message : String(error) }; }
+}
+
+/** Called by the runner only after participant and attempt-service cleanup have returned. */
+export async function releaseTaskRunWriter(taskRunId: string, nonce: string): Promise<void> {
+  await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "TaskRun" WHERE id = ${taskRunId} FOR UPDATE`;
+    const run = await tx.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, select: { controlMetadata: true } });
+    const metadata: unknown = JSON.parse(run.controlMetadata || '{}');
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) throw new Error('Invalid TaskRun writer metadata');
+    const writer = parseGraphWriter(Reflect.get(metadata, 'graphWriter'));
+    const current = await createGraphWriter();
+    if (!writer || writer.nonce !== nonce || writer.supervisor.pid !== current.supervisor.pid || writer.supervisor.startTime !== current.supervisor.startTime || writer.supervisor.bootId !== current.supervisor.bootId) throw new Error('TaskRun writer release ownership changed');
+    await tx.taskRun.update({ where: { id: taskRunId }, data: { controlMetadata: JSON.stringify({ ...metadata, graphWriterReleased: { nonce, at: new Date().toISOString() } }) } });
+  });
 }
