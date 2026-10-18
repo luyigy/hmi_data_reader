@@ -105,3 +105,14 @@ export async function archiveValidationResults(nodeId: string, directory: string
   await fs.rm(source, { recursive: true });
   return { source, directory, manifest, files: snapshot.files.length, bytes: snapshot.bytes, skippedDirectories: snapshot.skippedDirectories, symlinks: snapshot.links.length };
 }
+
+/** Read and verify archived evidence without creating, deleting or restoring runtime paths. */
+export async function readValidationArchive(nodeId: string, directory: string) {
+  const source = validationRuntimeDirectory(nodeId);
+  await realDirectory(directory);
+  const manifest = path.join(directory, 'manifest.json');
+  if (await fs.realpath(manifest) !== manifest) throw new Error('Validation manifest is symlinked');
+  const saved = parseManifest(await fs.readFile(manifest, 'utf8'), nodeId, source);
+  await verifyFiles(directory, saved.files);
+  return { source, directory, files: saved.files };
+}

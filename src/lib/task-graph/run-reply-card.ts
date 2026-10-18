@@ -1,3 +1,4 @@
+import { formatGraphFailureSummary, graphFailureSummary } from './failure-summary';
 import { parseImplementationResult, type ImplementationResult } from './implementation-result';
 import type { TaskRun, TaskRunEvent, TaskRunParticipant, TaskRunInteractionRequest } from '@prisma/client';
 import { redactSensitiveText } from '../redact-sensitive';
@@ -38,14 +39,17 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
   const progress = run.graphProgress;
   const repairing = progress?.phase === 'implement' && progress.repairAttempts > 0 && ['ready', 'active'].includes(progress.state);
   const phaseFailure = progress?.lastFailure && (progress.state !== 'active' || repairing || run.graphStatus === 'attention') ? progress.lastFailure.detail : null;
-  const progressStatus = progress?.state === 'exhausted' ? '自动处理已耗尽，需决定新的修复措施'
+  const failureSummary = phaseFailure && progress?.lastFailure ? graphFailureSummary(progress.lastFailure, progress.state) : null;
+  const progressStatus = failureSummary && ['waiting_decision', 'exhausted', 'ownership_attention'].includes(progress?.state || '')
+    ? failureSummary.requiresUserDecision ? '需你确认' : failureSummary.owner === 'implementer' ? '待实施回修' : '待平台处理'
+    : progress?.state === 'exhausted' ? '待平台提出新的修复措施'
     : progress?.state === 'ownership_attention' ? '执行归属需核对，请确认当前写入者'
     : progress?.state === 'waiting_decision' ? '需决定，当前执行已暂停'
     : repairing ? '自动修复中，完成后重新检查'
     : progress?.state === 'ready' && progress.lastFailure ? '自动恢复中，等待下一轮执行' : null;
   const status = run.graphStatus === 'passed' ? '已完成，平台检查与验收通过' : progressStatus || (blocked ? '实施暂停，尚未交付' : run.graphStatus === 'attention' ? '任务需处理，尚未通过平台检查或验收'
     : conclusion?.status === 'delivered' ? '实施已提交结果，尚未代表验收通过' : labels[run.status] || run.status);
-  const visible = `${status}\n${snippet(phaseFailure || conclusion?.note || response)}`;
+  const visible = `${status}\n${phaseFailure && progress?.lastFailure ? formatGraphFailureSummary(progress.lastFailure, progress.state) : snippet(conclusion?.note || response)}`;
   const actions = (active ? requests : []).filter((request) => request.status === 'pending' && (!request.expiresAt || request.expiresAt.getTime() > Date.now()))
     .flatMap((request) => {
       let payload: unknown;
