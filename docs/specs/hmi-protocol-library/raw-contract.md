@@ -106,3 +106,7 @@ HTTP 继续使用 `/api/v1/recognize?observations_version=v2`，新观测的权�
 离线校验使用 `raw_temperature_time.validate_temperature_time_record`。同一 zone 的 setting/actual 可以并存；重复同角色身份、同物理分组 order 冲突和字段定义归属矛盾会拒绝。识读时重复列头保留候选并输出结构问题。单位冲突保留原单位，模板仅补 effective_unit。温度页没有已标定的启用状态解码器，state 均为 unknown；颜色和缺读不会推成 disabled。
 
 包内样本是开发验证材料。既有温度真值的模型与待人工确认来源原样保留，新增时间转录标为实施者目视核对，不是独立验收。Reader 的包 GET 和离线读回不等于 Model 草稿保存重开、温度换算、正式业务提交或双视口验收。具体本轮检查和缺口记录在任务受管结果区。
+
+R04 同版式修复使用独立版本 `0.4.1`，保留 `0.4.0` 定义和包字节。旧识读模块的精确副本位于 `templates/raw-recognizers/temperature_time_ocr.v2/0.4.0/scripts/raw_temperature_time.py`，旧包校验使用该副本的哈希。HTTP 包 GET 和脚本导出继续支持旧版本，新识读观测标记 `0.4.1`。R01 `0.3.0` 包保持不变。
+
+`0.4.1` 增加仓内同版式原图 `barrel_A02_b24ff33d.jpg` 作为开发回归样本。定义记录该图 OCR 将喷嘴1读为“喷剪1”的别名，观测仍保留原始 `zone_label`。时间字段以 `value_format` 区分数字设定值和冒号文本，避免把 `0` 与 `0:00` 当作同一字段的冲突候选。匹配区域容纳两张照片的矫正差异，`recovery_region` 保留小零值的窄框放大重读。低置信度数值仍标 `uncertain`，没有读到的值保持空，不补默认值。

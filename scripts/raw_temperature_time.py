@@ -16,10 +16,10 @@ except ModuleNotFoundError:
     from scripts.raw_contract import import_raw_package, validate_raw_record
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 DEFINITIONS = {
-    "demag.temperature.screen_order_5": "demag-temperature-0.4.0.json",
-    "est.storage_cooling.cooling_delay": "est-storage-cooling-0.4.0.json",
+    "demag.temperature.screen_order_5": "demag-temperature-0.4.1.json",
+    "est.storage_cooling.cooling_delay": "est-storage-cooling-0.4.1.json",
 }
 NUMBER = re.compile(r"^\s*([+-]?\d+(?:\.\d+)?|\d+:\d{2})\s*(°C|℃|°F|ms|min|s|bar|mm)?\s*$")
 
@@ -34,25 +34,27 @@ def select_raw_profile(profile_id, lines):
     raise ValueError("RAW_PAGE_UNSUPPORTED")
 
 
-def build_temperature_time_package(profile_id, root=ROOT):
-    definition = json.loads((root / "contracts/raw-pages" / DEFINITIONS[profile_id]).read_text())
+def build_temperature_time_package(profile_id, root=ROOT, version=VERSION):
+    definition = json.loads((root / "contracts/raw-pages" / DEFINITIONS[profile_id].replace(VERSION, version)).read_text())
     contract = json.loads((root / "contracts/page_observations.temperature-time.v2.schema.json").read_text())
-    files = {path: hashlib.sha256((root / path).read_bytes()).hexdigest() for path in
+    files = {path: hashlib.sha256((root / ("templates/raw-recognizers/temperature_time_ocr.v2/0.4.0"
+                                         if version == "0.4.0" and path == "scripts/raw_temperature_time.py"
+                                         else "") / path).read_bytes()).hexdigest() for path in
              ("scripts/raw_temperature_time.py", "scripts/raw_page.py", "scripts/raw_contract.py",
               "scripts/extract_families/coordinates.py")}
     return {"package_schema": "hmi_raw_page_package.v2", "profile_id": profile_id,
-            "version": VERSION, "raw_contract": contract, "raw_contract_sha256": content_hash(contract),
+            "version": version, "raw_contract": contract, "raw_contract_sha256": content_hash(contract),
             "raw_field_definition": definition, "raw_field_definition_sha256": content_hash(definition),
             "recognizer": {"id": "temperature_time_ocr.v2", "files": files, "sha256": content_hash(files)},
             "samples": definition["samples"]}
 
 
 def temperature_time_package(profile_id, version=VERSION, root=ROOT):
-    if profile_id not in DEFINITIONS or version != VERSION:
+    if profile_id not in DEFINITIONS or version not in ("0.4.0", VERSION):
         raise ValueError("RAW_PAGE_VERSION_UNSUPPORTED")
     path = root / "templates/raw-packages" / profile_id / f"{version}.json"
     package = import_raw_package(json.loads(path.read_text()))
-    if package != build_temperature_time_package(profile_id, root):
+    if package != build_temperature_time_package(profile_id, root, version):
         raise ValueError("RAW_PACKAGE_FROZEN_CONTENT_MISMATCH")
     return package
 
@@ -107,6 +109,14 @@ def validate_temperature_time_record(record, package):
     return record
 
 
+def matches_cell_format(text, spec):
+    match = NUMBER.fullmatch(text)
+    if not match:
+        return False
+    value_format = spec.get("value_format")
+    return value_format is None or (":" in match[1]) == (value_format == "clock")
+
+
 def recover_temperature_time_cells(engine, image, meta, lines, profile_id):
     import cv2
     definition = temperature_time_package(profile_id)["raw_field_definition"]
@@ -114,16 +124,16 @@ def recover_temperature_time_cells(engine, image, meta, lines, profile_id):
     height, width = image.shape[:2]
     for spec in definition["fields"]:
         region = spec.get("region")
-        if not region or any(_inside(line, region, [width, height]) and NUMBER.fullmatch(line["text"])
+        if not region or any(_inside(line, region, [width, height]) and matches_cell_format(line["text"], spec)
                              for line in result):
             continue
-        x1, y1, x2, y2 = region
+        x1, y1, x2, y2 = spec.get("recovery_region", region)
         left, top, right, bottom = int(x1 * width), int(y1 * height), int(x2 * width), int(y2 * height)
         crop = cv2.resize(image[top:bottom, left:right], None, fx=4, fy=4)
         crop = cv2.copyMakeBorder(crop, 30, 30, 70, 70, cv2.BORDER_CONSTANT, value=255)
         raw = engine.ocr(crop, cls=False)
         for points, (text, confidence) in raw[0] or []:
-            if not NUMBER.fullmatch(text):
+            if not matches_cell_format(text, spec):
                 continue
             xs, ys = zip(*points)
             result.append({"text": text, "conf": float(confidence),
@@ -173,7 +183,7 @@ def observe_temperature_time_page(profile_id, lines, meta, image_sha256, rectifi
                               and abs((_line_box(line)[0] + _line_box(line)[2]) / 2 - hx) < size[0] * .045
                               and abs((_line_box(line)[1] + _line_box(line)[3]) / 2 - ly) < size[1] * .022]
             elif spec.get("region"):
-                candidates = [line for line in lines if NUMBER.fullmatch(line["text"])
+                candidates = [line for line in lines if matches_cell_format(line["text"], spec)
                               and _inside(line, spec["region"], size)]
             source = candidates[0] if len(candidates) == 1 else None
             match = NUMBER.fullmatch(source["text"]) if source else None

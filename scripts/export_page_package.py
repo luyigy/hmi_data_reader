@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dict:
-    if version == "0.4.0":
+    if version in ("0.4.0", "0.4.1"):
         try:
             from raw_temperature_time import DEFINITIONS, temperature_time_package
         except ModuleNotFoundError:
