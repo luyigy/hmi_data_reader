@@ -141,6 +141,10 @@ type Outcome =
   | { kind: 'repair_required'; executionIds: string[]; checkId: string; diagnostics: EvidenceRef[] }
   | { kind: 'platform_retry'; failureCode: string; diagnostics: EvidenceRef[] }
   | { kind: 'result_incomplete'; diagnostics: EvidenceRef[] }
+  | { kind: 'integration_conflict'; paths: string[]; diagnostics: EvidenceRef[] }
+  | { kind: 'integration_stale'; expectedCommit: string; actualCommit: string }
+  | { kind: 'ownership_mismatch'; diagnostics: EvidenceRef[] }
+  | { kind: 'retry_exhausted'; phase: Phase; attempts: number; diagnostics: EvidenceRef[] }
   | { kind: 'decision_required'; reason: DecisionReason; request: string; diagnostics: EvidenceRef[] };
 
 // 读取类型化进度，校验 claimToken 与版本；旧数据仅在入口做一次受控归并。
@@ -170,3 +174,92 @@ advanceExecution(executionId, claimToken): Promise<void>;
 ### 修复工程本身如何采用 poteto-mode
 
 按 Bug fix 流程先保留红色故障回放，设计共享类型/边界后分批实现，每批运行真实行为回归，再审查改动。项目工作流仍负责路线审批、依赖和派发；poteto-mode 负责每批的工程质量，不把技能的内部代理、提交或 PR 习惯叠加成另一套任务图。当前页是评审后方案，不宣称上述机制已经实现。
+
+
+## Kimi code 评审补全的执行契约
+
+本节补齐 423c9ef 的未定行为，约束前面的接口草图和实施批次。修订方案不代表运行时已经满足保证，也不代表评审者已对本次修订给出新确认。
+
+### 1. 失败后的状态转移和自动领取
+
+所有阶段使用同一过程，不要求飞书消息或人工 resume 才能推进：
+
+1. 阶段开始前，以当前 claimToken 和 revision 校验执行所有权，保存当前 phase、输入身份、候选提交及将启动的 TaskRun 身份。
+2. 每次处理 outcome 的事务，以 `executionId + claimToken + expectedRevision` 做比较更新；revision 只递增、不在回修或换 token 时归零。审计事件与当前进度在同一事务落地。
+3. 同一个 outcome 的重复投递返回已保存结果，不重复计数、派发或集成。旧 claimToken、旧 revision 和不属于本阶段的结果不能改写最新候选提交，记录为拒绝的过期结果。
+4. 需要自动接续时，事务记录目标 phase、预算和 nextRetryAt，将受影响 execution 置为 ready，清除当前 claimToken；成功兄弟保持原状态。已确认当前 TaskRun 退出后才能排到下一轮。
+5. 现有协调器在下一轮筛选到期 ready 执行，通过原 CAS 领取生成新 claimToken，读取持久化 phase 接续。阶段处理中可继续使用 executeJob 内有界循环，但循环的每步都须经过上述持久化入口，不能依赖内存循环才能前进。
+6. 新 claimToken 继续使用单调 revision，并保留原 attempt 的 TaskRun/输入/候选/结果引用。已经提交 outcome 的旧 worker 不再有后续写入权。
+
+| Outcome | 下一状态及动作 |
+| --- | --- |
+| phase_passed | 保存证据；普通阶段接到下一阶段，最终成功仍按批准模式走独立验收或 delivered_unverified |
+| repair_required | 只将 executionIds 对应执行排到 implement，附原命令和故障证据；自动领取 |
+| platform_retry | 对原阶段排定有限退避重试，不重做成功阶段；自动领取 |
+| result_incomplete | 有限排到 collect_result，不重新实施整票；用尽格式补收预算后成为 retry_exhausted |
+| integration_stale | 重新读取集成引用，受控合并最新基线，再运行合流检查；计入集成阶段预算 |
+| integration_conflict | 保存双方提交、冲突路径与 MERGE_HEAD，核对批准范围和所有权；可证明范围内的冲突进入受控修复，否则提出具体决定 |
+| ownership_mismatch | 停止自动写入，保留目录和提交，升级归属核对；不能按普通代码缺陷重跑 |
+| decision_required | 等待明确的权限、范围或必要输入决定；批准后才由同一转移入口接续 |
+| retry_exhausted | 进入显式 exhausted 终态，自动派发停止；报告阶段、预算、指纹和尝试历史，不能再由普通“继续”清零预算 |
+
+现有 status 可用 attention 投影决定等待或耗尽，但 dispatchMetadata 中必须区分 waiting_decision、exhausted 与 ownership_attention；飞书文案和恢复入口都按这一权威状态工作。exhausted 是当前自动处理轮次的终态，重开须明确记录新的修复措施或预算变更及授权来源，不能伪装成需要用户再喊一次继续。
+
+### 2. 集成阶段和冲突现场
+
+- 候选提交 `candidateCommit` 表示本轮当前工作；`execution.commit` 仅记录已成功发布到集成引用的结果。两者不得互相替代或在检查未过时提前写成同一个成功状态。
+- 在仓库短锁内读取集成基线、合并和检查，最后以预期旧 SHA 比较更新引用。引用过期进入 integration_stale 重试，不能直接当业务失败或无条件覆盖引用。
+- 同一分支上的未提交修改走已有现场采纳流程；分支身份不符走 ownership_mismatch。不能把两者都标为 workspace_dirty 后交给用户猜。
+- MERGE_HEAD 是未解决合并的现场状态，不是可删除的临时垃圾。记录合并前双方 SHA、原文件内容和冲突路径，保留分支；禁止 reset、stash、清理或删除现场来制造可合并结果。
+- 冲突确属获批执行范围且写入归属明确时，可由专门的有界合并修复在同一现场解决；涉及未授权目录、未知来源提交或需要业务裁定时才等待具体决定。
+- 合并修复后和验收回修再次合流后，都必须重跑合并结果上的 integrationChecks；预检查通过不能替代合流验证。
+- 所有权和版本 fencing 不能只保护数据库结果；实际 Git 写操作、提交和更新引用前也须复核当前执行权。旧写入者仍可能继续写文件时，不以租约过期为由启动第二个写入者。
+
+### 3. 多仓修复与证据组合
+
+检查 ID 使用类型命名空间：`execution:<executionKey>:<id>`、`integration:<id>`、`architecture:<id>`、`acceptance:<id>`。ID 由平台登记和传递，不能让自然语言命名差异决定是否回修；未知 ID 先补收或归因核对，绝不模糊匹配为通过。
+
+`repair_required.executionIds` 同时限定重新派发目标和预算归属：不在目标集合的 execution 不启动 Agent、不重置提交、不运行“必须有代码变化”的实施检查。当前 repair.ts 的全量重置必须被替换，不能只增加一个未被使用的参数。
+
+Slice 级证据组合使用成功兄弟的原提交/输入及受影响执行的新候选结果，生成新的检查组合身份。历史证据保留，但只有提交、输入、配置和检查依赖身份仍一致的证据才可复用。共同架构边界、受影响跨仓合同和 integrationChecks 必须覆盖新组合；修改过的执行本地测试通过不足以释放 Slice。
+
+若已放行后继正在消费旧的固定输入，其本轮证据不能换绑新提交。接口变更影响已完成节点的批准结果时，明确标记受影响结果并走既定修订/重验规则；不得静默覆盖旧结果或无条件重跑整张图。
+
+### 4. 旧入口迁移清单与完成门槛
+
+下列入口逐个纳入迁移。阶段业务入口改调 applyExecutionOutcome；审批、领取和依赖放行仍校验各自授权与 CAS，但其阶段结果也必须由统一转移写入。保留的适配函数不得自行写出另一套生命周期，也不得根据旧事件重新推测阶段。
+
+| 当前入口/写入路径 | 收口后的职责 |
+| --- | --- |
+| recordExecutionIssue | 将边界产生的类型化故障转为明确 outcome，不再默认 attention |
+| pauseGraphImplementation | 区分真正决定、协议补收、可选警告和平台问题，保存最新候选 |
+| scheduleImplementationRecovery | 从当前进度和明确决定接续；旧 blocked 事件只用于一次性迁移核对 |
+| scheduleGraphRepair | 只排目标 execution，重组节点证据，保留成功兄弟 |
+| recoverTaskGraphNodeVerification | 读取权威 phase 和本轮组合身份，不按旧事件猜入口 |
+| submitNodeVerification / 架构结果早退 | 统一分类验收结果、代码缺陷、平台问题与预算耗尽，不绕过回修 |
+| flagStaleExecutionClaim / 架构及验收超时分支 | 先核对实际 TaskRun 和写入者，再接管、等待原进程或记录耗尽 |
+| reclassify-delivery 历史重分类入口 | 原授权校验、原历史保留，追加受控迁移并初始化当前阶段 |
+| completeExecution / completeUnverifiedNode | 只消费匹配候选、模式和证据的阶段完成结果，不能提前标集成或通过 |
+| claimNode / claimExecution / recordExecutionDispatch | 保留 CAS 所有权；启动前登记 TaskRun；阶段更新使用 claimToken 与 revision 比较 |
+| releaseReadyNodes / approveHumanNode | 保留依赖和真实人工批准校验，原批准模式不可被普通 phase_passed 绕过 |
+| coordinator 的其他 catch、早退、架构/验收结果写入 | 对照出口清单逐个给出 outcome 或明确的只读/等待语义 |
+
+迁移验收需扫描 src/lib/task-graph 中的状态更新及调用方，列出“保留为所有权/依赖控制、已迁移、兼容适配、只读”四类。除经登记的所有权/审批操作外，不得遗留绕过统一入口的状态写入；对应旧事件解析入口从运行路径删除。先迁移调用方，再删除旧分支，不能长期让两套状态机并存。
+
+### 5. 开修及交付的测试门槛
+
+开修先增加可复现故障的红色测试；“门禁”不要求缺陷在修改前就通过。每批修改后对应场景必须转绿，最终组合场景通过后才允许部署及生产接续。
+
+1. **自动回修**：检查首次失败，自动修复后检查和独立验收通过；human resume 次数为 0。
+2. **格式失败**：只补收一次，仍无有效结论则记录 result_incomplete 到 retry_exhausted；不得出现合成 delivered/passed，也不产生重复人工继续请求。
+3. **集成冲突**：注入引用过期、合并冲突、MERGE_HEAD；能重读基线并重验，或保存双方现场与明确决定，零 reset/清理。
+4. **局部回修**：两个 execution 中只修一侧，另一侧 Agent 调用次数为 0，提交保持，相关跨仓检查确实重跑。
+5. **组合验收**：用新旧提交的正确组合重新架构/测试验收；旧依赖证据不能冒充新组合通过。
+6. **耗尽终态**：相同故障无进展或预算用尽，进入显式 exhausted；普通继续不能清零预算、重复启动或伪装为 decision_required。
+7. **重启恢复**：旧写入者存活时不启动第二个；确认退出或隔离后才接管，且从已保存阶段继续，不重复发布集成引用。
+8. **通知超时**：消息发送/更新超时仅重试投递，不改业务状态、不产生 dispatch_failed；投递幂等。
+9. **过期结果**：旧 token、旧 revision、重复 outcome 均不能覆盖新候选、当前阶段或重复扣预算。
+10. **支线独立**：一支回修时另一就绪支线继续；真正需要人工决定的支线只创建一个可辨认的决定点。
+11. **当前 R01 迁移**：使用受控复制的 f0f4 保存点/0d91 候选/补充文件现场，先证明可保留最新代码和材料；随后实际运行按原批准要求检查、验收、放行后继。复制现场的流程测试不能宣称实际 OCR 业务已验收。
+
+每个场景断言阶段、候选 SHA、Agent 启动次数、human resume 次数和追加证据，跨多次调度轮询完成即可。对可恢复路径的 human resume=0 是自动化可用性的证据；真实业务缺陷和必要人工决定仍必须如实呈现，不以强行启动后继掩盖。
