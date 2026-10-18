@@ -50,3 +50,7 @@ Reader 验收至少包括逆序/缺段/重复段、灰显残值、unknown、温�
 HTTP、脚本分发和 scripts/feishu_card_assistant.py 等真实调用方均须核查。固定响应单测、真实识读、API 联调、网页保存重开分开留证。具体联合验收 ID 见 Model acceptance.md。
 
 每项跨仓任务事前声明所需 extra repo 和读写权限，复用项目环境。本 Spec 不改变平台现有 worktree/清理机制，不依赖新建临时虚拟环境，不清理原仓或项目环境。
+
+## 本路线的工程实施模式
+
+每张票的实施与独立验收使用 poteto-mode 的项目适配规则。先读已安装技能及 Codex 映射，再读本仓 .agents/playbooks/ap-task-graph.md，校验锚点并选择适用 playbook。验收者核对实际步骤记录和最终行为，不能从启动指令推断模式已经执行。任务依赖、权限和完成状态仍由平台批准快照管理。
