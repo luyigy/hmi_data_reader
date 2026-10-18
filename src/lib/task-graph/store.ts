@@ -400,6 +400,7 @@ export async function flagStaleExecutionClaim(args: {
       where: { key: args.executionKey, node: { runId: args.runId, key: args.nodeKey } },
     });
     if (!execution) throw new Error('Unknown graph execution');
+    if (executionProgress(execution.dispatchMetadata)) throw new Error('Versioned execution recovery requires actual writer ownership proof');
     const updated = await tx.taskGraphExecution.updateMany({
       where: { id: execution.id, status: 'claimed', claimToken: args.claimToken,
         claimedAt: { lt: args.claimedBefore } },

@@ -20,6 +20,8 @@ export type ExecutionOutcome =
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
   | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string }
+  | { kind: 'operator_resume'; requestId: string }
+  | { kind: 'delivery_reclassified'; authorization: string; failure: ExecutionFailure }
   | { kind: 'decision_required'; failure: ExecutionFailure }
   | { kind: 'retry_exhausted'; failure: ExecutionFailure }
   | { kind: 'integrated'; commit: string; evidence: Prisma.InputJsonValue };
@@ -127,8 +129,12 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       return progress;
     }
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
+    const operatorResume = args.outcome.kind === 'operator_resume' && current.status === 'attention' && before.state === 'waiting_decision';
+    const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
     const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
-    if ((!reviewRepair && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
+    if ((!reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
+    if (args.outcome.kind === 'operator_resume' && (!operatorResume || !args.outcome.requestId.trim()) ||
+        args.outcome.kind === 'delivery_reclassified' && (!reclassification || !args.outcome.authorization.trim())) throw new Error('Operator outcome is not authorized for the current state');
     if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
         args.outcome.kind === 'repair_required' && !['check', 'integrate', 'architecture', 'acceptance'].includes(before.phase) ||
         args.outcome.kind === 'result_incomplete' && !['implement', 'collect_result', 'check'].includes(before.phase)) throw new Error('Execution outcome does not belong to current phase');
@@ -137,7 +143,12 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const outcome = args.outcome;
     let status = current.status;
     let issueKind: string | null = null;
-    if (outcome.kind === 'checkpoint') {
+    if (outcome.kind === 'operator_resume') {
+      status = 'ready'; progress.phase = 'implement'; progress.state = 'ready'; delete progress.review;
+    } else if (outcome.kind === 'delivery_reclassified') {
+      status = 'attention'; issueKind = outcome.failure.code; progress.phase = 'implement'; progress.state = 'waiting_decision';
+      progress.lastFailure = outcome.failure; delete progress.review;
+    } else if (outcome.kind === 'checkpoint') {
       progress.phase = outcome.phase;
       if (outcome.workspaceBase) progress.workspaceBase = outcome.workspaceBase;
       if (outcome.candidateCommit) {

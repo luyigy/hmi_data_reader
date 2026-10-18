@@ -3,6 +3,7 @@ import { prisma } from '../prisma';
 import { graphGit } from './git-command';
 import { isRecord } from './implementation-result';
 import { resolveRunIssueSource } from './issue-adoption';
+import { applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 
 /** Explicit operator correction, bound to the audited approval and execution; never infer delivery from free text. */
 export async function reclassifyIncompleteDelivery(args: {
@@ -43,8 +44,14 @@ export async function reclassifyIncompleteDelivery(args: {
     const recoveries = await tx.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'conversation_review_recovery_requested' } });
     if (recoveries.length) await tx.taskGraphEvent.createMany({ data: recoveries.map(request => ({ runId: run.id, nodeId: node.id,
       idempotencyKey: `conversation:review-recovery:${request.id}:started`, kind: 'conversation_review_recovery_superseded', payload: { reclassificationId: event.id } })), skipDuplicates: true });
+    const progress = executionProgress(current.dispatchMetadata);
+    if (progress) {
+      if (!current.claimToken) throw new Error('缺少原交付执行归属');
+      await applyExecutionOutcomeTx(tx, { executionId: current.id, claimToken: current.claimToken, expectedRevision: progress.revision,
+        outcomeId: `reclassification:${event.id}`, outcome: { kind: 'delivery_reclassified', authorization: event.id,
+          failure: { code: args.blockerKind, detail: args.reason } } });
+    } else await tx.taskGraphExecution.update({ where: { id: current.id }, data: { issueKind: args.blockerKind } });
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention', passedAt: null } });
-    await tx.taskGraphExecution.update({ where: { id: current.id }, data: { issueKind: args.blockerKind } });
     await tx.taskGraphNode.updateMany({ where: { runId: run.id, key: { in: Array.from(descendants).filter(key => key !== node.key) }, status: 'ready' }, data: { status: 'planned' } });
     await tx.taskGraphRun.update({ where: { id: run.id }, data: { status: 'attention' } });
     const ticket = source?.tickets.find(ticket => ticket.key === node.key);

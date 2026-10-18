@@ -1,4 +1,4 @@
-import { applyExecutionOutcome, executionProgress, metadataWithProgress } from './execution-progress';
+import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
@@ -102,7 +102,9 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
       const progress = executionProgress(job.dispatchMetadata);
       if (progress?.state === 'exhausted') throw new Error('自动处理预算已耗尽，普通继续不能重置预算；请明确新的修复措施或授权');
       if (progress?.state === 'ownership_attention') throw new Error('执行归属尚未核对，普通继续不能重新放行写入；须先完成归属核对');
-      if (progress && job.status !== 'integrated') {
+      if (progress) {
+        if (job.status === 'integrated') return [];
+        if (progress.state !== 'waiting_decision') throw new Error('当前执行不是等待人工决定的实施暂停');
         if (!progress.candidateCommit || !progress.workspaceBase) throw new Error('缺少当前候选提交或原始基线');
         return [{ id: job.id, key: job.key, checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase,
           previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId, previousCommit: job.commit,
@@ -123,9 +125,13 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     for (const saved of executions) {
       const job = current.executions.find(item => item.id === saved.id)!;
       const progress = executionProgress(job.dispatchMetadata);
-      await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
+      if (progress) {
+        if (!job.claimToken) throw new Error('缺少原执行归属');
+        await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision,
+          outcomeId: `operator-resume:${requestId}`, outcome: { kind: 'operator_resume', requestId } });
+      } else await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
         status: 'ready', claimToken: null, claimedAt: null, issueKind: null, taskRunId: null, sessionId: null,
-        dispatchMetadata: progress ? metadataWithProgress(job.dispatchMetadata, { ...progress, revision: progress.revision + 1, phase: 'implement', state: 'ready' }) : Prisma.DbNull,
+        dispatchMetadata: Prisma.DbNull,
       } });
     }
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'ready', passedAt: null, claimToken: null, claimedAt: null } });
