@@ -45,7 +45,7 @@ export async function pauseGraphImplementation(args: {
   }
   if (progress) return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
     expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:decision_required`,
-    outcome: { kind: args.result.blockerKind === 'environment_failed' ? 'platform_retry' : 'decision_required', failure: { code: args.result.blockerKind, detail: args.result.note } },
+    outcome: { kind: args.result.blockerKind === 'environment_failed' ? 'platform_retry' : 'decision_required', failure: { code: args.result.blockerKind, detail: args.result.note, blockedPhase: args.blockedPhase || 'implementation' } },
   });
   return prisma.$transaction(async tx => {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });

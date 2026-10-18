@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
-export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string };
+export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime' };
 export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string; candidateCommit: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
@@ -87,6 +87,7 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
     const failure = record(value.lastFailure);
     if (typeof failure.code !== 'string' || typeof failure.detail !== 'string') throw new Error('Invalid execution failure');
     progress.lastFailure = { code: failure.code, detail: failure.detail };
+    if (failure.blockedPhase !== undefined) progress.lastFailure.blockedPhase = enumeration(failure.blockedPhase, ['implementation', 'input_preparation', 'service_runtime']);
     for (const key of ['checkId', 'fingerprint', 'tree'] as const) {
       const text = optionalText(failure[key]); if (text) progress.lastFailure[key] = text;
     }
@@ -206,7 +207,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     if (outcome.kind === 'decision_required' && ['missing_business_material', 'missing_upstream_input', 'environment_failed', 'scope_change', 'permission_required'].includes(outcome.failure.code)) {
       await tx.taskGraphEvent.create({ data: { runId: current.node.runId, nodeId: job.nodeId,
         idempotencyKey: `${idempotencyKey}:blocked`, kind: 'implementation_blocked',
-        payload: { recoveryKind: 'implementation', blockedPhase: progress.phase, executionId: job.id,
+        payload: { recoveryKind: 'implementation', blockedPhase: outcome.failure.blockedPhase || progress.phase, executionId: job.id,
           checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase,
           taskRunId: current.taskRunId, claimToken: args.claimToken,
           result: { status: 'blocked', blockerKind: outcome.failure.code, note: outcome.failure.detail } },
