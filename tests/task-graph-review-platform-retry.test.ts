@@ -129,7 +129,10 @@ async function main() {
   feishu.ensureGraphChildTopic = async () => null; feishu.postGraphParentProgress = async () => {}; feishu.postGraphChildProgress = async () => {};
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   const original = globalThis.fetch; globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  try { for (const mode of ['platform', 'architecture-platform', 'platform-exhausted', 'human', 'preparation', 'preparation-exhausted', 'integration-timeout', 'ownership', 'startup'] as const) await scenario(mode); }
+  const modes = ['platform', 'architecture-platform', 'platform-exhausted', 'human', 'preparation', 'preparation-exhausted', 'integration-timeout', 'ownership', 'startup'] as const;
+  const selected = process.env.TASK_GRAPH_REVIEW_RETRY_CASE;
+  if (selected && !modes.some(mode => mode === selected)) throw new Error(`Unknown review retry case: ${selected}`);
+  try { for (const mode of modes) if (!selected || selected === mode) await scenario(mode); }
   finally { globalThis.fetch = original; await prisma.$disconnect(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
