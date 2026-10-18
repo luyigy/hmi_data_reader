@@ -16,10 +16,10 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
   const outputs: string[] = [];
   const protectedInputs: string[] = [];
   for (const name of ['scratch', '.pytest_cache', 'node_modules', 'frontend/dist', 'frontend/node_modules']) {
-    try { await graphGit(root, 'check-ignore', '-q', '--no-index', '--', name + '/'); }
-    catch (error) { if (error instanceof Error && 'code' in error && error.code === 1) continue; throw error; }
     const target = path.join(root, name);
     if (existsSync(target) && realpathSync(target) !== target) continue; // Never turn a shared dependency symlink writable.
+    try { await graphGit(root, 'check-ignore', '-q', '--no-index', '--', name + '/'); }
+    catch (error) { if (error instanceof Error && 'code' in error && error.code === 1) continue; throw error; }
     const tracked = (await graphGit(root, 'ls-files', '-z', '--', name)).split('\0').filter(Boolean);
     const tops = Array.from(new Set(tracked.map((file) => file.slice(name.length + 1).split('/')[0])));
     if (tops.length > 200) throw new Error(`Check output contains too many tracked input directories: ${name}`);

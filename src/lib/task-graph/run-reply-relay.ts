@@ -1,10 +1,7 @@
-import { createHash } from 'node:crypto';
-import { redactSensitiveText } from '../redact-sensitive';
-import { completedReplyParagraphs } from './run-reply-progress';
 import { prisma } from '../prisma';
-import { replyFeishuMessage, sendFeishuInteractiveMessage } from '../feishu-api';
+import { sendFeishuInteractiveMessage } from '../feishu-api';
 import { updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
-import { buildRunReplyCard, buildRunAgentReplyCard } from './run-reply-card';
+import { buildRunReplyCard } from './run-reply-card';
 
 async function runBinding(taskId: string) {
   const direct = await prisma.feishuConversationBinding.findFirst({
@@ -21,7 +18,7 @@ async function runBinding(taskId: string) {
 }
 
 /** Relay persisted events, including history, without coupling delivery to the running harness. */
-export async function relayTaskGraphRunReply(taskRunId: string) {
+export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = false) {
   const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } });
   if (!run.taskId.startsWith('task-graph-')) return false;
   const binding = await runBinding(run.taskId);
@@ -38,37 +35,19 @@ export async function relayTaskGraphRunReply(taskRunId: string) {
     const sequence = latest?.sequence || 0;
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
     const expiredSinceDelivery = requests.some((request) => request.expiresAt && request.expiresAt <= new Date() && request.expiresAt > cursor.updatedAt);
-    if (cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
+    if (!forceRefresh && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
     if (!cursor.messageId && Date.now() - cursor.createdAt.getTime() > 50 * 60_000) {
       throw new Error(`Reply receipt uncertain for ${run.id}; reconcile before resending`);
     }
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
     const history = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: { notIn: ['stdout_chunk', 'stderr_chunk', 'summary'] } }, orderBy: { sequence: 'desc' }, take: 100 });
     output.reverse();
-    const card = buildRunReplyCard(run, history.reverse(), requests);
+    const card = buildRunReplyCard(run, history.reverse(), requests, output);
     let messageId = cursor.messageId;
     if (messageId) await updateFeishuTaskEntryCard(messageId, card);
     else messageId = await sendFeishuInteractiveMessage({ receiveId: binding.chatId, threadRootMessageId: rootMessageId,
       uuid: `graph-run-reply-${run.id}`, card }) || null;
     if (!messageId) throw new Error('Reply card send returned no message id');
-    const identity = run.participants.map((participant) => participant.harnessNameSnapshot || participant.harnessType || participant.runner).join(' / ') || 'Harness';
-    const terminal = ['completed', 'failed', 'stopped', 'interrupted'].includes(run.status);
-    const notices = terminal
-      ? cursor.lastStatus === run.status ? [] : [{
-        key: `terminal-${run.status}`,
-        text: `${run.status === 'completed' ? '会话结束' : '执行结束（未成功）'}\n\n` +
-          (run.participants.map((participant) => participant.summary || participant.error || '').filter(Boolean).join('\n\n') || run.summary || run.error || '无最终回复。') +
-          '\n\n会话结束不代表 Slice 验收通过；集成和验收状态以路线进度为准。',
-      }]
-      : completedReplyParagraphs(output, cursor.deliveredSequence).map((paragraph) => ({
-        key: `progress-${paragraph.sequence}-${createHash('sha256').update(paragraph.text).digest('hex').slice(0, 16)}`,
-        text: paragraph.text,
-      }));
-    for (const notice of notices) {
-      await replyFeishuMessage({ messageId: rootMessageId, msgType: 'interactive',
-        content: buildRunAgentReplyCard(identity, redactSensitiveText(notice.text)), replyInThread: true,
-        uuid: `graph-note-${createHash('sha256').update(`${run.id}:${notice.key}`).digest('hex').slice(0, 32)}` });
-    }
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
       data: { messageId, deliveredSequence: sequence, lastStatus: run.status } });
     return true;

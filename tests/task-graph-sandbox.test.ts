@@ -8,7 +8,7 @@ import { ensureIntegrationRef, ensureJobWorktree, commitJobWorktree, integrateJo
 import { linkedWorktreeGitDirectories } from '../src/lib/real-agents/git-worktree-paths';
 import { wrapWithBubblewrap } from '../src/lib/harness/bubblewrap';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { executeKimiCodeTask } from '../src/lib/real-agents/kimi-code-agent';
@@ -95,12 +95,17 @@ printf '%s\\n' '{"type":"turn.completed"}'
     await ensureJobWorktree({ repoPath: repository, runId: 'sandbox', jobId: 'two', baseRef: integration.ref, baseCommit: commit });
     assert.equal(existsSync(filterMarker), false, 'New worktrees must not execute task-selected smudge filters');
     assert.equal(git(repository, 'rev-parse', 'refs/heads/main'), base);
-    writeFileSync(path.join(job.path, '.gitignore'), 'scratch/\n');
+    writeFileSync(path.join(job.path, '.gitignore'), 'scratch/\nfrontend/node_modules/\n');
     mkdirSync(path.join(job.path, 'scratch', 'inputs'), { recursive: true }); writeFileSync(path.join(job.path, 'scratch', 'inputs', 'answer.txt'), 'answer');
     git(job.path, 'add', '--force', 'scratch/inputs/answer.txt');
     await commitJobWorktree({ repoPath: repository, runId: 'sandbox', jobId: 'one', message: 'Declare check output' });
-    const checked = await runSandboxedGraphCheck(['/bin/sh', '-c', 'test -z "$PLATFORM_PRIVATE_TOKEN" && test -z "$DATABASE_URL" && test -z "$OPENAI_API_KEY" && ! touch baseline && ! touch scratch/inputs/answer.txt && ! mv scratch/inputs scratch/relocated && echo report > scratch/report.txt && node --version && python --version'], job.path,
+    const sharedDependencies = path.join(repository, 'frontend', 'node_modules');
+    mkdirSync(sharedDependencies, { recursive: true });
+    mkdirSync(path.join(job.path, 'frontend'), { recursive: true });
+    symlinkSync(sharedDependencies, path.join(job.path, 'frontend', 'node_modules'));
+    const checked = await runSandboxedGraphCheck(['/bin/sh', '-c', 'test -z "$PLATFORM_PRIVATE_TOKEN" && test -z "$DATABASE_URL" && test -z "$OPENAI_API_KEY" && ! touch frontend/node_modules/escaped && ! touch baseline && ! touch scratch/inputs/answer.txt && ! mv scratch/inputs scratch/relocated && echo report > scratch/report.txt && node --version && python --version'], job.path,
       { PLATFORM_PRIVATE_TOKEN: 'fixture-only', DATABASE_URL: 'fixture-only', OPENAI_API_KEY: 'fixture-only' });
+    assert.equal(existsSync(path.join(sharedDependencies, 'escaped')), false);
     assert.match(checked.stdout, /Python/);
     assert.match(checked.stdout, /v[0-9]+/);
     const driverRepo = path.join(root, 'driver-repo'); mkdirSync(driverRepo);

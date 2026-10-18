@@ -331,3 +331,20 @@ D1 发布回执已核验：`.runtime/delivery-relay-deploy/reload-receipt.json` 
 - 新增 PostgreSQL / 真 Git / Bubblewrap 测试，并经真实 Harness 调用链传递上下文，用本地探针核验挂载；没有调用真实模型。完整 task-graph 回归、TypeScript、定向 lint 与长文件守卫作为发布门禁。GitNexus 因既有 LadybugDB 故障返回 UNKNOWN，使用直接调用链与回归核验。
 
 本轮没有给历史 S06 偷加 extra repo、重写审批或启动业务任务。已有运行的补授权接续不在本次改动范围内，不通过修改旧快照扩权。配置与清理边界见 `docs/architecture/issue-route-packages.md` 的 extra repo 章节。
+
+
+## 2026-10-18 · S06 进度单卡更新与既有项目环境登记
+
+用户要求同轮执行保持一张进度卡、详情折叠，并排查 S06 是否停滞。本轮修复平台输出与环境检查，不自动恢复业务实施。
+
+- 原 relay 在更新系统/工具状态卡之外，还为每段完整 Agent 回复和最终结果追加新卡。现在每个 TaskRun 仅更新其已登记 messageId：当前回复与结果在原卡显示，回复详情、系统信息、工具调用分别折叠；恢复后的新 TaskRun 保留独立历史。删除不再使用的段落发送模块，不删历史消息。
+- 保留原持久化游标、事务锁、首次发送幂等键、身份绑定、脱敏和审批按钮。同一游标可受控强制重绘，用于更新已结束运行的旧状态卡；实施输出显式 blocked 时显示“实施暂停”，不把进程 completed 当作交付。
+- S06 最新 TaskRun `cmvdbmzgb01mnvvsbh46al0g6` 已于 2026-10-18 04:35:44 UTC 结束，执行与节点为 attention。工作保存点 `23c9773ddb008a203112155276a6f889b06ba530`，历史集成提交仍为 `2fcd0d3`。阻塞报告同时指出主仓 Python 导入失败与温区投影、重新冻结及真实保存重开尚未完成；已有实图，不要求重发。
+- 主仓实际已有 `backend/.venv`。在 `/data1/code/mold-data-webpage-tool/.agent-platform/project-environment.json` 显式登记 `pythonEnvironment: backend/.venv`，复用既有配置入口；文件此前不存在，以独占创建写入，未安装依赖或创建环境。该运行配置留在项目原目录，未混入平台代码提交。
+- 真实沙箱探测又复现 `git check-ignore` 对 `frontend/node_modules/` 共享软链接报错。将现有软链接保护提前到 Git 路径检查之前，依赖目标仍只读，检查输出权限不扩大。修正后在 S06 当前工作区通过平台检查沙箱成功导入 `pydantic_settings`，解释器前缀为既有主仓环境。
+
+验证：单卡测试先红后绿，覆盖分段、最终回复、并发/失败重试、审批及 blocked 标题；软链接回归先复现同一 Git 错误，修复后真 Git/Bubblewrap 通过且共享依赖未被写入。完整 PostgreSQL 任务图回归、TypeScript、定向 lint、长文件检查及生产 import-only 沙箱探针日志位于工作检出 `.runtime/reply-card-fix/`。没有启动真实模型、重跑 S06 或宣称温区投影已实现。
+
+发布采用当前会话退出后的独立空闲重载，回执位于主检出 `.runtime/reply-card-deploy/reload-receipt.json`；只有 verified 才表示运行服务已更新。既有 S06 状态卡采用原 messageId 更新，保留原审批、历史事件与旧段落卡。
+
+生产回读：S06 最新运行的原卡 `om_x100b6270ee8d30accd115e48b7bf991` 已更新为“实施暂停”，确认 chat/root 仍归属于原 S06 话题；没有新发进度卡。回执 `.runtime/reply-card-fix/s06-card.json` 为 verified。
