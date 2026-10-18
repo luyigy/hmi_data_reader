@@ -1,6 +1,6 @@
 import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
 import { publishReviewPreparationFailure, reviewPreparationFailure, type ReviewPublication } from './review-publication';
-import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
+import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, immutableDispatchMetadata, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
 import { prepareExtraRepositories } from './extra-repositories';
 import { ServiceRuntimeError } from './attempt-services';
 import { prepareUpstreamInputs, TaskInputPreparationError } from './upstream-inputs';
@@ -38,6 +38,8 @@ import { integrateJobWithRetry } from './integration-retry';
 import { runSandboxedGraphCheck } from './check-environment';
 import { executionCheckInstructions } from './execution-instructions';
 import { postGraphChildProgress } from './feishu';
+import { createGraphWriter } from './writer-ownership';
+import { registerGraphReviewWorker, releaseGraphReviewWorker, releaseGraphExecutionWorker } from './phase-worker';
 import { recoverGraphExecution, recoverGraphReview } from './restart-recovery';
 import { requestGraphChildTopic } from './notifications';
 import { inspectIssueDispatch } from './issue-dispatch';
@@ -131,7 +133,11 @@ function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string): Pro
   const key = `${runId}/${nodeKey}`;
   const active = nodeVerifications.get(key);
   if (active) return active;
-  const pending = verifyNodeOnce(runId, nodeKey, reviewAttempt).finally(() => nodeVerifications.delete(key));
+  const pending = (async () => {
+    const ownership = await registerGraphReviewWorker(runId, nodeKey);
+    try { await verifyNodeOnce(runId, nodeKey, reviewAttempt); }
+    finally { if (ownership) await releaseGraphReviewWorker(ownership.nodeId, ownership.worker.nonce); }
+  })().finally(() => nodeVerifications.delete(key));
   nodeVerifications.set(key, pending);
   return pending;
 }
@@ -405,6 +411,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   const repair = await latestGraphRepair(execution.nodeId);
   const continuation = await latestImplementationRecovery(execution.nodeId);
   const persisted = executionProgress(execution.dispatchMetadata);
+  const worker = persisted?.worker || await createGraphWriter();
   const checkpoint = persisted?.candidateCommit && persisted.workspaceBase
     ? { checkpointCommit: persisted.candidateCommit, workspaceBase: persisted.workspaceBase }
     : continuation && (!repair || continuation.createdAt > repair.createdAt)
@@ -416,6 +423,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       outcomeId: `${claimToken}:${progress.revision}:${result.kind}`, outcome: result });
   };
   try {
+    await outcome({ kind: 'checkpoint', phase: persisted?.phase || 'prepare', worker });
     const { integration, workspace } = await withRepositoryLock(execution.repository, async () => {
       await assertExecutionOwnership(execution.id, claimToken);
       const integration = await ensureIntegrationRef({
@@ -452,7 +460,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     await recordExecutionDispatch({
       runId, nodeKey, executionKey: execution.key, claimToken,
       childTaskId: task.id, worktreePath: workspace.path, worktreeBranch: workspace.branch,
-      dispatchMetadata: execution.dispatchMetadata ? undefined : { integrationRef: integration.ref, workspaceBase: workspace.baseCommit, ...(checkpoint ? { resumedFrom: checkpoint.checkpointCommit, attemptId: continuation?.id } : {}) },
+      dispatchMetadata: execution.worktreePath ? undefined : { ...immutableDispatchMetadata(execution.dispatchMetadata), integrationRef: integration.ref, workspaceBase: workspace.baseCommit, ...(checkpoint ? { resumedFrom: checkpoint.checkpointCommit, attemptId: continuation?.id } : {}) },
     });
     await outcome({ kind: 'checkpoint', phase: persisted?.phase || 'implement', workspaceBase: workspace.baseCommit, candidateCommit: implementationBase });
     const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
@@ -605,6 +613,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       : '需要处理一项具体决定。';
     void postGraphParentProgress(graphRun.parentTaskId, runId, `${nodeKey}/${execution.key}：${status}详情见仓库群原任务话题。`)
       .catch((deliveryError) => console.error('[TaskGraph] parent progress delivery failed:', deliveryError));
+  } finally {
+    await releaseGraphExecutionWorker(execution.id, claimToken, worker.nonce);
   }
 }
 
@@ -651,7 +661,7 @@ export async function runTaskGraphCycle() {
         });
         if (current?.status !== 'claimed') continue;
       }
-      const claimed = await claimExecution(run.id, execution.node.key, execution.key, token);
+      const claimed = await claimExecution(run.id, execution.node.key, execution.key, token, prisma, await createGraphWriter());
       if (!claimed) continue;
       activeJobs.add(execution.id);
       const task = executeJob(run.id, execution.node.key, claimed, token)

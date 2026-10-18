@@ -1,8 +1,8 @@
-import { observeTaskRunWriter } from './writer-ownership';
+import { observeTaskRunWriter, observeGraphWriter, type GraphWriter } from './writer-ownership';
 import { applyReviewFailureTx, type ReviewPublication } from './review-publication';
 import { assertGraphReviewOwnershipTx } from './review-ownership';
 import { createHash } from 'node:crypto';
-import { executionProgress, immutableDispatchMetadata, applyExecutionOutcome, applyExecutionOutcomeTx } from './execution-progress';
+import { executionProgress, immutableDispatchMetadata, initialExecutionProgress, metadataWithProgress, applyExecutionOutcome, applyExecutionOutcomeTx } from './execution-progress';
 import { realpath } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -134,7 +134,7 @@ export async function claimNode(runId: string, nodeKey: string, claimToken: stri
 }
 
 export async function claimExecution(
-  runId: string, nodeKey: string, executionKey: string, claimToken: string, db: Database = prisma,
+  runId: string, nodeKey: string, executionKey: string, claimToken: string, db: Database = prisma, worker?: GraphWriter,
 ) {
   required(claimToken, 'claimToken');
   return db.$transaction(async (tx) => {
@@ -146,17 +146,18 @@ export async function claimExecution(
     const progress = executionProgress(execution.dispatchMetadata);
     if (progress?.state === 'exhausted' || (progress?.nextRetryAt && Date.parse(progress.nextRetryAt) > Date.now())) return null;
     if (execution.status === 'claimed' && execution.claimToken === claimToken) return execution;
+    if (progress?.worker && (await observeGraphWriter(progress.worker, Boolean(progress.workerReleasedAt))).kind !== 'exited') return null;
     const approved = node.run.snapshot as unknown as GraphDefinition;
     const sharedWriter = approved.nodes.find(planned => planned.key === node.key)?.extraRepositories?.some(extra => extra.access === 'write');
     if (sharedWriter && await tx.taskGraphExecution.count({ where: { nodeId: node.id, id: { not: execution.id }, status: 'claimed' } })) return null;
     const updated = await tx.taskGraphExecution.updateMany({
       where: { id: execution.id, status: 'ready', claimToken: null },
-      data: { status: 'claimed', claimToken, claimedAt: new Date() },
+      data: { status: 'claimed', claimToken, claimedAt: new Date(), ...(worker ? { dispatchMetadata: metadataWithProgress(execution.dispatchMetadata, { ...(progress || initialExecutionProgress()), revision: (progress?.revision || 0) + 1, state: 'active', worker, workerReleasedAt: undefined }) } : {}) },
     });
     if (updated.count !== 1) return null;
     await tx.taskGraphEvent.create({
       data: { runId, nodeId: node.id, idempotencyKey: `execution:${nodeKey}:${executionKey}:claimed:${claimToken}`,
-        kind: 'execution_claimed', payload: { claimToken } },
+        kind: 'execution_claimed', payload: { claimToken, ...(worker ? { worker } : {}) } },
     });
     return tx.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
   });
@@ -181,6 +182,7 @@ export async function recordExecutionDispatch(args: {
       }
     }
     if (args.dispatchMetadata !== undefined && execution.dispatchMetadata !== null &&
+        (execution.worktreePath !== null || Object.keys(immutableDispatchMetadata(execution.dispatchMetadata)).length > 0) &&
         !isDeepStrictEqual(immutableDispatchMetadata(execution.dispatchMetadata), immutableDispatchMetadata(args.dispatchMetadata))) {
       throw new Error('Conflicting execution dispatchMetadata');
     }

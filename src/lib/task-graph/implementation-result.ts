@@ -1,3 +1,4 @@
+import { assertExecutionWriterExited } from './phase-worker';
 import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -97,6 +98,9 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     if (current.status !== 'attention' || current.executions.some(job => job.status === 'claimed')) throw new Error('实施仍在执行或状态已改变');
     if (await tx.taskRun.count({ where: { taskId: { in: [...current.executions.flatMap(job => job.childTaskId ? [job.childTaskId] : []),
       `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } } })) throw new Error('原任务进程仍在执行，请等待结束');
+    for (const job of current.executions) {
+      if (job.status !== 'integrated' && executionProgress(job.dispatchMetadata)?.state === 'waiting_decision') await assertExecutionWriterExited(tx, job);
+    }
     const blocks = await tx.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: { in: ['implementation_blocked', 'node_delivery_reclassified'] } }, orderBy: { createdAt: 'desc' } });
     const executions = current.executions.flatMap(job => {
       const progress = executionProgress(job.dispatchMetadata);

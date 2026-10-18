@@ -1,3 +1,4 @@
+import { parseGraphWriter, type GraphWriter } from './writer-ownership';
 import { isDeepStrictEqual } from 'node:util';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -8,13 +9,15 @@ export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKe
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
   review?: GraphReviewBinding;
+  worker?: GraphWriter;
+  workerReleasedAt?: string;
   state: 'active' | 'ready' | 'waiting_decision' | 'exhausted' | 'ownership_attention';
   workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; taskRunId?: string;
   repairAttempts: number; formatAttempts: number; platformAttempts: number; integrationAttempts: number;
   nextRetryAt?: string; lastFailure?: ExecutionFailure;
 };
 export type ExecutionOutcome =
-  | { kind: 'checkpoint'; phase: ExecutionPhase; workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string }
+  | { kind: 'checkpoint'; phase: ExecutionPhase; workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; worker?: GraphWriter }
   | { kind: 'repair_required'; failure: ExecutionFailure }
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
   | { kind: 'platform_retry'; failure: ExecutionFailure }
@@ -69,6 +72,16 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
   if (nextRetryAt) {
     if (!Number.isFinite(Date.parse(nextRetryAt))) throw new Error('Invalid retry deadline');
     progress.nextRetryAt = nextRetryAt;
+  }
+  if (value.worker !== undefined) {
+    const worker = parseGraphWriter(value.worker);
+    if (!worker) throw new Error('Invalid phase worker identity');
+    progress.worker = worker;
+    if (value.workerReleasedAt !== undefined) {
+      const releasedAt = optionalText(value.workerReleasedAt);
+      if (!releasedAt || !Number.isFinite(Date.parse(releasedAt))) throw new Error('Invalid phase worker release');
+      progress.workerReleasedAt = releasedAt;
+    }
   }
   if (value.review !== undefined) {
     const review = record(value.review);
@@ -153,6 +166,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       progress.lastFailure = outcome.failure; delete progress.review;
     } else if (outcome.kind === 'checkpoint') {
       progress.phase = outcome.phase;
+      if (outcome.worker) { progress.worker = outcome.worker; delete progress.workerReleasedAt; }
       if (outcome.workspaceBase) progress.workspaceBase = outcome.workspaceBase;
       if (outcome.candidateCommit) {
         if (!/^[0-9a-f]{40,64}$/.test(outcome.candidateCommit)) throw new Error('Invalid candidate commit');
@@ -199,6 +213,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         }
       }
     }
+    if (status === 'ready' || outcome.kind === 'integrated' || outcome.kind === 'review_retry') { delete progress.worker; delete progress.workerReleasedAt; }
     if (status === 'ready' && current.taskRunId && await tx.taskRun.count({ where: { id: current.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Cannot requeue a live TaskRun');
     await tx.taskGraphExecution.update({ where: { id: current.id }, data: {
       status, issueKind, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, progress),

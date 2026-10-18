@@ -1,9 +1,10 @@
+import { observeExecutionWriter } from './phase-worker';
 import path from 'node:path';
 import { graphGit } from './git-command';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { applyExecutionOutcomeTx, executionProgress, assertExecutionOwnership } from './execution-progress';
-import { observeTaskRunWriter, type WriterObservation } from './writer-ownership';
+import { observeTaskRunWriter, observeGraphWriter, type WriterObservation } from './writer-ownership';
 import { withRepositoryLock } from './repository-lock';
 import { commitJobWorktree, inspectJobWorktree, TaskGraphGitError } from './worktree';
 import { parseImplementationResult } from './implementation-result';
@@ -24,12 +25,17 @@ export async function recoverGraphExecution(executionId: string) {
   const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
   if (job.status !== 'claimed' || !job.claimToken) return false;
   const claimToken = job.claimToken;
-  const taskRunId = job.taskRunId;
+  const taskRunId = job.taskRunId || executionProgress(job.dispatchMetadata)?.taskRunId;
   const progress = executionProgress(job.dispatchMetadata);
-  const observation: WriterObservation = taskRunId && progress ? await observeTaskRunWriter(taskRunId) : { kind: 'unknown', reason: 'Claim has no durable current TaskRun writer' };
+  if (progress?.worker) {
+    const worker = await observeGraphWriter(progress.worker, Boolean(progress.workerReleasedAt));
+    await recordObservation(job.node.runId, job.nodeId, `phase:${job.id}:${progress.worker.nonce}`, worker);
+    if (worker.kind !== 'exited') return false;
+  }
+  const observation = await observeExecutionWriter(job);
   await recordObservation(job.node.runId, job.nodeId, `${job.id}:${job.claimToken}`, observation);
-  if (observation.kind !== 'exited' || !progress || !taskRunId) return false;
-  const previous = await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } });
+  if (observation.kind !== 'exited' || !progress) return false;
+  const previous = taskRunId ? await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } }) : null;
   let phase = progress.phase;
   let candidate = progress.candidateCommit;
   if (job.worktreePath && job.worktreeBranch && progress.workspaceBase) {
@@ -50,7 +56,7 @@ export async function recoverGraphExecution(executionId: string) {
         await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
         const owned = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
         if (owned.status !== 'claimed' || owned.claimToken !== claimToken || executionProgress(owned.dispatchMetadata)?.revision !== progress.revision) return;
-        await interruptExitedRun(tx, taskRunId);
+        if (taskRunId) await interruptExitedRun(tx, taskRunId);
         const metadata = job.dispatchMetadata && typeof job.dispatchMetadata === 'object' ? job.dispatchMetadata : {};
         const ref: unknown = Reflect.get(metadata, 'integrationRef');
         const mergeHead = code === 'integration_conflict' ? await graphGit(recordedPath, 'rev-parse', '--verify', 'MERGE_HEAD').catch(() => null) : null;
@@ -65,7 +71,7 @@ export async function recoverGraphExecution(executionId: string) {
       return false;
     }
   }
-  if (previous.status === 'completed' && ['implement', 'collect_result'].includes(phase)) {
+  if (previous?.status === 'completed' && ['implement', 'collect_result'].includes(phase)) {
     try { if (parseImplementationResult(previous.participants[0]?.summary || previous.summary || '').status === 'delivered') phase = 'check'; } catch { phase = 'collect_result'; }
   }
   return prisma.$transaction(async tx => {
@@ -73,7 +79,7 @@ export async function recoverGraphExecution(executionId: string) {
     const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
     const currentProgress = executionProgress(current.dispatchMetadata);
     if (current.status !== 'claimed' || current.claimToken !== job.claimToken || current.taskRunId !== job.taskRunId || currentProgress?.revision !== progress.revision) return false;
-    await interruptExitedRun(tx, taskRunId);
+    if (taskRunId) await interruptExitedRun(tx, taskRunId);
     const saved = await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: claimToken, expectedRevision: progress.revision,
       outcomeId: `restart-checkpoint:${job.claimToken}`, outcome: { kind: 'checkpoint', phase, ...(candidate ? { candidateCommit: candidate } : {}) } });
     await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: claimToken, expectedRevision: saved.revision,
@@ -84,8 +90,41 @@ export async function recoverGraphExecution(executionId: string) {
 
 export async function recoverGraphReview(nodeId: string): Promise<'ready' | 'waiting' | 'none'> {
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+  for (const job of node.executions) {
+    const progress = executionProgress(job.dispatchMetadata);
+    const worker = progress?.worker;
+    if (!worker) continue;
+    const observation = await observeGraphWriter(worker, Boolean(progress.workerReleasedAt));
+    await recordObservation(node.runId, node.id, `review-phase:${worker.nonce}`, observation);
+    if (observation.kind !== 'exited') return 'waiting';
+  }
   const bindings = node.executions.map(job => { const binding = executionProgress(job.dispatchMetadata)?.review; return binding?.candidateCommit === job.commit ? binding : undefined; });
-  if (bindings.every(binding => binding?.kind === 'ready')) return 'ready';
+  if (bindings.every(binding => binding?.kind === 'ready')) {
+    const reserved = bindings[0];
+    const owned = node.executions.every(job => executionProgress(job.dispatchMetadata)?.worker);
+    if (!owned || !reserved || reserved.kind !== 'ready') return 'ready';
+    // A reserved claim with an exited phase owner never reached atomic TaskRun binding.
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
+      const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
+      if (current.status !== 'verifying') return;
+      for (const job of current.executions) {
+        const progress = executionProgress(job.dispatchMetadata);
+        const before = node.executions.find(previous => previous.id === job.id);
+        const previous = executionProgress(before?.dispatchMetadata);
+        if (!progress || !previous || progress.revision !== previous.revision || progress.worker?.nonce !== previous.worker?.nonce || progress.review?.kind !== 'ready' || progress.review.claimKey !== reserved.claimKey || progress.review.candidateCommit !== job.commit) return;
+      }
+      const generation = Math.max(...current.executions.map(job => executionProgress(job.dispatchMetadata)?.revision || 0)) + 1;
+      for (const job of current.executions) {
+        const progress = executionProgress(job.dispatchMetadata);
+        if (!progress || !job.claimToken) throw new Error('Reserved review has no versioned ownership');
+        await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision,
+          outcomeId: `review-prelaunch:${progress.worker?.nonce}:${reserved.claimKey}`, outcome: { kind: 'review_retry', claimKey: `${reserved.claimKey}:restart:${generation}`,
+            failure: { code: 'review_writer_exited', detail: 'Reserved review owner exited before TaskRun binding; retry the same phase automatically.' } } });
+      }
+    });
+    return (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, select: { status: true } })).status === 'verifying' ? 'ready' : 'waiting';
+  }
   const running = bindings.filter(binding => binding?.kind === 'running');
   if (!running.length) {
     if (node.executions.every(job => executionProgress(job.dispatchMetadata))) return 'none';
