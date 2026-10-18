@@ -33,6 +33,26 @@ export async function requestGraphChildTopic(args: Omit<Extract<GraphNotificatio
   await queueGraphNotification(job.node.runId, `child-topic:${args.executionId}`, { kind: 'child_topic', ...args });
 }
 
+export async function deliverGraphNotificationOnce(args: { runId: string; identity: string; send: () => Promise<string | null | undefined> }) {
+  const identity = createHash('sha256').update(args.identity).digest('hex');
+  const key = { runId: args.runId, idempotencyKey: `notification-message:${identity}` };
+  const receipt = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: key } });
+  if (receipt) {
+    const messageId: unknown = receipt.payload && typeof receipt.payload === 'object' ? Reflect.get(receipt.payload, 'messageId') : null;
+    if (typeof messageId !== 'string') throw new Error('Notification message receipt needs reconciliation');
+    return messageId;
+  }
+  const attemptKey = { runId: args.runId, idempotencyKey: `notification-send:${identity}` };
+  const attempt = await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: attemptKey }, update: {},
+    create: { ...attemptKey, kind: 'notification_send_started', payload: { identity: args.identity } } });
+  if (Date.now() - attempt.createdAt.getTime() > 50 * 60_000) throw new Error('Notification send uncertain; reconcile the original request before resending');
+  const messageId = await args.send();
+  if (!messageId) throw new Error('Notification send returned no message id');
+  await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: key }, update: {},
+    create: { ...key, kind: 'notification_message_sent', payload: { messageId } } });
+  return messageId;
+}
+
 /** Existing Feishu relay replays persisted intents independently of business workers. */
 export async function relayGraphNotifications() {
   const pending = await prisma.$queryRaw<{ id: string }[]>`

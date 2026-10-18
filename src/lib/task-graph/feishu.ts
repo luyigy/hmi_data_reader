@@ -1,5 +1,5 @@
 import { ensureGraphRoomParticipants } from './conversation-members';
-import { queueGraphNotification } from './notifications';
+import { queueGraphNotification, deliverGraphNotificationOnce } from './notifications';
 import { graphTopicDestination } from './repository-topic';
 import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
 import { createHash } from 'node:crypto';
@@ -96,11 +96,11 @@ export async function deliverGraphHumanReviewCard(runId: string, nodeKey: string
       })) },
     ],
   };
-  const messageId = await sendFeishuInteractiveMessage({
+  const messageId = await deliverGraphNotificationOnce({ runId, identity: `human-review:${node.id}`, send: () => sendFeishuInteractiveMessage({
     receiveId: binding.chatId, card,
     ...(binding.rootMessageId ? { threadRootMessageId: binding.rootMessageId } : {}),
     uuid: `task-graph-review-${node.id}`,
-  });
+  }) });
   if (!messageId) throw new Error('Human review card send returned no message id');
   return messageId;
 }
@@ -150,6 +150,7 @@ export async function deliverGraphChildProgress(childTaskId: string, eventKey: s
     orderBy: { updatedAt: 'desc' },
   });
   if (!binding?.rootMessageId) return null;
+  const rootMessageId = binding.rootMessageId;
   const run = await prisma.taskRun.findFirst({ where: { taskId: childTaskId }, orderBy: { createdAt: 'desc' }, select: { id: true } });
   if (run) {
     const { relayTaskGraphRunReply } = await import('./run-reply-relay');
@@ -157,9 +158,11 @@ export async function deliverGraphChildProgress(childTaskId: string, eventKey: s
     return true;
   }
   const detail = redactSensitiveText(text).slice(-10_000);
-  return sendFeishuInteractiveMessage({ receiveId: binding.chatId, threadRootMessageId: binding.rootMessageId,
+  const execution = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { childTaskId }, select: { node: { select: { runId: true } } } });
+  return deliverGraphNotificationOnce({ runId: execution.node.runId, identity: `child-progress:${childTaskId}:${eventKey}`,
+    send: () => sendFeishuInteractiveMessage({ receiveId: binding.chatId, threadRootMessageId: rootMessageId,
     card: { schema: '2.0', config: { update_multi: true }, header: { template: 'orange', title: { tag: 'plain_text', content: '任务进度' } },
       body: { elements: [{ tag: 'markdown', content: detail.split('\n')[0].slice(0, 300) },
         { tag: 'collapsible_panel', expanded: false, header: { title: { tag: 'plain_text', content: '技术详情' } }, elements: [{ tag: 'markdown', content: detail }] }] } },
-    uuid: `graph-child-${createHash('sha256').update(`${childTaskId}:${eventKey}`).digest('hex').slice(0, 32)}` });
+    uuid: `graph-child-${createHash('sha256').update(`${childTaskId}:${eventKey}`).digest('hex').slice(0, 32)}` }) });
 }

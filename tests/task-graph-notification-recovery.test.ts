@@ -60,7 +60,7 @@ async function main() {
     const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal);
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'N' } } })).status, 'passed', 'Notification timeout must not become a business dispatch failure');
     assert.equal(starts, 1);
-    const { relayGraphNotifications } = await import('../src/lib/task-graph/notifications');
+    const { relayGraphNotifications, deliverGraphNotificationOnce } = await import('../src/lib/task-graph/notifications');
     const { relayTaskGraphRunReply } = await import('../src/lib/task-graph/run-reply-relay');
     for (let n = 0; n < 3; n++) {
       await prisma.taskGraphEvent.updateMany({ where: { runId: run.id, kind: 'notification_failed' }, data: { createdAt: new Date(0) } });
@@ -91,6 +91,17 @@ async function main() {
     assert.equal(sends.size, 2, 'One logical topic and one detail card, despite lost responses');
     assert.equal(attempts.length, 4); assert.equal(starts, 1);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'dispatch_failed' } }), 0);
+    let auxiliarySends = 0;
+    const identity = 'human-review-expiry-fixture';
+    await assert.rejects(deliverGraphNotificationOnce({ runId: run.id, identity, send: async () => { auxiliarySends++; throw new Error('accepted response lost'); } }), /response lost/);
+    const firstSend = await prisma.taskGraphEvent.findFirstOrThrow({ where: { runId: run.id, kind: 'notification_send_started', payload: { path: ['identity'], equals: identity } } });
+    await prisma.taskGraphEvent.update({ where: { id: firstSend.id }, data: { createdAt: new Date(0) } });
+    await assert.rejects(deliverGraphNotificationOnce({ runId: run.id, identity, send: async () => { auxiliarySends++; return 'duplicate'; } }), /reconcile the original/);
+    assert.equal(auxiliarySends, 1);
+    await prisma.taskGraphEvent.update({ where: { id: firstSend.id }, data: { createdAt: new Date() } });
+    assert.equal(await deliverGraphNotificationOnce({ runId: run.id, identity, send: async () => { auxiliarySends++; return 'accepted-message'; } }), 'accepted-message');
+    assert.equal(await deliverGraphNotificationOnce({ runId: run.id, identity, send: async () => { auxiliarySends++; return 'duplicate'; } }), 'accepted-message');
+    assert.equal(auxiliarySends, 2, 'Known auxiliary card receipts must prevent resends');
     console.log('Topic/card send and update timeouts do not stop business; durable replay reuses one repo topic and detail card without DM fallback');
   } finally {
     const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal);
