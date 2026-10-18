@@ -123,12 +123,23 @@ async function main() {
 
     await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
       ...initialExecutionProgress(), phase: 'integrate', state: 'waiting_decision',
-      lastFailure: { code: 'integration_conflict', detail: 'shared.txt 存在冲突。请确认采用哪项业务规则。' },
+      lastFailure: { code: 'integration_conflict', detail: JSON.stringify({ integration: { paths: ['shared.txt'] } }) },
     } } } });
     await prisma.taskGraphNode.update({ where: { id: first.job.nodeId }, data: { status: 'attention' } });
-    await deliverGraphChildProgress(first.task.id, 'conflict', 'shared.txt 存在冲突。请确认采用哪项业务规则。');
+    await deliverGraphChildProgress(first.task.id, 'technical-conflict', 'shared.txt 存在技术冲突，待平台处理。');
+    const technicalCard = JSON.stringify(updates.at(-1)?.card);
+    assert.match(technicalCard, /shared.txt/); assert.match(technicalCard, /待平台处理/);
+    assert.doesNotMatch(technicalCard, /需你确认/); assert.match(technicalCard, /需要你决定：否/);
+    await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
+      ...initialExecutionProgress(), phase: 'integrate', state: 'waiting_decision',
+      lastFailure: { code: 'scope_change', detail: 'shared.txt 中两项业务规则互斥，需要业务负责人选择。',
+        affectedPaths: ['shared.txt'], owner: 'user', requiresUserDecision: true,
+        action: '请确认采用哪项业务规则：保留原机型范围，还是纳入新增机型。' },
+    } } } });
+    await deliverGraphChildProgress(first.task.id, 'business-decision', '请确认采用哪项业务规则。');
     const card = JSON.stringify(updates.at(-1)?.card);
-    assert.match(card, /shared.txt/); assert.match(card, /请确认采用哪项业务规则/); assert.match(card, /需决定/);
+    assert.match(card, /shared.txt/); assert.match(card, /请确认采用哪项业务规则/); assert.match(card, /需你确认/);
+    assert.match(card, /负责人：你/); assert.match(card, /需要你决定：是/);
     assert.match(card, /当前阶段故障详情/);
     await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
       ...initialExecutionProgress(), phase: 'check', state: 'exhausted', repairAttempts: 2,
