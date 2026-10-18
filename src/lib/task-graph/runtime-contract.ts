@@ -31,14 +31,25 @@ export function parseRuntimeDeclaration(value: unknown): RuntimeDeclaration {
 export async function runtimeDeclaration(workspace: string) {
   const name = '.agent-platform/runtime.json';
   const filename = path.join(workspace, name);
-  try { await fs.lstat(filename); } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
-    const tracked = await graphGit(workspace, 'ls-files', '-z', '--', name).catch(() => '');
-    if (tracked) throw new Error('已版本化的运行能力声明在工作区中缺失');
-    return null;
+  const local = await fs.lstat(filename).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+  if (!local) {
+    let ancestor = workspace;
+    while (true) {
+      const marker = await fs.lstat(path.join(ancestor, '.git')).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
+      const head = marker?.isDirectory() ? await fs.lstat(path.join(ancestor, '.git/HEAD')).catch(error => { if (error.code === 'ENOENT') return null; throw error; }) : null;
+      if (marker?.isFile() || head?.isFile() || marker && ancestor === workspace) break;
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) return null;
+      ancestor = parent;
+    }
   }
-  if (await fs.realpath(filename) !== filename || !(await fs.lstat(filename)).isFile()) throw new Error('运行能力声明不能是链接');
-  if (!await graphGit(workspace, 'ls-files', '-z', '--', name)) throw new Error('运行能力声明必须纳入 Git 版本');
+  const gitRoot = await graphGit(workspace, 'rev-parse', '--show-toplevel');
+  if (gitRoot !== workspace) { if (!local) return null; throw new Error('运行能力声明必须位于实际执行仓库根目录'); }
+  const tracked = await graphGit(workspace, 'ls-tree', '--name-only', 'HEAD', '--', name);
+  if (!tracked && !local) return null;
+  if (!tracked) throw new Error('运行能力声明必须纳入 Git 版本');
+  if (!local) throw new Error('已版本化的运行能力声明在工作区中缺失');
+  if (await fs.realpath(filename) !== filename || !local.isFile()) throw new Error('运行能力声明不能是链接');
   const text = await graphGit(workspace, 'show', `HEAD:${name}`);
   return { declaration: parseRuntimeDeclaration(JSON.parse(text)), manifestHash: createHash('sha256').update(text).digest('hex'), commit: await graphGit(workspace, 'rev-parse', 'HEAD'), filename };
 }

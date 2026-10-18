@@ -30,3 +30,13 @@
 缺少或不匹配资源是明确的准备失败；超时或短暂网络故障使用有限重试。具体重试与人工决定由统一执行状态处理。标准 Playwright 环境变量仅在匹配声明身份时进入沙箱。预检继承当前写入者 nonce，并在 Bubblewrap 的独立 PID 命名空间、父进程退出保护下运行。
 
 现有业务仓库没有该声明时，不会静默修改它们的配置或审批快照。未来启用能力需要将资源绑定写入业务提交，并沿现有审批与权限流程生效。
+
+## 验证
+
+通用 PostgreSQL 回归包含中文故障卡片和归档产物测试。真实浏览器验证单独运行，要求安装 Playwright、playwright-core、Bubblewrap，并显式指定测试用 Chromium；这些路径只用于隔离测试的批准目录，不成为业务任务权限：
+
+```bash
+AP_RUNTIME_TEST_CHROMIUM_EXECUTABLE=/opt/google/chrome/chrome npm run test:task-graph-runtime-integration
+```
+
+模块路径从当前安装的 npm 依赖解析，不绑定开发机仓库路径。专用命令缺少浏览器路径时明确失败，不在通用测试中隐式依赖宿主浏览器。

@@ -25,9 +25,11 @@ async function main() {
     const { prepareDeclaredRuntime, RuntimePreparationError } = await import('../src/lib/task-graph/runtime-preflight');
     const { runtimeResourceDigest, runtimeDeclaration } = await import('../src/lib/task-graph/runtime-contract');
     const output = path.join(root, 'output'); await fs.mkdir(output);
-    const module = await fs.realpath('/data1/code/agent-platform-v2/node_modules/playwright');
-    const core = await fs.realpath('/data1/code/agent-platform-v2/node_modules/playwright-core');
-    const executable = await fs.realpath('/opt/google/chrome/chrome');
+    assert.equal(await runtimeDeclaration(output), null, 'Non-Git repair output without a declaration remains legacy no-op');
+    const module = await fs.realpath(path.dirname(require.resolve('playwright/package.json')));
+    const core = await fs.realpath(path.dirname(require.resolve('playwright-core/package.json')));
+    assert.ok(process.env.AP_RUNTIME_TEST_CHROMIUM_EXECUTABLE, 'Dedicated browser integration requires AP_RUNTIME_TEST_CHROMIUM_EXECUTABLE');
+    const executable = await fs.realpath(process.env.AP_RUNTIME_TEST_CHROMIUM_EXECUTABLE || '');
     const browser = { module: { path: module, sha256: await runtimeResourceDigest(module) }, executable: { path: executable, sha256: await runtimeResourceDigest(executable) } };
     await commit({ version: 1, browser });
     await assert.rejects(prepareDeclaredRuntime({ workspace: repository, approvedReadOnlyRoots: [], outputDirectory: output }), error => error instanceof RuntimePreparationError && error.kind === 'invalid' && /已批准目录/.test(error.message));
@@ -50,6 +52,8 @@ async function main() {
     assert.equal((await runtimeDeclaration(repository))?.declaration.version, 1, 'Read committed declaration, not unapproved edits');
     await fs.unlink(declarationPath);
     await assert.rejects(runtimeDeclaration(repository), /缺失/, 'Removing a tracked declaration cannot disable preflight');
+    git('add', '-u');
+    await assert.rejects(runtimeDeclaration(repository), /缺失/, 'Staging deletion cannot erase a declaration pinned in HEAD');
     await fs.writeFile(declarationPath, JSON.stringify({ version: 1, ocr }));
     await fs.writeFile(path.join(archived, 'ocr-models/weights.bin'), 'tampered');
     await assert.rejects(prepareDeclaredRuntime({ workspace: repository, approvedReadOnlyRoots: [archived], outputDirectory: output, priorArtifacts: [{ ...firstArtifact, directory: archived, archived: true }] }), error => error instanceof RuntimePreparationError && error.kind === 'invalid');

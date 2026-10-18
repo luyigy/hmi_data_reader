@@ -36,6 +36,12 @@ async function main() {
     await assert.rejects(prepareGraphOutputForTask(child.id, 'injected-link', []), /unlisted/); await fs.unlink(injected);
     await fs.writeFile(path.join(prior[0], 'ocr-models/weights.bin'), 'tampered');
     await assert.rejects(prepareGraphOutputForTask(child.id, 'third', []), /archive differs/);
+    await fs.writeFile(path.join(prior[0], 'ocr-models/weights.bin'), 'frozen OCR weights');
+    await fs.mkdir(path.join(first.directory, 'ocr-models'), { recursive: true });
+    await fs.writeFile(path.join(first.directory, 'ocr-models/weights.bin'), 'different historical content');
+    const conflicting = await archiveValidationResults(job.nodeId, path.join(root, 'second-archive'));
+    await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: job.nodeId, kind: 'validation_workspace_cleaned', idempotencyKey: 'archive-conflicting-fixture', payload: { ...conflicting, deliveryCommits: [{ executionId: job.id, commit: 'b'.repeat(40) }] } } });
+    await assert.rejects(prepareGraphOutputForTask(child.id, 'ambiguous', []), /archives disagree/, 'Two verified archives cannot silently assign different bytes to one original output event');
     console.log('Archived prior outputs retain original event identity and verified OCR bytes; missing live paths resolve read-only and corruption is refused');
   } finally {
     await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } }); await prisma.$disconnect();

@@ -19,6 +19,6 @@ assert.match(exhausted.header.title.content, /待平台处理/); assert.doesNotM
 
 const material = buildRunReplyCard({ id: 'material', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'missing_business_material', detail: '缺少阿博格冷却页面原图，请提供这张原图后核验。' } } }, []);
 assert.match(material.header.title.content, /需你确认/); assert.match(JSON.stringify(material.body.elements[0]), /阿博格冷却页面/); assert.match(JSON.stringify(material.body.elements[0]), /负责人：你/);
-const explicitFailure = { ...failure, action: '请选择是否保留新增机型的接口范围', owner: 'user', requiresUserDecision: true };
+const explicitFailure: typeof failure & { action: string; owner: 'user'; requiresUserDecision: boolean } = { ...failure, action: '请选择是否保留新增机型的接口范围', owner: 'user', requiresUserDecision: true };
 const explicit = buildRunReplyCard({ id: 'explicit', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: explicitFailure } }, []);
 assert.match(explicit.header.title.content, /需你确认/); assert.match(JSON.stringify(explicit.body.elements[0]), /请选择是否保留新增机型/);
