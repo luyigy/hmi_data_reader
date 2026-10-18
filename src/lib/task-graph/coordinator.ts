@@ -548,15 +548,25 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           await outcome({ kind: temporary ? 'platform_retry' : 'decision_required', failure: { code: kind, detail } });
         }
       }
+      const latest = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+      const progress = executionProgress(latest.dispatchMetadata);
+      const state = latest.status === 'ready' ? '正在自动修复或重试，无需人工继续。'
+        : progress?.state === 'exhausted' ? '自动处理已达上限，保留现场和失败证据。'
+        : '需要处理一项具体决定，原因见下方详情。';
       if (current.childTaskId) await postGraphChildProgress(current.childTaskId, `issue-${claimToken}`,
-        `${nodeKey}/${execution.key} 暂停，尚未完成集成和验收。\n${detail}\n后继继续等待，无需重复启动。`)
+        `${nodeKey}/${execution.key}：${state}\n${detail}`)
         .catch((deliveryError) => console.error('[TaskGraph] child issue delivery failed:', deliveryError));
     } else {
       console.error(`[TaskGraph] verification failed after integration ${runId}/${nodeKey}:`, error);
     }
     await refreshTaskGraphRunStatus(runId);
     const graphRun = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
-    void postGraphParentProgress(graphRun.parentTaskId, runId, `${nodeKey}/${execution.key} 需要处理：${detail}`)
+    const finalJob = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+    const finalProgress = executionProgress(finalJob.dispatchMetadata);
+    const status = finalJob.status === 'ready' ? '正在自动修复或重试，无需人工继续。'
+      : finalProgress?.state === 'exhausted' ? '自动处理已达上限，现场已保留。'
+      : '需要处理一项具体决定。';
+    void postGraphParentProgress(graphRun.parentTaskId, runId, `${nodeKey}/${execution.key}：${status}详情见仓库群原任务话题。`)
       .catch((deliveryError) => console.error('[TaskGraph] parent progress delivery failed:', deliveryError));
   }
 }
