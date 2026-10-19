@@ -14,7 +14,7 @@ npm run test:task-graph-postgres -- task-graph-card-closure task-graph-auto-comp
 
 `auto-completion` 使用真实协调器、临时 Git 仓库和只读检查；Agent 与出站通知使用测试替身。首轮检查失败后，原票自动回修、独立支线完成、后继通过，人工恢复事件为零。`review-repair` 分别覆盖架构、验收及集成检查回修，成功兄弟不重新实施。它们提供隔离环境证据，不能替代商业 OCR 或整条业务路线验收。
 
-卡片回归先命中 `false !== true`，证明无新 stdout 的阶段变化未触发刷新。修复后相同情形更新原卡，不另发新卡；没有变化时不重复更新。
+卡片回归先命中 `false !== true`，证明无新 stdout 的阶段变化未触发刷新。审计后又在一次性副本中恢复旧判断，保存 [红色回执](../evidence/gardening/card-red-receipt.json) 和 [日志](../evidence/gardening/card-red.log)。修复后相同情形更新原卡，不另发新卡；没有变化时不重复更新。
 
 WR07 继续保留真实业务观察及组合故障验收要求。本轮不会因这些测试通过而关闭 WR07、父单或暂停的业务票。实际服务没有重启，新的卡片逻辑尚未加载。
 
@@ -35,6 +35,8 @@ node scripts/verify-taskrun-ownership-wire.mjs
 脚本在自己创建的一次性目录中复制源码，移除旧事故涉及的单一归属守卫，再运行既有测试。只有失败确实是图任务被错误完成，才接收红色结果。恢复正确源码后，同一测试必须通过。临时数据库使用独立 schema，回执带源码及测试摘要。详细输出在 `output/gardening/`，已发布的本次回执在 [证据目录](../evidence/gardening/taskrun-owner/receipt.json)。
 
 此处验证的是既有防线；没有为了增加 Wire 数量重复写测试。Active 状态还需独立复核，不能仅凭报告或脚本退出码宣称。后续新教训沿相同步骤提议、实施和验证；真实运行中拦截次数未测量。
+
+本轮代码复核为未参与实现的独立 Codex 代理；审计为 `gpt-6-sol`。没有跨模型家族验证证据，不宣称满足跨家族多样性要求。决策记录的前四行集中回填，时间戳为记账时间，具体运行时间以测试回执为准。
 
 ## 发布与后续观察
 

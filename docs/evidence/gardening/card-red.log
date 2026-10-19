@@ -1,0 +1,35 @@
+
+AssertionError [ERR_ASSERTION]: A phase checkpoint without stdout or node changes must refresh the existing card
+
+false !== true
+
+    at /tmp/ap-card-refresh-red-x2_dpkl_/tests/task-graph-card-closure.test.ts:61:5
+    at step (/tmp/ap-card-refresh-red-x2_dpkl_/tests/task-graph-card-closure.test.ts:44:23)
+    at Object.next (/tmp/ap-card-refresh-red-x2_dpkl_/tests/task-graph-card-closure.test.ts:25:53)
+    at fulfilled (/tmp/ap-card-refresh-red-x2_dpkl_/tests/task-graph-card-closure.test.ts:16:58) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-card-closure.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///tmp/ap-card-refresh-red-x2_dpkl_/scripts/test-task-graph-postgres.mjs:40:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 3951636,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

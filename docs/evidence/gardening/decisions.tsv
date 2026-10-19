@@ -4,3 +4,5 @@ ts	phase	decision	why	evidence	result
 2026-10-19T07:42:46Z	G02	增加后处理skill并记录同一事故影响三项TaskRun	三项受影响执行不等于三次独立复发	docs/gardening/taskrun-owner.md	报告可追溯；本轮独立复核待完成
 2026-10-19T07:42:46Z	G03	一次性副本移除归属守卫后测试失败，恢复后通过	确认检查能拦截旧错误而非只看测试全绿	docs/evidence/gardening/taskrun-owner/receipt.json	red=1, green=0
 2026-10-19T07:45:41Z	review	独立审查指出外层超时可能留下后代，移除该超时并在未知退出时保留临时副本	不为防线验证再造一个生命周期故障	docs/evidence/gardening/taskrun-owner/review.json	修正后独立复核通过；既有Wire标记Active
+2026-10-19T07:47:15Z	audit	补存原卡刷新错误的红色运行证据，替代G01行仅链接源码的弱证据	审计指出旧引用只能证明测试存在；一次性副本恢复旧判断后确实false不等于true	docs/evidence/gardening/card-red-receipt.json	red=1；绿色原卡验证见card-final.log
+2026-10-19T07:47:15Z	audit	明确本轮只有独立代理复核，没有跨模型家族证明；前四行时间是集中记账时间	审计日志不应把写入时间当作逐步执行时间或把同家族模型当作跨家族	docs/evidence/gardening/taskrun-owner/review.json	精确模型未知的代码复核；gpt-6-sol审计；多样性不足已披露

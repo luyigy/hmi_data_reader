@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-19T07:46:42.419641+00:00",
+  "mutation": "Ignore execution.updatedAt and compare only node.updatedAt, in disposable copy",
+  "command": "npm run test:task-graph-postgres -- task-graph-card-closure",
+  "redExitCode": 1,
+  "expectedMismatch": "phase changed with no stdout: actual false, expected true",
+  "redLog": "card-red.log",
+  "greenLog": "card-final.log",
+  "limits": "Isolated PostgreSQL schema and mocked delivery; no production modification"
+}
