@@ -1,0 +1,1088 @@
+{
+  "profile_id": "est.storage_cooling.white_five_stage",
+  "version": "0.5.0-draft",
+  "publication_state": "development_only",
+  "extractor_id": "est.storage_white_five_stage",
+  "page_identity": {
+    "brand": "BOLE",
+    "controller_family": "EST",
+    "interface_generation": null,
+    "page_type": "storage_cooling",
+    "layout_variant": "white_five_stage"
+  },
+  "identity_evidence": {
+    "brand": "Visible BOLE logo",
+    "controller_family": "Existing repository EST classifier, not an independently certified hardware identity",
+    "interface_generation": "Unknown, directory EST3 is not certification"
+  },
+  "fields": [
+    {
+      "screen_field_key": "storage.pressure.stage-1",
+      "section": "storage",
+      "segment_id": "storage-stage-1",
+      "stage": 1,
+      "order": 1,
+      "role": "setting",
+      "label": "压力",
+      "unit": "bar",
+      "region": [
+        0.323,
+        0.303,
+        0.427,
+        0.333
+      ],
+      "label_region": [
+        0.13,
+        0.299,
+        0.28,
+        0.337
+      ],
+      "unit_region": [
+        0.905,
+        0.299,
+        0.99,
+        0.337
+      ]
+    },
+    {
+      "screen_field_key": "storage.pressure.stage-2",
+      "section": "storage",
+      "segment_id": "storage-stage-2",
+      "stage": 2,
+      "order": 2,
+      "role": "setting",
+      "label": "压力",
+      "unit": "bar",
+      "region": [
+        0.446,
+        0.303,
+        0.55,
+        0.333
+      ],
+      "label_region": [
+        0.13,
+        0.299,
+        0.28,
+        0.337
+      ],
+      "unit_region": [
+        0.905,
+        0.299,
+        0.99,
+        0.337
+      ]
+    },
+    {
+      "screen_field_key": "storage.pressure.stage-3",
+      "section": "storage",
+      "segment_id": "storage-stage-3",
+      "stage": 3,
+      "order": 3,
+      "role": "setting",
+      "label": "压力",
+      "unit": "bar",
+      "region": [
+        0.569,
+        0.303,
+        0.673,
+        0.333
+      ],
+      "label_region": [
+        0.13,
+        0.299,
+        0.28,
+        0.337
+      ],
+      "unit_region": [
+        0.905,
+        0.299,
+        0.99,
+        0.337
+      ]
+    },
+    {
+      "screen_field_key": "storage.pressure.stage-4",
+      "section": "storage",
+      "segment_id": "storage-stage-4",
+      "stage": 4,
+      "order": 4,
+      "role": "setting",
+      "label": "压力",
+      "unit": "bar",
+      "region": [
+        0.692,
+        0.303,
+        0.796,
+        0.333
+      ],
+      "label_region": [
+        0.13,
+        0.299,
+        0.28,
+        0.337
+      ],
+      "unit_region": [
+        0.905,
+        0.299,
+        0.99,
+        0.337
+      ]
+    },
+    {
+      "screen_field_key": "storage.pressure.stage-5",
+      "section": "storage",
+      "segment_id": "storage-stage-5",
+      "stage": 5,
+      "order": 5,
+      "role": "setting",
+      "label": "压力",
+      "unit": "bar",
+      "region": [
+        0.815,
+        0.303,
+        0.919,
+        0.333
+      ],
+      "label_region": [
+        0.13,
+        0.299,
+        0.28,
+        0.337
+      ],
+      "unit_region": [
+        0.905,
+        0.299,
+        0.99,
+        0.337
+      ]
+    },
+    {
+      "screen_field_key": "storage.speed.stage-1",
+      "section": "storage",
+      "segment_id": "storage-stage-1",
+      "stage": 1,
+      "order": 1,
+      "role": "setting",
+      "label": "速度",
+      "unit": "%",
+      "region": [
+        0.323,
+        0.33999999999999997,
+        0.427,
+        0.37
+      ],
+      "label_region": [
+        0.13,
+        0.33599999999999997,
+        0.28,
+        0.374
+      ],
+      "unit_region": [
+        0.905,
+        0.33599999999999997,
+        0.99,
+        0.374
+      ]
+    },
+    {
+      "screen_field_key": "storage.speed.stage-2",
+      "section": "storage",
+      "segment_id": "storage-stage-2",
+      "stage": 2,
+      "order": 2,
+      "role": "setting",
+      "label": "速度",
+      "unit": "%",
+      "region": [
+        0.446,
+        0.33999999999999997,
+        0.55,
+        0.37
+      ],
+      "label_region": [
+        0.13,
+        0.33599999999999997,
+        0.28,
+        0.374
+      ],
+      "unit_region": [
+        0.905,
+        0.33599999999999997,
+        0.99,
+        0.374
+      ]
+    },
+    {
+      "screen_field_key": "storage.speed.stage-3",
+      "section": "storage",
+      "segment_id": "storage-stage-3",
+      "stage": 3,
+      "order": 3,
+      "role": "setting",
+      "label": "速度",
+      "unit": "%",
+      "region": [
+        0.569,
+        0.33999999999999997,
+        0.673,
+        0.37
+      ],
+      "label_region": [
+        0.13,
+        0.33599999999999997,
+        0.28,
+        0.374
+      ],
+      "unit_region": [
+        0.905,
+        0.33599999999999997,
+        0.99,
+        0.374
+      ]
+    },
+    {
+      "screen_field_key": "storage.speed.stage-4",
+      "section": "storage",
+      "segment_id": "storage-stage-4",
+      "stage": 4,
+      "order": 4,
+      "role": "setting",
+      "label": "速度",
+      "unit": "%",
+      "region": [
+        0.692,
+        0.33999999999999997,
+        0.796,
+        0.37
+      ],
+      "label_region": [
+        0.13,
+        0.33599999999999997,
+        0.28,
+        0.374
+      ],
+      "unit_region": [
+        0.905,
+        0.33599999999999997,
+        0.99,
+        0.374
+      ]
+    },
+    {
+      "screen_field_key": "storage.speed.stage-5",
+      "section": "storage",
+      "segment_id": "storage-stage-5",
+      "stage": 5,
+      "order": 5,
+      "role": "setting",
+      "label": "速度",
+      "unit": "%",
+      "region": [
+        0.815,
+        0.33999999999999997,
+        0.919,
+        0.37
+      ],
+      "label_region": [
+        0.13,
+        0.33599999999999997,
+        0.28,
+        0.374
+      ],
+      "unit_region": [
+        0.905,
+        0.33599999999999997,
+        0.99,
+        0.374
+      ]
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-1",
+      "section": "storage",
+      "segment_id": "storage-stage-1",
+      "stage": 1,
+      "order": 1,
+      "role": "setting",
+      "label": "储料背压",
+      "unit": "bar",
+      "region": [
+        0.323,
+        0.375,
+        0.427,
+        0.405
+      ],
+      "label_region": [
+        0.13,
+        0.371,
+        0.28,
+        0.40900000000000003
+      ],
+      "unit_region": [
+        0.905,
+        0.371,
+        0.99,
+        0.40900000000000003
+      ]
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-2",
+      "section": "storage",
+      "segment_id": "storage-stage-2",
+      "stage": 2,
+      "order": 2,
+      "role": "setting",
+      "label": "储料背压",
+      "unit": "bar",
+      "region": [
+        0.446,
+        0.375,
+        0.55,
+        0.405
+      ],
+      "label_region": [
+        0.13,
+        0.371,
+        0.28,
+        0.40900000000000003
+      ],
+      "unit_region": [
+        0.905,
+        0.371,
+        0.99,
+        0.40900000000000003
+      ]
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-3",
+      "section": "storage",
+      "segment_id": "storage-stage-3",
+      "stage": 3,
+      "order": 3,
+      "role": "setting",
+      "label": "储料背压",
+      "unit": "bar",
+      "region": [
+        0.569,
+        0.375,
+        0.673,
+        0.405
+      ],
+      "label_region": [
+        0.13,
+        0.371,
+        0.28,
+        0.40900000000000003
+      ],
+      "unit_region": [
+        0.905,
+        0.371,
+        0.99,
+        0.40900000000000003
+      ]
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-4",
+      "section": "storage",
+      "segment_id": "storage-stage-4",
+      "stage": 4,
+      "order": 4,
+      "role": "setting",
+      "label": "储料背压",
+      "unit": "bar",
+      "region": [
+        0.692,
+        0.375,
+        0.796,
+        0.405
+      ],
+      "label_region": [
+        0.13,
+        0.371,
+        0.28,
+        0.40900000000000003
+      ],
+      "unit_region": [
+        0.905,
+        0.371,
+        0.99,
+        0.40900000000000003
+      ]
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-5",
+      "section": "storage",
+      "segment_id": "storage-stage-5",
+      "stage": 5,
+      "order": 5,
+      "role": "setting",
+      "label": "储料背压",
+      "unit": "bar",
+      "region": [
+        0.815,
+        0.375,
+        0.919,
+        0.405
+      ],
+      "label_region": [
+        0.13,
+        0.371,
+        0.28,
+        0.40900000000000003
+      ],
+      "unit_region": [
+        0.905,
+        0.371,
+        0.99,
+        0.40900000000000003
+      ]
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-1",
+      "section": "storage",
+      "segment_id": "storage-stage-1",
+      "stage": 1,
+      "order": 1,
+      "role": "setting",
+      "label": "终止位置",
+      "unit": "mm",
+      "region": [
+        0.323,
+        0.411,
+        0.427,
+        0.441
+      ],
+      "label_region": [
+        0.13,
+        0.407,
+        0.28,
+        0.445
+      ],
+      "unit_region": [
+        0.905,
+        0.407,
+        0.99,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-2",
+      "section": "storage",
+      "segment_id": "storage-stage-2",
+      "stage": 2,
+      "order": 2,
+      "role": "setting",
+      "label": "终止位置",
+      "unit": "mm",
+      "region": [
+        0.446,
+        0.411,
+        0.55,
+        0.441
+      ],
+      "label_region": [
+        0.13,
+        0.407,
+        0.28,
+        0.445
+      ],
+      "unit_region": [
+        0.905,
+        0.407,
+        0.99,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-3",
+      "section": "storage",
+      "segment_id": "storage-stage-3",
+      "stage": 3,
+      "order": 3,
+      "role": "setting",
+      "label": "终止位置",
+      "unit": "mm",
+      "region": [
+        0.569,
+        0.411,
+        0.673,
+        0.441
+      ],
+      "label_region": [
+        0.13,
+        0.407,
+        0.28,
+        0.445
+      ],
+      "unit_region": [
+        0.905,
+        0.407,
+        0.99,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-4",
+      "section": "storage",
+      "segment_id": "storage-stage-4",
+      "stage": 4,
+      "order": 4,
+      "role": "setting",
+      "label": "终止位置",
+      "unit": "mm",
+      "region": [
+        0.692,
+        0.411,
+        0.796,
+        0.441
+      ],
+      "label_region": [
+        0.13,
+        0.407,
+        0.28,
+        0.445
+      ],
+      "unit_region": [
+        0.905,
+        0.407,
+        0.99,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-5",
+      "section": "storage",
+      "segment_id": "storage-stage-5",
+      "stage": 5,
+      "order": 5,
+      "role": "setting",
+      "label": "终止位置",
+      "unit": "mm",
+      "region": [
+        0.815,
+        0.411,
+        0.919,
+        0.441
+      ],
+      "label_region": [
+        0.13,
+        0.407,
+        0.28,
+        0.445
+      ],
+      "unit_region": [
+        0.905,
+        0.407,
+        0.99,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "decompression.before_storage.pressure",
+      "section": "decompression",
+      "segment_id": "before_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "压力",
+      "unit": "bar",
+      "region": [
+        0.313,
+        0.539,
+        0.46499999999999997,
+        0.5730000000000001
+      ],
+      "label_region": [
+        0.13,
+        0.535,
+        0.28,
+        0.5770000000000001
+      ],
+      "unit_region": [
+        0.54,
+        0.536,
+        0.63,
+        0.5760000000000001
+      ]
+    },
+    {
+      "screen_field_key": "decompression.after_storage.pressure",
+      "section": "decompression",
+      "segment_id": "after_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "压力",
+      "unit": "bar",
+      "region": [
+        0.468,
+        0.539,
+        0.62,
+        0.5730000000000001
+      ],
+      "label_region": [
+        0.13,
+        0.535,
+        0.28,
+        0.5770000000000001
+      ],
+      "unit_region": [
+        0.54,
+        0.536,
+        0.63,
+        0.5760000000000001
+      ]
+    },
+    {
+      "screen_field_key": "decompression.before_storage.speed",
+      "section": "decompression",
+      "segment_id": "before_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "速度",
+      "unit": "%",
+      "region": [
+        0.313,
+        0.575,
+        0.46499999999999997,
+        0.609
+      ],
+      "label_region": [
+        0.13,
+        0.571,
+        0.28,
+        0.613
+      ],
+      "unit_region": [
+        0.54,
+        0.572,
+        0.63,
+        0.612
+      ]
+    },
+    {
+      "screen_field_key": "decompression.after_storage.speed",
+      "section": "decompression",
+      "segment_id": "after_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "速度",
+      "unit": "%",
+      "region": [
+        0.468,
+        0.575,
+        0.62,
+        0.609
+      ],
+      "label_region": [
+        0.13,
+        0.571,
+        0.28,
+        0.613
+      ],
+      "unit_region": [
+        0.54,
+        0.572,
+        0.63,
+        0.612
+      ]
+    },
+    {
+      "screen_field_key": "decompression.before_storage.end_position",
+      "section": "decompression",
+      "segment_id": "before_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "终止位置",
+      "unit": "mm",
+      "region": [
+        0.313,
+        0.613,
+        0.46499999999999997,
+        0.647
+      ],
+      "label_region": [
+        0.13,
+        0.609,
+        0.28,
+        0.651
+      ],
+      "unit_region": [
+        0.54,
+        0.61,
+        0.63,
+        0.65
+      ]
+    },
+    {
+      "screen_field_key": "decompression.after_storage.end_position",
+      "section": "decompression",
+      "segment_id": "after_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "终止位置",
+      "unit": "mm",
+      "region": [
+        0.468,
+        0.613,
+        0.62,
+        0.647
+      ],
+      "label_region": [
+        0.13,
+        0.609,
+        0.28,
+        0.651
+      ],
+      "unit_region": [
+        0.54,
+        0.61,
+        0.63,
+        0.65
+      ]
+    },
+    {
+      "screen_field_key": "decompression.before_storage.duration",
+      "section": "decompression",
+      "segment_id": "before_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "时间",
+      "unit": "s",
+      "region": [
+        0.313,
+        0.649,
+        0.46499999999999997,
+        0.683
+      ],
+      "label_region": [
+        0.13,
+        0.645,
+        0.28,
+        0.687
+      ],
+      "unit_region": [
+        0.54,
+        0.646,
+        0.63,
+        0.686
+      ]
+    },
+    {
+      "screen_field_key": "decompression.after_storage.duration",
+      "section": "decompression",
+      "segment_id": "after_storage",
+      "stage": null,
+      "role": "setting",
+      "label": "时间",
+      "unit": "s",
+      "region": [
+        0.468,
+        0.649,
+        0.62,
+        0.683
+      ],
+      "label_region": [
+        0.13,
+        0.645,
+        0.28,
+        0.687
+      ],
+      "unit_region": [
+        0.54,
+        0.646,
+        0.63,
+        0.686
+      ]
+    },
+    {
+      "screen_field_key": "storage.pre_cooling.duration",
+      "section": "storage_cooling",
+      "stage": null,
+      "role": "setting",
+      "label": "储前冷却时间",
+      "unit": "s",
+      "region": [
+        0.46,
+        0.708,
+        0.6,
+        0.742
+      ],
+      "label_region": [
+        0.13,
+        0.705,
+        0.33,
+        0.745
+      ],
+      "unit_region": [
+        0.46,
+        0.708,
+        0.6,
+        0.742
+      ]
+    },
+    {
+      "screen_field_key": "mold.cooling.duration",
+      "section": "storage_cooling",
+      "stage": null,
+      "role": "setting",
+      "label": "模具冷却时间",
+      "unit": "s",
+      "region": [
+        0.46,
+        0.744,
+        0.6,
+        0.778
+      ],
+      "label_region": [
+        0.13,
+        0.741,
+        0.33,
+        0.781
+      ],
+      "unit_region": [
+        0.46,
+        0.744,
+        0.6,
+        0.778
+      ]
+    },
+    {
+      "screen_field_key": "header.unresolved-column-1-row-1",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.10500000000000001,
+        0.11800000000000001,
+        0.23500000000000001,
+        0.14600000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-1-row-2",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.10500000000000001,
+        0.149,
+        0.23500000000000001,
+        0.17700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-1-row-3",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.10500000000000001,
+        0.179,
+        0.23500000000000001,
+        0.20700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-2-row-1",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.36,
+        0.11800000000000001,
+        0.49,
+        0.14600000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-2-row-2",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.36,
+        0.149,
+        0.49,
+        0.17700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-2-row-3",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.36,
+        0.179,
+        0.49,
+        0.20700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-3-row-1",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.605,
+        0.11800000000000001,
+        0.7350000000000001,
+        0.14600000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-3-row-2",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.605,
+        0.149,
+        0.7350000000000001,
+        0.17700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-3-row-3",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.605,
+        0.179,
+        0.7350000000000001,
+        0.20700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-4-row-1",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.855,
+        0.11800000000000001,
+        0.9850000000000001,
+        0.14600000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-4-row-2",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.855,
+        0.149,
+        0.9850000000000001,
+        0.17700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "header.unresolved-column-4-row-3",
+      "section": "header",
+      "stage": null,
+      "role": "unknown",
+      "label": null,
+      "unit": null,
+      "region": [
+        0.855,
+        0.179,
+        0.9850000000000001,
+        0.20700000000000002
+      ],
+      "semantic_status": "unverified_icon"
+    },
+    {
+      "screen_field_key": "footer.injection_pressure.unresolved",
+      "section": "footer",
+      "stage": null,
+      "role": "unknown",
+      "label": "射出压力",
+      "unit": null,
+      "region": [
+        0.82,
+        0.745,
+        0.905,
+        0.78
+      ],
+      "label_region": [
+        0.71,
+        0.7,
+        0.85,
+        0.74
+      ],
+      "semantic_status": "unverified_indicator"
+    },
+    {
+      "screen_field_key": "footer.injection_pressure.control",
+      "section": "footer",
+      "stage": null,
+      "role": "unknown",
+      "label": "射出压力",
+      "unit": null,
+      "region": [
+        0.85,
+        0.705,
+        0.9,
+        0.74
+      ],
+      "reading_support": "unsupported",
+      "reason": "No verified decoder or semantics for adjacent control"
+    }
+  ],
+  "coverage_scope": "44 process-related display/control slots including unresolved header icons and footer control. Date, clock, help text, input bounds and navigation retained in OCR evidence, not process parameters.",
+  "state_policy": "unknown for all slots; blank cells are missing, not disabled",
+  "issues": [
+    {
+      "code": "CONTROLLER_IDENTITY_REVIEW_REQUIRED"
+    },
+    {
+      "code": "ICON_SEMANTICS_UNVERIFIED"
+    },
+    {
+      "code": "INDEPENDENT_ACCEPTANCE_MISSING"
+    }
+  ],
+  "samples": [
+    {
+      "image": "ground_truth/bole_est/EST3/熔胶_20260807180626_8_32.jpg",
+      "image_sha256": "8abb1c5edbdd95d62a0705da43ad8379e1dc7a5b35e0181e6e10b651f2209e36",
+      "purpose": "development",
+      "independent_acceptance": false,
+      "truth": "contracts/raw-pages/r05-white-development-truth.json"
+    }
+  ],
+  "independent_acceptance": []
+}

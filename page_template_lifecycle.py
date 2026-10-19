@@ -193,6 +193,9 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
             if before_parts[:2] == after_parts[:2] and after_parts[2] != before_parts[2] + 1:
                 raise HTTPException(409, "Patch versions must be consecutive")
         trial = trial_draft(root, profile_id, expected_revision)
+        if any(row["result"].get("detail", {}).get("page_observations", {}).get("publication_state")
+               == "development_only" for row in trial["after"]):
+            raise HTTPException(422, "EXTRACTOR_DEVELOPMENT_ONLY: independent acceptance and raw package are pending")
         samples = []
         for sample in draft["samples"]:
             digest = sha256(json.dumps(sample["ocr"], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
