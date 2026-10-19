@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-19T08:40:39.728Z",
+  "code": "bc59a978147089d7bda413f2682ebdaa7595c4ea",
+  "before": [
+    {
+      "service": "agent-platform-task-graph.service",
+      "pid": "4117737"
+    },
+    {
+      "service": "agent-platform-task-graph-feishu.service",
+      "pid": "4118140"
+    }
+  ],
+  "after": [
+    {
+      "service": "agent-platform-task-graph.service",
+      "pid": "4151565",
+      "state": "active"
+    },
+    {
+      "service": "agent-platform-task-graph-feishu.service",
+      "pid": "4152324",
+      "state": "active"
+    }
+  ],
+  "mainBefore": "21469",
+  "mainAfter": "21469",
+  "currentChatUninterrupted": true,
+  "manualResumeCalls": 0
+}

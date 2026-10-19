@@ -1,0 +1,7 @@
+{
+  "result": "already_scheduled",
+  "eventId": "cmvf08aku00022l3bahsorwcr",
+  "status": "claimed",
+  "requestId": "m02-platform-recovery-20261019-01",
+  "note": "此标识的历史请求已受理，本次未重新派发。若任务再次暂停，先修复新卡点，再用新请求标识。"
+}

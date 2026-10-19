@@ -39,3 +39,11 @@ npm run test:task-graph-postgres -- task-graph-process-lineage task-graph-writer
 使用独立 PostgreSQL schema。真实 nonce 子、不可读真实子、共同祖先、孤儿、断链、PID 重用及再次暂停后重复旧请求均有反例检查。独立复核由 `/root/recovery_boundary_review` 完成，精确模型未记录。
 
 M02 的现有浏览器已复制进该 job 的 ignored `scratch/platform-browser-*`，沙箱预检实际读取 `m02-runtime-ready` 页面。该预检证明当前目录内浏览器可用，不代表 M02 的真实识读或双视口业务验收通过。Reader 固定交付的控制器与样本证据仍由实施者核对；确有缺项时要指出具体字段、来源和补救措施。
+
+## 本次实际恢复回执
+
+2026-10-19 16:42（北京时间），M02 新 TaskRun `cmvf08jxm003jy3p1sxazgobe` 已进入 `running`，原生进程 `4154075` 存活，已记录 12 次工具调用。仍使用原话题的同一张进度卡（distinctCards = 1），候选提交 `bdfe97ac8cf02669f4467d267f1f701b77c67793` 保留。16:44 再次只读检查仍为 running，写入者 alive。
+
+同一 request-id 重复请求实际返回 `already_scheduled`，没有重复派发。此次实际接续已完成，不必再运行上面的恢复示例。运行回执见 `docs/evidence/task-recovery-doctor/m02-live-final.json`，加载回执见 `service-load-02.json`，幂等回执见 `m02-repeat-receipt.json`。
+
+这些证据证明 M02 已恢复执行，尚未证明业务验收通过。R05 本轮未接续，也尚未证明两仓实际同时运行。当前任务运行期间不再重启服务。
