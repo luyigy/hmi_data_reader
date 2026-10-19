@@ -20,7 +20,9 @@
 }
 ```
 
-文件为平台工作目录的 `config/runtime-resources.json`。键必须等于服务从账本和 Git 身份核实的主仓真实路径。这里登记的是已有资源，不扫描、下载或安装宿主工具。
+文件为平台安装包根目录的 `config/runtime-resources.json`。默认从平台模块所在包定位，启动工作目录不参与选择。键必须等于服务从账本和 Git 身份核实的主仓真实路径。这里登记的是已有资源，不扫描、下载或安装宿主工具。
+
+内部调用可通过 `prepareTaskDeclaredRuntime.platformRepository` 明确提供另一平台目录；资源登记读取也接受明确文件路径。这些参数仅由可信平台调用者提供，不从 Issue 或 Agent 的任务载荷读取。测试使用独立临时平台目录，即使启动目录有损坏的同名配置，也不读取该配置。
 
 权限仍由 `config/runtime-environments.json` 的旧数组格式或原 workflow 批准提供：
 
@@ -65,7 +67,9 @@ PostgreSQL 测试使用独立 schema，覆盖原生 harness 调用方、平台�
 
 真实 M03A 的独立验收还暴露了浏览器探针自身的主仓缺失。探针现在明确使用服务端已核实的源码主仓；只读参考仓的 Python 环境不会被误选。
 
-若这种平台启动故障已耗尽预算，本机运维可调用 `inspectPreparedReviewBinding` 和 `registerPreparedReviewRecovery`。入口仅处理单 execution、acceptance 阶段、`review_platform_failure` 且平台预算已耗尽的现场。显式需要业务决定或非平台负责人不能使用它。
+若这种平台启动故障已耗尽预算，本机运维可从 `preparation-recovery.ts` 调用 `inspectPreparedReviewBinding` 和 `registerPreparedReviewRecovery`。实施准备与验收准备集中在这一模块，共用节点加锁和请求查重；事件类型、绑定哈希、计数及各阶段恢复约束不变。旧事件继续由原协调器消费，没有引入第二套调度。
+
+验收入口仅处理单 execution、acceptance 阶段、`review_platform_failure` 且平台预算已耗尽的现场。显式需要业务决定或非平台负责人不能使用它。平台 Git 版本默认也从安装包定位，可信本机运维可明确提供 `platformDirectory`，不依赖命令启动目录。
 
 运维必须提供新修复提交、授权说明、修复措施和哈希固定的检查产物。绑定覆盖获批路线、当前候选、revision、归属和前置交付。所有旧实施与复核 TaskRun 必须结束且写入者实际退出。新提交须不同于原宿主资源回执中的平台提交；同节点、候选和修复提交只能授权一轮 review claim。相同请求重放只返回原回执。
 

@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { parseRuntimeDeclaration } from './runtime-contract';
+import { platformRepository } from '../platform-repository';
 
 /** Host registration declares existing tools; permissions remain in runtime-environments or workflow approval. */
-export function hostRuntimeRegistration(repository: string, file = path.join(process.cwd(), 'config/runtime-resources.json')) {
+export function hostRuntimeRegistration(repository: string, file = path.join(platformRepository(), 'config/runtime-resources.json')) {
   let text: string;
   try { text = readFileSync(file, 'utf8'); }
   catch (error) { if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null; throw error; }

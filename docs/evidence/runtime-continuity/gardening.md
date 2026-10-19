@@ -43,3 +43,13 @@ M03A 已保存候选 `4319f1d94897ef9d8fae976bb761c7f8f0925a56`，却因浏览�
 12:35 UTC，协调器自动派发 M03B，TaskRun `cmvf8lqmk01rm9sfjfdxu4ybi` 的原生 PID 871653 存活且产生输出。M03B 新 claim 也固定 `f42441b6…` 同一完整资源身份，无需再次配置浏览器或人工继续。完整证据见 `live-receipt.json` 和 `m03a-independent-*`。服务加载期间主聊天 PID 一直为 21469。
 
 本次没有证明 M03B 业务已完成、实时 OCR 准确率或全路线通过。M03A 范围是组汇总草稿，冲突裁定与正式确认属于 M03B。R05 原材料问题及持续架构师机制保持本轮范围之外。
+
+## 评审后的结构整理
+
+用户批准小范围整理后，平台目录改为从模块安装包定位，并允许可信内部调用明确提供路径。运行资源和验收修复版本读取不再依赖 `process.cwd()`。测试在无关目录放置损坏配置，仍能从明确指定的临时平台目录取得声明；验收恢复也从无关目录执行，证明平台版本没有选错。
+
+`prepared-review-recovery.ts` 已并入 `preparation-recovery.ts`，实际调用者同步迁移，删除旧模块。公共节点锁及请求查重集中维护；实施与验收原有事件、哈希格式、归属和预算保护不变。
+
+验证通过：`task-graph-runtime-pinning`、`task-graph-prepared-review`、`task-graph-preparation-recovery` 三套隔离 PostgreSQL 回归，以及 TypeScript 检查。覆盖自动接续、相同修复不能重复放行、再次失败保持耗尽、旧请求重放、未知或存活写入者、产物变化等保护。
+
+GitNexus 影响查询仍因共享 LadybugDB 索引不可读返回 UNKNOWN。本轮依据实际调用者与回归核对，未重建共享索引。整理代码尚未加载到运行中的服务；没有重启、恢复或修改当前业务任务。

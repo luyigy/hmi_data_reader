@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { prisma } from '../prisma';
+import { platformRepository } from '../platform-repository';
 import type { AcpxPermissionConfig } from '../acpx/types';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from '../acpx/permissions';
 import { resolveLocalRuntimeReadOnlyPaths } from '../acpx/runtime-environments';
@@ -12,7 +13,7 @@ import { graphGit } from './git-command';
 import { parseRuntimeDeclaration, runtimeDeclaration, type RuntimeDeclarationSource } from './runtime-contract';
 import { prepareDeclaredRuntime, RuntimePreparationError, type PreparedRuntime } from './runtime-preflight';
 
-type Arguments = Parameters<typeof prepareDeclaredRuntime>[0] & { taskId?: string; permissionConfig?: AcpxPermissionConfig };
+type Arguments = Parameters<typeof prepareDeclaredRuntime>[0] & { taskId?: string; permissionConfig?: AcpxPermissionConfig; platformRepository?: string };
 type Pin = { version: 1; executionId: string; claimToken: string; sourceRepository: string; source: RuntimeDeclarationSource | null; projectManifestHash: string | null; hostReadOnlyRoots: string[]; grantHash: string; identity: string; receipt: PreparedRuntime['receipt'] };
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 function parsePin(value: unknown): Pin {
@@ -42,11 +43,13 @@ async function repositoryIdentity(directory: string) {
 
 /** The server ledger and current claim identify runtime inputs even when the stage cwd is not Git. */
 export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<PreparedRuntime> {
+  const platform = args.platformRepository || platformRepository();
+  const permissionFile = path.join(platform, 'config/runtime-environments.json');
   const nodeId = args.taskId && /^task-graph-(?:review|architecture)-(.+)$/.exec(args.taskId)?.[1];
   let jobs = nodeId ? await prisma.taskGraphExecution.findMany({ where: { nodeId }, include: { node: true } })
     : args.taskId ? await prisma.taskGraphExecution.findMany({ where: { childTaskId: args.taskId }, include: { node: true } }) : [];
   if (!jobs.length) {
-    const grants = resolveLocalRuntimeReadOnlyPaths(args.workspace, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG);
+    const grants = resolveLocalRuntimeReadOnlyPaths(args.workspace, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG, permissionFile);
     const result = await prepareDeclaredRuntime({ ...args, approvedReadOnlyRoots: [...args.approvedReadOnlyRoots, ...grants] });
     return { ...result, readOnlyPaths: Array.from(new Set([...result.readOnlyPaths, ...grants])).filter(root => root !== args.workspace) };
   }
@@ -78,13 +81,13 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
     if (current && current.commit !== expectedCommit) throw new RuntimePreparationError('invalid', '运行能力声明的源码提交已改变', [sourceWorkspace]);
     if (pin && (current?.manifestHash || null) !== pin.projectManifestHash) throw new RuntimePreparationError('invalid', '本 claim 的运行能力声明已改变，须经受控新 claim 固定', [sourceWorkspace]);
     const restricted = args.permissionConfig && 'workflowPermissionSnapshot' in args.permissionConfig;
-    const hostReadOnlyRoots = pin ? pin.hostReadOnlyRoots : restricted ? resolveLocalRuntimeReadOnlyPaths(repository, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG) : Array.from(new Set([...resolveLocalRuntimeReadOnlyPaths(repository, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG), ...resolveLocalRuntimeReadOnlyPaths(sourceWorkspace, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG)]));
-    const registration = !pin && !current && !restricted ? hostRuntimeRegistration(repository) : null;
+    const hostReadOnlyRoots = pin ? pin.hostReadOnlyRoots : restricted ? resolveLocalRuntimeReadOnlyPaths(repository, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG, permissionFile) : Array.from(new Set([...resolveLocalRuntimeReadOnlyPaths(repository, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG, permissionFile), ...resolveLocalRuntimeReadOnlyPaths(sourceWorkspace, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG, permissionFile)]));
+    const registration = !pin && !current && !restricted ? hostRuntimeRegistration(repository, path.join(platform, 'config/runtime-resources.json')) : null;
     let source = pin ? pin.source : current;
     if (!pin && !current && !restricted && registration?.runtime) {
       const text = JSON.stringify(registration.runtime);
       source = { origin: 'host_registration', registrationHash: registration.registrationHash, declaration: registration.runtime, manifestHash: createHash('sha256').update(text).digest('hex'),
-        commit: await graphGit(process.cwd(), 'rev-parse', 'HEAD'), filename: registration.configFile || '' };
+        commit: await graphGit(platform, 'rev-parse', 'HEAD'), filename: registration.configFile || '' };
     }
     const grants = !restricted ? hostReadOnlyRoots : [];
     const result = await prepareDeclaredRuntime({ ...args, sourceDeclaration: source, resourceWorkspace: sourceWorkspace,

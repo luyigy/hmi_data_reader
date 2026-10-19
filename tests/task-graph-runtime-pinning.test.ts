@@ -15,6 +15,7 @@ import { applyWorkflowPermissionSnapshot, buildWorkflowPermissionSnapshot } from
 import { executeViaLocalHarness } from '../src/lib/acpx/runner-harness';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { DEFAULT_ACPX_PERMISSION_CONFIG } from '../src/lib/acpx/permissions';
+import { platformRepository } from '../src/lib/platform-repository';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
@@ -34,7 +35,10 @@ async function main() {
     const permissionFile = path.join(platform, 'config/runtime-environments.json');
     await writeFile(registrationFile, JSON.stringify({ [repo]: declaration }));
     await writeFile(permissionFile, JSON.stringify({ [repo]: [weights], [path.join(scratch, 'job')]: [weights] }));
-    process.chdir(platform);
+    const unrelated = path.join(scratch, 'unrelated-launch-directory'); await mkdir(unrelated);
+    await mkdir(path.join(unrelated, 'config')); await writeFile(path.join(unrelated, 'config/runtime-resources.json'), '{invalid');
+    process.chdir(unrelated);
+    assert.equal(platformRepository(), path.resolve(__dirname, '..'), 'Default platform identity follows the installed module, not an unrelated launch directory');
     const commit = git(repo, 'rev-parse', 'HEAD'), jobPath = path.join(scratch, 'job'); git(repo, 'worktree', 'add', '--detach', jobPath, commit);
     const parent = await prisma.task.create({ data: { name: 'Claim runtime pin' } }); parentId = parent.id;
     const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: { specRef: 'test://runtime-pin', nodes: ['PIN', 'CAS', 'NONE', 'HEAD', 'WORKFLOW'].map(key => ({
@@ -50,7 +54,7 @@ async function main() {
     }
     const prepare = async (key: string, workspace = jobPath, roots: string[] = []) => {
       const outputDirectory = path.join(scratch, `output-${key}-${Math.random().toString(16).slice(2)}`); await mkdir(outputDirectory);
-      return prepareTaskDeclaredRuntime({ taskId: `task-graph-${jobs.get(key)}`, workspace, approvedReadOnlyRoots: roots, outputDirectory, writerNonce: worker.nonce });
+      return prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-${jobs.get(key)}`, workspace, approvedReadOnlyRoots: roots, outputDirectory, writerNonce: worker.nonce });
     };
     const first = await prepare('PIN'); assert(first.identity); assert.equal(first.env.AP_GRAPH_OCR_MODEL_DIR, weights);
     const jobId = jobs.get('PIN'); assert(jobId);
@@ -70,18 +74,18 @@ async function main() {
     const progress = executionProgress(before.dispatchMetadata); assert(progress);
     await prisma.taskGraphExecution.update({ where: { id: jobId }, data: { status: 'integrated', commit, dispatchMetadata: metadataWithProgress(before.dispatchMetadata, { ...progress, phase: 'acceptance', revision: progress.revision + 1 }) } });
     const reviewOut = path.join(scratch, 'review-out'); await mkdir(reviewOut);
-    const acceptance = await prepareTaskDeclaredRuntime({ taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut });
+    const acceptance = await prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut });
     assert.equal(acceptance.identity, first.identity); assert.equal(acceptance.env.AP_GRAPH_OCR_MODEL_DIR, weights);
     const restricted = applyWorkflowPermissionSnapshot(DEFAULT_ACPX_PERMISSION_CONFIG, buildWorkflowPermissionSnapshot({ policy: { preset: 'workspace', extraReadOnlyPaths: [], extraWritableRoots: [] }, projectPath: review, source: 'restricted-test' }));
-    await assert.rejects(prepareTaskDeclaredRuntime({ taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut, permissionConfig: restricted }), /超出已批准目录/);
-    await writeFile(path.join(weights, 'model.bin'), 'mutated'); await assert.rejects(prepareTaskDeclaredRuntime({ taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut }), /SHA256/); await writeFile(path.join(weights, 'model.bin'), 'approved OCR bytes');
+    await assert.rejects(prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut, permissionConfig: restricted }), /超出已批准目录/);
+    await writeFile(path.join(weights, 'model.bin'), 'mutated'); await assert.rejects(prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut }), /SHA256/); await writeFile(path.join(weights, 'model.bin'), 'approved OCR bytes');
     await mkdir(path.join(jobPath, '.agent-platform')); await writeFile(path.join(jobPath, '.agent-platform/runtime.json'), '{invalid');
-    await assert.rejects(prepareTaskDeclaredRuntime({ taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut }), /纳入 Git|运行能力/);
+    await assert.rejects(prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [jobPath], outputDirectory: reviewOut }), /纳入 Git|运行能力/);
     await rm(path.join(jobPath, '.agent-platform'), { recursive: true });
     const promoted = path.join(scratch, 'new-candidate'); git(repo, 'worktree', 'add', '--detach', promoted, commit); await writeFile(path.join(promoted, 'source.txt'), 'new candidate code'); git(promoted, 'add', 'source.txt'); git(promoted, 'commit', '-m', 'Candidate code advances');
     const promotedCommit = git(promoted, 'rev-parse', 'HEAD'), integrated = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: jobId } }); const integratedProgress = executionProgress(integrated.dispatchMetadata); assert(integratedProgress);
     await prisma.taskGraphExecution.update({ where: { id: jobId }, data: { commit: promotedCommit, worktreePath: promoted, dispatchMetadata: metadataWithProgress(integrated.dispatchMetadata, { ...integratedProgress, candidateCommit: promotedCommit, revision: integratedProgress.revision + 1 }) } });
-    assert.equal((await prepareTaskDeclaredRuntime({ taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [promoted], outputDirectory: reviewOut })).identity, first.identity, 'Candidate code may advance while the declaration and resource identity remain pinned');
+    assert.equal((await prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-review-${before.nodeId}`, workspace: review, approvedReadOnlyRoots: [promoted], outputDirectory: reviewOut })).identity, first.identity, 'Candidate code may advance while the declaration and resource identity remain pinned');
     await writeFile(permissionFile, JSON.stringify({ [repo]: [weights], [jobPath]: [weights] }));
     await writeFile(registrationFile, '{}'); const none = await prepare('NONE'); assert.equal(none.identity, ''); assert(none.readOnlyPaths.includes(weights), 'No-declaration legacy readonly grant remains available');
     await writeFile(registrationFile, JSON.stringify({ [repo]: declaration })); await writeFile(permissionFile, JSON.stringify({ [repo]: [weights, '/tmp'], [jobPath]: [weights, '/tmp'] }));
@@ -96,10 +100,10 @@ async function main() {
     await prisma.taskGraphExecution.update({ where: { id: workflowId }, data: { worktreePath: workflowPath, dispatchMetadata: metadataWithProgress(workflowJob.dispatchMetadata, { ...workflowProgress, candidateCommit: workflowCommit }) } });
     const allowed = applyWorkflowPermissionSnapshot(DEFAULT_ACPX_PERMISSION_CONFIG, buildWorkflowPermissionSnapshot({ policy: { preset: 'workspace', extraReadOnlyPaths: [weights], extraWritableRoots: [] }, projectPath: workflowPath, source: 'approved-runtime-test' }));
     const workflowOutput = path.join(scratch, 'workflow-output'); await mkdir(workflowOutput);
-    const workflowRuntime = await prepareTaskDeclaredRuntime({ taskId: `task-graph-${workflowId}`, workspace: workflowPath, approvedReadOnlyRoots: [weights], outputDirectory: workflowOutput, permissionConfig: allowed });
+    const workflowRuntime = await prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-${workflowId}`, workspace: workflowPath, approvedReadOnlyRoots: [weights], outputDirectory: workflowOutput, permissionConfig: allowed });
     assert(workflowRuntime.identity);
     await prisma.taskGraphExecution.update({ where: { id: workflowId }, data: { status: 'integrated', commit: workflowCommit, dispatchMetadata: metadataWithProgress(workflowJob.dispatchMetadata, { ...workflowProgress, phase: 'acceptance', candidateCommit: workflowCommit, revision: workflowProgress.revision + 1 }) } });
-    assert.equal((await prepareTaskDeclaredRuntime({ taskId: `task-graph-review-${workflowJob.nodeId}`, workspace: review, approvedReadOnlyRoots: [workflowPath], outputDirectory: workflowOutput })).identity, workflowRuntime.identity, 'An original immutable workflow grant remains available to later stages without consulting mutable host policy');
+    assert.equal((await prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-review-${workflowJob.nodeId}`, workspace: review, approvedReadOnlyRoots: [workflowPath], outputDirectory: workflowOutput })).identity, workflowRuntime.identity, 'An original immutable workflow grant remains available to later stages without consulting mutable host policy');
     const require = createRequire(__filename), preflight: typeof import('../src/lib/task-graph/runtime-preflight') = require('../src/lib/task-graph/runtime-preflight');
     const original = preflight.prepareDeclaredRuntime;
     preflight.prepareDeclaredRuntime = async args => { const result = await original(args); const row = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: jobs.get('CAS')! } }); const state = executionProgress(row.dispatchMetadata); assert(state); await prisma.taskGraphExecution.update({ where: { id: row.id }, data: { dispatchMetadata: metadataWithProgress(row.dispatchMetadata, { ...state, revision: state.revision + 1 }) } }); return result; };

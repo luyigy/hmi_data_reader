@@ -9,7 +9,7 @@ import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { runTaskGraphCycle, recoverTaskGraphNodeVerification, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
-import { inspectPreparedReviewBinding, registerPreparedReviewRecovery } from '../src/lib/task-graph/prepared-review-recovery';
+import { inspectPreparedReviewBinding, registerPreparedReviewRecovery } from '../src/lib/task-graph/preparation-recovery';
 import { getHarnessAdapter } from '../src/lib/harness';
 import type { GraphDefinition } from '../src/lib/task-graph/domain';
 import type { Prisma } from '@prisma/client';
@@ -58,7 +58,11 @@ async function scenario(passes: boolean) {
     const remediation = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
     await assert.rejects(registerPreparedReviewRecovery({ ...receipt, bindingHash: '0'.repeat(64) }, remediation), /binding changed/);
     writeFileSync(artifact, 'changed'); await assert.rejects(registerPreparedReviewRecovery(receipt, remediation), /hash mismatch/); writeFileSync(artifact, 'verified new platform fix');
-    const registered = await registerPreparedReviewRecovery(receipt, remediation);
+    const launchDirectory = process.cwd();
+    let registered: Awaited<ReturnType<typeof registerPreparedReviewRecovery>>;
+    process.chdir(root);
+    try { registered = await registerPreparedReviewRecovery(receipt, remediation); }
+    finally { process.chdir(launchDirectory); }
     assert.equal(registered.kind, 'registered'); assert.equal((await registerPreparedReviewRecovery(receipt, remediation)).kind, 'already_registered');
     const ready = executionProgress((await getNode()).executions[0].dispatchMetadata)!;
     assert.equal(ready.worker, undefined); assert.equal(ready.workerReleasedAt, undefined); assert.equal(ready.platformAttempts, 2); assert.equal(ready.candidateCommit, progress.candidateCommit);
