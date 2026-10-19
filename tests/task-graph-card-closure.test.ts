@@ -51,8 +51,8 @@ async function main() {
     const before = sends.size;
     const started = await run(first.task.id);
     await relayTaskGraphRunReply(started.id, true);
-    assert.equal(sends.size, before, 'A pause before TaskRun and subsequent resume must share one card');
-    assert.equal(updates.at(-1)?.id, Array.from(sends.values()).at(-1));
+    assert.equal(sends.size, before + 1, 'A started TaskRun owns a new card after the pre-run pause');
+    assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: started.id } })).messageId, Array.from(sends.values()).at(-1));
 
     await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
       ...initialExecutionProgress(), phase: 'check', repairAttempts: 1,
@@ -70,14 +70,21 @@ async function main() {
     const lostRun = await run(lost.task.id);
     const beforeLost = sends.size;
     await relayTaskGraphRunReply(lostRun.id, true);
-    assert.equal(sends.size, beforeLost, 'Fallback timeout and TaskRun retry must use the same send UUID');
+    assert.equal(sends.size, beforeLost + 1, 'A new TaskRun has its own send identity, separate from a pre-run notice');
 
     const expired = await fixture(); loseResponse = true;
     await assert.rejects(deliverGraphChildProgress(expired.task.id, 'input', '等待输入'), /accepted response lost/);
     await prisma.taskGraphEvent.updateMany({ where: { runId: expired.graph.id, kind: 'notification_send_started' }, data: { createdAt: new Date(0) } });
     const expiredRun = await run(expired.task.id), beforeExpired = attempts.length;
-    await assert.rejects(relayTaskGraphRunReply(expiredRun.id, true), /reconcile|uncertain/);
-    assert.equal(attempts.length, beforeExpired, 'The first TaskRun must not reset the original uncertain-send age');
+    await prisma.taskRunFeishuRelay.create({ data: { taskRunId: expiredRun.id, bindingId: expired.binding.id, createdAt: new Date(0) } });
+    await relayTaskGraphRunReply(expiredRun.id, true);
+    assert.equal(attempts.length, beforeExpired + 1, 'A new run sends a new card without retrying the expired pre-run notice');
+    const uncertain = await fixture(), uncertainRun = await run(uncertain.task.id); loseResponse = true;
+    await assert.rejects(relayTaskGraphRunReply(uncertainRun.id, true), /accepted response lost/);
+    await prisma.taskGraphEvent.updateMany({ where: { runId: uncertain.graph.id, kind: 'notification_send_started' }, data: { createdAt: new Date(0) } });
+    const uncertainAttempts = attempts.length;
+    await assert.rejects(relayTaskGraphRunReply(uncertainRun.id, true), /reconcile|uncertain/);
+    assert.equal(attempts.length, uncertainAttempts, 'An uncertain send in the same run retains its original age and never generates a new UUID');
 
     const concurrent = await fixture();
     let releaseSend!: () => void, sendStarted!: () => void;
@@ -95,7 +102,9 @@ async function main() {
     } finally { clearTimeout(timeout); releaseSend(); await fallback; onSend = undefined; }
     const beforeConcurrent = sends.size;
     await relayTaskGraphRunReply(concurrentRun.id, true);
-    assert.equal(sends.size, beforeConcurrent, 'Concurrent first delivery must create only one card');
+    assert.equal(sends.size, beforeConcurrent + 1, 'The new run creates one card after the pre-run delivery releases the shared topic lock');
+    await relayTaskGraphRunReply(concurrentRun.id, true);
+    assert.equal(sends.size, beforeConcurrent + 1, 'Replaying the current run does not create another card');
 
     const legacy = await fixture();
     const legacyIdentity = `child-progress:${legacy.task.id}:old-input`;
@@ -105,7 +114,8 @@ async function main() {
       kind: 'notification_message_sent', payload: { messageId: 'legacy-fallback-card' } } });
     const legacyRun = await run(legacy.task.id), beforeLegacy = sends.size;
     await relayTaskGraphRunReply(legacyRun.id, true);
-    assert.equal(sends.size, beforeLegacy); assert.equal(updates.at(-1)?.id, 'legacy-fallback-card', 'An existing fallback receipt remains authoritative');
+    assert.equal(sends.size, beforeLegacy + 1, 'A legacy pre-run receipt does not replace the new run card');
+    assert.notEqual((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: legacyRun.id } })).messageId, 'legacy-fallback-card');
 
     const legacyLost = await fixture();
     const oldIdentity = `child-progress:${legacyLost.task.id}:old-lost`;
@@ -113,8 +123,9 @@ async function main() {
     await prisma.taskGraphEvent.create({ data: { runId: legacyLost.graph.id, idempotencyKey: `notification-send:${digest(oldIdentity)}`,
       kind: 'notification_send_started', payload: { identity: oldIdentity }, createdAt: new Date(0) } });
     const legacyLostRun = await run(legacyLost.task.id), oldAttempts = attempts.length;
-    await assert.rejects(relayTaskGraphRunReply(legacyLostRun.id, true), /uncertain/);
-    assert.equal(attempts.length, oldAttempts, 'Migration must preserve the age of an uncertain legacy fallback send');
+    await relayTaskGraphRunReply(legacyLostRun.id, true);
+    assert.equal(attempts.length, oldAttempts + 1, 'The new run does not retry or adopt the uncertain legacy notice');
+    assert.equal((await prisma.taskGraphEvent.findUniqueOrThrow({ where: { runId_idempotencyKey: { runId: legacyLost.graph.id, idempotencyKey: `notification-send:${digest(oldIdentity)}` } } })).createdAt.getTime(), 0);
 
     const backlog = await fixture();
     for (let index = 0; index < 100; index++) {
@@ -158,7 +169,7 @@ async function main() {
     } } } });
     await relayTaskGraphRunReply(started.id, true);
     assert.match(JSON.stringify(updates.at(-1)?.card), /自动处理已耗尽/);
-    console.log('One card survives pre-run pause and lost responses; expired uncertainty is retained; 100 superseded cursors cannot starve delivery; current failure reaches the folded card');
+    console.log('New runs own new cards; same-run uncertain sends retain their age; 100 superseded cursors cannot starve delivery; current failure reaches the folded card');
   } finally {
     await prisma.taskGraphRun.deleteMany({ where: { id: { in: graphIds } } });
     await prisma.liveRoom.deleteMany({ where: { id: { in: roomIds } } });

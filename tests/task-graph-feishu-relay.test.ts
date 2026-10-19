@@ -89,13 +89,20 @@ async function main() {
     assert.equal(sent.length, 1); assert.equal(replies.length, 0);
     const retry = await prisma.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'running',
       createdAt: new Date(Date.now() + 1000), events: { create: { sequence: 1, eventType: 'runner_started', content: '自动回修已启动' } } } });
+    await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: '这一轮为什么没有进度？' } });
+    const previousCursor = await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } });
+    await prisma.taskRunFeishuRelay.create({ data: { taskRunId: retry.id, bindingId: previousCursor.bindingId, messageId: 'reply-1', deliveredSequence: 1, lastStatus: 'running' } });
     await relayTaskGraphRunReply(retry.id);
-    assert.equal(sent.length, 1, 'Automatic repair must reuse the task topic card across TaskRuns');
-    assert.equal(updated.at(-1)?.id, 'reply-1');
+    assert.equal(sent.length, 2, 'A new TaskRun posts a fresh progress card below the discussion');
+    assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: retry.id } })).messageId, 'reply-2');
+    await prisma.taskRunEvent.create({ data: { taskRunId: retry.id, sequence: 2, eventType: 'stdout_chunk', content: '本轮继续检查' } });
+    await relayTaskGraphRunReply(retry.id);
+    assert.equal(updated.at(-1)?.id, 'reply-2', 'Only the current run card is updated during its lifetime');
+    assert.equal(sent.length, 2);
     const latestCard = updated.at(-1)?.card;
     assert.equal(await relayTaskGraphRunReply(run.id, true), false, 'An older TaskRun must not overwrite the current task card');
     assert.deepEqual(updated.at(-1)?.card, latestCard);
-    console.log('Feishu progress patches one card, folds details, preserves approvals and exposes blocked delivery');
+    console.log('Each TaskRun owns a new topic card; legacy shared cursors migrate, current output updates once, and superseded runs cannot overwrite it');
   } finally {
     api.sendFeishuInteractiveMessage = original.send; cards.updateFeishuTaskEntryCard = original.update; api.replyFeishuMessage = original.reply;
     await prisma.liveRoom.delete({ where: { id: room.id } });

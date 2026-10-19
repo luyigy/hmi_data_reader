@@ -671,6 +671,8 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
         source: 'feishu',
         feishuBindingId: binding.id,
         feishuChatId: args.context.chatId,
+        feishuChatType: args.context.chatType,
+        feishuThreadId: args.context.threadId,
         feishuMessageId: args.context.messageId,
         feishuSenderOpenId: args.context.senderOpenId,
         targetLocked: explicitMentionMemberIds.length === 1 && !mentionedAll,
@@ -682,7 +684,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     }),
   });
 
-  const continued = await handleGraphConversationIntent({ roomId: binding.liveRoomId, chatId: args.context.chatId, openId: args.context.senderOpenId, messageId: args.context.messageId, text: args.content });
+  const continued = await handleGraphConversationIntent({ roomId: binding.liveRoomId, chatId: args.context.chatId, chatType: args.context.chatType, threadId: args.context.threadId, openId: args.context.senderOpenId, messageId: args.context.messageId, text: args.content });
   if (!continued) void triggerLiveRoomMessageReplies({
     roomId: binding.liveRoomId,
     roomMessageId: message.id,

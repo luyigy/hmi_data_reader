@@ -10,6 +10,7 @@ function continuationAction(text: string) {
 }
 
 export function hasContinuationAuthorization(text: string) {
+  if (/[?？]|咋回事|怎么回事|为什么|为何|怎么|如何|吗|没有|没|并未|说是|好像|以为/.test(text)) return false;
   const action = continuationAction(text);
   if (!action || /[?？]|(?:吗|么)[呀啊呢吧\s]*$|能不能|可不可以|是否|好不好|行不行|为什么|为何|怎么|如何|还缺/.test(action)) return false;
   if (/(?:以后|下次|明天|稍后|等[\s\S]+(?:后|再)|如果)[\s\S]*(?:继续|恢复|接着|执行|实施|重跑|重新跑)/.test(action)) return false;
@@ -18,7 +19,7 @@ export function hasContinuationAuthorization(text: string) {
 export function resumeIntent(text: string) {
   return hasContinuationAuthorization(text) && !/(?:继续|恢复|接着|重跑|执行|实施)[\s\S]{0,8}(?:讨论|聊天|设计|规划|写方案)/.test(continuationAction(text) || '');
 }
-export type GraphContinuationInput = { roomId: string; chatId: string; openId: string; messageId: string; text: string; nodeKey?: string };
+export type GraphContinuationInput = { roomId: string; chatId: string; openId: string; messageId: string; text: string; nodeKey?: string; chatType?: string; threadId?: string };
 
 /** Only inbound human messages reach this entry. The coordinator consumes the durable request. */
 export async function handleGraphConversationIntent(args: GraphContinuationInput, fromControl = false) {
@@ -56,7 +57,9 @@ export async function handleGraphConversationIntent(args: GraphContinuationInput
     text = error instanceof Error ? error.message : String(error);
     uuid = `graph-continue-error-${args.messageId}`;
   }
-  await replyFeishuMessage({ messageId: args.messageId, msgType: 'text', content: { text }, replyInThread: true, uuid });
+  const binding = await prisma.feishuConversationBinding.findFirst({ where: { liveRoomId: args.roomId, chatId: args.chatId }, select: { chatType: true, threadId: true } });
+  const replyInThread = (args.chatType || binding?.chatType) !== 'p2p' || !!(args.threadId || binding?.threadId);
+  await replyFeishuMessage({ messageId: args.messageId, msgType: 'text', content: { text }, replyInThread, uuid });
   return true;
 }
 

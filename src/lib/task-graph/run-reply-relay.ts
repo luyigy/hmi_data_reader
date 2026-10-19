@@ -45,10 +45,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
       await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded' } });
       return false;
     }
-    const first = await tx.taskRunFeishuRelay.findFirstOrThrow({ where: { bindingId: binding.id },
-      orderBy: [{ createdAt: 'asc' }, { taskRunId: 'asc' }] });
-    const existingCard = await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, messageId: { not: null } },
-      orderBy: [{ createdAt: 'asc' }, { taskRunId: 'asc' }] });
+    const sharedCard = cursor.messageId && await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, taskRunId: { not: run.id }, messageId: cursor.messageId }, select: { taskRunId: true } });
     const latest = await tx.taskRunEvent.findFirst({ where: { taskRunId: run.id }, orderBy: { sequence: 'desc' } });
     const sequence = latest?.sequence || 0;
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
@@ -56,7 +53,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     const execution = await tx.taskGraphExecution.findFirst({ where: { childTask: { liveRooms: { some: { id: binding.liveRoomId } } } },
       select: { childTaskId: true, dispatchMetadata: true, updatedAt: true, node: { select: { runId: true, status: true, updatedAt: true } } } });
     const graphChanged = execution && (execution.updatedAt > cursor.updatedAt || execution.node.updatedAt > cursor.updatedAt);
-    if (!forceRefresh && !graphChanged && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
+    if (!forceRefresh && !sharedCard && !graphChanged && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
     const history = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: { notIn: ['stdout_chunk', 'stderr_chunk', 'summary'] } }, orderBy: { sequence: 'desc' }, take: 100 });
     output.reverse();
@@ -64,7 +61,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     card.header.title.content = `${run.task.name} · ${card.header.title.content}`;
     const messageId = await deliverProgressCard({ bindingId: binding.id, runId: execution?.node.runId,
       childTaskId: execution?.childTaskId || undefined, chatId: binding.chatId, rootMessageId, card,
-      messageId: existingCard?.messageId || cursor.messageId, firstRun: first });
+      taskRunId: run.id, messageId: sharedCard ? null : cursor.messageId, firstRun: cursor });
     if (!messageId) throw new Error('Reply card send returned no message id');
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
       data: { messageId, deliveredSequence: sequence, lastStatus: run.status } });

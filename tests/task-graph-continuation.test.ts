@@ -24,7 +24,8 @@ async function main() {
   const originalTrigger = delivery.triggerLiveRoomMessageReplies;
   let discussionCalls = 0; delivery.triggerLiveRoomMessageReplies = async () => { discussionCalls++; };
   const originalGroupAdmin = entry.isFeishuGroupAdmin; entry.isFeishuGroupAdmin = async () => false;
-  const originalReply = api.replyFeishuMessage; api.replyFeishuMessage = async () => 'ack';
+  const replies: { replyInThread?: boolean }[] = [];
+  const originalReply = api.replyFeishuMessage; api.replyFeishuMessage = async (args: typeof replies[number]) => { replies.push(args); return 'ack'; };
   const parent = await prisma.task.create({ data: { name: 'continuation' } });
   const child = await prisma.task.create({ data: { name: 'S05 child' } });
   const room = await prisma.liveRoom.create({ data: { title: 'parent', sourceTaskId: parent.id } });
@@ -41,6 +42,8 @@ async function main() {
     assert.equal(resumeIntent('不要让Codex继续验收'), false);
     assert.equal(resumeIntent('不要让我再敲命令了，继续验收'), true);
     assert.equal(resumeIntent('为什么卡住了？继续验收'), false);
+    const statusQuestions = ['但是当前任务我看已经停了呀，都没有继续了呀。\n\n他好像虽然那个验收通过了，但是并没有往下走啊', '卧槽，你这个还是他妈的很神经啊。你那个R05，他说好像说是继续启动了，但他妈实际上根本就没动啊，咋回事？'];
+    for (const text of [...statusQuestions, '继续启动了。为什么没动？', '我以为已经继续了', '都没有继续', '并未继续']) assert.equal(resumeIntent(text), false, text);
     const context = { roomId: room.id, chatId: 'chat', openId: 'fixture-admin', messageId: 'message', text: '用这张继续验收' };
     const inbound = { context: { appId: 'fixture', chatId: 'chat', chatType: 'group', senderOpenId: 'fixture-admin', messageId: 'message', threadId: 'parent-thread' }, content: '用这张继续验收' };
     await postFeishuMessageToBoundLiveRoom(inbound);
@@ -80,6 +83,12 @@ async function main() {
       assert.equal(await prisma.taskGraphEvent.count({ where: { runId, idempotencyKey: `conversation:review-recovery:child-no-authorization-${index}` } }), 0);
     }
     assert.equal(discussionCalls, 0, 'Execution instructions must not launch a readonly discussion');
+    await prisma.feishuConversationBinding.create({ data: { liveRoomId: room.id, scopeKey: 'feishu:p2p:dm-chat', appId: 'fixture', chatId: 'dm-chat', chatType: 'p2p' } });
+    for (const [index, text] of Array.from(statusQuestions.entries())) await postFeishuMessageToBoundLiveRoom({ context: { ...inbound.context, chatType: 'p2p', chatId: 'dm-chat', threadId: undefined, messageId: `dm-status-${index}` }, content: text });
+    assert.equal(discussionCalls, 2, 'Real status questions must reach the room agent rather than being swallowed by recovery');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId, idempotencyKey: { in: ['conversation:review-recovery:dm-status-0', 'conversation:review-recovery:dm-status-1'] } } }), 0);
+    await handleGraphConversationIntent({ ...context, chatId: 'dm-chat', messageId: 'dm-authorized', text: 'S05 继续验收' });
+    assert.equal(replies.at(-1)?.replyInThread, false, 'A direct-message acknowledgement must not create a new thread');
     for (const text of ['不要重跑', '先别执行', '你执行过了吗？', '现在重跑可以吗', '稍后再重跑', '等我确认后再执行', '继续讨论这个方案', '之前执行失败了', '执行分工是什么意思？']) assert.equal(resumeIntent(text), false, text);
     const evidence = { summary: 'save defect', checks: [{ name: 'roundtrip', passed: false, evidence: 'wrong value after reopen' }] };
     assert.equal(await scheduleGraphRepair(run.id, 'S05', { failureKind: 'blocked_require_human', note: 'photo blurred' }, evidence), false);

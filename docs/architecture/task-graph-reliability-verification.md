@@ -39,7 +39,7 @@
 - `task-graph-integration-retry`：引用推进后对最新合并结果重检并 CAS 更新；真实冲突保留现场；次数有限。
 - `task-graph-execution-progress`：旧 revision 与 claimToken 拒绝、重复 outcome 不重复计费、候选与集成提交分离、耗尽不能普通继续。
 - `task-graph-lifecycle-adapters`：旧完成入口不能绕过阶段；授权恢复及交付重分类保留候选、集成证据和预算；时间回收不能绕过进程证明。
-- `task-graph-card-closure`：首次派发前卡片与 TaskRun 共用卡片；投递不确定时保留原 UUID 与时间；旧轮次不挤占轮询；失败原因保留在卡片详情。
+- `task-graph-card-closure`：每个 TaskRun 在原话题发送独立进度卡，本轮原位更新；旧共享卡绑定迁移到当前轮次；同轮投递不确定时保留原 UUID 与时间；旧轮次不挤占轮询；失败原因保留在卡片详情。
 
 完整回归、独立评审和真实 R01 接续的最终结果另行追加，尚未通过的项目不得勾选为完成。
 
