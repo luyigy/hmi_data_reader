@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { parseConflictRepair, type ConflictRepair } from './conflict-repair';
+import { executionRetryLimits } from './retry-limits';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
 export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime'; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
@@ -200,7 +201,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     } else if (outcome.kind === 'integration_stale') {
       progress.integrationAttempts++;
       progress.lastFailure = outcome.failure;
-      if (progress.integrationAttempts >= 3) {
+      if (progress.integrationAttempts >= executionRetryLimits.integrationAttempts) {
         status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
       }
     } else if (outcome.kind === 'review_resumed') {
@@ -210,7 +211,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       progress.lastFailure = outcome.failure;
       progress.phase = outcome.phase || before.phase;
       if (!['architecture', 'acceptance'].includes(before.phase)) throw new Error('Review retry is outside a review phase');
-      if (progress.platformAttempts >= 2) {
+      if (progress.platformAttempts >= executionRetryLimits.platformAttempts) {
         status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
       } else {
         progress.platformAttempts++; progress.state = 'ready';
@@ -224,7 +225,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         status = 'attention'; issueKind = outcome.failure.code; progress.state = outcome.failure.code === 'ownership_mismatch' ? 'ownership_attention' : 'waiting_decision';
       } else {
         const budget = outcome.kind === 'result_incomplete' ? 'formatAttempts' : outcome.kind === 'platform_retry' ? 'platformAttempts' : 'repairAttempts';
-        const limit = budget === 'formatAttempts' ? 1 : 2;
+        const limit = executionRetryLimits[budget];
         if (outcome.kind === 'retry_exhausted' || progress[budget] >= limit) {
           status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
         } else {

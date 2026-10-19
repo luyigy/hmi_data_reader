@@ -4,8 +4,9 @@ import type { VerificationEvidence } from './store';
 import { classifyReview, graphReviewChecks, type ReviewDecision } from './review-contract';
 import type { GraphDefinition } from './domain';
 import { applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, metadataWithProgress } from './execution-progress';
+import { executionRetryLimits } from './retry-limits';
 export type { ReviewDecision } from './review-contract';
-export const MAX_AUTO_REPAIR_ATTEMPTS = 2;
+export const MAX_AUTO_REPAIR_ATTEMPTS = executionRetryLimits.repairAttempts;
 
 /** Only a classified, approved-scope defect can requeue the original implementation jobs. */
 export async function scheduleGraphRepair(runId: string, nodeKey: string, decision: ReviewDecision, evidence: VerificationEvidence) {

@@ -1,13 +1,27 @@
 import assert from 'node:assert/strict';
 import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
+import { formatExecutionProgress } from '../src/lib/task-graph/progress-summary';
+
+for (const [phase, label] of [['prepare', '准备'], ['implement', '实施'], ['collect_result', '补收结果'], ['check', '平台检查'], ['integrate', '集成'], ['architecture', '架构复核'], ['acceptance', '验收']] as const) {
+  assert.match(formatExecutionProgress({ ...initialExecutionProgress(), phase }, false), new RegExp(`当前阶段：${label}`));
+}
+const retry = formatExecutionProgress({ ...initialExecutionProgress(), state: 'ready', phase: 'check', platformAttempts: 1, nextRetryAt: '2026-10-19T00:00:00Z' }, false);
+assert.match(retry, /协调器自动领取/); assert.match(retry, /环境重试 1/); assert.match(retry, /最早 2026-10-19T00:00:00Z/);
+assert.match(formatExecutionProgress({ ...initialExecutionProgress(), state: 'exhausted' }, false), /自动推进已暂停/);
+assert.match(formatExecutionProgress(initialExecutionProgress(), true), /当前阶段：已验收/);
+const recovered = buildRunReplyCard({ id: 'recovered', status: 'running', summary: '', error: null, participants: [], graphProgress: {
+  ...initialExecutionProgress(), phase: 'acceptance', lastFailure: { code: 'test_failed', detail: '此前的检查缺陷已修复，保留历史记录。' },
+} }, []);
+assert.doesNotMatch(JSON.stringify(recovered.body.elements[0]), /此前的检查缺陷/);
+assert.match(JSON.stringify(recovered.body.elements), /此前的检查缺陷/);
 
 const failure = { code: 'integration_conflict', detail: JSON.stringify({ message: 'Merge failed', integration: { paths: ['backend/app/contract.py', 'frontend/src/Main.vue'], candidateCommit: 'a'.repeat(40), integrationCommit: 'b'.repeat(40), mergeHead: 'c'.repeat(40) } }) };
 const card = buildRunReplyCard({ id: 'fixture', status: 'completed', summary: 'raw technical summary', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: failure } }, []);
 const visible = card.body.elements[0]; assert.ok('content' in visible && typeof visible.content === 'string');
 assert.match(visible.content, /backend\/app\/contract.py/); assert.match(visible.content, /下一步：/); assert.match(visible.content, /负责人：平台/); assert.match(visible.content, /需要你决定：否/);
 assert.doesNotMatch(visible.content, /Merge failed|candidateCommit|integrationCommit|mergeHead|"paths"/);
-const detail = card.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header?.title.content === '当前阶段故障详情'); assert.ok(detail && 'expanded' in detail && detail.expanded === false);
+const detail = card.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header?.title.content === '最近故障详情'); assert.ok(detail && 'expanded' in detail && detail.expanded === false);
 assert.match(JSON.stringify(detail), /candidateCommit/);
 console.log('Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded');
 

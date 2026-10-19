@@ -54,6 +54,17 @@ async function main() {
     assert.equal(sends.size, before, 'A pause before TaskRun and subsequent resume must share one card');
     assert.equal(updates.at(-1)?.id, Array.from(sends.values()).at(-1));
 
+    await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
+      ...initialExecutionProgress(), phase: 'check', repairAttempts: 1,
+    } } } });
+    const beforePhase = sends.size;
+    assert.equal(await relayTaskGraphRunReply(started.id), true, 'A phase checkpoint without stdout or node changes must refresh the existing card');
+    const phaseCard = JSON.stringify(updates.at(-1)?.card);
+    assert.match(phaseCard, /当前阶段：平台检查/); assert.match(phaseCard, /剩余额度：回修 1/);
+    assert.match(phaseCard, /下一自动动作：/);
+    assert.equal(sends.size, beforePhase, 'A phase checkpoint must not create another progress card');
+    assert.equal(await relayTaskGraphRunReply(started.id), false, 'An unchanged phase must not continuously update');
+
     const lost = await fixture(); loseResponse = true;
     await assert.rejects(deliverGraphChildProgress(lost.task.id, 'input', '等待输入'), /accepted response lost/);
     const lostRun = await run(lost.task.id);
@@ -140,7 +151,7 @@ async function main() {
     const card = JSON.stringify(updates.at(-1)?.card);
     assert.match(card, /shared.txt/); assert.match(card, /请确认采用哪项业务规则/); assert.match(card, /需你确认/);
     assert.match(card, /负责人：你/); assert.match(card, /需要你决定：是/);
-    assert.match(card, /当前阶段故障详情/);
+    assert.match(card, /最近故障详情/);
     await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
       ...initialExecutionProgress(), phase: 'check', state: 'exhausted', repairAttempts: 2,
       lastFailure: { code: 'test_failed', detail: '原检查连续失败，自动处理额度已用尽。' },
