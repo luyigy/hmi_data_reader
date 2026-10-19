@@ -3,6 +3,7 @@ import { parseImplementationResult, type ImplementationResult } from './implemen
 import type { TaskRun, TaskRunEvent, TaskRunParticipant, TaskRunInteractionRequest } from '@prisma/client';
 import { redactSensitiveText } from '../redact-sensitive';
 import type { ExecutionProgress } from './execution-progress';
+import { formatExecutionProgress } from './progress-summary';
 
 type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[]; graphStatus?: string; graphProgress?: ExecutionProgress | null };
 const labels: Record<string, string> = { running: '执行中', waiting_for_input: '等待确认', completed: '会话结束', failed: '执行失败', interrupted: '已中断', stopped: '已停止' };
@@ -49,7 +50,7 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
     : progress?.state === 'ready' && progress.lastFailure ? '自动恢复中，等待下一轮执行' : null;
   const status = run.graphStatus === 'passed' ? '已完成，平台检查与验收通过' : progressStatus || (blocked ? '实施暂停，尚未交付' : run.graphStatus === 'attention' ? '任务需处理，尚未通过平台检查或验收'
     : conclusion?.status === 'delivered' ? '实施已提交结果，尚未代表验收通过' : labels[run.status] || run.status);
-  const visible = `${status}\n${phaseFailure && progress?.lastFailure ? formatGraphFailureSummary(progress.lastFailure, progress.state) : snippet(conclusion?.note || response)}`;
+  const visible = `${status}\n${phaseFailure && progress?.lastFailure ? formatGraphFailureSummary(progress.lastFailure, progress.state) : snippet(conclusion?.note || response)}${progress ? `\n${formatExecutionProgress(progress, run.graphStatus === 'passed')}` : ''}`;
   const actions = (active ? requests : []).filter((request) => request.status === 'pending' && (!request.expiresAt || request.expiresAt.getTime() > Date.now()))
     .flatMap((request) => {
       let payload: unknown;
@@ -68,9 +69,9 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
       title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${progressStatus || (blocked ? '实施暂停' : run.graphStatus === 'attention' ? '任务需处理' : labels[run.status] || run.status)}` } },
     body: { elements: [
       { tag: 'markdown', content: visible },
-      ...(phaseFailure ? [{ tag: 'collapsible_panel', expanded: false,
-        header: { title: { tag: 'plain_text', content: '当前阶段故障详情' } },
-        elements: [{ tag: 'markdown', content: bounded(`阶段：${progress?.phase}\n故障：${progress?.lastFailure?.code}\n${phaseFailure}\n${progress?.lastFailure?.command?.join(' ') || ''}`, 10_000) }] }] : []),
+      ...(progress?.lastFailure ? [{ tag: 'collapsible_panel', expanded: false,
+        header: { title: { tag: 'plain_text', content: '最近故障详情' } },
+        elements: [{ tag: 'markdown', content: bounded(`当前阶段：${progress.phase}\n最近故障：${progress.lastFailure.code}\n${progress.lastFailure.detail}\n${progress.lastFailure.command?.join(' ') || ''}`, 10_000) }] }] : []),
       { tag: 'collapsible_panel', expanded: false,
         header: { title: { tag: 'plain_text', content: active ? '展开本轮完整进度' : '展开本轮回复' } },
         elements: [{ tag: 'markdown', content: bounded(response, active ? 4000 : 2500) }] },

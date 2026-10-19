@@ -54,8 +54,8 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
     const expiredSinceDelivery = requests.some((request) => request.expiresAt && request.expiresAt <= new Date() && request.expiresAt > cursor.updatedAt);
     const execution = await tx.taskGraphExecution.findFirst({ where: { childTask: { liveRooms: { some: { id: binding.liveRoomId } } } },
-      select: { childTaskId: true, dispatchMetadata: true, node: { select: { runId: true, status: true, updatedAt: true } } } });
-    const graphChanged = execution && execution.node.updatedAt > cursor.updatedAt;
+      select: { childTaskId: true, dispatchMetadata: true, updatedAt: true, node: { select: { runId: true, status: true, updatedAt: true } } } });
+    const graphChanged = execution && (execution.updatedAt > cursor.updatedAt || execution.node.updatedAt > cursor.updatedAt);
     if (!forceRefresh && !graphChanged && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
     const history = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: { notIn: ['stdout_chunk', 'stderr_chunk', 'summary'] } }, orderBy: { sequence: 'desc' }, take: 100 });
