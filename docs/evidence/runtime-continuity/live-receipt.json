@@ -1,0 +1,227 @@
+{
+  "at": "2026-10-19T12:36:44.425Z",
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "platformCode": "a21e9824effbe0d4684918f8fde1cf61cf98f41b",
+  "mainChatPid": "21469",
+  "manualResumeCalls": 0,
+  "budgetResets": 0,
+  "operatorPreparations": [
+    "cmvf80cu70003v38af8ean8sr",
+    "cmvf8hd3q0003127ypbcedlz9"
+  ],
+  "nodes": [
+    {
+      "key": "M03A",
+      "status": "passed",
+      "executionId": "cmvdmf87y043l9xhgwuu1qoex",
+      "executionStatus": "integrated",
+      "taskRunId": "cmvf80kku002cdl5khgha861u",
+      "taskRunStatus": "completed",
+      "native": [
+        {
+          "pid": 800227,
+          "alive": false,
+          "status": "completed"
+        }
+      ],
+      "candidate": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+      "commit": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+      "runtimeIdentity": "f42441b67f433859cc13902a91922e8e41e4bb98e0c8c0e43e17e22cb2ffff58",
+      "runtimePin": {
+        "source": {
+          "commit": "7ac769a38f281e084fed91750934bd7f5c4f7ee5",
+          "origin": "host_registration",
+          "filename": "/data1/code/agent-platform-v2/config/runtime-resources.json",
+          "declaration": {
+            "browser": {
+              "module": {
+                "kind": "path",
+                "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+                "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+              },
+              "executable": {
+                "kind": "path",
+                "path": "/opt/google/chrome/chrome",
+                "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+              }
+            },
+            "version": 1
+          },
+          "manifestHash": "f342f984e68866795d09628ca55bec23039909b2ee20971a0ab241e1d8d55256",
+          "registrationHash": "3c0d85b8a9b42656c6e6bf5606f14676b7469ea51b2be4bcc100ea516ccf6fb2"
+        },
+        "receipt": {
+          "commit": "7ac769a38f281e084fed91750934bd7f5c4f7ee5",
+          "version": 1,
+          "identity": "f42441b67f433859cc13902a91922e8e41e4bb98e0c8c0e43e17e22cb2ffff58",
+          "resources": [
+            {
+              "kind": "Playwright 模块",
+              "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+              "origin": {
+                "kind": "path",
+                "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+                "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+              },
+              "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+            },
+            {
+              "kind": "Chromium 可执行文件",
+              "path": "/opt/google/chrome/chrome",
+              "origin": {
+                "kind": "path",
+                "path": "/opt/google/chrome/chrome",
+                "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+              },
+              "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+            }
+          ],
+          "manifestHash": "f342f984e68866795d09628ca55bec23039909b2ee20971a0ab241e1d8d55256",
+          "browserVersion": "147.0.7727.137"
+        },
+        "version": 1,
+        "identity": "f42441b67f433859cc13902a91922e8e41e4bb98e0c8c0e43e17e22cb2ffff58",
+        "grantHash": "ce0cc3483ae6f31b1ad2067393f315a3c698c15867f3635c38a776699658574d",
+        "claimToken": "777744a2-2211-4f78-babe-0856e2ecd128",
+        "executionId": "cmvdmf87y043l9xhgwuu1qoex",
+        "sourceRepository": "/data1/code/mold-data-webpage-tool",
+        "hostReadOnlyRoots": [
+          "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+          "/opt/google/chrome"
+        ],
+        "projectManifestHash": null
+      },
+      "counters": {
+        "repair": 0,
+        "platform": 2,
+        "format": 0,
+        "integration": 0
+      },
+      "evidence": {
+        "checks": [
+          {
+            "name": "ticket-behavior",
+            "passed": true,
+            "evidence": "/data1/code/mold-data-webpage-tool/backend/.venv/bin/python -m pytest -q backend/tests/test_hmi_protocol_library_m03a.py\n.......                                                                  [100%]\n=============================== warnings summary ===============================\n../../../../../mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1\n  /data1/code/mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n7 passed, 1 warning in 6.26s\n\nAgent review cmvf8hg18002s9sfjh9gghxba: 固定提交4319f1d独立复验：API 7项通过，1440/390浏览器通过；已核对四张截图、独立GET及保存重开。等值、冲突、未决及补基准转换符合M03A范围。源码未修改；报告位于本轮输出目录f815a9e3e35e8ccc96e3e8a2/review.md。实时OCR、正式Run及M03B确认保存未纳入本次通过范围。"
+          },
+          {
+            "name": "acceptance:decision",
+            "passed": true,
+            "evidence": "固定提交4319f1d独立复验：API 7项通过，1440/390浏览器通过；已核对四张截图、独立GET及保存重开。等值、冲突、未决及补基准转换符合M03A范围。源码未修改；报告位于本轮输出目录f815a9e3e35e8ccc96e3e8a2/review.md。实时OCR、正式Run及M03B确认保存未纳入本次通过范围。"
+          }
+        ],
+        "summary": "Agent 复核 通过：固定提交4319f1d独立复验：API 7项通过，1440/390浏览器通过；已核对四张截图、独立GET及保存重开。等值、冲突、未决及补基准转换符合M03A范围。源码未修改；报告位于本轮输出目录f815a9e3e35e8ccc96e3e8a2/review.md。实时OCR、正式Run及M03B确认保存未纳入本次通过范围。"
+      }
+    },
+    {
+      "key": "M03B",
+      "status": "claimed",
+      "executionId": "cmvdmf87y043n9xhgkgkxy2ip",
+      "executionStatus": "claimed",
+      "taskRunId": "cmvf8lqmk01rm9sfjfdxu4ybi",
+      "taskRunStatus": "running",
+      "native": [
+        {
+          "pid": 871653,
+          "alive": true,
+          "status": "running"
+        }
+      ],
+      "candidate": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+      "commit": null,
+      "runtimeIdentity": "f42441b67f433859cc13902a91922e8e41e4bb98e0c8c0e43e17e22cb2ffff58",
+      "runtimePin": {
+        "source": {
+          "commit": "a21e9824effbe0d4684918f8fde1cf61cf98f41b",
+          "origin": "host_registration",
+          "filename": "/data1/code/agent-platform-v2/config/runtime-resources.json",
+          "declaration": {
+            "browser": {
+              "module": {
+                "kind": "path",
+                "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+                "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+              },
+              "executable": {
+                "kind": "path",
+                "path": "/opt/google/chrome/chrome",
+                "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+              }
+            },
+            "version": 1
+          },
+          "manifestHash": "f342f984e68866795d09628ca55bec23039909b2ee20971a0ab241e1d8d55256",
+          "registrationHash": "3c0d85b8a9b42656c6e6bf5606f14676b7469ea51b2be4bcc100ea516ccf6fb2"
+        },
+        "receipt": {
+          "commit": "a21e9824effbe0d4684918f8fde1cf61cf98f41b",
+          "version": 1,
+          "identity": "f42441b67f433859cc13902a91922e8e41e4bb98e0c8c0e43e17e22cb2ffff58",
+          "resources": [
+            {
+              "kind": "Playwright 模块",
+              "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+              "origin": {
+                "kind": "path",
+                "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+                "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+              },
+              "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+            },
+            {
+              "kind": "Chromium 可执行文件",
+              "path": "/opt/google/chrome/chrome",
+              "origin": {
+                "kind": "path",
+                "path": "/opt/google/chrome/chrome",
+                "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+              },
+              "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+            }
+          ],
+          "manifestHash": "f342f984e68866795d09628ca55bec23039909b2ee20971a0ab241e1d8d55256",
+          "browserVersion": "147.0.7727.137"
+        },
+        "version": 1,
+        "identity": "f42441b67f433859cc13902a91922e8e41e4bb98e0c8c0e43e17e22cb2ffff58",
+        "grantHash": "ce0cc3483ae6f31b1ad2067393f315a3c698c15867f3635c38a776699658574d",
+        "claimToken": "e98718b3-3913-4df5-b013-7f3fb2eca766",
+        "executionId": "cmvdmf87y043n9xhgkgkxy2ip",
+        "sourceRepository": "/data1/code/mold-data-webpage-tool",
+        "hostReadOnlyRoots": [
+          "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+          "/opt/google/chrome"
+        ],
+        "projectManifestHash": null
+      },
+      "counters": {
+        "repair": 0,
+        "platform": 0,
+        "format": 0,
+        "integration": 0
+      },
+      "evidence": null
+    }
+  ],
+  "independentReview": {
+    "id": "cmvf8hg18002s9sfjh9gghxba",
+    "status": "completed",
+    "summary": "tester @ Platform Local (hello) / codex: TASK_GRAPH_REVIEW {\"approved\":true,\"note\":\"固定提交4319f1d独立复验：API 7项通过，1440/390浏览器通过；已核对四张截图、独立GET及保存重开。等值、冲突、未决及补基准转换符合M03A范围。源码未修改；报告位于本轮输出目录f815a9e3e35e8ccc96e3e8a2/review.md。实时OCR、正式Run及M03B确认保存未纳入本次通过范围。\"}"
+  },
+  "validationArchive": {
+    "bytes": 31991109,
+    "files": 1302,
+    "source": "/home/hello/.agent-platform/task-validation/becf474918e9fce5585152db",
+    "manifest": "/data1/code/.agent-platform-task-graph-results/06360cdbe0d418bf/validation/becf474918e9fce5/ad5e5b9dee61ce99/manifest.json",
+    "symlinks": 70,
+    "directory": "/data1/code/.agent-platform-task-graph-results/06360cdbe0d418bf/validation/becf474918e9fce5/ad5e5b9dee61ce99",
+    "deliveryCommits": [
+      {
+        "commit": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+        "executionId": "cmvdmf87y043l9xhgwuu1qoex"
+      }
+    ],
+    "skippedDirectories": 14
+  },
+  "qualification": "Tool continuity proved through M03A implementation, checks, independent acceptance and automatic M03B native startup. Not a claim that M03B, live OCR, R05 or the entire route passed."
+}

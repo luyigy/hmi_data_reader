@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-19T12:18:22.919Z",
+  "code": "7ac769a38f281e084fed91750934bd7f5c4f7ee5",
+  "before": [
+    {
+      "service": "agent-platform-task-graph.service",
+      "pid": "412454"
+    }
+  ],
+  "after": [
+    {
+      "service": "agent-platform-task-graph.service",
+      "pid": "798046",
+      "state": "active"
+    }
+  ],
+  "mainBefore": "21469",
+  "mainAfter": "21469",
+  "currentChatUninterrupted": true,
+  "manualResumeCalls": 0
+}

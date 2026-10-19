@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "identity": "f42441b67f433859cc13902a91922e8e41e4bb98e0c8c0e43e17e22cb2ffff58",
+  "manifestHash": "f342f984e68866795d09628ca55bec23039909b2ee20971a0ab241e1d8d55256",
+  "commit": "7ac769a38f281e084fed91750934bd7f5c4f7ee5",
+  "resources": [
+    {
+      "kind": "Playwright 模块",
+      "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+      "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28",
+      "origin": {
+        "kind": "path",
+        "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+        "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+      }
+    },
+    {
+      "kind": "Chromium 可执行文件",
+      "path": "/opt/google/chrome/chrome",
+      "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90",
+      "origin": {
+        "kind": "path",
+        "path": "/opt/google/chrome/chrome",
+        "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+      }
+    }
+  ],
+  "browserVersion": "147.0.7727.137"
+}
