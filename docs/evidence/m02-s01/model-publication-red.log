@@ -1,0 +1,37 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_formal_published_package_keeps_reviewed_semantics_and_old_bytes _____
+
+    def test_formal_published_package_keeps_reviewed_semantics_and_old_bytes():
+        locks = load_acceptance_locks()
+        lock = locks[PID]
+        old = load_pinned_package_document(PID, '0.1.1')
+>       new = load_pinned_package_document(PID, VERSION)
+
+backend/tests/test_hmi_protocol_library_m02_publication.py:31: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+profile_id = 'b_and_r.injection_holding.multi_stage_position_time'
+version = '0.1.2'
+
+    def load_pinned_package_document(profile_id: str, version: str | None = None) -> dict:
+        """Read the reviewed local document without using Reader's active version."""
+        lock = ACCEPTED_PACKAGES.get(profile_id)
+        if lock is None:
+            raise ValueError("Reader page package is not accepted")
+        selected_version = version or lock["current"]
+        spec = lock["versions"].get(selected_version)
+        if spec is None:
+>           raise ValueError("Reader page package version unavailable")
+E           ValueError: Reader page package version unavailable
+
+backend/app/hmi_mapping/page_package.py:58: ValueError
+=============================== warnings summary ===============================
+../../../../../mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1
+  /data1/code/mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED backend/tests/test_hmi_protocol_library_m02_publication.py::test_formal_published_package_keeps_reviewed_semantics_and_old_bytes
+1 failed, 1 deselected, 1 warning in 2.43s

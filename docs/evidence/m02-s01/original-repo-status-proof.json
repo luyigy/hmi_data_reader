@@ -1,0 +1,12 @@
+{
+  "reader": {
+    "statusInventoryUnchanged": true,
+    "command": "git status --short --untracked-files=all",
+    "note": "Git status inventory comparison, not byte-hash proof of every pre-existing dirty file"
+  },
+  "model": {
+    "statusInventoryUnchanged": true,
+    "command": "git status --short --untracked-files=all",
+    "note": "Git status inventory comparison, not byte-hash proof of every pre-existing dirty file"
+  }
+}

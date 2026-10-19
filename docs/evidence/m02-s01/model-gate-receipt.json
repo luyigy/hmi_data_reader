@@ -1,0 +1,14 @@
+{
+  "scope": "pure in-memory Model validation; no DB publication or review approval",
+  "original_gate_error": "Reader page package version is not accepted",
+  "proposed_version_accepted": true,
+  "acceptance_manifest_roundtrip": true,
+  "candidate_page_id": "b_and_r.injection_holding.multi_stage_position_time",
+  "candidate_package_version": "0.1.2",
+  "rule_version": "s01.2",
+  "verification_status": "sample_reviewed_partial",
+  "reviewed_destinations": true,
+  "retains_0.1.1": true,
+  "current_not_advanced": "0.1.1",
+  "note": "proposed lock is review material, not approval or evidence of real-photo Model acceptance"
+}

@@ -1,0 +1,11 @@
+{
+  "backend/app/hmi_mapping/accepted_packages/b_and_r.injection_holding.multi_stage_position_time.lock.json": "f4f9a0fdb8090483d1071052b71f96e36814f5873ed1a6e768e0db11b4a61034",
+  "backend/app/hmi_mapping/page_packages/b_and_r.injection_holding.multi_stage_position_time-0.1.2.json": "5a2c4c9a668c5def47e67af80fc48308d2564bf18bfa22342e71e29d55329f15",
+  "backend/tests/m02_reader_runtime.py": "cb77d04cd4ce86892c0d95af0591c27242b43b63197d5c2d074670a5f97231dc",
+  "backend/tests/test_hmi_protocol_library_m02_publication.py": "52886e907cc6376a32b929729beac47d55556da549ac139f4da1775a00711075",
+  "backend/tests/test_hmi_protocol_library_m02.py": "10f4b29031c10b5f4ec223711cde3d5a6cf3a1bb80e77c57ec8f3fff11041000",
+  "backend/tests/test_hmi_protocol_library_m02_browser.cjs": "77acb686c8adf600212f695b076b4201336602d71c2efd7a13921ccee6d56c47",
+  "backend/tests/test_hmi_protocol_library_m02_browser.py": "5b55155000a6bccb5883f66765df99ec32af783c43add352767a78e7463ee81b",
+  "docs/specs/hmi-protocol-library/m02-reader-publication.json": "07f2f1ece9dff6168f9f525d9bd05963aaf64ae2eae6252317376237e1c16930",
+  "backend/tests/m02_reader_fixture.py": "92fa7674f59983adeeed854e25b49ee731ee76f66d8a2239578cc49e7a44b013"
+}

@@ -1,0 +1,52 @@
+{
+  "source_commit": "cd92faeb2cfb86486fc9b65d2053e50a31fede2f",
+  "scope": "isolated scratch Reader admin ASGI HTTP; no production publication",
+  "original_draft_status": 422,
+  "original_draft_error": {
+    "detail": "New drafts require registered_extractor and a catalog extractor_id"
+  },
+  "corrected_draft_status": 200,
+  "trial_status": 200,
+  "publish_status": 200,
+  "revision": 1,
+  "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+  "version": "0.1.2",
+  "file_sha256": "5a2c4c9a668c5def47e67af80fc48308d2564bf18bfa22342e71e29d55329f15",
+  "canonical_sha256": "ac31908a258b3aafb0a696fcf7327b11b4b34043254bb8cc5e49ac07c28487ac",
+  "prior_0.1.1_unchanged": true,
+  "ocr_sample_sha256": "2931b90e057ee4c77591dd29cd05b973244003c3b3c2948d76adf9b02661555b",
+  "fields": {
+    "injection_velocity_pct": [
+      40.0,
+      75.0,
+      20.0
+    ],
+    "injection_pressure_bar": [
+      80.0,
+      80.0,
+      80.0
+    ],
+    "injection_position_mm": [
+      80.0,
+      60.0,
+      0.0
+    ],
+    "injection_stages": 3,
+    "holding_velocity_pct": [
+      15.0,
+      10.0
+    ],
+    "holding_pressure_bar": [
+      65.0,
+      50.0
+    ],
+    "holding_time_s": [
+      1.0,
+      5.0
+    ],
+    "holding_stages": 2,
+    "holding_switch_mode": "位置+时间",
+    "vp_switch_position_mm": 40.0,
+    "vp_switch_time_s": 5.0
+  }
+}

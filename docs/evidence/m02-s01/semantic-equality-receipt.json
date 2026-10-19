@@ -1,0 +1,11 @@
+{
+  "reviewed_candidate_differences": {
+    "package_version": {
+      "old": "0.1.1",
+      "new": "0.1.2"
+    }
+  },
+  "business_candidate_exact_equal": true,
+  "safe_to_reuse_same_s01_2_reviewed_destinations_overlay": true,
+  "unverified_stage_states_unchanged": true
+}

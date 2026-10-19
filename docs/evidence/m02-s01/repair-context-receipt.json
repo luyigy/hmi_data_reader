@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-19T10:34:50.560Z",
+  "messageId": "cmvf4b2u40001zvr9crywk0ky",
+  "taskId": "task-graph-cmvdmf87y043j9xhgc8sw2aks",
+  "roomId": "cmve1v9hc039nb0j3607w2ey9",
+  "marker": "[S01-M02-REPAIR-CONTEXT-20261019-01]",
+  "inNativeContext": true,
+  "author": "platform-repair-review",
+  "userImpersonated": false,
+  "stateChanged": false
+}
