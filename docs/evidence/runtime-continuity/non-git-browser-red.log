@@ -1,0 +1,17 @@
+AssertionError [ERR_ASSERTION]: Non-Git acceptance must consume the same pinned source runtime, rather than silently dropping browser declaration
++ actual - expected
+
++ ''
+- 'a042eb8c7aafb5422c4b26d2131f27e61cf1587f2d839922fc2d253ce3c0cc85'
+
+    at /data1/code/ap-runtime-continuity/tests/task-graph-runtime-continuity.test.ts:30:12
+    at step (/data1/code/ap-runtime-continuity/tests/task-graph-runtime-continuity.test.ts:33:23)
+    at Object.next (/data1/code/ap-runtime-continuity/tests/task-graph-runtime-continuity.test.ts:14:53)
+    at fulfilled (/data1/code/ap-runtime-continuity/tests/task-graph-runtime-continuity.test.ts:5:58) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '',
+  expected: 'a042eb8c7aafb5422c4b26d2131f27e61cf1587f2d839922fc2d253ce3c0cc85',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
