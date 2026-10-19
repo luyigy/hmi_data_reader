@@ -26,6 +26,7 @@ export type ExecutionOutcome =
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
   | { kind: 'review_resumed' }
+  | { kind: 'review_platform_prepared'; preparationEventId: string }
   | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string; phase?: 'architecture' | 'acceptance' }
   | { kind: 'operator_resume'; requestId: string }
   | { kind: 'delivery_reclassified'; authorization: string; failure: ExecutionFailure }
@@ -163,9 +164,16 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
     const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     const reviewResume = args.outcome.kind === 'review_resumed' && current.status === 'attention' && before.state === 'waiting_decision' && ['architecture', 'acceptance'].includes(before.phase);
+    const preparedReview = args.outcome.kind === 'review_platform_prepared' && current.status === 'attention' && before.state === 'exhausted' && before.platformAttempts >= executionRetryLimits.platformAttempts && before.lastFailure?.code === 'review_platform_failure' && before.phase === 'acceptance' && before.lastFailure.requiresUserDecision !== true && (!before.lastFailure.owner || before.lastFailure.owner === 'platform');
+    if (args.outcome.kind === 'review_platform_prepared') {
+      const receipt = await tx.taskGraphEvent.findUnique({ where: { id: args.outcome.preparationEventId } });
+      const binding = record(receipt?.payload);
+      if (!preparedReview || !receipt || receipt.kind !== 'platform_review_preparation' || receipt.nodeId !== current.nodeId || receipt.runId !== current.node.runId ||
+          binding.executionId !== current.id || binding.claimToken !== current.claimToken || binding.expectedRevision !== before.revision || binding.candidateCommit !== current.commit || !current.commit) throw new Error('Prepared review authority or current candidate mismatch');
+    }
     const conflictRecovery = current.status === 'attention' && before.state === 'waiting_decision' && before.lastFailure?.code === 'integration_conflict' &&
       (args.outcome.kind === 'repair_required' && !!args.outcome.conflictRepair || args.outcome.kind === 'decision_required' && args.outcome.failure.code === 'integration_conflict');
-    if ((!conflictRecovery && !reviewResume && !reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
+    if ((!preparedReview && !conflictRecovery && !reviewResume && !reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
     if (args.outcome.kind === 'operator_resume' && (!operatorResume || !args.outcome.requestId.trim()) ||
         args.outcome.kind === 'delivery_reclassified' && (!reclassification || !args.outcome.authorization.trim())) throw new Error('Operator outcome is not authorized for the current state');
     if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
@@ -205,6 +213,9 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       if (progress.integrationAttempts >= executionRetryLimits.integrationAttempts) {
         status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
       }
+    } else if (outcome.kind === 'review_platform_prepared') {
+      status = 'integrated'; progress.state = 'ready';
+      progress.review = { kind: 'ready', candidateCommit: current.commit!, phase: before.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: `prepared-review:${outcome.preparationEventId}` };
     } else if (outcome.kind === 'review_resumed') {
       if (!reviewResume) throw new Error('Review has no authorized waiting decision');
       status = 'integrated'; delete progress.review;
@@ -237,7 +248,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         }
       }
     }
-    if (status === 'ready' || outcome.kind === 'integrated' || outcome.kind === 'review_retry') { delete progress.worker; delete progress.workerReleasedAt; }
+    if (status === 'ready' || outcome.kind === 'integrated' || outcome.kind === 'review_retry' || outcome.kind === 'review_platform_prepared') { delete progress.worker; delete progress.workerReleasedAt; }
     if (status === 'ready' && current.taskRunId && await tx.taskRun.count({ where: { id: current.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Cannot requeue a live TaskRun');
     if (status === 'ready' && current.taskRunId && outcome.kind !== 'operator_resume' && (await observeTaskRunWriter(current.taskRunId)).kind !== 'exited') throw new Error('Cannot requeue a TaskRun without actual writer exit proof');
     await tx.taskGraphExecution.update({ where: { id: current.id }, data: {

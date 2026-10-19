@@ -1,0 +1,34 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-prepared-review
+
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 145
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+Prepared review passes and unlocks successor; candidates and budgets retained; duplicate measure rejected
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 291
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Prepared review fails once and stays exhausted; candidates and budgets retained; duplicate measure rejected
