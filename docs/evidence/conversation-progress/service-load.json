@@ -1,0 +1,140 @@
+{
+  "sourceCommit": "61c7667",
+  "recordedAt": "2026-10-19T14:13:19.749758+00:00",
+  "method": "Verified localhost inspector, update cached exports only, close inspector after load",
+  "serviceRestarts": 0,
+  "businessResumeRequests": 0,
+  "servicesBeforeAndAfter": {
+    "agent-platform-feishu.service": 21469,
+    "agent-platform-task-graph.service": 855620,
+    "agent-platform-task-graph-feishu.service": 4152324
+  },
+  "loads": [
+    {
+      "pid": 21852,
+      "changed": [
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/conversation-intent.ts",
+          "hash": "05d1780afa7ddb0bec2b64c2a7625582b9836b5334599a29033abfbd5e63b782",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/feishu-live-room.ts",
+          "hash": "bd833088cbb913f85ad7cbd2aaee35d65c709be1efa7dfbb2c066ec09fa3835d",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/progress-card-delivery.ts",
+          "hash": "386756271c9f036d0b42275d6e9ddf3945e7c191ae50d56cc4badf0676ef9dfc",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/run-reply-relay.ts",
+          "skipped": true
+        }
+      ],
+      "authorization": [
+        false,
+        false
+      ]
+    },
+    {
+      "pid": 855869,
+      "changed": [
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/conversation-intent.ts",
+          "hash": "05d1780afa7ddb0bec2b64c2a7625582b9836b5334599a29033abfbd5e63b782",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/feishu-live-room.ts",
+          "hash": "bd833088cbb913f85ad7cbd2aaee35d65c709be1efa7dfbb2c066ec09fa3835d",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/progress-card-delivery.ts",
+          "hash": "386756271c9f036d0b42275d6e9ddf3945e7c191ae50d56cc4badf0676ef9dfc",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/run-reply-relay.ts",
+          "skipped": true
+        }
+      ],
+      "authorization": [
+        false,
+        false
+      ]
+    },
+    {
+      "pid": 4152324,
+      "changed": [
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/conversation-intent.ts",
+          "hash": "05d1780afa7ddb0bec2b64c2a7625582b9836b5334599a29033abfbd5e63b782",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/feishu-live-room.ts",
+          "hash": "bd833088cbb913f85ad7cbd2aaee35d65c709be1efa7dfbb2c066ec09fa3835d",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/progress-card-delivery.ts",
+          "hash": "386756271c9f036d0b42275d6e9ddf3945e7c191ae50d56cc4badf0676ef9dfc",
+          "exportsPreserved": true
+        },
+        {
+          "file": "/data1/code/agent-platform-v2/src/lib/task-graph/run-reply-relay.ts",
+          "hash": "de97135f3b14df1fbb4c08bef9f62bbf82a0751c8e57cd193ce0449057fbe9c7",
+          "exportsPreserved": true
+        }
+      ],
+      "authorization": [
+        false,
+        false
+      ]
+    }
+  ],
+  "cardMigration": {
+    "taskRunId": "cmvfauphu13gy9sfje8txutt9",
+    "delivered": true,
+    "before": {
+      "taskRunId": "cmvfauphu13gy9sfje8txutt9",
+      "bindingId": "cmve1vmz5005h123ewbass1z5",
+      "messageId": "om_x100b627b2c50c4a8ceefa7c8718ce65",
+      "deliveredSequence": 252,
+      "lastStatus": "completed",
+      "createdAt": "2026-10-19T13:38:07.192Z",
+      "updatedAt": "2026-10-19T13:46:51.636Z"
+    },
+    "after": {
+      "taskRunId": "cmvfauphu13gy9sfje8txutt9",
+      "bindingId": "cmve1vmz5005h123ewbass1z5",
+      "messageId": "om_x100b62561bbaa4a8cefd06f3fa81009",
+      "deliveredSequence": 252,
+      "lastStatus": "completed",
+      "createdAt": "2026-10-19T13:38:07.192Z",
+      "updatedAt": "2026-10-19T14:12:39.898Z"
+    }
+  },
+  "messageReadback": {
+    "binding": {
+      "chatId": "oc_5c8067219168958335bfc59d5fbb2b11",
+      "rootMessageId": "om_x100b627b2cbbd4a0ce91d195f306062",
+      "threadId": "omt_19b17eee438f1b45"
+    },
+    "message": {
+      "messageId": "om_x100b62561bbaa4a8cefd06f3fa81009",
+      "chatId": "oc_5c8067219168958335bfc59d5fbb2b11",
+      "parentId": "om_x100b627b2cbbd4a0ce91d195f306062",
+      "rootId": "om_x100b627b2cbbd4a0ce91d195f306062",
+      "threadId": "omt_19b17eee438f1b45",
+      "msgType": "interactive",
+      "createTime": "1792419159759",
+      "deleted": false
+    },
+    "sameChat": true,
+    "sameTopic": true
+  }
+}
