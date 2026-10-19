@@ -1,0 +1,25 @@
+[
+  {
+    "key": "SPEC",
+    "number": "IKOYH9",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKOYH9",
+    "parent": null,
+    "blockedBy": []
+  },
+  {
+    "key": "C01",
+    "number": "IKOYHA",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKOYHA",
+    "parent": "gitee:luyi1678/agent-platform-v2#IKOYH9",
+    "blockedBy": []
+  },
+  {
+    "key": "C02",
+    "number": "IKOYHB",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKOYHB",
+    "parent": "gitee:luyi1678/agent-platform-v2#IKOYH9",
+    "blockedBy": [
+      "gitee:luyi1678/agent-platform-v2#IKOYHA"
+    ]
+  }
+]
