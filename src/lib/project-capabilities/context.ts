@@ -1,36 +1,57 @@
 import { prisma } from '../prisma';
+import { executionProgress } from '../task-graph/execution-progress';
 import { graphGit } from '../task-graph/git-command';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { object, projectCapabilityPolicy, authorizeProjectCapabilities, restrictProjectCapabilities } from './policy';
 
-export async function projectCapabilityContext(taskId: string, workspace: string, taskRunId?: string, file?: string, roomMessageId?: string) {
+export async function projectCapabilityContext({ taskId, workspace, taskRunId, policyFile, roomMessageId, executionId }: { taskId: string; workspace: string; taskRunId?: string; policyFile?: string; roomMessageId?: string; executionId?: string }) {
   const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
   const jobs = await prisma.taskGraphExecution.findMany({ where: nodeId ? { nodeId } : { childTaskId: taskId }, include: { node: { include: { run: { include: { parentTask: true } } } } } });
   if (!jobs.length) return null;
+  if (executionId && !jobs.some(job => job.id === executionId)) throw new Error('执行不属于当前任务图');
   let repository: string;
-  if (jobs.length === 1) repository = jobs[0].repository;
+  if (executionId) repository = jobs.find(job => job.id === executionId)!.repository;
+  else if (jobs.length === 1) repository = jobs[0].repository;
   else {
     const common = await graphGit(workspace, 'rev-parse', '--path-format=absolute', '--git-common-dir').catch(() => '');
-    if (!common) return null;
+    if (!common) throw new Error('多仓任务必须分别解析已绑定的项目能力，不能猜测非 Git 目录身份');
     repository = await fs.realpath(path.dirname(common));
     if (jobs.length && !jobs.some(job => job.repository === repository)) return null;
   }
-  let policy = await projectCapabilityPolicy(repository, file);
-  if (!policy) return null;
-  const job = jobs.find(item => item.repository === repository);
+  let policy = await projectCapabilityPolicy(repository, policyFile);
+  const matches = jobs.filter(item => item.repository === repository && (!executionId || item.id === executionId));
+  if (matches.length !== 1) throw new Error('同仓多个执行必须按执行身份解析授权');
+  const job = matches[0];
+  if (!policy) {
+    const snapshot = object(job.node.run.snapshot);
+    const node = Array.isArray(snapshot.nodes) ? snapshot.nodes.map(object).find(node => node.key === job.node.key) : undefined;
+    const approved = node && Array.isArray(node.executions) ? node.executions.map(object).find(execution => execution.key === job.key) : undefined;
+    const migrated = await prisma.taskGraphEvent.findFirst({ where: { runId: job.node.runId, kind: 'project_capability_scope_approved', payload: { path: ['executionId'], equals: job.id } } });
+    if (approved?.capabilities || migrated) throw new Error('项目能力授权已撤销，不能回退到旧宿主授权');
+    return null;
+  }
   const principals: string[] = [];
   if (job) {
     const snapshot = object(job.node.run.snapshot);
     const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes.map(object) : [];
     const node = nodes.find(node => node.key === job.node.key);
     const approved = node && Array.isArray(node.executions) ? node.executions.map(object).find(execution => execution.key === job.key && execution.repository === repository) : undefined;
-    if (!approved?.capabilities) throw new Error('现有任务尚无获批项目能力范围；不能隐式扩大旧路线授权');
-    policy = restrictProjectCapabilities(policy, approved.capabilities);
+    let scope: unknown = approved?.capabilities;
+    if (!scope) {
+      const migrated = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: `project-scope:${job.id}:${policy.hash}` } } });
+      if (migrated?.kind === 'project_capability_scope_approved') {
+        const receipt = object(migrated.payload);
+        if (receipt.executionId === job.id && receipt.repository === repository && receipt.snapshotHash === job.node.run.snapshotHash) scope = receipt.scope;
+      }
+    }
+    if (!scope) throw new Error('现有任务尚无获批项目能力范围；先执行 project-capabilities:scope 只读预览，由平台批准范围，不能隐式扩大旧路线授权');
+    policy = restrictProjectCapabilities(policy, scope);
     const proposal = await prisma.taskGraphProposal.findUnique({ where: { parentTaskId_version: { parentTaskId: job.node.run.parentTaskId, version: job.node.run.version } } });
     if (proposal?.status === 'confirmed' && proposal.decidedBy) principals.push(`feishu:${policy.appId}:${proposal.decidedBy}`);
     else if (job.node.run.parentTask.ownerUserId) principals.push(`platform:${job.node.run.parentTask.ownerUserId}`);
-    const receipts = taskRunId ? await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId, kind: { in: ['conversation_input_bound', 'conversation_steering_started'] }, payload: { path: ['taskRunId'], equals: taskRunId } } }) : [];
+    const actorRuns = Array.from(new Set([taskRunId, job.taskRunId, executionProgress(job.dispatchMetadata)?.taskRunId].filter((id): id is string => Boolean(id))));
+    const receipts = actorRuns.length ? await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId, kind: { in: ['conversation_input_bound', 'conversation_steering_started'] }, OR: actorRuns.map(id => ({ payload: { path: ['taskRunId'], equals: id } })) } }) : [];
     const ids = receipts.flatMap(receipt => { const row = object(receipt.payload); return typeof row.inputId === 'string' ? [row.inputId] : []; });
     for (const input of await prisma.taskGraphEvent.findMany({ where: { id: { in: ids } } })) {
       const row = object(input.payload);

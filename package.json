@@ -6,6 +6,7 @@
     "agent-platform-runner": "scripts/agent-platform-runner.js"
   },
   "scripts": {
+    "project-capabilities:scope": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/project-capabilities-scope.ts",
     "db:migrate:sqlite": "node scripts/migrate-sqlite-to-postgresql.mjs",
     "db:verify:migration": "node scripts/verify-postgresql-migration.mjs",
     "predev": "prisma generate",

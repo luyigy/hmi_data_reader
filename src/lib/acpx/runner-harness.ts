@@ -1,6 +1,5 @@
-import { withProjectCapabilities } from '../project-capabilities/runtime';
+import { withTaskProjectCapabilities } from '../project-capabilities/task-runtime';
 import { prepareTaskDeclaredRuntime } from '../task-graph/runtime-continuity';
-import { projectEnvironment } from '../harness/project-environment';
 import { prepareGraphOutputForTask } from '../task-graph/output-task-context';
 import { graphWriterEnvironment } from '../task-graph/writer-ownership';
 import { withGraphTaskServices } from '../task-graph/graph-services';
@@ -177,8 +176,7 @@ export const executeViaLocalHarness = async (
       ? [workspaceRoot, ...(request.extraReadOnlyPaths || [])].flatMap(linkedWorktreeGitDirectories)
       : []),
   ]));
-  const project = workspaceRoot ? projectEnvironment(workspaceRoot) : undefined;
-  const declaredRuntime = output && workspaceRoot ? await prepareTaskDeclaredRuntime({ taskId: request.taskId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths, ...(project ? [project.directory] : [])], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
+  const declaredRuntime = output && workspaceRoot ? await prepareTaskDeclaredRuntime({ taskId: request.taskId, taskRunId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
   if (declaredRuntime) { task.description += declaredRuntime.instructions; extraReadOnlyPaths.push(...declaredRuntime.readOnlyPaths); }
   if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
   const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'
@@ -211,7 +209,7 @@ export const executeViaLocalHarness = async (
     onSpawn?.(child);
   };
 
-  return withProjectCapabilities({ taskId: request.taskId, taskRunId, workspace: workspaceRoot || request.workingDirectory || process.cwd() }, async capabilities => {
+  return withTaskProjectCapabilities({ taskId: request.taskId, taskRunId, workspace: workspaceRoot || request.workingDirectory || process.cwd(), ...('workflowPermissionSnapshot' in permissionConfig ? { allowedReadOnlyRoots: extraReadOnlyPaths } : {}) }, async capabilities => {
   extraReadOnlyPaths.push(...capabilities.readOnlyPaths);
   task.description += capabilities.instructions;
   return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {

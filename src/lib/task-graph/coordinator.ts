@@ -160,13 +160,13 @@ function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string): Pro
   if (active) return active;
   const pending = (async () => {
     const ownership = await registerGraphReviewWorker(runId, nodeKey);
-    try { await verifyNodeOnce(runId, nodeKey, reviewAttempt); }
+    try { await verifyNodeOnce(runId, nodeKey, reviewAttempt, ownership?.worker.nonce); }
     finally { if (ownership) await releaseGraphReviewWorker(ownership.nodeId, ownership.worker.nonce); }
   })().finally(() => nodeVerifications.delete(key));
   nodeVerifications.set(key, pending);
   return pending;
 }
-async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: string) {
+async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: string, writerNonce?: string) {
   const node = await markNodeIntegrationsReady(runId, nodeKey);
   if (!node || node.status !== 'verifying') return;
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true, parentTaskId: true } });
@@ -197,7 +197,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     commits = Array.from(new Map(workspaces.map(({ repository, commit }) => [repository, { repository, commit }])).values());
     const upstream = await Promise.all(node.executions.map(job => prepareUpstreamInputs(job.id)));
     const upstreamPaths = Array.from(new Set(upstream.flatMap(input => input.readOnlyPaths)));
-    const env = { AP_GRAPH_SERVICE_TASK_ID: `task-graph-review-${node.id}`, TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(upstream.map(input => input.manifest)), TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
+    const env = { AP_GRAPH_WRITER_NONCE: writerNonce || '', AP_GRAPH_SERVICE_TASK_ID: `task-graph-review-${node.id}`, TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(upstream.map(input => input.manifest)), TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
       workspaces.map((workspace) => [workspace.repository, workspace.path]),
     )) };
     for (const check of policy.integrationChecks || []) {
@@ -614,7 +614,10 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         await outcome({ kind: 'checkpoint', phase: 'integrate', candidateCommit: await graphGit(workspace.path, 'rev-parse', 'HEAD') });
         await outcome({ kind: 'integration_stale', failure: { code: 'integration_stale', detail: JSON.stringify(failure.integration) } });
       },
-      verify: async (staging) => { checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id }, inputs.readOnlyPaths); },
+      verify: async (staging) => {
+        await outcome({ kind: 'checkpoint', phase: 'integrate', candidateCommit: await graphGit(staging, 'rev-parse', 'HEAD') });
+        checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id, AP_GRAPH_WRITER_NONCE: worker.nonce }, inputs.readOnlyPaths);
+      },
     });
     await outcome({ kind: 'integrated', commit: integrated.commit,
       evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit },

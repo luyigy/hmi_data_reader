@@ -23,6 +23,8 @@ async function main() {
   execFileSync('git', ['init', '-q', repository]);
   const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5AAAAABJRU5ErkJggg==', 'base64');
   await writeFile(path.join(shared, 'source.png'), image);
+  const outside = path.join(scratch, 'unapproved-file'); await writeFile(outside, 'not approved for task');
+  await symlink(outside, path.join(shared, 'outside-link'));
   const originalEnv = { app: process.env.FEISHU_APP_ID, secret: process.env.FEISHU_APP_SECRET }, originalFetch = global.fetch;
   process.env.FEISHU_APP_ID = 'cli_test'; process.env.FEISHU_APP_SECRET = 'host-only-test-secret';
   const user = await prisma.user.create({ data: { username: 'capability-test-' + Date.now(), passwordHash: 'not-a-real-password' } });
@@ -56,7 +58,7 @@ async function main() {
     throw new Error('Unexpected host request: ' + url);
   };
   try {
-    assert.equal(await projectCapabilityContext(parent.id, repository, undefined, policyFile), null, 'Ordinary tasks cannot inherit owner-only capability grants');
+    assert.equal(await projectCapabilityContext({ taskId: parent.id, workspace: repository, policyFile }), null, 'Ordinary tasks cannot inherit owner-only capability grants');
     let firstPath = '', closedSocket = '';
     const client = path.resolve('scripts/project-capability-client.cjs');
     const launch = async (access: Parameters<Parameters<typeof withProjectCapabilities>[1]>[0], argv: string[]) => {
@@ -75,6 +77,11 @@ async function main() {
     for (let attempt = 0; attempt < 2; attempt++) await withProjectCapabilities({ taskId: child.id, taskRunId: run.id, workspace: repository, policyFile, root: path.join(scratch, 'materials') }, async access => {
       closedSocket = access.env.AP_PROJECT_CAPABILITY_SOCKET;
       assert(access.readOnlyPaths.includes(shared));
+      const probeEnv = { NODE_ENV: 'test' as const, PATH: process.env.PATH, HOME: '/tmp', AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', ...access.env };
+      const probe = wrapWithBubblewrap({ command: process.execPath, commandArgs: ['-e', `const fs=require('fs');fs.readFileSync(${JSON.stringify(path.join(shared, 'source.png'))});if(fs.existsSync(${JSON.stringify(path.join(shared, 'outside-link'))}))throw Error('symlink widened grant');`], cwd: repository, workspaceRoot: repository,
+        env: probeEnv, sandboxMode: 'read-only', networkAccess: 'restricted', readOnlyPaths: access.readOnlyPaths });
+      await execute(probe.command, probe.args, { env: probeEnv });
+
       const sources = await launch(access, ['sources']); assert.equal(sources.sources[0].key, 'approved');
       await assert.rejects(launch(access, ['query', 'other', 'brand']));
       await assert.rejects(launch(access, ['image', 'approved', 'recUnknown', 'Photos', '0']));
@@ -101,7 +108,7 @@ async function main() {
     });
     assert.equal(downloads, 1, 'Cached bytes reused after current authorization and attachment membership checks');
     await assert.rejects(readFile(closedSocket), /ENOENT/);
-    const context = await projectCapabilityContext(child.id, repository, run.id, policyFile); assert(context);
+    const context = await projectCapabilityContext({ taskId: child.id, workspace: repository, taskRunId: run.id, policyFile }); assert(context);
     const target = { appId: 'cli_test', chatId: 'oc_test', rootMessageId: 'om_root', threadId: 'omt_test' };
     await deliverTaskImage({ taskId: child.id, taskRunId: run.id, path: firstPath, roots: [path.dirname(firstPath)], target });
     await deliverTaskImage({ taskId: child.id, taskRunId: run.id, path: firstPath, roots: [path.dirname(firstPath)], target });
@@ -117,7 +124,7 @@ async function main() {
     await sendFeishuInteractiveMessage({ receiveId: 'oc_test', card }); assert.doesNotMatch(lastCard, /!\[/);
     const outsider = await prisma.user.create({ data: { username: 'outsider-' + Date.now(), passwordHash: 'test' } });
     await prisma.task.update({ where: { id: parent.id }, data: { ownerUserId: outsider.id } });
-    await assert.rejects(projectCapabilityContext(child.id, repository, run.id, policyFile), /未获/);
+    await assert.rejects(projectCapabilityContext({ taskId: child.id, workspace: repository, taskRunId: run.id, policyFile }), /未获/);
     const events = await prisma.taskGraphEvent.findMany({ where: { runId: graph.id, kind: 'project_material_added' } });
     assert.equal(events.length, 3); assert.doesNotMatch(JSON.stringify(events), /host-only-token|host-only-test-secret/);
     console.log('C01: real Bubblewrap without network can query and read selected images; cache reuse rechecks authorization; bound-topic image sends dedupe and verify; examples retain text.');

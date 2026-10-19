@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { homedir, tmpdir } from 'node:os';
+import { executionProgress } from '../task-graph/execution-progress';
 import { prisma } from '../prisma';
 import { platformRepository } from '../platform-repository';
 import { redactSensitiveText } from '../redact-sensitive';
@@ -14,14 +15,19 @@ import { queryTableImages, tableImageReference, downloadTableImage, attachmentVe
 export const capabilityRoot = () => path.join(homedir(), '.agent-platform', 'project-materials');
 type Context = NonNullable<Awaited<ReturnType<typeof projectCapabilityContext>>>;
 export const publicationDirectory = (context: Context, taskId: string, root = capabilityRoot()) => path.join(root, 'published', digest(JSON.stringify([taskId, context.policy.repository, context.policy.hash, context.principal])));
-type RuntimeArgs = { taskId: string; taskRunId: string; workspace: string; policyFile?: string; root?: string; roomMessageId?: string };
+type RuntimeArgs = { taskId: string; workspace: string; policyFile?: string; root?: string; roomMessageId?: string; executionId?: string; allowedReadOnlyRoots?: string[] } &
+  ({ taskRunId: string; platformCheck?: never } | { taskRunId?: never; platformCheck: { writerNonce: string } });
 type Access = { env: Record<string, string>; readOnlyPaths: string[]; instructions: string };
 
 /** Per-turn Unix socket: no host credentials, arbitrary URLs, send operation or network grant. */
 export async function withProjectCapabilities<T>(args: RuntimeArgs, action: (access: Access) => Promise<T>) {
-  const resolve = () => projectCapabilityContext(args.taskId, args.workspace, args.taskRunId, args.policyFile, args.roomMessageId);
+  const resolve = () => projectCapabilityContext(args);
   const context = await resolve();
   if (!context) return action({ env: {}, readOnlyPaths: [], instructions: '' });
+  if (args.allowedReadOnlyRoots && context.policy.readOnlyRoots.some(root => !args.allowedReadOnlyRoots!.some(allowed => root === allowed || root.startsWith(allowed + path.sep)))) throw new Error('项目资料目录超出本次显式文件权限，不能增加挂载');
+  const checkAuthority = args.platformCheck;
+  const accessId = args.taskRunId || (checkAuthority ? `platform-check:${checkAuthority.writerNonce}` : '');
+  if (!accessId) throw new Error('资料请求缺少执行身份');
   const publication = publicationDirectory(context, args.taskId, args.root);
   await privateDirectory(publication);
   const directory = await fs.mkdtemp(path.join(tmpdir(), 'ap-cap-')), socket = path.join(directory, 'socket');
@@ -31,7 +37,7 @@ export async function withProjectCapabilities<T>(args: RuntimeArgs, action: (acc
   const seen = new Map<string, Map<string, Selection>>();
   const record = async (kind: string, payload: object) => {
     if (context.job) await prisma.taskGraphEvent.create({ data: { runId: context.job.node.runId, nodeId: context.job.nodeId, kind,
-      idempotencyKey: `project-capability:${args.taskRunId}:${sessionId}:${kind}:${receiptSequence++}`, payload: JSON.parse(JSON.stringify({ taskRunId: args.taskRunId, executionId: context.job.id,
+      idempotencyKey: `project-capability:${accessId}:${sessionId}:${kind}:${receiptSequence++}`, payload: JSON.parse(JSON.stringify({ taskRunId: args.taskRunId || null, executionId: context.job.id,
         claimToken: context.job.claimToken, project: context.policy.repository, policyHash: context.policy.hash, principals: currentPrincipals, ...payload })) } });
   };
   const authorize = async () => {
@@ -39,8 +45,13 @@ export async function withProjectCapabilities<T>(args: RuntimeArgs, action: (acc
     const latest = await resolve();
     if (!latest || latest.policy.hash !== context.policy.hash || latest.principal !== context.principal || latest.job?.claimToken !== context.job?.claimToken) throw new Error('项目授权或任务归属已改变，本轮资料访问已关闭');
     currentPrincipals = latest.principals;
-    const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: args.taskRunId } });
-    if (run.taskId !== args.taskId || !['running', 'pending', 'waiting_for_input'].includes(run.status)) throw new Error('资料接口不属于活动执行');
+    if (!checkAuthority && args.taskRunId) {
+      const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: args.taskRunId } });
+      if (run.taskId !== args.taskId || !['running', 'pending', 'waiting_for_input'].includes(run.status)) throw new Error('资料接口不属于活动执行');
+    } else {
+      const progress = executionProgress(latest.job?.dispatchMetadata);
+      if (!progress || !['active', 'ready'].includes(progress.state) || progress.workerReleasedAt || !checkAuthority || progress.worker?.nonce !== checkAuthority.writerNonce) throw new Error('平台检查没有当前 writer 归属');
+    }
     return latest;
   };
   const handle = async (raw: unknown) => {

@@ -1,5 +1,6 @@
+import { projectCapabilityContext } from '../project-capabilities/context';
+import { taskCapabilityRepositories, withTaskProjectCapabilities } from '../project-capabilities/task-runtime';
 import { prepareTaskDeclaredRuntime } from './runtime-continuity';
-import { projectEnvironment } from '../harness/project-environment';
 import { randomUUID } from 'node:crypto';
 import { prepareGraphOutputForTask } from './output-task-context';
 import { graphInputsForTask } from './upstream-inputs';
@@ -36,17 +37,24 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
   }
   const output = await prepareGraphOutputForTask(extraEnv.AP_GRAPH_SERVICE_TASK_ID, extraEnv.AP_GRAPH_OUTPUT_ATTEMPT || `check:${randomUUID()}`, [root]);
   const metadata = linkedWorktreeGitDirectories(root);
-  const project = projectEnvironment(extraEnv.AP_PROJECT_REPOSITORY || root);
-  const declaredRuntime = await prepareTaskDeclaredRuntime({ taskId: extraEnv.AP_GRAPH_SERVICE_TASK_ID, workspace: root, approvedReadOnlyRoots: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...(project ? [project.directory] : [])], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: extraEnv.AP_GRAPH_WRITER_NONCE });
-  return withGraphTaskServices(extraEnv.AP_GRAPH_SERVICE_TASK_ID, 'platform-check', async services => {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...(extra?.env.TASK_GRAPH_EXTRA_REPOS_JSON ? { TASK_GRAPH_EXTRA_REPOS_JSON: extra.env.TASK_GRAPH_EXTRA_REPOS_JSON } : {}), ...services.env, ...output.env, ...declaredRuntime.env, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp' };
+  const declaredRuntime = await prepareTaskDeclaredRuntime({ taskId: extraEnv.AP_GRAPH_SERVICE_TASK_ID, workspace: root, approvedReadOnlyRoots: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root)], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: extraEnv.AP_GRAPH_WRITER_NONCE });
+  const check = async (capabilities: { env: Record<string, string>; readOnlyPaths: string[] }) => withGraphTaskServices(extraEnv.AP_GRAPH_SERVICE_TASK_ID, 'platform-check', async services => {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...capabilities.env, ...(extra?.env.TASK_GRAPH_EXTRA_REPOS_JSON ? { TASK_GRAPH_EXTRA_REPOS_JSON: extra.env.TASK_GRAPH_EXTRA_REPOS_JSON } : {}), ...services.env, ...output.env, ...declaredRuntime.env, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp' };
   for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY']) {
     const value = process.env[name] || process.env[name.toLowerCase()] || process.env['FEISHU_RUNTIME_CODEX_' + name];
     if (value) { env[name] = value; env[name.toLowerCase()] = value; }
   }
   const wrapped = wrapWithBubblewrap({ command: argv[0], commandArgs: argv.slice(1), cwd: root, workspaceRoot: root,
     sandboxMode: 'read-only', networkAccess: 'enabled', env, outputPaths: outputs,
-    readOnlyPaths: [...declaredRuntime.readOnlyPaths, ...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
+    readOnlyPaths: [...capabilities.readOnlyPaths, ...declaredRuntime.readOnlyPaths, ...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
   return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv, services.signal);
   });
+  if (!extraEnv.AP_GRAPH_SERVICE_TASK_ID) return check({ env: {}, readOnlyPaths: [] });
+  if (!extraEnv.AP_GRAPH_WRITER_NONCE) {
+    for (const project of await taskCapabilityRepositories(extraEnv.AP_GRAPH_SERVICE_TASK_ID)) {
+      if (await projectCapabilityContext({ taskId: extraEnv.AP_GRAPH_SERVICE_TASK_ID, workspace: root, executionId: project.id })) throw new Error('项目能力检查缺少当前 writer 身份，不能静默缺失资料接口');
+    }
+    return check({ env: {}, readOnlyPaths: [] });
+  }
+  return withTaskProjectCapabilities({ taskId: extraEnv.AP_GRAPH_SERVICE_TASK_ID, workspace: root, platformCheck: { writerNonce: extraEnv.AP_GRAPH_WRITER_NONCE } }, check);
 }

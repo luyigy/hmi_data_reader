@@ -1,3 +1,4 @@
+import { pinnedSandboxPython } from '../project-capabilities/python-runtime';
 import { sandboxOutputBindings } from './output-bindings';
 import { sandboxProjectEnvironment } from './project-environment';
 import { sandboxEnvironmentRemovals } from './sandbox-env';
@@ -45,6 +46,7 @@ export function wrapWithBubblewrap(args: {
   env: NodeJS.ProcessEnv;
   configPaths?: string[];
   readOnlyPaths?: string[];
+  strictReadOnlyRoots?: boolean;
 }) {
   if (!args.workspaceRoot) return { command: args.command, args: args.commandArgs };
   if (!existsSync('/usr/bin/bwrap')) throw new Error('受限 Feishu 用户需要 /usr/bin/bwrap，但当前主机未安装。');
@@ -52,7 +54,12 @@ export function wrapWithBubblewrap(args: {
   const workspaceRoot = realpathSync(args.workspaceRoot);
   const cwd = realpathSync(args.cwd);
   if (!isWithin(workspaceRoot, cwd)) throw new Error('Bubblewrap cwd is outside the authorized workspace');
-  const project = args.env.AP_TASK_SANDBOX === '1' ? sandboxProjectEnvironment(workspaceRoot, args.readOnlyPaths, args.env.AP_PROJECT_REPOSITORY) : undefined;
+  let project: ReturnType<typeof sandboxProjectEnvironment>;
+  if (args.env.AP_TASK_SANDBOX === '1') {
+    project = args.env.AP_PROJECT_PYTHON_ENVIRONMENTS_JSON !== undefined
+      ? pinnedSandboxPython(args.env.AP_PROJECT_PYTHON_ENVIRONMENTS_JSON, args.readOnlyPaths || [], args.env.AP_PROJECT_REPOSITORY)
+      : sandboxProjectEnvironment(workspaceRoot, args.readOnlyPaths, args.env.AP_PROJECT_REPOSITORY);
+  }
   const launchEnv = { ...args.env, ...project?.env };
   const executable = executablePath(args.command, launchEnv);
   // Python determines its venv from the invoked symlink, not its resolved base binary.
@@ -68,9 +75,10 @@ export function wrapWithBubblewrap(args: {
   const systemResolvConf = '/etc/resolv.conf';
   const systemTopologyPaths = ['/sys/devices/system/cpu', '/sys/devices/system/node'].filter(existsSync);
   const configPaths = (args.configPaths || []).filter(existsSync);
+  const strict = args.strictReadOnlyRoots || args.env.AP_PROJECT_CAPABILITY_SOCKET || args.env.AP_PROJECT_CAPABILITIES_JSON;
   const explicitReadOnlyPaths = args.readOnlyPaths?.filter(existsSync).flatMap((source) => {
     const resolved = realpathSync(source);
-    return [resolved, ...symlinkTargets(resolved)];
+    return strict ? [resolved] : [resolved, ...symlinkTargets(resolved)];
   });
   const writableMounts = configPaths.map((source) => realpathSync(source))
     .filter((source) => !isWithin(workspaceRoot, source));
