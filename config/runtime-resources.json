@@ -1,0 +1,17 @@
+{
+  "/data1/code/mold-data-webpage-tool": {
+    "version": 1,
+    "browser": {
+      "module": {
+        "kind": "path",
+        "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+        "sha256": "34336266361056e13a276225086b54622ba60215b0cc76259f7856ce64239b28"
+      },
+      "executable": {
+        "kind": "path",
+        "path": "/opt/google/chrome/chrome",
+        "sha256": "b3137c3fba0b8cd00c0fd887dd5d0b49e50434df5fe0a5d2bbc6750c39924c90"
+      }
+    }
+  }
+}
