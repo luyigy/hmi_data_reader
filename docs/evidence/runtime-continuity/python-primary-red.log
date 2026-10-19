@@ -1,0 +1,8 @@
+Error: 本次验收涉及多个项目 Python 环境，需按仓库分别执行检查，不能隐式混用
+    at sandboxProjectEnvironment (/data1/code/ap-browser-python-boundary/src/lib/harness/project-environment.ts:33:32)
+    at wrapWithBubblewrap (/data1/code/ap-browser-python-boundary/src/lib/harness/bubblewrap.ts:55:79)
+    at /data1/code/ap-browser-python-boundary/src/lib/task-graph/runtime-preflight.ts:79:39
+    at step (/data1/code/ap-browser-python-boundary/src/lib/task-graph/runtime-preflight.ts:59:23)
+    at Object.next (/data1/code/ap-browser-python-boundary/src/lib/task-graph/runtime-preflight.ts:40:53)
+    at fulfilled (/data1/code/ap-browser-python-boundary/src/lib/task-graph/runtime-preflight.ts:31:58)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)

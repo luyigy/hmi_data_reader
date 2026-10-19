@@ -18,15 +18,20 @@ async function main() {
     const declaration = { version: 1, browser: { module: { path: modulePath, sha256: await runtimeResourceDigest(modulePath) }, executable: { path: executable, sha256: await runtimeResourceDigest(executable) } } };
     await writeFile(path.join(repo, '.agent-platform/runtime.json'), JSON.stringify(declaration));
     await writeFile(path.join(repo, 'source.txt'), 'readonly source');
+    await writeFile(path.join(repo, '.gitignore'), '.venv/\n');
     const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
     git('init', '-b', 'main'); git('config', 'user.name', 'Test'); git('config', 'user.email', 'test@example.test'); git('add', '.'); git('commit', '-m', 'Pinned runtime fixture');
     const sourceDeclaration = await runtimeDeclaration(repo); assert(sourceDeclaration);
+    execFileSync('python3', ['-m', 'venv', '--without-pip', path.join(repo, '.venv')]);
+    const reader = path.join(scratch, 'second-python-project'); await mkdir(reader);
+    execFileSync('git', ['init', '-b', 'main'], { cwd: reader });
+    execFileSync('python3', ['-m', 'venv', '--without-pip', path.join(reader, '.venv')]);
     const out = path.join(scratch, 'implementation-output'); await mkdir(out);
     const implementation = await prepareDeclaredRuntime({ workspace: repo, approvedReadOnlyRoots, outputDirectory: out });
     assert(implementation.identity);
     const review = path.join(scratch, 'non-git-review'); await mkdir(review);
     const reviewOut = path.join(scratch, 'review-output'); await mkdir(reviewOut);
-    const acceptance = await prepareDeclaredRuntime({ workspace: review, approvedReadOnlyRoots: [...approvedReadOnlyRoots, repo], outputDirectory: reviewOut,
+    const acceptance = await prepareDeclaredRuntime({ workspace: review, approvedReadOnlyRoots: [...approvedReadOnlyRoots, repo, reader], outputDirectory: reviewOut,
       sourceDeclaration, resourceWorkspace: repo });
     assert.equal(acceptance.identity, implementation.identity, 'Non-Git acceptance must consume the same pinned source runtime, rather than silently dropping browser declaration');
     const derived = path.join(scratch, 'derived-worktree'); git('worktree', 'add', '--detach', derived, sourceDeclaration.commit);
@@ -47,7 +52,7 @@ async function main() {
     await writeFile(path.join(repo, '.agent-platform/runtime.json'), JSON.stringify(declaration)); git('add', '.'); git('commit', '-m', 'Restore valid declaration');
     await writeFile(path.join(repo, '.agent-platform/runtime.json'), '{invalid');
     await assert.rejects(prepareDeclaredRuntime({ workspace: repo, approvedReadOnlyRoots, outputDirectory: out }), /未提交改动/, 'Uncommitted explicit configuration is rejected');
-    console.log(JSON.stringify({ identity: implementation.identity, acceptanceIdentity: acceptance.identity, browser: implementation.receipt, derivedIdentity: descendant.identity, scenario: 'real browser implementation, non-Git acceptance and derived worktree; readonly inputs, writable output and private tmp; explicit Snap and config mutation rejected' }));
+    console.log(JSON.stringify({ identity: implementation.identity, acceptanceIdentity: acceptance.identity, browser: implementation.receipt, derivedIdentity: descendant.identity, scenario: 'real browser implementation, non-Git acceptance with two distinct project Python environments, and derived worktree; readonly inputs, writable output and private tmp; explicit Snap and config mutation rejected' }));
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
