@@ -1,3 +1,4 @@
+import { withProjectCapabilities } from '../project-capabilities/runtime';
 import { prepareTaskDeclaredRuntime } from '../task-graph/runtime-continuity';
 import { projectEnvironment } from '../harness/project-environment';
 import { prepareGraphOutputForTask } from '../task-graph/output-task-context';
@@ -210,10 +211,13 @@ export const executeViaLocalHarness = async (
     onSpawn?.(child);
   };
 
+  return withProjectCapabilities({ taskId: request.taskId, taskRunId, workspace: workspaceRoot || request.workingDirectory || process.cwd() }, async capabilities => {
+  extraReadOnlyPaths.push(...capabilities.readOnlyPaths);
+  task.description += capabilities.instructions;
   return withGraphTaskServices(graphRuntime ? request.taskId : undefined, taskRunId, async services => {
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
-  const taskEnvironment = { ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };
+  const taskEnvironment = { ...capabilities.env, ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };
   const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
   let metadataWrites = Promise.resolve();
   let boundSessionId: string | undefined;
@@ -242,7 +246,7 @@ export const executeViaLocalHarness = async (
     ? await adapter.resume({
         task,
         sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
-        continuationMessage: withLongFileRuntimeContext(withFeishuBotContactInstructions(participant.continuationMessage), longFileContext),
+        continuationMessage: withLongFileRuntimeContext(withFeishuBotContactInstructions(participant.continuationMessage + capabilities.instructions), longFileContext),
         context: {
           executionId: runtimeExecution.id,
           workingDirectory: request.workingDirectory || process.cwd(),
@@ -336,6 +340,7 @@ export const executeViaLocalHarness = async (
     sessionKind: result.sessionKind,
     threadId: result.threadId,
   };
+  });
   });
 };
 

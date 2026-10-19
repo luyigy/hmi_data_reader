@@ -111,6 +111,9 @@ export function formatGraphProposal(definition: GraphDefinition) {
     });
   });
   const attachment = definition.specPackage ? '（完整目标、路径与验收细节见上方话题附件）' : '';
+  const capabilities = definition.nodes.flatMap(node => node.executions.flatMap(job => job.capabilities
+    ? [`${node.key}/${job.key}：资料源 ${job.capabilities.sources.join('、') || '无'}；只读目录 ${job.capabilities.readOnlyRoots.join('、') || '无'}`] : []));
+  if (capabilities.length) lines.push('项目能力范围：', ...capabilities);
   const extra = definition.nodes.flatMap(node => (node.extraRepositories || []).map(repo => `${node.key}：${repo.access === 'write' ? '读写' : '只读'} ${repo.repository}`));
   const scope = extra.length ? `\n附加仓库授权：\n${extra.join('\n')}\n` : '';
   const forks = new Map<string, GraphNode[]>();

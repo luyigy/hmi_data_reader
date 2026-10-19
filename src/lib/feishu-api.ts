@@ -1,3 +1,4 @@
+import { safeFeishuCard } from './feishu-card-markdown';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 
@@ -207,7 +208,7 @@ export async function sendFeishuInteractiveMessage(args: {
       receive_id: args.receiveId,
       ...(args.uuid ? { uuid: args.uuid } : {}),
       msg_type: 'interactive',
-      content: JSON.stringify(args.card),
+      content: JSON.stringify(safeFeishuCard(args.card)),
       ...(args.replyId ? { reply_id: args.replyId } : {}),
     }),
   });
@@ -244,7 +245,7 @@ export async function replyFeishuMessage(args: {
     },
     body: JSON.stringify({
       msg_type: args.msgType,
-      content: JSON.stringify(args.content),
+      content: JSON.stringify(args.msgType === 'interactive' ? safeFeishuCard(args.content) : args.content),
       ...(args.replyInThread ? { reply_in_thread: true } : {}),
       ...(args.uuid ? { uuid: args.uuid } : {}),
     }),
@@ -401,7 +402,7 @@ async function sendFeishuWorkflowMessage(args: {
     body: JSON.stringify({
       receive_id: args.chatId,
       msg_type: args.messageType,
-      content: JSON.stringify(args.content),
+      content: JSON.stringify(args.messageType === 'interactive' ? safeFeishuCard(args.content) : args.content),
     }),
   });
   const data = (await response.json()) as FeishuSendMessageResponse;

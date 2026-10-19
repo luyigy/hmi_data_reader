@@ -1,3 +1,4 @@
+import { inheritProjectCapabilityScopes } from '../project-capabilities/proposal';
 import { prepareExtraRepositories } from './extra-repositories';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
@@ -107,6 +108,7 @@ export async function createGraphProposal(args: {
   definition = validateTaskGraphDefinition(configureGraphRoles({
     definition, options, form: {}, suggest: true, humanId: parent.ownerUserId || 'admin', preserveExplicitRoles: true,
   }));
+  definition = await inheritProjectCapabilityScopes(definition);
   await validateExecutionTargets(definition);
   const hash = taskGraphSnapshotHash(definition);
   const binding = await prisma.feishuConversationBinding.findFirst({

@@ -1,3 +1,4 @@
+import { safeFeishuCard } from './feishu-card-markdown';
 import { getFeishuTenantAccessToken } from '@/lib/feishu-api';
 
 // Shapes follow the installed official SDK: im.v1.chat.get/message.get/reply/patch.
@@ -42,5 +43,5 @@ export async function getFeishuTaskThread(args: {
 }
 
 export async function updateFeishuTaskEntryCard(messageId: string, card: Record<string, unknown>) {
-  await taskApi(`messages/${encodeURIComponent(messageId)}`, 'PATCH', { content: JSON.stringify(card) });
+  await taskApi(`messages/${encodeURIComponent(messageId)}`, 'PATCH', { content: JSON.stringify(safeFeishuCard(card)) });
 }

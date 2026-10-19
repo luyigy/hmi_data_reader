@@ -1,3 +1,4 @@
+import { safeFeishuCard } from './feishu-card-markdown';
 import { PROGRESS_CARD_MIN_MS, sanitizePreview } from '@/lib/acpx/harness-events';
 import { resolveFeishuMessageTarget, sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 
@@ -242,7 +243,7 @@ export class FeishuProgressTracker {
         },
         body: JSON.stringify({
           msg_type: 'interactive',
-          content: JSON.stringify(card),
+          content: JSON.stringify(safeFeishuCard(card)),
         }),
       }
     );
@@ -324,7 +325,7 @@ export class FeishuProgressTracker {
             },
             body: JSON.stringify({
               msg_type: 'interactive',
-              content: JSON.stringify(card),
+              content: JSON.stringify(safeFeishuCard(card)),
             }),
           }
         );

@@ -1,3 +1,6 @@
+import { deliverRunReplyImages } from './reply-images';
+import { queueGraphNotification } from './notifications';
+import { redactSensitiveText } from '../redact-sensitive';
 import { prisma } from '../prisma';
 import { buildRunReplyCard } from './run-reply-card';
 import { deliverProgressCard } from './progress-card-delivery';
@@ -34,7 +37,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
   const rootMessageId = binding.rootMessageId;
   await prisma.taskRunFeishuRelay.upsert({ where: { taskRunId: run.id },
     create: { taskRunId: run.id, bindingId: binding.id }, update: {} });
-  return prisma.$transaction(async (tx) => {
+  const changed = await prisma.$transaction(async (tx) => {
     const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext(${`graph-reply-topic:${binding.id}`})) AS locked`;
     if (!lock.locked) return false;
     const cursor = await tx.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } });
@@ -67,6 +70,22 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
       data: { messageId, deliveredSequence: sequence, lastStatus: run.status } });
     return true;
   }, { timeout: 25_000 });
+  if (!['running', 'pending', 'waiting_for_input'].includes(run.status)) {
+    try {
+      const final = run.participants.map(participant => participant.summary || participant.error || '').filter(Boolean).join('\n\n') || run.summary || '';
+      await deliverRunReplyImages(run.id, final, binding);
+    } catch (error) {
+      const detail = redactSensitiveText(error instanceof Error ? error.message : String(error));
+      const job = await prisma.taskGraphExecution.findUnique({ where: { childTaskId: run.taskId } });
+      if (job) {
+        const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: job.nodeId } });
+        await queueGraphNotification(node.runId, `reply-image-failed:${run.id}`, { kind: 'child_progress', childTaskId: run.taskId,
+          eventKey: `reply-image-failed:${run.id}`, text: `文字答复已保留，图片未确认送达。${detail}。平台应核对发送回执后处理，不能直接重发。` });
+      }
+      console.error('[TaskGraphReplies] image delivery failed; text retained', { taskRunId: run.id, error: detail });
+    }
+  }
+  return changed;
 }
 
 export async function relayTaskGraphReplies() {

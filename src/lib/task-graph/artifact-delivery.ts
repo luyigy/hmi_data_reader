@@ -15,6 +15,13 @@ export function artifactDeliveryIdentity(args: ArtifactArgs) {
 
 /** Reserve before the external write. An uncertain send is never repeated blindly. */
 export async function deliverGraphArtifact(args: ArtifactArgs) {
+  return deliverGraphArtifactUsing(args, key => sendFeishuMarkdownFile({ chatId: args.chatId,
+    fileName: args.path.split('/').pop()!, content: args.content,
+    replyId: args.replyId || args.rootMessageId || undefined, replyInThread: !!args.rootMessageId,
+    uuid: key.slice(0, 50) }));
+}
+
+export async function deliverGraphArtifactUsing(args: ArtifactArgs, send: (key: string) => Promise<string | undefined>) {
   const { key, contentHash } = artifactDeliveryIdentity(args);
   let reserved = false;
   try {
@@ -32,10 +39,7 @@ export async function deliverGraphArtifact(args: ArtifactArgs) {
     if (!reserved) throw new Error(`附件正在由另一请求发送：${args.path}`);
   }
   try {
-    const messageId = await sendFeishuMarkdownFile({ chatId: args.chatId,
-      fileName: args.path.split('/').pop()!, content: args.content,
-      replyId: args.replyId || args.rootMessageId || undefined, replyInThread: !!args.rootMessageId,
-      uuid: key.slice(0, 50) });
+    const messageId = await send(key);
     if (!messageId) throw new Error('飞书附件未返回消息 ID，需核对实际消息后恢复');
     await prisma.taskGraphArtifactDelivery.update({ where: { key }, data: { status: 'sent', messageId } });
     return messageId;

@@ -1,3 +1,5 @@
+import { parseProjectCapabilityScope } from '../project-capabilities/policy';
+import type { ProjectCapabilityScope } from '../project-capabilities/policy';
 import { validateExtraRepositories, type ExtraRepository } from './extra-repositories';
 import { createHash } from 'node:crypto';
 import { isAbsolute } from 'node:path';
@@ -26,6 +28,7 @@ export type GraphExecution = {
   baseCommit: string;
   agentSelector: string;
   launchConfig?: unknown;
+  capabilities?: ProjectCapabilityScope;
 };
 
 export type GraphNode = {
@@ -119,6 +122,7 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     }
     const executionKeys = new Set<string>();
     for (const job of node.executions) {
+      if (job.capabilities !== undefined) parseProjectCapabilityScope(job.capabilities);
       if (node.services?.length) validateServiceLaunch(job.launchConfig);
       if (!job.key?.trim() || !job.instructions?.trim() || executionKeys.has(job.key) || !isAbsolute(job.repository) ||
           !job.gitRef?.trim() || !/^[0-9a-f]{40,64}$/i.test(job.baseCommit) || !job.agentSelector?.trim()) {
