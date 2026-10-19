@@ -41,3 +41,15 @@ npm run test:task-graph-postgres -- task-graph-interactive-conversation task-gra
 本轮额外断言包括混合管理员/非管理员消息不借权、准备失败退避、原生失败沿rootInputId不重置额度、运行释放与终态写入的竞争、未绑定graphReview不得另开复核、正式架构/验收仍正常执行。
 
 `npx tsc --noEmit --incremental false`、`npm run check:long-files` 与 `git diff --check` 均通过。
+
+## 合入后的独立复验
+
+主分支工作区合入实现提交 `bc29293` 后，独立复跑以下三组，退出码为0：
+
+```sh
+npm run test:task-graph-postgres -- task-graph-interactive-conversation task-graph-conversation-delivery task-graph-conversation-materials
+```
+
+同一版本的类型检查、长文件守卫及 diff 检查也通过。上述测试仍使用隔离数据库和受控执行器，没有操作线上业务任务。
+
+测试覆盖封口前纠正。封口后的消息按 Spec 排队到固定成果问答，本轮没有单独验证这个时间窗口。真实飞书入站、真实模型及服务统一切换后的完整交互仍需上线验收。
