@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { wrapWithBubblewrap } from '../harness/bubblewrap';
 import { redactSensitiveText } from '../redact-sensitive';
 import type { PriorOutputArtifact } from './prior-output-artifacts';
-import { runtimeDeclaration, runtimeResourceDigest, type RuntimeResource } from './runtime-contract';
+import { runtimeDeclaration, runtimeResourceDigest, type RuntimeResource, type RuntimeDeclarationSource } from './runtime-contract';
 
 export type RuntimeFailure = { code: string; detail: string; action: string; owner: 'platform'; requiresUserDecision: false; affectedPaths: string[]; fingerprint: string };
 export class RuntimePreparationError extends Error {
@@ -22,11 +22,12 @@ const within = (root: string, target: string) => target === root || target.start
 const execute = promisify(execFile);
 
 /** Validate versioned capabilities within existing permissions; this function grants no new host roots. */
-type PreparedRuntime = { identity: string; manifestHash: string; readOnlyPaths: string[]; env: Record<string, string>; instructions: string; receipt: unknown };
-export async function prepareDeclaredRuntime(args: { workspace: string; approvedReadOnlyRoots: string[]; outputDirectory: string; priorArtifacts?: PriorOutputArtifact[]; writerNonce?: string }): Promise<PreparedRuntime> {
+export type RuntimePreflightReceipt = { version: 1; identity: string; manifestHash: string; commit: string; resources: { kind: string; path: string; sha256: string; origin: RuntimeResource }[]; browserVersion?: string };
+export type PreparedRuntime = { identity: string; manifestHash: string; readOnlyPaths: string[]; env: Record<string, string>; instructions: string; receipt: RuntimePreflightReceipt | null };
+export async function prepareDeclaredRuntime(args: { workspace: string; approvedReadOnlyRoots: string[]; outputDirectory: string; priorArtifacts?: PriorOutputArtifact[]; writerNonce?: string; sourceDeclaration?: RuntimeDeclarationSource | null; resourceWorkspace?: string }): Promise<PreparedRuntime> {
   const empty: PreparedRuntime = { identity: '', manifestHash: '', readOnlyPaths: [], env: {}, instructions: '', receipt: null };
   let declaration: Awaited<ReturnType<typeof runtimeDeclaration>>;
-  try { declaration = await runtimeDeclaration(args.workspace); }
+  try { declaration = args.sourceDeclaration === undefined ? await runtimeDeclaration(args.workspace) : args.sourceDeclaration; }
   catch (error) { throw new RuntimePreparationError('invalid', error instanceof Error ? error.message : String(error), [path.join(args.workspace, '.agent-platform/runtime.json')]); }
   if (!declaration) return empty;
   const approved = await Promise.all([args.workspace, ...args.approvedReadOnlyRoots].map(root => fs.realpath(root))).catch(error => { throw new RuntimePreparationError('invalid', `已批准运行目录不可用：${error instanceof Error ? error.message : String(error)}`, args.approvedReadOnlyRoots, declaration.manifestHash); });
@@ -37,7 +38,7 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
     if (ref.kind === 'output' && !output) throw new RuntimePreparationError('missing', `尚未绑定运行资源产物事件：${ref.eventId}`, [ref.relativePath], manifestHash);
     let target: string;
     if (ref.kind === 'output') { if (!output) throw new RuntimePreparationError('missing', `尚未绑定运行资源产物事件：${ref.eventId}`, [ref.relativePath], manifestHash); target = path.join(output.directory, ref.relativePath); }
-    else target = path.resolve(args.workspace, ref.path);
+    else target = path.resolve(args.resourceWorkspace || args.workspace, ref.path);
     if (!approved.some(root => within(root, target))) throw new RuntimePreparationError('invalid', `${kind} 资源超出已批准目录：${target}`, [target], manifestHash);
     let canonical: string;
     try { canonical = await fs.realpath(target); }
@@ -62,6 +63,7 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
     if (declaration.declaration.browser) {
       env.AP_GRAPH_BROWSER_MODULE = await resolve(declaration.declaration.browser.module, 'Playwright 模块');
       env.AP_GRAPH_BROWSER_EXECUTABLE = await resolve(declaration.declaration.browser.executable, 'Chromium 可执行文件');
+      env.TMPDIR = '/tmp';
       env.PLAYWRIGHT_MODULE = env.AP_GRAPH_BROWSER_MODULE; env.PLAYWRIGHT_CHROMIUM_EXECUTABLE = env.AP_GRAPH_BROWSER_EXECUTABLE;
     }
   } catch (error) {
@@ -85,8 +87,9 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
       throw new RuntimePreparationError(transient ? 'transient' : 'missing', `浏览器启动预检失败：${String(error && typeof error === 'object' && Reflect.get(error, 'stderr') || (error instanceof Error ? error.message : error)).slice(-4000)}`, resources.map(resource => resource.path), identity);
     }
   }
-  const receipt = { version: 1, identity, manifestHash, commit: declaration.commit, resources, ...(browserVersion ? { browserVersion } : {}) };
+  for (const resource of resources) if (await runtimeResourceDigest(resource.path) !== resource.sha256) throw new RuntimePreparationError('invalid', '运行资源在预检期间改变', [resource.path], identity);
+  const receipt: RuntimePreflightReceipt = { version: 1, identity, manifestHash, commit: declaration.commit, resources, ...(browserVersion ? { browserVersion } : {}) };
   await fs.writeFile(path.join(args.outputDirectory, `runtime-preflight-${identity}.json`), JSON.stringify(receipt, null, 2) + '\n');
-  return { identity, manifestHash, readOnlyPaths: approved, env, receipt,
-    instructions: `\n运行能力已按仓内版本化声明预检，资源身份 ${identity}。浏览器和 OCR 路径见 AP_GRAPH_RUNTIME_* / AP_GRAPH_BROWSER_* / AP_GRAPH_OCR_MODEL_DIR；这些资源只读，缓存和报告写本阶段输出目录。` };
+  return { identity, manifestHash, readOnlyPaths: approved.filter(root => root !== args.workspace).concat(resources.map(resource => resource.path)), env, receipt,
+    instructions: `\n运行能力已按${declaration.origin === 'host_registration' ? '平台显式登记' : '仓内版本化声明'}预检，资源身份 ${identity}。浏览器和 OCR 路径见 AP_GRAPH_RUNTIME_* / AP_GRAPH_BROWSER_* / AP_GRAPH_OCR_MODEL_DIR；这些资源只读，缓存和报告写本阶段输出目录。` };
 }

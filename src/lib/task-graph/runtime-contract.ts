@@ -8,6 +8,7 @@ export type RuntimeDeclaration = { version: 1; browser?: { module: RuntimeResour
 const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 function resource(value: unknown): RuntimeResource {
   const item = record(value);
+  if (Object.keys(item).some(key => !(item.kind === 'output' ? ['kind', 'eventId', 'relativePath', 'sha256'] : ['kind', 'path', 'sha256']).includes(key))) throw new Error('运行资源存在未知字段');
   if (item.kind === 'output') {
     if (typeof item.eventId !== 'string' || !item.eventId || typeof item.relativePath !== 'string' || !item.relativePath || path.isAbsolute(item.relativePath) || item.relativePath.split(/[\\/]/).some(part => !part || part === '.' || part === '..') || typeof item.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(item.sha256)) throw new Error('归档资源必须引用明确产物事件、相对路径和 SHA256');
     return { kind: 'output', eventId: item.eventId, relativePath: item.relativePath, sha256: item.sha256 };
@@ -20,15 +21,17 @@ export function parseRuntimeDeclaration(value: unknown): RuntimeDeclaration {
   const item = record(value);
   if (item.version !== 1 || Object.keys(item).some(key => !['version', 'browser', 'ocr'].includes(key))) throw new Error('运行能力声明版本或字段无效');
   const result: RuntimeDeclaration = { version: 1 };
-  if (item.browser !== undefined) { const browser = record(item.browser); result.browser = { module: resource(browser.module), executable: resource(browser.executable) }; }
+  if (item.browser !== undefined) { const browser = record(item.browser); if (Object.keys(browser).some(key => !['module', 'executable'].includes(key))) throw new Error('浏览器声明存在未知字段'); result.browser = { module: resource(browser.module), executable: resource(browser.executable) }; }
   if (item.ocr !== undefined) {
     const ocr = record(item.ocr);
+    if (Object.keys(ocr).some(key => !['weights', 'requiredFiles'].includes(key))) throw new Error('OCR 声明存在未知字段');
     if (!Array.isArray(ocr.requiredFiles) || !ocr.requiredFiles.length || !ocr.requiredFiles.every((file: unknown) => typeof file === 'string' && file && !path.isAbsolute(file) && file.split(/[\\/]/).every(part => part && part !== '.' && part !== '..'))) throw new Error('OCR 必需文件必须是权重目录内的相对路径');
     result.ocr = { weights: resource(ocr.weights), requiredFiles: ocr.requiredFiles };
   }
   return result;
 }
-export async function runtimeDeclaration(workspace: string) {
+export type RuntimeDeclarationSource = { origin?: 'project' | 'host_registration'; registrationHash?: string; declaration: RuntimeDeclaration; manifestHash: string; commit: string; filename: string };
+export async function runtimeDeclaration(workspace: string): Promise<RuntimeDeclarationSource | null> {
   const name = '.agent-platform/runtime.json';
   const filename = path.join(workspace, name);
   const local = await fs.lstat(filename).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
@@ -65,6 +68,7 @@ export async function runtimeDeclaration(workspace: string) {
   if (!local) throw new Error('已版本化的运行能力声明在工作区中缺失');
   if (await fs.realpath(filename) !== filename || !local.isFile()) throw new Error('运行能力声明不能是链接');
   const text = await graphGit(workspace, 'show', `HEAD:${name}`);
+  if ((await fs.readFile(filename, 'utf8')).trimEnd() !== text) throw new Error('运行能力声明存在未提交改动，必须进入新的受控 claim 后重新固定');
   return { declaration: parseRuntimeDeclaration(JSON.parse(text)), manifestHash: createHash('sha256').update(text).digest('hex'), commit: await graphGit(workspace, 'rev-parse', 'HEAD'), filename };
 }
 /** Digest exactly the declared resource. Never follow a link to undeclared shared data. */

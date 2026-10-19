@@ -1,4 +1,4 @@
-import { prepareDeclaredRuntime } from './runtime-preflight';
+import { prepareTaskDeclaredRuntime } from './runtime-continuity';
 import { projectEnvironment } from '../harness/project-environment';
 import { randomUUID } from 'node:crypto';
 import { prepareGraphOutputForTask } from './output-task-context';
@@ -37,7 +37,7 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
   const output = await prepareGraphOutputForTask(extraEnv.AP_GRAPH_SERVICE_TASK_ID, extraEnv.AP_GRAPH_OUTPUT_ATTEMPT || `check:${randomUUID()}`, [root]);
   const metadata = linkedWorktreeGitDirectories(root);
   const project = projectEnvironment(extraEnv.AP_PROJECT_REPOSITORY || root);
-  const declaredRuntime = await prepareDeclaredRuntime({ workspace: root, approvedReadOnlyRoots: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...(project ? [project.directory] : [])], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: extraEnv.AP_GRAPH_WRITER_NONCE });
+  const declaredRuntime = await prepareTaskDeclaredRuntime({ taskId: extraEnv.AP_GRAPH_SERVICE_TASK_ID, workspace: root, approvedReadOnlyRoots: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...(project ? [project.directory] : [])], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: extraEnv.AP_GRAPH_WRITER_NONCE });
   return withGraphTaskServices(extraEnv.AP_GRAPH_SERVICE_TASK_ID, 'platform-check', async services => {
   const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...(extra?.env.TASK_GRAPH_EXTRA_REPOS_JSON ? { TASK_GRAPH_EXTRA_REPOS_JSON: extra.env.TASK_GRAPH_EXTRA_REPOS_JSON } : {}), ...services.env, ...output.env, ...declaredRuntime.env, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp' };
   for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY']) {
@@ -46,7 +46,7 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
   }
   const wrapped = wrapWithBubblewrap({ command: argv[0], commandArgs: argv.slice(1), cwd: root, workspaceRoot: root,
     sandboxMode: 'read-only', networkAccess: 'enabled', env, outputPaths: outputs,
-    readOnlyPaths: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
+    readOnlyPaths: [...declaredRuntime.readOnlyPaths, ...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
   return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv, services.signal);
   });
 }

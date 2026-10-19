@@ -1,4 +1,4 @@
-import { prepareDeclaredRuntime } from '../task-graph/runtime-preflight';
+import { prepareTaskDeclaredRuntime } from '../task-graph/runtime-continuity';
 import { projectEnvironment } from '../harness/project-environment';
 import { prepareGraphOutputForTask } from '../task-graph/output-task-context';
 import { graphWriterEnvironment } from '../task-graph/writer-ownership';
@@ -163,7 +163,7 @@ export const executeViaLocalHarness = async (
   if (output) task.description += output.instructions;
   const validationArchive = graphRuntime ? await graphValidationArchiveForTask(request.taskId) : null;
   const extraReadOnlyPaths = Array.from(new Set([
-    ...resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig),
+    ...(graphRuntime && !('workflowPermissionSnapshot' in permissionConfig) ? [] : resolveLocalRuntimeReadOnlyPaths(request.workingDirectory || process.cwd(), permissionConfig)),
     ...(request.extraReadOnlyPaths || []),
     ...(output?.readOnlyPaths || []),
     ...(inputs?.paths || []),
@@ -177,8 +177,8 @@ export const executeViaLocalHarness = async (
       : []),
   ]));
   const project = workspaceRoot ? projectEnvironment(workspaceRoot) : undefined;
-  const declaredRuntime = output && workspaceRoot ? await prepareDeclaredRuntime({ workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths, ...(project ? [project.directory] : [])], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
-  if (declaredRuntime) task.description += declaredRuntime.instructions;
+  const declaredRuntime = output && workspaceRoot ? await prepareTaskDeclaredRuntime({ taskId: request.taskId, permissionConfig, workspace: workspaceRoot, approvedReadOnlyRoots: [...extraReadOnlyPaths, ...(project ? [project.directory] : [])], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: (await graphWriterEnvironment(taskRunId)).AP_GRAPH_WRITER_NONCE }) : null;
+  if (declaredRuntime) { task.description += declaredRuntime.instructions; extraReadOnlyPaths.push(...declaredRuntime.readOnlyPaths); }
   if (graphRuntime) extraWritableRoots.push(...graphRuntime.writable);
   const codexHome = graphRuntime && participant.harnessType === 'codex' ? graphRuntime.config : participant.harnessType === 'codex'
     ? resolvePlatformLocalCodexHome(workspaceRoot, participant.codexHome)

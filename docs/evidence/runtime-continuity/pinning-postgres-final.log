@@ -1,0 +1,6 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-runtime-pinning task-graph-runtime-inputs
+
+Native preparation, real platform sandbox check and non-Git acceptance share a claim pin; host changes cannot widen, resource/config mutation and stale CAS reject, explicit workflow restriction wins, pinned absence remains absent
+Project Python environment and frozen Spec inputs are shared readonly without credentials; failures omit sandbox launch arguments
