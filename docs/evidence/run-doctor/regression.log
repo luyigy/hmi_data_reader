@@ -1,0 +1,5 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-run-doctor
+
+Run doctor classifies stranded transitions, preserves unknown gates, isolates writer failures and enforces read-only SQL.

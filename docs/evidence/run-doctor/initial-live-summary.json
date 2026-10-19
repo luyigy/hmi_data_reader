@@ -1,0 +1,24 @@
+{
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "readOnly": true,
+  "databaseSampledAt": "2026-10-19T09:21:11.090Z",
+  "finishedAt": "2026-10-19T09:21:12.498Z",
+  "categoryCounts": {
+    "completed": 6,
+    "platform_recoverable": 1,
+    "waiting_dependencies": 16,
+    "business_material": 1
+  },
+  "frontier": [
+    "M02",
+    "R05"
+  ],
+  "automaticProgress": {
+    "verified": 0,
+    "notVerified": 22,
+    "stalled": 2,
+    "allConditionsSatisfied": "not_verified",
+    "explanation": "存活写入者仅证明进行中；只读诊断不执行环境、材料、授权或实时Issue验证，不将这些未知条件推定为已满足。"
+  },
+  "scope": "只读采样。business_material只代表当前执行者的缺项陈述，未证明材料实际不存在。"
+}

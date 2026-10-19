@@ -6,6 +6,7 @@ import { scheduleImplementationRecovery } from '../src/lib/task-graph/implementa
 import { graphFailureSummary } from '../src/lib/task-graph/failure-summary';
 import { redactSensitiveText } from '../src/lib/redact-sensitive';
 import { realpath } from 'node:fs/promises';
+import { diagnoseTaskGraphRun } from '../src/lib/task-graph/run-doctor';
 
 loadEnvConfig(process.cwd());
 
@@ -20,7 +21,12 @@ async function main() {
     options.set(key, args[++index]);
   }
   const runId = options.get('--run-id'), nodeKey = options.get('--node-key'), requestId = options.get('--request-id');
-  if (!runId || !nodeKey || resume && (!requestId || !/^[A-Za-z0-9:._-]{1,200}$/.test(requestId))) throw new Error('检查须指定Run和Slice；恢复还须提供唯一request-id，重复执行沿用同一标识。');
+  if (!runId || resume && (!nodeKey || !requestId || !/^[A-Za-z0-9:._-]{1,200}$/.test(requestId))) throw new Error('检查须指定Run；省略node-key检查全图。恢复须同时指定node-key和唯一request-id。');
+  if (!nodeKey) {
+    if (requestId) throw new Error('只读Run诊断不接受request-id；恢复须指定node-key。');
+    console.log(redactSensitiveText(JSON.stringify(await diagnoseTaskGraphRun(runId), null, 2)));
+    return;
+  }
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, include: { executions: true } });
   const dependencies = await prisma.taskGraphNode.findMany({ where: { runId, key: { in: node.dependsOn } }, select: { key: true, status: true } });
   const jobs = await Promise.all(node.executions.map(async job => {
