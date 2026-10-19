@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-19T11:04:22.989Z",
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "scope": "Read-only observation, no resume, no service restart",
+  "nodes": [
+    {
+      "key": "M03A",
+      "status": "attention",
+      "dependsOn": [
+        "M02"
+      ],
+      "phase": "implement",
+      "failure": {
+        "code": "environment_failed",
+        "detail": "实现与验证进度已保存；现有 Chromium 为缺少 Snap 的启动包装，Chrome 链接目标不存在，无法完成必需双视口验收。需挂载可运行浏览器后恢复。",
+        "blockerCause": "missing_capability",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "owner": "platform",
+        "requiresUserDecision": false,
+        "blockedPhase": "implementation"
+      }
+    },
+    {
+      "key": "R05",
+      "status": "attention",
+      "dependsOn": [
+        "R02",
+        "R04"
+      ],
+      "phase": "implement",
+      "failure": {
+        "code": "missing_business_material",
+        "detail": "已盘点现有原图并运行指定入口；缺少真实未支持版式的独立验收图及完整原屏真值，未开发或发布新适配。",
+        "blockedPhase": "implementation"
+      }
+    }
+  ]
+}
