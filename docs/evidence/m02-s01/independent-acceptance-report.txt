@@ -1,0 +1,41 @@
+M02 独立验收复核：通过本票范围。
+
+用户结果：绑定 BOLE/B_AND_R 0.1.2 页面一次后，连续两次照片上传均不提交 page_id，自动选中冻结页面。Model 已保存有效 OCR 候选并支持独立 GET，旧版品牌误报已消失。绑定在桌面和手机均可保存并刷新重开。
+
+身份与输入
+固定 Model 提交 74c56686a6f3c3e544d7d392759317c5f35c3124，运行前后 git status --short 均为空。Reader 固定源码 cd92faeb2cfb86486fc9b65d2053e50a31fede2f，使用平台清单 sourcePath、对应 /data1/code/hmi_data_reader/.venv/bin/python 和归档 manifest 校验的既有 OCR 模型。未用额外仓当前 HEAD 或未提交内容替代。输入清单 ddf51c854bff0f2bc80556c164c663ba5a6b1a5f34d2a6f76416471df084115c。
+固定页面 b_and_r.injection_holding.multi_stage_position_time@0.1.2，包 canonical SHA256 ac31908a258b3aafb0a696fcf7327b11b4b34043254bb8cc5e49ac07c28487ac。原图来自固定 Reader ground_truth/bole_BR/射胶保压_20260807180631_13_32.jpg，SHA256 ab8c9bcb7e06bab421f6c4d4dba2eae84acea6ebeea2085b56311db9b9e0e9c2。话题扫描本轮无新图，本轮使用已有合法固定输入，未索要用户搬图。
+批准 Spec 读取平台 task-specs 只读副本；读取仓内验收条件 P2/A06/A07/A14/A16、AGENTS、测试规则、verify skill 及功能清单、HMI 架构宪章。保留上轮 e592f510cd0abf29dccd2126 的通过项与失败报告，检查修复阶段 5465f93c4a656fcbe6a0142a 的 todo、verification 和原始证据。本轮数据来自重新运行，未把旧数据标为本轮。
+
+实际已测通过
+1. 票据行为入口 16 passed，0 skipped。命令从固定工作区根运行：
+DATABASE_URL=sqlite:// PYTHONDONTWRITEBYTECODE=1 /data1/code/mold-data-webpage-tool/backend/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_hmi_protocol_library_m02.py --basetemp "$AP_GRAPH_OUTPUT_DIR/pytest-ticket" --junitxml "$AP_GRAPH_OUTPUT_DIR/ticket.xml"
+证据 ticket.log、ticket.xml。覆盖同 profile 多控制器/版式目录共存、多个物理页的列表绑定、CAS/哈希/重复页拒绝、跨用户权限、未核实身份拒绝发布、事务失败无改变、升级/停用/回滚审计、新采集活动组合与旧采集冻结、旧解释预览保存及独立 GET。
+A07 的 PAGE_UNKNOWN、PAGE_TEMPLATE_DISABLED、PAGE_BINDING_MISMATCH、PAGE_TEMPLATE_CONFLICT、PAGE_PACKAGE_INCOMPATIBLE 分别返回中文原因与动作，无 fallback，拒绝后原采集未变。证据 m02-fixed-recognition.json。此部分主要是固定响应回归，不宣称每种拒绝均由真实 OCR 触发。
+
+2. 同一入口真实启动私有 Reader，执行 HTTP CPU OCR 两轮，独立 GET 持久化读回。两轮 PAGE_COMPATIBLE、冻结页面/包/绑定一致，各生成 17 个候选。holding.time.1=1.0 s，holding.time.2=5.0 s，value_role=setting，source=ocr，h1/h2 保持 unknown，未自动当成已核准工艺。真实错误控制器回执为 conflict，被 Model 409 拒绝，原采集及其他采集不变。接纳版本独立 GET 与正式包一致。证据 m02-formal-live-chain.json、m02-reader-vz4mz4_y/reader.log。
+额外执行上轮同一 check_live_candidate.py，这次退出 0，两轮候选各 17，无“控制器与采集机台品牌不一致”。见 live-candidate-check.log。未只依赖新加断言通过。
+冻结版本专用别名经 recognize API 生成 holding.time.1，错误机台品牌通过 saved reuse 仍清空候选并提示品牌不符。见 m02-frozen-alias-override.json。本回归为受控观测，区分于前述真实 OCR。
+
+3. 固定源码前端构建成功，输出 frontend-dist。使用原 vite.config.js 的程序接口 configFile:false，避免只读源码临时配置写入。命令在 frontend：
+node --input-type=module -e 'import {build} from "vite"; import config from "./vite.config.js"; await build({...config, configFile:false, build:{...config.build,outDir:process.env.AP_GRAPH_OUTPUT_DIR+"/frontend-dist",emptyOutDir:false}})'
+浏览器命令从仓根运行，PLAYWRIGHT_MODULE 指向仓内 scratch/platform-browser-q7fq0n3k/node_modules/playwright，PLAYWRIGHT_CHROMIUM_EXECUTABLE 指向对应 chrome/chrome；继承同样的 sqlite:// 与禁写 bytecode 环境：
+/data1/code/mold-data-webpage-tool/backend/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_hmi_protocol_library_m02_browser.py --basetemp "$AP_GRAPH_OUTPUT_DIR/pytest-browser" --junitxml "$AP_GRAPH_OUTPUT_DIR/browser.xml"
+2 passed，0 skipped。受控共存协议和正式 0.1.2 包分别执行 1440/390 控件选择、核实勾选、保存、独立 GET、刷新重开。证据 browser.log、browser.xml、两套 m02-browser-roundtrip.json。正式包 revision 1/2，包 hash 与真实 OCR 相同。实际目视检查 formal-browser 下桌面保存及重开、手机重开身份/控件和保存回执截图，绑定及版本可读，手机按钮可经弹窗滚动访问。未核实前保存禁用，保存提示与实际 GET 一致。手机 region 截图仅部分可见，结合 controls 与 receipt 完整截图核对，没有用空白区域证明通过。
+
+4. 旧 OCR 兼容专项 7 passed，0 skipped：
+DATABASE_URL=sqlite:// PYTHONDONTWRITEBYTECODE=1 /data1/code/mold-data-webpage-tool/backend/.venv/bin/python -m pytest -q -p no:cacheprovider backend/tests/test_hmi_ocr_semantics.py backend/tests/test_hmi_fanuc_reader_observations.py --basetemp "$AP_GRAPH_OUTPUT_DIR/pytest-legacy" --junitxml "$AP_GRAPH_OUTPUT_DIR/legacy.xml"
+见 legacy-ocr.log、legacy.xml。未绑定旧三参品牌门禁另在票据入口覆盖。
+
+5. python3 "$AP_GRAPH_OUTPUT_DIR/inspect_evidence.py" 退出 0，核对 JUnit 非零/无跳过、两轮候选值/单位/角色/未知状态、冻结页面/绑定、双视口修订和包哈希、清理回执；读取 Reader PID 已不存在。见 evidence-check.json。Reader finally 退出，两个浏览器测试服务 server_stopped=true。无共享开发服务重启。
+
+缺陷与限制
+本轮未发现 M02 范围内阻断缺陷。旧故障已在相同图片、固定 Reader 和实际 Model API 链路补验通过。测试仅提示 Starlette httpx 弃用警告；前端有既有大 chunk 提示，未阻止运行。未安装依赖、未创建环境，未设置手写 PYTHONPATH；fixture 的正常模块加载使用仓库既有入口。
+真实 OCR 与绑定 UI 为分开的实际操作证据，不声称浏览器内已经执行整条照片识读及正式业务提交。未测试生产登录、现场代际核实、全品牌准确率、独立保留样本泛化、正式 Run 写入、其他票冲突裁定。当前包代际为空并明确显示“代际未注明”，原图是开发已暴露样本，不宣称独立准确率。这些边界未扩大成本票未交付要求。
+修复阶段提到的旧工作台 enum 补充测试缺少对应第三仓源码，本轮未冒称通过，也未使用非固定额外仓补齐；本票必跑入口及相关旧 OCR 回归已实际通过。
+
+过程与改动
+verify skill 为实际仓库 .agents/skills/verify/SKILL.md；按其要求将实时与固定/浏览器分开，不以 full 代表跨仓实时验收。pstack 使用 installed poteto-mode、Codex mapping 和项目适配规则；check-playbooks 实际输出 Every project playbook matches this pstack's playbooks。核对了实施阶段步骤记录。本角色独立验收，按 Session pickup 保留旧通过项并用 Prove It Works 原则补验真实缺口；未再派实施者、未改调度/数据库状态或恢复预算。unslop 用于报告措辞。
+源码、原图、旧证据、共享业务数据均未修改。只有本轮 AP_GRAPH_OUTPUT_DIR 新增检查驱动 check_live_candidate.py、inspect_evidence.py，todo.md、本报告、日志、JSON、JUnit、截图、前端构建与隔离测试运行文件。测试数据库为导入 app.db 前注入的内存 SQLite，经原 guard 检查，不连接 PostgreSQL。无 PLAN/HANDOVER，未提交或合并。
+
+结论：批准固定提交 74c56686a6f3c3e544d7d392759317c5f35c3124 的 M02 本票验收，平台后续集成状态不由本报告代写。

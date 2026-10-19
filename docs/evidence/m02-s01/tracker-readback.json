@@ -1,0 +1,21 @@
+{
+  "source": "gitee issue view --json=number,state,labels",
+  "issues": [
+    {
+      "number": "IKNAQ8",
+      "state": "closed",
+      "labels": [
+        "done"
+      ]
+    },
+    {
+      "number": "IKNAQ9",
+      "state": "open",
+      "labels": [
+        "in-progress"
+      ]
+    }
+  ],
+  "mode": "manual ledger projection reconciliation, not continuous automation",
+  "recordedAt": "2026-10-19T10:47:46.370731+00:00"
+}

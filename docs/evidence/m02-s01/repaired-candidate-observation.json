@@ -1,0 +1,114 @@
+{
+  "rounds": [
+    {
+      "candidateCount": 17,
+      "timeFields": {
+        "holding.time.1": {
+          "candidate": {
+            "value": 1.0,
+            "unit": "s",
+            "value_role": "setting",
+            "segment_id": "h1",
+            "bbox": [
+              71.72071801395134,
+              61.8135512643794,
+              74.08115127479965,
+              63.000030338694316
+            ],
+            "source": "ocr"
+          },
+          "readerValue": 1.0
+        },
+        "holding.time.2": {
+          "candidate": {
+            "value": 5.0,
+            "unit": "s",
+            "value_role": "setting",
+            "segment_id": "h2",
+            "bbox": [
+              60.915471987392486,
+              61.87203911516339,
+              63.43250170268521,
+              63.05937683177022
+            ],
+            "source": "ocr"
+          },
+          "readerValue": 5.0
+        }
+      },
+      "segments": {
+        "i1": {
+          "state": "unknown"
+        },
+        "i2": {
+          "state": "unknown"
+        },
+        "i3": {
+          "state": "unknown"
+        },
+        "h1": {
+          "state": "unknown"
+        },
+        "h2": {
+          "state": "unknown"
+        }
+      },
+      "selectedVersion": "0.1.2"
+    },
+    {
+      "candidateCount": 17,
+      "timeFields": {
+        "holding.time.1": {
+          "candidate": {
+            "value": 1.0,
+            "unit": "s",
+            "value_role": "setting",
+            "segment_id": "h1",
+            "bbox": [
+              71.72071801395134,
+              61.8135512643794,
+              74.08115127479965,
+              63.000030338694316
+            ],
+            "source": "ocr"
+          },
+          "readerValue": 1.0
+        },
+        "holding.time.2": {
+          "candidate": {
+            "value": 5.0,
+            "unit": "s",
+            "value_role": "setting",
+            "segment_id": "h2",
+            "bbox": [
+              60.915471987392486,
+              61.87203911516339,
+              63.43250170268521,
+              63.05937683177022
+            ],
+            "source": "ocr"
+          },
+          "readerValue": 5.0
+        }
+      },
+      "segments": {
+        "i1": {
+          "state": "unknown"
+        },
+        "i2": {
+          "state": "unknown"
+        },
+        "i3": {
+          "state": "unknown"
+        },
+        "h1": {
+          "state": "unknown"
+        },
+        "h2": {
+          "state": "unknown"
+        }
+      },
+      "selectedVersion": "0.1.2"
+    }
+  ]
+}

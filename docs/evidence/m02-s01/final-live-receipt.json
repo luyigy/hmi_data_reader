@@ -1,0 +1,389 @@
+{
+  "at": "2026-10-19T10:46:36.810Z",
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "counts": {
+    "passed": 7,
+    "claimed": 1,
+    "planned": 15,
+    "attention": 1
+  },
+  "nodes": [
+    {
+      "key": "M02",
+      "status": "passed",
+      "evidence": {
+        "checks": [
+          {
+            "name": "ticket-behavior",
+            "passed": true,
+            "evidence": "/data1/code/mold-data-webpage-tool/backend/.venv/bin/python -m pytest -q backend/tests/test_hmi_protocol_library_m02.py\n................                                                         [100%]\n=============================== warnings summary ===============================\n../../../../../mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1\n  /data1/code/mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n16 passed, 1 warning in 21.63s\n\nAgent review cmvf4l91502yo6wx4dq0l3lnj: 固定提交74c56686独立复验通过：票据16项、双视口浏览器2项、旧OCR回归7项，均无跳过。两次真实OCR自动选页并保存17个候选，保压时间1.0/5.0秒，独立GET一致，上轮品牌误报已消失；保存重开、失败拒绝与服务退出已核验。源码未修改，仅新增隔离验收产物。报告：/home/hello/.agent-platform/task-validation/18c3968f2a4c5bdfc43d75bb/5f68fe7e93c8e2d8560b5b72/acceptance-report.txt"
+          },
+          {
+            "name": "acceptance:decision",
+            "passed": true,
+            "evidence": "固定提交74c56686独立复验通过：票据16项、双视口浏览器2项、旧OCR回归7项，均无跳过。两次真实OCR自动选页并保存17个候选，保压时间1.0/5.0秒，独立GET一致，上轮品牌误报已消失；保存重开、失败拒绝与服务退出已核验。源码未修改，仅新增隔离验收产物。报告：/home/hello/.agent-platform/task-validation/18c3968f2a4c5bdfc43d75bb/5f68fe7e93c8e2d8560b5b72/acceptance-report.txt"
+          }
+        ],
+        "summary": "Agent 复核 通过：固定提交74c56686独立复验通过：票据16项、双视口浏览器2项、旧OCR回归7项，均无跳过。两次真实OCR自动选页并保存17个候选，保压时间1.0/5.0秒，独立GET一致，上轮品牌误报已消失；保存重开、失败拒绝与服务退出已核验。源码未修改，仅新增隔离验收产物。报告：/home/hello/.agent-platform/task-validation/18c3968f2a4c5bdfc43d75bb/5f68fe7e93c8e2d8560b5b72/acceptance-report.txt"
+      },
+      "executions": [
+        {
+          "id": "cmvdmf87y043j9xhgc8sw2aks",
+          "status": "integrated",
+          "commit": "74c56686a6f3c3e544d7d392759317c5f35c3124",
+          "phase": "acceptance",
+          "state": "active",
+          "budgets": {
+            "repair": 1,
+            "platform": 0,
+            "format": 0,
+            "integration": 0
+          },
+          "taskRunId": "cmvf4dtys002i6wx4xshuy4er",
+          "taskRunStatus": "completed",
+          "writers": [
+            {
+              "pid": 414852,
+              "alive": false,
+              "status": "completed"
+            }
+          ],
+          "card": {
+            "messageId": "om_x100b627b2c66b8a8cfdc68e18b8a39f",
+            "status": "superseded"
+          }
+        }
+      ],
+      "review": {
+        "id": "cmvf4l91502yo6wx4dq0l3lnj",
+        "status": "completed",
+        "summary": "tester @ Platform Local (hello) / codex: TASK_GRAPH_REVIEW {\"approved\":true,\"note\":\"固定提交74c56686独立复验通过：票据16项、双视口浏览器2项、旧OCR回归7项，均无跳过。两次真实OCR自动选页并保存17个候选，保压时间1.0/5.0秒，独立GET一致，上轮品牌误报已消失；保存重开、失败拒绝与服务退出已核验。源码未修改，仅新增隔离验收产物。报告：/home/hello/.agent-platform/task-validation/18c3968f2a4c5bdfc43d75bb/5f68fe7e93c8e2d8560b5b72/acceptance-report.txt\"}",
+        "card": {
+          "messageId": "om_x100b627b2c66b8a8cfdc68e18b8a39f",
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "key": "M03A",
+      "status": "claimed",
+      "executions": [
+        {
+          "id": "cmvdmf87y043l9xhgwuu1qoex",
+          "status": "claimed",
+          "commit": null,
+          "phase": "prepare",
+          "state": "active",
+          "budgets": {
+            "repair": 0,
+            "platform": 0,
+            "format": 0,
+            "integration": 0
+          },
+          "taskRunId": "cmvf4ppc504li6wx48trjfxt8",
+          "taskRunStatus": "running",
+          "writers": [
+            {
+              "pid": 453464,
+              "alive": true,
+              "status": "running"
+            }
+          ],
+          "card": {
+            "messageId": "om_x100b626b016f64a4ceb0b58a9218997",
+            "status": "running"
+          }
+        }
+      ],
+      "review": null
+    },
+    {
+      "key": "R05",
+      "status": "attention",
+      "executions": [
+        {
+          "id": "cmvdmf880044f9xhg4phyzc48",
+          "status": "attention",
+          "commit": null,
+          "phase": "implement",
+          "state": "waiting_decision",
+          "budgets": {
+            "repair": 0,
+            "platform": 0,
+            "format": 0,
+            "integration": 0
+          },
+          "taskRunId": "cmve1vhng03awb0j3sb112lgn",
+          "taskRunStatus": "completed",
+          "writers": [
+            {
+              "pid": 710693,
+              "alive": false,
+              "status": "completed"
+            }
+          ],
+          "card": {
+            "messageId": "om_x100b627b2c50c4a8ceefa7c8718ce65",
+            "status": "completed"
+          }
+        }
+      ],
+      "review": null
+    }
+  ],
+  "events": [
+    {
+      "id": "cmvf3rqot0003f9765nlg474x",
+      "kind": "platform_preparation_registered",
+      "createdAt": "2026-10-19T10:19:48.317Z"
+    },
+    {
+      "id": "cmvf3rs8e00bwcal4t2be1h5f",
+      "kind": "implementation_recovery_scheduled",
+      "createdAt": "2026-10-19T10:19:50.318Z"
+    },
+    {
+      "id": "cmvf3rs9900bycal4pt4h275f",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:19:50.349Z"
+    },
+    {
+      "id": "cmvf3rs9p00c0cal4grw1yi6i",
+      "kind": "platform_preparation_consumed",
+      "createdAt": "2026-10-19T10:19:50.365Z"
+    },
+    {
+      "id": "cmvf3rx3k00c4cal48j0drdy1",
+      "kind": "node_claimed",
+      "createdAt": "2026-10-19T10:19:56.624Z"
+    },
+    {
+      "id": "cmvf3rx4a00c7cal499y974w2",
+      "kind": "execution_claimed",
+      "createdAt": "2026-10-19T10:19:56.651Z"
+    },
+    {
+      "id": "cmvf3rx5500cbcal4kghbm9ax",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:19:56.681Z"
+    },
+    {
+      "id": "cmvf3rynj00crcal4omp7tdze",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:19:58.640Z"
+    },
+    {
+      "id": "cmvf3rzxj00dgcal4xhysobwn",
+      "kind": "task_inputs_prepared",
+      "createdAt": "2026-10-19T10:20:00.295Z"
+    },
+    {
+      "id": "cmvf3s1xs00egcal46w846od0",
+      "kind": "output_runtime_prepared",
+      "createdAt": "2026-10-19T10:20:02.897Z"
+    },
+    {
+      "id": "cmvf3vqj601u2cal484s3a1v8",
+      "kind": "extra_repository_state",
+      "createdAt": "2026-10-19T10:22:54.739Z"
+    },
+    {
+      "id": "cmvf3vr4101u5cal4feqh45pu",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:22:55.490Z"
+    },
+    {
+      "id": "cmvf3vr4g01u8cal48f9l6sri",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:22:55.505Z"
+    },
+    {
+      "id": "cmvf3vtrq01v2cal4nph5oyhq",
+      "kind": "output_runtime_prepared",
+      "createdAt": "2026-10-19T10:22:58.935Z"
+    },
+    {
+      "id": "cmvf3wcsk0225cal4q3agoxvv",
+      "kind": "execution_integrated",
+      "createdAt": "2026-10-19T10:23:23.589Z"
+    },
+    {
+      "id": "cmvf3wcta022acal4qlvsu5iv",
+      "kind": "phase_worker_started",
+      "createdAt": "2026-10-19T10:23:23.614Z"
+    },
+    {
+      "id": "cmvf3wctk022fcal4nxz00idl",
+      "kind": "node_verifying",
+      "createdAt": "2026-10-19T10:23:23.624Z"
+    },
+    {
+      "id": "cmvf3we4d022ocal4o4hun0ju",
+      "kind": "writer_observation",
+      "createdAt": "2026-10-19T10:23:25.309Z"
+    },
+    {
+      "id": "cmvf3we4x022scal4l33bxpz8",
+      "kind": "review_claimed",
+      "createdAt": "2026-10-19T10:23:25.329Z"
+    },
+    {
+      "id": "cmvf3weg7022ucal4tuh9e5b3",
+      "kind": "acceptance_runtime_prepared",
+      "createdAt": "2026-10-19T10:23:25.735Z"
+    },
+    {
+      "id": "cmvf3wevk023ecal4gu863qba",
+      "kind": "review_dispatched",
+      "createdAt": "2026-10-19T10:23:26.288Z"
+    },
+    {
+      "id": "cmvf3wfzc0245cal4ei6eafan",
+      "kind": "output_runtime_prepared",
+      "createdAt": "2026-10-19T10:23:27.720Z"
+    },
+    {
+      "id": "cmvf41jsp03zjcal4zgcy565m",
+      "kind": "verification_failed",
+      "createdAt": "2026-10-19T10:27:25.945Z"
+    },
+    {
+      "id": "cmvf41k2003zpcal4z6dc0dwl",
+      "kind": "phase_worker_released",
+      "createdAt": "2026-10-19T10:27:26.280Z"
+    },
+    {
+      "id": "cmvf4dkpl00096wx4zruea1gu",
+      "kind": "node_repair_scheduled",
+      "createdAt": "2026-10-19T10:36:47.002Z"
+    },
+    {
+      "id": "cmvf4dkzs000b6wx4pqng42iu",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:36:47.369Z"
+    },
+    {
+      "id": "cmvf4dqam000g6wx4ioetn5ko",
+      "kind": "execution_claimed",
+      "createdAt": "2026-10-19T10:36:54.238Z"
+    },
+    {
+      "id": "cmvf4dqbb000j6wx4saj3j017",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:36:54.264Z"
+    },
+    {
+      "id": "cmvf4drt400106wx48qgkro1g",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:36:56.201Z"
+    },
+    {
+      "id": "cmvf4dt53001p6wx4zbb511dx",
+      "kind": "task_inputs_prepared",
+      "createdAt": "2026-10-19T10:36:57.927Z"
+    },
+    {
+      "id": "cmvf4dv44002p6wx4gdnw32i7",
+      "kind": "output_runtime_prepared",
+      "createdAt": "2026-10-19T10:37:00.485Z"
+    },
+    {
+      "id": "cmvf4kkhw02ph6wx4kbigtwcg",
+      "kind": "extra_repository_state",
+      "createdAt": "2026-10-19T10:42:13.316Z"
+    },
+    {
+      "id": "cmvf4kl0v02pk6wx4q17ezu2e",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:42:14.000Z"
+    },
+    {
+      "id": "cmvf4kl1b02pn6wx4ergj94tl",
+      "kind": "execution_outcome",
+      "createdAt": "2026-10-19T10:42:14.015Z"
+    },
+    {
+      "id": "cmvf4knlb02qh6wx4h4me6ra3",
+      "kind": "output_runtime_prepared",
+      "createdAt": "2026-10-19T10:42:17.327Z"
+    },
+    {
+      "id": "cmvf4l6x802xk6wx4b6306k84",
+      "kind": "execution_integrated",
+      "createdAt": "2026-10-19T10:42:42.380Z"
+    },
+    {
+      "id": "cmvf4l6y002xp6wx4ln9twiia",
+      "kind": "phase_worker_started",
+      "createdAt": "2026-10-19T10:42:42.408Z"
+    },
+    {
+      "id": "cmvf4l6ye02xu6wx4l7gsjvly",
+      "kind": "node_verifying",
+      "createdAt": "2026-10-19T10:42:42.423Z"
+    },
+    {
+      "id": "cmvf4l7vb02y36wx4p74mxd4v",
+      "kind": "writer_observation",
+      "createdAt": "2026-10-19T10:42:43.607Z"
+    },
+    {
+      "id": "cmvf4l8c902yj6wx4jnuj029c",
+      "kind": "review_claimed",
+      "createdAt": "2026-10-19T10:42:44.217Z"
+    },
+    {
+      "id": "cmvf4l8mj02yl6wx4k1k1652y",
+      "kind": "acceptance_runtime_prepared",
+      "createdAt": "2026-10-19T10:42:44.587Z"
+    },
+    {
+      "id": "cmvf4l91m02yr6wx46m82yqg9",
+      "kind": "review_dispatched",
+      "createdAt": "2026-10-19T10:42:45.130Z"
+    },
+    {
+      "id": "cmvf4la3302zh6wx4fc2skymz",
+      "kind": "output_runtime_prepared",
+      "createdAt": "2026-10-19T10:42:46.479Z"
+    },
+    {
+      "id": "cmvf4phw504jl6wx43hnlfgt5",
+      "kind": "node_passed",
+      "createdAt": "2026-10-19T10:46:03.221Z"
+    },
+    {
+      "id": "cmvf4pi9u04jm6wx4k98eqhmm",
+      "kind": "workspace_cleanup_deferred",
+      "createdAt": "2026-10-19T10:46:03.714Z"
+    },
+    {
+      "id": "cmvf4piaz04jx6wx48gkvwsn4",
+      "kind": "phase_worker_released",
+      "createdAt": "2026-10-19T10:46:03.756Z"
+    },
+    {
+      "id": "cmvf4poai04kv6wx4syjwwj20",
+      "kind": "issue_sync_requested",
+      "createdAt": "2026-10-19T10:46:11.500Z"
+    },
+    {
+      "id": "cmvf4pubp04mh6wx4v1ht3znf",
+      "kind": "issue_sync_comment_attempted",
+      "createdAt": "2026-10-19T10:46:19.334Z"
+    },
+    {
+      "id": "cmvf4py7t04n96wx4xdnmnw3k",
+      "kind": "issue_sync_comment_recorded",
+      "createdAt": "2026-10-19T10:46:24.377Z"
+    },
+    {
+      "id": "cmvf4q2fo04o76wx4qsgo374m",
+      "kind": "issue_sync_completed",
+      "createdAt": "2026-10-19T10:46:29.844Z"
+    }
+  ],
+  "mainChatPID": "21469",
+  "manualResumeCommandsIssuedByS01Operator": 0,
+  "qualification": "Single approved M02 scope, not all-brand accuracy, production Reader publication, or full route completion"
+}

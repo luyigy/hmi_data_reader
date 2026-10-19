@@ -32,7 +32,7 @@ Reader 发布探针运行在冻结提交 `cd92faeb2cfb86486fc9b65d2053e50a31fede
 - `preparation-boundary-red.log` 用真实首版 `07b9e7c` 加入新反例，捕获展示层误改授权的问题；追加修复后的三组 PostgreSQL 测试通过，包含 EIO 后同 Run 后续回执继续、重复/崩溃回放、过期绑定、文件篡改、未知/活跃写入者及预算不变。
 - Model 新包检查在旧输入上报 `Reader page package version unavailable`；补救后原入口 14 项通过、零跳过。主控又用实际 `runSandboxedGraphCheck`、只读源码和固定输入执行，同样 14 项通过。
 - 原测试控制器与正式 B&R 包的 1440/390 双视口测试共两项通过；实际保存、独立 GET 与重开。使用隔离会话 cookie，不冒充测试网页登录流程。
-- `review-repair-red.log` 禁用交接消费者，复现退出后仍 integrated；green/final 覆盖退出后恰好一次自动回修、无人工恢复、成功兄弟已用预算不影响目标回修、过期候选/结论/证据及人工决定保护。
+- `review-repair-red.log` 禁用交接消费者，复现退出后仍 integrated；green/final 覆盖退出后恰好一次自动回修、无人工恢复、成功兄弟已用预算不影响目标回修、候选不匹配、过期 revision、缺失证据及人工决定保护；源码另在锁内深比较结论与证据，未声称本测试覆盖预读后篡改两者的全部情形。
 - TypeScript、长文件和差异检查通过。测试数据库使用独立 schema 或一次性 SQLite，没有清理共享数据库。
 
 ## Scope
@@ -51,10 +51,16 @@ Reader 发布探针运行在冻结提交 `cd92faeb2cfb86486fc9b65d2053e50a31fede
 
 首次集成提交为 `e34d0e3ecf266909e1c72c2e737c713523e7e304`。独立验收 TaskRun `cmvf3wev4023bcal4rbov5evd` 拒绝空字段候选，事件 `cmvf41jsp03zjcal4zgcy565m`。回修事务随后失败，计数仍为 0。18:34 再次确认实施和验收进程均已退出。此处明确记录失败，不将测试通过或集成等同于验收通过。
 
-18:36:41 在所有旧写入者退出且无任务运行时加载补丁 `0567138`，只重启任务图服务。主飞书 PID 保持 21469。18:36:47 自动生成 `node_repair_scheduled` 事件 `cmvf4dkpl00096wx4zruea1gu`；18:37 新原生实施 TaskRun `cmvf4dtys002i6wx4xshuy4er` 启动，仍用原卡。代码回修计数为 1，其余计数为 0。没有新增人工恢复请求。当前正在修业务候选和补断言，尚未再次通过独立验收。
+18:36:41 在所有旧写入者退出且无任务运行时加载补丁 `0567138`，只重启任务图服务。主飞书 PID 保持 21469。18:36:47 自动生成 `node_repair_scheduled` 事件 `cmvf4dkpl00096wx4zruea1gu`；18:37 新原生实施 TaskRun `cmvf4dtys002i6wx4xshuy4er` 启动，仍用原卡。代码回修计数为 1，其余计数为 0。没有新增人工恢复请求。截至该时刻正在修业务候选和补断言。18:42 修复提交 `74c56686a6f3c3e544d7d392759317c5f35c3124` 完成平台检查及集成，独立验收 `cmvf4l91502yo6wx4dq0l3lnj` 已自动启动，18:44 仍在执行。原票新增断言后 16 项通过，双视口 2 项通过；两次真实 OCR 均产生 17 项候选，保压时间为 1.0/5.0s，段态 unknown。额外旧 enum 桥接测试因批准输入不含旧工作台源码而失败，明确保留未通过，不列入通过数；已执行旧 OCR 专项 7 项通过。独立验收尚未再次给出结论。
+
+18:46:03，`node_passed` 事件 `cmvf4phw504jl6wx43hnlfgt5` 确认 M02 通过。独立报告见 [independent-acceptance-report.txt](independent-acceptance-report.txt)，16 项票据测试、2 项浏览器及 7 项旧 OCR 回归均通过且零跳过。18:46:36 原账本快照显示 M03A TaskRun `cmvf4ppc504li6wx48trjfxt8` 已运行，原生 PID 453464 存活。M02 仍用原卡，代码回修仅用 1 次；没有新增人工继续。全图为 7 通过、1 执行、15 等待、1 attention，R05 保持原状态，未声称全图完成。详见 [final-live-receipt.json](final-live-receipt.json)。
+
+Gitee 已自动关闭 M02；读取发现标签仍停留在 in-progress、M03A 标签仍是 blocked，按账本仅修正这两张票的执行标签并回读：M02 为 closed/done，M03A 为 open/in-progress。该操作是人工投影校准，不声称标签持续自动同步。
+
+代码已追加发布到平台 `fix/m02-s01-20261019` 分支及 Model 同名分支，Model 提交 `74c56686`。本文的早期“未完成”记录保留对应时间，用于说明真实排查过程；以上为本轮最终结果。
 
 ## Follow-up
 
-先验证 M02 集成、独立验收和后继自动释放，再根据真实失败扩充准备处理范围。Gardening 不作为后继的新门禁，不为每票强造新 Wire。
+M02 已集成并通过独立验收，后继自动启动已有现场证据。本轮交付结束，其他平台准备问题应按具体失败另行确定范围。Gardening 不作为后继的新门禁，不为每票强造新 Wire。
 
 独立边界审查使用 GPT-6-astra，发现并推动修复两项阻断问题。可用审查模型均属 GPT 家族，未声称跨模型家族审查。GitNexus 因共享索引不可读未能提供影响图，未重建索引；实际调用路径与差异由源码导航及回归复核。

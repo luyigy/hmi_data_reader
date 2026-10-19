@@ -1,0 +1,84 @@
+{
+  "tests": {
+    "ticket": 16,
+    "browser": 2,
+    "legacy": 7
+  },
+  "rounds": [
+    {
+      "capture_id": "1bb29df8-9603-45b1-be19-d1c3cb1c9d08",
+      "candidates": 17,
+      "facts": {
+        "holding.time.1": {
+          "value": 1.0,
+          "unit": "s",
+          "value_role": "setting",
+          "segment_id": "h1",
+          "bbox": [
+            71.72071801395134,
+            61.8135512643794,
+            74.08115127479965,
+            63.000030338694316
+          ],
+          "source": "ocr"
+        },
+        "holding.time.2": {
+          "value": 5.0,
+          "unit": "s",
+          "value_role": "setting",
+          "segment_id": "h2",
+          "bbox": [
+            60.915471987392486,
+            61.87203911516339,
+            63.43250170268521,
+            63.05937683177022
+          ],
+          "source": "ocr"
+        }
+      }
+    },
+    {
+      "capture_id": "f42aff1c-a415-431a-91c4-1c2b0f8776d2",
+      "candidates": 17,
+      "facts": {
+        "holding.time.1": {
+          "value": 1.0,
+          "unit": "s",
+          "value_role": "setting",
+          "segment_id": "h1",
+          "bbox": [
+            71.72071801395134,
+            61.8135512643794,
+            74.08115127479965,
+            63.000030338694316
+          ],
+          "source": "ocr"
+        },
+        "holding.time.2": {
+          "value": 5.0,
+          "unit": "s",
+          "value_role": "setting",
+          "segment_id": "h2",
+          "bbox": [
+            60.915471987392486,
+            61.87203911516339,
+            63.43250170268521,
+            63.05937683177022
+          ],
+          "source": "ocr"
+        }
+      }
+    }
+  ],
+  "package_sha256": "ac31908a258b3aafb0a696fcf7327b11b4b34043254bb8cc5e49ac07c28487ac",
+  "input_sha256": "ab8c9bcb7e06bab421f6c4d4dba2eae84acea6ebeea2085b56311db9b9e0e9c2",
+  "reader_cleanup": [
+    {
+      "pid": 857,
+      "exited": true,
+      "returncode": -15
+    }
+  ],
+  "browser_cleanup": true,
+  "conclusion": "M02 scoped evidence passed"
+}
