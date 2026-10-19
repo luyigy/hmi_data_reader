@@ -62,7 +62,8 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3010",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "task-graph:prepare-recovery": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-prepare-recovery.ts"
   },
   "prisma": {
     "seed": "ts-node prisma\\seed.ts"

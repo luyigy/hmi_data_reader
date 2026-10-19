@@ -3,6 +3,7 @@ import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress } fro
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { graphGit } from './git-command';
+import { assertPreparationTx } from './preparation-contract';
 
 export type ImplementationResult =
   | { status: 'delivered'; note: string; evidence: string[] }
@@ -51,6 +52,7 @@ export async function pauseGraphImplementation(args: {
     expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:decision_required`,
     outcome: { kind: args.result.blockerKind === 'environment_failed' && args.result.status === 'blocked' && args.result.blockerCause === 'transient' ? 'platform_retry' : 'decision_required',
       failure: { code: args.result.blockerKind, detail: args.result.note, blockedPhase: args.blockedPhase || 'implementation',
+        ...(args.result.status === 'blocked' && args.result.blockerCause ? { blockerCause: args.result.blockerCause } : {}),
         ...(args.result.blockerKind === 'environment_failed' ? { owner: 'platform' as const, requiresUserDecision: false,
           action: args.result.status === 'blocked' && args.result.blockerCause === 'transient' ? '按已有预算重试暂时平台故障' : '准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施' } : {}) } },
   });
@@ -94,7 +96,7 @@ export function implementationCheckpoint(payload: unknown, executionId: string) 
 }
 
 /** Requeue through the existing claims, preserving the previous attempt in an append-only event. */
-export async function scheduleImplementationRecovery(runId: string, nodeKey: string, requestId: string) {
+export async function scheduleImplementationRecovery(runId: string, nodeKey: string, requestId: string, preparedEventId?: string) {
   return prisma.$transaction(async tx => {
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
@@ -102,6 +104,11 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     const key = `node:${nodeKey}:implementation-recovery:${requestId}`;
     const previousRequest = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } });
     if (previousRequest) return { kind: 'already_scheduled' as const, eventId: previousRequest.id };
+    let preparation: Awaited<ReturnType<typeof assertPreparationTx>> | undefined;
+    if (preparedEventId) {
+      if (requestId !== `prepared:${preparedEventId}`) throw new Error('Preparation request identity mismatch');
+      preparation = await assertPreparationTx(tx, runId, nodeKey, preparedEventId);
+    }
     if (current.status !== 'attention' || current.executions.some(job => job.status === 'claimed')) throw new Error('实施仍在执行或状态已改变');
     if (await tx.taskRun.count({ where: { taskId: { in: [...current.executions.flatMap(job => job.childTaskId ? [job.childTaskId] : []),
       `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } } })) throw new Error('原任务进程仍在执行，请等待结束');
@@ -136,7 +143,8 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     });
     if (!executions.length) throw new Error('没有可恢复的实施保存点');
     const event = await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key, kind: 'implementation_recovery_scheduled',
-      payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', requestId, executions } } });
+      payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', requestId, executions,
+        ...(preparation ? { preparation: { eventId: preparedEventId, ...preparation, inputPolicy: 'Supplementary reviewed preparation only; frozen upstream commits and acceptance contract remain authoritative' } } : {}) } } });
     for (const saved of executions) {
       const job = current.executions.find(item => item.id === saved.id)!;
       const progress = executionProgress(job.dispatchMetadata);

@@ -1,3 +1,5 @@
+import { redactSensitiveText } from '../redact-sensitive';
+import { recoverPreparedImplementations } from './preparation-recovery';
 import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
 import { publishReviewPreparationFailure, reviewPreparationFailure, type ReviewPublication } from './review-publication';
 import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, immutableDispatchMetadata, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
@@ -712,6 +714,8 @@ export async function runTaskGraphCycle() {
   }
   const runs = await prisma.taskGraphRun.findMany({ where: { status: { in: ['running', 'attention'] } }, select: { id: true } });
   for (const run of runs) {
+    await recoverPreparedImplementations(run.id).catch(error => console.error('[TaskGraph] preparation pickup deferred:', { runId: run.id,
+      reason: redactSensitiveText(error instanceof Error ? error.message : String(error)) }));
     await recoverPendingConflictRepairs(run.id);
     await releaseReadyNodes(run.id);
     const verifying = await prisma.taskGraphNode.findMany({

@@ -6,7 +6,7 @@ import { parseConflictRepair, type ConflictRepair } from './conflict-repair';
 import { executionRetryLimits } from './retry-limits';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
-export type ExecutionFailure = { code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime'; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
+export type ExecutionFailure = { blockerCause?: 'missing_capability' | 'transient'; code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime'; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
 export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string; candidateCommit: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
@@ -105,6 +105,7 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
     const failure = record(value.lastFailure);
     if (typeof failure.code !== 'string' || typeof failure.detail !== 'string') throw new Error('Invalid execution failure');
     progress.lastFailure = { code: failure.code, detail: failure.detail };
+    if (failure.blockerCause !== undefined) progress.lastFailure.blockerCause = enumeration(failure.blockerCause, ['missing_capability', 'transient'] as const);
     if (failure.action !== undefined) progress.lastFailure.action = optionalText(failure.action);
     if (failure.owner !== undefined) progress.lastFailure.owner = enumeration(failure.owner, ['platform', 'implementer', 'user'] as const);
     if (failure.requiresUserDecision !== undefined) {
