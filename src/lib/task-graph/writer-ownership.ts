@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { prisma } from '../prisma';
+import { hasIndependentProcessOrigin, readProcessIdentity as processIdentity } from './process-lineage';
 
 export type GraphWriter = {
   version: 1;
@@ -15,13 +16,6 @@ export type WriterObservation =
   | { kind: 'alive'; pids: number[] }
   | { kind: 'exited' }
   | { kind: 'unknown'; reason: string };
-
-async function processIdentity(pid: number) {
-  const stat = await fs.readFile(`/proc/${pid}/stat`, 'utf8');
-  const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
-  if (!fields[19] || !fields[0]) throw new Error('Incomplete process identity');
-  return { state: fields[0], startTime: fields[19] };
-}
 
 export async function createGraphWriter(): Promise<GraphWriter> {
   if (!process.getuid) throw new Error('Graph writer observation requires a local Linux process');
@@ -78,7 +72,12 @@ export async function observeGraphWriter(value: unknown, supervisorReleased = fa
         if (environment.toString().split('\0').includes(marker)) {
           if (!['Z', 'X'].includes(identity.state)) pids.push(Number(entry.name));
         }
-      } catch (error) { if (!missing(error)) throw error; }
+      } catch (error) {
+        if (missing(error)) continue;
+        if (error instanceof Error && 'code' in error && error.code === 'EACCES' &&
+            await hasIndependentProcessOrigin({ pid: Number(entry.name), owner: writer.supervisor })) continue;
+        throw error;
+      }
     }
     return pids.length ? { kind: 'alive', pids } : { kind: 'exited' };
   } catch (error) {

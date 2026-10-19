@@ -68,14 +68,26 @@ async function main() {
         assert(blocked.worker);
         await releaseGraphExecutionWorker(job.id, token, blocked.worker.nonce);
         const released = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).dispatchMetadata); assert(released);
-        await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
-        await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
+        const firstReceipt = await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
+        const repeatReceipt = await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
+        assert.equal(firstReceipt.kind, 'scheduled'); assert.equal(repeatReceipt.kind, 'already_scheduled');
+        assert.equal(firstReceipt.eventId, repeatReceipt.eventId, 'Repeating a request returns the original receipt, not a claim of another dispatch');
         const resumed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
         const next = executionProgress(resumed.dispatchMetadata); assert(next);
         assert.equal(resumed.status, 'ready'); assert.equal(next.revision, released.revision + 1);
         assert.equal(next.candidateCommit, blocked.candidateCommit); assert.equal(next.repairAttempts, blocked.repairAttempts);
         assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: job.nodeId, kind: 'execution_outcome',
           idempotencyKey: { contains: 'operator-resume:' } } }), 1);
+        await claimNode(run.id, key, 'later-node-claim');
+        const laterWriter = await createGraphWriter();
+        const later = await claimExecution(run.id, key, 'job', 'later-job-claim', undefined, laterWriter); assert(later);
+        const laterProgress = executionProgress(later.dispatchMetadata); assert(laterProgress);
+        await applyExecutionOutcome({ executionId: job.id, claimToken: 'later-job-claim', expectedRevision: laterProgress.revision,
+          outcomeId: 'later-block', outcome: { kind: 'decision_required', failure: { code: 'scope_change', detail: 'New independent scope question' } } });
+        const oldRequest = await scheduleImplementationRecovery(run.id, key, 'authorized-continue');
+        assert.equal(oldRequest.kind, 'already_scheduled'); assert.equal(oldRequest.eventId, firstReceipt.eventId);
+        assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).status, 'attention',
+          'A consumed request must not requeue a later pause, even when the new phase writer is still alive');
       }
     }
     console.log('Legacy completion and ordinary recovery honor versioned phase and ownership boundaries');

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { promises as fs } from 'node:fs';
+import { mock } from 'node:test';
 import { createGraphWriter, observeGraphWriter } from '../src/lib/task-graph/writer-ownership';
 
 async function main() {
@@ -18,6 +20,14 @@ async function main() {
     const observation = await observeGraphWriter(departed);
     assert.equal(observation.kind, 'alive', 'A child survives its supervisor and must prevent takeover');
     if (observation.kind === 'alive') assert(child.pid && observation.pids.includes(child.pid));
+    const originalRead = fs.readFile;
+    const protectedRead = mock.method(fs, 'readFile', async (...args: Parameters<typeof originalRead>) => {
+      if (String(args[0]) === `/proc/${child.pid}/environ`) throw Object.assign(new Error('Protected nonce process'), { code: 'EACCES' });
+      return Reflect.apply(originalRead, fs, args);
+    });
+    try {
+      assert.equal((await observeGraphWriter(writer, true)).kind, 'unknown', 'An unreadable real child cannot be excluded as an independent server branch');
+    } finally { protectedRead.mock.restore(); }
   } finally {
     const stopped = once(child, 'exit'); child.kill('SIGTERM'); await stopped;
   }

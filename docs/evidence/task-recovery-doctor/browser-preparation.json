@@ -1,0 +1,15 @@
+{
+  "preparedAt": "2026-10-19T08:29:11.587113+00:00",
+  "executionId": "cmvdmf87y043j9xhgc8sw2aks",
+  "workspace": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/d4cd1f345cf0cd41",
+  "directory": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/d4cd1f345cf0cd41/scratch/platform-browser-q7fq0n3k",
+  "PLAYWRIGHT_MODULE": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/d4cd1f345cf0cd41/scratch/platform-browser-q7fq0n3k/node_modules/playwright",
+  "PLAYWRIGHT_CHROMIUM_EXECUTABLE": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/d4cd1f345cf0cd41/scratch/platform-browser-q7fq0n3k/chrome/chrome",
+  "source": "Existing installed Chromium and Playwright copied into this job ignored scratch; no new external mounts or shared source edits",
+  "browserValidation": {
+    "scope": "Actual M02 job workspace, Bubblewrap read-only source, private writable probe home",
+    "version": "147.0.7727.137",
+    "title": "m02-runtime-ready",
+    "checkedAt": "2026-10-19T08:29:47.268Z"
+  }
+}

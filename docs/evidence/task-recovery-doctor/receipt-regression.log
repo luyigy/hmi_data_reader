@@ -1,0 +1,6 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-lifecycle-adapters task-graph-failure-summary
+
+Legacy completion and ordinary recovery honor versioned phase and ownership boundaries
+Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded

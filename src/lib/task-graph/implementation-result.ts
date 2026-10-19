@@ -100,7 +100,8 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
     const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
     const key = `node:${nodeKey}:implementation-recovery:${requestId}`;
-    if (await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } })) return;
+    const previousRequest = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } });
+    if (previousRequest) return { kind: 'already_scheduled' as const, eventId: previousRequest.id };
     if (current.status !== 'attention' || current.executions.some(job => job.status === 'claimed')) throw new Error('实施仍在执行或状态已改变');
     if (await tx.taskRun.count({ where: { taskId: { in: [...current.executions.flatMap(job => job.childTaskId ? [job.childTaskId] : []),
       `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } } })) throw new Error('原任务进程仍在执行，请等待结束');
@@ -134,7 +135,7 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
         previousDispatch: job.dispatchMetadata, previousEvidence: job.evidence }];
     });
     if (!executions.length) throw new Error('没有可恢复的实施保存点');
-    await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key, kind: 'implementation_recovery_scheduled',
+    const event = await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key, kind: 'implementation_recovery_scheduled',
       payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', requestId, executions } } });
     for (const saved of executions) {
       const job = current.executions.find(item => item.id === saved.id)!;
@@ -150,5 +151,6 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     }
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'ready', passedAt: null, claimToken: null, claimedAt: null } });
     await tx.taskGraphRun.update({ where: { id: runId }, data: { status: 'running' } });
+    return { kind: 'scheduled' as const, eventId: event.id };
   });
 }

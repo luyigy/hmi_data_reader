@@ -1,0 +1,15 @@
+{"executionId":"cmvdmf87y043j9xhgc8sw2aks","observation":{"kind":"unknown","reason":"EACCES: permission denied, open '/proc/2557519/environ'"}}
+AssertionError [ERR_ASSERTION]: A released M02 writer must not be blocked by an unrelated sshd process
++ actual - expected
+
++ 'unknown'
+- 'exited'
+
+    at [stdin]:3:221 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'unknown',
+  expected: 'exited',
+  operator: 'strictEqual',
+  diff: 'simple'
+}

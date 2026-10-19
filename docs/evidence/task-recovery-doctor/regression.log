@@ -1,0 +1,38 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-process-lineage task-graph-writer-ownership task-graph-lifecycle-adapters task-graph-restart-recovery task-graph-implementation-recovery task-graph-failure-summary
+
+Independent old process branches are excluded only with stable identities; live descendants, adopted orphans, missing ancestry and changed PIDs remain unproven
+Live supervisor and orphan child prevent takeover; confirmed exit and unknown ownership are distinguished
+Legacy completion and ordinary recovery honor versioned phase and ownership boundaries
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 289
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 434
+Real coordinator death preserves orphan and post-Agent owners; exited pre-entry claim resumes automatically with zero human resume
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 289
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 434
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 579
+Real Git/DB: blocked/missing-result never integrate, saved progress survives deleted checkout, authorized continuation dedupes and resumes implementation, terminal remains unverified
+Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded

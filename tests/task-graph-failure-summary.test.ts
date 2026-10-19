@@ -42,3 +42,9 @@ assert.match(exhaustedChecks.header.title.content, /待平台处理/);
 const exhaustedBody = JSON.stringify(exhaustedChecks.body.elements[0]);
 assert.match(exhaustedBody, /自动处理已耗尽/); assert.match(exhaustedBody, /普通继续不会重置自动处理额度/);
 assert.match(exhaustedBody, /负责人：平台/); assert.doesNotMatch(exhaustedBody, /修复失败检查后重新验证|待实施回修/);
+
+const upstream = buildRunReplyCard({ id: 'upstream', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: {
+  ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'missing_upstream_input', detail: '固定Reader包缺少控制器身份。' },
+} }, []);
+assert.match(JSON.stringify(upstream.body.elements[0]), /核对前置集成提交、合同版本与固定包/);
+assert.doesNotMatch(JSON.stringify(upstream.body.elements[0]), /待平台补充处理说明/);

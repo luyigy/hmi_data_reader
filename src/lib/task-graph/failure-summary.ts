@@ -15,7 +15,7 @@ export function graphFailureSummary(failure: Failure, state: ExecutionProgress['
   const concreteNote = plainNote.length >= 8 ? plainNote : '';
   let requiresDecision = failure.requiresUserDecision ?? (humanKind && Boolean(concreteNote));
   let owner = failure.owner || (requiresDecision ? 'user' : conflict || failure.code.includes('environment') || failure.code.startsWith('runtime_') ? 'platform' : failure.code === 'test_failed' ? 'implementer' : 'platform');
-  let action = failure.action || (requiresDecision && concreteNote ? `请确认这项请求：${concreteNote}` : conflict ? '核对列出的冲突文件并制定合并处理' : failure.code === 'test_failed' ? '修复失败检查后重新验证' : failure.code.includes('environment') || failure.code.startsWith('runtime_') ? '补齐并预检运行环境后继续' : '待平台补充处理说明');
+  let action = failure.action || (requiresDecision && concreteNote ? `请确认这项请求：${concreteNote}` : conflict ? '核对列出的冲突文件并制定合并处理' : failure.code === 'missing_upstream_input' ? '平台核对前置集成提交、合同版本与固定包，补齐缺项后接续原任务' : failure.code === 'test_failed' ? '修复失败检查后重新验证' : failure.code.includes('environment') || failure.code.startsWith('runtime_') ? '补齐并预检运行环境后继续' : '待平台补充处理说明');
   let problem = labels[failure.code] || '本次执行需要处理';
   if (requiresDecision && !failure.action?.trim() && !concreteNote) { requiresDecision = false; owner = 'platform'; problem = '待补充决定说明'; action = '平台先说明具体问题和可选处理办法'; }
   if (['scope_change', 'permission_required', 'missing_business_material', 'missing_upstream_input'].includes(failure.code) && concreteNote) problem += `：${concreteNote}`;
