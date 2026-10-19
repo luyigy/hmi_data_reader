@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-19T07:45:41.138578+00:00",
+  "reviewer": "/root/matt_pstack_review",
+  "model": "inherited, exact version not recorded",
+  "independent": true,
+  "verdict": "approved",
+  "fixedFinding": "Removed outer wrapper timeout; unknown exit retains scratch, no recovery claim",
+  "limits": [
+    "No service restart or live business resume",
+    "WR07 and full business validation remain open",
+    "Gardening is explicit postprocessing",
+    "Abnormal interruptions require separate process and schema inspection"
+  ]
+}

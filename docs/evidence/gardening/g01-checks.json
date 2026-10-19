@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-19T07:45:41.138855+00:00",
+  "baseline": "79ffef0",
+  "checks": [
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-card-closure task-graph-auto-completion task-graph-execution-progress task-graph-review-repair task-graph-failure-summary task-graph-reply-summary",
+      "exitCode": 0,
+      "log": "g01-regression.log"
+    },
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-card-closure task-graph-failure-summary task-graph-feishu-relay",
+      "exitCode": 0,
+      "log": "card-final.log"
+    },
+    {
+      "command": "npx tsc --noEmit --incremental false",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run check:long-files",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "scope": "Isolated schemas; harness and outbound Feishu replaced by fixtures. Does not prove full business route completion."
+}

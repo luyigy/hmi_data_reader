@@ -1,0 +1,25 @@
+{
+  "wire": "taskrun-owner",
+  "checkedAt": "2026-10-19T07:44:31.302Z",
+  "commit": "79ffef053f0c8f3bd9b37aef0035757a3bf32e85",
+  "source": {
+    "path": "src/lib/feishu-startup-task-cleanup.ts",
+    "sha256": "668923d861cd87a3642d5f85f77e19f85163aebf84f09d5b58bc40463dd850c5"
+  },
+  "test": {
+    "path": "tests/feishu-startup-task-cleanup.test.ts",
+    "sha256": "33607501e05dca513c7f373aeef5782c8e99fd88211312732f8f6787b2aaa983"
+  },
+  "mutation": "Remove the graph ownership guard only, in a disposable copy",
+  "red": {
+    "exitCode": 1,
+    "expectedMismatch": "graph-owned TaskRun: actual 'completed', expected 'running'",
+    "log": "red.log"
+  },
+  "green": {
+    "exitCode": 0,
+    "log": "green.log"
+  },
+  "command": "node scripts/verify-taskrun-ownership-wire.mjs",
+  "limits": "Isolated PostgreSQL and mocked outbound delivery; no live service restart or business graph mutation"
+}

@@ -1,0 +1,2 @@
+Feishu startup preserves graph writers, legacy graph bindings, review owners, live native processes and pending work; unowned stale continuation cleanup remains idempotent
+

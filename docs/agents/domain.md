@@ -14,6 +14,10 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 This is a single-context repo. The shared glossary is `GLOSSARY.md` at the repo root. Put new architecture decisions under `docs/adr/` as they are made.
 
+## Repeated failures and delivery retrospectives
+
+For a repeated workflow failure or a delivery retrospective, read `.agents/skills/workflow-gardening/SKILL.md`. It uses existing events and tests to record lessons after delivery. Gardening does not gate task dispatch or acceptance.
+
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids.

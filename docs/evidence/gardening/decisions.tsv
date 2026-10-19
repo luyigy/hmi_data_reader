@@ -1,0 +1,6 @@
+ts	phase	decision	why	evidence	result
+2026-10-19T07:42:46Z	frame	按用户建议先验证G01，再做后处理和防线重演	复用现有协调器，防止Gardening成为新的依赖	docs/architecture/matt-pstack-rollout.md	open
+2026-10-19T07:42:46Z	G01	复现无新stdout的阶段变化不更新原卡，并按execution更新时间修复	单改显示文案无法让用户看到阶段推进	tests/task-graph-card-closure.test.ts	红色断言false不等于true；相关回归通过
+2026-10-19T07:42:46Z	G02	增加后处理skill并记录同一事故影响三项TaskRun	三项受影响执行不等于三次独立复发	docs/gardening/taskrun-owner.md	报告可追溯；本轮独立复核待完成
+2026-10-19T07:42:46Z	G03	一次性副本移除归属守卫后测试失败，恢复后通过	确认检查能拦截旧错误而非只看测试全绿	docs/evidence/gardening/taskrun-owner/receipt.json	red=1, green=0
+2026-10-19T07:45:41Z	review	独立审查指出外层超时可能留下后代，移除该超时并在未知退出时保留临时副本	不为防线验证再造一个生命周期故障	docs/evidence/gardening/taskrun-owner/review.json	修正后独立复核通过；既有Wire标记Active

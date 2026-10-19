@@ -1,0 +1,15 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-card-closure task-graph-failure-summary task-graph-feishu-relay
+
+[TaskGraphReplies] delivery failed {
+  taskRunId: 'cmvey7ca3001y11eb9sao4jek',
+  error: 'Notification send uncertain; reconcile the original request before resending'
+}
+[TaskGraphReplies] delivery failed {
+  taskRunId: 'cmvey7cf1003t11eba6pudn38',
+  error: 'Notification send uncertain; reconcile the original request before resending'
+}
+One card survives pre-run pause and lost responses; expired uncertainty is retained; 100 superseded cursors cannot starve delivery; current failure reaches the folded card
+Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded
+Feishu progress patches one card, folds details, preserves approvals and exposes blocked delivery
