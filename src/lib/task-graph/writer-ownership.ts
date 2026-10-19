@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { prisma } from '../prisma';
-import { hasIndependentProcessOrigin, readProcessIdentity as processIdentity } from './process-lineage';
+import { hasIndependentProcessOrigin, readProcessIdentity as processIdentity, readProcessAncestry, parseProcessAncestry, type ProcessAncestor } from './process-lineage';
 
 export type GraphWriter = {
   version: 1;
@@ -10,6 +10,7 @@ export type GraphWriter = {
   hostname: string;
   uid: number;
   supervisor: { pid: number; startTime: string; bootId: string };
+  ancestry?: ProcessAncestor[];
 };
 
 export type WriterObservation =
@@ -20,7 +21,8 @@ export type WriterObservation =
 export async function createGraphWriter(): Promise<GraphWriter> {
   if (!process.getuid) throw new Error('Graph writer observation requires a local Linux process');
   const identity = await processIdentity(process.pid);
-  return { version: 1, nonce: randomUUID(), hostname: os.hostname(), uid: process.getuid(),
+  const ancestry = await readProcessAncestry({ pid: process.pid, startTime: identity.startTime });
+  return { version: 1, nonce: randomUUID(), hostname: os.hostname(), uid: process.getuid(), ancestry,
     supervisor: { pid: process.pid, startTime: identity.startTime,
       bootId: (await fs.readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() } };
 }
@@ -39,7 +41,10 @@ export function parseGraphWriter(value: unknown): GraphWriter | null {
   const bootId: unknown = Reflect.get(supervisor, 'bootId');
   if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0 || typeof startTime !== 'string'
       || !/^\d+$/.test(startTime) || typeof bootId !== 'string' || !bootId) return null;
-  return { version, nonce, hostname, uid, supervisor: { pid, startTime, bootId } };
+  const ancestry: unknown = Reflect.get(value, 'ancestry');
+  const parsed = ancestry === undefined ? undefined : parseProcessAncestry(ancestry, { pid, startTime });
+  if (parsed === null) return null;
+  return { version, nonce, hostname, uid, supervisor: { pid, startTime, bootId }, ...(parsed ? { ancestry: parsed } : {}) };
 }
 
 function missing(error: unknown) {
@@ -75,7 +80,7 @@ export async function observeGraphWriter(value: unknown, supervisorReleased = fa
       } catch (error) {
         if (missing(error)) continue;
         if (error instanceof Error && 'code' in error && error.code === 'EACCES' &&
-            await hasIndependentProcessOrigin({ pid: Number(entry.name), owner: writer.supervisor })) continue;
+            await hasIndependentProcessOrigin({ pid: Number(entry.name), owner: writer.supervisor, ancestry: writer.ancestry })) continue;
         throw error;
       }
     }

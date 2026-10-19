@@ -34,6 +34,25 @@ async function main() {
     assert.equal(await hasIndependentProcessOrigin({ pid: 40, owner, readIdentity: unstable }), false, 'Reparenting, PID reuse and exit during observation remain unknown');
   }
   assert.equal(await hasIndependentProcessOrigin({ pid: 40, owner: { ...owner, startTime: '99' }, readIdentity }), false);
+  const absentOwner = async (pid: number) => {
+    if (pid === 20) throw Object.assign(new Error('exited'), { code: 'ENOENT' });
+    return readIdentity(pid);
+  };
+  const ancestry = [{ pid: 20, parentPid: 10, startTime: '100' }, { pid: 10, parentPid: 1, startTime: '10' }];
+  assert.equal(await hasIndependentProcessOrigin({ pid: 40, owner, ancestry, readIdentity: absentOwner }), true,
+    'A captured owner ancestry survives supervisor exit without skipping candidate scanning');
+  assert.equal(await hasIndependentProcessOrigin({ pid: 40, owner, readIdentity: absentOwner }), false);
+  identities.set(30, { pid: 30, parentPid: 10, startTime: '110', state: 'S' });
+  assert.equal(await hasIndependentProcessOrigin({ pid: 40, owner, ancestry, readIdentity: absentOwner }), false);
+  identities.set(30, { pid: 30, parentPid: 2, startTime: '110', state: 'S' });
+  identities.set(10, { pid: 10, parentPid: 1, startTime: '999', state: 'S' });
+  assert.equal(await hasIndependentProcessOrigin({ pid: 40, owner, ancestry, readIdentity: absentOwner }), false, 'Reused historical ancestors cannot authorize takeover');
+  identities.set(10, { pid: 10, parentPid: 1, startTime: '10', state: 'S' });
+  identities.set(20, { pid: 20, parentPid: 11, startTime: '100', state: 'S' });
+  identities.set(11, { pid: 11, parentPid: 1, startTime: '9', state: 'S' });
+  identities.set(30, { pid: 30, parentPid: 10, startTime: '110', state: 'S' });
+  assert.equal(await hasIndependentProcessOrigin({ pid: 40, owner, ancestry, readIdentity }), false,
+    'Stable reparenting since capture cannot turn a historical common ancestor into an independent service');
   console.log('Independent old process branches are excluded only with stable identities; live descendants, adopted orphans, missing ancestry and changed PIDs remain unproven');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

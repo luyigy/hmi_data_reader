@@ -9,8 +9,10 @@ async function main() {
   const writer = await createGraphWriter();
   assert.equal((await observeGraphWriter(writer)).kind, 'alive');
   assert.equal((await observeGraphWriter(writer, true)).kind, 'exited', 'Cleanup receipt may release the daemon supervisor, but never bypass child scanning');
-  const departed = { ...writer, supervisor: { ...writer.supervisor, pid: 2147483647 } };
-  assert.equal((await observeGraphWriter(departed)).kind, 'exited', 'An absent supervisor is distinguished from an unknown owner');
+  const inconsistent = { ...writer, supervisor: { ...writer.supervisor, pid: 2147483647 } };
+  assert.equal((await observeGraphWriter(inconsistent)).kind, 'unknown', 'A changed supervisor cannot retain a different owner ancestry');
+  const departed = { ...inconsistent, ancestry: undefined };
+  assert.equal((await observeGraphWriter(departed)).kind, 'exited', 'A legacy owner without captured ancestry still distinguishes an absent supervisor');
   const child = spawn(process.execPath, ['-e', 'process.stdout.write("ready\\n");setInterval(()=>{},1000)'], {
     env: { ...process.env, AP_GRAPH_WRITER_NONCE: writer.nonce }, stdio: ['ignore', 'pipe', 'pipe'],
   });

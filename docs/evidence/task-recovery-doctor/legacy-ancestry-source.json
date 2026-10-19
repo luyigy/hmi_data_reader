@@ -1,0 +1,33 @@
+{
+  "reviewer": "/root/recovery_boundary_review",
+  "toolOutput": "chunk38cb7f",
+  "description": "Actual proc ancestry captured before service load in this conversation; archived retrospectively, not reconstructed from the new daemon",
+  "ancestry": [
+    {
+      "pid": 666616,
+      "parentPid": 666615,
+      "startTime": "2705821732"
+    },
+    {
+      "pid": 666615,
+      "parentPid": 666366,
+      "startTime": "2705821732"
+    },
+    {
+      "pid": 666366,
+      "parentPid": 666364,
+      "startTime": "2705821732"
+    },
+    {
+      "pid": 666364,
+      "parentPid": 3631265,
+      "startTime": "2705821604"
+    },
+    {
+      "pid": 3631265,
+      "parentPid": 1,
+      "startTime": "967655725"
+    }
+  ],
+  "archivedAt": "2026-10-19T08:37:19.102Z"
+}

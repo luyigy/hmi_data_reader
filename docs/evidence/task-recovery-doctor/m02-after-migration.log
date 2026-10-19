@@ -1,0 +1,46 @@
+
+> agent-platform-v2@0.1.0 task-graph:doctor
+> TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-doctor.ts --run-id cmvdmf87w043f9xhgf9yvua6p --node-key M02
+
+{
+  "checkedAt": "2026-10-19T08:37:44.872Z",
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "nodeKey": "M02",
+  "status": "attention",
+  "dependencies": [
+    {
+      "key": "M01",
+      "status": "passed"
+    },
+    {
+      "key": "R02",
+      "status": "passed"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "cmvdmf87y043j9xhgc8sw2aks",
+      "status": "attention",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "candidateCommit": "bdfe97ac8cf02669f4467d267f1f701b77c67793",
+      "integratedCommit": null,
+      "workspace": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/d4cd1f345cf0cd41",
+      "taskRun": {
+        "id": "cmve1vkbh03btb0j3fgc6udwx",
+        "status": "completed"
+      },
+      "writer": {
+        "kind": "exited"
+      },
+      "lastFailure": {
+        "problem": "前置交付尚未绑定：实现及测试进度已保存。固定Reader包缺少满足R02绑定合同的完整控制器身份与样本证据；另缺可运行浏览器，无法完成真实识读和双视口联合验收。未提交或集成。",
+        "action": "平台核对前置集成提交、合同版本与固定包，补齐缺项后接续原任务",
+        "owner": "platform",
+        "requiresUserDecision": false,
+        "affectedPaths": []
+      }
+    }
+  ],
+  "scope": "默认只读；--resume只申请接续实施，保留原预算和候选，不清理目录，不代表材料齐备或验收通过。"
+}
