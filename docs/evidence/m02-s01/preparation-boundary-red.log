@@ -1,0 +1,32 @@
+Regression on actual first implementation 07b9e7c contract with corrected tests: display fallback must not authorize explicit raw user decision/ownership.
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-preparation-recovery
+
+[AssertionError [ERR_ASSERTION]: Missing expected rejection: Raw responsibility and business-decision flags cannot be rewritten by display fallbacks] {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: /not authorized/,
+  operator: 'rejects',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-preparation-recovery.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/ap-m02-s01/scripts/test-task-graph-postgres.mjs:40:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 320756,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

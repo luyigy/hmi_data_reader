@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { executionProgress } from './execution-progress';
-import { graphFailureSummary } from './failure-summary';
 
 export class PreparationRejected extends Error {
   constructor(message: string) { super(message); this.name = 'PreparationRejected'; Object.setPrototypeOf(this, new.target.prototype); }
@@ -70,7 +69,7 @@ export async function preparationBindingTx(tx: Prisma.TransactionClient, runId: 
       !progress.candidateCommit || !progress.workspaceBase || progress.conflictRepair) throw new PreparationRejected('Preparation requires a versioned implement-phase waiting decision with candidate and original ownership');
   const failure = progress.lastFailure;
   if (!failure || (remediation === 'upstream_binding' ? failure.code !== 'missing_upstream_input' : failure.code !== 'environment_failed' || failure.blockerCause !== 'missing_capability') ||
-      graphFailureSummary(failure, progress.state).owner !== 'platform' || graphFailureSummary(failure, progress.state).requiresUserDecision) throw new PreparationRejected('Preparation is not authorized for this business, permission, ownership or failure kind');
+      failure.requiresUserDecision === true || failure.owner !== undefined && failure.owner !== 'platform') throw new PreparationRejected('Preparation is not authorized for this business, permission, ownership or failure kind');
   const dependencies = await tx.taskGraphNode.findMany({ where: { runId, key: { in: node.dependsOn } }, include: { executions: true }, orderBy: { key: 'asc' } });
   if (dependencies.length !== node.dependsOn.length || dependencies.some(item => !['passed', 'delivered_unverified'].includes(item.status))) throw new PreparationRejected('Preparation dependencies have not passed');
   return preparationHash({ nodeId: node.id, snapshotHash: node.run.snapshotHash, executionId: job.id,

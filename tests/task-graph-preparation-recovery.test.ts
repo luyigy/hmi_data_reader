@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { mock } from 'node:test';
 import { mkdtemp, writeFile, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,7 +20,7 @@ async function main() {
   const log = join(scratch, 'validation.log'); await writeFile(log, 'actual validation passed\n');
   const artifact = { path: log, sha256: createHash('sha256').update('actual validation passed\n').digest('hex') };
   const parent = await prisma.task.create({ data: { name: 'Scoped prepared recovery' } });
-  const keys = ['AUTO', 'CRASH', 'STALE', 'UNKNOWN', 'BUSINESS', 'BUDGET', 'TAMPER', 'DEPENDENCY', 'UPSTREAM', 'LIVE', 'ENV', 'DEPS', 'USED_FORMAT', 'MULTI'];
+  const keys = ['AUTO', 'CRASH', 'STALE', 'UNKNOWN', 'BUSINESS', 'BUDGET', 'TAMPER', 'DEPENDENCY', 'UPSTREAM', 'LIVE', 'ENV', 'DEPS', 'USED_FORMAT', 'INFRA', 'USER_FLAG', 'USER_OWNER', 'IMPLEMENTER_OWNER', 'MULTI'];
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
     specRef: 'test://prepared-recovery', nodes: keys.map(key => ({ key, goal: key, dependsOn: key === 'DEPENDENCY' ? ['UPSTREAM'] : [],
       acceptance: { mode: 'automatic', checks: ['behavior'] }, executions: (key === 'MULTI' ? ['one', 'two'] : ['job']).map(name => ({
@@ -35,7 +37,8 @@ async function main() {
         outcome: { kind: 'checkpoint', phase: 'implement', candidateCommit: 'b'.repeat(40), workspaceBase: 'a'.repeat(40), worker } });
       await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: progress.revision, outcomeId: 'blocked',
         outcome: { kind: 'decision_required', failure: { code: key === 'BUSINESS' ? 'missing_business_material' : key === 'ENV' ? 'environment_failed' : 'missing_upstream_input',
-          detail: 'Missing immutable upstream package, prepared by platform', ...(key === 'ENV' ? { blockerCause: 'transient' as const } : {}) } } });
+          detail: key === 'USER_FLAG' ? '{"missing":true}' : key === 'USER_OWNER' || key === 'IMPLEMENTER_OWNER' ? 'missing' : 'Missing immutable upstream package, prepared by platform',
+          ...(key === 'USER_FLAG' ? { requiresUserDecision: true } : key === 'USER_OWNER' ? { owner: 'user' as const } : key === 'IMPLEMENTER_OWNER' ? { owner: 'implementer' as const } : {}), ...(key === 'ENV' ? { blockerCause: 'transient' as const } : {}) } } });
       if (key !== 'LIVE') await releaseGraphExecutionWorker(job.id, token, worker.nonce);
       if (key === 'UNKNOWN' || key === 'BUDGET' || key === 'USED_FORMAT') {
         const row = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
@@ -49,6 +52,8 @@ async function main() {
     const receipt = async (key: string): Promise<PreparationReceipt> => ({ version: 1, runId: run.id, nodeKey: key, requestId: `prep-${key}`,
       authorization: 'approved-test-operator', changeReason: 'Restored and validated exact missing immutable package', readiness: 'local_operator_attested',
       remediation: 'upstream_binding', bindingHash: await inspectPreparationBinding(run.id, key, 'upstream_binding'), artifacts: [artifact] });
+    const infraPath = join(scratch, 'infra.log'); await writeFile(infraPath, 'ready');
+    const infra = await registerPlatformPreparation({ ...await receipt('INFRA'), artifacts: [{ path: infraPath, sha256: createHash('sha256').update('ready').digest('hex') }] });
     const auto = await receipt('AUTO');
     const before = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: run.id, key: 'AUTO' } } });
     const registered = await registerPlatformPreparation(auto);
@@ -67,6 +72,7 @@ async function main() {
     await registerPlatformPreparation(await receipt('USED_FORMAT'));
     await registerPlatformPreparation(await receipt('LIVE'));
     await assert.rejects(receipt('BUSINESS'), /not authorized/);
+    for (const key of ['USER_FLAG', 'USER_OWNER', 'IMPLEMENTER_OWNER']) await assert.rejects(receipt(key), /not authorized/, 'Raw responsibility and business-decision flags cannot be rewritten by display fallbacks');
     await assert.rejects(receipt('BUDGET'), /exhausted/);
     await assert.rejects(inspectPreparationBinding(run.id, 'ENV', 'missing_capability'), /not authorized/);
     const tamper = await receipt('TAMPER');
@@ -77,7 +83,14 @@ async function main() {
     await writeFile(localLog, 'changed');
     await prisma.taskGraphNode.update({ where: { runId_key: { runId: run.id, key: 'DEPS' } }, data: { dependsOn: ['UPSTREAM'] } });
     await assert.rejects(receipt('DEPS'), /dependencies have not passed/);
-    await recoverPreparedImplementations(run.id);
+    const actualOpen = fs.open;
+    const injected = mock.method(fs, 'open', (...args: Parameters<typeof fs.open>) => {
+      if (args[0] === infraPath) throw Object.assign(new Error('injected temporary storage failure'), { code: 'EIO' });
+      return actualOpen(...args);
+    });
+    try { await recoverPreparedImplementations(run.id); } finally { injected.mock.restore(); }
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, idempotencyKey: `preparation-consumed:${infra.eventId}` } }), 0, 'Infrastructure failure stays pending');
+    assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: before.id } })).status, 'ready', 'A deferred first receipt cannot starve a later valid receipt in the same Run');
     await recoverPreparedImplementations(run.id);
     const after = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: before.id } });
     assert.equal(after.status, 'ready');
@@ -89,7 +102,7 @@ async function main() {
     for (const key of ['STALE', 'UNKNOWN', 'LIVE', 'TAMPER']) assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key } } })).status, 'attention', `${key} cannot be resumed`);
     const consumed = await prisma.taskGraphEvent.findFirstOrThrow({ where: { runId: run.id, idempotencyKey: `preparation-consumed:${crash.eventId}` } });
     assert.equal(Reflect.get(Object(consumed.payload), 'kind'), 'already_scheduled', 'Crash after schedule reconciles existing event, no second dispatch');
-    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'implementation_recovery_scheduled' } }), 3);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'implementation_recovery_scheduled' } }), 4);
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'UPSTREAM' } } })).status, 'ready', 'Unrelated frontier untouched');
     await prisma.taskGraphNode.updateMany({ where: { runId: run.id, key: { in: ['DEPENDENCY', 'MULTI'] } }, data: { status: 'attention' } });
     await assert.rejects(inspectPreparationBinding(run.id, 'MULTI', 'upstream_binding'), /exactly one/);

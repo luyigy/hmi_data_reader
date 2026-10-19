@@ -41,7 +41,10 @@ export async function recoverPreparedImplementations(runId: string) {
       const controlledRejection = error instanceof PreparationRejected ||
         /^(实施仍在执行|原任务进程仍在执行|原执行者仍存活|待完成合并尚无|自动处理预算已耗尽|执行归属尚未核对|当前执行不是|缺少当前候选|没有可恢复|缺少原执行归属)/.test(reason) ||
         error instanceof Error && 'code' in error && ['ENOENT', 'EACCES', 'ELOOP', 'ENOTDIR'].includes(String(error.code));
-      if (!controlledRejection) throw error;
+      if (!controlledRejection) {
+        console.error('[TaskGraph] preparation receipt deferred:', { runId, preparationEventId: event.id, reason: redactSensitiveText(reason) });
+        continue;
+      }
       result = { kind: 'rejected', reason: redactSensitiveText(error instanceof Error ? error.message : String(error)) };
     }
     await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } },
