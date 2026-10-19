@@ -13,7 +13,11 @@ export type ExecutionProgress = {
   review?: GraphReviewBinding;
   worker?: GraphWriter;
   workerReleasedAt?: string;
-  state: 'active' | 'ready' | 'waiting_decision' | 'exhausted' | 'ownership_attention';
+  state: 'active' | 'ready' | 'waiting_for_user' | 'waiting_decision' | 'exhausted' | 'ownership_attention';
+  conversationOwnerRunId?: string;
+  waitingMessage?: string;
+  waitingKind?: 'question' | 'answered';
+  conversation?: { kind: 'reserved'; reservationId: string } | { kind: 'running'; reservationId: string; taskRunId: string };
   workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; taskRunId?: string;
   repairAttempts: number; formatAttempts: number; platformAttempts: number; integrationAttempts: number;
   nextRetryAt?: string; lastFailure?: ExecutionFailure;
@@ -26,6 +30,7 @@ export type ExecutionOutcome =
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
   | { kind: 'review_resumed' }
+  | { kind: 'waiting_for_user'; note: string; result?: 'question' | 'answered' }
   | { kind: 'review_platform_prepared'; preparationEventId: string }
   | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string; phase?: 'architecture' | 'acceptance' }
   | { kind: 'operator_resume'; requestId: string }
@@ -64,7 +69,7 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
   const progress: ExecutionProgress = {
     version: 1, revision: count(value.revision),
     phase: enumeration(value.phase, ['prepare', 'implement', 'collect_result', 'check', 'integrate', 'architecture', 'acceptance']),
-    state: enumeration(value.state, ['active', 'ready', 'waiting_decision', 'exhausted', 'ownership_attention']),
+    state: enumeration(value.state, ['active', 'ready', 'waiting_for_user', 'waiting_decision', 'exhausted', 'ownership_attention']),
     repairAttempts: count(value.repairAttempts), formatAttempts: count(value.formatAttempts), platformAttempts: count(value.platformAttempts), integrationAttempts: value.integrationAttempts === undefined ? 0 : count(value.integrationAttempts),
   };
   const workspaceBase = optionalCommit(value.workspaceBase), candidateCommit = optionalCommit(value.candidateCommit);
@@ -74,6 +79,17 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
   if (runtimeDirectory) progress.runtimeDirectory = runtimeDirectory;
   if (value.conflictRepair !== undefined) progress.conflictRepair = parseConflictRepair(value.conflictRepair);
   if (taskRunId) progress.taskRunId = taskRunId;
+  if (value.conversationOwnerRunId !== undefined) progress.conversationOwnerRunId = optionalText(value.conversationOwnerRunId);
+  if (value.waitingMessage !== undefined) progress.waitingMessage = optionalText(value.waitingMessage);
+  if (value.waitingKind !== undefined) progress.waitingKind = enumeration<'question' | 'answered'>(value.waitingKind, ['question', 'answered']);
+  if (value.conversation !== undefined) {
+    const conversation = record(value.conversation);
+    const reservationId = optionalText(conversation.reservationId);
+    if (!reservationId) throw new Error('Conversation reservation missing');
+    if (conversation.kind === 'reserved') progress.conversation = { kind: 'reserved', reservationId };
+    else if (conversation.kind === 'running' && typeof conversation.taskRunId === 'string') progress.conversation = { kind: 'running', reservationId, taskRunId: conversation.taskRunId };
+    else throw new Error('Invalid conversation phase owner');
+  }
   if (nextRetryAt) {
     if (!Number.isFinite(Date.parse(nextRetryAt))) throw new Error('Invalid retry deadline');
     progress.nextRetryAt = nextRetryAt;
@@ -184,7 +200,10 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const outcome = args.outcome;
     let status = current.status;
     let issueKind: string | null = null;
-    if (outcome.kind === 'operator_resume') {
+    if (outcome.kind === 'waiting_for_user') {
+      if (!['implement', 'collect_result'].includes(before.phase)) throw new Error('Only implementation turns may wait for user input');
+      status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingMessage = outcome.note; progress.waitingKind = outcome.result || 'question';
+    } else if (outcome.kind === 'operator_resume') {
       if (before.lastFailure?.code === 'integration_conflict') throw new Error('Pending merge requires a bounded conflict repair decision; ordinary resume cannot restart implementation');
       status = 'ready'; progress.phase = before.conflictRepair ? 'integrate'
         : before.lastFailure?.owner === 'platform' && before.lastFailure.blockedPhase === 'input_preparation' && ['check', 'integrate'].includes(before.phase) ? before.phase : 'implement';
@@ -285,7 +304,7 @@ export async function bindExecutionTaskRun(tx: Prisma.TransactionClient, args: {
   const progress = executionProgress(current.dispatchMetadata);
   if (!progress || progress.revision !== args.revision || current.status !== 'claimed' || current.claimToken !== args.claimToken || current.taskRunId) throw new Error('TaskRun execution binding is stale or occupied');
   await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
-    taskRunId, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, { ...progress, taskRunId }),
+    taskRunId, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, { ...progress, taskRunId, conversationOwnerRunId: taskRunId }),
   } });
 }
 

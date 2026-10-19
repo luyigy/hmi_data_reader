@@ -1,4 +1,4 @@
-import { handleGraphConversationIntent } from './task-graph/conversation-intent';
+import { receiveGraphRoomMessage } from './task-graph/conversation-inbox';
 import { ensureGraphConversationMembers } from './task-graph/conversation-members';
 import crypto from 'node:crypto';
 import { prisma } from '@/lib/prisma';
@@ -600,7 +600,7 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
       select: { id: true },
     });
     if (existingMessage) {
-      await handleGraphConversationIntent({ roomId: binding.liveRoomId, chatId: args.context.chatId, openId: args.context.senderOpenId, messageId: args.context.messageId, text: args.content });
+      await receiveGraphRoomMessage(binding.liveRoomId, existingMessage.id);
       return {
         liveRoomId: binding.liveRoomId,
         targetedMembers: [],
@@ -684,8 +684,8 @@ export async function postFeishuMessageToBoundLiveRoom(args: {
     }),
   });
 
-  const continued = await handleGraphConversationIntent({ roomId: binding.liveRoomId, chatId: args.context.chatId, chatType: args.context.chatType, threadId: args.context.threadId, openId: args.context.senderOpenId, messageId: args.context.messageId, text: args.content });
-  if (!continued) void triggerLiveRoomMessageReplies({
+  const taskMessage = await receiveGraphRoomMessage(binding.liveRoomId, message.id);
+  if (!taskMessage) void triggerLiveRoomMessageReplies({
     roomId: binding.liveRoomId,
     roomMessageId: message.id,
     requestedTargetMemberId: effectiveTargetMemberId || null,

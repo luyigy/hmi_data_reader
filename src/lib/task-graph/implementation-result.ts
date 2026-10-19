@@ -7,6 +7,8 @@ import { assertPreparationTx } from './preparation-contract';
 
 export type ImplementationResult =
   | { status: 'delivered'; note: string; evidence: string[] }
+  | { status: 'waiting_for_user'; note: string }
+  | { status: 'answered'; note: string }
   | { status: 'blocked'; note: string; blockerKind: 'missing_business_material' | 'missing_upstream_input' | 'environment_failed' | 'scope_change' | 'permission_required'; blockerCause?: 'missing_capability' | 'transient' };
 export type RecoveryKind = 'implementation' | 'verification';
 
@@ -21,6 +23,7 @@ export function parseImplementationResult(output: string): ImplementationResult 
   const value: unknown = JSON.parse(matches[0][1]);
   if (!isRecord(value) || typeof value.note !== 'string' || !value.note.trim()) throw new Error('实施结论缺少有效说明');
   const note = value.note.trim();
+  if (value.status === 'waiting_for_user' || value.status === 'answered') return { status: value.status, note };
   if (value.status === 'delivered' && Array.isArray(value.evidence) && value.evidence.length &&
       value.evidence.every(item => typeof item === 'string' && item.trim())) {
     return { status: 'delivered', note, evidence: value.evidence };

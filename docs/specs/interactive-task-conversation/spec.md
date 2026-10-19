@@ -67,3 +67,19 @@ B：以任务执行为目标的持久 inbox，协调器运行 turn，使用原 T
 - 保留既有独立验收、预算耗尽、权限和所有权的安全门禁。
 
 线上部署与业务续跑分开。本轮实现和验证期间不重启现有服务，不拿真实任务做破坏性故障注入。
+
+## 实施契约
+
+- `receiveGraphRoomMessage` 从已保存的用户消息取得原文、附件元数据和真实来源身份；`receiveGraphTaskMessage` 是已认证 HTTP/交互入口使用的任务消息边界。幂等键使用原始 Feishu messageId，重复 webhook 在发现旧房间消息后仍补做 enqueue。
+- `conversation-inbox.ts` 保存输入、原生 steering 尝试、TaskRun 绑定、终态结果及投递收口。绑定表示已派发，不等于已处理。进程退出但无结果的输入转为明确的投递不确定上下文，让原会话先核查已执行动作；不能重发原生 unknown steering 或谎称 exactly-once。
+- 协调器原有循环统一运行实施和话题后续轮次，共享四个执行容量。正常等回答不占执行槽。`waiting_for_user` 保存在 ExecutionProgress，`answered` 和真正提问用 waitingKind 区分，均不是交付或失败，不扣失败额度。模型仍应在回答状态问题后继续可执行的获批工作。
+- `conversation-session.ts` 只从原实施者 lineage 读取 native session，复核 TaskRun 不成为对话所有者。完成后问答复用相同 native 会话，当前轮返回新的会话身份时后续继续使用新身份。没有可恢复身份时记录明确的降级事件与工作区、候选、原摘要来源。
+- 每轮实施在节点锁内封口输入。封口前的新消息先进入下一实施轮；封口后进入的消息记录 receivedPhase=integrate/architecture/acceptance，排队到原阶段写入者结束后解释或提出受控修正，不改变已封口的交付。不能把封口后的随口消息当成修改验收成果的授权。
+- 后续问答复用 ExecutionProgress.worker，并绑定 conversation reservation/TaskRun；复核和实施领取都检查该归属。固定成果使用单独的 pinned linked worktree，源码和 Git 元数据只读，复用原 claim 已固定的运行能力。不会为问答放宽 runtime 校验。
+- 历史材料类暂停可以由原实施会话输出 `TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["具体材料消息id"],"note":"补齐材料与理由"}`。平台验证所引消息属于本轮，且整批输入均具有管理员/任务拥有者恢复权限、当前 revision、候选和 writer 退出，仅将目标 execution 交回实施。同节点的权限、范围、环境等兄弟阻塞保持不变，不重置预算。
+- 子话题消息统一交给任务实施者。明确提及其他成员的原文及目标元数据保留在输入中，不隐去指向或伪装该成员已答复；独立架构/验收仍是原角色的独立阶段。新增实时多架构师协作不属于本次范围。
+- HTTP 消息、继续与即时纠正动作都登记同一 inbox；是否能立即 steering 取决于当前 harness。交互输入回答同样入队，权限批准仍必须经原生批准流程，不把文本答复当成权限批准。所有通用 ACPX 启动都核验 graphExecution/graphConversation 归属，不能另开旁路写入者。
+- 材料目录在首轮启动前固定挂载；后续话题图片由宿主读取已绑定父/子话题并写来源与 SHA-256 索引，排队轮次与原生 steering 都收到可实际读取的材料路径。飞书凭据不进入执行环境。
+- 新版 reader 必须先具备解析 waiting_for_user/conversation 字段的能力，再启用产生这些状态的协调器。部署需要统一切换 API、Feishu relay 和协调器；本次实现不对线上服务做分模块热加载或业务恢复。
+
+后续问答准备失败按原始 rootInputId 批次最多两次，至少15秒退避；重试衍生的新输入ID不会重置该额度。失败原因写入持久事件与原话题 outbox，单纯正常等用户不使用这些失败额度。ready 实施先领取，后续问答仅使用剩余执行容量。

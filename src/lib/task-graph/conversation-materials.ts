@@ -26,6 +26,7 @@ async function describeMaterials(directory: string) {
 /** Host reads the recorded parent and child topics. No Feishu credentials are mounted into a model process. */
 export async function syncGraphConversationMaterials(childTaskId: string): Promise<string> {
   const directory = directoryFor(childTaskId);
+  await fs.mkdir(directory, { recursive: true, mode: 0o700 });
   const job = await prisma.taskGraphExecution.findFirst({ where: { childTaskId }, select: { node: { select: { run: { select: { parentTaskId: true } } } } } });
   const taskIds = [childTaskId, ...(job ? [job.node.run.parentTaskId] : [])];
   const bindings = await prisma.feishuConversationBinding.findMany({ where: { liveRoom: { sourceTaskId: { in: taskIds } }, appId: { not: null }, threadId: { not: null } }, orderBy: { updatedAt: 'desc' } });

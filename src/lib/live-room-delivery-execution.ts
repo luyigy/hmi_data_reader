@@ -1,5 +1,6 @@
 import { taskGraphAgentReviewPermissionConfig } from './task-graph/review-permissions';
 import { prepareGraphConversationTask } from './task-graph/conversation-task';
+import { receiveGraphRoomMessage } from './task-graph/conversation-inbox';
 import { collectLiveRoomFootnotes } from '@/lib/live-room-footnotes';
 import { prisma } from '@/lib/prisma';
 import { executeAcpxTaskRun } from '@/lib/acpx/runner';
@@ -371,6 +372,7 @@ export const executeLiveRoomReplyViaAcpx = async ({
   const startedAt = Date.now();
   const executionGeneration = getLiveRoomExecutionGeneration(targetMember.id);
   const originalSourceTask = await syncLiveRoomSourceTask(room.id);
+  if (await receiveGraphRoomMessage(room.id, sourceMessage.id)) return;
   const sourceTask = originalSourceTask ? await prepareGraphConversationTask(originalSourceTask) : null;
   if (!sourceTask) {
     throw new Error('Live room source ACPX task is unavailable');

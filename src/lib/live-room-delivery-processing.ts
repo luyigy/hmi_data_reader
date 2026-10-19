@@ -320,6 +320,10 @@ export const processLiveRoomDelivery = async ({
       },
     });
 
+    if (!acpxResult) {
+      await prisma.liveRoomDelivery.update({ where: { id: delivery.id }, data: { deliveryStatus: 'delivered', acknowledgedAt: new Date() } });
+      return;
+    }
     let output = await applyGraphControlOutput({ output: acpxResult.output, roomId: room.id, sourceContent: sourceMessage.content, sourceMetadata: sourceMessage.metadata || null });
     const threadId = acpxResult.threadId;
     const remoteTiming = acpxResult.remoteTiming;

@@ -2,6 +2,8 @@ import type { Prisma } from '@prisma/client';
 import { createGraphWriter, releaseTaskRunWriter } from '../task-graph/writer-ownership';
 import { bindGraphReviewTaskRun } from '../task-graph/review-ownership';
 import { bindExecutionTaskRun } from '../task-graph/execution-progress';
+import { bindConversationInputs, completeConversationTurn, registerConversationSteering } from '../task-graph/conversation-inbox';
+import { bindReadOnlyConversation } from '../task-graph/conversation-followup';
 import { prisma } from '@/lib/prisma';
 import { getHarnessCapabilities } from './capabilities';
 import { publishTaskRunEvent } from './event-bus';
@@ -18,6 +20,17 @@ export class AcpxRunStartupError extends Error {
 }
 
 export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
+  const graphChild = await prisma.taskGraphExecution.findUnique({ where: { childTaskId: request.taskId }, select: { id: true } });
+  if ([request.graphExecution, request.graphReview, request.graphConversation].filter(Boolean).length > 1) throw new Error('TaskRun has multiple graph authorities');
+  if (request.graphConversation && request.permissionConfig?.sandboxMode !== 'read-only') throw new Error('Conversation followup must protect fixed source and delivery evidence');
+  if (graphChild && request.graphExecution?.executionId !== graphChild.id && request.graphConversation?.executionId !== graphChild.id) {
+    throw new Error('Graph task turns must be scheduled through their execution conversation inbox');
+  }
+  const reviewTask = /^task-graph-(review|architecture)-(.+)$/.exec(request.taskId);
+  if (reviewTask && await prisma.taskGraphNode.count({ where: { id: reviewTask[2] } }) &&
+    (request.graphReview?.nodeId !== reviewTask[2] || request.graphReview.phase !== (reviewTask[1] === 'review' ? 'acceptance' : 'architecture'))) {
+    throw new Error('Graph review turns require the current graphReview stage authority');
+  }
   const taskSession =
     request.taskSessionId
       ? await prisma.taskSession.findUnique({ where: { id: request.taskSessionId } })
@@ -104,12 +117,25 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
   });
 
   const graphExecution = request.graphExecution;
-  const taskRun = graphExecution || request.graphReview ? await prisma.$transaction(async tx => {
+  const taskRun = graphExecution || request.graphReview || request.graphConversation ? await prisma.$transaction(async tx => {
     const created = await createRun(tx);
-    if (graphExecution) await bindExecutionTaskRun(tx, graphExecution, created.id);
+    if (graphExecution) {
+      await bindExecutionTaskRun(tx, graphExecution, created.id);
+      await bindConversationInputs(tx, graphExecution.executionId, graphExecution.inputIds || [], created.id);
+    }
+    if (request.graphConversation) await bindReadOnlyConversation(tx, request.graphConversation, created.id);
     if (request.graphReview) await bindGraphReviewTaskRun(tx, request.graphReview, created.id);
     return created;
   }) : await createRun(prisma);
+
+  if (graphExecution) {
+    const external = request.streamCallbacks?.onSteeringReady;
+    request = { ...request, streamCallbacks: { ...request.streamCallbacks, onSteeringReady: steer => {
+      const unregister = registerConversationSteering(graphExecution.executionId, taskRun.id, steer);
+      const detach = external?.(steer);
+      return () => { unregister(); detach?.(); };
+    } } };
+  }
 
   const participantResults: Array<Awaited<ReturnType<typeof executeParticipant>>> = [];
   try {
@@ -253,6 +279,8 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     },
   });
 
+  const conversationExecution = graphExecution || request.graphConversation;
+  if (conversationExecution) await completeConversationTurn(conversationExecution.executionId, taskRun.id);
   return {
     taskRunId: taskRun.id,
     status: runStatus,

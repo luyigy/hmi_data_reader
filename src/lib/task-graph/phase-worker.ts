@@ -13,6 +13,7 @@ export async function registerGraphReviewWorker(runId: string, nodeKey: string):
     if (!['claimed', 'verifying'].includes(node.status) || !node.executions.length || node.executions.some(job => job.status !== 'integrated')) return null;
     for (const job of node.executions) {
       const progress: ExecutionProgress = executionProgress(job.dispatchMetadata) || { ...initialExecutionProgress(), phase: 'architecture', workspaceBase: job.baseCommit, candidateCommit: job.commit || undefined };
+      if (progress.conversation && (await observeExecutionWriter(job)).kind !== 'exited') throw new Error('Original implementation conversation still owns this task');
       if (!job.commit) throw new Error('Phase worker has no integrated candidate');
       if (progress.worker && (progress.worker.supervisor.pid !== worker.supervisor.pid || progress.worker.supervisor.startTime !== worker.supervisor.startTime || progress.worker.supervisor.bootId !== worker.supervisor.bootId)) {
         if ((await observeGraphWriter(progress.worker, Boolean(progress.workerReleasedAt))).kind !== 'exited') throw new Error('Another phase worker still owns this verification');
@@ -64,6 +65,10 @@ export async function observeExecutionWriter(job: { dispatchMetadata: unknown; t
     if (observation.kind !== 'exited') return observation;
   }
   const taskRunId = job.taskRunId || (progress.worker ? progress.taskRunId : undefined);
+  if (progress.conversation?.kind === 'running') {
+    const conversation = await observeTaskRunWriter(progress.conversation.taskRunId);
+    if (conversation.kind !== 'exited') return conversation;
+  }
   if (taskRunId) return observeTaskRunWriter(taskRunId);
   return progress.worker ? { kind: 'exited' } : { kind: 'unknown', reason: 'Claim has no durable current TaskRun writer' };
 }

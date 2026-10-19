@@ -10,6 +10,7 @@ import { resolveTaskSessionPermissionConfig } from './session';
 import type { AcpxPermissionConfig, TaskRunInteractionRequestStatus } from './types';
 import { cancelInProcessApproval, resolveInProcessApproval } from './in-process-approvals';
 import { getRunningProcess } from './process-registry';
+import { receiveGraphTaskMessage } from '../task-graph/conversation-inbox';
 
 const parseMetadata = (value: string | null | undefined): Record<string, unknown> => {
   if (!value) {
@@ -110,6 +111,14 @@ export const resolveInteractionRequestWithContinuation = async (args: {
 
   if (request.status !== 'pending') {
     throw new Error(`Interaction request is already ${request.status}`);
+  }
+  if (request.expiresAt && request.expiresAt <= new Date()) throw new Error('Interaction request is expired');
+  if (args.action === 'answer' && ['input_request', 'choice_request'].includes(request.requestKind) &&
+    await receiveGraphTaskMessage({ taskId: request.taskId, sourceId: `interaction:${request.id}`,
+      actorId: args.actor.id, actorOrigin: args.actor.channel === 'feishu' ? 'feishu' : 'platform', content: args.responseText?.trim() || '用户已回答原问题。' })) {
+    await prisma.taskRunInteractionRequest.updateMany({ where: { id: request.id, status: 'pending' },
+      data: { status: 'answered', resolvedAt: new Date(), responseText: args.responseText || null, responseMetadata: JSON.stringify({ actor: args.actor, delivery: 'graph_conversation_inbox' }) } });
+    return { requestId: request.id, status: 'answered', resumed: false, continuationRunId: null };
   }
   const now = new Date();
   const ended = !['running', 'waiting_for_input'].includes(request.taskRun.status)

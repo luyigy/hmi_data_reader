@@ -63,7 +63,8 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
   const prepared: PreparedRuntime[] = [];
   for (const job of jobs) {
     const before = fingerprint(job), progress = executionProgress(job.dispatchMetadata);
-    if (!job.claimToken || !progress || !['claimed', 'integrated'].includes(job.status) || !['active', 'ready'].includes(progress.state)) throw new RuntimePreparationError('invalid', '当前执行没有可固定运行资源的有效归属', [args.workspace]);
+    const conversation = progress?.conversation?.kind === 'running' && args.permissionConfig?.sandboxMode === 'read-only';
+    if (!job.claimToken || !progress || !conversation && (!['claimed', 'integrated'].includes(job.status) || !['active', 'ready'].includes(progress.state))) throw new RuntimePreparationError('invalid', '当前执行没有可固定运行资源的有效归属', [args.workspace]);
     const repository = await fs.realpath(job.repository), common = await repositoryIdentity(repository);
     if (!common) throw new RuntimePreparationError('invalid', '账本仓库不是有效 Git 根目录', [repository]);
     const expectedCommit = job.status === 'integrated' ? job.commit : progress.candidateCommit;

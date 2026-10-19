@@ -7,6 +7,7 @@ import { publishTaskRunEvent } from '@/lib/acpx/event-bus';
 import { reconcileTaskRunLiveness } from '@/lib/acpx/liveness';
 import { executeAcpxTaskRunWithContinuationFallback } from '@/lib/acpx/continuation-retry';
 import { getContinuationSession } from '@/lib/acpx/session-tracking';
+import { receiveGraphTaskMessage } from '@/lib/task-graph/conversation-inbox';
 import {
   ensureTaskChatRoom,
   postTaskRoomMessage,
@@ -178,6 +179,12 @@ export async function POST(
     const acpxParticipants = parseParticipants(task.acpxParticipants);
     requirePlatformLocalAdmin(user, acpxParticipants.map((participant) => participant.executionBackend));
     await requireExecutionAccess(user, acpxParticipants);
+    if (action === 'queue_message' || action === 'continue_session' || action === 'interrupt_now') {
+      const queued = await receiveGraphTaskMessage({ taskId: task.id,
+        sourceId: `http:${request.headers.get('idempotency-key') || crypto.randomUUID()}`,
+        actorId: user.id, actorOrigin: 'platform', content });
+      if (queued) return NextResponse.json({ queued: true, resumed: false, owner: 'task-graph-coordinator' }, { status: 202 });
+    }
     const targetParticipantSpec = targetType === 'participant'
       ? acpxParticipants.find(
           (participant) => getTaskRoomParticipantTargetKey(participant) === targetParticipantKey
@@ -543,17 +550,22 @@ export async function POST(
       if (action === 'stop_run') {
         await finishPendingTaskRunInteractionRequests({ taskRunId: targetRun.id, status: 'cancelled' });
       }
-      await prisma.taskRun.update({
+      await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM "TaskRun" WHERE id = ${targetRun.id} FOR UPDATE`;
+        const current = await tx.taskRun.findUniqueOrThrow({ where: { id: targetRun.id }, select: { controlMetadata: true } });
+        await tx.taskRun.update({
         where: { id: targetRun.id },
         data: {
           controlState: action === 'stop_run' ? 'stop_requested' : 'interrupt_requested',
           activityState: 'terminating',
           controlMetadata: JSON.stringify({
+            ...parseMetadata(current.controlMetadata),
             lastControlAction: action,
             requestedAt: new Date().toISOString(),
             roomMessageId: userMessage?.id ?? null,
           }),
         },
+      });
       });
 
       if (selectedParticipant && (selectedParticipant.status === 'running' || selectedParticipant.status === 'waiting_for_input')) {

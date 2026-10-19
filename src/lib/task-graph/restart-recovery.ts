@@ -7,7 +7,8 @@ import { applyExecutionOutcomeTx, executionProgress, assertExecutionOwnership } 
 import { observeTaskRunWriter, observeGraphWriter, type WriterObservation } from './writer-ownership';
 import { withRepositoryLock } from './repository-lock';
 import { commitJobWorktree, inspectJobWorktree, TaskGraphGitError } from './worktree';
-import { parseImplementationResult } from './implementation-result';
+import { parseImplementationResult, type ImplementationResult } from './implementation-result';
+import { pendingConversationInputs, recoverConversationInputs, completeConversationTurn } from './conversation-inbox';
 
 async function recordObservation(runId: string, nodeId: string, identity: string, observation: WriterObservation) {
   const idempotencyKey = `writer-observation:${identity}:${observation.kind}`;
@@ -36,7 +37,11 @@ export async function recoverGraphExecution(executionId: string) {
   await recordObservation(job.node.runId, job.nodeId, `${job.id}:${job.claimToken}`, observation);
   if (observation.kind !== 'exited' || !progress) return false;
   const previous = taskRunId ? await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } }) : null;
+  if (previous?.status === 'completed') await completeConversationTurn(job.id, previous.id);
   let phase = progress.phase;
+  let waitNote: string | undefined;
+  let waitResult: 'question' | 'answered' = 'question';
+  let blockedResult: Extract<ImplementationResult, { status: 'blocked' }> | undefined;
   let candidate = progress.candidateCommit;
   if (job.worktreePath && job.worktreeBranch && progress.workspaceBase) {
     const recordedPath = job.worktreePath; const recordedBranch = job.worktreeBranch; const workspaceBase = progress.workspaceBase;
@@ -73,7 +78,12 @@ export async function recoverGraphExecution(executionId: string) {
     }
   }
   if (previous?.status === 'completed' && ['implement', 'collect_result'].includes(phase)) {
-    try { if (parseImplementationResult(previous.participants[0]?.summary || previous.summary || '').status === 'delivered') phase = 'check'; } catch { phase = 'collect_result'; }
+    try {
+      const result = parseImplementationResult(previous.participants[0]?.summary || previous.summary || '');
+      if (result.status === 'delivered') phase = 'check';
+      if (result.status === 'waiting_for_user' || result.status === 'answered') { waitNote = result.note; waitResult = result.status === 'answered' ? 'answered' : 'question'; }
+      if (result.status === 'blocked') blockedResult = result;
+    } catch { phase = 'collect_result'; }
   }
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
@@ -81,8 +91,21 @@ export async function recoverGraphExecution(executionId: string) {
     const currentProgress = executionProgress(current.dispatchMetadata);
     if (current.status !== 'claimed' || current.claimToken !== job.claimToken || current.taskRunId !== job.taskRunId || currentProgress?.revision !== progress.revision) return false;
     if (taskRunId) await interruptExitedRun(tx, taskRunId);
+    if (taskRunId && previous?.status !== 'completed') await recoverConversationInputs(tx, job.id, taskRunId);
+    const hasInput = (await pendingConversationInputs(tx, job.node.runId, job.id)).length > 0;
     const saved = await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: claimToken, expectedRevision: progress.revision,
-      outcomeId: `restart-checkpoint:${job.claimToken}`, outcome: { kind: 'checkpoint', phase, ...(candidate ? { candidateCommit: candidate } : {}) } });
+      outcomeId: `restart-checkpoint:${job.claimToken}`, outcome: { kind: 'checkpoint', phase: waitNote || hasInput || blockedResult ? 'implement' : phase, ...(candidate ? { candidateCommit: candidate } : {}) } });
+    if (blockedResult) {
+      await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken, expectedRevision: saved.revision,
+        outcomeId: `restart-blocked:${job.claimToken}`, outcome: { kind: 'decision_required', failure: { code: blockedResult.blockerKind,
+          detail: blockedResult.note, blockedPhase: 'implementation', ...(blockedResult.blockerKind === 'environment_failed' ? { owner: 'platform', requiresUserDecision: false } : {}) } } });
+      return true;
+    }
+    if (waitNote || hasInput) {
+      await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken, expectedRevision: saved.revision,
+        outcomeId: `restart-conversation:${job.claimToken}`, outcome: { kind: 'waiting_for_user', note: waitNote || '已保存结果，先处理原话题的新消息。', result: waitResult } });
+      return true;
+    }
     await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: claimToken, expectedRevision: saved.revision,
       outcomeId: `restart-requeue:${job.claimToken}`, outcome: { kind: 'platform_retry', failure: { code: 'writer_exited', detail: 'Confirmed local writer exit; resume the persisted phase without human resume.' } } });
     return true;

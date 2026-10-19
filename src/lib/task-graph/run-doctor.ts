@@ -7,7 +7,7 @@ import { isCompletedNodeStatus, taskGraphSnapshotHash, validateTaskGraphDefiniti
 import { observeExecutionWriter } from './phase-worker';
 import type { WriterObservation } from './writer-ownership';
 
-export type DiagnosticCategory = 'waiting_dependencies' | 'eligible' | 'platform_recoverable' | 'code_defect' |
+export type DiagnosticCategory = 'waiting_for_user' | 'waiting_dependencies' | 'eligible' | 'platform_recoverable' | 'code_defect' |
   'business_material' | 'writer_unknown' | 'budget_exhausted' | 'completed' | 'running' | 'review' | 'decision' | 'diagnostic_error';
 type Fact = { state: 'verified' | 'not_verified' | 'failed'; evidence: string };
 type ProgressMetric = { status: 'verified' | 'not_verified' | 'stalled'; evidence: string };
@@ -88,6 +88,10 @@ export function diagnoseExecution(args: {
   }
   if (isCompletedNodeStatus(nodeStatus)) return classify('completed', '保留验收证据，供下游读取。', '下游依赖释放', sources.release);
   if (args.dependencies.state !== 'verified') return classify('waiting_dependencies', '等待列出的前置节点完成；不作为本节点自身失败。', 'planned → ready', sources.release);
+  if (progress?.state === 'waiting_for_user') {
+    result.owner = 'user'; result.failure = null;
+    return classify('waiting_for_user', progress.waitingMessage || '在原话题回复，平台接回原会话。', '原话题新输入 → 原执行者下一轮', 'src/lib/task-graph/conversation-inbox.ts#reconcileConversationWaits');
+  }
   if (progress?.state === 'exhausted' || job.issueKind === 'retry_exhausted') return classify('budget_exhausted', '平台运维提供新的修复措施和授权；保留现场，不重置预算。', '新措施审核后执行专用恢复', sources.outcome,
     '当前持久化state=exhausted或issueKind=retry_exhausted，普通继续不能恢复。');
   if (progress?.state === 'ownership_attention' || writer?.observation.kind === 'unknown') return classify('writer_unknown', '保留工作区，核对探针证据，确认旧写入者退出后才接管。', '证明原写入者已退出', 'src/lib/task-graph/phase-worker.ts#assertExecutionWriterExited',
@@ -181,7 +185,7 @@ export async function diagnoseTaskGraphRun(runId: string, db: Pick<typeof prisma
         jobs.push(diagnosis);
       } catch (error) { jobs.push({ id: job.id, key: job.key, category: 'diagnostic_error', action: '保留现场，修复该执行的诊断数据；其他节点继续检查。', error: error instanceof Error ? error.message : String(error) }); }
     }
-    const priority: DiagnosticCategory[] = ['diagnostic_error', 'budget_exhausted', 'writer_unknown', 'decision', 'business_material', 'code_defect', 'platform_recoverable', 'waiting_dependencies', 'running', 'review', 'eligible', 'completed'];
+    const priority: DiagnosticCategory[] = ['diagnostic_error', 'budget_exhausted', 'writer_unknown', 'decision', 'business_material', 'code_defect', 'platform_recoverable', 'waiting_for_user', 'waiting_dependencies', 'running', 'review', 'eligible', 'completed'];
     const category = priority.find(kind => jobs.some(job => job.category === kind)) || 'diagnostic_error';
     nodes.push({ snapshotBinding, key: node.key, status: node.status, category, dependencies, jobs,
       latestEvent: snapshot.events.find(event => event.nodeId === node.id) || null,

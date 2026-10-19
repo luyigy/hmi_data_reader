@@ -13,7 +13,7 @@ import { requestGraphConversationRecovery, startConversationRecoveries } from '.
 import { recoverTaskGraphNode, runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 import { cleanupFinishedWorkspaces } from '../src/lib/task-graph/completed-workspaces';
 import { ensureJobWorktree } from '../src/lib/task-graph/worktree';
-import { handleGraphConversationIntent, resumeIntent, applyGraphControlOutput } from '../src/lib/task-graph/conversation-intent';
+import { handleGraphConversationIntent, applyGraphControlOutput } from '../src/lib/task-graph/conversation-intent';
 
 async function main() {
   for (const output of ['', 'Only a blocked report', 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":[]}',
@@ -22,11 +22,6 @@ async function main() {
     assert.throws(() => parseImplementationResult(output));
   }
   assert.equal(parseImplementationResult('Readable report\nTASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":["file"]}').status, 'delivered');
-  assert.equal(resumeIntent('用这张图继续'), true);
-  assert.equal(resumeIntent('继续实施'), true);
-  assert.equal(resumeIntent('这张图能不能继续？'), false);
-  assert.equal(resumeIntent('继续讨论这个方案'), false);
-  assert.equal(resumeIntent('等我补图后再继续实施'), false);
   const root = mkdtempSync(path.join(tmpdir(), 'implementation-recovery-'));
   const repository = path.join(root, 'repo'); mkdirSync(repository);
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
@@ -131,7 +126,7 @@ async function main() {
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_blocked' } }), 1);
     assert.equal((await prisma.taskRun.findUniqueOrThrow({ where: { id: first.taskRunId } })).status, 'completed', 'Original attempt retained');
     await handleGraphConversationIntent({ ...request, messageId: 'terminal' });
-    assert.match(acknowledgements.at(-1) || '', /未独立验收/);
+    assert.equal(await handleGraphConversationIntent({ ...request, messageId: 'plain-status', text: '完成了吗？' }), false, 'Natural language is no longer a pre-model control API');
     assert.ok(notices.some(text => text.includes('尚未交付')));
     // An old integrated-but-incomplete delivery is explicitly classified, not guessed from integrated.
     const delivery = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } });

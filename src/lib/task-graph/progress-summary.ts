@@ -14,6 +14,7 @@ const phases: Record<ExecutionPhase, { label: string; action: string }> = {
 export function formatExecutionProgress(progress: ExecutionProgress, passed: boolean) {
   const stopped = ['waiting_decision', 'ownership_attention', 'exhausted'].includes(progress.state);
   const next = passed ? '本节点已通过，协调器按依赖关系领取后继'
+    : progress.state === 'waiting_for_user' ? '收到本话题新消息后自动接回原执行者，不需要另发继续命令'
     : stopped ? '自动推进已暂停，处理动作见上方说明'
     : progress.state === 'ready' ? `协调器自动领取后继续${phases[progress.phase].label}${progress.nextRetryAt ? `（最早 ${progress.nextRetryAt}）` : ''}`
     : phases[progress.phase].action;

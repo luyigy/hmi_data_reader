@@ -39,9 +39,10 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
   };
   const progress = run.graphProgress;
   const repairing = progress?.phase === 'implement' && progress.repairAttempts > 0 && ['ready', 'active'].includes(progress.state);
-  const phaseFailure = progress?.lastFailure && (progress.state !== 'active' || repairing || run.graphStatus === 'attention') ? progress.lastFailure.detail : null;
+  const phaseFailure = progress?.lastFailure && progress.state !== 'waiting_for_user' && (progress.state !== 'active' || repairing || run.graphStatus === 'attention') ? progress.lastFailure.detail : null;
   const failureSummary = phaseFailure && progress?.lastFailure ? graphFailureSummary(progress.lastFailure, progress.state) : null;
-  const progressStatus = failureSummary && ['waiting_decision', 'exhausted', 'ownership_attention'].includes(progress?.state || '')
+  const progressStatus = progress?.state === 'waiting_for_user' ? progress.waitingKind === 'answered' ? '本轮已答复，可在本话题继续交流' : '等待你的回复，在本话题回答即可'
+    : failureSummary && ['waiting_decision', 'exhausted', 'ownership_attention'].includes(progress?.state || '')
     ? failureSummary.requiresUserDecision ? '需你确认' : failureSummary.owner === 'implementer' ? '待实施回修' : '待平台处理'
     : progress?.state === 'exhausted' ? '待平台提出新的修复措施'
     : progress?.state === 'ownership_attention' ? '执行归属需核对，请确认当前写入者'

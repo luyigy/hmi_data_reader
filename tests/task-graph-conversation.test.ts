@@ -55,7 +55,6 @@ async function main() {
   const child = await prisma.task.create({ data: { name: 'slice-child', description: 'Frozen approved implementation instructions', workingDirectory: workspace } });
   const parentRoom = await prisma.liveRoom.create({ data: { title: uid, sourceTaskId: parent.id } });
   let runId: string | undefined;
-  let discussionId: string | undefined;
   let childRoomId: string | undefined;
   try {
     await prisma.feishuConversationBinding.create({ data: { ...scope, scopeKey: uid, chatType: 'group', liveRoomId: parentRoom.id } });
@@ -82,23 +81,12 @@ async function main() {
     assert.deepEqual(targets, [tester.id], 'Questions can be routed to the named acceptance agent');
     const task = await syncLiveRoomSourceTask(room.id); assert.ok(task);
     assert.equal(task.description, 'Frozen approved implementation instructions', 'A question must not replace the frozen execution instructions');
-    const discussion = await prepareGraphConversationTask(task);
-    discussionId = discussion.id;
-    assert.notEqual(discussion.id, child.id, 'Question and implementation runs must have distinct execution identities');
-    assert.equal(JSON.parse(discussion.acpxPermissionConfig || '{}').sandboxMode, 'read-only');
-    assert.match(discussion.description || '', /Answer questions in the child topic/);
-    assert.equal((await prisma.task.findUniqueOrThrow({ where: { id: child.id } })).status, 'pending');
+    await assert.rejects(prepareGraphConversationTask(task), /execution inbox/, 'Child chat cannot create a separate discussion TaskRun');
     await postFeishuMessageToBoundLiveRoom({ context: { ...scope, chatType: 'group', senderOpenId: 'user', messageId: 'real-question-' + uid, threadId: 'thread-' + uid }, content: '$kimi-code 要用哪张照片？' });
-    let answer: string | undefined;
-    for (let retry = 0; retry < 100; retry++) {
-      const visible = await getBoundLiveRoom({ ...scope, chatType: 'group', senderOpenId: 'user', messageId: 'read', threadId: 'thread-' + uid });
-      assert.ok(visible);
-      const message = await prisma.liveRoomMessage.findFirst({ where: { roomId: visible.id, messageType: 'assistant' }, orderBy: { createdAt: 'desc' } });
-      if (message) { answer = message.content; break; }
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    assert.match(answer || '', /第二张不同的真实照片/, 'A Feishu question must receive an actual visible Harness reply');
-    assert.equal((await prisma.task.findUniqueOrThrow({ where: { id: child.id } })).status, 'pending', 'A readonly answer must not restart implementation');
+    const input = await prisma.taskGraphEvent.findFirstOrThrow({ where: { runId, kind: 'conversation_input' } });
+    assert.match(JSON.stringify(input.payload), /kimi-code.*要用哪张照片/);
+    assert.equal(await prisma.taskRun.count({ where: { taskId: { startsWith: 'task-graph-discussion-' } } }), 0);
+    assert.equal((await prisma.task.findUniqueOrThrow({ where: { id: child.id } })).description, 'Frozen approved implementation instructions');
     const request = { roomId: room.id, chatId: scope.chatId, openId: 'fixture-admin', messageId: 'resume-' + uid };
     await assert.rejects(requestGraphConversationRecovery(request), /实施或集成仍未完成/);
     await prisma.taskGraphExecution.update({ where: { id: execution.id }, data: { status: 'integrated', commit: head,
@@ -122,7 +110,6 @@ async function main() {
     await prisma.feishuTaskBindingRequest.deleteMany({ where: scope });
     await prisma.feishuGroupTaskSettings.deleteMany({ where: scope });
     await prisma.liveRoom.delete({ where: { id: parentRoom.id } });
-    if (discussionId) await prisma.task.delete({ where: { id: discussionId } });
     if (runId) await prisma.taskGraphRun.delete({ where: { id: runId } });
     await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } });
     if (originalAdmin === undefined) delete process.env.FEISHU_ADMIN_OPEN_ID; else process.env.FEISHU_ADMIN_OPEN_ID = originalAdmin;

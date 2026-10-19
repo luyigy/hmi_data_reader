@@ -152,7 +152,7 @@ export async function claimExecution(
     if (sharedWriter && await tx.taskGraphExecution.count({ where: { nodeId: node.id, id: { not: execution.id }, status: 'claimed' } })) return null;
     const updated = await tx.taskGraphExecution.updateMany({
       where: { id: execution.id, status: 'ready', claimToken: null },
-      data: { status: 'claimed', claimToken, claimedAt: new Date(), ...(worker ? { dispatchMetadata: metadataWithProgress(execution.dispatchMetadata, { ...(progress || initialExecutionProgress()), revision: (progress?.revision || 0) + 1, state: 'active', worker, workerReleasedAt: undefined }) } : {}) },
+      data: { status: 'claimed', claimToken, claimedAt: new Date(), ...(worker ? { dispatchMetadata: metadataWithProgress(execution.dispatchMetadata, { ...(progress || initialExecutionProgress()), revision: (progress?.revision || 0) + 1, state: 'active', worker, workerReleasedAt: undefined, conversation: undefined }) } : {}) },
     });
     if (updated.count !== 1) return null;
     await tx.taskGraphEvent.create({

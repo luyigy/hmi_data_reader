@@ -5,7 +5,8 @@ import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
 import { deliverProgressCard } from './progress-card-delivery';
 import { prisma } from '../prisma';
 import { redactSensitiveText } from '../redact-sensitive';
-import { sendFeishuInteractiveMessage } from '../feishu-api';
+import { sendFeishuInteractiveMessage, replyFeishuMessage } from '../feishu-api';
+import { createHash } from 'node:crypto';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { getFeishuTaskThread, updateFeishuTaskEntryCard } from '../feishu-task-entry-api';
@@ -151,6 +152,10 @@ export async function deliverGraphChildProgress(childTaskId: string, eventKey: s
   });
   if (!binding?.rootMessageId) return null;
   const rootMessageId = binding.rootMessageId;
+  if (eventKey.startsWith('conversation:')) {
+    return replyFeishuMessage({ messageId: rootMessageId, msgType: 'text', replyInThread: true,
+      content: { text: redactSensitiveText(text) }, uuid: createHash('sha256').update(`${childTaskId}:${eventKey}`).digest('hex').slice(0, 48) });
+  }
   const run = await prisma.taskRun.findFirst({ where: { taskId: childTaskId }, orderBy: { createdAt: 'desc' }, select: { id: true } });
   if (run) {
     const { relayTaskGraphRunReply } = await import('./run-reply-relay');

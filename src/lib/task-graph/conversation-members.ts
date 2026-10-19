@@ -7,7 +7,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 /** Parse the approved launch snapshot without depending on today's mutable catalog. */
-function participant(config: unknown): AcpxParticipantRequest {
+export function approvedConversationParticipant(config: unknown): AcpxParticipantRequest {
   const value = record(config) ? config.participant : null;
   if (!record(value) || value.executionBackend !== 'platform_local' ||
       typeof value.gatewayId !== 'string' || typeof value.harnessType !== 'string' || typeof value.role !== 'string') {
@@ -29,11 +29,11 @@ export async function ensureGraphRoomParticipants(roomId: string, executionId: s
   if (!record(snapshot) || !Array.isArray(snapshot.nodes)) throw new Error('Graph snapshot missing');
   const node = snapshot.nodes.find((value) => record(value) && value.key === execution.node.key);
   if (!record(node) || !record(node.acceptance)) throw new Error('Graph node missing');
-  const participants = [participant(execution.launchConfig)];
-  if (node.acceptance.mode === 'agent') participants.push(participant(node.acceptance.reviewLaunchConfig));
+  const participants = [approvedConversationParticipant(execution.launchConfig)];
+  if (node.acceptance.mode === 'agent') participants.push(approvedConversationParticipant(node.acceptance.reviewLaunchConfig));
   const architecture = node.architectureReview || snapshot.defaultArchitectureReview;
   if (node.executionMode !== 'lean' && node.executionMode !== 'implement' && record(architecture)) {
-    participants.push(participant(architecture.reviewLaunchConfig));
+    participants.push(approvedConversationParticipant(architecture.reviewLaunchConfig));
   }
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "LiveRoom" WHERE id = ${roomId} FOR UPDATE`;

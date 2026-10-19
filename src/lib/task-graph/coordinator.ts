@@ -1,4 +1,7 @@
 import { recoverPendingReviewRepairs } from './pending-review-repair';
+import { conversationInputs, conversationPrompt, sealConversationTurn, reconcileConversationWaits, deliverConversationSteering, reconcileConversationDeliveries } from './conversation-inbox';
+import { implementationConversation } from './conversation-session';
+import { startConversationFollowups } from './conversation-followup';
 import { redactSensitiveText } from '../redact-sensitive';
 import { recoverPreparedImplementations } from './preparation-recovery';
 import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
@@ -55,6 +58,7 @@ import { resolveRunIssueSource } from './issue-adoption';
 import { processPendingIssueAdoptions } from './issue-adoption-worker';
 
 const activeJobs = new Set<string>();
+const activeConversations = new Set<string>();
 const activeReviews = new Set<string>();
 const activeVerifications = new Set<string>();
 const inflight = new Set<Promise<void>>();
@@ -127,12 +131,12 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   const repair = await latestGraphRepair(execution.nodeId);
   const resumed = await latestImplementationRecovery(execution.nodeId);
   const continuation = resumed && (!repair || resumed.createdAt > repair.createdAt) ? resumed : null;
-  const materials = repair || continuation ? await syncGraphConversationMaterials(`task-graph-${execution.id}`) : '';
+  const materials = await syncGraphConversationMaterials(`task-graph-${execution.id}`);
   const supplements = repair || continuation ? await prisma.liveRoomMessage.findMany({
     where: { room: { sourceTaskId: { in: [run.parentTaskId, taskId] } }, messageType: 'user' },
     orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
   }) : [];
-  const description = `目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
+  const description = materials + `\n目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
     `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}` +
     executionCheckInstructions(config.checks) + (continuation ? `\n继续原任务实施：${JSON.stringify(continuation.payload)}\n${materials}\n父子话题补充：${JSON.stringify(supplements.reverse()).slice(-12000)}\n读取保存进度和话题新材料，按原批准范围接续，不把恢复请求当作完成证据。` : '') + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
   const task = await prisma.task.upsert({
@@ -517,14 +521,18 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       : ['check', 'integrate'].includes(progress.phase) && progress.taskRunId
         ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
+    const inbox = storedRun ? [] : await conversationInputs(execution.id);
+    const inputPrompt = conversationPrompt(inbox) + (inbox.length ? '\n' + await syncGraphConversationMaterials(task.id) : '');
+    const session = await implementationConversation(execution.id, config.participant, (task.description || '') + recoveryInstructions + inputPrompt);
     const result = storedRun ? { taskRunId: storedRun.id, status: storedRun.status, summary: storedRun.summary, participants: storedRun.participants } : await executeAcpxTaskRun({
-      graphExecution: { executionId: execution.id, claimToken, revision: dispatchProgress.revision },
+      graphExecution: { executionId: execution.id, claimToken, revision: dispatchProgress.revision, inputIds: inbox.map(input => input.id) },
+      taskSessionId: session.taskSessionId,
       taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions + (repairRuntime
         ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。必须在本次 AP_GRAPH_OUTPUT_DIR 中写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台按本次 TaskRun 的产物回执读取解决文件、完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
-        : recoveryInstructions),
+        : recoveryInstructions) + inputPrompt + session.context,
       extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths, ...(repairRuntime?.readOnlyPaths || [])],
       ...(repairRuntime ? { permissionConfig: repairRuntime.permissionConfig } : {}),
-      orchestrationMode: 'single', participants: [config.participant], workingDirectory: repairRuntime?.directory || workspace.path,
+      orchestrationMode: 'single', participants: [session.participant], workingDirectory: repairRuntime?.directory || workspace.path,
     }).catch(error => {
       const preparation = runtimePreparationError(error);
       if (preparation) throw preparation;
@@ -568,7 +576,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || ''); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
     if (conclusion.status !== 'delivered') {
-      if (conclusion.status === 'invalid') {
+      if (conclusion.status === 'waiting_for_user' || conclusion.status === 'answered') {
+        await outcome({ kind: 'waiting_for_user', note: conclusion.note, result: conclusion.status === 'answered' ? 'answered' : 'question' });
+      } else if (conclusion.status === 'invalid') {
         await outcome({ kind: 'result_incomplete', failure: { code: 'invalid_result', detail: conclusion.note } });
       } else {
         await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken,
@@ -580,7 +590,10 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         .catch(error => console.error('[TaskGraph] outcome delivery failed:', error));
       return;
     }
-    await outcome({ kind: 'checkpoint', phase: 'integrate' });
+    await reconcileConversationDeliveries();
+    if (!await sealConversationTurn(execution.id, claimToken, candidate)) {
+      await refreshTaskGraphRunStatus(runId); return;
+    }
     let checks: CheckResult[] = [];
     const latest = await withRepositoryLock(execution.repository, async () => {
       await assertExecutionOwnership(execution.id, claimToken);
@@ -708,6 +721,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
 
 /** Prior writers retain ownership until their actual exit is proven. */
 export async function runTaskGraphCycle() {
+  await deliverConversationSteering();
+  await reconcileConversationDeliveries();
+  await reconcileConversationWaits();
   for (const recovery of await startConversationRecoveries(recoverTaskGraphNode)) {
     activeVerifications.add(recovery.nodeId);
     const pending = recovery.promise.finally(() => { activeVerifications.delete(recovery.nodeId); inflight.delete(pending); });
@@ -742,7 +758,7 @@ export async function runTaskGraphCycle() {
           !activeJobs.has(execution.id)) {
         await recoverGraphExecution(execution.id);
       }
-      if (activeJobs.size >= maxConcurrentJobs) continue;
+      if (activeJobs.size + activeConversations.size >= maxConcurrentJobs) continue;
       if (execution.status !== 'ready' || activeJobs.has(execution.id)) continue;
       if (blockedByIssues.has(execution.node.key)) continue;
       const token = randomUUID();
@@ -761,6 +777,10 @@ export async function runTaskGraphCycle() {
         .finally(() => { activeJobs.delete(execution.id); inflight.delete(task); });
       inflight.add(task);
     }
+  }
+  for (const work of await startConversationFollowups(Math.max(0, maxConcurrentJobs - activeJobs.size - activeConversations.size))) {
+    activeConversations.add(work.executionId);
+    const pending = work.promise.finally(() => { activeConversations.delete(work.executionId); inflight.delete(pending); }); inflight.add(pending);
   }
 }
 
