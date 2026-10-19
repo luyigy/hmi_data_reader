@@ -1,0 +1,142 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-pending-review-repair task-graph-targeted-repair task-graph-review-repair
+
+Current completed scoped review automatically retries a rolled-back repair handoff after actual writer exit, exactly once, with no operator resume and successful siblings unchanged
+Only affected execution is requeued; successful sibling commit and evidence remain unchanged
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 149
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 148
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 299
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+Targeted architecture: reader 2, successful model 1, architecture 2, acceptance 1, successor 1, no human resume
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 297
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 449
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 599
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 295
+Targeted integration: reader 2, successful model 1, architecture 0, acceptance 0, successor 1, no human resume
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 446
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 749
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 6
+[Task Room Context] Filtered messages (non-system): 6
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 899
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 443
+Targeted acceptance: reader 2, successful model 1, architecture 0, acceptance 3, successor 1, no human resume
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 595
+[Task Room Context] Total messages: 7
+[Task Room Context] Filtered messages (non-system): 7
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1049
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Targeted invalid: reader 1, successful model 1, architecture 0, acceptance 2, successor 0, no human resume
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'AUTO',
+  reason: 'Pending review repair AUTO/sibling: phase or implementation writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'PHASE_ALIVE',
+  reason: 'Pending review repair PHASE_ALIVE/sibling: phase or implementation writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'REVIEW_ALIVE',
+  reason: 'Pending review repair REVIEW_ALIVE: reviewer writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'UNKNOWN',
+  reason: 'Pending review repair UNKNOWN: reviewer writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'PHASE_ALIVE',
+  reason: 'Pending review repair PHASE_ALIVE/sibling: phase or implementation writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'REVIEW_ALIVE',
+  reason: 'Pending review repair REVIEW_ALIVE: reviewer writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'UNKNOWN',
+  reason: 'Pending review repair UNKNOWN: reviewer writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'PHASE_ALIVE',
+  reason: 'Pending review repair PHASE_ALIVE/sibling: phase or implementation writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'REVIEW_ALIVE',
+  reason: 'Pending review repair REVIEW_ALIVE: reviewer writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48pjv0003ar29llx4xl4y',
+  nodeKey: 'UNKNOWN',
+  reason: 'Pending review repair UNKNOWN: reviewer writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf48z7j0003ka8sm7vis8u6',
+  nodeKey: 'BOTH',
+  reason: 'Pending review repair BOTH/model: phase or implementation writer has not proven exit'
+}
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvf4a24m00qfka8spe2h5fq5',
+  nodeKey: 'BOTH',
+  reason: 'Pending review repair BOTH/reader: phase or implementation writer has not proven exit'
+}

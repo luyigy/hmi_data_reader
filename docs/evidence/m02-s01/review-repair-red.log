@@ -1,0 +1,41 @@
+Controlled mutation disables periodic pending-review repair pickup. Existing scheduleGraphRepair still rolls back while old writer is live. After actual writer release, expected ready remains integrated without pickup. This is not a historical bisection.
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-pending-review-repair
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'integrated'
+- 'ready'
+
+    at /data1/code/ap-m02-s01/tests/task-graph-pending-review-repair.test.ts:65:12
+    at step (/data1/code/ap-m02-s01/tests/task-graph-pending-review-repair.test.ts:44:23)
+    at Object.next (/data1/code/ap-m02-s01/tests/task-graph-pending-review-repair.test.ts:25:53)
+    at fulfilled (/data1/code/ap-m02-s01/tests/task-graph-pending-review-repair.test.ts:16:58) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'integrated',
+  expected: 'ready',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-pending-review-repair.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/ap-m02-s01/scripts/test-task-graph-postgres.mjs:40:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 391855,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

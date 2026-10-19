@@ -1,3 +1,4 @@
+import { recoverPendingReviewRepairs } from './pending-review-repair';
 import { redactSensitiveText } from '../redact-sensitive';
 import { recoverPreparedImplementations } from './preparation-recovery';
 import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
@@ -716,6 +717,7 @@ export async function runTaskGraphCycle() {
   for (const run of runs) {
     await recoverPreparedImplementations(run.id).catch(error => console.error('[TaskGraph] preparation pickup deferred:', { runId: run.id,
       reason: redactSensitiveText(error instanceof Error ? error.message : String(error)) }));
+    await recoverPendingReviewRepairs(run.id);
     await recoverPendingConflictRepairs(run.id);
     await releaseReadyNodes(run.id);
     const verifying = await prisma.taskGraphNode.findMany({
