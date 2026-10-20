@@ -1,0 +1,10 @@
+{
+  "parentTaskId": "acceptance-ticket-autonomy-20261020-cca4049",
+  "appId": "cli_a8e5326f4e7f901c",
+  "chatId": "oc_0684589953a98e6b17a8d148c6b77756",
+  "roomId": "cmvgkl8zt0004b75byn120b4a",
+  "rootMessageId": "om_x100b6240da36d8b0ce43cd5595e65d3",
+  "threadId": "omt_19b2c186934e1b48",
+  "manifest": "docs/specs/ticket-agent-autonomy-acceptance/spec-package.json",
+  "verified": true
+}

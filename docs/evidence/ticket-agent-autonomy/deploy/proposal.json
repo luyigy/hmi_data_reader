@@ -1,0 +1,13 @@
+{
+  "proposalId": "cmvgknqsv00017ozur253mlj0",
+  "parentTaskId": "acceptance-ticket-autonomy-20261020-cca4049",
+  "version": 1,
+  "snapshotHash": "b440aabe4602a527a6a28fa9f1162b1ad4c8e23cd263358cd03b4958664dd4a6",
+  "cardMessageId": "om_x100b6240d2b6187cb0b8c10cdaac834",
+  "chatId": "oc_0684589953a98e6b17a8d148c6b77756",
+  "threadId": "omt_19b2c186934e1b48",
+  "status": "pending",
+  "cardVerified": true,
+  "dispatched": false,
+  "verifiedAt": "2026-10-20T11:01:05.176Z"
+}
