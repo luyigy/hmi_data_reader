@@ -41,12 +41,12 @@ async function main() {
     assert.equal(platformRepository(), path.resolve(__dirname, '..'), 'Default platform identity follows the installed module, not an unrelated launch directory');
     const commit = git(repo, 'rev-parse', 'HEAD'), jobPath = path.join(scratch, 'job'); git(repo, 'worktree', 'add', '--detach', jobPath, commit);
     const parent = await prisma.task.create({ data: { name: 'Claim runtime pin' } }); parentId = parent.id;
-    const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: { specRef: 'test://runtime-pin', nodes: ['PIN', 'CAS', 'NONE', 'HEAD', 'WORKFLOW'].map(key => ({
+    const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: { specRef: 'test://runtime-pin', nodes: ['PIN', 'CAS', 'NONE', 'HEAD', 'WORKFLOW', 'SKILL'].map(key => ({
       key, goal: key, dependsOn: [], acceptance: { mode: 'automatic', checks: ['runtime'] }, executions: [{ key: 'job', repository: repo, gitRef: 'refs/heads/main', baseCommit: commit, agentSelector: 'local:codex', instructions: key }] })) } }); runId = run.id;
     await releaseReadyNodes(run.id);
     const jobs = new Map<string, string>();
     const worker = await createGraphWriter();
-    for (const key of ['PIN', 'CAS', 'NONE', 'HEAD', 'WORKFLOW']) {
+    for (const key of ['PIN', 'CAS', 'NONE', 'HEAD', 'WORKFLOW', 'SKILL']) {
       await claimNode(run.id, key, `claim-${key}`); const job = await claimExecution(run.id, key, 'job', `claim-${key}`); assert(job); jobs.set(key, job.id);
       const child = await prisma.task.create({ data: { id: `task-graph-${job.id}`, name: `runtime ${key}` } }); childIds.push(child.id);
       await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { childTaskId: `task-graph-${job.id}`, worktreePath: jobPath } });
@@ -104,6 +104,21 @@ async function main() {
     assert(workflowRuntime.identity);
     await prisma.taskGraphExecution.update({ where: { id: workflowId }, data: { status: 'integrated', commit: workflowCommit, dispatchMetadata: metadataWithProgress(workflowJob.dispatchMetadata, { ...workflowProgress, phase: 'acceptance', candidateCommit: workflowCommit, revision: workflowProgress.revision + 1 }) } });
     assert.equal((await prepareTaskDeclaredRuntime({ platformRepository: platform, taskId: `task-graph-review-${workflowJob.nodeId}`, workspace: review, approvedReadOnlyRoots: [workflowPath], outputDirectory: workflowOutput })).identity, workflowRuntime.identity, 'An original immutable workflow grant remains available to later stages without consulting mutable host policy');
+    const skillPath = path.join(scratch, 'skill-candidate'), bundle = path.join(scratch, 'host-skill');
+    git(repo, 'worktree', 'add', '--detach', skillPath, commit); await mkdir(path.join(skillPath, '.agent-platform')); await mkdir(bundle);
+    await writeFile(path.join(bundle, 'SKILL.md'), 'entry'); await writeFile(path.join(bundle, 'check.mjs'), 'console.log("verified")');
+    await writeFile(path.join(skillPath, '.agent-platform/runtime.json'), JSON.stringify({ version: 1, skills: [{ id: 'fixture', package: { path: bundle, sha256: await runtimeResourceDigest(bundle) }, requiredFiles: ['SKILL.md', 'missing-mapping.md'], checkScript: 'check.mjs' }] }));
+    git(skillPath, 'add', '.'); git(skillPath, 'commit', '-m', 'Missing required skill mapping');
+    const skillId = jobs.get('SKILL'); assert(skillId);
+    const skillJob = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: skillId } }); const skillProgress = executionProgress(skillJob.dispatchMetadata); assert(skillProgress);
+    await prisma.taskGraphExecution.update({ where: { id: skillId }, data: { worktreePath: skillPath, dispatchMetadata: metadataWithProgress(skillJob.dispatchMetadata, { ...skillProgress, candidateCommit: git(skillPath, 'rev-parse', 'HEAD') }) } });
+    const skillRun = await prisma.taskRun.create({ data: { taskId: `task-graph-${skillId}`, status: 'running', mode: 'acpx', controlMetadata: JSON.stringify({ graphWriter: worker }), participants: { create: { gatewayNameSnapshot: 'local', runner: 'codex', harnessType: 'codex', executionBackend: 'platform_local', role: 'implementer', status: 'running' } } }, include: { participants: true } });
+    const skillPermission = applyWorkflowPermissionSnapshot(DEFAULT_ACPX_PERMISSION_CONFIG, buildWorkflowPermissionSnapshot({ policy: { preset: 'workspace', extraReadOnlyPaths: [bundle], extraWritableRoots: [] }, projectPath: skillPath, source: 'skill-test' }));
+    let modelCalls = 0;
+    adapter.execute = async () => { modelCalls++; throw new Error('Preflight must reject before model execution'); };
+    try { await assert.rejects(executeViaLocalHarness({ taskId: `task-graph-${skillId}`, taskName: 'skill preflight rejection', workingDirectory: skillPath, permissionConfig: skillPermission, orchestrationMode: 'single', participants: [] }, skillRun.id, skillRun.participants[0].id, { gatewayId: 'platform-local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' }, {}, [], { transcript: '', latestUserMessage: null }), /技能完整包预检失败/); }
+    finally { adapter.execute = originalExecute; }
+    assert.equal(modelCalls, 0, 'Missing required mapping rejects the native caller before model execution');
     const require = createRequire(__filename), preflight: typeof import('../src/lib/task-graph/runtime-preflight') = require('../src/lib/task-graph/runtime-preflight');
     const original = preflight.prepareDeclaredRuntime;
     preflight.prepareDeclaredRuntime = async args => { const result = await original(args); const row = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: jobs.get('CAS')! } }); const state = executionProgress(row.dispatchMetadata); assert(state); await prisma.taskGraphExecution.update({ where: { id: row.id }, data: { dispatchMetadata: metadataWithProgress(row.dispatchMetadata, { ...state, revision: state.revision + 1 }) } }); return result; };

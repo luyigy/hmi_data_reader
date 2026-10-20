@@ -141,7 +141,7 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
     const tools = prepared.map(item => ({ key: item.executionKey, repository: item.repository, identity: item.identity, env: item.env }));
     const identity = createHash('sha256').update(JSON.stringify(tools.map(({ key, repository, identity }) => ({ key, repository, identity })))).digest('hex');
     return { identity, manifestHash: identity, receipt: null, env: { AP_GRAPH_RUNTIME_IDENTITY: identity, AP_PROJECT_TOOL_RUNTIMES_JSON: JSON.stringify(tools), AP_PROJECT_PYTHON_ENVIRONMENTS_JSON: JSON.stringify(prepared.flatMap(item => JSON.parse(item.env.AP_PROJECT_PYTHON_ENVIRONMENTS_JSON || '[]'))) },
-      readOnlyPaths: Array.from(new Set(prepared.flatMap(item => item.readOnlyPaths))),
+      readOnlyPaths: Array.from(new Set(prepared.flatMap(item => item.readOnlyPaths))), verifiedResources: prepared.flatMap(item => item.verifiedResources),
       instructions: '\n本阶段含不同项目工具。按 AP_PROJECT_TOOL_RUNTIMES_JSON 的仓内任务键选择对应 env 启动检查命令，不混用浏览器或 OCR 环境。没有全局默认工具。' };
   }
   const result = prepared[0];

@@ -1,0 +1,40 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-skill-runtime
+
+RuntimePreparationError: 运行能力声明版本或字段无效
+    at new RuntimePreparationError (/data1/code/agent-platform-ticket-autonomy/src/lib/task-graph/runtime-preflight.ts:15:10)
+    at /data1/code/agent-platform-ticket-autonomy/src/lib/task-graph/runtime-preflight.ts:31:25
+    at step (/data1/code/agent-platform-ticket-autonomy/src/lib/task-graph/runtime-preflight.ts:59:23)
+    at Object.throw (/data1/code/agent-platform-ticket-autonomy/src/lib/task-graph/runtime-preflight.ts:40:53)
+    at rejected (/data1/code/agent-platform-ticket-autonomy/src/lib/task-graph/runtime-preflight.ts:32:65) {
+  kind: 'invalid',
+  failure: {
+    code: 'runtime_resource_invalid',
+    detail: '运行能力声明版本或字段无效',
+    action: '修正运行资源声明或恢复匹配的资源，再执行预检',
+    owner: 'platform',
+    requiresUserDecision: false,
+    affectedPaths: [ '/tmp/ap-skill-runtime-NWBnup/job/.agent-platform/runtime.json' ],
+    fingerprint: '85b49312964da2a31b01ca05bfdc8473022fdace36acc7c2a293f085e5dee63a'
+  }
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-skill-runtime.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-ticket-autonomy/scripts/test-task-graph-postgres.mjs:42:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 1510489,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

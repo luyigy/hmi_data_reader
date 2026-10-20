@@ -1,0 +1,8 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-skill-runtime task-graph-runtime-pinning project-capabilities-c02
+
+Installed poteto-mode, Codex mapping, four playbooks and actual project adaptation verified in Bubblewrap
+Complete skill package verified in strict Bubblewrap; unauthorized targets, missing mapping, changed digests and link escapes are rejected
+Native preparation, real platform sandbox check and non-Git acceptance share a claim pin; host changes cannot widen, resource/config mutation and stale CAS reject, explicit workflow restriction wins, pinned absence remains absent
+C02: two Git worktrees share fixed project tools; real checks see broker and readonly code; Mold advances while Reader waits; successor releases after evidence; non-Git acceptance retains tools; explicit restrictions, revocation and unauthorized user deny without changing candidates.

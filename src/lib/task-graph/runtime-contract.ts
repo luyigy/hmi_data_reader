@@ -4,7 +4,8 @@ import path from 'node:path';
 import { graphGit } from './git-command';
 
 export type RuntimeResource = { kind: 'path'; path: string; sha256: string } | { kind: 'output'; eventId: string; relativePath: string; sha256: string };
-export type RuntimeDeclaration = { version: 1; browser?: { module: RuntimeResource; executable: RuntimeResource }; ocr?: { weights: RuntimeResource; requiredFiles: string[] } };
+export type SkillRequirement = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[]; checkScript: string };
+export type RuntimeDeclaration = { version: 1; browser?: { module: RuntimeResource; executable: RuntimeResource }; ocr?: { weights: RuntimeResource; requiredFiles: string[] }; skills?: SkillRequirement[] };
 const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 function resource(value: unknown): RuntimeResource {
   const item = record(value);
@@ -19,7 +20,7 @@ function resource(value: unknown): RuntimeResource {
 }
 export function parseRuntimeDeclaration(value: unknown): RuntimeDeclaration {
   const item = record(value);
-  if (item.version !== 1 || Object.keys(item).some(key => !['version', 'browser', 'ocr'].includes(key))) throw new Error('运行能力声明版本或字段无效');
+  if (item.version !== 1 || Object.keys(item).some(key => !['version', 'browser', 'ocr', 'skills'].includes(key))) throw new Error('运行能力声明版本或字段无效');
   const result: RuntimeDeclaration = { version: 1 };
   if (item.browser !== undefined) { const browser = record(item.browser); if (Object.keys(browser).some(key => !['module', 'executable'].includes(key))) throw new Error('浏览器声明存在未知字段'); result.browser = { module: resource(browser.module), executable: resource(browser.executable) }; }
   if (item.ocr !== undefined) {
@@ -27,6 +28,19 @@ export function parseRuntimeDeclaration(value: unknown): RuntimeDeclaration {
     if (Object.keys(ocr).some(key => !['weights', 'requiredFiles'].includes(key))) throw new Error('OCR 声明存在未知字段');
     if (!Array.isArray(ocr.requiredFiles) || !ocr.requiredFiles.length || !ocr.requiredFiles.every((file: unknown) => typeof file === 'string' && file && !path.isAbsolute(file) && file.split(/[\\/]/).every(part => part && part !== '.' && part !== '..'))) throw new Error('OCR 必需文件必须是权重目录内的相对路径');
     result.ocr = { weights: resource(ocr.weights), requiredFiles: ocr.requiredFiles };
+  }
+  if (item.skills !== undefined) {
+    const relative = (value: unknown): value is string => typeof value === 'string' && !!value && !path.isAbsolute(value) && value.split(/[\\/]/).every(part => !!part && part !== '.' && part !== '..');
+    if (!Array.isArray(item.skills) || !item.skills.length || item.skills.length > 20) throw new Error('必需技能清单无效');
+    result.skills = item.skills.map(value => {
+      const skill = record(value), pack = resource(skill.package);
+      if (Object.keys(skill).some(key => !['id', 'package', 'requiredFiles', 'checkScript'].includes(key)) ||
+        typeof skill.id !== 'string' || !/^[a-z][a-z0-9-]{0,79}$/.test(skill.id) || pack.kind !== 'path' ||
+        !Array.isArray(skill.requiredFiles) || !skill.requiredFiles.length || skill.requiredFiles.length > 200 || !skill.requiredFiles.every(relative) ||
+        !relative(skill.checkScript) || !/\.(mjs|cjs|js)$/.test(skill.checkScript)) throw new Error('技能须声明固定宿主包、必需文件及包内 Node 校验脚本');
+      return { id: skill.id, package: pack, requiredFiles: skill.requiredFiles, checkScript: skill.checkScript };
+    });
+    if (new Set(result.skills.map(skill => skill.id)).size !== result.skills.length) throw new Error('技能身份重复');
   }
   return result;
 }
