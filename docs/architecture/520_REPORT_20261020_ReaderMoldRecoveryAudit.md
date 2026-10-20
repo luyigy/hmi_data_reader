@@ -7,7 +7,7 @@ doc_status: audited_pending_approval
 
 ## 结论
 
-原路线可以保留，当前还不能直接恢复业务实施。七张 Attention Ticket 的保存点、Worktree 和原生 Codex Session 均在，Writer 已退出，预算没有耗尽。共同阻塞仍存在：这两仓的旧批准资源里没有 poteto-mode 的真实技能包。另有 OCR 模型可用性缺口和 YIZUMI 资料源问题。
+原路线可以保留，当前还不能直接恢复业务实施。七张 Attention Ticket 的保存点、Worktree 和原生 Codex Session 均在，Writer 已退出，预算没有耗尽。共同阻塞仍存在：这两仓的旧批准资源里没有 poteto-mode 的真实技能包。另有 OCR 调用路径尚未核实和 YIZUMI 资料源问题。下文模型目录检查不能证明现有 OCR 服务不可用，见末尾复核更正。
 
 建议先准备并审批精确资源，再由用户批准恢复 M05、R6_BOLE、R6_DEMAG。这三票原来就无相互依赖，各自写独立 Worktree。无需重做业务 Spec、依赖图或调度器。
 
@@ -167,3 +167,16 @@ R6_BOLE、R6_NISSEI 等报告“指定测试入口不存在”，原 Ticket 明�
 - 交付报告给实际页面/API、样例与测试、已实现/不支持功能、完成和阻塞节点，不能只报 passed 数量。
 
 本阶段到此停止，等待对资源准备及实际恢复范围的批准。
+
+
+## OCR 服务复核更正
+
+用户指出 OCR 已启用后，补查确认 `hmi-gpu-service.service` active/running，PID 1828836 在 8767 监听。2026-10-20 本轮只读请求 `http://127.0.0.1:8767/health` 返回 200、`{"status":"ok"}`，`/ready` 返回 200、`{"status":"ready"}`。未调用识读 POST、未修改服务。
+
+Mold 当前源码的 `HMI_CAPTURE_OCR_URL` 默认指向 `8767/api/v1/recognize`，存在复用服务的正式调用路径。另一个 `HMI_RECOGNITION_SERVICE_URL` 默认指向 8765，该本机端口探针拒绝连接。这些是源码默认值，尚未核对生产覆盖配置，不据此宣告生产接口配置错误。
+
+此前只验证沙箱不可见默认模型缓存，没有核查现有 OCR 服务，因此不能得出必须给任务挂载模型或重新准备 OCR 的结论。恢复准备优先核对原 Ticket 固定版本的调用路径、服务版本与接口合同，以及实际沙箱到服务的连通性和既有授权。只有 Ticket 确实需要本地启动模型时，才评估模型目录和执行资源。不得把主仓当前服务的健康状态当成固定候选的业务兼容验收。
+
+Sandbox Manager 接受已经批准的资源/网络计划，统一准备沙箱并管理进程生命周期；项目能力模块继续负责授权与运行资源身份，Task Graph 继续负责 claim/Writer/恢复。现有共享 OCR 服务由其原服务管理器持有，不转成 Ticket 子进程，也不由 Sandbox Manager 停止。资源预检复用共享 Environment Preparation 和唯一 Bubblewrap renderer；正式 Codex 实施/续接沿已迁移的 Manager 路径。不能为这三张票新增临时挂载脚本、宽泛宿主权限或一套独立启动器。
+
+因此首批恢复前待核实的是必需技能包授权及 OCR 服务访问/合同，不应提前要求用户批准全部 OCR 模型挂载。本更正未授予资源或恢复任何 Ticket。
