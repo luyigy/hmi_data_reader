@@ -1,0 +1,14 @@
+{
+  "hostSkillReadable": true,
+  "symlinkTarget": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/poteto-mode",
+  "currentStrictMounts": {
+    "skillReadable": false,
+    "targetReadable": false,
+    "unrelatedHostHomeVisible": false
+  },
+  "explicitSkillTargetOnly": {
+    "skillReadable": true,
+    "targetReadable": true,
+    "unrelatedHostHomeVisible": false
+  }
+}

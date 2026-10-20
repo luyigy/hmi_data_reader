@@ -62,3 +62,8 @@ next-env.d.ts
 /videos/live-room-relay-explained/.waveform-cache/
 /videos/live-room-relay-explained/CLAUDE.md
 /videos/live-room-relay-explained/renders/video.mp4
+
+
+
+# 诊断/评审产物，不入库
+output/

@@ -1,0 +1,130 @@
+{
+  "baseline": "8b8970a3d5757abe8b44fcbdb3f1ef528d02ab24",
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "counts": {
+    "attention": 7,
+    "planned": 7,
+    "passed": 10
+  },
+  "paused": [
+    {
+      "node": "M05",
+      "executionId": "cmvdmf87y043t9xhgdo28uftr",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "failure": {
+        "code": "environment_failed",
+        "owner": "platform",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "detail": "必需 poteto-mode 技能符号链接目标缺失，SKILL.md、Codex 映射及校验脚本不可读取；已搜索可用副本但未找到。检查进度已保存，源码未修改，真实 Reader/API/双视口保存重开均未验证。",
+        "blockedPhase": "implementation",
+        "blockerCause": "missing_capability",
+        "requiresUserDecision": false
+      },
+      "repairAttempts": 0,
+      "platformAttempts": 0
+    },
+    {
+      "node": "R6_BOLE",
+      "executionId": "cmvdmf880044j9xhgfq8r9py1",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "failure": {
+        "code": "environment_failed",
+        "owner": "platform",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "detail": "必需 poteto-mode 软链接目标不存在，技能正文、Codex 工具映射和校验脚本不可用；已核查替代位置并保存启动证据。业务代码未修改，指定测试因入口缺失退出4，验收未完成。",
+        "blockedPhase": "implementation",
+        "blockerCause": "missing_capability",
+        "requiresUserDecision": false
+      },
+      "repairAttempts": 0,
+      "platformAttempts": 0
+    },
+    {
+      "node": "R6_ARBURG",
+      "executionId": "cmvdmf880044h9xhgr7zjz83d",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "failure": {
+        "code": "environment_failed",
+        "owner": "platform",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "detail": "任务强制要求的 poteto-mode 技能安装链接目标不存在，工具映射及校验脚本均不可用，替代路径检索未找到；前置核查与失败证据已保存，需平台补齐必需技能后继续实现。",
+        "blockedPhase": "implementation",
+        "blockerCause": "missing_capability",
+        "requiresUserDecision": false
+      },
+      "repairAttempts": 0,
+      "platformAttempts": 0
+    },
+    {
+      "node": "R6_DEMAG",
+      "executionId": "cmvdmf880044l9xhgihg4hu8o",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "failure": {
+        "code": "environment_failed",
+        "owner": "platform",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "detail": "必需 poteto-mode 安装链接失效，SKILL.md、Codex 工具映射及 check-playbooks.mjs 均不可用，已核查替代位置。盘点、指定测试失败记录和待办已保存至本轮受管结果目录；仓库无修改，未交付。",
+        "blockedPhase": "implementation",
+        "blockerCause": "missing_capability",
+        "requiresUserDecision": false
+      },
+      "repairAttempts": 0,
+      "platformAttempts": 0
+    },
+    {
+      "node": "R6_NISSEI",
+      "executionId": "cmvdmf880044p9xhg6z3mtzlv",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "failure": {
+        "code": "environment_failed",
+        "owner": "platform",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "detail": "明确必需的 poteto-mode 技能、Codex 映射及校验脚本缺失，已搜索替代安装并保存进度；指定 pytest 因入口不存在退出4，未交付功能。",
+        "blockedPhase": "implementation",
+        "blockerCause": "missing_capability",
+        "requiresUserDecision": false
+      },
+      "repairAttempts": 0,
+      "platformAttempts": 0
+    },
+    {
+      "node": "R6_FANUC",
+      "executionId": "cmvdmf880044n9xhgpxl58qyi",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "failure": {
+        "code": "environment_failed",
+        "owner": "platform",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "detail": "本票必需 poteto-mode 技能软链接失效，未找到替代副本，指定校验命令 MODULE_NOT_FOUND；材料盘点、回归结果和 todo 已保存，无源码修改，未宣称交付。",
+        "blockedPhase": "implementation",
+        "blockerCause": "missing_capability",
+        "requiresUserDecision": false
+      },
+      "repairAttempts": 0,
+      "platformAttempts": 0
+    },
+    {
+      "node": "R6_YIZUMI",
+      "executionId": "cmvdmf880044r9xhgc8z15d8w",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "failure": {
+        "code": "environment_failed",
+        "owner": "platform",
+        "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+        "detail": "必需 poteto-mode 技能及校验脚本缺失；授权资料源查询另返回1254018。已保存盘点与回归证据，源码未修改，需平台修复环境后恢复实施。",
+        "blockedPhase": "implementation",
+        "blockerCause": "missing_capability",
+        "requiresUserDecision": false
+      },
+      "repairAttempts": 0,
+      "platformAttempts": 0
+    }
+  ]
+}
