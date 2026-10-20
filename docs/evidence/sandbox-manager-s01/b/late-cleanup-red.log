@@ -1,0 +1,14 @@
+PASS public Bubblewrap scope executes with authorized workspace; cleanup waits for use and close
+AssertionError [ERR_ASSERTION]: unknown scope must expose eventual cleanup outcome
+    at /data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:121:10
+    at step (/data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:16:58)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}

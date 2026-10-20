@@ -1,3 +1,4 @@
+import type { withSandbox } from '../sandbox-manager';
 import type { ChildProcess } from 'child_process';
 import type {
   AcpxExecutionBackend,
@@ -19,7 +20,12 @@ export interface HarnessSessionStarted {
   threadId?: string;
 }
 
+export interface HarnessSandbox {
+  run: typeof withSandbox;
+}
+
 export interface HarnessExecutionContext {
+  sandbox?: HarnessSandbox;
   /** Platform execution correlation; adapters must bind native evidence to this invocation. */
   executionId?: string;
   workingDirectory: string;

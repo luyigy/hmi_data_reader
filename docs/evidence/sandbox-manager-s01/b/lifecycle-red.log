@@ -1,0 +1,13 @@
+AssertionError [ERR_ASSERTION]: A baseline loses live control registration after TERM request + participant clear
+    at /data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:32:14
+    at step (/data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-sandbox-s01/tests/sandbox-manager.test.ts:16:58)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: null,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}

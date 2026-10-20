@@ -1,0 +1,6 @@
+PASS public Bubblewrap scope executes with authorized workspace; cleanup waits for use and close
+PASS initial unknown scope exposes late cleanup failure and original exception through nonrejecting completion receipt
+PASS capture failure retains control before use; onSpawn failure enters cleanup; stale participant clear preserves new run
+PASS startup sync/async errors skip use and clean; identity mismatch refuses signal; late close retains newer entry
+PASS original error preserved; cleanup failure rejects success; combined causes visible; unknown retains resources until close
+PASS protocol completion waits for close; TERM timeout retains control; later SIGKILL closes

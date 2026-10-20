@@ -1,3 +1,4 @@
+import type { HarnessSandbox } from '../harness/types';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ChildProcess } from 'child_process';
 import { realpathSync } from 'node:fs';
@@ -23,6 +24,7 @@ class CodexRpcRejection extends Error {
 }
 
 export interface CodexAppServerOptions {
+  sandbox?: HarnessSandbox;
   prompt: string;
   threadId?: string;
   workingDirectory: string;
@@ -136,38 +138,40 @@ export const appendCodexAgentMessageDelta = (
 ) => `${output}${startsNewMessage && output ? '\n\n' : ''}${delta}`;
 
 export const runCodexAppServer = async (options: CodexAppServerOptions) => {
-  const { spawn } = await import('child_process');
-  const runtimeCwd = options.workspaceRoot
-    ? realpathSync(options.workingDirectory)
-    : options.workingDirectory;
+  const runtimeCwd = options.workspaceRoot ? realpathSync(options.workingDirectory) : options.workingDirectory;
+  const input = {
+    command: 'codex', commandArgs: ['app-server', '--stdio'], cwd: runtimeCwd,
+    workspaceRoot: options.workspaceRoot,
+    writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess,
+    sandboxMode: options.sandboxMode, env: options.env ?? process.env,
+    configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
+    readOnlyPaths: options.readOnlyPaths,
+  };
+  const sandbox = options.sandbox;
+  if (sandbox) {
+    if (!input.workspaceRoot) throw new Error('Managed Codex requires a restricted workspace');
+    return sandbox.run({ ...input, workspaceRoot: input.workspaceRoot }, async managed => {
+      return runCodexAppServerProtocol(options, managed.child, managed.control);
+    });
+  }
   let child: ChildProcess;
   try {
-    const wrapped = wrapWithBubblewrap({
-      command: 'codex',
-      commandArgs: ['app-server', '--stdio'],
-      cwd: runtimeCwd,
-      workspaceRoot: options.workspaceRoot,
-      writableRoots: options.extraWritableRoots,
-      networkAccess: options.networkAccess,
-      sandboxMode: options.sandboxMode,
-      env: options.env ?? process.env,
-      configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
-      readOnlyPaths: options.readOnlyPaths,
-    });
-    child = spawn(wrapped.command, wrapped.args, {
-      cwd: runtimeCwd,
-      env: options.env ?? process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: false,
-    });
+    const { spawn } = await import('child_process');
+    const wrapped = wrapWithBubblewrap(input);
+    child = spawn(wrapped.command, wrapped.args, { cwd: runtimeCwd, env: input.env,
+      stdio: ['pipe', 'pipe', 'pipe'], shell: false });
   } catch (error) {
-    throw new CodexAppServerError(
-      error instanceof Error ? error.message : 'Codex app-server failed to start',
-      true
-    );
+    throw new CodexAppServerError(error instanceof Error ? error.message : 'Codex app-server failed to start', true);
   }
   options.onSpawn?.(child);
+  return runCodexAppServerProtocol(options, child, child);
+};
 
+const runCodexAppServerProtocol = async (
+  options: CodexAppServerOptions, child: ChildProcess,
+  control: Pick<ChildProcess, 'kill'>,
+) => {
+  const runtimeCwd = options.workspaceRoot ? realpathSync(options.workingDirectory) : options.workingDirectory;
   let nextId = 1;
   let buffer = '';
   let output = '';
@@ -377,7 +381,7 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
 
   const timeoutId = typeof options.timeout === 'number' && options.timeout > 0
     ? setTimeout(() => {
-        child.kill('SIGTERM');
+        control.kill('SIGTERM');
         failConnection(new Error(`Codex execution timed out after ${options.timeout}ms`));
       }, options.timeout)
     : null;
@@ -442,6 +446,6 @@ export const runCodexAppServer = async (options: CodexAppServerOptions) => {
     clearSteering();
     rejectPending(new Error('Codex turn ended before receipt'));
     if (timeoutId) clearTimeout(timeoutId);
-    child.kill('SIGTERM');
+    control.kill('SIGTERM');
   }
 };

@@ -1,0 +1,24 @@
+[Codex] Executing task: json fixture
+[Codex] Sending prompt: Task: json fixture
+
+Please complete this task.
+
+Please complete this task step by step. When you're ...
+[Codex] Exec args: exec --json --sandbox workspace-write --config sandbox_workspace_write.network_access=false --skip-git-repo-check -
+[Codex] Working directory: /tmp/managed-codex-nEOpHe/workspace
+[Codex] Sandbox mode: workspace-write
+[Codex] Approval policy: never
+[Codex] Proxy enabled: true
+[Codex] Process exited with code: 0
+[Codex] Stdout length: 163
+[Codex] Stderr:
+[Codex] Sending prompt: json resume...
+[Codex] Exec args: exec resume native-fixture --json --config sandbox_workspace_write.network_access=false --skip-git-repo-check -
+[Codex] Working directory: /tmp/managed-codex-nEOpHe/workspace
+[Codex] Sandbox mode: workspace-write
+[Codex] Approval policy: never
+[Codex] Proxy enabled: true
+[Codex] Process exited with code: 0
+[Codex] Stdout length: 163
+[Codex] Stderr:
+PASS real Bubblewrap Codex app-server/JSON execute+resume; original session; protocol success awaits close

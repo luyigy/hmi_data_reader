@@ -109,79 +109,51 @@ Scope 错误使用结构化 causes 聚合，错误格式化也要保留每个原
 
 以下是设计草图，不新增源文件。本期公开调用只需要“执行一次沙箱作用域”，不提供 list、调度、领取任务、重试或恢复 API。
 
-调用者先形成完整计划，然后使用进程句柄执行原协议：
+### 实施后的最小形状
+
+原接口草图已按本次实施收敛。`SandboxSpec` 的具体表示复用 `SandboxEnvironmentInput`，包含完整 cwd、workspaceRoot、命令、env、配置目录、只读和可写路径；不再另造一份平行挂载类型。最终输入由宿主 Codex 调用链装配，Manager 内只准备一次并用唯一 renderer 启动。资源身份沿原 `AP_GRAPH_RUNTIME_IDENTITY` 和固定回执传递。
 
 ```ts
-// Codex 协议入口已经拿到批准后的上下文，保留原 env builder。
-const spec = prepareSandboxSpec(approvedResources, {
-  executable: 'codex', argv: ['app-server', '--stdio'],
-  cwd: runtimeCwd, env: buildCodexChildEnv(/* 原参数 */),
-});
-return withSandbox(spec, async process => {
-  onSpawn(process.control); // 原 ACPX registry 仍负责按 participant 寻址。
-  // 原 RPC/stream/Session 逻辑消费 process.io，不迁入 Manager。
-  return runExistingCodexProtocol(process.io);
-});
-// JSON execute/resume 使用相同作用域，argv 由原 Codex builder 生成。
-// 旧调用者继续 wrapWithBubblewrap(oldArgs)，只共用计划准备与渲染器。
-```
+// 概念上的 SandboxSpec，具体类型直接复用共享准备器。
+type SandboxSpec = SandboxEnvironmentInput; // workspaceRoot 必填。
+function withSandbox<T>(spec: SandboxSpec,
+  use: (process: ManagedSandboxProcess) => Promise<T>,
+  options?: { onSpawn?: (control: ManagedProcessControl) => void },
+): Promise<T>;
 
-最终装配位置固定在受信的 Codex Adapter 内。把其已有 `resolveWorkflowCodexBoundary`、`codexReadOnlyPaths` 和内外层 sandbox 区别收敛为一个内部 `prepareCodexInvocationContext(context)`，每次 execute/resume 各调用一次，保持现有 workflow override 的优先级。Runner 只决定是否接入 Manager 并提供已批准资源，不再计算第二次 Workflow 边界。随后原 Codex env builder 完成 provider 环境，协议入口用这些最终值构造 spec，构造后不再 overlay cwd/env/roots。JSON 与 app-server 消费同一最终上下文，不再各自解析 Workflow 快照。旧入口也使用该同一 helper，不能复制两套解释。
-
-上面的 `prepareSandboxSpec` 是共同 Environment Preparation，不在其内读取 Ticket 或 Workflow 授权。它只能接受上述宿主装配结果。对受控 `AP_*`、运行 HOME 与路径的额外覆盖应在 spec 封存之前核对来源；封存之后不接受任何 env overlay。原 Adapter 若曾覆盖部分 readOnlyPaths，应先按原优先级建立基线，本期不借迁移改变该行为。
-
-### 数据与接口草图
-
-```ts
-type Mount = Readonly<{
-  source: string; target: string; access: 'read-only' | 'read-write';
-}>;
-type SandboxSpec = Readonly<{
-  version: 1;
-  backend: 'bubblewrap';
-  cwd: string;
-  command: Readonly<{ executable: string; argv: readonly string[] }>;
-  mounts: readonly Mount[]; // 有序，后置的只读覆盖不能排序或去掉。
-  network: 'restricted' | 'enabled';
-  environment: PreparedEnvironment; // 内存中的完整 env、清理和覆盖计划。
-  runtimeIdentity: string | null; // 原资源快照身份，不是进程身份。
-}>;
+// Backend 专属，不能作为跨后端 Writer 证明。
 type SandboxIdentity = Readonly<{
-  version: 1;
-  backend: 'bubblewrap';
-  host: string; uid: number; bootId: string;
-  supervisor: Readonly<{ pid: number; startTime: string }>;
+  backend: 'bubblewrap'; host: string; uid: number; bootId: string;
   root: Readonly<{ pid: number; startTime: string }>;
 }>;
-type StopRequest = Readonly<{
-  signal: 'SIGINT' | 'SIGTERM' | 'SIGKILL';
-  deadlineMonotonicMs: number; // 有限的宿主单调时钟截止值。
-}>;
 type RootExit =
-  | { kind: 'exited'; identity: SandboxIdentity;
+  | { kind: 'exited'; identity: SandboxIdentity | null;
       code: number | null; signal: NodeJS.Signals | null }
-  | { kind: 'unknown'; reason: string };
-type SandboxProcess = {
-  identity: Promise<SandboxIdentity>;
-  io: ProcessIO; // stdin/stdout/stderr 和协议需要的本进程事件。
-  control: ProcessControl; // 与 ACPX 原 kill/exitCode 控制契约兼容。
-  stop(request: StopRequest): Promise<RootExit>;
+  | { kind: 'unknown'; identity: SandboxIdentity | null; reason: string };
+type ManagedSandboxProcess = {
+  child: ChildProcess; // 仅提供给 Codex 原协议代码。
+  control: ManagedProcessControl; // Registry 收到同一个对象。
+  identity: SandboxIdentity | null;
+  stop(request: { signal?: NodeJS.Signals | number;
+    deadlineMonotonicMs: number }): Promise<RootExit>;
 };
-function withSandbox<T>(spec: SandboxSpec,
-  use: (process: SandboxProcess) => Promise<T>): Promise<T>;
-
-// 后端接口是内部边界，不供 Task Graph 导入。
-interface SandboxBackend {
-  readonly kind: 'bubblewrap';
-  start(spec: SandboxSpec): BackendProcess;
-}
 ```
 
-`BackendProcess` 内部提供本进程的 IO、身份捕获、发信号、等待 close 及资源释放能力；Manager 负责把它们组织成单一作用域。`ProcessIO`、`ProcessControl` 只需要现有 Codex 消费的流、事件和控制成员，本期可在边界适配 Node ChildProcess，不把 PID 和 ChildProcess 定义成未来所有后端的通用协议。未来后端若无法提供宿主 Writer 可识别的证明，应报告 unsupported/unknown，必须先另定证明合同。
+调用侧保留原协议，只有进程入口发生变化：
 
-`PreparedEnvironment` 复用现有环境规则，不新增一份 allowlist。最终的 HOME、CODEX_HOME、代理和模型变量由 Harness 组好后一次绑定到 spec。资源相关 `AP_*` 值必须与 approvedResources 相符；不得在 Manager 接收计划后再用一个 arbitrary env 覆盖资源绑定。不能把 env、token 或完整启动参数写入公开身份与日志。
+```ts
+return withSandbox(finalCodexInput, async managed =>
+  runExistingCodexProtocol(options, managed.child, managed.control),
+  { onSpawn: registerManagedSpawn });
+```
 
-草图中的 approvedResources 是受信宿主调用链装配的内部值，不接受 Agent JSON 自称已批准。类型上的 readonly 或品牌不是授权证明，真正权限仍由上游原检查保证。Manager 只核对计划内部一致性、路径有效性和后端是否能执行，不向 project policy 申请更多资源。
+onSpawn 在 use 之前、启动身份或初始化失败时也有机会登记句柄。Registry 不得到 raw ChildProcess。`ManagedProcessControl` 提供 pid、identity、exitCode、killed、closed、kill、onClosed；kill 的返回只表示信号请求，closed 仅根进程 close。
+
+内部 `SandboxBackend` 提供 `start()`、`captureIdentity(pid)`、`cleanup()`。闭包捕获同一已准备计划，Manager 不接收 Task Graph、Prisma、claim、权限审批接口或 Codex Session。内部生命周期测试可以注入故障后端，公开 withSandbox 只选择 Bubblewrap，不暴露后端选择和 host fallback。
+
+最终权限上下文在 Codex Adapter 的 `prepareCodexInvocationContext` 内形成。它复用原 `resolveWorkflowCodexBoundary`、`codexReadOnlyPaths` 和内外层 sandbox 规则，每次 execute/resume 只调用一次，维持原 Workflow override 优先级。Runner 只控制是否接入 Manager；原 Codex env builder 完成 provider 环境，JSON/app-server 不再自行重读 Workflow 政策，spec 进入 Manager 后无 env overlay。
+
+readonly/类型品牌不构成授权。现有 Graph、Project Capabilities 仍是实际授权边界。Manager 的准备器复用原路径/Python/输出规则，不根据输入自行追加权限。公开身份和日志不包含原始 env、token 或完整含密钥启动参数。
 
 ### stop、退出与 cleanup
 
@@ -284,3 +256,12 @@ interface SandboxBackend {
 本期不承诺依赖内容的原子冻结。现有 realpath/hash 校验与实际 mount 之间仍有宿主更新窗口；提取不得增加缓存或延后验证扩大窗口。项目 Python identity 只固定当前已有解释器与配置身份，不是整个包目录的内容摘要。未来若要求原子资源句柄或完整不可变环境，应另定交付。
 
 本轮检查只有源码与 Git 历史调查、远端 HEAD 核对及 `check:long-files`。没有以 A/B 已通过推导 S01 已通过。
+
+## 实施核对记录
+
+- S01-A 已提交 `c1a8399`。固定基线与候选通过 20 组 argv/错误对照，以及真实 Bubblewrap 网络 namespace、虚拟环境、原有 sandbox/output/runtime pin/完整 skill 包回归。A 是等价提取，未制造缺失 API 的假红测。证据见 `docs/evidence/sandbox-manager-s01/a/README.md`。
+- S01-B 将 control 在启动时登记，身份捕获失败不遗失控制句柄；Registry 的 clear 额外核对 TaskRun，迟到 close 核对登记实例。现有 participant 成功/失败清理共用这个规则，不新增进程表。
+- 原 Codex 异常和 Manager 收尾异常保留在 SandboxScopeError。unknown 后的迟到清理通过非拒绝的 cleanupCompletion 结果继续可观察；Runner 将失败清理回执脱敏写入原 TaskRunEvent，不更改业务状态。
+- 内部文件增加 `identity.ts` 和 `lifecycle.ts`，分别隔离本后端 /proc 身份与事件驱动进程作用域，避免协议文件承担这些职责。公开 API 仍只有 withSandbox 与相关类型，没有后端 factory 或注册中心。
+- S01-B 原有 5000ms 是最大收尾期限，close 即结束；SIGTERM 不响应时报 unknown，不自动升级，不 sleep 猜测退出。只有明确控制请求才发送 SIGKILL。
+- 收尾门禁与正式飞书路线证据以最终实施报告为准，尚未通过的验收不能据此宣称完成。

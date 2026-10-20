@@ -1,3 +1,5 @@
+import { SandboxScopeError } from '../sandbox-manager';
+import type { HarnessSandbox } from '../harness/types';
 /**
  * Codex Agent Integration
  * 
@@ -15,6 +17,7 @@ const isMissingCustomToolOutputWarning = (text: string) =>
   text.includes('Custom tool call output is missing for call id:');
 
 export interface CodexConfig {
+  sandbox?: HarnessSandbox;
   apiKey?: string;
   model?: string;
   reasoningEffort?: string;
@@ -92,6 +95,7 @@ export const executeCodexTask = async (
       approvalPolicy,
       model,
       reasoningEffort,
+      sandbox: config.sandbox,
       onSpawn: config.onSpawn,
       onThreadStarted: config.onThreadStarted,
     });
@@ -104,6 +108,7 @@ export const executeCodexTask = async (
       executionTime: Date.now() - startTime,
     };
   } catch (error) {
+    if (error instanceof SandboxScopeError) throw error;
     console.error('[Codex] Execution failed:', error);
     return {
       success: false,
@@ -117,6 +122,7 @@ export const executeCodexTask = async (
  * Execute using codex CLI with exec subcommand
  */
 interface CodexExecutionOptions {
+  sandbox?: HarnessSandbox;
   timeout: number | null;
   workingDirectory: string;
   workspaceRoot?: string;
@@ -240,6 +246,7 @@ export const resumeCodexSession = async ({
   approvalPolicy = process.env.ACPX_CODEX_APPROVAL_POLICY === 'on-request' ? 'on-request' : 'never',
   model,
   reasoningEffort,
+  sandbox,
   onSpawn,
   onThreadStarted,
 }: {
@@ -260,6 +267,7 @@ export const resumeCodexSession = async ({
   approvalPolicy?: 'never' | 'on-request';
   model?: string;
   reasoningEffort?: string;
+  sandbox?: HarnessSandbox;
   onSpawn?: (child: ChildProcess) => void;
   onThreadStarted?: (threadId: string) => Promise<void> | void;
 }): Promise<CodexCliResult> => {
@@ -281,6 +289,7 @@ export const resumeCodexSession = async ({
         model,
         reasoningEffort,
         streamCallbacks,
+        sandbox,
         onSpawn,
         onThreadStarted,
         env: buildCodexChildEnv(codexHome, runtimeHome, taskEnvironment),
@@ -317,6 +326,7 @@ export const resumeCodexSession = async ({
       runtimeHome,
       taskEnvironment,
       readOnlyPaths,
+      sandbox,
       onSpawn,
       onThreadStarted,
     },
@@ -388,17 +398,36 @@ export const buildResumeArgs = (
   return args;
 };
 
-const runCodexJsonCommand = async ({
-  args,
-  prompt,
-  options,
-}: {
-  args: string[];
-  prompt: string;
-  options: CodexExecutionOptions;
-}): Promise<CodexCliResult> => {
+type CodexJsonRequest = { args: string[]; prompt: string; options: CodexExecutionOptions };
+const runCodexJsonCommand = async (request: CodexJsonRequest): Promise<CodexCliResult> => {
+  const { args, options } = request;
+  const env = buildCodexChildEnv(options.codexHome, options.runtimeHome, options.taskEnvironment);
+  const input = { command: 'codex', commandArgs: args, cwd: options.workingDirectory,
+    workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots,
+    networkAccess: options.networkAccess, sandboxMode: options.sandboxMode, env,
+    configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`],
+    readOnlyPaths: options.readOnlyPaths };
+  const sandbox = options.sandbox;
+  if (sandbox) {
+    if (!input.workspaceRoot) throw new Error('Managed Codex requires a restricted workspace');
+    return sandbox.run({ ...input, workspaceRoot: input.workspaceRoot }, async managed => {
+      return runCodexJsonProtocol(request, managed.child, managed.control);
+    });
+  }
   const { spawn } = await import('child_process');
+  const wrapped = wrapWithBubblewrap(input);
+  const child = spawn(wrapped.command, wrapped.args, { cwd: options.workingDirectory, env,
+    stdio: ['pipe', 'pipe', 'pipe'], shell: false });
+  options.onSpawn?.(child);
+  return runCodexJsonProtocol(request, child, child);
+};
 
+const runCodexJsonProtocol = (
+  { args, prompt, options }: CodexJsonRequest, child: ChildProcess,
+  control: Pick<ChildProcess, 'kill'>,
+): Promise<CodexCliResult> => {
+  const stdin = child.stdin, stdout = child.stdout, stderrStream = child.stderr;
+  if (!stdin || !stdout || !stderrStream) throw new Error('Codex requires piped process IO');
   return new Promise<CodexCliResult>((resolve, reject) => {
     let rawStdout = '';
     let resolvedText = '';
@@ -408,16 +437,6 @@ const runCodexJsonCommand = async ({
     let threadId: string | null = null;
     let stdoutBuffer = '';
     let turnFailureMessage: string | null = null;
-
-    const env = buildCodexChildEnv(options.codexHome, options.runtimeHome, options.taskEnvironment);
-    const wrapped = wrapWithBubblewrap({ command: 'codex', commandArgs: args, cwd: options.workingDirectory, workspaceRoot: options.workspaceRoot, writableRoots: options.extraWritableRoots, networkAccess: options.networkAccess, sandboxMode: options.sandboxMode, env, configPaths: [options.runtimeHome || options.codexHome || process.env.CODEX_HOME || `${process.env.HOME}/.codex`], readOnlyPaths: options.readOnlyPaths });
-    const child = spawn(wrapped.command, wrapped.args, {
-      cwd: options.workingDirectory,
-      env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: false,
-    });
-    options.onSpawn?.(child);
     const timeoutId = typeof options.timeout === 'number' && options.timeout > 0
       ? setTimeout(() => {
           if (settled) {
@@ -425,13 +444,13 @@ const runCodexJsonCommand = async ({
           }
           settled = true;
           console.log('[Codex] Timeout, killing process');
-          child.kill('SIGTERM');
+          control.kill('SIGTERM');
           reject(new Error(`Codex execution timed out after ${options.timeout}ms`));
         }, options.timeout)
       : null;
 
-    child.stdin.write(prompt);
-    child.stdin.end();
+    stdin.write(prompt);
+    stdin.end();
 
     console.log('[Codex] Sending prompt:', prompt.substring(0, 100) + '...');
     console.log('[Codex] Exec args:', args.join(' '));
@@ -444,7 +463,7 @@ const runCodexJsonCommand = async ({
       || process.env.FEISHU_RUNTIME_CODEX_ALL_PROXY
     ));
 
-    child.stdout.on('data', (data) => {
+    stdout.on('data', (data) => {
       const chunk = data.toString();
       rawStdout += chunk;
       stdoutBuffer += chunk;
@@ -478,7 +497,7 @@ const runCodexJsonCommand = async ({
       }
     });
 
-    child.stderr.on('data', (data) => {
+    stderrStream.on('data', (data) => {
       const chunk = data.toString();
       stderr += chunk;
       if (!isMissingCustomToolOutputWarning(chunk)) {

@@ -1,0 +1,16 @@
+AssertionError [ERR_ASSERTION]: protocol success must wait for root close before resolving
+
+false !== true
+
+    at /data1/code/agent-platform-sandbox-s01/tests/codex-sandbox-lifecycle.test.ts:58:14
+    at step (/data1/code/agent-platform-sandbox-s01/tests/codex-sandbox-lifecycle.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-sandbox-s01/tests/codex-sandbox-lifecycle.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-sandbox-s01/tests/codex-sandbox-lifecycle.test.ts:16:58)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: 'strictEqual',
+  diff: 'simple'
+}

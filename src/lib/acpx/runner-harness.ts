@@ -1,3 +1,5 @@
+import type { HarnessSandbox } from '../harness/types';
+import { withSandbox, type ManagedProcessControl, type SandboxIdentity } from '../sandbox-manager';
 import { withTaskProjectCapabilities } from '../project-capabilities/task-runtime';
 import { assertRuntimeResourcesUnchanged } from '../task-graph/runtime-preflight';
 import { prepareTaskDeclaredRuntime } from '../task-graph/runtime-continuity';
@@ -113,7 +115,7 @@ export const executeViaLocalHarness = async (
       targetParticipantLabel: string | null;
     } | null;
   },
-  onSpawn?: (child: { pid?: number }) => void, contextWarning?: string | null, longFileContext?: LongFileRuntimeContext | null,
+  onSpawn?: (child: { pid?: number; sandboxIdentity?: SandboxIdentity | null }) => void, contextWarning?: string | null, longFileContext?: LongFileRuntimeContext | null,
 ): Promise<{
   output: string;
   filesModified: string[];
@@ -210,6 +212,22 @@ export const executeViaLocalHarness = async (
     onSpawn?.(child);
   };
 
+  const registerManagedSpawn = (control: ManagedProcessControl) => {
+    const abort = () => { control.kill('SIGKILL'); };
+    serviceSignal?.addEventListener('abort', abort, { once: true });
+    control.onClosed(() => serviceSignal?.removeEventListener('abort', abort));
+    registerRunningProcess({ taskRunId, participantId, child: control,
+      executionBackend: participant.executionBackend, harnessType: participant.harnessType });
+    if (serviceSignal?.aborted) abort();
+    onSpawn?.({ pid: control.pid, sandboxIdentity: control.identity });
+  };
+  const sandbox: HarnessSandbox | undefined = request.graphExecution
+    && participant.executionBackend === 'platform_local' && participant.harnessType === 'codex' && workspaceRoot
+    ? { run: (input, use) => withSandbox(input, use, {
+        onSpawn: registerManagedSpawn,
+      }) }
+    : undefined;
+
   return withTaskProjectCapabilities({ taskId: request.taskId, taskRunId, workspace: workspaceRoot || request.workingDirectory || process.cwd(), ...('workflowPermissionSnapshot' in permissionConfig ? { allowedReadOnlyRoots: extraReadOnlyPaths } : {}) }, async capabilities => {
   extraReadOnlyPaths.push(...capabilities.readOnlyPaths);
   task.description += capabilities.instructions;
@@ -248,6 +266,7 @@ export const executeViaLocalHarness = async (
         sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
         continuationMessage: withLongFileRuntimeContext(withFeishuBotContactInstructions(participant.continuationMessage + capabilities.instructions), longFileContext),
         context: {
+          sandbox,
           executionId: runtimeExecution.id,
           workingDirectory: request.workingDirectory || process.cwd(),
           workspaceRoot,
@@ -283,6 +302,7 @@ export const executeViaLocalHarness = async (
     : await adapter.execute({
         task,
         context: {
+          sandbox,
           executionId: runtimeExecution.id,
           workingDirectory: request.workingDirectory || process.cwd(),
           workspaceRoot,

@@ -1,3 +1,4 @@
+import { SandboxScopeError } from '../../sandbox-manager';
 import type { HarnessAdapter, HarnessExecutionContext, NormalizedContextUsage } from '../types';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -44,6 +45,21 @@ const innerSandboxMode = (context: HarnessExecutionContext) =>
     ? 'danger-full-access'
     : context.permissionConfig?.sandboxMode;
 
+function prepareCodexInvocationContext(context: HarnessExecutionContext) {
+  return {
+    workingDirectory: context.workingDirectory,
+    workspaceRoot: context.workspaceRoot,
+    extraWritableRoots: context.extraWritableRoots,
+    readOnlyPaths: codexReadOnlyPaths(context.extraReadOnlyPaths),
+    networkAccess: context.networkAccess,
+    codexHome: context.codexHome,
+    sandboxMode: innerSandboxMode(context),
+    approvalPolicy: context.permissionConfig?.approvalPolicy,
+    ...resolveWorkflowCodexBoundary(context.permissionConfig, context.workingDirectory, context.codexHome),
+    sandbox: context.sandbox,
+  };
+}
+
 async function loadCodexAgent() {
   return import('@/lib/real-agents/codex-agent');
 }
@@ -73,29 +89,17 @@ export const codexHarnessAdapter: HarnessAdapter = {
     const startedAt = Date.now();
     const { executeCodexTask } = await loadCodexAgent();
     const telemetry = contextTelemetry(context);
-    const workflowBoundary = resolveWorkflowCodexBoundary(
-      context.permissionConfig,
-      context.workingDirectory,
-      context.codexHome,
-    );
+    const invocation = prepareCodexInvocationContext(context);
     const result = await executeCodexTask(task, {
       timeout: context.timeout,
-      workingDirectory: context.workingDirectory,
-      workspaceRoot: context.workspaceRoot,
-      extraWritableRoots: context.extraWritableRoots,
-      readOnlyPaths: codexReadOnlyPaths(context.extraReadOnlyPaths),
-      networkAccess: context.networkAccess,
       ephemeral: context.ephemeralSession,
-      codexHome: context.codexHome,
       runtimeHome: context.runtimeHome,
       taskEnvironment: context.taskEnvironment,
       streamCallbacks: telemetry.callbacks,
-      sandboxMode: innerSandboxMode(context),
-      approvalPolicy: context.permissionConfig?.approvalPolicy,
       model: context.model,
       reasoningEffort: context.reasoningEffort,
       onSpawn: context.onSpawn,
-      ...workflowBoundary,
+      ...invocation,
       onThreadStarted: (threadId) => {
         return context.onSessionStarted?.({
           sessionId: threadId,
@@ -117,7 +121,7 @@ export const codexHarnessAdapter: HarnessAdapter = {
       contextUsage: telemetry.usage,
       runtimeState: result.success ? await collectCodexRuntimeState({
         executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
-        startedAt, completedAt: Date.now(), codexHome: workflowBoundary?.codexHome ?? context.codexHome,
+        startedAt, completedAt: Date.now(), codexHome: invocation.codexHome,
         ephemeral: context.ephemeralSession,
       }) : undefined,
       liveStreaming: true,
@@ -128,32 +132,20 @@ export const codexHarnessAdapter: HarnessAdapter = {
     const { resumeCodexSession } = await loadCodexAgent();
     const startTime = Date.now();
     const telemetry = contextTelemetry(context);
-    const workflowBoundary = resolveWorkflowCodexBoundary(
-      context.permissionConfig,
-      context.workingDirectory,
-      context.codexHome,
-    );
+    const invocation = prepareCodexInvocationContext(context);
 
     try {
       const result = await resumeCodexSession({
         threadId: sessionId,
         prompt: continuationMessage,
         timeout: context.timeout,
-        workingDirectory: context.workingDirectory,
-        workspaceRoot: context.workspaceRoot,
-        extraWritableRoots: context.extraWritableRoots,
-        readOnlyPaths: codexReadOnlyPaths(context.extraReadOnlyPaths),
-        networkAccess: context.networkAccess,
-        codexHome: context.codexHome,
         runtimeHome: context.runtimeHome,
         taskEnvironment: context.taskEnvironment,
         streamCallbacks: telemetry.callbacks,
-        sandboxMode: innerSandboxMode(context),
-        approvalPolicy: context.permissionConfig?.approvalPolicy,
         model: context.model,
         reasoningEffort: context.reasoningEffort,
         onSpawn: context.onSpawn,
-        ...workflowBoundary,
+        ...invocation,
         onThreadStarted: (threadId) => {
           return context.onSessionStarted?.({
             sessionId: threadId,
@@ -174,11 +166,12 @@ export const codexHarnessAdapter: HarnessAdapter = {
         contextUsage: telemetry.usage,
         runtimeState: await collectCodexRuntimeState({
           executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
-          startedAt: startTime, completedAt: Date.now(), codexHome: workflowBoundary?.codexHome ?? context.codexHome,
+          startedAt: startTime, completedAt: Date.now(), codexHome: invocation.codexHome,
         }),
         liveStreaming: true,
       };
     } catch (error) {
+      if (error instanceof SandboxScopeError) throw error;
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

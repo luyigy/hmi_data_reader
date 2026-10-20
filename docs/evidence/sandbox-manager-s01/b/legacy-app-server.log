@@ -1,0 +1,25 @@
+[Codex] Executing task: fallback
+[Codex] Sending prompt: Task: fallback
+
+Please complete this task.
+
+Please complete this task step by step. When you're done...
+[Codex] Exec args: exec --json --full-auto --config sandbox_workspace_write.network_access=false --skip-git-repo-check -
+[Codex] Working directory: /tmp/codex-app-server-t4jaIJ/workspace/real
+[Codex] Sandbox mode: workspace-write
+[Codex] Approval policy: on-request
+[Codex] Proxy enabled: true
+[Codex] Process exited with code: 0
+[Codex] Stdout length: 135
+[Codex] Stderr:
+[Codex] Executing task: restricted
+[Codex] Execution failed: CodexAppServerError: Codex app-server exited before receipt
+    at new CodexAppServerError (/data1/code/agent-platform-sandbox-s01/src/lib/real-agents/codex-app-server.ts:51:10)
+    at /data1/code/agent-platform-sandbox-s01/src/lib/real-agents/codex-app-server.ts:440:11
+    at step (/data1/code/agent-platform-sandbox-s01/src/lib/real-agents/codex-app-server.ts:92:23)
+    at Object.throw (/data1/code/agent-platform-sandbox-s01/src/lib/real-agents/codex-app-server.ts:73:53)
+    at rejected (/data1/code/agent-platform-sandbox-s01/src/lib/real-agents/codex-app-server.ts:65:65)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  safeToRetryJson: true
+}
+codex app-server isolation and lifecycle checks passed

@@ -1,3 +1,4 @@
+import { SandboxScopeError, type SandboxIdentity } from '../sandbox-manager';
 import { RuntimePreparationError } from '../task-graph/runtime-preflight';
 import { redactSensitiveText } from '../redact-sensitive';
 import { prisma } from '@/lib/prisma';
@@ -238,9 +239,14 @@ export const executeParticipant = async (
       participant,
       participantId,
     );
-    const localSpawnHandler = (child: { pid?: number }) => {
+    const localSpawnHandler = (child: { pid?: number; sandboxIdentity?: SandboxIdentity | null }) => {
       if (participant.executionBackend === 'platform_local') {
-        spawnedMetadataWrites = spawnedMetadataWrites.then(() => persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid))
+        spawnedMetadataWrites = spawnedMetadataWrites.then(async () => {
+          await persistSpawnedHarnessMetadata(taskRunId, participantId, child.pid);
+          if (child.sandboxIdentity) await publishTaskRunEvent({ taskId: request.taskId, taskRunId,
+            participantId, eventType: 'runner_started', content: '执行环境已准备',
+            metadata: { sandboxIdentity: child.sandboxIdentity } });
+        })
           .catch(error => { console.error('[ACPX] Failed to persist spawned harness metadata:', error); });
       }
     };
@@ -276,7 +282,7 @@ export const executeParticipant = async (
     await streamWrites.drain();
     await subagentEventWrites;
 
-    clearRunningProcess(registryParticipantId);
+    clearRunningProcess(registryParticipantId, taskRunId);
 
     if (!result.liveStreaming) {
       await publishTaskRunEvent({
@@ -400,7 +406,17 @@ export const executeParticipant = async (
     } catch (streamError) {
       console.error('[ACPX] Failed to persist buffered stream output:', streamError);
     }
-    clearRunningProcess(registryParticipantId);
+    clearRunningProcess(registryParticipantId, taskRunId);
+    if (error instanceof SandboxScopeError) {
+      void error.cleanupCompletion.then(async outcome => {
+        if (outcome.kind === 'failed') await publishTaskRunEvent({
+          taskId: request.taskId, taskRunId, participantId, eventType: 'control_message',
+          content: '执行环境清理失败，详细原因已记录。',
+          metadata: { sandboxCleanup: { kind: outcome.kind, errors: outcome.errors.map(cause =>
+            redactSensitiveText(cause instanceof Error ? cause.message : String(cause))) } },
+        });
+      }).catch(reportError => console.error('[ACPX] Sandbox cleanup receipt failed:', reportError));
+    }
     if (error instanceof RuntimePreparationError) throw error;
     const longFileError = longFileContext && await assertLongFileRuntimeContext(longFileContext).catch((guardError) => guardError);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'; const message = longFileError instanceof Error && longFileError.message !== errorMessage ? `${errorMessage}\n\n${longFileError.message}` : errorMessage;

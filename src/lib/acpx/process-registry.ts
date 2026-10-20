@@ -1,13 +1,15 @@
 import type { RunControlAction } from './types';
 
-interface RunningProcess {
+export interface RunningProcess {
   pid?: number;
   exitCode?: number | null;
   killed?: boolean;
+  readonly closed?: boolean;
+  onClosed?(listener: () => void): () => void;
   kill(signal?: NodeJS.Signals | number): boolean;
 }
 
-interface RunningProcessEntry {
+export interface RunningProcessEntry {
   taskRunId: string;
   participantId: string;
   child: RunningProcess;
@@ -37,11 +39,21 @@ const getControlStore = () => {
 const getProcessKey = (participantId: string) => participantId;
 
 export const registerRunningProcess = (entry: RunningProcessEntry) => {
-  getProcessStore().set(getProcessKey(entry.participantId), entry);
+  const store = getProcessStore();
+  const key = getProcessKey(entry.participantId);
+  store.set(key, entry);
+  entry.child.onClosed?.(() => {
+    if (store.get(key) === entry) store.delete(key);
+  });
 };
 
-export const clearRunningProcess = (participantId: string) => {
-  getProcessStore().delete(getProcessKey(participantId));
+export const clearRunningProcess = (participantId: string, expectedTaskRunId?: string) => {
+  const store = getProcessStore();
+  const key = getProcessKey(participantId);
+  const entry = store.get(key);
+  if (expectedTaskRunId !== undefined && entry?.taskRunId !== expectedTaskRunId) return;
+  if (entry?.child.onClosed && !entry.child.closed) return;
+  store.delete(key);
 };
 
 export const getRunningProcess = (participantId: string) =>
@@ -63,10 +75,13 @@ export const requestRunControl = (
   }
 
   const signal = action === 'stop_run' ? 'SIGKILL' : 'SIGINT';
-  process.child.kill(signal);
+  const requested = process.child.kill(signal);
+  if (process.child.onClosed && !requested && getControlStore().get(participantId) === action) {
+    getControlStore().delete(participantId);
+  }
 
   return {
-    applied: true,
+    applied: process.child.onClosed ? requested : true,
     signal,
   };
 };
