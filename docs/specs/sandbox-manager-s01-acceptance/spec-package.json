@@ -1,0 +1,104 @@
+{
+  "title": "Sandbox Manager S01 隔离仓真实验收",
+  "status": "ready",
+  "spec": "spec.md",
+  "artifacts": [],
+  "issueRoute": {
+    "parent": "gitee:luyi1678/agent-platform-v2#IKP7V8",
+    "repositories": [
+      "gitee:luyi1678/agent-platform-v2"
+    ],
+    "slices": {
+      "T01": {
+        "executionMode": "lean",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "label-behavior"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "reviewer"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "label",
+            "repository": "/data1/code/ap-sandbox-manager-acceptance-20261020/label",
+            "baseCommit": "f67e5fab40005bb9b3ddbb2455f3256027df8e61",
+            "gitRef": "refs/heads/main",
+            "agentSelector": "local:codex",
+            "instructions": "专用验收仓；使用 poteto-mode，读取本项目适配；按 Topic 的真实尺寸和颜色材料完成 makeLabel，运行 verify.mjs。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "label-behavior",
+                  "argv": [
+                    "node",
+                    "verify.mjs"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "T02": {
+        "executionMode": "lean",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "consumer-receipt"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "reviewer"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "consumer",
+            "repository": "/data1/code/ap-sandbox-manager-acceptance-20261020/consumer",
+            "baseCommit": "9727183b6350410104677a7ccad6f892d8f19aaa",
+            "gitRef": "refs/heads/main",
+            "agentSelector": "local:codex",
+            "instructions": "只消费本路线固定上游输入，保存 receipt.json，并实现、运行 verify.mjs；使用 poteto-mode。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "consumer-receipt",
+                  "argv": [
+                    "node",
+                    "verify.mjs"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

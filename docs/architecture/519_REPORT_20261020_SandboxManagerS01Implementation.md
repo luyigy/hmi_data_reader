@@ -34,3 +34,9 @@ B 新增 `sandbox-manager/index.ts`、`lifecycle.ts`、`identity.ts`，只管理
 ## 真实验收
 
 后续仅为全新的专用测试仓与路线提议原生飞书确认卡。用户批准后验证真实 Codex 首次实施、补料、原 Session、独立验收和后继放行，并补记 Manager 身份与原 Writer 证据。未批准前不得派发，不重用或恢复现有生产 Ticket。
+
+## 测试入口准备
+
+S01-B 提交为 `ca64ec7`，已快进合入 `oss-prep`。仅重载 task-graph coordinator，飞书聊天、网页和 scheduled jobs 未重启。重载前无活动任务图 TaskRun，原有 32 条执行记录的 status、claim、TaskRun、commit、progress 及 node 状态对比不变，见 [部署回执](../evidence/sandbox-manager-s01/live/deploy.json)。
+
+新测试父任务为 `acceptance-sandbox-manager-s01-20261020-ca64ec7`，位于工作流测试群的“验收专用 · Sandbox Manager S01 · 20261020”。专用仓均在 `/data1/code/ap-sandbox-manager-acceptance-20261020/`，仅为这两个仓登记已有 poteto 固定技能包的精确只读根，未改原项目条目。测试 Spec 见 [spec.md](../specs/sandbox-manager-s01-acceptance/spec.md)。确认卡批准和真实运行结果后续追加。
