@@ -1,0 +1,13 @@
+diff --git a/src/lib/task-graph/coordinator.ts b/src/lib/task-graph/coordinator.ts
+index ccd203e..a2a4ffb 100644
+--- a/src/lib/task-graph/coordinator.ts
++++ b/src/lib/task-graph/coordinator.ts
+@@ -157,7 +157,7 @@ const nodeVerifications = new Map<string, Promise<void>>();
+ function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string): Promise<void> {
+   const key = `${runId}/${nodeKey}`;
+   const active = nodeVerifications.get(key);
+-  if (active) return active;
++  if (active) return reviewAttempt ? active.then(() => verifyNode(runId, nodeKey, reviewAttempt)) : active;
+   const pending = (async () => {
+     const ownership = await registerGraphReviewWorker(runId, nodeKey);
+     try { await verifyNodeOnce(runId, nodeKey, reviewAttempt, ownership?.worker.nonce); }

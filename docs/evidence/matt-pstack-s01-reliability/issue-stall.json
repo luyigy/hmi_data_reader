@@ -1,0 +1,83 @@
+{
+  "stage": "recovery-and-join",
+  "starts": [
+    "A",
+    "B"
+  ],
+  "reviews": [
+    "A",
+    "B"
+  ],
+  "nodes": [
+    {
+      "key": "A",
+      "status": "passed",
+      "executions": [
+        {
+          "status": "integrated",
+          "commit": "3b20a69d393cf3136a8afee94b00a21872c9f47f",
+          "progress": {
+            "phase": "acceptance",
+            "state": "active",
+            "review": {
+              "kind": "running",
+              "phase": "acceptance",
+              "claimKey": "node:A:review_claimed:candidate:340eb688b59d10e561785752",
+              "taskRunId": "cmvg5ewsh00601htg3bdkqvxo",
+              "candidateCommit": "3b20a69d393cf3136a8afee94b00a21872c9f47f"
+            },
+            "revision": 11,
+            "repairAttempts": 0,
+            "platformAttempts": 0
+          }
+        }
+      ]
+    },
+    {
+      "key": "B",
+      "status": "verifying",
+      "executions": [
+        {
+          "status": "integrated",
+          "commit": "fa37d6a43e344e7d49a731bc7bdd06e77b1da508",
+          "progress": {
+            "phase": "acceptance",
+            "state": "active",
+            "revision": 339,
+            "lastFailure": {
+              "code": "blocked_require_human",
+              "detail": "explicit fixture evidence"
+            },
+            "repairAttempts": 0,
+            "platformAttempts": 0
+          }
+        }
+      ]
+    },
+    {
+      "key": "C",
+      "status": "planned",
+      "executions": [
+        {
+          "status": "planned",
+          "commit": null,
+          "progress": {}
+        }
+      ]
+    }
+  ],
+  "reviewTaskRuns": [
+    {
+      "id": "cmvg5ews9005w1htgbjqw4geb",
+      "taskId": "task-graph-review-cmvg5esf800061htgw5gmn99w",
+      "status": "completed",
+      "summary": "tester @ platform-local / kimi-code: TASK_GRAPH_REVIEW {\"approved\":false,\"note\":\"explicit fixture evidence\",\"failureKind\":\"blocked_require_human\"}"
+    },
+    {
+      "id": "cmvg5ewsh00601htg3bdkqvxo",
+      "taskId": "task-graph-review-cmvg5esf800041htgvnmxk9ui",
+      "status": "completed",
+      "summary": "tester @ platform-local / kimi-code: TASK_GRAPH_REVIEW {\"approved\":true,\"note\":\"explicit fixture evidence\"}"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-issue-execution
+
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+AssertionError [ERR_ASSERTION]: An accepted recovery must launch the new review after the previous in-flight review drains
+    at /data1/code/agent-platform-s01-reliability/tests/task-graph-issue-execution.test.ts:129:14
+    at step (/data1/code/agent-platform-s01-reliability/tests/task-graph-issue-execution.test.ts:77:23)
+    at Object.next (/data1/code/agent-platform-s01-reliability/tests/task-graph-issue-execution.test.ts:58:53)
+    at fulfilled (/data1/code/agent-platform-s01-reliability/tests/task-graph-issue-execution.test.ts:49:58) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-issue-execution.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-s01-reliability/scripts/test-task-graph-postgres.mjs:42:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 102819,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

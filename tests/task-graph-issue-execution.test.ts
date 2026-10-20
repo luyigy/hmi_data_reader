@@ -56,6 +56,17 @@ async function main() {
   const codex = getHarnessAdapter('codex')!; const kimi = getHarnessAdapter('kimi-code')!;
   const starts: { key: string; directory: string }[] = []; const reviews: string[] = [];
   const oldValidation = process.env.TASK_GRAPH_VALIDATION_ROOT; process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
+  const releaseProbe = process.env.AP_S01_REVIEW_RELEASE_PROBE === '1';
+  const phase: typeof import('../src/lib/task-graph/phase-worker') = require('../src/lib/task-graph/phase-worker');
+  const releaseWorker = phase.releaseGraphReviewWorker;
+  let releaseReview: () => void = () => {};
+  const reviewRelease = new Promise<void>(resolve => { releaseReview = resolve; });
+  let heldReview = false;
+  phase.releaseGraphReviewWorker = async (nodeId, nonce) => {
+    const node = releaseProbe ? await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId } }) : null;
+    if (node?.key === 'B' && node.status === 'attention' && !heldReview) { heldReview = true; await reviewRelease; }
+    return releaseWorker(nodeId, nonce);
+  };
   let rejectB = true;
   let defectReported = false;
   codex.execute = async ({ task, context }) => {
@@ -92,20 +103,32 @@ async function main() {
   const definition = await buildIssueGraph('test://spec', { parent: parentRef, slices }, request);
   const parent = await prisma.task.create({ data: { name: 'Issue execution fixture' } });
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition });
-  const { runTaskGraphCycle, recoverTaskGraphNodeVerification } = await import('../src/lib/task-graph/coordinator');
-  async function until(predicate: () => Promise<boolean>) {
+  const { runTaskGraphCycle, recoverTaskGraphNodeVerification, startTaskGraphCoordinator } = await import('../src/lib/task-graph/coordinator');
+  async function until(stage: string, predicate: () => Promise<boolean>) {
     for (let i = 0; i < 500; i++) { await runTaskGraphCycle(); if (await predicate()) return; await new Promise((resolve) => setTimeout(resolve, 30)); }
-    throw Object.assign(new Error('Graph did not reach expected state'), { nodes: await prisma.taskGraphNode.findMany({ where: { runId: run.id }, include: { executions: true } }), events: await prisma.taskGraphEvent.findMany({ where: { runId: run.id }, orderBy: { createdAt: 'desc' }, take: 8 }) });
+    throw new Error(JSON.stringify({ stage, starts, reviews, nodes: await prisma.taskGraphNode.findMany({ where: { runId: run.id }, include: { executions: true } }), events: await prisma.taskGraphEvent.findMany({ where: { runId: run.id }, orderBy: { createdAt: 'desc' }, take: 40 }), taskRuns: await prisma.taskRun.findMany({ where: { task: { id: { in: (await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { id: true } })).map(node => `task-graph-review-${node.id}`) } } }, select: { id: true, taskId: true, status: true, summary: true, controlMetadata: true } }) }, null, 2));
   }
   try {
-    await until(async () => (await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { key: true, status: true } })).filter((node) => node.key !== 'C').every((node) => ['passed', 'attention'].includes(node.status)));
+    await until('initial-review', async () => (await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { key: true, status: true } })).filter((node) => node.key !== 'C').every((node) => ['passed', 'attention'].includes(node.status)));
     assert.equal(starts.length, 2); assert.notEqual(starts[0].directory, starts[1].directory);
     const paused = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'B' } }, include: { executions: true } });
     assert.equal(paused.status, 'attention'); assert.ok(existsSync(paused.executions[0].worktreePath!));
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'C' } } })).status, 'planned');
     rejectB = false;
-    await recoverTaskGraphNodeVerification(run.id, 'B');
-    await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed');
+    if (releaseProbe) {
+      for (let n = 0; n < 100 && !heldReview; n++) await new Promise(resolve => setTimeout(resolve, 5));
+      assert.equal(heldReview, true, 'Probe holds the old verification before its in-flight entry is cleared');
+      const recovery = recoverTaskGraphNodeVerification(run.id, 'B');
+      try {
+        for (let n = 0; n < 100; n++) {
+          if ((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: paused.id } })).status === 'verifying') break;
+          await new Promise(resolve => setTimeout(resolve, 5));
+        }
+      } finally { releaseReview(); }
+      await recovery;
+      assert.ok(reviews.filter(key => key === 'B').length >= 2, 'An accepted recovery must launch the new review after the previous in-flight review drains');
+    } else await recoverTaskGraphNodeVerification(run.id, 'B');
+    await until('recovery-and-join', async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed');
     assert.deepEqual(starts.map((item) => item.key).sort(), ['A', 'B', 'B', 'C'], 'Only the failed Slice may receive one classified repair; completed independent branches never rerun');
     assert.equal(reviews.filter((key) => key === 'B').length, 3);
     assert.equal(git('rev-parse', 'main'), baseline, 'Run integration must not move source main');
@@ -138,6 +161,9 @@ async function main() {
     assert.ok(notices.length > 0);
     console.log('Real Git/Bubblewrap pipeline forks, joins, resumes review without reimplementation and reconciles tracker writes after crashes');
   } finally {
+    releaseReview();
+    const drain = new AbortController(); drain.abort(); await startTaskGraphCoordinator(drain.signal);
+    phase.releaseGraphReviewWorker = releaseWorker;
     const children = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, select: { childTaskId: true } });
     const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { id: true } });
     await prisma.taskGraphRun.deleteMany({ where: { parentTaskId: parent.id } });

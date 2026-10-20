@@ -1,0 +1,6 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-s01-diagnostics
+
+{"probe":"slow-writer-observation","code":"P2028","elapsedMs":5239,"detail":"\nInvalid `tx.taskGraphEvent.findMany()` invocation in\n/data1/code/agent-platform-s01-reliability/src/lib/task-graph/conversation-followup.ts:78:50\n\n  75 const pending = await pendingConversationInputs(tx, node.runId, job.id);\n  76 if (!pending.length || !job.childTaskId) continue;\n  77 for (const sibling of node.executions) if ((await observeExecutionWriter(sibling)).kind !== 'exited') return null;\n→ 78 const previous = await tx.taskGraphEvent.findMany(\nTransaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5215 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction."}
+S01 diagnostic: a 5200ms writer observation reproduces P2028 in followup reservation; rollback preserves claim/revision/candidate/input. This confirms the defect, not a fix.
