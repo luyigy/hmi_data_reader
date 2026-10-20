@@ -1,0 +1,83 @@
+[
+  {
+    "key": "M05",
+    "startedAt": "2026-10-20T14:26:11.999Z",
+    "identity": {
+      "backend": "bubblewrap",
+      "host": "hello",
+      "uid": 1000,
+      "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+      "root": {
+        "pid": 2509699,
+        "startTime": "2722357005"
+      }
+    },
+    "result": {
+      "skillFilesRead": 70,
+      "checkerExit": 0,
+      "checkerOutput": "Every project playbook matches this pstack's playbooks.\n",
+      "health": {
+        "status": "ok"
+      },
+      "ready": {
+        "status": "ready"
+      }
+    },
+    "ok": true,
+    "finishedAt": "2026-10-20T14:26:12.189Z"
+  },
+  {
+    "key": "R6_BOLE",
+    "startedAt": "2026-10-20T14:26:12.189Z",
+    "identity": {
+      "backend": "bubblewrap",
+      "host": "hello",
+      "uid": 1000,
+      "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+      "root": {
+        "pid": 2509719,
+        "startTime": "2722357023"
+      }
+    },
+    "result": {
+      "skillFilesRead": 70,
+      "checkerExit": 0,
+      "checkerOutput": "Every project playbook matches this pstack's playbooks.\n",
+      "health": {
+        "status": "ok"
+      },
+      "ready": {
+        "status": "ready"
+      }
+    },
+    "ok": true,
+    "finishedAt": "2026-10-20T14:26:12.397Z"
+  },
+  {
+    "key": "R6_DEMAG",
+    "startedAt": "2026-10-20T14:26:12.397Z",
+    "identity": {
+      "backend": "bubblewrap",
+      "host": "hello",
+      "uid": 1000,
+      "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+      "root": {
+        "pid": 2509737,
+        "startTime": "2722357044"
+      }
+    },
+    "result": {
+      "skillFilesRead": 70,
+      "checkerExit": 0,
+      "checkerOutput": "Every project playbook matches this pstack's playbooks.\n",
+      "health": {
+        "status": "ok"
+      },
+      "ready": {
+        "status": "ready"
+      }
+    },
+    "ok": true,
+    "finishedAt": "2026-10-20T14:26:12.605Z"
+  }
+]

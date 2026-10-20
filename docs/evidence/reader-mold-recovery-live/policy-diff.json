@@ -1,0 +1,18 @@
+[
+  {
+    "repository": "/data1/code/hmi_data_reader",
+    "addedReadOnlyRoots": [
+      "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/poteto-mode"
+    ],
+    "removedReadOnlyRoots": [],
+    "otherFieldsUnchanged": true
+  },
+  {
+    "repository": "/data1/code/mold-data-webpage-tool",
+    "addedReadOnlyRoots": [
+      "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/poteto-mode"
+    ],
+    "removedReadOnlyRoots": [],
+    "otherFieldsUnchanged": true
+  }
+]

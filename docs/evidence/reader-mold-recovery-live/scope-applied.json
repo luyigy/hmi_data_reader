@@ -1,0 +1,142 @@
+[
+  {
+    "node": "M05",
+    "executionId": "cmvdmf87y043t9xhgdo28uftr",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "M07",
+    "executionId": "cmvdmf87z043v9xhgw3kai2u3",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "M6_ARBURG",
+    "executionId": "cmvdmf87z043x9xhg4ge3392q",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "M6_BOLE",
+    "executionId": "cmvdmf87z043z9xhg3iggnmvj",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "M6_DEMAG",
+    "executionId": "cmvdmf87z04419xhgcwj4i8y0",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "M6_FANUC",
+    "executionId": "cmvdmf87z04439xhgbpz1iy56",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "M6_NISSEI",
+    "executionId": "cmvdmf87z04459xhgb6sft4g5",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "M6_YIZUMI",
+    "executionId": "cmvdmf87z04479xhgsg531lko",
+    "policyHash": "fa15f378af9ab4f261cb027092d6fe6f02d60416633106a3d0d48fa0b401f2e6",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "R6_ARBURG",
+    "executionId": "cmvdmf880044h9xhgr7zjz83d",
+    "policyHash": "709df9772edfebb1120b5d64f3b1816c2477aec97f65cfef3e912442e5ad2b61",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "R6_BOLE",
+    "executionId": "cmvdmf880044j9xhgfq8r9py1",
+    "policyHash": "709df9772edfebb1120b5d64f3b1816c2477aec97f65cfef3e912442e5ad2b61",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "R6_DEMAG",
+    "executionId": "cmvdmf880044l9xhgihg4hu8o",
+    "policyHash": "709df9772edfebb1120b5d64f3b1816c2477aec97f65cfef3e912442e5ad2b61",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "R6_FANUC",
+    "executionId": "cmvdmf880044n9xhgpxl58qyi",
+    "policyHash": "709df9772edfebb1120b5d64f3b1816c2477aec97f65cfef3e912442e5ad2b61",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "R6_NISSEI",
+    "executionId": "cmvdmf880044p9xhg6z3mtzlv",
+    "policyHash": "709df9772edfebb1120b5d64f3b1816c2477aec97f65cfef3e912442e5ad2b61",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  },
+  {
+    "node": "R6_YIZUMI",
+    "executionId": "cmvdmf880044r9xhgc8z15d8w",
+    "policyHash": "709df9772edfebb1120b5d64f3b1816c2477aec97f65cfef3e912442e5ad2b61",
+    "applied": true,
+    "writer": {
+      "kind": "exited"
+    },
+    "compatible": true
+  }
+]

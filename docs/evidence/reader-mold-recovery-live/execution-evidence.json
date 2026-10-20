@@ -1,0 +1,162 @@
+{
+  "at": "2026-10-20T14:28:12.142Z",
+  "originalSnapshotUnchanged": true,
+  "rows": [
+    {
+      "key": "M05",
+      "executionId": "cmvdmf87y043t9xhgdo28uftr",
+      "taskRunId": "cmvgs27st2w3avo4gtrr0n84a",
+      "status": "claimed",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/c7ceca30a6f9a4d2",
+      "recordedWorkingDirectory": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/c7ceca30a6f9a4d2",
+      "oldNativeSession": "01a1587f-7e05-7df0-a533-d3fb2a02beb6",
+      "currentNativeSession": "01a1587f-7e05-7df0-a533-d3fb2a02beb6",
+      "sameNativeSession": true,
+      "requestedResume": "01a1587f-7e05-7df0-a533-d3fb2a02beb6",
+      "manager": [
+        {
+          "eventType": "runner_started",
+          "metadata": {
+            "sandboxIdentity": {
+              "backend": "bubblewrap",
+              "host": "hello",
+              "uid": 1000,
+              "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+              "root": {
+                "pid": 2516597,
+                "startTime": "2722365818"
+              }
+            }
+          }
+        }
+      ],
+      "writer": {
+        "kind": "alive",
+        "pids": [
+          2045570
+        ]
+      },
+      "claimChanged": true,
+      "budgetsBefore": {
+        "repair": 0,
+        "format": 0,
+        "platform": 0,
+        "integration": 0,
+        "revision": 6,
+        "candidate": "f4d0b48d6ac28be6f4544492beb88b4e6cfc7576"
+      },
+      "budgetsNow": {
+        "repair": 0,
+        "format": 0,
+        "platform": 0,
+        "integration": 0,
+        "revision": 10,
+        "candidate": "f4d0b48d6ac28be6f4544492beb88b4e6cfc7576"
+      }
+    },
+    {
+      "key": "R6_BOLE",
+      "executionId": "cmvdmf880044j9xhgfq8r9py1",
+      "taskRunId": "cmvgs236f2vytvo4gchm449g6",
+      "status": "claimed",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/4f7c7d45db23a834",
+      "recordedWorkingDirectory": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/4f7c7d45db23a834",
+      "oldNativeSession": "01a1587f-60a4-78b3-93ba-de4f05d21a97",
+      "currentNativeSession": "01a1587f-60a4-78b3-93ba-de4f05d21a97",
+      "sameNativeSession": true,
+      "requestedResume": "01a1587f-60a4-78b3-93ba-de4f05d21a97",
+      "manager": [
+        {
+          "eventType": "runner_started",
+          "metadata": {
+            "sandboxIdentity": {
+              "backend": "bubblewrap",
+              "host": "hello",
+              "uid": 1000,
+              "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+              "root": {
+                "pid": 2514833,
+                "startTime": "2722365006"
+              }
+            }
+          }
+        }
+      ],
+      "writer": {
+        "kind": "alive",
+        "pids": [
+          2045570
+        ]
+      },
+      "claimChanged": true,
+      "budgetsBefore": {
+        "repair": 0,
+        "format": 0,
+        "platform": 0,
+        "integration": 0,
+        "revision": 6,
+        "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b"
+      },
+      "budgetsNow": {
+        "repair": 0,
+        "format": 0,
+        "platform": 0,
+        "integration": 0,
+        "revision": 10,
+        "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b"
+      }
+    },
+    {
+      "key": "R6_DEMAG",
+      "executionId": "cmvdmf880044l9xhgihg4hu8o",
+      "taskRunId": "cmvgs23jd2vzdvo4ge2nb4dbn",
+      "status": "claimed",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/1edbd5e959da99a5",
+      "recordedWorkingDirectory": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/1edbd5e959da99a5",
+      "oldNativeSession": "01a1587f-89e7-78e3-a840-f066bd4bd444",
+      "currentNativeSession": "01a1587f-89e7-78e3-a840-f066bd4bd444",
+      "sameNativeSession": true,
+      "requestedResume": "01a1587f-89e7-78e3-a840-f066bd4bd444",
+      "manager": [
+        {
+          "eventType": "runner_started",
+          "metadata": {
+            "sandboxIdentity": {
+              "backend": "bubblewrap",
+              "host": "hello",
+              "uid": 1000,
+              "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+              "root": {
+                "pid": 2515278,
+                "startTime": "2722365050"
+              }
+            }
+          }
+        }
+      ],
+      "writer": {
+        "kind": "alive",
+        "pids": [
+          2045570
+        ]
+      },
+      "claimChanged": true,
+      "budgetsBefore": {
+        "repair": 0,
+        "format": 0,
+        "platform": 0,
+        "integration": 0,
+        "revision": 6,
+        "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b"
+      },
+      "budgetsNow": {
+        "repair": 0,
+        "format": 0,
+        "platform": 0,
+        "integration": 0,
+        "revision": 10,
+        "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b"
+      }
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "at": "2026-10-20T14:33:56.330Z",
+  "nodes": [
+    {
+      "key": "M05",
+      "status": "claimed",
+      "execution": "claimed",
+      "claim": "cf443603-0cc0-4499-9d6d-06be2b3b4df3",
+      "phase": "implement",
+      "state": "active",
+      "revision": 10,
+      "taskRunId": "cmvgs27st2w3avo4gtrr0n84a",
+      "runStatus": "running",
+      "session": [
+        {
+          "id": "cmvgs27st2w3bvo4gmkxxft35",
+          "lastSessionId": "01a1587f-7e05-7df0-a533-d3fb2a02beb6",
+          "codexThreadId": "01a1587f-7e05-7df0-a533-d3fb2a02beb6"
+        }
+      ],
+      "counters": [
+        0,
+        0,
+        0
+      ],
+      "workingTreeChanges": " M backend/app/hmi_mapping/acceptance_repository.py\n M backend/app/hmi_mapping/capture_recognition.py\n M backend/app/hmi_mapping/projection_routes.py\n M backend/app/hmi_mapping/projection_schemas.py\n M backend/app/hmi_mapping/raw_capture_routes.py\n M backend/app/hmi_mapping/raw_capture_v2.py\n M backend/app/hmi_mapping/screen_projection.py\n?? backend/app/hmi_mapping/package_onboarding.py\n?? backend/tests/m05_reader_fixture.py\n?? backend/tests/test_hmi_protocol_library_m05.py\n?? scripts/m05_reader_runtime.py\n"
+    },
+    {
+      "key": "M6_BOLE",
+      "status": "planned",
+      "execution": "planned",
+      "claim": null,
+      "phase": null,
+      "state": null,
+      "revision": null,
+      "taskRunId": null,
+      "runStatus": null,
+      "session": null,
+      "counters": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "key": "M6_DEMAG",
+      "status": "planned",
+      "execution": "planned",
+      "claim": null,
+      "phase": null,
+      "state": null,
+      "revision": null,
+      "taskRunId": null,
+      "runStatus": null,
+      "session": null,
+      "counters": [
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "key": "R6_BOLE",
+      "status": "claimed",
+      "execution": "claimed",
+      "claim": "5835a59d-64fb-4574-a547-52ecafe9d1eb",
+      "phase": "implement",
+      "state": "active",
+      "revision": 10,
+      "taskRunId": "cmvgs236f2vytvo4gchm449g6",
+      "runStatus": "running",
+      "session": [
+        {
+          "id": "cmvgs236f2vyuvo4gubfhbes8",
+          "lastSessionId": "01a1587f-60a4-78b3-93ba-de4f05d21a97",
+          "codexThreadId": "01a1587f-60a4-78b3-93ba-de4f05d21a97"
+        }
+      ],
+      "counters": [
+        0,
+        0,
+        0
+      ],
+      "workingTreeChanges": " M scripts/export_page_package.py\n M scripts/extractor_registry.py\n M scripts/raw_observations.py\n?? contracts/raw-pages/b-and-r-injection-0.6.0.json\n?? datasets/r6_bole/\n?? scripts/extract_families/b_and_r_injection_raw.py\n?? scripts/raw_bole_injection.py\n"
+    },
+    {
+      "key": "R6_DEMAG",
+      "status": "claimed",
+      "execution": "claimed",
+      "claim": "7658b428-973f-429e-a79a-87a76df3741a",
+      "phase": "implement",
+      "state": "active",
+      "revision": 10,
+      "taskRunId": "cmvgs23jd2vzdvo4ge2nb4dbn",
+      "runStatus": "running",
+      "session": [
+        {
+          "id": "cmvgs23jd2vzevo4glrmj0sdr",
+          "lastSessionId": "01a1587f-89e7-78e3-a840-f066bd4bd444",
+          "codexThreadId": "01a1587f-89e7-78e3-a840-f066bd4bd444"
+        }
+      ],
+      "counters": [
+        0,
+        0,
+        0
+      ],
+      "workingTreeChanges": " M page_template_lifecycle.py\n M scripts/extractor_registry.py\n M scripts/raw_observations.py\n?? contracts/raw-pages/demag-configuration-1.0.0.json\n?? datasets/r6_demag/\n?? scripts/extract_families/demag_configuration.py\n?? scripts/raw_demag_configuration.py\n?? templates/demag/configuration.json\n?? tests/fixtures/demag_configuration_development_ocr.json\n"
+    },
+    {
+      "key": "R6_YIZUMI",
+      "status": "attention",
+      "execution": "attention",
+      "claim": "e27298ee-a125-45b2-ba61-307e63490f90",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "revision": 6,
+      "taskRunId": "cmvgg0bhj1g4a78k1imr7z8vt",
+      "runStatus": "completed",
+      "session": [
+        {
+          "id": "cmvgg0bhj1g4b78k1s452plif",
+          "lastSessionId": "01a15881-088a-7ff0-9649-b183aaa8bb3a",
+          "codexThreadId": "01a15881-088a-7ff0-9649-b183aaa8bb3a"
+        }
+      ],
+      "counters": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "note": "Business implementation is running. Test command invocation is not a passing test or independent acceptance."
+}

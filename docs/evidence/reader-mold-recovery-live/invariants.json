@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-20T14:33:05.106Z",
+  "originalSnapshotUnchanged": true,
+  "oldRuntimePinsUnchanged": true,
+  "changedExecutions": [
+    "M05",
+    "R6_BOLE",
+    "R6_DEMAG"
+  ],
+  "otherAttentionUnchanged": true,
+  "counts": {
+    "claimed": 3,
+    "planned": 7,
+    "passed": 10,
+    "attention": 4
+  }
+}
