@@ -1,0 +1,42 @@
+[
+  {
+    "key": "M05",
+    "pythonIdentity": "5983f56ee8b43db81ee4a9db8363a0fd770ce667a95e39c404a24bd1ebad2fec",
+    "pinnedPythonIdentity": "5983f56ee8b43db81ee4a9db8363a0fd770ce667a95e39c404a24bd1ebad2fec",
+    "pythonMatches": true,
+    "resources": [
+      {
+        "kind": "Playwright 模块",
+        "path": "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+        "matches": true
+      },
+      {
+        "kind": "Chromium 可执行文件",
+        "path": "/opt/google/chrome/chrome",
+        "matches": true
+      }
+    ],
+    "python-imports": {
+      "status": 0,
+      "stdout": "pytest 9.1.1\nfastapi 0.141.1\n",
+      "stderr": ""
+    },
+    "browser": {
+      "status": 0,
+      "stdout": "147.0.7727.137 readonly-audit\n",
+      "stderr": ""
+    }
+  },
+  {
+    "key": "R6_BOLE",
+    "pythonIdentity": "7b6a038fd538267486cccbf446ac4ada45732730081f0f3dc0b16a60d7f1af2e",
+    "pinnedPythonIdentity": "7b6a038fd538267486cccbf446ac4ada45732730081f0f3dc0b16a60d7f1af2e",
+    "pythonMatches": true,
+    "resources": [],
+    "python-imports": {
+      "status": 0,
+      "stdout": "pytest 9.1.1\npaddleocr import ok\n",
+      "stderr": "/data1/code/hmi_data_reader/.venv/lib/python3.10/site-packages/paddle/base/framework.py:688: UserWarning: You are using GPU version Paddle, but your CUDA device is not set properly. CPU device will be used by default.\n  warnings.warn(\n"
+    }
+  }
+]

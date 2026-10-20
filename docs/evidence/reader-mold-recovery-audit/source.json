@@ -1,0 +1,89 @@
+{
+  "checkedAt": "2026-10-20T12:30:21.214Z",
+  "queries": [
+    {
+      "query": "伊之密",
+      "error": "飞书资料读取失败，code=1254018；请平台核对应用和资源授权"
+    },
+    {
+      "query": "伯乐",
+      "count": 20,
+      "hasMore": true
+    },
+    {
+      "query": "YIZUMI",
+      "error": "飞书资料读取失败，code=1254018；请平台核对应用和资源授权"
+    }
+  ],
+  "errors": [
+    {
+      "code": 1254018,
+      "msg": "InvalidFilter",
+      "message": "Invalid request parameter: ''. Correct format : There is no option '伊之密' for the field '品牌'. Please check and modify accordingly.",
+      "logId": "202610202030172F2350D295FBD546F702"
+    },
+    {
+      "code": 1254018,
+      "msg": "InvalidFilter",
+      "message": "Invalid request parameter: ''. Correct format : There is no option 'YIZUMI' for the field '品牌'. Please check and modify accordingly.",
+      "logId": "202610202030207519C0610C8DF8196191"
+    }
+  ],
+  "brandOptions": [
+    "伯乐",
+    "佳明",
+    "日精",
+    "德马格",
+    "发那科",
+    "沙迪克",
+    "阿博格",
+    "百塑"
+  ],
+  "materialQueries": [
+    {
+      "query": "伯乐",
+      "count": 20,
+      "hasMore": true,
+      "image": {
+        "bytes": 5390849,
+        "mime": "image/jpeg",
+        "sha256": "ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163"
+      }
+    },
+    {
+      "query": "德马格",
+      "count": 20,
+      "hasMore": true,
+      "image": {
+        "bytes": 2620819,
+        "mime": "image/jpeg",
+        "sha256": "975b3225a8fa294e8f0e9a59fc749dd5103042df47e47dda91882dfc0988bfc7"
+      }
+    },
+    {
+      "query": "阿博格",
+      "count": 20,
+      "hasMore": true,
+      "image": null
+    },
+    {
+      "query": "发那科",
+      "count": 20,
+      "hasMore": true,
+      "image": null
+    },
+    {
+      "query": "日精",
+      "count": 20,
+      "hasMore": true,
+      "image": null
+    }
+  ],
+  "configured": {
+    "searchField": "品牌",
+    "imageFields": [
+      "成型条件-储料/冷却"
+    ]
+  },
+  "note": "Images read into memory for size/MIME/hash verification; no images stored or sent."
+}

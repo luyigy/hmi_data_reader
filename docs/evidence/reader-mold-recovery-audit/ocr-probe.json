@@ -1,0 +1,14 @@
+[
+  {
+    "key": "R6_BOLE",
+    "pythonIdentity": "7b6a038fd538267486cccbf446ac4ada45732730081f0f3dc0b16a60d7f1af2e",
+    "pinnedPythonIdentity": "7b6a038fd538267486cccbf446ac4ada45732730081f0f3dc0b16a60d7f1af2e",
+    "pythonMatches": true,
+    "resources": [],
+    "python-imports": {
+      "status": 0,
+      "stdout": "pytest 9.1.1\npaddleocr 2.7.3\nmodel_cache False\ndefault_home_cache False\n",
+      "stderr": "/data1/code/hmi_data_reader/.venv/lib/python3.10/site-packages/paddle/base/framework.py:688: UserWarning: You are using GPU version Paddle, but your CUDA device is not set properly. CPU device will be used by default.\n  warnings.warn(\n"
+    }
+  }
+]
