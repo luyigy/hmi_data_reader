@@ -79,10 +79,13 @@ export async function recoverGraphExecution(executionId: string) {
   }
   if (previous?.status === 'completed' && ['implement', 'collect_result'].includes(phase)) {
     try {
-      const result = parseImplementationResult(previous.participants[0]?.summary || previous.summary || '');
+      const result = parseImplementationResult(previous.participants[0]?.summary || previous.summary || '', { conversation: phase === 'implement' });
       if (result.status === 'delivered') phase = 'check';
       if (result.status === 'waiting_for_user' || result.status === 'answered') { waitNote = result.note; waitResult = result.status === 'answered' ? 'answered' : 'question'; }
-      if (result.status === 'blocked') blockedResult = result;
+      if (result.status === 'blocked') {
+        if (phase === 'implement' && result.blockerKind === 'missing_business_material') waitNote = result.note;
+        else blockedResult = result;
+      }
     } catch { phase = 'collect_result'; }
   }
   return prisma.$transaction(async tx => {

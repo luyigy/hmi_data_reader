@@ -1,3 +1,4 @@
+import { exitedGraphWriter } from './fixtures/exited-graph-writer';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/lib/prisma';
@@ -11,7 +12,7 @@ import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   const writer = await createGraphWriter();
-  const departed = { ...writer, supervisor: { ...writer.supervisor, pid: 2147483647 } };
+  const departed = await exitedGraphWriter();
   for (const phase of ['architecture', 'acceptance'] as const) {
     const parent = await prisma.task.create({ data: { name: `${phase} restart` } });
     const commit = 'a'.repeat(40);

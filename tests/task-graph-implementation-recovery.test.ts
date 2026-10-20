@@ -59,7 +59,7 @@ async function main() {
       if (calls === 2) {
         writeFileSync(path.join(context.workingDirectory!, 'baseline'), 'approved correction during pause');
         writeFileSync(path.join(context.workingDirectory!, 'supplement.txt'), 'new material');
-        return { success: true, output: 'Process ended without a delivery decision', executionTime: 1 };
+        return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {broken result', executionTime: 1 };
       }
     }
     return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"implementation finished","evidence":["saved.txt"]}', executionTime: 1 };
@@ -80,7 +80,11 @@ async function main() {
   async function drain() { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); }
   const request = { roomId: room.id, chatId: 'fixture-chat', openId: 'fixture-admin', messageId: 'continue-first', nodeKey: 'A', text: 'A 继续' };
   try {
-    await until(async () => await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_blocked' } }) === 1);
+    await until(async () => (await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } })).status === 'attention');
+    const legacy = await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } });
+    const legacyProgress = executionProgress(legacy.dispatchMetadata)!;
+    await prisma.taskGraphExecution.update({ where: { id: legacy.id }, data: { issueKind: 'missing_business_material', dispatchMetadata: metadataWithProgress(legacy.dispatchMetadata, { ...legacyProgress, state: 'waiting_decision', lastFailure: { code: 'missing_business_material', detail: 'need source photo' } }) } });
+    await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: 'implementation_blocked', idempotencyKey: 'fixture:historical-material-pause', payload: { executionId: legacy.id, taskRunId: legacy.taskRunId } } });
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status, 'attention');
     assert.equal(await graphRecoveryKind(node.id), 'implementation');
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'execution_integrated' } }), 0);

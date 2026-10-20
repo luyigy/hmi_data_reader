@@ -1,0 +1,7 @@
+Architecture/acceptance restart preserves claims, waits for actual writer exit, fences old results and consumes exact saved review generations
+Restart ancestry mismatch preserves original candidate, branch tip and dirty supplements without committing; explicit ownership reconciliation is required
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+SIGKILL after durable integrated outcome: automatic acceptance, successor once, original implementation never restarted, human resume 0

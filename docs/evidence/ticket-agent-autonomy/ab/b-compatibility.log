@@ -1,0 +1,30 @@
+Slow writer observations outside transactions reserve once in 5617ms; stale claim/revision/candidate and live/unknown writers are refused.
+Published followup entry reserves once after a real writer observation delayed beyond 5000ms; claim and candidate retained.
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 287
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Real Git/Bubblewrap pipeline forks, joins, resumes review without reimplementation and reconciles tracker writes after crashes
+Completed jobs archive evidence and release worktrees; active, unreviewed and dirty jobs are retained

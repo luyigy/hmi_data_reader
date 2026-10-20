@@ -1,3 +1,5 @@
+import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
+import { isCompletedNodeStatus } from './domain';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { applyExecutionOutcomeTx, executionProgress, metadataWithProgress } from './execution-progress';
@@ -205,23 +207,61 @@ export async function sealConversationTurn(executionId: string, claimToken: stri
   });
 }
 
-/** Only normal conversation waits requeue from input. Existing blockers and budgets remain unchanged. */
+/** Direct platform input uses task ownership; room input must match its persisted authenticated source. */
+async function authorizedConversationInput(input: ConversationInput, taskId: string, ownerUserId: string | null) {
+  if (input.rootInputId !== input.id) {
+    const original = await prisma.taskGraphEvent.findFirst({ where: { id: input.rootInputId, kind: 'conversation_input', payload: { path: ['executionId'], equals: input.executionId } } });
+    if (!original) return false;
+    input = parseInput(original.id, original.payload);
+    if (input.rootInputId !== input.id) return false;
+  }
+  if (input.actorOrigin === 'platform') return input.actorId === ownerUserId ||
+    (await prisma.user.findUnique({ where: { id: input.actorId }, select: { role: true } }))?.role === 'admin';
+  if (!input.roomMessageId) return false;
+  const message = await prisma.liveRoomMessage.findFirst({ where: { id: input.roomMessageId, messageType: 'user', room: { sourceTaskId: taskId } } });
+  if (!message || message.content !== input.content || message.metadata !== input.sourceMetadata) return false;
+  if (input.actorOrigin === 'room') return message.senderMemberId === input.actorId && input.sourceId === `room:${message.id}`;
+  let metadata: unknown;
+  try { metadata = JSON.parse(message.metadata || 'null'); } catch { return false; }
+  return !!metadata && typeof metadata === 'object' && 'source' in metadata && metadata.source === 'feishu' &&
+    'feishuSenderOpenId' in metadata && metadata.feishuSenderOpenId === input.actorId &&
+    'feishuMessageId' in metadata && input.sourceId === `feishu:${metadata.feishuMessageId}`;
+}
+
+/** Only normal implementation waits requeue from input. Existing blockers and budgets remain unchanged. */
 export async function reconcileConversationWaits() {
-  const jobs = await prisma.taskGraphExecution.findMany({ where: { status: 'attention', node: { run: { status: { in: ['running', 'attention'] } } } } });
+  const jobs = await prisma.taskGraphExecution.findMany({ where: { status: 'attention', node: { status: { in: ['attention', 'claimed'] }, run: { status: { in: ['running', 'attention'] } } } } });
   for (const before of jobs) {
-    if (executionProgress(before.dispatchMetadata)?.state !== 'waiting_for_user') continue;
-    if ((await observeExecutionWriter(before)).kind !== 'exited') continue;
+    const progress = executionProgress(before.dispatchMetadata);
+    if (progress?.state !== 'waiting_for_user' || progress.phase !== 'implement' || before.issueKind || !before.childTaskId ||
+        !before.claimToken || !before.worktreePath || !progress.candidateCommit || !progress.workspaceBase || progress.conflictRepair || progress.conversation) continue;
+    const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: before.nodeId }, include: { run: { include: { parentTask: { select: { ownerUserId: true } } } } } });
+    const inputs = await pendingConversationInputs(prisma, node.runId, before.id);
+    if (!inputs.length || !(await Promise.all(inputs.map(input => authorizedConversationInput(input, before.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) continue;
+    const reviewId = progress.review?.kind === 'running' ? progress.review.taskRunId : undefined;
+    const proof = await observeWriterSnapshot({ jobs: [before], taskRunIds: reviewId ? [reviewId] : [], scope: 'execution', observeExecution: observeExecutionWriter });
+    if (!proof.exited || !before.taskRunId || !proof.runs.some(run => run.id === before.taskRunId) ||
+        proof.runs.some(run => run.status !== 'completed' || run.taskId !== (run.id === reviewId
+          ? `task-graph-${progress.review?.phase === 'architecture' ? 'architecture' : 'review'}-${before.nodeId}` : before.childTaskId))) continue;
     await prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${before.nodeId} FOR UPDATE`;
-      const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: before.id }, include: { node: true } });
-      const progress = executionProgress(job.dispatchMetadata);
-      if (progress?.state !== 'waiting_for_user' || job.status !== 'attention' ||
-        !(await pendingConversationInputs(tx, job.node.runId, job.id)).length) return;
-      await tx.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'ready', claimToken: null, claimedAt: null,
-        taskRunId: null, sessionId: null, issueKind: null, dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
-          { ...progress, revision: progress.revision + 1, phase: 'implement', state: 'ready', worker: undefined, workerReleasedAt: undefined }) } });
-      await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed' } });
-      await tx.taskGraphRun.update({ where: { id: job.node.runId }, data: { status: 'running' } });
+      if (!await writerSnapshotMatches(tx, proof)) return;
+      const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: before.nodeId }, include: { run: { include: { parentTask: { select: { ownerUserId: true } } } } } });
+      if (current.run.parentTask.ownerUserId !== node.run.parentTask.ownerUserId) return;
+      if (!['attention', 'claimed'].includes(current.status) || !['running', 'attention'].includes(current.run.status)) return;
+      const dependencies = await tx.taskGraphNode.findMany({ where: { runId: current.runId, key: { in: current.dependsOn } } });
+      if (dependencies.length !== current.dependsOn.length || !dependencies.every(item => isCompletedNodeStatus(item.status))) return;
+      const pending = await pendingConversationInputs(tx, current.runId, before.id);
+      if (pending.map(input => input.id).join() !== inputs.map(input => input.id).join()) return;
+      await tx.taskGraphExecution.update({ where: { id: before.id }, data: { status: 'ready', claimToken: null, claimedAt: null,
+        taskRunId: null, sessionId: null, issueKind: null, dispatchMetadata: metadataWithProgress(before.dispatchMetadata,
+          { ...progress, revision: progress.revision + 1, state: 'ready', worker: undefined, workerReleasedAt: undefined }) } });
+      await tx.taskGraphEvent.create({ data: { runId: current.runId, nodeId: before.nodeId, kind: 'conversation_turn_scheduled',
+        idempotencyKey: `conversation-turn:${before.id}:${progress.revision}`, payload: { executionId: before.id, inputIds: inputs.map(input => input.id),
+          previousClaimToken: before.claimToken, previousTaskRunId: before.taskRunId, expectedRevision: progress.revision, revision: progress.revision + 1,
+          candidateCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, worktreePath: before.worktreePath, writerExited: true } } });
+      await tx.taskGraphNode.update({ where: { id: before.nodeId }, data: { status: 'claimed' } });
+      await tx.taskGraphRun.update({ where: { id: current.runId }, data: { status: 'running' } });
     });
   }
 }

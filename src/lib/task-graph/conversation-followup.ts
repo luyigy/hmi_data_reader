@@ -87,7 +87,7 @@ export async function reserveConversationFollowup(nodeId: string) {
     if (!isDeepStrictEqual([...node.executions].sort((a, b) => a.id.localeCompare(b.id)), [...proof.jobs].sort((a, b) => a.id.localeCompare(b.id)))) return null;
     for (const job of node.executions) {
       const progress = executionProgress(job.dispatchMetadata);
-      if (job.status === 'claimed' || job.status === 'ready' || progress?.state === 'waiting_for_user') continue;
+      if (job.status === 'claimed' || job.status === 'ready' || progress?.state === 'waiting_for_user' && progress.phase === 'implement') continue;
       const pending = await pendingConversationInputs(tx, node.runId, job.id);
       if (!pending.length || !job.childTaskId) continue;
       const previous = await tx.taskGraphEvent.findMany({ where: { runId: node.runId, kind: 'conversation_followup_reserved',

@@ -10,8 +10,6 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     '面向用户的进度每次用一至三句说明已完成什么、当前在做什么、是否需要用户处理；不用源码清单、哈希或审查原文充当进度。最终先给不超过三条的简明结论，详细技术报告写证据文件；结构化结论仍单独保留。',
     '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',
     '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
-    '你也是原任务话题中的执行者。结合原会话理解用户的进度询问、补充、纠正和回答。进度问题回答后，仍有可执行的获批工作就接着实施，不要为回答状态而提前结束。确实需要人回答时正常提问，输出 TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"具体问题"}；本轮只需回答、没有可继续的获批操作时输出 TASK_GRAPH_IMPLEMENTATION {"status":"answered","note":"本轮回答"}。两者都保存工作，不扣失败预算、不放行后继。用户消息不自动批准越权、扩大范围、重置预算或解除实际环境故障。',
-    '先使用仓内已有输入、任务已挂载材料和已配置工具完成当前 ticket。可选外部工具未配置、可选辅助模型失败或缺少可选 skill，不得作为 blocked 理由；使用已批准的可用路径继续实施和验证。功能尚未实现、测试暴露缺陷属于本票待解决工作，不能仅改写成缺材料报告后退出。保留暂停期间新增的源码、Spec 和材料更正，不 reset、stash 或删除这些改动。',
     '只有完成本票所必需的输入、环境、材料或权限确实缺失，且已核查现有材料、尝试获批替代路径仍无法推进时，才用 TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"missing_business_material 或 missing_upstream_input 或 environment_failed 或 scope_change 或 permission_required","note":"具体缺失项与保存进度"}。阻塞不会集成或放行后继；平台保存进度，补齐后恢复实施。普通会话结束不代表交付，不得把阻塞报告当作实施完成。',
     'environment_failed 可附 blockerCause：缺少必需运行能力用 missing_capability；有证据的暂时故障用 transient。缺少或不明确的原因交由平台准备环境，不重复运行未改变环境中的实施；transient 仅按有限预算重试。',
     node.executionMode === 'implement'

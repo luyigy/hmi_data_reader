@@ -17,7 +17,8 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Harness completion is transport success, never a delivery decision. */
-export function parseImplementationResult(output: string): ImplementationResult {
+export function parseImplementationResult(output: string, options?: { conversation: boolean }): ImplementationResult {
+  if (options?.conversation && output.trim() && !output.includes('TASK_GRAPH_IMPLEMENTATION')) return { status: 'answered', note: output.trim() };
   const matches = Array.from(output.matchAll(/^TASK_GRAPH_IMPLEMENTATION[ \t]+(\{[^\r\n]+\})[ \t]*$/gm));
   if (matches.length !== 1) throw new Error('实施缺少唯一的 TASK_GRAPH_IMPLEMENTATION 结论，不自动交付');
   const value: unknown = JSON.parse(matches[0][1]);
@@ -51,6 +52,10 @@ export async function pauseGraphImplementation(args: {
       outcome: { kind: 'checkpoint', phase: progress.phase, candidateCommit: args.checkpointCommit, workspaceBase: progress.workspaceBase || args.workspaceBase },
     });
   }
+  if (progress && progress.phase === 'implement' && (args.blockedPhase || 'implementation') === 'implementation' && args.result.blockerKind === 'missing_business_material') return applyExecutionOutcome({
+    executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,
+    outcomeId: `${args.claimToken}:${progress.revision}:material-question`, outcome: { kind: 'waiting_for_user', note: args.result.note },
+  });
   if (progress) return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
     expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:decision_required`,
     outcome: { kind: args.result.blockerKind === 'environment_failed' && args.result.status === 'blocked' && args.result.blockerCause === 'transient' ? 'platform_retry' : 'decision_required',

@@ -7,7 +7,7 @@ import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun, releaseReadyNodes, claimNode, claimExecution, recordExecutionDispatch } from '../src/lib/task-graph/store';
 import { ensureIntegrationRef, ensureJobWorktree, commitJobWorktree } from '../src/lib/task-graph/worktree';
 import { applyExecutionOutcome, bindExecutionTaskRun, executionProgress } from '../src/lib/task-graph/execution-progress';
-import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
+import { exitedGraphWriter } from './fixtures/exited-graph-writer';
 import { recoverGraphExecution } from '../src/lib/task-graph/restart-recovery';
 
 async function main() {
@@ -29,7 +29,7 @@ async function main() {
     const task = await prisma.task.create({ data: { id: `task-graph-${job.id}`, name: 'candidate' } });
     await recordExecutionDispatch({ runId: run.id, nodeKey: 'N', executionKey: 'repo', claimToken: token, childTaskId: task.id, worktreePath: workspace.path, worktreeBranch: workspace.branch });
     const progress = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: 0, outcomeId: 'candidate', outcome: { kind: 'checkpoint', phase: 'implement', workspaceBase: base, candidateCommit: candidate } });
-    const writer = await createGraphWriter(); const departed = { ...writer, supervisor: { ...writer.supervisor, pid: 2147483647 } };
+    const departed = await exitedGraphWriter();
     await prisma.$transaction(async tx => {
       const taskRun = await tx.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'completed', controlMetadata: JSON.stringify({ graphWriter: departed }), participants: { create: { runner: 'codex', harnessType: 'codex', executionBackend: 'platform_local', gatewayNameSnapshot: 'local', role: 'implementer', status: 'completed' } } } });
       await bindExecutionTaskRun(tx, { executionId: job.id, claimToken: token, revision: progress.revision }, taskRun.id);

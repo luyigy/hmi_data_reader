@@ -1,0 +1,25 @@
+Error: Invalid phase worker identity
+    at executionProgress (/data1/code/agent-platform-v2/src/lib/task-graph/execution-progress.ts:99:24)
+    at /data1/code/agent-platform-v2/src/lib/task-graph/restart-recovery.ts:118:39
+    at step (/data1/code/agent-platform-v2/src/lib/task-graph/restart-recovery.ts:48:23)
+    at Object.next (/data1/code/agent-platform-v2/src/lib/task-graph/restart-recovery.ts:29:53)
+    at fulfilled (/data1/code/agent-platform-v2/src/lib/task-graph/restart-recovery.ts:20:58)
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-review-restart.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-v2/scripts/test-task-graph-postgres.mjs:42:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 1565027,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1
