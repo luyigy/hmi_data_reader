@@ -54,13 +54,18 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
     const expiredSinceDelivery = requests.some((request) => request.expiresAt && request.expiresAt <= new Date() && request.expiresAt > cursor.updatedAt);
     const execution = await tx.taskGraphExecution.findFirst({ where: { childTask: { liveRooms: { some: { id: binding.liveRoomId } } } },
-      select: { childTaskId: true, dispatchMetadata: true, updatedAt: true, node: { select: { runId: true, status: true, updatedAt: true } } } });
+      select: { id: true, nodeId: true, childTaskId: true, dispatchMetadata: true, updatedAt: true, node: { select: { runId: true, status: true, updatedAt: true } } } });
     const graphChanged = execution && (execution.updatedAt > cursor.updatedAt || execution.node.updatedAt > cursor.updatedAt);
     if (!forceRefresh && !sharedCard && !graphChanged && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
     const history = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: { notIn: ['stdout_chunk', 'stderr_chunk', 'summary'] } }, orderBy: { sequence: 'desc' }, take: 100 });
     output.reverse();
-    const card = buildRunReplyCard({ ...run, graphStatus: execution?.node.status, graphProgress: executionProgress(execution?.dispatchMetadata) }, history.reverse(), requests, output);
+    const conversation = execution && await tx.taskGraphEvent.findFirst({ where: {
+      runId: execution.node.runId, nodeId: execution.nodeId, kind: 'conversation_followup_bound',
+      AND: [{ payload: { path: ['taskRunId'], equals: run.id } }, { payload: { path: ['executionId'], equals: execution.id } }],
+    }, select: { id: true } });
+    const card = buildRunReplyCard({ ...run, graphStatus: execution?.node.status, graphProgress: executionProgress(execution?.dispatchMetadata),
+      ...(conversation ? { replyKind: 'conversation' } : {}) }, history.reverse(), requests, output);
     card.header.title.content = `${run.task.name} · ${card.header.title.content}`;
     const messageId = await deliverProgressCard({ bindingId: binding.id, runId: execution?.node.runId,
       childTaskId: execution?.childTaskId || undefined, chatId: binding.chatId, rootMessageId, card,

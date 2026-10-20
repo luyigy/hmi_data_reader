@@ -1,0 +1,13 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-card-closure task-graph-feishu-relay task-graph-failure-summary task-graph-reply-summary
+
+[TaskGraphReplies] delivery failed {
+  taskRunId: 'cmvgc2bgk002p2irsqzvpzibs',
+  error: 'Notification send uncertain; reconcile the original request before resending'
+}
+New runs own new cards; same-run uncertain sends retain their age; 100 superseded cursors cannot starve delivery; current failure reaches the folded card
+Each TaskRun owns a new topic card; legacy shared cursors migrate, current output updates once, and superseded runs cannot overwrite it
+Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded
+Main progress is a short delivery note; technical report and machine marker stay outside the main text
+Conversation answers and live output stay visible; graph delivery state remains separate and unchanged

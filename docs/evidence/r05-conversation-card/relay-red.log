@@ -1,0 +1,39 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-card-closure
+
+[TaskGraphReplies] delivery failed {
+  taskRunId: 'cmvgc2boj002pcmgbxemf28c7',
+  error: 'Notification send uncertain; reconcile the original request before resending'
+}
+AssertionError [ERR_ASSERTION]: A persisted conversation binding puts the actual answer on the first screen, even after live binding cleanup
+    at /data1/code/agent-platform-r05-card-baseline/tests/task-graph-card-closure.test.ts:193:12
+    at step (/data1/code/agent-platform-r05-card-baseline/tests/task-graph-card-closure.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-r05-card-baseline/tests/task-graph-card-closure.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-r05-card-baseline/tests/task-graph-card-closure.test.ts:16:58) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '{"tag":"markdown","content":"需你确认\\n必要业务材料尚未齐备：旧材料暂停：缺少白色五段验收原图。\\n下一步：请确认这项请求：旧材料暂停：缺少白色五段验收原图。\\n负责人：你；需要你决定：是\\n当前阶段：准备\\n下一自动动作：自动推进已暂停，处理动作见上方说明\\n剩余额度：回修 2 · 环境重试 2 · 结果补收 1 · 合流重试 3"}',
+  expected: /你这张是伯乐三段.*请补白色五段/,
+  operator: 'match',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-card-closure.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-r05-card-baseline/scripts/test-task-graph-postgres.mjs:42:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 810960,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

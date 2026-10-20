@@ -6,23 +6,26 @@ import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 import { deliverGraphChildProgress, postGraphChildProgress } from '../src/lib/task-graph/feishu';
 import { relayTaskGraphReplies, relayTaskGraphRunReply } from '../src/lib/task-graph/run-reply-relay';
+import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   const require = createRequire(__filename);
   const api = require('../src/lib/feishu-api'), entry = require('../src/lib/feishu-task-entry-api');
   const sends = new Map<string, string>(); const attempts: string[] = []; const updates: { id: string; card: unknown }[] = [];
+  const rendered: ReturnType<typeof buildRunReplyCard>[] = [];
   const taskIds: string[] = [], graphIds: string[] = [], roomIds: string[] = [];
   let loseResponse = false;
   let onSend: (() => Promise<void>) | undefined;
-  api.sendFeishuInteractiveMessage = async (args: { uuid: string; receiveId: string }) => {
+  api.sendFeishuInteractiveMessage = async (args: { uuid: string; receiveId: string; card: ReturnType<typeof buildRunReplyCard> }) => {
+    rendered.push(args.card);
     assert.equal(args.receiveId, 'repo-group'); attempts.push(args.uuid);
     if (!sends.has(args.uuid)) sends.set(args.uuid, `card-${sends.size}`);
     await onSend?.();
     if (loseResponse) { loseResponse = false; throw new Error('accepted response lost'); }
     return sends.get(args.uuid);
   };
-  entry.updateFeishuTaskEntryCard = async (id: string, card: unknown) => { updates.push({ id, card }); };
+  entry.updateFeishuTaskEntryCard = async (id: string, card: ReturnType<typeof buildRunReplyCard>) => { updates.push({ id, card }); rendered.push(card); };
   const fixture = async () => {
     const parent = await prisma.task.create({ data: { name: 'card closure' } });
     taskIds.push(parent.id);
@@ -169,6 +172,31 @@ async function main() {
     } } } });
     await relayTaskGraphRunReply(started.id, true);
     assert.match(JSON.stringify(updates.at(-1)?.card), /自动处理已耗尽/);
+
+    const chat = await fixture(), chatRun = await run(chat.task.id);
+    const answer = '补 1 张可以。\n\n你这张是伯乐三段熔胶页，不能作为白色五段页的独立验收图。\n\n请补白色五段储料射退设定整屏照片。';
+    await prisma.taskRun.update({ where: { id: chatRun.id }, data: { summary: answer } });
+    await prisma.taskGraphNode.update({ where: { id: chat.job.nodeId }, data: { status: 'attention' } });
+    await prisma.taskGraphExecution.update({ where: { id: chat.job.id }, data: { status: 'attention', dispatchMetadata: { progress: {
+      ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'missing_business_material', detail: '旧材料暂停：缺少白色五段验收原图。' },
+    } } } });
+    await prisma.taskGraphEvent.create({ data: { runId: chat.graph.id, nodeId: chat.job.nodeId, kind: 'conversation_followup_bound',
+      idempotencyKey: 'wrong-execution', payload: { taskRunId: chatRun.id, executionId: 'another-execution' } } });
+    await relayTaskGraphRunReply(chatRun.id, true);
+    assert.match(JSON.stringify(rendered.at(-1)?.body.elements[0]), /旧材料暂停/,
+      'A conversation receipt for another execution cannot relabel this run');
+    await prisma.taskGraphEvent.create({ data: { runId: chat.graph.id, nodeId: chat.job.nodeId, kind: 'conversation_followup_bound',
+      idempotencyKey: 'chat-binding', payload: { taskRunId: chatRun.id, executionId: chat.job.id } } });
+    const beforeChat = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: chat.job.id } });
+    const cardsBefore = sends.size;
+    await relayTaskGraphRunReply(chatRun.id, true);
+    assert.match(JSON.stringify(rendered.at(-1)?.body.elements[0]), /你这张是伯乐三段.*请补白色五段/,
+      'A persisted conversation binding puts the actual answer on the first screen, even after live binding cleanup');
+    assert.doesNotMatch(rendered.at(-1)?.header.title.content || '', /需你确认/);
+    assert.equal(sends.size, cardsBefore, 'The current run updates its own existing card');
+    assert.equal(await relayTaskGraphRunReply(chatRun.id), false, 'A completed conversation does not resend its answer on each poll');
+    assert.deepEqual(await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: chat.job.id } }), beforeChat,
+      'Rendering a conversation cannot resume the execution or alter its claim, candidate or budget');
     console.log('New runs own new cards; same-run uncertain sends retain their age; 100 superseded cursors cannot starve delivery; current failure reaches the folded card');
   } finally {
     await prisma.taskGraphRun.deleteMany({ where: { id: { in: graphIds } } });
