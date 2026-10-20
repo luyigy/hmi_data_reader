@@ -1,0 +1,927 @@
+{
+  "profile_id": "demag.injection_metering.machine_configuration",
+  "version": "1.0.0",
+  "page_identity": {
+    "brand": "DEMAG",
+    "controller_family": "DEMAG",
+    "interface_generation": null,
+    "page_type": "injection_metering",
+    "layout_variant": "machine_configuration"
+  },
+  "controller_model": null,
+  "controller_evidence": {
+    "path": "ground_truth/machine_labels.json",
+    "sha256": "f88446b41a35bf677cf2ba56015090ba20a283299a9575e65ef992dc9b26d473",
+    "ruling": "王为 2026-07-30 verified DEMAG family; exact NC model and generation unverified",
+    "original_logo_evidence": "development.jpg shows Sumitomo SHI DEMAG above panel; no exact model label"
+  },
+  "layout_anchors": [
+    "生产",
+    "保压切换条件",
+    "循环时间监控"
+  ],
+  "coordinate_space": "normalized_rectified",
+  "scope": "Injection, holding, metering, switch conditions, cooling duration and the five visible temperature columns only. No process conversion. This overview does not expose per-stage sequences.",
+  "excluded_scope": [
+    {
+      "scope": "clamping and ejector parameters",
+      "reason": "Outside the declared process-reading slice; retained in original image and full OCR evidence"
+    },
+    {
+      "scope": "production counters and cycle-monitor limits",
+      "reason": "Outside the declared process-reading slice; retained in original image and full OCR evidence"
+    },
+    {
+      "scope": "carriage settings and footer status",
+      "reason": "Outside the declared process-reading slice; retained in original image and full OCR evidence"
+    },
+    {
+      "scope": "recipe, navigation and non-process indicators",
+      "reason": "Outside the declared process-reading slice; retained in original image and full OCR evidence"
+    }
+  ],
+  "fields": [
+    {
+      "screen_field_key": "actual.pressure",
+      "label": "压力",
+      "unit": "bar",
+      "role": "actual",
+      "section": "header",
+      "region": [
+        0.253,
+        0.41,
+        0.305,
+        0.44
+      ],
+      "label_region": [
+        0.16800000000000004,
+        0.4,
+        0.24300000000000002,
+        0.445
+      ],
+      "decimal_places": 1
+    },
+    {
+      "screen_field_key": "actual.position",
+      "label": "位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "header",
+      "region": [
+        0.431,
+        0.41,
+        0.483,
+        0.44
+      ],
+      "label_region": [
+        0.34600000000000003,
+        0.4,
+        0.42100000000000004,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "actual.cushion",
+      "label": "余料量",
+      "unit": "mm",
+      "role": "actual",
+      "section": "header",
+      "region": [
+        0.624,
+        0.41,
+        0.676,
+        0.44
+      ],
+      "label_region": [
+        0.539,
+        0.4,
+        0.614,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "actual.carriage",
+      "label": "射座",
+      "unit": "mm",
+      "role": "actual",
+      "section": "header",
+      "region": [
+        0.874,
+        0.41,
+        0.926,
+        0.44
+      ],
+      "label_region": [
+        0.789,
+        0.4,
+        0.864,
+        0.445
+      ]
+    },
+    {
+      "screen_field_key": "holding.speed.setting",
+      "label": "保压速度",
+      "unit": "mm/s",
+      "role": "setting",
+      "section": "holding",
+      "region": [
+        0.263,
+        0.484,
+        0.315,
+        0.514
+      ],
+      "label_region": [
+        0.065,
+        0.485,
+        0.158,
+        0.517
+      ],
+      "time_kind": null
+    },
+    {
+      "screen_field_key": "injection.speed.setting",
+      "label": "注射速度",
+      "unit": "mm/s",
+      "role": "setting",
+      "section": "injection",
+      "region": [
+        0.529,
+        0.484,
+        0.581,
+        0.514
+      ],
+      "label_region": [
+        0.065,
+        0.485,
+        0.158,
+        0.517
+      ],
+      "time_kind": null
+    },
+    {
+      "screen_field_key": "metering.speed.setting",
+      "label": "预塑速度",
+      "unit": "mm/s",
+      "role": "setting",
+      "section": "metering",
+      "region": [
+        0.64,
+        0.484,
+        0.692,
+        0.514
+      ],
+      "label_region": [
+        0.065,
+        0.485,
+        0.158,
+        0.517
+      ],
+      "time_kind": null
+    },
+    {
+      "screen_field_key": "switch.position.setting",
+      "label": "保压切换位置",
+      "unit": "mm",
+      "role": "setting",
+      "section": "switch",
+      "region": [
+        0.386,
+        0.522,
+        0.438,
+        0.552
+      ],
+      "label_region": [
+        0.065,
+        0.524,
+        0.158,
+        0.555
+      ],
+      "time_kind": null
+    },
+    {
+      "screen_field_key": "switch.pressure.setting",
+      "label": "保压切换压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "switch",
+      "region": [
+        0.386,
+        0.56,
+        0.438,
+        0.59
+      ],
+      "label_region": [
+        0.065,
+        0.562,
+        0.158,
+        0.593
+      ],
+      "time_kind": null,
+      "decimal_places": 1
+    },
+    {
+      "screen_field_key": "switch.time.setting",
+      "label": "保压切换时间",
+      "unit": "s",
+      "role": "setting",
+      "section": "switch",
+      "region": [
+        0.386,
+        0.6,
+        0.438,
+        0.63
+      ],
+      "label_region": [
+        0.065,
+        0.6,
+        0.158,
+        0.635
+      ],
+      "time_kind": "switch.time"
+    },
+    {
+      "screen_field_key": "metering.position.setting",
+      "label": "预塑位置",
+      "unit": "mm",
+      "role": "setting",
+      "section": "metering",
+      "region": [
+        0.626,
+        0.522,
+        0.678,
+        0.552
+      ],
+      "label_region": [
+        0.065,
+        0.524,
+        0.158,
+        0.555
+      ],
+      "time_kind": null
+    },
+    {
+      "screen_field_key": "holding.pressure.setting",
+      "label": "保压压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "holding",
+      "region": [
+        0.268,
+        0.56,
+        0.32,
+        0.59
+      ],
+      "label_region": [
+        0.065,
+        0.562,
+        0.158,
+        0.593
+      ],
+      "time_kind": null,
+      "decimal_places": 1
+    },
+    {
+      "screen_field_key": "injection.pressure.setting",
+      "label": "注射压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "injection",
+      "region": [
+        0.533,
+        0.56,
+        0.585,
+        0.59
+      ],
+      "label_region": [
+        0.065,
+        0.562,
+        0.158,
+        0.593
+      ],
+      "time_kind": null,
+      "decimal_places": 1
+    },
+    {
+      "screen_field_key": "metering.pressure.setting",
+      "label": "预塑压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "metering",
+      "region": [
+        0.634,
+        0.56,
+        0.686,
+        0.59
+      ],
+      "label_region": [
+        0.065,
+        0.562,
+        0.158,
+        0.593
+      ],
+      "time_kind": null,
+      "decimal_places": 1
+    },
+    {
+      "screen_field_key": "cooling.time.setting",
+      "label": "冷却时间",
+      "unit": "s",
+      "role": "setting",
+      "section": "cooling",
+      "region": [
+        0.183,
+        0.6,
+        0.235,
+        0.63
+      ],
+      "label_region": [
+        0.065,
+        0.6,
+        0.158,
+        0.635
+      ],
+      "time_kind": "cooling.time"
+    },
+    {
+      "screen_field_key": "holding.time.setting",
+      "label": "保压时间",
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "region": [
+        0.264,
+        0.6,
+        0.316,
+        0.63
+      ],
+      "label_region": [
+        0.065,
+        0.6,
+        0.158,
+        0.635
+      ],
+      "time_kind": "holding.time"
+    },
+    {
+      "screen_field_key": "switch.position.actual",
+      "label": "实际保压切换position",
+      "unit": "mm",
+      "role": "actual",
+      "section": "switch",
+      "region": [
+        0.443,
+        0.522,
+        0.495,
+        0.552
+      ],
+      "label_region": [
+        0.065,
+        0.524,
+        0.158,
+        0.555
+      ],
+      "time_kind": null
+    },
+    {
+      "screen_field_key": "switch.pressure.actual",
+      "label": "实际保压切换pressure",
+      "unit": "bar",
+      "role": "actual",
+      "section": "switch",
+      "region": [
+        0.443,
+        0.56,
+        0.495,
+        0.59
+      ],
+      "label_region": [
+        0.065,
+        0.562,
+        0.158,
+        0.593
+      ],
+      "time_kind": null,
+      "decimal_places": 1
+    },
+    {
+      "screen_field_key": "switch.time.actual",
+      "label": "实际保压切换time",
+      "unit": "s",
+      "role": "actual",
+      "section": "switch",
+      "region": [
+        0.443,
+        0.6,
+        0.495,
+        0.63
+      ],
+      "label_region": [
+        0.065,
+        0.6,
+        0.158,
+        0.635
+      ],
+      "time_kind": "switch.time"
+    },
+    {
+      "screen_field_key": "temperature.nozzle-1.actual",
+      "label": "喷嘴1",
+      "unit": "°C",
+      "role": "actual",
+      "section": "temperature",
+      "region": [
+        0.286,
+        0.724,
+        0.338,
+        0.754
+      ],
+      "label_region": [
+        0.065,
+        0.725,
+        0.17,
+        0.754
+      ],
+      "zone_id": "nozzle-1",
+      "zone_source": "nozzle",
+      "order": 1
+    },
+    {
+      "screen_field_key": "temperature.nozzle-1.setting",
+      "label": "喷嘴1",
+      "unit": "°C",
+      "role": "setting",
+      "section": "temperature",
+      "region": [
+        0.286,
+        0.755,
+        0.338,
+        0.785
+      ],
+      "label_region": [
+        0.065,
+        0.752,
+        0.17,
+        0.79
+      ],
+      "zone_id": "nozzle-1",
+      "zone_source": "nozzle",
+      "order": 1
+    },
+    {
+      "screen_field_key": "temperature.barrel-3.actual",
+      "label": "区3",
+      "unit": "°C",
+      "role": "actual",
+      "section": "temperature",
+      "region": [
+        0.589,
+        0.724,
+        0.641,
+        0.754
+      ],
+      "label_region": [
+        0.065,
+        0.725,
+        0.17,
+        0.754
+      ],
+      "zone_id": "barrel-3",
+      "zone_source": "barrel",
+      "order": 2
+    },
+    {
+      "screen_field_key": "temperature.barrel-3.setting",
+      "label": "区3",
+      "unit": "°C",
+      "role": "setting",
+      "section": "temperature",
+      "region": [
+        0.589,
+        0.755,
+        0.641,
+        0.785
+      ],
+      "label_region": [
+        0.065,
+        0.752,
+        0.17,
+        0.79
+      ],
+      "zone_id": "barrel-3",
+      "zone_source": "barrel",
+      "order": 2
+    },
+    {
+      "screen_field_key": "temperature.barrel-2.actual",
+      "label": "区2",
+      "unit": "°C",
+      "role": "actual",
+      "section": "temperature",
+      "region": [
+        0.661,
+        0.724,
+        0.713,
+        0.754
+      ],
+      "label_region": [
+        0.065,
+        0.725,
+        0.17,
+        0.754
+      ],
+      "zone_id": "barrel-2",
+      "zone_source": "barrel",
+      "order": 3
+    },
+    {
+      "screen_field_key": "temperature.barrel-2.setting",
+      "label": "区2",
+      "unit": "°C",
+      "role": "setting",
+      "section": "temperature",
+      "region": [
+        0.661,
+        0.755,
+        0.713,
+        0.785
+      ],
+      "label_region": [
+        0.065,
+        0.752,
+        0.17,
+        0.79
+      ],
+      "zone_id": "barrel-2",
+      "zone_source": "barrel",
+      "order": 3
+    },
+    {
+      "screen_field_key": "temperature.barrel-1.actual",
+      "label": "区1",
+      "unit": "°C",
+      "role": "actual",
+      "section": "temperature",
+      "region": [
+        0.733,
+        0.724,
+        0.785,
+        0.754
+      ],
+      "label_region": [
+        0.065,
+        0.725,
+        0.17,
+        0.754
+      ],
+      "zone_id": "barrel-1",
+      "zone_source": "barrel",
+      "order": 4
+    },
+    {
+      "screen_field_key": "temperature.barrel-1.setting",
+      "label": "区1",
+      "unit": "°C",
+      "role": "setting",
+      "section": "temperature",
+      "region": [
+        0.733,
+        0.755,
+        0.785,
+        0.785
+      ],
+      "label_region": [
+        0.065,
+        0.752,
+        0.17,
+        0.79
+      ],
+      "zone_id": "barrel-1",
+      "zone_source": "barrel",
+      "order": 4
+    },
+    {
+      "screen_field_key": "temperature.feed-throat.actual",
+      "label": "料口",
+      "unit": "°C",
+      "role": "actual",
+      "section": "temperature",
+      "region": [
+        0.852,
+        0.724,
+        0.904,
+        0.754
+      ],
+      "label_region": [
+        0.065,
+        0.725,
+        0.17,
+        0.754
+      ],
+      "zone_id": "feed-throat",
+      "zone_source": "other",
+      "order": 5
+    },
+    {
+      "screen_field_key": "temperature.feed-throat.setting",
+      "label": "料口",
+      "unit": "°C",
+      "role": "setting",
+      "section": "temperature",
+      "region": [
+        0.852,
+        0.755,
+        0.904,
+        0.785
+      ],
+      "label_region": [
+        0.065,
+        0.752,
+        0.17,
+        0.79
+      ],
+      "zone_id": "feed-throat",
+      "zone_source": "other",
+      "order": 5
+    },
+    {
+      "screen_field_key": "switch.position.enabled",
+      "label": "位置切换勾选",
+      "unit": null,
+      "role": "unknown",
+      "section": "control",
+      "region": [
+        0.335,
+        0.522,
+        0.387,
+        0.552
+      ],
+      "label_region": [
+        0.065,
+        0.524,
+        0.158,
+        0.555
+      ],
+      "reading_support": "unsupported",
+      "reason": "No calibrated checkbox or curve-icon decoder for this layout"
+    },
+    {
+      "screen_field_key": "switch.pressure.enabled",
+      "label": "压力切换勾选",
+      "unit": null,
+      "role": "unknown",
+      "section": "control",
+      "region": [
+        0.335,
+        0.56,
+        0.387,
+        0.59
+      ],
+      "label_region": [
+        0.065,
+        0.562,
+        0.158,
+        0.593
+      ],
+      "reading_support": "unsupported",
+      "reason": "No calibrated checkbox or curve-icon decoder for this layout"
+    },
+    {
+      "screen_field_key": "switch.time.enabled",
+      "label": "时间切换勾选",
+      "unit": null,
+      "role": "unknown",
+      "section": "control",
+      "region": [
+        0.335,
+        0.6,
+        0.387,
+        0.63
+      ],
+      "label_region": [
+        0.065,
+        0.6,
+        0.158,
+        0.635
+      ],
+      "reading_support": "unsupported",
+      "reason": "No calibrated checkbox or curve-icon decoder for this layout"
+    },
+    {
+      "screen_field_key": "holding.multistage",
+      "label": "保压多级模式",
+      "unit": null,
+      "role": "unknown",
+      "section": "control",
+      "region": [
+        0.285,
+        0.447,
+        0.337,
+        0.477
+      ],
+      "label_region": [
+        0.065,
+        0.485,
+        0.158,
+        0.517
+      ],
+      "reading_support": "unsupported",
+      "reason": "No calibrated checkbox or curve-icon decoder for this layout"
+    },
+    {
+      "screen_field_key": "injection.multistage",
+      "label": "注射多级模式",
+      "unit": null,
+      "role": "unknown",
+      "section": "control",
+      "region": [
+        0.561,
+        0.447,
+        0.613,
+        0.477
+      ],
+      "label_region": [
+        0.065,
+        0.485,
+        0.158,
+        0.517
+      ],
+      "reading_support": "unsupported",
+      "reason": "No calibrated checkbox or curve-icon decoder for this layout"
+    },
+    {
+      "screen_field_key": "metering.multistage",
+      "label": "预塑多级模式",
+      "unit": null,
+      "role": "unknown",
+      "section": "control",
+      "region": [
+        0.673,
+        0.447,
+        0.725,
+        0.477
+      ],
+      "label_region": [
+        0.065,
+        0.485,
+        0.158,
+        0.517
+      ],
+      "reading_support": "unsupported",
+      "reason": "No calibrated checkbox or curve-icon decoder for this layout"
+    }
+  ],
+  "samples": [
+    {
+      "sample_id": "development",
+      "image": "datasets/r6_demag/demag.injection_metering.machine_configuration/development.jpg",
+      "image_sha256": "975b3225a8fa294e8f0e9a59fc749dd5103042df47e47dda91882dfc0988bfc7",
+      "truth": "datasets/r6_demag/demag.injection_metering.machine_configuration/development.truth.json",
+      "purpose": "development",
+      "source_record": "recuQJJFYYb0FB",
+      "source_field": "成型条件-储料/冷却",
+      "source_image_index": 0,
+      "provenance": {
+        "truth_author": "implementer visual transcription; independent platform review pending",
+        "tuning_involvement": "development",
+        "independence_limit": "same machine and recipe; distinct photograph and actual values, not machine-isolated blind evaluation"
+      }
+    },
+    {
+      "sample_id": "reserved",
+      "image": "datasets/r6_demag/demag.injection_metering.machine_configuration/reserved.jpg",
+      "image_sha256": "e7ecaf17fac5022206a6d34639ce11e029df1ec61d66ab60f49c9d946fe531f5",
+      "truth": "datasets/r6_demag/demag.injection_metering.machine_configuration/reserved.truth.json",
+      "purpose": "diagnostic_regression",
+      "source_record": "recuQJJFYYoZUJ",
+      "source_field": "成型条件-储料/冷却",
+      "source_image_index": 0,
+      "provenance": {
+        "truth_author": "implementer visual transcription; independent platform review pending",
+        "tuning_involvement": "First reserved run exposed coordinate misassociation; now a diagnostic regression sample, not independent holdout",
+        "independence_limit": "same machine and recipe; distinct photograph and actual values, not machine-isolated blind evaluation"
+      }
+    },
+    {
+      "sample_id": "acceptance",
+      "image": "datasets/r6_demag/demag.injection_metering.machine_configuration/acceptance.jpg",
+      "image_sha256": "ef5b16d2afe0d763ce96d10c1f0c1e3b14f1971ab448ebd016d5f23ce4cf4e9a",
+      "truth": "datasets/r6_demag/demag.injection_metering.machine_configuration/acceptance.truth.json",
+      "purpose": "diagnostic_regression",
+      "source_record": "recuQJJFYY895r",
+      "source_field": "成型条件-储料/冷却",
+      "source_image_index": 0,
+      "provenance": {
+        "truth_author": "implementer visual transcription; independent platform review pending",
+        "tuning_involvement": "Initial reserved OCR exposed fixed temperature-coordinate gaps; used for label-based temperature regression, no longer independent",
+        "independence_limit": "Same machine and recipe, distinct photograph and actual values. Not machine-isolated or statistical blind evaluation."
+      }
+    },
+    {
+      "sample_id": "holdout",
+      "image": "datasets/r6_demag/demag.injection_metering.machine_configuration/holdout.jpg",
+      "image_sha256": "80f918b9bb67ac4b418ae7a4852f9bfa440e0cb1aec2d464824284c8bc7b65e1",
+      "truth": "datasets/r6_demag/demag.injection_metering.machine_configuration/holdout.truth.json",
+      "purpose": "reserved_acceptance",
+      "source_record": "recuQJJFYYxjdt",
+      "source_field": "成型条件-储料/冷却",
+      "source_image_index": 0,
+      "provenance": {
+        "truth_author": "implementer visual transcription; independent platform review pending",
+        "tuning_involvement": "First frozen OCR challenge retained in managed evidence. Numeric matching was not tuned on this photo. Its bar spez token exposed a unit-token boundary defect that was corrected; this is not a blind positive sample.",
+        "independence_limit": "A distinct photograph, with specific-pressure units and a cropped page header. Not statistical blind or machine-isolated evaluation."
+      }
+    }
+  ],
+  "issues": [
+    {
+      "code": "ENABLE_STATE_UNVERIFIED",
+      "reason": "No calibrated state decoder for this layout. Dark residuals retain readings with unknown state."
+    },
+    {
+      "code": "CONTROLLER_MODEL_UNVERIFIED",
+      "reason": "Verified family DEMAG only; controller model and interface generation remain null."
+    }
+  ],
+  "coordinate_anchors": [
+    {
+      "text": "保压切换条件",
+      "center": [
+        0.42,
+        0.463
+      ],
+      "search_region": [
+        0.2,
+        0.35,
+        0.55,
+        0.55
+      ]
+    },
+    {
+      "text": "循环时间监控",
+      "center": [
+        0.859,
+        0.305
+      ],
+      "search_region": [
+        0.65,
+        0.2,
+        1,
+        0.4
+      ]
+    },
+    {
+      "text": "温度",
+      "center": [
+        0.114,
+        0.71
+      ],
+      "search_region": [
+        0,
+        0.6,
+        0.2,
+        0.85
+      ]
+    }
+  ],
+  "zones": [
+    {
+      "zone_id": "nozzle-1",
+      "labels": [
+        "喷嘴1",
+        "喷1"
+      ]
+    },
+    {
+      "zone_id": "barrel-3",
+      "labels": [
+        "区3"
+      ]
+    },
+    {
+      "zone_id": "barrel-2",
+      "labels": [
+        "区2"
+      ]
+    },
+    {
+      "zone_id": "barrel-1",
+      "labels": [
+        "区1"
+      ]
+    },
+    {
+      "zone_id": "feed-throat",
+      "labels": [
+        "料口",
+        "桦口"
+      ]
+    }
+  ],
+  "temperature_slots": [
+    0.3,
+    0.604,
+    0.675,
+    0.748,
+    0.862
+  ]
+}
