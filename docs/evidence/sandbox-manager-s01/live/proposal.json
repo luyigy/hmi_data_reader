@@ -1,0 +1,13 @@
+{
+  "proposalId": "cmvgnhv9x0001e2vhzk27lr03",
+  "parentTaskId": "acceptance-sandbox-manager-s01-20261020-ca64ec7",
+  "version": 1,
+  "snapshotHash": "469dc4179930e7e4003e332d9d31ba9b948607029871ef5fa9b59099268c8bc7",
+  "cardMessageId": "om_x100b6241888910b0b0e0df1bd171ba8",
+  "chatId": "oc_0684589953a98e6b17a8d148c6b77756",
+  "threadId": "omt_19b2d4dd9b0f5b43",
+  "status": "pending",
+  "cardVerified": true,
+  "dispatched": false,
+  "verifiedAt": "2026-10-20T12:20:05.231Z"
+}

@@ -39,4 +39,4 @@ B 新增 `sandbox-manager/index.ts`、`lifecycle.ts`、`identity.ts`，只管理
 
 S01-B 提交为 `ca64ec7`，已快进合入 `oss-prep`。仅重载 task-graph coordinator，飞书聊天、网页和 scheduled jobs 未重启。重载前无活动任务图 TaskRun，原有 32 条执行记录的 status、claim、TaskRun、commit、progress 及 node 状态对比不变，见 [部署回执](../evidence/sandbox-manager-s01/live/deploy.json)。
 
-新测试父任务为 `acceptance-sandbox-manager-s01-20261020-ca64ec7`，位于工作流测试群的“验收专用 · Sandbox Manager S01 · 20261020”。专用仓均在 `/data1/code/ap-sandbox-manager-acceptance-20261020/`，仅为这两个仓登记已有 poteto 固定技能包的精确只读根，未改原项目条目。测试 Spec 见 [spec.md](../specs/sandbox-manager-s01-acceptance/spec.md)。确认卡批准和真实运行结果后续追加。
+新测试父任务为 `acceptance-sandbox-manager-s01-20261020-ca64ec7`，位于工作流测试群的“验收专用 · Sandbox Manager S01 · 20261020”。专用仓均在 `/data1/code/ap-sandbox-manager-acceptance-20261020/`，仅为这两个仓登记已有 poteto 固定技能包的精确只读根，未改原项目条目。测试 Spec 见 [spec.md](../specs/sandbox-manager-s01-acceptance/spec.md)。确认卡已发送并回读核验归属，提案 `cmvgnhv9x0001e2vhzk27lr03`，卡片 `om_x100b6241888910b0b0e0df1bd171ba8`，回读时为 pending、未派发，见 [卡片回执](../evidence/sandbox-manager-s01/live/proposal.json)。用户点击确认后，等待 T01 在原话题问材料，回复“尺寸42，颜色蓝色”。这一步必须是真实用户交互；本轮没有伪造批准或补料。真实模型验收结果后续追加。
