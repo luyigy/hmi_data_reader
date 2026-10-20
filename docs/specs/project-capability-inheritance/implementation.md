@@ -97,3 +97,21 @@ npm run project-capabilities:scope -- --execution-id=<实际 execution ID> --app
 - 架构复核已确认多仓身份、writer nonce、旧 pin 迁移和合并候选 checkpoint 未绕过现有边界。
 
 两片代码均可独立检查提交。线上部署仍未执行，生产 Reader/Mold 业务流程未完成端到端验收；不能将上述隔离测试解释为线上任务已经恢复。切换时先确认活动 writer、准备宿主项目配置、审查旧 Run 的只读迁移预览，再统一部署；继续保留原业务候选和账本。
+
+## 2026-10-20 生产切换记录
+
+用户在本轮明确要求执行部署与重启。以下记录更新前文“未部署”的历史状态。
+
+- 主服务目录 `/data1/code/agent-platform-v2` 已从 `6f45b6d` 快进到 `86653fa`，TypeScript 检查通过，没有数据库结构迁移。
+- 已在宿主 `~/.agent-platform/project-capabilities.json` 登记 Reader、Mold，主体限定为原路线确认者。资料源限定到已核验表格及储料/冷却图片字段。本地图集和项目 Python 环境只读挂载，不复制图集，不传入宿主飞书凭据。
+- Mold 沿用已登记 Playwright/Chrome 声明，生产严格只读沙箱预检通过，Chrome `147.0.7727.137`。Reader 保留 R05 原有的空工具声明，不向旧 claim 隐式注入浏览器/OCR；项目 `.venv`、图集及查图范围另行批准。
+- 原 Run `cmvdmf87w043f9xhgf9yvua6p` 的 15 项未完成 execution 已分别预览并追加 scope 批准。R05 writer 已退出、旧 pin 兼容。迁移前后 execution 全行相等，候选、预算、阶段、工作区均保留。已验收节点未迁移。
+- 按 R05 的真实任务与批准人解析新能力后，实际表格查询返回 20 条伯乐记录，仍有后续分页；没有重复发送图片，也没有将查询结果视为独立验收通过。
+- 已重启 dev、task-graph、task-graph-feishu、scheduled-jobs 四个相关服务，均 active。`http://127.0.0.1:3010/api/health` 返回 healthy。任务图核对后 R05 仍 attention，其他后继等待 R05；未重置或伪造业务状态。
+- 飞书服务承载本次操作会话。最后一次重启交给独立 systemd 临时单元 `agent-platform-capability-cutover-20261020.service`，等待本轮 TaskRun `cmvg3j0z80r7xemglmc7z87h8` 结束且没有其他活动普通会话后执行。它核对新 PID、五个相关服务、飞书启动日志、HTTP 及数据库，再向当前 DM 发送一次有 UUID 的完成通知并回读。当前文档记录时此最后步骤仍在等待，不能将排队当作已完成。
+
+最终状态查看主服务目录中的 `output/reviews/project-capabilities/deploy-20261020/cutover-status.json`，`phase=completed` 且 `notificationVerified=true` 才表示最后切换及通知回读完成。若 phase 为 failed/blocked，先查该回执和同名 systemd 单元日志，不盲目重复重启或发送。
+
+Scope 迁移预览、应用回执及原 execution 快照保存在实施目录 `/data1/code/agent-platform-project-capabilities/output/reviews/project-capabilities/deploy-20261020/`。服务切换脚本和最终状态保存在主服务目录下的同名输出目录。上述运维文件不入 Git，包含业务定位信息。
+
+R05 的下一项业务工作仍是取得并核对独立验收样本。部署与授权准备不代替该步骤；用户无需重复上传原有图片，可在原任务话题继续提出具体查图要求。
