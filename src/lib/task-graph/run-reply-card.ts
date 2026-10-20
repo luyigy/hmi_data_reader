@@ -13,6 +13,21 @@ const bounded = (content: string, limit: number) => {
   return safe.length > limit ? `…（前文已省略，以下为最近输出）\n${safe.slice(-limit)}` : safe;
 };
 
+function conversationReply(response: string) {
+  const control = /^TASK_GRAPH_CONVERSATION\s+(\{[^\n]+\})\s*$/gm;
+  const text = response.replace(control, '').trim();
+  if (text) return text;
+  const blocks = Array.from(response.matchAll(control));
+  if (blocks.length === 1) {
+    try {
+      const action: unknown = JSON.parse(blocks[0][1]);
+      if (action && typeof action === 'object' && 'action' in action && action.action === 'resume_implementation' &&
+        'note' in action && typeof action.note === 'string' && action.note.trim()) return `执行者的接续说明：\n${action.note.trim()}`;
+    } catch { /* Invalid controls remain in the platform recovery error path. */ }
+  }
+  return '本轮没有文字答复。';
+}
+
 export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], requests: TaskRunInteractionRequest[] = [], output: Pick<TaskRunEvent, 'content'>[] = []) {
   const identity = run.participants.map((p) => `${roles[p.role] || p.role} · ${p.harnessNameSnapshot || p.harnessType || p.runner}`).join(' / ');
   const isTool = (event: TaskRunEvent) => {
@@ -31,7 +46,7 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
     try { conclusion = parseImplementationResult(finalReply); } catch { /* Review and legacy replies have no implementation marker. */ }
   }
   const response = active ? streamed || '正在准备执行，尚无 Agent 回复。' : finalReply || '本轮没有最终回复。';
-  const conversationResponse = response.replace(/^TASK_GRAPH_CONVERSATION\s+\{[^\n]+\}\s*$/gm, '').trim() || '本轮没有文字答复。';
+  const conversationResponse = conversationReply(response);
   const conversationStatus = run.status === 'completed' ? '本轮已答复' : labels[run.status] || run.status;
   const blocked = conclusion?.status === 'blocked' ? conclusion.note : null;
   const snippet = (value: string) => {

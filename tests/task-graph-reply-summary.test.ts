@@ -38,4 +38,7 @@ assert.match(JSON.stringify(deliveredChat.body.elements[0]), /你这张是伯乐
 assert.match(deliveredChat.header.title.content, /本轮已答复/);
 const handoffChat = buildRunReplyCard({ ...conversation, summary: answer + '\nTASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["input"]}' }, []);
 assert.doesNotMatch(JSON.stringify(handoffChat.body.elements[0]), /TASK_GRAPH_CONVERSATION/);
+const controlOnly = buildRunReplyCard({ ...conversation, summary: 'TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["earlier-image"],"note":"用户已澄清段数，可接着核对控制器和字段。"}' }, []);
+assert.match(JSON.stringify(controlOnly.body.elements[0]), /用户已澄清段数/);
+assert.doesNotMatch(JSON.stringify(controlOnly.body.elements[0]), /没有文字答复|已恢复|已启动|TASK_GRAPH_CONVERSATION/);
 console.log('Conversation answers and live output stay visible; graph delivery state remains separate and unchanged');

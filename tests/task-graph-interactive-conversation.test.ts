@@ -28,7 +28,7 @@ async function main() {
   const adapter = getHarnessAdapter('codex')!; const saved = { execute: adapter.execute, resume: adapter.resume };
   const calls: { task: string; session: string | null; directory: string; readOnly: boolean; prompt: string }[] = [];
   const native = 'original-reader-native-session';
-  let legacyRunId: string | null = null; let legacyTurns = 0;
+  let legacyRunId: string | null = null; let legacyTurns = 0; let materialInputId: string | undefined;
   let readerTurns = 0; let releaseMold: () => void = () => {}; const moldRunning = new Promise<void>(resolve => { releaseMold = resolve; });
   async function run(args: HarnessExecuteArgs | HarnessResumeArgs) {
     const resume = 'sessionId' in args ? args.sessionId : null;
@@ -38,7 +38,12 @@ async function main() {
     args.context.onSpawn?.(processChild); await once(processChild, 'exit');
     const execution = await prisma.taskGraphExecution.findUnique({ where: { childTaskId: args.task.id }, include: { node: true } });
     if (execution?.node.runId === legacyRunId) {
-      if (args.context.permissionConfig?.sandboxMode === 'read-only') { const input = prompt.split('\n').filter(line => line.startsWith('{"id":')).map(line => JSON.parse(line)).find(input => input.content.includes('尺寸材料')); return { success: true, output: 'TASK_GRAPH_CONVERSATION ' + JSON.stringify({ action: 'resume_implementation', inputIds: [input.id], note: '材料已提供' }), sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 }; }
+      if (args.context.permissionConfig?.sandboxMode === 'read-only') {
+        const inputs = prompt.split('\n').filter(line => line.startsWith('{"id":')).map(line => JSON.parse(line));
+        if (inputs.some(input => input.content === '尺寸材料是42，只检查不要继续')) return { success: true, output: '尺寸材料已收到，先核对。', sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 };
+        const input = inputs.find(input => input.content.includes('尺寸材料'));
+        return { success: true, output: 'TASK_GRAPH_CONVERSATION ' + JSON.stringify({ action: 'resume_implementation', inputIds: [materialInputId || input.id], note: '材料已提供' }), sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 };
+      }
       if (execution.key === 'peer') return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"permission_required","note":"需要额外授权，不得因兄弟材料恢复而放行"}', sessionId: 'peer-native', sessionKind: 'codex_thread', executionTime: 1 };
       legacyTurns++;
       if (legacyTurns === 1) return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"missing_business_material","note":"需要尺寸材料"}', sessionId: 'legacy-native', sessionKind: 'codex_thread', executionTime: 1 };
@@ -137,7 +142,16 @@ async function main() {
     await until(async () => calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length === 1);
     const denied = new AbortController(); denied.abort(); await startTaskGraphCoordinator(denied.signal);
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status, 'attention', 'An unrelated owner status question cannot authorize another user material handoff');
-    await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'legacy-answer', actorId: owner.id, actorOrigin: 'platform', content: '尺寸材料是42' });
+    await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'legacy-answer', actorId: owner.id, actorOrigin: 'platform', content: '尺寸材料是42，只检查不要继续' });
+    materialInputId = (await conversationInputs(legacyJob.id))[0].id;
+    await until(async () => calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length === 2);
+    const checked = new AbortController(); checked.abort(); await startTaskGraphCoordinator(checked.signal);
+    assert.equal((await conversationInputs(legacyJob.id)).length, 0, 'The earlier material was already processed by a normal conversation turn');
+    await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'continue-earlier-material', actorId: owner.id, actorOrigin: 'platform', content: '按刚才的尺寸继续实施' });
+    await until(async () => calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length === 3);
+    const continuation = new AbortController(); continuation.abort(); await startTaskGraphCoordinator(continuation.signal);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: legacy.id, kind: 'implementation_recovery_scheduled' } }), 1,
+      'An authorized continuation can cite material from an earlier turn of the same execution');
     await until(async () => (await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status === 'integrated');
     const peer = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: legacy.id }, key: 'peer' } });
     assert.equal(peer.status, 'attention'); assert.equal(executionProgress(peer.dispatchMetadata)!.lastFailure!.code, 'permission_required');

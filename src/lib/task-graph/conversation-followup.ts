@@ -124,7 +124,7 @@ export async function startConversationFollowups(capacity: number) {
       const candidate = job.commit || executionProgress(job.dispatchMetadata)?.candidateCommit;
       const directory = candidate ? await conversationWorkspace(job.repository, candidate) : job.worktreePath;
       if (!directory) throw new Error('Original conversation workspace unavailable; preserve pending input');
-      const prompt = `你是原任务实施者，正在处理原话题后续消息。固定成果和源码只读，不能在此轮改代码、提交、合并、修改验收或宣称已解除阻塞。解释进度、回答问题。如果当前仅缺业务材料或前置材料，且用户已实际补齐、能在原批准范围继续实施，可输出唯一一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["实际补齐材料的用户消息id"],"note":"所补材料与理由"}，平台会核验权限、预算与当前状态后接回实施。环境、权限、范围或预算问题不能用此方式绕过。已交付或复核中的修正需受控处理。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}`;
+      const prompt = `你负责原任务，继续在这个话题与用户正常交流。结合前几轮图片、说明和纠正核对事实；旧的缺材料判断可以被新证据纠正，不能当成不可改变的要求。先直接回答用户。需要接回实施时，简短说明接下来做什么，再附加一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["本任务当前或历史材料消息id"],"note":"继续实施的依据"}。材料可以引用本任务前几轮已处理的消息，不要求用户重发。平台根据本轮用户身份核验接续权限，并在原会话交回实施。准备接续不代表材料已通过独立验收。当前阶段保护固定成果，源码只读；平台确认 writer 退出并完成交接后，实施轮次才能写入。不能通过聊天扩大范围、放宽权限、重置预算或宣布任务通过。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}`;
       const materialPrompt = prompt + '\n' + await syncGraphConversationMaterials(task.id);
       const session = await implementationConversation(job.id, participant, materialPrompt);
       const result = await executeAcpxTaskRun({ graphConversation: { executionId: job.id, reservationId: event.id, inputIds: pending.map(input => input.id) },
@@ -145,8 +145,17 @@ export async function startConversationFollowups(capacity: number) {
         if (action && typeof action === 'object' && 'action' in action && action.action === 'resume_implementation' && 'inputIds' in action && Array.isArray(action.inputIds) && action.inputIds.length > 0 && action.inputIds.every((id): id is string => typeof id === 'string') &&
           before?.state === 'waiting_decision' && ['missing_business_material', 'missing_upstream_input'].includes(before.lastFailure?.code || '')) {
           const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: event.runId }, include: { parentTask: true } });
-          const cited = action.inputIds.map(id => pending.find(input => input.id === id));
-          let authorized = cited.every(input => input !== undefined);
+          const ids = Array.from(new Set(action.inputIds));
+          const cited = ids.length <= 50 ? await prisma.taskGraphEvent.count({ where: {
+            id: { in: ids }, runId: event.runId, nodeId: job.nodeId, kind: 'conversation_input',
+            payload: { path: ['executionId'], equals: job.id },
+          } }) : 0;
+          if (cited !== ids.length) {
+            await postGraphChildProgress(task.id, `conversation:material-reference-declined:${event.id}`,
+              '接续建议引用的材料无法在本任务会话中核实。平台保留本轮输入和原进度，尚未安排恢复。');
+            return;
+          }
+          let authorized = pending.length > 0;
           for (const input of pending) {
             let sourceAuthorized = false;
             let metadata: unknown = null;

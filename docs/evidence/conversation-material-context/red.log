@@ -1,0 +1,94 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-interactive-conversation
+
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 146
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 293
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 149
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 151
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 151
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 151
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 151
+AssertionError [ERR_ASSERTION]: An authorized continuation can cite material from an earlier turn of the same execution
+
+0 !== 1
+
+    at /data1/code/agent-platform-conversation-material-context/tests/task-graph-interactive-conversation.test.ts:153:5
+    at step (/data1/code/agent-platform-conversation-material-context/tests/task-graph-interactive-conversation.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-conversation-material-context/tests/task-graph-interactive-conversation.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-conversation-material-context/tests/task-graph-interactive-conversation.test.ts:16:58) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 0,
+  expected: 1,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-interactive-conversation.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-conversation-material-context/scripts/test-task-graph-postgres.mjs:42:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 918943,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1
