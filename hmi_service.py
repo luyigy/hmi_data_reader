@@ -461,7 +461,7 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             page_observations = (extract_res.get("extraction_detail") or {}).get("page_observations")
             if observations_version == "v2":
                 import hashlib
-                from raw_temperature_time import (observe_temperature_time_page, select_raw_profile,
+                from raw_observations import (observe_temperature_time_page, select_raw_profile,
                                                   recover_temperature_time_cells, DEFINITIONS)
                 from raw_page_ocr import engine_identity, recover_raw_cells
                 try:
@@ -481,7 +481,8 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 page_observations = observe_temperature_time_page(
                     raw_profile, ocr_evidence["lines"], rectify_meta,
                     hashlib.sha256(content).hexdigest(),
-                    raw_gray)
+                    raw_gray, package_root=HERE,
+                    package_version=extract_res.get("template_version", "1.0.0"))
                 page_observations["engine"] = engine_identity(ocr_model)
             if page_observations and page_observations.get("fields"):
                 from extract_families.tact5_process import project_boxes

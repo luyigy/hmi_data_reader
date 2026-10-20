@@ -673,7 +673,7 @@ def main():
         if args.observations_version == "v2":
             import hashlib
             import cv2
-            from raw_temperature_time import (observe_temperature_time_page, select_raw_profile,
+            from raw_observations import (observe_temperature_time_page, select_raw_profile,
                                               recover_temperature_time_cells, DEFINITIONS)
             try:
                 raw_profile = select_raw_profile(r.get("profile_id"), json.loads(
@@ -690,6 +690,7 @@ def main():
                 ap.error("Original image hash disagrees with rectification evidence")
             ocr = json.loads((rectified_dir / f"{stem}.ocr.json").read_text())
             rectified = cv2.imread(str(rectified_dir / f"{stem}.png"), cv2.IMREAD_GRAYSCALE)
+            engine = None
             if r.get("profile_id") == "demag.injection_metering.multi_stage_holding" and rectified is not None:
                 from paddleocr import PaddleOCR
                 from raw_page_ocr import engine_identity, recover_raw_cells
@@ -703,10 +704,11 @@ def main():
             r["page_observations"] = observe_temperature_time_page(
                 raw_profile, ocr["lines"], meta,
                 hashlib.sha256(original_bytes).hexdigest(),
-                rectified)
+                rectified, package_root=Path(args.templates_dir).parent,
+                package_version=r.get("template_version", "1.0.0"))
             r["raw_ocr_evidence"] = ocr
-            r["page_observations"]["engine"] = (engine_identity(engine) if rectified is not None
-                                                  else {"library": "provided_ocr_sidecar", "version": ocr.get("model")})
+            r["page_observations"]["engine"] = (engine_identity(engine) if engine is not None
+                                                  else ocr.get("engine_identity", {"library": "provided_ocr_sidecar", "version": ocr.get("model")}))
         counts[r["status"]] += 1
         out_path = out_dir / f"{stem}.fields.json"
         out_path.write_text(json.dumps(r, ensure_ascii=False, indent=2))

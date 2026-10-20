@@ -6,6 +6,7 @@ from contract import _field_catalog
 
 # ID, module, function, input kind, image support, supported pages.
 _EXTRACTORS = {
+    "b_and_r.metering": ("b_and_r_metering", "extract_metering", "ocr", False, ("storage_cooling",)),
     "est.storage_white_five_stage": ("est_storage_white", "est_storage_white_extract", "ocr", False, ("storage_cooling",)),
     "zizes.temperature": ("zizes_temperature", "extract_temperature", "tokens", False, ("temperature",)),
     "tact.temperature": ("tact_temperature", "extract_temperature_tact", "tokens", False, ("temperature",)),

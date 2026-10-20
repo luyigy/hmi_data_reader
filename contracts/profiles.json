@@ -213,6 +213,26 @@
       "status": "candidate",
       "template": "b_and_r/injection_holding.json",
       "lifecycle_note": "Z050 原图与 049 六图开发真值；2026-10-13 领域所有者确认液压压力设定、各段终点、末段 V/P 终点及位置/时间先到先切换。仍是开发暴露样本，无独立 holdout；写入需主仓审核页面包和人工确认。"
+    },
+    {
+      "controller_family": "B_AND_R",
+      "layout_variant": "three_stage_metering",
+      "page_identity": {
+        "brand": "BOLE",
+        "controller_family": "B_AND_R",
+        "evidence_sample_ids": [
+          "development",
+          "acceptance",
+          "independent"
+        ],
+        "interface_generation": null,
+        "layout_variant": "three_stage_metering",
+        "page_type": "storage_cooling"
+      },
+      "page_type": "storage_cooling",
+      "profile_id": "b_and_r.metering.three_stage",
+      "status": "candidate",
+      "template": "published/b_and_r.metering.three_stage/1.0.1.json"
     }
   ]
 }

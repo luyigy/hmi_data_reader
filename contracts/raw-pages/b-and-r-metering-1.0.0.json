@@ -1,0 +1,386 @@
+{
+  "profile_id": "b_and_r.metering.three_stage",
+  "version": "1.0.0",
+  "page_identity": {
+    "brand": "BOLE",
+    "controller_family": "B_AND_R",
+    "interface_generation": null,
+    "page_type": "storage_cooling",
+    "layout_variant": "three_stage_metering"
+  },
+  "fields": [
+    {
+      "screen_field_key": "header.mold_position",
+      "label": "模板位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "header.ejector_position",
+      "label": "顶针位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "header.injection_position",
+      "label": "射胶位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "header.carriage_position",
+      "label": "射台位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "header.screw_speed",
+      "label": "熔胶转速",
+      "unit": "rpm",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "header.pump_flow",
+      "label": "主泵流量",
+      "unit": "%",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "header.pump_pressure",
+      "label": "主泵压力",
+      "unit": "bar",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "header.system_pressure",
+      "label": "系统压力",
+      "unit": "bar",
+      "role": "actual",
+      "section": "header"
+    },
+    {
+      "screen_field_key": "metering.actual.speed",
+      "label": "实际速度",
+      "unit": "mm/s",
+      "role": "actual",
+      "section": "actual"
+    },
+    {
+      "screen_field_key": "metering.actual.position",
+      "label": "实际位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "actual"
+    },
+    {
+      "screen_field_key": "metering.actual.back_pressure",
+      "label": "熔胶背压",
+      "unit": "bar",
+      "role": "actual",
+      "section": "actual"
+    },
+    {
+      "screen_field_key": "metering.actual.rotation",
+      "label": "实际转速",
+      "unit": "rpm",
+      "role": "actual",
+      "section": "actual"
+    },
+    {
+      "screen_field_key": "storage.speed.stage-1",
+      "label": "速度",
+      "unit": "%",
+      "role": "setting",
+      "section": "storage",
+      "stage": 1,
+      "segment_id": "storage-stage-1",
+      "order": 1
+    },
+    {
+      "screen_field_key": "storage.speed.stage-2",
+      "label": "速度",
+      "unit": "%",
+      "role": "setting",
+      "section": "storage",
+      "stage": 2,
+      "segment_id": "storage-stage-2",
+      "order": 2
+    },
+    {
+      "screen_field_key": "storage.speed.stage-3",
+      "label": "速度",
+      "unit": "%",
+      "role": "setting",
+      "section": "storage",
+      "stage": 3,
+      "segment_id": "storage-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "storage.pressure.stage-1",
+      "label": "压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "storage",
+      "stage": 1,
+      "segment_id": "storage-stage-1",
+      "order": 1
+    },
+    {
+      "screen_field_key": "storage.pressure.stage-2",
+      "label": "压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "storage",
+      "stage": 2,
+      "segment_id": "storage-stage-2",
+      "order": 2
+    },
+    {
+      "screen_field_key": "storage.pressure.stage-3",
+      "label": "压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "storage",
+      "stage": 3,
+      "segment_id": "storage-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-1",
+      "label": "背压",
+      "unit": "bar",
+      "role": "setting",
+      "section": "storage",
+      "stage": 1,
+      "segment_id": "storage-stage-1",
+      "order": 1
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-2",
+      "label": "背压",
+      "unit": "bar",
+      "role": "setting",
+      "section": "storage",
+      "stage": 2,
+      "segment_id": "storage-stage-2",
+      "order": 2
+    },
+    {
+      "screen_field_key": "storage.back_pressure.stage-3",
+      "label": "背压",
+      "unit": "bar",
+      "role": "setting",
+      "section": "storage",
+      "stage": 3,
+      "segment_id": "storage-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-1",
+      "label": "位置",
+      "unit": "mm",
+      "role": "setting",
+      "section": "storage",
+      "stage": 1,
+      "segment_id": "storage-stage-1",
+      "order": 1
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-2",
+      "label": "位置",
+      "unit": "mm",
+      "role": "setting",
+      "section": "storage",
+      "stage": 2,
+      "segment_id": "storage-stage-2",
+      "order": 2
+    },
+    {
+      "screen_field_key": "storage.end_position.stage-3",
+      "label": "位置",
+      "unit": "mm",
+      "role": "setting",
+      "section": "storage",
+      "stage": 3,
+      "segment_id": "storage-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "decompression.before_storage.speed",
+      "label": "速度",
+      "unit": "%",
+      "role": "setting",
+      "section": "decompression",
+      "segment_id": "before_storage"
+    },
+    {
+      "screen_field_key": "decompression.before_storage.pressure",
+      "label": "压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "decompression",
+      "segment_id": "before_storage"
+    },
+    {
+      "screen_field_key": "decompression.before_storage.distance",
+      "label": "位置",
+      "unit": "mm",
+      "role": "setting",
+      "section": "decompression",
+      "segment_id": "before_storage"
+    },
+    {
+      "screen_field_key": "decompression.after_storage.speed",
+      "label": "速度",
+      "unit": "%",
+      "role": "setting",
+      "section": "decompression",
+      "segment_id": "after_storage"
+    },
+    {
+      "screen_field_key": "decompression.after_storage.pressure",
+      "label": "压力",
+      "unit": "bar",
+      "role": "setting",
+      "section": "decompression",
+      "segment_id": "after_storage"
+    },
+    {
+      "screen_field_key": "decompression.after_storage.distance",
+      "label": "位置",
+      "unit": "mm",
+      "role": "setting",
+      "section": "decompression",
+      "segment_id": "after_storage"
+    },
+    {
+      "screen_field_key": "control.mode",
+      "label": "模式",
+      "unit": null,
+      "role": "setting",
+      "section": "control",
+      "value_type": "string"
+    },
+    {
+      "screen_field_key": "control.storage_zero_backpressure",
+      "label": "熔胶零背压阀",
+      "unit": null,
+      "role": "setting",
+      "section": "control",
+      "value_type": "string"
+    },
+    {
+      "screen_field_key": "control.decompression_zero_backpressure",
+      "label": "抽胶零背压阀",
+      "unit": null,
+      "role": "setting",
+      "section": "control",
+      "value_type": "string"
+    },
+    {
+      "screen_field_key": "time.storage_delay",
+      "label": "熔胶延时",
+      "unit": "s",
+      "role": "setting",
+      "section": "time",
+      "time_kind": "storage_delay"
+    },
+    {
+      "screen_field_key": "time.storage_timeout",
+      "label": "熔胶超时",
+      "unit": "s",
+      "role": "setting",
+      "section": "time",
+      "time_kind": "storage_timeout"
+    },
+    {
+      "screen_field_key": "time.storage_timeout_actual",
+      "label": "熔胶超时",
+      "unit": "s",
+      "role": "actual",
+      "section": "time",
+      "time_kind": "storage_timeout_actual"
+    },
+    {
+      "screen_field_key": "time.before_decompression_delay",
+      "label": "前抽胶延时",
+      "unit": "s",
+      "role": "setting",
+      "section": "time",
+      "time_kind": "before_decompression_delay"
+    },
+    {
+      "screen_field_key": "time.after_decompression_delay",
+      "label": "后抽胶延时",
+      "unit": "s",
+      "role": "setting",
+      "section": "time",
+      "time_kind": "after_decompression_delay"
+    }
+  ],
+  "samples": [
+    {
+      "sample_id": "development",
+      "image": "datasets/r05/b_and_r.metering.three_stage/development.jpg",
+      "image_sha256": "ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163",
+      "truth": "datasets/r05/b_and_r.metering.three_stage/development.truth.json",
+      "purpose": "development",
+      "source": {
+        "path": "/home/hello/.agent-platform/project-materials/published/f6bad71418b88831e393f6dbeb2d8ecc89140b1d7b96752339fc650e26e5a6b5/ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163.jpg",
+        "sha256": "ea58e69f73a4e33d851dde72f23a9881dad79d2675cc9ea56931591870536163",
+        "source": "training/recuQJJFYYwEDU/成型条件-储料/冷却/0",
+        "purpose": "development"
+      }
+    },
+    {
+      "sample_id": "acceptance",
+      "image": "datasets/r05/b_and_r.metering.three_stage/acceptance.jpg",
+      "image_sha256": "4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91",
+      "truth": "datasets/r05/b_and_r.metering.three_stage/acceptance.truth.json",
+      "purpose": "user_supplied_validation",
+      "source": {
+        "path": "/home/hello/.agent-platform/task-materials/c90480550f5bd0bcc051446e/5f40765d6c2b28ae2bffdae4d7d91f35bc938a6cea019a63be7b972809a2d609.jpg",
+        "sha256": "4c181b2a3c9e72fa4613e4f77b61bbb650145c30acdd0e8c2050e955515a9d91",
+        "source_message_id": "cmvgbt2r0000hp1fl1f68p3ua",
+        "feishu_message_id": "om_x100b6244b435fcf4b0e1ce2a70f9027",
+        "purpose": "reserved_acceptance",
+        "tuning_involvement": "none",
+        "prior_exposure": "visual source/selection inspection before implementation; no OCR-driven tuning",
+        "first_result": "38 declared slots; critical table values correct; header OCR 2mm disagrees with 52.2mm. This image now participates in regression, not a pristine blind acceptance claim."
+      }
+    },
+    {
+      "sample_id": "independent",
+      "image": "datasets/r05/b_and_r.metering.three_stage/independent.jpg",
+      "image_sha256": "9344107611dd2456d406368dc51d8d331cf8036c95199d12d88a07af359c85c3",
+      "truth": "datasets/r05/b_and_r.metering.three_stage/independent.truth.json",
+      "purpose": "independent_acceptance",
+      "source": {
+        "source": "training",
+        "record_id": "recuQJJFYYWuuH",
+        "field": "成型条件-储料/冷却",
+        "index": 0,
+        "receipt_sha256": "d123d4e5065f6fcb7d5233f3119e73f49003d181d373c6e7bafd5f7502447946",
+        "tuning_involvement": "none",
+        "prior_exposure": "Source selection visual inspection only, no OCR or tuning before code freeze",
+        "group_note": "EKS_140 TX22045_ABS, same recipe as development, distinct capture and actual sensor values. Not a machine-disjoint or zero-history blind benchmark."
+      }
+    }
+  ],
+  "coverage_scope": "All 38 process display slots including eight header actuals, four metering actuals, three-stage settings, pre/post decompression, three enum controls and five timer values. Clock, date, recipe/user identity, navigation and indicator icons remain in original OCR evidence; they are not declared process values.",
+  "state_policy": "unknown for every numeric/control slot; no brightness or stage-activity decoder",
+  "issues": [
+    {
+      "code": "ENABLE_STATE_UNVERIFIED",
+      "reason": "Observed setting values do not prove per-stage enable state"
+    }
+  ]
+}
