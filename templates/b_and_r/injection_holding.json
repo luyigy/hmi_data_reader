@@ -1,5 +1,5 @@
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "ui_family": "B_AND_R",
   "page": "injection_metering",
   "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z050，B&R 贝加莱 UI）OCR 实测锚点",
@@ -42,7 +42,10 @@
       "skip_rows": []
     },
     "switch": {
-      "header": "保压切换",
+      "header": [
+        "保压切换",
+        "保压奶换"
+      ],
       "header_y_range": [
         0.76,
         0.82
@@ -92,7 +95,7 @@
   "rule_version": "s01.2",
   "layout_anchors": [
     "射胶",
-    "保压切换",
+    "保压(?:切|奶)换",
     "外部信号"
   ],
   "require_anchor_match": true,

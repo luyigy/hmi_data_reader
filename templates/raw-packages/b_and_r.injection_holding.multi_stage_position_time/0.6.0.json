@@ -1,0 +1,2993 @@
+{
+  "package_schema": "hmi_raw_page_package.v2",
+  "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+  "version": "0.6.0",
+  "template": {
+    "version": "0.6.0",
+    "ui_family": "B_AND_R",
+    "page": "injection_metering",
+    "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z050，B&R 贝加莱 UI）OCR 实测锚点",
+    "description": "B&R 屏射胶页字段位置模板。结构：射胶 5 段表（行=速度%/压力bar/位置mm/时间sec(蓝字实际值)，段1在最右）+保压 5 段表（行=速度/压力/时间）+保压切换（位置mm+时间sec 勾选式）+实际切换值（实时不入）。射胶表行标签常被左缘裁切，行序按区段内值行 y 聚类上→下=速度/压力/位置/时间；每行内值按 x 降序=段1→段5。有效段：射胶=速度或压力非零最末段、保压=时间>0最末段。顶部实际速度/位置/压力/模穴压力与底部实际切换值为实时值不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。 本页面包的身份以物理射胶/保压页命名；page=injection_metering 仅兼容现有 Reader 分发枚举。",
+    "coordinate_system": "normalized_screen",
+    "calibration": {
+      "method": "6 张真值图（inj_Z050 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
+      "calibrated_at": "2026-08-02"
+    },
+    "sections": {
+      "injection": {
+        "header": "射胶",
+        "header_y_range": [
+          0.38,
+          0.46
+        ],
+        "next_header": "保压",
+        "rows": [
+          "velocity",
+          "pressure",
+          "position",
+          "time_actual"
+        ],
+        "skip_rows": [
+          "time_actual"
+        ]
+      },
+      "holding": {
+        "header": "保压",
+        "header_y_range": [
+          0.6,
+          0.66
+        ],
+        "next_header": "保压切换",
+        "rows": [
+          "velocity",
+          "pressure",
+          "time"
+        ],
+        "skip_rows": []
+      },
+      "switch": {
+        "header": [
+          "保压切换",
+          "保压奶换"
+        ],
+        "header_y_range": [
+          0.76,
+          0.82
+        ],
+        "position_label": "位置",
+        "time_label": "时间",
+        "value_dx": 0.3
+      }
+    },
+    "cluster_gap": 0.02,
+    "max_stages": 5,
+    "value_ranges": {
+      "bar": [
+        0,
+        400
+      ],
+      "pct": [
+        0,
+        100
+      ],
+      "mm": [
+        0,
+        200
+      ],
+      "s": [
+        0,
+        60
+      ]
+    },
+    "page_detect_anchors": [
+      "射胶",
+      "保压切换",
+      "外部信号"
+    ],
+    "family_detect_groups": [
+      [
+        "保压切换",
+        "外部信号"
+      ],
+      [
+        "射胶",
+        "模穴压力"
+      ]
+    ],
+    "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+    "page_version": "1",
+    "rule_version": "s01.2",
+    "layout_anchors": [
+      "射胶",
+      "保压(?:切|奶)换",
+      "外部信号"
+    ],
+    "require_anchor_match": true,
+    "sample_ids": [
+      "development",
+      "retained"
+    ],
+    "business_profile_candidate": {
+      "page_id": "b_and_r.injection_holding.multi_stage_position_time",
+      "page_version": "1",
+      "rule_version": "s01.2",
+      "algorithm": "protocol_replay_v1",
+      "decision_source": "Z050 rank01 原图、049 六图真值及领域所有者 2026-10-13 对压力侧别、设定值、段终点和 V/P 双条件的裁定",
+      "verification_status": "sample_reviewed_partial",
+      "controller": "B_AND_R",
+      "page_kind": "process_settings",
+      "structural_markers": [
+        "射胶",
+        "保压切换"
+      ],
+      "speed_unit": "percent",
+      "pressure_basis": "hydraulic_pressure",
+      "injection_position_meaning": "stage_end_position",
+      "holding_time_meaning": "segment_duration",
+      "pre_suck_back": {
+        "enabled": false
+      },
+      "post_suck_back": {
+        "enabled": false
+      },
+      "possible_names": {
+        "injection.speed.{n}": [
+          "射胶速度{n}"
+        ],
+        "injection.pressure.{n}": [
+          "射胶压力{n}"
+        ],
+        "injection.end.{n}": [
+          "射胶终点位置{n}"
+        ],
+        "vp.position": [
+          "保压切换位置"
+        ],
+        "holding.speed.{n}": [
+          "保压速度{n}"
+        ],
+        "holding.pressure.{n}": [
+          "保压压力{n}"
+        ],
+        "holding.time.{n}": [
+          "保压时间{n}"
+        ],
+        "vp.switch.time": [
+          "保压切换时间"
+        ]
+      },
+      "field_units": {
+        "injection.speed.{n}": "%",
+        "injection.pressure.{n}": "bar",
+        "injection.end.{n}": "mm",
+        "vp.position": "mm",
+        "holding.speed.{n}": "%",
+        "holding.pressure.{n}": "bar",
+        "holding.time.{n}": "s",
+        "vp.switch.time": "s"
+      },
+      "field_write_review": {
+        "injection.speed.{n}": "validate_in_main",
+        "injection.pressure.{n}": "validate_in_main",
+        "injection.end.{n}": "validate_in_main",
+        "vp.position": "validate_in_main",
+        "holding.speed.{n}": "validate_in_main",
+        "holding.pressure.{n}": "validate_in_main",
+        "holding.time.{n}": "validate_in_main",
+        "vp.switch.time": "validate_in_main"
+      },
+      "migration_notes": [
+        "射胶位置 42/21/0 mm 是各段显示终点；第 3 段启用，但业务终点取 V/P 位置 15.8 mm，原屏 0 mm 保留为未写入观测。",
+        "射胶压力 100/115/91 bar 是液压压力设定值，写入 pressure_setpoint，不写入压力上限；保压压力同为液压压力。未提供增压比时只保留原值及侧别，不猜塑料压力 MPa。",
+        "位置 15.8 mm 与时间 2.35 s 同时勾选，任一条件先满足即切换；勾选状态的自动识别仍需逐图核对。",
+        "六图旧真值由 049 自动整批接受；Z050 rank01 的关键语义由领域所有者 2026-10-13 裁定，样本参与过模板开发，不是独立留出集。"
+      ],
+      "injection_pressure_meaning": "pressure_setpoint",
+      "last_injection_end_from_vp": true,
+      "vp_switch_mode": "position_or_time"
+    },
+    "extractor": "registered_extractor",
+    "extractor_id": "b_and_r.injection_metering",
+    "extractor_version": "1",
+    "layout_variant": "multi_stage_position_time",
+    "page_identity": {
+      "brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "interface_generation": null,
+      "page_type": "injection_metering",
+      "layout_variant": "multi_stage_position_time",
+      "evidence_sample_ids": [
+        "development",
+        "retained"
+      ]
+    }
+  },
+  "raw_contract": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:hmi:page_observations:v2",
+    "title": "Pure original-screen observations",
+    "type": "object",
+    "required": [
+      "schema_version",
+      "source",
+      "profile_id",
+      "fields",
+      "raw_field_definition_sha256"
+    ],
+    "properties": {
+      "schema_version": {
+        "const": "page_observations.v2"
+      },
+      "source": {
+        "enum": [
+          "image_recognition",
+          "manual"
+        ]
+      },
+      "profile_id": {
+        "type": "string",
+        "maxLength": 160
+      },
+      "raw_field_definition_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "fields": {
+        "type": "array",
+        "maxItems": 1000,
+        "items": {
+          "type": "object",
+          "required": [
+            "screen_field_key",
+            "source",
+            "original_label",
+            "original_value",
+            "original_unit",
+            "role",
+            "state",
+            "reading",
+            "original_bbox"
+          ],
+          "properties": {
+            "screen_field_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "source": {
+              "enum": [
+                "image_recognition",
+                "manual"
+              ]
+            },
+            "original_label": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 512
+            },
+            "original_value": {
+              "type": [
+                "number",
+                "string",
+                "boolean",
+                "null"
+              ],
+              "maxLength": 2048
+            },
+            "original_unit": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 32
+            },
+            "role": {
+              "enum": [
+                "setting",
+                "actual",
+                "unknown"
+              ]
+            },
+            "state": {
+              "enum": [
+                "enabled",
+                "disabled",
+                "unknown"
+              ]
+            },
+            "reading": {
+              "enum": [
+                "known",
+                "missing",
+                "uncertain",
+                "unsupported",
+                "conflict"
+              ]
+            },
+            "confidence": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "original_bbox": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                }
+              ]
+            },
+            "zone_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zone_source": {
+              "enum": [
+                "nozzle",
+                "barrel",
+                "hot_runner",
+                "mold_fixed",
+                "mold_moving",
+                "mold_slide",
+                "other",
+                null
+              ]
+            },
+            "order": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "section": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "stage": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "confidence": {
+                    "type": "null"
+                  },
+                  "bbox": {
+                    "type": "null"
+                  },
+                  "original_bbox": {
+                    "type": "null"
+                  },
+                  "text": {
+                    "type": "null"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "image_reference": {
+        "type": "object",
+        "required": [
+          "sha256"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "raw_contract_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "package_sha256": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "recognizer": {
+        "type": "object",
+        "required": [
+          "id",
+          "sha256",
+          "files"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "source": {
+              "const": "image_recognition"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "image_sha256",
+            "original_size",
+            "raw_contract_sha256",
+            "recognizer",
+            "package_sha256",
+            "engine"
+          ],
+          "properties": {
+            "image_sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "original_size": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "image_recognition"
+                  }
+                }
+              }
+            },
+            "engine": {
+              "type": "object",
+              "required": [
+                "library",
+                "version"
+              ],
+              "properties": {
+                "library": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "version": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "required": [
+            "actor",
+            "created_at",
+            "revision"
+          ],
+          "properties": {
+            "actor": {
+              "type": "string",
+              "minLength": 1
+            },
+            "created_at": {
+              "type": "string",
+              "minLength": 1,
+              "format": "date-time"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fields": {
+              "items": {
+                "properties": {
+                  "source": {
+                    "const": "manual"
+                  }
+                }
+              }
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "image_sha256"
+                ]
+              },
+              {
+                "required": [
+                  "recognizer"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "raw_contract_sha256": "199b61caa60c60e3e5984c8e99034d0a7d9d06e820d3c1a6b90cae899f6215f6",
+  "raw_field_definition": {
+    "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+    "version": "0.6.0",
+    "page_identity": {
+      "brand": "BOLE",
+      "controller_family": "B_AND_R",
+      "interface_generation": null,
+      "page_type": "injection_metering",
+      "layout_variant": "multi_stage_position_time"
+    },
+    "fields": [
+      {
+        "screen_field_key": "injection.speed.stage-1",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "injection",
+        "stage": 1,
+        "segment_id": "injection-stage-1",
+        "order": 5
+      },
+      {
+        "screen_field_key": "injection.speed.stage-2",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "injection",
+        "stage": 2,
+        "segment_id": "injection-stage-2",
+        "order": 4
+      },
+      {
+        "screen_field_key": "injection.speed.stage-3",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "injection",
+        "stage": 3,
+        "segment_id": "injection-stage-3",
+        "order": 3
+      },
+      {
+        "screen_field_key": "injection.speed.stage-4",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "injection",
+        "stage": 4,
+        "segment_id": "injection-stage-4",
+        "order": 2
+      },
+      {
+        "screen_field_key": "injection.speed.stage-5",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "injection",
+        "stage": 5,
+        "segment_id": "injection-stage-5",
+        "order": 1
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-1",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "injection",
+        "stage": 1,
+        "segment_id": "injection-stage-1",
+        "order": 5
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-2",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "injection",
+        "stage": 2,
+        "segment_id": "injection-stage-2",
+        "order": 4
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-3",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "injection",
+        "stage": 3,
+        "segment_id": "injection-stage-3",
+        "order": 3
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-4",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "injection",
+        "stage": 4,
+        "segment_id": "injection-stage-4",
+        "order": 2
+      },
+      {
+        "screen_field_key": "injection.pressure.stage-5",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "injection",
+        "stage": 5,
+        "segment_id": "injection-stage-5",
+        "order": 1
+      },
+      {
+        "screen_field_key": "injection.end_position.stage-1",
+        "label": "位置",
+        "labels": [
+          "位置",
+          "拉置"
+        ],
+        "unit": "mm",
+        "role": "setting",
+        "section": "injection",
+        "stage": 1,
+        "segment_id": "injection-stage-1",
+        "order": 5
+      },
+      {
+        "screen_field_key": "injection.end_position.stage-2",
+        "label": "位置",
+        "labels": [
+          "位置",
+          "拉置"
+        ],
+        "unit": "mm",
+        "role": "setting",
+        "section": "injection",
+        "stage": 2,
+        "segment_id": "injection-stage-2",
+        "order": 4
+      },
+      {
+        "screen_field_key": "injection.end_position.stage-3",
+        "label": "位置",
+        "labels": [
+          "位置",
+          "拉置"
+        ],
+        "unit": "mm",
+        "role": "setting",
+        "section": "injection",
+        "stage": 3,
+        "segment_id": "injection-stage-3",
+        "order": 3
+      },
+      {
+        "screen_field_key": "injection.end_position.stage-4",
+        "label": "位置",
+        "labels": [
+          "位置",
+          "拉置"
+        ],
+        "unit": "mm",
+        "role": "setting",
+        "section": "injection",
+        "stage": 4,
+        "segment_id": "injection-stage-4",
+        "order": 2
+      },
+      {
+        "screen_field_key": "injection.end_position.stage-5",
+        "label": "位置",
+        "labels": [
+          "位置",
+          "拉置"
+        ],
+        "unit": "mm",
+        "role": "setting",
+        "section": "injection",
+        "stage": 5,
+        "segment_id": "injection-stage-5",
+        "order": 1
+      },
+      {
+        "screen_field_key": "injection.time.stage-1",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "actual",
+        "section": "injection",
+        "stage": 1,
+        "segment_id": "injection-stage-1",
+        "order": 5,
+        "time_kind": "actual_injection_duration"
+      },
+      {
+        "screen_field_key": "injection.time.stage-2",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "actual",
+        "section": "injection",
+        "stage": 2,
+        "segment_id": "injection-stage-2",
+        "order": 4,
+        "time_kind": "actual_injection_duration"
+      },
+      {
+        "screen_field_key": "injection.time.stage-3",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "actual",
+        "section": "injection",
+        "stage": 3,
+        "segment_id": "injection-stage-3",
+        "order": 3,
+        "time_kind": "actual_injection_duration"
+      },
+      {
+        "screen_field_key": "injection.time.stage-4",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "actual",
+        "section": "injection",
+        "stage": 4,
+        "segment_id": "injection-stage-4",
+        "order": 2,
+        "time_kind": "actual_injection_duration"
+      },
+      {
+        "screen_field_key": "injection.time.stage-5",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "actual",
+        "section": "injection",
+        "stage": 5,
+        "segment_id": "injection-stage-5",
+        "order": 1,
+        "time_kind": "actual_injection_duration"
+      },
+      {
+        "screen_field_key": "holding.speed.stage-1",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "holding",
+        "stage": 1,
+        "segment_id": "holding-stage-1",
+        "order": 5
+      },
+      {
+        "screen_field_key": "holding.speed.stage-2",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "holding",
+        "stage": 2,
+        "segment_id": "holding-stage-2",
+        "order": 4
+      },
+      {
+        "screen_field_key": "holding.speed.stage-3",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "holding",
+        "stage": 3,
+        "segment_id": "holding-stage-3",
+        "order": 3
+      },
+      {
+        "screen_field_key": "holding.speed.stage-4",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "holding",
+        "stage": 4,
+        "segment_id": "holding-stage-4",
+        "order": 2
+      },
+      {
+        "screen_field_key": "holding.speed.stage-5",
+        "label": "速度",
+        "labels": [
+          "速度",
+          "理度"
+        ],
+        "unit": "%",
+        "role": "setting",
+        "section": "holding",
+        "stage": 5,
+        "segment_id": "holding-stage-5",
+        "order": 1
+      },
+      {
+        "screen_field_key": "holding.pressure.stage-1",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "holding",
+        "stage": 1,
+        "segment_id": "holding-stage-1",
+        "order": 5
+      },
+      {
+        "screen_field_key": "holding.pressure.stage-2",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "holding",
+        "stage": 2,
+        "segment_id": "holding-stage-2",
+        "order": 4
+      },
+      {
+        "screen_field_key": "holding.pressure.stage-3",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "holding",
+        "stage": 3,
+        "segment_id": "holding-stage-3",
+        "order": 3
+      },
+      {
+        "screen_field_key": "holding.pressure.stage-4",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "holding",
+        "stage": 4,
+        "segment_id": "holding-stage-4",
+        "order": 2
+      },
+      {
+        "screen_field_key": "holding.pressure.stage-5",
+        "label": "压力",
+        "labels": [
+          "压力",
+          "玉力"
+        ],
+        "unit": "bar",
+        "role": "setting",
+        "section": "holding",
+        "stage": 5,
+        "segment_id": "holding-stage-5",
+        "order": 1
+      },
+      {
+        "screen_field_key": "holding.time.stage-1",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "setting",
+        "section": "holding",
+        "stage": 1,
+        "segment_id": "holding-stage-1",
+        "order": 5,
+        "time_kind": "holding_segment_duration"
+      },
+      {
+        "screen_field_key": "holding.time.stage-2",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "setting",
+        "section": "holding",
+        "stage": 2,
+        "segment_id": "holding-stage-2",
+        "order": 4,
+        "time_kind": "holding_segment_duration"
+      },
+      {
+        "screen_field_key": "holding.time.stage-3",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "setting",
+        "section": "holding",
+        "stage": 3,
+        "segment_id": "holding-stage-3",
+        "order": 3,
+        "time_kind": "holding_segment_duration"
+      },
+      {
+        "screen_field_key": "holding.time.stage-4",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "setting",
+        "section": "holding",
+        "stage": 4,
+        "segment_id": "holding-stage-4",
+        "order": 2,
+        "time_kind": "holding_segment_duration"
+      },
+      {
+        "screen_field_key": "holding.time.stage-5",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "setting",
+        "section": "holding",
+        "stage": 5,
+        "segment_id": "holding-stage-5",
+        "order": 1,
+        "time_kind": "holding_segment_duration"
+      },
+      {
+        "screen_field_key": "actual.speed",
+        "label": "实际速度",
+        "labels": [
+          "实际速度"
+        ],
+        "unit": "mm/s",
+        "role": "actual",
+        "section": "actual",
+        "label_region": [
+          0.07999999999999999,
+          0.3,
+          0.28,
+          0.37
+        ]
+      },
+      {
+        "screen_field_key": "actual.position",
+        "label": "实际位置",
+        "labels": [
+          "实际位置"
+        ],
+        "unit": "mm",
+        "role": "actual",
+        "section": "actual",
+        "label_region": [
+          0.30000000000000004,
+          0.3,
+          0.5,
+          0.37
+        ]
+      },
+      {
+        "screen_field_key": "actual.pressure",
+        "label": "实际压力",
+        "labels": [
+          "实际压力"
+        ],
+        "unit": "bar",
+        "role": "actual",
+        "section": "actual",
+        "label_region": [
+          0.53,
+          0.3,
+          0.73,
+          0.37
+        ]
+      },
+      {
+        "screen_field_key": "actual.cavity_pressure",
+        "label": "模穴压力",
+        "labels": [
+          "模穴压力",
+          "模六压力",
+          "穴压力"
+        ],
+        "unit": "bar",
+        "role": "actual",
+        "section": "actual",
+        "label_region": [
+          0.74,
+          0.3,
+          0.94,
+          0.37
+        ]
+      },
+      {
+        "screen_field_key": "switch.actual.position",
+        "label": "实际切换位置",
+        "labels": [
+          "实际切换位置"
+        ],
+        "unit": "mm",
+        "role": "actual",
+        "section": "switch.actual",
+        "label_region": [
+          0.15,
+          0.8,
+          0.35,
+          0.88
+        ]
+      },
+      {
+        "screen_field_key": "switch.actual.time",
+        "label": "实际切换时间",
+        "labels": [
+          "实际切换时间",
+          "实部奶换时间"
+        ],
+        "unit": "s",
+        "role": "actual",
+        "section": "switch.actual",
+        "label_region": [
+          0.42000000000000004,
+          0.8,
+          0.62,
+          0.88
+        ]
+      },
+      {
+        "screen_field_key": "switch.actual.pressure",
+        "label": "实际切换压力",
+        "labels": [
+          "实际切换压力"
+        ],
+        "unit": "bar",
+        "role": "actual",
+        "section": "switch.actual",
+        "label_region": [
+          0.74,
+          0.8,
+          0.94,
+          0.88
+        ]
+      },
+      {
+        "screen_field_key": "switch.setting.position",
+        "label": "位置",
+        "labels": [
+          "位置",
+          "拉置"
+        ],
+        "unit": "mm",
+        "role": "setting",
+        "section": "switch",
+        "direction": "right",
+        "label_region": [
+          0.1,
+          0.69,
+          0.35,
+          0.76
+        ]
+      },
+      {
+        "screen_field_key": "switch.setting.time",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": "s",
+        "role": "setting",
+        "section": "switch",
+        "direction": "right",
+        "label_region": [
+          0.6,
+          0.69,
+          0.8,
+          0.76
+        ]
+      },
+      {
+        "screen_field_key": "switch.position.selected",
+        "label": "位置",
+        "labels": [
+          "位置",
+          "拉置"
+        ],
+        "unit": null,
+        "role": "setting",
+        "section": "switch",
+        "value_type": "boolean"
+      },
+      {
+        "screen_field_key": "switch.time.selected",
+        "label": "时间",
+        "labels": [
+          "时间"
+        ],
+        "unit": null,
+        "role": "setting",
+        "section": "switch",
+        "value_type": "boolean"
+      },
+      {
+        "screen_field_key": "switch.external.selected",
+        "label": "外部信号",
+        "labels": [
+          "外部信号"
+        ],
+        "unit": null,
+        "role": "setting",
+        "section": "switch",
+        "value_type": "boolean"
+      }
+    ],
+    "samples": [
+      {
+        "sample_id": "development",
+        "image": "ground_truth/bole_BR/射胶保压_20260807180631_13_32.jpg",
+        "image_sha256": "ab8c9bcb7e06bab421f6c4d4dba2eae84acea6ebeea2085b56311db9b9e0e9c2",
+        "truth": "datasets/r6_bole/development.truth.json",
+        "purpose": "development",
+        "provenance": "Existing 2026-08-07 BOLE B&R source photo; historically exposed. Reserved photograph is distinct, not a blind holdout. Independent platform review remains required.",
+        "tuning_involvement": "This photo was used for R6 OCR/alias diagnosis and regression; not a blind or tuning-independent holdout."
+      },
+      {
+        "sample_id": "retained",
+        "image": "ground_truth/bole_BR/射胶保压_20260807180632_14_32.jpg",
+        "image_sha256": "745f7aa3b5c0464b9f770cde9e9974c64d3d6f8fe30138389b823d1177a0682e",
+        "truth": "datasets/r6_bole/retained.truth.json",
+        "purpose": "reserved_regression",
+        "provenance": "Existing 2026-08-07 BOLE B&R source photo; historically exposed. Reserved photograph is distinct, not a blind holdout. Independent platform review remains required.",
+        "tuning_involvement": "This photo was used for R6 OCR/alias diagnosis and regression; not a blind or tuning-independent holdout."
+      }
+    ],
+    "controller_evidence": "BOLE/300EKS_CAP headers on both originals; repository B&R template identity and prior owner-reviewed routing. No interface generation inferred.",
+    "issues": [
+      {
+        "code": "ENABLE_STATE_UNVERIFIED",
+        "reason": "No calibrated visual state decoder. Numeric residuals remain unknown, not disabled or enabled."
+      },
+      {
+        "code": "CHECKBOX_READING_UNSUPPORTED",
+        "reason": "Position, time and external signal checkbox decoding is not implemented."
+      }
+    ],
+    "excluded_scope": [
+      "top status strip",
+      "graphs",
+      "navigation",
+      "other controllers and temperature variants"
+    ],
+    "stage_column_centers": {
+      "5": 0.28,
+      "4": 0.425,
+      "3": 0.57,
+      "2": 0.715,
+      "1": 0.86
+    }
+  },
+  "raw_field_definition_sha256": "7c47cebbbaffc5c6c9af9d8f445b865e7e4dfc41b9ec11426741a1e501ae76e0",
+  "recognizer": {
+    "id": "b_and_r.injection_ocr.v2",
+    "version": "0.6.0",
+    "files": {
+      "scripts/raw_bole_injection.py": "07a42f5b8a608c34f3ca4f29b858b5a62d51b19e8899af0788cb5d316479d89e",
+      "scripts/raw_contract.py": "e8779010a89518fa791a164029f06e0c6a027ebc7e99b9b7cc38fe1fced847a8",
+      "scripts/raw_page.py": "017e67a22ab000c0e518baa33e3cdc50ec1cc6596f588d2c56f7ba005d6f28a4",
+      "scripts/extract_families/coordinates.py": "e3ebf166c6df86558e7263ed00475033290ecf3d74b0810e1c97d8aa9154cbe6",
+      "contracts/raw-pages/b-and-r-injection-0.6.0.json": "c809ab8b67fe923c005eded0253b05a438c95d23cace3777e21d79fd15f39d9d"
+    },
+    "sources": {
+      "scripts/raw_bole_injection.py": "\"\"\"Versioned B&R injection/holding observations from physical OCR cells.\"\"\"\n\nimport copy\nimport hashlib\nimport json\nimport re\nfrom pathlib import Path\n\nfrom raw_contract import canonical_hash, import_raw_package\nfrom raw_page import _line_box\nfrom extract_families.coordinates import project_boxes\n\nROOT = Path(__file__).resolve().parents[1]\nPROFILE = \"b_and_r.injection_holding.multi_stage_position_time\"\nVERSION = \"0.6.0\"\nDEFINITION = \"contracts/raw-pages/b-and-r-injection-0.6.0.json\"\nFILES = (\"scripts/raw_bole_injection.py\", \"scripts/raw_contract.py\", \"scripts/raw_page.py\",\n         \"scripts/extract_families/coordinates.py\", DEFINITION)\nNUMBER = re.compile(r\"^\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*(mm/s|mm|bar|%|sec|s)?\\s*$\", re.I)\n\n\ndef build_bole_injection_package(samples):\n    definition = json.loads((ROOT / DEFINITION).read_text())\n    expected = {sample[\"sample_id\"]: sample[\"image_sha256\"] for sample in definition[\"samples\"]}\n    provided = {sample[\"manifest\"][\"sample_id\"]: sample[\"manifest\"][\"original_sha256\"] for sample in samples}\n    if provided != expected or len(samples) != len(expected) or len(set(provided.values())) != len(expected):\n        raise ValueError(\"BOLE_INJECTION_FROZEN_SAMPLES_REQUIRED\")\n    template = json.loads((ROOT / \"templates/b_and_r/injection_holding.json\").read_text())\n    template.update(version=VERSION, extractor=\"registered_extractor\",\n                    extractor_id=\"b_and_r.injection_metering\", extractor_version=\"1\",\n                    layout_variant=definition[\"page_identity\"][\"layout_variant\"],\n                    page_identity={**definition[\"page_identity\"],\n                                   \"evidence_sample_ids\": [s[\"sample_id\"] for s in definition[\"samples\"]]},\n                    sample_ids=[s[\"sample_id\"] for s in definition[\"samples\"]])\n    contract = json.loads((ROOT / \"contracts/page_observations.v2.schema.json\").read_text())\n    sources = {path: (ROOT / path).read_text() for path in FILES}\n    files = {path: hashlib.sha256(source.encode()).hexdigest() for path, source in sources.items()}\n    return dict(package_schema=\"hmi_raw_page_package.v2\", profile_id=PROFILE, version=VERSION,\n                template=template, raw_contract=contract, raw_contract_sha256=canonical_hash(contract),\n                raw_field_definition=definition, raw_field_definition_sha256=canonical_hash(definition),\n                recognizer=dict(id=\"b_and_r.injection_ocr.v2\", version=VERSION, files=files,\n                                sources=sources, sha256=canonical_hash(files)), samples=samples)\n\n\ndef bole_injection_package(root=ROOT):\n    package = import_raw_package(json.loads((Path(root) / \"templates/raw-packages\" / PROFILE / f\"{VERSION}.json\").read_text()))\n    if package[\"profile_id\"] != PROFILE or package[\"version\"] != VERSION:\n        raise ValueError(\"RAW_PACKAGE_IDENTITY_MISMATCH\")\n    if package[\"raw_field_definition\"] != json.loads((ROOT / DEFINITION).read_text()):\n        raise ValueError(\"RAW_DEFINITION_MISMATCH\")\n    recognizer = package[\"recognizer\"]\n    files = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in FILES}\n    if (recognizer.get(\"id\") != \"b_and_r.injection_ocr.v2\" or recognizer[\"files\"] != files\n            or recognizer[\"sha256\"] != canonical_hash(files)\n            or {path: hashlib.sha256(source.encode()).hexdigest()\n                for path, source in recognizer[\"sources\"].items()} != files):\n        raise ValueError(\"RAW_RECOGNIZER_HASH_MISMATCH\")\n    return package\n\n\ndef observe_bole_injection(lines, meta, image_sha256, root=ROOT):\n    if image_sha256 is not None and not re.fullmatch(r\"[a-f0-9]{64}\", image_sha256):\n        raise ValueError(\"IMAGE_HASH_INVALID\")\n    package = bole_injection_package(root)\n    definition = package[\"raw_field_definition\"]\n    width, height = meta[\"screen_size\"]\n    cells = []\n    for line in lines:\n        box = _line_box(line)\n        cells.append(dict(line=line, text=re.sub(r\"\\s+\", \"\", line[\"text\"]),\n                          x=(box[0] + box[2]) / (2 * width),\n                          y=(box[1] + box[3]) / (2 * height), match=NUMBER.fullmatch(line[\"text\"])))\n\n    sections, issues = {}, list(definition[\"issues\"])\n    for section, label in ((\"injection\", \"射胶\"), (\"holding\", \"保压\")):\n        titles = [c for c in cells if c[\"text\"] == label and .3 < c[\"x\"] < .8 and .3 < c[\"y\"] < .68]\n        if len(titles) != 1:\n            raise ValueError(\"BOLE_INJECTION_LAYOUT_UNVERIFIED\")\n        title = titles[0]\n        heads = sorted([c for c in cells if c[\"text\"] in {\"1\", \"2\", \"3\", \"4\", \"5\"}\n                        and .2 < c[\"x\"] < .95 and 0 < c[\"y\"] - title[\"y\"] < .04], key=lambda c: c[\"x\"])\n        ids = [int(c[\"text\"]) for c in heads]\n        conflict = len(ids) != len(set(ids))\n        if conflict:\n            issues.append(dict(code=\"STAGE_IDENTITY_CONFLICT\", section=section))\n        if set(ids) != {1, 2, 3, 4, 5}:\n            issues.append(dict(code=\"STAGE_HEADERS_PARTIAL\", section=section))\n        sections[section] = dict(title=title, heads=heads, conflict=conflict)\n    if not sections[\"injection\"][\"title\"][\"y\"] < sections[\"holding\"][\"title\"][\"y\"]:\n        raise ValueError(\"BOLE_INJECTION_LAYOUT_CONFLICT\")\n\n    fields = []\n    for spec in definition[\"fields\"]:\n        section = spec[\"section\"]\n        source_label, header, options, order = None, None, [], spec.get(\"order\")\n        conflict = False\n        if spec.get(\"stage\"):\n            table = sections[section]\n            y0 = table[\"title\"][\"y\"]\n            y1 = sections[\"holding\"][\"title\"][\"y\"] if section == \"injection\" else .7\n            labels = [c for c in cells if c[\"text\"] in spec[\"labels\"] and c[\"x\"] < .2 and y0 < c[\"y\"] < y1]\n            source_label = labels[0] if len(labels) == 1 else None\n            matching = [c for c in table[\"heads\"] if int(c[\"text\"]) == spec[\"stage\"]]\n            header = matching[0] if len(matching) == 1 else None\n            conflict = table[\"conflict\"] or len(labels) > 1\n            if source_label and not conflict:\n                physical_slot = (min(range(1, 6), key=lambda stage: abs(\n                    definition[\"stage_column_centers\"][str(stage)] - header[\"x\"])) if header else spec[\"stage\"])\n                order = (table[\"heads\"].index(header) + 1 if header and len(table[\"heads\"]) == 5 else 6 - physical_slot)\n                hx = header[\"x\"] if header else definition[\"stage_column_centers\"][str(spec[\"stage\"])]\n                options = [c for c in cells if c[\"match\"] and abs(c[\"y\"] - source_label[\"y\"]) < .013\n                           and abs(c[\"x\"] - hx) < .075]\n        elif spec.get(\"value_type\") != \"boolean\":\n            labels = [c for c in cells if c[\"text\"] in spec[\"labels\"]\n                      and spec[\"label_region\"][0] < c[\"x\"] < spec[\"label_region\"][2]\n                      and spec[\"label_region\"][1] < c[\"y\"] < spec[\"label_region\"][3]]\n            source_label = labels[0] if len(labels) == 1 else None\n            conflict = len(labels) > 1\n            if source_label:\n                if spec.get(\"direction\") == \"right\":\n                    options = [c for c in cells if c[\"match\"] and .04 < c[\"x\"] - source_label[\"x\"] < .25\n                               and abs(c[\"y\"] - source_label[\"y\"]) < .018]\n                else:\n                    options = [c for c in cells if c[\"match\"] and 0 < c[\"y\"] - source_label[\"y\"] < .05\n                               and abs(c[\"x\"] - source_label[\"x\"]) < .065]\n        source = options[0] if len(options) == 1 and not conflict else None\n        unit = source[\"match\"][2] if source else None\n        if source and unit is None:\n            unit_cells = [c for c in cells if c[\"text\"].lower() in {\"%\", \"bar\", \"mm\", \"mm/s\", \"sec\", \"s\"}\n                          and abs(c[\"y\"] - source[\"y\"]) < .015 and c[\"x\"] > source[\"x\"]\n                          and (c[\"x\"] - source[\"x\"] < .16 or spec.get(\"stage\"))]\n            units = {c[\"line\"][\"text\"] for c in unit_cells}\n            unit = next(iter(units)) if len(units) == 1 else None\n        confidence = source[\"line\"].get(\"conf\", source[\"line\"].get(\"confidence\", 0)) if source else None\n        reading = (\"unsupported\" if spec.get(\"value_type\") == \"boolean\" else\n                   \"conflict\" if conflict or len(options) > 1 else \"missing\" if source is None else\n                   \"uncertain\" if confidence < .9 or source_label[\"text\"] != spec[\"label\"]\n                   or spec.get(\"stage\") and (header is None or header[\"line\"].get(\"conf\", 0) < .9) else \"known\")\n        if unit and (\"s\" if unit.lower() == \"sec\" else unit.lower()) != spec[\"unit\"]:\n            reading = \"conflict\"\n        field = {key: spec[key] for key in (\"screen_field_key\", \"section\", \"role\", \"stage\", \"segment_id\", \"time_kind\") if key in spec}\n        field.update(source=\"image_recognition\", original_label=source_label[\"line\"][\"text\"] if source_label else None,\n                     original_value=float(source[\"match\"][1]) if source else None,\n                     original_unit=unit, effective_unit=unit or spec[\"unit\"], state=\"unknown\", reading=reading,\n                     order=order, identity_basis=\"ocr_header\" if header else \"frozen_field_definition\",\n                     bbox=_line_box(source[\"line\"]) if source else None, original_bbox=None,\n                     text=source[\"line\"][\"text\"] if source else None, confidence=confidence,\n                     reasons=[\"enable_state_unverified\"],\n                     template_ref=dict(profile_id=PROFILE, version=VERSION,\n                                       sha256=package[\"raw_field_definition_sha256\"],\n                                       unit=spec[\"unit\"] if unit is None else None))\n        if reading != \"known\":\n            issues.append(dict(code=\"READING_\" + reading.upper(), screen_field_key=spec[\"screen_field_key\"]))\n        fields.append(field)\n    project_boxes(fields, meta)\n    for field in fields:\n        if field[\"original_bbox\"] is None:\n            field[\"reasons\"].append(\"source_box_unavailable\")\n    transform = copy.deepcopy(meta)\n    transform.update(rectifier_input_sha256=meta.get(\"original_sha256\"), original_sha256=image_sha256)\n    return dict(schema_version=\"page_observations.v2\", source=\"image_recognition\", profile_id=PROFILE,\n                page_identity=definition[\"page_identity\"], image_sha256=image_sha256,\n                original_size=meta.get(\"original_size\"), coordinate_space=\"original_percent\", transform=transform,\n                raw_field_definition_sha256=package[\"raw_field_definition_sha256\"],\n                raw_field_definition_version=VERSION, raw_contract_sha256=package[\"raw_contract_sha256\"],\n                recognizer=package[\"recognizer\"], package_sha256=canonical_hash(package), fields=fields, issues=issues,\n                ocr_evidence=dict(coordinate_space=\"rectified_pixels\", screen_size=meta[\"screen_size\"], lines=lines),\n                coverage=dict(status=\"partial\", declared=len(fields), known=sum(f[\"reading\"] == \"known\" for f in fields)))\n",
+      "scripts/raw_contract.py": "\"\"\"Offline integrity and semantic checks for original-screen packages.\"\"\"\n\nimport hashlib\nimport json\nimport math\nfrom datetime import datetime\n\n\ndef canonical_hash(document):\n    return hashlib.sha256(json.dumps(document, ensure_ascii=False, sort_keys=True,\n                                     separators=(\",\", \":\"), allow_nan=False).encode()).hexdigest()\n\n\ndef import_raw_package(document):\n    package = json.loads(json.dumps(document, allow_nan=False))\n    if package.get(\"package_schema\") != \"hmi_raw_page_package.v2\":\n        raise ValueError(\"RAW_PACKAGE_SCHEMA_UNSUPPORTED\")\n    for key in (\"raw_contract\", \"raw_field_definition\"):\n        if canonical_hash(package[key]) != package[key + \"_sha256\"]:\n            raise ValueError(\"RAW_PACKAGE_HASH_MISMATCH\")\n    definition = package[\"raw_field_definition\"]\n    if definition[\"profile_id\"] != package[\"profile_id\"] or definition[\"version\"] != package[\"version\"]:\n        raise ValueError(\"RAW_PACKAGE_IDENTITY_MISMATCH\")\n    keys = [field[\"screen_field_key\"] for field in definition[\"fields\"]]\n    if not keys or len(keys) != len(set(keys)):\n        raise ValueError(\"RAW_FIELD_IDENTITY_CONFLICT\")\n    return package\n\n\ndef validate_raw_record(record, package):\n    definition = import_raw_package(package)[\"raw_field_definition\"]\n    if record.get(\"schema_version\") != \"page_observations.v2\":\n        raise ValueError(\"RAW_CONTRACT_VERSION_UNSUPPORTED\")\n    required = {\"source\", \"profile_id\", \"fields\", \"raw_field_definition_sha256\"}\n    if not required <= record.keys():\n        raise ValueError(\"RAW_RECORD_INCOMPLETE\")\n    if (record.get(\"profile_id\") != package[\"profile_id\"] or\n            record.get(\"raw_field_definition_sha256\") != package[\"raw_field_definition_sha256\"]):\n        raise ValueError(\"RAW_DEFINITION_MISMATCH\")\n    source = record.get(\"source\")\n    if source == \"image_recognition\":\n        if not {\"original_size\", \"recognizer\", \"package_sha256\", \"raw_contract_sha256\", \"engine\"} <= record.keys():\n            raise ValueError(\"IMAGE_PROVENANCE_REQUIRED\")\n        image_hash = record.get(\"image_sha256\", \"\")\n        if len(image_hash) != 64 or any(char not in \"0123456789abcdef\" for char in image_hash):\n            raise ValueError(\"IMAGE_HASH_INVALID\")\n        if record.get(\"raw_contract_sha256\") != package[\"raw_contract_sha256\"]:\n            raise ValueError(\"RAW_CONTRACT_HASH_MISMATCH\")\n        if record[\"recognizer\"] != package[\"recognizer\"] or record[\"package_sha256\"] != canonical_hash(package):\n            raise ValueError(\"RAW_PACKAGE_HASH_MISMATCH\")\n        size = record[\"original_size\"]\n        if not isinstance(size, list) or len(size) != 2 or not all(type(x) is int and 1 <= x <= 100000 for x in size):\n            raise ValueError(\"IMAGE_DIMENSIONS_INVALID\")\n    elif source == \"manual\":\n        if not isinstance(record.get(\"actor\"), str) or not record[\"actor\"].strip() or type(record.get(\"revision\")) is not int or record[\"revision\"] < 1:\n            raise ValueError(\"MANUAL_AUDIT_REQUIRED\")\n        datetime.fromisoformat(record[\"created_at\"].replace(\"Z\", \"+00:00\"))\n        if \"image_sha256\" in record or \"recognizer\" in record:\n            raise ValueError(\"MANUAL_RECOGNITION_EVIDENCE_FORBIDDEN\")\n        if \"image_reference\" in record:\n            reference = record[\"image_reference\"]\n            if (not isinstance(reference, dict) or set(reference) != {\"sha256\"} or\n                    not isinstance(reference[\"sha256\"], str) or len(reference[\"sha256\"]) != 64 or\n                    any(char not in \"0123456789abcdef\" for char in reference[\"sha256\"])):\n                raise ValueError(\"MANUAL_IMAGE_REFERENCE_INVALID\")\n    else:\n        raise ValueError(\"RAW_SOURCE_UNSUPPORTED\")\n    specs = {field[\"screen_field_key\"]: field for field in definition[\"fields\"]}\n    seen = set()\n    if not isinstance(record[\"fields\"], list) or len(record[\"fields\"]) > 1000:\n        raise ValueError(\"RAW_FIELDS_INVALID\")\n    for field in record[\"fields\"]:\n        if not {\"screen_field_key\", \"source\", \"original_label\", \"original_value\", \"original_unit\",\n                \"role\", \"state\", \"reading\", \"original_bbox\"} <= field.keys():\n            raise ValueError(\"RAW_FIELD_INCOMPLETE\")\n        key = field[\"screen_field_key\"]\n        if key not in specs or key in seen:\n            raise ValueError(\"RAW_FIELD_IDENTITY_CONFLICT\")\n        seen.add(key)\n        if field.get(\"source\", source) != source:\n            raise ValueError(\"RAW_SOURCE_CONFLICT\")\n        for name, limit in ((\"original_label\", 512), (\"original_unit\", 32)):\n            if field[name] is not None and (not isinstance(field[name], str) or len(field[name]) > limit):\n                raise ValueError(\"RAW_TEXT_INVALID\")\n        if (field[\"role\"] not in (\"setting\", \"actual\", \"unknown\") or\n                field[\"state\"] not in (\"enabled\", \"disabled\", \"unknown\") or\n                field[\"reading\"] not in (\"known\", \"missing\", \"uncertain\", \"unsupported\", \"conflict\")):\n            raise ValueError(\"RAW_STATE_INVALID\")\n        value = field[\"original_value\"]\n        if value is not None and type(value) not in (str, int, float, bool):\n            raise ValueError(\"RAW_VALUE_INVALID\")\n        if isinstance(value, float) and not math.isfinite(value):\n            raise ValueError(\"RAW_VALUE_INVALID\")\n        if isinstance(value, str) and len(value) > 2048:\n            raise ValueError(\"RAW_VALUE_TOO_LONG\")\n        if field[\"reading\"] == \"known\" and value is None:\n            raise ValueError(\"RAW_READING_CONFLICT\")\n        confidence = field.get(\"confidence\")\n        if confidence is not None and (type(confidence) not in (float, int) or not math.isfinite(confidence) or not 0 <= confidence <= 1):\n            raise ValueError(\"RAW_CONFIDENCE_INVALID\")\n        if source == \"manual\" and any(field.get(key) is not None for key in\n                                      (\"confidence\", \"bbox\", \"original_bbox\", \"text\")):\n            raise ValueError(\"MANUAL_RECOGNITION_EVIDENCE_FORBIDDEN\")\n        box = field.get(\"original_bbox\")\n        if box is not None and (not isinstance(box, list) or len(box) != 4 or not all(type(x) in (int, float) and math.isfinite(x) for x in box)\n                                or not 0 <= box[0] < box[2] <= 100 or not 0 <= box[1] < box[3] <= 100):\n            raise ValueError(\"RAW_BOX_INVALID\")\n    if source == \"image_recognition\" and seen != set(specs):\n        raise ValueError(\"RAW_FIELD_COVERAGE_INCOMPLETE\")\n    return record\n",
+      "scripts/raw_page.py": "\"\"\"Versioned raw numeric page observations, independent of business projection.\"\"\"\n\nimport copy\nimport hashlib\nimport json\nimport re\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parents[1]\nPROFILE = \"demag.injection_metering.multi_stage_holding\"\nDEFINITION = \"contracts/raw-pages/demag-holding-0.3.0.json\"\n\n\ndef content_hash(value):\n    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,\n                                     separators=(\",\", \":\"), allow_nan=False).encode()).hexdigest()\n\n\ndef load_raw_definition(root=ROOT):\n    return json.loads((root / DEFINITION).read_text())\n\n\ndef raw_page_package(profile_id, version, root=ROOT):\n    if profile_id != PROFILE or version != \"0.3.0\":\n        raise ValueError(\"RAW_PAGE_VERSION_UNSUPPORTED\")\n    frozen = root / \"templates/raw-packages\" / PROFILE / f\"{version}.json\"\n    if not frozen.is_file():\n        raise ValueError(\"RAW_PACKAGE_NOT_FROZEN\")\n    pinned = json.loads(frozen.read_text())\n    for key, value in build_raw_page_package(root).items():\n        if value != pinned.get(key):\n            raise ValueError(\"RAW_PACKAGE_FROZEN_CONTENT_MISMATCH: \" + key)\n    return pinned\n\n\ndef build_raw_page_package(root=ROOT):\n    profile_id, version = PROFILE, \"0.3.0\"\n    definition = load_raw_definition(root)\n    contract = json.loads((root / \"contracts/page_observations.v2.schema.json\").read_text())\n    implementation = {path: hashlib.sha256((root / path).read_bytes()).hexdigest()\n                      for path in (\"scripts/raw_page.py\", \"scripts/raw_page_ocr.py\",\n                                   \"scripts/extract_families/coordinates.py\",\n                                   \"scripts/extract_families/demag/curve.py\", \"scripts/quality.py\",\n                                   \"scripts/raw_contract.py\")}\n    package = {\"package_schema\": \"hmi_raw_page_package.v2\", \"profile_id\": profile_id,\n            \"version\": version, \"raw_field_definition\": definition,\n            \"raw_field_definition_sha256\": content_hash(definition),\n            \"raw_contract\": contract, \"raw_contract_sha256\": content_hash(contract),\n            \"samples\": [json.loads((root / \"contracts/raw-pages/demag-holding-sample.json\").read_text())],\n            \"recognizer\": {\"id\": \"demag_holding_numeric.v2\",\n                           \"sha256\": content_hash(implementation), \"files\": implementation},\n            \"legacy_package\": {\"version\": \"0.2.1\",\n                               \"sha256\": content_hash(json.loads((root / \"templates/packages\" / PROFILE / \"0.2.1.json\").read_text()))}}\n    return package\n\n\ndef _line_box(line):\n    box = line[\"bbox\"]\n    return [box[k] for k in (\"x_min\", \"y_min\", \"x_max\", \"y_max\")] if isinstance(box, dict) else box\n\n\ndef _inside(line, region, size):\n    x1, y1, x2, y2 = _line_box(line)\n    x, y = (x1 + x2) / (2 * size[0]), (y1 + y2) / (2 * size[1])\n    return region[0] <= x <= region[2] and region[1] <= y <= region[3]\n\n\ndef observe_raw_page(profile_id, lines, meta, image_sha256, rectified_image=None):\n    if profile_id != PROFILE:\n        raise ValueError(\"RAW_PAGE_UNSUPPORTED\")\n    if not re.fullmatch(r\"[0-9a-f]{64}\", image_sha256):\n        raise ValueError(\"IMAGE_HASH_INVALID\")\n    from extract_families.coordinates import project_boxes\n\n    package = raw_page_package(PROFILE, \"0.3.0\")\n    definition = package[\"raw_field_definition\"]\n    transform = copy.deepcopy(meta)\n    transform[\"rectifier_input_sha256\"] = transform.get(\"original_sha256\")\n    transform[\"original_sha256\"] = image_sha256\n    size = meta[\"screen_size\"]\n    observations, issues = [], copy.deepcopy(definition[\"issues\"])\n    numeric = re.compile(r\"^\\s*([+-]?\\d+(?:\\.\\d+)?)\\s*(mm/s|bar_spez|bar|mm|s)?\\s*$\")\n    for spec in definition[\"fields\"]:\n        candidates = [(index, line) for index, line in enumerate(lines)\n                      if _inside(line, spec[\"region\"], size) and numeric.fullmatch(line[\"text\"])]\n        source = candidates[0][1] if len(candidates) == 1 else None\n        match = numeric.fullmatch(source[\"text\"]) if source else None\n        value = float(match[1]) if match else None\n        confidence = source.get(\"conf\", source.get(\"confidence\", 0)) if source else None\n        labels = [line[\"text\"] for line in lines if spec.get(\"label_region\")\n                  and _inside(line, spec[\"label_region\"], size)]\n        original_unit = match[2] if match else None\n        if original_unit is None:\n            original_unit = next((unit for unit in (\"mm/s\", \"bar_spez\", \"bar\", \"mm\", \"s\")\n                                  if any(re.search(r\"(?<![a-z])\" + re.escape(unit) + r\"(?![a-z])\", label)\n                                         for label in labels)), None)\n        reading = (\"conflict\" if len(candidates) > 1 else \"missing\" if source is None else\n                   \"uncertain\" if confidence < .9 else \"known\")\n        if spec.get(\"reading_support\") == \"unsupported\":\n            reading = \"unsupported\"\n        elif spec.get(\"semantic_status\") == \"unverified\" and source:\n            reading = \"uncertain\"\n        observation = {\"screen_field_key\": spec[\"screen_field_key\"],\n                       \"source\": \"image_recognition\", \"original_label\": \" \".join(labels) or None,\n                       \"original_value\": value, \"original_unit\": original_unit,\n                       \"effective_unit\": original_unit or spec[\"unit\"],\n                       \"label\": spec[\"label\"], \"value\": value, \"unit\": original_unit or spec[\"unit\"],\n                       \"role\": spec[\"role\"], \"state\": \"unknown\", \"reading\": reading,\n                       \"section\": spec[\"section\"], \"stage\": spec.get(\"stage\"),\n                       \"segment_id\": spec.get(\"segment_id\"), \"order\": spec.get(\"order\"),\n                       \"text\": source[\"text\"] if source else None, \"confidence\": confidence,\n                       \"bbox\": _line_box(source) if source else None, \"original_bbox\": None,\n                       \"line_indexes\": [index for index, _ in candidates], \"reasons\": [],\n                       \"template_ref\": {\"profile_id\": PROFILE, \"version\": definition[\"version\"],\n                                        \"sha256\": package[\"raw_field_definition_sha256\"],\n                                        \"role\": spec[\"role\"],\n                                        \"unit\": spec[\"unit\"] if original_unit is None else None}}\n        if reading != \"known\":\n            issues.append({\"code\": \"READING_\" + reading.upper(), \"screen_field_key\": spec[\"screen_field_key\"],\n                           \"reason\": \"No verified checkbox decoder\" if reading == \"unsupported\" else \"OCR evidence incomplete or uncertain\"})\n        if original_unit and spec[\"unit\"] and original_unit != spec[\"unit\"]:\n            issues.append({\"code\": \"UNIT_TEMPLATE_CONFLICT\", \"screen_field_key\": spec[\"screen_field_key\"]})\n        observations.append(observation)\n    if rectified_image is not None:\n        from extract_families.demag.curve import _stage_enabled\n\n        captures = {field[\"screen_field_key\"]: [((field[\"bbox\"][0] + field[\"bbox\"][2]) / (2 * size[0]),\n                                               (field[\"bbox\"][1] + field[\"bbox\"][3]) / (2 * size[1]))]\n                    for field in observations if field[\"stage\"] is not None and field[\"bbox\"]}\n        states = _stage_enabled(rectified_image, captures)\n        for field in observations:\n            state = states.get(field[\"screen_field_key\"])\n            if state:\n                field[\"state\"] = \"enabled\" if state[0] else \"disabled\"\n                field[\"state_basis\"] = \"calibrated_cell_brightness.v1\"\n            if field[\"screen_field_key\"] == \"holding.pressure.stage-3\":\n                field[\"state\"] = \"unknown\"\n                field[\"state_basis\"] = \"conflicting_recorded_truth\"\n    project_boxes(observations, meta)\n    for field in observations:\n        if field[\"original_bbox\"] is None:\n            field[\"reasons\"].append(\"source_box_unavailable\")\n    return {\"schema_version\": \"page_observations.v2\", \"profile_id\": PROFILE,\n            \"page_identity\": definition[\"page_identity\"], \"source\": \"image_recognition\",\n            \"image_sha256\": image_sha256, \"original_size\": meta.get(\"original_size\"),\n            \"coordinate_space\": \"original_percent\", \"transform\": transform,\n            \"raw_contract_sha256\": package[\"raw_contract_sha256\"],\n            \"raw_field_definition_version\": definition[\"version\"],\n            \"raw_field_definition_sha256\": package[\"raw_field_definition_sha256\"],\n            \"recognizer\": package[\"recognizer\"], \"package_sha256\": content_hash(package),\n            \"ocr_evidence\": {\"coordinate_space\": \"rectified_pixels\", \"screen_size\": size,\n                             \"lines\": lines},\n            \"fields\": observations, \"issues\": issues,\n            \"coverage\": {\"status\": \"partial\" if issues else \"complete\",\n                         \"declared\": len(observations),\n                         \"known\": sum(field[\"reading\"] == \"known\" for field in observations)}}\n",
+      "scripts/extract_families/coordinates.py": "\"\"\"Shared geometric projection; coordinates retain the original-percent contract.\"\"\"\n\ndef project_boxes(observations, meta):\n    \"\"\"用矫正时的屏幕四角将字段框投回原图百分比坐标；元数据缺失则保持未定位。\"\"\"\n    if not meta.get('original_size') or not meta.get('screen_quad'):\n        return\n    import cv2\n    import numpy as np\n    from quality import order_points\n    w, h = meta['screen_size']\n    ow, oh = meta['original_size']\n    src = np.array([[0, 0], [w-1, 0], [w-1, h-1], [0, h-1]], dtype=np.float32)\n    matrix = cv2.getPerspectiveTransform(src, order_points(np.array(meta['screen_quad'], dtype=np.float32)))\n    for observation in observations:\n        if observation['bbox'] is None:\n            continue\n        x1, y1, x2, y2 = observation['bbox']\n        corners = np.array([[[x1, y1], [x2, y1], [x2, y2], [x1, y2]]], dtype=np.float32)\n        points = cv2.perspectiveTransform(corners, matrix)[0]\n        box = [float(points[:, 0].min()/ow*100), float(points[:, 1].min()/oh*100),\n               float(points[:, 0].max()/ow*100), float(points[:, 1].max()/oh*100)]\n        if all(0 <= value <= 100 for value in box) and box[0] < box[2] and box[1] < box[3]:\n            observation['original_bbox'] = box\n",
+      "contracts/raw-pages/b-and-r-injection-0.6.0.json": "{\n  \"profile_id\": \"b_and_r.injection_holding.multi_stage_position_time\",\n  \"version\": \"0.6.0\",\n  \"page_identity\": {\n    \"brand\": \"BOLE\",\n    \"controller_family\": \"B_AND_R\",\n    \"interface_generation\": null,\n    \"page_type\": \"injection_metering\",\n    \"layout_variant\": \"multi_stage_position_time\"\n  },\n  \"fields\": [\n    {\n      \"screen_field_key\": \"injection.speed.stage-1\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 1,\n      \"segment_id\": \"injection-stage-1\",\n      \"order\": 5\n    },\n    {\n      \"screen_field_key\": \"injection.speed.stage-2\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 2,\n      \"segment_id\": \"injection-stage-2\",\n      \"order\": 4\n    },\n    {\n      \"screen_field_key\": \"injection.speed.stage-3\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 3,\n      \"segment_id\": \"injection-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"injection.speed.stage-4\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 4,\n      \"segment_id\": \"injection-stage-4\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"injection.speed.stage-5\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 5,\n      \"segment_id\": \"injection-stage-5\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"injection.pressure.stage-1\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 1,\n      \"segment_id\": \"injection-stage-1\",\n      \"order\": 5\n    },\n    {\n      \"screen_field_key\": \"injection.pressure.stage-2\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 2,\n      \"segment_id\": \"injection-stage-2\",\n      \"order\": 4\n    },\n    {\n      \"screen_field_key\": \"injection.pressure.stage-3\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 3,\n      \"segment_id\": \"injection-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"injection.pressure.stage-4\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 4,\n      \"segment_id\": \"injection-stage-4\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"injection.pressure.stage-5\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 5,\n      \"segment_id\": \"injection-stage-5\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"injection.end_position.stage-1\",\n      \"label\": \"位置\",\n      \"labels\": [\n        \"位置\",\n        \"拉置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 1,\n      \"segment_id\": \"injection-stage-1\",\n      \"order\": 5\n    },\n    {\n      \"screen_field_key\": \"injection.end_position.stage-2\",\n      \"label\": \"位置\",\n      \"labels\": [\n        \"位置\",\n        \"拉置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 2,\n      \"segment_id\": \"injection-stage-2\",\n      \"order\": 4\n    },\n    {\n      \"screen_field_key\": \"injection.end_position.stage-3\",\n      \"label\": \"位置\",\n      \"labels\": [\n        \"位置\",\n        \"拉置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 3,\n      \"segment_id\": \"injection-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"injection.end_position.stage-4\",\n      \"label\": \"位置\",\n      \"labels\": [\n        \"位置\",\n        \"拉置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 4,\n      \"segment_id\": \"injection-stage-4\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"injection.end_position.stage-5\",\n      \"label\": \"位置\",\n      \"labels\": [\n        \"位置\",\n        \"拉置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"injection\",\n      \"stage\": 5,\n      \"segment_id\": \"injection-stage-5\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"injection.time.stage-1\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"actual\",\n      \"section\": \"injection\",\n      \"stage\": 1,\n      \"segment_id\": \"injection-stage-1\",\n      \"order\": 5,\n      \"time_kind\": \"actual_injection_duration\"\n    },\n    {\n      \"screen_field_key\": \"injection.time.stage-2\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"actual\",\n      \"section\": \"injection\",\n      \"stage\": 2,\n      \"segment_id\": \"injection-stage-2\",\n      \"order\": 4,\n      \"time_kind\": \"actual_injection_duration\"\n    },\n    {\n      \"screen_field_key\": \"injection.time.stage-3\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"actual\",\n      \"section\": \"injection\",\n      \"stage\": 3,\n      \"segment_id\": \"injection-stage-3\",\n      \"order\": 3,\n      \"time_kind\": \"actual_injection_duration\"\n    },\n    {\n      \"screen_field_key\": \"injection.time.stage-4\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"actual\",\n      \"section\": \"injection\",\n      \"stage\": 4,\n      \"segment_id\": \"injection-stage-4\",\n      \"order\": 2,\n      \"time_kind\": \"actual_injection_duration\"\n    },\n    {\n      \"screen_field_key\": \"injection.time.stage-5\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"actual\",\n      \"section\": \"injection\",\n      \"stage\": 5,\n      \"segment_id\": \"injection-stage-5\",\n      \"order\": 1,\n      \"time_kind\": \"actual_injection_duration\"\n    },\n    {\n      \"screen_field_key\": \"holding.speed.stage-1\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 1,\n      \"segment_id\": \"holding-stage-1\",\n      \"order\": 5\n    },\n    {\n      \"screen_field_key\": \"holding.speed.stage-2\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 2,\n      \"segment_id\": \"holding-stage-2\",\n      \"order\": 4\n    },\n    {\n      \"screen_field_key\": \"holding.speed.stage-3\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 3,\n      \"segment_id\": \"holding-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"holding.speed.stage-4\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 4,\n      \"segment_id\": \"holding-stage-4\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"holding.speed.stage-5\",\n      \"label\": \"速度\",\n      \"labels\": [\n        \"速度\",\n        \"理度\"\n      ],\n      \"unit\": \"%\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 5,\n      \"segment_id\": \"holding-stage-5\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"holding.pressure.stage-1\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 1,\n      \"segment_id\": \"holding-stage-1\",\n      \"order\": 5\n    },\n    {\n      \"screen_field_key\": \"holding.pressure.stage-2\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 2,\n      \"segment_id\": \"holding-stage-2\",\n      \"order\": 4\n    },\n    {\n      \"screen_field_key\": \"holding.pressure.stage-3\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 3,\n      \"segment_id\": \"holding-stage-3\",\n      \"order\": 3\n    },\n    {\n      \"screen_field_key\": \"holding.pressure.stage-4\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 4,\n      \"segment_id\": \"holding-stage-4\",\n      \"order\": 2\n    },\n    {\n      \"screen_field_key\": \"holding.pressure.stage-5\",\n      \"label\": \"压力\",\n      \"labels\": [\n        \"压力\",\n        \"玉力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 5,\n      \"segment_id\": \"holding-stage-5\",\n      \"order\": 1\n    },\n    {\n      \"screen_field_key\": \"holding.time.stage-1\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 1,\n      \"segment_id\": \"holding-stage-1\",\n      \"order\": 5,\n      \"time_kind\": \"holding_segment_duration\"\n    },\n    {\n      \"screen_field_key\": \"holding.time.stage-2\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 2,\n      \"segment_id\": \"holding-stage-2\",\n      \"order\": 4,\n      \"time_kind\": \"holding_segment_duration\"\n    },\n    {\n      \"screen_field_key\": \"holding.time.stage-3\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 3,\n      \"segment_id\": \"holding-stage-3\",\n      \"order\": 3,\n      \"time_kind\": \"holding_segment_duration\"\n    },\n    {\n      \"screen_field_key\": \"holding.time.stage-4\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 4,\n      \"segment_id\": \"holding-stage-4\",\n      \"order\": 2,\n      \"time_kind\": \"holding_segment_duration\"\n    },\n    {\n      \"screen_field_key\": \"holding.time.stage-5\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"holding\",\n      \"stage\": 5,\n      \"segment_id\": \"holding-stage-5\",\n      \"order\": 1,\n      \"time_kind\": \"holding_segment_duration\"\n    },\n    {\n      \"screen_field_key\": \"actual.speed\",\n      \"label\": \"实际速度\",\n      \"labels\": [\n        \"实际速度\"\n      ],\n      \"unit\": \"mm/s\",\n      \"role\": \"actual\",\n      \"section\": \"actual\",\n      \"label_region\": [\n        0.07999999999999999,\n        0.3,\n        0.28,\n        0.37\n      ]\n    },\n    {\n      \"screen_field_key\": \"actual.position\",\n      \"label\": \"实际位置\",\n      \"labels\": [\n        \"实际位置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"actual\",\n      \"section\": \"actual\",\n      \"label_region\": [\n        0.30000000000000004,\n        0.3,\n        0.5,\n        0.37\n      ]\n    },\n    {\n      \"screen_field_key\": \"actual.pressure\",\n      \"label\": \"实际压力\",\n      \"labels\": [\n        \"实际压力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"actual\",\n      \"section\": \"actual\",\n      \"label_region\": [\n        0.53,\n        0.3,\n        0.73,\n        0.37\n      ]\n    },\n    {\n      \"screen_field_key\": \"actual.cavity_pressure\",\n      \"label\": \"模穴压力\",\n      \"labels\": [\n        \"模穴压力\",\n        \"模六压力\",\n        \"穴压力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"actual\",\n      \"section\": \"actual\",\n      \"label_region\": [\n        0.74,\n        0.3,\n        0.94,\n        0.37\n      ]\n    },\n    {\n      \"screen_field_key\": \"switch.actual.position\",\n      \"label\": \"实际切换位置\",\n      \"labels\": [\n        \"实际切换位置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"actual\",\n      \"section\": \"switch.actual\",\n      \"label_region\": [\n        0.15,\n        0.8,\n        0.35,\n        0.88\n      ]\n    },\n    {\n      \"screen_field_key\": \"switch.actual.time\",\n      \"label\": \"实际切换时间\",\n      \"labels\": [\n        \"实际切换时间\",\n        \"实部奶换时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"actual\",\n      \"section\": \"switch.actual\",\n      \"label_region\": [\n        0.42000000000000004,\n        0.8,\n        0.62,\n        0.88\n      ]\n    },\n    {\n      \"screen_field_key\": \"switch.actual.pressure\",\n      \"label\": \"实际切换压力\",\n      \"labels\": [\n        \"实际切换压力\"\n      ],\n      \"unit\": \"bar\",\n      \"role\": \"actual\",\n      \"section\": \"switch.actual\",\n      \"label_region\": [\n        0.74,\n        0.8,\n        0.94,\n        0.88\n      ]\n    },\n    {\n      \"screen_field_key\": \"switch.setting.position\",\n      \"label\": \"位置\",\n      \"labels\": [\n        \"位置\",\n        \"拉置\"\n      ],\n      \"unit\": \"mm\",\n      \"role\": \"setting\",\n      \"section\": \"switch\",\n      \"direction\": \"right\",\n      \"label_region\": [\n        0.1,\n        0.69,\n        0.35,\n        0.76\n      ]\n    },\n    {\n      \"screen_field_key\": \"switch.setting.time\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": \"s\",\n      \"role\": \"setting\",\n      \"section\": \"switch\",\n      \"direction\": \"right\",\n      \"label_region\": [\n        0.6,\n        0.69,\n        0.8,\n        0.76\n      ]\n    },\n    {\n      \"screen_field_key\": \"switch.position.selected\",\n      \"label\": \"位置\",\n      \"labels\": [\n        \"位置\",\n        \"拉置\"\n      ],\n      \"unit\": null,\n      \"role\": \"setting\",\n      \"section\": \"switch\",\n      \"value_type\": \"boolean\"\n    },\n    {\n      \"screen_field_key\": \"switch.time.selected\",\n      \"label\": \"时间\",\n      \"labels\": [\n        \"时间\"\n      ],\n      \"unit\": null,\n      \"role\": \"setting\",\n      \"section\": \"switch\",\n      \"value_type\": \"boolean\"\n    },\n    {\n      \"screen_field_key\": \"switch.external.selected\",\n      \"label\": \"外部信号\",\n      \"labels\": [\n        \"外部信号\"\n      ],\n      \"unit\": null,\n      \"role\": \"setting\",\n      \"section\": \"switch\",\n      \"value_type\": \"boolean\"\n    }\n  ],\n  \"samples\": [\n    {\n      \"sample_id\": \"development\",\n      \"image\": \"ground_truth/bole_BR/射胶保压_20260807180631_13_32.jpg\",\n      \"image_sha256\": \"ab8c9bcb7e06bab421f6c4d4dba2eae84acea6ebeea2085b56311db9b9e0e9c2\",\n      \"truth\": \"datasets/r6_bole/development.truth.json\",\n      \"purpose\": \"development\",\n      \"provenance\": \"Existing 2026-08-07 BOLE B&R source photo; historically exposed. Reserved photograph is distinct, not a blind holdout. Independent platform review remains required.\",\n      \"tuning_involvement\": \"This photo was used for R6 OCR/alias diagnosis and regression; not a blind or tuning-independent holdout.\"\n    },\n    {\n      \"sample_id\": \"retained\",\n      \"image\": \"ground_truth/bole_BR/射胶保压_20260807180632_14_32.jpg\",\n      \"image_sha256\": \"745f7aa3b5c0464b9f770cde9e9974c64d3d6f8fe30138389b823d1177a0682e\",\n      \"truth\": \"datasets/r6_bole/retained.truth.json\",\n      \"purpose\": \"reserved_regression\",\n      \"provenance\": \"Existing 2026-08-07 BOLE B&R source photo; historically exposed. Reserved photograph is distinct, not a blind holdout. Independent platform review remains required.\",\n      \"tuning_involvement\": \"This photo was used for R6 OCR/alias diagnosis and regression; not a blind or tuning-independent holdout.\"\n    }\n  ],\n  \"controller_evidence\": \"BOLE/300EKS_CAP headers on both originals; repository B&R template identity and prior owner-reviewed routing. No interface generation inferred.\",\n  \"issues\": [\n    {\n      \"code\": \"ENABLE_STATE_UNVERIFIED\",\n      \"reason\": \"No calibrated visual state decoder. Numeric residuals remain unknown, not disabled or enabled.\"\n    },\n    {\n      \"code\": \"CHECKBOX_READING_UNSUPPORTED\",\n      \"reason\": \"Position, time and external signal checkbox decoding is not implemented.\"\n    }\n  ],\n  \"excluded_scope\": [\n    \"top status strip\",\n    \"graphs\",\n    \"navigation\",\n    \"other controllers and temperature variants\"\n  ],\n  \"stage_column_centers\": {\n    \"5\": 0.28,\n    \"4\": 0.425,\n    \"3\": 0.57,\n    \"2\": 0.715,\n    \"1\": 0.86\n  }\n}\n"
+    },
+    "sha256": "2d90f4d9588019e8d3e4b11e1b4309b14d89f021285fbf3913b70eff0c4c8572"
+  },
+  "samples": [
+    {
+      "manifest": {
+        "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+        "sample_id": "development",
+        "original_sha256": "ab8c9bcb7e06bab421f6c4d4dba2eae84acea6ebeea2085b56311db9b9e0e9c2",
+        "original_size": [
+          1279,
+          1706
+        ],
+        "screen_size": [
+          952,
+          1658
+        ],
+        "purpose": "development"
+      },
+      "ocr": {
+        "lines": [
+          {
+            "text": "300EKS_CAP",
+            "conf": 0.9808683395385742,
+            "bbox": {
+              "x_min": 824.0,
+              "y_min": 26.0,
+              "x_max": 915.0,
+              "y_max": 50.0
+            }
+          },
+          {
+            "text": "BOLE",
+            "conf": 0.9942459464073181,
+            "bbox": {
+              "x_min": 51.0,
+              "y_min": 47.0,
+              "x_max": 119.0,
+              "y_max": 79.0
+            }
+          },
+          {
+            "text": "火",
+            "conf": 0.9720672369003296,
+            "bbox": {
+              "x_min": 194.0,
+              "y_min": 38.0,
+              "x_max": 215.0,
+              "y_max": 54.0
+            }
+          },
+          {
+            "text": "阿",
+            "conf": 0.7993429899215698,
+            "bbox": {
+              "x_min": 760.0,
+              "y_min": 55.0,
+              "x_max": 793.0,
+              "y_max": 86.0
+            }
+          },
+          {
+            "text": "GMTO0008",
+            "conf": 0.9276704788208008,
+            "bbox": {
+              "x_min": 831.0,
+              "y_min": 57.0,
+              "x_max": 910.0,
+              "y_max": 81.0
+            }
+          },
+          {
+            "text": "顶针位置",
+            "conf": 0.997719407081604,
+            "bbox": {
+              "x_min": 147.0,
+              "y_min": 102.0,
+              "x_max": 222.0,
+              "y_max": 126.0
+            }
+          },
+          {
+            "text": "射胶位置",
+            "conf": 0.9880425930023193,
+            "bbox": {
+              "x_min": 273.0,
+              "y_min": 100.0,
+              "x_max": 341.0,
+              "y_max": 124.0
+            }
+          },
+          {
+            "text": "射台位置",
+            "conf": 0.9887591600418091,
+            "bbox": {
+              "x_min": 357.0,
+              "y_min": 95.0,
+              "x_max": 461.0,
+              "y_max": 127.0
+            }
+          },
+          {
+            "text": "熔胶转速",
+            "conf": 0.9810799360275269,
+            "bbox": {
+              "x_min": 506.0,
+              "y_min": 97.0,
+              "x_max": 583.0,
+              "y_max": 121.0
+            }
+          },
+          {
+            "text": "主泵流量",
+            "conf": 0.9271923899650574,
+            "bbox": {
+              "x_min": 623.0,
+              "y_min": 95.0,
+              "x_max": 702.0,
+              "y_max": 119.0
+            }
+          },
+          {
+            "text": "主系压力",
+            "conf": 0.9530743360519409,
+            "bbox": {
+              "x_min": 720.0,
+              "y_min": 89.0,
+              "x_max": 823.0,
+              "y_max": 121.0
+            }
+          },
+          {
+            "text": "系统压力",
+            "conf": 0.9882112741470337,
+            "bbox": {
+              "x_min": 843.0,
+              "y_min": 89.0,
+              "x_max": 944.0,
+              "y_max": 118.0
+            }
+          },
+          {
+            "text": "模板位置",
+            "conf": 0.9526631236076355,
+            "bbox": {
+              "x_min": 3.0,
+              "y_min": 100.0,
+              "x_max": 104.0,
+              "y_max": 132.0
+            }
+          },
+          {
+            "text": "21.9",
+            "conf": 0.8360989093780518,
+            "bbox": {
+              "x_min": 408.0,
+              "y_min": 147.0,
+              "x_max": 436.0,
+              "y_max": 159.0
+            }
+          },
+          {
+            "text": "0.0rpn",
+            "conf": 0.7833619713783264,
+            "bbox": {
+              "x_min": 532.0,
+              "y_min": 147.0,
+              "x_max": 583.0,
+              "y_max": 159.0
+            }
+          },
+          {
+            "text": "注射曲线",
+            "conf": 0.8661096692085266,
+            "bbox": {
+              "x_min": 114.0,
+              "y_min": 185.0,
+              "x_max": 164.0,
+              "y_max": 202.0
+            }
+          },
+          {
+            "text": "射胶料率",
+            "conf": 0.8621811270713806,
+            "bbox": {
+              "x_min": 238.0,
+              "y_min": 183.0,
+              "x_max": 290.0,
+              "y_max": 200.0
+            }
+          },
+          {
+            "text": "射胶",
+            "conf": 0.9220058917999268,
+            "bbox": {
+              "x_min": 371.0,
+              "y_min": 181.0,
+              "x_max": 402.0,
+              "y_max": 202.0
+            }
+          },
+          {
+            "text": "射胶",
+            "conf": 0.7658865451812744,
+            "bbox": {
+              "x_min": 870.0,
+              "y_min": 178.0,
+              "x_max": 905.0,
+              "y_max": 199.0
+            }
+          },
+          {
+            "text": "射胶",
+            "conf": 0.9844027161598206,
+            "bbox": {
+              "x_min": 173.0,
+              "y_min": 235.0,
+              "x_max": 206.0,
+              "y_max": 257.0
+            }
+          },
+          {
+            "text": "时胶功能",
+            "conf": 0.7726731300354004,
+            "bbox": {
+              "x_min": 14.0,
+              "y_min": 382.0,
+              "x_max": 66.0,
+              "y_max": 399.0
+            }
+          },
+          {
+            "text": "保压",
+            "conf": 0.9977606534957886,
+            "bbox": {
+              "x_min": 177.0,
+              "y_min": 396.0,
+              "x_max": 208.0,
+              "y_max": 416.0
+            }
+          },
+          {
+            "text": "实际速度",
+            "conf": 0.9884073734283447,
+            "bbox": {
+              "x_min": 140.0,
+              "y_min": 537.0,
+              "x_max": 206.0,
+              "y_max": 561.0
+            }
+          },
+          {
+            "text": "实际位置",
+            "conf": 0.9976839423179626,
+            "bbox": {
+              "x_min": 350.0,
+              "y_min": 535.0,
+              "x_max": 415.0,
+              "y_max": 561.0
+            }
+          },
+          {
+            "text": "实际压力",
+            "conf": 0.9985437989234924,
+            "bbox": {
+              "x_min": 560.0,
+              "y_min": 535.0,
+              "x_max": 625.0,
+              "y_max": 560.0
+            }
+          },
+          {
+            "text": "模六压力",
+            "conf": 0.9744105339050293,
+            "bbox": {
+              "x_min": 768.0,
+              "y_min": 534.0,
+              "x_max": 833.0,
+              "y_max": 558.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9831864237785339,
+            "bbox": {
+              "x_min": 170.0,
+              "y_min": 566.0,
+              "x_max": 194.0,
+              "y_max": 587.0
+            }
+          },
+          {
+            "text": "99.5",
+            "conf": 0.9797117710113525,
+            "bbox": {
+              "x_min": 373.0,
+              "y_min": 565.0,
+              "x_max": 406.0,
+              "y_max": 585.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9951467514038086,
+            "bbox": {
+              "x_min": 586.0,
+              "y_min": 563.0,
+              "x_max": 612.0,
+              "y_max": 584.0
+            }
+          },
+          {
+            "text": "bar",
+            "conf": 0.998084306716919,
+            "bbox": {
+              "x_min": 663.0,
+              "y_min": 566.0,
+              "x_max": 686.0,
+              "y_max": 580.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9911072850227356,
+            "bbox": {
+              "x_min": 793.0,
+              "y_min": 563.0,
+              "x_max": 822.0,
+              "y_max": 582.0
+            }
+          },
+          {
+            "text": "射台",
+            "conf": 0.5351754426956177,
+            "bbox": {
+              "x_min": 26.0,
+              "y_min": 577.0,
+              "x_max": 60.0,
+              "y_max": 596.0
+            }
+          },
+          {
+            "text": "oar",
+            "conf": 0.7646259665489197,
+            "bbox": {
+              "x_min": 875.0,
+              "y_min": 568.0,
+              "x_max": 891.0,
+              "y_max": 579.0
+            }
+          },
+          {
+            "text": "射胶",
+            "conf": 0.9980610609054565,
+            "bbox": {
+              "x_min": 492.0,
+              "y_min": 608.0,
+              "x_max": 525.0,
+              "y_max": 629.0
+            }
+          },
+          {
+            "text": "3",
+            "conf": 0.9986727237701416,
+            "bbox": {
+              "x_min": 528.0,
+              "y_min": 646.0,
+              "x_max": 544.0,
+              "y_max": 660.0
+            }
+          },
+          {
+            "text": "2",
+            "conf": 0.9988464117050171,
+            "bbox": {
+              "x_min": 667.0,
+              "y_min": 644.0,
+              "x_max": 681.0,
+              "y_max": 660.0
+            }
+          },
+          {
+            "text": "功能",
+            "conf": 0.9772228002548218,
+            "bbox": {
+              "x_min": 26.0,
+              "y_min": 674.0,
+              "x_max": 61.0,
+              "y_max": 694.0
+            }
+          },
+          {
+            "text": "速度",
+            "conf": 0.9945300817489624,
+            "bbox": {
+              "x_min": 100.0,
+              "y_min": 680.0,
+              "x_max": 130.0,
+              "y_max": 701.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9522057175636292,
+            "bbox": {
+              "x_min": 392.0,
+              "y_min": 680.0,
+              "x_max": 415.0,
+              "y_max": 696.0
+            }
+          },
+          {
+            "text": "20.0",
+            "conf": 0.9869672060012817,
+            "bbox": {
+              "x_min": 522.0,
+              "y_min": 677.0,
+              "x_max": 555.0,
+              "y_max": 699.0
+            }
+          },
+          {
+            "text": "75.0",
+            "conf": 0.983721911907196,
+            "bbox": {
+              "x_min": 660.0,
+              "y_min": 677.0,
+              "x_max": 690.0,
+              "y_max": 698.0
+            }
+          },
+          {
+            "text": "40.0",
+            "conf": 0.9932767152786255,
+            "bbox": {
+              "x_min": 794.0,
+              "y_min": 675.0,
+              "x_max": 826.0,
+              "y_max": 698.0
+            }
+          },
+          {
+            "text": "%",
+            "conf": 0.9849486947059631,
+            "bbox": {
+              "x_min": 886.0,
+              "y_min": 682.0,
+              "x_max": 896.0,
+              "y_max": 691.0
+            }
+          },
+          {
+            "text": "压力",
+            "conf": 0.995058536529541,
+            "bbox": {
+              "x_min": 100.0,
+              "y_min": 731.0,
+              "x_max": 130.0,
+              "y_max": 751.0
+            }
+          },
+          {
+            "text": "80.00",
+            "conf": 0.9903393983840942,
+            "bbox": {
+              "x_min": 518.0,
+              "y_min": 725.0,
+              "x_max": 558.0,
+              "y_max": 751.0
+            }
+          },
+          {
+            "text": "80.00",
+            "conf": 0.9970240592956543,
+            "bbox": {
+              "x_min": 654.0,
+              "y_min": 727.0,
+              "x_max": 695.0,
+              "y_max": 748.0
+            }
+          },
+          {
+            "text": "80.00",
+            "conf": 0.9969829320907593,
+            "bbox": {
+              "x_min": 789.0,
+              "y_min": 725.0,
+              "x_max": 831.0,
+              "y_max": 751.0
+            }
+          },
+          {
+            "text": "bar",
+            "conf": 0.9965980052947998,
+            "bbox": {
+              "x_min": 886.0,
+              "y_min": 731.0,
+              "x_max": 905.0,
+              "y_max": 744.0
+            }
+          },
+          {
+            "text": "射航辅助",
+            "conf": 0.6356542706489563,
+            "bbox": {
+              "x_min": 18.0,
+              "y_min": 774.0,
+              "x_max": 74.0,
+              "y_max": 793.0
+            }
+          },
+          {
+            "text": "位置",
+            "conf": 0.9977270364761353,
+            "bbox": {
+              "x_min": 100.0,
+              "y_min": 777.0,
+              "x_max": 131.0,
+              "y_max": 798.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9898093342781067,
+            "bbox": {
+              "x_min": 471.0,
+              "y_min": 777.0,
+              "x_max": 497.0,
+              "y_max": 798.0
+            }
+          },
+          {
+            "text": "60.0",
+            "conf": 0.9923428893089294,
+            "bbox": {
+              "x_min": 604.0,
+              "y_min": 775.0,
+              "x_max": 635.0,
+              "y_max": 798.0
+            }
+          },
+          {
+            "text": "80.0",
+            "conf": 0.9945495128631592,
+            "bbox": {
+              "x_min": 738.0,
+              "y_min": 775.0,
+              "x_max": 770.0,
+              "y_max": 798.0
+            }
+          },
+          {
+            "text": "时间",
+            "conf": 0.9975004196166992,
+            "bbox": {
+              "x_min": 98.0,
+              "y_min": 824.0,
+              "x_max": 131.0,
+              "y_max": 846.0
+            }
+          },
+          {
+            "text": "0.73",
+            "conf": 0.9807654023170471,
+            "bbox": {
+              "x_min": 467.0,
+              "y_min": 824.0,
+              "x_max": 501.0,
+              "y_max": 845.0
+            }
+          },
+          {
+            "text": "0.26",
+            "conf": 0.9945639371871948,
+            "bbox": {
+              "x_min": 604.0,
+              "y_min": 824.0,
+              "x_max": 634.0,
+              "y_max": 845.0
+            }
+          },
+          {
+            "text": "0.57",
+            "conf": 0.9926188588142395,
+            "bbox": {
+              "x_min": 737.0,
+              "y_min": 822.0,
+              "x_max": 768.0,
+              "y_max": 843.0
+            }
+          },
+          {
+            "text": "sec",
+            "conf": 0.9645969271659851,
+            "bbox": {
+              "x_min": 886.0,
+              "y_min": 827.0,
+              "x_max": 905.0,
+              "y_max": 841.0
+            }
+          },
+          {
+            "text": "日",
+            "conf": 0.5782331228256226,
+            "bbox": {
+              "x_min": 122.0,
+              "y_min": 884.0,
+              "x_max": 159.0,
+              "y_max": 903.0
+            }
+          },
+          {
+            "text": "保压",
+            "conf": 0.9968571662902832,
+            "bbox": {
+              "x_min": 492.0,
+              "y_min": 889.0,
+              "x_max": 525.0,
+              "y_max": 912.0
+            }
+          },
+          {
+            "text": "2",
+            "conf": 0.9903173446655273,
+            "bbox": {
+              "x_min": 670.0,
+              "y_min": 931.0,
+              "x_max": 679.0,
+              "y_max": 940.0
+            }
+          },
+          {
+            "text": "速度",
+            "conf": 0.947358250617981,
+            "bbox": {
+              "x_min": 107.0,
+              "y_min": 962.0,
+              "x_max": 136.0,
+              "y_max": 983.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.8352494835853577,
+            "bbox": {
+              "x_min": 528.0,
+              "y_min": 964.0,
+              "x_max": 551.0,
+              "y_max": 979.0
+            }
+          },
+          {
+            "text": "10.0",
+            "conf": 0.9925215244293213,
+            "bbox": {
+              "x_min": 660.0,
+              "y_min": 960.0,
+              "x_max": 690.0,
+              "y_max": 983.0
+            }
+          },
+          {
+            "text": "15.0",
+            "conf": 0.9902639389038086,
+            "bbox": {
+              "x_min": 796.0,
+              "y_min": 960.0,
+              "x_max": 826.0,
+              "y_max": 981.0
+            }
+          },
+          {
+            "text": "压力",
+            "conf": 0.9809540510177612,
+            "bbox": {
+              "x_min": 107.0,
+              "y_min": 1012.0,
+              "x_max": 136.0,
+              "y_max": 1033.0
+            }
+          },
+          {
+            "text": "50.00",
+            "conf": 0.996269702911377,
+            "bbox": {
+              "x_min": 654.0,
+              "y_min": 1009.0,
+              "x_max": 696.0,
+              "y_max": 1035.0
+            }
+          },
+          {
+            "text": "65.00",
+            "conf": 0.9170953631401062,
+            "bbox": {
+              "x_min": 789.0,
+              "y_min": 1009.0,
+              "x_max": 831.0,
+              "y_max": 1035.0
+            }
+          },
+          {
+            "text": "时间",
+            "conf": 0.9970519542694092,
+            "bbox": {
+              "x_min": 105.0,
+              "y_min": 1059.0,
+              "x_max": 136.0,
+              "y_max": 1081.0
+            }
+          },
+          {
+            "text": "5.00",
+            "conf": 0.9970955848693848,
+            "bbox": {
+              "x_min": 658.0,
+              "y_min": 1059.0,
+              "x_max": 690.0,
+              "y_max": 1079.0
+            }
+          },
+          {
+            "text": "1.00",
+            "conf": 0.9953957796096802,
+            "bbox": {
+              "x_min": 796.0,
+              "y_min": 1059.0,
+              "x_max": 826.0,
+              "y_max": 1079.0
+            }
+          },
+          {
+            "text": "sec",
+            "conf": 0.8790552020072937,
+            "bbox": {
+              "x_min": 886.0,
+              "y_min": 1064.0,
+              "x_max": 905.0,
+              "y_max": 1078.0
+            }
+          },
+          {
+            "text": "保压切换",
+            "conf": 0.9909329414367676,
+            "bbox": {
+              "x_min": 476.0,
+              "y_min": 1121.0,
+              "x_max": 542.0,
+              "y_max": 1145.0
+            }
+          },
+          {
+            "text": "位置",
+            "conf": 0.9468950033187866,
+            "bbox": {
+              "x_min": 162.0,
+              "y_min": 1169.0,
+              "x_max": 238.0,
+              "y_max": 1199.0
+            }
+          },
+          {
+            "text": "40.0",
+            "conf": 0.9233882427215576,
+            "bbox": {
+              "x_min": 394.0,
+              "y_min": 1173.0,
+              "x_max": 424.0,
+              "y_max": 1193.0
+            }
+          },
+          {
+            "text": "时间",
+            "conf": 0.999066948890686,
+            "bbox": {
+              "x_min": 565.0,
+              "y_min": 1169.0,
+              "x_max": 642.0,
+              "y_max": 1200.0
+            }
+          },
+          {
+            "text": "5.00",
+            "conf": 0.9923403859138489,
+            "bbox": {
+              "x_min": 790.0,
+              "y_min": 1170.0,
+              "x_max": 824.0,
+              "y_max": 1196.0
+            }
+          },
+          {
+            "text": "外部信号",
+            "conf": 0.9600235223770142,
+            "bbox": {
+              "x_min": 161.0,
+              "y_min": 1218.0,
+              "x_max": 270.0,
+              "y_max": 1247.0
+            }
+          },
+          {
+            "text": "实际切换位置",
+            "conf": 0.9945630431175232,
+            "bbox": {
+              "x_min": 206.0,
+              "y_min": 1375.0,
+              "x_max": 298.0,
+              "y_max": 1394.0
+            }
+          },
+          {
+            "text": "实际切换时间",
+            "conf": 0.9960328936576843,
+            "bbox": {
+              "x_min": 462.0,
+              "y_min": 1373.0,
+              "x_max": 556.0,
+              "y_max": 1397.0
+            }
+          },
+          {
+            "text": "实际切换压力",
+            "conf": 0.9937873482704163,
+            "bbox": {
+              "x_min": 780.0,
+              "y_min": 1375.0,
+              "x_max": 873.0,
+              "y_max": 1399.0
+            }
+          },
+          {
+            "text": "40.0",
+            "conf": 0.9908345341682434,
+            "bbox": {
+              "x_min": 219.0,
+              "y_min": 1421.0,
+              "x_max": 249.0,
+              "y_max": 1440.0
+            }
+          },
+          {
+            "text": "mm",
+            "conf": 0.9808540344238281,
+            "bbox": {
+              "x_min": 304.0,
+              "y_min": 1427.0,
+              "x_max": 324.0,
+              "y_max": 1439.0
+            }
+          },
+          {
+            "text": "1.56",
+            "conf": 0.972439169883728,
+            "bbox": {
+              "x_min": 478.0,
+              "y_min": 1421.0,
+              "x_max": 507.0,
+              "y_max": 1442.0
+            }
+          },
+          {
+            "text": "sec",
+            "conf": 0.902411937713623,
+            "bbox": {
+              "x_min": 564.0,
+              "y_min": 1427.0,
+              "x_max": 583.0,
+              "y_max": 1440.0
+            }
+          },
+          {
+            "text": "31.4",
+            "conf": 0.9624593257904053,
+            "bbox": {
+              "x_min": 793.0,
+              "y_min": 1425.0,
+              "x_max": 822.0,
+              "y_max": 1446.0
+            }
+          },
+          {
+            "text": "bar",
+            "conf": 0.990367591381073,
+            "bbox": {
+              "x_min": 882.0,
+              "y_min": 1428.0,
+              "x_max": 901.0,
+              "y_max": 1442.0
+            }
+          },
+          {
+            "text": "直页",
+            "conf": 0.8576501607894897,
+            "bbox": {
+              "x_min": 52.0,
+              "y_min": 1530.0,
+              "x_max": 88.0,
+              "y_max": 1549.0
+            }
+          },
+          {
+            "text": "顶针",
+            "conf": 0.8845940828323364,
+            "bbox": {
+              "x_min": 289.0,
+              "y_min": 1530.0,
+              "x_max": 318.0,
+              "y_max": 1549.0
+            }
+          },
+          {
+            "text": "注射",
+            "conf": 0.6331605911254883,
+            "bbox": {
+              "x_min": 402.0,
+              "y_min": 1534.0,
+              "x_max": 436.0,
+              "y_max": 1547.0
+            }
+          },
+          {
+            "text": "温度",
+            "conf": 0.6010556221008301,
+            "bbox": {
+              "x_min": 525.0,
+              "y_min": 1534.0,
+              "x_max": 550.0,
+              "y_max": 1547.0
+            }
+          },
+          {
+            "text": "报警",
+            "conf": 0.8157416582107544,
+            "bbox": {
+              "x_min": 640.0,
+              "y_min": 1535.0,
+              "x_max": 670.0,
+              "y_max": 1549.0
+            }
+          },
+          {
+            "text": "品质管理",
+            "conf": 0.963822066783905,
+            "bbox": {
+              "x_min": 744.0,
+              "y_min": 1532.0,
+              "x_max": 805.0,
+              "y_max": 1556.0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "manifest": {
+        "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+        "sample_id": "retained",
+        "original_sha256": "745f7aa3b5c0464b9f770cde9e9974c64d3d6f8fe30138389b823d1177a0682e",
+        "original_size": [
+          720,
+          1280
+        ],
+        "screen_size": [
+          786,
+          1400
+        ],
+        "purpose": "retained"
+      },
+      "ocr": {
+        "lines": [
+          {
+            "text": "2026-08-07 16:51:24",
+            "conf": 0.935549259185791,
+            "bbox": {
+              "x_min": 23.0,
+              "y_min": 9.0,
+              "x_max": 166.0,
+              "y_max": 28.0
+            }
+          },
+          {
+            "text": "BOLS",
+            "conf": 0.8628073930740356,
+            "bbox": {
+              "x_min": 679.0,
+              "y_min": 10.0,
+              "x_max": 712.0,
+              "y_max": 28.0
+            }
+          },
+          {
+            "text": "300EKS_CAP",
+            "conf": 0.9856579899787903,
+            "bbox": {
+              "x_min": 680.0,
+              "y_min": 38.0,
+              "x_max": 762.0,
+              "y_max": 62.0
+            }
+          },
+          {
+            "text": "BOLE",
+            "conf": 0.9966487884521484,
+            "bbox": {
+              "x_min": 45.0,
+              "y_min": 48.0,
+              "x_max": 101.0,
+              "y_max": 76.0
+            }
+          },
+          {
+            "text": "阿",
+            "conf": 0.547218382358551,
+            "bbox": {
+              "x_min": 633.0,
+              "y_min": 67.0,
+              "x_max": 656.0,
+              "y_max": 88.0
+            }
+          },
+          {
+            "text": "CMTO0008",
+            "conf": 0.7813719511032104,
+            "bbox": {
+              "x_min": 692.0,
+              "y_min": 70.0,
+              "x_max": 751.0,
+              "y_max": 86.0
+            }
+          },
+          {
+            "text": "标巨置",
+            "conf": 0.5454213619232178,
+            "bbox": {
+              "x_min": 23.0,
+              "y_min": 98.0,
+              "x_max": 85.0,
+              "y_max": 114.0
+            }
+          },
+          {
+            "text": "预针位置",
+            "conf": 0.753921389579773,
+            "bbox": {
+              "x_min": 103.0,
+              "y_min": 93.0,
+              "x_max": 188.0,
+              "y_max": 118.0
+            }
+          },
+          {
+            "text": "射胶位",
+            "conf": 0.5069425702095032,
+            "bbox": {
+              "x_min": 230.0,
+              "y_min": 98.0,
+              "x_max": 286.0,
+              "y_max": 114.0
+            }
+          },
+          {
+            "text": "台位置",
+            "conf": 0.9389845728874207,
+            "bbox": {
+              "x_min": 329.0,
+              "y_min": 98.0,
+              "x_max": 386.0,
+              "y_max": 114.0
+            }
+          },
+          {
+            "text": "王泵量",
+            "conf": 0.7520363330841064,
+            "bbox": {
+              "x_min": 524.0,
+              "y_min": 98.0,
+              "x_max": 582.0,
+              "y_max": 114.0
+            }
+          },
+          {
+            "text": "主力",
+            "conf": 0.774700403213501,
+            "bbox": {
+              "x_min": 626.0,
+              "y_min": 99.0,
+              "x_max": 681.0,
+              "y_max": 115.0
+            }
+          },
+          {
+            "text": "压为",
+            "conf": 0.5013214945793152,
+            "bbox": {
+              "x_min": 721.0,
+              "y_min": 99.0,
+              "x_max": 780.0,
+              "y_max": 115.0
+            }
+          },
+          {
+            "text": "C",
+            "conf": 0.6373904943466187,
+            "bbox": {
+              "x_min": 377.0,
+              "y_min": 124.0,
+              "x_max": 392.0,
+              "y_max": 136.0
+            }
+          },
+          {
+            "text": "4686",
+            "conf": 0.8729831576347351,
+            "bbox": {
+              "x_min": 32.0,
+              "y_min": 134.0,
+              "x_max": 74.0,
+              "y_max": 149.0
+            }
+          },
+          {
+            "text": "41",
+            "conf": 0.5763327479362488,
+            "bbox": {
+              "x_min": 144.0,
+              "y_min": 136.0,
+              "x_max": 175.0,
+              "y_max": 146.0
+            }
+          },
+          {
+            "text": "100",
+            "conf": 0.5683772563934326,
+            "bbox": {
+              "x_min": 237.0,
+              "y_min": 136.0,
+              "x_max": 263.0,
+              "y_max": 146.0
+            }
+          },
+          {
+            "text": "0.9m",
+            "conf": 0.7519376277923584,
+            "bbox": {
+              "x_min": 442.0,
+              "y_min": 134.0,
+              "x_max": 490.0,
+              "y_max": 149.0
+            }
+          },
+          {
+            "text": "0.0%",
+            "conf": 0.9632694721221924,
+            "bbox": {
+              "x_min": 538.0,
+              "y_min": 131.0,
+              "x_max": 580.0,
+              "y_max": 151.0
+            }
+          },
+          {
+            "text": "1763",
+            "conf": 0.8029062151908875,
+            "bbox": {
+              "x_min": 88.0,
+              "y_min": 201.0,
+              "x_max": 110.0,
+              "y_max": 213.0
+            }
+          },
+          {
+            "text": "射胶",
+            "conf": 0.8201680779457092,
+            "bbox": {
+              "x_min": 144.0,
+              "y_min": 204.0,
+              "x_max": 175.0,
+              "y_max": 225.0
+            }
+          },
+          {
+            "text": "功能",
+            "conf": 0.5767785906791687,
+            "bbox": {
+              "x_min": 6.0,
+              "y_min": 321.0,
+              "x_max": 55.0,
+              "y_max": 341.0
+            }
+          },
+          {
+            "text": "1753",
+            "conf": 0.8876565098762512,
+            "bbox": {
+              "x_min": 82.0,
+              "y_min": 325.0,
+              "x_max": 107.0,
+              "y_max": 341.0
+            }
+          },
+          {
+            "text": "保压",
+            "conf": 0.9495711922645569,
+            "bbox": {
+              "x_min": 146.0,
+              "y_min": 334.0,
+              "x_max": 172.0,
+              "y_max": 351.0
+            }
+          },
+          {
+            "text": "105",
+            "conf": 0.9870455861091614,
+            "bbox": {
+              "x_min": 84.0,
+              "y_min": 367.0,
+              "x_max": 100.0,
+              "y_max": 379.0
+            }
+          },
+          {
+            "text": "实际速度",
+            "conf": 0.8123531341552734,
+            "bbox": {
+              "x_min": 114.0,
+              "y_min": 455.0,
+              "x_max": 166.0,
+              "y_max": 471.0
+            }
+          },
+          {
+            "text": "实际位置",
+            "conf": 0.9959365129470825,
+            "bbox": {
+              "x_min": 289.0,
+              "y_min": 452.0,
+              "x_max": 345.0,
+              "y_max": 472.0
+            }
+          },
+          {
+            "text": "实际压力",
+            "conf": 0.9914742708206177,
+            "bbox": {
+              "x_min": 468.0,
+              "y_min": 452.0,
+              "x_max": 522.0,
+              "y_max": 472.0
+            }
+          },
+          {
+            "text": "穴压力",
+            "conf": 0.9856488704681396,
+            "bbox": {
+              "x_min": 642.0,
+              "y_min": 454.0,
+              "x_max": 695.0,
+              "y_max": 474.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9776110649108887,
+            "bbox": {
+              "x_min": 136.0,
+              "y_min": 478.0,
+              "x_max": 157.0,
+              "y_max": 493.0
+            }
+          },
+          {
+            "text": "100.1",
+            "conf": 0.9972816705703735,
+            "bbox": {
+              "x_min": 308.0,
+              "y_min": 477.0,
+              "x_max": 340.0,
+              "y_max": 494.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9809582829475403,
+            "bbox": {
+              "x_min": 491.0,
+              "y_min": 478.0,
+              "x_max": 510.0,
+              "y_max": 491.0
+            }
+          },
+          {
+            "text": "bar",
+            "conf": 0.9866395592689514,
+            "bbox": {
+              "x_min": 555.0,
+              "y_min": 480.0,
+              "x_max": 571.0,
+              "y_max": 491.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9817047119140625,
+            "bbox": {
+              "x_min": 663.0,
+              "y_min": 477.0,
+              "x_max": 686.0,
+              "y_max": 494.0
+            }
+          },
+          {
+            "text": "射胶",
+            "conf": 0.9573721289634705,
+            "bbox": {
+              "x_min": 409.0,
+              "y_min": 513.0,
+              "x_max": 436.0,
+              "y_max": 531.0
+            }
+          },
+          {
+            "text": "功",
+            "conf": 0.5883868932723999,
+            "bbox": {
+              "x_min": 14.0,
+              "y_min": 569.0,
+              "x_max": 42.0,
+              "y_max": 585.0
+            }
+          },
+          {
+            "text": "理度",
+            "conf": 0.7799035310745239,
+            "bbox": {
+              "x_min": 77.0,
+              "y_min": 573.0,
+              "x_max": 101.0,
+              "y_max": 591.0
+            }
+          },
+          {
+            "text": "0.0",
+            "conf": 0.9489264488220215,
+            "bbox": {
+              "x_min": 556.0,
+              "y_min": 576.0,
+              "x_max": 574.0,
+              "y_max": 588.0
+            }
+          },
+          {
+            "text": "60.0",
+            "conf": 0.9885923862457275,
+            "bbox": {
+              "x_min": 665.0,
+              "y_min": 573.0,
+              "x_max": 691.0,
+              "y_max": 591.0
+            }
+          },
+          {
+            "text": "玉力",
+            "conf": 0.7421379685401917,
+            "bbox": {
+              "x_min": 78.0,
+              "y_min": 618.0,
+              "x_max": 100.0,
+              "y_max": 633.0
+            }
+          },
+          {
+            "text": "175.00",
+            "conf": 0.9789050221443176,
+            "bbox": {
+              "x_min": 660.0,
+              "y_min": 615.0,
+              "x_max": 696.0,
+              "y_max": 633.0
+            }
+          },
+          {
+            "text": "拉置",
+            "conf": 0.8205261826515198,
+            "bbox": {
+              "x_min": 77.0,
+              "y_min": 658.0,
+              "x_max": 101.0,
+              "y_max": 674.0
+            }
+          },
+          {
+            "text": "40.0",
+            "conf": 0.955982506275177,
+            "bbox": {
+              "x_min": 618.0,
+              "y_min": 656.0,
+              "x_max": 644.0,
+              "y_max": 674.0
+            }
+          },
+          {
+            "text": "时间",
+            "conf": 0.9962188601493835,
+            "bbox": {
+              "x_min": 74.0,
+              "y_min": 696.0,
+              "x_max": 101.0,
+              "y_max": 715.0
+            }
+          },
+          {
+            "text": "0.95",
+            "conf": 0.9176961183547974,
+            "bbox": {
+              "x_min": 618.0,
+              "y_min": 696.0,
+              "x_max": 644.0,
+              "y_max": 713.0
+            }
+          },
+          {
+            "text": "sec",
+            "conf": 0.7772728800773621,
+            "bbox": {
+              "x_min": 740.0,
+              "y_min": 700.0,
+              "x_max": 759.0,
+              "y_max": 712.0
+            }
+          },
+          {
+            "text": "日",
+            "conf": 0.6144924759864807,
+            "bbox": {
+              "x_min": 92.0,
+              "y_min": 748.0,
+              "x_max": 124.0,
+              "y_max": 764.0
+            }
+          },
+          {
+            "text": "保压",
+            "conf": 0.9985224604606628,
+            "bbox": {
+              "x_min": 410.0,
+              "y_min": 754.0,
+              "x_max": 436.0,
+              "y_max": 771.0
+            }
+          },
+          {
+            "text": "Ce",
+            "conf": 0.7710496783256531,
+            "bbox": {
+              "x_min": 14.0,
+              "y_min": 796.0,
+              "x_max": 38.0,
+              "y_max": 814.0
+            }
+          },
+          {
+            "text": "Q.0",
+            "conf": 0.6772262454032898,
+            "bbox": {
+              "x_min": 556.0,
+              "y_min": 815.0,
+              "x_max": 574.0,
+              "y_max": 828.0
+            }
+          },
+          {
+            "text": "15.0",
+            "conf": 0.9797748327255249,
+            "bbox": {
+              "x_min": 666.0,
+              "y_min": 812.0,
+              "x_max": 691.0,
+              "y_max": 830.0
+            }
+          },
+          {
+            "text": "压力",
+            "conf": 0.9899720549583435,
+            "bbox": {
+              "x_min": 77.0,
+              "y_min": 858.0,
+              "x_max": 104.0,
+              "y_max": 876.0
+            }
+          },
+          {
+            "text": "50.00",
+            "conf": 0.9917502403259277,
+            "bbox": {
+              "x_min": 663.0,
+              "y_min": 856.0,
+              "x_max": 695.0,
+              "y_max": 874.0
+            }
+          },
+          {
+            "text": "b-ar",
+            "conf": 0.8435655832290649,
+            "bbox": {
+              "x_min": 740.0,
+              "y_min": 859.0,
+              "x_max": 759.0,
+              "y_max": 871.0
+            }
+          },
+          {
+            "text": "时间",
+            "conf": 0.9832968711853027,
+            "bbox": {
+              "x_min": 77.0,
+              "y_min": 898.0,
+              "x_max": 104.0,
+              "y_max": 916.0
+            }
+          },
+          {
+            "text": "5.00",
+            "conf": 0.9919008612632751,
+            "bbox": {
+              "x_min": 665.0,
+              "y_min": 897.0,
+              "x_max": 691.0,
+              "y_max": 914.0
+            }
+          },
+          {
+            "text": "心",
+            "conf": 0.7073550224304199,
+            "bbox": {
+              "x_min": 743.0,
+              "y_min": 900.0,
+              "x_max": 759.0,
+              "y_max": 911.0
+            }
+          },
+          {
+            "text": "保压奶换",
+            "conf": 0.8473444581031799,
+            "bbox": {
+              "x_min": 396.0,
+              "y_min": 951.0,
+              "x_max": 452.0,
+              "y_max": 973.0
+            }
+          },
+          {
+            "text": "位置",
+            "conf": 0.9184186458587646,
+            "bbox": {
+              "x_min": 126.0,
+              "y_min": 995.0,
+              "x_max": 191.0,
+              "y_max": 1021.0
+            }
+          },
+          {
+            "text": "40.0",
+            "conf": 0.975330114364624,
+            "bbox": {
+              "x_min": 324.0,
+              "y_min": 997.0,
+              "x_max": 348.0,
+              "y_max": 1014.0
+            }
+          },
+          {
+            "text": "时间",
+            "conf": 0.8793599605560303,
+            "bbox": {
+              "x_min": 470.0,
+              "y_min": 993.0,
+              "x_max": 536.0,
+              "y_max": 1019.0
+            }
+          },
+          {
+            "text": "5.00",
+            "conf": 0.989877462387085,
+            "bbox": {
+              "x_min": 663.0,
+              "y_min": 995.0,
+              "x_max": 691.0,
+              "y_max": 1012.0
+            }
+          },
+          {
+            "text": "口",
+            "conf": 0.6695843935012817,
+            "bbox": {
+              "x_min": 129.0,
+              "y_min": 1040.0,
+              "x_max": 152.0,
+              "y_max": 1059.0
+            }
+          },
+          {
+            "text": "外部信号",
+            "conf": 0.9504384994506836,
+            "bbox": {
+              "x_min": 144.0,
+              "y_min": 1037.0,
+              "x_max": 215.0,
+              "y_max": 1057.0
+            }
+          },
+          {
+            "text": "实际切换位置",
+            "conf": 0.9281132221221924,
+            "bbox": {
+              "x_min": 162.0,
+              "y_min": 1168.0,
+              "x_max": 241.0,
+              "y_max": 1189.0
+            }
+          },
+          {
+            "text": "实部奶换时间",
+            "conf": 0.7075080871582031,
+            "bbox": {
+              "x_min": 384.0,
+              "y_min": 1168.0,
+              "x_max": 465.0,
+              "y_max": 1189.0
+            }
+          },
+          {
+            "text": "40.0",
+            "conf": 0.9720483422279358,
+            "bbox": {
+              "x_min": 173.0,
+              "y_min": 1210.0,
+              "x_max": 199.0,
+              "y_max": 1228.0
+            }
+          },
+          {
+            "text": "0.97",
+            "conf": 0.8419417142868042,
+            "bbox": {
+              "x_min": 394.0,
+              "y_min": 1209.0,
+              "x_max": 419.0,
+              "y_max": 1226.0
+            }
+          },
+          {
+            "text": "48:2",
+            "conf": 0.7488699555397034,
+            "bbox": {
+              "x_min": 665.0,
+              "y_min": 1208.0,
+              "x_max": 689.0,
+              "y_max": 1224.0
+            }
+          },
+          {
+            "text": "A",
+            "conf": 0.9558812975883484,
+            "bbox": {
+              "x_min": 531.0,
+              "y_min": 1269.0,
+              "x_max": 563.0,
+              "y_max": 1297.0
+            }
+          },
+          {
+            "text": "中",
+            "conf": 0.7467817068099976,
+            "bbox": {
+              "x_min": 442.0,
+              "y_min": 1285.0,
+              "x_max": 451.0,
+              "y_max": 1292.0
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
