@@ -1,0 +1,5 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-p0-timeout
+
+Published followup entry reserves once after a real writer observation delayed beyond 5000ms; claim and candidate retained.

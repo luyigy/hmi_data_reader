@@ -1,3 +1,4 @@
+import { once } from 'node:events';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -56,7 +57,8 @@ async function main() {
   const codex = getHarnessAdapter('codex')!; const kimi = getHarnessAdapter('kimi-code')!;
   const starts: { key: string; directory: string }[] = []; const reviews: string[] = [];
   const oldValidation = process.env.TASK_GRAPH_VALIDATION_ROOT; process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
-  const releaseProbe = process.env.AP_S01_REVIEW_RELEASE_PROBE === '1';
+  const processProbe = process.env.AP_P0_RECOVERY_PROCESS_PROBE === '1';
+  const releaseProbe = processProbe || process.env.AP_S01_REVIEW_RELEASE_PROBE === '1';
   const phase: typeof import('../src/lib/task-graph/phase-worker') = require('../src/lib/task-graph/phase-worker');
   const releaseWorker = phase.releaseGraphReviewWorker;
   let releaseReview: () => void = () => {};
@@ -104,6 +106,15 @@ async function main() {
   const parent = await prisma.task.create({ data: { name: 'Issue execution fixture' } });
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition });
   const { runTaskGraphCycle, recoverTaskGraphNodeVerification, startTaskGraphCoordinator } = await import('../src/lib/task-graph/coordinator');
+  const transitions: unknown[] = [];
+  async function checkpoint(stage: 'paused' | 'completed') {
+    const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, include: { executions: true }, orderBy: { key: 'asc' } });
+    transitions.push({ stage, nodes: nodes.map(node => ({ key: node.key, status: node.status, executions: node.executions.map(job => ({ id: job.id, status: job.status, commit: job.commit, progress: job.dispatchMetadata })) })) });
+    if (process.env.AP_P0_SERVICE_PROBE === '1' && process.send) {
+      process.send({ kind: 'p0-state', stage, runId: run.id });
+      await once(process, 'message', { signal: AbortSignal.timeout(60000) });
+    }
+  }
   async function until(stage: string, predicate: () => Promise<boolean>) {
     for (let i = 0; i < 500; i++) { await runTaskGraphCycle(); if (await predicate()) return; await new Promise((resolve) => setTimeout(resolve, 30)); }
     throw new Error(JSON.stringify({ stage, starts, reviews, nodes: await prisma.taskGraphNode.findMany({ where: { runId: run.id }, include: { executions: true } }), events: await prisma.taskGraphEvent.findMany({ where: { runId: run.id }, orderBy: { createdAt: 'desc' }, take: 40 }), taskRuns: await prisma.taskRun.findMany({ where: { task: { id: { in: (await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { id: true } })).map(node => `task-graph-review-${node.id}`) } } }, select: { id: true, taskId: true, status: true, summary: true, controlMetadata: true } }) }, null, 2));
@@ -114,11 +125,20 @@ async function main() {
     const paused = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'B' } }, include: { executions: true } });
     assert.equal(paused.status, 'attention'); assert.ok(existsSync(paused.executions[0].worktreePath!));
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'C' } } })).status, 'planned');
+    await checkpoint('paused');
     rejectB = false;
     if (releaseProbe) {
       for (let n = 0; n < 100 && !heldReview; n++) await new Promise(resolve => setTimeout(resolve, 5));
       assert.equal(heldReview, true, 'Probe holds the old verification before its in-flight entry is cleared');
-      const recovery = recoverTaskGraphNodeVerification(run.id, 'B');
+      if (processProbe) {
+        releaseReview();
+        const drain = new AbortController(); drain.abort(); await startTaskGraphCoordinator(drain.signal);
+      }
+      const beforeRecovery = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: paused.executions[0].id } });
+      const recovery = processProbe ? Promise.resolve().then(() => {
+        execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register', '-e',
+          'const {scheduleVerificationRecovery}=require("./src/lib/task-graph/review-recovery"); const {prisma}=require("./src/lib/prisma"); scheduleVerificationRecovery(process.argv[1], "B", "process-restart-proof").finally(()=>prisma.$disconnect()).catch(e=>{console.error(e);process.exitCode=1})', run.id], { env: process.env, stdio: 'pipe' });
+      }) : recoverTaskGraphNodeVerification(run.id, 'B');
       try {
         for (let n = 0; n < 100; n++) {
           if ((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: paused.id } })).status === 'verifying') break;
@@ -126,9 +146,21 @@ async function main() {
         }
       } finally { releaseReview(); }
       await recovery;
-      assert.ok(reviews.filter(key => key === 'B').length >= 2, 'An accepted recovery must launch the new review after the previous in-flight review drains');
+      if (processProbe) {
+        const saved = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: paused.executions[0].id } });
+        const { executionProgress } = await import('../src/lib/task-graph/execution-progress');
+        assert.equal(executionProgress(saved.dispatchMetadata)?.review?.kind, 'ready', 'New process leaves a durable generation for the coordinator');
+        assert.equal(saved.commit, beforeRecovery.commit);
+        const { scheduleVerificationRecovery } = await import('../src/lib/task-graph/review-recovery');
+        await scheduleVerificationRecovery(run.id, 'B', 'process-restart-proof');
+        assert.deepEqual(await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: saved.id } }), saved, 'Repeated request does not spend budget or create another generation');
+        await assert.rejects(scheduleVerificationRecovery(run.id, 'B', 'competing-request'), /identity changed/);
+        assert.equal(executionProgress(saved.dispatchMetadata)?.platformAttempts, executionProgress(beforeRecovery.dispatchMetadata)?.platformAttempts);
+        // No direct recover/verify call in this process. Only the ordinary cycle may continue.
+      } else assert.ok(reviews.filter(key => key === 'B').length >= 2, 'An accepted recovery must launch the new review after the previous in-flight review drains');
     } else await recoverTaskGraphNodeVerification(run.id, 'B');
     await until('recovery-and-join', async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed');
+    await checkpoint('completed');
     assert.deepEqual(starts.map((item) => item.key).sort(), ['A', 'B', 'B', 'C'], 'Only the failed Slice may receive one classified repair; completed independent branches never rerun');
     assert.equal(reviews.filter((key) => key === 'B').length, 3);
     assert.equal(git('rev-parse', 'main'), baseline, 'Run integration must not move source main');
@@ -164,6 +196,7 @@ async function main() {
     releaseReview();
     const drain = new AbortController(); drain.abort(); await startTaskGraphCoordinator(drain.signal);
     phase.releaseGraphReviewWorker = releaseWorker;
+    if (process.env.AP_P0_TRACE_FILE) writeFileSync(process.env.AP_P0_TRACE_FILE, JSON.stringify({ transitions, events: await prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: { in: ['verification_recovery_requested', 'review_dispatched', 'execution_outcome', 'node_passed', 'node_verifying'] } }, orderBy: { createdAt: 'asc' } }) }, null, 2) + '\n');
     const children = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, select: { childTaskId: true } });
     const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { id: true } });
     await prisma.taskGraphRun.deleteMany({ where: { parentTaskId: parent.id } });

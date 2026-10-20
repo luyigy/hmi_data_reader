@@ -1,3 +1,4 @@
+import { scheduleVerificationRecovery } from './review-recovery';
 import { recoverPendingReviewRepairs } from './pending-review-repair';
 import { conversationInputs, conversationPrompt, sealConversationTurn, reconcileConversationWaits, deliverConversationSteering, reconcileConversationDeliveries } from './conversation-inbox';
 import { implementationConversation } from './conversation-session';
@@ -6,7 +7,7 @@ import { redactSensitiveText } from '../redact-sensitive';
 import { recoverPreparedImplementations } from './preparation-recovery';
 import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
 import { publishReviewPreparationFailure, reviewPreparationFailure, type ReviewPublication } from './review-publication';
-import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, immutableDispatchMetadata, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
+import { applyExecutionOutcome, executionProgress, initialExecutionProgress, immutableDispatchMetadata, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
 import { prepareExtraRepositories } from './extra-repositories';
 import { ServiceRuntimeError } from './attempt-services';
 import { prepareUpstreamInputs, TaskInputPreparationError } from './upstream-inputs';
@@ -229,7 +230,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     await postGraphParentProgress(run.parentTaskId, runId, message);
     return;
   }
-  const verificationAttempt = reviewAttempt || `candidate:${createHash('sha256').update(JSON.stringify(commits)).digest('hex').slice(0, 24)}`;
+  const generation = node.executions.map(job => executionProgress(job.dispatchMetadata)?.review).find(binding => binding?.kind === 'ready')?.claimKey;
+  const verificationAttempt = reviewAttempt || generation || `candidate:${createHash('sha256').update(JSON.stringify(commits)).digest('hex').slice(0, 24)}`;
   let reviewDecision: ReviewDecision = {};
   let reviewOwner: ReviewPublication | undefined;
   const evidence: VerificationEvidence = {
@@ -384,7 +386,7 @@ export async function recoverTaskGraphNode(runId: string, nodeKey: string, recov
       await scheduleImplementationRecovery(runId, nodeKey, requestId);
       return;
     }
-    await recoverTaskGraphNodeVerification(runId, nodeKey);
+    await recoverTaskGraphNodeVerification(runId, nodeKey, requestId);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { parentTaskId: true } });
@@ -396,39 +398,22 @@ export async function recoverTaskGraphNode(runId: string, nodeKey: string, recov
   }
 }
 
-export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: string) {
+export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: string, requestId: string = randomUUID()) {
   const node = await prisma.taskGraphNode.findUniqueOrThrow({
     where: { runId_key: { runId, key: nodeKey } }, include: { executions: true },
   });
-  if (node.status === 'passed') return node;
+  const recorded = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: `node:${nodeKey}:verification-recovery:${requestId}` } } });
+  if (recorded || node.status === 'passed') return node;
   if (node.status !== 'attention') throw new Error(`${nodeKey} is not paused for verification recovery`);
   if (activeReviews.has(node.id)) throw new Error(`${nodeKey} verification is already running`);
   const activeReview = await prisma.taskRun.findFirst({
     where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } }, select: { id: true },
   });
   if (activeReview) throw new Error(`${nodeKey} verification is already running`);
-  const reviewAttempt = `recovery:${randomUUID()}`;
-  await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
-    const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
-    if (current.executions.some(job => ['exhausted', 'ownership_attention'].includes(executionProgress(job.dispatchMetadata)?.state || ''))) throw new Error('Verification recovery requires an explicit exhaustion or ownership decision');
-    for (const job of current.executions) {
-      const progress = executionProgress(job.dispatchMetadata);
-      if (progress?.review?.kind === 'running' && (await observeTaskRunWriter(progress.review.taskRunId)).kind !== 'exited') throw new Error('Verification writer has not demonstrably exited');
-      if (job.status === 'attention' && progress?.state === 'waiting_decision' && job.claimToken) await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision, outcomeId: `review-resume:${reviewAttempt}`, outcome: { kind: 'review_resumed' } });
-      else if (job.status !== 'integrated') throw new Error('Verification inputs changed before recovery');
-    }
-    if (await tx.taskRun.count({ where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Verification still has a live TaskRun');
-    const changed = await tx.taskGraphNode.updateMany({
-      where: { id: node.id, status: node.status }, data: { status: 'verifying' },
-    });
-    if (changed.count !== 1) throw new Error(`${nodeKey} verification state changed before recovery`);
-    await tx.taskGraphEvent.create({ data: {
-      runId, nodeId: node.id, idempotencyKey: `node:${nodeKey}:verifying:${reviewAttempt}`,
-      kind: 'node_verifying', payload: { recovery: true },
-    } });
-  });
-  await verifyNode(runId, nodeKey, reviewAttempt);
+  await scheduleVerificationRecovery(runId, nodeKey, requestId);
+  const active = nodeVerifications.get(`${runId}/${nodeKey}`);
+  if (active) await active;
+  await verifyNode(runId, nodeKey);
   return prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
 }
 

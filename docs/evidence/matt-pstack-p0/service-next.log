@@ -1,0 +1,27 @@
+  ▲ Next.js 14.2.35
+  - Local:        http://127.0.0.1:39279
+  - Network:      http://127.0.0.1:39279
+  - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1063ms
+ ✓ Compiled /src/middleware in 113ms (73 modules)
+ ✓ Compiled /api/health in 96ms (56 modules)
+ GET /api/health 200 in 165ms
+ ✓ Compiled /api/auth/me in 40ms (65 modules)
+ GET /api/auth/me 401 in 76ms
+ ✓ Compiled /api/auth/login in 24ms (67 modules)
+ POST /api/auth/login 200 in 39ms
+ GET /api/auth/me 200 in 20ms
+ ○ Compiling /api/tasks/[id]/runs/latest ...
+ ✓ Compiled /api/tasks/[id]/runs/latest in 732ms (184 modules)
+ GET /api/tasks/task-graph-cmvgakfee0005edkkvf7gjw81/runs/latest?runId=cmvgakgd90026edkktzf8ct2p 200 in 1199ms
+ GET /api/auth/me 200 in 19ms
+ GET /api/tasks/task-graph-cmvgakfef0007edkk1htcg85h/runs/latest?runId=cmvgakgcy0021edkkefu6q8d7 200 in 94ms
+ GET /api/auth/me 200 in 13ms
+ GET /api/tasks/task-graph-cmvgakfee0005edkkvf7gjw81/runs/latest?runId=cmvgakgd90026edkktzf8ct2p 200 in 97ms
+ GET /api/auth/me 200 in 12ms
+ GET /api/tasks/task-graph-cmvgakfef0007edkk1htcg85h/runs/latest?runId=cmvgaknfe00agedkki2ysz50j 200 in 26ms
+ GET /api/auth/me 200 in 11ms
+ GET /api/tasks/task-graph-cmvgakfef0009edkkf0rrg49j/runs/latest?runId=cmvgakqt300euedkkh5i2fecg 200 in 20ms
+[?25h

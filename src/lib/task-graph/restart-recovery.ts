@@ -125,6 +125,7 @@ export async function recoverGraphReview(nodeId: string): Promise<'ready' | 'wai
   const bindings = node.executions.map(job => { const binding = executionProgress(job.dispatchMetadata)?.review; return binding?.candidateCommit === job.commit ? binding : undefined; });
   if (bindings.every(binding => binding?.kind === 'ready')) {
     const reserved = bindings[0];
+    if (reserved && !await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: reserved.claimKey } } })) return 'ready';
     const owned = node.executions.every(job => executionProgress(job.dispatchMetadata)?.worker);
     if (!owned || !reserved || reserved.kind !== 'ready') return 'ready';
     // A reserved claim with an exited phase owner never reached atomic TaskRun binding.

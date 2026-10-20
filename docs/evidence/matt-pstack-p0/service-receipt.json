@@ -1,0 +1,44 @@
+{
+  "isolated": true,
+  "host": "127.0.0.1",
+  "port": 39279,
+  "schema": "task_graph_test_c0bada07d54748ac94f3f3b4d8daef1f",
+  "health": true,
+  "unauthorizedStatus": 401,
+  "loginStatus": 200,
+  "snapshots": [
+    {
+      "stage": "paused",
+      "states": {
+        "A": "passed",
+        "B": "attention",
+        "C": "planned"
+      },
+      "taskRunStates": {
+        "A": "completed",
+        "B": "completed"
+      }
+    },
+    {
+      "stage": "completed",
+      "states": {
+        "A": "passed",
+        "B": "passed",
+        "C": "passed"
+      },
+      "taskRunStates": {
+        "A": "completed",
+        "B": "completed",
+        "C": "completed"
+      }
+    }
+  ],
+  "sourceSha256": {
+    "conversation-followup.ts": "bb973338e5ce4460d3fc59c335f02ac54308c739a6f1d7f50624019ee22c62a8",
+    "coordinator.ts": "c9eecfbd00c330681cae5c84cfe19fece9dd3693508786fc4232217b8e47d11d",
+    "execution-progress.ts": "d222ebe5f849fc1a14c900b5552aecff272763b1e984c39bff6a2a9773ac792a",
+    "review-recovery.ts": "563bab3f442d71d45b5fb02b4c7804407ba62c9a21ac3146b8cb695edf9cd176",
+    "writer-snapshot.ts": "d0e9289c509d7c58ef6e046b3782510171dae8d68b7c5ce9d34936c18ee02fca"
+  },
+  "productionRestarted": false
+}

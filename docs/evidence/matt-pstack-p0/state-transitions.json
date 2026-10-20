@@ -1,0 +1,407 @@
+{
+  "sourceFixtureSha256": "3ffac3167635f23894a117f4cd6396a4ebe059f93d1a28a8743bbf06ce34d753",
+  "transitions": [
+    {
+      "stage": "paused",
+      "nodes": [
+        {
+          "key": "A",
+          "status": "passed",
+          "executions": [
+            {
+              "id": "cmvgakfee0005edkkvf7gjw81",
+              "status": "integrated",
+              "commit": "5d69f557032989e7eb531614c27323d03a7febcf",
+              "progress": {
+                "phase": "acceptance",
+                "state": "active",
+                "revision": 10,
+                "review": {
+                  "kind": "running",
+                  "phase": "acceptance",
+                  "claimKey": "node:A:review_claimed:candidate:f3bb22c537c7b6c947a3391c",
+                  "taskRunId": "cmvgakjps005xedkkzmefz74p",
+                  "candidateCommit": "5d69f557032989e7eb531614c27323d03a7febcf"
+                },
+                "candidateCommit": "5d69f557032989e7eb531614c27323d03a7febcf",
+                "workspaceBase": "d57abef77189b85a6f583fc40448d5e7086d9603",
+                "repairAttempts": 0,
+                "formatAttempts": 0,
+                "platformAttempts": 0,
+                "integrationAttempts": 0
+              }
+            }
+          ]
+        },
+        {
+          "key": "B",
+          "status": "attention",
+          "executions": [
+            {
+              "id": "cmvgakfef0007edkk1htcg85h",
+              "status": "attention",
+              "commit": "3bde682ef80826edcdf74328fd5c2837bd1b1b18",
+              "progress": {
+                "phase": "acceptance",
+                "state": "waiting_decision",
+                "revision": 11,
+                "review": {
+                  "kind": "running",
+                  "phase": "acceptance",
+                  "claimKey": "node:B:review_claimed:candidate:16027e9e1ee3c43a2eccf355",
+                  "taskRunId": "cmvgakjpt0060edkkuvm73jhd",
+                  "candidateCommit": "3bde682ef80826edcdf74328fd5c2837bd1b1b18"
+                },
+                "candidateCommit": "3bde682ef80826edcdf74328fd5c2837bd1b1b18",
+                "workspaceBase": "d57abef77189b85a6f583fc40448d5e7086d9603",
+                "repairAttempts": 0,
+                "formatAttempts": 0,
+                "platformAttempts": 0,
+                "integrationAttempts": 0
+              }
+            }
+          ]
+        },
+        {
+          "key": "C",
+          "status": "planned",
+          "executions": [
+            {
+              "id": "cmvgakfef0009edkkf0rrg49j",
+              "status": "planned",
+              "commit": null,
+              "progress": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stage": "completed",
+      "nodes": [
+        {
+          "key": "A",
+          "status": "passed",
+          "executions": [
+            {
+              "id": "cmvgakfee0005edkkvf7gjw81",
+              "status": "integrated",
+              "commit": "5d69f557032989e7eb531614c27323d03a7febcf",
+              "progress": {
+                "phase": "acceptance",
+                "state": "active",
+                "revision": 11,
+                "review": {
+                  "kind": "running",
+                  "phase": "acceptance",
+                  "claimKey": "node:A:review_claimed:candidate:f3bb22c537c7b6c947a3391c",
+                  "taskRunId": "cmvgakjps005xedkkzmefz74p",
+                  "candidateCommit": "5d69f557032989e7eb531614c27323d03a7febcf"
+                },
+                "candidateCommit": "5d69f557032989e7eb531614c27323d03a7febcf",
+                "workspaceBase": "d57abef77189b85a6f583fc40448d5e7086d9603",
+                "repairAttempts": 0,
+                "formatAttempts": 0,
+                "platformAttempts": 0,
+                "integrationAttempts": 0
+              }
+            }
+          ]
+        },
+        {
+          "key": "B",
+          "status": "passed",
+          "executions": [
+            {
+              "id": "cmvgakfef0007edkk1htcg85h",
+              "status": "integrated",
+              "commit": "8263204a300af6d1226c44ac5550169eab14a3db",
+              "progress": {
+                "phase": "acceptance",
+                "state": "active",
+                "revision": 28,
+                "review": {
+                  "kind": "running",
+                  "phase": "acceptance",
+                  "claimKey": "node:B:review_claimed:continuation:6855fef0-acb7-4638-9cbc-89c114a60ac1",
+                  "taskRunId": "cmvgakpkl00cmedkk65o83mrv",
+                  "candidateCommit": "8263204a300af6d1226c44ac5550169eab14a3db"
+                },
+                "candidateCommit": "8263204a300af6d1226c44ac5550169eab14a3db",
+                "workspaceBase": "d57abef77189b85a6f583fc40448d5e7086d9603",
+                "repairAttempts": 1,
+                "formatAttempts": 0,
+                "platformAttempts": 0,
+                "integrationAttempts": 0
+              }
+            }
+          ]
+        },
+        {
+          "key": "C",
+          "status": "passed",
+          "executions": [
+            {
+              "id": "cmvgakfef0009edkkf0rrg49j",
+              "status": "integrated",
+              "commit": "e9c1e4c7b550e3cd2e9f52ec9ec4da248a29485a",
+              "progress": {
+                "phase": "acceptance",
+                "state": "active",
+                "revision": 11,
+                "review": {
+                  "kind": "running",
+                  "phase": "acceptance",
+                  "claimKey": "node:C:review_claimed:candidate:60db041d21c6f0b5fd3e2210",
+                  "taskRunId": "cmvgakt3k00h7edkktnmr2d5m",
+                  "candidateCommit": "e9c1e4c7b550e3cd2e9f52ec9ec4da248a29485a"
+                },
+                "candidateCommit": "e9c1e4c7b550e3cd2e9f52ec9ec4da248a29485a",
+                "workspaceBase": "5d69f557032989e7eb531614c27323d03a7febcf",
+                "repairAttempts": 0,
+                "formatAttempts": 0,
+                "platformAttempts": 0,
+                "integrationAttempts": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "kind": "node_verifying",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:17:55.700Z",
+      "payload": {}
+    },
+    {
+      "kind": "node_verifying",
+      "nodeId": "cmvgakfee0004edkkol55owmv",
+      "createdAt": "2026-10-20T06:17:55.702Z",
+      "payload": {}
+    },
+    {
+      "kind": "review_dispatched",
+      "nodeId": "cmvgakfee0004edkkol55owmv",
+      "createdAt": "2026-10-20T06:17:56.188Z",
+      "payload": {
+        "phase": "acceptance",
+        "runId": "cmvgakfee0003edkkiy17lsni",
+        "nodeId": "cmvgakfee0004edkkol55owmv",
+        "claimKey": "node:A:review_claimed:candidate:f3bb22c537c7b6c947a3391c",
+        "taskRunId": "cmvgakjps005xedkkzmefz74p"
+      }
+    },
+    {
+      "kind": "review_dispatched",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:17:56.193Z",
+      "payload": {
+        "phase": "acceptance",
+        "runId": "cmvgakfee0003edkkiy17lsni",
+        "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+        "claimKey": "node:B:review_claimed:candidate:16027e9e1ee3c43a2eccf355",
+        "taskRunId": "cmvgakjpt0060edkkuvm73jhd"
+      }
+    },
+    {
+      "kind": "node_passed",
+      "nodeId": "cmvgakfee0004edkkol55owmv",
+      "createdAt": "2026-10-20T06:17:57.026Z",
+      "payload": {
+        "actorId": "local:kimi-code",
+        "evidence": {
+          "checks": [
+            {
+              "name": "smoke",
+              "passed": true,
+              "evidence": "test -f A.txt\n\nAgent review cmvgakjps005xedkkzmefz74p: explicit fixture evidence"
+            },
+            {
+              "name": "acceptance:decision",
+              "passed": true,
+              "evidence": "explicit fixture evidence"
+            }
+          ],
+          "summary": "Agent 复核 通过：explicit fixture evidence"
+        }
+      }
+    },
+    {
+      "kind": "execution_outcome",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:17:59.105Z",
+      "payload": {
+        "executionId": "cmvgakfef0007edkk1htcg85h",
+        "claimToken": "5a4bf1e3-b04c-4f32-91e4-fd609ac4ced8",
+        "expectedRevision": 11,
+        "outcome": {
+          "kind": "review_resumed",
+          "claimKey": "recovery:node:B:verification-recovery:3255d848-5be6-4e6d-aabb-88a510a5352a"
+        },
+        "progress": {
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 12,
+          "review": {
+            "kind": "ready",
+            "phase": "acceptance",
+            "claimKey": "recovery:node:B:verification-recovery:3255d848-5be6-4e6d-aabb-88a510a5352a",
+            "candidateCommit": "3bde682ef80826edcdf74328fd5c2837bd1b1b18"
+          },
+          "candidateCommit": "3bde682ef80826edcdf74328fd5c2837bd1b1b18",
+          "workspaceBase": "d57abef77189b85a6f583fc40448d5e7086d9603",
+          "repairAttempts": 0,
+          "formatAttempts": 0,
+          "platformAttempts": 0,
+          "integrationAttempts": 0
+        }
+      }
+    },
+    {
+      "kind": "verification_recovery_requested",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:17:59.109Z",
+      "payload": {
+        "claimKey": "recovery:node:B:verification-recovery:3255d848-5be6-4e6d-aabb-88a510a5352a",
+        "requestId": "3255d848-5be6-4e6d-aabb-88a510a5352a",
+        "executionIds": [
+          "cmvgakfef0007edkk1htcg85h"
+        ]
+      }
+    },
+    {
+      "kind": "review_dispatched",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:17:59.440Z",
+      "payload": {
+        "phase": "acceptance",
+        "runId": "cmvgakfee0003edkkiy17lsni",
+        "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+        "claimKey": "recovery:node:B:verification-recovery:3255d848-5be6-4e6d-aabb-88a510a5352a",
+        "taskRunId": "cmvgakm85008pedkkwf1zzchx"
+      }
+    },
+    {
+      "kind": "execution_outcome",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:18:00.392Z",
+      "payload": {
+        "executionId": "cmvgakfef0007edkk1htcg85h",
+        "claimToken": "5a4bf1e3-b04c-4f32-91e4-fd609ac4ced8",
+        "expectedRevision": 16,
+        "outcome": {
+          "kind": "repair_required",
+          "failure": {
+            "code": "in_scope_defect",
+            "detail": "new input found an in-scope defect",
+            "checkId": "acceptance:smoke",
+            "fingerprint": "cbf912d4f6d8f54f4c533bf998405ccfa57880f91ae4befdbffcc8a335395c32"
+          }
+        },
+        "progress": {
+          "phase": "implement",
+          "state": "ready",
+          "revision": 17,
+          "review": {
+            "kind": "running",
+            "phase": "acceptance",
+            "claimKey": "recovery:node:B:verification-recovery:3255d848-5be6-4e6d-aabb-88a510a5352a",
+            "taskRunId": "cmvgakm85008pedkkwf1zzchx",
+            "candidateCommit": "3bde682ef80826edcdf74328fd5c2837bd1b1b18"
+          },
+          "candidateCommit": "3bde682ef80826edcdf74328fd5c2837bd1b1b18",
+          "workspaceBase": "d57abef77189b85a6f583fc40448d5e7086d9603",
+          "repairAttempts": 1,
+          "formatAttempts": 0,
+          "platformAttempts": 0,
+          "integrationAttempts": 0
+        }
+      }
+    },
+    {
+      "kind": "node_verifying",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:18:03.477Z",
+      "payload": {}
+    },
+    {
+      "kind": "review_dispatched",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:18:03.778Z",
+      "payload": {
+        "phase": "acceptance",
+        "runId": "cmvgakfee0003edkkiy17lsni",
+        "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+        "claimKey": "node:B:review_claimed:continuation:6855fef0-acb7-4638-9cbc-89c114a60ac1",
+        "taskRunId": "cmvgakpkl00cmedkk65o83mrv"
+      }
+    },
+    {
+      "kind": "node_passed",
+      "nodeId": "cmvgakfef0006edkk0ji0mk2f",
+      "createdAt": "2026-10-20T06:18:04.338Z",
+      "payload": {
+        "actorId": "local:kimi-code",
+        "evidence": {
+          "checks": [
+            {
+              "name": "smoke",
+              "passed": true,
+              "evidence": "test -f B.txt\n\nAgent review cmvgakpkl00cmedkk65o83mrv: explicit fixture evidence"
+            },
+            {
+              "name": "acceptance:decision",
+              "passed": true,
+              "evidence": "explicit fixture evidence"
+            }
+          ],
+          "summary": "Agent 复核 通过：explicit fixture evidence"
+        }
+      }
+    },
+    {
+      "kind": "node_verifying",
+      "nodeId": "cmvgakfef0008edkk2ia2ktux",
+      "createdAt": "2026-10-20T06:18:07.963Z",
+      "payload": {}
+    },
+    {
+      "kind": "review_dispatched",
+      "nodeId": "cmvgakfef0008edkk2ia2ktux",
+      "createdAt": "2026-10-20T06:18:08.349Z",
+      "payload": {
+        "phase": "acceptance",
+        "runId": "cmvgakfee0003edkkiy17lsni",
+        "nodeId": "cmvgakfef0008edkk2ia2ktux",
+        "claimKey": "node:C:review_claimed:candidate:60db041d21c6f0b5fd3e2210",
+        "taskRunId": "cmvgakt3k00h7edkktnmr2d5m"
+      }
+    },
+    {
+      "kind": "node_passed",
+      "nodeId": "cmvgakfef0008edkk2ia2ktux",
+      "createdAt": "2026-10-20T06:18:08.972Z",
+      "payload": {
+        "actorId": "local:kimi-code",
+        "evidence": {
+          "checks": [
+            {
+              "name": "smoke",
+              "passed": true,
+              "evidence": "test -f C.txt\n\nAgent review cmvgakt3k00h7edkktnmr2d5m: explicit fixture evidence"
+            },
+            {
+              "name": "acceptance:decision",
+              "passed": true,
+              "evidence": "explicit fixture evidence"
+            }
+          ],
+          "summary": "Agent 复核 通过：explicit fixture evidence"
+        }
+      }
+    }
+  ]
+}

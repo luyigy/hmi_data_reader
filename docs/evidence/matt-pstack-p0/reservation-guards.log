@@ -1,0 +1,5 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-p0-reservation
+
+Slow writer observations outside transactions reserve once in 5585ms; stale claim/revision/candidate and live/unknown writers are refused.

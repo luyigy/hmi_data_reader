@@ -1,0 +1,5 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-workflow
+> TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-workflow.test.ts
+
+Task graph modes, role matrix, parent context and immutable Spec packages passed

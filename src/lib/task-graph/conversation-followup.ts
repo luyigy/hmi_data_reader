@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -60,47 +62,60 @@ export async function bindReadOnlyConversation(tx: Prisma.TransactionClient, arg
     { ...progress, conversation: { kind: 'running', reservationId: args.reservationId, taskRunId } }) } });
 }
 
+export async function reserveConversationFollowup(nodeId: string) {
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+  const events = await prisma.taskGraphEvent.findMany({ where: { nodeId, kind: { in: ['conversation_followup_reserved', 'conversation_followup_bound', 'conversation_followup_finished'] } }, orderBy: { id: 'asc' } });
+  const taskRunIds: string[] = [];
+  for (const event of events.filter(event => event.kind === 'conversation_followup_reserved')) {
+    const bound = events.find(item => item.idempotencyKey === `conversation-followup:${event.id}:run`);
+    if (bound) {
+      const payload = bound.payload;
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || typeof payload.taskRunId !== 'string') return null;
+      taskRunIds.push(payload.taskRunId);
+    } else if (!events.some(item => item.idempotencyKey === `conversation-followup:${event.id}:finished`) &&
+      (await observeGraphWriter(parseReservation(event.payload).worker)).kind !== 'exited') return null;
+  }
+  const proof = await observeWriterSnapshot({ jobs: node.executions, taskRunIds, scope: 'execution', observeExecution: observeExecutionWriter });
+  if (!proof.exited) return null;
+  const worker = await createGraphWriter();
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
+    if (!await writerSnapshotMatches(tx, proof)) return null;
+    const currentEvents = await tx.taskGraphEvent.findMany({ where: { nodeId, kind: { in: ['conversation_followup_reserved', 'conversation_followup_bound', 'conversation_followup_finished'] } }, orderBy: { id: 'asc' } });
+    if (!isDeepStrictEqual(currentEvents, events)) return null;
+    const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+    if (!isDeepStrictEqual([...node.executions].sort((a, b) => a.id.localeCompare(b.id)), [...proof.jobs].sort((a, b) => a.id.localeCompare(b.id)))) return null;
+    for (const job of node.executions) {
+      const progress = executionProgress(job.dispatchMetadata);
+      if (job.status === 'claimed' || job.status === 'ready' || progress?.state === 'waiting_for_user') continue;
+      const pending = await pendingConversationInputs(tx, node.runId, job.id);
+      if (!pending.length || !job.childTaskId) continue;
+      const previous = await tx.taskGraphEvent.findMany({ where: { runId: node.runId, kind: 'conversation_followup_reserved',
+        payload: { path: ['executionId'], equals: job.id } }, orderBy: { createdAt: 'desc' } });
+      const batchIdentity = createHash('sha256').update(JSON.stringify({ inputs: Array.from(new Set(pending.map(input => input.rootInputId))).sort(), candidate: progress?.candidateCommit,
+        state: progress?.state, failure: progress?.lastFailure })).digest('hex');
+      const attempts = previous.filter(event => event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload) && event.payload.batchIdentity === batchIdentity);
+      if (attempts.length >= 2 || attempts[0] && Date.now() - attempts[0].createdAt.getTime() < 15_000) return null;
+      const event = await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId: node.id,
+        kind: 'conversation_followup_reserved', idempotencyKey: `conversation-followup:${job.id}:${batchIdentity}:${attempts.length}`,
+        payload: { executionId: job.id, inputIds: pending.map(input => input.id), worker, batchIdentity, attempt: attempts.length + 1 } } });
+      if (!progress) throw new Error('Conversation requires versioned execution ownership');
+      await tx.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
+        { ...progress, revision: progress.revision + 1, worker, workerReleasedAt: undefined,
+          conversation: { kind: 'reserved', reservationId: event.id } }) } });
+      return { job, event, pending };
+    }
+    return null;
+  });
+}
+
 export async function startConversationFollowups(capacity: number) {
   const inputs = await pendingConversationNodes();
   const nodeIds = inputs.map(input => input.nodeId);
   const started: { executionId: string; promise: Promise<void> }[] = [];
   for (const nodeId of nodeIds) {
     if (started.length >= capacity) break;
-    const reservation = await prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
-      const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
-      for (const job of node.executions) {
-        const progress = executionProgress(job.dispatchMetadata);
-        if (job.status === 'claimed' || job.status === 'ready' || progress?.state === 'waiting_for_user') continue;
-        const pending = await pendingConversationInputs(tx, node.runId, job.id);
-        if (!pending.length || !job.childTaskId) continue;
-        for (const sibling of node.executions) if ((await observeExecutionWriter(sibling)).kind !== 'exited') return null;
-        const previous = await tx.taskGraphEvent.findMany({ where: { runId: node.runId, kind: 'conversation_followup_reserved',
-          payload: { path: ['executionId'], equals: job.id } }, orderBy: { createdAt: 'desc' } });
-        const batchIdentity = createHash('sha256').update(JSON.stringify({ inputs: Array.from(new Set(pending.map(input => input.rootInputId))).sort(), candidate: progress?.candidateCommit,
-          state: progress?.state, failure: progress?.lastFailure })).digest('hex');
-        const attempts = previous.filter(event => event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload) && event.payload.batchIdentity === batchIdentity);
-        if (attempts.length >= 2 || attempts[0] && Date.now() - attempts[0].createdAt.getTime() < 15_000) return null;
-        for (const event of previous) {
-          const bound = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: `conversation-followup:${event.id}:run` } } });
-          if (bound) {
-            const taskRunId: unknown = bound.payload && typeof bound.payload === 'object' ? Reflect.get(bound.payload, 'taskRunId') : null;
-            if (typeof taskRunId !== 'string' || (await observeTaskRunWriter(taskRunId)).kind !== 'exited') return null;
-          } else if (!await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: `conversation-followup:${event.id}:finished` } } }) &&
-            (await observeGraphWriter(parseReservation(event.payload).worker)).kind !== 'exited') return null;
-        }
-        const worker = await createGraphWriter();
-        const event = await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId: node.id,
-          kind: 'conversation_followup_reserved', idempotencyKey: `conversation-followup:${job.id}:${batchIdentity}:${attempts.length}`,
-          payload: { executionId: job.id, inputIds: pending.map(input => input.id), worker, batchIdentity, attempt: attempts.length + 1 } } });
-        if (!progress) throw new Error('Conversation requires versioned execution ownership');
-        await tx.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
-          { ...progress, revision: progress.revision + 1, worker, workerReleasedAt: undefined,
-            conversation: { kind: 'reserved', reservationId: event.id } }) } });
-        return { job, event, pending };
-      }
-      return null;
-    });
+    const reservation = await reserveConversationFollowup(nodeId);
     if (!reservation) continue;
     const work = (async () => {
       const { job, event, pending } = reservation;

@@ -28,16 +28,18 @@ async function main() {
         candidateCommit: 'a'.repeat(40), worker: await createGraphWriter(), workerReleasedAt: new Date().toISOString() }) } });
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'delivered_unverified' } });
     await receiveGraphTaskMessage({ taskId: child.id, sourceId: 'question', actorId: 'fixture', content: '进度如何？' });
-    phase.observeExecutionWriter = async () => { await new Promise(resolve => setTimeout(resolve, 5200)); return { kind: 'exited' }; };
-    const startedAt = performance.now();
-    await assert.rejects(startConversationFollowups(1), (error: unknown) => {
-      assert.ok(error && typeof error === 'object' && 'code' in error && error.code === 'P2028');
-      console.log(JSON.stringify({ probe: 'slow-writer-observation', code: error.code, elapsedMs: Math.round(performance.now() - startedAt), detail: error instanceof Error ? error.message : String(error) }));
-      return true;
-    });
-    assert.deepEqual(await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } }), job);
-    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_reserved' } }), 0);
-    console.log('S01 diagnostic: a 5200ms writer observation reproduces P2028 in followup reservation; rollback preserves claim/revision/candidate/input. This confirms the defect, not a fix.');
+    phase.observeExecutionWriter = async (...args: Parameters<typeof observe>) => {
+      await new Promise(resolve => setTimeout(resolve, 5200));
+      return observe(...args);
+    };
+    const started = await startConversationFollowups(1);
+    assert.equal(started.length, 1, 'A slow writer observation must not expire the reservation transaction');
+    await Promise.all(started.map(turn => turn.promise));
+    const after = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    assert.equal(after.claimToken, job.claimToken); assert.equal(after.commit, job.commit);
+    assert.equal(after.status, job.status);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: graph.id, kind: 'conversation_followup_reserved' } }), 1);
+    console.log('Published followup entry reserves once after a real writer observation delayed beyond 5000ms; claim and candidate retained.');
   } finally {
     phase.observeExecutionWriter = observe;
     await prisma.taskGraphRun.delete({ where: { id: graph.id } });
