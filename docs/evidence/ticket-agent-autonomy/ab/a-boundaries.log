@@ -11,7 +11,7 @@ Please complete this task step by step. When you...
 [Codex] Proxy enabled: true
 [Codex] Process exited with code: 0
 [Codex] Stdout length: 114
-[Codex] Stderr: 
+[Codex] Stderr:
 [Codex] Sending prompt: continue...
 [Codex] Exec args: exec resume fixture-thread --json --skip-git-repo-check -
 [Codex] Working directory: /tmp/graph-sandbox-o8eX2Y/workspace
@@ -20,7 +20,7 @@ Please complete this task step by step. When you...
 [Codex] Proxy enabled: true
 [Codex] Process exited with code: 0
 [Codex] Stdout length: 114
-[Codex] Stderr: 
+[Codex] Stderr:
 切换到一个新分支 'other'
 切换到分支 'main'
 Native Kimi sandbox enforces the requested readonly phase
