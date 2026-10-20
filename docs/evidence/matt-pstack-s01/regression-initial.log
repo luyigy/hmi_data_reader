@@ -1,0 +1,88 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs project-capabilities-c02 task-graph-interactive-conversation task-graph-issue-execution
+
+C02: two Git worktrees share fixed project tools; real checks see broker and readonly code; Mold advances while Reader waits; successor releases after evidence; non-Git acceptance retains tools; explicit restrictions, revocation and unauthorized user deny without changing candidates.
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 146
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 293
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 440
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 149
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 151
+PrismaClientKnownRequestError: 
+Invalid `tx.taskGraphEvent.findMany()` invocation in
+/data1/code/agent-platform-v2/src/lib/task-graph/conversation-followup.ts:78:50
+
+  75 const pending = await pendingConversationInputs(tx, node.runId, job.id);
+  76 if (!pending.length || !job.childTaskId) continue;
+  77 for (const sibling of node.executions) if ((await observeExecutionWriter(sibling)).kind !== 'exited') return null;
+→ 78 const previous = await tx.taskGraphEvent.findMany(
+Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5714 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.
+    at $n.handleRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:7315)
+    at $n.handleAndLogRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:130:9633) {
+  code: 'P2028',
+  clientVersion: '5.22.0',
+  meta: {
+    modelName: 'TaskGraphEvent',
+    error: 'Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5714 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.'
+  }
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-interactive-conversation.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-v2/scripts/test-task-graph-postgres.mjs:40:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 4167649,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1
