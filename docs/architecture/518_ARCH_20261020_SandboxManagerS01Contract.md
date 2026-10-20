@@ -1,6 +1,6 @@
 ---
 doc_type: ARCH
-doc_status: draft
+doc_status: in_progress
 ---
 
 # Sandbox Manager S01 架构合同
@@ -81,6 +81,29 @@ GitNexus 的本仓索引落后 HEAD 188 个提交，impact 查询还因只读数
 Environment Preparation 不等于“自动找目录就授权”。它只能把上层核准的资源与既有宿主基础运行契约转换为确定计划。现有 `localToolchainPaths()` 暴露的宿主工具目录、`projectEnvironment()` 的历史推断、非 strict 模式的 symlink 展开都是必须记录的兼容行为，不借重构悄悄扩大或收紧。
 
 `output-bindings.ts` 仍负责受控输出绑定的防逃逸、不能遮盖 tracked input 等验证。准备层调用它，Backend 仅渲染经过验证的绑定。S01 不把这些规则再抄一份进 Manager。
+
+## 用户批准后的实施边界
+
+2026-10-20 用户批准架构方向，并要求按以下两个独立提交实施。调查基线仍是 72a86b0；实际实施起点为仅增加本合同的 `1054a5e21e8bacb04563f206e356533c408e284d`，业务代码与调查基线相同。
+
+- **S01-A** 只提取共享 Environment Preparation 与唯一 Bubblewrap renderer。旧 wrap 的返回值、错误、参数顺序、挂载、环境、网络、strict/legacy 行为完全等价；不改变生命周期。
+- **S01-B** 在 A 的提交上迁移本机 Codex Ticket 实施的 app-server/JSON 启动、续接和停止。其他 Harness 与 Review 的进程入口保持旧行为。
+
+每步先保留固定基线测试结果，再记录修改后结果并分别提交。最终新建专用测试路线，只有真实飞书确认卡批准后才派发。不得恢复生产 Ticket，不开展 gVisor 或其他架构工程。
+
+### withSandbox 的结果合同
+
+| 场景 | 返回与清理 |
+| --- | --- |
+| use 成功且根进程已 close | 等待根进程收尾，再做一次 Manager 自有资源 cleanup；清理成功才返回 use 的结果。 |
+| use 成功但根进程仍存活 | 请求停止并观察 close；不能直接返回成功。截止时未知则抛出包含根身份/观察失败的 scope 错误，保留现场与控制登记。 |
+| use 抛异常 | 仍执行停止与有证明后的清理。收尾成功重新抛出原异常；收尾失败同时保留原异常与每个清理异常，不能只留最后一个 message。 |
+| spawn 同步失败或异步 error | 不执行 use；记录原始启动异常。已获得进程句柄则仍观察 close/收尾；未创建进程不虚构 PID 或退出证明。只清理本次已创建且不再被使用的资源。 |
+| 身份捕获失败或 PID 身份变化 | 返回 unknown，拒绝向不匹配进程发信号，不以 PID 数字相同接管；原启动/协议异常仍保留。 |
+| stop 超时或观察失败 | unknown 是失败结果，不是清理成功；不删除仍可能使用的资源，不清除活跃控制登记。后续 stop_run 的 SIGKILL 仍必须能请求。 |
+| 根进程已退出但 Manager cleanup 抛错 | 不返回 use 成功。错误同时保存原结果失败信息与 cleanup 异常。已知根退出不被改写成存活，GraphWriter 仍由原机制判断。 |
+
+Scope 错误使用结构化 causes 聚合，错误格式化也要保留每个原因。进程控制请求共享一个 Manager 句柄，Registry 仅按 TaskRun/participant 寻址；迟到 close 必须按登记实例比较，不能删除较新运行。停止期限只是观察上限，事件发生立即结束，禁止 sleep 后猜退出。
 
 ## 最小接口与运行身份
 
@@ -230,7 +253,7 @@ interface SandboxBackend {
 3. 在沙箱内实际探测文件读写和拒绝行为、Python executable、技能 checker、模型 HOME/config、Git metadata、输出别名。完整 poteto checker、mapping 和 playbook 都执行，不能只测 SKILL.md 可读。
 4. restricted 通过隔离网络 namespace 中的实际连接失败证明；enabled 用隔离夹具宿主本地服务证明连通。不访问生产服务，也不把 enabled 描述为域名白名单。它目前是共享宿主网络。
 5. 用假 app-server 的完整 initialize/thread/start/resume/turn 流验证 steering、stream、Session、stop 和 callback 顺序。restricted app-server 失败不得试 JSON。JSON 分支用隔离独立测试覆盖，不篡改真实 Ticket 的选择条件。
-6. 停止夹具要包括忽略 SIGTERM、先 SIGINT/SIGTERM 后 SIGKILL、先 unknown 后再次 stop_run、根进程退出但后代存活、PID 重用/bootId 不符、观察权限失败和父进程崩溃。Manager root receipt 与原 observeTaskRunWriter 的观察分别记录，不能用二者同名的 exited 混淆事实。
+6. 停止夹具必须包括协议成功但进程未退出、启动失败、Manager cleanup 异常、迟到 close、忽略 SIGTERM、先 SIGINT/SIGTERM 后 SIGKILL、先 unknown 后再次 stop_run、根进程退出但后代存活、PID 重用/bootId 不符、观察权限失败和父进程崩溃。Manager root receipt 与原 observeTaskRunWriter 的观察分别记录，不能用二者同名的 exited 混淆事实。
 7. 最后提议一条全新的专用测试路线，由用户原生确认卡批准后执行真实 Codex + 飞书 Topic。先缺材料，正常回复补料，沿原 Agent/Session 实施；独立 Review 继续旧路径；验收通过放行后继。只创建测试仓，不能恢复现有生产 Ticket。记录启动确实走 Manager、输入只消费一次、原生 Session、资源身份、writer nonce 与正常释放时序、candidate、claim/revision、回修次数及后继放行时间。
 
 现有应复用的回归包括 `bubblewrap.test.ts`、`codex-tool-package.test.ts`、`codex-home.test.ts`、`real-agents/codex-app-server.test.ts`、`task-graph-sandbox`、`task-graph-output-runtime`、`task-graph-runtime-pinning`、`task-graph-runtime-continuity`、`task-graph-skill-runtime`、`project-capabilities-c01/c02`、`task-graph-writer-ownership`、`task-graph-process-lineage`、`task-graph-service-execution`、`task-graph-continuation-eligibility`、`task-graph-interactive-conversation` 及重启恢复系列。按测试脚本的既有隔离入口执行，不对生产 DB 跑回归。
