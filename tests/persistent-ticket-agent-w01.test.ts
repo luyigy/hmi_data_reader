@@ -52,7 +52,8 @@ async function run() {
     assert.equal((await ensureJobWorktree(request)).path, job.path);
     await assert.rejects(() => ensureJobWorktree({ ...request, jobId: '../../bad' }));
     const nativeJob = await ensureJobWorktree({ ...request, jobId: 'native-session' });
-    await verifyNativeWorkspace(nativeJob.path, first, root);
+    const nativeEvidence = await verifyNativeWorkspace(nativeJob.path, first, root);
+    console.log(JSON.stringify({ event: 'w01-native-protocol-fixture', evidence: nativeEvidence }));
     assert.ok((await inspectWorkspace(repo, nativeJob.path)).reasons.length, 'A persisted native Session remains at its original path');
     const reader = await ensureReadOnlyWorkspace(repo, base, 'reader-1');
     assert.ok(reader.includes('/readonly/'));

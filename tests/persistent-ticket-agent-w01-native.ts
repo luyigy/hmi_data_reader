@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { runCodexAppServer, type CodexAppServerOptions } from '../src/lib/real-agents/codex-app-server';
 import { withSandbox, type SandboxIdentity } from '../src/lib/sandbox-manager';
 import type { HarnessSandbox } from '../src/lib/harness/types';
@@ -9,8 +10,9 @@ import { linkedWorktreeGitDirectories } from '../src/lib/real-agents/git-worktre
 
 /** The provider is deterministic loopback SSE. The Codex binary, shell tools, persisted thread and Sandbox Manager are real. */
 export async function verifyNativeWorkspace(workspace: string, sibling: string, outputRoot: string) {
-  const runtime = path.join(outputRoot, 'native-runtime');
-  await fs.mkdir(runtime);
+  const cache = path.join(os.homedir(), '.cache', 'agent-platform-native-tests');
+  await fs.mkdir(cache, { recursive: true });
+  const runtime = await fs.mkdtemp(path.join(cache, 'w01-'));
   const toolOutputs: string[] = [];
   let requests = 0;
   let turn = 0;
@@ -90,5 +92,6 @@ export async function verifyNativeWorkspace(workspace: string, sibling: string, 
   } finally {
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));
+    await fs.rm(runtime, { recursive: true, force: true });
   }
 }
