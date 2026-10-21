@@ -1,0 +1,52 @@
+{
+  "business_profile_candidate": {},
+  "contract_version": "2.11.0",
+  "extractor": "registered_extractor",
+  "extractor_id": "demag.configuration",
+  "extractor_version": "1",
+  "family_detect_groups": [
+    [
+      "生产"
+    ],
+    [
+      "保压切换条件"
+    ],
+    [
+      "循环时间监控"
+    ]
+  ],
+  "layout_anchors": [
+    "生产",
+    "保压切换条件",
+    "循环时间监控"
+  ],
+  "layout_variant": "machine_configuration",
+  "page": "injection_metering",
+  "page_identity": {
+    "brand": "DEMAG",
+    "controller_family": "DEMAG",
+    "evidence_sample_ids": [
+      "development",
+      "reserved",
+      "acceptance",
+      "holdout"
+    ],
+    "interface_generation": null,
+    "layout_variant": "machine_configuration",
+    "page_type": "injection_metering"
+  },
+  "profile_id": "demag.injection_metering.machine_configuration",
+  "require_anchor_match": true,
+  "route_families": [
+    "DEMAG",
+    "unknown"
+  ],
+  "sample_ids": [
+    "development",
+    "reserved",
+    "acceptance",
+    "holdout"
+  ],
+  "ui_family": "DEMAG",
+  "version": "1.0.0"
+}

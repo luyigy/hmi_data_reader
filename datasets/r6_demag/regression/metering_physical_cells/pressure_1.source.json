@@ -1,0 +1,20 @@
+{
+  "path": "datasets/r6_demag/regression/metering_physical_cells/pressure_1.jpg",
+  "sha256": "91547bba4fd1d3ed3b65d2e5b912f6a929818e6dcd33c29dc628581173954a09",
+  "bytes": 5357774,
+  "receipt": "/home/hello/.agent-platform/project-materials/published/4a0d3ac1bcf28b54e79b01f8d776573e9f40bd18b9932d0449e667b3c3a5b739/f83164b801b35856b1e125d1c52c346e8f29c0053fc2926e77ac50dbea81520d.json",
+  "notice": "新增不可变资料，须核对原图；不构成独立验收通过。",
+  "purpose": "diagnostic_regression",
+  "source_alias": "training",
+  "record_id": "recuQJJFYY51ao",
+  "expected_physical_pressure_cells": 4,
+  "visible_pressure_values": [
+    0.7,
+    0.7,
+    0.7,
+    0.0
+  ],
+  "truth_basis": "independent acceptance visual review; no decimal correction authorized",
+  "historical_receipt_path": "/home/hello/.agent-platform/project-materials/published/4a0d3ac1bcf28b54e79b01f8d776573e9f40bd18b9932d0449e667b3c3a5b739/91547bba4fd1d3ed3b65d2e5b912f6a929818e6dcd33c29dc628581173954a09.jpg",
+  "reacquired_receipt": "/home/hello/.agent-platform/project-materials/published/dab71d1d7fd8a5ca102e1656efad2fdaf3ef127a111323bef7d4f6f04272eda8/62d89d0a82848c4f0e336a762b2ebf1efceda7a2b21f63777b24b142907d1214.json"
+}

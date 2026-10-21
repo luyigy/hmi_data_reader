@@ -214,6 +214,12 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
                 package = build_metering_package(template, samples)
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from None
+        if template.get("extractor_id") == "demag.configuration":
+            from scripts.raw_demag_configuration import build_configuration_package
+            try:
+                package = build_configuration_package(template, samples)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
         relative = f"published/{profile_id}/{version}.json"
         try:
             if current:

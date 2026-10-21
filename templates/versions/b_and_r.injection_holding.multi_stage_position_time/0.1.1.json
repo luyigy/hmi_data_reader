@@ -1,0 +1,181 @@
+{
+  "version": "0.1.1",
+  "ui_family": "B_AND_R",
+  "page": "injection_metering",
+  "source": "2026-08-02 首版：6 份自动整批接受真值图（伯乐 Z050，B&R 贝加莱 UI）OCR 实测锚点",
+  "description": "B&R 屏射胶页字段位置模板。结构：射胶 5 段表（行=速度%/压力bar/位置mm/时间sec(蓝字实际值)，段1在最右）+保压 5 段表（行=速度/压力/时间）+保压切换（位置mm+时间sec 勾选式）+实际切换值（实时不入）。射胶表行标签常被左缘裁切，行序按区段内值行 y 聚类上→下=速度/压力/位置/时间；每行内值按 x 降序=段1→段5。有效段：射胶=速度或压力非零最末段、保压=时间>0最末段。顶部实际速度/位置/压力/模穴压力与底部实际切换值为实时值不入。坐标为屏幕归一化值，基于 scripts/rectify.py 输出。 本页面包的身份以物理射胶/保压页命名；page=injection_metering 仅兼容现有 Reader 分发枚举。",
+  "coordinate_system": "normalized_screen",
+  "calibration": {
+    "method": "6 张真值图（inj_Z050 rank01-06）rectify 后 PaddleOCR 实测锚点；以逐图实测为准",
+    "calibrated_at": "2026-08-02"
+  },
+  "sections": {
+    "injection": {
+      "header": "射胶",
+      "header_y_range": [
+        0.38,
+        0.46
+      ],
+      "next_header": "保压",
+      "rows": [
+        "velocity",
+        "pressure",
+        "position",
+        "time_actual"
+      ],
+      "skip_rows": [
+        "time_actual"
+      ]
+    },
+    "holding": {
+      "header": "保压",
+      "header_y_range": [
+        0.6,
+        0.66
+      ],
+      "next_header": "保压切换",
+      "rows": [
+        "velocity",
+        "pressure",
+        "time"
+      ],
+      "skip_rows": []
+    },
+    "switch": {
+      "header": "保压切换",
+      "header_y_range": [
+        0.76,
+        0.82
+      ],
+      "position_label": "位置",
+      "time_label": "时间",
+      "value_dx": 0.3
+    }
+  },
+  "cluster_gap": 0.02,
+  "max_stages": 5,
+  "value_ranges": {
+    "bar": [
+      0,
+      400
+    ],
+    "pct": [
+      0,
+      100
+    ],
+    "mm": [
+      0,
+      200
+    ],
+    "s": [
+      0,
+      60
+    ]
+  },
+  "page_detect_anchors": [
+    "射胶",
+    "保压切换",
+    "外部信号"
+  ],
+  "family_detect_groups": [
+    [
+      "保压切换",
+      "外部信号"
+    ],
+    [
+      "射胶",
+      "模穴压力"
+    ]
+  ],
+  "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+  "page_version": "1",
+  "rule_version": "s01.2",
+  "layout_anchors": [
+    "射胶",
+    "保压切换",
+    "外部信号"
+  ],
+  "require_anchor_match": true,
+  "sample_ids": [
+    "Z050_rank01"
+  ],
+  "business_profile_candidate": {
+    "page_id": "b_and_r.injection_holding.multi_stage_position_time",
+    "page_version": "1",
+    "rule_version": "s01.2",
+    "algorithm": "protocol_replay_v1",
+    "decision_source": "Z050 rank01 原图、049 六图真值及领域所有者 2026-10-13 对压力侧别、设定值、段终点和 V/P 双条件的裁定",
+    "verification_status": "sample_reviewed_partial",
+    "controller": "B_AND_R",
+    "page_kind": "process_settings",
+    "structural_markers": [
+      "射胶",
+      "保压切换"
+    ],
+    "speed_unit": "percent",
+    "pressure_basis": "hydraulic_pressure",
+    "injection_position_meaning": "stage_end_position",
+    "holding_time_meaning": "segment_duration",
+    "pre_suck_back": {
+      "enabled": false
+    },
+    "post_suck_back": {
+      "enabled": false
+    },
+    "possible_names": {
+      "injection.speed.{n}": [
+        "射胶速度{n}"
+      ],
+      "injection.pressure.{n}": [
+        "射胶压力{n}"
+      ],
+      "injection.end.{n}": [
+        "射胶终点位置{n}"
+      ],
+      "vp.position": [
+        "保压切换位置"
+      ],
+      "holding.speed.{n}": [
+        "保压速度{n}"
+      ],
+      "holding.pressure.{n}": [
+        "保压压力{n}"
+      ],
+      "holding.time.{n}": [
+        "保压时间{n}"
+      ],
+      "vp.switch.time": [
+        "保压切换时间"
+      ]
+    },
+    "field_units": {
+      "injection.speed.{n}": "%",
+      "injection.pressure.{n}": "bar",
+      "injection.end.{n}": "mm",
+      "vp.position": "mm",
+      "holding.speed.{n}": "%",
+      "holding.pressure.{n}": "bar",
+      "holding.time.{n}": "s",
+      "vp.switch.time": "s"
+    },
+    "field_write_review": {
+      "injection.speed.{n}": "validate_in_main",
+      "injection.pressure.{n}": "validate_in_main",
+      "injection.end.{n}": "validate_in_main",
+      "vp.position": "validate_in_main",
+      "holding.speed.{n}": "validate_in_main",
+      "holding.pressure.{n}": "validate_in_main",
+      "holding.time.{n}": "validate_in_main",
+      "vp.switch.time": "validate_in_main"
+    },
+    "migration_notes": [
+      "射胶位置 42/21/0 mm 是各段显示终点；第 3 段启用，但业务终点取 V/P 位置 15.8 mm，原屏 0 mm 保留为未写入观测。",
+      "射胶压力 100/115/91 bar 是液压压力设定值，写入 pressure_setpoint，不写入压力上限；保压压力同为液压压力。未提供增压比时只保留原值及侧别，不猜塑料压力 MPa。",
+      "位置 15.8 mm 与时间 2.35 s 同时勾选，任一条件先满足即切换；勾选状态的自动识别仍需逐图核对。",
+      "六图旧真值由 049 自动整批接受；Z050 rank01 的关键语义由领域所有者 2026-10-13 裁定，样本参与过模板开发，不是独立留出集。"
+    ],
+    "injection_pressure_meaning": "pressure_setpoint",
+    "last_injection_end_from_vp": true,
+    "vp_switch_mode": "position_or_time"
+  }
+}
