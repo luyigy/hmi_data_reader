@@ -26,6 +26,26 @@ from raw_temperature_time import validate_temperature_time_record
 OUTPUT = Path(os.environ["AP_GRAPH_OUTPUT_DIR"])
 
 
+def test_real_feishu_local_caller_recognizes_temperature_without_gpu():
+    from feishu_card_assistant import process_hmi_image, build_feishu_card
+
+    image = ROOT / "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_3ce4cae5.jpg"
+    directory = OUTPUT / "feishu-local"
+    result = process_hmi_image(image, directory)
+    card = build_feishu_card(result)
+    (directory / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    (directory / "card.json").write_text(json.dumps(card, ensure_ascii=False, indent=2))
+    assert result["ocr_line_count"] > 0
+    assert result["classification"]["ui_family"] == "FANUC"
+    assert result["classification"]["page"] == "temperature"
+    assert result["profile_id"] == PROFILE
+    assert result["status"] != "reject"
+    ocr = json.loads((directory / "rectified" / f"{image.stem}.ocr.json").read_text())
+    assert ocr["line_count"] == len(ocr["lines"]) == result["ocr_line_count"]
+    assert all(line["bbox"]["points"] for line in ocr["lines"])
+    assert card["header"]["template"] != "red"
+
+
 @pytest.fixture(scope="module")
 def live():
     import httpx
