@@ -9,6 +9,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dict:
+    if version == "0.6.0" and profile_id == "tact5.process_settings.injection_holding_metering":
+        try:
+            from raw_tact5 import tact5_package
+        except ModuleNotFoundError:
+            from scripts.raw_tact5 import tact5_package
+        return tact5_package(root, version)
     if version in ("0.4.0", "0.4.1"):
         try:
             from raw_temperature_time import DEFINITIONS, temperature_time_package

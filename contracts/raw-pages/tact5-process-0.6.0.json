@@ -1,0 +1,442 @@
+{
+  "profile_id": "tact5.process_settings.injection_holding_metering",
+  "version": "0.6.0",
+  "page_identity": {
+    "brand": "NISSEI",
+    "controller_family": "TACT5",
+    "interface_generation": null,
+    "page_type": "process_settings",
+    "layout_variant": "injection_holding_metering"
+  },
+  "legacy_profile_ids": [
+    "nissei.tact5"
+  ],
+  "controller_evidence": [
+    "docs/120_HANDOVER_20260926_日精新布局素材与训练调整.md: user confirmed fifth generation; not inferred from brand",
+    "templates/samples/tact5.process_settings.injection_holding_metering/Z078_20260910_shebao.json",
+    "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/development/source-receipt.json"
+  ],
+  "fields": [
+    {
+      "screen_field_key": "injection.speed.1",
+      "label": "V1",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "injection",
+      "stage": 1,
+      "segment_id": "injection-1"
+    },
+    {
+      "screen_field_key": "injection.speed.2",
+      "label": "V2",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "injection",
+      "stage": 2,
+      "segment_id": "injection-2"
+    },
+    {
+      "screen_field_key": "injection.speed.3",
+      "label": "V3",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "injection",
+      "stage": 3,
+      "segment_id": "injection-3"
+    },
+    {
+      "screen_field_key": "injection.speed.4",
+      "label": "V4",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "injection",
+      "stage": 4,
+      "segment_id": "injection-4"
+    },
+    {
+      "screen_field_key": "injection.speed.5",
+      "label": "V5",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "injection",
+      "stage": 5,
+      "segment_id": "injection-5"
+    },
+    {
+      "screen_field_key": "injection.speed.6",
+      "label": "V6",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "injection",
+      "stage": 6,
+      "segment_id": "injection-6"
+    },
+    {
+      "screen_field_key": "injection.end.1",
+      "label": "Sv1",
+      "role": "setting",
+      "unit": "mm",
+      "section": "injection",
+      "stage": 1,
+      "segment_id": "injection-1"
+    },
+    {
+      "screen_field_key": "injection.end.2",
+      "label": "Sv2",
+      "role": "setting",
+      "unit": "mm",
+      "section": "injection",
+      "stage": 2,
+      "segment_id": "injection-2"
+    },
+    {
+      "screen_field_key": "injection.end.3",
+      "label": "Sv3",
+      "role": "setting",
+      "unit": "mm",
+      "section": "injection",
+      "stage": 3,
+      "segment_id": "injection-3"
+    },
+    {
+      "screen_field_key": "injection.end.4",
+      "label": "Sv4",
+      "role": "setting",
+      "unit": "mm",
+      "section": "injection",
+      "stage": 4,
+      "segment_id": "injection-4"
+    },
+    {
+      "screen_field_key": "injection.end.5",
+      "label": "Sv5",
+      "role": "setting",
+      "unit": "mm",
+      "section": "injection",
+      "stage": 5,
+      "segment_id": "injection-5"
+    },
+    {
+      "screen_field_key": "holding.pressure.1",
+      "label": "Pp1",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "holding",
+      "stage": 1,
+      "segment_id": "holding-1"
+    },
+    {
+      "screen_field_key": "holding.pressure.2",
+      "label": "Pp2",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "holding",
+      "stage": 2,
+      "segment_id": "holding-2"
+    },
+    {
+      "screen_field_key": "holding.pressure.3",
+      "label": "Pp3",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "holding",
+      "stage": 3,
+      "segment_id": "holding-3"
+    },
+    {
+      "screen_field_key": "holding.time.1",
+      "label": "Tp1",
+      "role": "setting",
+      "unit": "s",
+      "section": "holding",
+      "stage": 1,
+      "segment_id": "holding-1",
+      "time_kind": "holding.time.1"
+    },
+    {
+      "screen_field_key": "holding.time.2",
+      "label": "Tp2",
+      "role": "setting",
+      "unit": "s",
+      "section": "holding",
+      "stage": 2,
+      "segment_id": "holding-2",
+      "time_kind": "holding.time.2"
+    },
+    {
+      "screen_field_key": "plasticizing.speed.1",
+      "label": "VS1",
+      "role": "setting",
+      "unit": "rpm",
+      "section": "plasticizing",
+      "stage": 1,
+      "segment_id": "plasticizing-1"
+    },
+    {
+      "screen_field_key": "plasticizing.speed.2",
+      "label": "VS2",
+      "role": "setting",
+      "unit": "rpm",
+      "section": "plasticizing",
+      "stage": 2,
+      "segment_id": "plasticizing-2"
+    },
+    {
+      "screen_field_key": "plasticizing.speed.3",
+      "label": "VS3",
+      "role": "setting",
+      "unit": "rpm",
+      "section": "plasticizing",
+      "stage": 3,
+      "segment_id": "plasticizing-3"
+    },
+    {
+      "screen_field_key": "plasticizing.pressure.1",
+      "label": "PB1",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "plasticizing",
+      "stage": 1,
+      "segment_id": "plasticizing-1"
+    },
+    {
+      "screen_field_key": "plasticizing.pressure.2",
+      "label": "PB2",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "plasticizing",
+      "stage": 2,
+      "segment_id": "plasticizing-2"
+    },
+    {
+      "screen_field_key": "plasticizing.pressure.3",
+      "label": "PB3",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "plasticizing",
+      "stage": 3,
+      "segment_id": "plasticizing-3"
+    },
+    {
+      "screen_field_key": "plasticizing.end.1",
+      "label": "VSL1",
+      "role": "setting",
+      "unit": "mm",
+      "section": "plasticizing",
+      "stage": 1,
+      "segment_id": "plasticizing-1"
+    },
+    {
+      "screen_field_key": "plasticizing.end.2",
+      "label": "VSL2",
+      "role": "setting",
+      "unit": "mm",
+      "section": "plasticizing",
+      "stage": 2,
+      "segment_id": "plasticizing-2"
+    },
+    {
+      "screen_field_key": "injection.pressure.1",
+      "label": "Pv1",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "pressure",
+      "stage": 1,
+      "segment_id": "pressure-1"
+    },
+    {
+      "screen_field_key": "injection.pressure.2",
+      "label": "Pv2",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "pressure",
+      "stage": 2,
+      "segment_id": "pressure-2"
+    },
+    {
+      "screen_field_key": "injection.pressure.3",
+      "label": "Pv3",
+      "role": "setting",
+      "unit": "MPa",
+      "section": "pressure",
+      "stage": 3,
+      "segment_id": "pressure-3"
+    },
+    {
+      "screen_field_key": "metering.end",
+      "label": "SM",
+      "role": "setting",
+      "unit": "mm",
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "holding.speed.shared",
+      "label": "LV",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "total.injection.time",
+      "label": "射出",
+      "role": "setting",
+      "unit": "s",
+      "section": "scalar",
+      "time_kind": "total.injection.time"
+    },
+    {
+      "screen_field_key": "cooling.time",
+      "label": "冷却",
+      "role": "setting",
+      "unit": "s",
+      "section": "scalar",
+      "time_kind": "cooling.time"
+    },
+    {
+      "screen_field_key": "intermediate.time",
+      "label": "中间",
+      "role": "setting",
+      "unit": "s",
+      "section": "scalar",
+      "time_kind": "intermediate.time"
+    },
+    {
+      "screen_field_key": "screw.position.actual",
+      "label": "螺杆位置",
+      "role": "actual",
+      "unit": "mm",
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "resin.pressure.actual",
+      "label": "树脂压力",
+      "role": "actual",
+      "unit": "MPa",
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "screw.speed.actual",
+      "label": "旋转速度",
+      "role": "actual",
+      "unit": "rpm",
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "overfill.prevention.time",
+      "label": "充填过量防止时间",
+      "role": "setting",
+      "unit": "s",
+      "section": "scalar",
+      "time_kind": "overfill.prevention.time"
+    },
+    {
+      "screen_field_key": "vp.position",
+      "label": "VP转换位置",
+      "role": "setting",
+      "unit": "mm",
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "retract.pre.speed",
+      "label": "计量前速度",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "scalar",
+      "compound_label": true
+    },
+    {
+      "screen_field_key": "retract.pre.distance",
+      "label": "计量前距离",
+      "role": "setting",
+      "unit": "mm",
+      "section": "scalar",
+      "compound_label": true
+    },
+    {
+      "screen_field_key": "retract.post.speed",
+      "label": "计量后速度",
+      "role": "setting",
+      "unit": "mm/s",
+      "section": "scalar",
+      "compound_label": true
+    },
+    {
+      "screen_field_key": "retract.post.distance",
+      "label": "计量后距离",
+      "role": "setting",
+      "unit": "mm",
+      "section": "scalar",
+      "compound_label": true
+    },
+    {
+      "screen_field_key": "control.vp_mode",
+      "label": "V-P转换方式",
+      "role": "setting",
+      "unit": null,
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "control.vp_response",
+      "label": "V-P切换应答",
+      "role": "setting",
+      "unit": null,
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "control.manual_back_pressure",
+      "label": "手动背压",
+      "role": "setting",
+      "unit": null,
+      "section": "scalar"
+    },
+    {
+      "screen_field_key": "injection.pressure.end.1",
+      "label": "Sp1",
+      "unit": "mm",
+      "role": "setting",
+      "section": "unsupported",
+      "unsupported_reason": "Existing OCR extractor has no verified label/value association for this display cell."
+    },
+    {
+      "screen_field_key": "injection.pressure.end.2",
+      "label": "Sp2",
+      "unit": "mm",
+      "role": "setting",
+      "section": "unsupported",
+      "unsupported_reason": "Existing OCR extractor has no verified label/value association for this display cell."
+    },
+    {
+      "screen_field_key": "holding.ramp.1",
+      "label": "RAMP Pp1",
+      "unit": "s",
+      "role": "setting",
+      "section": "unsupported",
+      "unsupported_reason": "Existing OCR extractor has no verified label/value association for this display cell."
+    }
+  ],
+  "samples": [
+    {
+      "sample_id": "Z078_20260910_shebao",
+      "image": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/development/Z078_20260910_shebao.jpg",
+      "image_sha256": "3f0cd45905b1b33b2f837b19f23003c26a563976bdde02988ef6ea4ddc18dc9d",
+      "purpose": "development_exposed_not_independent_test",
+      "truth": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/development/Z078_20260910_shebao.legacy-truth.json",
+      "truth_scope": "Historical user rulings and assisted review; not complete v2 truth and not independent acceptance",
+      "ocr": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/development/Z078_20260910_shebao.ocr.json",
+      "ocr_sha256": "986e84893b38c06b7809121f03eaf9de8ad275721a9ae005a3a083d8cab9223c"
+    }
+  ],
+  "coverage": {
+    "injection": "partial",
+    "holding": "partial",
+    "plasticizing": "partial",
+    "related_time": "partial",
+    "temperature": "unsupported: no verified TACT5 temperature layout or original bound to this ticket"
+  },
+  "limitations": [
+    "No business projection or derived final holding time.",
+    "All displayed residual values remain evidence, not automatic write permission.",
+    "No independent held-out original verified yet.",
+    "No TACT5 temperature support; old TACT temperature is a separate controller."
+  ]
+}
