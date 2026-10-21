@@ -10,8 +10,7 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     '面向用户的进度每次用一至三句说明已完成什么、当前在做什么、是否需要用户处理；不用源码清单、哈希或审查原文充当进度。最终先给不超过三条的简明结论，详细技术报告写证据文件；结构化结论仍单独保留。',
     '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',
     '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
-    '只有完成本票所必需的输入、环境、材料或权限确实缺失，且已核查现有材料、尝试获批替代路径仍无法推进时，才用 TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"missing_business_material 或 missing_upstream_input 或 environment_failed 或 scope_change 或 permission_required","note":"具体缺失项与保存进度"}。阻塞不会集成或放行后继；平台保存进度，补齐后恢复实施。普通会话结束不代表交付，不得把阻塞报告当作实施完成。',
-    'environment_failed 可附 blockerCause：缺少必需运行能力用 missing_capability；有证据的暂时故障用 transient。缺少或不明确的原因交由平台准备环境，不重复运行未改变环境中的实施；transient 仅按有限预算重试。',
+    '本轮尚有工作可正常汇报进度；明确等待用户时返回 TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"问题"}；范围或权限需要人决定时返回 status=blocked，并注明 scope_change 或 permission_required。',
     node.executionMode === 'implement'
       ? '本片为仅实施模式，不安排独立测试或审查；结果将明确标为未验收。'
       : '按当前 ticket 验收要求验证；项目存在 verify skill 时查阅它，没有时按 ticket 明确的入口执行并说明，不把缺少可选 skill 当成执行失败。用真实输入、API 读回或浏览器行为证明结果。未执行的检查标待办，不得声称通过。',

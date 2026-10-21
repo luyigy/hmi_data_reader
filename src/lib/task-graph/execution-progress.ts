@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { parseConflictRepair, type ConflictRepair } from './conflict-repair';
-import { executionRetryLimits } from './retry-limits';
+import { executionRetryLimits, maxUnchangedWorkTurns } from './retry-limits';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
 export type ExecutionFailure = { blockerCause?: 'missing_capability' | 'transient'; code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime'; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
@@ -22,9 +22,11 @@ export type ExecutionProgress = {
   workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; taskRunId?: string;
   repairAttempts: number; formatAttempts: number; platformAttempts: number; integrationAttempts: number;
   nextRetryAt?: string; lastFailure?: ExecutionFailure;
+  continuation?: { fingerprint: string; unchangedTurns: number };
   conflictRepair?: ConflictRepair;
 };
 export type ExecutionOutcome =
+  | { kind: 'continue_work'; note: string; fingerprint: string }
   | { kind: 'checkpoint'; phase: ExecutionPhase; workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; worker?: GraphWriter; conflictRepair?: ConflictRepair | null }
   | { kind: 'repair_required'; failure: ExecutionFailure; conflictRepair?: ConflictRepair }
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
@@ -73,6 +75,11 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
     state: enumeration(value.state, ['active', 'ready', 'waiting_for_user', 'waiting_decision', 'exhausted', 'ownership_attention']),
     repairAttempts: count(value.repairAttempts), formatAttempts: count(value.formatAttempts), platformAttempts: count(value.platformAttempts), integrationAttempts: value.integrationAttempts === undefined ? 0 : count(value.integrationAttempts),
   };
+  if (value.continuation !== undefined) {
+    const saved = record(value.continuation);
+    if (typeof saved.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(saved.fingerprint)) throw new Error('Invalid work continuation fingerprint');
+    progress.continuation = { fingerprint: saved.fingerprint, unchangedTurns: count(saved.unchangedTurns) };
+  }
   const workspaceBase = optionalCommit(value.workspaceBase), candidateCommit = optionalCommit(value.candidateCommit);
   const runtimeDirectory = optionalText(value.runtimeDirectory), taskRunId = optionalText(value.taskRunId), nextRetryAt = optionalText(value.nextRetryAt);
   if (workspaceBase) progress.workspaceBase = workspaceBase;
@@ -203,7 +210,17 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const outcome = args.outcome;
     let status = current.status;
     let issueKind: string | null = null;
-    if (outcome.kind === 'waiting_for_user') {
+    if (outcome.kind === 'continue_work') {
+      if (!['implement', 'collect_result'].includes(before.phase) || !/^[a-f0-9]{64}$/.test(outcome.fingerprint) || !outcome.note.trim()) throw new Error('Invalid normal work continuation');
+      const unchangedTurns = before.continuation?.fingerprint === outcome.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
+      progress.continuation = { fingerprint: outcome.fingerprint, unchangedTurns };
+      progress.phase = 'implement';
+      delete progress.lastFailure; delete progress.waitingKind; delete progress.waitingMessage;
+      if (unchangedTurns >= maxUnchangedWorkTurns) {
+        status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingKind = 'answered';
+        progress.waitingMessage = '连续轮次未产生新的代码、资料或用户输入，已停止空转并保留原会话。';
+      } else { status = 'ready'; progress.state = 'ready'; }
+    } else if (outcome.kind === 'waiting_for_user') {
       if (!['implement', 'collect_result'].includes(before.phase)) throw new Error('Only implementation turns may wait for user input');
       status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingMessage = outcome.note; progress.waitingKind = outcome.result || 'question';
     } else if (outcome.kind === 'operator_resume') {

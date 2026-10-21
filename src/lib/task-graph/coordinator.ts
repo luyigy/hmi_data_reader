@@ -1,3 +1,4 @@
+import { continuationWorkFingerprint } from './continuation-work';
 import { stopPausedGraphTurns, requireGraphRunActive, graphRunIsPaused } from './run-control';
 import { scheduleVerificationRecovery } from './review-recovery';
 import { recoverPendingReviewRepairs } from './pending-review-repair';
@@ -577,7 +578,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || '', { conversation: candidateProgress.phase === 'implement' && !progress.conflictRepair }); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
     if (conclusion.status !== 'delivered') {
-      if (conclusion.status === 'waiting_for_user' || conclusion.status === 'answered') {
+      if (conclusion.status === 'working') {
+        await outcome({ kind: 'continue_work', note: conclusion.note, fingerprint: await continuationWorkFingerprint(execution.id, candidate) });
+      } else if (conclusion.status === 'waiting_for_user' || conclusion.status === 'answered') {
         await outcome({ kind: 'waiting_for_user', note: conclusion.note, result: conclusion.status === 'answered' ? 'answered' : 'question' });
       } else if (conclusion.status === 'invalid') {
         await outcome({ kind: 'result_incomplete', failure: { code: 'invalid_result', detail: conclusion.note } });
@@ -587,7 +590,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       }
       await refreshTaskGraphRunStatus(runId);
       void postGraphChildProgress(task.id, `implementation-outcome-${claimToken}`,
-        conclusion.status === 'invalid' ? '实施成果已保存，自动补收交付结论；尚未交付。' : `实施暂停，尚未交付：${conclusion.note}`)
+        conclusion.status === 'working' ? `本轮进度已保存，原 Agent 继续工作：${conclusion.note}` : conclusion.status === 'invalid' ? '实施成果已保存，自动补收交付结论；尚未交付。' : conclusion.note)
         .catch(error => console.error('[TaskGraph] outcome delivery failed:', error));
       return;
     }

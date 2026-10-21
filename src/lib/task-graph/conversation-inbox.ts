@@ -174,7 +174,7 @@ export async function reconcileConversationDeliveries() {
 }
 
 export function conversationPrompt(inputs: ConversationInput[]) {
-  return inputs.length ? '\n原任务话题的新消息，按顺序处理。提问、补充或回答不代表扩大范围、重置预算或批准解除阻塞。\n' +
+  return inputs.length ? '\n原任务话题的新消息，按顺序处理。\n' +
     inputs.map(input => JSON.stringify({ id: input.id, actor: input.actorId, content: input.content,
       receivedPhase: input.receivedPhase, receivedState: input.receivedState, sourceMetadata: input.sourceMetadata })).join('\n') : '';
 }

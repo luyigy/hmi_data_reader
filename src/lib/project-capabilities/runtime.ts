@@ -70,7 +70,7 @@ export async function withProjectCapabilities<T>(args: RuntimeArgs, action: (acc
       const issued = seen.get(source.key) || new Map<string, Selection>();
       for (const row of result.records) issued.set(row.id, { query: request.query, images: row.images, ...(request.cursor ? { cursor: request.cursor } : {}) });
       seen.set(source.key, issued);
-      await record('project_material_query', { source: source.key, query: request.query, responseHash: digest(JSON.stringify(result)), recordIds: result.records.map(record => record.id), hasMore: result.hasMore });
+      await record('project_material_query', { source: source.key, query: request.query, responseHash: digest(JSON.stringify(result)), recordIds: result.records.map(record => record.id), hasMore: result.hasMore, cursor: request.cursor || null, nextCursor: result.cursor });
       return result;
     }
     if (request.operation !== 'image' || Object.keys(request).some(key => !['operation', 'source', 'recordId', 'field', 'index'].includes(key)) ||
