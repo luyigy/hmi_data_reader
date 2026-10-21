@@ -64,6 +64,7 @@ async function main(completedBlocked = false) {
     });
     assert(conflict);
     await apply(b, { kind: 'decision_required', failure: { code: 'integration_conflict', detail: JSON.stringify({ integration: conflict.integration }) } });
+    await apply(b, { kind: 'decision_required', failure: { code: 'integration_conflict', detail: JSON.stringify({ integration: conflict.integration }) + '\nEarlier recovery: bad diagnostic suffix', requiresUserDecision: false } });
     await releaseGraphExecutionWorker(b.id, 'B', writer.nonce);
     const advanced = await integrateJobWorktree({ repoPath: repository, runId: run.id, jobId: c.id, baseCommit: base, integrationRef: integration.ref, expectedIntegrationCommit: first.commit, verify: async () => {} });
     await apply(c, { kind: 'integrated', commit: advanced.commit, evidence: { checks: [] } });

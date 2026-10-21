@@ -4,6 +4,22 @@ import { observeExecutionWriter } from './phase-worker';
 import { withRepositoryLock } from './repository-lock';
 import { approvedConflictCommits, prepareConflictRepair } from './conflict-repair';
 import type { IntegrationConflict } from './integration-failure';
+import { isDeepStrictEqual } from 'node:util';
+
+function recordedConflict(detail: unknown): IntegrationConflict | null {
+  if (typeof detail !== 'string') return null;
+  try {
+    const value: unknown = JSON.parse(detail);
+    if (!value || typeof value !== 'object' || !('integration' in value)) return null;
+    const item = value.integration;
+    if (!item || typeof item !== 'object' || !('kind' in item) || item.kind !== 'conflict' ||
+        !('candidateCommit' in item) || typeof item.candidateCommit !== 'string' || !/^[a-f0-9]{40,64}$/.test(item.candidateCommit) ||
+        !('integrationCommit' in item) || typeof item.integrationCommit !== 'string' || !/^[a-f0-9]{40,64}$/.test(item.integrationCommit) ||
+        !('mergeHead' in item) || item.mergeHead !== null && (typeof item.mergeHead !== 'string' || !/^[a-f0-9]{40,64}$/.test(item.mergeHead)) ||
+        !('paths' in item) || !Array.isArray(item.paths) || !item.paths.length || !item.paths.every((file): file is string => typeof file === 'string')) return null;
+    return { kind: 'conflict', candidateCommit: item.candidateCommit, integrationCommit: item.integrationCommit, mergeHead: item.mergeHead, paths: item.paths };
+  } catch { return null; }
+}
 
 /** Legacy conflict decisions use the same bounded repair path after their old writer exits. */
 export async function recoverPendingConflictRepairs(runId: string) {
@@ -21,8 +37,24 @@ export async function recoverPendingConflictRepairs(runId: string) {
           create: { runId, nodeId: job.nodeId, idempotencyKey, kind: 'writer_observation', payload: writer } });
         continue;
       }
-      const evidence: IntegrationConflict = JSON.parse(progress.lastFailure?.detail || '{}').integration;
-      if (!evidence || evidence.kind !== 'conflict' || !Array.isArray(evidence.paths)) throw new Error('Legacy conflict has no complete recorded merge evidence');
+      let evidence = recordedConflict(progress.lastFailure?.detail);
+      if (!evidence) {
+        const original = await prisma.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId, kind: 'execution_outcome', AND: [
+          { payload: { path: ['claimToken'], equals: job.claimToken } },
+          { payload: { path: ['outcome', 'failure', 'code'], equals: 'integration_conflict' } },
+        ] }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { payload: true } });
+        const payload = original?.payload;
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+          const outcome = payload.outcome;
+          if (outcome && typeof outcome === 'object' && !Array.isArray(outcome)) {
+            const failure = outcome.failure;
+            if (failure && typeof failure === 'object' && !Array.isArray(failure)) evidence = recordedConflict(failure.detail);
+          }
+        }
+      }
+      if (!evidence) throw new Error('Legacy conflict has no complete recorded merge evidence');
+      if (evidence.candidateCommit !== progress.candidateCommit) throw new Error('Recorded conflict candidate changed');
+      failure.detail = JSON.stringify({ integration: evidence });
       failure.affectedPaths = evidence.paths;
       const metadata = job.dispatchMetadata;
       const integrationRef = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata.integrationRef : null;
@@ -40,7 +72,10 @@ export async function recoverPendingConflictRepairs(runId: string) {
     } catch (error) {
       const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
       if (current.status !== 'attention' || current.claimToken !== job.claimToken || executionProgress(current.dispatchMetadata)?.revision !== progress.revision) continue;
-      failure.detail += `\n${error instanceof Error ? error.message : String(error)}`;
+      const diagnostic = `\n${error instanceof Error ? error.message : String(error)}`;
+      if (failure.detail.endsWith(diagnostic)) continue;
+      failure.detail += diagnostic;
+      if (isDeepStrictEqual(failure, progress.lastFailure)) continue;
       await applyExecutionOutcome({ executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision,
         outcomeId: `conflict-decision:${progress.revision}`, outcome: { kind: 'decision_required', failure } });
     }
