@@ -1,11 +1,17 @@
-"""Existing YIZUMI behavior only; live-image and new-page acceptance remain separate."""
+"""YIZUMI frozen raw-page behavior, real CPU OCR and explicit legacy boundaries."""
 
+import asyncio
+import copy
 import hashlib
 import json
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -16,6 +22,10 @@ import page_template_admin as admin
 from controller_binding import content_hash
 from export_page_package import export_page_package
 from extract_fields import extract_one
+from raw_yizumi import observe_yizumi_page, yizumi_package
+from raw_contract import canonical_hash, import_raw_package, validate_raw_record
+
+OUTPUT = Path(os.environ.get("AP_GRAPH_OUTPUT_DIR", ROOT / "output/r6_yizumi"))
 
 P11 = "yizumi.injection_metering.injection_holding_f2"
 P12 = "yizumi.injection_metering.metering_f2"
@@ -199,3 +209,274 @@ def test_a17_a18_package_get_reopens_without_recognition(monkeypatch, profile, e
         assert sample["ocr"] == json.loads((ROOT / manifest["ocr_fixture"]).read_text())
         original_hashes.add(manifest["original_sha256"])
     assert len(original_hashes) == expected_count
+
+
+def record_evidence(name, document):
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    (OUTPUT / f"{name}.json").write_text(json.dumps(document, ensure_ascii=False, indent=2))
+
+
+@pytest.fixture(scope="module")
+def real_images():
+    from paddleocr import PaddleOCR
+    from rectify import rectify
+    from raw_page_ocr import engine_identity
+
+    directory = OUTPUT / "verified-live"
+    directory.mkdir(parents=True, exist_ok=True)
+    models = OUTPUT / "models"
+    engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False,
+                       det_model_dir=str(models / "det"), rec_model_dir=str(models / "rec"),
+                       cls_model_dir=str(models / "cls"))
+    observations = {}
+    package = yizumi_package()
+    for name in ("development", "retained"):
+        path = ROOT / f"datasets/r6_yizumi/{name}.jpg"
+        truth = json.loads((ROOT / f"datasets/r6_yizumi/{name}.truth.json").read_text())
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == truth["image_sha256"]
+        meta = rectify(path, directory / f"{name}.png", directory / f"{name}.rectify.json")
+        assert meta["ok"], meta
+        raw = engine.ocr(str(directory / f"{name}.png"), cls=False)
+        lines = []
+        for points, (text, confidence) in raw[0] or []:
+            xs, ys = zip(*points)
+            lines.append(dict(text=text, conf=float(confidence), bbox=dict(
+                x_min=min(xs), y_min=min(ys), x_max=max(xs), y_max=max(ys))))
+        assert lines
+        ocr = dict(lines=lines, engine_identity=engine_identity(engine))
+        (directory / f"{name}.ocr.json").write_text(json.dumps(ocr, ensure_ascii=False))
+        result = observe_yizumi_page(lines, meta, truth["image_sha256"])
+        result["engine"] = ocr["engine_identity"]
+        validate_raw_record(result, package)
+        observations[name] = result
+        record_evidence(f"live-{name}", result)
+    return engine, directory, observations
+
+
+@pytest.mark.parametrize("name", ["development", "retained"])
+def test_a04_a17_real_originals_known_readings_match_visible_truth(real_images, name):
+    result = real_images[2][name]
+    truth = json.loads((ROOT / f"datasets/r6_yizumi/{name}.truth.json").read_text())
+    assert result["coverage"]["status"] == "partial"
+    assert len(result["fields"]) == 40
+    known = [field for field in result["fields"] if field["reading"] == "known"]
+    assert len(known) >= (25 if name == "development" else 15)
+    for field in known:
+        assert field["original_value"] == pytest.approx(truth["values"][field["screen_field_key"]])
+        assert field["bbox"] and field["original_bbox"]
+    fields = {field["screen_field_key"]: field for field in result["fields"]}
+    assert fields["left.cooling.setting"]["original_value"] == (15 if name == "development" else 10)
+    assert fields["left.injection.max_speed"]["role"] == "actual"
+    assert fields["left.injection.max_speed"]["original_value"] == (79.3 if name == "development" else 93.1)
+    assert fields["vp.time.left"]["original_value"] == 1.5
+    assert fields["vp.time.left"]["state"] == "unknown"
+    assert fields["vp.position.selected"]["reading"] == "unsupported"
+    assert all(field["state"] == "unknown" for field in result["fields"])
+    assert result["image_sha256"] == result["transform"]["original_sha256"] == truth["image_sha256"]
+    assert result["package_sha256"] == canonical_hash(yizumi_package())
+
+
+def test_a04_raw_low_confidence_retains_value_and_manual_states_are_independent(real_images):
+    original = real_images[2]["development"]
+    lines = copy.deepcopy(original["ocr_evidence"]["lines"])
+    field = next(field for field in original["fields"] if field["screen_field_key"] == "left.injection.max_speed")
+    lines[field["line_indexes"][0]]["conf"] = .2
+    result = observe_yizumi_page(lines, original["transform"], original["image_sha256"])
+    uncertain = next(field for field in result["fields"] if field["screen_field_key"] == "left.injection.max_speed")
+    assert (uncertain["original_value"], uncertain["role"], uncertain["state"], uncertain["reading"]) == (
+        79.3, "actual", "unknown", "uncertain")
+    assert uncertain["original_bbox"] == field["original_bbox"]
+    for state in ("enabled", "disabled", "unknown"):
+        manual = dict(schema_version="page_observations.v2", source="manual", profile_id=P11,
+                      raw_field_definition_sha256=original["raw_field_definition_sha256"],
+                      actor="r6-behavior-fixture", revision=1, created_at="2026-10-21T00:00:00Z", fields=[dict(
+                          screen_field_key="vp.time.left", source="manual", original_label="时间模式",
+                          original_value=1.5, original_unit="s", original_bbox=None,
+                          role="setting", state=state, reading="known")])
+        assert validate_raw_record(manual, yizumi_package())["fields"][0]["original_value"] == 1.5
+    assert all(field["state"] == "unknown" for field in original["fields"])
+
+
+def test_a11_raw_stage_identity_tracks_headers_and_duplicate_is_explicit(real_images):
+    original = real_images[2]["development"]
+    lines = copy.deepcopy(original["ocr_evidence"]["lines"])
+    first = next(index for index, line in enumerate(lines) if line["text"] == "一段")
+    third = next(index for index, line in enumerate(lines) if line["text"] == "三段")
+    lines[first]["text"], lines[third]["text"] = lines[third]["text"], lines[first]["text"]
+    result = observe_yizumi_page(lines, original["transform"], original["image_sha256"])
+    fields = {field["screen_field_key"]: field for field in result["fields"]}
+    assert (fields["injection.pressure.stage-1"]["original_value"], fields["injection.pressure.stage-1"]["order"]) == (120, 1)
+    assert (fields["injection.pressure.stage-3"]["original_value"], fields["injection.pressure.stage-3"]["order"]) == (140, 3)
+    lines.append(copy.deepcopy(lines[third]))
+    conflict = observe_yizumi_page(lines, original["transform"], original["image_sha256"])
+    assert any(issue["code"] == "STAGE_IDENTITY_CONFLICT" for issue in conflict["issues"])
+    affected = next(field for field in conflict["fields"] if field["screen_field_key"] == "injection.pressure.stage-1")
+    assert affected["reading"] == "conflict" and affected["original_value"] is None
+
+
+@pytest.fixture
+def published(tmp_path, monkeypatch):
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "templates/yizumi").mkdir(parents=True)
+    profiles = json.loads((ROOT / "contracts/profiles.json").read_text())["profiles"]
+    (tmp_path / "contracts/profiles.json").write_text(json.dumps({"profiles": [
+        profile for profile in profiles if profile["profile_id"] in (P11, P12)]}))
+    for name in ("injection_holding", "metering_f2"):
+        shutil.copyfile(ROOT / f"templates/yizumi/{name}.json", tmp_path / f"templates/yizumi/{name}.json")
+    shutil.copytree(ROOT / "templates/samples", tmp_path / "templates/samples")
+    shutil.copytree(ROOT / "tests/fixtures", tmp_path / "tests/fixtures")
+    monkeypatch.setattr(admin, "ROOT", tmp_path)
+    monkeypatch.setenv("HMI_TEMPLATE_WRITE_KEY", "r6-isolated")
+    app = FastAPI()
+    app.include_router(admin.router)
+    client = TestClient(app)
+    package = yizumi_package()
+    body = dict(expected_version="0.1.0", template=package["template"], samples=package["samples"])
+    headers = {"Authorization": "Bearer r6-isolated"}
+    url = f"/api/v1/page-templates/drafts/{P11}"
+    denied = client.put(url, json=body)
+    assert denied.status_code in (401, 403)
+    response = client.put(url, json=body, headers=headers)
+    assert response.status_code == 200, response.text
+    response = client.post(url + "/trial", json={"expected_revision": 1}, headers=headers)
+    assert response.status_code == 200, response.text
+    response = client.post(url + "/publish", json=dict(expected_revision=1, expected_version="0.1.0",
+                                                       confirmation="publish_confirmed"), headers=headers)
+    assert response.status_code == 200, response.text
+    frozen = client.get(f"/api/v1/page-templates/{P11}/package?version=1.0.0")
+    assert frozen.status_code == 200, frozen.text
+    assert frozen.json() == package
+    record_evidence("published-package", frozen.json())
+    return tmp_path, client, package
+
+
+def test_a17_a18_publish_export_offline_definition_and_new_client_reopen(published):
+    root, _, package = published
+    import_raw_package(package)
+    assert len(package["raw_field_definition"]["fields"]) == 40
+    assert "web_target" not in json.dumps(package["raw_field_definition"])
+    app = FastAPI()
+    app.include_router(admin.router)
+    with TestClient(app) as reopened:
+        assert reopened.get(f"/api/v1/page-templates/{P11}/package?version=1.0.0").json() == package
+        old = reopened.get(f"/api/v1/page-templates/{P11}/package?version=0.1.0")
+        assert old.status_code == 200
+        assert old.json()["package_schema"] == "hmi_page_package.v1"
+    assert export_page_package(P11, "1.0.0", root) == package
+    process = subprocess.run([sys.executable, str(ROOT / "scripts/export_page_package.py"), P11, "1.0.0"],
+                             cwd=ROOT, capture_output=True, text=True, timeout=60)
+    assert process.returncode == 0, process.stderr
+    assert json.loads(process.stdout) == package
+
+
+@pytest.mark.parametrize("tamper", ["definition", "source", "ocr", "manifest"])
+def test_a07_frozen_package_tampering_is_rejected(tmp_path, tamper):
+    package = copy.deepcopy(yizumi_package())
+    if tamper == "definition":
+        package["raw_field_definition"]["fields"][0]["role"] = "setting"
+    elif tamper == "source":
+        package["recognizer"]["sources"]["scripts/raw_yizumi.py"] += "\n"
+    elif tamper == "ocr":
+        package["samples"][0]["ocr"]["lines"][0]["text"] = "tampered"
+    else:
+        package["samples"][0]["manifest"]["original_size"] = [1, 1]
+    path = tmp_path / "templates/packages" / P11 / "1.0.0.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(package))
+    with pytest.raises(ValueError, match="HASH_MISMATCH|OCR_MISMATCH|MANIFEST_MISMATCH"):
+        yizumi_package(tmp_path)
+
+
+def test_a07_a18_pinned_binding_conflict_disable_and_rollback(published, real_images):
+    root, client, package = published
+    hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
+                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+
+    def collect(binding):
+        return extract_one("development", real_images[1], None, None, root / "templates", controller_hint=binding)
+
+    wrong = {**hint, "controller_family": "OTHER"}
+    result = collect(wrong)
+    assert result["compatibility"]["code"] == "PAGE_BINDING_MISMATCH" and not result.get("fields")
+    conflict_path = root / "templates/yizumi/conflict.json"
+    conflict = {**package["template"], "profile_id": "yizumi.injection_metering.conflicting"}
+    conflict_path.write_text(json.dumps(conflict))
+    registry_path = root / "contracts/profiles.json"
+    registry = json.loads(registry_path.read_text())
+    registry["profiles"].append(dict(profile_id=conflict["profile_id"], template="yizumi/conflict.json"))
+    registry_path.write_text(json.dumps(registry))
+    result = collect(hint)
+    assert result["compatibility"]["code"] == "PAGE_TEMPLATE_CONFLICT" and not result.get("fields")
+    registry["profiles"].pop()
+    registry_path.write_text(json.dumps(registry))
+    headers = {"Authorization": "Bearer r6-isolated"}
+    url = f"/api/v1/page-templates/drafts/{P11}"
+    for revision, base, version, enabled in [(2, "1.0.0", "1.0.1", False), (3, "1.0.1", "1.0.2", True)]:
+        template = {**package["template"], "version": version, "enabled": enabled}
+        response = client.put(url, json=dict(expected_version=base, expected_revision=revision - 1,
+                                             template=template, samples=package["samples"]), headers=headers)
+        assert response.status_code == 200, response.text
+        response = client.post(url + "/publish", json=dict(expected_version=base, expected_revision=revision,
+                                                           confirmation="publish_confirmed"), headers=headers)
+        assert response.status_code == 200, response.text
+        result = collect(hint)
+        assert result["compatibility"]["code"] == ("PAGE_COMPATIBLE" if enabled else "PAGE_TEMPLATE_DISABLED")
+        assert not result.get("fields")
+        assert not any("GENERIC_FALLBACK" in warning for warning in result["warnings"])
+        assert client.get(f"/api/v1/page-templates/{P11}/package?version=1.0.0").json() == package
+    record_evidence("disable-rollback-pinned-binding", result)
+
+
+def test_live_http_cli_v2_binding_and_a07_wrong_hash(published, real_images, monkeypatch):
+    import tempfile
+    import hmi_service as service
+
+    root, _, package = published
+    monkeypatch.setattr(service, "HERE", root)
+    monkeypatch.setattr(service, "ocr_model", real_images[0])
+    monkeypatch.setattr(service, "is_ready", True)
+    monkeypatch.setattr(service, "concurrency_semaphore", asyncio.Semaphore(1))
+    monkeypatch.delenv("HMI_API_KEY", raising=False)
+    temporary = OUTPUT / "http-tmp"
+    temporary.mkdir(exist_ok=True)
+    monkeypatch.setattr(tempfile, "tempdir", str(temporary))
+    hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
+                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+
+    async def upload(binding):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app), base_url="http://reader") as client:
+            return await client.post("/api/v1/recognize", params=dict(observations_version="v2", controller_hint=json.dumps(binding)),
+                                     files={"file": ("photo.jpg", (ROOT / "datasets/r6_yizumi/development.jpg").read_bytes(), "image/jpeg")})
+
+    response = asyncio.run(upload(hint))
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["compatibility"]["code"] == "PAGE_COMPATIBLE"
+    observation = result["page_observations"]
+    validate_raw_record(observation, package)
+    assert observation["image_sha256"] == hashlib.sha256((ROOT / "datasets/r6_yizumi/development.jpg").read_bytes()).hexdigest()
+    assert observation["coverage"]["status"] == "partial"
+    record_evidence("live-http", result)
+    hint_path = root / "hint.json"
+    hint_path.write_text(json.dumps(hint))
+    command = [sys.executable, str(ROOT / "scripts/extract_fields.py"), "development", "--rectified-dir", str(real_images[1]),
+               "--output-dir", str(root / "extracted"), "--templates-dir", str(root / "templates"),
+               "--labels", str(root / "absent"), "--record-report", str(root / "absent"), "--observations-version", "v2",
+               "--original-image", str(ROOT / "datasets/r6_yizumi/development.jpg"), "--controller-hint", str(hint_path)]
+    process = subprocess.run(command, capture_output=True, text=True, timeout=60)
+    assert process.returncode == 0, process.stdout + process.stderr
+    cli = json.loads((root / "extracted/development.fields.json").read_text())
+    validate_raw_record(cli["page_observations"], package)
+    assert cli["compatibility"]["code"] == "PAGE_COMPATIBLE"
+    assert cli["page_observations"]["package_sha256"] == observation["package_sha256"]
+    truth = json.loads((ROOT / "datasets/r6_yizumi/development.truth.json").read_text())["values"]
+    for document in (observation, cli["page_observations"]):
+        for field in document["fields"]:
+            if field["reading"] == "known":
+                assert field["original_value"] == pytest.approx(truth[field["screen_field_key"]])
+    record_evidence("live-cli", cli)
+    hint["pages"][0]["package_sha256"] = "0" * 64
+    response = asyncio.run(upload(hint))
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "PAGE_PACKAGE_INCOMPATIBLE"
+    record_evidence("live-http-wrong-hash", response.json())

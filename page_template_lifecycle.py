@@ -208,6 +208,12 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
                 package = build_metering_package(template, samples)
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from None
+        if template.get("extractor_id") == "yizumi.injection_holding_f2" and version.startswith("1."):
+            from scripts.raw_yizumi import build_yizumi_package
+            try:
+                package = build_yizumi_package(template, samples)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
         relative = f"published/{profile_id}/{version}.json"
         try:
             if current:
