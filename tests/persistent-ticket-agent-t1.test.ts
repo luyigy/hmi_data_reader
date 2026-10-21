@@ -9,6 +9,7 @@ import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import { parseImplementationResult } from '../src/lib/task-graph/implementation-result';
+import { continuationWorkFingerprint } from '../src/lib/task-graph/continuation-work';
 import { receiveGraphTaskMessage } from '../src/lib/task-graph/conversation-inbox';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 import { getHarnessAdapter } from '../src/lib/harness';
@@ -91,6 +92,17 @@ async function main() {
     assert.equal(emptyTurns, before, 'Identical work/input cannot spin forever');
     const idle = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: run.id, key: 'IDLE' } } });
     assert.equal(executionProgress(idle.dispatchMetadata)?.formatAttempts, 0, 'No-progress protection does not consume a result-format budget');
+    const candidate = progress.candidateCommit; assert.ok(candidate);
+    const beforeResearch = await continuationWorkFingerprint(complete.id, candidate);
+    const latest = await prisma.taskRunEvent.findFirst({ where: { taskRunId: complete.taskRunId! }, orderBy: { sequence: 'desc' } });
+    const sequence = (latest?.sequence || 0) + 1;
+    const observed = { taskRunId: complete.taskRunId!, eventType: 'control_message', content: '工具：read · docs/source-contract.md', metadata: JSON.stringify({ kind: 'tool', toolName: 'read' }) };
+    await prisma.taskRunEvent.create({ data: { ...observed, sequence } });
+    const afterResearch = await continuationWorkFingerprint(complete.id, candidate);
+    assert.notEqual(afterResearch, beforeResearch, 'Observed investigation counts before any code change');
+    await prisma.taskRunEvent.create({ data: { ...observed, sequence: sequence + 1 } });
+    await prisma.taskRunEvent.create({ data: { taskRunId: complete.taskRunId!, sequence: sequence + 2, eventType: 'stdout_chunk', content: 'I made progress again' } });
+    assert.equal(await continuationWorkFingerprint(complete.id, candidate), afterResearch, 'Repeated tool work and model prose cannot reset the no-progress guard');
     console.log('T1 real Coordinator: multiple normal turns, native Session/Worktree, explicit wait/reply, input dedupe, checks and successor release; unchanged turns stop without revoking approval');
   } finally { await drain(); adapter.execute = original.execute; adapter.resume = original.resume;
     await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true }); }

@@ -8,6 +8,8 @@ import { prisma } from '../src/lib/prisma';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
+import { executionProgress } from '../src/lib/task-graph/execution-progress';
+import { maxUnchangedWorkTurns } from '../src/lib/task-graph/retry-limits';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
@@ -31,7 +33,7 @@ async function main() {
     const value = 'fixed';
     writeFileSync(path.join(context.workingDirectory!, `${key}.txt`), value);
     if (key === 'A' && count === 1 || key === 'C') return { success: true, output: 'No delivery conclusion', executionTime: 1 };
-    if (key === 'A' && count === 2) assert.match(task.description || '', /仅补收/);
+    if (key === 'A' && count === 2) assert.match(task.description || '', /Implement A/);
     return { success: true, output: `TASK_GRAPH_IMPLEMENTATION ${JSON.stringify({ status: 'delivered', note: `${key} implemented`, evidence: [`${key}.txt`] })}`, executionTime: 1 };
   };
   const parent = await prisma.task.create({ data: { name: 'automatic repair fixture' } });
@@ -56,11 +58,12 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 30));
     }
     assert.ok(completed, 'The original ticket, successor and independent branch must finish without human resume');
-    assert.equal(calls.get('A'), 2); assert.equal(calls.get('B'), 1); assert.equal(calls.get('C'), 2);
-    const exhausted = await prisma.taskGraphExecution.findFirstOrThrow({where:{node:{runId:run.id,key:'C'}}});
-    assert.equal(exhausted.issueKind, 'retry_exhausted'); assert.equal(exhausted.commit, null);
+    assert.equal(calls.get('A'), 2); assert.equal(calls.get('B'), 1); assert.equal(calls.get('C'), maxUnchangedWorkTurns + 1);
+    const waiting = await prisma.taskGraphExecution.findFirstOrThrow({where:{node:{runId:run.id,key:'C'}}});
+    assert.equal(executionProgress(waiting.dispatchMetadata)?.state, 'waiting_for_user');
+    assert.equal(executionProgress(waiting.dispatchMetadata)?.formatAttempts, 0); assert.equal(waiting.commit, null);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: { in: ['conversation_review_recovery_requested', 'implementation_recovery_scheduled'] } } }), 0);
-    console.log('Real coordinator: missing result recollects once; repeated invalid output exhausts without fake delivery; independent successor passes; human resume0');
+    console.log('Real coordinator: ordinary output continues implementation; repeated unchanged work waits without fake delivery or revoked approval; independent successor passes; human resume0');
   } finally {
     await drain(); adapter.execute = original;
     const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, select: { childTaskId: true } });
