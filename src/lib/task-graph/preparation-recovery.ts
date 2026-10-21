@@ -99,8 +99,10 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
     const oldRuntime = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: receipt.runId, idempotencyKey: `runtime-snapshot:${job.id}:${job.claimToken}` } } });
     const oldPayload = oldRuntime?.payload;
     const snapshot = oldPayload && typeof oldPayload === 'object' && 'snapshot' in oldPayload ? oldPayload.snapshot : null;
-    const source = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) && 'source' in snapshot ? snapshot.source : null;
-    if (!source || typeof source !== 'object' || Array.isArray(source) || !('origin' in source) || source.origin !== 'host_registration' || !('commit' in source) || source.commit === remediationCommit) throw new Error('Recovery requires a different verified platform code measure');
+    // Runtime source identifies project resources, not the platform revision. A project pin may legitimately have no declaration.
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot) || !('version' in snapshot) || snapshot.version !== 1 ||
+        !('executionId' in snapshot) || snapshot.executionId !== job.id || !('claimToken' in snapshot) || snapshot.claimToken !== job.claimToken ||
+        !('identity' in snapshot) || typeof snapshot.identity !== 'string') throw new Error('Recovery requires the original claim-bound runtime pin');
     const implementation = job.taskRunId ? await tx.taskRun.findUnique({ where: { id: job.taskRunId } }) : null;
     if (!implementation || !['completed', 'failed', 'cancelled'].includes(implementation.status) || (await observeExecutionWriter(job)).kind !== 'exited') throw new Error('Original implementation writer has not exited');
     const reviews = await tx.taskRun.findMany({ where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] } } });
