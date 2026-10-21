@@ -53,7 +53,7 @@ async function main() {
     }
     if (args.context.permissionConfig?.sandboxMode === 'read-only' && prompt.includes('FAIL_NATIVE')) return { success: false, error: 'permanent-native-failure', executionTime: 1 };
     if (args.context.permissionConfig?.sandboxMode === 'read-only') return { success: true, output: '已完成，保留原交付。', sessionId: native + '-followup', sessionKind: 'codex_thread', executionTime: 1 };
-    const reader = args.context.workingDirectory.includes('jobs') && (await prisma.taskGraphExecution.findUnique({ where: { childTaskId: args.task.id } }))?.key === 'reader';
+    const reader = (await prisma.taskGraphExecution.findUnique({ where: { childTaskId: args.task.id } }))?.key === 'reader';
     if (reader) {
       readerTurns++;
       if (readerTurns === 1) { await moldRunning; writeFileSync(path.join(args.context.workingDirectory, 'half'), 'saved');

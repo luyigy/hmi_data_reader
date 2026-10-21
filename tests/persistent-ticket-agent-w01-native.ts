@@ -70,7 +70,7 @@ export async function verifyNativeWorkspace(workspace: string, sibling: string, 
     const options = { workingDirectory: workspace, workspaceRoot: workspace, runtimeHome: runtime, codexHome: runtime,
       readOnlyPaths: linkedWorktreeGitDirectories(workspace), sandbox,
       networkAccess: 'enabled', sandboxMode: 'workspace-write', approvalPolicy: 'never', timeout: 25000,
-      env: { PATH: process.env.PATH, HOME: runtime, CODEX_HOME: runtime, AP_GRAPH_WRITER_NONCE: process.env.AP_GRAPH_WRITER_NONCE } } satisfies Omit<CodexAppServerOptions, 'prompt'>;
+      env: { NODE_ENV: process.env.NODE_ENV || 'test', PATH: process.env.PATH, HOME: runtime, CODEX_HOME: runtime, AP_GRAPH_WRITER_NONCE: process.env.AP_GRAPH_WRITER_NONCE } } satisfies Omit<CodexAppServerOptions, 'prompt'>;
     const first = await runCodexAppServer({ ...options, prompt: 'Run the first implementation command and check isolation.' });
     assert.ok(first.threadId, 'Native thread identity must be persisted');
     assert.equal(closed, 1, 'Manager must reap first root before resuming');

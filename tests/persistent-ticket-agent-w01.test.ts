@@ -64,7 +64,7 @@ async function run() {
     assert.deepEqual(extra.details.map(item => item.repository), [otherRepo]);
     assert.ok(!extra.paths.includes(central));
     const plan = prepareSandboxEnvironment({ command: '/usr/bin/true', commandArgs: [], cwd: job.path, workspaceRoot: job.path,
-      sandboxMode: 'workspace-write', strictReadOnlyRoots: true, readOnlyPaths: [], env: { PATH: process.env.PATH } });
+      sandboxMode: 'workspace-write', strictReadOnlyRoots: true, readOnlyPaths: [], env: { NODE_ENV: process.env.NODE_ENV || 'test', PATH: process.env.PATH } });
     const rendered = renderBubblewrap(plan);
     const mounts = rendered.args.flatMap((value, index, all) => ['--bind', '--ro-bind'].includes(value) ? [all[index + 1]] : []);
     assert.ok(mounts.includes(job.path));

@@ -8,7 +8,7 @@ export const configuredWorkspaceRoot = () => process.env.AP_WORKSPACE_ROOT || '/
 
 export function workspaceSegment(value: string): string {
   if (!value || value === '.' || value === '..' || /[/\\\x00-\x1f\x7f]/.test(value)) throw new Error('Invalid workspace identity');
-  const label = value.normalize('NFKC').replace(/[^\p{L}\p{N}_-]/gu, '-').slice(0, 48) || 'workspace';
+  const label = value.normalize('NFKC').replace(new RegExp('[^\\p{L}\\p{N}_-]', 'gu'), '-').slice(0, 48) || 'workspace';
   return `${label}-${workspaceIdentity(value)}`;
 }
 
