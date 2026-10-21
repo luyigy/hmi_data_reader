@@ -1,4 +1,4 @@
-import type { HarnessSandbox } from '../harness/types';
+import type { HarnessExecutionContext, HarnessSandbox } from '../harness/types';
 import { withSandbox, type ManagedProcessControl, type SandboxIdentity } from '../sandbox-manager';
 import { withTaskProjectCapabilities } from '../project-capabilities/task-runtime';
 import { assertRuntimeResourcesUnchanged } from '../task-graph/runtime-preflight';
@@ -36,6 +36,9 @@ import { registerRunningProcess } from './process-registry';
 import { getParticipantContinuationKey } from './session-tracking';
 import { persistPlatformLocalSessionMetadata } from './runner-metadata';
 import { harnessContinuationInput, buildHarnessPrompt } from './prompt';
+import { captureStageAuthority } from './stage-authority';
+import { StageExecutionRequest } from './stage-execution-request';
+import { executePreparedStageHarness, stageRuntimeContract } from './stage-harness-dispatch';
 import type { LongFileRuntimeContext } from './long-file-runtime-context';
 import type { AcpxParticipantRequest, AcpxRunRequest, HarnessStreamCallbacks } from './types';
 import { DEFAULT_REMOTE_EXECUTION_TIMEOUT_MS } from '@/lib/live-room-execution-timeout';
@@ -125,6 +128,7 @@ export const executeViaLocalHarness = async (
   sessionKind?: string;
   threadId?: string;
 }> => {
+  const stageAuthority = await captureStageAuthority(request, taskRunId);
   const task = {
     id: request.taskId,
     name: request.taskName,
@@ -260,81 +264,44 @@ export const executeViaLocalHarness = async (
     });
     await metadataWrites;
   };
-  const result = adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
-    ? await adapter.resume({
-        task,
-        sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
-        continuationMessage: harnessContinuationInput(request, participant, task.description),
-        context: {
-          sandbox,
-          executionId: runtimeExecution.id,
-          workingDirectory: request.workingDirectory || process.cwd(),
-          workspaceRoot,
-          extraWritableRoots,
-          extraReadOnlyPaths,
-          networkAccess: permissionConfig.networkAccess,
-          executionBackend: participant.executionBackend,
-          permissionConfig,
-          timeout: resolveHarnessTimeout(
-            request.watchdogConfig?.maxRuntimeMs,
-            DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS
-          ),
-          ephemeralSession: participant.ephemeralSession,
-          codexHome,
-          runtimeHome: graphRuntime?.home,
-          taskEnvironment,
-          model: participant.model,
-          reasoningEffort: participant.reasoningEffort,
-          sessionKey: getParticipantContinuationKey({
-            continuationKey: participant.continuationKey,
-            executionBackend: participant.executionBackend,
-            gatewayId: participant.gatewayId,
-            harnessType: participant.harnessType,
-            role: participant.role,
-            agentId: participant.agentId,
-          }),
-          streamCallbacks: harnessCallbacks,
-          onSpawn: registerSpawn,
-          onContextUsage,
-          onSessionStarted,
-        },
-      })
-    : await adapter.execute({
-        task,
-        context: {
-          sandbox,
-          executionId: runtimeExecution.id,
-          workingDirectory: request.workingDirectory || process.cwd(),
-          workspaceRoot,
-          extraWritableRoots,
-          extraReadOnlyPaths,
-          networkAccess: permissionConfig.networkAccess,
-          executionBackend: participant.executionBackend,
-          permissionConfig,
-          timeout: resolveHarnessTimeout(
-            request.watchdogConfig?.maxRuntimeMs,
-            DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS
-          ),
-          ephemeralSession: participant.ephemeralSession,
-          codexHome,
-          runtimeHome: graphRuntime?.home,
-          taskEnvironment,
-          model: participant.model,
-          reasoningEffort: participant.reasoningEffort,
-          sessionKey: getParticipantContinuationKey({
-            continuationKey: participant.continuationKey,
-            executionBackend: participant.executionBackend,
-            gatewayId: participant.gatewayId,
-            harnessType: participant.harnessType,
-            role: participant.role,
-            agentId: participant.agentId,
-          }),
-          streamCallbacks: harnessCallbacks,
-          onSpawn: registerSpawn,
-          onContextUsage,
-          onSessionStarted,
-        },
-      });
+  const context: HarnessExecutionContext = {
+    sandbox,
+    executionId: runtimeExecution.id,
+    workingDirectory: request.workingDirectory || process.cwd(),
+    workspaceRoot,
+    extraWritableRoots,
+    extraReadOnlyPaths,
+    networkAccess: permissionConfig.networkAccess,
+    executionBackend: participant.executionBackend,
+    permissionConfig,
+    timeout: resolveHarnessTimeout(
+      request.watchdogConfig?.maxRuntimeMs,
+      DEFAULT_LOCAL_HARNESS_MAX_RUNTIME_MS
+    ),
+    ephemeralSession: participant.ephemeralSession,
+    codexHome,
+    runtimeHome: graphRuntime?.home,
+    taskEnvironment,
+    model: participant.model,
+    reasoningEffort: participant.reasoningEffort,
+    sessionKey: getParticipantContinuationKey({
+      continuationKey: participant.continuationKey,
+      executionBackend: participant.executionBackend,
+      gatewayId: participant.gatewayId,
+      harnessType: participant.harnessType,
+      role: participant.role,
+      agentId: participant.agentId,
+    }),
+    streamCallbacks: harnessCallbacks,
+    onSpawn: registerSpawn,
+    onContextUsage,
+    onSessionStarted,
+  };
+  const stageRequest = stageAuthority ? StageExecutionRequest.create({
+    authority: stageAuthority, runtime: stageRuntimeContract(context), prompt: task.description,
+  }) : null;
+  const authority = await captureStageAuthority(request, taskRunId);
+  const result = await executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority });
 
   await metadataWrites;
   if (result.runtimeState && result.sessionId && result.sessionKind) {

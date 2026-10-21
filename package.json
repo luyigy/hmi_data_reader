@@ -16,7 +16,7 @@
     "task-graph:runtime": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-runner.ts",
     "task-graph:propose": "bash scripts/run-task-graph-propose.sh",
     "task-graph:doctor": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-doctor.ts",
-    "test:task-graph-workflow": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-workflow.test.ts",
+    "test:task-graph-workflow": "npm run check:wire-w001 && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-workflow.test.ts",
     "test:task-graph-runtime-integration": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-runtime-preflight.test.ts",
     "test:task-graph-postgres": "node scripts/test-task-graph-postgres.mjs",
     "remote-runner:gateway": "node scripts/remote-runner-gateway.js",
@@ -64,7 +64,9 @@
     "start": "next start -H 0.0.0.0 -p 3010",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "task-graph:prepare-recovery": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-prepare-recovery.ts"
+    "task-graph:prepare-recovery": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-prepare-recovery.ts",
+    "check:wire-w001": "node scripts/check-stage-execution-wire.mjs",
+    "prebuild": "npm run check:wire-w001"
   },
   "prisma": {
     "seed": "ts-node prisma\\seed.ts"

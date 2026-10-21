@@ -1,0 +1,42 @@
+{
+  "baseline": "f91cb2e",
+  "scope": "isolated worktree; scratch PostgreSQL schemas and fixture repositories only",
+  "checks": [
+    {
+      "command": "npm run check:wire-w001",
+      "exitCode": 0,
+      "evidence": "gate.log"
+    },
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-conflict-continuation task-graph-sandbox-manager task-graph-review-repair task-graph-interactive-conversation",
+      "exitCode": 0,
+      "evidence": "integration.log"
+    },
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-stage-authority task-graph-conflict-continuation",
+      "exitCode": 0,
+      "evidence": "final-integration.log"
+    },
+    {
+      "command": "npm run test:task-graph-workflow",
+      "exitCode": 0,
+      "evidence": "workflow.log"
+    },
+    {
+      "command": "npx tsc --noEmit --pretty false",
+      "exitCode": 0,
+      "diagnostics": []
+    },
+    {
+      "command": "npm run check:long-files",
+      "exitCode": 0,
+      "evidence": "long-files.log"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "productionDeployed": false,
+  "productionTicketResumed": false
+}

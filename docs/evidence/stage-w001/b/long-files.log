@@ -1,0 +1,5 @@
+
+> agent-platform-v2@0.1.0 check:long-files
+> TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}' node -r ts-node/register/transpile-only scripts/check-long-files.ts
+
+No files at or above 1000 lines.
