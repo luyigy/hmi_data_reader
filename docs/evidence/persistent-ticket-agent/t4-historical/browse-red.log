@@ -1,0 +1,11 @@
+Error: 查询文本或游标无效
+    at /data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/src/lib/project-capabilities/table-data.ts:56:115
+    at step (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/src/lib/project-capabilities/table-data.ts:44:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/src/lib/project-capabilities/table-data.ts:25:53)
+    at /data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/src/lib/project-capabilities/table-data.ts:19:71
+    at new Promise (<anonymous>)
+    at __awaiter (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/src/lib/project-capabilities/table-data.ts:15:12)
+    at queryTableImages (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/src/lib/project-capabilities/table-data.ts:171:12)
+    at /data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/tests/project-capabilities-browse.test.ts:19:41
+    at step (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/tests/project-capabilities-browse.test.ts:33:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/t4-historical-continuation-83635dca6086116d/tests/project-capabilities-browse.test.ts:14:53)

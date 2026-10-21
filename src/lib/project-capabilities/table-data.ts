@@ -53,10 +53,10 @@ function attachments(fields: Record<string, unknown>, source: TableSource) {
   });
 }
 export async function queryTableImages(source: TableSource, query: string, cursor?: string) {
-  if (!query.trim() || query.length > 160 || cursor && (cursor.length > 512 || /[\x00-\x1f]/.test(cursor))) throw new Error('查询文本或游标无效');
+  if (query.length > 160 || query.length > 0 && !query.trim() || cursor && (cursor.length > 512 || /[\x00-\x1f]/.test(cursor))) throw new Error('查询文本或游标无效');
   const params = new URLSearchParams({ page_size: '20', ...(cursor ? { page_token: cursor } : {}) });
   const data = await api(endpoint(source) + '/search?' + params, { field_names: [source.searchField, ...source.imageFields],
-    ...(source.viewId ? { view_id: source.viewId } : {}), filter: { conjunction: 'and', conditions: [{ field_name: source.searchField, operator: 'contains', value: [query] }],
+    ...(source.viewId ? { view_id: source.viewId } : {}), filter: { conjunction: 'and', ...(query ? { conditions: [{ field_name: source.searchField, operator: 'contains', value: [query] }] } : {}),
       children: [{ conjunction: 'or', conditions: source.imageFields.map(field => ({ field_name: field, operator: 'isNotEmpty', value: [] })) }] } });
   if (!Array.isArray(data.items) || data.items.length > 20) throw new Error('资料记录返回格式无效');
   const records = data.items.map(item => {
