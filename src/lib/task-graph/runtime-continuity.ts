@@ -89,10 +89,13 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
     const restricted = args.permissionConfig && 'workflowPermissionSnapshot' in args.permissionConfig;
     const projectTools = await approvedProjectTools({ taskId: args.taskId!, taskRunId: args.taskRunId, executionId: job.id, repository, sourceWorkspace,
       policyFile: args.projectPolicyFile, permissionConfig: args.permissionConfig, commit: expectedCommit!, declaration: current });
-    const migration = projectTools && event ? await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: `project-scope:${job.id}:${projectTools.policyHash}` } } }) : null;
-    const migratedPinIds = migration ? record(migration.payload).runtimePinIds : null;
-    const migratedPin = Boolean(pin && !pin.projectPolicyHash && event && Array.isArray(migratedPinIds) && migratedPinIds.includes(event.id));
-    if (pin && !migratedPin && (pin.projectPolicyHash || null) !== (projectTools?.policyHash || null)) throw new RuntimePreparationError('invalid', '项目工具授权变化，原运行快照保留；须批准新的执行后重新固定', [repository]);
+    const approval = projectTools?.approval;
+    const migratedPin = Boolean(pin && !pin.projectPolicyHash && event && approval?.kind === 'legacy' && approval.runtimePinIds.includes(event.id));
+    const changedScope = Boolean(pin && event && approval?.kind === 'change' && approval.runtimePinIds.includes(event.id) &&
+      approval.previousPolicyHash === pin.projectPolicyHash && approval.originalClaim === job.claimToken && approval.candidateCommit === expectedCommit);
+    if (pin && !migratedPin && !changedScope && (pin.projectPolicyHash || null) !== (projectTools?.policyHash || null)) throw new RuntimePreparationError('invalid', '项目工具授权变化，原运行快照保留；须批准新的执行后重新固定', [repository]);
+    if (pin && changedScope && (!isDeepStrictEqual([...pin.hostReadOnlyRoots].sort(), [...(projectTools?.roots || [])].sort()) ||
+        !isDeepStrictEqual(pin.source?.declaration || null, projectTools?.declaration?.declaration || null))) throw new RuntimePreparationError('invalid', '资料授权变更不能改变工具声明或挂载', [repository]);
     const grantFile = pin?.legacyGrantFile || permissionFile;
     const currentRoots = projectTools ? projectTools.roots : restricted ? resolveLocalRuntimeReadOnlyPaths(repository, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG, grantFile) : Array.from(new Set([...resolveLocalRuntimeReadOnlyPaths(repository, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG, grantFile), ...resolveLocalRuntimeReadOnlyPaths(sourceWorkspace, args.permissionConfig || DEFAULT_ACPX_PERMISSION_CONFIG, grantFile)]));
     if (pin && !restricted && (pin.authority === 'project' || pin.legacyGrantFile) && pin.authority !== 'workflow' && pin.hostReadOnlyRoots.some(root => !currentRoots.includes(root))) throw new RuntimePreparationError('invalid', '原运行目录授权已撤销，不能复用历史挂载', pin.hostReadOnlyRoots);
@@ -125,7 +128,7 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
       if (await fs.realpath(sourceWorkspace) !== sourceWorkspace || await repositoryIdentity(sourceWorkspace) !== common || await graphGit(sourceWorkspace, 'rev-parse', 'HEAD') !== expectedCommit) throw new RuntimePreparationError('invalid', '预检期间固定源码目录或提交改变', [sourceWorkspace]);
       const latestTools = await approvedProjectTools({ taskId: args.taskId!, taskRunId: args.taskRunId, executionId: job.id, repository, sourceWorkspace,
         policyFile: args.projectPolicyFile, permissionConfig: args.permissionConfig, commit: expectedCommit!, declaration: current });
-      if ((latestTools?.policyHash || null) !== (projectTools?.policyHash || null)) throw new RuntimePreparationError('invalid', '预检期间项目授权改变', [repository]);
+      if ((latestTools?.policyHash || null) !== (projectTools?.policyHash || null) || !isDeepStrictEqual(latestTools?.approval, projectTools?.approval)) throw new RuntimePreparationError('invalid', '预检期间项目授权改变', [repository]);
       if ((projectPythonRuntime(sourceWorkspace)?.identity || null) !== (python?.identity || null)) throw new RuntimePreparationError('invalid', '预检期间 Python 环境改变', [sourceWorkspace]);
       const finalDeclaration = await runtimeDeclaration(sourceWorkspace);
       if ((finalDeclaration?.manifestHash || null) !== (current?.manifestHash || null)) throw new RuntimePreparationError('invalid', '预检期间运行能力声明改变', [sourceWorkspace]);
@@ -133,6 +136,13 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
       if (saved && !isDeepStrictEqual(parsePin(record(saved.payload).snapshot), parsePin({ ...snapshot }))) throw new RuntimePreparationError('invalid', '固定运行资源回执发生竞争或改变', [sourceWorkspace]);
       if (!saved) await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId, kind: 'runtime_snapshot_pinned', idempotencyKey: key,
         payload: { binding: before, snapshot } } });
+      if (changedScope && approval?.kind === 'change' && event) await tx.taskGraphEvent.upsert({
+        where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: `runtime-authorization:${job.id}:${job.claimToken}:${progress.revision}:${args.taskRunId || 'preflight'}:${approval.id}` } },
+        update: {}, create: { runId: job.node.runId, nodeId: job.nodeId, kind: 'runtime_authorization_bound',
+          idempotencyKey: `runtime-authorization:${job.id}:${job.claimToken}:${progress.revision}:${args.taskRunId || 'preflight'}:${approval.id}`,
+          payload: { executionId: job.id, originalPinId: event.id, approvalId: approval.id, taskRunId: args.taskRunId || null,
+            stage: progress.phase, candidateCommit: expectedCommit, claimToken: job.claimToken, revision: progress.revision,
+            policyHash: projectTools?.policyHash, runtimeIdentity: result.identity } } });
     });
     prepared.push({ ...result, executionKey: job.key, repository, readOnlyPaths: Array.from(new Set([...args.approvedReadOnlyRoots, ...grants, ...(python ? [python.project.directory] : []), ...(result.receipt?.resources.map(resource => resource.path) || [])])).filter(root => root !== args.workspace) });
   }

@@ -1,9 +1,10 @@
 import { prisma } from '../prisma';
+import { resolveProjectScope } from './scope-resolution';
 import { executionProgress } from '../task-graph/execution-progress';
 import { graphGit } from '../task-graph/git-command';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { object, projectCapabilityPolicy, authorizeProjectCapabilities, restrictProjectCapabilities } from './policy';
+import { object, projectCapabilityPolicy, authorizeProjectCapabilities } from './policy';
 
 export async function projectCapabilityContext({ taskId, workspace, taskRunId, policyFile, roomMessageId, executionId }: { taskId: string; workspace: string; taskRunId?: string; policyFile?: string; roomMessageId?: string; executionId?: string }) {
   const nodeId = /^task-graph-(?:review|architecture)-(.+)$/.exec(taskId)?.[1];
@@ -31,22 +32,17 @@ export async function projectCapabilityContext({ taskId, workspace, taskRunId, p
     if (approved?.capabilities || migrated) throw new Error('项目能力授权已撤销，不能回退到旧宿主授权');
     return null;
   }
+  let approval: Awaited<ReturnType<typeof resolveProjectScope>>['approval'] = null;
   const principals: string[] = [];
   if (job) {
     const snapshot = object(job.node.run.snapshot);
     const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes.map(object) : [];
     const node = nodes.find(node => node.key === job.node.key);
     const approved = node && Array.isArray(node.executions) ? node.executions.map(object).find(execution => execution.key === job.key && execution.repository === repository) : undefined;
-    let scope: unknown = approved?.capabilities;
-    if (!scope) {
-      const migrated = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: `project-scope:${job.id}:${policy.hash}` } } });
-      if (migrated?.kind === 'project_capability_scope_approved') {
-        const receipt = object(migrated.payload);
-        if (receipt.executionId === job.id && receipt.repository === repository && receipt.snapshotHash === job.node.run.snapshotHash) scope = receipt.scope;
-      }
-    }
-    if (!scope) throw new Error('现有任务尚无获批项目能力范围；先执行 project-capabilities:scope 只读预览，由平台批准范围，不能隐式扩大旧路线授权');
-    policy = restrictProjectCapabilities(policy, scope);
+    const resolved = await resolveProjectScope({ runId: job.node.runId, executionId: job.id, repository,
+      snapshotHash: job.node.run.snapshotHash, originalScope: approved?.capabilities, policy });
+    policy = resolved.policy;
+    approval = resolved.approval;
     const proposal = await prisma.taskGraphProposal.findUnique({ where: { parentTaskId_version: { parentTaskId: job.node.run.parentTaskId, version: job.node.run.version } } });
     if (proposal?.status === 'confirmed' && proposal.decidedBy) principals.push(`feishu:${policy.appId}:${proposal.decidedBy}`);
     else if (job.node.run.parentTask.ownerUserId) principals.push(`platform:${job.node.run.parentTask.ownerUserId}`);
@@ -67,5 +63,5 @@ export async function projectCapabilityContext({ taskId, workspace, taskRunId, p
     principals.push(`feishu:${policy.appId}:${metadata.feishuSenderOpenId}`);
   }
   authorizeProjectCapabilities(policy, principals);
-  return { policy, principal: principals[0], principals: Array.from(new Set(principals)), job: job || null };
+  return { policy, approval, principal: principals[0], principals: Array.from(new Set(principals)), job: job || null };
 }

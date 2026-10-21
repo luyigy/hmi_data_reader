@@ -23,7 +23,7 @@ async function resolveProjectTools(args: { taskId: string; taskRunId?: string; e
     manifestHash: createHash('sha256').update(JSON.stringify(policy.runtime)).digest('hex'), commit: args.commit,
     filename: path.join('project-capabilities', policy.hash),
   } : null);
-  return { policyHash: policy.hash, roots, declaration };
+  return { policyHash: policy.hash, roots, declaration, approval: context.approval };
 }
 
 export async function approvedProjectTools(args: Parameters<typeof resolveProjectTools>[0]) {
