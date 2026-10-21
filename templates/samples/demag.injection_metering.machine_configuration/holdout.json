@@ -1,0 +1,17 @@
+{
+  "profile_id": "demag.injection_metering.machine_configuration",
+  "sample_id": "holdout",
+  "original_sha256": "80f918b9bb67ac4b418ae7a4852f9bfa440e0cb1aec2d464824284c8bc7b65e1",
+  "original_size": [
+    4032,
+    3024
+  ],
+  "screen_size": [
+    2000,
+    1499
+  ],
+  "original_path": "datasets/r6_demag/demag.injection_metering.machine_configuration/holdout.jpg",
+  "purpose": "reserved_acceptance",
+  "ocr_fixture": "tests/fixtures/demag_configuration_holdout_ocr.json",
+  "ocr_sha256": "84050d37a59708691edd70c750a59e9af0d184b790749acbab639b533b195151"
+}

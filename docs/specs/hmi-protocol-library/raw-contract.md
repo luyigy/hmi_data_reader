@@ -229,3 +229,134 @@ OCR 段号重复时，在 `extraction_detail.page_observations.issues` 输出
 缺口保留在 coverage.partial/issues，不以转录替换 OCR。包携带 schema、字段定义、
 固定 OCR 样本、识读源码和哈希；导入与识读拒绝组件/样本漂移。
 温度、机台30熔胶网格变体、未核实状态推断及 Model 业务保存/重开不在本次已验证范围。
+
+## R6 阿博格 SELOGICA 双段进料页
+
+新增 `arburg.storage_cooling.selogica_two_stage`，版本 `1.0.0`，受控提取器
+`arburg.selogica_metering`。两张来源原图的屏框直接显示 SELOGICA，屏内显示 ARBURG；
+界面代际没有充分依据，保持 null。本票只增加“进料/松退/冷却”这一物理版式。
+旧 `arburg.injection_metering` 保留原实现与版本，只执行真实 OCR 回归。
+
+字段定义为 `contracts/raw-pages/arburg-selogica-metering-1.0.0.json`。声明范围为
+双段进料速度、背压、位置及实际列，进料后松退速度和距离，剩余冷却显示和两个未标注
+时间，共十四个数值显示项；另有一个明确 unsupported 的图标状态项。图表、页首仪表、
+导航和页脚重复回显没有解码，不属于已读字段。双段物理身份使用本版式已核查的左一右二
+槽位，不承诺未知反排版式或任意段数。
+
+速度保留原屏 mm/s，不换算为 rpm。所有启用状态为 unknown，不从灰色、蓝色或漏读
+推断 disabled。实际列保留 actual；剩余冷却及两个时间的角色尚未确认，保持 unknown，
+不投影为冷却设定。模板补单位只进入 effective_unit 和 template_ref，不补写 original_unit。
+重复单元格 OCR 候选返回 conflict，缺值返回 missing，低置信保持 uncertain。
+本轮第二段背压仍有漏读，开发图实际列也有漏读，故覆盖为 partial，结果为 review。
+保压页、温度页及其他控制器和版式均未增加支持。
+
+原图、来源回执、开发与保留转录、OCR 证据和品牌附件索引位于 `datasets/r6_arburg/`。
+授权查询共 334 条记录、983 个不同附件版本引用，已读完分页；这不表示逐张识读通过。
+选用原图以 SHA-256 去重。保留图为同机台同配方的不同拍摄，范围核查时已看过，
+不宣称盲测或跨机台泛化；转录是实施者目视核查，不冒充独立人工验收。
+
+沿用认证草稿、试跑、冻结发布、控制器绑定、HTTP v2 和 CLI 入口。固定包通过
+`GET /api/v1/page-templates/arburg.storage_cooling.selogica_two_stage/package?version=1.0.0`
+或 `export_page_package.py` 获取。包携带字段定义、合同、受控源码和内容哈希。
+错绑、未知、停用、冲突和合同不兼容保持各自拒绝原因，不走 fallback。
+
+行为入口为 `tests/test_hmi_protocol_library_r6_arburg.py`，实际执行 CPU OCR、
+HTTP 原图上传、CLI 子进程、包发布及新客户端读回。联合验收仅登记 Reader 的适用行为；
+Model 接纳、工艺解释、草稿保存重开、正式业务提交和浏览器未由本票验证。
+平台独立验收另行执行，不以本票 pytest 通过代替。
+
+同版式小数读数修复追加为 `1.0.1`，当前新采集模板使用受控提取器
+`arburg.selogica_metering_decimal`。`1.0.0` 的包、字段定义和识读源码字节不变，
+旧模板归档，旧绑定不静默升级；新的绑定须显式固定 `1.0.1` 及其包哈希。
+`1.0.0` 保留原来的识读行为，不能宣称它已包含本次修复。
+
+独立验收图曾将原屏松退速度 `50.0` 识为高置信 `500` 并标 known。`1.0.1` 按已核实的
+固定小数位检查数值显示格式，缺少小数点时保留 OCR 原值并标 uncertain，不根据范围
+补小数点。HTTP 和 CLI 的 v2 路径复用原 OCR 引擎，对该格式不符的真实值框局部放大重读；
+只有唯一、高置信、格式及单位相容的实际 OCR 结果可替换该候选，失败时仍保持 uncertain。
+重读字段和 OCR 证据保留 `decimal_cell_ocr`、真实坐标、缩放/边距及 `supersedes_ocr`，
+后者保存旧文本、置信度和框。原值不会被真值或固定数字覆盖，角色与启用状态不改变。
+
+新增原图与来源、验收者先前转录位于 `datasets/r6_arburg/decimal-diagnostic.*`。
+该图已用于失败定位和修复回归，不能继续宣传为未参与开发的独立样本。新字段定义及
+样本包分别为 `arburg-selogica-metering-1.0.1.json` 与 `samples-1.0.1.json`，
+逐字段本轮结果见 `datasets/r6_arburg/coverage-1.0.1.json`。
+当前仍为 partial，其他漏格、图标状态、时间角色与未支持页面的限制不变。
+
+## R6_DEMAG 机器配置总览页
+
+新增 `demag.injection_metering.machine_configuration / 1.0.0`，受控提取器为
+`demag.configuration`。这是本票唯一新增物理版式。同屏包含射出、保压、预塑、切换条件、
+冷却时间和五个温区。复用原有矫正、CPU OCR、注册、草稿试跑、冻结发布与包 GET。
+没有增加业务解释或工艺换算。
+
+控制器身份只声明已有人核验的 `DEMAG` 家族。核验来源及哈希保存在字段定义中，
+原图还保留 Sumitomo SHI DEMAG 面板标志。具体 NC 型号和界面代际没有直接依据，保持 null。
+旧射出、保压、塑化和温度包的身份、版本及源码保持原样，不据此补写为已核实控制器包。
+
+定义位于 `contracts/raw-pages/demag-configuration-1.0.0.json`，声明 29 个数值字段和
+6 个未解码的控制图标。工艺相关读数有各自稳定键，冷却、保压时间和切换实际时间分别保留。
+预塑速度保留屏幕的 mm/s，不因历史字段名含 rpm 而换算。模具、顶针、射座设定、生产计数、
+循环监控、导航及其他指示图标不在新增声明范围，仍保留原图和完整 OCR 证据。
+
+区域查找先用三个唯一 OCR 标签对齐。温区身份来自列头，展示顺序来自已核实的物理列位置，
+漏识列头不会将后列压缩编号。重复列头保留结构问题。所有启用状态均为 unknown，
+深色残值不会自动变为 disabled。6 个控制图标输出 unsupported，不从相邻数字推断勾选状态。
+压力缺失可见小数位时保留 OCR 原值并标 uncertain，不补小数点。单位与模板矛盾时保留原单位，
+不能将 bar_spez 或 OCR 的 `bar spez` 当作普通 bar。缺读保持空，不用转录真值回填。
+
+原图、来源回执、转录和用途位于 `datasets/r6_demag/`。development 为开发图；
+reserved、acceptance 在暴露坐标和温区问题后转为诊断回归图，其文件名不代表仍是独立留出图。
+holdout 为冻结后实际运行的裁切及特殊压力单位挑战图，首轮结果另存受管证据。
+该图也暴露了单位 token 边界问题，来源记录如实保留这次诊断参与，不能宣传为未见过的盲测正例。
+转录均为实施者目视记录，独立平台复核另行执行。
+
+响应为 review、coverage.partial。普通 bar 开发图和特殊压力单位挑战图的实际覆盖分别登记，
+不声明所有裁切照片或压力单位变体均能完整识读。确切控制器代际、图标解码、完整页面字段、
+新的独立正例泛化及 Model 接纳、业务保存重开和正式提交仍需各自证据。
+指定行为入口为 `tests/test_hmi_protocol_library_r6_demag.py`；Reader 包 GET 和新进程导出
+不是 Model 浏览器保存重开的证据。
+
+## R6_BOLE 既有射胶/保压页的原屏扩展
+
+本票仅覆盖已核实的 BOLE / B_AND_R，界面代际为 null。复用既有物理页
+`b_and_r.injection_holding.multi_stage_position_time`，新增其 `0.6.0` 原屏包，
+没有新增控制器或物理版式。温度、三段熔胶的既有能力分别回归，不扩展其他伯乐控制器。
+
+原屏定义在 `contracts/raw-pages/b-and-r-injection-0.6.0.json`。冻结包位于
+`templates/raw-packages/b_and_r.injection_holding.multi_stage_position_time/0.6.0.json`，
+通过既有页面包 GET 和导出脚本显式指定版本取得。识图仍使用既有矫正、PaddleOCR、
+注册的 `b_and_r.injection_metering` 与 v2 观测分发入口。没有增加任意 import、
+VLM 或工艺解释器。包中继承的 v1 模板迁移候选不授权 Model 自动写入。
+
+共声明 47 个字段。射胶五个物理槽位的速度、压力、位置和实际时间，保压五槽位的
+速度、压力和设定时间，以及实际值、切换设定、实际切换值分别保留。槽位没有数值时
+输出 missing，不从有效段数补值。反向显示顺序与 stage/segment_id 分离；列头没有读到时
+使用经原图核对的固定槽位定义，标明 identity_basis，并将读到的数值标 uncertain。
+重复列头产生结构冲突。实际时间不冒充设定时间，也不合并成 cooling_time。
+
+所有自动启用状态保持 unknown，保留灰显零值、真实 OCR 框和置信度。位置、时间、
+外部信号的勾选解码均为 unsupported。页首状态条、曲线及导航不在本包声明范围。
+因此 coverage 为 partial；本包不承诺整页自动写入。
+
+两张原图来自既有 `ground_truth/bole_BR`，原图哈希、用途与转录位于包内定义及
+`datasets/r6_bole/`。转录是实施者目视核对，两图均历史曝光，并用于本轮 OCR 诊断；
+第二张只作为保留回归图，不宣称调参独立或盲测，不作为新布局泛化证据。
+平台独立验收须另行检查这些限制，不能把实施者 pytest 当作独立验收。
+
+既有 v1 射胶模板以 `0.1.2` 追加 OCR 标签别名“保压奶换”。`0.1.1` 的模板和完整包
+先行归档，`0.1.0`、R05 熔胶包及 R01/R04 原屏包保留。v1 输出仍走旧提取器；
+新原屏扩展需要 `observations_version=v2`。带绑定提示时继续执行已有错绑、未知、停用、
+冲突和合同不兼容检查，不通过通用提取绕过拒绝。
+
+本票不提供 B&R 温度的 v2 zone 观测、冷却设定闭环、Model 接纳、草稿保存或正式 Run 提交。
+API 上传与 CLI 实时 OCR、包 GET/独立客户端重开、旧版本回放分别记录在本票受管证据中。
+没有变更 UI，双视口浏览器操作不适用；Model 业务保存重开仍由对应 Model 票负责。
+
+版式证据不足的照片可能命中已知页，但无法生成合格 v2 观测。
+`BOLE_INJECTION_LAYOUT_UNVERIFIED` 和 `BOLE_INJECTION_LAYOUT_CONFLICT` 在包外分发层
+转换为明确拒识，不修改 `0.6.0` 包或放宽原识读窗口。HTTP 返回 422，`detail` 包含
+`code/profile_id/reason/action`，操作为 `review_or_recapture_full_screen`。
+CLI 正常处理该输入并退出 0，落盘 `status=reject`、空 `fields/page_observations` 和
+同结构的 `raw_rejection`，保留真实 `raw_ocr_evidence`，不走 generic fallback。
+该处理不宣称裁切版式已支持；其他图片身份、包哈希或内部错误仍沿原错误路径处理。

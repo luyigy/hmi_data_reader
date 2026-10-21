@@ -1,0 +1,11 @@
+{
+  "image": "cropped-layout.jpg",
+  "sha256": "a9b6de684ae93c312a1c8cb7b8eb22eeee1ce6bcf2d903cd05ab0318b3e5cf1c",
+  "purpose": "regression_after_independent_acceptance_failure",
+  "source": "training",
+  "record_id": "recuQJJFYYwEDU",
+  "image_field": "成型条件-射出/保压",
+  "index": 0,
+  "expected": "Known page with unverified crop/layout must reject explicitly, not HTTP500 or CLI traceback.",
+  "source_receipt_sha256": "64a5f944fa1fbec9ca10136b109b2bea1890f2ef50cc402a3b77e859acaaa60c"
+}

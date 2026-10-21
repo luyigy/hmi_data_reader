@@ -27,7 +27,7 @@ def metering_row_tokens(toks: list[dict]) -> dict[str, list[dict]]:
                          key=lambda t: (t["x"], t.get("src") == "ocr_variant", -t.get("conf", 0)))
         cells = []
         for token in matched:
-            if cells and token["x"] - cells[-1]["x"] < 0.018 and token["text"] == cells[-1]["text"]:
+            if cells and token["x"] - cells[-1]["x"] < 0.018:
                 if (cells[-1].get("src") == "ocr_variant" and token.get("src") != "ocr_variant"):
                     cells[-1] = token
                 continue

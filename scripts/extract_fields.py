@@ -674,7 +674,8 @@ def main():
             import hashlib
             import cv2
             from raw_observations import (observe_temperature_time_page, select_raw_profile,
-                                              recover_temperature_time_cells, DEFINITIONS)
+                                          recover_temperature_time_cells, DEFINITIONS, RawPageRejected,
+                                          VERSIONED_RECOVERY)
             try:
                 raw_profile = select_raw_profile(r.get("profile_id"), json.loads(
                     (rectified_dir / f"{stem}.ocr.json").read_text())["lines"])
@@ -701,14 +702,27 @@ def main():
                 from raw_page_ocr import engine_identity
                 engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
                 ocr["lines"] = recover_temperature_time_cells(engine, rectified, meta, ocr["lines"], raw_profile)
-            r["page_observations"] = observe_temperature_time_page(
-                raw_profile, ocr["lines"], meta,
-                hashlib.sha256(original_bytes).hexdigest(),
-                rectified, package_root=Path(args.templates_dir).parent,
-                package_version=r.get("template_version", "1.0.0"))
+            recovery = VERSIONED_RECOVERY.get((raw_profile, r.get("template_version", "1.0.0")))
+            if recovery is not None and rectified is not None:
+                from paddleocr import PaddleOCR
+                from raw_page_ocr import engine_identity
+                if engine is None:
+                    engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+                ocr["lines"] = recovery(engine, rectified, meta, ocr["lines"])
+            try:
+                r["page_observations"] = observe_temperature_time_page(
+                    raw_profile, ocr["lines"], meta,
+                    hashlib.sha256(original_bytes).hexdigest(),
+                    rectified, package_root=Path(args.templates_dir).parent,
+                    package_version=r.get("template_version", "1.0.0"))
+            except RawPageRejected as exc:
+                r.update(status="reject", fields=None, page_observations=None, raw_rejection=exc.detail)
+                r.pop("extraction_detail", None)
+                r["warnings"].append(exc.detail["code"])
             r["raw_ocr_evidence"] = ocr
-            r["page_observations"]["engine"] = (engine_identity(engine) if engine is not None
-                                                  else ocr.get("engine_identity", {"library": "provided_ocr_sidecar", "version": ocr.get("model")}))
+            if r["page_observations"] is not None:
+                r["page_observations"]["engine"] = (engine_identity(engine) if engine is not None
+                                                      else ocr.get("engine_identity", {"library": "provided_ocr_sidecar", "version": ocr.get("model")}))
         counts[r["status"]] += 1
         out_path = out_dir / f"{stem}.fields.json"
         out_path.write_text(json.dumps(r, ensure_ascii=False, indent=2))
