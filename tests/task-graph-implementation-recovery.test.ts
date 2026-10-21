@@ -81,6 +81,7 @@ async function main() {
   const request = { roomId: room.id, chatId: 'fixture-chat', openId: 'fixture-admin', messageId: 'continue-first', nodeKey: 'A', text: 'A 继续' };
   try {
     await until(async () => (await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } })).status === 'attention');
+    await drain();
     const legacy = await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } });
     const legacyProgress = executionProgress(legacy.dispatchMetadata)!;
     await prisma.taskGraphExecution.update({ where: { id: legacy.id }, data: { issueKind: 'missing_business_material', dispatchMetadata: metadataWithProgress(legacy.dispatchMetadata, { ...legacyProgress, state: 'waiting_decision', lastFailure: { code: 'missing_business_material', detail: 'need source photo' } }) } });
@@ -116,22 +117,29 @@ async function main() {
       output: '<graph-control>{"action":"resume_task","nodeKey":"A"}</graph-control>' });
     assert.doesNotMatch(control, /graph-control/);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_requested' } }), 1);
+    const ownerBefore = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } });
+    const proofBefore = executionProgress(ownerBefore.dispatchMetadata)!;
+    await prisma.taskGraphExecution.update({ where: { id: first.id }, data: { dispatchMetadata: metadataWithProgress(ownerBefore.dispatchMetadata, { ...proofBefore, workerReleasedAt: undefined }) } });
+    assert.deepEqual(await startConversationRecoveries(recoverTaskGraphNode), [], 'An active writer defers the existing request instead of consuming it');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_started' } }), 0);
+    await prisma.taskGraphExecution.update({ where: { id: first.id }, data: { dispatchMetadata: metadataWithProgress(ownerBefore.dispatchMetadata, proofBefore) } });
     const batches = await Promise.all([startConversationRecoveries(recoverTaskGraphNode), startConversationRecoveries(recoverTaskGraphNode)]);
-    assert.equal(batches.flat().length, 1, 'Concurrent workers claim one recovery');
+    assert.ok(batches.flat().length <= 1, 'Concurrent workers never claim duplicate recovery');
     await Promise.all(batches.flat().map(item => item.promise));
     await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed_unverified');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_started' } }), 1, 'Deferred request eventually starts exactly once');
     const second = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } });
     assert.equal(second.worktreePath, first.worktreePath);
     assert.notEqual(second.taskRunId, first.taskRunId);
     assert.notEqual(second.claimToken, first.claimToken);
     assert.equal(calls, 4, 'Blocked A resumes once, recollects automatically, then B starts once');
-    assert.equal(executionProgress(second.dispatchMetadata)?.formatAttempts, 1);
+    assert.equal(executionProgress(second.dispatchMetadata)?.formatAttempts, 0);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_recovery_scheduled' } }), 1);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_blocked' } }), 1);
     assert.equal((await prisma.taskRun.findUniqueOrThrow({ where: { id: first.taskRunId } })).status, 'completed', 'Original attempt retained');
     await handleGraphConversationIntent({ ...request, messageId: 'terminal' });
     assert.equal(await handleGraphConversationIntent({ ...request, messageId: 'plain-status', text: '完成了吗？' }), false, 'Natural language is no longer a pre-model control API');
-    assert.ok(notices.some(text => text.includes('尚未交付')));
+    assert.ok(notices.some(text => text.includes('原 Agent 继续工作')));
     // An old integrated-but-incomplete delivery is explicitly classified, not guessed from integrated.
     const delivery = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } });
     assert.ok(delivery.commit);
@@ -151,10 +159,11 @@ async function main() {
     await until(async () => (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status === 'delivered_unverified');
     assert.equal(calls, 5, 'Historical incomplete delivery resumes implementation and can deliver again');
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'delivered_unverified' } }), 2, 'Append a new delivery, retain the original');
-    await until(async () => await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'workspace_cleaned' } }) === 2);
+    await until(async () => await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'workspace_cleanup_deferred' } }) >= 1);
     await drain();
     await cleanupFinishedWorkspaces();
-    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_workspaces_cleaned' } }), 2);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_workspaces_cleaned' } }), 0, 'Original Session references retain the path after delivery');
+    assert.equal(readFileSync(path.join(second.worktreePath!, 'supplement.txt'), 'utf8'), 'new material');
     console.log('Real Git/DB: blocked/missing-result never integrate, saved progress survives deleted checkout, authorized continuation dedupes and resumes implementation, terminal remains unverified');
   } finally {
     await drain();

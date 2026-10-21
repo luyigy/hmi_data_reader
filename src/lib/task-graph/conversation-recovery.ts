@@ -2,6 +2,7 @@ import { graphRecoveryKind, isRecord, type RecoveryKind } from './implementation
 import { prisma } from '../prisma';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
+import { observeExecutionWriter } from './phase-worker';
 
 export class GraphRecoveryTargetAmbiguous extends Error {
   constructor(public readonly runId: string, public readonly choices: string[]) { super(`请说明要继续哪个任务：${choices.join('、')}。回复任务代号即可。`); Object.setPrototypeOf(this, new.target.prototype); }
@@ -52,6 +53,8 @@ export async function startConversationRecoveries(recover: (runId: string, nodeK
   for (const request of requests) {
     const node = request.node;
     if (!node || scheduled.has(node.id)) continue;
+    const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } });
+    if (!(await Promise.all(jobs.map(observeExecutionWriter))).every(proof => proof.kind === 'exited')) continue;
     const key = `conversation:review-recovery:${request.id}:started`;
     try { await prisma.taskGraphEvent.create({ data: { runId: request.runId, nodeId: node.id, idempotencyKey: key, kind: 'conversation_review_recovery_started', payload: {} } }); }
     catch (error) {

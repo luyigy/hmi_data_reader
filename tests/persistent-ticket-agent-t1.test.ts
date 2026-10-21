@@ -9,6 +9,7 @@ import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import { parseImplementationResult } from '../src/lib/task-graph/implementation-result';
+import { scheduleImplementationRecovery } from '../src/lib/task-graph/implementation-result';
 import { continuationWorkFingerprint } from '../src/lib/task-graph/continuation-work';
 import { receiveGraphTaskMessage } from '../src/lib/task-graph/conversation-inbox';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
@@ -93,6 +94,10 @@ async function main() {
     const idle = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: run.id, key: 'IDLE' } } });
     assert.equal(executionProgress(idle.dispatchMetadata)?.formatAttempts, 0, 'No-progress protection does not consume a result-format budget');
     const candidate = progress.candidateCommit; assert.ok(candidate);
+    await scheduleImplementationRecovery(run.id, 'IDLE', 'explicit-parent-continue');
+    await scheduleImplementationRecovery(run.id, 'IDLE', 'explicit-parent-continue');
+    await until(async () => (await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: idle.id } })).status === 'attention');
+    await drain(); assert.equal(emptyTurns, before + 1, 'An explicit continue resumes the normal wait once without resetting the no-progress limit');
     const beforeResearch = await continuationWorkFingerprint(complete.id, candidate);
     const latest = await prisma.taskRunEvent.findFirst({ where: { taskRunId: complete.taskRunId! }, orderBy: { sequence: 'desc' } });
     const sequence = (latest?.sequence || 0) + 1;

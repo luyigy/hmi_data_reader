@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
@@ -33,6 +35,8 @@ const deploymentSuites = ['task-graph-p0-service'];
 const requestedSuites = process.argv.slice(2);
 if (requestedSuites.some(name => ![...registeredSuites, ...deploymentSuites].includes(name))) throw new Error('Unknown task graph test suite');
 const suites = requestedSuites.length ? requestedSuites : registeredSuites;
+const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'task-graph-test-workspaces-'));
+env.AP_WORKSPACE_ROOT = workspaceRoot;
 try {
   const [server] = await admin.$queryRaw`SELECT host(inet_server_addr()) AS address`;
   if (!['127.0.0.1', '::1'].includes(server?.address) && !localContainerOwnsServer(server?.address)) {
@@ -46,4 +50,5 @@ try {
 } finally {
   await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
   await admin.$disconnect();
+  rmSync(workspaceRoot, { recursive: true, force: true });
 }
