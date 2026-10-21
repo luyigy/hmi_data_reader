@@ -462,7 +462,8 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
             if observations_version == "v2":
                 import hashlib
                 from raw_observations import (observe_temperature_time_page, select_raw_profile,
-                                              recover_temperature_time_cells, DEFINITIONS, RawPageRejected)
+                                              recover_temperature_time_cells, DEFINITIONS, RawPageRejected,
+                                              VERSIONED_RECOVERY)
                 from raw_page_ocr import engine_identity, recover_raw_cells
                 try:
                     raw_profile = select_raw_profile(extract_res.get("profile_id"), ocr_evidence["lines"])
@@ -478,6 +479,9 @@ async def recognize_image(file: UploadFile = File(...), include_review_image: bo
                 if raw_profile in DEFINITIONS and raw_gray is not None:
                     ocr_evidence["lines"] = recover_temperature_time_cells(
                         ocr_model, raw_gray, rectify_meta, ocr_evidence["lines"], raw_profile)
+                recovery = VERSIONED_RECOVERY.get((raw_profile, extract_res.get("template_version", "1.0.0")))
+                if recovery is not None and raw_gray is not None:
+                    ocr_evidence["lines"] = recovery(ocr_model, raw_gray, rectify_meta, ocr_evidence["lines"])
                 try:
                     page_observations = observe_temperature_time_page(
                         raw_profile, ocr_evidence["lines"], rectify_meta,

@@ -40,6 +40,7 @@ def extract(lines, template, meta, image_path=None):
 
     observations = []
     counts = {}
+    issues = []
     for section, marker, stop in (("injection", injection, switch),
                                   ("holding", holding, None)):
         top = center(marker)[1]
@@ -59,7 +60,13 @@ def extract(lines, template, meta, image_path=None):
                                           x1 + (x2 - x1) * (offset + 1) / len(names), y2]}
                 headings.append((STAGE[name], part))
         stage_ids = [stage for stage, _ in headings]
-        if not headings or len(stage_ids) != len(set(stage_ids)):
+        duplicates = sorted({stage for stage in stage_ids if stage_ids.count(stage) > 1})
+        if duplicates:
+            issues.append(dict(code="YIZUMI_STAGE_IDENTITY_CONFLICT", section=section,
+                               stage_ids=duplicates, line_indexes=sorted({cell["index"]
+                                   for stage, cell in headings if stage in duplicates})))
+            continue
+        if not headings:
             continue
         count_labels = [cell for cell in cells if re.fullmatch(r"段数\s*[1-6]?", cell["text"])
                         and center(cell)[0] > width * .55 and cell["confidence"] >= .8
@@ -136,4 +143,7 @@ def extract(lines, template, meta, image_path=None):
     detail = dict(page_variant=template["layout_variant"], page_observations=dict(
         version="1.0", profile_id=template["profile_id"], coordinate_space="original_percent",
         fields=observations, stage_counts=counts, visual_stage_counts={}))
-    return dict(fields={}, heater_columns=0, warnings=["YIZUMI_REVIEW_REQUIRED"], detail=detail)
+    if issues:
+        detail["page_observations"]["issues"] = issues
+    return dict(fields={}, heater_columns=0,
+                warnings=["YIZUMI_REVIEW_REQUIRED"] + sorted({issue["code"] for issue in issues}), detail=detail)

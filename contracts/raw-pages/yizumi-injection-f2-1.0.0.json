@@ -1,0 +1,1072 @@
+{
+  "profile_id": "yizumi.injection_metering.injection_holding_f2",
+  "version": "1.0.0",
+  "page_identity": {
+    "brand": "YIZUMI",
+    "controller_family": "YIZUMI",
+    "interface_generation": null,
+    "page_type": "injection_metering",
+    "layout_variant": "injection_holding_f2"
+  },
+  "identity_basis": "YIZUMI bezel and display logo, F2 injection/holding screen. No OEM hardware or interface generation inferred.",
+  "anchors": [
+    "YIZUMI",
+    "射胶",
+    "切保压",
+    "位置模式",
+    "保压"
+  ],
+  "fields": [
+    {
+      "screen_field_key": "injection.position.stage-3",
+      "label": "射胶位置3",
+      "unit": "mm",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.6629999999999999,
+        0.21300000000000002,
+        0.731,
+        0.251
+      ],
+      "label_region": [
+        0.315,
+        0.21000000000000002,
+        0.37,
+        0.254
+      ],
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 1,
+      "header_x": 0.729,
+      "unit_region": [
+        0.93,
+        0.21000000000000002,
+        0.975,
+        0.254
+      ]
+    },
+    {
+      "screen_field_key": "injection.position.stage-2",
+      "label": "射胶位置2",
+      "unit": "mm",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.744,
+        0.21300000000000002,
+        0.812,
+        0.251
+      ],
+      "label_region": [
+        0.315,
+        0.21000000000000002,
+        0.37,
+        0.254
+      ],
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 2,
+      "header_x": 0.81,
+      "unit_region": [
+        0.93,
+        0.21000000000000002,
+        0.975,
+        0.254
+      ]
+    },
+    {
+      "screen_field_key": "injection.position.stage-1",
+      "label": "射胶位置1",
+      "unit": "mm",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.824,
+        0.21300000000000002,
+        0.892,
+        0.251
+      ],
+      "label_region": [
+        0.315,
+        0.21000000000000002,
+        0.37,
+        0.254
+      ],
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 3,
+      "header_x": 0.89,
+      "unit_region": [
+        0.93,
+        0.21000000000000002,
+        0.975,
+        0.254
+      ]
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-3",
+      "label": "射胶压力3",
+      "unit": "bar",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.705,
+        0.258,
+        0.773,
+        0.29600000000000004
+      ],
+      "label_region": [
+        0.315,
+        0.255,
+        0.37,
+        0.29900000000000004
+      ],
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 1,
+      "header_x": 0.729,
+      "unit_region": [
+        0.93,
+        0.255,
+        0.975,
+        0.29900000000000004
+      ]
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-2",
+      "label": "射胶压力2",
+      "unit": "bar",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.786,
+        0.258,
+        0.8540000000000001,
+        0.29600000000000004
+      ],
+      "label_region": [
+        0.315,
+        0.255,
+        0.37,
+        0.29900000000000004
+      ],
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 2,
+      "header_x": 0.81,
+      "unit_region": [
+        0.93,
+        0.255,
+        0.975,
+        0.29900000000000004
+      ]
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-1",
+      "label": "射胶压力1",
+      "unit": "bar",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.866,
+        0.258,
+        0.934,
+        0.29600000000000004
+      ],
+      "label_region": [
+        0.315,
+        0.255,
+        0.37,
+        0.29900000000000004
+      ],
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 3,
+      "header_x": 0.89,
+      "unit_region": [
+        0.93,
+        0.255,
+        0.975,
+        0.29900000000000004
+      ]
+    },
+    {
+      "screen_field_key": "injection.speed.stage-3",
+      "label": "射胶速度3",
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "region": [
+        0.695,
+        0.304,
+        0.763,
+        0.342
+      ],
+      "label_region": [
+        0.315,
+        0.301,
+        0.37,
+        0.34500000000000003
+      ],
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 1,
+      "header_x": 0.729,
+      "unit_region": [
+        0.93,
+        0.301,
+        0.975,
+        0.34500000000000003
+      ]
+    },
+    {
+      "screen_field_key": "injection.speed.stage-2",
+      "label": "射胶速度2",
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "region": [
+        0.776,
+        0.304,
+        0.8440000000000001,
+        0.342
+      ],
+      "label_region": [
+        0.315,
+        0.301,
+        0.37,
+        0.34500000000000003
+      ],
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 2,
+      "header_x": 0.81,
+      "unit_region": [
+        0.93,
+        0.301,
+        0.975,
+        0.34500000000000003
+      ]
+    },
+    {
+      "screen_field_key": "injection.speed.stage-1",
+      "label": "射胶速度1",
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "region": [
+        0.856,
+        0.304,
+        0.924,
+        0.342
+      ],
+      "label_region": [
+        0.315,
+        0.301,
+        0.37,
+        0.34500000000000003
+      ],
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 3,
+      "header_x": 0.89,
+      "unit_region": [
+        0.93,
+        0.301,
+        0.975,
+        0.34500000000000003
+      ]
+    },
+    {
+      "screen_field_key": "injection.time.stage-3",
+      "label": "射胶时间3",
+      "unit": "s",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.695,
+        0.349,
+        0.763,
+        0.387
+      ],
+      "label_region": [
+        0.315,
+        0.346,
+        0.37,
+        0.39
+      ],
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 1,
+      "header_x": 0.729,
+      "unit_region": [
+        0.93,
+        0.346,
+        0.975,
+        0.39
+      ]
+    },
+    {
+      "screen_field_key": "injection.time.stage-2",
+      "label": "射胶时间2",
+      "unit": "s",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.776,
+        0.349,
+        0.8440000000000001,
+        0.387
+      ],
+      "label_region": [
+        0.315,
+        0.346,
+        0.37,
+        0.39
+      ],
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 2,
+      "header_x": 0.81,
+      "unit_region": [
+        0.93,
+        0.346,
+        0.975,
+        0.39
+      ]
+    },
+    {
+      "screen_field_key": "injection.time.stage-1",
+      "label": "射胶时间1",
+      "unit": "s",
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.856,
+        0.349,
+        0.924,
+        0.387
+      ],
+      "label_region": [
+        0.315,
+        0.346,
+        0.37,
+        0.39
+      ],
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 3,
+      "header_x": 0.89,
+      "unit_region": [
+        0.93,
+        0.346,
+        0.975,
+        0.39
+      ]
+    },
+    {
+      "screen_field_key": "holding.pressure.stage-2",
+      "label": "保压压力2",
+      "unit": "bar",
+      "role": "unknown",
+      "section": "holding",
+      "region": [
+        0.696,
+        0.6809999999999999,
+        0.764,
+        0.719
+      ],
+      "label_region": [
+        0.315,
+        0.6779999999999999,
+        0.37,
+        0.722
+      ],
+      "stage": 2,
+      "segment_id": "holding-stage-2",
+      "order": 1,
+      "header_x": 0.73,
+      "unit_region": [
+        0.855,
+        0.6779999999999999,
+        0.9,
+        0.722
+      ]
+    },
+    {
+      "screen_field_key": "holding.pressure.stage-1",
+      "label": "保压压力1",
+      "unit": "bar",
+      "role": "unknown",
+      "section": "holding",
+      "region": [
+        0.776,
+        0.6809999999999999,
+        0.8440000000000001,
+        0.719
+      ],
+      "label_region": [
+        0.315,
+        0.6779999999999999,
+        0.37,
+        0.722
+      ],
+      "stage": 1,
+      "segment_id": "holding-stage-1",
+      "order": 2,
+      "header_x": 0.81,
+      "unit_region": [
+        0.855,
+        0.6779999999999999,
+        0.9,
+        0.722
+      ]
+    },
+    {
+      "screen_field_key": "holding.speed.stage-2",
+      "label": "保压速度2",
+      "unit": "%",
+      "role": "setting",
+      "section": "holding",
+      "region": [
+        0.696,
+        0.726,
+        0.764,
+        0.764
+      ],
+      "label_region": [
+        0.315,
+        0.723,
+        0.37,
+        0.767
+      ],
+      "stage": 2,
+      "segment_id": "holding-stage-2",
+      "order": 1,
+      "header_x": 0.73,
+      "unit_region": [
+        0.855,
+        0.723,
+        0.9,
+        0.767
+      ]
+    },
+    {
+      "screen_field_key": "holding.speed.stage-1",
+      "label": "保压速度1",
+      "unit": "%",
+      "role": "setting",
+      "section": "holding",
+      "region": [
+        0.776,
+        0.726,
+        0.8440000000000001,
+        0.764
+      ],
+      "label_region": [
+        0.315,
+        0.723,
+        0.37,
+        0.767
+      ],
+      "stage": 1,
+      "segment_id": "holding-stage-1",
+      "order": 2,
+      "header_x": 0.81,
+      "unit_region": [
+        0.855,
+        0.723,
+        0.9,
+        0.767
+      ]
+    },
+    {
+      "screen_field_key": "holding.time.stage-2",
+      "label": "保压时间2",
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "region": [
+        0.696,
+        0.771,
+        0.764,
+        0.809
+      ],
+      "label_region": [
+        0.315,
+        0.768,
+        0.37,
+        0.812
+      ],
+      "stage": 2,
+      "segment_id": "holding-stage-2",
+      "order": 1,
+      "header_x": 0.73,
+      "unit_region": [
+        0.855,
+        0.768,
+        0.9,
+        0.812
+      ]
+    },
+    {
+      "screen_field_key": "holding.time.stage-1",
+      "label": "保压时间1",
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "region": [
+        0.776,
+        0.771,
+        0.8440000000000001,
+        0.809
+      ],
+      "label_region": [
+        0.315,
+        0.768,
+        0.37,
+        0.812
+      ],
+      "stage": 1,
+      "segment_id": "holding-stage-1",
+      "order": 2,
+      "header_x": 0.81,
+      "unit_region": [
+        0.855,
+        0.768,
+        0.9,
+        0.812
+      ]
+    },
+    {
+      "screen_field_key": "left.protection.setting",
+      "label": "射胶保护设定",
+      "unit": "s",
+      "role": "setting",
+      "section": "left",
+      "region": [
+        0.211,
+        0.171,
+        0.279,
+        0.209
+      ],
+      "label_region": [
+        0,
+        0.168,
+        0.15,
+        0.212
+      ]
+    },
+    {
+      "screen_field_key": "left.protection.elapsed",
+      "label": "射胶保护当前读数",
+      "unit": "s",
+      "role": "unknown",
+      "section": "left",
+      "region": [
+        0.211,
+        0.218,
+        0.279,
+        0.256
+      ],
+      "label_region": [
+        0,
+        0.215,
+        0.15,
+        0.259
+      ]
+    },
+    {
+      "screen_field_key": "left.cooling.setting",
+      "label": "冷却时间设定",
+      "unit": "s",
+      "role": "setting",
+      "section": "left",
+      "region": [
+        0.211,
+        0.26299999999999996,
+        0.279,
+        0.301
+      ],
+      "label_region": [
+        0,
+        0.25999999999999995,
+        0.15,
+        0.304
+      ]
+    },
+    {
+      "screen_field_key": "left.cooling.current",
+      "label": "冷却当前读数",
+      "unit": "s",
+      "role": "unknown",
+      "section": "left",
+      "region": [
+        0.211,
+        0.309,
+        0.279,
+        0.34700000000000003
+      ],
+      "label_region": [
+        0,
+        0.306,
+        0.15,
+        0.35000000000000003
+      ]
+    },
+    {
+      "screen_field_key": "left.injection.end",
+      "label": "射胶终点",
+      "unit": "mm",
+      "role": "actual",
+      "section": "left",
+      "region": [
+        0.211,
+        0.354,
+        0.279,
+        0.392
+      ],
+      "label_region": [
+        0,
+        0.351,
+        0.15,
+        0.395
+      ]
+    },
+    {
+      "screen_field_key": "left.injection.max_speed",
+      "label": "最大射速",
+      "unit": "mm/s",
+      "role": "actual",
+      "section": "left",
+      "region": [
+        0.211,
+        0.39999999999999997,
+        0.279,
+        0.438
+      ],
+      "label_region": [
+        0,
+        0.39699999999999996,
+        0.15,
+        0.441
+      ]
+    },
+    {
+      "screen_field_key": "left.injection.max_pressure",
+      "label": "最大射压",
+      "unit": "bar",
+      "role": "actual",
+      "section": "left",
+      "region": [
+        0.211,
+        0.445,
+        0.279,
+        0.48300000000000004
+      ],
+      "label_region": [
+        0,
+        0.442,
+        0.15,
+        0.48600000000000004
+      ]
+    },
+    {
+      "screen_field_key": "left.injection.start",
+      "label": "射胶起始位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "left",
+      "region": [
+        0.211,
+        0.49,
+        0.279,
+        0.528
+      ],
+      "label_region": [
+        0,
+        0.487,
+        0.15,
+        0.531
+      ]
+    },
+    {
+      "screen_field_key": "left.vp.position",
+      "label": "保压切换位置",
+      "unit": "mm",
+      "role": "actual",
+      "section": "left",
+      "region": [
+        0.211,
+        0.536,
+        0.279,
+        0.5740000000000001
+      ],
+      "label_region": [
+        0,
+        0.533,
+        0.15,
+        0.5770000000000001
+      ]
+    },
+    {
+      "screen_field_key": "left.injection.actual_pressure",
+      "label": "实际射压",
+      "unit": "bar",
+      "role": "actual",
+      "section": "left",
+      "region": [
+        0.211,
+        0.581,
+        0.279,
+        0.619
+      ],
+      "label_region": [
+        0,
+        0.578,
+        0.15,
+        0.622
+      ]
+    },
+    {
+      "screen_field_key": "left.vp.pressure_start",
+      "label": "压力切保开始",
+      "unit": "mm",
+      "role": "unknown",
+      "section": "left",
+      "region": [
+        0.211,
+        0.626,
+        0.279,
+        0.664
+      ],
+      "label_region": [
+        0,
+        0.623,
+        0.15,
+        0.667
+      ]
+    },
+    {
+      "screen_field_key": "vp.position.left",
+      "label": "位置模式左读数",
+      "unit": "mm",
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.708,
+        0.413,
+        0.776,
+        0.451
+      ],
+      "label_region": [
+        0.41,
+        0.41,
+        0.5,
+        0.454
+      ],
+      "unit_region": [
+        0.86,
+        0.41,
+        0.91,
+        0.454
+      ]
+    },
+    {
+      "screen_field_key": "vp.position.right",
+      "label": "位置模式右读数",
+      "unit": "mm",
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.7959999999999999,
+        0.413,
+        0.864,
+        0.451
+      ],
+      "label_region": [
+        0.41,
+        0.41,
+        0.5,
+        0.454
+      ],
+      "unit_region": [
+        0.86,
+        0.41,
+        0.91,
+        0.454
+      ]
+    },
+    {
+      "screen_field_key": "vp.position.selected",
+      "label": "位置模式选择框",
+      "unit": null,
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.631,
+        0.413,
+        0.6990000000000001,
+        0.451
+      ],
+      "label_region": [
+        0.41,
+        0.41,
+        0.5,
+        0.454
+      ],
+      "reading_support": "unsupported"
+    },
+    {
+      "screen_field_key": "vp.time.left",
+      "label": "时间模式左读数",
+      "unit": "s",
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.708,
+        0.45799999999999996,
+        0.776,
+        0.496
+      ],
+      "label_region": [
+        0.41,
+        0.45499999999999996,
+        0.5,
+        0.499
+      ],
+      "unit_region": [
+        0.86,
+        0.45499999999999996,
+        0.91,
+        0.499
+      ]
+    },
+    {
+      "screen_field_key": "vp.time.right",
+      "label": "时间模式右读数",
+      "unit": "s",
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.7959999999999999,
+        0.45799999999999996,
+        0.864,
+        0.496
+      ],
+      "label_region": [
+        0.41,
+        0.45499999999999996,
+        0.5,
+        0.499
+      ],
+      "unit_region": [
+        0.86,
+        0.45499999999999996,
+        0.91,
+        0.499
+      ]
+    },
+    {
+      "screen_field_key": "vp.time.selected",
+      "label": "时间模式选择框",
+      "unit": null,
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.631,
+        0.45799999999999996,
+        0.6990000000000001,
+        0.496
+      ],
+      "label_region": [
+        0.41,
+        0.45499999999999996,
+        0.5,
+        0.499
+      ],
+      "reading_support": "unsupported"
+    },
+    {
+      "screen_field_key": "vp.pressure.left",
+      "label": "压力模式左读数",
+      "unit": "bar",
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.708,
+        0.503,
+        0.776,
+        0.541
+      ],
+      "label_region": [
+        0.41,
+        0.5,
+        0.5,
+        0.544
+      ],
+      "unit_region": [
+        0.86,
+        0.5,
+        0.91,
+        0.544
+      ]
+    },
+    {
+      "screen_field_key": "vp.pressure.right",
+      "label": "压力模式右读数",
+      "unit": "bar",
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.7959999999999999,
+        0.503,
+        0.864,
+        0.541
+      ],
+      "label_region": [
+        0.41,
+        0.5,
+        0.5,
+        0.544
+      ],
+      "unit_region": [
+        0.86,
+        0.5,
+        0.91,
+        0.544
+      ]
+    },
+    {
+      "screen_field_key": "vp.pressure.selected",
+      "label": "压力模式选择框",
+      "unit": null,
+      "role": "unknown",
+      "section": "vp",
+      "region": [
+        0.631,
+        0.503,
+        0.6990000000000001,
+        0.541
+      ],
+      "label_region": [
+        0.41,
+        0.5,
+        0.5,
+        0.544
+      ],
+      "reading_support": "unsupported"
+    },
+    {
+      "screen_field_key": "injection.printed_count",
+      "label": "射胶段数",
+      "unit": null,
+      "role": "unknown",
+      "section": "injection",
+      "region": [
+        0.9129999999999999,
+        0.116,
+        0.981,
+        0.154
+      ],
+      "label_region": [
+        0.87,
+        0.11300000000000002,
+        0.925,
+        0.157
+      ]
+    },
+    {
+      "screen_field_key": "holding.printed_count",
+      "label": "保压段数",
+      "unit": null,
+      "role": "unknown",
+      "section": "holding",
+      "region": [
+        0.9129999999999999,
+        0.635,
+        0.981,
+        0.673
+      ],
+      "label_region": [
+        0.87,
+        0.632,
+        0.925,
+        0.676
+      ]
+    }
+  ],
+  "stage_headers": {
+    "injection": {
+      "region": [
+        0.55,
+        0.16,
+        0.94,
+        0.212
+      ],
+      "stages": [
+        1,
+        2,
+        3
+      ]
+    },
+    "holding": {
+      "region": [
+        0.55,
+        0.625,
+        0.85,
+        0.68
+      ],
+      "stages": [
+        1,
+        2
+      ]
+    }
+  },
+  "samples": [
+    {
+      "sample_id": "development",
+      "image_sha256": "a4c8615afdc328aa9e11bf8ade34258335532827defcdb3e9ffa727127e8f771",
+      "purpose": "development",
+      "ocr_content_sha256": "f401cb643f37518adfd838b78b2873b1f633988654a7faf203da015cec3e24a5",
+      "image_path": "datasets/r6_yizumi/development.jpg",
+      "source_receipt": "datasets/r6_yizumi/development.source.json",
+      "manifest_sha256": "19a8e1e4fa1952152c105616d09778aa610d58a1a2f8fab6e8de0f7105ef2878"
+    },
+    {
+      "sample_id": "retained",
+      "image_sha256": "9fbfb0844b7114e44c131d5e3b21368de5df183a7cd2eb868dd23bf9409f6bd7",
+      "purpose": "retained_same_machine_capture_exposed_during_diagnostics_not_blind",
+      "ocr_content_sha256": "56117e26a6823ee82c2618d2a885992bbebb82bdaa514de956a4b150455c3650",
+      "image_path": "datasets/r6_yizumi/retained.jpg",
+      "source_receipt": "datasets/r6_yizumi/retained.source.json",
+      "manifest_sha256": "744c7047c706cdba459323fe5a3ce1207d283886936104c667b605df893c1af5"
+    }
+  ],
+  "exclusions": [
+    "Header status icons and recipe/footer/navigation are not decoded",
+    "Mode checkbox values unsupported; pale values never imply disabled",
+    "Pressure basis and ambiguous switch/elapsed roles remain unknown",
+    "No temperature, plasticizing or other cooling layouts declared"
+  ],
+  "alignment": {
+    "injection": [
+      0.3397190293742018,
+      0.1864334470989761
+    ],
+    "holding": [
+      0.34099616858237547,
+      0.6518771331058021
+    ],
+    "vp": [
+      0.3502554278416347,
+      0.431740614334471
+    ],
+    "count": [
+      0.890485312899106,
+      0.1348122866894198
+    ],
+    "basis": "development OCR landmarks only; no retained field coordinates fitted"
+  }
+}

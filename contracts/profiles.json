@@ -243,7 +243,8 @@
         "controller_family": "SELOGICA",
         "evidence_sample_ids": [
           "development",
-          "retained"
+          "retained",
+          "decimal-diagnostic"
         ],
         "interface_generation": null,
         "layout_variant": "selogica_two_stage",

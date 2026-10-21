@@ -205,6 +205,12 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
             samples.append({**sample, "ocr_content_sha256": digest})
         package = {"package_schema": "hmi_page_package.v1", "profile_id": profile_id,
                    "version": version, "template": template, "samples": samples}
+        if template.get("extractor_id") == "arburg.selogica_metering_decimal":
+            from scripts.raw_arburg_decimal import build_decimal_package
+            try:
+                package = build_decimal_package(template, samples)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
         if template.get("extractor_id") == "arburg.selogica_metering":
             from scripts.raw_arburg import build_selogica_package
             try:
@@ -221,6 +227,12 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
             from scripts.raw_fanuc_temperature import build_fanuc_temperature_package
             try:
                 package = build_fanuc_temperature_package(root, template=template, samples=samples)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
+        if template.get("extractor_id") == "yizumi.injection_holding_f2" and version.startswith("1."):
+            from scripts.raw_yizumi import build_yizumi_package
+            try:
+                package = build_yizumi_package(template, samples)
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from None
         if template.get("extractor_id") == "demag.configuration":

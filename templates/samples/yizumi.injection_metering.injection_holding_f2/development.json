@@ -1,0 +1,37 @@
+{
+  "sample_id": "development",
+  "profile_id": "yizumi.injection_metering.injection_holding_f2",
+  "purpose": "development",
+  "original_sha256": "a4c8615afdc328aa9e11bf8ade34258335532827defcdb3e9ffa727127e8f771",
+  "original_size": [
+    2560,
+    1920
+  ],
+  "screen_size": [
+    1566,
+    1172
+  ],
+  "screen_quad": [
+    [
+      569.6000366210938,
+      332.8000183105469
+    ],
+    [
+      2192.0,
+      313.6000061035156
+    ],
+    [
+      2140.800048828125,
+      1488.0
+    ],
+    [
+      630.4000244140625,
+      1500.800048828125
+    ]
+  ],
+  "rectify_method": "corners",
+  "ocr_fixture": "tests/fixtures/yizumi_30_development_ocr.json",
+  "ocr_sha256": "d9549322bc01efb51aba0d90487b5cb0b2d5aa8f9eabfe41d21e0b8f334a68b2",
+  "truth_scope": "developer visual transcription; not independent acceptance truth",
+  "original_path": "datasets/r6_yizumi/development.jpg"
+}
