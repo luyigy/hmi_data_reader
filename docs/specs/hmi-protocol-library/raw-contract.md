@@ -220,6 +220,41 @@ M1–M4、上下限、输出、调整开关、右侧实时数据及底部历史�
 观测 coverage.partial 及待复核结果不能宣传为全页通过、Model 接纳、工艺保存重开
 或正式业务提交。独立验收仍由平台另 Session 执行。
 
+## R6 阿博格 SELOGICA 双段进料页
+
+新增 `arburg.storage_cooling.selogica_two_stage`，版本 `1.0.0`，受控提取器
+`arburg.selogica_metering`。两张来源原图的屏框直接显示 SELOGICA，屏内显示 ARBURG；
+界面代际没有充分依据，保持 null。本票只增加“进料/松退/冷却”这一物理版式。
+旧 `arburg.injection_metering` 保留原实现与版本，只执行真实 OCR 回归。
+
+字段定义为 `contracts/raw-pages/arburg-selogica-metering-1.0.0.json`。声明范围为
+双段进料速度、背压、位置及实际列，进料后松退速度和距离，剩余冷却显示和两个未标注
+时间，共十四个数值显示项；另有一个明确 unsupported 的图标状态项。图表、页首仪表、
+导航和页脚重复回显没有解码，不属于已读字段。双段物理身份使用本版式已核查的左一右二
+槽位，不承诺未知反排版式或任意段数。
+
+速度保留原屏 mm/s，不换算为 rpm。所有启用状态为 unknown，不从灰色、蓝色或漏读
+推断 disabled。实际列保留 actual；剩余冷却及两个时间的角色尚未确认，保持 unknown，
+不投影为冷却设定。模板补单位只进入 effective_unit 和 template_ref，不补写 original_unit。
+重复单元格 OCR 候选返回 conflict，缺值返回 missing，低置信保持 uncertain。
+本轮第二段背压仍有漏读，开发图实际列也有漏读，故覆盖为 partial，结果为 review。
+保压页、温度页及其他控制器和版式均未增加支持。
+
+原图、来源回执、开发与保留转录、OCR 证据和品牌附件索引位于 `datasets/r6_arburg/`。
+授权查询共 334 条记录、983 个不同附件版本引用，已读完分页；这不表示逐张识读通过。
+选用原图以 SHA-256 去重。保留图为同机台同配方的不同拍摄，范围核查时已看过，
+不宣称盲测或跨机台泛化；转录是实施者目视核查，不冒充独立人工验收。
+
+沿用认证草稿、试跑、冻结发布、控制器绑定、HTTP v2 和 CLI 入口。固定包通过
+`GET /api/v1/page-templates/arburg.storage_cooling.selogica_two_stage/package?version=1.0.0`
+或 `export_page_package.py` 获取。包携带字段定义、合同、受控源码和内容哈希。
+错绑、未知、停用、冲突和合同不兼容保持各自拒绝原因，不走 fallback。
+
+行为入口为 `tests/test_hmi_protocol_library_r6_arburg.py`，实际执行 CPU OCR、
+HTTP 原图上传、CLI 子进程、包发布及新客户端读回。联合验收仅登记 Reader 的适用行为；
+Model 接纳、工艺解释、草稿保存重开、正式业务提交和浏览器未由本票验证。
+平台独立验收另行执行，不以本票 pytest 通过代替。
+
 ## R6_DEMAG 机器配置总览页
 
 新增 `demag.injection_metering.machine_configuration / 1.0.0`，受控提取器为
@@ -289,3 +324,11 @@ VLM 或工艺解释器。包中继承的 v1 模板迁移候选不授权 Model �
 本票不提供 B&R 温度的 v2 zone 观测、冷却设定闭环、Model 接纳、草稿保存或正式 Run 提交。
 API 上传与 CLI 实时 OCR、包 GET/独立客户端重开、旧版本回放分别记录在本票受管证据中。
 没有变更 UI，双视口浏览器操作不适用；Model 业务保存重开仍由对应 Model 票负责。
+
+版式证据不足的照片可能命中已知页，但无法生成合格 v2 观测。
+`BOLE_INJECTION_LAYOUT_UNVERIFIED` 和 `BOLE_INJECTION_LAYOUT_CONFLICT` 在包外分发层
+转换为明确拒识，不修改 `0.6.0` 包或放宽原识读窗口。HTTP 返回 422，`detail` 包含
+`code/profile_id/reason/action`，操作为 `review_or_recapture_full_screen`。
+CLI 正常处理该输入并退出 0，落盘 `status=reject`、空 `fields/page_observations` 和
+同结构的 `raw_rejection`，保留真实 `raw_ocr_evidence`，不走 generic fallback。
+该处理不宣称裁切版式已支持；其他图片身份、包哈希或内部错误仍沿原错误路径处理。
