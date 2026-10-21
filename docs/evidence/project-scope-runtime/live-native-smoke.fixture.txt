@@ -1,0 +1,116 @@
+import assert from 'node:assert/strict';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { prisma } from '/data1/code/agent-platform-v2/src/lib/prisma';
+import { createTaskGraphRun, releaseReadyNodes, claimNode, claimExecution } from '/data1/code/agent-platform-v2/src/lib/task-graph/store';
+import { applyExecutionOutcome, executionProgress, metadataWithProgress } from '/data1/code/agent-platform-v2/src/lib/task-graph/execution-progress';
+import { createGraphWriter } from '/data1/code/agent-platform-v2/src/lib/task-graph/writer-ownership';
+import { prepareTaskDeclaredRuntime } from '/data1/code/agent-platform-v2/src/lib/task-graph/runtime-continuity';
+import { inheritProjectCapabilityScopes } from '/data1/code/agent-platform-v2/src/lib/project-capabilities/proposal';
+import { migrateLegacyProjectScope } from '/data1/code/agent-platform-v2/src/lib/project-capabilities/legacy-scope';
+import { projectCapabilityContext } from '/data1/code/agent-platform-v2/src/lib/project-capabilities/context';
+import { wrapWithBubblewrap } from '/data1/code/agent-platform-v2/src/lib/harness/bubblewrap';
+
+async function main() {
+  assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
+  const scratch = await fs.mkdtemp(path.join('/data1/code/agent-platform-v2/output/deployments/scope-runtime', 'scope-change-'));
+  const oldHome = process.env.HOME, oldApp = process.env.FEISHU_APP_ID;
+  process.env.HOME = path.join(scratch, 'home'); process.env.FEISHU_APP_ID = 'cli_test';
+  try {
+    const repository = path.join(scratch, 'repo'); await fs.mkdir(repository);
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8' }).trim();
+    git('init', '-q', '-b', 'main'); git('config', 'user.name', 'test'); git('config', 'user.email', 'test@example.test');
+    await fs.writeFile(path.join(repository, 'source.txt'), 'readonly candidate'); git('add', '.'); git('commit', '-qm', 'fixture');
+    const commit = git('rev-parse', 'HEAD'), images = path.join(scratch, 'images'); await fs.mkdir(images);
+    const user = await prisma.user.create({ data: { username: 'scope-change-' + Date.now(), passwordHash: 'fixture' } });
+    const parent = await prisma.task.create({ data: { name: 'Scope change', ownerUserId: user.id } });
+    const project = { repository, appId: 'cli_test', principals: ['platform:' + user.id], readOnlyRoots: [images], sources: [{ key: 'training', baseToken: 'baseTest', tableId: 'tblTest', searchField: 'Brand', imageFields: ['Storage'] }] };
+    const policyFile = path.join(process.env.HOME, '.agent-platform/project-capabilities.json'); await fs.mkdir(path.dirname(policyFile), { recursive: true });
+    const savePolicy = () => fs.writeFile(policyFile, JSON.stringify({ version: 1, projects: [project] })); await savePolicy();
+    const definition = await inheritProjectCapabilityScopes({ specRef: 'test://scope-change', nodes: [{ key: 'BOLE', goal: 'test', dependsOn: [], acceptance: { mode: 'automatic', checks: ['test'] }, executions: [{ key: 'reader', repository, gitRef: 'refs/heads/main', baseCommit: commit, agentSelector: 'local:codex', instructions: 'scope fixture' }] }] });
+    const graph = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition });
+    await releaseReadyNodes(graph.id); await claimNode(graph.id, 'BOLE', 'original-claim');
+    const job = await claimExecution(graph.id, 'BOLE', 'reader', 'original-claim'); assert(job);
+    const child = await prisma.task.create({ data: { id: 'task-graph-' + job.id, name: 'scope fixture', workingDirectory: repository } });
+    await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { childTaskId: child.id, worktreePath: repository, sessionId: 'native-codex-session-preserved' } });
+    const writer = await createGraphWriter();
+    await applyExecutionOutcome({ executionId: job.id, claimToken: 'original-claim', expectedRevision: 0, outcomeId: 'candidate', outcome: { kind: 'checkpoint', phase: 'implement', candidateCommit: commit, worker: writer } });
+    const output = path.join(scratch, 'out'); await fs.mkdir(output);
+    const prepare = (taskId = child.id) => prepareTaskDeclaredRuntime({ taskId, workspace: repository, approvedReadOnlyRoots: [], outputDirectory: output });
+    const beforeChange = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    const first = await prepare();
+    const originalPin = await prisma.taskGraphEvent.findFirstOrThrow({ where: { runId: graph.id, kind: 'runtime_snapshot_pinned' } });
+    const pause = async () => { const j = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } }); const p = executionProgress(j.dispatchMetadata); assert(p); await prisma.taskGraphExecution.update({ where: { id: j.id }, data: { status: 'attention', dispatchMetadata: metadataWithProgress(j.dispatchMetadata, { ...p, phase: 'acceptance', state: 'waiting_decision', workerReleasedAt: new Date().toISOString() }) } }); await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } }); };
+    const activate = async () => { const j = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } }); const p = executionProgress(j.dispatchMetadata); assert(p); await prisma.taskGraphExecution.update({ where: { id: j.id }, data: { status: 'integrated', commit, dispatchMetadata: metadataWithProgress(j.dispatchMetadata, { ...p, phase: 'acceptance', state: 'active' }) } }); };
+    project.sources[0].imageFields.push('Injection'); await savePolicy();
+    await assert.rejects(prepare(), /授权|范围/); console.log('PASS unapproved host policy change rejected');
+    await pause();
+    const preview = await migrateLegacyProjectScope({ executionId: job.id });
+    assert.equal(preview.writer.kind, 'exited'); assert.equal(preview.incompatibleRuntimePin, false);
+    await migrateLegacyProjectScope({ executionId: job.id, apply: true, expectedPolicyHash: preview.policyHash });
+    const context = await projectCapabilityContext({ taskId: child.id, workspace: repository });
+    assert.deepEqual(context?.policy.sources[0].imageFields, ['Storage', 'Injection']);
+    await activate();
+    const resumed = await prepare('task-graph-review-' + job.nodeId);
+    assert.equal(resumed.identity, first.identity);
+    assert.deepEqual(resumed.readOnlyPaths, first.readOnlyPaths);
+    assert.deepEqual((await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: originalPin.id } })).payload, originalPin.payload);
+    const sandboxOutput = path.join(repository, 'approved-output'); await fs.mkdir(sandboxOutput);
+    const sandbox = wrapWithBubblewrap({ command: '/bin/sh', commandArgs: ['-c', `test -r '${repository}/source.txt' && ! touch '${repository}/forbidden' && touch '${sandboxOutput}/result'`], workspaceRoot: repository, cwd: repository, env: { NODE_ENV: 'test', PATH: process.env.PATH, HOME: '/tmp' }, sandboxMode: 'read-only', networkAccess: 'restricted', readOnlyPaths: resumed.readOnlyPaths, outputPaths: [sandboxOutput] });
+    execFileSync(sandbox.command, sandbox.args, { stdio: 'pipe' });
+    assert.equal(await fs.readFile(path.join(repository, 'source.txt'), 'utf8'), 'readonly candidate');
+    const { executeCodexTask, resumeCodexSession } = await import('/data1/code/agent-platform-v2/src/lib/real-agents/codex-agent');
+    const { withSandbox } = await import('/data1/code/agent-platform-v2/src/lib/sandbox-manager');
+    const runtimeHome = path.join(scratch, 'native-runtime'); await fs.mkdir(runtimeHome);
+    const readOnlyPaths = [...resumed.readOnlyPaths, ...['auth.json', 'config.toml'].map(name => path.join(process.env.CODEX_HOME!, name))];
+    const controls: unknown[] = [];
+    const nativeConfig = { workingDirectory: repository, workspaceRoot: repository, timeout: 180000, networkAccess: 'enabled' as const,
+      sandboxMode: 'read-only', approvalPolicy: 'never' as const, reasoningEffort: 'low',
+      codexHome: path.join(runtimeHome, '.codex'), runtimeHome, readOnlyPaths,
+      sandbox: { run: ((input, use) => withSandbox(input, use, { onSpawn: control => controls.push(control.identity) })) satisfies typeof withSandbox } };
+    const firstNative = await executeCodexTask({ id: 'isolated-scope-review', name: 'Scope authorization sandbox smoke', description: 'Read source.txt using a tool. Do not change any files. Final response must include exactly SCOPE_NATIVE_OK and the file content.' }, nativeConfig);
+    assert(firstNative.success, firstNative.error); assert.match(firstNative.output || '', /SCOPE_NATIVE_OK/); assert.match(firstNative.output || '', /readonly candidate/); assert(firstNative.threadId);
+    const secondNative = await resumeCodexSession({ ...nativeConfig, threadId: firstNative.threadId, prompt: 'Continue the same read-only verification. Read source.txt again using a tool. Do not change files. Final response must include SCOPE_RESUME_OK and the actual file content.' });
+    assert.match(secondNative.output, /SCOPE_RESUME_OK/); assert.match(secondNative.output, /readonly candidate/); assert.equal(secondNative.threadId, firstNative.threadId);
+    assert.equal(await fs.readFile(path.join(repository, 'source.txt'), 'utf8'), 'readonly candidate');
+    await fs.writeFile('/data1/code/agent-platform-v2/output/deployments/scope-runtime/native-smoke.json', JSON.stringify({ at: new Date().toISOString(), isolatedSchema: new URL(process.env.DATABASE_URL!).searchParams.get('schema'), originalPin: originalPin.id, runtimeIdentity: resumed.identity, firstNative, secondNative, managedProcesses: controls, originalPinUnchanged: true, productionTicketResumed: false }, null, 2), { mode: 0o600 });
+    console.log('PASS REAL Codex startup and same native Session Resume through Sandbox Manager following approved scope change');
+    const binding = await prisma.taskGraphEvent.findFirstOrThrow({ where: { runId: graph.id, kind: 'runtime_authorization_bound' } });
+    assert.equal(JSON.parse(JSON.stringify(binding.payload)).stage, 'acceptance');
+    const approval = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { runId_idempotencyKey: { runId: graph.id, idempotencyKey: `project-scope-v2:${job.id}:${preview.policyHash}` } } });
+    const payload = JSON.parse(JSON.stringify(approval.payload));
+    const rejectReceiptMutation = async (patch: object) => {
+      await prisma.taskGraphEvent.update({ where: { id: approval.id }, data: { payload: { ...payload, ...patch } } });
+      await assert.rejects(prepare(), /授权|归属|快照/);
+      await prisma.taskGraphEvent.update({ where: { id: approval.id }, data: { payload } });
+    };
+    await rejectReceiptMutation({ previousPolicyHash: 'f'.repeat(64) });
+    await rejectReceiptMutation({ candidateCommit: 'e'.repeat(40) });
+    await rejectReceiptMutation({ originalClaim: 'foreign-claim' });
+    await rejectReceiptMutation({ executionId: 'foreign-job' });
+    await rejectReceiptMutation({ runtimePinIds: ['foreign-pin'] });
+    const extra = path.join(scratch, 'extra'); await fs.mkdir(extra); project.readOnlyRoots.push(extra); await savePolicy();
+    await assert.rejects(prepare(), /授权|范围/);
+    await pause();
+    const mountChange = await migrateLegacyProjectScope({ executionId: job.id }); assert.equal(mountChange.incompatibleRuntimePin, true);
+    await assert.rejects(migrateLegacyProjectScope({ executionId: job.id, apply: true, expectedPolicyHash: mountChange.policyHash }), /快照/);
+    project.readOnlyRoots.pop(); await savePolicy(); await activate();
+    const previousPrincipals = [...project.principals]; project.principals = ['platform:unauthorized']; await savePolicy();
+    await assert.rejects(prepare(), /授权|范围/); project.principals = previousPrincipals; await savePolicy();
+    const initialBudgets = executionProgress(beforeChange.dispatchMetadata);
+    const finalJob = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    const finalBudgets = executionProgress(finalJob.dispatchMetadata); assert(initialBudgets && finalBudgets);
+    for (const counter of ['repairAttempts', 'formatAttempts', 'platformAttempts', 'integrationAttempts'] as const) assert.equal(finalBudgets[counter], initialBudgets[counter]);
+    assert.equal(finalJob.sessionId, beforeChange.sessionId); assert.equal(finalJob.claimToken, 'original-claim');
+    console.log('PASS wrong prior authorization, candidate, claim, execution and pin rejected; mount expansion and revocation rejected; budgets/session preserved');
+    console.log('PASS approved existing-hash change reaches acceptance preparation and real Bubblewrap; original pin immutable');
+
+  } finally {
+    if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome;
+    if (oldApp === undefined) delete process.env.FEISHU_APP_ID; else process.env.FEISHU_APP_ID = oldApp;
+    await fs.rm(scratch, { recursive: true, force: true }); await prisma.$disconnect();
+  }
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });

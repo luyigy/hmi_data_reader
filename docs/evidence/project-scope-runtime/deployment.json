@@ -1,0 +1,27 @@
+{
+  "deployedCodeCommit": "8a15eee",
+  "build": "passed",
+  "health": {
+    "ok": true,
+    "status": "healthy",
+    "timestamp": "2026-10-21T10:44:08.579Z"
+  },
+  "coordinator": "active; MainPID 2764156",
+  "taskGraphFeishu": "active; MainPID 2764474",
+  "feishu": "idle reload scheduled in ap-scope-feishu-idle-reload-8a15eee.service",
+  "nativeSmoke": {
+    "firstOutput": "SCOPE_NATIVE_OK\nreadonly candidate",
+    "resumeOutput": "SCOPE_RESUME_OK\nreadonly candidate",
+    "threadId": "01a15e12-f182-7451-bc3e-24faeaef39df",
+    "resumeThreadId": "01a15e12-f182-7451-bc3e-24faeaef39df",
+    "managerProcesses": 2,
+    "isolatedSchema": "task_graph_test_4f3ff62adaa04618a9e624ae74b1434b",
+    "productionTicketResumed": false
+  },
+  "boleAuthorization": "v2 explicit scope approval appended; old pin retained",
+  "boleRecovery": {
+    "kind": "rejected",
+    "reason": "Recovery requires a different verified platform code measure"
+  },
+  "m6Demag": "blocked by unpassed BOLE; no bypass"
+}

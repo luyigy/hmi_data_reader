@@ -68,3 +68,13 @@ npm run check:long-files
 伯乐之前的失败可能已消耗验收平台恢复预算。上线后必须读取实际账本，只使用已有受控修复机制，不能清零或放宽预算。无法满足现有恢复门禁时应明确报告，不能把本次代码通过解释为生产恢复成功。
 
 M6_DEMAG 的跨仓输入检查保持原状。只有 BOLE 实际满足交付条件后才重新核验并接续，不把资料可读解释为验收通过。候选集成与可交付版本分离不在此次实现范围内。
+
+## 2026-10-21 合并部署与真实 Codex 补验
+
+用户随后明确授权合并、部署和测试。`8a15eee` 已 fast-forward 合入 oss-prep 并推送 Gitee、luyigy。隔离 worktree 的生产构建通过，生产协调器与任务进度服务已重载，HTTP `/api/health` 返回 200 healthy。飞书主运行时因承载当前会话，安排在所有活动 TaskRun 退出后空闲重载，完成结果写入 `output/deployments/scope-runtime/feishu-reload.json`；不能把“已安排”说成“已完成”。
+
+真实 Codex 使用独立 PostgreSQL schema，在已获批 scope change 的 review Runtime 上通过原 JSON helper 和 Sandbox Manager 首次启动、续接同一原生 Session。两轮都用工具读取源码，实际返回 `readonly candidate`；来源文件未修改。Session、两个 Manager 进程与输出证据见 `deployment.json`。这不是原 BOLE 生产验收，也不是飞书 Topic 的端到端业务验收。
+
+首次临时试验将 Codex Home 放在 `/tmp`，CLI 拒绝生成 helper aliases，模型虽启动却无法调用工具。该结果不计为通过。迁至实际部署磁盘目录后，要求两轮最终输出都包含工具读到的文件内容，才取得上述结果。原始启动结果保留在 ignored output，不覆盖失败证据。复跑原始 fixture 与 runner 记录在同目录的 `live-native-*.fixture.txt`，复制回 `output/deployments/scope-runtime/` 后以 `CODEX_HOME=/home/hello/.codex node output/deployments/scope-runtime/isolated-live-runner.mjs project-capabilities-scope-change` 执行。它使用本机既有模型凭据，不应在无授权环境盲目运行。CLI 的系统技能自动安装仍产生非致命只读目录告警，本次不宣称验证了全部技能安装功能。
+
+生产 R6_BOLE 的 Writer 已退出，工具和挂载兼容，v2 授权批准已追加。但它的 platformAttempts=2、state=exhausted。调用既有 `registerPreparedReviewRecovery` 被拒绝，原因 `Recovery requires a different verified platform code measure`：原 pin 的 source 为 null，不能满足当前入口要求的旧平台代码来源证明。没有修改旧 pin、预算或恢复门禁来制造通过。M6_DEMAG 仍等待 BOLE 真正通过。下一步须单独处理该旧票的受控恢复证明衔接，不能将本次部署或隔离 smoke 解释为生产 Ticket 已恢复。
