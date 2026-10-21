@@ -185,7 +185,8 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       return progress;
     }
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
-    const operatorResume = args.outcome.kind === 'operator_resume' && current.status === 'attention' && before.state === 'waiting_decision';
+    const operatorResume = args.outcome.kind === 'operator_resume' && current.status === 'attention' &&
+      (before.state === 'waiting_decision' || before.state === 'waiting_for_user' && before.phase === 'implement');
     const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
     const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     const reviewResume = args.outcome.kind === 'review_resumed' && current.node.status === 'attention' && ['architecture', 'acceptance'].includes(before.phase) && (

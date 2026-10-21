@@ -159,12 +159,17 @@ function jobPath(root: string, repo: string, runId: string, jobId: string): stri
   return path.join(root, hash(repo), hash(runId), 'jobs', hash(jobId));
 }
 
-async function locateJob(repo: string, request: { runId: string; jobId: string; worktreeRoot?: string; worktreePath?: string }): Promise<string> {
+async function locateJob(repo: string, request: { runId: string; jobId: string; worktreeRoot?: string; worktreePath?: string; resumeCommit?: string }): Promise<string> {
   workspaceSegment(request.runId); workspaceSegment(request.jobId);
   const matches = (await worktrees(repo)).filter(tree => tree.branch === jobBranch(request.runId, request.jobId));
   if (matches.length > 1) throw new TaskGraphGitError('workspace_collision', 'Multiple registered workspaces for job');
   if (request.worktreePath) {
-    if (!path.isAbsolute(request.worktreePath) || path.normalize(request.worktreePath) !== request.worktreePath || matches[0]?.path !== request.worktreePath) {
+    const missingCheckpoint = !matches.length && request.resumeCommit &&
+      !await fs.lstat(request.worktreePath).then(() => true, () => false) &&
+      await fs.realpath(path.dirname(request.worktreePath)).catch(() => '') === path.dirname(request.worktreePath) &&
+      await refCommit(repo, jobBranch(request.runId, request.jobId)) === request.resumeCommit;
+    if (!path.isAbsolute(request.worktreePath) || path.normalize(request.worktreePath) !== request.worktreePath ||
+        matches[0]?.path !== request.worktreePath && !missingCheckpoint) {
       throw new TaskGraphGitError('workspace_collision', 'Recorded workspace is missing or differs from Git ownership; preserve original binding', request.worktreePath);
     }
     return request.worktreePath;

@@ -131,7 +131,7 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     if (await tx.taskRun.count({ where: { taskId: { in: [...current.executions.flatMap(job => job.childTaskId ? [job.childTaskId] : []),
       `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } } })) throw new Error('原任务进程仍在执行，请等待结束');
     for (const job of current.executions) {
-      if (job.status !== 'integrated' && executionProgress(job.dispatchMetadata)?.state === 'waiting_decision') await assertExecutionWriterExited(tx, job);
+      if (job.status !== 'integrated' && ['waiting_decision', 'waiting_for_user'].includes(executionProgress(job.dispatchMetadata)?.state || '')) await assertExecutionWriterExited(tx, job);
       if (job.status !== 'integrated' && job.worktreePath && !executionProgress(job.dispatchMetadata)?.conflictRepair &&
           await graphGit(job.worktreePath, 'rev-parse', '--verify', 'MERGE_HEAD').then(() => true, () => false)) {
         throw new Error('待完成合并尚无受控冲突修复方案；平台须先核验来源和文件范围，普通继续不能重新实施');
@@ -144,7 +144,7 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
       if (progress?.state === 'ownership_attention') throw new Error('执行归属尚未核对，普通继续不能重新放行写入；须先完成归属核对');
       if (progress) {
         if (job.status === 'integrated') return [];
-        if (progress.state !== 'waiting_decision') throw new Error('当前执行不是等待人工决定的实施暂停');
+        if (progress.state !== 'waiting_decision' && !(progress.state === 'waiting_for_user' && progress.phase === 'implement')) throw new Error('当前执行不是可接续的实施等待');
         if (!progress.candidateCommit || !progress.workspaceBase) throw new Error('缺少当前候选提交或原始基线');
         return [{ id: job.id, key: job.key, checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase,
           previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId, previousCommit: job.commit,
