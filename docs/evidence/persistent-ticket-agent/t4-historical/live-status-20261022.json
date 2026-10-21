@@ -1,0 +1,209 @@
+{
+  "observedAt": "2026-10-21T16:36:14.660Z",
+  "nodes": [
+    {
+      "key": "M6_DEMAG",
+      "status": "attention",
+      "executionId": "cmvdmf87z04419xhgcwj4i8y0",
+      "jobStatus": "attention",
+      "taskRunId": null,
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/e390df1f18b50561",
+      "candidate": "2a3bf035f06030f50027691baf3ad26907eca523",
+      "phase": "prepare",
+      "state": "waiting_decision",
+      "revision": 5,
+      "active": [],
+      "originalSessions": []
+    },
+    {
+      "key": "R6_NISSEI",
+      "status": "attention",
+      "executionId": "cmvdmf880044p9xhg6z3mtzlv",
+      "jobStatus": "attention",
+      "taskRunId": "cmviar3wv0u72703aq66c7w96",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/de8b432989109e0b",
+      "candidate": "2d0eb99303843d7190e27ddbcfc7a19e1a428e73",
+      "phase": "implement",
+      "state": "waiting_decision",
+      "revision": 20,
+      "active": [],
+      "originalSessions": [
+        "01a15880-ea19-7d60-b8e5-4fef1a9ae957"
+      ],
+      "participants": [
+        {
+          "harness": "codex",
+          "status": "completed",
+          "session": "01a15880-ea19-7d60-b8e5-4fef1a9ae957"
+        }
+      ],
+      "sandboxes": [
+        {
+          "backend": "bubblewrap",
+          "host": "hello",
+          "uid": 1000,
+          "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+          "root": {
+            "pid": 4064538,
+            "startTime": "2731551619"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_YIZUMI",
+      "status": "claimed",
+      "executionId": "cmvdmf880044r9xhgc8z15d8w",
+      "jobStatus": "claimed",
+      "taskRunId": "cmvic0v82004i915h0mb2sm90",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/8e6d2938780abd1d",
+      "candidate": "47a69481ffc844d77249ef3b9d158edf1d5e4e88",
+      "phase": "implement",
+      "state": "active",
+      "revision": 24,
+      "active": [
+        {
+          "id": "cmvic0v82004i915h0mb2sm90",
+          "status": "running"
+        }
+      ],
+      "originalSessions": [
+        "01a15881-088a-7ff0-9649-b183aaa8bb3a"
+      ],
+      "participants": [
+        {
+          "harness": "codex",
+          "status": "running",
+          "session": "01a15881-088a-7ff0-9649-b183aaa8bb3a"
+        }
+      ],
+      "sandboxes": [
+        {
+          "backend": "bubblewrap",
+          "host": "hello",
+          "uid": 1000,
+          "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+          "root": {
+            "pid": 78263,
+            "startTime": "2731765185"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_FANUC",
+      "status": "claimed",
+      "executionId": "cmvdmf880044n9xhgpxl58qyi",
+      "jobStatus": "claimed",
+      "taskRunId": "cmvic0uul0045915hgyfxisfo",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/eb53470628b54eec",
+      "candidate": "c4b213a85f3dcf12563934fff64c64863c39d40e",
+      "phase": "integrate",
+      "state": "active",
+      "revision": 881,
+      "active": [
+        {
+          "id": "cmvic0uul0045915hgyfxisfo",
+          "status": "running"
+        }
+      ],
+      "originalSessions": [
+        "01a15880-856e-75c0-9658-d85b0a62e03c"
+      ],
+      "participants": [
+        {
+          "harness": "codex",
+          "status": "running",
+          "session": "01a15880-856e-75c0-9658-d85b0a62e03c"
+        }
+      ],
+      "sandboxes": [
+        {
+          "backend": "bubblewrap",
+          "host": "hello",
+          "uid": 1000,
+          "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+          "root": {
+            "pid": 77770,
+            "startTime": "2731765138"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_ARBURG",
+      "status": "claimed",
+      "executionId": "cmvdmf880044h9xhgr7zjz83d",
+      "jobStatus": "claimed",
+      "taskRunId": "cmvic0tk10032915hewtfv29m",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/38fc3221b6306433",
+      "candidate": "d587b4b2f17996fb56cbf247b4b743831681324d",
+      "phase": "implement",
+      "state": "active",
+      "revision": 35,
+      "active": [
+        {
+          "id": "cmvic0tk10032915hewtfv29m",
+          "status": "running"
+        }
+      ],
+      "originalSessions": [
+        "01a1587f-59e8-7aa3-a74b-ad944ffaa185"
+      ],
+      "participants": [
+        {
+          "harness": "codex",
+          "status": "running",
+          "session": "01a1587f-59e8-7aa3-a74b-ad944ffaa185"
+        }
+      ],
+      "sandboxes": [
+        {
+          "backend": "bubblewrap",
+          "host": "hello",
+          "uid": 1000,
+          "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+          "root": {
+            "pid": 77337,
+            "startTime": "2731765102"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_BOLE",
+      "status": "passed",
+      "executionId": "cmvdmf880044j9xhgfq8r9py1",
+      "jobStatus": "integrated",
+      "taskRunId": "cmvibc9vq16ta703ad0irnqhs",
+      "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/4f7c7d45db23a834",
+      "candidate": "4762630515d354c4bbe1086bbeecb3e3a2f78f6a",
+      "phase": "acceptance",
+      "state": "active",
+      "revision": 55,
+      "active": [],
+      "originalSessions": [
+        "01a1587f-60a4-78b3-93ba-de4f05d21a97"
+      ],
+      "participants": [
+        {
+          "harness": "codex",
+          "status": "completed",
+          "session": "01a1587f-60a4-78b3-93ba-de4f05d21a97"
+        }
+      ],
+      "sandboxes": [
+        {
+          "backend": "bubblewrap",
+          "host": "hello",
+          "uid": 1000,
+          "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+          "root": {
+            "pid": 4171165,
+            "startTime": "2731650246"
+          }
+        }
+      ]
+    }
+  ]
+}

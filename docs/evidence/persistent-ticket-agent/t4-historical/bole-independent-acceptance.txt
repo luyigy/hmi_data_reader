@@ -1,0 +1,31 @@
+R6_BOLE 独立验收复核报告
+结论：批准本次 Reader 票据固定交付。原范围内 HTTP500/CLI 崩溃缺陷已实际复验消除。此批准不代表 Model 业务接纳、生产部署或全部伯乐控制器支持。
+
+依据与范围
+固定源码由平台绑定 Reader 4762630515d354c4bbe1086bbeecb3e3a2f78f6a。源码目录为 /data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/4f7c7d45db23a834。
+已读批准 Spec 只读副本及 acceptance.md/slices.md/tickets.md，重点 A04/A07/A11/A17/A18 和 P6。M6_BOLE 另负责 Model 从原屏到工艺保存重开。按 coverage.json 冻结范围核查 B_AND_R 既有五段射胶/保压页 v2 0.6.0 部分识读、储料既有v2与温度既有v1回归；不新增控制器或物理版式，代际仍未知，温度v2和冷却仍未支持。
+原 ae022f1819b5005e4031c863 报告、输入真值和 JSON，以及 fcbd0f22bc49278921397e56 回修报告、驱动、原始 CLI/API/readback 和固定包哈希均已读取。保留原10项通过，不将旧报告当本版本通过证据。
+
+执行与通过结果
+1. 独立执行固定源码：PYTHONDONTWRITEBYTECODE=1 AP_GRAPH_OUTPUT_DIR=<本报告目录> /data1/code/hmi_data_reader/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_hmi_protocol_library_r6_bole.py。
+退出0，12 passed, 5 warnings in 56.80s。完整日志 acceptance-tests.log。本轮产物包括真实CPU OCR、普通/固定绑定multipart ASGI HTTP API、CLI、原图hash/框/状态、受控模板草稿保存及GET、包离线导入、旧包读回、旧页回归、错绑/未知/停用/冲突/不兼容、缺值/低置信/重复段/反序/错误单位及非法hash/损坏包失败路径。
+2. 上轮失败原图1 a9b6de684ae93c312a1c8cb7b8eb22eeee1ce6bcf2d903cd05ab0318b3e5cf1c，当前已纳入故障回归夹具。本轮目视原图并核对SHA，实际矫正和OCR。普通、固定绑定上传均422，detail.code=BOLE_INJECTION_LAYOUT_UNVERIFIED，中文原因要求核对原图或补拍完整屏幕，action=review_or_recapture_full_screen。见 cropped-http-plain.json / cropped-http-bound.json。
+CLI普通及绑定调用均退出0，落盘status=reject，fields/page_observations为空，无extraction_detail或generic fallback，保留真实OCR行。见 cropped-cli-plain.json / cropped-cli-bound.json。CLI退出0只表示处理完成，不表示识图成功。测试断言实际子进程退出码；fresh-reopen.json由独立新进程再次读取拒识落盘结果并核对。原图仍不受支持，不宣称生成合格v2观测。
+3. 独立补验上轮第二张原图 646b76c8803361ec9cb833a9faa9cd63810934d24e37c324793343619a9e2148。本轮读取旧授权published/a63dbd...原图，重新目视核对转录，再执行 supplement.py。没有将其称为新盲测图，也没有重新请求用户材料。
+驱动实际命令为 Reader Python -c exec(compile(open(<本报告目录>/supplement.py).read(),'supplement.py','exec'))，固定源码cwd，不设置PYTHONPATH。内部执行真实矫正/CPU OCR、普通和绑定multipart API（均200），再执行 scripts/extract_fields.py independent --rectified-dir <目录>/second/new-input --output-dir <目录>/second/cli --observations-version v2 --original-image <原图> --record-report <不存在路径> --labels <不存在路径>。完整argv、退出码0和输出见 second/cli-process.json。
+直接/API普通/API绑定/CLI四份记录各47字段、32非空值，逐值与目视转录一致，全部state=unknown，coverage=partial。直接与CLI字段完全等值。新进程从CLI落盘重开、固定包校验通过且未导入PaddleOCR，结果完全相同。见 supplement.log、second/new-input-result.json、second/independent-checks.json、second/fresh-process-record.json。
+4. 使用已批准 Model 现有 backend/.venv/bin/python 中 jsonschema 对上述4份记录校验冻结 raw_contract，全部通过，见 model-schema-check.json。这仅是跨环境合同校验，未调用 Model 业务服务。
+5. 独立新进程执行 reopen.py，从本轮隔离模板存储 GET 已保存模板草稿，响应与磁盘JSON完全一致；GET冻结0.6.0包并离线导入相同，未导入PaddleOCR。见 fresh-reopen.log / fresh-reopen.json。这不是 Model 采集组保存重开。
+6. immutable-current.json核对冻结0.6.0包、字段定义和识读器与回修原始哈希完全一致。12项测试另外实际验证旧包/脚本未变以及非法hash、损坏包不会误转换为可补拍的拒识。
+
+流程与环境
+已读 AGENTS、poteto-mode、Codex映射、Session pickup 和项目 ap-task-graph 适配；check-playbooks.mjs . 实际输出 Every project playbook matches this pstack's playbooks。记录见 todo.md。项目 .agents/skills/verify/SKILL.md 与 .claude/skills/verify/SKILL.md 经直接test确认缺失，因此使用ticket明确入口与实际API/CLI，不宣称skill已验证。poteto可选叶技能链接当前不可读，未以技能名称替代任何验证。未创建PLAN/HANDOVER，未派生写入Agent。
+复用Reader既有Python与Model批准解释器；未设置PYTHONPATH、安装依赖或创建环境。仅将既有OCR模型缓存复制到本轮可写目录。无共享业务数据写入，源码/原图/旧证据/额外仓无修改。测试中API为真实应用的ASGI multipart调用，不宣称TCP或浏览器验证。
+
+缺陷与未测
+本次范围内未发现遗留阻断缺陷，原HTTP500缺陷关闭。不把未知代际、温度v2、冷却或未决启用状态伪报支持。依赖告警不影响本轮通过。
+浏览器1440/390、Model原屏及采集组预览确认/业务草稿保存GET重开、正式Run和生产部署未测，属于后续Model/联合范围。本次Reader文件保存/模板GET不能替代它们。
+输入清单inputs=[]，话题扫描items=[]仅说明该扫描范围无图。已授权旧原图可读取，未造成输入阻塞。回修报告另一个published路径在当前未挂载，直接使用旧验收回执中的可读原图，不要求用户重发。
+
+修改文件
+交付源码、原图和额外仓修改为零。只在本轮AP_GRAPH_OUTPUT_DIR新增补验驱动supplement.py、reopen.py、todo.md、日志、隔离模板数据、OCR缓存/矫正产物、CLI文件、原始JSON及本报告与证据哈希清单。

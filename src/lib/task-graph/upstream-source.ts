@@ -15,6 +15,11 @@ export function upstreamRoot() {
 
 /** A verified plain tree, not a worktree and not another writable repository. Caller holds the repository lock. */
 export async function materializeUpstream(repository: string, commit: string) {
+  const maxBytes = Number(process.env.TASK_GRAPH_UPSTREAM_MAX_BYTES ?? 256 * 1024 * 1024);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('TASK_GRAPH_UPSTREAM_MAX_BYTES must be a positive safe integer');
+  const assertCapacity = (bytes: number) => {
+    if (bytes > maxBytes) throw new Error(`上游源码 ${bytes} 字节超过宿主容量 ${maxBytes} 字节（TASK_GRAPH_UPSTREAM_MAX_BYTES）`);
+  };
   if (!/^[a-f0-9]{40,64}$/.test(commit)) throw new Error('Invalid upstream commit');
   repository = await fs.realpath(repository);
   if (!await graphGit(repository, 'for-each-ref', '--contains', commit, '--format=%(refname)')) throw new Error('上游提交没有受保护 Git 引用，不能保证重建');
@@ -25,7 +30,7 @@ export async function materializeUpstream(repository: string, commit: string) {
     if (!match) throw new Error('上游源码包含符号链接、子模块或特殊文件，需显式适配');
     const name = match[4];
     total += Number(match[3]);
-    if (total > 256 * 1024 * 1024) throw new Error('上游源码超过 256 MiB 限制');
+    assertCapacity(total);
     if (name.startsWith('/') || name.split('/').some(part => !part || part === '..' || part === '.' || part === '.git')) throw new Error('Unsafe upstream path');
     return { name, oid: match[2], mode: match[1] };
   });
@@ -56,7 +61,7 @@ export async function materializeUpstream(repository: string, commit: string) {
       if (Boolean((await fs.stat(source)).mode & 0o111) !== (file.mode === '100755')) throw new Error('上游源码执行权限与 Git 不一致');
       const content = await fs.readFile(source);
       bytes += content.length;
-      if (bytes > 256 * 1024 * 1024) throw new Error('上游源码超过 256 MiB 限制');
+      assertCapacity(bytes);
       if (content.subarray(0, 100).toString().startsWith('version https://git-lfs.github.com/spec/v1')) throw new Error('上游包含未物化 LFS 内容，不能将指针当交付');
       const oid = createHash(file.oid.length === 40 ? 'sha1' : 'sha256').update(`blob ${content.length}\0`).update(content).digest('hex');
       if (oid !== file.oid) throw new Error('上游固定源码内容与 Git 不一致，保留现场');
