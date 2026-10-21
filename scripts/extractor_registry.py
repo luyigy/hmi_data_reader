@@ -6,6 +6,7 @@ from contract import _field_catalog
 
 # ID, module, function, input kind, image support, supported pages.
 _EXTRACTORS = {
+    "arburg.selogica_metering_decimal": ("arburg_decimal", "extract_decimal_selogica", "ocr", False, ("storage_cooling",)),
     "demag.configuration": ("demag_configuration", "extract_configuration", "ocr", False, ("injection_metering",)),
     "arburg.selogica_metering": ("arburg_metering", "extract_selogica", "ocr", False, ("storage_cooling",)),
     "b_and_r.metering": ("b_and_r_metering", "extract_metering", "ocr", False, ("storage_cooling",)),

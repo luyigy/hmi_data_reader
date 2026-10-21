@@ -674,7 +674,8 @@ def main():
             import hashlib
             import cv2
             from raw_observations import (observe_temperature_time_page, select_raw_profile,
-                                          recover_temperature_time_cells, DEFINITIONS, RawPageRejected)
+                                          recover_temperature_time_cells, DEFINITIONS, RawPageRejected,
+                                          VERSIONED_RECOVERY)
             try:
                 raw_profile = select_raw_profile(r.get("profile_id"), json.loads(
                     (rectified_dir / f"{stem}.ocr.json").read_text())["lines"])
@@ -701,6 +702,13 @@ def main():
                 from raw_page_ocr import engine_identity
                 engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
                 ocr["lines"] = recover_temperature_time_cells(engine, rectified, meta, ocr["lines"], raw_profile)
+            recovery = VERSIONED_RECOVERY.get((raw_profile, r.get("template_version", "1.0.0")))
+            if recovery is not None and rectified is not None:
+                from paddleocr import PaddleOCR
+                from raw_page_ocr import engine_identity
+                if engine is None:
+                    engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
+                ocr["lines"] = recovery(engine, rectified, meta, ocr["lines"])
             try:
                 r["page_observations"] = observe_temperature_time_page(
                     raw_profile, ocr["lines"], meta,

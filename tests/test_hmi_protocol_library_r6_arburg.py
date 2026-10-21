@@ -44,7 +44,7 @@ def live():
     directory = Path(tempfile.mkdtemp(prefix="arburg-live-", dir=OUTPUT))
     engine = PaddleOCR(use_gpu=False, use_angle_cls=False, lang="ch", show_log=False)
     samples = {}
-    for name in ("development", "retained", "injection-regression"):
+    for name in ("development", "retained", "injection-regression", "decimal-diagnostic"):
         image = DATA / (name + ".jpg")
         meta = rectify(image, directory / (name + ".png"), directory / (name + ".rectify.json"))
         assert meta["ok"], meta
@@ -72,7 +72,7 @@ def storage(monkeypatch):
     monkeypatch.setenv("HMI_TEMPLATE_WRITE_KEY", "arburg-isolated")
     app = FastAPI()
     app.include_router(admin.router)
-    template = json.loads((ROOT / "templates/arburg/selogica_metering.json").read_text())
+    template = json.loads((ROOT / "templates/versions" / PROFILE / "1.0.0.json").read_text())
     samples = json.loads((DATA / "samples.json").read_text())
     headers = {"Authorization": "Bearer arburg-isolated"}
     with TestClient(app) as client:
@@ -94,7 +94,7 @@ def test_a17_source_inventory_and_development_retained_identity(live):
     inventory = json.loads((DATA / "inventory.json").read_text())
     assert inventory["all_query_pages_read"] is True
     assert inventory["records"] == 334 and len(inventory["references"]) == 983
-    assert len({sample["sha256"] for sample in live[2].values()}) == 3
+    assert len({sample["sha256"] for sample in live[2].values()}) == 4
     for name in ("development", "retained"):
         truth = json.loads((DATA / (name + ".truth.json")).read_text())
         assert live[2][name]["sha256"] == truth["image_sha256"]
@@ -303,3 +303,111 @@ def test_real_http_upload_v2_and_cli_use_same_package(storage, live, monkeypatch
     cli = json.loads((OUTPUT / "cli/retained.fields.json").read_text())["page_observations"]
     assert cli["package_sha256"] == observation["package_sha256"]
     assert cli["image_sha256"] == observation["image_sha256"]
+
+
+@pytest.fixture
+def decimal_storage(storage):
+    root, app, old_hint, old_package = storage
+    template = copy.deepcopy(old_package["template"])
+    template.update(version="1.0.1", extractor_id="arburg.selogica_metering_decimal")
+    template["sample_ids"] = ["development", "retained", "decimal-diagnostic"]
+    template["page_identity"]["evidence_sample_ids"] = template["sample_ids"]
+    samples = json.loads((DATA / "samples-1.0.1.json").read_text())
+    headers = {"Authorization": "Bearer arburg-isolated"}
+    with TestClient(app) as client:
+        response = client.put(f"{PREFIX}/drafts/{PROFILE}", headers=headers,
+                              json=dict(expected_version="1.0.0", expected_revision=1, template=template, samples=samples))
+        assert response.status_code == 200, response.text
+        response = client.post(f"{PREFIX}/drafts/{PROFILE}/publish", headers=headers,
+                               json=dict(expected_version="1.0.0", expected_revision=2, confirmation="publish_confirmed"))
+        assert response.status_code == 200, response.text
+        response = client.get(f"{PREFIX}/{PROFILE}/package", params={"version": "1.0.1"})
+        assert response.status_code == 200, response.text
+        package = response.json()
+    hint = copy.deepcopy(old_hint)
+    hint["pages"][0].update(version="1.0.1", package_sha256=canonical_hash(package))
+    return root, app, hint, package, old_package
+
+
+def test_decimal_format_gate_keeps_unconfirmed_ocr_value_uncertain(live):
+    from extract_families.arburg_decimal import extract_decimal_selogica
+    sample = live[2]["decimal-diagnostic"]
+    lines = copy.deepcopy(sample["ocr"]["lines"])
+    template = dict(profile_id=PROFILE)
+    result = extract_decimal_selogica(lines, template, sample["meta"])
+    field = next(f for f in result["detail"]["page_observations"]["fields"] if f["screen_field_key"] == "decompression.speed")
+    assert field["original_value"] == 500 and field["reading"] == "uncertain"
+    assert "display_decimal_format_unverified" in field["reasons"]
+    source = next(line for line in lines if line["text"] == "500")
+    for text, expected, reading in (("760", 760, "uncertain"), ("75.0", 75, "known")):
+        source["text"] = text
+        source["conf"] = .999
+        result = extract_decimal_selogica(lines, template, sample["meta"])
+        field = next(f for f in result["detail"]["page_observations"]["fields"] if f["screen_field_key"] == "decompression.speed")
+        assert field["original_value"] == expected and field["reading"] == reading
+
+
+@pytest.mark.parametrize("name", ["development", "retained", "decimal-diagnostic"])
+def test_decimal_real_cell_ocr_and_original_coordinates(decimal_storage, live, name):
+    import cv2
+    from raw_arburg_decimal import observe_decimal_selogica
+    from extract_families.arburg_decimal import recover_decimal_cells
+
+    root, _, _, package, _ = decimal_storage
+    sample = live[2][name]
+    image = cv2.imread(str(live[1] / (name + ".png")), cv2.IMREAD_GRAYSCALE)
+    lines = recover_decimal_cells(live[0], image, sample["meta"], sample["ocr"]["lines"])
+    observation = observe_decimal_selogica(lines, sample["meta"], sample["sha256"], root)
+    observation["engine"] = sample["ocr"]["engine_identity"]
+    validate_raw_record(observation, package)
+    truth = json.loads((DATA / (name + ".truth.json")).read_text())["values"]
+    for field in observation["fields"]:
+        if field["reading"] == "known":
+            assert field["original_value"] == truth[field["screen_field_key"]], field
+        assert field["state"] == "unknown"
+    if name == "decimal-diagnostic":
+        field = next(f for f in observation["fields"] if f["screen_field_key"] == "decompression.speed")
+        assert field["original_value"] == 50 and field["reading"] == "known"
+        assert field["text"] == "50.0" and field["evidence_method"] == "decimal_cell_ocr"
+        assert field["supersedes_ocr"]["text"] == "500"
+        assert field["bbox"] and field["original_bbox"]
+    record(name + "-decimal-observations", observation)
+
+
+def test_decimal_http_cli_real_original_and_versioned_get(decimal_storage, live, monkeypatch):
+    import hmi_service as service
+    root, app, hint, package, old_package = decimal_storage
+    monkeypatch.setattr(service, "HERE", root)
+    monkeypatch.setattr(service.tempfile, "tempdir", str(OUTPUT))
+    monkeypatch.delenv("HMI_API_KEY", raising=False)
+    monkeypatch.setattr(service, "ocr_model", live[0])
+    monkeypatch.setattr(service, "is_ready", True)
+    monkeypatch.setattr(service, "concurrency_semaphore", asyncio.Semaphore(1))
+    async def upload():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app), base_url="http://reader") as client:
+            return await client.post("/api/v1/recognize", params=dict(observations_version="v2", controller_hint=json.dumps(hint)),
+                                     files={"file": ("diagnostic.jpg", (DATA / "decimal-diagnostic.jpg").read_bytes(), "image/jpeg")})
+    response = asyncio.run(upload())
+    assert response.status_code == 200, response.text
+    payload = response.json(); observation = payload["page_observations"]
+    validate_raw_record(observation, package)
+    field = next(f for f in observation["fields"] if f["screen_field_key"] == "decompression.speed")
+    assert field["original_value"] == 50 and field["reading"] == "known", field
+    assert observation["image_sha256"] == live[2]["decimal-diagnostic"]["sha256"]
+    record("decimal-http-v2", payload)
+    hint_file = OUTPUT / "decimal-hint.json"; hint_file.write_text(json.dumps(hint))
+    command = [sys.executable, str(ROOT / "scripts/extract_fields.py"), "decimal-diagnostic", "--rectified-dir", str(live[1]),
+               "--output-dir", str(OUTPUT / "decimal-cli"), "--templates-dir", str(root / "templates"),
+               "--controller-hint", str(hint_file), "--observations-version", "v2", "--original-image", str(DATA / "decimal-diagnostic.jpg"),
+               "--record-report", str(OUTPUT / "absent"), "--labels", str(OUTPUT / "absent")]
+    completed = subprocess.run(command, capture_output=True, text=True, timeout=90, cwd=ROOT)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    cli = json.loads((OUTPUT / "decimal-cli/decimal-diagnostic.fields.json").read_text())["page_observations"]
+    assert cli["fields"] == observation["fields"]
+    for version, expected in (("1.0.0", old_package), ("1.0.1", package)):
+        with TestClient(app) as reopened:
+            response = reopened.get(f"{PREFIX}/{PROFILE}/package", params={"version": version})
+        assert response.status_code == 200 and response.json() == expected
+    assert canonical_hash(old_package) == "fe755a802f7ef83f72dc2d0e366266d1765152e4e6be925cdb8e2b95fc0399e8"
+    record("decimal-api-cli-result", dict(http=50.0, cli=50.0, fields_equal=True, command=command,
+                                          old_package_sha256=canonical_hash(old_package), new_package_sha256=canonical_hash(package)))

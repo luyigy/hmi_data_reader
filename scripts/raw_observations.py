@@ -7,6 +7,10 @@ from raw_metering import PROFILE, ROOT, observe_metering_page
 from raw_arburg import PROFILE as SELOGICA_PROFILE, observe_selogica
 from raw_demag_configuration import PROFILE as CONFIGURATION_PROFILE, observe_configuration_page
 from raw_bole_injection import PROFILE as BOLE_INJECTION, observe_bole_injection
+from raw_arburg_decimal import observe_decimal_selogica
+from extract_families.arburg_decimal import recover_decimal_cells
+
+VERSIONED_RECOVERY = {(SELOGICA_PROFILE, "1.0.1"): recover_decimal_cells}
 
 
 class RawPageRejected(ValueError):
@@ -32,6 +36,8 @@ def select_raw_profile(profile_id, lines):
 def observe_temperature_time_page(profile_id, lines, meta, image_sha256, rectified_image=None,
                                   package_root=ROOT, package_version="1.0.0"):
     if profile_id == SELOGICA_PROFILE:
+        if package_version == "1.0.1":
+            return observe_decimal_selogica(lines, meta, image_sha256, package_root, package_version)
         return observe_selogica(lines, meta, image_sha256, package_root, package_version)
     if profile_id == CONFIGURATION_PROFILE:
         return observe_configuration_page(lines, meta, image_sha256, package_root, package_version)

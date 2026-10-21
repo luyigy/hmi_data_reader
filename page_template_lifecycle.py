@@ -202,6 +202,12 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
             samples.append({**sample, "ocr_content_sha256": digest})
         package = {"package_schema": "hmi_page_package.v1", "profile_id": profile_id,
                    "version": version, "template": template, "samples": samples}
+        if template.get("extractor_id") == "arburg.selogica_metering_decimal":
+            from scripts.raw_arburg_decimal import build_decimal_package
+            try:
+                package = build_decimal_package(template, samples)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
         if template.get("extractor_id") == "arburg.selogica_metering":
             from scripts.raw_arburg import build_selogica_package
             try:

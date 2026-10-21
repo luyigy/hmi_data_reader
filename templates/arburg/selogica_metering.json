@@ -2,7 +2,7 @@
   "business_profile_candidate": {},
   "contract_version": "2.11.0",
   "extractor": "registered_extractor",
-  "extractor_id": "arburg.selogica_metering",
+  "extractor_id": "arburg.selogica_metering_decimal",
   "extractor_version": "1",
   "layout_anchors": [
     "剩余冷却时间",
@@ -15,7 +15,8 @@
     "controller_family": "SELOGICA",
     "evidence_sample_ids": [
       "development",
-      "retained"
+      "retained",
+      "decimal-diagnostic"
     ],
     "interface_generation": null,
     "layout_variant": "selogica_two_stage",
@@ -25,8 +26,9 @@
   "require_anchor_match": true,
   "sample_ids": [
     "development",
-    "retained"
+    "retained",
+    "decimal-diagnostic"
   ],
   "ui_family": "ARBURG",
-  "version": "1.0.0"
+  "version": "1.0.1"
 }

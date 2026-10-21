@@ -1,0 +1,32 @@
+{
+  "business_profile_candidate": {},
+  "contract_version": "2.11.0",
+  "extractor": "registered_extractor",
+  "extractor_id": "arburg.selogica_metering",
+  "extractor_version": "1",
+  "layout_anchors": [
+    "剩余冷却时间",
+    "进料后[:：]?"
+  ],
+  "layout_variant": "selogica_two_stage",
+  "page": "storage_cooling",
+  "page_identity": {
+    "brand": "ARBURG",
+    "controller_family": "SELOGICA",
+    "evidence_sample_ids": [
+      "development",
+      "retained"
+    ],
+    "interface_generation": null,
+    "layout_variant": "selogica_two_stage",
+    "page_type": "storage_cooling"
+  },
+  "profile_id": "arburg.storage_cooling.selogica_two_stage",
+  "require_anchor_match": true,
+  "sample_ids": [
+    "development",
+    "retained"
+  ],
+  "ui_family": "ARBURG",
+  "version": "1.0.0"
+}
