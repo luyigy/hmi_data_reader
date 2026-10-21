@@ -39,7 +39,7 @@ export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId:
   }
   const status = args.kind === 'platform_failure' && !exhausted ? 'verifying' : 'attention';
   await tx.taskGraphNode.update({ where: { id: nodeId }, data: { status } });
-  if (status === 'verifying') await tx.taskGraphRun.update({ where: { id: node.runId }, data: { status: 'running' } });
+  if (status === 'verifying') await tx.taskGraphRun.updateMany({ where: { id: node.runId, status: { not: 'paused' } }, data: { status: 'running' } });
   return status;
 }
 

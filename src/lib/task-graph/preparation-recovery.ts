@@ -112,7 +112,7 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
     await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
       outcomeId: key, outcome: { kind: 'review_platform_prepared', preparationEventId: event.id } });
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'verifying' } });
-    await tx.taskGraphRun.update({ where: { id: receipt.runId }, data: { status: 'running' } });
+    await tx.taskGraphRun.updateMany({ where: { id: receipt.runId, status: { not: 'paused' } }, data: { status: 'running' } });
     return { kind: 'registered', eventId: event.id };
   });
 }

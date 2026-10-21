@@ -21,6 +21,7 @@ function parseInput(id: string, raw: Prisma.JsonValue): ConversationInput {
 }
 export const conversationReceiptKey = (id: string) => `conversation-input:${id}:delivery`;
 const unassignedInput = Prisma.sql`i.kind = 'conversation_input'
+  AND EXISTS (SELECT 1 FROM "TaskGraphRun" g WHERE g.id = i."runId" AND g.status <> 'paused')
   AND NOT EXISTS (SELECT 1 FROM "TaskGraphEvent" r WHERE r."runId" = i."runId" AND r."idempotencyKey" = 'conversation-input:' || i.id || ':delivery')
   AND NOT EXISTS (SELECT 1 FROM "TaskGraphEvent" s WHERE s."runId" = i."runId" AND s."idempotencyKey" = 'conversation-input:' || i.id || ':delivery:steering'
     AND NOT EXISTS (SELECT 1 FROM "TaskGraphEvent" r WHERE r."runId" = s."runId" AND r."idempotencyKey" = s."idempotencyKey" || ':result' AND r.payload->>'result' = 'rejected'))`;
@@ -261,7 +262,7 @@ export async function reconcileConversationWaits() {
           previousClaimToken: before.claimToken, previousTaskRunId: before.taskRunId, expectedRevision: progress.revision, revision: progress.revision + 1,
           candidateCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, worktreePath: before.worktreePath, writerExited: true } } });
       await tx.taskGraphNode.update({ where: { id: before.nodeId }, data: { status: 'claimed' } });
-      await tx.taskGraphRun.update({ where: { id: current.runId }, data: { status: 'running' } });
+      await tx.taskGraphRun.updateMany({ where: { id: current.runId, status: { not: 'paused' } }, data: { status: 'running' } });
     });
   }
 }

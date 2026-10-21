@@ -1,3 +1,4 @@
+import { stopPausedGraphTurns, requireGraphRunActive, graphRunIsPaused } from './run-control';
 import { scheduleVerificationRecovery } from './review-recovery';
 import { recoverPendingReviewRepairs } from './pending-review-repair';
 import { conversationInputs, conversationPrompt, sealConversationTurn, reconcileConversationWaits, deliverConversationSteering, reconcileConversationDeliveries } from './conversation-inbox';
@@ -221,6 +222,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     await assertReviewWorkspacesClean(workspaces);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    if (await graphRunIsPaused(runId)) return;
     const failure = reviewPreparationFailure(error);
     await publishReviewPreparationFailure(node.id, failure.failure, failure.retry, reviewPhase);
     await refreshTaskGraphRunStatus(runId);
@@ -246,6 +248,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     runId, nodeId: node.id, nodeKey, definition, commits, workspaces, evidence, reviewAttempt,
   }).catch(async error => {
     const detail = error instanceof Error ? error.message : String(error);
+    if (await graphRunIsPaused(runId)) return;
     const failure = reviewPreparationFailure(error);
     await publishReviewPreparationFailure(node.id, failure.failure, failure.retry, reviewPhase);
     await refreshTaskGraphRunStatus(runId);
@@ -340,6 +343,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
       ...(['blocked_require_human', 'ownership_mismatch'].includes(String(reviewDecision.failureKind)) ? { decision: { code: reviewDecision.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: String(reviewDecision.note) } } : {}) };
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
+      if (await graphRunIsPaused(runId)) return;
       const failure = reviewPreparationFailure(error);
       await publishReviewPreparationFailure(node.id, failure.failure, failure.retry, 'acceptance');
       await refreshTaskGraphRunStatus(runId);
@@ -436,6 +440,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   try {
     await outcome({ kind: 'checkpoint', phase: persisted?.phase || 'prepare', worker });
     const { integration, workspace } = await withRepositoryLock(execution.repository, async () => {
+      await requireGraphRunActive(runId);
       await assertExecutionOwnership(execution.id, claimToken);
       const integration = await ensureIntegrationRef({
         repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit,
@@ -465,6 +470,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       });
       return { integration, workspace };
     });
+    await requireGraphRunActive(runId);
     await assertExecutionOwnership(execution.id, claimToken);
     const implementationBase = await graphGit(workspace.path, 'rev-parse', 'HEAD');
     const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
@@ -532,6 +538,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       throw error;
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
+    if (await graphRunIsPaused(runId)) return;
     const extra = await prepareExtraRepositories(definition.nodes.find(node => node.key === nodeKey)?.extraRepositories);
     const extraRepositoryState = await Promise.all(extra.details.map(async repo => ({ ...repo, workingTreeStatus: (await graphGit(repo.repository, 'status', '--porcelain', '--untracked-files=all')).slice(0, 8000) })));
     if (extraRepositoryState.length) await prisma.taskGraphEvent.create({ data: { runId, nodeId: execution.nodeId,
@@ -552,6 +559,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       }
     }
     const candidate = await withRepositoryLock(execution.repository, async () => {
+      await requireGraphRunActive(runId);
       await assertExecutionOwnership(execution.id, claimToken);
       if (progress.conflictRepair && repairRuntime) return finishConflictRepair({
         repoPath: execution.repository, runId, jobId: execution.id, baseCommit: workspace.baseCommit, integrationRef: integration.ref,
@@ -588,6 +596,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     }
     let checks: CheckResult[] = [];
     const latest = await withRepositoryLock(execution.repository, async () => {
+      await requireGraphRunActive(runId);
       await assertExecutionOwnership(execution.id, claimToken);
       return ensureIntegrationRef({ repoPath: execution.repository, runId, baseRef: execution.gitRef, baseCommit: execution.baseCommit });
     });
@@ -597,6 +606,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       integrationRef: latest.ref, expectedIntegrationCommit: latest.commit, baseCommit: workspace.baseCommit,
       maxAttempts: Math.max(1, 3 - (beforeIntegration?.integrationAttempts || 0)),
       assertOwnership: async () => {
+        await requireGraphRunActive(runId);
         await assertExecutionOwnership(execution.id, claimToken);
         if (progress.conflictRepair) await assertConflictIntegrationBaseline({ repoPath: execution.repository, runId,
           baseCommit: workspace.baseCommit, integrationRef: latest.ref, checkpoint: progress.conflictRepair,
@@ -619,6 +629,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
     await verifyNode(runId, nodeKey, checkpoint ? `continuation:${claimToken}` : repair ? `repair:${repair.id}` : undefined);
   } catch (error) {
+    if (await graphRunIsPaused(runId)) return;
     const detail = error instanceof Error ? error.message : String(error);
     const kind = error instanceof TaskInputPreparationError ? 'input_preparation_failed'
       : error instanceof TaskGraphGitError ? error.code : checkFailure(error) ? 'test_failed' : 'dispatch_failed';
@@ -629,6 +640,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         const saved = executionProgress(current.dispatchMetadata)!;
         if (current.worktreePath && !saved.conflictRepair) {
           const candidateCommit = await withRepositoryLock(execution.repository, async () => {
+            await requireGraphRunActive(runId);
             await assertExecutionOwnership(execution.id, claimToken);
             return commitJobWorktree({ repoPath: execution.repository, runId, jobId: execution.id, message: `Runtime preparation checkpoint ${nodeKey}/${execution.key}` });
           });
@@ -637,6 +649,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         await outcome({ kind: preparation.kind === 'transient' ? 'platform_retry' : 'decision_required', failure: { ...preparation.failure, blockedPhase: 'input_preparation' } });
       } else if (error instanceof TaskInputPreparationError && current.worktreePath) {
         const checkpointCommit = executionProgress(current.dispatchMetadata)?.conflictRepair?.candidateCommit || await withRepositoryLock(execution.repository, async () => {
+          await requireGraphRunActive(runId);
           await assertExecutionOwnership(execution.id, claimToken);
           return commitJobWorktree({
             repoPath: execution.repository, runId, jobId: execution.id, message: `Input preparation checkpoint ${nodeKey}/${execution.key}`,
@@ -649,8 +662,10 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       } else {
         const failedCheck = checkFailure(error);
         if (failedCheck) {
+          await requireGraphRunActive(runId);
           await assertExecutionOwnership(execution.id, claimToken);
           const candidateCommit = await withRepositoryLock(execution.repository, async () => {
+            await requireGraphRunActive(runId);
             await assertExecutionOwnership(execution.id, claimToken);
             return commitJobWorktree({
               repoPath: execution.repository, runId, jobId: execution.id, message: `Checked candidate ${nodeKey}/${execution.key}`,
@@ -716,6 +731,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
 
 /** Prior writers retain ownership until their actual exit is proven. */
 export async function runTaskGraphCycle() {
+  await stopPausedGraphTurns();
   await deliverConversationSteering();
   await reconcileConversationDeliveries();
   await reconcileConversationWaits();

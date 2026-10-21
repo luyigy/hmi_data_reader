@@ -1,3 +1,4 @@
+import { graphRunCanStartTx, requireGraphNodeActiveTx } from './run-control';
 import { isDeepStrictEqual } from 'node:util';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { Prisma } from '@prisma/client';
@@ -46,6 +47,7 @@ async function conversationWorkspace(repository: string, commit: string) {
 /** Read-only turns retain completed/blocked graph state and cannot perform implementation outcomes. */
 export async function bindReadOnlyConversation(tx: Prisma.TransactionClient, args: { executionId: string; reservationId: string; inputIds: string[] }, taskRunId: string) {
   const original = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+  await requireGraphNodeActiveTx(tx, original.nodeId);
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
   const reservation = await tx.taskGraphEvent.findUniqueOrThrow({ where: { id: args.reservationId } });
   const binding = parseReservation(reservation.payload);
@@ -63,7 +65,7 @@ export async function bindReadOnlyConversation(tx: Prisma.TransactionClient, arg
 }
 
 export async function reserveConversationFollowup(nodeId: string) {
-  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+  const beforeNode = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
   const events = await prisma.taskGraphEvent.findMany({ where: { nodeId, kind: { in: ['conversation_followup_reserved', 'conversation_followup_bound', 'conversation_followup_finished'] } }, orderBy: { id: 'asc' } });
   const taskRunIds: string[] = [];
   for (const event of events.filter(event => event.kind === 'conversation_followup_reserved')) {
@@ -75,10 +77,11 @@ export async function reserveConversationFollowup(nodeId: string) {
     } else if (!events.some(item => item.idempotencyKey === `conversation-followup:${event.id}:finished`) &&
       (await observeGraphWriter(parseReservation(event.payload).worker)).kind !== 'exited') return null;
   }
-  const proof = await observeWriterSnapshot({ jobs: node.executions, taskRunIds, scope: 'execution', observeExecution: observeExecutionWriter });
+  const proof = await observeWriterSnapshot({ jobs: beforeNode.executions, taskRunIds, scope: 'execution', observeExecution: observeExecutionWriter });
   if (!proof.exited) return null;
   const worker = await createGraphWriter();
   return prisma.$transaction(async tx => {
+    if (!await graphRunCanStartTx(tx, beforeNode.runId)) return null;
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
     if (!await writerSnapshotMatches(tx, proof)) return null;
     const currentEvents = await tx.taskGraphEvent.findMany({ where: { nodeId, kind: { in: ['conversation_followup_reserved', 'conversation_followup_bound', 'conversation_followup_finished'] } }, orderBy: { id: 'asc' } });

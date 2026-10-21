@@ -1,3 +1,4 @@
+import { graphRunCanStartTx, requireGraphRunActiveTx } from './run-control';
 import type { Prisma } from '@prisma/client';
 import { observeTaskRunWriter } from './writer-ownership';
 import { prisma } from '../prisma';
@@ -19,6 +20,7 @@ export async function graphReviewClaimKey(nodeId: string, phase: 'architecture' 
 /** Reserve phase and claim together, before any reviewer process can launch. */
 export async function reserveGraphReviewClaim(args: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string; payload: Prisma.InputJsonValue }) {
   return prisma.$transaction(async tx => {
+    if (!await graphRunCanStartTx(tx, args.runId)) return false;
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${args.nodeId} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: args.nodeId }, include: { executions: true } });
     if (node.runId !== args.runId || node.status !== 'verifying' || !node.executions.length) throw new Error('Review reservation no longer owns verification');
@@ -45,6 +47,7 @@ export async function reserveGraphReviewClaim(args: { runId: string; nodeId: str
 }
 
 export async function bindGraphReviewTaskRun(tx: Prisma.TransactionClient, args: { runId: string; nodeId: string; phase: 'architecture' | 'acceptance'; claimKey: string }, taskRunId: string) {
+  await requireGraphRunActiveTx(tx, args.runId);
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${args.nodeId} FOR UPDATE`;
   const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: args.nodeId }, include: { executions: true } });
   if (node.runId !== args.runId || node.status !== 'verifying') throw new Error('Review node no longer owns verification');

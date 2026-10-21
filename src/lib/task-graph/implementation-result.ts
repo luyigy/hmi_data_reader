@@ -1,3 +1,4 @@
+import { requireGraphRunActiveTx } from './run-control';
 import { assertExecutionWriterExited } from './phase-worker';
 import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
@@ -106,6 +107,7 @@ export function implementationCheckpoint(payload: unknown, executionId: string) 
 /** Requeue through the existing claims, preserving the previous attempt in an append-only event. */
 export async function scheduleImplementationRecovery(runId: string, nodeKey: string, requestId: string, preparedEventId?: string) {
   return prisma.$transaction(async tx => {
+    await requireGraphRunActiveTx(tx, runId);
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
     const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
@@ -166,7 +168,7 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
       } });
     }
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'ready', passedAt: null, claimToken: null, claimedAt: null } });
-    await tx.taskGraphRun.update({ where: { id: runId }, data: { status: 'running' } });
+    await tx.taskGraphRun.updateMany({ where: { id: runId, status: { not: 'paused' } }, data: { status: 'running' } });
     return { kind: 'scheduled' as const, eventId: event.id };
   });
 }

@@ -1,3 +1,4 @@
+import { graphRunCanStartTx } from './run-control';
 import { assertPendingReviewRepairTx, type PendingReviewRepairBinding } from './pending-review-repair-contract';
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
@@ -13,6 +14,7 @@ export const MAX_AUTO_REPAIR_ATTEMPTS = executionRetryLimits.repairAttempts;
 export async function scheduleGraphRepair(runId: string, nodeKey: string, decision: ReviewDecision, evidence: VerificationEvidence, expectedReview?: PendingReviewRepairBinding) {
   if (decision.approved === true || decision.failureKind !== 'in_scope_defect' || typeof decision.note !== 'string' || !decision.note.trim()) return false;
   return prisma.$transaction(async tx => {
+    if (!await graphRunCanStartTx(tx, runId)) return false;
     const found = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, select: { id: true } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${found.id} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: found.id }, include: { executions: true, run: true } });

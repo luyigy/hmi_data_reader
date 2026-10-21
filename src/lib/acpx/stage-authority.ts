@@ -1,3 +1,4 @@
+import { requireGraphNodeActive } from '../task-graph/run-control';
 import { createHash } from 'node:crypto';
 import { prisma } from '../prisma';
 import { assertExecutionOwnership, executionProgress, immutableDispatchMetadata } from '../task-graph/execution-progress';
@@ -13,6 +14,7 @@ export async function captureStageAuthority(request: AcpxRunRequest, taskRunId: 
   if (request.graphExecution) {
     const binding = request.graphExecution;
     const job = await assertExecutionOwnership(binding.executionId, binding.claimToken, binding.revision);
+    await requireGraphNodeActive(job.nodeId);
     const progress = executionProgress(job.dispatchMetadata);
     if (!progress || job.taskRunId !== taskRunId || progress.taskRunId !== taskRunId || job.childTaskId !== request.taskId) {
       throw new W001StageContractError('execution TaskRun identity changed');
@@ -25,6 +27,7 @@ export async function captureStageAuthority(request: AcpxRunRequest, taskRunId: 
   }
   if (request.graphReview) {
     const binding = request.graphReview;
+    await requireGraphNodeActive(binding.nodeId);
     await assertGraphReviewOwnership(binding.nodeId, binding.phase, binding.claimKey, taskRunId);
     const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: binding.nodeId }, include: { executions: { orderBy: { id: 'asc' } } } });
     if (node.runId !== binding.runId) throw new W001StageContractError('review route identity changed');
@@ -35,6 +38,7 @@ export async function captureStageAuthority(request: AcpxRunRequest, taskRunId: 
   if (!request.graphConversation) throw new W001StageContractError('missing conversation authority');
   const binding = request.graphConversation;
   const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: binding.executionId } });
+  await requireGraphNodeActive(job.nodeId);
   const progress = executionProgress(job.dispatchMetadata);
   const conversation = progress?.conversation;
   if (conversation?.kind !== 'running' || conversation.reservationId !== binding.reservationId || conversation.taskRunId !== taskRunId) {

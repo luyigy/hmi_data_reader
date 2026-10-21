@@ -1,3 +1,4 @@
+import { requireGraphNodeActiveTx } from './run-control';
 import { observeTaskRunWriter, parseGraphWriter, type GraphWriter } from './writer-ownership';
 import { isDeepStrictEqual } from 'node:util';
 import { Prisma } from '@prisma/client';
@@ -164,6 +165,7 @@ export async function applyExecutionOutcome(args: ExecutionOutcomeRequest, db: P
 }
 export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args: ExecutionOutcomeRequest): Promise<ExecutionProgress> {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+    if (!['checkpoint', 'integrated', 'waiting_for_user'].includes(args.outcome.kind)) await requireGraphNodeActiveTx(tx, job.nodeId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
     const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id }, include: { node: true } });
     const idempotencyKey = `execution:${job.id}:outcome:${args.outcomeId}`;
@@ -281,7 +283,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     if (status === 'attention') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
     if (status === 'ready') {
       await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed' } });
-      await tx.taskGraphRun.update({ where: { id: current.node.runId }, data: { status: 'running' } });
+      await tx.taskGraphRun.updateMany({ where: { id: current.node.runId, status: { not: 'paused' } }, data: { status: 'running' } });
     }
     if (outcome.kind === 'decision_required' && ['missing_business_material', 'missing_upstream_input', 'environment_failed', 'scope_change', 'permission_required'].includes(outcome.failure.code)) {
       await tx.taskGraphEvent.create({ data: { runId: current.node.runId, nodeId: job.nodeId,
@@ -302,6 +304,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
 /** Called in the same transaction that creates the TaskRun, before any process starts. */
 export async function bindExecutionTaskRun(tx: Prisma.TransactionClient, args: { executionId: string; claimToken: string; revision: number }, taskRunId: string) {
   const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+  await requireGraphNodeActiveTx(tx, job.nodeId);
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
   const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
   const progress = executionProgress(current.dispatchMetadata);

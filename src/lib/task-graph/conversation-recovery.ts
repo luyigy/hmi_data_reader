@@ -45,7 +45,7 @@ export async function requestGraphConversationRecovery(args: { roomId: string; c
 
 /** Return work to the coordinator's existing in-flight set; never run inside the Feishu callback. */
 export async function startConversationRecoveries(recover: (runId: string, nodeKey: string, recoveryKind: RecoveryKind, requestId: string) => Promise<unknown>) {
-  const requests = await prisma.taskGraphEvent.findMany({ where: { kind: 'conversation_review_recovery_requested', node: { status: 'attention' } },
+  const requests = await prisma.taskGraphEvent.findMany({ where: { kind: 'conversation_review_recovery_requested', run: { status: { not: 'paused' } }, node: { status: 'attention' } },
     include: { node: true }, orderBy: { createdAt: 'desc' }, take: 20 });
   const work: { nodeId: string; promise: Promise<void> }[] = [];
   const scheduled = new Set<string>();
