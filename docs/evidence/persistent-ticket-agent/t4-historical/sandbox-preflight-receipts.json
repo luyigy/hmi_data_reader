@@ -1,0 +1,110 @@
+[
+  {
+    "file": "R6_NISSEI-sandbox-preflight.json",
+    "sha256": "5c28e3ccf4fc3d9bd9cc3c42548ddd2ea9eb8ced672987ba88712b8d07cca36d",
+    "proof": {
+      "node": "R6_NISSEI",
+      "executionId": "cmvdmf880044p9xhg6z3mtzlv",
+      "candidate": "2d0eb99303843d7190e27ddbcfc7a19e1a428e73",
+      "revision": 13,
+      "writer": "exited",
+      "identity": {
+        "backend": "bubblewrap",
+        "host": "hello",
+        "uid": 1000,
+        "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+        "root": {
+          "pid": 4050103,
+          "startTime": "2731530619"
+        }
+      },
+      "probe": {
+        "skillFilesReadable": 70,
+        "checkScriptExit": 0,
+        "sourceReadonly": true,
+        "stdout": "Every project playbook matches this pstack's playbooks.\n"
+      }
+    }
+  },
+  {
+    "file": "R6_YIZUMI-sandbox-preflight.json",
+    "sha256": "8771c28739e1fc236f0e43b2a62d6b31519ac6d9e203312ced84f4f04bcc1c83",
+    "proof": {
+      "node": "R6_YIZUMI",
+      "executionId": "cmvdmf880044r9xhgc8z15d8w",
+      "candidate": "0a6cff0b0c56dd9b87ec7b6f4e8184afd269758c",
+      "revision": 13,
+      "writer": "exited",
+      "identity": {
+        "backend": "bubblewrap",
+        "host": "hello",
+        "uid": 1000,
+        "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+        "root": {
+          "pid": 4050130,
+          "startTime": "2731530704"
+        }
+      },
+      "probe": {
+        "skillFilesReadable": 70,
+        "checkScriptExit": 0,
+        "sourceReadonly": true,
+        "stdout": "Every project playbook matches this pstack's playbooks.\n"
+      }
+    }
+  },
+  {
+    "file": "R6_ARBURG-sandbox-preflight.json",
+    "sha256": "d3ee3045a5f06d831912e6bc9bb643884ee0480decf376033cab03b4bb17b6b2",
+    "proof": {
+      "node": "R6_ARBURG",
+      "executionId": "cmvdmf880044h9xhgr7zjz83d",
+      "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+      "revision": 13,
+      "writer": "exited",
+      "identity": {
+        "backend": "bubblewrap",
+        "host": "hello",
+        "uid": 1000,
+        "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+        "root": {
+          "pid": 4077208,
+          "startTime": "2731562991"
+        }
+      },
+      "probe": {
+        "skillFilesReadable": 70,
+        "checkScriptExit": 0,
+        "sourceReadonly": true,
+        "stdout": "Every project playbook matches this pstack's playbooks.\n"
+      }
+    }
+  },
+  {
+    "file": "R6_BOLE-sandbox-preflight.json",
+    "sha256": "73b0ed596ffd2b9252ddf21cb0f26be0b33f5836000b645729f06b17957fb025",
+    "proof": {
+      "node": "R6_BOLE",
+      "executionId": "cmvdmf880044j9xhgfq8r9py1",
+      "candidate": "e11cef054d1d68c894538e7195eb3233c62f12f1",
+      "revision": 39,
+      "writer": "exited",
+      "identity": {
+        "backend": "bubblewrap",
+        "host": "hello",
+        "uid": 1000,
+        "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+        "root": {
+          "pid": 4133426,
+          "startTime": "2731603773"
+        }
+      },
+      "probe": {
+        "skillFilesReadable": 70,
+        "checkScriptExit": 0,
+        "sourceReadonly": true,
+        "stdout": "Every project playbook matches this pstack's playbooks.\n"
+      }
+    }
+  }
+]
