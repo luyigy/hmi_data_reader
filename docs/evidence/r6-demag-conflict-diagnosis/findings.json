@@ -1,0 +1,86 @@
+{
+  "sampledAt": "2026-10-21T00:38:34.625Z",
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "node": "R6_DEMAG",
+  "executionId": "cmvdmf880044l9xhgihg4hu8o",
+  "phase": "integrate",
+  "state": "waiting_decision",
+  "revision": 19,
+  "candidate": "9f5c679a42acd05c8ee79f09fc7c03d035bd34f5",
+  "incoming": "e11cef054d1d68c894538e7195eb3233c62f12f1",
+  "currentTaskRunId": "cmvgtfllg3u9ivo4gpo2y9z7x",
+  "startup": [
+    {
+      "taskRunId": "cmvgtfllg3u9ivo4gpo2y9z7x",
+      "workingDirectory": "/home/hello/.agent-platform/task-validation/dad3b2e9468f8e68d905ebae/d063a1f9a323386f5a62a18d",
+      "permissionConfig": {
+        "profile": "custom",
+        "sandboxMode": "workspace-write",
+        "networkAccess": "enabled",
+        "approvalPolicy": "never",
+        "writableRoots": []
+      },
+      "resumeSessionId": "01a1587f-89e7-78e3-a840-f066bd4bd444",
+      "continuationLength": 18535,
+      "hasResolutionJson": false,
+      "hasControlledConflictInstructions": false,
+      "hasGenericSourceRepairInstructions": true
+    }
+  ],
+  "resolutionArtifact": [
+    {
+      "path": "scripts/raw_observations.py",
+      "artifactKeys": [
+        "path",
+        "input_sha256",
+        "resolved_sha256",
+        "applied_to_worktree"
+      ],
+      "containsResolvedContent": false,
+      "sourceMatchesSavedConflict": true
+    },
+    {
+      "path": "docs/specs/hmi-protocol-library/raw-contract.md",
+      "artifactKeys": [
+        "path",
+        "input_sha256",
+        "resolved_sha256",
+        "applied_to_worktree"
+      ],
+      "containsResolvedContent": false,
+      "sourceMatchesSavedConflict": true
+    }
+  ],
+  "syntax": {
+    "valid": false,
+    "line": 7,
+    "error": "invalid syntax"
+  },
+  "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/1edbd5e959da99a5",
+  "unmerged": [
+    "docs/specs/hmi-protocol-library/raw-contract.md",
+    "scripts/raw_observations.py"
+  ],
+  "failure": {
+    "code": "environment_failed",
+    "owner": "platform",
+    "action": "保留待完成合并，补齐所述材料、能力或明确范围决定后再解决冲突",
+    "detail": "指定 worktree 为只读挂载，无法应用两处已准备的解冲突补丁。指定行为检查实跑13通过6失败，均因剩余冲突标记；补丁、输入哈希及测试日志已保存至本轮受管结果目录，等待平台恢复写入能力后继续。",
+    "affectedPaths": [
+      "docs/specs/hmi-protocol-library/raw-contract.md",
+      "scripts/raw_observations.py"
+    ],
+    "requiresUserDecision": false
+  },
+  "implementationReportedChecks": {
+    "ticket": 19,
+    "existingRegression": 55,
+    "independentAcceptance": "not_passed"
+  },
+  "repairReportedChecks": {
+    "passed": 13,
+    "failed": 6
+  },
+  "sourceChangedDuringInvestigation": false,
+  "resumed": false
+}
