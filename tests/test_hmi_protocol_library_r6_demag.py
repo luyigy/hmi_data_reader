@@ -32,6 +32,30 @@ DEFINITION = json.loads((ROOT / "contracts/raw-pages/demag-configuration-1.0.0.j
 SAMPLES = {sample["sample_id"]: sample for sample in DEFINITION["samples"]}
 
 
+@pytest.mark.parametrize("sample,main_values", [
+    (1, [7.0, 7.0, 0.7, 0.0]),
+    (2, [0.7, 0.7, 7.0, 0.0]),
+])
+def test_a11_metering_real_upload_keeps_four_physical_pressure_cells(upload, sample, main_values):
+    directory = ROOT / "datasets/r6_demag/regression/metering_physical_cells"
+    image = directory / f"pressure_{sample}.jpg"
+    receipt = json.loads(image.with_suffix(".source.json").read_text())
+    assert hashlib.sha256(image.read_bytes()).hexdigest() == receipt["sha256"]
+    response = upload(image)
+    assert response.status_code == 200, response.text
+    document = response.json()
+    record(f"metering-physical-cells-{sample}-http", document)
+    assert document["profile_id"] == "demag.injection_metering.multi_stage_back_pressure"
+    assert document["fields"]["stage_back_pressure_bar"] == main_values
+    assert document["fields"]["stage_pressure_bar"] == main_values
+    assert document["status"] == "review"
+    assert any("MOIRE_DECIMAL_SUSPECT" in warning for warning in document["warnings"])
+    pressure = [field for field in document["page_observations"]["fields"] if "背压" in field["label"]]
+    assert len(pressure) <= 4
+    assert [field["stage"] for field in pressure] == list(range(1, len(pressure) + 1))
+    assert all(field["bbox"] for field in pressure)
+
+
 def record(name, value):
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / (name + ".json")).write_text(json.dumps(value, ensure_ascii=False, indent=2))
