@@ -1,0 +1,54 @@
+{
+  "runId": "cmvi5l17q02q3hmrqjndjwinv",
+  "status": "paused",
+  "eventId": "cmvi8gosh00022pyksvifz9kv",
+  "writers": [
+    {
+      "node": "T0",
+      "execution": "platform",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "T1",
+      "execution": "platform",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "T2",
+      "execution": "platform",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "T3",
+      "execution": "platform",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "T4",
+      "execution": "platform",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "W01",
+      "execution": "platform",
+      "proof": {
+        "kind": "exited"
+      }
+    }
+  ],
+  "note": "Dispatch paused. The Coordinator stops owned processes; alive/unknown is not exit proof."
+}

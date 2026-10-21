@@ -1,0 +1,743 @@
+{
+  "repository": "/data1/code/agent-platform-v2",
+  "observedAt": "2026-10-21T14:55:38.352Z",
+  "mode": "read-only",
+  "registered": [
+    {
+      "path": "/data1/code/agent-platform-v2",
+      "branch": "oss-prep",
+      "head": "bac31f224f55b5e9685e39e146e69abe0cd29b27",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Primary repository cannot be moved or removed",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "d2783a0058ee3792bcb385a5b1077242d6182fb1bae500272456de192ca5ca44"
+    },
+    {
+      "path": "/data1/code/.agent-platform-task-graph-worktrees/db3a7782bdfabcf4/569824130fdb81d9/jobs/2870ca82e3890e30",
+      "branch": "task-graph/jobs/569824130fdb81d9/2870ca82e3890e30",
+      "head": "6a01bac7f4ec129ef10caa9aa8778a8daa51056a",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released"
+      ],
+      "fingerprint": "a2d9ae04c0442084e30245540a6db2b55de8fb0ddedab3a6531fc883fd778f87"
+    },
+    {
+      "path": "/data1/code/.agent-platform-task-graph-worktrees/db3a7782bdfabcf4/569824130fdb81d9/jobs/30be1dd7175da268",
+      "branch": "task-graph/jobs/569824130fdb81d9/30be1dd7175da268",
+      "head": "b130b667669d29d4391373ea96c575845e73d073",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "b16ee28be1a7b3ef38805431b9eec234172bc88bc0e7a865b6d65052e5b7248b"
+    },
+    {
+      "path": "/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent",
+      "branch": "fix/persistent-ticket-agent-manual-20261021",
+      "head": "822c2cb8fc8f0c0787a73aac75ffaf171eaf5b4c",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "8ca303f40ee537d390f4066688aafecf1477949bdc3ee9eea5dd0ff8b26ee7e0"
+    },
+    {
+      "path": "/data1/code/agent-platform-autonomy-audit",
+      "branch": "audit/autonomous-progression-20261021",
+      "head": "363c97972d487610b5624d539bc7668052afb2e5",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released"
+      ],
+      "fingerprint": "1681df48ad572fc7c04b6f3074a16abdce0aa28c3076c1702001361aa372539d"
+    },
+    {
+      "path": "/data1/code/agent-platform-conversation-material-context",
+      "branch": "fix/conversation-material-context",
+      "head": "8b8970a3d5757abe8b44fcbdb3f1ef528d02ab24",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "4f6bd9771160d026c9358d167b849eca3bccdf1084a9eef7b4bcc5fed57212b2"
+    },
+    {
+      "path": "/data1/code/agent-platform-interactive-conversation",
+      "branch": "fix/interactive-task-conversation",
+      "head": "15a4c0551aa9c143df6983da06a7e31649a6a733",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "b0300003bcfb31d0514fd710a763dfcd798cc0a2718845c0cdf9c3f57a79d655"
+    },
+    {
+      "path": "/data1/code/agent-platform-p0-baseline",
+      "branch": "detached",
+      "head": "4b618218dc579f14220e305756d2ac991091aa23",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "e58cecdbb0433044a6e98ce13a4d753e5b3f40665eb0018b1faca09e7edce5a8"
+    },
+    {
+      "path": "/data1/code/agent-platform-p0-reliability",
+      "branch": "fix/p0-task-graph-reliability",
+      "head": "9526719366fe9e66858f67c5cf37ec4f59b4d052",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "35c9504b85778eb4938b211c6b21aaebb40128745bcf0530b725a4da0c293242"
+    },
+    {
+      "path": "/data1/code/agent-platform-project-capabilities",
+      "branch": "fix/project-capabilities",
+      "head": "92b03b42251939406b210ea86b7bac8838b02fce",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "4aa643e84d92455e5b2ea9702729b58f634fa29045f766f94969c77dbf432a37"
+    },
+    {
+      "path": "/data1/code/agent-platform-r05-card-baseline",
+      "branch": "detached",
+      "head": "9526719366fe9e66858f67c5cf37ec4f59b4d052",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "c18c233658ed648e89411d703ab6b1bc46f2729e64c0f9a12c33435d7911fdbf"
+    },
+    {
+      "path": "/data1/code/agent-platform-r05-conversation-card",
+      "branch": "fix/r05-conversation-card",
+      "head": "2cc555349dbb16b635b661378c23703d60ef6cf0",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "f1898f26751dc5312affdbb1ce0054e053dda95472993b2e1d9e6f43e61f9b4a"
+    },
+    {
+      "path": "/data1/code/agent-platform-s01-reliability",
+      "branch": "fix/s01-reliability",
+      "head": "b5d28c92bcd08833cf2245d7c309d99e826a683b",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "1d4b6a5db5914f6145ee57444c6aed43945566edfcea33ebb0301e55c9e95d81"
+    },
+    {
+      "path": "/data1/code/agent-platform-sandbox-s01",
+      "branch": "feat/sandbox-manager-s01",
+      "head": "ca64ec7d4f91a1493b23ed0d93d4cb9a1bf4eddb",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "8817a8870ab4cfc445ef533152ba894e5765a31d645c9706e0dfd8d4cc1b3c7c"
+    },
+    {
+      "path": "/data1/code/agent-platform-sandbox-s01-baseline",
+      "branch": "detached",
+      "head": "c1a8399b242d659622f63362ea3f97c2a380c144",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "e8e6b9c7ed75b577bc1db641eb05af47ba2bd91c7d8916236f0ab4ffcba88c16"
+    },
+    {
+      "path": "/data1/code/agent-platform-scope-runtime",
+      "branch": "fix/project-scope-runtime-20261021",
+      "head": "8a15eee6e810ec2c79c6d21b7b455a19c9736201",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "8d062c2507f2f7796d96de2ba9d11b9bc9156ca7ad63f1d91dea0a48a73ad9a2"
+    },
+    {
+      "path": "/data1/code/agent-platform-stage-w001",
+      "branch": "fix/stage-execution-w001-20261021",
+      "head": "0cca17ca76fc9c7c6f52c183504a7e4b18b86567",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "25cdffba5245fd8bfa70cd316af4a26508d6be32fd3f11639636310b86476154"
+    },
+    {
+      "path": "/data1/code/agent-platform-ticket-autonomy",
+      "branch": "feat/ticket-agent-autonomy-ab",
+      "head": "cca40490335fe5cde007ad431ac10b1672643d17",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "048f7f11f57a6bfad0ece81c362ac483c1d75b485a2a14603583403ea1d737a8"
+    },
+    {
+      "path": "/data1/code/agent-platform-v2-task-graph",
+      "branch": "feat/task-graph-state",
+      "head": "c0142864b449a25d3bde1bd5cfb06e6e4f8237fc",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "b83908e68056cb2ae209ccf6dcf2dc86ab3a5fa869677a0cfeb21126d2a1e0fb"
+    },
+    {
+      "path": "/data1/code/agent-platform-v2-workflow-convergence",
+      "branch": "feat/workflow-convergence-20261017",
+      "head": "22068dd28d76192bafdf7e59adcbd71457e1e42e",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "7a95e961ee16fdacb2543364b7b8c8077080d838bd392298a04de3ea10fd4120"
+    },
+    {
+      "path": "/data1/code/agent-platform-v2-worktree-ops",
+      "branch": "task-graph-worktree-ops-20261015",
+      "head": "88b68db69c1416cb743b938dca9db4af14caea23",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "5ea6d16b3de3206ff419e044fb514f3a73d2af677435fe1887fd629e38a4764c"
+    },
+    {
+      "path": "/data1/code/ap-browser-python-boundary",
+      "branch": "fix/browser-python-boundary-20261019",
+      "head": "0c3a2e434a59b57a3880ce61ae780d6e86841cbb",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "43c367e0a159b269682afb87faabc9508d39913f1f26e5b16d171c164299238a"
+    },
+    {
+      "path": "/data1/code/ap-m02-s01",
+      "branch": "fix/m02-s01-20261019",
+      "head": "6c52eb64e3b37d7146a8845385e6a4ca1971f36f",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "7696208331cab872167102558da297d0501cfd5189e183c9b1db8e685497ea6e"
+    },
+    {
+      "path": "/data1/code/ap-matt-pstack-20261019",
+      "branch": "fix/matt-pstack-20261019",
+      "head": "22f0fceb648931bf6252ce8848a894a3de8d86e7",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "a5b4a14301831b226a49be4d4c131eeb54946a58ff3a7f1cfc02e77f69df71fd"
+    },
+    {
+      "path": "/data1/code/ap-reliability-card-closure",
+      "branch": "fix/workflow-reliability-card-closure",
+      "head": "0b90c33aa8770e7ea925d9ac99dbb5e351f0d78a",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "b3347fcf4a17723f85d3ab20a0bf29f402462692d5c4b5bd87b372c4b4b287dd"
+    },
+    {
+      "path": "/data1/code/ap-reliability-wr01",
+      "branch": "fix/workflow-reliability-wr01",
+      "head": "a3bb1d37dbf32bcb63bb954639dfcb47cdb603df",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "67477621128b9bc7fa2df8f5105256bebdf0920a8356fd04adb1f9f42437d129"
+    },
+    {
+      "path": "/data1/code/ap-reliability-wr02",
+      "branch": "fix/workflow-reliability-wr02",
+      "head": "f7252c235019fd86babfea018ef0f29e4b4a4420",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "cd1fd8b441c4480eb8d79ef71681dc7cadcb66152918d6fe633ec2855c69f099"
+    },
+    {
+      "path": "/data1/code/ap-reliability-wr06",
+      "branch": "fix/workflow-reliability-wr06",
+      "head": "6ebde130bad06f91513ebb3b7c8f1aac9cb4308c",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "cc83de7e25ba8650dd9d20cf07fe6639f0f52a9f2650d2bae01572de11b8ada7"
+    },
+    {
+      "path": "/data1/code/ap-run-doctor",
+      "branch": "fix/run-doctor-20261019",
+      "head": "5e1bb8aa5c8e08f7b04f708f6e2b503f988ad6b6",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "42ef2c4d516607ad9ad0f9e78fcf5fe56696fe37d9fc9dd02f6c9f4f6e43305b"
+    },
+    {
+      "path": "/data1/code/ap-runtime-continuity",
+      "branch": "fix/runtime-continuity-20261019",
+      "head": "23c9b2ca32826d79236b0cd395f8787ab8ce26d0",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "611f05b1043b4bb4d72b402c733565df531bf92b740d27eaa0d4a8f53a033836"
+    },
+    {
+      "path": "/data1/code/ap-task-recovery-doctor",
+      "branch": "fix/task-recovery-doctor-20261019",
+      "head": "e8ebaa1d7a1fb3ccdcc4f7919bf19d7ad5d7ddc8",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "e4242f9a8e526c1db79cc91c476a569ea3e4a4cff88c7e6fb74e1eee3789f413"
+    },
+    {
+      "path": "/data1/code/ap-workflow-repair2-recovery",
+      "branch": "fix/workflow-repair-recovery-20261018",
+      "head": "2bdb9e9604cf407d759e12961b631b8d877bf8a4",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "ff423ad1451aff14c26253ab7e58910f6664a9e41a6cfd0916f848fd2d4bbf5e"
+    },
+    {
+      "path": "/data1/code/ap-workflow-repair2-runtime",
+      "branch": "fix/workflow-repair-runtime-20261018",
+      "head": "bb927223765663e705021f92a6943772a75a216e",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Uncommitted, untracked or conflicted content",
+        "Ignored content requires preservation"
+      ],
+      "fingerprint": "ec06c889abbf891423c4c0ead52948abf56c486237b3b9857bea9127879e70f1"
+    },
+    {
+      "path": "/data1/code/workflow-test",
+      "branch": "workflow-test",
+      "head": "087d6f39b7861f3dd781408d21949305d368c37b",
+      "bare": false,
+      "reasons": [
+        "Writer, Session, process and ledger references have not been proven released",
+        "Repository identity differs",
+        "Primary repository cannot be moved or removed",
+        "HEAD changed during inspection"
+      ],
+      "fingerprint": "14a6ced42798d9521e50fe2bdf67c84919aebe2a0982709b881a9f78facc1535"
+    }
+  ],
+  "unclassified": [
+    {
+      "path": "/data1/code/.agent-platform-conversation-worktrees",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.agent-platform-task-graph-locks",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.agent-platform-task-graph-results",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.agent-platform-task-graph-validations",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.agent-platform-task-graph-worktrees",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.agent-workspaces",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.git.accidental-workflow-test-20260727",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.mold-data-webpage-tool-cleanup",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/.pytest_cache",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/MES",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/OpenDeepWiki",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/Proma",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/Symphony",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/agent-voice",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/agents",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/annotation-tool",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/ap-autonomy-acceptance-20261020",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/ap-sandbox-manager-acceptance-20261020",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/cc-haha-oc",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/claude-install",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/cronJob",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/data_extraction",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/deepseek-harness",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/deepwiki-open",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/defects-detection",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/dev-logs",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/drawing_control",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/excel_lark",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/flask-qrcode",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/ghidra_12.0.4_PUBLIC",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/gm-agent",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/gm-vision",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/group-msg-collector",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/herdr",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/hermes-quotation",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/hmi_data_reader",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/hmi_data_reader-yizumi-auto-page",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/hmi_finetuning",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/inj_monitor2",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/injection-molding-parameter-converter",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/llm-smoke",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/logs",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/mold-data-webpage-tool",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/mold-data-webpage-tool-deploy",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/molding-assist",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/nx12-repair-assist",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/ocr-training",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/orca",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/pi-mono",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/quant-trading",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/scada",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/scada-nissei-ui",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/shared",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/tmp",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/vision",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/vision-master",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    },
+    {
+      "path": "/data1/code/workflow-test.agent-platform-backup-20260727",
+      "reasons": [
+        "Unclassified directory; ownership and references unknown; retained"
+      ]
+    }
+  ]
+}
