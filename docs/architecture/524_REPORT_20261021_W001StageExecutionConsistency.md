@@ -36,3 +36,11 @@ No service was restarted or deployed. No production DEMAG Ticket, approval snaps
 Fixed review of `3089dcc` found one P2 ordinary-chat regression: nongraph native Resume discarded existing per-turn Project Capabilities and long-file instructions. Restore those existing additions in the continuation selector through the same dispatcher. Graph requests still always select their sealed stage prompt. No new prompt policy, authorization, mount or state is introduced.
 
 The new regression fails before this fix at `Ordinary Resume retains current capability instructions`, then passes with capability and current offending-file assertions. The W001 gate, type check and isolated `task-graph-conflict-continuation` + `task-graph-sandbox-manager` suites pass. Evidence is in `docs/evidence/stage-w001/p2`. This is an append-only correction after the two independent A/B commits.
+
+## Production recovery result reuse correction
+
+Authorized deployment of `21e992a` exposed another concrete root-cause gap: conflict recovery reused the prior completed TaskRun even when its parsed implementation result was blocked. No new model ran, and the old readonly-source complaint was replayed. Transport completion did not prove a reusable delivery.
+
+Limit existing conflict result/runtime reuse to completed runs with a valid delivered implementation result. Blocked or incomplete results start a fresh bound artifact attempt through the original native Session and W001 dispatcher. Existing candidate/source hashes, Writer, claim/revision, artifact application and budgets remain unchanged.
+
+The existing isolated conflict scenario now runs both interrupted and completed-but-blocked variants. Before the correction the new variant fails `Fixture must actually use Resume`; afterward both variants perform actual Resume, reject protected source writes, produce current output, integrate, pass independent review and release the successor once. Original repair/platform-attempt assertions remain unchanged. Evidence is in `docs/evidence/stage-w001/p2/completed-blocked-{red,green}.log`.

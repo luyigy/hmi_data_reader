@@ -15,7 +15,7 @@ import { releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker'
 import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree, TaskGraphGitError } from '../src/lib/task-graph/worktree';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 
-async function main() {
+async function main(completedBlocked = false) {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_[a-f0-9]+$/);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'graph-conflict-continuation-')), repository = path.join(root, 'repo'); await fs.mkdir(repository);
   const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
@@ -98,6 +98,11 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
     const originalParticipant = await prisma.taskRunParticipant.findFirstOrThrow({ where: { taskRunId: pending.taskRunId } });
     await prisma.taskRunParticipant.update({ where: { id: originalParticipant.id }, data: { controlMetadata: JSON.stringify({ lastSessionId: 'demag-original-session', lastSessionKind: 'codex_thread' }) } });
     const exit = once(child, 'exit'); child.kill('SIGKILL'); await exit;
+    if (completedBlocked) {
+      const blocked = 'TASK_GRAPH_IMPLEMENTATION ' + JSON.stringify({ status: 'blocked', blockerKind: 'environment_failed', note: 'Source readonly; resolution requires platform application.' });
+      await prisma.taskRun.update({ where: { id: pending.taskRunId }, data: { status: 'completed', summary: blocked, completedAt: new Date() } });
+      await prisma.taskRunParticipant.update({ where: { id: originalParticipant.id }, data: { status: 'completed', summary: blocked } });
+    }
     assert.equal(git(trees.get('B')!, 'rev-parse', 'MERGE_HEAD'), first.commit);
     let repairs = 0, successors = 0, architecture = 0, resumedMessage = '';
     let resumeCalls = 0;
@@ -149,7 +154,7 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
     git(repository, 'merge-base', '--is-ancestor', advanced.commit, final.commit!);
     assert.equal(git(repository, 'show', `${final.commit}:contract.md`), 'base\nfirst\nsecond');
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'implementation_recovery_scheduled' } }), 0);
-    console.log('Legacy waiting conflict + advanced approved integration + SIGKILL during repair: automatic fresh artifact attempt, merged checks, independent architecture, acceptance and successor once; human resume 0');
+    console.log(completedBlocked ? 'Completed-but-blocked repair result is not replayed; fresh native Resume and artifact pass' : 'Legacy waiting conflict + advanced approved integration + SIGKILL during repair: automatic fresh artifact attempt, merged checks, independent architecture, acceptance and successor once; human resume 0');
   } finally { if (child && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); globalThis.fetch = fetch; await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true }); }
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+main().then(() => main(true)).catch(error => { console.error(error); process.exitCode = 1; });

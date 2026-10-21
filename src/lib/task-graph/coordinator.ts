@@ -498,11 +498,17 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       : progress.lastFailure ? `\n本票自动回修：${JSON.stringify(progress.lastFailure)}\n使用保留的当前源码修复上述故障，并重新运行相同检查。` : '';
     const previousRepairRun = progress.conflictRepair && progress.runtimeDirectory && progress.taskRunId
       ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
+    let reusableRepairRun: typeof previousRepairRun = null;
+    if (previousRepairRun?.status === 'completed') {
+      try {
+        if (parseImplementationResult(previousRepairRun.participants[0]?.summary || previousRepairRun.summary || '').status === 'delivered') reusableRepairRun = previousRepairRun;
+      } catch { /* An incomplete result needs fresh stage execution, not transport-success replay. */ }
+    }
     const repairRuntime = progress.conflictRepair ? await prepareAcceptanceRuntime(execution.nodeId, `conflict:${claimToken}`,
-      [{ repository: execution.repository, path: workspace.path, commit: progress.conflictRepair.candidateCommit }], previousRepairRun?.status === 'completed' ? progress.runtimeDirectory : undefined) : null;
+      [{ repository: execution.repository, path: workspace.path, commit: progress.conflictRepair.candidateCommit }], reusableRepairRun ? progress.runtimeDirectory : undefined) : null;
     if (repairRuntime) await outcome({ kind: 'checkpoint', phase: 'integrate', runtimeDirectory: repairRuntime.directory });
     const dispatchProgress = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } })).dispatchMetadata)!;
-    const storedRun = progress.conflictRepair ? previousRepairRun?.status === 'completed' ? previousRepairRun : null
+    const storedRun = progress.conflictRepair ? reusableRepairRun
       : ['check', 'integrate'].includes(progress.phase) && progress.taskRunId
         ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
