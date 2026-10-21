@@ -94,6 +94,44 @@ def test_a11_printed_stage_identity_survives_reverse_order(tmp_path):
     assert [field["bbox"][0] for field in pressure] == sorted(field["bbox"][0] for field in pressure)
 
 
+@pytest.mark.parametrize("profile,sample_id,label,code", [
+    (P11, "P11_31_20260930", "一段", "YIZUMI_STAGE_IDENTITY_CONFLICT"),
+    (P12, "P12_31_20260930", "熔胶1", "YIZUMI_STAGE_IDENTITY_CONFLICT"),
+    (P12, "P12_31_20260930", "速度", "YIZUMI_ROW_IDENTITY_CONFLICT"),
+])
+def test_a11_duplicate_identity_reports_conflict_without_overwriting(
+        tmp_path, profile, sample_id, label, code):
+    evidence_indexes = []
+
+    def duplicate_label(lines):
+        index = next(index for index, line in enumerate(lines) if line["text"] == label)
+        evidence_indexes.extend([index, len(lines)])
+        lines.append(dict(lines[index]))
+
+    result = replay_sample(tmp_path, profile, sample_id, mutate=duplicate_label)
+    assert code in result["warnings"]
+    assert not result.get("fields")
+    assert not any("GENERIC_FALLBACK" in warning for warning in result["warnings"])
+    observation = result["extraction_detail"]["page_observations"]
+    issue = next(issue for issue in observation["issues"] if issue["code"] == code)
+    assert issue["line_indexes"] == evidence_indexes
+    if profile == P11:
+        assert result["status"] == "review"
+        assert issue["section"] == "injection"
+        assert issue["stage_ids"] == [1]
+        assert all(field["section"] == "holding" for field in observation["fields"])
+        assert {field["label"]: field["value"] for field in observation["fields"]} == {
+            "保压压力1": 80.0, "保压速度1": 5.0, "保压时间1": 4.0}
+    else:
+        assert result["status"] == "reject"
+        assert issue["section"] == "plasticizing"
+        assert observation["fields"] == []
+        if label == "熔胶1":
+            assert issue["stage_ids"] == [1]
+        else:
+            assert issue["labels"] == ["速度"]
+
+
 @pytest.mark.parametrize("profile", [P11, P12])
 @pytest.mark.parametrize("invalid", ["unverified_controller", "wrong_hash", "unknown_controller"])
 def test_a07_binding_cannot_force_legacy_page_success(tmp_path, profile, invalid):
