@@ -233,6 +233,25 @@
       "profile_id": "b_and_r.metering.three_stage",
       "status": "candidate",
       "template": "published/b_and_r.metering.three_stage/1.0.1.json"
+    },
+    {
+      "controller_family": "ARBURG",
+      "layout_variant": "selogica_two_stage",
+      "page_identity": {
+        "brand": "ARBURG",
+        "controller_family": "SELOGICA",
+        "evidence_sample_ids": [
+          "development",
+          "retained"
+        ],
+        "interface_generation": null,
+        "layout_variant": "selogica_two_stage",
+        "page_type": "storage_cooling"
+      },
+      "page_type": "storage_cooling",
+      "profile_id": "arburg.storage_cooling.selogica_two_stage",
+      "status": "candidate",
+      "template": "arburg/selogica_metering.json"
     }
   ]
 }

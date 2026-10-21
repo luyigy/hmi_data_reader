@@ -1,0 +1,30 @@
+{
+  "values": {
+    "metering.speed.actual": 0.0,
+    "metering.speed.stage-1": 100.0,
+    "metering.speed.stage-2": 100.0,
+    "metering.back_pressure.actual": -31.0,
+    "metering.back_pressure.stage-1": 8.0,
+    "metering.back_pressure.stage-2": 8.0,
+    "metering.end_position.actual": 34.95,
+    "metering.end_position.stage-1": 20.0,
+    "metering.end_position.stage-2": 27.0,
+    "decompression.speed": 50.0,
+    "decompression.distance": 8.0,
+    "time.remaining_cooling": 8.0,
+    "time.unlabeled_left": 0.1,
+    "time.unlabeled_right": 0.0,
+    "control.enable_icons": null
+  },
+  "image_sha256": "ae58e75cd7263a785e71693140081ba820ee094393ffb531d87ba51c5dffa32a",
+  "provenance": {
+    "kind": "developer_visual_transcription",
+    "independent_acceptance": false,
+    "description": "Direct original image inspection, not VLM. Retained image seen during scope review; same machine and recipe; no blind-generalization claim."
+  },
+  "semantic_limits": [
+    "Enable icons not decoded",
+    "Remaining cooling display role unknown",
+    "Unlabeled timers not interpreted as cooling setpoint"
+  ]
+}
