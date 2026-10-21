@@ -233,6 +233,28 @@
       "profile_id": "b_and_r.metering.three_stage",
       "status": "candidate",
       "template": "published/b_and_r.metering.three_stage/1.0.1.json"
+    },
+    {
+      "profile_id": "demag.injection_metering.machine_configuration",
+      "controller_family": "DEMAG",
+      "page_type": "injection_metering",
+      "layout_variant": "machine_configuration",
+      "status": "candidate",
+      "template": "demag/configuration.json",
+      "page_identity": {
+        "brand": "DEMAG",
+        "controller_family": "DEMAG",
+        "evidence_sample_ids": [
+          "development",
+          "reserved",
+          "acceptance",
+          "holdout"
+        ],
+        "interface_generation": null,
+        "layout_variant": "machine_configuration",
+        "page_type": "injection_metering"
+      },
+      "lifecycle_note": "R6 frozen overview observations only; raw coverage partial, enable states unknown, exact controller model/generation unverified. Model acceptance and business write are separate."
     }
   ]
 }

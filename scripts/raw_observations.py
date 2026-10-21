@@ -4,6 +4,7 @@ from raw_temperature_time import DEFINITIONS, recover_temperature_time_cells
 from raw_temperature_time import select_raw_profile as select_legacy_profile
 from raw_temperature_time import observe_temperature_time_page as observe_legacy_page
 from raw_metering import PROFILE, ROOT, observe_metering_page
+from raw_demag_configuration import PROFILE as CONFIGURATION_PROFILE, observe_configuration_page
 from raw_bole_injection import PROFILE as BOLE_INJECTION, observe_bole_injection
 
 
@@ -18,6 +19,8 @@ class RawPageRejected(ValueError):
 
 
 def select_raw_profile(profile_id, lines):
+    if profile_id == CONFIGURATION_PROFILE:
+        return CONFIGURATION_PROFILE
     if profile_id == BOLE_INJECTION:
         return profile_id
     return PROFILE if profile_id == PROFILE else select_legacy_profile(profile_id, lines)
@@ -25,6 +28,8 @@ def select_raw_profile(profile_id, lines):
 
 def observe_temperature_time_page(profile_id, lines, meta, image_sha256, rectified_image=None,
                                   package_root=ROOT, package_version="1.0.0"):
+    if profile_id == CONFIGURATION_PROFILE:
+        return observe_configuration_page(lines, meta, image_sha256, package_root, package_version)
     if profile_id == BOLE_INJECTION:
         try:
             return observe_bole_injection(lines, meta, image_sha256, package_root)
