@@ -129,6 +129,9 @@ def save_draft(root: Path, profile_id: str, template: dict, samples: list,
 def _extract(template, samples):
     results = []
     try:
+        if template.get("profile_id") == "fanuc.temperature.rightmost5" and template.get("version") == "0.6.0":
+            from scripts.raw_fanuc_temperature import trial_fanuc_temperature
+            return trial_fanuc_temperature(template, samples)
         for sample in samples:
             manifest, ocr = sample["manifest"], sample["ocr"]
             size = manifest.get("screen_size", manifest.get("original_size"))
@@ -218,6 +221,12 @@ def publish_draft(root: Path, profile_id: str, expected_revision: int,
             from scripts.raw_metering import build_metering_package
             try:
                 package = build_metering_package(template, samples)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
+        if profile_id == "fanuc.temperature.rightmost5" and version == "0.6.0":
+            from scripts.raw_fanuc_temperature import build_fanuc_temperature_package
+            try:
+                package = build_fanuc_temperature_package(root, template=template, samples=samples)
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from None
         if template.get("extractor_id") == "yizumi.injection_holding_f2" and version.startswith("1."):
