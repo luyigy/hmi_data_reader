@@ -1,0 +1,28 @@
+{
+  "codeCommit": "0423f11e1138852c95fbd6b19059c323d0c08167",
+  "observedAt": "2026-10-21T15:19:31.515558+00:00",
+  "mergedBranch": "oss-prep",
+  "build": "passed",
+  "buildLogSha256": "76b481a042e87d7e5ddb4f892f35f4aae3e5132b513d780e95b29e16a8572167",
+  "httpHealth": {
+    "ok": true,
+    "status": "healthy",
+    "timestamp": "2026-10-21T15:19:31.562Z"
+  },
+  "services": {
+    "agent-platform-dev.service": "MainPID=3911755\nExecMainStartTimestamp=Wed 2026-10-21 23:17:55 CST\nActiveState=active",
+    "agent-platform-task-graph.service": "MainPID=3911605\nExecMainStartTimestamp=Wed 2026-10-21 23:17:54 CST\nActiveState=active",
+    "agent-platform-task-graph-feishu.service": "MainPID=2764474\nExecMainStartTimestamp=Wed 2026-10-21 18:42:59 CST\nActiveState=active",
+    "agent-platform-feishu.service": "MainPID=2793095\nExecMainStartTimestamp=Wed 2026-10-21 18:49:35 CST\nActiveState=active"
+  },
+  "feishuCutover": {
+    "codeCommit": "0423f11e1138852c95fbd6b19059c323d0c08167",
+    "phase": "waiting_for_current_turn_to_finish",
+    "startedAt": "2026-10-21T15:18:34.857Z",
+    "updatedAt": "2026-10-21T15:18:34.857Z"
+  },
+  "cutoverUnit": "ap-persistent-agent-idle-cutover-0423f11.service",
+  "cutoverReceipt": "output/reviews/persistent-ticket-agent/deploy-20261021/cutover-status.json",
+  "newAndReaderMoldRoutes": "remain paused; production Tickets not resumed",
+  "acceptance": "T0/W01/T1/T2/T3 code regression passed; fresh real-model Feishu approval and T4 business acceptance remain pending"
+}

@@ -55,3 +55,9 @@ npm run check:long-files
 5. 历史目录需要按清单证明 Writer、Session、账本和绝对路径引用释放，保存独有提交后再迁移/回收。脏目录与忽略内容先保留。
 
 没有启用旧 watcher、没有新建后台 Agent/数据库状态机，没有恢复生产 Ticket或修改旧批准快照。普通消息和验收缺陷不再依赖新造的恢复 Prompt 协议。
+
+## 2026-10-21 发布更新
+
+用户随后明确批准部署。代码已通过追加合并提交 0423f11 进入 oss-prep，并推送 Gitee 与 luyigy；主仓生产构建通过。网页服务与 Coordinator 已重启，HTTP 健康检查通过。飞书接入和总览 relay 由现有空闲重载脚本在当前会话结束后切换，当前保存的 deployment.json 如实标记 waiting_for_current_turn_to_finish。最终切换回执位于该 JSON 指定的 output 路径，应在下一轮核实 completed 与新飞书 startedAt 后才宣布全部服务部署完成。
+
+T0、W01、T1、T2、T3 的代码已经手动完成隔离回归，任务图账本没有冒写通过。T4 旧 Reader/Mold 恢复和真实业务验收未做；两条路线继续保持用户暂停。
