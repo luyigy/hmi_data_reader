@@ -21,7 +21,7 @@
 
 `upstream-source.ts` 使用宿主配置 `TASK_GRAPH_UPSTREAM_MAX_BYTES`，默认仍为268435456。必须是正安全整数；预分配前、缓存复用及物化后使用同一容量校验。此设置只控制完整固定输入副本的磁盘容量，不赋予文件、网络或项目权限；原 Git commit、blob身份、模式、文件清单、符号链接/LFS拒绝、文件数量上限及只读沙箱保持原样。不要与 Ticket 重试预算混用。
 
-本宿主计划设 `536870912`（512MiB），以完整准备现有已批准 Reader 提交。服务配置与真正重载时间需随部署回执记录，不能把配置文件已写入宣称为运行进程已更新。
+本宿主已在 systemd drop-in 设置 `536870912`（512MiB）。原固定 Reader 提交已完整物化并通过 Git 内容与容量校验，M6_DEMAG 已通过原恢复入口进入 ready 队列，输入准备回执 SHA256 为 `a043da2c5f67e0ff4d0a4fc3dace655254dd90a8c82c3c2880262b7c603b296d`。当前三项 Codex 仍在执行，Coordinator 正按原退出流程 drain；配置已写入不代表运行进程已更新，详见 `capacity-deployment-receipt.json`。
 
 `node scripts/test-task-graph-postgres.mjs task-graph-upstream-capacity task-graph-upstream-inputs` 通过：旧代码忽略宿主容量的反例为红；修改后容量越界在分配前拒绝、精确边界可用、Git内容一致、缓存重新核对、非法配置拒绝。原跨仓固定输入、只读双环境、未通过交付拒绝、缓存重建及前置派发门禁继续通过。新增用例注册现有必跑集合。
 

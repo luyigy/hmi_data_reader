@@ -1,0 +1,11 @@
+{
+  "observedAt": "2026-10-22T00:39:16+08:00",
+  "platformHead": "98c92335a8a64037e71b7766c6ad281c0e674833",
+  "hostCapacityBytes": 536870912,
+  "hostConfiguration": "/home/hello/.config/systemd/user/agent-platform-task-graph.service.d/50-upstream-capacity.conf",
+  "serviceState": "MainPID=74810\nEnvironment=TASK_GRAPH_UPSTREAM_MAX_BYTES=536870912\nActiveState=active\nActiveEnterTimestamp=Thu 2026-10-22 00:33:51 CST\n",
+  "coordinatorDrainPid": 75109,
+  "newRuntimeVerified": false,
+  "M6InputsSha256": "a043da2c5f67e0ff4d0a4fc3dace655254dd90a8c82c3c2880262b7c603b296d",
+  "M6InputPreparation": "passed; original resume scheduled; new service configuration still draining"
+}
