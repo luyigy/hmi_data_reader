@@ -30,3 +30,9 @@ Integration covers resumed conflict repair, readonly source writes, bound resolu
 GitNexus impact lookup was attempted for the shared Runner. Its existing index failed with a LadybugDB readonly shadow-replay error. No index rebuild or repair was performed against the shared workspace. Actual callsites were traced with source navigation and are enumerated in the Wire; no successful graph-index impact result is claimed.
 
 No service was restarted or deployed. No production DEMAG Ticket, approval snapshot, runtime ledger, recovery budget or permissions were changed. Production recovery requires separate user authorization.
+
+## Final review compatibility correction
+
+Fixed review of `3089dcc` found one P2 ordinary-chat regression: nongraph native Resume discarded existing per-turn Project Capabilities and long-file instructions. Restore those existing additions in the continuation selector through the same dispatcher. Graph requests still always select their sealed stage prompt. No new prompt policy, authorization, mount or state is introduced.
+
+The new regression fails before this fix at `Ordinary Resume retains current capability instructions`, then passes with capability and current offending-file assertions. The W001 gate, type check and isolated `task-graph-conflict-continuation` + `task-graph-sandbox-manager` suites pass. Evidence is in `docs/evidence/stage-w001/p2`. This is an append-only correction after the two independent A/B commits.

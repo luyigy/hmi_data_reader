@@ -1,0 +1,27 @@
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+AssertionError [ERR_ASSERTION]: Ordinary Resume retains current capability instructions
+    at /data1/code/agent-platform-stage-w001/tests/stage-harness-dispatch.test.ts:69:10
+    at step (/data1/code/agent-platform-stage-w001/tests/stage-harness-dispatch.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-stage-w001/tests/stage-harness-dispatch.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-stage-w001/tests/stage-harness-dispatch.test.ts:16:58) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'ng skill or CLI instead of claiming delivery.\n' +
+    `- Use the sending bot's independent LARKSUITE_CLI_CONFIG_DIR. Verify the actual chat ID and target bot ID, then send with lark-cli im +messages-send --chat-id <chat_id> --text '<at user_id="TARGET_BOT_ID">Bot name</at> message' --as bot.\n` +
+    '- Plain @name, platform $member handoffs and private sub-agent messages do not contact external Feishu bots. Keep canonical $member handoffs for actual platform room members.\n' +
+    '- Include a unique marker, retain the message_id and read back mentions to verify the target. Establish a readable reply channel before sending; do not interrupt another event connection. Only a matching reply confirms a response; a Typing reaction or successful send does not mean the task completed.\n' +
+    '- After a timeout, check existing outputs and running operations before retrying; avoid duplicate execution. This protocol does not authorize unsolicited messages....',
+  expected: /CURRENT_CAPABILITY_CLIENT_QUERY_SYNTAX/,
+  operator: 'match',
+  diff: 'simple'
+}

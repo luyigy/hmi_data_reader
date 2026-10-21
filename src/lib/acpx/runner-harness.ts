@@ -301,7 +301,8 @@ export const executeViaLocalHarness = async (
     authority: stageAuthority, runtime: stageRuntimeContract(context), prompt: task.description,
   }) : null;
   const authority = await captureStageAuthority(request, taskRunId);
-  const result = await executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority });
+  const result = await executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority,
+    continuationContext: { capabilityInstructions: capabilities.instructions, longFileContext } });
 
   await metadataWrites;
   if (result.runtimeState && result.sessionId && result.sessionKind) {

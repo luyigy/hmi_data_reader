@@ -15,9 +15,10 @@ export function stageRuntimeContract(context: HarnessExecutionContext): StageRun
 }
 
 /** The only local dispatch point. Session selection cannot substitute a different stage input. */
-export async function executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority }: {
+export async function executePreparedStageHarness({ adapter, request, participant, task, context, stageRequest, authority, continuationContext }: {
   adapter: Pick<HarnessAdapter, 'execute' | 'resume'>; request: AcpxRunRequest; participant: AcpxParticipantRequest;
   task: HarnessTask; context: HarnessExecutionContext; stageRequest: StageExecutionRequest | null; authority: StageAuthority | null;
+  continuationContext?: Parameters<typeof harnessContinuationInput>[3];
 }) {
   if (isGraphStageRequest(request) && !stageRequest) throw new W001StageContractError('missing current stage request');
   if (stageRequest) {
@@ -27,7 +28,7 @@ export async function executePreparedStageHarness({ adapter, request, participan
   }
   const continuing = adapter.resume && (participant.resumeSessionId || participant.resumeThreadId);
   const message = stageRequest ? stageRequest.prompt : harnessContinuationInput(request,
-    continuing ? participant : { ...participant, continuationMessage: undefined }, task.description || '');
+    continuing ? participant : { ...participant, continuationMessage: undefined }, task.description || '', continuationContext);
   const currentTask = { ...task, description: message };
   return continuing && adapter.resume
     ? adapter.resume({ task: currentTask, context, sessionId: participant.resumeSessionId || participant.resumeThreadId || '', continuationMessage: message })
