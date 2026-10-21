@@ -50,20 +50,26 @@ async function scenario(passes: boolean) {
     const payload = saved.payload as Prisma.JsonObject, snapshot = payload.snapshot as Prisma.JsonObject;
     const declaration = { version: 1 }, manifestHash = createHash('sha256').update(JSON.stringify(declaration)).digest('hex');
     const identity = createHash('sha256').update(JSON.stringify({ manifestHash, resources: [] })).digest('hex');
-    await prisma.taskGraphEvent.update({ where: { id: saved.id }, data: { payload: { ...payload, snapshot: { ...snapshot, identity,
+    if (!passes) await prisma.taskGraphEvent.update({ where: { id: saved.id }, data: { payload: { ...payload, snapshot: { ...snapshot, identity,
       source: { origin: 'host_registration', commit: '1'.repeat(40), filename: path.join(root, 'runtime-resources.json'), declaration, manifestHash, registrationHash: '2'.repeat(64) } } } } });
     const artifact = path.join(root, 'new-measure.json'); writeFileSync(artifact, 'verified new platform fix');
     const receipt = { version: 1, runId: run.id, nodeKey: 'A', requestId: 'fix-1', authorization: 'fixture operator approved new measure', changeReason: 'verified environment repair', readiness: 'local_operator_attested', remediation: 'missing_capability',
       bindingHash: await inspectPreparedReviewBinding(run.id, 'A'), artifacts: [{ path: artifact, sha256: createHash('sha256').update('verified new platform fix').digest('hex') }] };
     const remediation = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-    await assert.rejects(registerPreparedReviewRecovery({ ...receipt, bindingHash: '0'.repeat(64) }, remediation), /binding changed/);
-    writeFileSync(artifact, 'changed'); await assert.rejects(registerPreparedReviewRecovery(receipt, remediation), /hash mismatch/); writeFileSync(artifact, 'verified new platform fix');
     const launchDirectory = process.cwd();
+    await assert.rejects(registerPreparedReviewRecovery({ ...receipt, bindingHash: '0'.repeat(64) }, remediation, launchDirectory), /binding changed/);
+    const pinned = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: saved.id } });
+    const originalPin = pinned.payload; assert(originalPin && typeof originalPin === 'object' && !Array.isArray(originalPin));
+    const originalSnapshot = originalPin.snapshot; assert(originalSnapshot && typeof originalSnapshot === 'object' && !Array.isArray(originalSnapshot));
+    await prisma.taskGraphEvent.update({ where: { id: saved.id }, data: { payload: { ...originalPin, snapshot: { ...originalSnapshot, executionId: 'another-execution' } } } });
+    await assert.rejects(registerPreparedReviewRecovery(receipt, remediation, launchDirectory), /claim-bound runtime pin/);
+    await prisma.taskGraphEvent.update({ where: { id: saved.id }, data: { payload: originalPin } });
+    writeFileSync(artifact, 'changed'); await assert.rejects(registerPreparedReviewRecovery(receipt, remediation, launchDirectory), /hash mismatch/); writeFileSync(artifact, 'verified new platform fix');
     let registered: Awaited<ReturnType<typeof registerPreparedReviewRecovery>>;
     process.chdir(root);
-    try { registered = await registerPreparedReviewRecovery(receipt, remediation); }
+    try { registered = await registerPreparedReviewRecovery(receipt, remediation, launchDirectory); }
     finally { process.chdir(launchDirectory); }
-    assert.equal(registered.kind, 'registered'); assert.equal((await registerPreparedReviewRecovery(receipt, remediation)).kind, 'already_registered');
+    assert.equal(registered.kind, 'registered'); assert.equal((await registerPreparedReviewRecovery(receipt, remediation, launchDirectory)).kind, 'already_registered');
     const ready = executionProgress((await getNode()).executions[0].dispatchMetadata)!;
     assert.equal(ready.worker, undefined); assert.equal(ready.workerReleasedAt, undefined); assert.equal(ready.platformAttempts, 2); assert.equal(ready.candidateCommit, progress.candidateCommit);
     fixed = true; await cycleUntil(passes ? 'passed' : 'attention');
@@ -71,8 +77,8 @@ async function scenario(passes: boolean) {
     const after = await getNode(); assert.equal(executionProgress(after.executions[0].dispatchMetadata)?.platformAttempts, 2, 'No retry budget replenished');
     if (!passes) {
       assert.equal(executionProgress(after.executions[0].dispatchMetadata)?.state, 'exhausted');
-      await assert.rejects(registerPreparedReviewRecovery({ ...receipt, requestId: 'same-fix-again', bindingHash: await inspectPreparedReviewBinding(run.id, 'A') }, remediation), /already authorized/);
-      assert.equal((await registerPreparedReviewRecovery(receipt, remediation)).kind, 'already_registered'); assert.equal((await getNode()).status, 'attention');
+      await assert.rejects(registerPreparedReviewRecovery({ ...receipt, requestId: 'same-fix-again', bindingHash: await inspectPreparedReviewBinding(run.id, 'A') }, remediation, launchDirectory), /already authorized/);
+      assert.equal((await registerPreparedReviewRecovery(receipt, remediation, launchDirectory)).kind, 'already_registered'); assert.equal((await getNode()).status, 'attention');
     } else {
       for (let n = 0; n < 150 && !successors; n++) { await runTaskGraphCycle(); await new Promise(resolve => setTimeout(resolve, 25)); }
       assert.equal(successors, 1, 'Successor starts without human resume');
