@@ -435,3 +435,72 @@ def test_a18_existing_metering_package_and_temperature_regress_on_real_photos(en
         coverage.append(dict(page=name, image=str(image.relative_to(ROOT)), image_sha256=meta["original_sha256"],
                              status=result["status"], warnings=result["warnings"], fields=result["fields"]))
     write_evidence("r6-bole-existing-regression.json", coverage)
+
+
+def test_a07_cropped_original_returns_explicit_http_and_cli_rejection(engine, monkeypatch):
+    import hmi_service as service
+    from scripts.rectify import rectify
+    from scripts.ocr_variants import run_ocr
+    from scripts.raw_page_ocr import engine_identity
+
+    image = ROOT / "datasets/r6_bole/cropped-layout.jpg"
+    digest = hashlib.sha256(image.read_bytes()).hexdigest()
+    assert digest == "a9b6de684ae93c312a1c8cb7b8eb22eeee1ce6bcf2d903cd05ab0318b3e5cf1c"
+    monkeypatch.setattr(service, "ocr_model", engine)
+    monkeypatch.setattr(service, "is_ready", True)
+    monkeypatch.setattr(service, "concurrency_semaphore", asyncio.Semaphore(1))
+    monkeypatch.delenv("HMI_API_KEY", raising=False)
+    package = bole_injection_package()
+    hint = dict(brand="BOLE", controller_family="B_AND_R", interface_generation=None, binding_revision=1,
+                pages=[dict(profile_id=PROFILE, version=VERSION, package_sha256=canonical_hash(package))])
+
+    async def upload(params):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app, raise_app_exceptions=False),
+                                     base_url="http://reader") as client:
+            return await client.post("/api/v1/recognize", params=params,
+                                     files={"file": ("cropped.jpg", image.read_bytes(), "image/jpeg")})
+
+    for label, params in [("plain", dict(observations_version="v2")),
+                          ("bound", dict(observations_version="v2", controller_hint=json.dumps(hint)))]:
+        response = asyncio.run(upload(params))
+        write_evidence(f"cropped-http-{label}.json", dict(status_code=response.status_code, body=response.json()))
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"]["code"] == "BOLE_INJECTION_LAYOUT_UNVERIFIED"
+        assert response.json()["detail"]["action"] == "review_or_recapture_full_screen"
+        assert not response.json().get("fields") and not response.json().get("page_observations")
+
+    directory = Path(tempfile.mkdtemp(prefix="cropped-cli-", dir=OUTPUT))
+    meta = rectify(image, directory / "cropped.png", directory / "cropped.rectify.json")
+    assert meta["ok"]
+    lines = run_ocr(engine, directory / "cropped.png")
+    (directory / "cropped.ocr.json").write_text(json.dumps(dict(lines=lines, engine_identity=engine_identity(engine))))
+    for label, extra in [("plain", []), ("bound", ["--controller-hint", str(directory / "hint.json")])]:
+        (directory / "hint.json").write_text(json.dumps(hint))
+        command = [sys.executable, "scripts/extract_fields.py", "cropped", "--rectified-dir", str(directory),
+                   "--output-dir", str(directory / label), "--observations-version", "v2", "--original-image", str(image),
+                   "--record-report", str(directory / "absent"), "--labels", str(directory / "absent")] + extra
+        process = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=60)
+        assert process.returncode == 0, process.stdout + process.stderr
+        result = json.loads((directory / label / "cropped.fields.json").read_text())
+        assert result["status"] == "reject" and not result.get("fields") and not result.get("page_observations")
+        assert result["raw_rejection"]["code"] == "BOLE_INJECTION_LAYOUT_UNVERIFIED"
+        assert result["raw_rejection"]["action"] == "review_or_recapture_full_screen"
+        assert result["raw_ocr_evidence"]["lines"]
+        assert not any("GENERIC_FALLBACK" in w for w in result["warnings"])
+        write_evidence(f"cropped-cli-{label}.json", result)
+
+
+def test_layout_rejection_does_not_hide_invalid_hash_or_corrupt_package(storage):
+    from raw_observations import RawPageRejected, observe_temperature_time_page
+
+    root, _ = storage
+    with pytest.raises(ValueError, match="IMAGE_HASH_INVALID") as invalid:
+        observe_temperature_time_page(PROFILE, [], dict(screen_size=[1, 1]), "invalid", package_root=root)
+    assert not isinstance(invalid.value, RawPageRejected)
+    path = root / "templates/raw-packages" / PROFILE / f"{VERSION}.json"
+    package = json.loads(path.read_text())
+    package["recognizer"]["files"]["scripts/raw_bole_injection.py"] = "0" * 64
+    path.write_text(json.dumps(package))
+    with pytest.raises(ValueError, match="RAW_RECOGNIZER_HASH_MISMATCH") as corrupt:
+        observe_temperature_time_page(PROFILE, [], dict(screen_size=[1, 1]), "0" * 64, package_root=root)
+    assert not isinstance(corrupt.value, RawPageRejected)

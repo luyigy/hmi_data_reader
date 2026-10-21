@@ -288,3 +288,11 @@ VLM 或工艺解释器。包中继承的 v1 模板迁移候选不授权 Model �
 本票不提供 B&R 温度的 v2 zone 观测、冷却设定闭环、Model 接纳、草稿保存或正式 Run 提交。
 API 上传与 CLI 实时 OCR、包 GET/独立客户端重开、旧版本回放分别记录在本票受管证据中。
 没有变更 UI，双视口浏览器操作不适用；Model 业务保存重开仍由对应 Model 票负责。
+
+版式证据不足的照片可能命中已知页，但无法生成合格 v2 观测。
+`BOLE_INJECTION_LAYOUT_UNVERIFIED` 和 `BOLE_INJECTION_LAYOUT_CONFLICT` 在包外分发层
+转换为明确拒识，不修改 `0.6.0` 包或放宽原识读窗口。HTTP 返回 422，`detail` 包含
+`code/profile_id/reason/action`，操作为 `review_or_recapture_full_screen`。
+CLI 正常处理该输入并退出 0，落盘 `status=reject`、空 `fields/page_observations` 和
+同结构的 `raw_rejection`，保留真实 `raw_ocr_evidence`，不走 generic fallback。
+该处理不宣称裁切版式已支持；其他图片身份、包哈希或内部错误仍沿原错误路径处理。
