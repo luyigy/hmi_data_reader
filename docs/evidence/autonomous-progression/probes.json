@@ -1,0 +1,54 @@
+{
+  "readOnly": true,
+  "fanuc": {
+    "gitDiffBytes": 52816837,
+    "graphGitBufferLimit": 4194304,
+    "diffSha256": "48fd70aa214621b93a71fd7f5d5f2c4e9ee0cfcf5350586f4798404cb2c39c14",
+    "exit": 0,
+    "mergeHead": "d682493504f778c7830c50b594326e6bbbb6fcfa",
+    "candidate": "c4b213a85f3dcf12563934fff64c64863c39d40e"
+  },
+  "arburg": {
+    "R05Delivery": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+    "workspaceBase": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+    "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+    "head": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+    "worktreeClean": true,
+    "latestIntegrationDisplayed": "d682493504f778c7830c50b594326e6bbbb6fcfa"
+  },
+  "yizumiQueries": [
+    {
+      "query": "31",
+      "records": 0
+    },
+    {
+      "query": "伊之密",
+      "records": 0
+    },
+    {
+      "query": "1",
+      "records": 0
+    },
+    {
+      "query": "*",
+      "records": 0
+    }
+  ],
+  "nissei": {
+    "queries": 39,
+    "lastPageRecords": 20,
+    "lastPageHasMore": true,
+    "downloadsViaBrokerRecorded": 0,
+    "queriesThisRun": 39,
+    "returnedRecordReferencesThisRun": 780,
+    "agentReportedScannedRecords": 760,
+    "distinctRecordCountNotAsserted": true
+  },
+  "hostMaterialPreparationPreviouslyVerified": {
+    "yizumiQuery": "30",
+    "records": 5,
+    "downloadedImages": 4,
+    "boleDownloadedImages": 6,
+    "businessHoldoutQualified": false
+  }
+}
