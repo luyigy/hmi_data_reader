@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -26,8 +28,8 @@ try {
     // Keep the actual dispatcher and real dependencies; only named defects are introduced into this temporary copy.
     const resolved = source.replace(/from '(\.\.?\/[^']+)'/g, (_, specifier) => `from '${path.resolve(path.dirname(sourcePath), specifier)}'`);
     writeFileSync(filename, resolved);
-    const result = spawnSync(process.execPath, ['-r', path.resolve('node_modules/ts-node/register/transpile-only'),
-      '-r', path.resolve('node_modules/tsconfig-paths/register'), 'tests/stage-harness-dispatch.test.ts'], {
+    const result = spawnSync(process.execPath, ['-r', require.resolve('ts-node/register/transpile-only'),
+      '-r', require.resolve('tsconfig-paths/register'), 'tests/stage-harness-dispatch.test.ts'], {
       env: { ...env, W001_DISPATCH_MODULE: filename }, encoding: 'utf8', timeout: 30000,
     });
     const output = `${result.stdout || ''}${result.stderr || ''}`;

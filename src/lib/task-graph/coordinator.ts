@@ -466,6 +466,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       const workspace = await ensureJobWorktree({
         repoPath: execution.repository, runId, jobId: execution.id,
         baseRef: integration.ref, baseCommit: checkpoint?.workspaceBase || workspaceBase,
+        worktreePath: execution.worktreePath || undefined,
         ...(resumeCommit ? { resumeCommit } : {}),
       });
       return { integration, workspace };

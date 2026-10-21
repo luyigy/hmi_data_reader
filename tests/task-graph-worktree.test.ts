@@ -131,25 +131,25 @@ async function run() {
     });
     assert.notEqual(mergedB.commit, mergedA.commit);
     assert.equal(git(first.repo, 'merge-base', '--is-ancestor', mergedA.commit, mergedB.commit), '');
-    await expectCode(() => cleanupIntegratedJobWorktree({ repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref, worktreeRoot: first.trees }), 'workspace_dirty');
+    await expectCode(() => cleanupIntegratedJobWorktree({ assertReleased: async () => {}, repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref, worktreeRoot: first.trees }), 'workspace_dirty');
     await fs.rm(path.join(jobA.path, 'cache'), { recursive: true });
-    await cleanupIntegratedJobWorktree({
+    await cleanupIntegratedJobWorktree({ assertReleased: async () => {},
       repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref,
       worktreeRoot: first.trees,
     });
-    await cleanupIntegratedJobWorktree({
+    await cleanupIntegratedJobWorktree({ assertReleased: async () => {},
       repoPath: first.repo, runId: 'run-1', jobId: 'A', integrationRef: integration.ref,
       worktreeRoot: first.trees,
     });
     assert.equal(await fs.access(jobA.path).then(() => true, () => false), false);
     await fs.writeFile(path.join(jobB.path, 'untracked.txt'), 'keep');
-    await expectCode(() => cleanupIntegratedJobWorktree({
+    await expectCode(() => cleanupIntegratedJobWorktree({ assertReleased: async () => {},
       repoPath: first.repo, runId: 'run-1', jobId: 'B', integrationRef: integration.ref,
       worktreeRoot: first.trees,
     }), 'workspace_dirty');
     assert.equal(await fs.readFile(path.join(jobB.path, 'untracked.txt'), 'utf8'), 'keep');
     await fs.unlink(path.join(jobB.path, 'untracked.txt'));
-    await cleanupIntegratedJobWorktree({
+    await cleanupIntegratedJobWorktree({ assertReleased: async () => {},
       repoPath: first.repo, runId: 'run-1', jobId: 'B', integrationRef: integration.ref,
       worktreeRoot: first.trees,
     });

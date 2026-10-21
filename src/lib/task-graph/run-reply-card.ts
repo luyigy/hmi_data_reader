@@ -5,7 +5,7 @@ import { redactSensitiveText } from '../redact-sensitive';
 import type { ExecutionProgress } from './execution-progress';
 import { formatExecutionProgress } from './progress-summary';
 
-type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[]; graphStatus?: string; graphProgress?: ExecutionProgress | null; replyKind?: 'conversation' };
+type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[]; graphStatus?: string; graphProgress?: ExecutionProgress | null; replyKind?: 'conversation'; graphWorkspace?: { repository: string; executionId: string; branch: string | null; path: string | null } };
 const labels: Record<string, string> = { running: '执行中', waiting_for_input: '等待确认', completed: '会话结束', failed: '执行失败', interrupted: '已中断', stopped: '已停止' };
 const roles: Record<string, string> = { implementer: '实施者', reviewer: '架构审查', tester: '测试验收' };
 const bounded = (content: string, limit: number) => {
@@ -97,6 +97,9 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
       { tag: 'collapsible_panel', expanded: false,
         header: { title: { tag: 'plain_text', content: active ? '展开本轮完整进度' : '展开本轮回复' } },
         elements: [{ tag: 'markdown', content: bounded(conversation ? conversationResponse : response, conversation ? 12_000 : active ? 4000 : 2500) }] },
+      ...(run.graphWorkspace ? [{ tag: 'collapsible_panel', expanded: false,
+        header: { title: { tag: 'plain_text', content: '工作区与保留条件' } },
+        elements: [{ tag: 'markdown', content: bounded(`项目：${run.graphWorkspace.repository}\nTicket 执行：${run.graphWorkspace.executionId}\n分支：${run.graphWorkspace.branch || '未绑定'}\n实际工作区：${run.graphWorkspace.path || '未创建'}\nSession、Writer 或绝对路径引用未核实释放时保持现场。只读清单见 workspace:inventory。`, 2400) }] }] : []),
       { tag: 'collapsible_panel', expanded: false,
         header: { title: { tag: 'plain_text', content: '系统信息详情' } },
         elements: [{ tag: 'markdown', content: bounded(`运行：${run.id}\n${lines(systems) || '暂无系统信息。'}`, 1200) }] },

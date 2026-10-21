@@ -4,6 +4,8 @@ import { clearGraphHarnessRuntime } from './harness-runtime';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
+import { observeExecutionWriter } from './phase-worker';
 import { prisma } from '../prisma';
 import { cleanupIntegratedJobWorktree } from './worktree';
 import { withRepositoryLock } from './repository-lock';
@@ -31,7 +33,21 @@ export async function cleanupCompletedNodeWorkspaces(runId: string, nodeKey: str
         await cleanupIntegratedJobWorktree({
           repoPath: execution.repository, runId, jobId: execution.id,
           integrationRef: `refs/heads/task-graph/integration/${hash(runId)}`,
-          expectedCommit: commit, resultsDirectory,
+          expectedCommit: commit, resultsDirectory, worktreePath: execution.worktreePath || undefined,
+          assertReleased: async () => {
+            if (await hasActiveRuns()) throw new Error('Active TaskRun references workspace');
+            if (await prisma.taskGraphExecution.count({ where: { worktreePath: execution.worktreePath, id: { not: execution.id } } })) throw new Error('Another execution references this path');
+            const tasks = await prisma.task.findMany({ where: { OR: [
+              { id: { in: childIds } }, { workingDirectory: execution.worktreePath }, { workingDirectory: { startsWith: execution.worktreePath + path.sep } },
+            ] }, select: { id: true, currentTaskSessionId: true } });
+            if (tasks.some(task => task.currentTaskSessionId || !childIds.includes(task.id))) throw new Error('Task or Session still references this path');
+            const historicalRuns = await prisma.taskRun.findMany({ where: { taskId: { in: childIds } }, include: { participants: true } });
+            if (historicalRuns.some(run => run.taskSessionId || run.participants.some(participant => participant.controlMetadata))) throw new Error('Historical native Session references retained at original path');
+            const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id }, orderBy: { id: 'asc' } });
+            const proof = await observeWriterSnapshot({ scope: 'execution', jobs, observeExecution: observeExecutionWriter });
+            if (!proof.exited || !await prisma.$transaction(tx => writerSnapshotMatches(tx, proof))) throw new Error('Writer exit proof is missing, unknown or changed');
+            if (proof.runs.some(run => run.taskSessionId || run.participants.some(participant => participant.controlMetadata))) throw new Error('Native Session or uncertain participant references retained at original path');
+          },
         });
         clearGraphHarnessRuntime(childTaskId);
         clearGraphHarnessRuntime(`task-graph-discussion-${execution.id}`);
