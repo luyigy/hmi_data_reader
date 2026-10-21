@@ -9,7 +9,8 @@ import { isDeepStrictEqual } from 'node:util';
 function recordedConflict(detail: unknown): IntegrationConflict | null {
   if (typeof detail !== 'string') return null;
   try {
-    const value: unknown = JSON.parse(detail);
+    // Legacy host records encode one JSON line followed by diagnostic lines.
+    const value: unknown = JSON.parse(detail.split('\n', 1)[0]);
     if (!value || typeof value !== 'object' || !('integration' in value)) return null;
     const item = value.integration;
     if (!item || typeof item !== 'object' || !('kind' in item) || item.kind !== 'conflict' ||
@@ -37,21 +38,7 @@ export async function recoverPendingConflictRepairs(runId: string) {
           create: { runId, nodeId: job.nodeId, idempotencyKey, kind: 'writer_observation', payload: writer } });
         continue;
       }
-      let evidence = recordedConflict(progress.lastFailure?.detail);
-      if (!evidence) {
-        const original = await prisma.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId, kind: 'execution_outcome', AND: [
-          { payload: { path: ['claimToken'], equals: job.claimToken } },
-          { payload: { path: ['outcome', 'failure', 'code'], equals: 'integration_conflict' } },
-        ] }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { payload: true } });
-        const payload = original?.payload;
-        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-          const outcome = payload.outcome;
-          if (outcome && typeof outcome === 'object' && !Array.isArray(outcome)) {
-            const failure = outcome.failure;
-            if (failure && typeof failure === 'object' && !Array.isArray(failure)) evidence = recordedConflict(failure.detail);
-          }
-        }
-      }
+      const evidence = recordedConflict(progress.lastFailure?.detail);
       if (!evidence) throw new Error('Legacy conflict has no complete recorded merge evidence');
       if (evidence.candidateCommit !== progress.candidateCommit) throw new Error('Recorded conflict candidate changed');
       failure.detail = JSON.stringify({ integration: evidence });

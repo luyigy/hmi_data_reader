@@ -16,9 +16,9 @@ preparation-recovery.ts 原先要求已耗尽平台验收的旧 Runtime Pin 必�
 
 conflict-repair-recovery.ts 将 JSON 冲突证据与恢复错误不断拼接到 failure.detail，下一轮 JSON.parse 对混合文本失败，又追加一次错误。FANUC 的 revision 已达 282，仍未进入冲突实施。
 
-修复优先读取合法结构；混合诊断不可解析时，读取同 node、同 claim 的原始 execution_outcome 冲突证据，严格核对候选。随后仍使用原 prepareConflictRepair 核对 Git 实际合并父、批准提交、文件集合与所有权。错误诊断规范化；同一失败不重复追加或推进 revision。没有从任意文本截取 JSON，也没有把缺失证据当作可以合并。
+实际线上最早一条 execution_outcome 本身就已经是首行 JSON 加换行诊断，不能假设历史里还有一条纯 JSON。兼容这个明确的旧宿主记录格式：只解析首行完整 JSON，并严格验证冲突字段和当前候选。随后仍使用原 prepareConflictRepair 核对 Git 实际合并父、批准提交、文件集合与所有权。错误诊断规范化；同一失败不重复追加或推进 revision。不在任意文本里搜索括号或拼接 JSON，不解析模型说明来获得合并权限，也不把缺失证据当作可以合并。
 
-红：在原冲突续接夹具中保留原账本证据、向当前 detail 加诊断后，旧代码无法进入 claimed 修复阶段。绿：同夹具完成只读源码/批准输出目录、SIGKILL 后恢复、原 Session 当前 Stage、受控合并、检查、独立验收及后继一次释放。
+红：在原冲突续接夹具中保留原账本证据、在最早记录及当前 detail 中均加入真实旧版诊断格式后，旧代码无法进入 claimed 修复阶段。绿：同夹具完成只读源码/批准输出目录、SIGKILL 后恢复、原 Session 当前 Stage、受控合并、检查、独立验收及后继一次释放。
 
 命令：node scripts/test-task-graph-postgres.mjs task-graph-conflict-continuation task-graph-conflict-repair。
 
