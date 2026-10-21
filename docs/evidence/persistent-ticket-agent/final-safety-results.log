@@ -1,0 +1,59 @@
+## persistent-final-safety.log
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+T0: user pause blocks release, projection overwrite, stale dispatch and execution claim
+W001 real ledger: fixed authority stable; candidate drift, stale TaskRun and replaced claim rejected; no outcome or budget advancement.
+Live supervisor and orphan child prevent takeover; confirmed exit and unknown ownership are distinguished
+[Task Room Context] Transcript length: 287
+AssertionError [ERR_ASSERTION]: {"kind":"unknown","reason":"EACCES: permission denied, open '/proc/3813660/environ'"}
+
+'unknown' !== 'alive'
+
+    at /data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-sandbox-manager.test.ts:102:14
+    at step (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-sandbox-manager.test.ts:44:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-sandbox-manager.test.ts:25:53)
+    at fulfilled (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-sandbox-manager.test.ts:16:58) {
+  generatedMessage: false,
+
+## persistent-final-safety-followup.log
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+PASS Manager root closed while same GraphWriter nonce descendant survives: Writer remains alive
+[Task Room Context] Transcript length: 434
+AssertionError [ERR_ASSERTION]: false == true
+    at /data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-result-recollection.test.ts:54:14
+    at step (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-result-recollection.test.ts:33:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-result-recollection.test.ts:14:53)
+    at fulfilled (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/task-graph-result-recollection.test.ts:5:58) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+
+## persistent-final-safety-followup2.log
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Real coordinator: ordinary output continues implementation; repeated unchanged work waits without fake delivery or revoked approval; independent successor passes; human resume0
+Legacy waiting conflict + advanced approved integration + SIGKILL during repair: automatic fresh artifact attempt, merged checks, independent architecture, acceptance and successor once; human resume 0
+Targeted platform: reader 1, successful model 1, architecture 0, acceptance 2, successor 1, no human resume
+Targeted architecture-platform: reader 1, successful model 1, architecture 2, acceptance 1, successor 1, no human resume
+Targeted platform-exhausted: reader 1, successful model 1, architecture 0, acceptance 3, successor 0, no human resume
+Targeted human: reader 1, successful model 1, architecture 0, acceptance 1, successor 0, one authorized human decision
+Targeted preparation: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+Targeted preparation-exhausted: reader 1, successful model 1, architecture 0, acceptance 0, successor 0, no human resume
+Targeted integration-timeout: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+Targeted ownership: reader 1, successful model 1, architecture 0, acceptance 0, successor 0, no human resume
+Targeted startup: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+Targeted startup-network: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+Two repositories run concurrently; normal human reply resumes the same execution/native session; waiting spends no budget; verified delivery unlocks downstream; completed followup protects fixed evidence.
+
+Final followup2 process exit: 0. Manager behavior followup passed; initial EACCES/unknown and obsolete recollection assertion failures retained above.

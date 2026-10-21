@@ -24,7 +24,7 @@ const reply = buildRunReplyCard(conversation, []);
 assert.match(JSON.stringify(reply.body.elements[0]), /补 1 张可以.*你这张是伯乐三段.*请补一张白色五段/);
 assert.doesNotMatch(JSON.stringify(reply.body.elements[0]), /旧阻塞|请确认这项请求|TASK_GRAPH_/);
 assert.match(reply.header.title.content, /本轮已答复/);
-const taskState = reply.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header.title.content === '任务交付状态');
+const taskState = reply.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header?.title.content === '任务交付状态');
 assert.ok(taskState && 'expanded' in taskState && taskState.expanded === false);
 assert.match(JSON.stringify(taskState), /旧阻塞/);
 const streaming = buildRunReplyCard({ ...conversation, status: 'running' }, [], [], [{ content: '正在核对你补充的图片。' }]);

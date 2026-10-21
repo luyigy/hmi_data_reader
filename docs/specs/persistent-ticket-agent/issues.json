@@ -1,0 +1,61 @@
+{
+  "SPEC": {
+    "number": "IKPHR2",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKPHR2",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR2",
+    "title": "[Spec] 持续 Ticket Agent、飞书总览与集中工作区",
+    "blockedBy": []
+  },
+  "T0": {
+    "number": "IKPHR3",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKPHR3",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR3",
+    "title": "[T0] 旧路线维护暂停与安全保留现场",
+    "blockedBy": []
+  },
+  "T1": {
+    "number": "IKPHR5",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKPHR5",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR5",
+    "title": "[T1] 原 Coding Agent 多轮实施与自然问答",
+    "blockedBy": [
+      "gitee:luyi1678/agent-platform-v2#IKPHR3"
+    ]
+  },
+  "T2": {
+    "number": "IKPHR6",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKPHR6",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR6",
+    "title": "[T2] 验收缺陷自动回修与受控集成推进",
+    "blockedBy": [
+      "gitee:luyi1678/agent-platform-v2#IKPHR5"
+    ]
+  },
+  "T3": {
+    "number": "IKPHR8",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKPHR8",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR8",
+    "title": "[T3] 飞书总览定向回复与交付通知",
+    "blockedBy": [
+      "gitee:luyi1678/agent-platform-v2#IKPHR5"
+    ]
+  },
+  "W01": {
+    "number": "IKPHR9",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKPHR9",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR9",
+    "title": "[W01] 集中工作区布局与旧目录安全整理",
+    "blockedBy": []
+  },
+  "T4": {
+    "number": "IKPHRA",
+    "ref": "gitee:luyi1678/agent-platform-v2#IKPHRA",
+    "url": "https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHRA",
+    "title": "[T4] 原 Reader/Mold 合法续接与业务交付验收",
+    "blockedBy": [
+      "gitee:luyi1678/agent-platform-v2#IKPHR6",
+      "gitee:luyi1678/agent-platform-v2#IKPHR8",
+      "gitee:luyi1678/agent-platform-v2#IKPHR9"
+    ]
+  }
+}

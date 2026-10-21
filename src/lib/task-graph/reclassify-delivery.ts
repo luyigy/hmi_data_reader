@@ -53,7 +53,7 @@ export async function reclassifyIncompleteDelivery(args: {
     } else await tx.taskGraphExecution.update({ where: { id: current.id }, data: { issueKind: args.blockerKind } });
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention', passedAt: null } });
     await tx.taskGraphNode.updateMany({ where: { runId: run.id, key: { in: Array.from(descendants).filter(key => key !== node.key) }, status: 'ready' }, data: { status: 'planned' } });
-    await tx.taskGraphRun.update({ where: { id: run.id }, data: { status: 'attention' } });
+    await tx.taskGraphRun.updateMany({ where: { id: run.id, status: { not: 'paused' } }, data: { status: 'attention' } });
     const ticket = source?.tickets.find(ticket => ticket.key === node.key);
     if (ticket) await tx.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, idempotencyKey: key + ':issue', kind: 'issue_reopen_requested', payload: { ref: ticket.ref, reason: args.reason, reclassificationId: event.id } } });
     return event;

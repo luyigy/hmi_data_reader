@@ -1,3 +1,5 @@
+import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
+import { executionProgress, initialExecutionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import { graphValidationArchiveForTask } from '../src/lib/task-graph/validation-archive-access';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -15,6 +17,8 @@ import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree } from '.
 
 async function main() {
   const root = await fs.mkdtemp(path.join(tmpdir(), 'graph-completion-'));
+  const previousWorkspaceRoot = process.env.AP_WORKSPACE_ROOT;
+  process.env.AP_WORKSPACE_ROOT = path.join(root, 'workspaces');
   const previousValidationRoot = process.env.TASK_GRAPH_VALIDATION_ROOT;
   process.env.TASK_GRAPH_VALIDATION_ROOT = path.join(root, 'validation');
   const repo = path.join(root, 'repo'); await fs.mkdir(repo);
@@ -67,10 +71,19 @@ async function main() {
     assert.equal(await fs.access(workspace.path).then(() => true, () => false), true, 'Keep active sessions');
     assert.equal(await fs.access(validation.directory).then(() => true, () => false), true, 'Active roles retain validation runtime');
     await prisma.taskRun.update({ where: { id: active.id }, data: { status: 'completed' } });
+    await cleanupCompletedNodeWorkspaces(run.id, 'S1');
+    assert.equal(await fs.access(workspace.path).then(() => true, () => false), true, 'Completed status alone cannot prove an unknown Writer exited');
+    // This fixture never launched a harness. Release its supervisor and prove no nonce-bearing child remains.
+    const releasedWorker = await createGraphWriter();
+    const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
+    const progress = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
+    await prisma.taskGraphExecution.update({ where: { id: execution.id }, data: { dispatchMetadata: metadataWithProgress(current.dispatchMetadata,
+      { ...progress, worker: releasedWorker, workerReleasedAt: new Date().toISOString() }) } });
     await Promise.all([cleanupCompletedNodeWorkspaces(run.id, 'S1'), cleanupCompletedNodeWorkspaces(run.id, 'S1')]);
     assert.equal(await fs.access(workspace.path).then(() => true, () => false), false, 'Release the completed checkout');
     assert.equal(git(repo, 'rev-parse', 'refs/heads/main'), base);
     assert.equal(git(repo, 'rev-parse', integration.ref), result.commit, 'Keep submitted Git history');
+    assert.equal(git(repo, 'rev-parse', workspace.branch), result.commit, 'Cleanup never deletes the task branch');
     const receipts = await prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: 'workspace_cleaned' } });
     assert.equal(receipts.length, 1, 'Concurrent cleanup must leave one receipt');
     const payload = receipts[0].payload;
@@ -97,6 +110,7 @@ async function main() {
     if (runId) await prisma.taskGraphRun.delete({ where: { id: runId } });
     await prisma.task.deleteMany({ where: { id: { in: [parent.id, child.id] } } });
     await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true });
+    if (previousWorkspaceRoot === undefined) delete process.env.AP_WORKSPACE_ROOT; else process.env.AP_WORKSPACE_ROOT = previousWorkspaceRoot;
     if (previousValidationRoot === undefined) delete process.env.TASK_GRAPH_VALIDATION_ROOT; else process.env.TASK_GRAPH_VALIDATION_ROOT = previousValidationRoot;
   }
 }

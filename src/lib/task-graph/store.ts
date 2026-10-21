@@ -1,3 +1,4 @@
+import { graphRunCanStartTx, graphRunBusinessStatus } from './run-control';
 import { observeTaskRunWriter, observeGraphWriter, type GraphWriter } from './writer-ownership';
 import { applyReviewFailureTx, type ReviewPublication } from './review-publication';
 import { assertGraphReviewOwnershipTx } from './review-ownership';
@@ -71,6 +72,7 @@ export async function createTaskGraphRun(
 export async function releaseReadyNodes(runId: string, db: Database = prisma): Promise<string[]> {
   required(runId, 'runId');
   return db.$transaction(async (tx) => {
+    if (!await graphRunCanStartTx(tx, runId)) return [];
     const nodes = await tx.taskGraphNode.findMany({ where: { runId }, select: { id: true, key: true, dependsOn: true, status: true } });
     const passed = new Set(nodes.filter((node) => isCompletedNodeStatus(node.status)).map((node) => node.key));
     const released: string[] = [];
@@ -92,6 +94,7 @@ export async function releaseReadyNodes(runId: string, db: Database = prisma): P
 export async function claimNode(runId: string, nodeKey: string, claimToken: string, db: Database = prisma) {
   required(claimToken, 'claimToken');
   return db.$transaction(async (tx) => {
+    if (!await graphRunCanStartTx(tx, runId)) return null;
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId, key: nodeKey } } });
     if (!node) throw new Error('Unknown graph node');
     if (node.status === 'claimed' && node.claimToken === claimToken) return node;
@@ -138,6 +141,7 @@ export async function claimExecution(
 ) {
   required(claimToken, 'claimToken');
   return db.$transaction(async (tx) => {
+    if (!await graphRunCanStartTx(tx, runId)) return null;
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${runId} AND "key" = ${nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId, key: nodeKey } }, include: { run: true } });
     if (!node || node.status !== 'claimed') return null;
@@ -423,10 +427,8 @@ export async function flagStaleExecutionClaim(args: {
 export async function refreshTaskGraphRunStatus(runId: string, db: Database = prisma) {
   return db.$transaction(async (tx) => {
     const nodes = await tx.taskGraphNode.findMany({ where: { runId }, select: { status: true } });
-    if (nodes.length === 0) throw new Error('Unknown or empty task graph run');
-    const status = nodes.every((node) => isCompletedNodeStatus(node.status))
-      ? nodes.some((node) => node.status === 'delivered_unverified') ? 'completed_unverified' : 'completed'
-      : nodes.some((node) => node.status === 'attention') ? 'attention' : 'running';
-    return tx.taskGraphRun.update({ where: { id: runId }, data: { status } });
+    const status = graphRunBusinessStatus(nodes);
+    await tx.taskGraphRun.updateMany({ where: { id: runId, status: { not: 'paused' } }, data: { status } });
+    return tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId } });
   });
 }

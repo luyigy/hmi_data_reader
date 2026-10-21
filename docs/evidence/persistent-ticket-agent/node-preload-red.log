@@ -1,0 +1,32 @@
+GraphCheckCommandError: node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/approved.ts: exit 1
+
+node:internal/modules/cjs/loader:1386
+  throw err;
+  ^
+
+Error: Cannot find module 'ts-node/register/transpile-only'
+Require stack:
+- internal/preload
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1383:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.require (node:internal/modules/cjs/loader:1463:12)
+    at node:internal/modules/cjs/loader:1996:12
+    at loadPreloadModules (node:internal/process/pre_execution:756:5)
+    at setupUserModules (node:internal/process/pre_execution:231:5) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ 'internal/preload' ]
+}
+
+Node.js v22.22.1
+
+    at new GraphCheckCommandError (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/src/lib/task-graph/check-runner.ts:8:39)
+    at ChildProcess.<anonymous> (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/src/lib/task-graph/check-runner.ts:54:62)
+    at Object.onceWrapper (node:events:634:26)
+    at ChildProcess.emit (node:events:519:28)
+    at ChildProcess.emit (node:domain:489:12)
+    at maybeClose (node:internal/child_process:1101:16)
+    at Process.ChildProcess._handle.onexit (node:internal/child_process:304:5)

@@ -1,0 +1,182 @@
+{
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "status": "paused",
+  "eventId": "cmvi8gpw90002k7obhn5vd83g",
+  "writers": [
+    {
+      "node": "M6_DEMAG",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "M07",
+      "execution": "mold",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "M6_ARBURG",
+      "execution": "mold",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "M6_BOLE",
+      "execution": "mold",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "M6_FANUC",
+      "execution": "mold",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "M6_NISSEI",
+      "execution": "mold",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "M6_YIZUMI",
+      "execution": "mold",
+      "proof": {
+        "kind": "unknown",
+        "reason": "Execution has no versioned writer identity"
+      }
+    },
+    {
+      "node": "M01",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "M04C",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R05",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R02",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R01",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R6_ARBURG",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R6_YIZUMI",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R6_NISSEI",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R6_FANUC",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R04",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "M04T",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "M05",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "M02",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "M03A",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "M03B",
+      "execution": "mold",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R6_DEMAG",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    },
+    {
+      "node": "R6_BOLE",
+      "execution": "reader",
+      "proof": {
+        "kind": "exited"
+      }
+    }
+  ],
+  "note": "Dispatch paused. The Coordinator stops owned processes; alive/unknown is not exit proof."
+}

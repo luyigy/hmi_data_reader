@@ -1,3 +1,4 @@
+import { relayGraphOverviews } from '../src/lib/task-graph/overview';
 import { relayGraphNotifications } from '../src/lib/task-graph/notifications';
 import { prisma } from '../src/lib/prisma';
 import { relayTaskGraphReplies } from '../src/lib/task-graph/run-reply-relay';
@@ -9,6 +10,7 @@ process.on('SIGTERM', () => { stopped = true; });
   while (!stopped) {
     await relayGraphNotifications();
     await relayTaskGraphReplies();
+    await relayGraphOverviews();
     if (!stopped) await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 })().catch((error) => { console.error('[TaskGraphReplies]', error); process.exitCode = 1; })

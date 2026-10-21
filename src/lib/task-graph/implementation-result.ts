@@ -1,3 +1,4 @@
+import { requireGraphRunActiveTx } from './run-control';
 import { assertExecutionWriterExited } from './phase-worker';
 import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
@@ -9,6 +10,7 @@ export type ImplementationResult =
   | { status: 'delivered'; note: string; evidence: string[] }
   | { status: 'waiting_for_user'; note: string }
   | { status: 'answered'; note: string }
+  | { status: 'working'; note: string }
   | { status: 'blocked'; note: string; blockerKind: 'missing_business_material' | 'missing_upstream_input' | 'environment_failed' | 'scope_change' | 'permission_required'; blockerCause?: 'missing_capability' | 'transient' };
 export type RecoveryKind = 'implementation' | 'verification';
 
@@ -18,13 +20,20 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Harness completion is transport success, never a delivery decision. */
 export function parseImplementationResult(output: string, options?: { conversation: boolean }): ImplementationResult {
-  if (options?.conversation && output.trim() && !output.includes('TASK_GRAPH_IMPLEMENTATION')) return { status: 'answered', note: output.trim() };
+  try { return decodeImplementationResult(output); }
+  catch (error) {
+    if (options?.conversation && output.trim()) return { status: 'working', note: output.trim() };
+    throw error;
+  }
+}
+
+function decodeImplementationResult(output: string): ImplementationResult {
   const matches = Array.from(output.matchAll(/^TASK_GRAPH_IMPLEMENTATION[ \t]+(\{[^\r\n]+\})[ \t]*$/gm));
   if (matches.length !== 1) throw new Error('实施缺少唯一的 TASK_GRAPH_IMPLEMENTATION 结论，不自动交付');
   const value: unknown = JSON.parse(matches[0][1]);
   if (!isRecord(value) || typeof value.note !== 'string' || !value.note.trim()) throw new Error('实施结论缺少有效说明');
   const note = value.note.trim();
-  if (value.status === 'waiting_for_user' || value.status === 'answered') return { status: value.status, note };
+  if (value.status === 'waiting_for_user' || value.status === 'answered' || value.status === 'working') return { status: value.status, note };
   if (value.status === 'delivered' && Array.isArray(value.evidence) && value.evidence.length &&
       value.evidence.every(item => typeof item === 'string' && item.trim())) {
     return { status: 'delivered', note, evidence: value.evidence };
@@ -106,6 +115,7 @@ export function implementationCheckpoint(payload: unknown, executionId: string) 
 /** Requeue through the existing claims, preserving the previous attempt in an append-only event. */
 export async function scheduleImplementationRecovery(runId: string, nodeKey: string, requestId: string, preparedEventId?: string) {
   return prisma.$transaction(async tx => {
+    await requireGraphRunActiveTx(tx, runId);
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
     const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
@@ -166,7 +176,7 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
       } });
     }
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'ready', passedAt: null, claimToken: null, claimedAt: null } });
-    await tx.taskGraphRun.update({ where: { id: runId }, data: { status: 'running' } });
+    await tx.taskGraphRun.updateMany({ where: { id: runId, status: { not: 'paused' } }, data: { status: 'running' } });
     return { kind: 'scheduled' as const, eventId: event.id };
   });
 }

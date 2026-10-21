@@ -18,6 +18,7 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
   if (!argv.length) throw new Error('Check command is empty');
   const extra = extraEnv.AP_GRAPH_SERVICE_TASK_ID ? await graphInputsForTask(extraEnv.AP_GRAPH_SERVICE_TASK_ID, true) : null;
   const root = realpathSync(cwd);
+  const dependencies = graphDependencyPaths(root);
   const outputs: string[] = [];
   const protectedInputs: string[] = [];
   for (const name of ['scratch', '.pytest_cache', 'node_modules', 'frontend/dist', 'frontend/node_modules']) {
@@ -37,16 +38,16 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
   }
   const output = await prepareGraphOutputForTask(extraEnv.AP_GRAPH_SERVICE_TASK_ID, extraEnv.AP_GRAPH_OUTPUT_ATTEMPT || `check:${randomUUID()}`, [root]);
   const metadata = linkedWorktreeGitDirectories(root);
-  const declaredRuntime = await prepareTaskDeclaredRuntime({ taskId: extraEnv.AP_GRAPH_SERVICE_TASK_ID, workspace: root, approvedReadOnlyRoots: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root)], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: extraEnv.AP_GRAPH_WRITER_NONCE });
+  const declaredRuntime = await prepareTaskDeclaredRuntime({ taskId: extraEnv.AP_GRAPH_SERVICE_TASK_ID, workspace: root, approvedReadOnlyRoots: [...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...dependencies], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts, writerNonce: extraEnv.AP_GRAPH_WRITER_NONCE });
   const check = async (capabilities: { env: Record<string, string>; readOnlyPaths: string[] }) => withGraphTaskServices(extraEnv.AP_GRAPH_SERVICE_TASK_ID, 'platform-check', async services => {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...capabilities.env, ...(extra?.env.TASK_GRAPH_EXTRA_REPOS_JSON ? { TASK_GRAPH_EXTRA_REPOS_JSON: extra.env.TASK_GRAPH_EXTRA_REPOS_JSON } : {}), ...services.env, ...output.env, ...declaredRuntime.env, AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp' };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv, ...capabilities.env, ...(extra?.env.TASK_GRAPH_EXTRA_REPOS_JSON ? { TASK_GRAPH_EXTRA_REPOS_JSON: extra.env.TASK_GRAPH_EXTRA_REPOS_JSON } : {}), ...services.env, ...output.env, ...declaredRuntime.env, NODE_PATH: dependencies.filter(directory => path.basename(directory) === 'node_modules').join(path.delimiter), AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0', HOME: '/tmp' };
   for (const name of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY']) {
     const value = process.env[name] || process.env[name.toLowerCase()] || process.env['FEISHU_RUNTIME_CODEX_' + name];
     if (value) { env[name] = value; env[name.toLowerCase()] = value; }
   }
   const wrapped = wrapWithBubblewrap({ command: argv[0], commandArgs: argv.slice(1), cwd: root, workspaceRoot: root,
     sandboxMode: 'read-only', networkAccess: 'enabled', env, outputPaths: outputs,
-    readOnlyPaths: [...capabilities.readOnlyPaths, ...declaredRuntime.readOnlyPaths, ...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...graphDependencyPaths(root), ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
+    readOnlyPaths: [...capabilities.readOnlyPaths, ...declaredRuntime.readOnlyPaths, ...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...dependencies, ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
   return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv, services.signal);
   });
   if (!extraEnv.AP_GRAPH_SERVICE_TASK_ID) return check({ env: {}, readOnlyPaths: [] });

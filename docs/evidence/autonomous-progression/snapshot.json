@@ -1,0 +1,1221 @@
+{
+  "baseline": "bac31f2",
+  "databaseSampledAt": "2026-10-21T11:19:10.746Z",
+  "routeId": "cmvdmf87w043f9xhgf9yvua6p",
+  "snapshotHash": "9f4925fed7ddb9bde0f083d0659529fe3a71d539b2d1a99944eb753d0661e503",
+  "categoryCounts": {
+    "completed": 12,
+    "waiting_dependencies": 6,
+    "platform_recoverable": 2,
+    "budget_exhausted": 1,
+    "code_defect": 1,
+    "waiting_for_user": 2
+  },
+  "nodes": [
+    {
+      "key": "M01",
+      "id": "cmvdmf87y043g9xhgh5bym8te",
+      "status": "passed",
+      "dependsOn": [
+        "R01"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87y043h9xhg2x2fqmku",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/8a0a5fcd22d665ca",
+          "commit": "8dea94a9fdbfcc7e823ab818bae6605a1ade3c0c",
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            }
+          ],
+          "candidate": "8dea94a9fdbfcc7e823ab818bae6605a1ade3c0c",
+          "workspaceBase": "3389dd07110f26765feda1b13b01a9fffe0801e1",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 36,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "test_failed",
+            "detail": "/data1/code/mold-data-webpage-tool/backend/.venv/bin/python -m pytest -q backend/tests/test_hmi_protocol_library_m01.py: exit 1\nnt-platform/task-validation/7a592edac1b1ff87f78d1afe/e4ce5528566f0d87263b33e2/reader-live-receipt.json')\nmode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None\n\n    def open(self, mode='r', buffering=-1, encoding=None,\n             errors=None, newline=None):\n        \"\"\"\n        Open the file pointed by this path and return a file object, as\n        the built-in open() function does.\n        \"\"\"\n        if \"b\" not in mode:\n            encoding = io.text_encoding(encoding)\n>       return self._accessor.open(self, mode, buffering, encoding, errors,\n                                   newline)\nE       FileNotFoundError: [Errno 2] No such file or directory: '/home/hello/.agent-platform/task-validation/7a592edac1b1ff87f78d1afe/e4ce5528566f0d87263b33e2/reader-live-receipt.json'\n\n/usr/lib/python3.10/pathlib.py:1119: FileNotFoundError\n---------------------------- Captured stdout setup -----------------------------\n[DB_CONNECT] Connecting to database URL: sqlite://\n[DB_CONNECT] Connection succeeded to database: sqlite://!\n[DB_CONNECT] Warning: Could not initialize default admin (tables might not exist yet). Please run scripts/db_smoke_test.py --create to initialize tables manually.\n=============================== warnings summary ===============================\n../../../../../mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1\n  /data1/code/mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED backend/tests/test_hmi_protocol_library_m01.py::test_a01_a03_real_ocr_hash_manual_equivalence_and_frozen_replay\n1 failed, 8 passed, 1 warning in 6.28s\n\n",
+            "checkId": "execution:mold:ticket-behavior",
+            "command": [
+              "/data1/code/mold-data-webpage-tool/backend/.venv/bin/python",
+              "-m",
+              "pytest",
+              "-q",
+              "backend/tests/test_hmi_protocol_library_m01.py"
+            ]
+          },
+          "counters": {
+            "repairAttempts": 2,
+            "formatAttempts": 0,
+            "platformAttempts": 1,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvdxskoa0cw6twmkb0v2vpt2",
+            "status": "completed",
+            "createdAt": "2026-10-18T14:44:43.306Z",
+            "completedAt": "2026-10-18T14:49:51.849Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "M02",
+      "id": "cmvdmf87y043i9xhghv7xkaow",
+      "status": "passed",
+      "dependsOn": [
+        "R02",
+        "M01"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87y043j9xhgc8sw2aks",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/d4cd1f345cf0cd41",
+          "commit": "74c56686a6f3c3e544d7d392759317c5f35c3124",
+          "materialCounts": [
+            {
+              "_count": 2,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 1,
+              "kind": "node_repair_scheduled"
+            }
+          ],
+          "candidate": "74c56686a6f3c3e544d7d392759317c5f35c3124",
+          "workspaceBase": "971de2652f4e2706b54b33aec17954a3553b9266",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 36,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "独立复验14项行为测试、2项双视口测试通过，但两次真实OCR均复现：BOLE/B_AND_R冻结绑定收到PAGE_COMPATIBLE后，Model仍误报品牌不符并保存空字段候选，现有测试漏断言。属于范围内缺陷，无需用户补图。报告：/home/hello/.agent-platform/task-validation/18c3968f2a4c5bdfc43d75bb/e592f510cd0abf29dccd2126/acceptance-report.txt；失败证据：同目录live-candidate-check.log及m02-formal-live-chain.json。仅新增隔离验收产物，源码未修改。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "1f558aa0c7f3cf2969eb9001f85a7c73e9f56384b0cf3062b7297d87a83c9a00"
+          },
+          "counters": {
+            "repairAttempts": 1,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvf4dtys002i6wx4xshuy4er",
+            "status": "completed",
+            "createdAt": "2026-10-19T10:36:58.997Z",
+            "completedAt": "2026-10-19T10:42:13.111Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "M03A",
+      "id": "cmvdmf87y043k9xhgzvp8rt0u",
+      "status": "passed",
+      "dependsOn": [
+        "M02"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87y043l9xhgwuu1qoex",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/eedc1ca010703239",
+          "commit": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            }
+          ],
+          "candidate": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+          "workspaceBase": "74c56686a6f3c3e544d7d392759317c5f35c3124",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 31,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "review_platform_failure",
+            "detail": "Agent 复核 未通过：tester @ Platform Local (hello) / codex: 本次验收涉及多个项目 Python 环境，需按仓库分别执行检查，不能隐式混用"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 2,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvf80kku002cdl5khgha861u",
+            "status": "completed",
+            "createdAt": "2026-10-19T12:18:38.766Z",
+            "completedAt": "2026-10-19T12:22:03.024Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "M03B",
+      "id": "cmvdmf87y043m9xhg8h5f84zc",
+      "status": "passed",
+      "dependsOn": [
+        "M03A"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87y043n9xhgkgkxy2ip",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/aa84ec80733df41f",
+          "commit": "f4d0b48d6ac28be6f4544492beb88b4e6cfc7576",
+          "materialCounts": [],
+          "candidate": "f4d0b48d6ac28be6f4544492beb88b4e6cfc7576",
+          "workspaceBase": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 9,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvf8lqmk01rm9sfjfdxu4ybi",
+            "status": "completed",
+            "createdAt": "2026-10-19T12:35:06.380Z",
+            "completedAt": "2026-10-19T12:52:24.902Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "M04C",
+      "id": "cmvdmf87y043o9xhgo8jyy65x",
+      "status": "passed",
+      "dependsOn": [
+        "R04",
+        "M01"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87y043p9xhgjpb09wwi",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/ef5ba0410759b017",
+          "commit": "92635daf5e7c4e8da29ee6ceb21b833e98d248fd",
+          "materialCounts": [],
+          "candidate": "92635daf5e7c4e8da29ee6ceb21b833e98d248fd",
+          "workspaceBase": "8dea94a9fdbfcc7e823ab818bae6605a1ade3c0c",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 19,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "environment_failed",
+            "detail": "已保留实现并重跑指定测试，18 passed；前端构建通过。现有Playwright可加载，但Chromium可执行文件缺失，A16双视口保存重开仍未执行。证据保存在本轮AP_GRAPH_OUTPUT_DIR/m04c-report.md。",
+            "blockedPhase": "implementation"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 2,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvdz2hty0p0htwmk8oe7xqqa",
+            "status": "completed",
+            "createdAt": "2026-10-18T15:20:25.798Z",
+            "completedAt": "2026-10-18T15:25:21.929Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "M04T",
+      "id": "cmvdmf87y043q9xhgrlah9weu",
+      "status": "passed",
+      "dependsOn": [
+        "R04",
+        "M01"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87y043r9xhgmka7pw7b",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/cb26155da64fd561",
+          "commit": "971de2652f4e2706b54b33aec17954a3553b9266",
+          "materialCounts": [],
+          "candidate": "971de2652f4e2706b54b33aec17954a3553b9266",
+          "workspaceBase": "8dea94a9fdbfcc7e823ab818bae6605a1ade3c0c",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 18,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "integration_conflict",
+            "detail": "{\"message\":\"Merge needs manual resolution: /data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/cb26155da64fd561\",\"integration\":{\"kind\":\"conflict\",\"candidateCommit\":\"9fff5d0da6ecaa4cb0a58af7862be2f71498e17e\",\"integrationCommit\":\"92635daf5e7c4e8da29ee6ceb21b833e98d248fd\",\"mergeHead\":\"92635daf5e7c4e8da29ee6ceb21b833e98d248fd\",\"paths\":[\"backend/app/hmi_mapping/package_acceptance.py\",\"backend/app/hmi_mapping/page_profiles.py\",\"backend/app/hmi_mapping/partial_input.py\",\"backend/app/hmi_mapping/protocol.py\",\"backend/app/hmi_mapping/raw_capture_routes.py\",\"backend/app/hmi_mapping/raw_capture_v2.py\",\"backend/app/hmi_mapping/screen_projection.py\"]}}",
+            "action": "原批准范围内输出冲突解决文件，平台完成合并并复验",
+            "owner": "implementer",
+            "requiresUserDecision": false,
+            "affectedPaths": [
+              "backend/app/hmi_mapping/package_acceptance.py",
+              "backend/app/hmi_mapping/page_profiles.py",
+              "backend/app/hmi_mapping/partial_input.py",
+              "backend/app/hmi_mapping/protocol.py",
+              "backend/app/hmi_mapping/raw_capture_routes.py",
+              "backend/app/hmi_mapping/raw_capture_v2.py",
+              "backend/app/hmi_mapping/screen_projection.py"
+            ]
+          },
+          "counters": {
+            "repairAttempts": 1,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmve1kuia0038b0j30rp6hjbf",
+            "status": "completed",
+            "createdAt": "2026-10-18T16:30:41.266Z",
+            "completedAt": "2026-10-18T16:37:09.021Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "M05",
+      "id": "cmvdmf87y043s9xhgjdlzwq80",
+      "status": "passed",
+      "dependsOn": [
+        "R05",
+        "M02",
+        "M04T",
+        "M04C"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87y043t9xhgdo28uftr",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/c7ceca30a6f9a4d2",
+          "commit": "2a3bf035f06030f50027691baf3ad26907eca523",
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            }
+          ],
+          "candidate": "2a3bf035f06030f50027691baf3ad26907eca523",
+          "workspaceBase": "f4d0b48d6ac28be6f4544492beb88b4e6cfc7576",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 17,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "environment_failed",
+            "detail": "必需 poteto-mode 技能符号链接目标缺失，SKILL.md、Codex 映射及校验脚本不可读取；已搜索可用副本但未找到。检查进度已保存，源码未修改，真实 Reader/API/双视口保存重开均未验证。",
+            "blockerCause": "missing_capability",
+            "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+            "owner": "platform",
+            "requiresUserDecision": false,
+            "blockedPhase": "implementation"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvgs27st2w3avo4gtrr0n84a",
+            "status": "completed",
+            "createdAt": "2026-10-20T14:27:34.013Z",
+            "completedAt": "2026-10-20T14:52:38.203Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "M07",
+      "id": "cmvdmf87z043u9xhgips1oo26",
+      "status": "planned",
+      "dependsOn": [
+        "M6_DEMAG",
+        "M6_NISSEI",
+        "M6_FANUC",
+        "M6_BOLE",
+        "M6_YIZUMI",
+        "M6_ARBURG"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z043v9xhgw3kai2u3",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "planned",
+          "sessionId": null,
+          "worktree": null,
+          "commit": null,
+          "materialCounts": [],
+          "candidate": null,
+          "workspaceBase": null,
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": null,
+            "formatAttempts": null,
+            "platformAttempts": null,
+            "integrationAttempts": null
+          },
+          "taskRun": null
+        }
+      ]
+    },
+    {
+      "key": "M6_ARBURG",
+      "id": "cmvdmf87z043w9xhgp6qkzrf0",
+      "status": "planned",
+      "dependsOn": [
+        "R6_ARBURG",
+        "M03B",
+        "M05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z043x9xhg4ge3392q",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "planned",
+          "sessionId": null,
+          "worktree": null,
+          "commit": null,
+          "materialCounts": [],
+          "candidate": null,
+          "workspaceBase": null,
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": null,
+            "formatAttempts": null,
+            "platformAttempts": null,
+            "integrationAttempts": null
+          },
+          "taskRun": null
+        }
+      ]
+    },
+    {
+      "key": "M6_BOLE",
+      "id": "cmvdmf87z043y9xhg0m9ow9d3",
+      "status": "planned",
+      "dependsOn": [
+        "R6_BOLE",
+        "M03B",
+        "M05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z043z9xhg3iggnmvj",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "planned",
+          "sessionId": null,
+          "worktree": null,
+          "commit": null,
+          "materialCounts": [],
+          "candidate": null,
+          "workspaceBase": null,
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": null,
+            "formatAttempts": null,
+            "platformAttempts": null,
+            "integrationAttempts": null
+          },
+          "taskRun": null
+        }
+      ]
+    },
+    {
+      "key": "M6_DEMAG",
+      "id": "cmvdmf87z04409xhgp774gl3a",
+      "status": "attention",
+      "dependsOn": [
+        "R6_DEMAG",
+        "M03B",
+        "M05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z04419xhgcwj4i8y0",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "attention",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/e390df1f18b50561",
+          "commit": null,
+          "materialCounts": [],
+          "candidate": "2a3bf035f06030f50027691baf3ad26907eca523",
+          "workspaceBase": "2a3bf035f06030f50027691baf3ad26907eca523",
+          "phase": "prepare",
+          "state": "waiting_decision",
+          "revision": 5,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "missing_upstream_input",
+            "detail": "固定输入准备失败：候选夹带未通过节点 R6_BOLE 的历史交付",
+            "blockedPhase": "input_preparation"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": null
+        }
+      ]
+    },
+    {
+      "key": "M6_FANUC",
+      "id": "cmvdmf87z04429xhgpsqukg8d",
+      "status": "planned",
+      "dependsOn": [
+        "R6_FANUC",
+        "M03B",
+        "M05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z04439xhgbpz1iy56",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "planned",
+          "sessionId": null,
+          "worktree": null,
+          "commit": null,
+          "materialCounts": [],
+          "candidate": null,
+          "workspaceBase": null,
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": null,
+            "formatAttempts": null,
+            "platformAttempts": null,
+            "integrationAttempts": null
+          },
+          "taskRun": null
+        }
+      ]
+    },
+    {
+      "key": "M6_NISSEI",
+      "id": "cmvdmf87z04449xhgokadsbv2",
+      "status": "planned",
+      "dependsOn": [
+        "R6_NISSEI",
+        "M03B",
+        "M05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z04459xhgb6sft4g5",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "planned",
+          "sessionId": null,
+          "worktree": null,
+          "commit": null,
+          "materialCounts": [],
+          "candidate": null,
+          "workspaceBase": null,
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": null,
+            "formatAttempts": null,
+            "platformAttempts": null,
+            "integrationAttempts": null
+          },
+          "taskRun": null
+        }
+      ]
+    },
+    {
+      "key": "M6_YIZUMI",
+      "id": "cmvdmf87z04469xhgptatgypv",
+      "status": "planned",
+      "dependsOn": [
+        "R6_YIZUMI",
+        "M03B",
+        "M05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z04479xhgsg531lko",
+          "repository": "/data1/code/mold-data-webpage-tool",
+          "status": "planned",
+          "sessionId": null,
+          "worktree": null,
+          "commit": null,
+          "materialCounts": [],
+          "candidate": null,
+          "workspaceBase": null,
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": null,
+            "formatAttempts": null,
+            "platformAttempts": null,
+            "integrationAttempts": null
+          },
+          "taskRun": null
+        }
+      ]
+    },
+    {
+      "key": "R01",
+      "id": "cmvdmf87z04489xhga79xbn7y",
+      "status": "passed",
+      "dependsOn": [],
+      "jobs": [
+        {
+          "id": "cmvdmf87z04499xhg3j7qnblt",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/f587b072f282bfa0",
+          "commit": "c7b74e905401356878e355a60b6afba64d2ae835",
+          "materialCounts": [
+            {
+              "_count": 4,
+              "kind": "implementation_recovery_scheduled"
+            }
+          ],
+          "candidate": "c7b74e905401356878e355a60b6afba64d2ae835",
+          "workspaceBase": "63054287203bbceb7d07d3d96520eb4ede2dc235",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 11,
+          "waitingMessage": null,
+          "lastFailure": null,
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvdvh93b004g10x0n0lwhezy",
+            "status": "completed",
+            "createdAt": "2026-10-18T13:39:55.847Z",
+            "completedAt": "2026-10-18T13:43:17.253Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R02",
+      "id": "cmvdmf87z044a9xhgaa8ntevb",
+      "status": "passed",
+      "dependsOn": [
+        "R01"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf87z044b9xhg5x324xdu",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/2a2c0ecd4f44813b",
+          "commit": "cd92faeb2cfb86486fc9b65d2053e50a31fede2f",
+          "materialCounts": [
+            {
+              "_count": 2,
+              "kind": "implementation_recovery_scheduled"
+            }
+          ],
+          "candidate": "cd92faeb2cfb86486fc9b65d2053e50a31fede2f",
+          "workspaceBase": "c7b74e905401356878e355a60b6afba64d2ae835",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 30,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "integration_conflict",
+            "detail": "{\"message\":\"Merge needs manual resolution: /data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/2a2c0ecd4f44813b\",\"integration\":{\"kind\":\"conflict\",\"candidateCommit\":\"29b0b7f46abfb8895c7d1183f9d49653e4618e40\",\"integrationCommit\":\"9fc166708274319b33c0fed3532480b4e528eaa3\",\"mergeHead\":\"9fc166708274319b33c0fed3532480b4e528eaa3\",\"paths\":[\"docs/specs/hmi-protocol-library/raw-contract.md\"]}}",
+            "action": "原批准范围内输出冲突解决文件，平台完成合并并复验",
+            "owner": "implementer",
+            "requiresUserDecision": false,
+            "affectedPaths": [
+              "docs/specs/hmi-protocol-library/raw-contract.md"
+            ]
+          },
+          "counters": {
+            "repairAttempts": 1,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmve1ksr60026b0j3vouqy2zw",
+            "status": "completed",
+            "createdAt": "2026-10-18T16:30:38.994Z",
+            "completedAt": "2026-10-18T16:33:43.984Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R04",
+      "id": "cmvdmf87z044c9xhgm46kv81y",
+      "status": "passed",
+      "dependsOn": [
+        "R01"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044d9xhgoavvyi0i",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/12e7fda8690a714c",
+          "commit": "d0b2fdb8381be4405427a30753b6253629a0503e",
+          "materialCounts": [
+            {
+              "_count": 2,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 1,
+              "kind": "node_repair_scheduled"
+            }
+          ],
+          "candidate": "d0b2fdb8381be4405427a30753b6253629a0503e",
+          "workspaceBase": "c7b74e905401356878e355a60b6afba64d2ae835",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 31,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "固定提交复验：9项行为测试、73项回归、真实HTTP及离线读回通过；补验同版式原图b24ff33d发现喷嘴设定/实际350°C被省略、8min和0min设定缺失、0:00显示冲突。属范围内识读及测试覆盖缺陷。源码未修改，报告及证据：/home/hello/.agent-platform/task-validation/c6dc78e34d3edb8b0d7105ba/3d14f1c926973b6d0e9e4397/001_REPORT_20261018_R04验收.md",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "1f558aa0c7f3cf2969eb9001f85a7c73e9f56384b0cf3062b7297d87a83c9a00"
+          },
+          "counters": {
+            "repairAttempts": 1,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvdx0ofc06l1twmkeacqabm4",
+            "status": "completed",
+            "createdAt": "2026-10-18T14:23:01.800Z",
+            "completedAt": "2026-10-18T14:33:18.248Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R05",
+      "id": "cmvdmf880044e9xhgc5gfgtpp",
+      "status": "passed",
+      "dependsOn": [
+        "R02",
+        "R04"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044f9xhg4phyzc48",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/ecc2e8a2e6dc372c",
+          "commit": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "materialCounts": [
+            {
+              "_count": 6,
+              "kind": "conversation_input_bound"
+            },
+            {
+              "_count": 4,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 2,
+              "kind": "project_material_added"
+            },
+            {
+              "_count": 2,
+              "kind": "project_material_query"
+            }
+          ],
+          "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "workspaceBase": "cd92faeb2cfb86486fc9b65d2053e50a31fede2f",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 51,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "missing_business_material",
+            "detail": "已实现伯乐白色五段储料射退页开发适配并完成真实OCR、HTTP草稿试跑和发布拦截；缺该版式独立验收原图与参考，尚未完成冻结发布及回滚验证。保留全部代码进度。",
+            "blockedPhase": "implementation"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvgekr1p0rrj78k1yugwd0ws",
+            "status": "completed",
+            "createdAt": "2026-10-20T08:10:04.142Z",
+            "completedAt": "2026-10-20T08:41:15.441Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_ARBURG",
+      "id": "cmvdmf880044g9xhgoc5rej1s",
+      "status": "attention",
+      "dependsOn": [
+        "R05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044h9xhgr7zjz83d",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "attention",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/38fc3221b6306433",
+          "commit": null,
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 1,
+              "kind": "project_material_query"
+            }
+          ],
+          "candidate": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "workspaceBase": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "phase": "implement",
+          "state": "waiting_decision",
+          "revision": 13,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "environment_failed",
+            "detail": "poteto-mode 已恢复并校验通过；最新启动记录指定 d682493504f778c7830c50b594326e6bbbb6fcfa，实际工作区仍为 f12e3ac3808f60027530d70c4ff6303ce295174b，两者包含共享合同和识读代码差异。需平台核对当前阶段基线并准备一致源码；未擅自修改 Git 元数据，恢复证据已保存。",
+            "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+            "owner": "platform",
+            "requiresUserDecision": false,
+            "blockedPhase": "implementation"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvhpq0ov5c6z8w0pywegr56t",
+            "status": "completed",
+            "createdAt": "2026-10-21T06:09:51.871Z",
+            "completedAt": "2026-10-21T06:11:32.294Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_BOLE",
+      "id": "cmvdmf880044i9xhg7pz3q3nl",
+      "status": "attention",
+      "dependsOn": [
+        "R05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044j9xhgfq8r9py1",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "attention",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/4f7c7d45db23a834",
+          "commit": "e11cef054d1d68c894538e7195eb3233c62f12f1",
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 3,
+              "kind": "project_material_query"
+            },
+            {
+              "_count": 2,
+              "kind": "verification_recovery_requested"
+            }
+          ],
+          "candidate": "e11cef054d1d68c894538e7195eb3233c62f12f1",
+          "workspaceBase": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "phase": "acceptance",
+          "state": "exhausted",
+          "revision": 39,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "review_platform_failure",
+            "detail": "Agent 复核 未通过：Error: 项目工具授权变化，原运行快照保留；须批准新的执行后重新固定"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 2,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvgs236f2vytvo4gchm449g6",
+            "status": "completed",
+            "createdAt": "2026-10-20T14:27:28.023Z",
+            "completedAt": "2026-10-20T14:55:40.960Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_DEMAG",
+      "id": "cmvdmf880044k9xhg3z7xj5jw",
+      "status": "passed",
+      "dependsOn": [
+        "R05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044l9xhgihg4hu8o",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "integrated",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/1edbd5e959da99a5",
+          "commit": "d682493504f778c7830c50b594326e6bbbb6fcfa",
+          "materialCounts": [
+            {
+              "_count": 3,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 1,
+              "kind": "node_repair_scheduled"
+            },
+            {
+              "_count": 20,
+              "kind": "project_material_added"
+            },
+            {
+              "_count": 5,
+              "kind": "project_material_query"
+            }
+          ],
+          "candidate": "d682493504f778c7830c50b594326e6bbbb6fcfa",
+          "workspaceBase": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 50,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "固定提交独立复跑19项通过，相邻回归29通过、2跳过；新增两张真实储料图均只有4个背压格，HTTP却输出6段和5段，将同格07/0.7重复编号。失败断言及原始响应见本轮输出目录 physical-stages-check.log，完整报告为001_REPORT_20261021_R6_DEMAG验收复核.md。源码未修改。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "1f558aa0c7f3cf2969eb9001f85a7c73e9f56384b0cf3062b7297d87a83c9a00"
+          },
+          "counters": {
+            "repairAttempts": 2,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvhif2wk099a8w0p4lcoj1uu",
+            "status": "completed",
+            "createdAt": "2026-10-21T02:45:24.212Z",
+            "completedAt": "2026-10-21T02:50:42.008Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_FANUC",
+      "id": "cmvdmf880044m9xhgs95cg36n",
+      "status": "attention",
+      "dependsOn": [
+        "R05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044n9xhgpxl58qyi",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "attention",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/eb53470628b54eec",
+          "commit": null,
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            }
+          ],
+          "candidate": "c4b213a85f3dcf12563934fff64c64863c39d40e",
+          "workspaceBase": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "phase": "integrate",
+          "state": "waiting_decision",
+          "revision": 14,
+          "waitingMessage": null,
+          "lastFailure": {
+            "code": "integration_conflict",
+            "detail": "{\"message\":\"Merge needs manual resolution: /data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/eb53470628b54eec\",\"integration\":{\"kind\":\"conflict\",\"candidateCommit\":\"c4b213a85f3dcf12563934fff64c64863c39d40e\",\"integrationCommit\":\"d682493504f778c7830c50b594326e6bbbb6fcfa\",\"mergeHead\":\"d682493504f778c7830c50b594326e6bbbb6fcfa\",\"paths\":[\"docs/specs/hmi-protocol-library/raw-contract.md\",\"page_template_lifecycle.py\",\"scripts/raw_observations.py\"]}}\nstdout maxBuffer length exceeded",
+            "action": "平台核验原执行者退出证据及账本中的候选、合并父提交与当前集成引用；保留待完成合并，由受控合并步骤处理所列文件",
+            "owner": "platform",
+            "requiresUserDecision": false,
+            "affectedPaths": [
+              "docs/specs/hmi-protocol-library/raw-contract.md",
+              "page_template_lifecycle.py",
+              "scripts/raw_observations.py"
+            ]
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvhpq28v5c9h8w0p57sp9w26",
+            "status": "completed",
+            "createdAt": "2026-10-21T06:09:53.887Z",
+            "completedAt": "2026-10-21T06:37:30.753Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_NISSEI",
+      "id": "cmvdmf880044o9xhgcd3rn6qb",
+      "status": "attention",
+      "dependsOn": [
+        "R05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044p9xhg6z3mtzlv",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "attention",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/de8b432989109e0b",
+          "commit": null,
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 39,
+              "kind": "project_material_query"
+            }
+          ],
+          "candidate": "2d0eb99303843d7190e27ddbcfc7a19e1a428e73",
+          "workspaceBase": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "phase": "implement",
+          "state": "waiting_for_user",
+          "revision": 13,
+          "waitingMessage": "已保存 TACT5 v2 候选实现；指定验证6通过1失败，A17缺少经核实的独立保留原图及完整真值。授权资料扫描760条后达到本轮请求上限，不能继续定位；不代表扫描范围外没有材料。",
+          "lastFailure": {
+            "code": "environment_failed",
+            "detail": "明确必需的 poteto-mode 技能、Codex 映射及校验脚本缺失，已搜索替代安装并保存进度；指定 pytest 因入口不存在退出4，未交付功能。",
+            "blockerCause": "missing_capability",
+            "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+            "owner": "platform",
+            "requiresUserDecision": false,
+            "blockedPhase": "implementation"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvhpq3ce5cac8w0pl9goehbo",
+            "status": "completed",
+            "createdAt": "2026-10-21T06:09:55.310Z",
+            "completedAt": "2026-10-21T06:24:15.132Z"
+          }
+        }
+      ]
+    },
+    {
+      "key": "R6_YIZUMI",
+      "id": "cmvdmf880044q9xhgu1tu8huv",
+      "status": "attention",
+      "dependsOn": [
+        "R05"
+      ],
+      "jobs": [
+        {
+          "id": "cmvdmf880044r9xhgc8z15d8w",
+          "repository": "/data1/code/hmi_data_reader",
+          "status": "attention",
+          "sessionId": null,
+          "worktree": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/8e6d2938780abd1d",
+          "commit": null,
+          "materialCounts": [
+            {
+              "_count": 1,
+              "kind": "implementation_recovery_scheduled"
+            },
+            {
+              "_count": 4,
+              "kind": "project_material_query"
+            }
+          ],
+          "candidate": "0a6cff0b0c56dd9b87ec7b6f4e8184afd269758c",
+          "workspaceBase": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "phase": "implement",
+          "state": "waiting_for_user",
+          "revision": 13,
+          "waitingMessage": "必需技能已恢复。已补充指定入口并通过14项既有行为回归，原有回归12项通过。获批伊之密来源查询未返回记录，旧来源仍报1254018，本地180张图片哈希均未匹配登记原图；缺少可读原图及控制器证据，新增包、实时OCR与完整联合验收未完成。进度已保存，需平台核对资料入口。",
+          "lastFailure": {
+            "code": "environment_failed",
+            "detail": "必需 poteto-mode 技能及校验脚本缺失；授权资料源查询另返回1254018。已保存盘点与回归证据，源码未修改，需平台修复环境后恢复实施。",
+            "blockerCause": "missing_capability",
+            "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+            "owner": "platform",
+            "requiresUserDecision": false,
+            "blockedPhase": "implementation"
+          },
+          "counters": {
+            "repairAttempts": 0,
+            "formatAttempts": 0,
+            "platformAttempts": 0,
+            "integrationAttempts": 0
+          },
+          "taskRun": {
+            "id": "cmvhpps7d5c2q8w0pxmouc42v",
+            "status": "completed",
+            "createdAt": "2026-10-21T06:09:40.873Z",
+            "completedAt": "2026-10-21T06:17:40.477Z"
+          }
+        }
+      ]
+    }
+  ],
+  "writerObservations": [
+    {
+      "key": "M6_DEMAG",
+      "proof": [
+        {
+          "observation": {
+            "kind": "exited"
+          },
+          "startedAt": "2026-10-21T11:19:10.763Z",
+          "finishedAt": "2026-10-21T11:19:11.132Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_ARBURG",
+      "proof": [
+        {
+          "observation": {
+            "kind": "exited"
+          },
+          "startedAt": "2026-10-21T11:19:11.134Z",
+          "finishedAt": "2026-10-21T11:19:11.863Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_BOLE",
+      "proof": [
+        {
+          "observation": {
+            "kind": "exited"
+          },
+          "startedAt": "2026-10-21T11:19:11.864Z",
+          "finishedAt": "2026-10-21T11:19:12.571Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_FANUC",
+      "proof": [
+        {
+          "observation": {
+            "kind": "exited"
+          },
+          "startedAt": "2026-10-21T11:19:12.572Z",
+          "finishedAt": "2026-10-21T11:19:13.267Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_NISSEI",
+      "proof": [
+        {
+          "observation": {
+            "kind": "exited"
+          },
+          "startedAt": "2026-10-21T11:19:13.267Z",
+          "finishedAt": "2026-10-21T11:19:13.931Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_YIZUMI",
+      "proof": [
+        {
+          "observation": {
+            "kind": "exited"
+          },
+          "startedAt": "2026-10-21T11:19:13.931Z",
+          "finishedAt": "2026-10-21T11:19:14.611Z"
+        }
+      ]
+    }
+  ]
+}

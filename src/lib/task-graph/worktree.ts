@@ -1,3 +1,4 @@
+import { workspacePath, workspaceSegment } from '../workspace-layout';
 import type { IntegrationFailure, IntegrationConflict } from './integration-failure';
 import { graphGit as git } from './git-command';
 import { preserveWorktreeResults } from './worktree-results';
@@ -33,6 +34,7 @@ export interface JobWorktreeRequest {
   baseRef: string;
   baseCommit: string;
   worktreeRoot?: string;
+  worktreePath?: string;
   resumeCommit?: string;
 }
 
@@ -57,6 +59,7 @@ export interface IntegrationRequest {
   expectedIntegrationCommit: string;
   baseCommit: string;
   worktreeRoot?: string;
+  worktreePath?: string;
   verify: (jobPath: string) => Promise<void>;
   assertOwnership?: () => Promise<void>;
 }
@@ -156,6 +159,24 @@ function jobPath(root: string, repo: string, runId: string, jobId: string): stri
   return path.join(root, hash(repo), hash(runId), 'jobs', hash(jobId));
 }
 
+async function locateJob(repo: string, request: { runId: string; jobId: string; worktreeRoot?: string; worktreePath?: string }): Promise<string> {
+  workspaceSegment(request.runId); workspaceSegment(request.jobId);
+  const matches = (await worktrees(repo)).filter(tree => tree.branch === jobBranch(request.runId, request.jobId));
+  if (matches.length > 1) throw new TaskGraphGitError('workspace_collision', 'Multiple registered workspaces for job');
+  if (request.worktreePath) {
+    if (!path.isAbsolute(request.worktreePath) || path.normalize(request.worktreePath) !== request.worktreePath || matches[0]?.path !== request.worktreePath) {
+      throw new TaskGraphGitError('workspace_collision', 'Recorded workspace is missing or differs from Git ownership; preserve original binding', request.worktreePath);
+    }
+    return request.worktreePath;
+  }
+  if (matches[0]) return matches[0].path;
+  if (request.worktreeRoot) return jobPath(await workspaceRoot(repo, request.worktreeRoot), repo, request.runId, request.jobId);
+  // Unregistered legacy paths may contain recovery evidence. Never overwrite or silently bypass them.
+  const legacy = jobPath(path.join(path.dirname(repo), '.agent-platform-task-graph-worktrees'), repo, request.runId, request.jobId);
+  if (await fs.lstat(legacy).then(() => true, () => false)) throw new TaskGraphGitError('workspace_collision', 'Legacy path is not registered; preserve for inspection', legacy);
+  return workspacePath(repo, 'routes', [request.runId, request.jobId]);
+}
+
 async function assertUnoccupied(repo: string, target: string): Promise<void> {
   if ((await worktrees(repo)).some((tree) => tree.path === target)) return;
   if (await fs.lstat(target).then(() => true, () => false)) {
@@ -202,8 +223,7 @@ export async function ensureJobWorktree(request: JobWorktreeRequest): Promise<Jo
   const repo = await repositoryRoot(request.repoPath);
   await exactCommit(repo, request.baseCommit);
   const branch = jobBranch(request.runId, request.jobId);
-  const root = await workspaceRoot(repo, request.worktreeRoot);
-  const target = jobPath(root, repo, request.runId, request.jobId);
+  const target = await locateJob(repo, request);
   const registered = findWorkspace(await worktrees(repo), target);
   if (request.resumeCommit) {
     await exactCommit(repo, request.resumeCommit);
@@ -273,8 +293,7 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
     throw new TaskGraphGitError('invalid_ref', 'Integration ref does not match run identity');
   }
   await assertIntegrationNotCheckedOut(repo, request.integrationRef);
-  const root = await workspaceRoot(repo, request.worktreeRoot);
-  const job = jobPath(root, repo, request.runId, request.jobId);
+  const job = await locateJob(repo, request);
   const branch = jobBranch(request.runId, request.jobId);
   const currentJob = findWorkspace(await worktrees(repo), job);
   if (!currentJob || currentJob.branch !== branch || !(await isAncestor(repo, request.baseCommit, currentJob.head))) {
@@ -343,7 +362,7 @@ export async function integrateJobWorktree(request: IntegrationRequest): Promise
 /** Platform-owned commit step. Native agents never receive writable shared Git metadata. */
 export async function commitJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef' | 'baseCommit'> & { message: string }): Promise<string> {
   const repo = await repositoryRoot(request.repoPath);
-  const target = jobPath(await workspaceRoot(repo, request.worktreeRoot), repo, request.runId, request.jobId);
+  const target = await locateJob(repo, request);
   const branch = jobBranch(request.runId, request.jobId);
   const tree = findWorkspace(await worktrees(repo), target);
   if (!tree || tree.branch !== branch || await git(target, 'symbolic-ref', 'HEAD') !== branch ||
@@ -360,14 +379,13 @@ export async function commitJobWorktree(request: Omit<JobWorktreeRequest, 'baseR
 }
 
 /** Never force-remove: only a clean job tree whose head reached the integration ref can be removed. */
-export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef' | 'baseCommit'> & { integrationRef: string; expectedCommit?: string; resultsDirectory?: string }): Promise<void> {
+export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef' | 'baseCommit'> & { integrationRef: string; expectedCommit?: string; resultsDirectory?: string; assertReleased?: () => Promise<void> }): Promise<void> {
   const repo = await repositoryRoot(request.repoPath);
   requireBranchRef(request.integrationRef);
   if (request.integrationRef !== integrationBranch(request.runId)) {
     throw new TaskGraphGitError('invalid_ref', 'Integration ref does not match run identity');
   }
-  const root = await workspaceRoot(repo, request.worktreeRoot);
-  const target = jobPath(root, repo, request.runId, request.jobId);
+  const target = await locateJob(repo, request);
   const branch = jobBranch(request.runId, request.jobId);
   const tree = findWorkspace(await worktrees(repo), target);
   const jobHead = tree?.head || await refCommit(repo, branch);
@@ -380,6 +398,12 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
   if (tree) {
     if (tree.branch !== branch) throw new TaskGraphGitError('workspace_collision', `Worktree branch changed: ${target}`, target);
     if (!(await cleanWorkspace(target))) throw new TaskGraphGitError('workspace_dirty', `Worktree is dirty: ${target}`, target);
+    if (!request.assertReleased) throw new TaskGraphGitError('workspace_dirty', 'Writer/Session release proof required; retain workspace', target);
+    await request.assertReleased();
+    const gitDirectory = await git(target, 'rev-parse', '--absolute-git-dir');
+    for (const marker of ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'sequencer']) {
+      if (await fs.lstat(path.join(gitDirectory, marker)).then(() => true, () => false)) throw new TaskGraphGitError('workspace_dirty', `Pending Git operation: ${marker}`, target);
+    }
     if (await hasIgnoredFiles(target)) {
       if (!request.resultsDirectory) throw new TaskGraphGitError('workspace_dirty', `Worktree contains ignored files; keep it for review: ${target}`, target);
       await preserveWorktreeResults(target, request.resultsDirectory, jobHead);
@@ -387,15 +411,15 @@ export async function cleanupIntegratedJobWorktree(request: Omit<JobWorktreeRequ
     if (!(await cleanWorkspace(target)) || await hasIgnoredFiles(target) || await git(target, 'rev-parse', 'HEAD') !== jobHead) {
       throw new TaskGraphGitError('workspace_dirty', `Worktree changed during cleanup: ${target}`, target);
     }
+    await request.assertReleased();
     await git(repo, 'worktree', 'remove', target);
   }
-  await git(repo, 'update-ref', '-d', branch, jobHead);
+  // Keep the branch as durable commit evidence. Workspace cleanup never deletes history.
 }
 
 export async function inspectJobWorktree(request: Omit<JobWorktreeRequest, 'baseRef'> & { allowPendingMerge?: boolean }): Promise<JobWorktree & { head: string }> {
   const repo = await repositoryRoot(request.repoPath);
-  const root = await fs.realpath(request.worktreeRoot || path.join(path.dirname(repo), '.agent-platform-task-graph-worktrees'));
-  const target = jobPath(root, repo, request.runId, request.jobId);
+  const target = await locateJob(repo, request);
   const branch = jobBranch(request.runId, request.jobId);
   const registered = findWorkspace(await worktrees(repo), target);
   if (!registered || registered.branch !== branch || await git(target, 'symbolic-ref', 'HEAD') !== branch ||

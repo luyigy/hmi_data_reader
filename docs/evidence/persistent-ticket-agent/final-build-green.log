@@ -1,0 +1,157 @@
+
+> agent-platform-v2@0.1.0 prebuild
+> npm run check:wire-w001 && npm run test:persistent-ticket-agent-w01
+
+
+> agent-platform-v2@0.1.0 check:wire-w001
+> node scripts/check-stage-execution-wire.mjs
+
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+
+> agent-platform-v2@0.1.0 test:persistent-ticket-agent-w01
+> TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node","target":"es2022"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/persistent-ticket-agent-w01.test.ts
+
+{"event":"w01-native-protocol-fixture","evidence":{"provider":"deterministic loopback fixture","executable":"real installed Codex","threadId":"01a15f03-0a2e-7b73-8e07-ab6cb395c72f","resumedThreadId":"01a15f03-0a2e-7b73-8e07-ab6cb395c72f","requests":4,"toolOutputs":["\"Chunk ID: c01fa5\\nWall time: 0.0000 seconds\\nProcess exited with code 0\\nOriginal token count: 3\\nOutput:\\nisolation-ok\"","\"Chunk ID: c01fa5\\nWall time: 0.0000 seconds\\nProcess exited with code 0\\nOriginal token count: 3\\nOutput:\\nisolation-ok\"","\"Chunk ID: c01fa5\\nWall time: 0.0000 seconds\\nProcess exited with code 0\\nOriginal token count: 3\\nOutput:\\nisolation-ok\"","\"Chunk ID: 334758\\nWall time: 0.0000 seconds\\nProcess exited with code 0\\nOriginal token count: 3\\nOutput:\\nresumed-ok\""],"managerRoots":[{"backend":"bubblewrap","host":"hello","uid":1000,"bootId":"df711df5-3f7b-4b20-a4bc-5b13c45dd313","root":{"pid":3862002,"startTime":"2731259492"}},{"backend":"bubblewrap","host":"hello","uid":1000,"bootId":"df711df5-3f7b-4b20-a4bc-5b13c45dd313","root":{"pid":3862478,"startTime":"2731259565"}}],"rootsClosed":2,"workspace":"/tmp/w01-eDwAxz/central/repo-071ca22277547058-529746c98ec028d9/routes/route-1-84fa41f7398a4307/native-session-aadb1f87a13328af","sibling":"/tmp/w01-eDwAxz/central/repo-071ca22277547058-529746c98ec028d9/development/same-name-f65dc9b328a0fd29","results":["first.txt=first","second.txt=second","sibling inaccessible","Git metadata not writable"]}}
+W01 behavior passed: centralized creation, legacy reuse, isolation, safe move/remove and retention. Fixture: /tmp/w01-eDwAxz
+
+> agent-platform-v2@0.1.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Skipping linting
+   Checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/35) ...
+   Generating static pages (8/35)
+   Generating static pages (17/35)
+Failed to fetch ACPX harness options: B [Error]: Dynamic server usage: Route /api/acpx/harness-options couldn't be rendered statically because it used `request.headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at V (/data1/code/agent-platform-v2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:21778)
+    at Object.get (/data1/code/agent-platform-v2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:29465)
+    at b (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/.next/server/chunks/1283.js:1:7085)
+    at _ (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/.next/server/chunks/1283.js:1:7218)
+    at m (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/.next/server/app/api/acpx/harness-options/route.js:1:1268)
+    at /data1/code/agent-platform-v2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:38417
+    at /data1/code/agent-platform-v2/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/data1/code/agent-platform-v2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:7062)
+    at ContextAPI.with (/data1/code/agent-platform-v2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:518)
+    at NoopTracer.startActiveSpan (/data1/code/agent-platform-v2/node_modules/next/dist/compiled/@opentelemetry/api/index.js:1:18093) {
+  description: "Route /api/acpx/harness-options couldn't be rendered statically because it used `request.headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+   Generating static pages (26/35)
+ ✓ Generating static pages (35/35)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                             Size     First Load JS
+┌ ○ /                                                   3.83 kB         112 kB
+├ ○ /_not-found                                         872 B          88.2 kB
+├ ○ /admin/users                                        1.69 kB          89 kB
+├ ○ /agents                                             2.79 kB        90.1 kB
+├ ƒ /api/acpx/harness-options                           0 B                0 B
+├ ƒ /api/admin/users                                    0 B                0 B
+├ ƒ /api/admin/users/[id]                               0 B                0 B
+├ ƒ /api/admin/users/[id]/reset-password                0 B                0 B
+├ ○ /api/agents                                         0 B                0 B
+├ ƒ /api/agents/[id]                                    0 B                0 B
+├ ƒ /api/agents/register-real                           0 B                0 B
+├ ƒ /api/auth/login                                     0 B                0 B
+├ ƒ /api/auth/logout                                    0 B                0 B
+├ ƒ /api/auth/me                                        0 B                0 B
+├ ƒ /api/chat/agent-response                            0 B                0 B
+├ ƒ /api/chat/messages                                  0 B                0 B
+├ ƒ /api/chat/rooms                                     0 B                0 B
+├ ƒ /api/control-plane/execute                          0 B                0 B
+├ ƒ /api/feishu/connection                              0 B                0 B
+├ ƒ /api/feishu/grant                                   0 B                0 B
+├ ƒ /api/feishu/webhook                                 0 B                0 B
+├ ƒ /api/gateways                                       0 B                0 B
+├ ƒ /api/gateways/[id]/agents/refresh                   0 B                0 B
+├ ƒ /api/gateways/[id]/health                           0 B                0 B
+├ ƒ /api/gateways/[id]/openclaw/config                  0 B                0 B
+├ ƒ /api/gateways/[id]/openclaw/respond                 0 B                0 B
+├ ƒ /api/gateways/[id]/test                             0 B                0 B
+├ ƒ /api/gateways/chat                                  0 B                0 B
+├ ƒ /api/gateways/messages/incoming                     0 B                0 B
+├ ƒ /api/gateways/messages/send                         0 B                0 B
+├ ƒ /api/gateways/register                              0 B                0 B
+├ ƒ /api/gateways/token                                 0 B                0 B
+├ ○ /api/health                                         0 B                0 B
+├ ƒ /api/live-rooms                                     0 B                0 B
+├ ƒ /api/live-rooms/[id]                                0 B                0 B
+├ ƒ /api/live-rooms/[id]/clear-task-room                0 B                0 B
+├ ƒ /api/live-rooms/[id]/interrupt                      0 B                0 B
+├ ƒ /api/live-rooms/[id]/members                        0 B                0 B
+├ ƒ /api/live-rooms/[id]/members/[memberId]             0 B                0 B
+├ ƒ /api/live-rooms/[id]/messages                       0 B                0 B
+├ ƒ /api/live-rooms/[id]/speaker                        0 B                0 B
+├ ƒ /api/live-rooms/[id]/topic                          0 B                0 B
+├ ƒ /api/pairing-tickets                                0 B                0 B
+├ ƒ /api/remote-harness-hosts                           0 B                0 B
+├ ƒ /api/remote-harness-hosts/[id]                      0 B                0 B
+├ ƒ /api/remote-harness-hosts/[id]/test                 0 B                0 B
+├ ƒ /api/remote-nodes                                   0 B                0 B
+├ ƒ /api/runner/claim                                   0 B                0 B
+├ ƒ /api/socket                                         0 B                0 B
+├ ƒ /api/task-graph-runs                                0 B                0 B
+├ ƒ /api/task-graph-runs/[id]                           0 B                0 B
+├ ƒ /api/task-graph-runs/[id]/nodes/[nodeKey]/decision  0 B                0 B
+├ ƒ /api/tasks                                          0 B                0 B
+├ ƒ /api/tasks/[id]                                     0 B                0 B
+├ ƒ /api/tasks/[id]/control                             0 B                0 B
+├ ƒ /api/tasks/[id]/execute                             0 B                0 B
+├ ƒ /api/tasks/[id]/logs                                0 B                0 B
+├ ƒ /api/tasks/[id]/room                                0 B                0 B
+├ ƒ /api/tasks/[id]/runs                                0 B                0 B
+├ ƒ /api/tasks/[id]/runs/latest                         0 B                0 B
+├ ƒ /api/workspaces                                     0 B                0 B
+├ ƒ /api/workspaces/[id]                                0 B                0 B
+├ ○ /chat                                               1.62 kB         110 kB
+├ ○ /gateway-tools                                      1.09 kB         109 kB
+├ ○ /gateways/register                                  1.19 kB        92.1 kB
+├ ○ /login                                              1.51 kB        88.8 kB
+├ ○ /remote-ssh-tools                                   3.89 kB        99.9 kB
+├ ƒ /rooms                                              142 B           125 kB
+├ ƒ /rooms/[id]                                         143 B           125 kB
+├ ƒ /runner.js                                          0 B                0 B
+├ ○ /tasks                                              8 kB           95.3 kB
+├ ƒ /tasks/[id]                                         2.02 kB        89.3 kB
+├ ƒ /tasks/[id]/chat                                    17.6 kB         118 kB
+├ ƒ /tasks/[id]/graph                                   2.8 kB         90.1 kB
+├ ƒ /workflow                                           137 B          87.4 kB
+├ ƒ /workspaces                                         143 B           125 kB
+└ ƒ /workspaces/[id]                                    142 B           125 kB
++ First Load JS shared by all                           87.3 kB
+  ├ chunks/158-9c4e28006633914a.js                      31.7 kB
+  ├ chunks/539cf6dd-5dfb0b9d3c8435c9.js                 53.6 kB
+  └ other shared chunks (total)                         1.95 kB
+
+
+ƒ Middleware                                            27.8 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand

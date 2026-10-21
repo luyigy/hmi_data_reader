@@ -1,9 +1,10 @@
+import { requireGraphNodeActiveTx } from './run-control';
 import { observeTaskRunWriter, parseGraphWriter, type GraphWriter } from './writer-ownership';
 import { isDeepStrictEqual } from 'node:util';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { parseConflictRepair, type ConflictRepair } from './conflict-repair';
-import { executionRetryLimits } from './retry-limits';
+import { executionRetryLimits, maxUnchangedWorkTurns } from './retry-limits';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
 export type ExecutionFailure = { blockerCause?: 'missing_capability' | 'transient'; code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime'; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
@@ -21,9 +22,11 @@ export type ExecutionProgress = {
   workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; taskRunId?: string;
   repairAttempts: number; formatAttempts: number; platformAttempts: number; integrationAttempts: number;
   nextRetryAt?: string; lastFailure?: ExecutionFailure;
+  continuation?: { fingerprint: string; unchangedTurns: number };
   conflictRepair?: ConflictRepair;
 };
 export type ExecutionOutcome =
+  | { kind: 'continue_work'; note: string; fingerprint: string }
   | { kind: 'checkpoint'; phase: ExecutionPhase; workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; worker?: GraphWriter; conflictRepair?: ConflictRepair | null }
   | { kind: 'repair_required'; failure: ExecutionFailure; conflictRepair?: ConflictRepair }
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
@@ -72,6 +75,11 @@ export function executionProgress(metadata: unknown): ExecutionProgress | null {
     state: enumeration(value.state, ['active', 'ready', 'waiting_for_user', 'waiting_decision', 'exhausted', 'ownership_attention']),
     repairAttempts: count(value.repairAttempts), formatAttempts: count(value.formatAttempts), platformAttempts: count(value.platformAttempts), integrationAttempts: value.integrationAttempts === undefined ? 0 : count(value.integrationAttempts),
   };
+  if (value.continuation !== undefined) {
+    const saved = record(value.continuation);
+    if (typeof saved.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(saved.fingerprint)) throw new Error('Invalid work continuation fingerprint');
+    progress.continuation = { fingerprint: saved.fingerprint, unchangedTurns: count(saved.unchangedTurns) };
+  }
   const workspaceBase = optionalCommit(value.workspaceBase), candidateCommit = optionalCommit(value.candidateCommit);
   const runtimeDirectory = optionalText(value.runtimeDirectory), taskRunId = optionalText(value.taskRunId), nextRetryAt = optionalText(value.nextRetryAt);
   if (workspaceBase) progress.workspaceBase = workspaceBase;
@@ -164,6 +172,7 @@ export async function applyExecutionOutcome(args: ExecutionOutcomeRequest, db: P
 }
 export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args: ExecutionOutcomeRequest): Promise<ExecutionProgress> {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+    if (!['checkpoint', 'integrated', 'waiting_for_user'].includes(args.outcome.kind)) await requireGraphNodeActiveTx(tx, job.nodeId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
     const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id }, include: { node: true } });
     const idempotencyKey = `execution:${job.id}:outcome:${args.outcomeId}`;
@@ -201,7 +210,17 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const outcome = args.outcome;
     let status = current.status;
     let issueKind: string | null = null;
-    if (outcome.kind === 'waiting_for_user') {
+    if (outcome.kind === 'continue_work') {
+      if (!['implement', 'collect_result'].includes(before.phase) || !/^[a-f0-9]{64}$/.test(outcome.fingerprint) || !outcome.note.trim()) throw new Error('Invalid normal work continuation');
+      const unchangedTurns = before.continuation?.fingerprint === outcome.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
+      progress.continuation = { fingerprint: outcome.fingerprint, unchangedTurns };
+      progress.phase = 'implement';
+      delete progress.lastFailure; delete progress.waitingKind; delete progress.waitingMessage;
+      if (unchangedTurns >= maxUnchangedWorkTurns) {
+        status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingKind = 'answered';
+        progress.waitingMessage = '连续轮次未产生新的代码、资料或用户输入，已停止空转并保留原会话。';
+      } else { status = 'ready'; progress.state = 'ready'; }
+    } else if (outcome.kind === 'waiting_for_user') {
       if (!['implement', 'collect_result'].includes(before.phase)) throw new Error('Only implementation turns may wait for user input');
       status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingMessage = outcome.note; progress.waitingKind = outcome.result || 'question';
     } else if (outcome.kind === 'operator_resume') {
@@ -252,6 +271,21 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         if (!current.commit) throw new Error('Review restart has no integrated candidate');
         progress.review = { candidateCommit: current.commit, phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
       }
+    } else if (outcome.kind === 'repair_required' && outcome.failure.tree && outcome.failure.fingerprint) {
+      const recent = await tx.taskGraphEvent.findMany({ where: { runId: current.node.runId, nodeId: job.nodeId, kind: 'execution_outcome', AND: [
+        { payload: { path: ['executionId'], equals: job.id } }, { payload: { path: ['outcome', 'kind'], equals: 'repair_required' } },
+      ] }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: maxUnchangedWorkTurns, select: { payload: true } });
+      const stalled = recent.length === maxUnchangedWorkTurns && recent.every(event => {
+        const previous = record(record(event.payload).outcome), failure = record(previous.failure);
+        return failure.fingerprint === outcome.failure.fingerprint;
+      });
+      if (!stalled) progress.repairAttempts++;
+      progress.phase = outcome.conflictRepair ? 'integrate' : 'implement'; progress.lastFailure = outcome.failure;
+      if (outcome.conflictRepair) { progress.conflictRepair = outcome.conflictRepair; delete progress.runtimeDirectory; }
+      if (stalled) {
+        status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingKind = 'answered';
+        progress.waitingMessage = '相同代码与输入反复产生同一缺陷，已停止空转，原工作资格与现场保留。';
+      } else { status = 'ready'; progress.state = 'ready'; }
     } else {
       progress.lastFailure = outcome.failure;
       if (outcome.kind === 'repair_required' && outcome.conflictRepair) { progress.conflictRepair = outcome.conflictRepair; delete progress.runtimeDirectory; }
@@ -281,7 +315,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     if (status === 'attention') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
     if (status === 'ready') {
       await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed' } });
-      await tx.taskGraphRun.update({ where: { id: current.node.runId }, data: { status: 'running' } });
+      await tx.taskGraphRun.updateMany({ where: { id: current.node.runId, status: { not: 'paused' } }, data: { status: 'running' } });
     }
     if (outcome.kind === 'decision_required' && ['missing_business_material', 'missing_upstream_input', 'environment_failed', 'scope_change', 'permission_required'].includes(outcome.failure.code)) {
       await tx.taskGraphEvent.create({ data: { runId: current.node.runId, nodeId: job.nodeId,
@@ -302,6 +336,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
 /** Called in the same transaction that creates the TaskRun, before any process starts. */
 export async function bindExecutionTaskRun(tx: Prisma.TransactionClient, args: { executionId: string; claimToken: string; revision: number }, taskRunId: string) {
   const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+  await requireGraphNodeActiveTx(tx, job.nodeId);
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
   const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
   const progress = executionProgress(current.dispatchMetadata);

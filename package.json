@@ -15,6 +15,7 @@
     "scheduled-jobs:runtime": "FEISHU_RUNTIME_CODEX_HTTP_PROXY=${http_proxy:-${HTTP_PROXY:-}} FEISHU_RUNTIME_CODEX_HTTPS_PROXY=${https_proxy:-${HTTPS_PROXY:-}} FEISHU_RUNTIME_CODEX_ALL_PROXY=${all_proxy:-${ALL_PROXY:-}} FEISHU_RUNTIME_CODEX_NO_PROXY=${no_proxy:-${NO_PROXY:-}} env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/scheduled-job-runner.ts",
     "task-graph:runtime": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-runner.ts",
     "task-graph:propose": "bash scripts/run-task-graph-propose.sh",
+    "task-graph:control": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-control.ts",
     "task-graph:doctor": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-doctor.ts",
     "test:task-graph-workflow": "npm run check:wire-w001 && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-workflow.test.ts",
     "test:task-graph-runtime-integration": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-runtime-preflight.test.ts",
@@ -66,7 +67,10 @@
     "postinstall": "prisma generate",
     "task-graph:prepare-recovery": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-prepare-recovery.ts",
     "check:wire-w001": "node scripts/check-stage-execution-wire.mjs",
-    "prebuild": "npm run check:wire-w001"
+    "prebuild": "npm run check:wire-w001 && npm run test:persistent-ticket-agent-w01",
+    "workspace:inventory": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/workspace-inventory.ts",
+    "test:persistent-ticket-agent-w01": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/persistent-ticket-agent-w01.test.ts",
+    "workspace:create": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/workspace-create.ts"
   },
   "prisma": {
     "seed": "ts-node prisma\\seed.ts"

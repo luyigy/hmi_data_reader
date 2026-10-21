@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { configuredWorkspaceRoot, isCentralWorkspacePath } from '../workspace-layout';
 import { homedir } from 'node:os';
 import { realpath, access, constants, readdir } from 'node:fs/promises';
 import { graphGit } from './git-command';
@@ -25,11 +26,11 @@ export async function prepareExtraRepositories(repositories: ExtraRepository[] =
   const details = [];
   for (const item of repositories) {
     const root = await realpath(item.repository);
-    const managedRoots = [process.env.TASK_GRAPH_UPSTREAM_ROOT || path.join(homedir(), '.agent-platform/task-upstream-sources'),
+    const managedRoots = [configuredWorkspaceRoot(),process.env.TASK_GRAPH_UPSTREAM_ROOT || path.join(homedir(), '.agent-platform/task-upstream-sources'),
       process.env.TASK_GRAPH_VALIDATION_ROOT || path.join(homedir(), '.agent-platform/task-validation'),
       process.env.TASK_GRAPH_RUNTIME_ROOT || path.join(homedir(), '.agent-platform/task-runtime')];
     const managed = await Promise.all(managedRoots.map(directory => realpath(directory).catch(() => path.resolve(directory))));
-    if (root.split(path.sep).some(part => ['.agent-platform-task-graph-worktrees', '.agent-platform-task-graph-results'].includes(part)) ||
+    if (isCentralWorkspacePath(root) || root.split(path.sep).some(part => ['.agent-workspaces', '.agent-platform-task-graph-worktrees', '.agent-platform-conversation-worktrees', '.agent-platform-task-graph-results', '.worktrees'].includes(part)) ||
         managed.some(directory => root === directory || root.startsWith(directory + path.sep))) throw new Error('Extra repo 不能指向平台临时工作区、缓存或归档目录');
     if (root !== item.repository || await graphGit(root, 'rev-parse', '--show-toplevel') !== root) throw new Error(`Extra repo 必须填写真实 Git 根目录：${item.repository}`);
     await access(root, constants.R_OK | (!readOnly && item.access === 'write' ? constants.W_OK : 0));

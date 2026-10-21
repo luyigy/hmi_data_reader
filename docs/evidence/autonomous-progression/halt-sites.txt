@@ -1,0 +1,45 @@
+src/lib/task-graph/issue-dispatch.ts:33:      await tx.taskGraphNode.updateMany({ where: { runId, key: { in: Array.from(blocked) }, status: { in: ['ready', 'planned'] } }, data: { status: 'attention' } });
+src/lib/task-graph/issue-dispatch.ts:34:      await tx.taskGraphExecution.updateMany({ where: { node: { runId, key: { in: Array.from(blocked) }, status: 'attention' }, status: { in: ['ready', 'planned'] } }, data: { status: 'attention', issueKind: 'issue_source_changed' } });
+src/lib/task-graph/pending-review-repair.ts:7:  const nodes = await prisma.taskGraphNode.findMany({ where: { runId, status: 'attention', executions: { some: {}, every: { status: 'integrated' } } }, select: { id: true, key: true } });
+src/lib/task-graph/execution-progress.ts:28:  | { kind: 'repair_required'; failure: ExecutionFailure; conflictRepair?: ConflictRepair }
+src/lib/task-graph/execution-progress.ts:33:  | { kind: 'waiting_for_user'; note: string; result?: 'question' | 'answered' }
+src/lib/task-graph/execution-progress.ts:38:  | { kind: 'decision_required'; failure: ExecutionFailure }
+src/lib/task-graph/execution-progress.ts:39:  | { kind: 'retry_exhausted'; failure: ExecutionFailure }
+src/lib/task-graph/execution-progress.ts:206:      status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingMessage = outcome.note; progress.waitingKind = outcome.result || 'question';
+src/lib/task-graph/execution-progress.ts:213:      status = 'attention'; issueKind = outcome.failure.code; progress.phase = 'implement'; progress.state = 'waiting_decision';
+src/lib/task-graph/execution-progress.ts:234:        status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
+src/lib/task-graph/execution-progress.ts:249:        status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
+src/lib/task-graph/execution-progress.ts:259:        status = 'attention'; issueKind = outcome.failure.code; progress.state = outcome.failure.code === 'ownership_mismatch' ? 'ownership_attention' : 'waiting_decision';
+src/lib/task-graph/execution-progress.ts:264:          status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
+src/lib/task-graph/execution-progress.ts:281:    if (status === 'attention') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
+src/lib/task-graph/execution-progress.ts:288:        idempotencyKey: `${idempotencyKey}:blocked`, kind: 'implementation_blocked',
+src/lib/task-graph/store.ts:371:    outcome: { kind: 'decision_required', failure: { code: args.kind, detail: args.detail } },
+src/lib/task-graph/store.ts:380:    await tx.taskGraphExecution.update({ where: { id: execution.id }, data: { status: 'attention', issueKind: args.kind } });
+src/lib/task-graph/store.ts:381:    await tx.taskGraphNode.update({ where: { id: execution.nodeId }, data: { status: 'attention' } });
+src/lib/task-graph/store.ts:410:      data: { status: 'attention', issueKind: 'stale_claim' },
+src/lib/task-graph/store.ts:413:    await tx.taskGraphNode.updateMany({ where: { id: execution.nodeId, status: 'claimed' }, data: { status: 'attention' } });
+src/lib/task-graph/integration-failure.ts:22:  kind: 'retry_exhausted';
+src/lib/task-graph/coordinator.ts:548:        await outcome({ kind: 'decision_required', failure: { code: resolution.blockerKind, detail: resolution.note,
+src/lib/task-graph/coordinator.ts:572:        await outcome({ kind: 'waiting_for_user', note: conclusion.note, result: conclusion.status === 'answered' ? 'answered' : 'question' });
+src/lib/task-graph/coordinator.ts:660:          await outcome({ kind: 'repair_required', failure: {
+src/lib/task-graph/coordinator.ts:679:              await outcome({ kind: 'repair_required', conflictRepair: checkpoint, failure: { ...failure, action: '在原任务范围内解决所列文本冲突，平台完成合并并复验', owner: 'implementer', requiresUserDecision: false, affectedPaths: checkpoint.paths } });
+src/lib/task-graph/coordinator.ts:681:              await outcome({ kind: 'decision_required', failure: { ...failure, detail: `${failure.detail}\n${repairError instanceof Error ? repairError.message : String(repairError)}`,
+src/lib/task-graph/restart-recovery.ts:75:          outcomeId: `restart-workspace:${claimToken}`, outcome: { kind: 'decision_required', failure: { code, detail } } });
+src/lib/task-graph/restart-recovery.ts:103:        outcomeId: `restart-blocked:${job.claimToken}`, outcome: { kind: 'decision_required', failure: { code: blockedResult.blockerKind,
+src/lib/task-graph/restart-recovery.ts:109:        outcomeId: `restart-conversation:${job.claimToken}`, outcome: { kind: 'waiting_for_user', note: waitNote || '已保存结果，先处理原话题的新消息。', result: waitResult } });
+src/lib/task-graph/implementation-result.ts:57:    outcomeId: `${args.claimToken}:${progress.revision}:material-question`, outcome: { kind: 'waiting_for_user', note: args.result.note },
+src/lib/task-graph/implementation-result.ts:74:      idempotencyKey: `execution:${job.id}:implementation:${args.claimToken}`, kind: 'implementation_blocked',
+src/lib/task-graph/implementation-result.ts:78:    await tx.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'attention', issueKind: args.result.blockerKind } });
+src/lib/task-graph/implementation-result.ts:79:    await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
+src/lib/task-graph/conversation-recovery.ts:48:  const requests = await prisma.taskGraphEvent.findMany({ where: { kind: 'conversation_review_recovery_requested', node: { status: 'attention' } },
+src/lib/task-graph/review-publication.ts:36:      outcomeId: `review-failure:${args.identity}`, outcome: exhausted ? { kind: 'retry_exhausted', failure: args.failure }
+src/lib/task-graph/review-publication.ts:37:        : args.kind === 'decision_required' ? { kind: 'decision_required', failure: args.failure }
+src/lib/task-graph/conflict-repair-recovery.ts:10:  const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId }, status: 'attention', issueKind: 'integration_conflict' } });
+src/lib/task-graph/conflict-repair-recovery.ts:38:        outcomeId: `conflict-recovery:${progress.revision}`, outcome: { kind: 'repair_required', conflictRepair: checkpoint,
+src/lib/task-graph/conflict-repair-recovery.ts:45:        outcomeId: `conflict-decision:${progress.revision}`, outcome: { kind: 'decision_required', failure } });
+src/lib/task-graph/integration-retry.ts:29:          { cause: error }, { kind: 'retry_exhausted', attempts: attempt, lastFailure: error.integration });
+src/lib/task-graph/conversation-inbox.ts:204:      ...(pending.length ? { status: 'attention', issueKind: null } : {}) } });
+src/lib/task-graph/conversation-inbox.ts:205:    if (pending.length) await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
+src/lib/task-graph/conversation-inbox.ts:233:  const jobs = await prisma.taskGraphExecution.findMany({ where: { status: 'attention', node: { status: { in: ['attention', 'claimed'] }, run: { status: { in: ['running', 'attention'] } } } } });
+src/lib/task-graph/reclassify-delivery.ts:54:    await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'attention', passedAt: null } });
+src/lib/task-graph/reclassify-delivery.ts:56:    await tx.taskGraphRun.update({ where: { id: run.id }, data: { status: 'attention' } });

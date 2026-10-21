@@ -1,9 +1,8 @@
+import { graphRunCanStartTx, requireGraphNodeActiveTx } from './run-control';
+import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { Prisma } from '@prisma/client';
-import { createHash } from 'node:crypto';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { prisma } from '../prisma';
 import { executeAcpxTaskRun } from '../acpx/runner';
 import type { AcpxParticipantRequest } from '../acpx/types';
@@ -13,8 +12,7 @@ import { createGraphWriter, parseGraphWriter, observeGraphWriter, observeTaskRun
 import { bindConversationInputs, conversationPrompt, pendingConversationInputs, pendingConversationNodes, handoffConversationMaterials } from './conversation-inbox';
 import { implementationConversation } from './conversation-session';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
-import { graphGit } from './git-command';
-import { withRepositoryLock } from './repository-lock';
+import { ensureReadOnlyWorkspace } from './readonly-workspace';
 import { approvedConversationParticipant } from './conversation-members';
 import { releaseGraphReviewWorker } from './phase-worker';
 import { isFeishuAdmin } from '../feishu-access-approval';
@@ -30,22 +28,10 @@ function parseReservation(raw: Prisma.JsonValue) {
   return { executionId: raw.executionId, inputIds: raw.inputIds, worker };
 }
 
-async function conversationWorkspace(repository: string, commit: string) {
-  const directory = path.join(path.dirname(repository), '.agent-platform-conversation-worktrees', createHash('sha256').update(`${repository}:${commit}`).digest('hex'));
-  return withRepositoryLock(repository, async () => {
-    if (!await fs.access(directory).then(() => true, () => false)) {
-      await fs.mkdir(path.dirname(directory), { recursive: true });
-      await graphGit(repository, 'worktree', 'add', '--detach', directory, commit);
-    }
-    if (await graphGit(directory, 'rev-parse', 'HEAD') !== commit || await graphGit(directory, 'status', '--porcelain', '--untracked-files=all') ||
-      await graphGit(directory, 'rev-parse', '--path-format=absolute', '--git-common-dir') !== await graphGit(repository, 'rev-parse', '--path-format=absolute', '--git-common-dir')) throw new Error('Fixed conversation workspace identity changed');
-    return directory;
-  });
-}
-
 /** Read-only turns retain completed/blocked graph state and cannot perform implementation outcomes. */
 export async function bindReadOnlyConversation(tx: Prisma.TransactionClient, args: { executionId: string; reservationId: string; inputIds: string[] }, taskRunId: string) {
   const original = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+  await requireGraphNodeActiveTx(tx, original.nodeId);
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
   const reservation = await tx.taskGraphEvent.findUniqueOrThrow({ where: { id: args.reservationId } });
   const binding = parseReservation(reservation.payload);
@@ -63,7 +49,7 @@ export async function bindReadOnlyConversation(tx: Prisma.TransactionClient, arg
 }
 
 export async function reserveConversationFollowup(nodeId: string) {
-  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
+  const beforeNode = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
   const events = await prisma.taskGraphEvent.findMany({ where: { nodeId, kind: { in: ['conversation_followup_reserved', 'conversation_followup_bound', 'conversation_followup_finished'] } }, orderBy: { id: 'asc' } });
   const taskRunIds: string[] = [];
   for (const event of events.filter(event => event.kind === 'conversation_followup_reserved')) {
@@ -75,10 +61,11 @@ export async function reserveConversationFollowup(nodeId: string) {
     } else if (!events.some(item => item.idempotencyKey === `conversation-followup:${event.id}:finished`) &&
       (await observeGraphWriter(parseReservation(event.payload).worker)).kind !== 'exited') return null;
   }
-  const proof = await observeWriterSnapshot({ jobs: node.executions, taskRunIds, scope: 'execution', observeExecution: observeExecutionWriter });
+  const proof = await observeWriterSnapshot({ jobs: beforeNode.executions, taskRunIds, scope: 'execution', observeExecution: observeExecutionWriter });
   if (!proof.exited) return null;
   const worker = await createGraphWriter();
   return prisma.$transaction(async tx => {
+    if (!await graphRunCanStartTx(tx, beforeNode.runId)) return null;
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
     if (!await writerSnapshotMatches(tx, proof)) return null;
     const currentEvents = await tx.taskGraphEvent.findMany({ where: { nodeId, kind: { in: ['conversation_followup_reserved', 'conversation_followup_bound', 'conversation_followup_finished'] } }, orderBy: { id: 'asc' } });
@@ -122,7 +109,7 @@ export async function startConversationFollowups(capacity: number) {
       const task = await prisma.task.findUniqueOrThrow({ where: { id: job.childTaskId! } });
       const participant: AcpxParticipantRequest = approvedConversationParticipant(job.launchConfig);
       const candidate = job.commit || executionProgress(job.dispatchMetadata)?.candidateCommit;
-      const directory = candidate ? await conversationWorkspace(job.repository, candidate) : job.worktreePath;
+      const directory = candidate ? await ensureReadOnlyWorkspace(job.repository, candidate, job.id) : job.worktreePath;
       if (!directory) throw new Error('Original conversation workspace unavailable; preserve pending input');
       const prompt = `你负责原任务，继续在这个话题与用户正常交流。结合前几轮图片、说明和纠正核对事实；旧的缺材料判断可以被新证据纠正，不能当成不可改变的要求。先直接回答用户。需要接回实施时，简短说明接下来做什么，再附加一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["本任务当前或历史材料消息id"],"note":"继续实施的依据"}。材料可以引用本任务前几轮已处理的消息，不要求用户重发。平台根据本轮用户身份核验接续权限，并在原会话交回实施。准备接续不代表材料已通过独立验收。当前阶段保护固定成果，源码只读；平台确认 writer 退出并完成交接后，实施轮次才能写入。不能通过聊天扩大范围、放宽权限、重置预算或宣布任务通过。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}`;
       const materialPrompt = prompt + '\n' + await syncGraphConversationMaterials(task.id);

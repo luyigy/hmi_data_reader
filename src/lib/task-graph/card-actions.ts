@@ -10,6 +10,8 @@ export function graphFormAction(name: string | undefined): Record<string, unknow
   const graph = name?.match(/^tg:([csap]):([a-z0-9]+):([a-f0-9]{64}):(-1|\d+)$/);
   if (graph) return { cmd: 'task-graph-launch', proposalId: graph[2], hash: graph[3],
     decision: Object.entries(codes).find(([, code]) => code === graph[1])![0], page: Number(graph[4]) };
+  const overview = name?.match(/^tgo:r:([a-z0-9]+):([a-f0-9]{64})$/);
+  if (overview) return { cmd: 'task-graph-overview', action: 'reply', runId: overview[1], hash: overview[2] };
   const picker = name?.match(/^tgs:([a-z0-9]+):([a-f0-9]{40})$/);
   return picker ? { cmd: 'graph-spec-picker', roomId: picker[1], commit: picker[2] } : null;
 }

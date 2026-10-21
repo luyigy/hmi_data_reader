@@ -1,3 +1,4 @@
+import { graphRunCanStartTx } from './run-control';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { createGraphWriter, observeGraphWriter, observeTaskRunWriter, type WriterObservation, type GraphWriter } from './writer-ownership';
@@ -7,6 +8,7 @@ import { executionProgress, initialExecutionProgress, metadataWithProgress, type
 export async function registerGraphReviewWorker(runId: string, nodeKey: string): Promise<{ nodeId: string; worker: GraphWriter } | null> {
   const worker = await createGraphWriter();
   return prisma.$transaction(async tx => {
+    if (!await graphRunCanStartTx(tx, runId)) return null;
     const original = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.id} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: original.id }, include: { executions: true } });

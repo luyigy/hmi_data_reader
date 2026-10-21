@@ -1,0 +1,410 @@
+{
+  "observedAt": "2026-10-21T15:08:23.257Z",
+  "mode": "read-only",
+  "runs": [
+    {
+      "id": "cmvi5l17q02q3hmrqjndjwinv",
+      "status": "paused",
+      "nodes": [
+        {
+          "key": "T0",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "platform",
+              "status": "attention",
+              "taskRunId": "cmvi5l68a47tu9prmd8bbitp6",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/db3a7782bdfabcf4/569824130fdb81d9/jobs/2870ca82e3890e30",
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "T1",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "platform",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "T2",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "platform",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "T3",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "platform",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "T4",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "platform",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "W01",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "platform",
+              "status": "attention",
+              "taskRunId": "cmvi6fr4t4ucr9prm6qnqr2k8",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/db3a7782bdfabcf4/569824130fdb81d9/jobs/30be1dd7175da268",
+              "commit": null
+            }
+          ]
+        }
+      ],
+      "activeTurns": 0
+    },
+    {
+      "id": "cmvdmf87w043f9xhgf9yvua6p",
+      "status": "paused",
+      "nodes": [
+        {
+          "key": "M6_DEMAG",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "attention",
+              "taskRunId": null,
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/e390df1f18b50561",
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "M07",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "M6_ARBURG",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "M6_BOLE",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "M6_FANUC",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "M6_NISSEI",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "M6_YIZUMI",
+          "status": "planned",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "planned",
+              "taskRunId": null,
+              "worktreePath": null,
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "M01",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "integrated",
+              "taskRunId": "cmvdxskoa0cw6twmkb0v2vpt2",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/8a0a5fcd22d665ca",
+              "commit": "8dea94a9fdbfcc7e823ab818bae6605a1ade3c0c"
+            }
+          ]
+        },
+        {
+          "key": "M04C",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "integrated",
+              "taskRunId": "cmvdz2hty0p0htwmk8oe7xqqa",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/ef5ba0410759b017",
+              "commit": "92635daf5e7c4e8da29ee6ceb21b833e98d248fd"
+            }
+          ]
+        },
+        {
+          "key": "R05",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "integrated",
+              "taskRunId": "cmvgekr1p0rrj78k1yugwd0ws",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/ecc2e8a2e6dc372c",
+              "commit": "f12e3ac3808f60027530d70c4ff6303ce295174b"
+            }
+          ]
+        },
+        {
+          "key": "R02",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "integrated",
+              "taskRunId": "cmve1ksr60026b0j3vouqy2zw",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/2a2c0ecd4f44813b",
+              "commit": "cd92faeb2cfb86486fc9b65d2053e50a31fede2f"
+            }
+          ]
+        },
+        {
+          "key": "R01",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "integrated",
+              "taskRunId": "cmvdvh93b004g10x0n0lwhezy",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/f587b072f282bfa0",
+              "commit": "c7b74e905401356878e355a60b6afba64d2ae835"
+            }
+          ]
+        },
+        {
+          "key": "R6_ARBURG",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "attention",
+              "taskRunId": "cmvhpq0ov5c6z8w0pywegr56t",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/38fc3221b6306433",
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "R6_YIZUMI",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "attention",
+              "taskRunId": "cmvhpps7d5c2q8w0pxmouc42v",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/8e6d2938780abd1d",
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "R6_NISSEI",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "attention",
+              "taskRunId": "cmvhpq3ce5cac8w0pl9goehbo",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/de8b432989109e0b",
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "R6_FANUC",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "attention",
+              "taskRunId": "cmvhpq28v5c9h8w0p57sp9w26",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/eb53470628b54eec",
+              "commit": null
+            }
+          ]
+        },
+        {
+          "key": "R04",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "integrated",
+              "taskRunId": "cmvdx0ofc06l1twmkeacqabm4",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/12e7fda8690a714c",
+              "commit": "d0b2fdb8381be4405427a30753b6253629a0503e"
+            }
+          ]
+        },
+        {
+          "key": "M04T",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "integrated",
+              "taskRunId": "cmve1kuia0038b0j30rp6hjbf",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/cb26155da64fd561",
+              "commit": "971de2652f4e2706b54b33aec17954a3553b9266"
+            }
+          ]
+        },
+        {
+          "key": "M05",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "integrated",
+              "taskRunId": "cmvgs27st2w3avo4gtrr0n84a",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/c7ceca30a6f9a4d2",
+              "commit": "2a3bf035f06030f50027691baf3ad26907eca523"
+            }
+          ]
+        },
+        {
+          "key": "M02",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "integrated",
+              "taskRunId": "cmvf4dtys002i6wx4xshuy4er",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/d4cd1f345cf0cd41",
+              "commit": "74c56686a6f3c3e544d7d392759317c5f35c3124"
+            }
+          ]
+        },
+        {
+          "key": "M03A",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "integrated",
+              "taskRunId": "cmvf80kku002cdl5khgha861u",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/eedc1ca010703239",
+              "commit": "4319f1d94897ef9d8fae976bb761c7f8f0925a56"
+            }
+          ]
+        },
+        {
+          "key": "M03B",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "mold",
+              "status": "integrated",
+              "taskRunId": "cmvf8lqmk01rm9sfjfdxu4ybi",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/aa84ec80733df41f",
+              "commit": "f4d0b48d6ac28be6f4544492beb88b4e6cfc7576"
+            }
+          ]
+        },
+        {
+          "key": "R6_DEMAG",
+          "status": "passed",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "integrated",
+              "taskRunId": "cmvhif2wk099a8w0p4lcoj1uu",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/1edbd5e959da99a5",
+              "commit": "d682493504f778c7830c50b594326e6bbbb6fcfa"
+            }
+          ]
+        },
+        {
+          "key": "R6_BOLE",
+          "status": "attention",
+          "executions": [
+            {
+              "key": "reader",
+              "status": "attention",
+              "taskRunId": "cmvgs236f2vytvo4gchm449g6",
+              "worktreePath": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/4f7c7d45db23a834",
+              "commit": "e11cef054d1d68c894538e7195eb3233c62f12f1"
+            }
+          ]
+        }
+      ],
+      "activeTurns": 0
+    }
+  ]
+}

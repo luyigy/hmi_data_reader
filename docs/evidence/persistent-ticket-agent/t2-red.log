@@ -1,0 +1,73 @@
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvi7os990003ms0qqcb5fkfn',
+  nodeKey: 'A',
+  reason: 'Pending review repair A/repo: phase or implementation writer has not proven exit'
+}
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 289
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvi7os990003ms0qqcb5fkfn',
+  nodeKey: 'A',
+  reason: 'Pending review repair A/repo: phase or implementation writer has not proven exit'
+}
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 434
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Error: Changing approved candidates were blocked: {"implementations":3,"reviews":3,"progress":{"version":1,"revision":33,"phase":"acceptance","state":"exhausted","repairAttempts":2,"formatAttempts":0,"platformAttempts":0,"integrationAttempts":0,"workspaceBase":"eddd545799ea5acb9cebf3833d27138f6a285750","candidateCommit":"b0bc0194243458644df6d151f6b19f6912d564f8","taskRunId":"cmvi7ozz100ahms0qq5xf5ffy","conversationOwnerRunId":"cmvi7ozz100ahms0qq5xf5ffy","worker":{"version":1,"nonce":"41374396-0998-4c18-819c-b1109659ec45","hostname":"hello","uid":1000,"supervisor":{"pid":3665235,"startTime":"2731036231","bootId":"df711df5-3f7b-4b20-a4bc-5b13c45dd313"},"ancestry":[{"pid":3665235,"parentPid":3664338,"startTime":"2731036231"},{"pid":3664338,"parentPid":3664335,"startTime":"2731035400"},{"pid":3664335,"parentPid":3664332,"startTime":"2731035395"},{"pid":3664332,"parentPid":3507861,"startTime":"2731035390"},{"pid":3507861,"parentPid":2793311,"startTime":"2730834570"},{"pid":2793311,"parentPid":2793310,"startTime":"2729697524"},{"pid":2793310,"parentPid":2793095,"startTime":"2729697524"},{"pid":2793095,"parentPid":3631265,"startTime":"2729697396"},{"pid":3631265,"parentPid":1,"startTime":"967655725"}]},"review":{"phase":"acceptance","claimKey":"node:A:review_claimed:continuation:1025267a-0a1a-447a-b86d-d7e2b9463fe7","kind":"running","taskRunId":"cmvi7p29c00cvms0qkvoy25ww","candidateCommit":"b0bc0194243458644df6d151f6b19f6912d564f8"},"lastFailure":{"code":"in_scope_defect","detail":"value must reach 4","checkId":"acceptance:value","fingerprint":"069fcd409a30ae2dd84745dd0c4f50e0cab7f16b83b9127090a52f25324bffb1"}},"events":[{"id":"cmvi7p2rs00e5ms0q8sh3776g","runId":"cmvi7os990003ms0qqcb5fkfn","nodeId":"cmvi7os990004ms0qwntamg0d","idempotencyKey":"review-worker-released:41374396-0998-4c18-819c-b1109659ec45","kind":"phase_worker_released","payload":{"nonce":"41374396-0998-4c18-819c-b1109659ec45","executionIds":["cmvi7os990005ms0qkd4r9ttj"]},"createdAt":"2026-10-21T14:33:01.000Z"},{"id":"cmvi7p2ra00dzms0qmcithk7y","runId":"cmvi7os990003ms0qqcb5fkfn","nodeId":"cmvi7os990004ms0qwntamg0d","idempotencyKey":"execution:cmvi7os990005ms0qkd4r9ttj:outcome:review-repair:exhausted","kind":"execution_outcome","payload":{"outcome":{"kind":"retry_exhausted","failure":{"code":"in_scope_defect","detail":"value must reach 4","checkId":"acceptance:value","fingerprint":"069fcd409a30ae2dd84745dd0c4f50e0cab7f16b83b9127090a52f25324bffb1"}},"progress":{"phase":"acceptance","state":"exhausted","review":{"kind":"running","phase":"acceptance","claimKey":"node:A:review_claimed:continuation:1025267a-0a1a-447a-b86d-d7e2b9463fe7","taskRunId":"cmvi7p29c00cvms0qkvoy25ww","candidateCommit":"b0bc0194243458644df6d151f6b19f6912d564f8"},"worker":{"uid":1000,"nonce":"41374396-0998-4c18-819c-b1109659ec45","version":1,"ancestry":[{"pid":3665235,"parentPid":3664338,"startTime":"2731036231"},{"pid":3664338,"parentPid":3664335,"startTime":"2731035400"},{"pid":3664335,"parentPid":3664332,"startTime":"2731035395"},{"pid":3664332,"parentPid":3507861,"startTime":"2731035390"},{"pid":3507861,"parentPid":2793311,"startTime":"2730834570"},{"pid":2793311,"parentPid":2793310,"startTime":"2729697524"},{"pid":2793310,"parentPid":2793095,"startTime":"2729697524"},{"pid":2793095,"parentPid":3631265,"startTime":"2729697396"},{"pid":3631265,"parentPid":1,"startTime":"967655725"}],"hostname":"hello","supervisor":{"pid":3665235,"bootId":"df711df5-3f7b-4b20-a4bc-5b13c45dd313","startTime":"2731036231"}},"version":1,"revision":33,"taskRunId":"cmvi7ozz100ahms0qq5xf5ffy","lastFailure":{"code":"in_scope_defect","detail":"value must reach 4","checkId":"acceptance:value","fingerprint":"069fcd409a30ae2dd84745dd0c4f50e0cab7f16b83b9127090a52f25324bffb1"},"workspaceBase":"eddd545799ea5acb9cebf3833d27138f6a285750","formatAttempts":0,"repairAttempts":2,"candidateCommit":"b0bc0194243458644df6d151f6b19f6912d564f8","platformAttempts":0,"integrationAttempts":0,"conversationOwnerRunId":"cmvi7ozz100ahms0qq5xf5ffy"},"claimToken":"1025267a-0a1a-447a-b86d-d7e2b9463fe7","executionId":"cmvi7os990005ms0qkd4r9ttj","expectedRevision":32},"createdAt":"2026-10-21T14:33:00.983Z"},{"id":"cmvi7p2qv00dxms0q2dlebyd4","runId":"cmvi7os990003ms0qqcb5fkfn","nodeId":"cmvi7os990004ms0qwntamg0d","idempotencyKey":"node:A:repair:exhausted","kind":"node_repair_exhausted","payload":{"note":"value must reach 4","attempts":2,"evidence":{"checks":[{"name":"value","passed":false,"evidence":"node -e require('fs').accessSync('value')\n\nAgent review cmvi7p29c00cvms0qkvoy25ww: value must reach 4"},{"name":"acceptance:decision","passed":false,"evidence":"value must reach 4"}],"summary":"Agent 复核 未通过：value must reach 4"}},"createdAt":"2026-10-21T14:33:00.968Z"},{"id":"cmvi7p2ql00dvms0qt2dstcmo","runId":"cmvi7os990003ms0qqcb5fkfn","nodeId":"cmvi7os990004ms0qwntamg0d","idempotencyKey":"node:A:verified:cmvi7p29c00cvms0qkvoy25ww","kind":"verification_failed","payload":{"actorId":"local:codex","evidence":{"checks":[{"name":"value","passed":false,"evidence":"node -e require('fs').accessSync('value')\n\nAgent review cmvi7p29c00cvms0qkvoy25ww: value must reach 4"},{"name":"acceptance:decision","passed":false,"evidence":"value must reach 4"}],"summary":"Agent 复核 未通过：value must reach 4"}},"createdAt":"2026-10-21T14:33:00.958Z"}]}
+    at /data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t2.test.ts:61:81
+    at step (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t2.test.ts:44:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t2.test.ts:25:53)
+    at fulfilled (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t2.test.ts:16:58)
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/persistent-ticket-agent-t2.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/scripts/test-task-graph-postgres.mjs:44:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 3665235,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

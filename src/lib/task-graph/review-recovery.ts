@@ -1,3 +1,4 @@
+import { requireGraphRunActiveTx } from './run-control';
 import { prisma } from '../prisma';
 import { applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
@@ -15,6 +16,7 @@ export async function scheduleVerificationRecovery(runId: string, nodeKey: strin
   const proof = await observeWriterSnapshot({ jobs: before.executions, taskRunIds: ids, scope: 'review-model' });
   if (!proof.exited) throw new Error(`Verification writer has not demonstrably exited: ${JSON.stringify(proof.observations)}`);
   return prisma.$transaction(async tx => {
+    await requireGraphRunActiveTx(tx, runId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${before.id} FOR UPDATE`;
     if (await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } })) return;
     const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: before.id }, include: { executions: true } });
