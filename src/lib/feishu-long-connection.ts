@@ -1,3 +1,4 @@
+import { handleGraphOverviewAction } from '@/lib/task-graph/overview';
 import { cleanupFeishuOwnedStaleTaskRuns } from './feishu-startup-task-cleanup';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { startFeishuConnectionSupervisor, stopFeishuConnectionSupervisor } from '@/lib/feishu-connection-supervisor';
@@ -298,6 +299,11 @@ export function buildCardActionHandler(prefix: string) {
     if (cmd === 'markdown-picker') return handleMarkdownPickerCardCallback({ action, openId, chatId, messageId, prefix });
     if (cmd === 'graph-spec-picker') return handleGraphSpecPicker({ value: action.value || {},
       formValue: action.form_value || {}, openId, chatId, messageId });
+
+    if (cmd === 'task-graph-overview') {
+      try { return await handleGraphOverviewAction({ value: action.value || {}, form: action.form_value || {}, openId: openId || null, chatId: chatId || null, messageId: messageId || null, callbackId: data.token }); }
+      catch (error) { return { toast: { type: 'warning', content: error instanceof Error ? error.message : '总览操作未完成' } }; }
+    }
 
     if (cmd === 'task-graph-decision') {
       const value = data.action.value as Record<string, unknown>;

@@ -40,20 +40,26 @@ export async function pendingConversationInputs(tx: Prisma.TransactionClient, ru
 }
 
 /** Messages target an execution, never whichever TaskRun happens to be newest. */
-export async function receiveGraphTaskMessage(args: { taskId: string; sourceId: string; actorId: string; actorOrigin?: ConversationInput['actorOrigin']; content: string; roomMessageId?: string; sourceMetadata?: string | null }) {
-  const original = await prisma.taskGraphExecution.findUnique({ where: { childTaskId: args.taskId }, include: { node: true } });
+export type GraphTaskMessageInput = { taskId: string; sourceId: string; actorId: string; actorOrigin?: ConversationInput['actorOrigin']; content: string; roomMessageId?: string; sourceMetadata?: string | null };
+
+export async function receiveGraphTaskMessageTx(tx: Prisma.TransactionClient, args: GraphTaskMessageInput) {
+  const original = await tx.taskGraphExecution.findUnique({ where: { childTaskId: args.taskId }, include: { node: true } });
   if (!original) return false;
-  await prisma.$transaction(async tx => {
-    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
-    const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: original.id }, include: { node: { include: { run: true } } } });
-    const progress = executionProgress(job.dispatchMetadata);
-    await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: job.node.runId,
-      idempotencyKey: `conversation-input:${job.id}:${args.sourceId}` } }, update: {}, create: {
-      runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input', idempotencyKey: `conversation-input:${job.id}:${args.sourceId}`,
-      payload: { executionId: job.id, sourceId: args.sourceId, actorId: args.actorId, actorOrigin: args.actorOrigin || 'room', content: args.content, sourceMetadata: args.sourceMetadata || null,
-        ...(args.roomMessageId ? { roomMessageId: args.roomMessageId } : {}), receivedPhase: progress?.phase || 'prepare', receivedState: progress?.state || job.status },
-    } });
-  });
+  await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
+  const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: original.id }, include: { node: { include: { run: true } } } });
+  const progress = executionProgress(job.dispatchMetadata);
+  await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: job.node.runId,
+    idempotencyKey: `conversation-input:${job.id}:${args.sourceId}` } }, update: {}, create: {
+    runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input', idempotencyKey: `conversation-input:${job.id}:${args.sourceId}`,
+    payload: { executionId: job.id, sourceId: args.sourceId, actorId: args.actorId, actorOrigin: args.actorOrigin || 'room', content: args.content, sourceMetadata: args.sourceMetadata || null,
+      ...(args.roomMessageId ? { roomMessageId: args.roomMessageId } : {}), receivedPhase: progress?.phase || 'prepare', receivedState: progress?.state || job.status },
+  } });
+  return true;
+}
+
+export async function receiveGraphTaskMessage(args: GraphTaskMessageInput) {
+  const queued = await prisma.$transaction(tx => receiveGraphTaskMessageTx(tx, args));
+  if (!queued) return false;
   await postGraphChildProgress(args.taskId, `conversation:queued:${args.sourceId}`, '消息已进入原任务会话。执行中会交给当前执行者；正在合流或验收时会排队，并保留当前交付状态。')
     .catch(error => console.error('[TaskGraph] conversation queue notification deferred:', error));
   return true;

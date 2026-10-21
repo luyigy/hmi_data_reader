@@ -42,7 +42,7 @@ export async function requireGraphNodeActive(nodeId: string) {
 }
 
 /** Operator control changes no node, candidate, session, claim, permission or retry count. */
-export async function setGraphRunPaused(args: { runId: string; paused: boolean; requestId: string; actorId: string; reason: string }) {
+export async function setGraphRunPaused(args: { runId: string; paused: boolean; requestId: string; actorId: string; reason: string; expectedControl?: string }) {
   if (![args.requestId, args.actorId, args.reason].every(value => value.trim())) throw new Error('Run control requires request, actor and reason');
   return prisma.$transaction(async tx => {
     await graphRunCanStartTx(tx, args.runId);
@@ -53,6 +53,10 @@ export async function setGraphRunPaused(args: { runId: string; paused: boolean; 
       const payload = previous.payload;
       if (previous.kind !== kind || !payload || typeof payload !== 'object' || Array.isArray(payload) || payload.actorId !== args.actorId || payload.reason !== args.reason) throw new Error('Run control request identity changed');
       return previous;
+    }
+    if (args.expectedControl !== undefined) {
+      const latest = await tx.taskGraphEvent.findFirst({ where: { runId: args.runId, kind: { in: ['run_user_paused', 'run_user_resumed'] } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+      if ((latest?.id || 'initial') !== args.expectedControl) throw new Error('User control changed; refresh the overview');
     }
     const nodes = await tx.taskGraphNode.findMany({ where: { runId: args.runId }, select: { status: true } });
     const status = args.paused ? 'paused' : graphRunBusinessStatus(nodes);
