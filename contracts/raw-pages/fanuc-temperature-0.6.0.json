@@ -1,0 +1,440 @@
+{
+  "profile_id": "fanuc.temperature.rightmost5",
+  "version": "0.6.0",
+  "page_identity": {
+    "brand": "FANUC",
+    "controller_family": "FANUC",
+    "interface_generation": null,
+    "page_type": "temperature",
+    "layout_variant": "rightmost5"
+  },
+  "controller_evidence": {
+    "image": "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_3ce4cae5.jpg",
+    "image_sha256": "3ce4cae55a17f3ef6782eaf9b868c31b6cba236b7aa12dc3d01260210e6c30cd",
+    "observed": "ROBOSHOT alpha-S30iA header and nozzle/barrel table; controller family FANUC per reviewed original, no inferred interface generation"
+  },
+  "zones": [
+    {
+      "zone_id": "nozzle-N",
+      "zone_source": "nozzle",
+      "labels": [
+        "N"
+      ]
+    },
+    {
+      "zone_id": "barrel-B1",
+      "zone_source": "barrel",
+      "labels": [
+        "B1",
+        "BI"
+      ]
+    },
+    {
+      "zone_id": "barrel-B2",
+      "zone_source": "barrel",
+      "labels": [
+        "B2",
+        "82"
+      ]
+    },
+    {
+      "zone_id": "barrel-B3",
+      "zone_source": "barrel",
+      "labels": [
+        "B3",
+        "83"
+      ]
+    },
+    {
+      "zone_id": "feed-H",
+      "zone_source": "other",
+      "labels": [
+        "H"
+      ]
+    }
+  ],
+  "rows": {
+    "actual": "现在",
+    "setting": "设定"
+  },
+  "fields": [
+    {
+      "screen_field_key": "temperature.nozzle-N.setting",
+      "section": "temperature",
+      "role": "setting",
+      "row": "setting",
+      "label": "设定",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "nozzle-N",
+      "zone_source": "nozzle"
+    },
+    {
+      "screen_field_key": "temperature.nozzle-N.actual",
+      "section": "temperature",
+      "role": "actual",
+      "row": "actual",
+      "label": "现在",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "nozzle-N",
+      "zone_source": "nozzle"
+    },
+    {
+      "screen_field_key": "temperature.barrel-B1.setting",
+      "section": "temperature",
+      "role": "setting",
+      "row": "setting",
+      "label": "设定",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "barrel-B1",
+      "zone_source": "barrel"
+    },
+    {
+      "screen_field_key": "temperature.barrel-B1.actual",
+      "section": "temperature",
+      "role": "actual",
+      "row": "actual",
+      "label": "现在",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "barrel-B1",
+      "zone_source": "barrel"
+    },
+    {
+      "screen_field_key": "temperature.barrel-B2.setting",
+      "section": "temperature",
+      "role": "setting",
+      "row": "setting",
+      "label": "设定",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "barrel-B2",
+      "zone_source": "barrel"
+    },
+    {
+      "screen_field_key": "temperature.barrel-B2.actual",
+      "section": "temperature",
+      "role": "actual",
+      "row": "actual",
+      "label": "现在",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "barrel-B2",
+      "zone_source": "barrel"
+    },
+    {
+      "screen_field_key": "temperature.barrel-B3.setting",
+      "section": "temperature",
+      "role": "setting",
+      "row": "setting",
+      "label": "设定",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "barrel-B3",
+      "zone_source": "barrel"
+    },
+    {
+      "screen_field_key": "temperature.barrel-B3.actual",
+      "section": "temperature",
+      "role": "actual",
+      "row": "actual",
+      "label": "现在",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "barrel-B3",
+      "zone_source": "barrel"
+    },
+    {
+      "screen_field_key": "temperature.feed-H.setting",
+      "section": "temperature",
+      "role": "setting",
+      "row": "setting",
+      "label": "设定",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "feed-H",
+      "zone_source": "other"
+    },
+    {
+      "screen_field_key": "temperature.feed-H.actual",
+      "section": "temperature",
+      "role": "actual",
+      "row": "actual",
+      "label": "现在",
+      "unit": "°C",
+      "value_type": "number",
+      "zone_id": "feed-H",
+      "zone_source": "other"
+    },
+    {
+      "screen_field_key": "temperature.low_hold.setting",
+      "section": "low_temperature_hold",
+      "role": "setting",
+      "label": "低温保持",
+      "unit": "°C",
+      "value_type": "number"
+    }
+  ],
+  "samples": [
+    {
+      "manifest": {
+        "sample_id": "barrel_A11_3ce4cae5",
+        "original_sha256": "3ce4cae55a17f3ef6782eaf9b868c31b6cba236b7aa12dc3d01260210e6c30cd",
+        "original_size": [
+          3468,
+          4624
+        ],
+        "purpose": "development",
+        "profile_id": "fanuc.temperature.rightmost5",
+        "screen_size": [
+          1999,
+          1475
+        ],
+        "ocr_fixture": "tests/fixtures/fanuc_temperature_barrel_A11_3ce4cae5_ocr.json",
+        "ocr_sha256": "0d000e790c7c8a3d57f189a175e8afa1b1951ccd8c3971468d779460c87165d3"
+      },
+      "image": "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_3ce4cae5.jpg",
+      "truth": "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_3ce4cae5.truth.yml",
+      "truth_sha256": "8627dddee07cd6f549ba584fe5dc3e67c1828aef728651eac2ca84f32c3c9d6f",
+      "provenance": {
+        "source": {
+          "note": "飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recuQJJFYY3hBo，发那科 A11，036 PLAN 批次 batch_001）"
+        },
+        "verified_by": "kimi-code 逐图目视核验（042 S01，待王为确认）",
+        "verified_at": "2026-08-12",
+        "tuning_involvement": "none",
+        "placement_reason": "036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout"
+      },
+      "scope": "Legacy five-zone numeric truth. State and additional fields require independent platform verification. No blanket full-page human approval.",
+      "rectification": {
+        "screen_quad": [
+          [
+            -7.821697391337257e-14,
+            277.44000244140625
+          ],
+          [
+            3462.22021484375,
+            277.44000244140625
+          ],
+          [
+            3462.22021484375,
+            2832.2001953125
+          ],
+          [
+            0.0,
+            2832.2001953125
+          ]
+        ],
+        "screen_size": [
+          1999,
+          1475
+        ],
+        "original_size": [
+          3468,
+          4624
+        ],
+        "original_sha256": "3ce4cae55a17f3ef6782eaf9b868c31b6cba236b7aa12dc3d01260210e6c30cd",
+        "method": "corners"
+      }
+    },
+    {
+      "manifest": {
+        "sample_id": "barrel_A11_9835fbea",
+        "original_sha256": "9835fbead6b71317cf4df4d8140915271991ef2204363b2f0e284a43d6fe4b53",
+        "original_size": [
+          4032,
+          3024
+        ],
+        "purpose": "development",
+        "profile_id": "fanuc.temperature.rightmost5",
+        "screen_size": [
+          2000,
+          1993
+        ],
+        "ocr_fixture": "tests/fixtures/fanuc_temperature_barrel_A11_9835fbea_ocr.json",
+        "ocr_sha256": "6b147be5f0124e4086b67003283e4fc70d2037e2f64a9824a0086bc1516fa3b5"
+      },
+      "image": "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_9835fbea.jpg",
+      "truth": "datasets/calibration/fanuc.temperature.rightmost5/barrel_A11_9835fbea.truth.yml",
+      "truth_sha256": "49b0f4ae22262a795cbcc97f290667af8509b54bbfc1f62b65980fa8ebdf9d0e",
+      "provenance": {
+        "source": {
+          "note": "飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recuQJJFYYymzu，发那科 A11，036 PLAN 批次 batch_001）"
+        },
+        "verified_by": "kimi-code 逐图目视核验（042 S01，待王为确认）",
+        "verified_at": "2026-08-12",
+        "tuning_involvement": "none",
+        "placement_reason": "036/042 实验已下载已见图，S01 逐图目视核验建立真值；属 calibration 练习册，绝不进 holdout"
+      },
+      "scope": "Legacy five-zone numeric truth. State and additional fields require independent platform verification. No blanket full-page human approval.",
+      "rectification": {
+        "screen_quad": [
+          [
+            -9.212038955003915e-14,
+            836.6400146484375
+          ],
+          [
+            3018.9599609375,
+            836.6400146484375
+          ],
+          [
+            3018.9599609375,
+            3845.52001953125
+          ],
+          [
+            0.0,
+            3845.52001953125
+          ]
+        ],
+        "screen_size": [
+          2000,
+          1993
+        ],
+        "original_size": [
+          3024,
+          4032
+        ],
+        "original_sha256": "9835fbead6b71317cf4df4d8140915271991ef2204363b2f0e284a43d6fe4b53",
+        "method": "corners"
+      }
+    },
+    {
+      "manifest": {
+        "sample_id": "barrel_A09_56323296",
+        "original_sha256": "563232963c648d523f6fc7087249d80c8807c5a6ab4c6b64e82211ae7b629d94",
+        "original_size": [
+          1920,
+          1080
+        ],
+        "purpose": "retained",
+        "profile_id": "fanuc.temperature.rightmost5",
+        "screen_size": [
+          1415,
+          992
+        ],
+        "ocr_fixture": "tests/fixtures/fanuc_temperature_barrel_A09_56323296_ocr.json",
+        "ocr_sha256": "4b6495799014d55a9064665e904ee39ab08c4c6babb9f5bf1bf05181b06608e3"
+      },
+      "image": "datasets/holdout/fanuc.temperature.rightmost5/barrel_A09_56323296.jpeg",
+      "truth": "datasets/holdout/fanuc.temperature.rightmost5/barrel_A09_56323296.truth.yml",
+      "truth_sha256": "68e8ba7f16c5b77458181d8d1681b594183af2f87ec598de0a4797050c95bf14",
+      "provenance": {
+        "source": {
+          "note": "飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqncKYrkn0H，发那科 A09，054 PLAN S01 批次 batch_002）"
+        },
+        "verified_by": "kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）",
+        "verified_at": "2026-08-13",
+        "tuning_involvement": "none",
+        "placement_reason": "054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参"
+      },
+      "scope": "Legacy five-zone numeric truth. State and additional fields require independent platform verification. No blanket full-page human approval.",
+      "rectification": {
+        "screen_quad": [
+          [
+            237.36285400390625,
+            -56.175174713134766
+          ],
+          [
+            1640.6468505859375,
+            126.20105743408203
+          ],
+          [
+            1512.7117919921875,
+            1110.590576171875
+          ],
+          [
+            109.42778778076172,
+            928.2144165039062
+          ]
+        ],
+        "screen_size": [
+          1415,
+          992
+        ],
+        "original_size": [
+          1920,
+          1080
+        ],
+        "original_sha256": "563232963c648d523f6fc7087249d80c8807c5a6ab4c6b64e82211ae7b629d94",
+        "method": "corners"
+      }
+    },
+    {
+      "manifest": {
+        "sample_id": "barrel_A09_9aae0b4a",
+        "original_sha256": "9aae0b4a7da01f91ee50776d1b9d6f7ddd089083b3061d503f6c35f664ea36cb",
+        "original_size": [
+          720,
+          1280
+        ],
+        "purpose": "retained",
+        "profile_id": "fanuc.temperature.rightmost5",
+        "screen_size": [
+          1400,
+          1159
+        ],
+        "ocr_fixture": "tests/fixtures/fanuc_temperature_barrel_A09_9aae0b4a_ocr.json",
+        "ocr_sha256": "49d51d60b484d6237bee4c0be544960d75bd68f811d22631df42602e900599ed"
+      },
+      "image": "datasets/holdout/fanuc.temperature.rightmost5/barrel_A09_9aae0b4a.jpeg",
+      "truth": "datasets/holdout/fanuc.temperature.rightmost5/barrel_A09_9aae0b4a.truth.yml",
+      "truth_sha256": "ff13da64b32ae741e0212de598d736e5d36b97de09f402d029c38d64db725bc1",
+      "provenance": {
+        "source": {
+          "note": "飞书 Base 注塑机台监控汇总「成型条件-炮筒温度设定」附件（record recvqncKYrSImd，发那科 A09，054 PLAN S01 批次 batch_002）"
+        },
+        "verified_by": "kimi-code 大模型逐图直接视觉核验（054 S01，contract 真值）",
+        "verified_at": "2026-08-13",
+        "tuning_involvement": "none",
+        "placement_reason": "054 S01 新 holdout 验收批：hash 未出现在 calibration/regression/samples_temperature_base/samples_v4_holdout，未参与任何调参"
+      },
+      "scope": "Legacy five-zone numeric truth. State and additional fields require independent platform verification. No blanket full-page human approval.",
+      "rectification": {
+        "screen_quad": [
+          [
+            0.18178711831569672,
+            345.9520568847656
+          ],
+          [
+            726.1432495117188,
+            392.2899475097656
+          ],
+          [
+            687.7735595703125,
+            993.4154663085938
+          ],
+          [
+            -38.18793869018555,
+            947.0775756835938
+          ]
+        ],
+        "screen_size": [
+          1400,
+          1159
+        ],
+        "original_size": [
+          720,
+          1280
+        ],
+        "original_sha256": "9aae0b4a7da01f91ee50776d1b9d6f7ddd089083b3061d503f6c35f664ea36cb",
+        "method": "corners"
+      }
+    }
+  ],
+  "coverage": {
+    "temperature": "Five physical zones setting/actual and low-temperature hold; missing/merged OCR remains missing/uncertain. Fixed physical layout.",
+    "injection": "Existing v1 only; no R6 raw-v2 evidence",
+    "holding": "Existing v1 only; no R6 raw-v2 evidence",
+    "plasticizing": "Existing v1 only; no R6 raw-v2 evidence",
+    "related_time": "Not supported by this temperature package; historic table durations excluded"
+  },
+  "excluded": [
+    "M1-M4 mold-heater columns",
+    "upper/lower deviation and output rows",
+    "automatic adjustment switches",
+    "now/latest side panel",
+    "bottom historical cycle and timing table"
+  ]
+}
