@@ -10,7 +10,7 @@ export async function recoverPendingConflictRepairs(runId: string) {
   const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId }, status: 'attention', issueKind: 'integration_conflict' } });
   for (const job of jobs) {
     const progress = executionProgress(job.dispatchMetadata);
-    if (!progress || progress.state !== 'waiting_decision' || progress.lastFailure?.requiresUserDecision !== undefined || !job.claimToken) continue;
+    if (!progress || progress.state !== 'waiting_decision' || progress.lastFailure?.requiresUserDecision === true || !job.claimToken) continue;
     const failure: ExecutionFailure = { ...progress.lastFailure!, code: 'integration_conflict', detail: progress.lastFailure?.detail || 'Pending merge requires a bounded repair',
       action: '平台核验原执行者退出证据及账本中的候选、合并父提交与当前集成引用；保留现场，核验后由受控合并步骤处理所列文件', owner: 'platform', requiresUserDecision: false };
     try {

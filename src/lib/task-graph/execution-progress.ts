@@ -271,6 +271,21 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         if (!current.commit) throw new Error('Review restart has no integrated candidate');
         progress.review = { candidateCommit: current.commit, phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
       }
+    } else if (outcome.kind === 'repair_required' && outcome.failure.tree && outcome.failure.fingerprint) {
+      const recent = await tx.taskGraphEvent.findMany({ where: { runId: current.node.runId, nodeId: job.nodeId, kind: 'execution_outcome', AND: [
+        { payload: { path: ['executionId'], equals: job.id } }, { payload: { path: ['outcome', 'kind'], equals: 'repair_required' } },
+      ] }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: maxUnchangedWorkTurns, select: { payload: true } });
+      const stalled = recent.length === maxUnchangedWorkTurns && recent.every(event => {
+        const previous = record(record(event.payload).outcome), failure = record(previous.failure);
+        return failure.fingerprint === outcome.failure.fingerprint;
+      });
+      if (!stalled) progress.repairAttempts++;
+      progress.phase = outcome.conflictRepair ? 'integrate' : 'implement'; progress.lastFailure = outcome.failure;
+      if (outcome.conflictRepair) { progress.conflictRepair = outcome.conflictRepair; delete progress.runtimeDirectory; }
+      if (stalled) {
+        status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingKind = 'answered';
+        progress.waitingMessage = '相同代码与输入反复产生同一缺陷，已停止空转，原工作资格与现场保留。';
+      } else { status = 'ready'; progress.state = 'ready'; }
     } else {
       progress.lastFailure = outcome.failure;
       if (outcome.kind === 'repair_required' && outcome.conflictRepair) { progress.conflictRepair = outcome.conflictRepair; delete progress.runtimeDirectory; }

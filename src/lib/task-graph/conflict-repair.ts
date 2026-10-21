@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { graphGit as git } from './git-command';
+import { graphGit as git, graphGitJsonPairDigest } from './git-command';
 import { inspectJobWorktree, type JobWorktreeRequest } from './worktree';
 import type { IntegrationConflict } from './integration-failure';
 import { prisma } from '../prisma';
@@ -72,10 +72,10 @@ async function regularFile(workspace: string, name: string) {
 async function outside(workspace: string, paths: string[]) {
   const entries = (await git(workspace, 'ls-files', '--stage', '-z')).split('\0').filter(Boolean);
   const indexOutside = digest(entries.filter(entry => !paths.includes(entry.slice(entry.indexOf('\t') + 1))).join('\0'));
-  const differences = await git(workspace, 'diff', '--no-ext-diff', '--no-textconv', '--binary', 'HEAD', '--', '.', ...paths.map(name => `:(literal,exclude)${name}`));
+
   const untracked = (await git(workspace, 'ls-files', '--others', '--exclude-standard', '-z')).split('\0').filter(Boolean).sort();
   const contents = await Promise.all(untracked.map(async name => [name, digest(await fs.readFile(await regularFile(workspace, name)))]));
-  return { indexOutside, worktreeOutside: digest(JSON.stringify([differences, contents])) };
+  return { indexOutside, worktreeOutside: await graphGitJsonPairDigest(workspace, ['diff', '--no-ext-diff', '--no-textconv', '--binary', 'HEAD', '--', '.', ...paths.map(name => `:(literal,exclude)${name}`)], contents) };
 }
 async function stages(workspace: string, name: string) {
   return git(workspace, 'ls-files', '--stage', '-z', '--', `:(literal)${name}`);

@@ -1,3 +1,4 @@
+import { executionRetryLimits } from './retry-limits';
 import { TaskInputPreparationError } from './upstream-inputs';
 import { ServiceRuntimeError } from './attempt-services';
 import { GraphCheckTimeoutError } from './check-runner';
@@ -20,7 +21,7 @@ export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId:
   await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
   const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
   if (node.status !== 'verifying' || !node.executions.length) throw new Error('Review failure no longer owns verification');
-  const exhausted = args.kind === 'protocol_exhausted' || args.kind === 'platform_failure' && node.executions.some(job => (executionProgress(job.dispatchMetadata)?.platformAttempts || 0) >= 2);
+  const exhausted = args.kind === 'protocol_exhausted' || args.kind === 'platform_failure' && node.executions.some(job => (executionProgress(job.dispatchMetadata)?.platformAttempts || 0) >= executionRetryLimits.platformAttempts);
   const nextClaim = `${args.claimKey}:platform:${Math.max(...node.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts || 0)) + 1}`;
   for (const job of node.executions) {
     if (job.status !== 'integrated' || !job.commit) throw new Error('Review failure input is not integrated');

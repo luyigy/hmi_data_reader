@@ -368,7 +368,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
   await refreshTaskGraphRunStatus(runId);
   const outcome = updated.status === 'verifying' ? '复核环境暂时失败，已保留报告并自动重试。' : repairing ? '发现原范围内缺口，已自动交回实施者；修复后接着验收。' : updated.status === 'passed' ? '验收通过，Slice 已完成；符合条件的后继将自动启动。'
     : updated.status === 'awaiting_human' ? '自动检查已结束，等待已配置的人工验收。'
-    : reviewDecision.failureKind === 'in_scope_defect' ? '自动回修已停止或达到两轮上限，保留各轮报告，需核对后处理；后继继续等待。'
+    : reviewDecision.failureKind === 'in_scope_defect' ? '回修未产生新的进展，已停止空转并保留原会话和各轮报告；后继继续等待。'
     : reviewDecision.failureKind === 'protocol_exhausted' ? '复核结论补收已耗尽，交付现场保留，需要明确处理方案后再排期。'
     : reviewDecision.failureKind === 'blocked_require_human' ? '需补材料、裁定范围或权限；原因见复核结论。补齐后在这里说继续验收即可。'
     : '验收未通过，结论尚不足以自动回修；后继继续等待。';
@@ -435,6 +435,12 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   const outcome = async (result: ExecutionOutcome) => {
     const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
     const progress = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
+    if (result.kind === 'repair_required' && progress.candidateCommit) {
+      const work = await continuationWorkFingerprint(execution.id, progress.candidateCommit);
+      result = { ...result, failure: { ...result.failure,
+        tree: await graphGit(execution.repository, 'rev-parse', '--verify', `${progress.candidateCommit}^{tree}`),
+        fingerprint: createHash('sha256').update(work + ':' + (result.failure.checkId || result.failure.code)).digest('hex') } };
+    }
     return applyExecutionOutcome({ executionId: execution.id, claimToken, expectedRevision: progress.revision,
       outcomeId: `${claimToken}:${progress.revision}:${result.kind}`, outcome: result });
   };
