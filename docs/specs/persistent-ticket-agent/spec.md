@@ -1,0 +1,211 @@
+# 持续 Ticket Agent 实施合同
+
+状态：需求已由用户逐项确认；本文为实施合同，未表示代码已经实现或生产路线已经恢复。
+
+代码基线：`oss-prep@bac31f224f55b5e9685e39e146e69abe0cd29b27`。
+调查证据：同目录 `526_REPORT_20261021_AutonomousProgressionSimplificationAudit.md`。
+设计输入：用户提供的 `526_agent-platform-v2 极简架构重设计方案md` 及后续 grilling 对齐。
+
+## 1. 产品合同
+
+Ticket 获批后，Coding Agent 持续拥有批准范围内的工作资格，直到交付、用户明确暂停或真正触及安全边界。进程退出、单轮结束、普通工程错误、缺材料和测试失败不撤销该资格。
+
+持续资格不表示永久进程、永久 Writer 租约或无限资源。每次实际运行仍核验有效批准、运行资源、执行归属和 Writer。交付进入集成与独立验收；范围内缺陷退回原 Agent 继续工作，验收通过才完成并释放后继。
+
+Agent 自主调查、搜索已授权资料、编码、调试、测试和提问。提问本身不暂停 Ticket。Agent 继续不依赖答案的工作，确实无可执行动作时等待。用户回答后续接原 Session，无需额外恢复审批。不得虚构资料或以缺失证据宣称验收通过。
+
+平台负责依赖调度、并发槽、任务房间与消息绑定、执行安全、受控集成和交付判定。平台不按“缺材料”等关键词替 Agent 决定工程工作必须停止。
+
+## 2. 目标调用关系
+
+```text
+Matt Skills 对齐 → Issue Tracker Tickets → 用户批准执行路线
+  → 现有 Task Graph 按真实依赖创建/复用任务房间
+  → Coordinator 分配并发槽
+  → 原 Coding Agent + 原 Session + 独立 Worktree
+      ← 正常用户消息 / 总览卡定向回复 / 验收缺陷反馈
+      → 工程工作 / 自然提问 / 保存检查点 / 正式交付
+  → 固定候选 → 受控 Git 集成 → 独立验收
+      → 不通过：反馈原 Agent
+      → 通过：完成通知 + 自动释放相应后继
+```
+
+前一代 frontmatter 和下一 Session Prompt 的接力职责，由当前执行账本、依赖调度与固定前置交付承担。同一 Ticket 正常交流不重新创建实施代理。新 Ticket 仍通过既有飞书确认卡批准，不用本文或 Prompt 标记启动下一 Session。
+
+## 3. 必须保留的边界
+
+- Project Capabilities、批准范围、撤权与 Sandbox 的实际强制隔离。
+- Sandbox Manager 进程生命周期、Backend 身份、unknown 与退出证明语义。
+- 原生 Codex Session 与 TaskRun/participant 的明确绑定。
+- 单 Writer、旧运行迟到事件隔离、claim/revision、候选和结果 CAS。
+- W001 当前 Stage Request 一致性。历史会话不得覆盖当前阶段权限和输出要求。
+- 受控集成、未验收上游污染检查、独立验收和批准模式规定的放行条件。
+- 用户主动暂停不能被自动恢复；新范围、新权限仍需用户决定。
+
+工程反馈交回原 Agent，不代表只读验收进程获得写权限。反馈消费后，必须在实施阶段的授权工作区运行；新候选须重新验收。
+
+## 4. 正常推进语义
+
+| 事实 | 行为 |
+| --- | --- |
+| 本轮结束，有明确下一步工作 | 保存检查点，由现有 Coordinator 安排原 Session 下一轮 |
+| 测试失败、实现不完整、普通工具错误 | Agent 在批准范围内继续解决，不要求用户批准回修 |
+| 缺部分材料，但还有可执行工作 | Agent 自行寻找已授权资料、做其他部分，并可自然提问 |
+| Agent 明确需要用户回答且暂时无事可做 | 保留 Session/工作区等待；回复幂等进入原 Agent |
+| 用户补图、纠正或回答 | 按原 Ticket 消息归属入箱；不要求另发 resume |
+| 正式提交固定候选 | 进入受控集成、检查与独立验收 |
+| 独立验收发现范围内缺陷 | 固定反馈作为原 Agent 新工作输入，修复后重新交付 |
+| 平台故障已修复、现场完整且 Writer 安全退出 | 有效批准下自动续接；不能只凭新请求 ID 或模型自称已修复 |
+| 原进程状态 unknown、权限失效或候选身份漂移 | 停止相关危险操作，核对实际事实；其他独立 Ticket 可继续 |
+| 用户明确暂停 | 保持暂停，直到用户明确继续 |
+| 同一输入和失败无进展重复，或资源限额触发 | 停止空转，保留现场，在总览卡说明原因；不伪装成业务授权失效 |
+
+`retry-limits.ts` 可保留为资源与重复保护。不得因某种普通工程错误达到固定次数，使正常消息和有效新反馈都必须经过专用人工恢复审批。新输入不绕过真实成本限额或安全条件。
+
+下一轮工作必须可持久化、可去重。不能仅靠一条自由文本“继续”无限派发，也不能把每次 Turn 结束都解释成正式交付。优先复用现有输入、检查点、执行进度和事件；不创建新持久状态机。
+
+## 5. 源码边界与分步交付
+
+下列路径均相对 `src/lib/task-graph/`。这是预计改动范围；实施前按固定提交确认实际调用者，不为维持此表而增加模块。
+
+### S01：原 Agent 正常多轮实施
+
+| 文件 | 改动职责 |
+| --- | --- |
+| `implementation-result.ts` | 区分 Turn 结束、下一步工作、明确等待和正式交付；收敛普通工程障碍转人工 decision 的分支 |
+| `coordinator.ts` | 使用既有并发槽消费下一轮工作；复用原工作区和 Session；不引入另一个调度器 |
+| `conversation-inbox.ts`、`conversation-session.ts` | 用户消息按原 Ticket 幂等投递；正常续接原实施会话 |
+| `conversation-followup.ts`、`conversation-recovery.ts` | 收缩未交付正常实施的只读绕行；保留历史、已交付与验收中只读兼容 |
+| `execution-progress.ts` | 正常继续使用一条权威状态操作；保留 claim/revision、Writer 和结果 CAS |
+
+不采用产品五状态作为本阶段数据库迁移。新增或调整正常 Turn 内部合同，应替换相关旧判断，不能与旧判断长期并行。
+
+### S02：验收反馈与工程推进
+
+| 文件 | 改动职责 |
+| --- | --- |
+| `repair.ts`、`review-publication.ts` | 具体验收缺陷自动反馈原 Agent；去除以固定回修次数撤销正常工作资格的重复判断 |
+| `execution-progress.ts`、`retry-limits.ts` | 收敛空转与资源控制的权威；保留旧计数，不清空历史预算 |
+| `integration-retry.ts`、`conflict-repair.ts` | 真实 Git 冲突继续走受控修复；仅修复已证实的推进阻断，例如巨型 diff 的缓冲读取问题 |
+
+不将验收服务故障当成候选业务失败，也不将候选业务失败当成需要用户重新授权。平台故障恢复复用现有 Coordinator 和持久事实，不增加 Recovery Manager。
+
+### S03：飞书统一总览与定向回复
+
+复用 `progress-card-delivery.ts`、`run-reply-card.ts`、`progress-summary.ts`、`notifications.ts` 及既有卡片回调入口。`card-actions.ts` 当前主要解析提案表单，不假定它已经支持总览回复；实现时核对外层回调到 conversation inbox 的真实入口。
+
+总览展示每个 Ticket 的当前进展、Agent 原始问题、等待原因、交付/验收结果和完成通知。用户无需进入每个 Topic 就能查看与定向回复，也能打开原 Topic 深入交流。
+
+卡片问题必须绑定 route/node/execution 和原消息身份。回复经原用户身份与任务访问权限校验后进入同一个 inbox，重放不能重复派发。并发问题不能串到其他 Ticket；过期卡片不能误操作新运行。卡片和 Topic 展示同一消息及处理事实，不建立两份工作权威。
+
+Agent 提问由 Agent 发起，平台负责呈现和转送；卡片不再把普通调试包装成“需批准恢复”。完成通知区分“实施已提交”与“独立验收通过”。
+
+### S04：原 Reader/Mold 合法保存点接入
+
+目标路线 `cmvdmf87w043f9xhgf9yvua6p`。读取当时最新账本，逐个核对原批准、Session、Worktree、候选、Runtime Pin、claim/revision 和 Writer 证明。不得按旧审计状态直接批量写成 Working。
+
+保留旧记录和预算，不通过清空次数或改写批准快照获得继续资格。兼容适配复用新正常执行路径，避免第二套长期并存的调度规则。具体生产恢复另需明确执行授权；本轮需求确认不自动恢复任何节点。
+
+## 6. 红绿测试与真实验收
+
+先固定基线反例，再证明相同行为经修改可以推进。测试注册到现有实际使用的检查入口，不能只有手动脚本。
+
+| 场景 | 基线失败或必须阻断的反例 | 修改后必须证明 |
+| --- | --- | --- |
+| 正常多轮 | 未交付 Turn 被当成失败/正式交付，或等待人工恢复 | 原 Session 连续实施，最终提交；同一工作输入仅消费一次 |
+| 材料问答 | 提问即撤销实施资格，或回复进入只读代理 | 提问后可做其他工作，等待后回复接回原 Agent；附件身份保留 |
+| 验收回修 | 范围内缺陷到固定次数后要求重新批准 | 新反馈自动回原 Agent；新候选重验；旧反馈不重复派发 |
+| 平台恢复 | 故障消除后仍停在专用恢复门禁 | 核对真实条件后续接；unknown Writer、撤权和用户暂停仍阻断 |
+| 并行与集成 | 同文件潜在修改导致无真实依赖的实施串行 | 独立 Worktree 的真实 Codex 时间重叠；集成 CAS 冲突受控处理 |
+| 资源与空转 | 同输入/同失败无限重启，或新普通回复绕过限额 | 重复不空转，明确限额仍生效；新有效工作不需重新业务审批 |
+| 卡片路由 | 重放、伪造 Ticket、跨用户、过期运行及并发问题串线 | 正确原 Agent 收到一次，Topic 与总览处理状态一致 |
+| 安全回归 | 迟到 close、旧候选、双 Writer、阶段权限篡改 | 原 Writer、Sandbox Manager、W001、权限与 CAS 门禁保持失败 |
+
+新建专用测试路线必须通过正常飞书批准，不绕过确认卡。使用真实 Codex、真实 Topic 与独立验收验证首轮、下一轮、补材料、回修、并行和后继放行。
+
+最终验收回到原 Reader/Mold，不能以专用测试路线替代业务结果：
+
+- 原生 Session、实际 Worktree、Sandbox Manager 运行身份、Writer 退出与 CAS 证据齐全。
+- Reader 使用实际批准来源产生可核验识别结果；展示 API/CLI、样本测试和固定产物。
+- Mold 消费合格固定 Reader 交付；页面加载、编辑、保存、关闭重开以及 API 回读一致。
+- 独立 Ticket 真正并行；对应前置验收通过即释放后继，无须等待所有 Reader。
+- 一个真正需要人决定的分支不阻断无关分支。
+- 总览能看到进展、回答 Agent 问题和收到完成通知；不得仅汇报 passed 数量。
+
+## 7. W01：工作区目录规范与安全回收
+
+用户补充确认：此项纳入同一轮交付，独立验证；不通过修改 Agent Prompt 约定目录。
+
+### 7.1 布局与职责
+
+业务主仓库保持原位置。新建临时工作区统一使用可配置的工作区根目录，默认 `/data1/code/.agent-workspaces`，按项目、用途或路线、任务归类。例如：
+
+```text
+/data1/code/
+  agent-platform-v2/                     # 主仓库
+  hmi_data_reader/                       # 主仓库
+  mold-data-webpage-tool/                # 主仓库
+  .agent-workspaces/
+    agent-platform-v2-<repo-id>/
+      development/stage-w001-<work-id>/
+      baselines/sandbox-s01-<work-id>/
+    hmi_data_reader-<repo-id>/
+      routes/<route-id>/R6_BOLE-<execution-id>/
+    mold-data-webpage-tool-<repo-id>/
+      routes/<route-id>/M6_DEMAG-<execution-id>/
+```
+
+项目名用于人识别，稳定仓库身份用于防止同名仓库碰撞；route/execution 等已有身份用于防止并发覆盖。路径片段必须规范化并验证归属，不能接受任意路径穿越。只读 Followup 和测试基线也进入对应项目的用途目录，不再散落新顶层目录。
+
+这是工作区定位和生命周期职责。Sandbox Manager 消费已准备并批准的实际路径，继续负责沙箱进程；它不承担 Git 工作区调度、资源批准或搬迁策略。不得因根目录集中而挂载整个工作区根或其他 Ticket 目录。
+
+### 7.2 具体代码范围
+
+| 现有文件 | 改动职责 |
+| --- | --- |
+| `src/lib/task-graph/worktree.ts` | Ticket 工作区新建路径、稳定身份、既有路径优先和 Git 登记核对 |
+| `src/lib/git-worktree.ts` | 普通工作区使用相同根目录解析和命名约束 |
+| `src/lib/task-graph/conversation-followup.ts` | 只读工作区新路径归入项目；保持来源候选与只读权限 |
+| `src/lib/task-graph/extra-repositories.ts` | 核对当前依赖旧目录名的工作区排除规则，集中布局不能误识别为业务主仓库或可授权来源 |
+| 现有进度卡与工作区运维入口 | 展示项目、Ticket、分支、实际路径及可回收原因；提供只读清单与显式迁移/回收操作 |
+
+共享根目录和命名解析只保留一份实现，具体文件位置按现有模块职责确定，不为此创建 Workspace Manager 或新数据库状态机。平台开发 Agent 通过同一工具入口创建 worktree，不能仅改变生产 Ticket 路径而继续手工平铺开发工作区。
+
+### 7.3 旧路径兼容和清理边界
+
+- 新规则只决定新工作区位置。已有账本或 Git 登记的工作区优先复用，不能因默认根目录变化重新创建候选或丢失现场。
+- 先生成全部工作区清单，核对 Git 登记、未提交/未跟踪文件、合并现场、分支与提交保存情况、活跃进程、Writer、Session 和账本绝对路径引用。
+- 自动可回收对象必须无活跃引用、Writer 已确认退出、无待保留未提交内容或冲突，且需保留的提交已保存。未知身份或不确定引用保留并说明原因，禁止强制删除和盲目 prune。
+- 在用生产工作区和路径敏感的原生 Session 暂不搬迁。仅在证明无需修改旧批准快照、Runtime Pin、Session 身份及运行账本时，使用 `git worktree move` 移动安全对象；有绑定的历史工作区按原路径完成后回收。
+- 清理工作区不删除分支、不改写提交历史、不清空预算、不启动或恢复 Ticket。未推送的唯一提交不得被误当成可丢弃基线。
+- 根目录配置改变、移动失败或回收中断后，重试必须先对账 Git 登记与实际路径，不得重复创建或误删。
+
+### 7.4 验收
+
+1. 在临时仓库验证普通工作区、Ticket 工作区、只读 Followup 统一归类；同名项目和同名 Ticket 不碰撞；恶意路径片段被拒绝。
+2. 旧默认位置、显式 worktreeRoot 和旧账本绑定能继续正确定位。新布局下额外仓库识别规则不扩大授权。
+3. 迁移前后 HEAD、分支、文件内容及 Git 登记一致；干净但仍被 Session/进程引用的工作区不能自动移动或回收。
+4. 有未提交/未跟踪内容、冲突、unknown Writer、唯一未保存提交时保留现场；清理失败重跑不破坏其他工作区。
+5. 真实 Codex 在集中布局下首次实施及原 Session 续接成功，Sandbox 挂载、Writer、W001 和结果 CAS 与原路径等价。
+6. 本项目现有平铺目录逐一标注已迁移、已安全回收或保留原因，附前后目录清单；不能只改变未来路径而宣称已整理现有目录。
+
+W01 与 S01–S03 同轮实施并单独提交，新路径验证完成后再进行 S04 生产兼容验收。历史整理不成为正常 Agent 连续工作机制的新增门禁。
+
+## 8. 实施与停止边界
+
+本合同不增加 Prompt 条款，不引入新调度器、通用 Prompt 框架、数据库状态机或 Gardening 系统。不扩大到 gVisor、Architect Inspector 或全仓重构。
+
+按 S01、S02、S03、W01、S04 分别保留基线、修改、反例与验证证据。部署与生产恢复分别按明确授权进行；代码实现或卡片展示成功不能替代实际业务交付证据。
+
+
+## 发布索引与执行依赖
+
+- [[Spec] 持续 Ticket Agent、飞书总览与集中工作区](https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR2)；前置：无
+- [[T0] 旧路线维护暂停与安全保留现场](https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR3)；前置：无
+- [[T1] 原 Coding Agent 多轮实施与自然问答](https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR5)；前置：gitee:luyi1678/agent-platform-v2#IKPHR3
+- [[T2] 验收缺陷自动回修与受控集成推进](https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR6)；前置：gitee:luyi1678/agent-platform-v2#IKPHR5
+- [[T3] 飞书总览定向回复与交付通知](https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR8)；前置：gitee:luyi1678/agent-platform-v2#IKPHR5
+- [[W01] 集中工作区布局与旧目录安全整理](https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHR9)；前置：无
+- [[T4] 原 Reader/Mold 合法续接与业务交付验收](https://gitee.com/luyi1678/agent-platform-v2/issues/IKPHRA)；前置：gitee:luyi1678/agent-platform-v2#IKPHR6, gitee:luyi1678/agent-platform-v2#IKPHR8, gitee:luyi1678/agent-platform-v2#IKPHR9
+
+T0 → T1 → T2/T3；W01 独立；T2 + T3 + W01 → T4。用户主动暂停事实优先于所有自动继续。

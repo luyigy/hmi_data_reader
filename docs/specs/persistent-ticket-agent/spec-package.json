@@ -1,0 +1,446 @@
+{
+  "title": "持续 Ticket Agent、飞书总览与集中工作区",
+  "status": "ready",
+  "spec": "spec.md",
+  "artifacts": [],
+  "issueRoute": {
+    "parent": "gitee:luyi1678/agent-platform-v2#IKPHR2",
+    "repositories": [
+      "gitee:luyi1678/agent-platform-v2"
+    ],
+    "slices": {
+      "T0": {
+        "executionMode": "lean",
+        "consumeUpstream": "none",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "ticket-behavior",
+            "wire-w001",
+            "long-files"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "baseCommit": "6a01bac7f4ec129ef10caa9aa8778a8daa51056a",
+            "gitRef": "refs/heads/feat/persistent-ticket-agent-20261021",
+            "agentSelector": "local:codex",
+            "instructions": "实施已批准 T0，完整需求见绑定 Issue 与固定 Spec 包。必须新增并运行 tests/persistent-ticket-agent-t0.test.ts，用真实行为验证本 Ticket 的验收条件；不允许空断言或镜像实现测试。先保存固定基线反例再提供绿证据，将测试接入实际必跑门禁。保留原 Session、Sandbox Manager、Writer、权限、W001、幂等输入和结果 CAS。工作区检查不得扩大挂载范围。不得自行部署、重启生产服务、修改生产运行账本、清空预算或恢复旧 Reader/Mold。T0 完成维护暂停能力和隔离验证，生产暂停操作等待明确部署授权；T4 实际生产恢复另需明确授权。卡片提议不等于旧路线解除暂停。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "ticket-behavior",
+                  "argv": [
+                    "node",
+                    "-r",
+                    "ts-node/register/transpile-only",
+                    "-r",
+                    "tsconfig-paths/register",
+                    "tests/persistent-ticket-agent-t0.test.ts"
+                  ]
+                },
+                {
+                  "name": "wire-w001",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:wire-w001"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ]
+      },
+      "T1": {
+        "executionMode": "lean",
+        "consumeUpstream": "none",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "ticket-behavior",
+            "wire-w001",
+            "long-files"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "baseCommit": "6a01bac7f4ec129ef10caa9aa8778a8daa51056a",
+            "gitRef": "refs/heads/feat/persistent-ticket-agent-20261021",
+            "agentSelector": "local:codex",
+            "instructions": "实施已批准 T1，完整需求见绑定 Issue 与固定 Spec 包。必须新增并运行 tests/persistent-ticket-agent-t1.test.ts，用真实行为验证本 Ticket 的验收条件；不允许空断言或镜像实现测试。先保存固定基线反例再提供绿证据，将测试接入实际必跑门禁。保留原 Session、Sandbox Manager、Writer、权限、W001、幂等输入和结果 CAS。工作区检查不得扩大挂载范围。不得自行部署、重启生产服务、修改生产运行账本、清空预算或恢复旧 Reader/Mold。T0 完成维护暂停能力和隔离验证，生产暂停操作等待明确部署授权；T4 实际生产恢复另需明确授权。卡片提议不等于旧路线解除暂停。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "ticket-behavior",
+                  "argv": [
+                    "node",
+                    "-r",
+                    "ts-node/register/transpile-only",
+                    "-r",
+                    "tsconfig-paths/register",
+                    "tests/persistent-ticket-agent-t1.test.ts"
+                  ]
+                },
+                {
+                  "name": "wire-w001",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:wire-w001"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ]
+      },
+      "T2": {
+        "executionMode": "lean",
+        "consumeUpstream": "none",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "ticket-behavior",
+            "wire-w001",
+            "long-files"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "baseCommit": "6a01bac7f4ec129ef10caa9aa8778a8daa51056a",
+            "gitRef": "refs/heads/feat/persistent-ticket-agent-20261021",
+            "agentSelector": "local:codex",
+            "instructions": "实施已批准 T2，完整需求见绑定 Issue 与固定 Spec 包。必须新增并运行 tests/persistent-ticket-agent-t2.test.ts，用真实行为验证本 Ticket 的验收条件；不允许空断言或镜像实现测试。先保存固定基线反例再提供绿证据，将测试接入实际必跑门禁。保留原 Session、Sandbox Manager、Writer、权限、W001、幂等输入和结果 CAS。工作区检查不得扩大挂载范围。不得自行部署、重启生产服务、修改生产运行账本、清空预算或恢复旧 Reader/Mold。T0 完成维护暂停能力和隔离验证，生产暂停操作等待明确部署授权；T4 实际生产恢复另需明确授权。卡片提议不等于旧路线解除暂停。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "ticket-behavior",
+                  "argv": [
+                    "node",
+                    "-r",
+                    "ts-node/register/transpile-only",
+                    "-r",
+                    "tsconfig-paths/register",
+                    "tests/persistent-ticket-agent-t2.test.ts"
+                  ]
+                },
+                {
+                  "name": "wire-w001",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:wire-w001"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ]
+      },
+      "T3": {
+        "executionMode": "lean",
+        "consumeUpstream": "none",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "ticket-behavior",
+            "wire-w001",
+            "long-files"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "baseCommit": "6a01bac7f4ec129ef10caa9aa8778a8daa51056a",
+            "gitRef": "refs/heads/feat/persistent-ticket-agent-20261021",
+            "agentSelector": "local:codex",
+            "instructions": "实施已批准 T3，完整需求见绑定 Issue 与固定 Spec 包。必须新增并运行 tests/persistent-ticket-agent-t3.test.ts，用真实行为验证本 Ticket 的验收条件；不允许空断言或镜像实现测试。先保存固定基线反例再提供绿证据，将测试接入实际必跑门禁。保留原 Session、Sandbox Manager、Writer、权限、W001、幂等输入和结果 CAS。工作区检查不得扩大挂载范围。不得自行部署、重启生产服务、修改生产运行账本、清空预算或恢复旧 Reader/Mold。T0 完成维护暂停能力和隔离验证，生产暂停操作等待明确部署授权；T4 实际生产恢复另需明确授权。卡片提议不等于旧路线解除暂停。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "ticket-behavior",
+                  "argv": [
+                    "node",
+                    "-r",
+                    "ts-node/register/transpile-only",
+                    "-r",
+                    "tsconfig-paths/register",
+                    "tests/persistent-ticket-agent-t3.test.ts"
+                  ]
+                },
+                {
+                  "name": "wire-w001",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:wire-w001"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ]
+      },
+      "W01": {
+        "executionMode": "lean",
+        "consumeUpstream": "none",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "ticket-behavior",
+            "wire-w001",
+            "long-files"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "baseCommit": "6a01bac7f4ec129ef10caa9aa8778a8daa51056a",
+            "gitRef": "refs/heads/feat/persistent-ticket-agent-20261021",
+            "agentSelector": "local:codex",
+            "instructions": "实施已批准 W01，完整需求见绑定 Issue 与固定 Spec 包。必须新增并运行 tests/persistent-ticket-agent-w01.test.ts，用真实行为验证本 Ticket 的验收条件；不允许空断言或镜像实现测试。先保存固定基线反例再提供绿证据，将测试接入实际必跑门禁。保留原 Session、Sandbox Manager、Writer、权限、W001、幂等输入和结果 CAS。工作区检查不得扩大挂载范围。不得自行部署、重启生产服务、修改生产运行账本、清空预算或恢复旧 Reader/Mold。T0 完成维护暂停能力和隔离验证，生产暂停操作等待明确部署授权；T4 实际生产恢复另需明确授权。卡片提议不等于旧路线解除暂停。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "ticket-behavior",
+                  "argv": [
+                    "node",
+                    "-r",
+                    "ts-node/register/transpile-only",
+                    "-r",
+                    "tsconfig-paths/register",
+                    "tests/persistent-ticket-agent-w01.test.ts"
+                  ]
+                },
+                {
+                  "name": "wire-w001",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:wire-w001"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ]
+      },
+      "T4": {
+        "executionMode": "lean",
+        "consumeUpstream": "none",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "ticket-behavior",
+            "wire-w001",
+            "long-files"
+          ],
+          "reviewerId": "local:codex",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "codex",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "baseCommit": "6a01bac7f4ec129ef10caa9aa8778a8daa51056a",
+            "gitRef": "refs/heads/feat/persistent-ticket-agent-20261021",
+            "agentSelector": "local:codex",
+            "instructions": "实施已批准 T4，完整需求见绑定 Issue 与固定 Spec 包。必须新增并运行 tests/persistent-ticket-agent-t4.test.ts，用真实行为验证本 Ticket 的验收条件；不允许空断言或镜像实现测试。先保存固定基线反例再提供绿证据，将测试接入实际必跑门禁。保留原 Session、Sandbox Manager、Writer、权限、W001、幂等输入和结果 CAS。工作区检查不得扩大挂载范围。不得自行部署、重启生产服务、修改生产运行账本、清空预算或恢复旧 Reader/Mold。T0 完成维护暂停能力和隔离验证，生产暂停操作等待明确部署授权；T4 实际生产恢复另需明确授权。卡片提议不等于旧路线解除暂停。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "ticket-behavior",
+                  "argv": [
+                    "node",
+                    "-r",
+                    "ts-node/register/transpile-only",
+                    "-r",
+                    "tsconfig-paths/register",
+                    "tests/persistent-ticket-agent-t4.test.ts"
+                  ]
+                },
+                {
+                  "name": "wire-w001",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:wire-w001"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
