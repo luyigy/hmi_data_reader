@@ -1,0 +1,17 @@
+{
+  "profile_id": "demag.injection_metering.machine_configuration",
+  "sample_id": "development",
+  "original_sha256": "975b3225a8fa294e8f0e9a59fc749dd5103042df47e47dda91882dfc0988bfc7",
+  "original_size": [
+    3024,
+    4032
+  ],
+  "screen_size": [
+    2000,
+    1534
+  ],
+  "original_path": "datasets/r6_demag/demag.injection_metering.machine_configuration/development.jpg",
+  "purpose": "development",
+  "ocr_fixture": "tests/fixtures/demag_configuration_development_ocr.json",
+  "ocr_sha256": "e4be40d584326c90c84828705ab5d31c347b1c9f2db2ba3546e296a75c30e888"
+}

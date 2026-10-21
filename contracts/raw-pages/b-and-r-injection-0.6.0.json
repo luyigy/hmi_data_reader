@@ -1,0 +1,731 @@
+{
+  "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+  "version": "0.6.0",
+  "page_identity": {
+    "brand": "BOLE",
+    "controller_family": "B_AND_R",
+    "interface_generation": null,
+    "page_type": "injection_metering",
+    "layout_variant": "multi_stage_position_time"
+  },
+  "fields": [
+    {
+      "screen_field_key": "injection.speed.stage-1",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 5
+    },
+    {
+      "screen_field_key": "injection.speed.stage-2",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 4
+    },
+    {
+      "screen_field_key": "injection.speed.stage-3",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "injection.speed.stage-4",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "stage": 4,
+      "segment_id": "injection-stage-4",
+      "order": 2
+    },
+    {
+      "screen_field_key": "injection.speed.stage-5",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "injection",
+      "stage": 5,
+      "segment_id": "injection-stage-5",
+      "order": 1
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-1",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "injection",
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 5
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-2",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "injection",
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 4
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-3",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "injection",
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-4",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "injection",
+      "stage": 4,
+      "segment_id": "injection-stage-4",
+      "order": 2
+    },
+    {
+      "screen_field_key": "injection.pressure.stage-5",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "injection",
+      "stage": 5,
+      "segment_id": "injection-stage-5",
+      "order": 1
+    },
+    {
+      "screen_field_key": "injection.end_position.stage-1",
+      "label": "位置",
+      "labels": [
+        "位置",
+        "拉置"
+      ],
+      "unit": "mm",
+      "role": "setting",
+      "section": "injection",
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 5
+    },
+    {
+      "screen_field_key": "injection.end_position.stage-2",
+      "label": "位置",
+      "labels": [
+        "位置",
+        "拉置"
+      ],
+      "unit": "mm",
+      "role": "setting",
+      "section": "injection",
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 4
+    },
+    {
+      "screen_field_key": "injection.end_position.stage-3",
+      "label": "位置",
+      "labels": [
+        "位置",
+        "拉置"
+      ],
+      "unit": "mm",
+      "role": "setting",
+      "section": "injection",
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "injection.end_position.stage-4",
+      "label": "位置",
+      "labels": [
+        "位置",
+        "拉置"
+      ],
+      "unit": "mm",
+      "role": "setting",
+      "section": "injection",
+      "stage": 4,
+      "segment_id": "injection-stage-4",
+      "order": 2
+    },
+    {
+      "screen_field_key": "injection.end_position.stage-5",
+      "label": "位置",
+      "labels": [
+        "位置",
+        "拉置"
+      ],
+      "unit": "mm",
+      "role": "setting",
+      "section": "injection",
+      "stage": 5,
+      "segment_id": "injection-stage-5",
+      "order": 1
+    },
+    {
+      "screen_field_key": "injection.time.stage-1",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "actual",
+      "section": "injection",
+      "stage": 1,
+      "segment_id": "injection-stage-1",
+      "order": 5,
+      "time_kind": "actual_injection_duration"
+    },
+    {
+      "screen_field_key": "injection.time.stage-2",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "actual",
+      "section": "injection",
+      "stage": 2,
+      "segment_id": "injection-stage-2",
+      "order": 4,
+      "time_kind": "actual_injection_duration"
+    },
+    {
+      "screen_field_key": "injection.time.stage-3",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "actual",
+      "section": "injection",
+      "stage": 3,
+      "segment_id": "injection-stage-3",
+      "order": 3,
+      "time_kind": "actual_injection_duration"
+    },
+    {
+      "screen_field_key": "injection.time.stage-4",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "actual",
+      "section": "injection",
+      "stage": 4,
+      "segment_id": "injection-stage-4",
+      "order": 2,
+      "time_kind": "actual_injection_duration"
+    },
+    {
+      "screen_field_key": "injection.time.stage-5",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "actual",
+      "section": "injection",
+      "stage": 5,
+      "segment_id": "injection-stage-5",
+      "order": 1,
+      "time_kind": "actual_injection_duration"
+    },
+    {
+      "screen_field_key": "holding.speed.stage-1",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "holding",
+      "stage": 1,
+      "segment_id": "holding-stage-1",
+      "order": 5
+    },
+    {
+      "screen_field_key": "holding.speed.stage-2",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "holding",
+      "stage": 2,
+      "segment_id": "holding-stage-2",
+      "order": 4
+    },
+    {
+      "screen_field_key": "holding.speed.stage-3",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "holding",
+      "stage": 3,
+      "segment_id": "holding-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "holding.speed.stage-4",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "holding",
+      "stage": 4,
+      "segment_id": "holding-stage-4",
+      "order": 2
+    },
+    {
+      "screen_field_key": "holding.speed.stage-5",
+      "label": "速度",
+      "labels": [
+        "速度",
+        "理度"
+      ],
+      "unit": "%",
+      "role": "setting",
+      "section": "holding",
+      "stage": 5,
+      "segment_id": "holding-stage-5",
+      "order": 1
+    },
+    {
+      "screen_field_key": "holding.pressure.stage-1",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "holding",
+      "stage": 1,
+      "segment_id": "holding-stage-1",
+      "order": 5
+    },
+    {
+      "screen_field_key": "holding.pressure.stage-2",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "holding",
+      "stage": 2,
+      "segment_id": "holding-stage-2",
+      "order": 4
+    },
+    {
+      "screen_field_key": "holding.pressure.stage-3",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "holding",
+      "stage": 3,
+      "segment_id": "holding-stage-3",
+      "order": 3
+    },
+    {
+      "screen_field_key": "holding.pressure.stage-4",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "holding",
+      "stage": 4,
+      "segment_id": "holding-stage-4",
+      "order": 2
+    },
+    {
+      "screen_field_key": "holding.pressure.stage-5",
+      "label": "压力",
+      "labels": [
+        "压力",
+        "玉力"
+      ],
+      "unit": "bar",
+      "role": "setting",
+      "section": "holding",
+      "stage": 5,
+      "segment_id": "holding-stage-5",
+      "order": 1
+    },
+    {
+      "screen_field_key": "holding.time.stage-1",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "stage": 1,
+      "segment_id": "holding-stage-1",
+      "order": 5,
+      "time_kind": "holding_segment_duration"
+    },
+    {
+      "screen_field_key": "holding.time.stage-2",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "stage": 2,
+      "segment_id": "holding-stage-2",
+      "order": 4,
+      "time_kind": "holding_segment_duration"
+    },
+    {
+      "screen_field_key": "holding.time.stage-3",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "stage": 3,
+      "segment_id": "holding-stage-3",
+      "order": 3,
+      "time_kind": "holding_segment_duration"
+    },
+    {
+      "screen_field_key": "holding.time.stage-4",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "stage": 4,
+      "segment_id": "holding-stage-4",
+      "order": 2,
+      "time_kind": "holding_segment_duration"
+    },
+    {
+      "screen_field_key": "holding.time.stage-5",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "setting",
+      "section": "holding",
+      "stage": 5,
+      "segment_id": "holding-stage-5",
+      "order": 1,
+      "time_kind": "holding_segment_duration"
+    },
+    {
+      "screen_field_key": "actual.speed",
+      "label": "实际速度",
+      "labels": [
+        "实际速度"
+      ],
+      "unit": "mm/s",
+      "role": "actual",
+      "section": "actual",
+      "label_region": [
+        0.07999999999999999,
+        0.3,
+        0.28,
+        0.37
+      ]
+    },
+    {
+      "screen_field_key": "actual.position",
+      "label": "实际位置",
+      "labels": [
+        "实际位置"
+      ],
+      "unit": "mm",
+      "role": "actual",
+      "section": "actual",
+      "label_region": [
+        0.30000000000000004,
+        0.3,
+        0.5,
+        0.37
+      ]
+    },
+    {
+      "screen_field_key": "actual.pressure",
+      "label": "实际压力",
+      "labels": [
+        "实际压力"
+      ],
+      "unit": "bar",
+      "role": "actual",
+      "section": "actual",
+      "label_region": [
+        0.53,
+        0.3,
+        0.73,
+        0.37
+      ]
+    },
+    {
+      "screen_field_key": "actual.cavity_pressure",
+      "label": "模穴压力",
+      "labels": [
+        "模穴压力",
+        "模六压力",
+        "穴压力"
+      ],
+      "unit": "bar",
+      "role": "actual",
+      "section": "actual",
+      "label_region": [
+        0.74,
+        0.3,
+        0.94,
+        0.37
+      ]
+    },
+    {
+      "screen_field_key": "switch.actual.position",
+      "label": "实际切换位置",
+      "labels": [
+        "实际切换位置"
+      ],
+      "unit": "mm",
+      "role": "actual",
+      "section": "switch.actual",
+      "label_region": [
+        0.15,
+        0.8,
+        0.35,
+        0.88
+      ]
+    },
+    {
+      "screen_field_key": "switch.actual.time",
+      "label": "实际切换时间",
+      "labels": [
+        "实际切换时间",
+        "实部奶换时间"
+      ],
+      "unit": "s",
+      "role": "actual",
+      "section": "switch.actual",
+      "label_region": [
+        0.42000000000000004,
+        0.8,
+        0.62,
+        0.88
+      ]
+    },
+    {
+      "screen_field_key": "switch.actual.pressure",
+      "label": "实际切换压力",
+      "labels": [
+        "实际切换压力"
+      ],
+      "unit": "bar",
+      "role": "actual",
+      "section": "switch.actual",
+      "label_region": [
+        0.74,
+        0.8,
+        0.94,
+        0.88
+      ]
+    },
+    {
+      "screen_field_key": "switch.setting.position",
+      "label": "位置",
+      "labels": [
+        "位置",
+        "拉置"
+      ],
+      "unit": "mm",
+      "role": "setting",
+      "section": "switch",
+      "direction": "right",
+      "label_region": [
+        0.1,
+        0.69,
+        0.35,
+        0.76
+      ]
+    },
+    {
+      "screen_field_key": "switch.setting.time",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": "s",
+      "role": "setting",
+      "section": "switch",
+      "direction": "right",
+      "label_region": [
+        0.6,
+        0.69,
+        0.8,
+        0.76
+      ]
+    },
+    {
+      "screen_field_key": "switch.position.selected",
+      "label": "位置",
+      "labels": [
+        "位置",
+        "拉置"
+      ],
+      "unit": null,
+      "role": "setting",
+      "section": "switch",
+      "value_type": "boolean"
+    },
+    {
+      "screen_field_key": "switch.time.selected",
+      "label": "时间",
+      "labels": [
+        "时间"
+      ],
+      "unit": null,
+      "role": "setting",
+      "section": "switch",
+      "value_type": "boolean"
+    },
+    {
+      "screen_field_key": "switch.external.selected",
+      "label": "外部信号",
+      "labels": [
+        "外部信号"
+      ],
+      "unit": null,
+      "role": "setting",
+      "section": "switch",
+      "value_type": "boolean"
+    }
+  ],
+  "samples": [
+    {
+      "sample_id": "development",
+      "image": "ground_truth/bole_BR/射胶保压_20260807180631_13_32.jpg",
+      "image_sha256": "ab8c9bcb7e06bab421f6c4d4dba2eae84acea6ebeea2085b56311db9b9e0e9c2",
+      "truth": "datasets/r6_bole/development.truth.json",
+      "purpose": "development",
+      "provenance": "Existing 2026-08-07 BOLE B&R source photo; historically exposed. Reserved photograph is distinct, not a blind holdout. Independent platform review remains required.",
+      "tuning_involvement": "This photo was used for R6 OCR/alias diagnosis and regression; not a blind or tuning-independent holdout."
+    },
+    {
+      "sample_id": "retained",
+      "image": "ground_truth/bole_BR/射胶保压_20260807180632_14_32.jpg",
+      "image_sha256": "745f7aa3b5c0464b9f770cde9e9974c64d3d6f8fe30138389b823d1177a0682e",
+      "truth": "datasets/r6_bole/retained.truth.json",
+      "purpose": "reserved_regression",
+      "provenance": "Existing 2026-08-07 BOLE B&R source photo; historically exposed. Reserved photograph is distinct, not a blind holdout. Independent platform review remains required.",
+      "tuning_involvement": "This photo was used for R6 OCR/alias diagnosis and regression; not a blind or tuning-independent holdout."
+    }
+  ],
+  "controller_evidence": "BOLE/300EKS_CAP headers on both originals; repository B&R template identity and prior owner-reviewed routing. No interface generation inferred.",
+  "issues": [
+    {
+      "code": "ENABLE_STATE_UNVERIFIED",
+      "reason": "No calibrated visual state decoder. Numeric residuals remain unknown, not disabled or enabled."
+    },
+    {
+      "code": "CHECKBOX_READING_UNSUPPORTED",
+      "reason": "Position, time and external signal checkbox decoding is not implemented."
+    }
+  ],
+  "excluded_scope": [
+    "top status strip",
+    "graphs",
+    "navigation",
+    "other controllers and temperature variants"
+  ],
+  "stage_column_centers": {
+    "5": 0.28,
+    "4": 0.425,
+    "3": 0.57,
+    "2": 0.715,
+    "1": 0.86
+  }
+}
