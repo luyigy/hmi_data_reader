@@ -4,7 +4,7 @@ import type { AcpxParticipantRequest } from '../acpx/types';
 import { executionProgress } from './execution-progress';
 
 /** Review TaskRuns never become the implementation conversation owner. */
-export async function implementationConversation(executionId: string, participant: AcpxParticipantRequest, message: string) {
+export async function implementationConversation(executionId: string, participant: AcpxParticipantRequest) {
   const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
   const progress = executionProgress(job.dispatchMetadata);
   const ownerId = progress?.conversationOwnerRunId || progress?.taskRunId || job.taskRunId;
@@ -26,7 +26,7 @@ export async function implementationConversation(executionId: string, participan
     taskSessionId: previous?.taskSessionId || undefined,
     participant: { ...participant, ...(session?.sessionId ? { resumeSessionId: session.sessionId,
       continuationSessionKind: session.sessionKind || undefined,
-      ...(session.sessionKind === 'codex_thread' ? { resumeThreadId: session.sessionId } : {}), continuationMessage: message } : {}) },
+      ...(session.sessionKind === 'codex_thread' ? { resumeThreadId: session.sessionId } : {}) } : {}) },
     context,
   };
 }

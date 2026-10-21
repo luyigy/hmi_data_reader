@@ -35,7 +35,7 @@ import { DEFAULT_ACPX_PERMISSION_CONFIG } from './permissions';
 import { registerRunningProcess } from './process-registry';
 import { getParticipantContinuationKey } from './session-tracking';
 import { persistPlatformLocalSessionMetadata } from './runner-metadata';
-import { buildHarnessPrompt, withFeishuBotContactInstructions, withLongFileRuntimeContext } from './prompt';
+import { harnessContinuationInput, buildHarnessPrompt } from './prompt';
 import type { LongFileRuntimeContext } from './long-file-runtime-context';
 import type { AcpxParticipantRequest, AcpxRunRequest, HarnessStreamCallbacks } from './types';
 import { DEFAULT_REMOTE_EXECUTION_TIMEOUT_MS } from '@/lib/live-room-execution-timeout';
@@ -260,11 +260,11 @@ export const executeViaLocalHarness = async (
     });
     await metadataWrites;
   };
-  const result = participant.continuationMessage && adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
+  const result = adapter.resume && (participant.resumeSessionId || participant.resumeThreadId)
     ? await adapter.resume({
         task,
         sessionId: participant.resumeSessionId || participant.resumeThreadId || '',
-        continuationMessage: withLongFileRuntimeContext(withFeishuBotContactInstructions(participant.continuationMessage + capabilities.instructions), longFileContext),
+        continuationMessage: harnessContinuationInput(request, participant, task.description),
         context: {
           sandbox,
           executionId: runtimeExecution.id,
@@ -403,11 +403,9 @@ export const executeViaRemoteSshHarness = async (
       nodeName,
       taskId: request.taskId,
       cwd: remoteWorkspace,
-      prompt: participant.continuationMessage
-        ? withFeishuBotContactInstructions(participant.continuationMessage)
-        : buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning),
+      prompt: harnessContinuationInput(request, participant, buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning)),
       sessionDir: participant.resumeSessionId || participant.resumeThreadId,
-      continuation: Boolean(participant.continuationMessage && (participant.resumeSessionId || participant.resumeThreadId)),
+      continuation: Boolean(participant.resumeSessionId || participant.resumeThreadId),
       timeout: resolveHarnessTimeout(
         request.watchdogConfig?.maxRuntimeMs,
         DEFAULT_REMOTE_HARNESS_MAX_RUNTIME_MS
@@ -452,8 +450,8 @@ export const executeViaRemoteSshHarness = async (
       harnessType: participant.harnessType,
       host: remoteHost,
       resumeSessionId: participant.resumeSessionId || participant.resumeThreadId,
-      continuationMessage: participant.resumeSessionId && participant.continuationMessage
-        ? withFeishuBotContactInstructions(participant.continuationMessage) : undefined,
+      continuationMessage: participant.resumeSessionId
+        ? harnessContinuationInput(request, participant, buildHarnessPrompt(request, participant, previousSummaries, taskRoomContext, contextWarning)) : undefined,
       model: participant.model,
       reasoningEffort: participant.reasoningEffort,
       streamCallbacks: callbacks,

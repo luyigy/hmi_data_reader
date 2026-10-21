@@ -23,6 +23,12 @@ export const withFeishuBotContactInstructions = (message: string) => `${message}
 - Include a unique marker, retain the message_id and read back mentions to verify the target. Establish a readable reply channel before sending; do not interrupt another event connection. Only a matching reply confirms a response; a Typing reaction or successful send does not mean the task completed.
 - After a timeout, check existing outputs and running operations before retrying; avoid duplicate execution. This protocol does not authorize unsolicited messages.`;
 
+export const isGraphStageRequest = (request: AcpxRunRequest) => Boolean(request.graphExecution || request.graphReview || request.graphConversation);
+
+export function harnessContinuationInput(request: AcpxRunRequest, participant: AcpxParticipantRequest, prepared: string) {
+  return isGraphStageRequest(request) || !participant.continuationMessage ? prepared : withFeishuBotContactInstructions(participant.continuationMessage);
+}
+
 const stripLeadingMention = (content: string): string => {
   if (!content.startsWith('@')) return content;
   const greedyMatch = content.match(/^@.+\s+([\s\S]+)$/);
@@ -51,11 +57,12 @@ export const buildHarnessPrompt = (
   contextWarning?: string | null,
   longFileContext?: LongFileRuntimeContext | null,
 ) => {
+  const graphStage = isGraphStageRequest(request);
   const latestInstructionContent = taskRoomContext.latestUserMessage
     ? stripLeadingMention(taskRoomContext.latestUserMessage.content)
     : '';
   const latestInstruction = latestInstructionContent
-    ? `\n\nLatest task-room instruction (highest priority for this run):\n${latestInstructionContent}`
+    ? `\n\nLatest task-room instruction (${graphStage ? 'input within the approved current stage' : 'highest priority for this run'}):\n${latestInstructionContent}`
     : '';
   const taskBackground = request.taskDescription ? `\n\nTask background:\n${request.taskDescription}` : '';
   const roomTranscript = taskRoomContext.transcript ? `\n\nRecent task-room transcript:\n${taskRoomContext.transcript}` : '';
@@ -72,7 +79,7 @@ Target: ${participant.gatewayName || participant.gatewayId}
 Execution Backend: ${participant.executionBackend}
 
 You are being launched from a chat-first task room.
-Use the latest task-room instruction as the primary direction for this run.
+${graphStage ? 'Use the approved current stage as the execution contract; task-room messages are inputs within that scope.' : 'Use the latest task-room instruction as the primary direction for this run.'}
 Treat the task background as stable context, and use the recent transcript to resolve details and intent.${latestInstruction}${taskBackground}${roomTranscript}${priorContext}${warningSection}
 
 Work within your assigned role. If you are not the first participant, build on the previous participant outputs. End with a concise summary and list any modified files.`), longFileContext);

@@ -1,0 +1,73 @@
+{
+  "baseline": "2c3f605",
+  "originalEvidenceSha256": "48a1553602e645fafa0156b045a8181ded6e1266942e43b1031eb3e1a4319629",
+  "evidenceRetention": "Full original read-only snapshot retained in ignored output/reviews/r6-demag-diagnosis-20261021/snapshot.json; task-room user history excluded here.",
+  "progress": {
+    "phase": "integrate",
+    "state": "waiting_decision",
+    "revision": 19,
+    "candidateCommit": "9f5c679a42acd05c8ee79f09fc7c03d035bd34f5",
+    "conflictRepair": {
+      "paths": [
+        "docs/specs/hmi-protocol-library/raw-contract.md",
+        "scripts/raw_observations.py"
+      ],
+      "stages": {
+        "scripts/raw_observations.py": "e4cf913199c45aa49c2f0ef17a34bc7b9fbf0416fd15d764f616d74446c91289",
+        "docs/specs/hmi-protocol-library/raw-contract.md": "604e80301897a3878360a5d23ccecc0840144e9eab3f53ee25ff063c2d96e080"
+      },
+      "mergeHead": "e11cef054d1d68c894538e7195eb3233c62f12f1",
+      "originals": {
+        "scripts/raw_observations.py": "ad29a786dd75041c6c49620cf3d26f24f628347b5439ccb8b869d03560b09ca3",
+        "docs/specs/hmi-protocol-library/raw-contract.md": "64ba1a86ab2ff0cde8885775552063a38382d2bfde1fedd0aaf4341a31b989ca"
+      },
+      "indexOutside": "a4ccf2b3c381cb1a8ebb5964c87de81652e19339cb38abf40eff48a96ea652b2",
+      "candidateCommit": "9f5c679a42acd05c8ee79f09fc7c03d035bd34f5",
+      "worktreeOutside": "1a8d229c8c105ec1c7ab810d1c0803c38dbf3779d45b386b9d5daf45dcd92bb1",
+      "integrationCommit": "e11cef054d1d68c894538e7195eb3233c62f12f1"
+    },
+    "lastFailure": {
+      "code": "environment_failed",
+      "owner": "platform",
+      "action": "保留待完成合并，补齐所述材料、能力或明确范围决定后再解决冲突",
+      "detail": "指定 worktree 为只读挂载，无法应用两处已准备的解冲突补丁。指定行为检查实跑13通过6失败，均因剩余冲突标记；补丁、输入哈希及测试日志已保存至本轮受管结果目录，等待平台恢复写入能力后继续。",
+      "affectedPaths": [
+        "docs/specs/hmi-protocol-library/raw-contract.md",
+        "scripts/raw_observations.py"
+      ],
+      "requiresUserDecision": false
+    },
+    "runtimeDirectory": "/home/hello/.agent-platform/task-validation/dad3b2e9468f8e68d905ebae/d063a1f9a323386f5a62a18d"
+  },
+  "startup": [
+    {
+      "taskRunId": "cmvgtfllg3u9ivo4gpo2y9z7x",
+      "resumeSession": "01a1587f-89e7-78e3-a840-f066bd4bd444",
+      "workingDirectory": "/home/hello/.agent-platform/task-validation/dad3b2e9468f8e68d905ebae/d063a1f9a323386f5a62a18d",
+      "permissionConfig": {
+        "profile": "custom",
+        "sandboxMode": "workspace-write",
+        "networkAccess": "enabled",
+        "approvalPolicy": "never",
+        "writableRoots": []
+      },
+      "actualResumeTail": "本票自动回修：{\"code\":\"integration_conflict\",\"detail\":\"{\\\"message\\\":\\\"Merge needs manual resolution: /data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/1edbd5e959da99a5\\\",\\\"integration\\\":{\\\"kind\\\":\\\"conflict\\\",\\\"candidateCommit\\\":\\\"9f5c679a42acd05c8ee79f09fc7c03d035bd34f5\\\",\\\"integrationCommit\\\":\\\"e11cef054d1d68c894538e7195eb3233c62f12f1\\\",\\\"mergeHead\\\":\\\"e11cef054d1d68c894538e7195eb3233c62f12f1\\\",\\\"paths\\\":[\\\"docs/specs/hmi-protocol-library/raw-contract.md\\\",\\\"scripts/raw_observations.py\\\"]}}\",\"action\":\"在原任务范围内解决所列文本冲突，平台完成合并并复验\",\"owner\":\"implementer\",\"requiresUserDecision\":false,\"affectedPaths\":[\"docs/specs/hmi-protocol-library/raw-contract.md\",\"scripts/raw_observations.py\"]}\n使用保留的当前源码修复上述故障，并重新运行相同检查。",
+      "hasResolutionProtocol": false
+    }
+  ],
+  "preparedStageProtocol": {
+    "provenance": "Reconstructed exact stage-specific fragment from baseline coordinator.ts:512 and saved conflictRepair; full prepared taskDescription was not persisted.",
+    "sourceReadonly": "/data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/1edbd5e959da99a5",
+    "artifact": "AP_GRAPH_OUTPUT_DIR/resolution.json",
+    "schema": {
+      "files": [
+        {
+          "path": "one of the two approved conflict paths",
+          "content": "complete resolved text"
+        }
+      ]
+    },
+    "applyingOwner": "platform after writer/claim/input checks"
+  },
+  "reportedFailure": "Agent attempted source edits despite readonly mount, emitted blocked/environment_failed; resolution artifact had hashes but no content."
+}

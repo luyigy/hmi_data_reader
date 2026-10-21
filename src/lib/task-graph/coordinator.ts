@@ -508,13 +508,14 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
     const inbox = storedRun ? [] : await conversationInputs(execution.id);
     const inputPrompt = conversationPrompt(inbox) + (inbox.length ? '\n' + await syncGraphConversationMaterials(task.id) : '');
-    const session = await implementationConversation(execution.id, config.participant, (task.description || '') + recoveryInstructions + inputPrompt);
+    const stageDescription = (task.description || '') + specInput.instructions + inputs.instructions + (repairRuntime
+        ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。必须在本次 AP_GRAPH_OUTPUT_DIR 中写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台按本次 TaskRun 的产物回执读取解决文件、完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
+        : recoveryInstructions) + inputPrompt;
+    const session = await implementationConversation(execution.id, config.participant);
     const result = storedRun ? { taskRunId: storedRun.id, status: storedRun.status, summary: storedRun.summary, participants: storedRun.participants } : await executeAcpxTaskRun({
       graphExecution: { executionId: execution.id, claimToken, revision: dispatchProgress.revision, inputIds: inbox.map(input => input.id) },
       taskSessionId: session.taskSessionId,
-      taskId: task.id, taskName: task.name, taskDescription: (task.description || '') + specInput.instructions + inputs.instructions + (repairRuntime
-        ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。必须在本次 AP_GRAPH_OUTPUT_DIR 中写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台按本次 TaskRun 的产物回执读取解决文件、完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
-        : recoveryInstructions) + inputPrompt + session.context,
+      taskId: task.id, taskName: task.name, taskDescription: stageDescription + session.context,
       extraReadOnlyPaths: [...specInput.paths, ...inputs.readOnlyPaths, ...(repairRuntime?.readOnlyPaths || [])],
       ...(repairRuntime ? { permissionConfig: repairRuntime.permissionConfig } : {}),
       orchestrationMode: 'single', participants: [session.participant], workingDirectory: repairRuntime?.directory || workspace.path,

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, fork, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
+import { withSandbox } from '../src/lib/sandbox-manager';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -93,9 +94,13 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
     assert(interrupted && typeof interrupted === 'object');
     const pending = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: b.id } });
     assert.equal(pending.status, 'claimed'); assert(executionProgress(pending.dispatchMetadata)?.conflictRepair);
+    assert(pending.taskRunId);
+    const originalParticipant = await prisma.taskRunParticipant.findFirstOrThrow({ where: { taskRunId: pending.taskRunId } });
+    await prisma.taskRunParticipant.update({ where: { id: originalParticipant.id }, data: { controlMetadata: JSON.stringify({ lastSessionId: 'demag-original-session', lastSessionKind: 'codex_thread' }) } });
     const exit = once(child, 'exit'); child.kill('SIGKILL'); await exit;
     assert.equal(git(trees.get('B')!, 'rev-parse', 'MERGE_HEAD'), first.commit);
-    let repairs = 0, successors = 0, architecture = 0;
+    let repairs = 0, successors = 0, architecture = 0, resumedMessage = '';
+    let resumeCalls = 0;
     getHarnessAdapter('codex')!.execute = async ({ task, context }) => {
       if (task.name.startsWith('N ·')) {
         repairs++; assert.match(task.description || '', /受控冲突修复/); assert.notEqual(context.workingDirectory, trees.get('B'));
@@ -103,9 +108,27 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
         assert.notEqual(context.taskEnvironment?.AP_GRAPH_OUTPUT_DIR, Reflect.get(interrupted, 'output'));
         assert.match(task.description || '', /Preserve both contract sections/);
         assert(context.taskEnvironment?.AP_GRAPH_OUTPUT_DIR);
-        await fs.writeFile(path.join(context.taskEnvironment.AP_GRAPH_OUTPUT_DIR, 'resolution.json'), JSON.stringify({ files: [{ path: 'contract.md', content: 'base\nfirst\nsecond\n' }] }));
+        const source = trees.get('B')!;
+        const approvedOutput = context.taskEnvironment.AP_GRAPH_OUTPUT_DIR;
+        const script = `const fs=require('fs'),assert=require('assert');assert.throws(()=>fs.writeFileSync(${JSON.stringify(path.join(source, 'contract.md'))},'forbidden'));assert.throws(()=>fs.writeFileSync(${JSON.stringify(path.join(source, 'outside-output'))},'forbidden'));fs.writeFileSync(${JSON.stringify(path.join(approvedOutput, 'resolution.json'))},JSON.stringify({files:[{path:'contract.md',content:'base\\nfirst\\nsecond\\n'}]}));`;
+        await withSandbox({ command: process.execPath, commandArgs: ['-e', script], cwd: context.workingDirectory!, workspaceRoot: context.workspaceRoot!,
+          sandboxMode: context.permissionConfig?.sandboxMode, readOnlyPaths: context.extraReadOnlyPaths, strictReadOnlyRoots: true,
+          env: { ...process.env, ...context.taskEnvironment, AP_TASK_SANDBOX: '1' } }, async scope => {
+          let stderr = ''; scope.child.stderr?.on('data', chunk => { stderr += chunk; });
+          const [code] = await once(scope.child, 'close'); assert.equal(code, 0, stderr);
+        });
+        assert.match(await fs.readFile(path.join(source, 'contract.md'), 'utf8'), /<<<<<<</, 'Agent did not write the source');
       } else { successors++; await fs.writeFile(path.join(context.workingDirectory!, 'next'), 'done'); }
       return { success: true, executionTime: 1, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"preserved delivery","evidence":["resolution"]}' };
+    };
+    getHarnessAdapter('codex')!.resume = async ({ task, context, sessionId, continuationMessage }) => {
+      resumeCalls++; resumedMessage = continuationMessage;
+      assert.equal(sessionId, 'demag-original-session');
+      assert.match(continuationMessage, /受控冲突修复/, 'DEMAG Resume must receive current conflict stage');
+      assert.match(continuationMessage, /resolution\.json/);
+      assert(continuationMessage.includes(context.taskEnvironment!.AP_GRAPH_OUTPUT_DIR!), 'Resume must receive current approved output');
+      assert.equal(continuationMessage, task.description, 'First and resumed transport share the fully prepared request');
+      return getHarnessAdapter('codex')!.execute({ task, context });
     };
     getHarnessAdapter('kimi-code')!.execute = async () => { architecture++; return { success: true, executionTime: 1, output: 'TASK_GRAPH_ARCH_REVIEW {"approved":true,"note":"both approved deliveries retained"}' }; };
     for (let n = 0; n < 300; n++) {
@@ -116,7 +139,10 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
     const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal);
     const final = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: b.id } });
     const failures = await prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: { in: ['architecture_failed', 'verification_failed', 'review_workspace_failed'] } }, select: { kind: true, payload: true } });
-    assert.equal((await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status, 'completed', JSON.stringify(failures));
+    assert(resumeCalls > 0, 'Fixture must actually use Resume');
+    assert.match(resumedMessage, /受控冲突修复/, 'DEMAG replay: current stage missing from actual Resume input');
+    const runErrors = await prisma.taskRun.findMany({ where: { taskId: { startsWith: 'task-graph-' } }, select: { status: true, error: true, summary: true } });
+    assert.equal((await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status, 'completed', JSON.stringify({ failures, progress: executionProgress(final.dispatchMetadata), runErrors }));
     assert.equal(repairs, 1); assert.equal(successors, 1); assert.equal(architecture, 1);
     assert.equal(executionProgress(final.dispatchMetadata)?.repairAttempts, 1);
     assert.equal(executionProgress(final.dispatchMetadata)?.platformAttempts, 1, 'Actual repair process exit uses the existing bounded restart budget');

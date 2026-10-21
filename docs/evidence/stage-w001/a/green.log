@@ -1,0 +1,112 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres
+> node scripts/test-task-graph-postgres.mjs task-graph-conflict-continuation task-graph-sandbox-manager task-graph-review-repair
+
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 283
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+Legacy waiting conflict + advanced approved integration + SIGKILL during repair: automatic fresh artifact attempt, merged checks, independent architecture, acceptance and successor once; human resume 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Codex] Executing task: T · one
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 287
+PASS Manager root closed while same GraphWriter nonce descendant survives: Writer remains alive
+{"result":"passed","runId":"cmvhfqpgi0005t2r04fe7193q","taskRuns":["cmvhfqq0m0019t2r02mhvzro5","cmvhfqrwe003nt2r0ilkzpuiy"],"sessions":["cmvhfqq030016t2r0hb7u0ddv","cmvhfqq030016t2r0hb7u0ddv"],"nativeSession":"managed-ticket-native","node":"passed","repairAttempts":0}
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 148
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 149
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvhfqx3n0003gu9my2kypxqq',
+  nodeKey: 'BOTH',
+  reason: 'Pending review repair BOTH/model: phase or implementation writer has not proven exit'
+}
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 299
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+Targeted architecture: reader 2, successful model 1, architecture 2, acceptance 1, successor 1, no human resume
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 297
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 449
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 599
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 295
+Targeted integration: reader 2, successful model 1, architecture 0, acceptance 0, successor 1, no human resume
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 446
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 749
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvhfs7dw00sugu9me48xg4d7',
+  nodeKey: 'BOTH',
+  reason: 'Pending review repair BOTH/model: phase or implementation writer has not proven exit'
+}
+[Task Room Context] Total messages: 6
+[Task Room Context] Filtered messages (non-system): 6
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 899
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 443
+Targeted acceptance: reader 2, successful model 1, architecture 0, acceptance 3, successor 1, no human resume
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 595
+[Task Room Context] Total messages: 7
+[Task Room Context] Filtered messages (non-system): 7
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1049
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Targeted invalid: reader 1, successful model 1, architecture 0, acceptance 2, successor 0, no human resume
