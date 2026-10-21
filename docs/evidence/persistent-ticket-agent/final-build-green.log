@@ -46,8 +46,8 @@ W01 behavior passed: centralized creation, legacy reuse, isolation, safe move/re
    Checking validity of types ...
    Collecting page data ...
    Generating static pages (0/35) ...
-   Generating static pages (8/35) 
-   Generating static pages (17/35) 
+   Generating static pages (8/35)
+   Generating static pages (17/35)
 Failed to fetch ACPX harness options: B [Error]: Dynamic server usage: Route /api/acpx/harness-options couldn't be rendered statically because it used `request.headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
     at V (/data1/code/agent-platform-v2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:21778)
     at Object.get (/data1/code/agent-platform-v2/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:29465)
@@ -62,7 +62,7 @@ Failed to fetch ACPX harness options: B [Error]: Dynamic server usage: Route /ap
   description: "Route /api/acpx/harness-options couldn't be rendered statically because it used `request.headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
   digest: 'DYNAMIC_SERVER_USAGE'
 }
-   Generating static pages (26/35) 
+   Generating static pages (26/35)
  ✓ Generating static pages (35/35)
    Finalizing page optimization ...
    Collecting build traces ...
@@ -155,4 +155,3 @@ Route (app)                                             Size     First Load JS
 
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
-
