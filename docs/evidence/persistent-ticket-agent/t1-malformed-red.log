@@ -1,0 +1,11 @@
+Error: 实施结论无效：交付须有证据，阻塞须有明确类别
+    at parseImplementationResult (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/src/lib/task-graph/implementation-result.ts:41:9)
+    at /data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t1.test.ts:20:41
+    at step (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t1.test.ts:44:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t1.test.ts:25:53)
+    at /data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t1.test.ts:19:71
+    at new Promise (<anonymous>)
+    at __awaiter (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t1.test.ts:15:12)
+    at main (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t1.test.ts:68:12)
+    at Object.<anonymous> (/data1/code/.agent-workspaces/agent-platform-v2/development/persistent-ticket-agent/tests/persistent-ticket-agent-t1.test.ts:98:1)
+    at Module._compile (node:internal/modules/cjs/loader:1705:14)

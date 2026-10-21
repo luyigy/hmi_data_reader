@@ -16,6 +16,9 @@ import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/t
 
 async function main() {
   assert.equal(parseImplementationResult('已保存一部分，接下来运行测试。', { conversation: true }).status, 'working', 'An ordinary turn is neither delivery nor a request to wait');
+  const incomplete = 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":[]}';
+  assert.equal(parseImplementationResult(incomplete, { conversation: true }).status, 'working', 'Malformed delivery cannot revoke normal work or pass as delivery');
+  assert.throws(() => parseImplementationResult(incomplete), /无效|证据/);
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   const root = mkdtempSync(path.join(os.tmpdir(), 'persistent-agent-'));
   const repository = path.join(root, 'repo'); mkdirSync(repository);

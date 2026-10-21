@@ -20,7 +20,14 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Harness completion is transport success, never a delivery decision. */
 export function parseImplementationResult(output: string, options?: { conversation: boolean }): ImplementationResult {
-  if (options?.conversation && output.trim() && !output.includes('TASK_GRAPH_IMPLEMENTATION')) return { status: 'working', note: output.trim() };
+  try { return decodeImplementationResult(output); }
+  catch (error) {
+    if (options?.conversation && output.trim()) return { status: 'working', note: output.trim() };
+    throw error;
+  }
+}
+
+function decodeImplementationResult(output: string): ImplementationResult {
   const matches = Array.from(output.matchAll(/^TASK_GRAPH_IMPLEMENTATION[ \t]+(\{[^\r\n]+\})[ \t]*$/gm));
   if (matches.length !== 1) throw new Error('实施缺少唯一的 TASK_GRAPH_IMPLEMENTATION 结论，不自动交付');
   const value: unknown = JSON.parse(matches[0][1]);
