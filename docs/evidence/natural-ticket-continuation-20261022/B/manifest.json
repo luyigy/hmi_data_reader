@@ -1,0 +1,39 @@
+{
+  "baseline": "1f5dcf597f90f5c5d932fad8e879f0b9d42074a1",
+  "commitA": "e1d4812",
+  "red": {
+    "engineering": "ordinary model blocker caused waiting_decision before normal work could continue",
+    "nativeSession": "a real failed fixture turn lost original-native and produced null on Resume",
+    "query": "1254018 InvalidFilter was reported as an authorization problem",
+    "skillDependency": "old runtime declaration rejected required dependencies"
+  },
+  "greenCommands": [
+    {
+      "command": "node scripts/test-task-graph-postgres.mjs task-graph-natural-blockers task-graph-condition-recheck task-graph-prepared-review task-graph-retry persistent-ticket-agent-t1 persistent-ticket-agent-t2",
+      "exitCode": 0,
+      "log": "green-vertical.log"
+    },
+    {
+      "command": "node scripts/test-task-graph-postgres.mjs task-graph-execution-progress task-graph-implementation-recovery task-graph-lifecycle-adapters task-graph-preparation-recovery task-graph-runtime-pinning project-capabilities-c02 project-capabilities-scope-change task-graph-sandbox-manager task-graph-skill-runtime project-capabilities-browse task-graph-writer-ownership task-graph-stage-authority task-graph-parallel-workspaces task-graph-integration-retry task-graph-conflict-repair task-graph-conflict-continuation persistent-ticket-agent-t0 persistent-ticket-agent-t3",
+      "exitCode": 0,
+      "log": "green-safety.log"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "log": "green-build.log"
+    }
+  ],
+  "evidence": {
+    "red-engineering-blocker.log": "e755c12f12c11331ac0f06a5192d04bdcd33f097e572f855e6eb68de6c6b906c",
+    "red-native-session.log": "bf7226cdbb882383dbc582aca0d148d56ec32ed6558fd671710f71cd99eb8386",
+    "red-query-classification.log": "fb8841ad4b0b059617e399d02985c529e17e9412c11a6bce9a9bb53d93f8877c",
+    "red-required-skill-dependencies.log": "46e7c9e6d31dc2b186c3c52bb65a3aa8305bf427c26f2c4bce49131cf1a6b8fb",
+    "green-vertical.log": "6692022e309401cb6672ab87ad01a89a1de1fbad418030b8ae6ef4dafb8b6f62",
+    "green-safety.log": "9da07f6307e88c6126b9ec2e976d5be67a56b4663ba3181860e8e46835d54cf9",
+    "green-build.log": "018ac62cd41703501c81a8a11d2b53a973b50fdd6096ba81161417ac543eced6"
+  },
+  "productionBusinessAcceptance": "not run; separate user authorization required",
+  "nativeProtocolFixture": "Real installed Codex with deterministic loopback provider, not Reader/Mold business delivery",
+  "legacyPreparedReviewFixture": "Only the unrelated automatic condition consumer is stubbed in this legacy explicit-receipt suite; real DB, Writer and artifact checks remain. Normal automatic path is verified separately."
+}

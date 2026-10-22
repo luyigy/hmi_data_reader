@@ -1,0 +1,4 @@
+npx tsc --noEmit --pretty false: exit 0
+npm run check:long-files: exit 0; no files at or above 1000 lines
+git diff --check: exit 0
+No production deployment, run-control action, ledger mutation or production Ticket resume.

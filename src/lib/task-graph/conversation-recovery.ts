@@ -47,8 +47,17 @@ export async function requestGraphConversationRecovery(args: { roomId: string; c
 
 /** Return work to the coordinator's existing in-flight set; never run inside the Feishu callback. */
 export async function startConversationRecoveries(recover: (runId: string, nodeKey: string, recoveryKind: RecoveryKind, requestId: string) => Promise<unknown>) {
-  const requests = await prisma.taskGraphEvent.findMany({ where: { kind: 'conversation_review_recovery_requested', run: { status: { not: 'paused' } }, node: { status: 'attention' } },
-    include: { node: true }, orderBy: { createdAt: 'desc' }, take: 20 });
+  const pending = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT r.id FROM "TaskGraphEvent" r
+    JOIN "TaskGraphRun" g ON g.id = r."runId"
+    JOIN "TaskGraphNode" n ON n.id = r."nodeId"
+    WHERE r.kind = 'conversation_review_recovery_requested' AND g.status <> 'paused' AND n.status = 'attention'
+      AND NOT EXISTS (SELECT 1 FROM "TaskGraphEvent" done WHERE done."runId" = r."runId" AND (
+        done."idempotencyKey" = 'conversation:review-recovery:' || r.id || ':started:finished'
+        OR done."idempotencyKey" = 'conversation:review-recovery:' || r.id || ':started' AND done.kind = 'conversation_review_recovery_superseded'))
+    ORDER BY r."createdAt" DESC, r.id DESC LIMIT 20`;
+  const requests = await prisma.taskGraphEvent.findMany({ where: { id: { in: pending.map(request => request.id) } },
+    include: { node: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   const work: { nodeId: string; promise: Promise<void> }[] = [];
   const scheduled = new Set<string>();
   for (const request of requests) {

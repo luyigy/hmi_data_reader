@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { prepareDeclaredRuntime, assertRuntimeResourcesUnchanged } from '../src/lib/task-graph/runtime-preflight';
-import { runtimeResourceDigest } from '../src/lib/task-graph/runtime-contract';
+import { runtimeResourceDigest, type SkillRequirement } from '../src/lib/task-graph/runtime-contract';
 
 async function main() {
   const root = await fs.mkdtemp(path.join(tmpdir(), 'ap-skill-runtime-'));
@@ -19,7 +19,8 @@ async function main() {
     const secret = path.join(root, 'private-host-file'); await fs.writeFile(secret, 'not authorized');
     await fs.writeFile(path.join(bundle, 'scripts/check-playbooks.mjs'), `import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');for(const file of ['SKILL.md','references/codex-tools.md','playbooks/feature.md'])fs.readFileSync(path.join(root,file));if(fs.existsSync(${JSON.stringify(secret)}))throw Error('host file visible');try{fs.writeFileSync(path.join(root,'forbidden'),'x');throw Error('skill package writable')}catch(e){if(e.code!=='EROFS'&&e.code!=='EACCES')throw e}console.log('complete package verified; host private file hidden');`);
     git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.test');
-    const manifest = () => ({ version: 1, skills: [{ id: 'poteto-mode', package: { path: bundle, sha256: '' }, requiredFiles: ['SKILL.md', 'references/codex-tools.md', 'playbooks/feature.md'], checkScript: 'scripts/check-playbooks.mjs' }] });
+    let dependencies: NonNullable<SkillRequirement['dependencies']> = [];
+    const manifest = () => ({ version: 1, skills: [{ id: 'poteto-mode', package: { path: bundle, sha256: '' }, requiredFiles: ['SKILL.md', 'references/codex-tools.md', 'playbooks/feature.md'], checkScript: 'scripts/check-playbooks.mjs', ...(dependencies.length ? { dependencies } : {}) }] });
     const commit = async () => { const declaration = manifest(); declaration.skills[0].package.sha256 = await runtimeResourceDigest(bundle); await fs.writeFile(path.join(workspace, '.agent-platform/runtime.json'), JSON.stringify(declaration)); git('add', '.'); git('commit', '--allow-empty', '-m', 'skill declaration'); };
     await commit();
     const prepare = (roots: string[]) => prepareDeclaredRuntime({ workspace, approvedReadOnlyRoots: roots, outputDirectory: output, strictReadOnlyRoots: true });
@@ -29,6 +30,17 @@ async function main() {
     assert.ok(prepared.readOnlyPaths.includes(bundle));
     assert.equal((await fs.readdir(bundle)).includes('forbidden'), false);
     await assert.rejects(prepare([config]), /批准|授权/);
+    const dependency = path.join(root, 'how'); await fs.mkdir(dependency); await fs.writeFile(path.join(dependency, 'SKILL.md'), 'required dependency');
+    dependencies = [{ id: 'how', package: { kind: 'path', path: dependency, sha256: await runtimeResourceDigest(dependency) }, requiredFiles: ['SKILL.md'] }];
+    await commit();
+    await assert.rejects(prepare([config, bundle]), /批准|授权/);
+    const composed = await prepare([config, bundle, dependency]);
+    assert.match(JSON.stringify(composed.receipt?.skills), /requiredFiles.*SKILL.md/);
+    assert.match(composed.instructions, /how/);
+    assert.ok(composed.readOnlyPaths.includes(dependency));
+    await fs.unlink(path.join(dependency, 'SKILL.md'));
+    await assert.rejects(prepare([config, bundle, dependency]), /SHA256|摘要|必需文件/);
+    dependencies = []; await commit();
     await fs.writeFile(path.join(bundle, 'playbooks/feature.md'), 'changed after pin');
     await assert.rejects(assertRuntimeResourcesUnchanged(prepared.verifiedResources), /预检后改变/);
     await assert.rejects(prepare([config, bundle]), /SHA256|摘要/);

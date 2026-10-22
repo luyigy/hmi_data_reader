@@ -1,0 +1,16 @@
+[AssertionError [ERR_ASSERTION]: The validation function is expected to return "true". Received false
+
+Caught error:
+
+Error: 飞书资料读取失败，code=1254018；请平台核对应用和资源授权] {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: Error: 飞书资料读取失败，code=1254018；请平台核对应用和资源授权
+      at /data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/src/lib/project-capabilities/table-data.ts:25:48
+      at step (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/src/lib/project-capabilities/table-data.ts:44:23)
+      at Object.next (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/src/lib/project-capabilities/table-data.ts:25:53)
+      at fulfilled (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/src/lib/project-capabilities/table-data.ts:16:58),
+  expected: [Function (anonymous)],
+  operator: 'rejects',
+  diff: 'simple'
+}

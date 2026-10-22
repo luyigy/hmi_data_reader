@@ -196,7 +196,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
     const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
     const reviewResume = args.outcome.kind === 'review_resumed' && current.node.status === 'attention' && ['architecture', 'acceptance'].includes(before.phase) && (
-      current.status === 'attention' && before.state === 'waiting_decision' || current.status === 'integrated' && ['active', 'ready'].includes(before.state));
+      current.status === 'attention' && (before.state === 'waiting_decision' || before.state === 'exhausted' && before.lastFailure?.owner === 'platform' && before.lastFailure.requiresUserDecision !== true) || current.status === 'integrated' && ['active', 'ready'].includes(before.state));
     const preparedReview = args.outcome.kind === 'review_platform_prepared' && current.status === 'attention' && before.state === 'exhausted' && before.platformAttempts >= executionRetryLimits.platformAttempts && before.lastFailure?.code === 'review_platform_failure' && before.phase === 'acceptance' && before.lastFailure.requiresUserDecision !== true && (!before.lastFailure.owner || before.lastFailure.owner === 'platform');
     if (args.outcome.kind === 'review_platform_prepared') {
       const receipt = await tx.taskGraphEvent.findUnique({ where: { id: args.outcome.preparationEventId } });
@@ -277,6 +277,20 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         progress.platformAttempts++; progress.state = 'ready';
         if (!current.commit) throw new Error('Review restart has no integrated candidate');
         progress.review = { candidateCommit: current.commit, phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
+      }
+    } else if (['platform_retry', 'result_incomplete'].includes(outcome.kind) && 'failure' in outcome && outcome.failure.fingerprint) {
+      const unchangedTurns = before.continuation?.fingerprint === outcome.failure.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
+      progress.continuation = { fingerprint: outcome.failure.fingerprint, unchangedTurns };
+      progress.lastFailure = outcome.failure;
+      if (outcome.kind === 'platform_retry') progress.platformAttempts++;
+      else progress.formatAttempts++;
+      if (unchangedTurns >= maxUnchangedWorkTurns) {
+        status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingKind = 'answered';
+        progress.waitingMessage = '相同输入与相同失败未产生新进展，已停止空转；新消息或有效条件变化可继续原任务。';
+      } else {
+        status = 'ready'; progress.state = 'ready';
+        if (outcome.kind === 'result_incomplete') progress.phase = 'collect_result';
+        progress.nextRetryAt = new Date(Date.now() + 1000 * (unchangedTurns + 1)).toISOString();
       }
     } else if (outcome.kind === 'repair_required' && outcome.failure.tree && outcome.failure.fingerprint) {
       const recent = await tx.taskGraphEvent.findMany({ where: { runId: current.node.runId, nodeId: job.nodeId, kind: 'execution_outcome', AND: [

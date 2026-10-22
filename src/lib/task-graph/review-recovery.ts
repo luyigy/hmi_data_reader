@@ -22,12 +22,12 @@ export async function scheduleVerificationRecovery(runId: string, nodeKey: strin
     const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: before.id }, include: { executions: true } });
     if (current.executions.length !== proof.jobs.length) throw new Error('Recovery execution membership changed');
     if (current.status !== 'attention' || !await writerSnapshotMatches(tx, proof)) throw new Error('Verification recovery identity changed or writer has not demonstrably exited');
-    if (!current.executions.length || current.executions.some(job => !job.commit || ['exhausted', 'ownership_attention'].includes(executionProgress(job.dispatchMetadata)?.state || ''))) throw new Error('Verification recovery requires an explicit exhaustion or ownership decision');
+    if (!current.executions.length || current.executions.some(job => !job.commit || executionProgress(job.dispatchMetadata)?.state === 'ownership_attention' || executionProgress(job.dispatchMetadata)?.state === 'exhausted' && executionProgress(job.dispatchMetadata)?.lastFailure?.owner !== 'platform')) throw new Error('Verification recovery requires an explicit exhaustion or ownership decision');
     if (await tx.taskRun.count({ where: { taskId: { in: taskIds }, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Verification still has a live TaskRun');
     const claimKey = `recovery:${key}`;
     for (const job of current.executions) {
       const progress = executionProgress(job.dispatchMetadata);
-      if (!progress || !job.claimToken || !(job.status === 'attention' && progress.state === 'waiting_decision' || job.status === 'integrated' && ['active', 'ready'].includes(progress.state))) throw new Error('Verification inputs changed before recovery');
+      if (!progress || !job.claimToken || !(job.status === 'attention' && (progress.state === 'waiting_decision' || progress.state === 'exhausted' && progress.lastFailure?.owner === 'platform' && progress.lastFailure.requiresUserDecision !== true) || job.status === 'integrated' && ['active', 'ready'].includes(progress.state))) throw new Error('Verification inputs changed before recovery');
       await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision,
         outcomeId: key, outcome: { kind: 'review_resumed', claimKey } });
     }

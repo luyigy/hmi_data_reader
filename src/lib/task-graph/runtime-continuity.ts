@@ -49,6 +49,13 @@ async function repositoryIdentity(directory: string) {
 
 /** The server ledger and current claim identify runtime inputs even when the stage cwd is not Git. */
 export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<PreparedRuntime> {
+  return prepareRuntime(args, false);
+}
+/** Observe saved execution readiness without issuing a claim or replacing its immutable pin. */
+export async function inspectSavedTaskRuntime(args: Arguments): Promise<PreparedRuntime> {
+  return prepareRuntime(args, true);
+}
+async function prepareRuntime(args: Arguments, inspectSaved: boolean): Promise<PreparedRuntime> {
   const platform = args.platformRepository || platformRepository();
   const permissionFile = path.join(platform, 'config/runtime-environments.json');
   const nodeId = args.taskId && /^task-graph-(?:review|architecture)-(.+)$/.exec(args.taskId)?.[1];
@@ -70,7 +77,8 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
   for (const job of jobs) {
     const before = fingerprint(job), progress = executionProgress(job.dispatchMetadata);
     const conversation = progress?.conversation?.kind === 'running' && args.permissionConfig?.sandboxMode === 'read-only';
-    if (!job.claimToken || !progress || !conversation && (!['claimed', 'integrated'].includes(job.status) || !['active', 'ready'].includes(progress.state))) throw new RuntimePreparationError('invalid', '当前执行没有可固定运行资源的有效归属', [args.workspace]);
+    const savedWait = inspectSaved && ['attention', 'integrated'].includes(job.status) && progress && ['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) && progress.lastFailure?.owner === 'platform' && progress.lastFailure.requiresUserDecision !== true;
+    if (!job.claimToken || !progress || !savedWait && !conversation && (!['claimed', 'integrated'].includes(job.status) || !['active', 'ready'].includes(progress.state))) throw new RuntimePreparationError('invalid', '当前执行没有可固定运行资源的有效归属', [args.workspace]);
     const repository = await fs.realpath(job.repository), common = await repositoryIdentity(repository);
     if (!common) throw new RuntimePreparationError('invalid', '账本仓库不是有效 Git 根目录', [repository]);
     const expectedCommit = job.status === 'integrated' ? job.commit : progress.candidateCommit;
@@ -129,7 +137,7 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
     if ((projectPythonRuntime(sourceWorkspace)?.identity || null) !== (python?.identity || null)) throw new RuntimePreparationError('invalid', '预检期间 Python 环境改变', [sourceWorkspace]);
     const finalDeclaration = await runtimeDeclaration(sourceWorkspace);
     if ((finalDeclaration?.manifestHash || null) !== (current?.manifestHash || null)) throw new RuntimePreparationError('invalid', '预检期间运行能力声明改变', [sourceWorkspace]);
-    await prisma.$transaction(async tx => {
+    if (!inspectSaved) await prisma.$transaction(async tx => {
       await requireGraphNodeActiveTx(tx, job.nodeId);
       await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
       const latest = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });

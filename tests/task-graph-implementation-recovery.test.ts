@@ -50,7 +50,7 @@ async function main() {
     const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { childTaskId: task.id }, include: { node: true } });
     if (job.node.key === 'A') {
       writeFileSync(path.join(context.workingDirectory!, 'saved.txt'), 'progress ' + calls);
-      if (calls === 1) return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"missing_business_material","note":"need source photo"}', executionTime: 1 };
+      if (calls === 1) return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"need source photo"}', executionTime: 1 };
       assert.match(task.description || '', /NEW-MATERIAL/);
       if (calls === 3) {
         assert.equal(readFileSync(path.join(context.workingDirectory!, 'baseline'), 'utf8'), 'approved correction during pause');
@@ -135,6 +135,12 @@ async function main() {
     assert.match(JSON.stringify(timeout.payload), /Transaction|expired|closed/);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_started' } }), 0,
       'A real database timeout must not consume the original continuation request');
+    for (let index = 0; index < 20; index++) {
+      const consumed = await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id,
+        kind: 'conversation_review_recovery_requested', idempotencyKey: `fixture:consumed:${index}`, payload: { recoveryKind: 'implementation' } } });
+      await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: 'conversation_review_recovery_finished',
+        idempotencyKey: `conversation:review-recovery:${consumed.id}:started:finished`, payload: {} } });
+    }
     const batches = await Promise.all([startConversationRecoveries(recoverTaskGraphNode), startConversationRecoveries(recoverTaskGraphNode)]);
     await Promise.all(batches.flat().map(item => item.promise));
     await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed_unverified');

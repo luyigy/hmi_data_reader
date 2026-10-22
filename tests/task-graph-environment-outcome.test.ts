@@ -36,12 +36,24 @@ async function main() {
   const runtime = require('../src/lib/task-graph/runtime-preflight') as typeof import('../src/lib/task-graph/runtime-preflight');
   const prepare = runtime.prepareDeclaredRuntime, preparationAttempts = new Map<string, number>();
   runtime.prepareDeclaredRuntime = async args => {
-    const key = planned.find(node => args.outputDirectory.startsWith(validationRuntimeDirectory(node.id) + path.sep))?.key;
-    if (key && (key.startsWith('PREFLIGHT_') && args.writerNonce || key.startsWith('CHECK_') && !args.writerNonce)) {
+    const bound = await prisma.taskGraphExecution.findFirst({ where: { node: { runId: run.id }, worktreePath: args.resourceWorkspace || args.workspace }, include: { node: true } });
+    const key = bound?.node.key || planned.find(node => args.outputDirectory.startsWith(validationRuntimeDirectory(node.id) + path.sep))?.key;
+    if (key && (key === 'PREFLIGHT_MISSING' || key.startsWith('PREFLIGHT_') && args.writerNonce)) {
       const count = (preparationAttempts.get(key) || 0) + 1; preparationAttempts.set(key, count);
       if (key.endsWith('_MISSING') || count === 1) throw new RuntimePreparationError(key.endsWith('_MISSING') ? 'missing' : 'transient', 'Fixture capability preflight failed', ['browser-resource']);
     }
     return prepare(args);
+  };
+  const checkRuntime: typeof import('../src/lib/task-graph/check-environment') = require('../src/lib/task-graph/check-environment');
+  const check = checkRuntime.runSandboxedGraphCheck;
+  checkRuntime.runSandboxedGraphCheck = async (argv, cwd, env = {}, paths = []) => {
+    const job = await prisma.taskGraphExecution.findFirst({ where: { node: { runId: run.id }, childTaskId: env.AP_GRAPH_SERVICE_TASK_ID || '' }, include: { node: true } });
+    const key = job?.node.key;
+    if (key?.startsWith('CHECK_')) {
+      const count = (preparationAttempts.get(key) || 0) + 1; preparationAttempts.set(key, count);
+      if (key.endsWith('_MISSING') || count === 1) throw new RuntimePreparationError(key.endsWith('_MISSING') ? 'missing' : 'transient', 'Fixture capability preflight failed', ['browser-resource']);
+    }
+    return check(argv, cwd, env, paths);
   };
   const starts = new Map<string, number>();
   getHarnessAdapter('codex')!.execute = async ({ task, context }) => {
@@ -54,24 +66,25 @@ async function main() {
   try {
     for (let n = 0; n < 300; n++) {
       await runTaskGraphCycle();
+      const idle = new AbortController(); idle.abort(); await startTaskGraphCoordinator(idle.signal);
       const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id } });
-      if (['TRANSIENT', 'PREFLIGHT_TRANSIENT', 'CHECK_TRANSIENT'].every(key => nodes.find(node => node.key === key)?.status === 'passed') && starts.get('EXHAUST') === 3 &&
+      if (['TRANSIENT', 'PREFLIGHT_TRANSIENT', 'CHECK_TRANSIENT'].every(key => nodes.find(node => node.key === key)?.status === 'passed') && starts.get('EXHAUST') === 4 && starts.get('MISSING') === 4 &&
           ['PREFLIGHT_MISSING', 'CHECK_MISSING'].every(key => nodes.find(node => node.key === key)?.status === 'attention')) break;
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal);
     const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, include: { node: true } });
     const missing = jobs.find(job => job.node.key === 'MISSING')!, exhausted = jobs.find(job => job.node.key === 'EXHAUST')!;
-    assert.equal(starts.get('MISSING'), 1, 'Undeclared environment failure must not rerun native implementation in unchanged environment');
+    assert.equal(starts.get('MISSING'), 4, 'An Agent-reported engineering error is investigated until meaningful work stops');
     assert.equal(missing.status, 'attention'); assert.equal(executionProgress(missing.dispatchMetadata)?.platformAttempts, 0);
-    assert.equal(executionProgress(missing.dispatchMetadata)?.lastFailure?.owner, 'platform'); assert.equal(executionProgress(missing.dispatchMetadata)?.lastFailure?.requiresUserDecision, false);
-    assert.match(executionProgress(missing.dispatchMetadata)?.lastFailure?.action || '', /准备并验证/);
+    assert.equal(executionProgress(missing.dispatchMetadata)?.state, 'waiting_for_user');
+    assert.equal(executionProgress(missing.dispatchMetadata)?.lastFailure, undefined);
     assert.equal(starts.get('TRANSIENT'), 2); assert.equal(jobs.find(job => job.node.key === 'TRANSIENT')?.node.status, 'passed');
-    assert.equal(starts.get('EXHAUST'), 3); assert.equal(executionProgress(exhausted.dispatchMetadata)?.state, 'exhausted');
-    assert.equal(executionProgress(exhausted.dispatchMetadata)?.platformAttempts, 2);
+    assert.equal(starts.get('EXHAUST'), 4); assert.equal(executionProgress(exhausted.dispatchMetadata)?.state, 'waiting_for_user');
+    assert.equal(executionProgress(exhausted.dispatchMetadata)?.platformAttempts, 0);
     for (const key of ['PREFLIGHT_MISSING', 'CHECK_MISSING']) {
       const job = jobs.find(item => item.node.key === key)!; const progress = executionProgress(job.dispatchMetadata)!;
-      assert.equal(job.status, 'attention'); assert.equal(progress.platformAttempts, 0);
+      assert.equal(job.status, 'attention', JSON.stringify({ key, node: job.node.status, progress })); assert.equal(progress.platformAttempts, 0);
       assert.equal(progress.lastFailure?.code, 'runtime_capability_missing'); assert.equal(progress.lastFailure?.owner, 'platform'); assert.equal(progress.lastFailure?.requiresUserDecision, false);
       assert.deepEqual(progress.lastFailure?.affectedPaths, ['browser-resource']); assert(progress.lastFailure?.fingerprint);
       assert.equal(progress.phase, key.startsWith('CHECK') ? 'integrate' : 'prepare', 'Preparation failure preserves its original phase');
@@ -82,7 +95,7 @@ async function main() {
       assert.equal(job.node.status, 'passed'); assert.equal(starts.get(key), 1);
       assert.equal(executionProgress(job.dispatchMetadata)?.platformAttempts, 1, 'Typed temporary preflight failure consumes one bounded retry');
     }
-    console.log('Native result, startup cause and direct check preflight preserve typed actions and phases; deterministic failures do not repeat native work; transient failures retry within budget');
-  } finally { runtime.prepareDeclaredRuntime = prepare; globalThis.fetch = fetch; await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true }); }
+    console.log('Agent-reported errors use normal work turns and stop identical work; actual startup/check preflight failures retain phases and mounts; independent transient conditions retry without asking for approval');
+  } finally { checkRuntime.runSandboxedGraphCheck = check; runtime.prepareDeclaredRuntime = prepare; globalThis.fetch = fetch; await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

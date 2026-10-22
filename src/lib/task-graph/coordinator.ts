@@ -1,3 +1,4 @@
+import { transientPlatformCode } from './platform-failure';
 import { continuationWorkFingerprint } from './continuation-work';
 import { stopPausedGraphTurns, requireGraphRunActive, graphRunIsPaused } from './run-control';
 import { scheduleVerificationRecovery } from './review-recovery';
@@ -6,7 +7,7 @@ import { conversationInputs, conversationPrompt, sealConversationTurn, reconcile
 import { implementationConversation } from './conversation-session';
 import { startConversationFollowups } from './conversation-followup';
 import { redactSensitiveText } from '../redact-sensitive';
-import { recoverPreparedImplementations } from './preparation-recovery';
+import { recoverPreparedImplementations, reconcileExecutionConditions } from './preparation-recovery';
 import { GraphCheckTimeoutError, GraphCheckCommandError } from './check-runner';
 import { publishReviewPreparationFailure, reviewPreparationFailure, type ReviewPublication } from './review-publication';
 import { applyExecutionOutcome, executionProgress, initialExecutionProgress, immutableDispatchMetadata, assertExecutionOwnership, type ExecutionOutcome } from './execution-progress';
@@ -66,6 +67,7 @@ const activeReviews = new Set<string>();
 const activeVerifications = new Set<string>();
 const inflight = new Set<Promise<void>>();
 const maxConcurrentJobs = 4;
+let conditionCursor = 0;
 
 type Check = { name: string; argv: string[] };
 type LaunchConfig = { participant: AcpxParticipantRequest; checks: Check[] };
@@ -82,16 +84,6 @@ function checkFailure(error: unknown): GraphCheckError | null {
 function runtimePreparationError(error: unknown): RuntimePreparationError | null {
   if (error instanceof RuntimePreparationError) return error;
   return error instanceof Error && 'cause' in error ? runtimePreparationError(error.cause) : null;
-}
-function transientPlatformCode(error: unknown): string | null {
-  const seen = new Set<Error>();
-  while (error instanceof Error && !seen.has(error)) {
-    seen.add(error);
-    const code = 'code' in error ? error.code : 'errorCode' in error ? error.errorCode : undefined;
-    if (typeof code === 'string' && ['EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2034'].includes(code)) return code;
-    error = error.cause;
-  }
-  return null;
 }
 type CheckResult = VerificationEvidence['checks'][number];
 
@@ -435,7 +427,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   const outcome = async (result: ExecutionOutcome) => {
     const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
     const progress = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
-    if (result.kind === 'repair_required' && progress.candidateCommit) {
+    if (['repair_required', 'result_incomplete', 'platform_retry'].includes(result.kind) && 'failure' in result && progress.candidateCommit) {
       const work = await continuationWorkFingerprint(execution.id, progress.candidateCommit);
       result = { ...result, failure: { ...result.failure,
         tree: await graphGit(execution.repository, 'rev-parse', '--verify', `${progress.candidateCommit}^{tree}`),
@@ -709,8 +701,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           } else await outcome({ kind: error.code === 'integration_retry_exhausted' ? 'retry_exhausted' : 'decision_required', failure });
         } else {
           const temporary = transientPlatformCode(error);
-          await outcome({ kind: temporary ? 'platform_retry' : 'decision_required', failure: { code: kind, detail,
-            ...(temporary ? { fingerprint: temporary, owner: 'platform', requiresUserDecision: false, action: '平台按有限重试预算重新连接临时不可用的数据库或运行服务' } : {}),
+          await outcome({ kind: 'platform_retry', failure: { code: kind, detail,
+            owner: 'platform', requiresUserDecision: false,
+            ...(temporary ? { fingerprint: temporary } : {}), action: '保留当前工作与原会话继续；相同输入无进展时停止空转',
           } });
         }
       }
@@ -803,6 +796,26 @@ export async function runTaskGraphCycle() {
     activeConversations.add(work.executionId);
     const pending = work.promise.finally(() => { activeConversations.delete(work.executionId); inflight.delete(pending); }); inflight.add(pending);
   }
+  // Normal ready work has priority. Recheck saved platform conditions using spare
+  // Coordinator slots; failed resource probes never launch a model or block peers.
+  const waiting = await prisma.taskGraphExecution.findMany({ where: { status: 'attention',
+    dispatchMetadata: { path: ['progress', 'lastFailure', 'owner'], equals: 'platform' },
+    node: { status: 'attention', run: { status: { in: ['running', 'attention'] } } } }, orderBy: { updatedAt: 'asc' } });
+  const start = conditionCursor++ % Math.max(1, waiting.length);
+  for (const job of [...waiting.slice(start), ...waiting.slice(0, start)]) {
+    if (activeJobs.size + activeConversations.size >= maxConcurrentJobs) break;
+    const progress = executionProgress(job.dispatchMetadata);
+    if (activeJobs.has(job.id) || !progress || !['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) || progress.lastFailure?.owner !== 'platform') continue;
+    const review = ['architecture', 'acceptance'].includes(progress.phase);
+    if (review && activeVerifications.has(job.nodeId)) continue;
+    if (review) activeVerifications.add(job.nodeId);
+    activeJobs.add(job.id);
+    const pending = reconcileExecutionConditions(job.id).then(() => undefined)
+      .catch(error => console.error('[TaskGraph] condition recheck deferred:', redactSensitiveText(String(error))))
+      .finally(() => { activeJobs.delete(job.id); if (review) activeVerifications.delete(job.nodeId); inflight.delete(pending); });
+    inflight.add(pending);
+  }
+
 }
 
 export async function startTaskGraphCoordinator(signal: AbortSignal) {

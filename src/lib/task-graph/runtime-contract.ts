@@ -4,7 +4,8 @@ import path from 'node:path';
 import { graphGit } from './git-command';
 
 export type RuntimeResource = { kind: 'path'; path: string; sha256: string } | { kind: 'output'; eventId: string; relativePath: string; sha256: string };
-export type SkillRequirement = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[]; checkScript: string };
+export type SkillDependency = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[] };
+export type SkillRequirement = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[]; checkScript: string; dependencies?: SkillDependency[] };
 export type RuntimeDeclaration = { version: 1; browser?: { module: RuntimeResource; executable: RuntimeResource }; ocr?: { weights: RuntimeResource; requiredFiles: string[] }; skills?: SkillRequirement[] };
 const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 function resource(value: unknown): RuntimeResource {
@@ -34,11 +35,23 @@ export function parseRuntimeDeclaration(value: unknown): RuntimeDeclaration {
     if (!Array.isArray(item.skills) || !item.skills.length || item.skills.length > 20) throw new Error('必需技能清单无效');
     result.skills = item.skills.map(value => {
       const skill = record(value), pack = resource(skill.package);
-      if (Object.keys(skill).some(key => !['id', 'package', 'requiredFiles', 'checkScript'].includes(key)) ||
+      if (Object.keys(skill).some(key => !['id', 'package', 'requiredFiles', 'checkScript', 'dependencies'].includes(key)) ||
         typeof skill.id !== 'string' || !/^[a-z][a-z0-9-]{0,79}$/.test(skill.id) || pack.kind !== 'path' ||
         !Array.isArray(skill.requiredFiles) || !skill.requiredFiles.length || skill.requiredFiles.length > 200 || !skill.requiredFiles.every(relative) ||
         !relative(skill.checkScript) || !/\.(mjs|cjs|js)$/.test(skill.checkScript)) throw new Error('技能须声明固定宿主包、必需文件及包内 Node 校验脚本');
-      return { id: skill.id, package: pack, requiredFiles: skill.requiredFiles, checkScript: skill.checkScript };
+      let dependencies: SkillDependency[] | undefined;
+      if (skill.dependencies !== undefined) {
+        if (!Array.isArray(skill.dependencies) || !skill.dependencies.length || skill.dependencies.length > 20) throw new Error('技能依赖清单无效');
+        dependencies = skill.dependencies.map(value => {
+          const dependency = record(value), pack = resource(dependency.package);
+          if (Object.keys(dependency).some(key => !['id', 'package', 'requiredFiles'].includes(key)) ||
+              typeof dependency.id !== 'string' || !/^[a-z][a-z0-9-]{0,79}$/.test(dependency.id) || pack.kind !== 'path' ||
+              !Array.isArray(dependency.requiredFiles) || !dependency.requiredFiles.length || dependency.requiredFiles.length > 200 || !dependency.requiredFiles.every(relative)) throw new Error('技能依赖须声明固定包、摘要和包内必需文件');
+          return { id: dependency.id, package: pack, requiredFiles: dependency.requiredFiles };
+        });
+        if (new Set(dependencies.map(item => item.id)).size !== dependencies.length) throw new Error('技能依赖身份重复');
+      }
+      return { id: skill.id, package: pack, requiredFiles: skill.requiredFiles, checkScript: skill.checkScript, ...(dependencies ? { dependencies } : {}) };
     });
     if (new Set(result.skills.map(skill => skill.id)).size !== result.skills.length) throw new Error('技能身份重复');
   }

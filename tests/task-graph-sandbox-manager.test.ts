@@ -41,7 +41,7 @@ rl.on('line',line=>{
      let denied=false;try{fs.writeFileSync(require('path').join(fs.readFileSync('.git','utf8').trim().replace(/^gitdir: /,''),'forbidden'),'bad')}catch{denied=true}
      if(!denied)throw Error('Git metadata must remain readonly');
      answer='TASK_GRAPH_IMPLEMENTATION '+JSON.stringify({status:'delivered',note:'material applied',evidence:['done']});
-   }else answer='TASK_GRAPH_IMPLEMENTATION '+JSON.stringify({status:'blocked',blockerKind:'missing_business_material',note:'请告诉我尺寸'});
+   }else answer='TASK_GRAPH_IMPLEMENTATION '+JSON.stringify({status:'waiting_for_user',note:'请告诉我尺寸'});
    console.log(JSON.stringify({method:'item/agentMessage/delta',params:{delta:answer}}));
    console.log(JSON.stringify({method:'turn/completed',params:{threadId:'managed-ticket-native',turn:{id:'turn',status:'completed'}}}));
  }

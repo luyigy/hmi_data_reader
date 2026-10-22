@@ -1,0 +1,56 @@
+{
+  "status": "proposal_only_not_authorized_or_applied",
+  "note": "Explicit leaf packages only. Existing production grants and immutable runtime pins are unchanged. Review Project Capabilities authorization and new-claim pinning before production use.",
+  "dependencies": [
+    {
+      "id": "how",
+      "package": {
+        "kind": "path",
+        "path": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/how",
+        "sha256": "3c31b0ae0202801786fa125b23f7250971614908ba9fda58a9f8f25e0a5b5e34"
+      },
+      "requiredFiles": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "architect",
+      "package": {
+        "kind": "path",
+        "path": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/architect",
+        "sha256": "d6af37703472846a690b360a29728c8117d777068ba15ec9c2a4f4e814f8f030"
+      },
+      "requiredFiles": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "principle-prove-it-works",
+      "package": {
+        "kind": "path",
+        "path": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/principle-prove-it-works",
+        "sha256": "4306e8190967d05337cd9a89f53e1ccde85c5dd5eaabe63bbc22532f5f25b339"
+      },
+      "requiredFiles": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "principle-model-the-domain",
+      "package": {
+        "kind": "path",
+        "path": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/principle-model-the-domain",
+        "sha256": "f3d3b8e32e953509da13b8c54b2835e7f85cbff9c989c621ce85c9b50af80208"
+      },
+      "requiredFiles": [
+        "SKILL.md"
+      ]
+    }
+  ],
+  "requiredReadOnlyRoots": [
+    "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/how",
+    "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/architect",
+    "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/principle-prove-it-works",
+    "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/principle-model-the-domain"
+  ]
+}

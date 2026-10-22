@@ -1,3 +1,4 @@
+import { continuationWorkFingerprint } from './continuation-work';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { requireGraphRunActiveTx } from './run-control';
 import { assertExecutionWriterExited } from './phase-worker';
@@ -62,16 +63,20 @@ export async function pauseGraphImplementation(args: {
       outcome: { kind: 'checkpoint', phase: progress.phase, candidateCommit: args.checkpointCommit, workspaceBase: progress.workspaceBase || args.workspaceBase },
     });
   }
-  if (progress && progress.phase === 'implement' && (args.blockedPhase || 'implementation') === 'implementation' && args.result.blockerKind === 'missing_business_material') return applyExecutionOutcome({
+  if (progress && progress.phase === 'implement' && (args.blockedPhase || 'implementation') === 'implementation') return applyExecutionOutcome({
     executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,
-    outcomeId: `${args.claimToken}:${progress.revision}:material-question`, outcome: { kind: 'waiting_for_user', note: args.result.note },
+    outcomeId: `${args.claimToken}:${progress.revision}:engineering-work`,
+    outcome: ['permission_required', 'scope_change'].includes(args.result.blockerKind)
+      ? { kind: 'waiting_for_user', note: args.result.note }
+      : { kind: 'continue_work', note: args.result.note, fingerprint: await continuationWorkFingerprint(args.executionId, args.checkpointCommit) },
   });
   if (progress) return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,
     expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:decision_required`,
     outcome: { kind: args.result.blockerKind === 'environment_failed' && args.result.status === 'blocked' && args.result.blockerCause === 'transient' ? 'platform_retry' : 'decision_required',
       failure: { code: args.result.blockerKind, detail: args.result.note, blockedPhase: args.blockedPhase || 'implementation',
         ...(args.result.status === 'blocked' && args.result.blockerCause ? { blockerCause: args.result.blockerCause } : {}),
-        ...(args.result.blockerKind === 'environment_failed' ? { owner: 'platform' as const, requiresUserDecision: false,
+        ...(['permission_required', 'scope_change'].includes(args.result.blockerKind) ? { owner: 'user' as const, requiresUserDecision: true } : {}),
+        ...(['environment_failed', 'missing_upstream_input'].includes(args.result.blockerKind) ? { owner: 'platform' as const, requiresUserDecision: false,
           action: args.result.status === 'blocked' && args.result.blockerCause === 'transient' ? '按已有预算重试暂时平台故障' : '准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施' } : {}) } },
   });
   return prisma.$transaction(async tx => {
@@ -115,6 +120,9 @@ export function implementationCheckpoint(payload: unknown, executionId: string) 
 
 /** Requeue through the existing claims, preserving the previous attempt in an append-only event. */
 export async function scheduleImplementationRecovery(runId: string, nodeKey: string, requestId: string, preparedEventId?: string) {
+  const key = `node:${nodeKey}:implementation-recovery:${requestId}`;
+  const recorded = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } });
+  if (recorded) return { kind: 'already_scheduled' as const, eventId: recorded.id };
   const prepared = preparedEventId ? parsePreparationReceipt((await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: preparedEventId } })).payload) : undefined;
   if (prepared) await validatePreparationArtifacts(prepared.artifacts);
   const before = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, include: { executions: true } });
@@ -134,7 +142,6 @@ export async function scheduleImplementationRecovery(runId: string, nodeKey: str
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
     const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
-    const key = `node:${nodeKey}:implementation-recovery:${requestId}`;
     const previousRequest = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } });
     if (previousRequest) return { kind: 'already_scheduled' as const, eventId: previousRequest.id };
     let preparation: Awaited<ReturnType<typeof assertPreparationTx>> | undefined;

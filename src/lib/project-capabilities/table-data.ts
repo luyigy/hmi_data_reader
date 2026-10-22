@@ -1,3 +1,4 @@
+import { redactSensitiveText } from '../redact-sensitive';
 import { getFeishuTenantAccessToken } from '../feishu-api';
 import { imageType } from './image-file';
 import { createHash } from 'node:crypto';
@@ -22,7 +23,11 @@ async function api(endpoint: string, body?: object) {
   const response = await fetch(base + endpoint, { method: body ? 'POST' : 'GET', redirect: 'error',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(20_000) });
   const result = object(JSON.parse((await responseBytes(response, 2 * 1024 * 1024)).toString()));
-  if (!response.ok || result.code !== 0) throw new Error(`飞书资料读取失败，code=${String(result.code)}；请平台核对应用和资源授权`);
+  if (!response.ok || result.code !== 0) {
+    const message = typeof result.msg === 'string' ? result.msg.slice(0, 1000) : 'Unknown API error';
+    const detail = object(result.error).message;
+    throw new Error(redactSensitiveText(`飞书资料读取失败，HTTP=${response.status}，code=${String(result.code)}，msg=${message}${typeof detail === 'string' ? '，detail=' + detail.slice(0, 1000) : ''}`));
+  }
   return object(result.data);
 }
 const endpoint = (source: TableSource) => `/bitable/v1/apps/${source.baseToken}/tables/${source.tableId}/records`;

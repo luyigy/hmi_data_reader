@@ -53,7 +53,7 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
     resources.push({ kind, path: target, sha256, origin: ref }); return target;
   };
   const env: Record<string, string> = {};
-  const skills: { skill: NonNullable<RuntimeDeclarationSource['declaration']['skills']>[number]; packageRoot: string }[] = [];
+  const skills: { skill: NonNullable<RuntimeDeclarationSource['declaration']['skills']>[number]; packageRoot: string; dependencies: { id: string; package: string; requiredFiles: string[] }[] }[] = [];
   try {
     if (declaration.declaration.ocr) {
       const ocr = declaration.declaration.ocr;
@@ -75,7 +75,13 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
       const packageRoot = await resolve(skill.package, `技能 ${skill.id}`);
       const hostRoots = await Promise.all(args.approvedReadOnlyRoots.map(root => fs.realpath(root)));
       if (within(args.workspace, packageRoot) || !hostRoots.includes(packageRoot)) throw new RuntimePreparationError('invalid', '技能包必须有明确的宿主只读目录授权，不能由仓内声明自授', [packageRoot], manifestHash);
-      skills.push({ skill, packageRoot });
+      const dependencies = [];
+      for (const dependency of skill.dependencies || []) {
+        const directory = await resolve(dependency.package, `技能依赖 ${dependency.id}`);
+        if (within(args.workspace, directory) || !hostRoots.includes(directory)) throw new RuntimePreparationError('invalid', '技能依赖必须逐包获得明确宿主只读授权', [directory], manifestHash);
+        dependencies.push({ id: dependency.id, package: directory, requiredFiles: dependency.requiredFiles });
+      }
+      skills.push({ skill, packageRoot, dependencies });
     }
   } catch (error) {
     if (error instanceof RuntimePreparationError) throw error;
@@ -110,5 +116,5 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
   await fs.writeFile(path.join(args.outputDirectory, `runtime-preflight-${identity}.json`), JSON.stringify(receipt, null, 2) + '\n');
   return { identity, manifestHash, readOnlyPaths: approved.filter(root => root !== args.workspace).concat(resources.map(resource => resource.path)), env, receipt, verifiedResources: resources,
     instructions: `\n运行能力已按${declaration.origin === 'host_registration' ? '平台显式登记' : '仓内版本化声明'}预检，资源身份 ${identity}。浏览器和 OCR 路径见 AP_GRAPH_RUNTIME_* / AP_GRAPH_BROWSER_* / AP_GRAPH_OCR_MODEL_DIR；这些资源只读，缓存和报告写本阶段输出目录。` +
-      (skillChecks.length ? `\n本次可用技能包：${JSON.stringify(skillChecks.map(skill => ({ id: skill.id, path: skill.package })))}` : '') };
+      (skillChecks.length ? `\n本次可用技能包：${JSON.stringify(skillChecks.map(skill => ({ id: skill.id, path: skill.package, dependencies: skill.dependencies })))}` : '') };
 }

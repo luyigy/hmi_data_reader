@@ -1,0 +1,97 @@
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Durable outcomes: revision/token fencing, duplicate budgets, immutable dispatch, candidate retention and explicit exhausted state
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 289
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 434
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 579
+Real Git/DB: blocked/missing-result never integrate, saved progress survives deleted checkout, authorized continuation dedupes and resumes implementation, terminal remains unverified
+Legacy completion and ordinary recovery honor versioned phase and ownership boundaries
+[TaskGraph] preparation receipt deferred: {
+  runId: 'cmvj053gf0003m9os3j9wedlw',
+  preparationEventId: 'cmvj0548k0099m9osaswcszuw',
+  reason: 'injected temporary storage failure'
+}
+Prepared receipts automatically requeue only exact approved pauses; stale, unknown/live writers, budgets, business failures and changed artifacts stay protected; crash replay uses original scheduling receipt
+Native preparation, real platform sandbox check and non-Git acceptance share a claim pin; host changes cannot widen, resource/config mutation and stale CAS reject, explicit workflow restriction wins, pinned absence remains absent
+C02: two Git worktrees share fixed project tools; real checks see broker and readonly code; Mold advances while Reader waits; successor releases after evidence; non-Git acceptance retains tools; explicit restrictions, revocation and unauthorized user deny without changing candidates.
+PASS unapproved host policy change rejected
+PASS wrong prior authorization, candidate, claim, execution and pin rejected; mount expansion and revocation rejected; budgets/session preserved
+PASS approved existing-hash change reaches acceptance preparation and real Bubblewrap; original pin immutable
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Codex] Executing task: T · one
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 287
+PASS Manager root closed while same GraphWriter nonce descendant survives: Writer remains alive
+{"result":"passed","runId":"cmvj05rso0005kwkmo2pqwwsr","taskRuns":["cmvj05sfd001jkwkm7kapd521","cmvj05ud2004nkwkmbq38zhj2"],"sessions":["cmvj05sev001gkwkm35s2l1ky","cmvj05sev001gkwkm35s2l1ky"],"nativeSession":"managed-ticket-native","node":"passed","repairAttempts":0}
+Complete skill package verified in strict Bubblewrap; unauthorized targets, missing mapping, changed digests and link escapes are rejected
+Approved table browse keeps the exact view, fields, attachment filter and bounded pagination; explicit searches and invalid-input guards remain intact
+Live supervisor and orphan child prevent takeover; confirmed exit and unknown ownership are distinguished
+W001 real ledger: fixed authority stable; candidate drift, stale TaskRun and replaced claim rejected; no outcome or budget advancement.
+Independent primary worktrees run concurrently; paused isolated work does not block; shared originals remain protected across runs
+Integration preserves conflict evidence; stale/CAS retries reverify both deliveries, fencing prevents lost-owner publication, branch changes and budget exhaustion remain explicit
+Bounded conflict repair preserves both deliveries, latest integration, commit-crash recovery, scope/provenance fences and external edits
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 283
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+Legacy waiting conflict + advanced approved integration + SIGKILL during repair: automatic fresh artifact attempt, merged checks, independent architecture, acceptance and successor once; human resume 0
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 567
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 295
+Completed-but-blocked repair result is not replayed; fresh native Resume and artifact pass
+T0: user pause blocks release, projection overwrite, stale dispatch and execution claim
+T3: exact parent card/operator, pagination, original-room input and mirror, replay/tamper rejection, pause-safe storage, stale control rejection and explicit resume

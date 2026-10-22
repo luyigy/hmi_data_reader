@@ -88,17 +88,25 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
   try {
     for (let n = 0; n < 600; n++) {
       await runTaskGraphCycle();
+      const idle = new AbortController(); idle.abort(); await startTaskGraphCoordinator(idle.signal);
       const status = (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status;
       if (['completed', 'completed_unverified'].includes((await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status) || status === 'attention') break;
       await new Promise(resolve => setTimeout(resolve, 25));
     }
     const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal);
+    if (mode.endsWith('exhausted')) {
+      // Exercise further Coordinator cycles: one verified condition identity may
+      // retry, but an unchanged condition receipt must not launch models forever.
+      for (let cycle = 0; cycle < 8; cycle++) {
+        await runTaskGraphCycle(); const idle = new AbortController(); idle.abort(); await startTaskGraphCoordinator(idle.signal);
+      }
+    }
     const after = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
     const exhausted = mode.endsWith('exhausted'), human = mode === 'human', ownership = mode === 'ownership';
     assert.equal(after.status, exhausted || human || ownership ? 'attention' : 'passed', JSON.stringify(await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id }, orderBy: { createdAt: 'desc' }, take: 8 })));
     assert.equal(readerStarts, 1); assert.equal(modelStarts, 1, 'Platform review failure never reruns implementation');
     assert.equal(nextStarts, exhausted || human || ownership ? 0 : 1);
-    assert.equal(architectureStarts + acceptanceStarts, mode === 'preparation-exhausted' || ownership ? 0 : exhausted ? 3 : human || mode === 'preparation' || mode === 'integration-timeout' || mode.startsWith('startup') ? 1 : mode === 'architecture-platform' ? 3 : 2);
+    assert.equal(architectureStarts + acceptanceStarts, mode === 'preparation-exhausted' || ownership ? 0 : exhausted ? 4 : human || mode === 'preparation' || mode === 'integration-timeout' || mode.startsWith('startup') ? 1 : mode === 'architecture-platform' ? 3 : 2);
     assert.ok(after.executions.every(job => executionProgress(job.dispatchMetadata)?.state === (exhausted ? 'exhausted' : ownership ? 'ownership_attention' : human ? 'waiting_decision' : 'active')));
     assert.ok(after.executions.every(job => job.commit && job.evidence));
     if (mode.startsWith('startup')) {
@@ -112,7 +120,7 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
     }
 
     if (exhausted || human || ownership) assert.ok(after.executions.every(job => executionProgress(job.dispatchMetadata)?.lastFailure));
-    if (exhausted || ownership) await assert.rejects(recoverTaskGraphNodeVerification(run.id, 'BOTH'), /exhaustion or ownership/);
+    if (ownership) await assert.rejects(recoverTaskGraphNodeVerification(run.id, 'BOTH'), /exhaustion or ownership/);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } }), 0);
     if (human) {
       const budgets = after.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts);

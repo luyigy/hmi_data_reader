@@ -1,0 +1,65 @@
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 289
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 434
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 579
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 724
+Error: Ordinary engineering blocker stopped the original approved Agent: {"version":1,"revision":21,"phase":"implement","state":"waiting_for_user","repairAttempts":0,"formatAttempts":0,"platformAttempts":4,"integrationAttempts":0,"continuation":{"fingerprint":"88ef6afbd8227e717f15ae1cd506bf6a213f4f4a51d96e39dbcdc60b1e30ade3","unchangedTurns":3},"workspaceBase":"566d47febae1dda03425d81f7f657ec4d216f3c2","candidateCommit":"19e5b800aa56c10e0969d9d14748c88bd7e86398","taskRunId":"cmvizrssp00ie3i61fsgd2tss","conversationOwnerRunId":"cmvizrssp00ie3i61fsgd2tss","waitingMessage":"相同输入与相同失败未产生新进展，已停止空转；新消息或有效条件变化可继续原任务。","waitingKind":"answered","worker":{"version":1,"nonce":"65bfc9b6-567f-493f-a654-659505bad36e","hostname":"hello","uid":1000,"supervisor":{"pid":2702777,"startTime":"2735751825","bootId":"df711df5-3f7b-4b20-a4bc-5b13c45dd313"},"ancestry":[{"pid":2702777,"parentPid":2701182,"startTime":"2735751825"},{"pid":2701182,"parentPid":2701173,"startTime":"2735750993"},{"pid":2701173,"parentPid":2401213,"startTime":"2735750989"},{"pid":2401213,"parentPid":3921627,"startTime":"2735449156"},{"pid":3921627,"parentPid":3921626,"startTime":"2731320072"},{"pid":3921626,"parentPid":3921339,"startTime":"2731320072"},{"pid":3921339,"parentPid":3631265,"startTime":"2731319944"},{"pid":3631265,"parentPid":1,"startTime":"967655725"}]},"lastFailure":{"code":"dispatch_failed","detail":"Agent execution ended: failed: implementer @ platform-local / codex: Expected values to be strictly equal:\n+ actual - expected\n\n+ null\n- 'original-native'\n","action":"保留当前工作与原会话继续；相同输入无进展时停止空转","owner":"platform","requiresUserDecision":false,"fingerprint":"88ef6afbd8227e717f15ae1cd506bf6a213f4f4a51d96e39dbcdc60b1e30ade3","tree":"c3231834fdf3dce33992e1de8542c4383bc45c85"}}
+    at /data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:70:160
+    at step (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:44:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:25:53)
+    at fulfilled (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:16:58)
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-natural-blockers.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/scripts/test-task-graph-postgres.mjs:48:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 2702777,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

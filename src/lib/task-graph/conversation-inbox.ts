@@ -235,12 +235,13 @@ async function authorizedConversationInput(input: ConversationInput, taskId: str
     'feishuMessageId' in metadata && input.sourceId === `feishu:${metadata.feishuMessageId}`;
 }
 
-/** Only normal implementation waits requeue from input. Existing blockers and budgets remain unchanged. */
+/** New authorized input returns saved engineering work to normal claims; it grants no capabilities. */
 export async function reconcileConversationWaits() {
   const jobs = await prisma.taskGraphExecution.findMany({ where: { status: 'attention', node: { status: { in: ['attention', 'claimed'] }, run: { status: { in: ['running', 'attention'] } } } } });
   for (const before of jobs) {
     const progress = executionProgress(before.dispatchMetadata);
-    if (progress?.state !== 'waiting_for_user' || progress.phase !== 'implement' || before.issueKind || !before.childTaskId ||
+    const ordinaryWait = progress && ['waiting_decision', 'exhausted'].includes(progress.state) && progress.lastFailure?.code !== 'ownership_mismatch';
+    if (!progress || progress.state !== 'waiting_for_user' && !ordinaryWait || !['implement', 'collect_result', 'check', 'integrate'].includes(progress.phase) || !before.childTaskId ||
         !before.claimToken || !before.worktreePath || !progress.candidateCommit || !progress.workspaceBase || progress.conflictRepair || progress.conversation) continue;
     const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: before.nodeId }, include: { run: { include: { parentTask: { select: { ownerUserId: true } } } } } });
     const inputs = await pendingConversationInputs(prisma, node.runId, before.id);
@@ -248,7 +249,7 @@ export async function reconcileConversationWaits() {
     const reviewId = progress.review?.kind === 'running' ? progress.review.taskRunId : undefined;
     const proof = await observeWriterSnapshot({ jobs: [before], taskRunIds: reviewId ? [reviewId] : [], scope: 'execution', observeExecution: observeExecutionWriter });
     if (!proof.exited || !before.taskRunId || !proof.runs.some(run => run.id === before.taskRunId) ||
-        proof.runs.some(run => run.status !== 'completed' || run.taskId !== (run.id === reviewId
+        proof.runs.some(run => !['completed', 'failed', 'interrupted', 'cancelled'].includes(run.status) || run.taskId !== (run.id === reviewId
           ? `task-graph-${progress.review?.phase === 'architecture' ? 'architecture' : 'review'}-${before.nodeId}` : before.childTaskId))) continue;
     await prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${before.nodeId} FOR UPDATE`;
@@ -262,7 +263,7 @@ export async function reconcileConversationWaits() {
       if (pending.map(input => input.id).join() !== inputs.map(input => input.id).join()) return;
       await tx.taskGraphExecution.update({ where: { id: before.id }, data: { status: 'ready', claimToken: null, claimedAt: null,
         taskRunId: null, sessionId: null, issueKind: null, dispatchMetadata: metadataWithProgress(before.dispatchMetadata,
-          { ...progress, revision: progress.revision + 1, state: 'ready', worker: undefined, workerReleasedAt: undefined }) } });
+          { ...progress, revision: progress.revision + 1, phase: 'implement', state: 'ready', worker: undefined, workerReleasedAt: undefined }) } });
       await tx.taskGraphEvent.create({ data: { runId: current.runId, nodeId: before.nodeId, kind: 'conversation_turn_scheduled',
         idempotencyKey: `conversation-turn:${before.id}:${progress.revision}`, payload: { executionId: before.id, inputIds: inputs.map(input => input.id),
           previousClaimToken: before.claimToken, previousTaskRunId: before.taskRunId, expectedRevision: progress.revision, revision: progress.revision + 1,

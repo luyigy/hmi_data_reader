@@ -1,3 +1,5 @@
+import { transientPlatformCode } from './platform-failure';
+import { RuntimePreparationError } from './runtime-preflight';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { executionRetryLimits } from './retry-limits';
 import { TaskInputPreparationError } from './upstream-inputs';
@@ -22,6 +24,7 @@ export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId:
   const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
   if (node.status !== 'verifying' || !node.executions.length) throw new Error('Review failure no longer owns verification');
   const exhausted = args.kind === 'protocol_exhausted' || args.kind === 'platform_failure' && node.executions.some(job => (executionProgress(job.dispatchMetadata)?.platformAttempts || 0) >= executionRetryLimits.platformAttempts);
+  const failure: ExecutionFailure = args.kind === 'platform_failure' ? { ...args.failure, owner: 'platform', requiresUserDecision: false } : args.failure;
   const nextClaim = `${args.claimKey}:platform:${Math.max(...node.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts || 0)) + 1}`;
   for (const job of node.executions) {
     if (job.status !== 'integrated' || !job.commit) throw new Error('Review failure input is not integrated');
@@ -34,9 +37,9 @@ export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId:
     if (!executionProgress(job.dispatchMetadata)) await tx.taskGraphExecution.update({ where: { id: job.id }, data: { claimToken: token, dispatchMetadata: metadataWithProgress(job.dispatchMetadata, progress) } });
     else if (!job.claimToken) throw new Error('Versioned review has no claim token');
     await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: token, expectedRevision: progress.revision,
-      outcomeId: `review-failure:${args.identity}`, outcome: exhausted ? { kind: 'retry_exhausted', failure: args.failure }
-        : args.kind === 'decision_required' ? { kind: 'decision_required', failure: args.failure }
-        : { kind: 'review_retry', failure: args.failure, claimKey: nextClaim, phase: args.phase } });
+      outcomeId: `review-failure:${args.identity}`, outcome: exhausted ? { kind: 'retry_exhausted', failure }
+        : args.kind === 'decision_required' ? { kind: 'decision_required', failure }
+        : { kind: 'review_retry', failure, claimKey: nextClaim, phase: args.phase } });
   }
   const status = args.kind === 'platform_failure' && !exhausted ? 'verifying' : 'attention';
   await tx.taskGraphNode.update({ where: { id: nodeId }, data: { status } });
@@ -65,6 +68,7 @@ export async function publishReviewPreparationFailure(nodeId: string, failure: E
 }
 
 export function reviewPreparationFailure(error: unknown) {
-  const retry = error instanceof TaskInputPreparationError || error instanceof ServiceRuntimeError || error instanceof GraphCheckTimeoutError || error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
+  if (error instanceof RuntimePreparationError) return { retry: true, failure: error.failure };
+  const retry = Boolean(transientPlatformCode(error)) || error instanceof TaskInputPreparationError || error instanceof ServiceRuntimeError || error instanceof GraphCheckTimeoutError || error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
   return { retry, failure: { code: retry ? 'environment_failed' : 'ownership_mismatch', detail: error instanceof Error ? error.message : String(error) } };
 }

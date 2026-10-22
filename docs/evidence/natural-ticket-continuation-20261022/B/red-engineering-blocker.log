@@ -1,0 +1,49 @@
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+Error: Ordinary engineering blocker stopped the original approved Agent: {"version":1,"revision":6,"phase":"implement","state":"waiting_decision","repairAttempts":0,"formatAttempts":0,"platformAttempts":0,"integrationAttempts":0,"workspaceBase":"d26995f6f6d88d5ec9f4dc75b34cc2b6d78882eb","candidateCommit":"40c66fafe28a2d52ec924c308881ddb63ed77e2d","taskRunId":"cmviykue1001cgqnl8ojakhw3","conversationOwnerRunId":"cmviykue1001cgqnl8ojakhw3","worker":{"version":1,"nonce":"2214b783-780c-45e6-aa18-4eb8371f5d4d","hostname":"hello","uid":1000,"supervisor":{"pid":2487639,"startTime":"2735552745","bootId":"df711df5-3f7b-4b20-a4bc-5b13c45dd313"},"ancestry":[{"pid":2487639,"parentPid":2486158,"startTime":"2735552745"},{"pid":2486158,"parentPid":2486148,"startTime":"2735551912"},{"pid":2486148,"parentPid":2401213,"startTime":"2735551907"},{"pid":2401213,"parentPid":3921627,"startTime":"2735449156"},{"pid":3921627,"parentPid":3921626,"startTime":"2731320072"},{"pid":3921626,"parentPid":3921339,"startTime":"2731320072"},{"pid":3921339,"parentPid":3631265,"startTime":"2731319944"},{"pid":3631265,"parentPid":1,"startTime":"967655725"}]},"workerReleasedAt":"2026-10-22T03:05:34.212Z","lastFailure":{"code":"environment_failed","detail":"Investigate current approved inputs; no additional permission needed","action":"准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施","owner":"platform","requiresUserDecision":false,"blockedPhase":"implementation"}}
+    at /data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:65:153
+    at step (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:44:23)
+    at Object.next (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:25:53)
+    at fulfilled (/data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/tests/task-graph-natural-blockers.test.ts:16:58)
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-natural-blockers.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/scripts/test-task-graph-postgres.mjs:48:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 2487639,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

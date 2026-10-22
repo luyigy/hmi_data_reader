@@ -7,7 +7,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
-import { runTaskGraphCycle, recoverTaskGraphNodeVerification, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
+import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import { inspectPreparedReviewBinding, registerPreparedReviewRecovery } from '../src/lib/task-graph/preparation-recovery';
 import { getHarnessAdapter } from '../src/lib/harness';
@@ -36,7 +36,7 @@ async function scenario(passes: boolean) {
   getHarnessAdapter('kimi-code')!.execute = async () => { reviews++; return fixed && passes ? { success: true, executionTime: 1, output: 'TASK_GRAPH_REVIEW {"approved":true,"note":"checked"}' } : { success: false, executionTime: 1, output: 'platform transport failed' }; };
   const getNode = () => prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'A' } }, include: { executions: true } });
   async function cycleUntil(terminal: 'attention' | 'passed') {
-    for (let n = 0; n < 400; n++) { await runTaskGraphCycle(); if ((await getNode()).status === terminal) return; await new Promise(resolve => setTimeout(resolve, 25)); }
+    for (let n = 0; n < 400; n++) { await runTaskGraphCycle(); if ((await getNode()).status === terminal) { const idle = new AbortController(); idle.abort(); await startTaskGraphCoordinator(idle.signal); return; } await new Promise(resolve => setTimeout(resolve, 25)); }
     const failed = await getNode();
     throw new Error('Coordinator did not reach ' + terminal + ': ' + JSON.stringify({ status: failed.status, jobs: failed.executions.map(job => ({ status: job.status, progress: executionProgress(job.dispatchMetadata) })), reviews, events: await prisma.taskGraphEvent.findMany({ where: { nodeId: failed.id }, orderBy: { createdAt: 'desc' }, take: 3, select: { kind: true, payload: true } }) }));
   }
@@ -44,7 +44,7 @@ async function scenario(passes: boolean) {
     await cycleUntil('attention');
     const before = await getNode(), job = before.executions[0], progress = executionProgress(job.dispatchMetadata)!;
     assert.equal(progress.state, 'exhausted'); assert.equal(progress.platformAttempts, 2); assert.equal(reviews, 3);
-    await assert.rejects(recoverTaskGraphNodeVerification(run.id, 'A'), /exhaustion/);
+    // Legacy explicit receipt compatibility is tested here; automatic condition rechecks are covered by task-graph-condition-recheck.
     const key = `runtime-snapshot:${job.id}:${job.claimToken}`;
     const saved = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { runId_idempotencyKey: { runId: run.id, idempotencyKey: key } } });
     const payload = saved.payload as Prisma.JsonObject, snapshot = payload.snapshot as Prisma.JsonObject;
@@ -92,7 +92,9 @@ async function main() {
   const require = createRequire(__filename), feishu = require('../src/lib/task-graph/feishu');
   feishu.ensureGraphChildTopic = async () => null; feishu.postGraphParentProgress = async () => {}; feishu.postGraphChildProgress = async () => {};
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
+  const recovery = require('../src/lib/task-graph/preparation-recovery'), recheck = recovery.reconcileExecutionConditions;
+  recovery.reconcileExecutionConditions = async () => false;
   const original = globalThis.fetch; globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  try { await scenario(true); await scenario(false); } finally { globalThis.fetch = original; await prisma.$disconnect(); }
+  try { await scenario(true); await scenario(false); } finally { recovery.reconcileExecutionConditions = recheck; globalThis.fetch = original; await prisma.$disconnect(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

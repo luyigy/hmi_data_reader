@@ -8,10 +8,22 @@ export async function implementationConversation(executionId: string, participan
   const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
   const progress = executionProgress(job.dispatchMetadata);
   const ownerId = progress?.conversationOwnerRunId || progress?.taskRunId || job.taskRunId;
-  const previous = ownerId ? await prisma.taskRun.findUnique({ where: { id: ownerId }, include: { participants: true } }) : null;
-  const original = previous?.taskId === job.childTaskId ? previous.participants.find(row =>
+  let previous = ownerId ? await prisma.taskRun.findUnique({ where: { id: ownerId }, include: { participants: true } }) : null;
+  let original = previous?.taskId === job.childTaskId ? previous.participants.find(row =>
     row.harnessType === participant.harnessType && row.executionBackend === participant.executionBackend && row.role === participant.role) : null;
-  const session = original ? getContinuationSession(original) : null;
+  let session = original ? getContinuationSession(original) : null;
+  if (previous?.taskSessionId && previous.taskId === job.childTaskId && !session?.sessionId && ['failed', 'interrupted', 'cancelled'].includes(previous.status)) {
+    const history = await prisma.taskRun.findMany({ where: { taskId: previous.taskId, taskSessionId: previous.taskSessionId,
+      createdAt: { lt: previous.createdAt }, participants: { some: { harnessType: participant.harnessType, executionBackend: participant.executionBackend, role: participant.role, controlMetadata: { not: null } } } },
+      include: { participants: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    for (const turn of history) {
+      const owner = turn.participants.find(row => row.harnessType === participant.harnessType && row.executionBackend === participant.executionBackend && row.role === participant.role);
+      const saved = owner && getContinuationSession(owner);
+      if (!saved?.sessionId) continue;
+      previous = turn; original = owner; session = saved;
+      break;
+    }
+  }
   if (previous && !session?.sessionId) await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: {
     runId: job.node.runId, idempotencyKey: `conversation-session-unavailable:${job.id}:${previous.id}` } }, update: {}, create: {
     runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_session_degraded',
