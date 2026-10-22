@@ -74,6 +74,8 @@ requires_openai_auth = false
           continuationMessage: task.name }) : codexHarnessAdapter.execute({ task, context: ctx }));
         assert.equal(result.success, true, result.error);
         assert.ok(result.runtimeState, `${transport} resume=${resume}: missing evidence`);
+        assert.ok(result.contextUsage, `${transport} resume=${resume}: missing context usage`);
+        assert.equal(result.contextUsage.sessionId, result.sessionId);
         assert.match(result.output!, /OK/);
         if (resume) assert.equal(result.sessionId, sessionId);
         assert.notEqual(result.runtimeState.turnId, previousTurn);

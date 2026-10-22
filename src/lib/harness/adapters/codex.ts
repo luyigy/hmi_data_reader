@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { SHARED_ENTRIES } from '@/lib/real-agents/codex-home';
 import { resolveWorkflowCodexBoundary } from '@/lib/workflow-execution-policy';
-import { collectCodexRuntimeState } from '@/lib/real-agents/codex-runtime-state';
+import { collectCodexTelemetry } from '@/lib/real-agents/codex-runtime-state';
 
 // Keep the native stream callback at the protocol boundary.
 function contextTelemetry(context: HarnessExecutionContext) {
@@ -109,6 +109,12 @@ export const codexHarnessAdapter: HarnessAdapter = {
       },
     });
 
+    const native = result.success ? await collectCodexTelemetry({
+      executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
+      startedAt, completedAt: Date.now(), codexHome: invocation.codexHome,
+      ephemeral: context.ephemeralSession,
+    }) : undefined;
+
     return {
       success: result.success,
       output: result.output,
@@ -118,12 +124,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
       sessionId: result.threadId,
       sessionKind: result.threadId ? 'codex_thread' : undefined,
       threadId: result.threadId,
-      contextUsage: telemetry.usage,
-      runtimeState: result.success ? await collectCodexRuntimeState({
-        executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
-        startedAt, completedAt: Date.now(), codexHome: invocation.codexHome,
-        ephemeral: context.ephemeralSession,
-      }) : undefined,
+      contextUsage: telemetry.usage ?? native?.contextUsage,
+      runtimeState: native?.runtimeState,
       liveStreaming: true,
     };
   },
@@ -155,6 +157,11 @@ export const codexHarnessAdapter: HarnessAdapter = {
         },
       });
 
+      const native = await collectCodexTelemetry({
+        executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
+        startedAt: startTime, completedAt: Date.now(), codexHome: invocation.codexHome,
+      });
+
       return {
         success: true,
         output: result.output,
@@ -163,11 +170,8 @@ export const codexHarnessAdapter: HarnessAdapter = {
         sessionId: result.threadId ?? undefined,
         sessionKind: result.threadId ? 'codex_thread' : undefined,
         threadId: result.threadId ?? undefined,
-        contextUsage: telemetry.usage,
-        runtimeState: await collectCodexRuntimeState({
-          executionId: context.executionId, threadId: result.threadId, turnId: result.turnId,
-          startedAt: startTime, completedAt: Date.now(), codexHome: invocation.codexHome,
-        }),
+        contextUsage: telemetry.usage ?? native?.contextUsage,
+        runtimeState: native?.runtimeState,
         liveStreaming: true,
       };
     } catch (error) {

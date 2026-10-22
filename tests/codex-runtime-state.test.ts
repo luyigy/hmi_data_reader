@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { collectCodexRuntimeState, parseCodexRuntimeState } from '../src/lib/real-agents/codex-runtime-state';
+import { collectCodexRuntimeState, parseCodexRuntimeState, parseCodexTelemetry } from '../src/lib/real-agents/codex-runtime-state';
 import { codexHarnessAdapter } from '../src/lib/harness/adapters/codex';
 import { beginHarnessRuntimeExecution, persistHarnessRuntimeState } from '../src/lib/harness-runtime-state';
 import { collectLiveRoomFootnotes } from '../src/lib/live-room-footnotes';
@@ -47,6 +47,17 @@ async function main() {
   assert.equal((await parseCodexRuntimeState([meta(), start(101), context(104), context(102, { model: 'late-old' }), end(105)], scope))?.model, 'runner-model');
   assert.equal((await parseCodexRuntimeState([meta(), start(101), context(102, { model: {} }), end(103)], scope))?.model, undefined);
 
+  const usage = (at: number, window = 475000, type = 'event_msg') => event(type, {
+    type: 'token_count', info: { last_token_usage: { input_tokens: 123, output_tokens: 7 }, model_context_window: window },
+  }, at);
+  assert.equal((await parseCodexTelemetry([meta(), start(101), usage(102), end(103)], scope))?.contextUsage?.usedTokens, 123);
+  for (const lines of [[meta(), usage(100), start(101), end(103)],
+    [meta(), start(101), end(103), usage(104)], [meta(), start(101), usage(102, -1), end(103)],
+    [meta(), start(101), usage(102, 475000, 'response_item'), end(103)],
+    [meta(), start(101), start(102, 'other'), usage(103), end(104), end(105, 'other')]]) {
+    assert.equal((await parseCodexTelemetry(lines, scope))?.contextUsage, undefined, 'Unbound, malformed or ambiguous usage remains unknown');
+  }
+
   const dir = await mkdtemp(path.join(tmpdir(), 'codex-runtime-'));
   const sessions = path.join(dir, 'sessions', '2026', '10', '01');
   const rollout = path.join(sessions, `rollout-2026-10-01T19-36-11-${threadId}.jsonl`);
@@ -60,6 +71,11 @@ async function main() {
     await mkdir(sessions, { recursive: true });
     await writeFile(rollout, fixture.join('\n'));
     assert.deepEqual(await collectCodexRuntimeState({ ...scope, codexHome: dir }), state);
+    const padding = event('response_item', { type: 'message', content: 'x'.repeat(100_000) }, 0) + '\n';
+    await writeFile(rollout, meta() + '\n' + padding.repeat(680) + fixture.slice(1).join('\n'));
+    assert.equal((await collectCodexRuntimeState({ ...scope, codexHome: dir }))?.model, 'runner-model',
+      'Large historical rollout must not hide the verified current turn');
+    await writeFile(rollout, fixture.join('\n'));
     assert.equal(await collectCodexRuntimeState({ ...scope, codexHome: dir, ephemeral: true }), undefined);
     assert.equal(await collectCodexRuntimeState({ ...scope, codexHome: path.join(dir, 'missing') }), undefined);
     assert.equal(await collectCodexRuntimeState({ ...scope, codexHome: dir, threadId: '../escape' }), undefined);
@@ -85,7 +101,7 @@ async function main() {
           await mkdir(path.dirname(target), { recursive: true });
           await writeFile(target, [...fixture, start(at, 'current'), context(at, {
             turn_id: 'current', model: resume ? 'native-resumed' : 'native-inherited', effort: resume ? 'low' : 'high',
-          }), end(at, 'current')].join('\n'));
+          }), event('event_msg', { type: 'token_count', info: { last_token_usage: { input_tokens: 123, output_tokens: 7 }, model_context_window: 475000 } }, at), end(at, 'current')].join('\n'));
           await options.onThreadStarted(threadId);
           return { success: true, threadId, turnId: transport === 'app-server' ? 'current' : undefined,
             output: 'OK', executionTime: 1 };
@@ -105,7 +121,7 @@ async function main() {
         const args = { task: { id: 'test', name: 'test' }, context: ctx, sessionId: threadId, continuationMessage: 'continue' };
         const result = await (resume ? codexHarnessAdapter.resume!(args) : codexHarnessAdapter.execute(args));
         assert.equal(result.success, true);
-        assert.equal(result.contextUsage, undefined);
+        assert.equal(result.contextUsage?.usedTokens, 123, 'exec JSON must recover actual usage from the same native turn');
         assert.equal(result.runtimeState?.model, resume ? 'native-resumed' : 'native-inherited');
         await persistHarnessRuntimeState(execution, result.runtimeState);
         assert.equal(stored.unrelated, 'keep');
