@@ -93,6 +93,9 @@ async function main() {
     assert.equal(emptyTurns, before, 'Identical work/input cannot spin forever');
     const idle = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: run.id, key: 'IDLE' } } });
     assert.equal(executionProgress(idle.dispatchMetadata)?.formatAttempts, 0, 'No-progress protection does not consume a result-format budget');
+    // The direct compatibility API reports stale snapshots; durable Coordinator requests retry them.
+    // Finish the automatic probes above before testing the explicit one-turn contract here.
+    await drain();
     const candidate = progress.candidateCommit; assert.ok(candidate);
     await scheduleImplementationRecovery(run.id, 'IDLE', 'explicit-parent-continue');
     await scheduleImplementationRecovery(run.id, 'IDLE', 'explicit-parent-continue');
