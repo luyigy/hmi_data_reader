@@ -1,3 +1,4 @@
+import { observeTaskRunExit } from './task-run-exit-proof';
 import { observeExecutionWriter } from './phase-worker';
 import path from 'node:path';
 import { graphGit } from './git-command';
@@ -36,6 +37,7 @@ export async function recoverGraphExecution(executionId: string) {
   const observation = await observeExecutionWriter(job);
   await recordObservation(job.node.runId, job.nodeId, `${job.id}:${job.claimToken}`, observation);
   if (observation.kind !== 'exited' || !progress) return false;
+  const writerExit = job.taskRunId ? await observeTaskRunExit(job.taskRunId) : undefined;
   const previous = taskRunId ? await prisma.taskRun.findUniqueOrThrow({ where: { id: taskRunId }, include: { participants: true } }) : null;
   if (previous?.status === 'completed') await completeConversationTurn(job.id, previous.id);
   let phase = progress.phase;
@@ -110,7 +112,7 @@ export async function recoverGraphExecution(executionId: string) {
       return true;
     }
     await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: claimToken, expectedRevision: saved.revision,
-      outcomeId: `restart-requeue:${job.claimToken}`, outcome: { kind: 'platform_retry', failure: { code: 'writer_exited', detail: 'Confirmed local writer exit; resume the persisted phase without human resume.' } } });
+      outcomeId: `restart-requeue:${job.claimToken}`, outcome: { kind: 'platform_retry', failure: { code: 'writer_exited', detail: 'Confirmed local writer exit; resume the persisted phase without human resume.' } } }, writerExit);
     return true;
   });
 }

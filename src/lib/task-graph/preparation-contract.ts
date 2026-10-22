@@ -78,7 +78,7 @@ export async function preparationBindingTx(tx: Prisma.TransactionClient, runId: 
     worktreeBranch: job.worktreeBranch, dispatchMetadata: job.dispatchMetadata,
     dependencies: dependencies.map(item => ({ id: item.id, status: item.status, commits: item.executions.map(value => ({ id: value.id, commit: value.commit })).sort((a, b) => a.id.localeCompare(b.id)) })) });
 }
-export async function assertPreparationTx(tx: Prisma.TransactionClient, runId: string, nodeKey: string, eventId: string) {
+export async function assertPreparationTx(tx: Prisma.TransactionClient, runId: string, nodeKey: string, eventId: string, validated: PreparationReceipt) {
   const event = await tx.taskGraphEvent.findUniqueOrThrow({ where: { id: eventId } });
   if (event.kind !== 'platform_preparation_registered' || event.runId !== runId) throw new PreparationRejected('Invalid trusted preparation event');
   const receipt = parsePreparationReceipt(event.payload);
@@ -87,6 +87,6 @@ export async function assertPreparationTx(tx: Prisma.TransactionClient, runId: s
   if (receipt.runId !== runId || receipt.nodeKey !== nodeKey ||
       event.idempotencyKey !== `preparation:${receipt.requestId}`) throw new PreparationRejected('Preparation target mismatch');
   if (await preparationBindingTx(tx, runId, nodeKey, receipt.remediation) !== receipt.bindingHash) throw new PreparationRejected('Stale preparation binding: revision, candidate, failure or dependencies changed');
-  await validatePreparationArtifacts(receipt.artifacts);
+  if (preparationHash(receipt) !== preparationHash(validated)) throw new PreparationRejected('Preparation receipt changed after artifact validation');
   return receipt;
 }

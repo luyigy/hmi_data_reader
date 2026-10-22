@@ -1,8 +1,8 @@
+import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { prisma } from '../prisma';
 import { graphGit } from './git-command';
 import { applyExecutionOutcomeTx, executionProgress } from './execution-progress';
 import { observeExecutionWriter } from './phase-worker';
-import { observeTaskRunWriter } from './writer-ownership';
 import type { Prisma } from '@prisma/client';
 import { executionRetryLimits } from './retry-limits';
 import { platformRepository } from '../platform-repository';
@@ -24,6 +24,7 @@ export async function inspectPreparationBinding(runId: string, nodeKey: string, 
 /** Local operator authority is the same OS/database capability required by task-graph:doctor. */
 export async function registerPlatformPreparation(input: unknown) {
   const receipt = parsePreparationReceipt(input);
+  await validatePreparationArtifacts(receipt.artifacts);
   return prisma.$transaction(async tx => {
     const key = `preparation:${receipt.requestId}`;
     const { node, previous } = await preparationRequestTx(tx, receipt, key);
@@ -32,7 +33,6 @@ export async function registerPlatformPreparation(input: unknown) {
       return { kind: 'already_registered', eventId: previous.id };
     }
     if (await preparationBindingTx(tx, receipt.runId, receipt.nodeKey, receipt.remediation) !== receipt.bindingHash) throw new Error('Stale preparation binding');
-    await validatePreparationArtifacts(receipt.artifacts);
     const event = await tx.taskGraphEvent.create({ data: { runId: receipt.runId, nodeId: node.id,
       kind: 'platform_preparation_registered', idempotencyKey: key, payload: receipt } });
     return { kind: 'registered', eventId: event.id };
@@ -84,6 +84,13 @@ export async function inspectPreparedReviewBinding(runId: string, nodeKey: strin
 export async function registerPreparedReviewRecovery(input: unknown, remediationCommit: string, platformDirectory = platformRepository()) {
   const receipt = parsePreparationReceipt(input);
   if (receipt.remediation !== 'missing_capability' || !/^[a-f0-9]{40,64}$/.test(remediationCommit) || await graphGit(platformDirectory, 'rev-parse', 'HEAD') !== remediationCommit) throw new Error('Reviewed remediation code does not match the loaded checkout');
+  await validatePreparationArtifacts(receipt.artifacts);
+  const before = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: receipt.runId, key: receipt.nodeKey } }, include: { executions: true } });
+  const reviews = await prisma.taskRun.findMany({ where: { taskId: { in: [`task-graph-review-${before.id}`, `task-graph-architecture-${before.id}`] } } });
+  if (reviews.some(review => !['completed', 'failed', 'cancelled'].includes(review.status))) throw new Error('A previous reviewer has not demonstrably exited');
+  const proof = await observeWriterSnapshot({ jobs: before.executions, taskRunIds: reviews.map(review => review.id), scope: 'execution', observeExecution: observeExecutionWriter });
+  if (!proof.exited) throw new Error('Original implementation or reviewer writer has not exited');
+  if (await graphGit(platformDirectory, 'rev-parse', 'HEAD') !== remediationCommit) throw new Error('Remediation code changed before publication');
   return prisma.$transaction(async tx => {
     const key = `prepared-review:${receipt.requestId}`;
     const { previous } = await preparationRequestTx(tx, receipt, key);
@@ -104,11 +111,9 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
         !('executionId' in snapshot) || snapshot.executionId !== job.id || !('claimToken' in snapshot) || snapshot.claimToken !== job.claimToken ||
         !('identity' in snapshot) || typeof snapshot.identity !== 'string') throw new Error('Recovery requires the original claim-bound runtime pin');
     const implementation = job.taskRunId ? await tx.taskRun.findUnique({ where: { id: job.taskRunId } }) : null;
-    if (!implementation || !['completed', 'failed', 'cancelled'].includes(implementation.status) || (await observeExecutionWriter(job)).kind !== 'exited') throw new Error('Original implementation writer has not exited');
-    const reviews = await tx.taskRun.findMany({ where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] } } });
-    for (const review of reviews) if (!['completed', 'failed', 'cancelled'].includes(review.status) || (await observeTaskRunWriter(review.id)).kind !== 'exited') throw new Error('A previous reviewer has not demonstrably exited');
-    await validatePreparationArtifacts(receipt.artifacts);
-    if (await graphGit(platformDirectory, 'rev-parse', 'HEAD') !== remediationCommit) throw new Error('Remediation code changed before publication');
+    if (!implementation || !['completed', 'failed', 'cancelled'].includes(implementation.status) || !await writerSnapshotMatches(tx, proof)) throw new Error('Original implementation writer has not exited');
+    const currentReviews = await tx.taskRun.findMany({ where: { taskId: { in: [`task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] } } });
+    if (currentReviews.length !== reviews.length || currentReviews.some(review => !reviews.some(old => old.id === review.id))) throw new Error('Reviewer membership changed during observation');
     const event = await tx.taskGraphEvent.create({ data: { runId: receipt.runId, nodeId: node.id, kind: 'platform_review_preparation', idempotencyKey: key,
       payload: { requestHash, receipt, remediationCommit, remediationIdentity: `${job.commit}:${remediationCommit}`, executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision, candidateCommit: job.commit } } });
     await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,

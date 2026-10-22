@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { object, parseProjectCapabilityScope, restrictProjectCapabilities, type ProjectCapabilityPolicy } from './policy';
 
@@ -9,10 +10,10 @@ export type ScopeApproval = {
 export async function resolveProjectScope(args: {
   runId: string; executionId: string; repository: string; snapshotHash: string;
   originalScope: unknown; policy: ProjectCapabilityPolicy;
-}) {
+}, db: Pick<Prisma.TransactionClient, 'taskGraphEvent'> = prisma) {
   const keys = [`project-scope-v2:${args.executionId}:${args.policy.hash}`, `project-scope:${args.executionId}:${args.policy.hash}`];
   for (const key of keys) {
-    const event = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: key } } });
+    const event = await db.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: key } } });
     if (!event) continue;
     const receipt = object(event.payload);
     if (event.kind !== 'project_capability_scope_approved' || receipt.executionId !== args.executionId || receipt.repository !== args.repository || receipt.snapshotHash !== args.snapshotHash) throw new Error('项目授权回执归属不一致');

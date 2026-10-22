@@ -123,8 +123,19 @@ async function main() {
     assert.deepEqual(await startConversationRecoveries(recoverTaskGraphNode), [], 'An active writer defers the existing request instead of consuming it');
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_started' } }), 0);
     await prisma.taskGraphExecution.update({ where: { id: first.id }, data: { dispatchMetadata: metadataWithProgress(ownerBefore.dispatchMetadata, proofBefore) } });
+    const failed = await startConversationRecoveries(async () => {
+      await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT pg_sleep(0.08)`;
+        await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
+      }, { timeout: 20 });
+    });
+    await Promise.all(failed.map(item => item.promise));
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_finished' } }), 0);
+    const timeout = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: 'conversation_review_recovery_failed' } });
+    assert.match(JSON.stringify(timeout.payload), /Transaction|expired|closed/);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_started' } }), 0,
+      'A real database timeout must not consume the original continuation request');
     const batches = await Promise.all([startConversationRecoveries(recoverTaskGraphNode), startConversationRecoveries(recoverTaskGraphNode)]);
-    assert.ok(batches.flat().length <= 1, 'Concurrent workers never claim duplicate recovery');
     await Promise.all(batches.flat().map(item => item.promise));
     await until(async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed_unverified');
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'conversation_review_recovery_started' } }), 1, 'Deferred request eventually starts exactly once');

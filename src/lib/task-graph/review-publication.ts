@@ -1,3 +1,4 @@
+import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { executionRetryLimits } from './retry-limits';
 import { TaskInputPreparationError } from './upstream-inputs';
 import { ServiceRuntimeError } from './attempt-services';
@@ -5,7 +6,6 @@ import { GraphCheckTimeoutError } from './check-runner';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, metadataWithProgress, type ExecutionFailure } from './execution-progress';
-import { observeTaskRunWriter } from './writer-ownership';
 
 export type ReviewPublication = {
   phase: 'architecture' | 'acceptance'; claimKey: string; taskRunId: string;
@@ -46,13 +46,16 @@ export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId:
 
 /** Preparation failures have no reviewer TaskRun; require any previous reviewer to have exited. */
 export async function publishReviewPreparationFailure(nodeId: string, failure: ExecutionFailure, retry: boolean, phase: 'architecture' | 'acceptance') {
+  const before = await prisma.taskGraphExecution.findMany({ where: { nodeId } });
+  const ids = retry ? before.flatMap(job => {
+    const binding = executionProgress(job.dispatchMetadata)?.review;
+    return binding?.kind === 'running' ? [binding.taskRunId] : [];
+  }) : [];
+  const proof = await observeWriterSnapshot({ jobs: before, taskRunIds: ids, scope: 'review-model' });
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
-    for (const job of node.executions) {
-      const binding = executionProgress(job.dispatchMetadata)?.review;
-      if (retry && binding?.kind === 'running' && (await observeTaskRunWriter(binding.taskRunId)).kind !== 'exited') throw new Error('Review preparation cannot replace an unproven writer');
-    }
+    if (!await writerSnapshotMatches(tx, proof) || node.executions.length !== proof.jobs.length) throw new Error('Review preparation cannot replace an unproven writer or changed candidate');
     const identity = `preparation:${node.executions.map(job => executionProgress(job.dispatchMetadata)?.revision || 0).join(':')}`;
     const status = await applyReviewFailureTx(tx, nodeId, { phase, claimKey: `node:${node.key}:${phase}:preparation`, identity, failure,
       kind: retry ? 'platform_failure' : 'decision_required' });

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createGraphWriter, releaseTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { prisma } from '../src/lib/prisma';
-import { applyExecutionOutcome, executionProgress, type ExecutionOutcomeRequest } from '../src/lib/task-graph/execution-progress';
+import { applyExecutionOutcome, executionProgress, metadataWithProgress, type ExecutionOutcomeRequest } from '../src/lib/task-graph/execution-progress';
 import { claimExecution, claimNode, createTaskGraphRun, releaseReadyNodes, recordExecutionDispatch } from '../src/lib/task-graph/store';
 import { scheduleImplementationRecovery } from '../src/lib/task-graph/implementation-result';
 
@@ -83,7 +84,36 @@ async function main() {
       await assert.rejects(applyExecutionOutcome(requeue), /actual writer exit proof/);
       assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: orphanJob.id } })).status, 'claimed');
     } finally { const exit = once(child, 'exit'); child.kill('SIGTERM'); await exit; }
-    assert.equal((await applyExecutionOutcome(requeue)).platformAttempts, 1);
+    const writerApi = createRequire(__filename)('../src/lib/task-graph/writer-ownership');
+    const observe = writerApi.observeTaskRunWriter;
+    const observedJob = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: orphanJob.id } });
+    writerApi.observeTaskRunWriter = async (taskRunId: string) => {
+      await prisma.taskGraphExecution.update({ where: { id: orphanJob.id }, data: { dispatchMetadata: metadataWithProgress(observedJob.dispatchMetadata, { ...executionProgress(observedJob.dispatchMetadata)!, candidateCommit: 'd'.repeat(40) }) } });
+      return observe(taskRunId);
+    };
+    try { await assert.rejects(applyExecutionOutcome(requeue), /observed candidate changed/); }
+    finally {
+      writerApi.observeTaskRunWriter = observe;
+      await prisma.taskGraphExecution.update({ where: { id: orphanJob.id }, data: { dispatchMetadata: observedJob.dispatchMetadata! } });
+    }
+    const observedRun = await prisma.taskRun.findUniqueOrThrow({ where: { id: finishedRun.id } });
+    writerApi.observeTaskRunWriter = async (taskRunId: string) => {
+      const observation = await observe(taskRunId);
+      await prisma.taskRun.update({ where: { id: taskRunId }, data: { taskSessionId: null, controlMetadata: JSON.stringify({ ...JSON.parse(observedRun.controlMetadata || '{}'), changed: true }) } });
+      return observation;
+    };
+    try { await assert.rejects(applyExecutionOutcome(requeue), /actual writer exit proof/); }
+    finally {
+      writerApi.observeTaskRunWriter = observe;
+      await prisma.taskRun.update({ where: { id: finishedRun.id }, data: { controlMetadata: observedRun.controlMetadata } });
+    }
+    writerApi.observeTaskRunWriter = async (taskRunId: string) => {
+      await new Promise(resolve => setTimeout(resolve, 5200));
+      return observe(taskRunId);
+    };
+    try {
+      assert.equal((await applyExecutionOutcome(requeue)).platformAttempts, 1, 'Slow real process observation must not expire the result transaction');
+    } finally { writerApi.observeTaskRunWriter = observe; }
     await prisma.taskRun.delete({ where: { id: finishedRun.id } });
     console.log('Durable outcomes: revision/token fencing, duplicate budgets, immutable dispatch, candidate retention and explicit exhausted state');
   } finally {

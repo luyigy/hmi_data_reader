@@ -1,0 +1,8 @@
+Base: 1f5dcf5
+Isolated schema and central test workspace only. No deployment or production ledger changes.
+Durable outcomes: revision/token fencing, duplicate budgets, immutable dispatch, candidate retention and explicit exhausted state
+Only affected execution is requeued; successful sibling commit and evidence remain unchanged
+Durable outcomes: revision/token fencing, duplicate budgets, immutable dispatch, candidate retention and explicit exhausted state
+Real coordinator death preserves orphan and post-Agent owners; exited pre-entry claim resumes automatically with zero human resume
+TypeScript: npx tsc --noEmit --pretty false, exit 0
+Long files: no files at or above 1000 lines

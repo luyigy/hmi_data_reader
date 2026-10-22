@@ -1,7 +1,8 @@
+import { observeTaskRunExit, taskRunExitMatches, type TaskRunExitProof } from './task-run-exit-proof';
 import { requireGraphNodeActiveTx } from './run-control';
-import { observeTaskRunWriter, parseGraphWriter, type GraphWriter } from './writer-ownership';
+import { parseGraphWriter, type GraphWriter } from './writer-ownership';
 import { isDeepStrictEqual } from 'node:util';
-import { Prisma } from '@prisma/client';
+import { Prisma, type TaskGraphExecution } from '@prisma/client';
 import { prisma } from '../prisma';
 import { parseConflictRepair, type ConflictRepair } from './conflict-repair';
 import { executionRetryLimits, maxUnchangedWorkTurns } from './retry-limits';
@@ -168,9 +169,12 @@ export type ExecutionOutcomeRequest = {
   executionId: string; claimToken: string; expectedRevision: number; outcomeId: string; outcome: ExecutionOutcome;
 };
 export async function applyExecutionOutcome(args: ExecutionOutcomeRequest, db: Pick<typeof prisma, '$transaction'> = prisma): Promise<ExecutionProgress> {
-  return db.$transaction(tx => applyExecutionOutcomeTx(tx, args));
+  const before = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+  const proof = before.taskRunId && !['checkpoint', 'integrated', 'waiting_for_user', 'decision_required', 'retry_exhausted', 'delivery_reclassified'].includes(args.outcome.kind)
+    ? await observeTaskRunExit(before.taskRunId) : undefined;
+  return db.$transaction(tx => applyExecutionOutcomeTx(tx, args, proof, before));
 }
-export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args: ExecutionOutcomeRequest): Promise<ExecutionProgress> {
+export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args: ExecutionOutcomeRequest, writerExit?: TaskRunExitProof, expectedExecution?: TaskGraphExecution): Promise<ExecutionProgress> {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
     if (!['checkpoint', 'integrated', 'waiting_for_user'].includes(args.outcome.kind)) await requireGraphNodeActiveTx(tx, job.nodeId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
@@ -184,6 +188,8 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       if (!progress) throw new Error('Stored outcome has no progress');
       return progress;
     }
+    const { node: _node, ...currentExecution } = current;
+    if (expectedExecution && !isDeepStrictEqual(currentExecution, expectedExecution)) throw new Error('Execution outcome ownership or revision mismatch: observed candidate changed');
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
     const operatorResume = args.outcome.kind === 'operator_resume' && current.status === 'attention' &&
       (before.state === 'waiting_decision' || before.state === 'waiting_for_user' && before.phase === 'implement');
@@ -307,7 +313,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     }
     if (status === 'ready' || outcome.kind === 'integrated' || outcome.kind === 'review_retry' || outcome.kind === 'review_platform_prepared') { delete progress.worker; delete progress.workerReleasedAt; }
     if (status === 'ready' && current.taskRunId && await tx.taskRun.count({ where: { id: current.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Cannot requeue a live TaskRun');
-    if (status === 'ready' && current.taskRunId && outcome.kind !== 'operator_resume' && (await observeTaskRunWriter(current.taskRunId)).kind !== 'exited') throw new Error('Cannot requeue a TaskRun without actual writer exit proof');
+    if (status === 'ready' && current.taskRunId && outcome.kind !== 'operator_resume' && !await taskRunExitMatches(tx, current.taskRunId, writerExit)) throw new Error('Cannot requeue a TaskRun without actual writer exit proof');
     await tx.taskGraphExecution.update({ where: { id: current.id }, data: {
       status, issueKind, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, progress),
       ...(status === 'ready' ? { claimToken: null, claimedAt: null, taskRunId: null, sessionId: null } : {}),

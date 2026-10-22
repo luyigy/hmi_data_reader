@@ -9,8 +9,8 @@ import { workflowSnapshotExtraRoots } from '../workflow-execution-policy';
 
 /** Registered projects have one authority. Legacy registrations are consulted only for unregistered projects. */
 async function resolveProjectTools(args: { taskId: string; taskRunId?: string; executionId: string; repository: string; sourceWorkspace: string;
-  policyFile?: string; permissionConfig?: AcpxPermissionConfig; commit: string; declaration: RuntimeDeclarationSource | null }) {
-  const context = await projectCapabilityContext({ taskId: args.taskId, workspace: args.sourceWorkspace, taskRunId: args.taskRunId, policyFile: args.policyFile, executionId: args.executionId });
+  policyFile?: string; permissionConfig?: AcpxPermissionConfig; commit: string; declaration: RuntimeDeclarationSource | null }, ledger?: Parameters<typeof projectCapabilityContext>[1]) {
+  const context = await projectCapabilityContext({ taskId: args.taskId, workspace: args.sourceWorkspace, taskRunId: args.taskRunId, policyFile: args.policyFile, executionId: args.executionId }, ledger);
   if (!context) return null;
   const policy = context.policy;
   const roots = context.policy.readOnlyRoots;
@@ -23,10 +23,10 @@ async function resolveProjectTools(args: { taskId: string; taskRunId?: string; e
     manifestHash: createHash('sha256').update(JSON.stringify(policy.runtime)).digest('hex'), commit: args.commit,
     filename: path.join('project-capabilities', policy.hash),
   } : null);
-  return { policyHash: policy.hash, roots, declaration, approval: context.approval };
+  return { policyHash: policy.hash, roots, declaration, approval: context.approval, registeredPolicy: context.registeredPolicy };
 }
 
-export async function approvedProjectTools(args: Parameters<typeof resolveProjectTools>[0]) {
-  try { return await resolveProjectTools(args); }
+export async function approvedProjectTools(args: Parameters<typeof resolveProjectTools>[0], ledger?: Parameters<typeof projectCapabilityContext>[1]) {
+  try { return await resolveProjectTools(args, ledger); }
   catch (error) { throw new RuntimePreparationError('invalid', error instanceof Error ? error.message : String(error), [args.repository]); }
 }

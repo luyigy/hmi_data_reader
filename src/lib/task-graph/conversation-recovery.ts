@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { graphRecoveryKind, isRecord, type RecoveryKind } from './implementation-result';
 import { prisma } from '../prisma';
 import { isFeishuAdmin } from '../feishu-access-approval';
@@ -56,23 +57,32 @@ export async function startConversationRecoveries(recover: (runId: string, nodeK
     const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } });
     if (!(await Promise.all(jobs.map(observeExecutionWriter))).every(proof => proof.kind === 'exited')) continue;
     const key = `conversation:review-recovery:${request.id}:started`;
-    try { await prisma.taskGraphEvent.create({ data: { runId: request.runId, nodeId: node.id, idempotencyKey: key, kind: 'conversation_review_recovery_started', payload: {} } }); }
-    catch (error) {
-      if (await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: request.runId, idempotencyKey: key } } })) continue;
-      throw error;
-    }
-    await prisma.taskGraphEvent.createMany({ data: requests.filter(other => other.nodeId === node.id && other.id !== request.id).map(other => ({
-      runId: other.runId, nodeId: node.id, idempotencyKey: `conversation:review-recovery:${other.id}:started`,
-      kind: 'conversation_review_recovery_superseded', payload: { supersededBy: request.id },
-    })), skipDuplicates: true });
+    const completed = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: request.runId, idempotencyKey: key + ':finished' } } });
+    if (completed) continue;
     scheduled.add(node.id);
     const recoveryKind = isRecord(request.payload) && request.payload.recoveryKind === 'implementation' ? 'implementation' : 'verification';
-    const promise = recover(request.runId, node.key, recoveryKind, request.id).then(async () => {
-      await prisma.taskGraphEvent.create({ data: { runId: request.runId, nodeId: node.id, idempotencyKey: key + ':finished', kind: 'conversation_review_recovery_finished', payload: {} } });
-    }).catch(async (error: unknown) => {
-      await prisma.taskGraphEvent.create({ data: { runId: request.runId, nodeId: node.id, idempotencyKey: key + ':failed', kind: 'conversation_review_recovery_failed',
-        payload: { detail: error instanceof Error ? error.message : String(error) } } });
-    });
+    const promise = (async () => {
+      try { await recover(request.runId, node.key, recoveryKind, request.id); }
+      catch (error) {
+        // A failed attempt is evidence, not consumption of the durable request.
+        await prisma.taskGraphEvent.create({ data: { runId: request.runId, nodeId: node.id,
+          idempotencyKey: key + ':failed:' + randomUUID(), kind: 'conversation_review_recovery_failed',
+          payload: { detail: error instanceof Error ? error.message : String(error) } } });
+      }
+      // Scheduling owns the node lock and request idempotency key. It may have committed
+      // even if its caller lost the response or the subsequently launched review failed.
+      const receipt = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: {
+        runId: request.runId, idempotencyKey: `node:${node.key}:${recoveryKind}-recovery:${request.id}` } } });
+      if (!receipt) return;
+      await prisma.taskGraphEvent.createMany({ data: [
+        { runId: request.runId, nodeId: node.id, idempotencyKey: key, kind: 'conversation_review_recovery_started', payload: { receiptId: receipt.id } },
+        { runId: request.runId, nodeId: node.id, idempotencyKey: key + ':finished', kind: 'conversation_review_recovery_finished', payload: { receiptId: receipt.id } },
+        ...requests.filter(other => other.nodeId === node.id && other.id !== request.id).map(other => ({
+          runId: other.runId, nodeId: node.id, idempotencyKey: `conversation:review-recovery:${other.id}:started:finished`,
+          kind: 'conversation_review_recovery_superseded', payload: { supersededBy: request.id, receiptId: receipt.id },
+        })),
+      ], skipDuplicates: true });
+    })();
     work.push({ nodeId: node.id, promise });
   }
   return work;

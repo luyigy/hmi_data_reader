@@ -1,3 +1,4 @@
+import { requireGraphNodeActiveTx } from './run-control';
 import { projectPythonRuntime } from '../project-capabilities/python-runtime';
 import { approvedProjectTools } from '../project-capabilities/tool-runtime';
 import { createHash } from 'node:crypto';
@@ -121,17 +122,22 @@ export async function prepareTaskDeclaredRuntime(args: Arguments): Promise<Prepa
     if (pin && result.identity !== pin.identity) throw new RuntimePreparationError('invalid', '固定运行资源身份改变', [sourceWorkspace]);
     const snapshot: Pin = pin || { pythonIdentity: python?.identity || null, authority: projectTools ? 'project' : restricted ? 'workflow' : 'legacy', ...(!projectTools && !restricted ? { legacyGrantFile: permissionFile } : {}), ...(projectTools ? { projectPolicyHash: projectTools.policyHash } : {}), version: 1, executionId: job.id, claimToken: job.claimToken, sourceRepository: repository, source, projectManifestHash: current?.manifestHash || null,
       hostReadOnlyRoots, grantHash: createHash('sha256').update(JSON.stringify(hostReadOnlyRoots)).digest('hex'), identity: result.identity, receipt: result.receipt };
+    if (await fs.realpath(sourceWorkspace) !== sourceWorkspace || await repositoryIdentity(sourceWorkspace) !== common || await graphGit(sourceWorkspace, 'rev-parse', 'HEAD') !== expectedCommit) throw new RuntimePreparationError('invalid', '预检期间固定源码目录或提交改变', [sourceWorkspace]);
+    const latestTools = await approvedProjectTools({ taskId: args.taskId!, taskRunId: args.taskRunId, executionId: job.id, repository, sourceWorkspace,
+      policyFile: args.projectPolicyFile, permissionConfig: args.permissionConfig, commit: expectedCommit!, declaration: current });
+    if ((latestTools?.policyHash || null) !== (projectTools?.policyHash || null) || !isDeepStrictEqual(latestTools?.approval, projectTools?.approval)) throw new RuntimePreparationError('invalid', '预检期间项目授权改变', [repository]);
+    if ((projectPythonRuntime(sourceWorkspace)?.identity || null) !== (python?.identity || null)) throw new RuntimePreparationError('invalid', '预检期间 Python 环境改变', [sourceWorkspace]);
+    const finalDeclaration = await runtimeDeclaration(sourceWorkspace);
+    if ((finalDeclaration?.manifestHash || null) !== (current?.manifestHash || null)) throw new RuntimePreparationError('invalid', '预检期间运行能力声明改变', [sourceWorkspace]);
     await prisma.$transaction(async tx => {
+      await requireGraphNodeActiveTx(tx, job.nodeId);
       await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
       const latest = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
       if (!isDeepStrictEqual(fingerprint(latest), before) || latest.status !== job.status) throw new RuntimePreparationError('invalid', '运行资源预检期间归属、候选或 revision 已改变', [sourceWorkspace]);
-      if (await fs.realpath(sourceWorkspace) !== sourceWorkspace || await repositoryIdentity(sourceWorkspace) !== common || await graphGit(sourceWorkspace, 'rev-parse', 'HEAD') !== expectedCommit) throw new RuntimePreparationError('invalid', '预检期间固定源码目录或提交改变', [sourceWorkspace]);
-      const latestTools = await approvedProjectTools({ taskId: args.taskId!, taskRunId: args.taskRunId, executionId: job.id, repository, sourceWorkspace,
-        policyFile: args.projectPolicyFile, permissionConfig: args.permissionConfig, commit: expectedCommit!, declaration: current });
-      if ((latestTools?.policyHash || null) !== (projectTools?.policyHash || null) || !isDeepStrictEqual(latestTools?.approval, projectTools?.approval)) throw new RuntimePreparationError('invalid', '预检期间项目授权改变', [repository]);
-      if ((projectPythonRuntime(sourceWorkspace)?.identity || null) !== (python?.identity || null)) throw new RuntimePreparationError('invalid', '预检期间 Python 环境改变', [sourceWorkspace]);
-      const finalDeclaration = await runtimeDeclaration(sourceWorkspace);
-      if ((finalDeclaration?.manifestHash || null) !== (current?.manifestHash || null)) throw new RuntimePreparationError('invalid', '预检期间运行能力声明改变', [sourceWorkspace]);
+      const ledgerTools = await approvedProjectTools({ taskId: args.taskId!, taskRunId: args.taskRunId, executionId: job.id, repository, sourceWorkspace,
+        policyFile: args.projectPolicyFile, permissionConfig: args.permissionConfig, commit: expectedCommit!, declaration: current },
+        { db: tx, registeredPolicy: latestTools?.registeredPolicy || null });
+      if (!isDeepStrictEqual(ledgerTools, latestTools)) throw new RuntimePreparationError('invalid', '预检期间项目授权或批准身份改变', [repository]);
       const saved = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: key } } });
       if (saved && !isDeepStrictEqual(parsePin(record(saved.payload).snapshot), parsePin({ ...snapshot }))) throw new RuntimePreparationError('invalid', '固定运行资源回执发生竞争或改变', [sourceWorkspace]);
       if (!saved) await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId, kind: 'runtime_snapshot_pinned', idempotencyKey: key,

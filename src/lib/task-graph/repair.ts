@@ -1,3 +1,5 @@
+import { observeTaskRunExit } from './task-run-exit-proof';
+import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { continuationWorkFingerprint } from './continuation-work';
 import { graphGit } from './git-command';
 import { graphRunCanStartTx } from './run-control';
@@ -21,11 +23,14 @@ export async function scheduleGraphRepair(runId: string, nodeKey: string, decisi
     commit: job.commit, tree: await graphGit(job.repository, 'rev-parse', '--verify', `${job.commit}^{tree}`),
     work: await continuationWorkFingerprint(job.id, job.commit),
   } : null] as const)));
+  const writers = await observeWriterSnapshot({ jobs: observedNode.executions, scope: 'review-model' });
+  const exits = new Map(await Promise.all(observed.map(async job => [job.id, job.taskRunId ? await observeTaskRunExit(job.taskRunId) : undefined] as const)));
   return prisma.$transaction(async tx => {
     if (!await graphRunCanStartTx(tx, runId)) return false;
     const found = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, select: { id: true } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${found.id} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: found.id }, include: { executions: true, run: true } });
+    if (!await writerSnapshotMatches(tx, writers)) throw new Error('Repair writer or candidate identity changed');
     if (expectedReview) await assertPendingReviewRepairTx(tx, node.id, expectedReview, decision, evidence);
     if (node.status !== 'attention' || node.executions.some(job => job.status !== 'integrated')) return false;
     const classified = classifyReview({ ...decision, approved: false }, graphReviewChecks(node.run.snapshot as unknown as GraphDefinition, nodeKey, node.executions));
@@ -53,7 +58,7 @@ export async function scheduleGraphRepair(runId: string, nodeKey: string, decisi
       const input = inputs.get(job.id);
       if (!input || input.commit !== job.commit) throw new Error('Repair candidate identity changed');
       const next = await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: token, expectedRevision: progress.revision,
-        outcomeId: `review-repair:${attempt}`, outcome: { kind: 'repair_required', failure: { code: 'in_scope_defect', detail: note, checkId: failureKey, tree: input.tree, fingerprint: createHash('sha256').update(input.work + ':' + failureKey).digest('hex') } } });
+        outcomeId: `review-repair:${attempt}`, outcome: { kind: 'repair_required', failure: { code: 'in_scope_defect', detail: note, checkId: failureKey, tree: input.tree, fingerprint: createHash('sha256').update(input.work + ':' + failureKey).digest('hex') } } }, exits.get(job.id));
       queued ||= next.state === 'ready';
     }
     await tx.taskGraphNode.update({ where: { id: node.id }, data: { passedAt: null } });

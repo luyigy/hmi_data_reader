@@ -275,6 +275,8 @@ export async function reconcileConversationWaits() {
 
 /** A model may request resumption only for this execution's material wait, after the conversation writer exits. */
 export async function handoffConversationMaterials(args: { executionId: string; reservationId: string; expectedRevision: number }) {
+  const before = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
+  const proof = await observeWriterSnapshot({ jobs: [before], scope: 'execution', observeExecution: observeExecutionWriter });
   return prisma.$transaction(async tx => {
     const original = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId } });
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${original.nodeId} FOR UPDATE`;
@@ -283,7 +285,7 @@ export async function handoffConversationMaterials(args: { executionId: string; 
     if (!progress || progress.revision !== args.expectedRevision || job.status !== 'attention' || !job.claimToken ||
       progress.state !== 'waiting_decision' || !['missing_business_material', 'missing_upstream_input'].includes(progress.lastFailure?.code || '') ||
       progress.conversation?.reservationId !== args.reservationId || !progress.candidateCommit || !progress.workspaceBase) throw new Error('Material handoff does not match the current execution wait');
-    if ((await observeExecutionWriter(job)).kind !== 'exited') throw new Error('Original conversation writer has not demonstrably exited');
+    if (!await writerSnapshotMatches(tx, proof)) throw new Error('Original conversation writer has not demonstrably exited');
     const key = `conversation-material-handoff:${args.reservationId}`;
     await tx.taskGraphEvent.create({ data: { runId: job.node.runId, nodeId: job.nodeId, kind: 'implementation_recovery_scheduled', idempotencyKey: key,
       payload: { recoveryKind: 'implementation', requestId: key, targetExecutionId: job.id, executions: [{ id: job.id, key: job.key,
