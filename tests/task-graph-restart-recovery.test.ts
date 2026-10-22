@@ -66,7 +66,7 @@ getHarnessAdapter('codex').execute=async({task,context})=>{
     orphanPid = pid;
     const writer: unknown = Reflect.get(launched, 'writer');
     const exit = once(supervisor, 'exit'); supervisor.kill('SIGKILL'); await exit;
-    assert.equal((await observeGraphWriter(writer)).kind, 'alive', 'Orphaned harness must prevent takeover after coordinator dies');
+    assert.notEqual((await observeGraphWriter(writer)).kind, 'exited', 'A live or uncertain orphan must prevent takeover after coordinator dies');
     let newStarts = 0;
     getHarnessAdapter('codex')!.execute = async ({ context }) => { newStarts++; assert.equal(await fs.readFile(path.join(context.workingDirectory!, 'partial'), 'utf8'), 'preserved'); await fs.writeFile(path.join(context.workingDirectory!, 'done'), 'done'); return { success: true, executionTime: 1, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"recovered","evidence":["done"]}' }; };
     const original = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId } });

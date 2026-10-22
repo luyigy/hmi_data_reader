@@ -1,0 +1,138 @@
+{
+  "baseCommit": "6b8849f",
+  "developmentWorktree": "/tmp/ap-approved-continuation",
+  "developmentBranch": "fix/approved-work-continuation",
+  "plan": "docs/architecture/536_ARCH_20261022_ApprovedWorkContinuationReview.md",
+  "scope": [
+    "Preserve current permission/scope wait cause; ordinary questions clear stale failures; admission clears waiting fields without resetting counters.",
+    "Remove both material category whitelists together; validate reservation inputs and owner/admin authorization at exported admission boundary.",
+    "Restore only causes tied to the current execution/wait; unknown blocks model handoff but not authenticated user continuation.",
+    "Resume the current phase; retain legacy preparation receipts; only the coordinator scan launches normal verification.",
+    "Retain persistent review claims, fixed candidates, revision/CAS, actual writer exit, resource authorization and readonly conversation protection.",
+    "Use generic task materials in prompts and diagnostics; old lifetime counts do not revoke approved work."
+  ],
+  "redRuns": [
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-approved-continuation",
+      "baseline": "6b8849f",
+      "exitCode": 1,
+      "failedAssertions": [
+        "FAIL permission cause survives the real implementation outcome",
+        "FAIL admission clears old wait cause and display without resetting budgets",
+        "FAIL ordinary question clears a previous permission cause",
+        "FAIL operator continues check phase instead of restarting implementation",
+        "FAIL model handoff accepts known nondecision work despite question label",
+        "FAIL model handoff rejects unknown waiting cause",
+        "FAIL model handoff cannot treat unresolved decision as material",
+        "FAIL direct handoff requires its persisted reservation"
+      ]
+    },
+    {
+      "command": "TASK_GRAPH_REVIEW_RETRY_CASE=human npm run test:task-graph-postgres -- task-graph-review-platform-retry",
+      "baseline": "6b8849f",
+      "exitCode": 1,
+      "failure": "恢复阶段已改变，请根据当前阻塞重新继续"
+    }
+  ],
+  "confirmedGreenRuns": [
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-review-platform-retry task-graph-issue-execution",
+      "exitCode": 0,
+      "coverage": "All 10 retry modes; real Git/Bubblewrap forks, joins, review resume and tracker crash reconciliation."
+    },
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-stage-authority task-graph-sandbox-manager project-capabilities-scope-change task-graph-integration-retry task-graph-execution-progress task-graph-natural-blockers task-graph-conversation-delivery",
+      "exitCode": 0
+    },
+    {
+      "command": "TASK_GRAPH_NATIVE_TOPIC=1 NATIVE_TOPIC_EVIDENCE=/tmp/ap-approved-native-evidence.json npm run test:task-graph-postgres -- task-graph-native-topic-continuation",
+      "exitCode": 0,
+      "evidence": "native-topic.json"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "npx tsc --noEmit --pretty false",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run check:long-files",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-review-restart task-graph-acceptance-resume task-graph-restart-recovery task-graph-result-recollection",
+      "exitCode": 0
+    },
+    {
+      "command": "TASK_GRAPH_REVIEW_RETRY_CASE=architecture-platform npm run test:task-graph-postgres -- task-graph-review-platform-retry",
+      "exitCode": 0
+    },
+    {
+      "suite": "task-graph-interactive-conversation",
+      "suiteExitCode": 0,
+      "batchLog": "/tmp/ap-final-critical.log",
+      "note": "Reached the next suite. That batch subsequently failed an immediate writer-exit expectation; the writer suite passed after polling the unchanged fail-closed boundary in the final serial run."
+    },
+    {
+      "command": "npm run test:task-graph-postgres -- task-graph-approved-continuation task-graph-admission task-graph-condition-recheck task-graph-implementation-recovery task-graph-preparation-recovery task-graph-integrated-restart",
+      "exitCode": 0,
+      "newBoundaryAssertions": 14
+    }
+  ],
+  "testFixtureCorrections": [
+    "Interactive regression previously emitted an engineering material blocker but assumed a user question. That triggered an intentional autonomous turn, then mocked assertions failed and spent four platform attempts. The explicit question fixture now uses waiting_for_user; the legacy readonly material handoff is exercised separately.",
+    "Readonly pickup may service another pending node first or defer an uncertain writer; the test polls the real readonly entry instead of assuming one call starts the desired node.",
+    "Acceptance resume baseline expected archived workspaces despite retained native Session references. The test now requires the exact Session cleanup deferral and reads the original saved report, while preserving no-duplicate-review and successor assertions.",
+    "An orphan reported as unknown must block takeover just as a live orphan does. The test forbids exited before killing it, still verifies no new writer starts, then requires actual exit and successful continuation."
+  ],
+  "notDone": [
+    "No deployment, service restart, production ledger mutation, task resume or resource scope expansion.",
+    "No private agents or external room members invoked.",
+    "Skill dependency assembly and production business acceptance remain separate from this continuation repair.",
+    "No push or integration into the running oss-prep checkout."
+  ],
+  "productionReadOnlySnapshot": {
+    "R6_FANUC": "passed at 2026-10-22T12:45:53.320Z",
+    "M6_FANUC": "claimed/implement/active, revision 108 at read time"
+  },
+  "remoteReadOnlySnapshot": {
+    "gitee/oss-prep": "1760fadcdfcb9cd501332e3cf77f2353cbce9421",
+    "luyigy/oss-prep": "1760fadcdfcb9cd501332e3cf77f2353cbce9421",
+    "meaning": "6b8849f was not yet on either remote oss-prep branch at read time."
+  },
+  "modifiedFiles": [
+    "docs/evidence/approved-continuation-20261022/native-topic.json",
+    "docs/evidence/approved-continuation-20261022/verification.json",
+    "scripts/test-task-graph-postgres.mjs",
+    "src/lib/task-graph/architecture-review.ts",
+    "src/lib/task-graph/conversation-followup.ts",
+    "src/lib/task-graph/conversation-inbox.ts",
+    "src/lib/task-graph/conversation-intent.ts",
+    "src/lib/task-graph/conversation-recovery.ts",
+    "src/lib/task-graph/coordinator.ts",
+    "src/lib/task-graph/execution-progress.ts",
+    "src/lib/task-graph/implementation-result.ts",
+    "src/lib/task-graph/preparation-recovery.ts",
+    "src/lib/task-graph/prompts.ts",
+    "src/lib/task-graph/run-doctor.ts",
+    "src/lib/task-graph/waiting-cause.ts",
+    "tests/task-graph-acceptance-resume.test.ts",
+    "tests/task-graph-approved-continuation.test.ts",
+    "tests/task-graph-interactive-conversation.test.ts",
+    "tests/task-graph-issue-execution.test.ts",
+    "tests/task-graph-restart-recovery.test.ts",
+    "tests/task-graph-review-platform-retry.test.ts",
+    "tests/task-graph-review-restart.test.ts"
+  ],
+  "finalWriterRegression": {
+    "command": "npm run test:task-graph-postgres -- task-graph-review-restart task-graph-acceptance-resume task-graph-restart-recovery task-graph-result-recollection",
+    "exitCode": 0
+  },
+  "additionalPassingSuites": [
+    "task-graph-prepared-review",
+    "task-graph-run-doctor"
+  ],
+  "transientWriterChecks": "Early runs observed unknown Writer state during process churn. Production checks were not relaxed. Tests wait for actual exited proof where takeover is expected; alive/unknown continue to block takeover."
+}

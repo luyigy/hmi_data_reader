@@ -12,7 +12,7 @@ import { architectureReviewInstructions } from './prompts';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 
 export async function runArchitectureReview(args: {
-  runId: string; nodeId: string; nodeKey: string; definition: GraphDefinition; reviewAttempt?: string;
+  runId: string; nodeId: string; nodeKey: string; definition: GraphDefinition;
   commits: { repository: string; commit: string }[];
   workspaces: ReviewWorkspace[]; evidence: VerificationEvidence;
 }): Promise<'passed' | 'failed' | 'running'> {
@@ -21,9 +21,8 @@ export async function runArchitectureReview(args: {
   const review = effectiveArchitectureReview(args.definition, node);
   if (!review) return 'passed'; // Runs created before architecture review was introduced.
   const basis = createHash('sha256').update(JSON.stringify(args.commits)).digest('hex').slice(0, 24);
-  const manualAttempt = args.reviewAttempt?.startsWith('recovery:') ? args.reviewAttempt : null;
-  const fallbackClaimKey = `node:${args.nodeKey}:architecture_claimed:${manualAttempt || basis}`;
-  const claimKey = manualAttempt ? fallbackClaimKey : await graphReviewClaimKey(args.nodeId, 'architecture', fallbackClaimKey);
+  const fallbackClaimKey = `node:${args.nodeKey}:architecture_claimed:${basis}`;
+  const claimKey = await graphReviewClaimKey(args.nodeId, 'architecture', fallbackClaimKey);
   const resultKey = `node:${args.nodeKey}:architecture_result:${createHash('sha256').update(claimKey).digest('hex').slice(0, 24)}`;
   const existing = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: args.runId, idempotencyKey: resultKey } } });
   if (existing) return (existing.payload as { approved?: boolean }).approved === true ? 'passed' : 'failed';

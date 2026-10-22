@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { graphRecoveryKind, isRecord, type RecoveryKind } from './implementation-result';
+import { graphRecoveryKind, type RecoveryKind } from './implementation-result';
 import { prisma } from '../prisma';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
@@ -69,7 +69,7 @@ export async function startConversationRecoveries(recover: (runId: string, nodeK
     const completed = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: request.runId, idempotencyKey: key + ':finished' } } });
     if (completed) continue;
     scheduled.add(node.id);
-    const recoveryKind = isRecord(request.payload) && request.payload.recoveryKind === 'implementation' ? 'implementation' : 'verification';
+    const recoveryKind = await graphRecoveryKind(node.id);
     const promise = (async () => {
       try { await recover(request.runId, node.key, recoveryKind, request.id); }
       catch (error) {

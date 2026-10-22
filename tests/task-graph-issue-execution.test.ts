@@ -161,7 +161,7 @@ async function main() {
         await assert.rejects(scheduleVerificationRecovery(run.id, 'B', 'competing-request'), /identity.changed|node_not_waiting/);
         assert.equal(executionProgress(saved.dispatchMetadata)?.platformAttempts, executionProgress(beforeRecovery.dispatchMetadata)?.platformAttempts);
         // No direct recover/verify call in this process. Only the ordinary cycle may continue.
-      } else assert.ok(reviews.filter(key => key === 'B').length >= 2, 'An accepted recovery must launch the new review after the previous in-flight review drains');
+      } else assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'B' } } })).status, 'verifying', 'An accepted recovery is picked up by the ordinary verification scan');
     } else await recoverTaskGraphNodeVerification(run.id, 'B');
     await until('recovery-and-join', async () => (await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status === 'completed');
     await checkpoint('completed');

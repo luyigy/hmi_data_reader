@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { getHarnessAdapter } from '../src/lib/harness';
-import { runTaskGraphCycle, startTaskGraphCoordinator, recoverTaskGraphNodeVerification } from '../src/lib/task-graph/coordinator';
+import { runTaskGraphCycle, startTaskGraphCoordinator, recoverTaskGraphNode, recoverTaskGraphNodeVerification } from '../src/lib/task-graph/coordinator';
 import { observeTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { executionProgress } from '../src/lib/task-graph/execution-progress';
 import { TaskInputPreparationError } from '../src/lib/task-graph/upstream-inputs';
@@ -124,8 +124,16 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } }), 0);
     if (human) {
       const budgets = after.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts);
-      getHarnessAdapter('kimi-code')!.execute = async () => ({ success: true, executionTime: 1, output: 'TASK_GRAPH_REVIEW {"approved":true,"note":"authorized decision supplied"}' });
-      await recoverTaskGraphNodeVerification(run.id, 'BOTH');
+      getHarnessAdapter('kimi-code')!.execute = async () => { acceptanceStarts++; return { success: true, executionTime: 1, output: 'TASK_GRAPH_REVIEW {"approved":true,"note":"authorized decision supplied"}' }; };
+      const startsBefore = architectureStarts + acceptanceStarts;
+      await recoverTaskGraphNode(run.id, 'BOTH', 'implementation', 'stale-implementation-stamp');
+      assert.equal(architectureStarts + acceptanceStarts, startsBefore, 'Admission commits readiness; only a later coordinator scan starts verification');
+      assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status, 'verifying');
+      for (let n = 0; n < 100; n++) {
+        await runTaskGraphCycle(); const idle = new AbortController(); idle.abort(); await startTaskGraphCoordinator(idle.signal);
+        if ((await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status === 'passed') break;
+      }
+      assert.equal(architectureStarts + acceptanceStarts, startsBefore + 1, 'The admitted fixed candidate is reviewed exactly once');
       const resumed = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
       assert.equal(resumed.status, 'passed');
       assert.deepEqual(resumed.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts), budgets, 'Authorized review resume preserves retry budgets');

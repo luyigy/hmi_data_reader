@@ -62,7 +62,7 @@ export async function pauseGraphImplementation(args: {
     executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,
     outcomeId: `${args.claimToken}:${progress.revision}:engineering-work`,
     outcome: ['permission_required', 'scope_change'].includes(args.result.blockerKind)
-      ? { kind: 'waiting_for_user', note: args.result.note }
+      ? { kind: 'waiting_for_user', note: args.result.note, failure: { code: args.result.blockerKind, detail: args.result.note, blockedPhase: 'implementation', owner: 'user', requiresUserDecision: true } }
       : { kind: 'continue_work', note: args.result.note, fingerprint: await continuationWorkFingerprint(args.executionId, args.checkpointCommit) },
   });
   if (progress) return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken,

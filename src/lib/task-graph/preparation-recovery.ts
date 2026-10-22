@@ -25,7 +25,8 @@ import { ensureJobWorktree } from './worktree';
 import { withRepositoryLock } from './repository-lock';
 import { maxUnchangedWorkTurns } from './retry-limits';
 import type { ExecutionPhase, ExecutionProgress } from './execution-progress';
-import { pendingConversationInputs, authorizedConversationInput } from './conversation-inbox';
+import { pendingConversationInputs, authorizedConversationInput, authorizedMaterialHandoffInput } from './conversation-inbox';
+import { currentWaitCause } from './waiting-cause';
 import { assertPreparationTx } from './preparation-contract';
 import { observeTaskRunWriter } from './writer-ownership';
 
@@ -53,8 +54,14 @@ async function approvedScopeChange(job: TaskGraphExecution) {
         { kind: 'implementation_blocked' }, { payload: { path: ['outcome', 'kind'], equals: 'decision_required' } },
         { payload: { path: ['outcome', 'kind'], equals: 'waiting_for_user' } } ] } ] }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   if (!decision) return false;
-  return await prisma.taskGraphEvent.count({ where: { nodeId: job.nodeId, kind: 'project_capability_scope_approved', createdAt: { gt: decision.createdAt },
-    payload: { path: ['executionId'], equals: job.id } } }) > 0;
+  // A later timestamp is not proof that the same resource/saved candidate was approved.
+  if (!job.childTaskId || !job.worktreePath || executionProgress(job.dispatchMetadata)?.lastFailure?.code === 'scope_change') return false;
+  const { projectCapabilityContext } = await import('../project-capabilities/context');
+  const context = await projectCapabilityContext({ taskId: job.childTaskId, workspace: job.worktreePath, executionId: job.id }).catch(() => null);
+  if (!context?.approval || context.approval.kind !== 'change' || context.approval.originalClaim !== job.claimToken ||
+      context.approval.candidateCommit !== executionProgress(job.dispatchMetadata)?.candidateCommit) return false;
+  const approval = await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: context.approval.id } });
+  return approval.createdAt > decision.createdAt;
 }
 
 function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeApproved = false): string | undefined {
@@ -205,11 +212,26 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
     const hold = admissionHold(progress, wake, resolvedScopes.has(job.id));
     if (hold) { lastReason = hold; continue; }
     if (!['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) && !(job.status === 'integrated' && ['architecture', 'acceptance'].includes(progress.phase) && ['active', 'ready'].includes(progress.state))) { lastReason = 'not_waiting'; continue; }
-    if (wake.source === 'materials' && (progress.revision !== wake.expectedRevision || progress.conversation?.reservationId !== wake.reservationId ||
-        !['missing_business_material', 'missing_upstream_input'].includes(progress.lastFailure?.code || ''))) { lastReason = 'material_reservation_changed'; continue; }
+    if (wake.source === 'materials' && (progress.revision !== wake.expectedRevision || progress.conversation?.reservationId !== wake.reservationId)) { lastReason = 'material_reservation_changed'; continue; }
+    if (wake.source === 'materials') {
+      const reservation = await prisma.taskGraphEvent.findFirst({ where: { id: wake.reservationId, nodeId, runId: node.runId, kind: 'conversation_followup_reserved' } });
+      const payload = reservation?.payload;
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || payload.executionId !== job.id ||
+          !Array.isArray(payload.inputIds) || !payload.inputIds.length || !payload.inputIds.every((id): id is string => typeof id === 'string') || !job.childTaskId) {
+        lastReason = 'material_reservation_changed'; continue;
+      }
+      const { conversationInputsByIds } = await import('./conversation-inbox');
+      const inputs = await conversationInputsByIds(prisma, node.runId, job.id, payload.inputIds);
+      if (inputs.length !== payload.inputIds.length || !(await Promise.all(inputs.map(input => authorizedMaterialHandoffInput(input, job.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) {
+        lastReason = 'input_not_authorized'; continue;
+      }
+      const cause = await currentWaitCause(job, progress);
+      if (!cause) { lastReason = 'unknown_wait_cause'; continue; }
+      if (cause.requiresUserDecision || ['permission_required', 'scope_change'].includes(cause.code)) { lastReason = 'human_input_required'; continue; }
+    }
     if (wake.source === 'conversation') {
       const inputs = await pendingConversationInputs(prisma, node.runId, job.id);
-      if (inputs.map(input => input.id).join() !== wake.inputIds.join() || !job.childTaskId ||
+      if (!inputs.length || inputs.map(input => input.id).join() !== wake.inputIds.join() || !job.childTaskId ||
           !(await Promise.all(inputs.map(input => authorizedConversationInput(input, job.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) {
         lastReason = 'input_not_authorized'; continue;
       }
@@ -254,6 +276,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       if (isReview) break;
     }
   }
+  if (wholeReview && observations.length && observations.length !== node.executions.length) return { kind: 'deferred', reason: 'review_generation_not_ready' };
   if (!observations.length) return { kind: ['conditions_unchanged', 'work_unchanged'].includes(lastReason) ? 'unchanged' : 'deferred', reason: lastReason };
   return prisma.$transaction(async tx => {
     await requireGraphRunActiveTx(tx, node.runId);
@@ -282,9 +305,22 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       if (inputs.map(input => input.id).join() !== wake.inputIds.join() ||
           !(await Promise.all(inputs.map(input => authorizedConversationInput(input, observations.find(entry => entry.job.id === input.executionId)!.job.childTaskId!, owner.ownerUserId, tx)))).every(Boolean)) return { kind: 'deferred', reason: 'input_identity_changed' };
     }
+    if (wake.source === 'materials') {
+      const owner = await tx.task.findUniqueOrThrow({ where: { id: current.run.parentTaskId }, select: { ownerUserId: true } });
+      if (owner.ownerUserId !== node.run.parentTask.ownerUserId) return { kind: 'deferred', reason: 'input_owner_changed' };
+      const reservation = await tx.taskGraphEvent.findUnique({ where: { id: wake.reservationId } });
+      const payload = reservation?.payload;
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Array.isArray(payload.inputIds) ||
+          !payload.inputIds.every((id): id is string => typeof id === 'string')) return { kind: 'deferred', reason: 'material_reservation_changed' };
+      const { conversationInputsByIds } = await import('./conversation-inbox');
+      for (const { job } of observations) {
+        const inputs = await conversationInputsByIds(tx, node.runId, job.id, payload.inputIds);
+        if (inputs.length !== payload.inputIds.length || !(await Promise.all(inputs.map(input => authorizedMaterialHandoffInput(input, job.childTaskId!, owner.ownerUserId, tx)))).every(Boolean)) return { kind: 'deferred', reason: 'input_identity_changed' };
+      }
+    }
     for (const entry of observations) {
       const { job, progress, exit, review } = entry;
-      const phase: ExecutionPhase = review ? progress.phase : wake.source === 'conditions' ? progress.phase : 'implement';
+      const phase: ExecutionPhase = progress.phase;
       await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
         outcomeId: `admit:${wake.source}:${wake.id}:${progress.revision}`, outcome: { kind: 'admitted', requestId: wake.id,
           stage: review ? { kind: 'review', phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: `admit:${wake.id}` }

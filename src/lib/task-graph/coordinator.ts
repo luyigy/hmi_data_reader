@@ -149,19 +149,19 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
 }
 
 const nodeVerifications = new Map<string, Promise<void>>();
-function verifyNode(runId: string, nodeKey: string, reviewAttempt?: string): Promise<void> {
+function verifyNode(runId: string, nodeKey: string): Promise<void> {
   const key = `${runId}/${nodeKey}`;
   const active = nodeVerifications.get(key);
   if (active) return active;
   const pending = (async () => {
     const ownership = await registerGraphReviewWorker(runId, nodeKey);
-    try { await verifyNodeOnce(runId, nodeKey, reviewAttempt, ownership?.worker.nonce); }
+    try { await verifyNodeOnce(runId, nodeKey, ownership?.worker.nonce); }
     finally { if (ownership) await releaseGraphReviewWorker(ownership.nodeId, ownership.worker.nonce); }
   })().finally(() => nodeVerifications.delete(key));
   nodeVerifications.set(key, pending);
   return pending;
 }
-async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: string, writerNonce?: string) {
+async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: string) {
   const node = await markNodeIntegrationsReady(runId, nodeKey);
   if (!node || node.status !== 'verifying') return;
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true, parentTaskId: true } });
@@ -226,7 +226,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     return;
   }
   const generation = node.executions.map(job => executionProgress(job.dispatchMetadata)?.review).find(binding => binding?.kind === 'ready')?.claimKey;
-  const verificationAttempt = reviewAttempt || generation || `candidate:${createHash('sha256').update(JSON.stringify(commits)).digest('hex').slice(0, 24)}`;
+  const verificationAttempt = generation || `candidate:${createHash('sha256').update(JSON.stringify(commits)).digest('hex').slice(0, 24)}`;
   let reviewDecision: ReviewDecision = {};
   let reviewOwner: ReviewPublication | undefined;
   const evidence: VerificationEvidence = {
@@ -238,7 +238,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     summary: `已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
   };
   const architecture = await runArchitectureReview({
-    runId, nodeId: node.id, nodeKey, definition, commits, workspaces, evidence, reviewAttempt,
+    runId, nodeId: node.id, nodeKey, definition, commits, workspaces, evidence,
   }).catch(async error => {
     const detail = error instanceof Error ? error.message : String(error);
     if (await graphRunIsPaused(runId)) return;
@@ -273,8 +273,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     const review = policy.reviewLaunchConfig as { participant?: AcpxParticipantRequest } | undefined;
     if (!review?.participant || !policy.reviewerId) throw new Error(`Review agent missing for ${nodeKey}`);
     const fallbackClaimKey = `node:${nodeKey}:review_claimed:${verificationAttempt}`;
-    const claimKey = reviewAttempt?.startsWith('recovery:') ? fallbackClaimKey : await graphReviewClaimKey(node.id, 'acceptance', fallbackClaimKey);
-    const claimed = await reserveGraphReviewClaim({ runId, nodeId: node.id, phase: 'acceptance', claimKey, payload: reviewAttempt ? { attempt: reviewAttempt } : {} });
+    const claimKey = await graphReviewClaimKey(node.id, 'acceptance', fallbackClaimKey);
+    const claimed = await reserveGraphReviewClaim({ runId, nodeId: node.id, phase: 'acceptance', claimKey, payload: { attempt: verificationAttempt } });
     if (!claimed && !await completedGraphReviewTaskRun(node.id, 'acceptance', claimKey)) return;
     const recordedRuntime = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: claimKey + ':runtime' } } });
     const recordedDirectory = recordedRuntime && isRecord(recordedRuntime.payload) && typeof recordedRuntime.payload.directory === 'string' ? recordedRuntime.payload.directory : undefined;
@@ -374,12 +374,11 @@ async function verifyNodeOnce(runId: string, nodeKey: string, reviewAttempt?: st
     .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
 }
 
-export async function recoverTaskGraphNode(runId: string, nodeKey: string, recoveryKind: 'implementation' | 'verification', requestId: string) {
+export async function recoverTaskGraphNode(runId: string, nodeKey: string, _recoveryKind: 'implementation' | 'verification', requestId: string) {
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
   try {
     const actual = await graphRecoveryKind(node.id);
-    if (actual !== recoveryKind) throw new Error('恢复阶段已改变，请根据当前阻塞重新继续');
-    if (recoveryKind === 'implementation') {
+    if (actual === 'implementation') {
       await scheduleImplementationRecovery(runId, nodeKey, requestId);
       return;
     }
@@ -408,9 +407,6 @@ export async function recoverTaskGraphNodeVerification(runId: string, nodeKey: s
   });
   if (activeReview) throw new Error(`${nodeKey} verification is already running`);
   await scheduleVerificationRecovery(runId, nodeKey, requestId);
-  const active = nodeVerifications.get(`${runId}/${nodeKey}`);
-  if (active) await active;
-  await verifyNode(runId, nodeKey);
   return prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
 }
 
@@ -427,7 +423,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
   const outcome = async (result: ExecutionOutcome) => {
     const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
     const progress = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
-    if (['repair_required', 'result_incomplete', 'platform_retry'].includes(result.kind) && 'failure' in result && progress.candidateCommit) {
+    if (['repair_required', 'result_incomplete', 'platform_retry'].includes(result.kind) && 'failure' in result && result.failure && progress.candidateCommit) {
       const work = await continuationWorkFingerprint(execution.id, progress.candidateCommit);
       result = { ...result, failure: { ...result.failure,
         tree: await graphGit(execution.repository, 'rev-parse', '--verify', `${progress.candidateCommit}^{tree}`),
@@ -629,7 +625,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     void postGraphParentProgress(graphRun.parentTaskId, runId,
       `${nodeKey}/${execution.key} 已集成 ${integrated.commit.slice(0, 12)}`)
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
-    await verifyNode(runId, nodeKey, checkpoint ? `continuation:${claimToken}` : repair ? `repair:${repair.id}` : undefined);
+    await markNodeIntegrationsReady(runId, nodeKey);
   } catch (error) {
     if (await graphRunIsPaused(runId)) return;
     const detail = error instanceof Error ? error.message : String(error);

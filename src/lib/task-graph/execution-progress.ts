@@ -41,7 +41,7 @@ export type ExecutionOutcome =
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
-  | { kind: 'waiting_for_user'; note: string; result?: 'question' | 'answered' }
+  | { kind: 'waiting_for_user'; note: string; result?: 'question' | 'answered'; failure?: ExecutionFailure }
   | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string; phase?: 'architecture' | 'acceptance' }
   | { kind: 'delivery_reclassified'; authorization: string; failure: ExecutionFailure }
   | { kind: 'decision_required'; failure: ExecutionFailure }
@@ -218,13 +218,13 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     } else if (outcome.kind === 'admitted') {
       if (!admission || !outcome.requestId.trim() || before.state === 'ownership_attention') throw new Error('Invalid admission identity');
       progress.phase = outcome.stage.phase;
+      delete progress.lastFailure; delete progress.waitingKind; delete progress.waitingMessage; delete progress.conversation;
       if (outcome.stage.kind === 'review') {
         if (!current.commit || !['architecture', 'acceptance'].includes(before.phase)) throw new Error('Admission requires fixed review candidate');
         status = 'integrated'; progress.review = { kind: 'ready', phase: outcome.stage.phase, candidateCommit: current.commit, claimKey: outcome.stage.claimKey };
       } else {
         if (['architecture', 'acceptance'].includes(before.phase)) throw new Error('Review cannot be admitted as implementation');
         status = 'ready'; progress.state = 'ready'; delete progress.review;
-        delete progress.waitingKind; delete progress.waitingMessage;
       }
     } else if (outcome.kind === 'continue_work') {
       if (!['implement', 'collect_result'].includes(before.phase) || !/^[a-f0-9]{64}$/.test(outcome.fingerprint) || !outcome.note.trim()) throw new Error('Invalid normal work continuation');
@@ -239,6 +239,8 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     } else if (outcome.kind === 'waiting_for_user') {
       if (!['implement', 'collect_result'].includes(before.phase)) throw new Error('Only implementation turns may wait for user input');
       status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingMessage = outcome.note; progress.waitingKind = outcome.result || 'question';
+      if (outcome.failure) progress.lastFailure = completeExecutionFailure(outcome.failure);
+      else delete progress.lastFailure;
     } else if (outcome.kind === 'delivery_reclassified') {
       status = 'attention'; issueKind = outcome.failure.code; progress.phase = 'implement'; progress.state = 'waiting_decision';
       progress.lastFailure = completeExecutionFailure(outcome.failure); delete progress.review;

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { initialExecutionProgress, executionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
-import { bindGraphReviewTaskRun, graphReviewClaimKey, completedGraphReviewTaskRun, assertGraphReviewOwnership } from '../src/lib/task-graph/review-ownership';
+import { reserveGraphReviewClaim, bindGraphReviewTaskRun, graphReviewClaimKey, completedGraphReviewTaskRun, assertGraphReviewOwnership } from '../src/lib/task-graph/review-ownership';
 import { recoverGraphReview } from '../src/lib/task-graph/restart-recovery';
 import { registerGraphReviewWorker, releaseGraphReviewWorker, assertExecutionWriterExited } from '../src/lib/task-graph/phase-worker';
 import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
@@ -25,9 +25,27 @@ async function main() {
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'verifying' } });
     for (const job of node.executions) await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', commit, claimToken: job.id,
       dispatchMetadata: metadataWithProgress({}, { ...initialExecutionProgress(), phase, candidateCommit: commit, workspaceBase: commit }) } });
-    let claimKey = `${phase}:repair:first`;
+    const recoverReady = async () => {
+      for (let n = 0; n < 100; n++) {
+        const result = await recoverGraphReview(node.id);
+        if (result !== 'waiting') return result;
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      return 'waiting';
+    };
+    let claimKey = `admit:${phase}:durable-wake`;
     const eventKind = phase === 'architecture' ? 'architecture_claimed' : 'review_claimed';
-    await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: eventKind, idempotencyKey: claimKey, payload: {} } });
+    // Simulate admission committed but coordinator exited before starting the reviewer.
+    for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
+      const progress = executionProgress(job.dispatchMetadata); assert(progress);
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
+        { ...progress, review: { kind: 'ready', claimKey, phase, candidateCommit: commit } }) } });
+    }
+    assert.equal(await recoverReady(), 'ready');
+    assert.equal(await graphReviewClaimKey(node.id, phase, 'wrong-fallback'), claimKey);
+    const claims = await Promise.all([1, 2].map(() => reserveGraphReviewClaim({ runId: run.id, nodeId: node.id, phase, claimKey, payload: {} })));
+    assert.equal(claims.filter(Boolean).length, 1, 'Concurrent coordinators reserve exactly one durable admission claim');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, idempotencyKey: claimKey } }), 1);
     for (const job of await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } })) {
       const progress = executionProgress(job.dispatchMetadata); assert(progress);
       await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
@@ -38,7 +56,7 @@ async function main() {
       const progress = executionProgress(job.dispatchMetadata); assert(progress);
       await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata, { ...progress, worker: departed }) } });
     }
-    assert.equal(await recoverGraphReview(node.id), 'ready', 'Exited reserved prelaunch claim receives a fresh generation without TaskRun binding');
+    assert.equal(await recoverReady(), 'ready', 'Exited reserved prelaunch claim receives a fresh generation without TaskRun binding');
     const prelaunchKey = await graphReviewClaimKey(node.id, phase, 'initial'); assert.notEqual(prelaunchKey, claimKey);
     claimKey = prelaunchKey;
     await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: eventKind, idempotencyKey: claimKey, payload: {} } });
@@ -52,7 +70,7 @@ async function main() {
     assert.equal(await recoverGraphReview(node.id), 'waiting', 'A terminal TaskRun does not prove its writer exited');
     assert.equal(await completedGraphReviewTaskRun(node.id, phase, claimKey), null);
     await prisma.taskRun.update({ where: { id: oldRun.id }, data: { status: 'running', controlMetadata: JSON.stringify({ graphWriter: departed }) } });
-    assert.equal(await recoverGraphReview(node.id), 'ready');
+    assert.equal(await recoverReady(), 'ready');
     const replacement = await graphReviewClaimKey(node.id, phase, 'initial');
     assert.notEqual(replacement, claimKey);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, idempotencyKey: claimKey } }), 1, 'Historical claim is retained');
@@ -72,7 +90,7 @@ async function main() {
     await releaseGraphReviewWorker(node.id, phaseWorker.worker.nonce);
     assert.equal(executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: released.id } })).dispatchMetadata)?.revision,
       executionProgress(released.dispatchMetadata)?.revision, 'Repeated phase release is idempotent');
-    assert.equal(await recoverGraphReview(node.id), 'ready', 'Explicit phase cleanup permits same-daemon saved review pickup');
+    assert.equal(await recoverReady(), 'ready', 'Explicit phase cleanup permits same-daemon saved review pickup');
     await prisma.taskGraphExecution.update({ where: { id: node.executions[0].id }, data: { commit: 'b'.repeat(40) } });
     assert.equal(await graphReviewClaimKey(node.id, phase, 'new-combination'), 'new-combination', 'Reader-only repair starts a fresh combination while model retains old evidence');
     assert.equal(await completedGraphReviewTaskRun(node.id, phase, replacement), null);

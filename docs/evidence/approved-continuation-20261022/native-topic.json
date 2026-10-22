@@ -1,0 +1,28 @@
+{
+  "transport": "persisted original Topic message fixture, not a live Feishu user message",
+  "harness": "real Codex adapter and configured model, no response fixture",
+  "runId": "cmvjkpfoe0005rvikks54frof",
+  "executionId": "cmvjkpfof0007rvikp05ypxt8",
+  "roomId": "cmvjkpoy0003grvikvl3qr6i3",
+  "roomMessageId": "cmvjkpoy4003irviki49t9pqc",
+  "turns": [
+    {
+      "kind": "execute",
+      "returnedSession": "01a163c9-571c-7e11-bf64-5c8b1daaf962",
+      "success": true
+    },
+    {
+      "kind": "resume",
+      "requestedSession": "01a163c9-571c-7e11-bf64-5c8b1daaf962",
+      "returnedSession": "01a163c9-571c-7e11-bf64-5c8b1daaf962",
+      "success": true
+    }
+  ],
+  "code": "module.exports = () => 42;\n",
+  "commit": "9aa1b3debe4759fbdd2a9b84aa546864032ab952",
+  "diff": "commit 9aa1b3debe4759fbdd2a9b84aa546864032ab952\nAuthor:     Agent Platform <agent-platform@localhost>\nAuthorDate: Thu Oct 22 21:25:48 2026 +0800\nCommit:     Agent Platform <agent-platform@localhost>\nCommitDate: Thu Oct 22 21:25:48 2026 +0800\n\n    Task graph candidate WORK/code\n\ndiff --git a/answer.js b/answer.js\nindex 125f2f5..e9f55a0 100644\n--- a/answer.js\n+++ b/answer.js\n@@ -1 +1 @@\n-module.exports = () => null;\n+module.exports = () => 42;",
+  "checksPassed": true,
+  "recoveryCommands": 0,
+  "sameWorktree": true,
+  "originalNativeSession": "01a163c9-571c-7e11-bf64-5c8b1daaf962"
+}

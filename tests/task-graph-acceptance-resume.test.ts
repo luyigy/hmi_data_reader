@@ -66,9 +66,9 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd,'src/lib/task-g
     assert.equal(implementationStarts,1,'Only successor starts after restart');assert.equal(reviewerStarts,0);
     const after=await prisma.taskGraphEvent.findMany({where:{nodeId:node.id,kind:'acceptance_runtime_prepared'}});assert.equal(after.length,1);assert.deepEqual(after[0],receipt,'Original receipt and runtime evidence are reused');
     assert.equal(await prisma.taskRun.count({where:{taskId:`task-graph-review-${node.id}`}}),1);
-    const archive=await prisma.taskGraphEvent.findFirstOrThrow({where:{nodeId:node.id,kind:'validation_workspace_cleaned'}});
-    const manifest=JSON.parse(await fs.readFile(path.join((archive.payload as {directory:string}).directory,'manifest.json'),'utf8'));
-    assert.ok(manifest.files.some((file:{path:string})=>file.path.endsWith('saved-report.txt')),'Original completed reviewer report survives archive');
+    const retained = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: 'workspace_cleanup_deferred' } });
+    assert.match(JSON.stringify(retained.payload), /Task or Session still references/, 'Live native Session references keep the original worktree');
+    assert.equal(await fs.readFile(path.join(directory, 'saved-report.txt'), 'utf8'), 'original evidence', 'Saved reviewer report remains readable at its original receipt');
     console.log('Actual coordinator death after completed acceptance consumes saved result, preserves runtime receipt/report, starts successor without another Agent or human resume');
   } finally { if(child&&child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');globalThis.fetch=fetch;await prisma.$disconnect();await fs.rm(root,{recursive:true,force:true}); }
 }

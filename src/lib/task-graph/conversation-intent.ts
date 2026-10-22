@@ -1,4 +1,4 @@
-import { isRecord } from './implementation-result';
+import { graphRecoveryKind } from './implementation-result';
 import { prisma } from '../prisma';
 import { replyFeishuMessage } from '../feishu-api';
 import { requestGraphConversationRecovery } from './conversation-recovery';
@@ -13,10 +13,10 @@ export async function handleGraphConversationIntent(args: GraphContinuationInput
       { metadata: { contains: JSON.stringify({ feishuSenderOpenId: args.openId }).slice(1, -1) } }] } });
   if (!origin) throw new Error('恢复控制缺少可核验的原始用户消息');
   const event = await requestGraphConversationRecovery(args);
-  const payload = isRecord(event.payload) ? event.payload : {};
+  const recoveryKind = event.nodeId ? await graphRecoveryKind(event.nodeId) : null;
   const text = event.kind === 'conversation_review_already_running' ? '原任务正在执行，不会重复启动。'
     : event.kind === 'conversation_review_already_complete' ? '原任务已经交付，保留现有验收状态。'
-    : payload.recoveryKind === 'implementation' ? '已登记接回原任务实施，平台核验当前保存点和写入者归属。' : '已登记接回原任务验收。';
+    : recoveryKind === 'implementation' ? '已登记接回原任务实施，平台核验当前保存点和写入者归属。' : '已登记接回原任务验收。';
   const binding = await prisma.feishuConversationBinding.findFirst({ where: { liveRoomId: args.roomId, chatId: args.chatId }, select: { chatType: true, threadId: true } });
   await replyFeishuMessage({ messageId: args.messageId, msgType: 'text', content: { text },
     replyInThread: (args.chatType || binding?.chatType) !== 'p2p' || !!(args.threadId || binding?.threadId), uuid: `graph-continue-${event.id}` });

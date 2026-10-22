@@ -59,10 +59,11 @@ export function diagnoseExecution(args: {
   }) : [];
   const gates: Record<string, Fact> = {
     dependencies: args.dependencies, approval: args.approval,
+    waitCause: failure ? unverified('账本保留结构化原因；本次只读诊断尚未核实其等待轮次归属及具体业务缺项。') : unverified('没有当前结构化等待原因；不能推断需要新的恢复审批。'),
     environment: unverified('只读检查不运行浏览器、OCR或业务检查；环境齐备尚未证明。'),
-    materials: unverified('未核验不可变Reader包、身份字段、样本引用和page_id；Agent缺项陈述不是材料确实缺失的证明。'),
+    materials: unverified('未核验任务材料、交付物及其引用合同；Agent缺项陈述不是材料确实缺失的证明。'),
     snapshotRowBinding: unverified('当前派发字段与冻结快照的对应关系见节点snapshotBinding；不能仅由快照hash推定。'),
-    recoveryAuthorization: unverified('获批路线不等于本次恢复授权；本命令不申请恢复或重置预算。'),
+    recoveryAuthorization: unverified('已批准范围内的普通继续不要求新的恢复审批；本命令未核验当前阶段、Writer与资源边界。'),
     writer: !writer ? unverified('未领取执行没有旧写入者接管证明。') : writer.observation.kind === 'exited'
       ? verified('实际写入者探针确认退出。') : { state: writer.observation.kind === 'unknown' ? 'not_verified' : 'failed', evidence: JSON.stringify(writer.observation) },
     issueFreshness: unverified(`${sources.issue} 的实时Issue校验未执行，因为原接口会写入状态和发通知。`),
@@ -89,11 +90,11 @@ export function diagnoseExecution(args: {
   if (isCompletedNodeStatus(nodeStatus)) return classify('completed', '保留验收证据，供下游读取。', '下游依赖释放', sources.release);
   if (args.dependencies.state !== 'verified') return classify('waiting_dependencies', '等待列出的前置节点完成；不作为本节点自身失败。', 'planned → ready', sources.release);
   if (progress?.state === 'waiting_for_user') {
-    result.owner = 'user'; result.failure = null;
+    result.owner = failure ? failure.requiresUserDecision ? 'user' : 'implementer' : 'unknown';
     return classify('waiting_for_user', progress.waitingMessage || '在原话题回复，平台接回原会话。', '原话题新输入 → 原执行者下一轮', 'src/lib/task-graph/conversation-inbox.ts#reconcileConversationWaits');
   }
-  if (progress?.state === 'exhausted' || job.issueKind === 'retry_exhausted') return classify('budget_exhausted', '平台运维提供新的修复措施和授权；保留现场，不重置预算。', '新措施审核后执行专用恢复', sources.outcome,
-    '当前持久化state=exhausted或issueKind=retry_exhausted，普通继续不能恢复。');
+  if (progress?.state === 'exhausted' || job.issueKind === 'retry_exhausted') return classify('budget_exhausted', '保留计数与现场；协调器核对条件变化、无进展退避及执行边界后接续已批准工作。', '条件变化或用户输入 → admitNode', sources.outcome,
+    '当前保留历史重试耗尽事实；不能据此判断已批准工作失去继续资格。');
   if (progress?.state === 'ownership_attention' || writer?.observation.kind === 'unknown') return classify('writer_unknown', '保留工作区，核对探针证据，确认旧写入者退出后才接管。', '证明原写入者已退出', 'src/lib/task-graph/phase-worker.ts#assertExecutionWriterExited',
     writer?.observation.kind === 'unknown' ? writer.observation.reason : '持久化归属状态要求平台核对。');
   if (job.status === 'claimed' && writer?.observation.kind === 'alive') {
@@ -103,14 +104,14 @@ export function diagnoseExecution(args: {
   if (nodeStatus === 'awaiting_human') { result.owner = 'user'; return classify('decision', '查看节点验收证据及明确的人工作业要求。', '人工作出验收决定', 'src/lib/task-graph/store.ts#submitNodeVerification'); }
   if (job.status === 'integrated' || nodeStatus === 'verifying') return classify('review', '协调器接续架构复核与独立验收，检查复核TaskRun是否仍存活。', 'claimed+all integrated → verifying → passed', 'src/lib/task-graph/restart-recovery.ts#recoverGraphReview');
   const paused = job.status === 'attention' || progress?.state === 'waiting_decision';
-  const gap = paused ? 'attention/waiting_decision不会由runTaskGraphCycle自动领取；需显式scheduleImplementationRecovery或专用回修入口。' : undefined;
+  const gap = paused ? 'attention/waiting_decision由admitNode核对当前条件；本只读诊断未执行放行，不能证明已接续。' : undefined;
   if (paused && failure?.code === 'missing_business_material') return classify('business_material', '平台核验下方缺项陈述、批准的原图来源及责任方，列出已查路径和仍缺证据；不得直接要求用户补图。', '核验来源 → 补材料或纠正误报 → 恢复', sources.recovery, gap);
   if (paused && /test_failed|check_failed|in_scope_defect|architecture_failed|integration_conflict/.test(failure?.code || '')) return classify('code_defect', failure?.code === 'integration_conflict'
     ? '原实施者按受控冲突计划有限回修，保留双方提交与现场。' : '交回原实施者有限回修，重跑受影响检查。', 'repair_required → ready → claimExecution', sources.outcome, gap);
-  if (paused && (failure?.requiresUserDecision === true || failure?.code === 'scope_change' || failure?.code === 'permission_required')) { result.owner = failure.owner || 'user'; return classify('decision', failure.action || '平台说明具体选项、影响和决定负责人。', '明确授权决定 → 对应恢复入口', sources.outcome, gap); }
+  if (paused && (failure?.requiresUserDecision === true || failure?.code === 'scope_change' || failure?.code === 'permission_required')) { result.owner = failure.owner || 'user'; return classify('decision', failure.action || '平台说明具体选项、影响和决定负责人。', '用户输入 → 继续已批准工作；新增权限仍需正式批准', sources.outcome, gap); }
   if (paused) return classify('platform_recoverable', failure?.code === 'missing_upstream_input'
-    ? '平台对照已通过前置提交与固定Reader包，核验正式身份、样本引用和page_id合同；准备齐备后沿原预算申请恢复。'
-    : '平台核验环境及候选提交，准备措施发生变化后按原预算接续；当前准备度未验证。', '准备证据 → 已授权恢复 → ready', sources.recovery, gap);
+    ? '平台对照已通过前置提交与固定交付物核验输入合同；条件满足后继续已批准工作。'
+    : '平台核验环境及候选提交，准备措施发生变化后保留原计数接续；当前准备度未验证。', '条件核对 → admitNode → ready', sources.recovery, gap);
   if (job.status === 'claimed') return classify('platform_recoverable', '旧写入者已退出时，由协调器restart-recovery核对当前阶段和候选后接续。', '旧claim → recoverGraphExecution', 'src/lib/task-graph/restart-recovery.ts#recoverGraphExecution');
   if (job.status === 'ready' || job.status === 'planned') {
     if (progress?.nextRetryAt && Date.parse(progress.nextRetryAt) > args.now.getTime()) return classify('platform_recoverable', `等待原预算退避至${progress.nextRetryAt}，不提前重派。`, '退避到期 → claimExecution', sources.dispatch);

@@ -1,3 +1,5 @@
+import { isFeishuAdmin } from '../feishu-access-approval';
+import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 import { executionProgress, metadataWithProgress } from './execution-progress';
@@ -27,6 +29,12 @@ const unassignedInput = Prisma.sql`i.kind = 'conversation_input'
 export async function pendingConversationNodes() {
   return prisma.$queryRaw<{ nodeId: string }[]>(Prisma.sql`SELECT i."nodeId" FROM "TaskGraphEvent" i
     WHERE ${unassignedInput} AND i."nodeId" IS NOT NULL GROUP BY i."nodeId" ORDER BY min(i."createdAt") LIMIT 50`);
+}
+
+export async function conversationInputsByIds(tx: Prisma.TransactionClient, runId: string, executionId: string, ids: string[]) {
+  const inputs = await tx.taskGraphEvent.findMany({ where: { id: { in: ids }, runId, kind: 'conversation_input',
+    payload: { path: ['executionId'], equals: executionId } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+  return inputs.map(input => parseInput(input.id, input.payload));
 }
 
 export async function pendingConversationInputs(tx: Prisma.TransactionClient, runId: string, executionId: string): Promise<ConversationInput[]> {
@@ -205,7 +213,8 @@ export async function sealConversationTurn(executionId: string, claimToken: stri
     if (unknown) throw new Error('Native steering delivery is unknown; preserve the current run and delivery evidence');
     await tx.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
       { ...progress, revision: progress.revision + 1, phase: pending.length ? 'implement' : 'integrate',
-        state: pending.length ? 'waiting_for_user' : 'active', candidateCommit }) ,
+        state: pending.length ? 'waiting_for_user' : 'active', candidateCommit,
+        ...(pending.length ? { lastFailure: undefined, waitingKind: 'question' as const, waitingMessage: '先处理原话题的新消息。' } : {}) }) ,
       ...(pending.length ? { status: 'attention', issueKind: null } : {}) } });
     if (pending.length) await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
     return !pending.length;
@@ -231,6 +240,23 @@ export async function authorizedConversationInput(input: ConversationInput, task
   return !!metadata && typeof metadata === 'object' && 'source' in metadata && metadata.source === 'feishu' &&
     'feishuSenderOpenId' in metadata && metadata.feishuSenderOpenId === input.actorId &&
     'feishuMessageId' in metadata && input.sourceId === `feishu:${metadata.feishuMessageId}`;
+}
+
+/** Model handoff retains the owner/admin requirement; ordinary replies use their own input boundary. */
+export async function authorizedMaterialHandoffInput(input: ConversationInput, taskId: string, ownerUserId: string | null, db: Prisma.TransactionClient = prisma) {
+  if (!await authorizedConversationInput(input, taskId, ownerUserId, db)) return false;
+  if (input.rootInputId !== input.id) {
+    const original = await db.taskGraphEvent.findFirst({ where: { id: input.rootInputId, kind: 'conversation_input', payload: { path: ['executionId'], equals: input.executionId } } });
+    if (!original) return false;
+    input = parseInput(original.id, original.payload);
+  }
+  if (input.actorOrigin === 'platform') return true;
+  if (input.actorOrigin !== 'feishu') return false;
+  let metadata: unknown;
+  try { metadata = JSON.parse(input.sourceMetadata || 'null'); } catch { return false; }
+  const chat = metadata && typeof metadata === 'object' && 'feishuChatId' in metadata && typeof metadata.feishuChatId === 'string' ? metadata.feishuChatId :
+    (await db.feishuConversationBinding.findFirst({ where: { liveRoom: { sourceTaskId: taskId }, chatType: 'group' }, select: { chatId: true } }))?.chatId;
+  return isFeishuAdmin(input.actorId) || !!chat && await isFeishuGroupAdmin(chat, input.actorId);
 }
 
 /** Input remains pending until the original Agent turn binds and seals it. */

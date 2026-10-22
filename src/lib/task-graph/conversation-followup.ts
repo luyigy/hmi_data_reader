@@ -15,8 +15,6 @@ import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 import { ensureReadOnlyWorkspace } from './readonly-workspace';
 import { approvedConversationParticipant } from './conversation-members';
 import { releaseGraphReviewWorker } from './phase-worker';
-import { isFeishuAdmin } from '../feishu-access-approval';
-import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { syncGraphConversationMaterials } from './conversation-materials';
 import { postGraphChildProgress } from './feishu';
 
@@ -85,7 +83,7 @@ export async function reserveConversationFollowup(nodeId: string) {
       if (attempts.length >= 2 || attempts[0] && Date.now() - attempts[0].createdAt.getTime() < 15_000) return null;
       const event = await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId: node.id,
         kind: 'conversation_followup_reserved', idempotencyKey: `conversation-followup:${job.id}:${batchIdentity}:${attempts.length}`,
-        payload: { executionId: job.id, inputIds: pending.map(input => input.id), worker, batchIdentity, attempt: attempts.length + 1 } } });
+        payload: { executionId: job.id, expectedRevision: progress?.revision, inputIds: pending.map(input => input.id), worker, batchIdentity, attempt: attempts.length + 1 } } });
       if (!progress) throw new Error('Conversation requires versioned execution ownership');
       await tx.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(job.dispatchMetadata,
         { ...progress, revision: progress.revision + 1, worker, workerReleasedAt: undefined,
@@ -130,8 +128,7 @@ export async function startConversationFollowups(capacity: number) {
         }
         const before = executionProgress(job.dispatchMetadata);
         if (action && typeof action === 'object' && 'action' in action && action.action === 'resume_implementation' && 'inputIds' in action && Array.isArray(action.inputIds) && action.inputIds.length > 0 && action.inputIds.every((id): id is string => typeof id === 'string') &&
-          before?.state === 'waiting_decision' && ['missing_business_material', 'missing_upstream_input'].includes(before.lastFailure?.code || '')) {
-          const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: event.runId }, include: { parentTask: true } });
+          before && ['waiting_decision', 'waiting_for_user', 'exhausted'].includes(before.state)) {
           const ids = Array.from(new Set(action.inputIds));
           const cited = ids.length <= 50 ? await prisma.taskGraphEvent.count({ where: {
             id: { in: ids }, runId: event.runId, nodeId: job.nodeId, kind: 'conversation_input',
@@ -142,29 +139,15 @@ export async function startConversationFollowups(capacity: number) {
               '接续建议引用的材料无法在本任务会话中核实。平台保留本轮输入和原进度，尚未安排恢复。');
             return;
           }
-          let authorized = pending.length > 0;
-          for (const input of pending) {
-            let sourceAuthorized = false;
-            let metadata: unknown = null;
-            try { metadata = JSON.parse(input.sourceMetadata || 'null'); } catch { /* Non-Feishu input uses the authenticated task owner. */ }
-            if (input.actorOrigin === 'feishu') {
-              const chat = metadata && typeof metadata === 'object' && 'feishuChatId' in metadata && typeof metadata.feishuChatId === 'string' ? metadata.feishuChatId :
-                (await prisma.feishuConversationBinding.findFirst({ where: { liveRoom: { sourceTaskId: job.childTaskId }, chatType: 'group' }, select: { chatId: true } }))?.chatId;
-              sourceAuthorized = isFeishuAdmin(input.actorId) || !!chat && await isFeishuGroupAdmin(chat, input.actorId);
-            } else if (input.actorOrigin === 'platform') {
-              sourceAuthorized = !!run.parentTask.ownerUserId && input.actorId === run.parentTask.ownerUserId ||
-                (await prisma.user.findUnique({ where: { id: input.actorId }, select: { role: true } }))?.role === 'admin';
-            }
-            authorized &&= sourceAuthorized;
-          }
           const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
           const progress = executionProgress(current.dispatchMetadata);
-          if (authorized && progress?.revision === before.revision + 2 && progress.state === before.state && progress.candidateCommit === before.candidateCommit &&
+          if (progress?.revision === before.revision + 2 && progress.state === before.state && progress.candidateCommit === before.candidateCommit &&
             progress.lastFailure?.code === before.lastFailure?.code) {
-            await handoffConversationMaterials({ executionId: job.id, reservationId: event.id, expectedRevision: progress.revision });
-          } else await postGraphChildProgress(task.id, `conversation:handoff-declined:${event.id}`, authorized
-            ? '恢复建议对应的任务版本或阶段已改变，平台未启动旧版本的实施；原答复和消息保留。'
-            : '本批消息包含没有任务恢复权限的发言，平台保留原材料暂停。任务管理员可在原话题确认材料，接回原执行者。');
+            const result = await handoffConversationMaterials({ executionId: job.id, reservationId: event.id, expectedRevision: progress.revision });
+            if (result.kind !== 'admitted' && result.kind !== 'already_scheduled') await postGraphChildProgress(task.id, `conversation:handoff-declined:${event.id}`,
+              `本轮答复已保留，实施尚未接续：${result.reason}。`);
+          } else await postGraphChildProgress(task.id, `conversation:handoff-declined:${event.id}`,
+            '恢复建议对应的任务版本或阶段已改变，平台未启动旧版本的实施；原答复和消息保留。');
         }
       }
     })().catch(async error => {
