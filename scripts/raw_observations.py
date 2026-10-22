@@ -41,7 +41,12 @@ def observe_temperature_time_page(profile_id, lines, meta, image_sha256, rectifi
         return observe_fanuc_temperature(lines, meta, image_sha256, package_root, "0.6.0")
     if profile_id == YIZUMI_PROFILE:
         version = package_version if package_version.startswith("1.") else YIZUMI_VERSION
-        return observe_yizumi_page(lines, meta, image_sha256, package_root, version)
+        try:
+            return observe_yizumi_page(lines, meta, image_sha256, package_root, version)
+        except ValueError as exc:
+            if str(exc) != "RAW_PAGE_LAYOUT_CONFLICT":
+                raise
+            raise RawPageRejected(str(exc), profile_id) from exc
     if profile_id == SELOGICA_PROFILE:
         if package_version == "1.0.1":
             return observe_decimal_selogica(lines, meta, image_sha256, package_root, package_version)

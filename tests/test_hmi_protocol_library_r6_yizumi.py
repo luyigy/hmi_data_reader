@@ -480,3 +480,97 @@ def test_live_http_cli_v2_binding_and_a07_wrong_hash(published, real_images, mon
     assert response.status_code == 422, response.text
     assert response.json()["detail"]["code"] == "PAGE_PACKAGE_INCOMPATIBLE"
     record_evidence("live-http-wrong-hash", response.json())
+
+
+def test_a07_missing_count_landmarks_cli_rejects_with_original_evidence(published, real_images):
+    root, _, package = published
+    directory = root / "missing-landmarks"
+    directory.mkdir()
+    original = real_images[2]["development"]
+    ocr = copy.deepcopy(original["ocr_evidence"])
+    removed = [line for line in ocr["lines"] if line["text"].strip() == "段数"]
+    assert len(removed) == 2
+    ocr["lines"] = [line for line in ocr["lines"] if line["text"].strip() != "段数"]
+    (directory / "development.ocr.json").write_text(json.dumps(ocr))
+    (directory / "development.rectify.json").write_text(json.dumps(original["transform"]))
+    shutil.copyfile(real_images[1] / "development.png", directory / "development.png")
+    hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
+                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+    hint_path = root / "hint.json"
+    hint_path.write_text(json.dumps(hint))
+    command = [sys.executable, str(ROOT / "scripts/extract_fields.py"), "development", "--rectified-dir", str(directory),
+               "--output-dir", str(directory / "result"), "--templates-dir", str(root / "templates"),
+               "--labels", str(root / "absent"), "--record-report", str(root / "absent"), "--observations-version", "v2",
+               "--original-image", str(ROOT / "datasets/r6_yizumi/development.jpg"), "--controller-hint", str(hint_path)]
+    process = subprocess.run(command, capture_output=True, text=True, timeout=60)
+    record_evidence("missing-landmarks-cli-command", dict(argv=command, exit=process.returncode,
+                    stdout=process.stdout, stderr=process.stderr, synthetic="count OCR lines removed from real CPU OCR"))
+    assert process.returncode == 0, process.stdout + process.stderr
+    assert "Traceback" not in process.stderr
+    result = json.loads((directory / "result/development.fields.json").read_text())
+    assert result["status"] == "reject" and not result.get("fields") and not result.get("page_observations")
+    assert not result.get("extraction_detail")
+    assert result["raw_rejection"]["code"] == "RAW_PAGE_LAYOUT_CONFLICT"
+    assert result["raw_rejection"]["profile_id"] == P11
+    assert result["raw_rejection"]["action"] == "review_or_recapture_full_screen"
+    assert result["raw_rejection"]["reason"]
+    assert result["raw_ocr_evidence"]["lines"] == ocr["lines"]
+    assert not any("GENERIC_FALLBACK" in warning for warning in result["warnings"])
+    record_evidence("missing-landmarks-cli", result)
+
+
+def test_a07_masked_count_labels_real_http_returns_actionable_rejection(published, real_images, monkeypatch):
+    import cv2
+    import tempfile
+    import hmi_service as service
+    from extract_families.coordinates import project_boxes
+
+    root, _, package = published
+    monkeypatch.setattr(service, "HERE", root)
+    monkeypatch.setattr(service, "ocr_model", real_images[0])
+    monkeypatch.setattr(service, "is_ready", True)
+    monkeypatch.setattr(service, "concurrency_semaphore", asyncio.Semaphore(1))
+    monkeypatch.delenv("HMI_API_KEY", raising=False)
+    temporary = OUTPUT / "http-tmp"
+    temporary.mkdir(exist_ok=True)
+    monkeypatch.setattr(tempfile, "tempdir", str(temporary))
+    original = real_images[2]["development"]
+    labels = [line for line in original["ocr_evidence"]["lines"] if line["text"].strip() == "段数"]
+    assert len(labels) == 2
+    boxes = [dict(bbox=[line["bbox"][key] for key in ("x_min", "y_min", "x_max", "y_max")]) for line in labels]
+    project_boxes(boxes, original["transform"])
+    photo = cv2.imread(str(ROOT / "datasets/r6_yizumi/development.jpg"))
+    height, width = photo.shape[:2]
+    for box in boxes:
+        x1, y1, x2, y2 = box["original_bbox"]
+        cv2.rectangle(photo, (int(x1 * width / 100) - 5, int(y1 * height / 100) - 5),
+                      (int(x2 * width / 100) + 5, int(y2 * height / 100) + 5), (210, 210, 210), -1)
+    masked = OUTPUT / "synthetic-missing-count-labels.jpg"
+    assert cv2.imwrite(str(masked), photo)
+    hint = dict(brand="YIZUMI", controller_family="YIZUMI", interface_generation=None,
+                binding_revision=1, pages=[dict(profile_id=P11, version="1.0.0", package_sha256=canonical_hash(package))])
+
+    async def upload():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app), base_url="http://reader") as client:
+            return await client.post("/api/v1/recognize", params=dict(observations_version="v2", controller_hint=json.dumps(hint)),
+                                     files={"file": (masked.name, masked.read_bytes(), "image/jpeg")})
+
+    response = asyncio.run(upload())
+    record_evidence("missing-landmarks-http", dict(status=response.status_code, body=response.json(),
+                    image_sha256=hashlib.sha256(masked.read_bytes()).hexdigest(), masked_regions=boxes,
+                    synthetic="Two count-label regions masked; all other pixels from development original"))
+    assert response.status_code == 422, response.text
+    detail = response.json()["detail"]
+    assert detail["code"] == "RAW_PAGE_LAYOUT_CONFLICT" and detail["profile_id"] == P11
+    assert detail["reason"] and detail["action"] == "review_or_recapture_full_screen"
+    assert not response.json().get("page_observations")
+
+
+def test_a07_layout_rejection_does_not_hide_image_identity_error(real_images):
+    from raw_observations import observe_temperature_time_page, RawPageRejected
+
+    original = real_images[2]["development"]
+    lines = [line for line in original["ocr_evidence"]["lines"] if line["text"].strip() != "段数"]
+    with pytest.raises(ValueError, match="^IMAGE_HASH_INVALID$") as caught:
+        observe_temperature_time_page(P11, lines, original["transform"], "invalid")
+    assert not isinstance(caught.value, RawPageRejected)
