@@ -19,7 +19,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export function parseImplementationResult(output: string, options?: { conversation: boolean }): ImplementationResult {
   try { return decodeImplementationResult(output); }
   catch (error) {
-    if (options?.conversation && output.trim()) return { status: 'working', note: output.trim() };
+    if (options?.conversation && output.trim() && !/^[ \t]*TASK_GRAPH_IMPLEMENTATION\b/m.test(output)) return { status: 'working', note: output.trim() };
     throw error;
   }
 }

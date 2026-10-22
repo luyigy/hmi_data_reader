@@ -1,0 +1,14 @@
+{
+  "source": "Read-only capture of real M6 completed turn",
+  "inputConclusion": [
+    "TASK_GRAPH_IMPLEMENTATION {\"status\":\"blocked\",\"note\":\"platform_environment：必需技能缺失未解除；本轮无仓库修改、未重复测试，端到端验收未完成\",\"evidence\":[\"/home/hello/.agent-platform/task-validation/e6690cc2bc8130585c3c72cc/de4855d23de9d90564f8075c/resume-receipt.json\"]}"
+  ],
+  "before": {
+    "status": "working"
+  },
+  "after": {
+    "status": "rejected",
+    "reason": "实施结论无效：交付须有证据，阻塞须有明确类别"
+  },
+  "scope": "Result parser only; does not claim business completion"
+}

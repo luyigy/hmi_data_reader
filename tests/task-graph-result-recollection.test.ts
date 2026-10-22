@@ -30,8 +30,15 @@ async function main() {
   const original = adapter.execute;
   adapter.execute = async ({ task, context }) => {
     const key = task.name.split(' · ')[0]; const count = (calls.get(key) || 0) + 1; calls.set(key, count);
+    if (key === 'C' || key === 'D') {
+      const turn = await prisma.taskRun.findFirstOrThrow({ where: { taskId: task.id }, orderBy: { createdAt: 'desc' } });
+      const latest = await prisma.taskRunEvent.findFirst({ where: { taskRunId: turn.id }, orderBy: { sequence: 'desc' } });
+      await prisma.taskRunEvent.create({ data: { taskRunId: turn.id, sequence: (latest?.sequence || 0) + 1, eventType: 'control_message',
+        content: `工具：Bash · write evidence/${turn.id}/resume-receipt.json; check missing skills`, metadata: JSON.stringify({ kind: 'tool', toolName: 'Bash' }) } });
+    }
     const value = 'fixed';
     writeFileSync(path.join(context.workingDirectory!, `${key}.txt`), value);
+    if (key === 'D') return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","note":"required skills missing","evidence":["resume-receipt.json"]}', executionTime: 1 };
     if (key === 'A' && count === 1 || key === 'C') return { success: true, output: 'No delivery conclusion', executionTime: 1 };
     if (key === 'A' && count === 2) assert.match(task.description || '', /Implement A/);
     return { success: true, output: `TASK_GRAPH_IMPLEMENTATION ${JSON.stringify({ status: 'delivered', note: `${key} implemented`, evidence: [`${key}.txt`] })}`, executionTime: 1 };
@@ -39,7 +46,7 @@ async function main() {
   const parent = await prisma.task.create({ data: { name: 'automatic repair fixture' } });
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
-    specRef: 'test://automatic-repair', nodes: ['A', 'B', 'C'].map(key => ({
+    specRef: 'test://automatic-repair', nodes: ['A', 'B', 'C', 'D'].map(key => ({
       key, goal: `Complete ${key}`, dependsOn: key === 'B' ? ['A'] : [], executionMode: 'lean',
       acceptance: { mode: 'automatic', checks: ['behavior'] }, executions: [{ key: 'repo', repository,
         gitRef: 'refs/heads/main', baseCommit: baseline, agentSelector: 'local:codex', instructions: `Implement ${key}`,
@@ -54,11 +61,15 @@ async function main() {
       await runTaskGraphCycle();
       const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { key: true, status: true } });
       assert.ok(!nodes.some(node => node.key === 'A' && node.status === 'attention'));
-      if (nodes.every(node => node.key === 'C' ? node.status === 'attention' : node.status === 'passed')) { completed = true; break; }
+      if (nodes.every(node => ['C', 'D'].includes(node.key) ? node.status === 'attention' : node.status === 'passed')) { completed = true; break; }
       await new Promise(resolve => setTimeout(resolve, 30));
     }
     assert.ok(completed, 'The original ticket, successor and independent branch must finish without human resume');
     assert.equal(calls.get('A'), 2); assert.equal(calls.get('B'), 1); assert.equal(calls.get('C'), maxUnchangedWorkTurns + 1);
+    assert.equal(calls.get('D'), maxUnchangedWorkTurns + 1, 'Malformed blocked receipts with fresh evidence paths stop instead of spinning');
+    const invalid = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: run.id, key: 'D' } } });
+    assert.equal(executionProgress(invalid.dispatchMetadata)?.lastFailure?.code, 'invalid_result');
+    assert.equal(invalid.commit, null);
     const waiting = await prisma.taskGraphExecution.findFirstOrThrow({where:{node:{runId:run.id,key:'C'}}});
     assert.equal(executionProgress(waiting.dispatchMetadata)?.state, 'waiting_for_user');
     assert.equal(executionProgress(waiting.dispatchMetadata)?.formatAttempts, 0); assert.equal(waiting.commit, null);

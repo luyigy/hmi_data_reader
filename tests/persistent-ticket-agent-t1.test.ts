@@ -19,7 +19,13 @@ import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/t
 async function main() {
   assert.equal(parseImplementationResult('已保存一部分，接下来运行测试。', { conversation: true }).status, 'working', 'An ordinary turn is neither delivery nor a request to wait');
   const incomplete = 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"done","evidence":[]}';
-  assert.equal(parseImplementationResult(incomplete, { conversation: true }).status, 'working', 'Malformed delivery cannot revoke normal work or pass as delivery');
+  assert.throws(() => parseImplementationResult(incomplete, { conversation: true }), /无效|证据/, 'A malformed explicit conclusion must enter result recollection');
+  for (const output of [
+    'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","note":"platform_environment: required skills missing","evidence":["resume-receipt.json"]}',
+    'TASK_GRAPH_IMPLEMENTATION {broken',
+    '  TASK_GRAPH_IMPLEMENTATION {broken',
+    'TASK_GRAPH_IMPLEMENTATION {"status":"working","note":"a"}\nTASK_GRAPH_IMPLEMENTATION {"status":"working","note":"b"}',
+  ]) assert.throws(() => parseImplementationResult(output, { conversation: true }), /结论|JSON/);
   assert.throws(() => parseImplementationResult(incomplete), /无效|证据/);
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   const root = mkdtempSync(path.join(os.tmpdir(), 'persistent-agent-'));
@@ -107,7 +113,7 @@ async function main() {
     const observed = { taskRunId: complete.taskRunId!, eventType: 'control_message', content: '工具：read · docs/source-contract.md', metadata: JSON.stringify({ kind: 'tool', toolName: 'read' }) };
     await prisma.taskRunEvent.create({ data: { ...observed, sequence } });
     const afterResearch = await continuationWorkFingerprint(complete.id, candidate);
-    assert.notEqual(afterResearch, beforeResearch, 'Observed investigation counts before any code change');
+    assert.equal(afterResearch, beforeResearch, 'Tool request previews do not prove a new observation or changed work');
     await prisma.taskRunEvent.create({ data: { ...observed, sequence: sequence + 1 } });
     await prisma.taskRunEvent.create({ data: { taskRunId: complete.taskRunId!, sequence: sequence + 2, eventType: 'stdout_chunk', content: 'I made progress again' } });
     assert.equal(await continuationWorkFingerprint(complete.id, candidate), afterResearch, 'Repeated tool work and model prose cannot reset the no-progress guard');

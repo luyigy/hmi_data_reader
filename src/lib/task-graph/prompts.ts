@@ -11,6 +11,7 @@ export function implementationInstructions(graph: GraphDefinition, node: GraphNo
     '提交、自动集成、审查和后继派发由平台记录与执行；不要启动其他 Slice 或自行合并主分支。',
     '最终单独一行给出唯一结构化结论：TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"实际交付说明","evidence":["实际文件、命令或读回证据"]}。只有确实完成本仓目标才能 delivered。',
     '本轮尚有工作可正常汇报进度；明确等待用户时返回 TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"问题"}；范围或权限需要人决定时返回 status=blocked，并注明 scope_change 或 permission_required。',
+    '必需运行能力确实不可用时返回 TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"environment_failed","blockerCause":"missing_capability","note":"缺少的能力和实际探针结果"}。只读资源是否授权由平台校验，不自行扩大挂载；不要仅更换报告路径重复相同失败探针。',
     node.executionMode === 'implement'
       ? '本片为仅实施模式，不安排独立测试或审查；结果将明确标为未验收。'
       : '按当前 ticket 验收要求验证；项目存在 verify skill 时查阅它，没有时按 ticket 明确的入口执行并说明，不把缺少可选 skill 当成执行失败。用真实输入、API 读回或浏览器行为证明结果。未执行的检查标待办，不得声称通过。',
