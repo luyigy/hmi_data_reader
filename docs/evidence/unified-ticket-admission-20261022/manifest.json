@@ -1,0 +1,81 @@
+{
+  "baseline": "9a11e31c3c7443f2ca0ecb9bd523e57dc176f92f",
+  "sourceCommit": "c46bcdc53dc2e9f06daef25a430f5953ce825f71",
+  "regressionCommit": "1ae37a32911faf76605f408928fe9c81305ff823",
+  "isolation": "Fresh loopback PostgreSQL schema and temporary Git/workspace roots; no production ledger mutations.",
+  "runs": [
+    {
+      "log": "red-legacy-owner.log",
+      "source": "9a11e31 plus regression fixture with missing legacy owner",
+      "command": "node scripts/test-task-graph-postgres.mjs task-graph-condition-recheck",
+      "exitCode": 1,
+      "expectedFailure": "Condition change did not reach normal Coordinator work"
+    },
+    {
+      "log": "red-writer-summary.log",
+      "source": "659a6b0 plus completed native Writer fixture and original full-row snapshot comparison",
+      "command": "node scripts/test-task-graph-postgres.mjs task-graph-admission",
+      "exitCode": 1,
+      "expectedFailure": "Late summary/timestamp changes do not change Writer identity"
+    },
+    {
+      "log": "green-behavior.log",
+      "commit": "1ae37a32911faf76605f408928fe9c81305ff823",
+      "command": "node scripts/test-task-graph-postgres.mjs task-graph-admission task-graph-condition-recheck task-graph-natural-blockers task-graph-implementation-recovery task-graph-execution-progress task-graph-lifecycle-adapters task-graph-preparation-recovery task-graph-prepared-review task-graph-progress-adoption task-graph-reclassification persistent-ticket-agent-t1 persistent-ticket-agent-t2 task-graph-failure-summary",
+      "exitCode": 0,
+      "suites": 13
+    },
+    {
+      "log": "green-safety.log",
+      "commit": "c46bcdc53dc2e9f06daef25a430f5953ce825f71",
+      "command": "node scripts/test-task-graph-postgres.mjs task-graph-writer-ownership task-graph-stage-authority task-graph-parallel-workspaces task-graph-integration-retry task-graph-conflict-repair task-graph-conflict-continuation task-graph-runtime-pinning project-capabilities-c02 project-capabilities-scope-change task-graph-sandbox-manager task-graph-skill-runtime project-capabilities-browse persistent-ticket-agent-t0 persistent-ticket-agent-t3",
+      "exitCode": 0,
+      "suites": 14
+    },
+    {
+      "log": "green-build.log",
+      "commit": "c46bcdc53dc2e9f06daef25a430f5953ce825f71",
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "log": "green-types.log",
+      "commit": "1ae37a32911faf76605f408928fe9c81305ff823",
+      "command": "npx tsc --noEmit",
+      "exitCode": 0
+    },
+    {
+      "log": "green-long-files.log",
+      "commit": "1ae37a32911faf76605f408928fe9c81305ff823",
+      "command": "npm run check:long-files",
+      "exitCode": 0
+    },
+    {
+      "log": "green-review.log",
+      "commit": "1ae37a32911faf76605f408928fe9c81305ff823",
+      "command": "node scripts/test-task-graph-postgres.mjs task-graph-review-platform-retry task-graph-issue-execution",
+      "exitCode": 0,
+      "suites": 2
+    }
+  ],
+  "caveats": [
+    "Only tests/persistent-ticket-agent-t1.test.ts changes between sourceCommit and regressionCommit.",
+    "W001 negative mutation commands intentionally exit 1; the enclosing verification passes.",
+    "W01 uses the installed Codex with a deterministic loopback provider, not production Reader/Mold execution.",
+    "c46bcdc full behavior batch had intermittent T1 snapshot refusal; diagnostics did not reproduce the exact changed field. Final T1 drains background probes before direct compatibility API assertions. Business CAS is unchanged.",
+    "Code and test file list excludes this report and evidence artifacts; log paths normalized to <worktree>.",
+    "Red runs use the regression fixture with older implementation, rather than claiming the unmodified old test suite fails."
+  ],
+  "distinctGreenPostgresSuites": 29,
+  "sha256": {
+    "changed-files.txt": "f830edf7813cf51fb55eebcbabf73bb179649e0ae38602fa6540359e6b9f176a",
+    "green-behavior.log": "aa333863543f02518e867afc6d4aba497606fbf67b221b58be12ee347a665709",
+    "green-build.log": "098ab49ba02c7613f8c78eb10ac107cf7fa53348227608b9c864e22bc812668b",
+    "green-long-files.log": "cca5604ffb20a84073ade177a9d2bb800ae7ddaa35cbde5cba7aad7c0c125516",
+    "green-review.log": "ac0f389c1fa832b82bc84ed4a038fd33c43d7404362d28bafb7e4edbbfa45efe",
+    "green-safety.log": "90792ac3389ce15f16b6fa2991fdfaf7ff85e8d36fafcdf0675106c00e3693eb",
+    "green-types.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "red-legacy-owner.log": "610b02a0eda6a2153899e848122acc00f7bf70c6e8e3a728ed8ae8d70bb85177",
+    "red-writer-summary.log": "ec003b185707fa6ec4cb4236d7b346d6be581108b7c3a2e3e71dd8d4206fbab0"
+  }
+}

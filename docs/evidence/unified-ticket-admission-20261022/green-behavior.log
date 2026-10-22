@@ -1,0 +1,243 @@
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+Admission: missing owner/exhausted does not revoke work; temporary failure does not consume a request; concurrent admissions select one; independent sibling permission wait remains blocked; count 77 retained
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 150
+[TaskGraph] condition recheck deferred: Error: Cannot requeue a TaskRun without actual writer exit proof
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 301
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 149
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Review conditions: original fixed candidate independently verified after platform repair; historical count 77 retained; implementation not repeated
+Conditions: unavailable platform resource launches no model; independent peer delivers; successful recheck reclaims original candidate/worktree despite old count 77; user pause and downstream dependency remain enforced
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 289
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 434
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 579
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 724
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 295
+Natural blockers: original native turns investigate tool/upstream/material errors; a question resumes from the original Topic reply without recovery commands or scope expansion; fixed candidate verified and successor released
+[Task Room Context] Total messages: 6
+[Task Room Context] Filtered messages (non-system): 6
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 869
+[Task Room Context] Total messages: 7
+[Task Room Context] Filtered messages (non-system): 7
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1014
+[Task Room Context] Total messages: 8
+[Task Room Context] Filtered messages (non-system): 8
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1159
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 144
+[Task Room Context] Total messages: 9
+[Task Room Context] Filtered messages (non-system): 9
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1304
+Real Git/DB: blocked/missing-result never integrate, saved progress survives deleted checkout, authorized continuation dedupes and resumes implementation, terminal remains unverified
+Durable outcomes: revision/token fencing, duplicate budgets, immutable dispatch, candidate retention and explicit exhausted state
+Legacy completion and ordinary recovery honor versioned phase and ownership boundaries
+[TaskGraph] preparation receipt deferred: {
+  runId: 'cmvjaeyqj000344dbsook7zbg',
+  preparationEventId: 'cmvjaezxx009o44dbtag9g0ur',
+  reason: 'injected temporary storage failure'
+}
+[TaskGraph] preparation receipt deferred: {
+  runId: 'cmvjaeyqj000344dbsook7zbg',
+  preparationEventId: 'cmvjaf1ef00ao44dbgj8fcqbm',
+  reason: 'Admission deferred: writer_not_exited'
+}
+[TaskGraph] preparation receipt deferred: {
+  runId: 'cmvjaeyqj000344dbsook7zbg',
+  preparationEventId: 'cmvjaf1fb00aw44dbgjyn1uqj',
+  reason: 'Admission deferred: writer_not_exited'
+}
+[TaskGraph] preparation receipt deferred: {
+  runId: 'cmvjaeyqj000344dbsook7zbg',
+  preparationEventId: 'cmvjaf1ef00ao44dbgj8fcqbm',
+  reason: 'Admission deferred: writer_not_exited'
+}
+[TaskGraph] preparation receipt deferred: {
+  runId: 'cmvjaeyqj000344dbsook7zbg',
+  preparationEventId: 'cmvjaf1fb00aw44dbgjyn1uqj',
+  reason: 'Admission deferred: writer_not_exited'
+}
+Prepared receipts automatically requeue only exact approved pauses; stale, unknown/live writers, budgets, business failures and changed artifacts stay protected; crash replay uses original scheduling receipt
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 145
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+Prepared review passes and unlocks successor; candidates and budgets retained; duplicate measure rejected
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 291
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Prepared review fails once and stays exhausted; candidates and budgets retained; duplicate measure rejected
+Real Git legacy adoption: old checkpoint + newer commit + dirty supplement preserved, active writer rejected, audit idempotent, original checkout untouched
+Audited reclassification preserves approval/history, reopens Issues, rejects unproven legacy writer and supersedes old delivery receipts
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 295
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 295
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 443
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 443
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 591
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 591
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 443
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 739
+T1 real Coordinator: multiple normal turns, native Session/Worktree, explicit wait/reply, input dedupe, checks and successor release; unchanged turns stop without revoking approval
+[Task Room Context] Total messages: 10
+[Task Room Context] Filtered messages (non-system): 10
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1449
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvjagxhe0003yfnhma8sea4b',
+  nodeKey: 'A',
+  reason: 'Pending review repair A/repo: phase or implementation writer has not proven exit'
+}
+[Task Room Context] Total messages: 11
+[Task Room Context] Filtered messages (non-system): 11
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1594
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] review repair pickup deferred: {
+  runId: 'cmvjagxhe0003yfnhma8sea4b',
+  nodeKey: 'A',
+  reason: 'Pending review repair A/repo: phase or implementation writer has not proven exit'
+}
+[Task Room Context] Total messages: 12
+[Task Room Context] Filtered messages (non-system): 12
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1739
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 13
+[Task Room Context] Filtered messages (non-system): 12
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1739
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 591
+T2: three distinct verified defects return to the same native implementer; four fixed candidates independently reviewed, successor released once; historical counters preserved
+Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded

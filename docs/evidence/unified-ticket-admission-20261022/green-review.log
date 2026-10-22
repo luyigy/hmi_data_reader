@@ -1,0 +1,193 @@
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 148
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 149
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 147
+Targeted platform: reader 1, successful model 1, architecture 0, acceptance 2, successor 1, no human resume
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 297
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 299
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 295
+Targeted architecture-platform: reader 1, successful model 1, architecture 2, acceptance 1, successor 1, no human resume
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 446
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 449
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Targeted platform-exhausted: reader 1, successful model 1, architecture 0, acceptance 4, successor 0, no human resume
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 595
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 599
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Targeted human: reader 1, successful model 1, architecture 0, acceptance 1, successor 0, one authorized human decision
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 744
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 749
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 443
+Targeted preparation: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+[Task Room Context] Total messages: 6
+[Task Room Context] Filtered messages (non-system): 6
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 893
+[Task Room Context] Total messages: 6
+[Task Room Context] Filtered messages (non-system): 6
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 899
+Targeted preparation-exhausted: reader 1, successful model 1, architecture 0, acceptance 0, successor 0, no human resume
+[Task Room Context] Total messages: 7
+[Task Room Context] Filtered messages (non-system): 7
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1042
+[Task Room Context] Total messages: 7
+[Task Room Context] Filtered messages (non-system): 7
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1049
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 591
+Targeted integration-timeout: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+[Task Room Context] Total messages: 8
+[Task Room Context] Filtered messages (non-system): 8
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1191
+[Task Room Context] Total messages: 8
+[Task Room Context] Filtered messages (non-system): 8
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1199
+Targeted ownership: reader 1, successful model 1, architecture 0, acceptance 0, successor 0, no human resume
+[Task Room Context] Total messages: 9
+[Task Room Context] Filtered messages (non-system): 9
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1340
+[Task Room Context] Total messages: 10
+[Task Room Context] Filtered messages (non-system): 10
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1499
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 5
+[Task Room Context] Filtered messages (non-system): 5
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 739
+Targeted startup: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+[Task Room Context] Total messages: 10
+[Task Room Context] Filtered messages (non-system): 10
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1489
+[Task Room Context] Total messages: 12
+[Task Room Context] Filtered messages (non-system): 12
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1799
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 6
+[Task Room Context] Filtered messages (non-system): 6
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 887
+Targeted startup-network: reader 1, successful model 1, architecture 0, acceptance 1, successor 1, no human resume
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 287
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 143
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Real Git/Bubblewrap pipeline forks, joins, resumes review without reimplementation and reconciles tracker writes after crashes
