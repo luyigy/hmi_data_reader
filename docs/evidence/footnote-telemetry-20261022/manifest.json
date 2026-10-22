@@ -1,0 +1,40 @@
+{
+  "sourceCommit": "53fadf5",
+  "baseCommit": "fe0c6e3",
+  "red": {
+    "command": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/codex-runtime-state.test.ts",
+    "exitCode": 1,
+    "failure": "Large historical rollout must not hide the verified current turn"
+  },
+  "green": {
+    "sameCommandAsRed": true,
+    "exitCode": 0
+  },
+  "native": {
+    "command": "CODEX_RUNTIME_NATIVE=1 TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/codex-runtime-state-native.test.ts",
+    "exitCode": 0,
+    "provider": "deterministic loopback; actual installed Codex; app-server and exec-json; execute and resume"
+  },
+  "otherPassed": [
+    "harness-context-usage.test.ts",
+    "live-room-footnotes.test.ts",
+    "normalized-context-usage.test.ts",
+    "npx tsc --noEmit",
+    "npm run check:long-files"
+  ],
+  "readOnlyHistoricalReplay": {
+    "elapsedMs": 601,
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "inputTokens": 158030,
+    "outputTokens": 236,
+    "contextWindow": 475000,
+    "mutatedHistoricalMetadata": false
+  },
+  "sha256": {
+    "green.log": "a88f6cdabe87311143247c7387129a455317f1a7b8150b3f097c032d6f0303cb",
+    "native.log": "5ef4346205f206d412571580eded9b52172d15f9858107f3f37337cc8a2af392",
+    "red.log": "bec605362cbcef90aa11b0debbde67ad313dc41ff031bda455da2607bee9e5ea",
+    "types.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

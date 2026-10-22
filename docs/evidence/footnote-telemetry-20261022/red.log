@@ -1,0 +1,18 @@
+Codex runtime telemetry: rollout exceeds read limit
+AssertionError [ERR_ASSERTION]: Large historical rollout must not hide the verified current turn
++ actual - expected
+
++ undefined
+- 'runner-model'
+
+    at <worktree>/tests/codex-runtime-state.test.ts:65:5
+    at step (<worktree>/tests/codex-runtime-state.test.ts:44:23)
+    at Object.next (<worktree>/tests/codex-runtime-state.test.ts:25:53)
+    at fulfilled (<worktree>/tests/codex-runtime-state.test.ts:16:58) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: 'runner-model',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
