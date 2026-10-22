@@ -21,7 +21,7 @@ export function violations(file, source) {
           if (!(file === 'store.ts' && literal(where && property(where, 'status')) === 'planned')) failures.push('Execution admission must use admitNode and applyExecutionOutcomeTx');
         }
         const outcome = property(arg, 'outcome'), kind = literal(outcome && property(outcome, 'kind'));
-        if (['operator_resume', 'review_resumed'].includes(kind)) failures.push('Migrate the recovery caller to admitNode');
+        if (['operator_resume', 'review_resumed', 'review_platform_prepared'].includes(kind)) failures.push('Migrate the recovery caller to admitNode');
         if (['admitted', 'admission_deferred'].includes(kind) && file !== 'preparation-recovery.ts') failures.push('Only admitNode may submit an admission outcome');
       }
     }

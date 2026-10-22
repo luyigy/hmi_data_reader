@@ -33,6 +33,7 @@ export type AdmissionWake =
   | { source: 'conditions'; id: string; executionIds?: string[]; version?: string }
   | { source: 'operator'; id: string; preparedEventId?: string }
   | { source: 'conversation'; id: string; executionIds: string[]; inputIds: string[] }
+  | { source: 'prepared_review'; id: string }
   | { source: 'materials'; id: string; executionIds: string[]; reservationId: string; expectedRevision: number };
 export type AdmissionResult =
   | { kind: 'admitted'; eventId: string }
@@ -144,7 +145,7 @@ async function deferAdmission(job: TaskGraphExecution, runId: string, progress: 
         await requireGraphRunActiveTx(tx, runId);
         await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
         if (!await writerSnapshotMatches(tx, proof)) return;
-        if (!(wake.source === 'operator' && wake.preparedEventId)) await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken || '', expectedRevision: progress.revision,
+        if (!(wake.source === 'operator' && wake.preparedEventId) && wake.source !== 'prepared_review') await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken || '', expectedRevision: progress.revision,
           outcomeId: `admission-deferred:${key}`, outcome: { kind: 'admission_deferred', retryAt,
             failure: { ...(progress.lastFailure || { code: 'environment_failed', owner: 'platform' as const, requiresUserDecision: false }), detail } } }, exit, job);
         await tx.taskGraphEvent.createMany({ data: [{ runId: runId, nodeId: job.nodeId, kind: 'execution_conditions_unavailable',
@@ -169,6 +170,13 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
   const delay = delayed?.payload;
   if (wake.source !== 'conditions' && delay && typeof delay === 'object' && !Array.isArray(delay) &&
       typeof delay.retryAt === 'string' && Date.parse(delay.retryAt) > Date.now()) return { kind: 'deferred', reason: 'retry_not_due' };
+  const preparedReview = wake.source === 'prepared_review' ? await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: wake.id } }) : null;
+  if (preparedReview && (preparedReview.kind !== 'platform_review_preparation' || preparedReview.nodeId !== nodeId || preparedReview.runId !== node.runId)) throw new PreparationRejected('Prepared review target mismatch');
+  const reviewReceipt = preparedReview?.payload;
+  if (preparedReview) {
+    if (!reviewReceipt || typeof reviewReceipt !== 'object' || Array.isArray(reviewReceipt) || !('receipt' in reviewReceipt)) throw new PreparationRejected('Invalid prepared review evidence');
+    await validatePreparationArtifacts(parsePreparationReceipt(reviewReceipt.receipt).artifacts);
+  }
   const prepared = wake.source === 'operator' && wake.preparedEventId
     ? parsePreparationReceipt((await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: wake.preparedEventId } })).payload) : undefined;
   if (prepared) {
@@ -258,6 +266,14 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
     const dependencies = await tx.taskGraphNode.findMany({ where: { runId: node.runId, key: { in: current.dependsOn } } });
     if (dependencies.length !== current.dependsOn.length || !dependencies.every(item => isCompletedNodeStatus(item.status))) return { kind: 'deferred', reason: 'upstream_not_accepted' };
     for (const entry of observations) if (!await writerSnapshotMatches(tx, entry.proof)) return { kind: 'deferred', reason: 'writer_or_candidate_changed' };
+    if (preparedReview) {
+      const original = await tx.taskGraphEvent.findUniqueOrThrow({ where: { id: preparedReview.id } });
+      if (preparationHash(original.payload) !== preparationHash(reviewReceipt)) throw new PreparationRejected('Prepared review evidence changed');
+      const bound = original.payload;
+      if (!bound || typeof bound !== 'object' || Array.isArray(bound)) throw new PreparationRejected('Invalid prepared review binding');
+      for (const entry of observations) if (bound.executionId !== entry.job.id || bound.claimToken !== entry.job.claimToken ||
+          bound.expectedRevision !== entry.progress.revision || bound.candidateCommit !== entry.job.commit) throw new PreparationRejected('Stale prepared review identity');
+    }
     if (prepared && wake.source === 'operator' && wake.preparedEventId) await assertPreparationTx(tx, node.runId, node.key, wake.preparedEventId, prepared);
     if (wake.source === 'conversation') {
       const owner = await tx.task.findUniqueOrThrow({ where: { id: current.run.parentTaskId }, select: { ownerUserId: true } });
@@ -303,6 +319,9 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
     if (wake.source === 'operator' && wake.preparedEventId) await tx.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId,
       kind: 'platform_preparation_consumed', idempotencyKey: `preparation-consumed:${wake.preparedEventId}`,
       payload: { preparationEventId: wake.preparedEventId, kind: 'scheduled', eventId: event.id } }], skipDuplicates: true });
+    if (wake.source === 'prepared_review') await tx.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId,
+      kind: 'platform_preparation_consumed', idempotencyKey: `review-preparation-consumed:${wake.id}`,
+      payload: { preparationEventId: wake.id, kind: 'scheduled', eventId: event.id } }], skipDuplicates: true });
     return { kind: 'admitted', eventId: event.id };
   });
 }
@@ -315,8 +334,8 @@ export async function reconcileExecutionConditions(executionId: string) {
     const first = await prisma.taskGraphExecution.findFirst({ where: { nodeId: job.nodeId }, orderBy: { id: 'asc' }, select: { id: true } });
     if (first?.id !== job.id) return false;
   }
-  const preparations = await prisma.taskGraphEvent.findMany({ where: { nodeId: job.nodeId, kind: 'platform_preparation_registered' }, select: { id: true } });
-  for (const receipt of preparations) if (!await prisma.taskGraphEvent.count({ where: { runId: job.node.runId, idempotencyKey: `preparation-consumed:${receipt.id}` } })) return false;
+  const preparations = await prisma.taskGraphEvent.findMany({ where: { nodeId: job.nodeId, kind: { in: ['platform_preparation_registered', 'platform_review_preparation'] } }, select: { id: true, kind: true } });
+  for (const receipt of preparations) if (!await prisma.taskGraphEvent.count({ where: { runId: job.node.runId, idempotencyKey: `${receipt.kind === 'platform_review_preparation' ? 'review-preparation-consumed' : 'preparation-consumed'}:${receipt.id}` } })) return false;
   const changes = await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId,
     kind: { in: ['run_user_resumed', 'node_verified', 'delivered_unverified', 'project_capability_scope_approved'] } },
     select: { id: true, nodeId: true, kind: true, payload: true, createdAt: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
@@ -361,14 +380,21 @@ export async function registerPlatformPreparation(input: unknown) {
 }
 
 export async function recoverPreparedImplementations(runId: string) {
-  const events = await prisma.taskGraphEvent.findMany({ where: { runId, kind: 'platform_preparation_registered' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+  const events = await prisma.taskGraphEvent.findMany({ where: { runId, kind: { in: ['platform_preparation_registered', 'platform_review_preparation'] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
   for (const event of events) {
-    const key = `preparation-consumed:${event.id}`;
+    const key = `${event.kind === 'platform_review_preparation' ? 'review-preparation-consumed' : 'preparation-consumed'}:${event.id}`;
     if (await prisma.taskGraphEvent.count({ where: { runId, idempotencyKey: key } })) continue;
     let result: { kind: string; eventId?: string; reason?: string };
     try {
+      if (event.kind === 'platform_review_preparation') {
+        if (!event.nodeId) throw new PreparationRejected('Prepared review has no node');
+        const admitted = await admitNode(event.nodeId, { source: 'prepared_review', id: event.id });
+        if (admitted.kind !== 'admitted' && admitted.kind !== 'already_scheduled') continue;
+        result = { kind: 'scheduled', eventId: admitted.eventId };
+      } else {
       const receipt = parsePreparationReceipt(event.payload);
       result = await scheduleImplementationRecovery(runId, receipt.nodeKey, `prepared:${event.id}`, event.id);
+      }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       const controlledRejection = error instanceof PreparationRejected || error instanceof AdmissionRefused && error.result.kind === 'rejected';
@@ -410,7 +436,7 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
   const proof = await observeWriterSnapshot({ jobs: before.executions, taskRunIds: reviews.map(review => review.id), scope: 'execution', observeExecution: observeAdmissionWriter });
   if (!proof.exited) throw new Error('Original implementation or reviewer writer has not exited');
   if (await graphGit(platformDirectory, 'rev-parse', 'HEAD') !== remediationCommit) throw new Error('Remediation code changed before publication');
-  return prisma.$transaction(async tx => {
+  const registered = await prisma.$transaction(async tx => {
     const key = `prepared-review:${receipt.requestId}`;
     const { previous } = await preparationRequestTx(tx, receipt, key);
     const requestHash = preparationHash({ receipt, remediationCommit });
@@ -435,12 +461,10 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
     if (currentReviews.length !== reviews.length || currentReviews.some(review => !reviews.some(old => old.id === review.id))) throw new Error('Reviewer membership changed during observation');
     const event = await tx.taskGraphEvent.create({ data: { runId: receipt.runId, nodeId: node.id, kind: 'platform_review_preparation', idempotencyKey: key,
       payload: { requestHash, receipt, remediationCommit, remediationIdentity: `${job.commit}:${remediationCommit}`, executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision, candidateCommit: job.commit } } });
-    await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
-      outcomeId: key, outcome: { kind: 'review_platform_prepared', preparationEventId: event.id } });
-    await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'verifying' } });
-    await tx.taskGraphRun.updateMany({ where: { id: receipt.runId, status: { not: 'paused' } }, data: { status: 'running' } });
     return { kind: 'registered', eventId: event.id };
   });
+  if (registered.kind === 'registered') await admitNode(before.id, { source: 'prepared_review', id: registered.eventId });
+  return registered;
 }
 
 async function executionConditionsVersion() {

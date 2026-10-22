@@ -7,7 +7,9 @@ import { createRequire } from 'node:module';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun, releaseReadyNodes, claimNode, claimExecution } from '../src/lib/task-graph/store';
 import { applyExecutionOutcome, executionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
-import { createGraphWriter } from '../src/lib/task-graph/writer-ownership';
+import { observeWriterSnapshot, writerSnapshotMatches } from '../src/lib/task-graph/writer-snapshot';
+import { observeExecutionWriter } from '../src/lib/task-graph/phase-worker';
+import { createGraphWriter, releaseTaskRunWriter } from '../src/lib/task-graph/writer-ownership';
 import { releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker';
 import { admitNode } from '../src/lib/task-graph/preparation-recovery';
 
@@ -76,6 +78,17 @@ async function main() {
     assert.equal(aggregate.status, 'claimed'); assert.equal(aggregate.claimToken, 'active-node-claim');
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: sibling.id } })).status, 'claimed');
     await releaseGraphExecutionWorker(sibling.id, 'WAIT', activeWriter.nonce);
+    const nativeWriter = await createGraphWriter();
+    const finished = await prisma.taskRun.create({ data: { taskId: job.childTaskId!, status: 'completed', controlMetadata: JSON.stringify({ graphWriter: nativeWriter }), participants: { create: [{ gatewayId: 'platform-local', gatewayNameSnapshot: 'Local', executionBackend: 'platform_local', harnessType: 'codex', harnessNameSnapshot: 'Codex', role: 'implementer', runner: 'codex', status: 'completed' }] } } });
+    await releaseTaskRunWriter(finished.id, nativeWriter.nonce);
+    await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { taskRunId: finished.id } });
+    const observed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    const proof = await observeWriterSnapshot({ jobs: [observed], scope: 'execution', observeExecution: observeExecutionWriter });
+    assert.equal(proof.exited, true);
+    await prisma.taskRun.update({ where: { id: finished.id }, data: { summary: 'late presentation-only summary', lastActivityAt: new Date() } });
+    assert.equal(await prisma.$transaction(tx => writerSnapshotMatches(tx, proof)), true, 'Late summary/timestamp changes do not change Writer identity');
+    await prisma.taskRun.update({ where: { id: finished.id }, data: { controlMetadata: JSON.stringify({ graphWriter: await createGraphWriter() }) } });
+    assert.equal(await prisma.$transaction(tx => writerSnapshotMatches(tx, proof)), false, 'A changed Writer nonce still invalidates the proof');
     console.log('Admission: missing owner/exhausted does not revoke work; temporary failure does not consume a request; concurrent admissions select one; independent sibling permission wait remains blocked; count 77 retained');
   } finally {
     await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); await rm(root, { recursive: true, force: true });

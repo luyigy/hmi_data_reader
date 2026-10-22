@@ -5,7 +5,7 @@ import { observeTaskRunWriter } from './writer-ownership';
 
 // Status/summary may change when an exited run is interrupted. Writer and session
 // identities may not. Observe the OS outside transactions; compare identity inside.
-const writerIdentity = {
+export const taskRunWriterIdentity = {
   id: true, taskId: true, taskSessionId: true, controlMetadata: true, startedAt: true,
   participants: { orderBy: { id: 'asc' }, select: {
     id: true, taskRunId: true, executionBackend: true, gatewayId: true,
@@ -14,7 +14,7 @@ const writerIdentity = {
 } satisfies Prisma.TaskRunSelect;
 
 export async function observeTaskRunExit(taskRunId: string) {
-  const identity = await prisma.taskRun.findUnique({ where: { id: taskRunId }, select: writerIdentity });
+  const identity = await prisma.taskRun.findUnique({ where: { id: taskRunId }, select: taskRunWriterIdentity });
   const observation = await observeTaskRunWriter(taskRunId);
   return { taskRunId, identity, observation };
 }
@@ -22,5 +22,5 @@ export type TaskRunExitProof = Awaited<ReturnType<typeof observeTaskRunExit>>;
 
 export async function taskRunExitMatches(tx: Prisma.TransactionClient, taskRunId: string, proof?: TaskRunExitProof) {
   if (!proof || proof.taskRunId !== taskRunId || !proof.identity || proof.observation.kind !== 'exited') return false;
-  return isDeepStrictEqual(proof.identity, await tx.taskRun.findUnique({ where: { id: taskRunId }, select: writerIdentity }));
+  return isDeepStrictEqual(proof.identity, await tx.taskRun.findUnique({ where: { id: taskRunId }, select: taskRunWriterIdentity }));
 }

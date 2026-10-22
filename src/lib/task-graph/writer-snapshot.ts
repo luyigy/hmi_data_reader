@@ -1,8 +1,14 @@
 import type { Prisma, TaskGraphExecution } from '@prisma/client';
 import { isDeepStrictEqual } from 'node:util';
 import { prisma } from '../prisma';
+import { taskRunWriterIdentity } from './task-run-exit-proof';
 import { executionProgress } from './execution-progress';
 import { observeTaskRunWriter, type WriterObservation } from './writer-ownership';
+
+const snapshotIdentity = { ...taskRunWriterIdentity, status: true, controlState: true,
+  participants: { ...taskRunWriterIdentity.participants, select: { ...taskRunWriterIdentity.participants.select, status: true } },
+} satisfies Prisma.TaskRunSelect;
+const lifecycle = (status: string) => ['completed', 'failed', 'cancelled', 'interrupted'].includes(status) ? 'exited' : status;
 
 /** Exit observations are usable only for the exact ledger and TaskRun identities observed. */
 type SnapshotRequest = { jobs: TaskGraphExecution[]; taskRunIds?: string[] } & (
@@ -16,7 +22,7 @@ export async function observeWriterSnapshot(args: SnapshotRequest) {
     for (const id of [job.taskRunId, progress?.taskRunId, progress?.review?.kind === 'running' ? progress.review.taskRunId : null,
       progress?.conversation?.kind === 'running' ? progress.conversation.taskRunId : null]) if (id) ids.add(id);
   }
-  const runs = await prisma.taskRun.findMany({ where: { id: { in: Array.from(ids) } }, include: { participants: { orderBy: { id: 'asc' } } }, orderBy: { id: 'asc' } });
+  const runs = await prisma.taskRun.findMany({ where: { id: { in: Array.from(ids) } }, select: snapshotIdentity, orderBy: { id: 'asc' } });
   const observations = [];
   if (args.scope === 'execution') for (const job of jobs) observations.push(await args.observeExecution(job));
   for (const id of extraTaskRunIds) observations.push(await observeTaskRunWriter(id));
@@ -27,6 +33,8 @@ export async function writerSnapshotMatches(tx: Prisma.TransactionClient, proof:
   if (!proof.exited) return false;
   const jobs = await tx.taskGraphExecution.findMany({ where: { id: { in: proof.jobs.map(job => job.id) } }, orderBy: { id: 'asc' } });
   if (!isDeepStrictEqual(jobs, [...proof.jobs].sort((a, b) => a.id.localeCompare(b.id)))) return false;
-  const runs = await tx.taskRun.findMany({ where: { id: { in: proof.taskRunIds } }, include: { participants: { orderBy: { id: 'asc' } } }, orderBy: { id: 'asc' } });
-  return isDeepStrictEqual(runs, proof.runs);
+  const runs = await tx.taskRun.findMany({ where: { id: { in: proof.taskRunIds } }, select: snapshotIdentity, orderBy: { id: 'asc' } });
+  const identity = ({ status, participants, ...run }: (typeof proof.runs)[number]) => ({ ...run, status: lifecycle(status),
+    participants: participants.map(({ status, ...participant }) => ({ ...participant, status: lifecycle(status) })) });
+  return isDeepStrictEqual(runs.map(identity), proof.runs.map(identity));
 }
