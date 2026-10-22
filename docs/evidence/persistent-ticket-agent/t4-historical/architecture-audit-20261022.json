@@ -1,0 +1,603 @@
+{
+  "observedAt": "2026-10-22T00:52:34.194Z",
+  "runId": "cmvdmf87w043f9xhgf9yvua6p",
+  "status": "attention",
+  "sourceBaseline": "4c36b4552e329de0293e6894fb8941028adb62bb",
+  "counts": {
+    "attention": 5,
+    "planned": 3,
+    "passed": 16
+  },
+  "nodes": [
+    {
+      "key": "M6_BOLE",
+      "status": "attention",
+      "dependsOn": [
+        "R6_BOLE",
+        "M03B",
+        "M05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z043z9xhg3iggnmvj",
+          "phase": "prepare",
+          "state": "waiting_decision",
+          "revision": 5,
+          "taskRunId": null,
+          "commit": null,
+          "lastFailure": {
+            "code": "missing_upstream_input",
+            "detail": "固定输入准备失败：上游源码超过 256 MiB 限制",
+            "blockedPhase": "input_preparation"
+          },
+          "latestEventAt": "2026-10-21T16:34:09.792Z"
+        }
+      ]
+    },
+    {
+      "key": "M6_ARBURG",
+      "status": "attention",
+      "dependsOn": [
+        "R6_ARBURG",
+        "M03B",
+        "M05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z043x9xhg4ge3392q",
+          "phase": "implement",
+          "state": "waiting_decision",
+          "revision": 136,
+          "taskRunId": "cmvieee8v0nrcz24t1agdgjkb",
+          "commit": null,
+          "lastFailure": {
+            "code": "dispatch_failed",
+            "detail": "\nInvalid `tx.taskGraphExecution.update()` invocation in\n/data1/code/agent-platform-v2/src/lib/task-graph/execution-progress.ts:311:33\n\n  308 if (status === 'ready' || outcome.kind === 'integrated' || outcome.kind === 'review_retry' || outcome.kind === 'review_platform_prepared') { delete progress.worker; delete progress.workerReleasedAt; }\n  309 if (status === 'ready' && current.taskRunId && await tx.taskRun.count({ where: { id: current.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Cannot requeue a live TaskRun');\n  310 if (status === 'ready' && current.taskRunId && outcome.kind !== 'operator_resume' && (await observeTaskRunWriter(current.taskRunId)).kind !== 'exited') throw new Error('Cannot requeue a TaskRun without actual writer exit proof');\n→ 311 await tx.taskGraphExecution.update(\nTransaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5499 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction."
+          },
+          "latestEventAt": "2026-10-21T17:41:21.764Z"
+        }
+      ]
+    },
+    {
+      "key": "M07",
+      "status": "planned",
+      "dependsOn": [
+        "M6_DEMAG",
+        "M6_NISSEI",
+        "M6_FANUC",
+        "M6_BOLE",
+        "M6_YIZUMI",
+        "M6_ARBURG"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z043v9xhgw3kai2u3",
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "taskRunId": null,
+          "commit": null,
+          "lastFailure": null,
+          "latestEventAt": "2026-10-21T05:56:18.244Z"
+        }
+      ]
+    },
+    {
+      "key": "M6_FANUC",
+      "status": "planned",
+      "dependsOn": [
+        "R6_FANUC",
+        "M03B",
+        "M05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z04439xhgbpz1iy56",
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "taskRunId": null,
+          "commit": null,
+          "lastFailure": null,
+          "latestEventAt": "2026-10-21T05:56:18.156Z"
+        }
+      ]
+    },
+    {
+      "key": "M6_NISSEI",
+      "status": "planned",
+      "dependsOn": [
+        "R6_NISSEI",
+        "M03B",
+        "M05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z04459xhgb6sft4g5",
+          "phase": null,
+          "state": null,
+          "revision": null,
+          "taskRunId": null,
+          "commit": null,
+          "lastFailure": null,
+          "latestEventAt": "2026-10-21T05:56:18.189Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_NISSEI",
+      "status": "attention",
+      "dependsOn": [
+        "R05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044p9xhg6z3mtzlv",
+          "phase": "implement",
+          "state": "waiting_decision",
+          "revision": 20,
+          "taskRunId": "cmviar3wv0u72703aq66c7w96",
+          "commit": null,
+          "lastFailure": {
+            "code": "permission_required",
+            "detail": "现有候选和执行资格保留；授权资料已继续检索至1520条后再次达到请求上限。等待限定只读核查 hmi_finetuning 中日精 Z077/Z078 原图、来源及分组的授权，不修改或运行该仓。指定验证6通过1失败，尚未交付。",
+            "blockedPhase": "implementation"
+          },
+          "latestEventAt": "2026-10-21T16:04:13.699Z"
+        }
+      ]
+    },
+    {
+      "key": "M6_DEMAG",
+      "status": "passed",
+      "dependsOn": [
+        "R6_DEMAG",
+        "M03B",
+        "M05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z04419xhgcwj4i8y0",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 23,
+          "taskRunId": "cmvid6k7d0066z24t107d1rau",
+          "commit": "f45ff8243ed8c71c9fb0f4bc63341d87a023d802",
+          "lastFailure": {
+            "code": "missing_upstream_input",
+            "detail": "固定输入准备失败：上游源码超过 256 MiB 限制",
+            "blockedPhase": "input_preparation"
+          },
+          "latestEventAt": "2026-10-21T17:27:49.312Z"
+        }
+      ]
+    },
+    {
+      "key": "M01",
+      "status": "passed",
+      "dependsOn": [
+        "R01"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87y043h9xhg2x2fqmku",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 36,
+          "taskRunId": "cmvdxskoa0cw6twmkb0v2vpt2",
+          "commit": "8dea94a9fdbfcc7e823ab818bae6605a1ade3c0c",
+          "lastFailure": {
+            "code": "test_failed",
+            "detail": "/data1/code/mold-data-webpage-tool/backend/.venv/bin/python -m pytest -q backend/tests/test_hmi_protocol_library_m01.py: exit 1\nnt-platform/task-validation/7a592edac1b1ff87f78d1afe/e4ce5528566f0d87263b33e2/reader-live-receipt.json')\nmode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None\n\n    def open(self, mode='r', buffering=-1, encoding=None,\n             errors=None, newline=None):\n        \"\"\"\n        Open the file pointed by this path and return a file object, as\n        the built-in open() function does.\n        \"\"\"\n        if \"b\" not in mode:\n            encoding = io.text_encoding(encoding)\n>       return self._accessor.open(self, mode, buffering, encoding, errors,\n                                   newline)\nE       FileNotFoundError: [Errno 2] No such file or directory: '/home/hello/.agent-platform/task-validation/7a592edac1b1ff87f78d1afe/e4ce5528566f0d87263b33e2/reader-live-receipt.json'\n\n/usr/lib/python3.10/pathlib.py:1119: FileNotFoundError\n---------------------------- Captured stdout setup -----------------------------\n[DB_CONNECT] Connecting to database URL: sqlite://\n[DB_CONNECT] Connection succeeded to database: sqlite://!\n[DB_CONNECT] Warning: Could not initialize default admin (tables might not exist yet). Please run scripts/db_smoke_test.py --create to initialize tables manually.\n=============================== warnings summary ===============================\n../../../../../mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1\n  /data1/code/mold-data-webpage-tool/backend/.venv/lib/python3.10/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED backend/tests/test_hmi_protocol_library_m01.py::test_a01_a03_real_ocr_hash_manual_equivalence_and_frozen_replay\n1 failed, 8 passed, 1 warning in 6.28s\n\n",
+            "checkId": "execution:mold:ticket-behavior",
+            "command": [
+              "/data1/code/mold-data-webpage-tool/backend/.venv/bin/python",
+              "-m",
+              "pytest",
+              "-q",
+              "backend/tests/test_hmi_protocol_library_m01.py"
+            ]
+          },
+          "latestEventAt": "2026-10-18T15:01:15.494Z"
+        }
+      ]
+    },
+    {
+      "key": "M04C",
+      "status": "passed",
+      "dependsOn": [
+        "R04",
+        "M01"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87y043p9xhgjpb09wwi",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 19,
+          "taskRunId": "cmvdz2hty0p0htwmk8oe7xqqa",
+          "commit": "92635daf5e7c4e8da29ee6ceb21b833e98d248fd",
+          "lastFailure": {
+            "code": "environment_failed",
+            "detail": "已保留实现并重跑指定测试，18 passed；前端构建通过。现有Playwright可加载，但Chromium可执行文件缺失，A16双视口保存重开仍未执行。证据保存在本轮AP_GRAPH_OUTPUT_DIR/m04c-report.md。",
+            "blockedPhase": "implementation"
+          },
+          "latestEventAt": "2026-10-18T15:29:23.358Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_YIZUMI",
+      "status": "passed",
+      "dependsOn": [
+        "R05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044r9xhgc8z15d8w",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 50,
+          "taskRunId": "cmvidoh090arhz24t6ce7t76s",
+          "commit": "e9622681f765cbe0e1319696695f233f4c98c529",
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "本轮指定测试28项通过，含旧版与生命周期组合59项通过；真实OCR、HTTP/CLI、发布及新进程GET通过。补验发现段数地标缺读时，真实OCR上传返回HTTP500，CLI抛RAW_PAGE_LAYOUT_CONFLICT traceback，未提供结构化拒识。证据见本轮输出acceptance/005_REPORT_20261021_R6_YIZUMI验收复核.md及supplement-results.json。源码未修改。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "915f4d560239381c4699566dfbe52984415cd04baafc44c72528d2c8c8c120ea",
+            "tree": "041b02c1a54b3aa5adb8225ec812b2b1de7ec943"
+          },
+          "latestEventAt": "2026-10-21T17:31:40.267Z"
+        }
+      ]
+    },
+    {
+      "key": "R05",
+      "status": "passed",
+      "dependsOn": [
+        "R02",
+        "R04"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044f9xhg4phyzc48",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 51,
+          "taskRunId": "cmvgekr1p0rrj78k1yugwd0ws",
+          "commit": "f12e3ac3808f60027530d70c4ff6303ce295174b",
+          "lastFailure": {
+            "code": "missing_business_material",
+            "detail": "已实现伯乐白色五段储料射退页开发适配并完成真实OCR、HTTP草稿试跑和发布拦截；缺该版式独立验收原图与参考，尚未完成冻结发布及回滚验证。保留全部代码进度。",
+            "blockedPhase": "implementation"
+          },
+          "latestEventAt": "2026-10-20T08:48:21.319Z"
+        }
+      ]
+    },
+    {
+      "key": "R02",
+      "status": "passed",
+      "dependsOn": [
+        "R01"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z044b9xhg5x324xdu",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 30,
+          "taskRunId": "cmve1ksr60026b0j3vouqy2zw",
+          "commit": "cd92faeb2cfb86486fc9b65d2053e50a31fede2f",
+          "lastFailure": {
+            "code": "integration_conflict",
+            "detail": "{\"message\":\"Merge needs manual resolution: /data1/code/.agent-platform-task-graph-worktrees/4ca3456d86e44cdc/06360cdbe0d418bf/jobs/2a2c0ecd4f44813b\",\"integration\":{\"kind\":\"conflict\",\"candidateCommit\":\"29b0b7f46abfb8895c7d1183f9d49653e4618e40\",\"integrationCommit\":\"9fc166708274319b33c0fed3532480b4e528eaa3\",\"mergeHead\":\"9fc166708274319b33c0fed3532480b4e528eaa3\",\"paths\":[\"docs/specs/hmi-protocol-library/raw-contract.md\"]}}",
+            "action": "原批准范围内输出冲突解决文件，平台完成合并并复验",
+            "owner": "implementer",
+            "requiresUserDecision": false,
+            "affectedPaths": [
+              "docs/specs/hmi-protocol-library/raw-contract.md"
+            ]
+          },
+          "latestEventAt": "2026-10-18T16:39:07.443Z"
+        }
+      ]
+    },
+    {
+      "key": "M6_YIZUMI",
+      "status": "attention",
+      "dependsOn": [
+        "R6_YIZUMI",
+        "M03B",
+        "M05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87z04479xhgsg531lko",
+          "phase": "prepare",
+          "state": "waiting_decision",
+          "revision": 5,
+          "taskRunId": null,
+          "commit": null,
+          "lastFailure": {
+            "code": "missing_upstream_input",
+            "detail": "固定输入准备失败：候选夹带未通过节点 R6_FANUC 的历史交付",
+            "blockedPhase": "input_preparation"
+          },
+          "latestEventAt": "2026-10-21T17:31:29.754Z"
+        }
+      ]
+    },
+    {
+      "key": "R01",
+      "status": "passed",
+      "dependsOn": [],
+      "executions": [
+        {
+          "id": "cmvdmf87z04499xhg3j7qnblt",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 11,
+          "taskRunId": "cmvdvh93b004g10x0n0lwhezy",
+          "commit": "c7b74e905401356878e355a60b6afba64d2ae835",
+          "lastFailure": null,
+          "latestEventAt": "2026-10-18T13:48:01.101Z"
+        }
+      ]
+    },
+    {
+      "key": "R04",
+      "status": "passed",
+      "dependsOn": [
+        "R01"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044d9xhgoavvyi0i",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 31,
+          "taskRunId": "cmvdx0ofc06l1twmkeacqabm4",
+          "commit": "d0b2fdb8381be4405427a30753b6253629a0503e",
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "固定提交复验：9项行为测试、73项回归、真实HTTP及离线读回通过；补验同版式原图b24ff33d发现喷嘴设定/实际350°C被省略、8min和0min设定缺失、0:00显示冲突。属范围内识读及测试覆盖缺陷。源码未修改，报告及证据：/home/hello/.agent-platform/task-validation/c6dc78e34d3edb8b0d7105ba/3d14f1c926973b6d0e9e4397/001_REPORT_20261018_R04验收.md",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "1f558aa0c7f3cf2969eb9001f85a7c73e9f56384b0cf3062b7297d87a83c9a00"
+          },
+          "latestEventAt": "2026-10-18T14:37:48.807Z"
+        }
+      ]
+    },
+    {
+      "key": "M04T",
+      "status": "passed",
+      "dependsOn": [
+        "R04",
+        "M01"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87y043r9xhgmka7pw7b",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 18,
+          "taskRunId": "cmve1kuia0038b0j30rp6hjbf",
+          "commit": "971de2652f4e2706b54b33aec17954a3553b9266",
+          "lastFailure": {
+            "code": "integration_conflict",
+            "detail": "{\"message\":\"Merge needs manual resolution: /data1/code/.agent-platform-task-graph-worktrees/9e5fa3464fad8cd7/06360cdbe0d418bf/jobs/cb26155da64fd561\",\"integration\":{\"kind\":\"conflict\",\"candidateCommit\":\"9fff5d0da6ecaa4cb0a58af7862be2f71498e17e\",\"integrationCommit\":\"92635daf5e7c4e8da29ee6ceb21b833e98d248fd\",\"mergeHead\":\"92635daf5e7c4e8da29ee6ceb21b833e98d248fd\",\"paths\":[\"backend/app/hmi_mapping/package_acceptance.py\",\"backend/app/hmi_mapping/page_profiles.py\",\"backend/app/hmi_mapping/partial_input.py\",\"backend/app/hmi_mapping/protocol.py\",\"backend/app/hmi_mapping/raw_capture_routes.py\",\"backend/app/hmi_mapping/raw_capture_v2.py\",\"backend/app/hmi_mapping/screen_projection.py\"]}}",
+            "action": "原批准范围内输出冲突解决文件，平台完成合并并复验",
+            "owner": "implementer",
+            "requiresUserDecision": false,
+            "affectedPaths": [
+              "backend/app/hmi_mapping/package_acceptance.py",
+              "backend/app/hmi_mapping/page_profiles.py",
+              "backend/app/hmi_mapping/partial_input.py",
+              "backend/app/hmi_mapping/protocol.py",
+              "backend/app/hmi_mapping/raw_capture_routes.py",
+              "backend/app/hmi_mapping/raw_capture_v2.py",
+              "backend/app/hmi_mapping/screen_projection.py"
+            ]
+          },
+          "latestEventAt": "2026-10-18T16:43:51.229Z"
+        }
+      ]
+    },
+    {
+      "key": "M05",
+      "status": "passed",
+      "dependsOn": [
+        "R05",
+        "M02",
+        "M04T",
+        "M04C"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87y043t9xhgdo28uftr",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 17,
+          "taskRunId": "cmvgs27st2w3avo4gtrr0n84a",
+          "commit": "2a3bf035f06030f50027691baf3ad26907eca523",
+          "lastFailure": {
+            "code": "environment_failed",
+            "detail": "必需 poteto-mode 技能符号链接目标缺失，SKILL.md、Codex 映射及校验脚本不可读取；已搜索可用副本但未找到。检查进度已保存，源码未修改，真实 Reader/API/双视口保存重开均未验证。",
+            "blockerCause": "missing_capability",
+            "action": "准备并验证缺少的运行能力后从已保存候选继续；环境不变时不重复实施",
+            "owner": "platform",
+            "requiresUserDecision": false,
+            "blockedPhase": "implementation"
+          },
+          "latestEventAt": "2026-10-20T14:58:36.262Z"
+        }
+      ]
+    },
+    {
+      "key": "M02",
+      "status": "passed",
+      "dependsOn": [
+        "R02",
+        "M01"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87y043j9xhgc8sw2aks",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 36,
+          "taskRunId": "cmvf4dtys002i6wx4xshuy4er",
+          "commit": "74c56686a6f3c3e544d7d392759317c5f35c3124",
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "独立复验14项行为测试、2项双视口测试通过，但两次真实OCR均复现：BOLE/B_AND_R冻结绑定收到PAGE_COMPATIBLE后，Model仍误报品牌不符并保存空字段候选，现有测试漏断言。属于范围内缺陷，无需用户补图。报告：/home/hello/.agent-platform/task-validation/18c3968f2a4c5bdfc43d75bb/e592f510cd0abf29dccd2126/acceptance-report.txt；失败证据：同目录live-candidate-check.log及m02-formal-live-chain.json。仅新增隔离验收产物，源码未修改。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "1f558aa0c7f3cf2969eb9001f85a7c73e9f56384b0cf3062b7297d87a83c9a00"
+          },
+          "latestEventAt": "2026-10-19T10:46:29.844Z"
+        }
+      ]
+    },
+    {
+      "key": "M03A",
+      "status": "passed",
+      "dependsOn": [
+        "M02"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87y043l9xhgwuu1qoex",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 31,
+          "taskRunId": "cmvf80kku002cdl5khgha861u",
+          "commit": "4319f1d94897ef9d8fae976bb761c7f8f0925a56",
+          "lastFailure": {
+            "code": "review_platform_failure",
+            "detail": "Agent 复核 未通过：tester @ Platform Local (hello) / codex: 本次验收涉及多个项目 Python 环境，需按仓库分别执行检查，不能隐式混用"
+          },
+          "latestEventAt": "2026-10-19T12:35:25.162Z"
+        }
+      ]
+    },
+    {
+      "key": "M03B",
+      "status": "passed",
+      "dependsOn": [
+        "M03A"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf87y043n9xhgkgkxy2ip",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 9,
+          "taskRunId": "cmvf8lqmk01rm9sfjfdxu4ybi",
+          "commit": "f4d0b48d6ac28be6f4544492beb88b4e6cfc7576",
+          "lastFailure": null,
+          "latestEventAt": "2026-10-19T12:56:10.295Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_DEMAG",
+      "status": "passed",
+      "dependsOn": [
+        "R05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044l9xhgihg4hu8o",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 50,
+          "taskRunId": "cmvhif2wk099a8w0p4lcoj1uu",
+          "commit": "d682493504f778c7830c50b594326e6bbbb6fcfa",
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "固定提交独立复跑19项通过，相邻回归29通过、2跳过；新增两张真实储料图均只有4个背压格，HTTP却输出6段和5段，将同格07/0.7重复编号。失败断言及原始响应见本轮输出目录 physical-stages-check.log，完整报告为001_REPORT_20261021_R6_DEMAG验收复核.md。源码未修改。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "1f558aa0c7f3cf2969eb9001f85a7c73e9f56384b0cf3062b7297d87a83c9a00"
+          },
+          "latestEventAt": "2026-10-21T02:57:54.179Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_BOLE",
+      "status": "passed",
+      "dependsOn": [
+        "R05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044j9xhgfq8r9py1",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 55,
+          "taskRunId": "cmvibc9vq16ta703ad0irnqhs",
+          "commit": "4762630515d354c4bbe1086bbeecb3e3a2f78f6a",
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "原有10项测试通过。实际补验两张新增授权原图：第二张32个非空值、合同校验及CLI新进程读回通过；第一张普通上传和固定绑定上传均HTTP500，CLI退出1，原因是BOLE_INJECTION_LAYOUT_UNVERIFIED未转为明确拒识结果。报告：/home/hello/.agent-platform/task-validation/8cbb8e22a45c1d0592a78db3/ae022f1819b5005e4031c863/acceptance-report.txt。源码未修改，仅新增隔离验收产物。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "1131e4e45db579eec3d63a614408a5db50704f0d75767b07fe5f81e28c3ee451",
+            "tree": "81b8e3c72f43706beb89b319f2e60e65d17cf7c2"
+          },
+          "latestEventAt": "2026-10-21T16:34:23.299Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_ARBURG",
+      "status": "passed",
+      "dependsOn": [
+        "R05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044h9xhgr7zjz83d",
+          "phase": "acceptance",
+          "state": "active",
+          "revision": 43,
+          "taskRunId": "cmvic0tk10032915hewtfv29m",
+          "commit": "32b68bbf2eb5d9713e7911add1fa56eecebd8012",
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "现有票据测试10通过，共享回归66通过；新增独立同版式原图实测失败：松退速度50.0误读为500.0且reading=known，HTTP与CLI均复现。报告：/home/hello/.agent-platform/task-validation/2e9b8f2fcf7f9cc03672a902/5cadbee3d29930918f0793e0/acceptance-report.md。源码未修改。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "8cb13bb7f6d39609b1e6b8ff975ee6a17a76ae89bca4e56cd51fe075336bd633",
+            "tree": "0c3f069d6d6fa6142bae453862d676593e269368"
+          },
+          "latestEventAt": "2026-10-21T17:06:40.033Z"
+        }
+      ]
+    },
+    {
+      "key": "R6_FANUC",
+      "status": "attention",
+      "dependsOn": [
+        "R05"
+      ],
+      "executions": [
+        {
+          "id": "cmvdmf880044n9xhgpxl58qyi",
+          "phase": "implement",
+          "state": "waiting_for_user",
+          "revision": 909,
+          "taskRunId": "cmvie1tgz0h5mz24ti6i5eq4b",
+          "commit": "c6ce70d59cb2643eedbf0cd77d0b2d7eac29f6ed",
+          "lastFailure": {
+            "code": "in_scope_defect",
+            "detail": "固定源码专项7项通过；补验真实feishu_card_assistant调用因未选择CPU而报GPU count=0，空OCR导致FANUC温度页返回reject/unknown，属范围内调用方缺陷。另有Z036旧原图缺失，相关回归26通过1失败。报告及证据：/home/hello/.agent-platform/task-validation/f20b55612f36d5747d5b479a/b59e3681324117a9d8c2ae2b/acceptance-report.txt；源码未修改。",
+            "checkId": "acceptance:ticket-behavior",
+            "fingerprint": "f8ca9d8f3ab84b82560a482b37401380309ecb7053003b7a14d9dd92bf2fedb4",
+            "tree": "f07b5b6fcbe23e9d18221b77b71c8caafd2f7d48"
+          },
+          "latestEventAt": "2026-10-21T17:35:08.924Z"
+        }
+      ]
+    }
+  ]
+}
