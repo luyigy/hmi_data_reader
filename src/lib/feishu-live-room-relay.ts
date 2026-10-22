@@ -61,6 +61,8 @@ export const shouldRelayLiveRoomMessage = (message: LiveRoomMessagePayload) => {
     }
 
     const systemEvent = message.metadata?.systemEvent;
+    // Graph status is rendered in the existing overview card, not broadcast per turn.
+    if (systemEvent === 'task_graph_progress') return false;
     if (systemEvent === 'member_reply_thinking' || systemEvent === 'member_reply_tool') {
       return false;
     }

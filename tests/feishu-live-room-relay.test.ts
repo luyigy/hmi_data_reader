@@ -38,6 +38,7 @@ assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
   harnessType: 'claude', progressKind: 'heartbeat',
 })), true);
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'task_graph_progress')), false, 'Routine Graph progress belongs in the existing overview, not a new parent message');
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_thinking')), false);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_started', { skipFeishuRelay: true })), false);
 assert.equal(shouldRelayLiveRoomMessage(message('system', 'member_reply_progress', {
@@ -112,23 +113,11 @@ assert.deepEqual(buildAssistantRelayCard(assistant).elements, [
 ]);
 
 assistant.metadata = { deliveryIntent: 'broadcast', handoffRootMessageId: 'root-message', chainDepth: 1 };
-assert.deepEqual(buildAssistantRelayCard(assistant).elements.slice(-2), [{
+assert.deepEqual(buildAssistantRelayCard(assistant).elements.at(-1), {
   tag: 'note',
   elements: [{ tag: 'plain_text', content: '范围：本轮根消息及同一 Handoff 接力链；不含房间全部历史或其他讨论。' }],
-}, {
-  tag: 'action',
-  actions: [{
-    tag: 'button',
-    type: 'primary',
-    text: { tag: 'plain_text', content: '将本轮 Handoff 链生成审批 PLAN' },
-    value: {
-      cmd: 'handoff-plan',
-      roomId: 'room',
-      rootMessageId: 'root-message',
-      chatType: 'group',
-    },
-  }],
-}]);
+});
+assert.doesNotMatch(JSON.stringify(buildAssistantRelayCard(assistant)), /handoff-plan|审批 PLAN/);
 
 assistant.content = '普通引用 @Claude';
 assistant.metadata = { deliveryIntent: 'broadcast', targetMemberName: 'Claude' };

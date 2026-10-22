@@ -6,13 +6,16 @@ import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { pendingConversationInputs } from '../src/lib/task-graph/conversation-inbox';
 import { setGraphRunPaused } from '../src/lib/task-graph/run-control';
 import { buildGraphOverview, handleGraphOverviewAction, loadGraphOverview, publishGraphOverview } from '../src/lib/task-graph/overview';
+import { postGraphParentProgress } from '../src/lib/task-graph/feishu';
+import { relayLiveRoomMessageToFeishu } from '../src/lib/feishu-live-room-relay';
 import { graphFormAction } from '../src/lib/task-graph/card-actions';
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   process.env.FEISHU_ADMIN_OPEN_ID = 'overview-operator';
   const require = createRequire(__filename), api = require('../src/lib/feishu-api'), cards = require('../src/lib/feishu-task-entry-api');
-  let sends = 0, updates = 0;
+  let sends = 0, updates = 0, textSends = 0;
+  api.sendFeishuTextMessage = async () => { textSends++; return 'unexpected-parent-text'; };
   api.sendFeishuInteractiveMessage = async () => { sends++; return 'om_fixture_overview'; };
   cards.updateFeishuTaskEntryCard = async () => { updates++; };
   const parent = await prisma.task.create({ data: { name: `overview-${randomUUID()}` } });
@@ -34,6 +37,17 @@ async function main() {
     assert.match(first.header.title.content, /1\/2/);
     assert.deepEqual(graphFormAction(`tgo:r:${run.id}:${run.snapshotHash}`), { cmd: 'task-graph-overview', action: 'reply', runId: run.id, hash: run.snapshotHash });
     assert.equal(await publishGraphOverview(run.id), true); assert.equal(await publishGraphOverview(run.id), false); assert.equal(sends, 1);
+    await postGraphParentProgress(parent.id, run.id, 'T0/repo 已启动');
+    await postGraphParentProgress(parent.id, run.id, 'T0/repo 下一轮已启动');
+    const progressMessages = await prisma.liveRoomMessage.findMany({ where: { roomId: room.id, messageType: 'system' } });
+    assert.equal(progressMessages.length, 2, 'Internal progress history remains available');
+    for (const saved of progressMessages) await relayLiveRoomMessageToFeishu({
+      id: saved.id, roomId: room.id, senderMemberId: null, senderName: 'system', senderLabel: 'system', senderType: 'system',
+      content: saved.content, messageType: 'system', visibility: 'room', topicSnapshot: null, createdAt: saved.createdAt.toISOString(),
+      replyToMessageId: null, metadata: JSON.parse(saved.metadata || '{}'),
+    });
+    assert.equal(textSends, 0, 'Repeated child turns must not send parent text messages');
+    assert.equal(sends, 1, 'The parent has one overview card');
     await assert.rejects(handleGraphOverviewAction({ ...action, openId: 'other-user' }), /Only the task operator/);
     await assert.rejects(handleGraphOverviewAction({ ...action, chatId: 'another-chat' }), /identity changed/);
     await assert.rejects(handleGraphOverviewAction({ ...action, value: { ...value, hash: '0'.repeat(64) } }), /identity changed/);
