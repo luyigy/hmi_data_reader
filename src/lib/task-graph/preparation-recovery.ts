@@ -1,6 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
-import { scheduleVerificationRecovery } from './review-recovery';
 import { resolveReviewWorkspaces } from './review-workspaces';
 import { prepareAcceptanceRuntime } from './acceptance-runtime';
 import { requireGraphRunActiveTx } from './run-control';
@@ -12,14 +11,325 @@ import { inspectSavedTaskRuntime } from './runtime-continuity';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { prisma } from '../prisma';
 import { graphGit } from './git-command';
-import { applyExecutionOutcomeTx, executionProgress, metadataWithProgress } from './execution-progress';
-import { observeExecutionWriter } from './phase-worker';
-import type { Prisma } from '@prisma/client';
+import { applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, metadataWithProgress } from './execution-progress';
+import { observeExecutionWriter, assertExecutionWriterExited } from './phase-worker';
+import type { Prisma, TaskGraphExecution } from '@prisma/client';
 import { executionRetryLimits } from './retry-limits';
 import { platformRepository } from '../platform-repository';
 import { PreparationRejected, parsePreparationReceipt, preparationBindingTx, preparationHash, validatePreparationArtifacts, type PreparationReceipt } from './preparation-contract';
 import { scheduleImplementationRecovery } from './implementation-result';
 import { redactSensitiveText } from '../redact-sensitive';
+import { observeTaskRunExit } from './task-run-exit-proof';
+import { continuationWorkFingerprint } from './continuation-work';
+import { ensureJobWorktree } from './worktree';
+import { withRepositoryLock } from './repository-lock';
+import { maxUnchangedWorkTurns } from './retry-limits';
+import type { ExecutionPhase, ExecutionProgress } from './execution-progress';
+import { pendingConversationInputs, authorizedConversationInput } from './conversation-inbox';
+import { assertPreparationTx } from './preparation-contract';
+import { observeTaskRunWriter } from './writer-ownership';
+
+export type AdmissionWake =
+  | { source: 'conditions'; id: string; executionIds?: string[]; version?: string }
+  | { source: 'operator'; id: string; preparedEventId?: string }
+  | { source: 'conversation'; id: string; executionIds: string[]; inputIds: string[] }
+  | { source: 'materials'; id: string; executionIds: string[]; reservationId: string; expectedRevision: number };
+export type AdmissionResult =
+  | { kind: 'admitted'; eventId: string }
+  | { kind: 'already_scheduled'; eventId: string }
+  | { kind: 'deferred' | 'rejected' | 'unchanged'; reason: string };
+
+export class AdmissionRefused extends Error {
+  constructor(readonly result: Extract<AdmissionResult, { reason: string }>) {
+    super(`Admission ${result.kind}: ${result.reason}`); this.name = 'AdmissionRefused';
+  }
+}
+
+async function approvedScopeChange(job: TaskGraphExecution) {
+  const decision = await prisma.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId,
+    kind: { in: ['execution_outcome', 'implementation_blocked'] }, AND: [
+      { payload: { path: ['executionId'], equals: job.id } }, { OR: [
+        { kind: 'implementation_blocked' }, { payload: { path: ['outcome', 'kind'], equals: 'decision_required' } },
+        { payload: { path: ['outcome', 'kind'], equals: 'waiting_for_user' } } ] } ] }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+  if (!decision) return false;
+  return await prisma.taskGraphEvent.count({ where: { nodeId: job.nodeId, kind: 'project_capability_scope_approved', createdAt: { gt: decision.createdAt },
+    payload: { path: ['executionId'], equals: job.id } } }) > 0;
+}
+
+function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeApproved = false): string | undefined {
+  if (progress.state === 'ownership_attention' || progress.lastFailure?.code === 'ownership_mismatch') return 'ownership_unresolved';
+  if (progress.conflictRepair || progress.lastFailure?.code === 'integration_conflict') return 'controlled_conflict_required';
+  if (progress.conversation && !(wake.source === 'materials' && progress.conversation.reservationId === wake.reservationId)) return 'conversation_writer_reserved';
+  const scopeResolved = wake.source === 'conditions' && scopeApproved && ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '');
+  if (wake.source === 'conditions' && !scopeResolved && (progress.lastFailure?.requiresUserDecision === true ||
+      ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '') ||
+      progress.state === 'waiting_for_user' && progress.waitingKind === 'question')) return 'human_input_required';
+}
+
+async function observeAdmissionWriter(job: TaskGraphExecution) {
+  const observed = await observeExecutionWriter(job);
+  if (observed.kind !== 'unknown') return observed;
+  try { await assertExecutionWriterExited(prisma, job); return { kind: 'exited' as const }; }
+  catch { return observed; }
+}
+
+/** Discover a legacy checkpoint only from immutable delivery evidence and an actual exited native writer. No status or old budget is reset. */
+async function discoverLegacyProgress(nodeId: string) {
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true, run: true } });
+  for (const job of node.executions) {
+    if (!['attention', 'integrated'].includes(job.status) || node.status !== 'attention' || executionProgress(job.dispatchMetadata) || !job.taskRunId || !job.childTaskId || !job.worktreePath) continue;
+    const source = await prisma.taskGraphEvent.findFirst({ where: { nodeId, kind: { in: ['implementation_blocked', 'node_delivery_reclassified'] },
+      payload: { path: ['executionId'], equals: job.id } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    const saved = source?.payload;
+    if (!source || !saved || typeof saved !== 'object' || Array.isArray(saved) || saved.taskRunId !== job.taskRunId ||
+        typeof saved.checkpointCommit !== 'string' || !/^[a-f0-9]{40,64}$/.test(saved.checkpointCommit) ||
+        typeof saved.workspaceBase !== 'string' || !/^[a-f0-9]{40,64}$/.test(saved.workspaceBase)) continue;
+    const run = await prisma.taskRun.findUnique({ where: { id: job.taskRunId } });
+    if (run?.taskId !== job.childTaskId) continue;
+    const proof = await observeWriterSnapshot({ jobs: [job], scope: 'execution', observeExecution: async original => original.taskRunId
+      ? observeTaskRunWriter(original.taskRunId) : { kind: 'unknown', reason: 'Legacy task has no native writer identity' } });
+    if (!proof.exited) continue;
+    if (await graphGit(job.worktreePath, 'rev-parse', 'HEAD') !== saved.checkpointCommit ||
+        await graphGit(job.worktreePath, 'rev-parse', '--path-format=absolute', '--git-common-dir') !==
+        await graphGit(job.repository, 'rev-parse', '--path-format=absolute', '--git-common-dir')) continue;
+    const raw = saved.result;
+    const result = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const progress: ExecutionProgress = { ...initialExecutionProgress(), phase: 'implement', state: 'waiting_decision',
+      candidateCommit: saved.checkpointCommit, workspaceBase: saved.workspaceBase, taskRunId: job.taskRunId,
+      conversationOwnerRunId: job.taskRunId, lastFailure: { code: typeof result.blockerKind === 'string' ? result.blockerKind : 'legacy_saved_work',
+        detail: typeof result.note === 'string' ? result.note : typeof saved.reason === 'string' ? saved.reason : 'Recorded legacy checkpoint' } };
+    await prisma.$transaction(async tx => {
+      await requireGraphRunActiveTx(tx, node.runId);
+      await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
+      if (!await writerSnapshotMatches(tx, proof)) return;
+      const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { run: true } });
+      if (current.run.snapshotHash !== node.run.snapshotHash) return;
+      await tx.taskGraphExecution.update({ where: { id: job.id }, data: { claimToken: job.claimToken || `legacy:${source.id}`,
+        dispatchMetadata: metadataWithProgress(job.dispatchMetadata, progress) } });
+      await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId, kind: 'execution_progress_discovered',
+        idempotencyKey: `legacy-progress:${job.id}`, payload: { executionId: job.id, sourceEventId: source.id,
+          candidateCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, taskRunId: job.taskRunId, writerExited: true } } });
+    });
+  }
+}
+
+async function inspectImplementation(job: TaskGraphExecution, progress: ExecutionProgress, snapshot: GraphDefinition, runId: string) {
+  if (!job.worktreePath || !job.childTaskId || !progress.candidateCommit || !progress.workspaceBase) throw new PreparationRejected('Missing saved workspace or candidate identity');
+  if (!await lstat(job.worktreePath).catch(error => { if (error.code === 'ENOENT') return null; throw error; })) {
+    const metadata = job.dispatchMetadata;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || typeof metadata.integrationRef !== 'string') throw new PreparationRejected('Missing original integration identity');
+    const integrationRef = metadata.integrationRef;
+    const restored = await withRepositoryLock(job.repository, () => ensureJobWorktree({ repoPath: job.repository, runId, jobId: job.id,
+      baseRef: integrationRef, baseCommit: progress.workspaceBase!, resumeCommit: progress.candidateCommit!, worktreePath: job.worktreePath! }));
+    if (restored.path !== job.worktreePath || restored.branch !== job.worktreeBranch) throw new PreparationRejected('Restored workspace identity mismatch');
+  }
+  if (await graphGit(job.worktreePath, 'rev-parse', 'HEAD') !== progress.candidateCommit) throw new PreparationRejected('Saved candidate HEAD changed');
+  if (await graphGit(job.worktreePath, 'rev-parse', '--verify', 'MERGE_HEAD').then(() => true, () => false)) throw new PreparationRejected('Pending merge requires controlled conflict repair');
+  const inputs = await prepareUpstreamInputs(job.id);
+  const spec = await prepareGraphSpecInput(snapshot);
+  const output = await prepareGraphOutputForTask(job.childTaskId, `conditions:${job.id}:${progress.revision}`, [job.worktreePath]);
+  const runtime = await inspectSavedTaskRuntime({ taskId: job.childTaskId, workspace: job.worktreePath,
+    approvedReadOnlyRoots: [...inputs.readOnlyPaths, ...spec.paths, ...output.readOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts });
+  return { inputHash: inputs.manifest.hash, runtimeIdentity: runtime.identity };
+}
+
+async function deferAdmission(job: TaskGraphExecution, runId: string, progress: ExecutionProgress,
+  proof: Awaited<ReturnType<typeof observeWriterSnapshot>>, exit: Awaited<ReturnType<typeof observeTaskRunExit>> | undefined,
+  wake: AdmissionWake, detail: string) {
+  const key = preparationHash({ executionId: job.id, revision: progress.revision, detail, wakeId: wake.id });
+      const attempts = await prisma.taskGraphEvent.count({ where: { nodeId: job.nodeId, kind: 'execution_outcome', AND: [
+        { payload: { path: ['executionId'], equals: job.id } }, { payload: { path: ['outcome', 'kind'], equals: 'admission_deferred' } } ] } });
+      const retryAt = new Date(Date.now() + Math.min(300_000, 1000 * 2 ** Math.min(9, attempts))).toISOString();
+      await prisma.$transaction(async tx => {
+        await requireGraphRunActiveTx(tx, runId);
+        await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
+        if (!await writerSnapshotMatches(tx, proof)) return;
+        if (!(wake.source === 'operator' && wake.preparedEventId)) await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken || '', expectedRevision: progress.revision,
+          outcomeId: `admission-deferred:${key}`, outcome: { kind: 'admission_deferred', retryAt,
+            failure: { ...(progress.lastFailure || { code: 'environment_failed', owner: 'platform' as const, requiresUserDecision: false }), detail } } }, exit, job);
+        await tx.taskGraphEvent.createMany({ data: [{ runId: runId, nodeId: job.nodeId, kind: 'execution_conditions_unavailable',
+          idempotencyKey: `conditions-unavailable:${key}`, payload: { executionId: job.id, detail, retryAt, wakeId: wake.id,
+            version: wake.source === 'conditions' ? wake.version || '' : '' } }], skipDuplicates: true });
+      });
+}
+
+/** One admission boundary; triggers describe work, never grant resources. Slow observations stay outside the transaction. */
+export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<AdmissionResult> {
+  if (!wake.id.trim()) throw new PreparationRejected('Admission wake requires a durable identity');
+  await discoverLegacyProgress(nodeId);
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: { orderBy: { id: 'asc' } }, run: { include: { parentTask: { select: { ownerUserId: true } } } } } });
+  const receiptKey = wake.source === 'operator' ? `node:${node.key}:${node.executions.some(job => {
+    const p = executionProgress(job.dispatchMetadata); return p && ['architecture', 'acceptance'].includes(p.phase);
+  }) ? 'verification' : 'implementation'}-recovery:${wake.id}` : `admission-wake:${node.id}:${wake.source}:${wake.id}`;
+  const receipt = await prisma.taskGraphEvent.findFirst({ where: { runId: node.runId, idempotencyKey: wake.source === 'operator'
+    ? { in: [`node:${node.key}:implementation-recovery:${wake.id}`, `node:${node.key}:verification-recovery:${wake.id}`] } : receiptKey } });
+  if (receipt) return { kind: 'already_scheduled', eventId: receipt.id };
+  const delayed = await prisma.taskGraphEvent.findFirst({ where: { nodeId, kind: 'execution_conditions_unavailable',
+    payload: { path: ['wakeId'], equals: wake.id } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+  const delay = delayed?.payload;
+  if (wake.source !== 'conditions' && delay && typeof delay === 'object' && !Array.isArray(delay) &&
+      typeof delay.retryAt === 'string' && Date.parse(delay.retryAt) > Date.now()) return { kind: 'deferred', reason: 'retry_not_due' };
+  const prepared = wake.source === 'operator' && wake.preparedEventId
+    ? parsePreparationReceipt((await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: wake.preparedEventId } })).payload) : undefined;
+  if (prepared) {
+    if (prepared.runId !== node.runId || prepared.nodeKey !== node.key || wake.id !== `prepared:${'preparedEventId' in wake && wake.preparedEventId}`) throw new PreparationRejected('Preparation request identity mismatch');
+    await validatePreparationArtifacts(prepared.artifacts);
+  }
+  const correctedDelivery = wake.source === 'operator' && node.status === 'attention' && node.run.status.startsWith('completed') &&
+    await prisma.taskGraphEvent.count({ where: { nodeId, kind: 'node_delivery_reclassified' } }) > 0;
+  if (!['running', 'attention'].includes(node.run.status) && !correctedDelivery) return { kind: 'deferred', reason: 'run_paused_or_complete' };
+  if (!['attention', 'claimed'].includes(node.status)) return { kind: 'deferred', reason: 'node_not_waiting' };
+  const resolvedScopes = new Set<string>();
+  if (wake.source === 'conditions') for (const job of node.executions) {
+    const code = executionProgress(job.dispatchMetadata)?.lastFailure?.code;
+    if (['permission_required', 'scope_change'].includes(code || '') && await approvedScopeChange(job)) resolvedScopes.add(job.id);
+  }
+  const wholeReview = node.executions.every(job => { const p = executionProgress(job.dispatchMetadata); return p && ['architecture', 'acceptance'].includes(p.phase); });
+  const candidates = node.executions.filter(job => (job.status === 'attention' || job.status === 'integrated' && executionProgress(job.dispatchMetadata) && node.status === 'attention') &&
+    (wholeReview || !('executionIds' in wake) || !wake.executionIds || wake.executionIds.includes(job.id)));
+  let lastReason = 'no_pending_work';
+  const observations: { job: (typeof node.executions)[number]; progress: ExecutionProgress;
+    proof: Awaited<ReturnType<typeof observeWriterSnapshot>>; exit: Awaited<ReturnType<typeof observeTaskRunExit>> | undefined;
+    review: boolean; conditions: { inputHash: string; runtimeIdentity: string }; conditionKey: string }[] = [];
+  for (const job of candidates) {
+    const progress = executionProgress(job.dispatchMetadata);
+    if (!progress || !job.claimToken) { lastReason = 'missing_saved_progress_or_claim'; continue; }
+    const hold = admissionHold(progress, wake, resolvedScopes.has(job.id));
+    if (hold) { lastReason = hold; continue; }
+    if (!['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) && !(job.status === 'integrated' && ['architecture', 'acceptance'].includes(progress.phase) && ['active', 'ready'].includes(progress.state))) { lastReason = 'not_waiting'; continue; }
+    if (wake.source === 'materials' && (progress.revision !== wake.expectedRevision || progress.conversation?.reservationId !== wake.reservationId ||
+        !['missing_business_material', 'missing_upstream_input'].includes(progress.lastFailure?.code || ''))) { lastReason = 'material_reservation_changed'; continue; }
+    if (wake.source === 'conversation') {
+      const inputs = await pendingConversationInputs(prisma, node.runId, job.id);
+      if (inputs.map(input => input.id).join() !== wake.inputIds.join() || !job.childTaskId ||
+          !(await Promise.all(inputs.map(input => authorizedConversationInput(input, job.childTaskId!, node.run.parentTask.ownerUserId)))).every(Boolean)) {
+        lastReason = 'input_not_authorized'; continue;
+      }
+    }
+    const isReview = progress.phase === 'architecture' || progress.phase === 'acceptance';
+    const reviewRunIds = isReview ? node.executions.flatMap(item => {
+      const binding = executionProgress(item.dispatchMetadata)?.review; return binding?.kind === 'running' ? [binding.taskRunId] : [];
+    }) : [];
+    if (isReview && node.executions.some(item => {
+      const p = executionProgress(item.dispatchMetadata); return !p || !['architecture', 'acceptance'].includes(p.phase) || admissionHold(p, wake, resolvedScopes.has(item.id));
+    })) { lastReason = 'review_generation_not_ready'; continue; }
+    const proof = await observeWriterSnapshot({ jobs: isReview ? node.executions : [job], taskRunIds: reviewRunIds, scope: 'execution', observeExecution: observeAdmissionWriter });
+    if (!proof.exited) { lastReason = 'writer_not_exited'; continue; }
+    const exit = job.taskRunId ? await observeTaskRunExit(job.taskRunId) : undefined;
+    try {
+      const review = progress.phase === 'architecture' || progress.phase === 'acceptance';
+      let conditions: { inputHash: string; runtimeIdentity: string };
+      if (review) {
+        if (node.executions.some(item => !item.commit || !['integrated', 'attention'].includes(item.status))) { lastReason = 'review_candidate_incomplete'; continue; }
+        const workspaces = await resolveReviewWorkspaces(node.executions);
+        const inputs = await Promise.all(node.executions.map(item => prepareUpstreamInputs(item.id)));
+        const spec = await prepareGraphSpecInput(node.run.snapshot as unknown as GraphDefinition);
+        const output = await prepareAcceptanceRuntime(node.id, 'condition-recheck', workspaces);
+        const runtime = await inspectSavedTaskRuntime({ taskId: `task-graph-review-${node.id}`, workspace: output.directory,
+          approvedReadOnlyRoots: [...output.readOnlyPaths, ...spec.paths, ...inputs.flatMap(input => input.readOnlyPaths)],
+          outputDirectory: output.directory, permissionConfig: output.permissionConfig });
+        conditions = { inputHash: preparationHash(inputs.map(input => input.manifest.hash)), runtimeIdentity: runtime.identity };
+      } else conditions = await inspectImplementation(job, progress, node.run.snapshot as unknown as GraphDefinition, node.runId);
+      const identity = preparationHash({ executionId: job.id, candidate: progress.candidateCommit, scope: node.run.snapshotHash,
+        ...conditions, failure: progress.lastFailure?.code, conditions: await executionConditionsVersion() });
+      const conditionKey = `conditions-ready:${job.id}:${identity}`;
+      if (wake.source === 'conditions' && await prisma.taskGraphEvent.count({ where: { runId: node.runId, idempotencyKey: conditionKey } })) { lastReason = 'conditions_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); if (review) break; continue; }
+      if (wake.source === 'conditions' && !review && progress.continuation && progress.continuation.unchangedTurns >= maxUnchangedWorkTurns &&
+          progress.continuation.fingerprint === await continuationWorkFingerprint(job.id, progress.candidateCommit!)) {
+        lastReason = 'work_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); continue;
+      }
+      observations.push({ job, progress, proof, exit, review, conditions, conditionKey });
+    } catch (error) {
+      const detail = redactSensitiveText(error instanceof Error ? error.message : String(error));
+      await deferAdmission(job, node.runId, progress, proof, exit, wake, detail);
+      lastReason = detail;
+      if (isReview) break;
+    }
+  }
+  if (!observations.length) return { kind: ['conditions_unchanged', 'work_unchanged'].includes(lastReason) ? 'unchanged' : 'deferred', reason: lastReason };
+  return prisma.$transaction(async tx => {
+    await requireGraphRunActiveTx(tx, node.runId);
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
+    const repeated = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: node.runId, idempotencyKey: receiptKey } } });
+    if (repeated) return { kind: 'already_scheduled', eventId: repeated.id };
+    const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { run: true, executions: true } });
+    if (!['attention', 'claimed'].includes(current.status) || current.run.snapshotHash !== node.run.snapshotHash ||
+        current.executions.map(job => job.id).sort().join() !== node.executions.map(job => job.id).sort().join()) return { kind: 'deferred', reason: 'node_identity_changed' };
+    const dependencies = await tx.taskGraphNode.findMany({ where: { runId: node.runId, key: { in: current.dependsOn } } });
+    if (dependencies.length !== current.dependsOn.length || !dependencies.every(item => isCompletedNodeStatus(item.status))) return { kind: 'deferred', reason: 'upstream_not_accepted' };
+    for (const entry of observations) if (!await writerSnapshotMatches(tx, entry.proof)) return { kind: 'deferred', reason: 'writer_or_candidate_changed' };
+    if (prepared && wake.source === 'operator' && wake.preparedEventId) await assertPreparationTx(tx, node.runId, node.key, wake.preparedEventId, prepared);
+    if (wake.source === 'conversation') {
+      const owner = await tx.task.findUniqueOrThrow({ where: { id: current.run.parentTaskId }, select: { ownerUserId: true } });
+      if (owner.ownerUserId !== node.run.parentTask.ownerUserId) return { kind: 'deferred', reason: 'input_owner_changed' };
+      const inputs = (await Promise.all(observations.map(entry => pendingConversationInputs(tx, node.runId, entry.job.id)))).flat();
+      if (inputs.map(input => input.id).join() !== wake.inputIds.join() ||
+          !(await Promise.all(inputs.map(input => authorizedConversationInput(input, observations.find(entry => entry.job.id === input.executionId)!.job.childTaskId!, owner.ownerUserId, tx)))).every(Boolean)) return { kind: 'deferred', reason: 'input_identity_changed' };
+    }
+    for (const entry of observations) {
+      const { job, progress, exit, review } = entry;
+      const phase: ExecutionPhase = review ? progress.phase : wake.source === 'conditions' ? progress.phase : 'implement';
+      await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
+        outcomeId: `admit:${wake.source}:${wake.id}:${progress.revision}`, outcome: { kind: 'admitted', requestId: wake.id,
+          stage: review ? { kind: 'review', phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: `admit:${wake.id}` }
+            : { kind: 'implementation', phase } } }, exit, job);
+      await tx.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId, kind: 'execution_conditions_ready',
+        idempotencyKey: entry.conditionKey, payload: { executionId: job.id, revision: progress.revision, candidateCommit: progress.candidateCommit,
+          claimToken: job.claimToken, ...entry.conditions, writerExited: true } }], skipDuplicates: true });
+      if (wake.source === 'conversation') await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId, kind: 'conversation_turn_scheduled',
+        idempotencyKey: `conversation-turn:${job.id}:${progress.revision}`, payload: { executionId: job.id, inputIds: wake.inputIds,
+          previousClaimToken: job.claimToken, previousTaskRunId: job.taskRunId, expectedRevision: progress.revision, revision: progress.revision + 1,
+          candidateCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, worktreePath: job.worktreePath, writerExited: true } } });
+    }
+    const reviewing = observations.every(entry => entry.review);
+    const otherWriter = current.executions.some(job => job.status === 'claimed');
+    await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: reviewing ? 'verifying' : otherWriter ? 'claimed' : 'ready', passedAt: null,
+      ...(!reviewing && !otherWriter ? { claimToken: null, claimedAt: null } : {}) } });
+    await tx.taskGraphRun.update({ where: { id: node.runId }, data: { status: 'running' } });
+    const event = await tx.taskGraphEvent.create({ data: { runId: node.runId, nodeId,
+      kind: wake.source === 'operator' ? reviewing ? 'verification_recovery_requested' : 'implementation_recovery_scheduled' : 'node_admitted', idempotencyKey: receiptKey,
+      payload: { source: wake.source, wakeId: wake.id, executions: observations.map(({ job, progress }) => ({ id: job.id, revision: progress.revision,
+        checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase, previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId,
+        previousClaimToken: job.claimToken, previousCommit: job.commit, previousEvidence: job.evidence, previousDispatch: job.dispatchMetadata })) } } });
+    const requests = await tx.taskGraphEvent.findMany({ where: { nodeId, kind: 'conversation_review_recovery_requested' }, select: { id: true } });
+    for (const request of requests) {
+      const key = `conversation:review-recovery:${request.id}:started`;
+      if (await tx.taskGraphEvent.count({ where: { runId: node.runId, idempotencyKey: key + ':finished' } })) continue;
+      await tx.taskGraphEvent.createMany({ data: [
+        { runId: node.runId, nodeId, kind: 'conversation_review_recovery_started', idempotencyKey: key, payload: { receiptId: event.id } },
+        { runId: node.runId, nodeId, kind: 'conversation_review_recovery_finished', idempotencyKey: key + ':finished', payload: { receiptId: event.id } },
+      ], skipDuplicates: true });
+    }
+    if (wake.source === 'operator' && wake.preparedEventId) await tx.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId,
+      kind: 'platform_preparation_consumed', idempotencyKey: `preparation-consumed:${wake.preparedEventId}`,
+      payload: { preparationEventId: wake.preparedEventId, kind: 'scheduled', eventId: event.id } }], skipDuplicates: true });
+    return { kind: 'admitted', eventId: event.id };
+  });
+}
+
+/** Compatibility name for callers; all actual admission is shared. */
+export async function reconcileExecutionConditions(executionId: string) {
+  const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
+  const progress = executionProgress(job.dispatchMetadata);
+  if (progress && ['architecture', 'acceptance'].includes(progress.phase)) {
+    const first = await prisma.taskGraphExecution.findFirst({ where: { nodeId: job.nodeId }, orderBy: { id: 'asc' }, select: { id: true } });
+    if (first?.id !== job.id) return false;
+  }
+  const preparations = await prisma.taskGraphEvent.findMany({ where: { nodeId: job.nodeId, kind: 'platform_preparation_registered' }, select: { id: true } });
+  for (const receipt of preparations) if (!await prisma.taskGraphEvent.count({ where: { runId: job.node.runId, idempotencyKey: `preparation-consumed:${receipt.id}` } })) return false;
+  const changes = await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId,
+    kind: { in: ['run_user_resumed', 'node_verified', 'delivered_unverified', 'project_capability_scope_approved'] } },
+    select: { id: true, nodeId: true, kind: true, payload: true, createdAt: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+  const dependencies = await prisma.taskGraphNode.findMany({ where: { runId: job.node.runId, key: { in: job.node.dependsOn } },
+    select: { id: true, status: true, updatedAt: true } });
+  const version = preparationHash({ environment: await executionConditionsVersion(), changes, dependencies });
+  const unavailable = await prisma.taskGraphEvent.findFirst({ where: { nodeId: job.nodeId, kind: 'execution_conditions_unavailable',
+    payload: { path: ['executionId'], equals: job.id } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+  const last = unavailable?.payload;
+  if (progress?.nextRetryAt && Date.parse(progress.nextRetryAt) > Date.now() && last && typeof last === 'object' && !Array.isArray(last) && last.version === version) return false;
+  const result = await admitNode(job.nodeId, { source: 'conditions', id: `${job.id}:${progress?.revision}`, executionIds: [job.id], version });
+  return result.kind === 'admitted';
+}
 
 async function preparationRequestTx(tx: Prisma.TransactionClient, receipt: PreparationReceipt, key: string) {
   const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: receipt.runId, key: receipt.nodeKey } }, select: { id: true } });
@@ -61,9 +371,7 @@ export async function recoverPreparedImplementations(runId: string) {
       result = await scheduleImplementationRecovery(runId, receipt.nodeKey, `prepared:${event.id}`, event.id);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      const controlledRejection = error instanceof PreparationRejected ||
-        /^(实施仍在执行|原任务进程仍在执行|原执行者仍存活|待完成合并尚无|自动处理预算已耗尽|执行归属尚未核对|当前执行不是|缺少当前候选|没有可恢复|缺少原执行归属)/.test(reason) ||
-        error instanceof Error && 'code' in error && ['ENOENT', 'EACCES', 'ELOOP', 'ENOTDIR'].includes(String(error.code));
+      const controlledRejection = error instanceof PreparationRejected || error instanceof AdmissionRefused && error.result.kind === 'rejected';
       if (!controlledRejection) {
         console.error('[TaskGraph] preparation receipt deferred:', { runId, preparationEventId: event.id, reason: redactSensitiveText(reason) });
         continue;
@@ -99,7 +407,7 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
   const before = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: receipt.runId, key: receipt.nodeKey } }, include: { executions: true } });
   const reviews = await prisma.taskRun.findMany({ where: { taskId: { in: [`task-graph-review-${before.id}`, `task-graph-architecture-${before.id}`] } } });
   if (reviews.some(review => !['completed', 'failed', 'cancelled'].includes(review.status))) throw new Error('A previous reviewer has not demonstrably exited');
-  const proof = await observeWriterSnapshot({ jobs: before.executions, taskRunIds: reviews.map(review => review.id), scope: 'execution', observeExecution: observeExecutionWriter });
+  const proof = await observeWriterSnapshot({ jobs: before.executions, taskRunIds: reviews.map(review => review.id), scope: 'execution', observeExecution: observeAdmissionWriter });
   if (!proof.exited) throw new Error('Original implementation or reviewer writer has not exited');
   if (await graphGit(platformDirectory, 'rev-parse', 'HEAD') !== remediationCommit) throw new Error('Remediation code changed before publication');
   return prisma.$transaction(async tx => {
@@ -139,87 +447,4 @@ async function executionConditionsVersion() {
   // Operational facts bound retries; they never grant resources or replace a source pin.
   return { build: await readFile(path.join(platformRepository(), '.next/BUILD_ID'), 'utf8').then(value => value.trim(), () => 'development'),
     upstreamMaxBytes: process.env.TASK_GRAPH_UPSTREAM_MAX_BYTES || '268435456' };
-}
-
-/** Existing Coordinator calls this only in spare execution capacity, never in a DB transaction. */
-export async function reconcileExecutionConditions(executionId: string) {
-  const before = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: { include: { run: true } } } });
-  const progress = executionProgress(before.dispatchMetadata);
-  if (progress && ['architecture', 'acceptance'].includes(progress.phase)) return reconcileReviewConditions(before.nodeId);
-  if (before.status !== 'attention' || !progress || !['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) ||
-      progress.lastFailure?.owner !== 'platform' || progress.lastFailure.requiresUserDecision === true ||
-      !['prepare', 'implement', 'collect_result', 'check', 'integrate'].includes(progress.phase) || progress.conflictRepair ||
-      !before.childTaskId || !before.worktreePath || !progress.candidateCommit || !progress.workspaceBase ||
-      !['running', 'attention'].includes(before.node.run.status)) return false;
-  const { node: _node, ...job } = before;
-  const proof = await observeWriterSnapshot({ jobs: [job], scope: 'execution', observeExecution: observeExecutionWriter });
-  if (!proof.exited) return false;
-  try {
-    if (await graphGit(before.worktreePath, 'rev-parse', 'HEAD') !== progress.candidateCommit) return false;
-    if (await graphGit(before.worktreePath, 'rev-parse', '--verify', 'MERGE_HEAD').then(() => true, () => false)) return false;
-    const inputs = await prepareUpstreamInputs(before.id);
-    const spec = await prepareGraphSpecInput(before.node.run.snapshot as unknown as GraphDefinition);
-    const output = await prepareGraphOutputForTask(before.childTaskId, `conditions:${before.id}:${progress.revision}`, [before.worktreePath]);
-    const runtime = await inspectSavedTaskRuntime({ taskId: before.childTaskId, workspace: before.worktreePath,
-      approvedReadOnlyRoots: [...inputs.readOnlyPaths, ...spec.paths, ...output.readOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts });
-    const identity = preparationHash({ executionId, candidate: progress.candidateCommit, scope: before.node.run.snapshotHash,
-      inputs: inputs.manifest.hash, runtime: runtime.identity, failure: progress.lastFailure?.code, conditions: await executionConditionsVersion() });
-    const key = `conditions-ready:${before.id}:${identity}`;
-    return prisma.$transaction(async tx => {
-      await requireGraphRunActiveTx(tx, before.node.runId);
-      await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${before.nodeId} FOR UPDATE`;
-      if (!await writerSnapshotMatches(tx, proof) || await tx.taskGraphEvent.count({ where: { runId: before.node.runId, idempotencyKey: key } })) return false;
-      const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: before.nodeId }, include: { run: true, executions: true } });
-      if (current.status !== 'attention' || current.run.snapshotHash !== before.node.run.snapshotHash || current.executions.some(job => job.status === 'claimed')) return false;
-      const dependencies = await tx.taskGraphNode.findMany({ where: { runId: current.runId, key: { in: current.dependsOn } } });
-      if (dependencies.length !== current.dependsOn.length || !dependencies.every(node => isCompletedNodeStatus(node.status))) return false;
-      await tx.taskGraphExecution.update({ where: { id: before.id }, data: { status: 'ready', claimToken: null, claimedAt: null,
-        taskRunId: null, sessionId: null, issueKind: null, dispatchMetadata: metadataWithProgress(before.dispatchMetadata,
-          { ...progress, revision: progress.revision + 1, state: 'ready', worker: undefined, workerReleasedAt: undefined }) } });
-      await tx.taskGraphEvent.create({ data: { runId: current.runId, nodeId: current.id, kind: 'execution_conditions_ready',
-        idempotencyKey: key, payload: { executionId: before.id, revision: progress.revision,
-          candidateCommit: progress.candidateCommit, claimToken: before.claimToken, inputHash: inputs.manifest.hash, runtimeIdentity: runtime.identity, writerExited: true } } });
-      await tx.taskGraphNode.update({ where: { id: current.id }, data: { status: 'claimed' } });
-      await tx.taskGraphRun.update({ where: { id: current.runId }, data: { status: 'running' } });
-      return true;
-    });
-  } catch (error) {
-    const detail = redactSensitiveText(error instanceof Error ? error.message : String(error));
-    const identity = preparationHash({ executionId, revision: progress.revision, detail });
-    await prisma.taskGraphEvent.createMany({ data: [{ runId: before.node.runId, nodeId: before.nodeId,
-      kind: 'execution_conditions_unavailable', idempotencyKey: `conditions-unavailable:${identity}`, payload: { executionId, detail } }], skipDuplicates: true });
-    return false;
-  }
-}
-
-/** Retry the fixed review, never the implementation, after approved conditions pass again. */
-async function reconcileReviewConditions(nodeId: string) {
-  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true, run: true } });
-  if (node.status !== 'attention' || !['running', 'attention'].includes(node.run.status) || !node.executions.length || node.executions.some(job => {
-    const progress = executionProgress(job.dispatchMetadata);
-    return !job.commit || !progress || !['architecture', 'acceptance'].includes(progress.phase) ||
-      !['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) || progress.lastFailure?.owner !== 'platform' || progress.lastFailure.requiresUserDecision === true;
-  })) return false;
-  const ids = node.executions.flatMap(job => { const binding = executionProgress(job.dispatchMetadata)?.review; return binding?.kind === 'running' ? [binding.taskRunId] : []; });
-  const proof = await observeWriterSnapshot({ jobs: node.executions, taskRunIds: ids, scope: 'execution', observeExecution: observeExecutionWriter });
-  if (!proof.exited) return false;
-  try {
-    const workspaces = await resolveReviewWorkspaces(node.executions);
-    const inputs = await Promise.all(node.executions.map(job => prepareUpstreamInputs(job.id)));
-    const spec = await prepareGraphSpecInput(node.run.snapshot as unknown as GraphDefinition);
-    const output = await prepareAcceptanceRuntime(node.id, 'condition-recheck', workspaces);
-    const runtime = await inspectSavedTaskRuntime({ taskId: `task-graph-review-${node.id}`, workspace: output.directory,
-      approvedReadOnlyRoots: [...output.readOnlyPaths, ...spec.paths, ...inputs.flatMap(input => input.readOnlyPaths)],
-      outputDirectory: output.directory, permissionConfig: output.permissionConfig });
-    if (!await prisma.$transaction(tx => writerSnapshotMatches(tx, proof))) return false;
-    const identity = preparationHash({ snapshot: node.run.snapshotHash, candidates: node.executions.map(job => [job.id, job.commit]),
-      runtime: runtime.identity, inputs: inputs.map(input => input.manifest.hash), conditions: await executionConditionsVersion() });
-    await scheduleVerificationRecovery(node.runId, node.key, `conditions:${identity}`);
-    return true;
-  } catch (error) {
-    const detail = redactSensitiveText(error instanceof Error ? error.message : String(error));
-    await prisma.taskGraphEvent.createMany({ data: [{ runId: node.runId, nodeId, kind: 'execution_conditions_unavailable',
-      idempotencyKey: `review-conditions:${preparationHash({ nodeId, detail })}`, payload: { detail } }], skipDuplicates: true });
-    return false;
-  }
 }

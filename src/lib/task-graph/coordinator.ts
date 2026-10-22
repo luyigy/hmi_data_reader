@@ -796,16 +796,15 @@ export async function runTaskGraphCycle() {
     activeConversations.add(work.executionId);
     const pending = work.promise.finally(() => { activeConversations.delete(work.executionId); inflight.delete(pending); }); inflight.add(pending);
   }
-  // Normal ready work has priority. Recheck saved platform conditions using spare
-  // Coordinator slots; failed resource probes never launch a model or block peers.
+  // Normal ready work has priority. The shared admission boundary checks lightweight
+  // wake facts and due times before resource probes; failed probes never launch a model.
   const waiting = await prisma.taskGraphExecution.findMany({ where: { status: 'attention',
-    dispatchMetadata: { path: ['progress', 'lastFailure', 'owner'], equals: 'platform' },
     node: { status: 'attention', run: { status: { in: ['running', 'attention'] } } } }, orderBy: { updatedAt: 'asc' } });
   const start = conditionCursor++ % Math.max(1, waiting.length);
   for (const job of [...waiting.slice(start), ...waiting.slice(0, start)]) {
     if (activeJobs.size + activeConversations.size >= maxConcurrentJobs) break;
     const progress = executionProgress(job.dispatchMetadata);
-    if (activeJobs.has(job.id) || !progress || !['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) || progress.lastFailure?.owner !== 'platform') continue;
+    if (activeJobs.has(job.id) || !progress || !['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state)) continue;
     const review = ['architecture', 'acceptance'].includes(progress.phase);
     if (review && activeVerifications.has(job.nodeId)) continue;
     if (review) activeVerifications.add(job.nodeId);

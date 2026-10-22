@@ -1,5 +1,5 @@
 import { redactSensitiveText } from '../redact-sensitive';
-import type { ExecutionProgress } from './execution-progress';
+import { completeExecutionFailure, type ExecutionProgress } from './execution-progress';
 
 type Failure = { code: string; detail: string; command?: string[]; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
 export function graphFailureSummary(failure: Failure, state: ExecutionProgress['state']) {
@@ -13,15 +13,16 @@ export function graphFailureSummary(failure: Failure, state: ExecutionProgress['
   const humanKind = ['permission_required', 'scope_change', 'missing_business_material'].includes(failure.code);
   const plainNote = !/^[\s]*[\[{]/.test(failure.detail) ? redactSensitiveText(failure.detail).replace(/\s+/g, ' ').trim().slice(0, 220) : '';
   const concreteNote = plainNote.length >= 8 ? plainNote : '';
-  let requiresDecision = failure.requiresUserDecision ?? (humanKind && Boolean(concreteNote));
-  let owner = failure.owner || (requiresDecision ? 'user' : conflict || failure.code.includes('environment') || failure.code.startsWith('runtime_') ? 'platform' : failure.code === 'test_failed' ? 'implementer' : 'platform');
-  let action = failure.action || (requiresDecision && concreteNote ? `请确认这项请求：${concreteNote}` : conflict ? '核对列出的冲突文件并制定合并处理' : failure.code === 'missing_upstream_input' ? '平台核对前置集成提交、合同版本与固定包，补齐缺项后接续原任务' : failure.code === 'test_failed' ? '修复失败检查后重新验证' : failure.code.includes('environment') || failure.code.startsWith('runtime_') ? '补齐并预检运行环境后继续' : '待平台补充处理说明');
+  const diagnostic = completeExecutionFailure(failure);
+  let requiresDecision = diagnostic.requiresUserDecision;
+  let owner = diagnostic.owner;
+  let action = failure.action || (requiresDecision && concreteNote ? `请确认这项请求：${concreteNote}` : conflict ? '核对列出的冲突文件并制定合并处理' : failure.code === 'missing_upstream_input' ? '平台核对前置集成提交、合同版本与固定包，补齐缺项后接续原任务' : failure.code === 'test_failed' ? '修复失败检查后重新验证' : failure.code.includes('environment') || failure.code.startsWith('runtime_') ? '补齐并预检运行环境后继续' : '尚未领取；等待正常调度核对当前条件');
   let problem = labels[failure.code] || '本次执行需要处理';
-  if (requiresDecision && !failure.action?.trim() && !concreteNote) { requiresDecision = false; owner = 'platform'; problem = '待补充决定说明'; action = '平台先说明具体问题和可选处理办法'; }
+  if (requiresDecision && !failure.action?.trim() && !concreteNote) { problem = '等待明确的授权或决定说明'; action = '原 Agent 需说明具体请求；消息回复不自动授予资源权限'; }
   if (['scope_change', 'permission_required', 'missing_business_material', 'missing_upstream_input'].includes(failure.code) && concreteNote) problem += `：${concreteNote}`;
   if (state === 'exhausted') {
-    problem = `自动处理已耗尽：${problem}`;
-    if (!requiresDecision) { owner = 'platform'; action = '平台提出新的修复措施并明确执行方式；普通继续不会重置自动处理额度'; }
+    problem = `本轮自动尝试已停止：${problem}`;
+    if (!requiresDecision) { owner = 'platform'; action = '保留原工作资格；新输入、条件变化或到期重检后由正常调度判断下一轮'; }
   }
   const safePaths = paths.slice(0, 3).map(value => { const safe = redactSensitiveText(value); return safe.length <= 120 ? safe : '…/' + safe.split(/[\\/]/).slice(-2).join('/').slice(-116); });
   return { problem, action: redactSensitiveText(action).slice(0, 260), owner, requiresUserDecision: requiresDecision, affectedPaths: safePaths };

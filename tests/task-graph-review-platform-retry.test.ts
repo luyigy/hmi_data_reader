@@ -120,7 +120,7 @@ async function scenario(mode: 'platform' | 'platform-exhausted' | 'architecture-
     }
 
     if (exhausted || human || ownership) assert.ok(after.executions.every(job => executionProgress(job.dispatchMetadata)?.lastFailure));
-    if (ownership) await assert.rejects(recoverTaskGraphNodeVerification(run.id, 'BOTH'), /exhaustion or ownership/);
+    if (ownership) await assert.rejects(recoverTaskGraphNodeVerification(run.id, 'BOTH'), /ownership/);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } }), 0);
     if (human) {
       const budgets = after.executions.map(job => executionProgress(job.dispatchMetadata)?.platformAttempts);

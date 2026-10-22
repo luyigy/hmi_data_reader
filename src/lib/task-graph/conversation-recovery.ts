@@ -80,8 +80,8 @@ export async function startConversationRecoveries(recover: (runId: string, nodeK
       }
       // Scheduling owns the node lock and request idempotency key. It may have committed
       // even if its caller lost the response or the subsequently launched review failed.
-      const receipt = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: {
-        runId: request.runId, idempotencyKey: `node:${node.key}:${recoveryKind}-recovery:${request.id}` } } });
+      const receipt = await prisma.taskGraphEvent.findFirst({ where: { runId: request.runId, nodeId: node.id,
+        idempotencyKey: { in: [`node:${node.key}:implementation-recovery:${request.id}`, `node:${node.key}:verification-recovery:${request.id}`] } } });
       if (!receipt) return;
       await prisma.taskGraphEvent.createMany({ data: [
         { runId: request.runId, nodeId: node.id, idempotencyKey: key, kind: 'conversation_review_recovery_started', payload: { receiptId: receipt.id } },

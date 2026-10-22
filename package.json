@@ -67,10 +67,11 @@
     "postinstall": "prisma generate",
     "task-graph:prepare-recovery": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/task-graph-prepare-recovery.ts",
     "check:wire-w001": "node scripts/check-stage-execution-wire.mjs",
-    "prebuild": "npm run check:wire-w001 && npm run test:persistent-ticket-agent-w01",
+    "prebuild": "npm run check:wire-w001 && npm run check:ticket-admission && npm run test:persistent-ticket-agent-w01",
     "workspace:inventory": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/workspace-inventory.ts",
     "test:persistent-ticket-agent-w01": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/persistent-ticket-agent-w01.test.ts",
-    "workspace:create": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/workspace-create.ts"
+    "workspace:create": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"target\":\"es2022\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register scripts/workspace-create.ts",
+    "check:ticket-admission": "node scripts/check-task-admission.mjs"
   },
   "prisma": {
     "seed": "ts-node prisma\\seed.ts"

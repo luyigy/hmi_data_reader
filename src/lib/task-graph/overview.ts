@@ -43,7 +43,11 @@ export function buildGraphOverview(data: Awaited<ReturnType<typeof loadGraphOver
       const failure = progress && ['exhausted', 'ownership_attention', 'waiting_decision'].includes(progress.state) ? progress.lastFailure?.detail : '';
       const note = progress?.waitingMessage || failure || data.nativeTurns.find(turn => turn.id === job.taskRunId)?.summary
         || data.liveOutputs.find(output => output.taskRunId === job.taskRunId)?.content || progress?.lastFailure?.detail || '';
-      const waiting = progress?.state === 'waiting_for_user' ? ' · 原 Agent 等待输入或干预' : '';
+      const turn = data.nativeTurns.find(item => item.id === job.taskRunId);
+      const waiting = turn?.status === 'pending' ? ' · 本轮已安排，等待启动'
+        : turn && ['running', 'waiting_for_input'].includes(turn.status) ? ' · 原 Agent 本轮执行中' : job.status === 'ready' ? ' · 已放行，等待领取'
+        : progress?.state === 'waiting_for_user' && progress.waitingKind === 'question' ? ' · 原 Agent 等待回答'
+        : job.status === 'attention' ? ' · 尚未启动下一轮，等待条件核对或输入' : '';
       return `${job.key} · ${job.agentSelector}${waiting}\n${redactSensitiveText(note).replace(/^TASK_GRAPH_IMPLEMENTATION.*$/gm, '').slice(-700)}`;
     }).join('\n');
     return { tag: 'markdown', content: `**${node.key} · ${labels[node.status] || node.status}**${node.dependsOn.length ? ` · 前置 ${node.dependsOn.join('、')}` : ''}\n${details}` };

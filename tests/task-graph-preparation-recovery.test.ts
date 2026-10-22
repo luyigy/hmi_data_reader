@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { mock } from 'node:test';
@@ -17,6 +18,12 @@ import type { PreparationReceipt } from '../src/lib/task-graph/preparation-contr
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
   const scratch = await mkdtemp(join(tmpdir(), 'prepared-recovery-'));
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: scratch, encoding: 'utf8', stdio: 'pipe' }).trim();
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  await writeFile(join(scratch, 'base'), 'base'); git('add', 'base'); git('commit', '-m', 'base');
+  const baseline = git('rev-parse', 'HEAD');
+  await writeFile(join(scratch, 'candidate'), 'candidate'); git('add', 'candidate'); git('commit', '-m', 'candidate');
+  const candidate = git('rev-parse', 'HEAD');
   const log = join(scratch, 'validation.log'); await writeFile(log, 'actual validation passed\n');
   const artifact = { path: log, sha256: createHash('sha256').update('actual validation passed\n').digest('hex') };
   const parent = await prisma.task.create({ data: { name: 'Scoped prepared recovery' } });
@@ -24,7 +31,7 @@ async function main() {
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
     specRef: 'test://prepared-recovery', nodes: keys.map(key => ({ key, goal: key, dependsOn: key === 'DEPENDENCY' ? ['UPSTREAM'] : [],
       acceptance: { mode: 'automatic', checks: ['behavior'] }, executions: (key === 'MULTI' ? ['one', 'two'] : ['job']).map(name => ({
-        key: name, repository: scratch, gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40), agentSelector: 'local:codex', instructions: key,
+        key: name, repository: scratch, gitRef: 'refs/heads/main', baseCommit: baseline, agentSelector: 'local:codex', instructions: key,
         launchConfig: { participant: { gatewayId: 'platform-local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' } } })) })) } });
   try {
     await releaseReadyNodes(run.id);
@@ -32,9 +39,12 @@ async function main() {
       const token = `claim-${key}`;
       await claimNode(run.id, key, token);
       const job = await claimExecution(run.id, key, 'job', token); assert(job);
+      const workspace = join(scratch, 'work-' + key); git('worktree', 'add', '--detach', workspace, candidate);
+      const child = await prisma.task.create({ data: { name: key } });
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { childTaskId: child.id, worktreePath: workspace, worktreeBranch: 'refs/heads/fixture-' + key } });
       const worker = await createGraphWriter();
       const progress = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: 0, outcomeId: 'candidate',
-        outcome: { kind: 'checkpoint', phase: 'implement', candidateCommit: 'b'.repeat(40), workspaceBase: 'a'.repeat(40), worker } });
+        outcome: { kind: 'checkpoint', phase: 'implement', candidateCommit: candidate, workspaceBase: baseline, worker } });
       await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: progress.revision, outcomeId: 'blocked',
         outcome: { kind: 'decision_required', failure: { code: key === 'BUSINESS' ? 'missing_business_material' : key === 'ENV' ? 'environment_failed' : 'missing_upstream_input',
           detail: key === 'USER_FLAG' ? '{"missing":true}' : key === 'USER_OWNER' || key === 'IMPLEMENTER_OWNER' ? 'missing' : 'Missing immutable upstream package, prepared by platform',
@@ -101,7 +111,7 @@ async function main() {
     for (const key of ['repairAttempts', 'platformAttempts', 'formatAttempts', 'integrationAttempts', 'candidateCommit', 'workspaceBase'] as const) assert.equal(nextProgress[key], previousProgress[key]);
     for (const key of ['STALE', 'UNKNOWN', 'LIVE', 'TAMPER']) assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key } } })).status, 'attention', `${key} cannot be resumed`);
     const consumed = await prisma.taskGraphEvent.findFirstOrThrow({ where: { runId: run.id, idempotencyKey: `preparation-consumed:${crash.eventId}` } });
-    assert.equal(Reflect.get(Object(consumed.payload), 'kind'), 'already_scheduled', 'Crash after schedule reconciles existing event, no second dispatch');
+    assert.equal(Reflect.get(Object(consumed.payload), 'kind'), 'scheduled', 'Admission and prepared receipt consumption commit atomically, no crash gap or second dispatch');
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'implementation_recovery_scheduled' } }), 4);
     assert.equal((await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'UPSTREAM' } } })).status, 'ready', 'Unrelated frontier untouched');
     await prisma.taskGraphNode.updateMany({ where: { runId: run.id, key: { in: ['DEPENDENCY', 'MULTI'] } }, data: { status: 'attention' } });

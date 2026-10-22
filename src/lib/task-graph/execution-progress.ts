@@ -9,6 +9,12 @@ import { executionRetryLimits, maxUnchangedWorkTurns } from './retry-limits';
 
 export type ExecutionPhase = 'prepare' | 'implement' | 'collect_result' | 'check' | 'integrate' | 'architecture' | 'acceptance';
 export type ExecutionFailure = { blockerCause?: 'missing_capability' | 'transient'; code: string; detail: string; checkId?: string; command?: string[]; fingerprint?: string; tree?: string; blockedPhase?: 'implementation' | 'input_preparation' | 'service_runtime'; action?: string; owner?: 'platform' | 'implementer' | 'user'; requiresUserDecision?: boolean; affectedPaths?: string[] };
+/** Writers save complete diagnostics; legacy readers preserve absent fields as history. */
+export function completeExecutionFailure(failure: ExecutionFailure): ExecutionFailure & { owner: NonNullable<ExecutionFailure['owner']>; requiresUserDecision: boolean } {
+  const requiresUserDecision = failure.requiresUserDecision ?? ['permission_required', 'scope_change', 'ownership_mismatch'].includes(failure.code);
+  const owner = failure.owner ?? (requiresUserDecision ? 'user' : ['test_failed', 'in_scope_defect', 'invalid_result'].includes(failure.code) ? 'implementer' : 'platform');
+  return { ...failure, owner, requiresUserDecision };
+}
 export type GraphReviewBinding = { phase: 'architecture' | 'acceptance'; claimKey: string; candidateCommit: string } & ({ kind: 'ready' } | { kind: 'running'; taskRunId: string });
 export type ExecutionProgress = {
   version: 1; revision: number; phase: ExecutionPhase;
@@ -27,17 +33,17 @@ export type ExecutionProgress = {
   conflictRepair?: ConflictRepair;
 };
 export type ExecutionOutcome =
+  | { kind: 'admission_deferred'; retryAt: string; failure: ExecutionFailure }
+  | { kind: 'admitted'; requestId: string; stage: { kind: 'implementation'; phase: ExecutionPhase } | { kind: 'review'; phase: 'architecture' | 'acceptance'; claimKey: string } }
   | { kind: 'continue_work'; note: string; fingerprint: string }
   | { kind: 'checkpoint'; phase: ExecutionPhase; workspaceBase?: string; candidateCommit?: string; runtimeDirectory?: string; worker?: GraphWriter; conflictRepair?: ConflictRepair | null }
   | { kind: 'repair_required'; failure: ExecutionFailure; conflictRepair?: ConflictRepair }
   | { kind: 'result_incomplete'; failure: ExecutionFailure }
   | { kind: 'platform_retry'; failure: ExecutionFailure }
   | { kind: 'integration_stale'; failure: ExecutionFailure }
-  | { kind: 'review_resumed'; claimKey: string }
   | { kind: 'waiting_for_user'; note: string; result?: 'question' | 'answered' }
   | { kind: 'review_platform_prepared'; preparationEventId: string }
   | { kind: 'review_retry'; failure: ExecutionFailure; claimKey: string; phase?: 'architecture' | 'acceptance' }
-  | { kind: 'operator_resume'; requestId: string }
   | { kind: 'delivery_reclassified'; authorization: string; failure: ExecutionFailure }
   | { kind: 'decision_required'; failure: ExecutionFailure }
   | { kind: 'retry_exhausted'; failure: ExecutionFailure }
@@ -191,12 +197,10 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const { node: _node, ...currentExecution } = current;
     if (expectedExecution && !isDeepStrictEqual(currentExecution, expectedExecution)) throw new Error('Execution outcome ownership or revision mismatch: observed candidate changed');
     const before = executionProgress(current.dispatchMetadata) || initialExecutionProgress();
-    const operatorResume = args.outcome.kind === 'operator_resume' && current.status === 'attention' &&
-      (before.state === 'waiting_decision' || before.state === 'waiting_for_user' && before.phase === 'implement');
+    const admission = ['admitted', 'admission_deferred'].includes(args.outcome.kind) && !!expectedExecution && ['attention', 'integrated'].includes(current.status) && ['attention', 'claimed'].includes(current.node.status) &&
+      (['waiting_decision', 'waiting_for_user', 'exhausted'].includes(before.state) || current.status === 'integrated' && ['architecture', 'acceptance'].includes(before.phase) && ['active', 'ready'].includes(before.state)) && !before.conflictRepair;
     const reclassification = args.outcome.kind === 'delivery_reclassified' && current.status === 'integrated' && current.node.status === 'delivered_unverified';
     const reviewRepair = current.status === 'integrated' && ['repair_required', 'retry_exhausted', 'review_retry', 'decision_required'].includes(args.outcome.kind) && ['architecture', 'acceptance'].includes(before.phase);
-    const reviewResume = args.outcome.kind === 'review_resumed' && current.node.status === 'attention' && ['architecture', 'acceptance'].includes(before.phase) && (
-      current.status === 'attention' && (before.state === 'waiting_decision' || before.state === 'exhausted' && before.lastFailure?.owner === 'platform' && before.lastFailure.requiresUserDecision !== true) || current.status === 'integrated' && ['active', 'ready'].includes(before.state));
     const preparedReview = args.outcome.kind === 'review_platform_prepared' && current.status === 'attention' && before.state === 'exhausted' && before.platformAttempts >= executionRetryLimits.platformAttempts && before.lastFailure?.code === 'review_platform_failure' && before.phase === 'acceptance' && before.lastFailure.requiresUserDecision !== true && (!before.lastFailure.owner || before.lastFailure.owner === 'platform');
     if (args.outcome.kind === 'review_platform_prepared') {
       const receipt = await tx.taskGraphEvent.findUnique({ where: { id: args.outcome.preparationEventId } });
@@ -206,9 +210,8 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     }
     const conflictRecovery = current.status === 'attention' && before.state === 'waiting_decision' && before.lastFailure?.code === 'integration_conflict' &&
       (args.outcome.kind === 'repair_required' && !!args.outcome.conflictRepair || args.outcome.kind === 'decision_required' && args.outcome.failure.code === 'integration_conflict');
-    if ((!preparedReview && !conflictRecovery && !reviewResume && !reviewRepair && !operatorResume && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
-    if (args.outcome.kind === 'operator_resume' && (!operatorResume || !args.outcome.requestId.trim()) ||
-        args.outcome.kind === 'delivery_reclassified' && (!reclassification || !args.outcome.authorization.trim())) throw new Error('Operator outcome is not authorized for the current state');
+    if ((!admission && !preparedReview && !conflictRecovery && !reviewRepair && !reclassification && current.status !== 'claimed') || current.claimToken !== args.claimToken || before.revision !== args.expectedRevision) throw new Error('Execution outcome ownership or revision mismatch');
+    if (args.outcome.kind === 'delivery_reclassified' && (!reclassification || !args.outcome.authorization.trim())) throw new Error('Operator outcome is not authorized for the current state');
     if ((args.outcome.kind === 'integrated' || args.outcome.kind === 'integration_stale') && before.phase !== 'integrate' ||
         args.outcome.kind === 'repair_required' && !['check', 'integrate', 'architecture', 'acceptance'].includes(before.phase) ||
         args.outcome.kind === 'result_incomplete' && !['implement', 'collect_result', 'check'].includes(before.phase)) throw new Error('Execution outcome does not belong to current phase');
@@ -217,7 +220,21 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     const outcome = args.outcome;
     let status = current.status;
     let issueKind: string | null = null;
-    if (outcome.kind === 'continue_work') {
+    if (outcome.kind === 'admission_deferred') {
+      if (!admission || !Number.isFinite(Date.parse(outcome.retryAt))) throw new Error('Invalid deferred admission');
+      status = current.status; progress.state = before.state; progress.nextRetryAt = outcome.retryAt; progress.lastFailure = completeExecutionFailure(outcome.failure);
+    } else if (outcome.kind === 'admitted') {
+      if (!admission || !outcome.requestId.trim() || before.state === 'ownership_attention') throw new Error('Invalid admission identity');
+      progress.phase = outcome.stage.phase;
+      if (outcome.stage.kind === 'review') {
+        if (!current.commit || !['architecture', 'acceptance'].includes(before.phase)) throw new Error('Admission requires fixed review candidate');
+        status = 'integrated'; progress.review = { kind: 'ready', phase: outcome.stage.phase, candidateCommit: current.commit, claimKey: outcome.stage.claimKey };
+      } else {
+        if (['architecture', 'acceptance'].includes(before.phase)) throw new Error('Review cannot be admitted as implementation');
+        status = 'ready'; progress.state = 'ready'; delete progress.review;
+        delete progress.waitingKind; delete progress.waitingMessage;
+      }
+    } else if (outcome.kind === 'continue_work') {
       if (!['implement', 'collect_result'].includes(before.phase) || !/^[a-f0-9]{64}$/.test(outcome.fingerprint) || !outcome.note.trim()) throw new Error('Invalid normal work continuation');
       const unchangedTurns = before.continuation?.fingerprint === outcome.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
       progress.continuation = { fingerprint: outcome.fingerprint, unchangedTurns };
@@ -230,14 +247,9 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     } else if (outcome.kind === 'waiting_for_user') {
       if (!['implement', 'collect_result'].includes(before.phase)) throw new Error('Only implementation turns may wait for user input');
       status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingMessage = outcome.note; progress.waitingKind = outcome.result || 'question';
-    } else if (outcome.kind === 'operator_resume') {
-      if (before.lastFailure?.code === 'integration_conflict') throw new Error('Pending merge requires a bounded conflict repair decision; ordinary resume cannot restart implementation');
-      status = 'ready'; progress.phase = before.conflictRepair ? 'integrate'
-        : before.lastFailure?.owner === 'platform' && before.lastFailure.blockedPhase === 'input_preparation' && ['check', 'integrate'].includes(before.phase) ? before.phase : 'implement';
-      progress.state = 'ready'; delete progress.review;
     } else if (outcome.kind === 'delivery_reclassified') {
       status = 'attention'; issueKind = outcome.failure.code; progress.phase = 'implement'; progress.state = 'waiting_decision';
-      progress.lastFailure = outcome.failure; delete progress.review;
+      progress.lastFailure = completeExecutionFailure(outcome.failure); delete progress.review;
     } else if (outcome.kind === 'checkpoint') {
       progress.phase = outcome.phase;
       if (outcome.worker) { progress.worker = outcome.worker; delete progress.workerReleasedAt; }
@@ -255,20 +267,15 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       status = 'integrated'; progress.phase = 'architecture'; progress.candidateCommit = outcome.commit;
     } else if (outcome.kind === 'integration_stale') {
       progress.integrationAttempts++;
-      progress.lastFailure = outcome.failure;
+      progress.lastFailure = completeExecutionFailure(outcome.failure);
       if (progress.integrationAttempts >= executionRetryLimits.integrationAttempts) {
         status = 'attention'; issueKind = 'retry_exhausted'; progress.state = 'exhausted';
       }
     } else if (outcome.kind === 'review_platform_prepared') {
       status = 'integrated'; progress.state = 'ready';
       progress.review = { kind: 'ready', candidateCommit: current.commit!, phase: before.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: `prepared-review:${outcome.preparationEventId}` };
-    } else if (outcome.kind === 'review_resumed') {
-      if (!reviewResume) throw new Error('Review has no authorized waiting decision');
-      if (!current.commit || typeof outcome.claimKey !== 'string' || !outcome.claimKey.trim()) throw new Error('Review resume requires a fixed candidate and durable claim');
-      status = 'integrated';
-      progress.review = { kind: 'ready', phase: before.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, candidateCommit: current.commit };
     } else if (outcome.kind === 'review_retry') {
-      progress.lastFailure = outcome.failure;
+      progress.lastFailure = completeExecutionFailure(outcome.failure);
       progress.phase = outcome.phase || before.phase;
       if (!['architecture', 'acceptance'].includes(before.phase)) throw new Error('Review retry is outside a review phase');
       if (progress.platformAttempts >= executionRetryLimits.platformAttempts) {
@@ -281,7 +288,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     } else if (['platform_retry', 'result_incomplete'].includes(outcome.kind) && 'failure' in outcome && outcome.failure.fingerprint) {
       const unchangedTurns = before.continuation?.fingerprint === outcome.failure.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
       progress.continuation = { fingerprint: outcome.failure.fingerprint, unchangedTurns };
-      progress.lastFailure = outcome.failure;
+      progress.lastFailure = completeExecutionFailure(outcome.failure);
       if (outcome.kind === 'platform_retry') progress.platformAttempts++;
       else progress.formatAttempts++;
       if (unchangedTurns >= maxUnchangedWorkTurns) {
@@ -301,14 +308,14 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         return failure.fingerprint === outcome.failure.fingerprint;
       });
       if (!stalled) progress.repairAttempts++;
-      progress.phase = outcome.conflictRepair ? 'integrate' : 'implement'; progress.lastFailure = outcome.failure;
+      progress.phase = outcome.conflictRepair ? 'integrate' : 'implement'; progress.lastFailure = completeExecutionFailure(outcome.failure);
       if (outcome.conflictRepair) { progress.conflictRepair = outcome.conflictRepair; delete progress.runtimeDirectory; }
       if (stalled) {
         status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingKind = 'answered';
         progress.waitingMessage = '相同代码与输入反复产生同一缺陷，已停止空转，原工作资格与现场保留。';
       } else { status = 'ready'; progress.state = 'ready'; }
     } else {
-      progress.lastFailure = outcome.failure;
+      progress.lastFailure = completeExecutionFailure(outcome.failure);
       if (outcome.kind === 'repair_required' && outcome.conflictRepair) { progress.conflictRepair = outcome.conflictRepair; delete progress.runtimeDirectory; }
       if (outcome.kind === 'decision_required') {
         status = 'attention'; issueKind = outcome.failure.code; progress.state = outcome.failure.code === 'ownership_mismatch' ? 'ownership_attention' : 'waiting_decision';
@@ -327,14 +334,14 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
     }
     if (status === 'ready' || outcome.kind === 'integrated' || outcome.kind === 'review_retry' || outcome.kind === 'review_platform_prepared') { delete progress.worker; delete progress.workerReleasedAt; }
     if (status === 'ready' && current.taskRunId && await tx.taskRun.count({ where: { id: current.taskRunId, status: { in: ['pending', 'running', 'waiting_for_input'] } } })) throw new Error('Cannot requeue a live TaskRun');
-    if (status === 'ready' && current.taskRunId && outcome.kind !== 'operator_resume' && !await taskRunExitMatches(tx, current.taskRunId, writerExit)) throw new Error('Cannot requeue a TaskRun without actual writer exit proof');
+    if (status === 'ready' && current.taskRunId && !await taskRunExitMatches(tx, current.taskRunId, writerExit)) throw new Error('Cannot requeue a TaskRun without actual writer exit proof');
     await tx.taskGraphExecution.update({ where: { id: current.id }, data: {
       status, issueKind, dispatchMetadata: metadataWithProgress(current.dispatchMetadata, progress),
       ...(status === 'ready' ? { claimToken: null, claimedAt: null, taskRunId: null, sessionId: null } : {}),
       ...(outcome.kind === 'integrated' ? { commit: outcome.commit, evidence: outcome.evidence } : {}),
     } });
-    if (status === 'attention') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
-    if (status === 'ready') {
+    if (status === 'attention' && outcome.kind !== 'admission_deferred') await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'attention' } });
+    if (status === 'ready' && outcome.kind !== 'admitted') {
       await tx.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'claimed' } });
       await tx.taskGraphRun.updateMany({ where: { id: current.node.runId, status: { not: 'paused' } }, data: { status: 'running' } });
     }

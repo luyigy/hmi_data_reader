@@ -47,6 +47,10 @@ async function main() {
     if (!item) throw new Error(endpoint); return item;
   };
   const require = createRequire(__filename);
+  // Isolate the legacy explicit request/replay seam; automatic pickup is covered by condition-recheck and admission.
+  const admission = require('../src/lib/task-graph/preparation-recovery');
+  const automaticAdmission = admission.reconcileExecutionConditions;
+  admission.reconcileExecutionConditions = async () => false;
   require('../src/lib/task-graph/issue-tracker').trackerRequest = request;
   const feishu = require('../src/lib/task-graph/feishu');
   const notices: string[] = [];
@@ -154,7 +158,7 @@ async function main() {
         const { scheduleVerificationRecovery } = await import('../src/lib/task-graph/review-recovery');
         await scheduleVerificationRecovery(run.id, 'B', 'process-restart-proof');
         assert.deepEqual(await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: saved.id } }), saved, 'Repeated request does not spend budget or create another generation');
-        await assert.rejects(scheduleVerificationRecovery(run.id, 'B', 'competing-request'), /identity changed/);
+        await assert.rejects(scheduleVerificationRecovery(run.id, 'B', 'competing-request'), /identity.changed|node_not_waiting/);
         assert.equal(executionProgress(saved.dispatchMetadata)?.platformAttempts, executionProgress(beforeRecovery.dispatchMetadata)?.platformAttempts);
         // No direct recover/verify call in this process. Only the ordinary cycle may continue.
       } else assert.ok(reviews.filter(key => key === 'B').length >= 2, 'An accepted recovery must launch the new review after the previous in-flight review drains');
@@ -196,6 +200,7 @@ async function main() {
     releaseReview();
     const drain = new AbortController(); drain.abort(); await startTaskGraphCoordinator(drain.signal);
     phase.releaseGraphReviewWorker = releaseWorker;
+    admission.reconcileExecutionConditions = automaticAdmission;
     if (process.env.AP_P0_TRACE_FILE) writeFileSync(process.env.AP_P0_TRACE_FILE, JSON.stringify({ transitions, events: await prisma.taskGraphEvent.findMany({ where: { runId: run.id, kind: { in: ['verification_recovery_requested', 'review_dispatched', 'execution_outcome', 'node_passed', 'node_verifying'] } }, orderBy: { createdAt: 'asc' } }) }, null, 2) + '\n');
     const children = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, select: { childTaskId: true } });
     const nodes = await prisma.taskGraphNode.findMany({ where: { runId: run.id }, select: { id: true } });

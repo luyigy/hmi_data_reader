@@ -44,8 +44,9 @@ async function main() {
     assert.equal(await graphRecoveryKind(node.id), 'implementation');
     const reopen = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: 'issue_reopen_requested' } });
     await syncIssueReopen(reopen.id, request); await syncIssueReopen(reopen.id, request); assert.equal(remote[1].state, 'open');
-    await scheduleImplementationRecovery(run.id, 'A', 'explicit-user-continue');
-    assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).status, 'ready');
+    await assert.rejects(scheduleImplementationRecovery(run.id, 'A', 'explicit-user-continue'), /missing_saved_progress|writer|saved|no_pending_work/i,
+      'A synthetic legacy TaskRun ID is not actual Writer exit proof');
+    // Simulate a separately observed subsequent delivery to test tracker receipt supersession.
     await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'integrated', taskRunId: 'new-attempt' } });
     await prisma.taskGraphNode.update({ where: { id: node.id }, data: { status: 'delivered_unverified' } });
     await enqueueIssueSync(); const requests = await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'issue_sync_requested' }, orderBy: { createdAt: 'asc' } });
@@ -55,7 +56,7 @@ async function main() {
     assert.equal(posts, 2); assert.equal(remote[1].state, 'closed');
     assert.equal((await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).snapshotHash, run.snapshotHash);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'issue_sync_completed' } }), 2, 'Both historical and new delivery receipts survive');
-    console.log('Audited reclassification preserves approval/history, reopens Issues, restores implementation and supersedes old delivery receipts');
+    console.log('Audited reclassification preserves approval/history, reopens Issues, rejects unproven legacy writer and supersedes old delivery receipts');
   } finally { if (previousAdmin === undefined) delete process.env.FEISHU_ADMIN_OPEN_ID; else process.env.FEISHU_ADMIN_OPEN_ID = previousAdmin; await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); rmSync(repository, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

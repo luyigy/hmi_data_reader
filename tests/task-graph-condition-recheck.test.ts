@@ -62,7 +62,7 @@ async function main() {
     assert.equal(before.status, 'attention'); assert.equal(calls, 0); assert.ok(probes > 0);
     assert.equal(await prisma.taskGraphNode.count({ where: { runId: run.id, key: 'NEXT', status: 'planned' } }), 1);
     await prisma.taskGraphExecution.update({ where: { id: before.id }, data: { issueKind: 'retry_exhausted', dispatchMetadata: metadataWithProgress(before.dispatchMetadata,
-      { ...saved, revision: saved.revision + 1, state: 'exhausted', platformAttempts: 77 }) } });
+      { ...saved, revision: saved.revision + 1, state: 'exhausted', platformAttempts: 77, lastFailure: saved.lastFailure && { ...saved.lastFailure, owner: undefined } }) } });
     await setGraphRunPaused({ runId: run.id, paused: true, requestId: 'pause', actorId: 'fixture', reason: 'user paused' });
     repaired = true;
     for (let i = 0; i < 3; i++) await runTaskGraphCycle();
@@ -90,7 +90,7 @@ async function main() {
     const reviewed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: reviewJob.id } });
     assert.equal(reviewed.commit, reviewJob.commit); assert.equal(reviewCalls, 1);
     assert.equal(executionProgress(reviewed.dispatchMetadata)?.platformAttempts, 77);
-    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: reviewNode.id, kind: 'verification_recovery_requested' } }), 1);
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: reviewNode.id, kind: 'node_admitted' } }), 1);
     console.log('Review conditions: original fixed candidate independently verified after platform repair; historical count 77 retained; implementation not repeated');
     console.log('Conditions: unavailable platform resource launches no model; independent peer delivers; successful recheck reclaims original candidate/worktree despite old count 77; user pause and downstream dependency remain enforced');
   } finally {

@@ -47,6 +47,8 @@ async function main() {
     assert.equal(git('rev-parse', 'HEAD'), baseline, 'Original checkout remains unchanged');
     assert.deepEqual(await adoptLegacyExecutionProgress({ ...args, assertWriterExited: async () => { throw Error('must not execute twice'); } }), progress);
     assert.equal(proofs, 1); assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'execution_progress_adopted' } }), 1);
+    const child = await prisma.task.create({ data: { name: 'adopted task' } });
+    await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { childTaskId: child.id } });
     await scheduleImplementationRecovery(run.id, 'A', 'authorized-repair');
     const ready = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
     assert.equal(ready.status, 'ready');

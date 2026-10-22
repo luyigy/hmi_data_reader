@@ -1,3 +1,7 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import assert from 'node:assert/strict';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun, claimNode, claimExecution, completeExecution, releaseReadyNodes, flagStaleExecutionClaim } from '../src/lib/task-graph/store';
@@ -8,11 +12,18 @@ import { releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker'
 
 async function main() {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_/);
+  const repository = mkdtempSync(path.join(tmpdir(), 'adapter-repo-'));
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
+  git('init', '-b', 'main'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@localhost');
+  writeFileSync(path.join(repository, 'base'), 'base'); git('add', '.'); git('commit', '-m', 'base');
+  const baseline = git('rev-parse', 'HEAD');
+  writeFileSync(path.join(repository, 'candidate'), 'candidate'); git('add', '.'); git('commit', '-m', 'candidate');
+  const candidate = git('rev-parse', 'HEAD');
   const parent = await prisma.task.create({ data: { name: 'legacy adapter fences' } });
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
     specRef: 'test://adapter-boundaries', nodes: ['COMPLETE', 'RESUME', 'RESUME_OK', 'RECLASS', 'STALE'].map(key => ({
       key, goal: key, dependsOn: [], acceptance: { mode: 'automatic', checks: ['behavior'] },
-      executions: [{ key: 'job', repository: '/tmp/adapter-fixture', gitRef: 'refs/heads/main', baseCommit: 'a'.repeat(40),
+      executions: [{ key: 'job', repository, gitRef: 'refs/heads/main', baseCommit: baseline,
         agentSelector: 'local:codex', instructions: key,
         launchConfig: { participant: { gatewayId: 'platform-local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer' } } }],
     })),
@@ -23,12 +34,14 @@ async function main() {
       const token = `claim-${key}`;
       await claimNode(run.id, key, token);
       const job = await claimExecution(run.id, key, 'job', token); assert(job);
-      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { worktreePath: `/tmp/adapter-${job.id}`, worktreeBranch: `refs/heads/adapter-${job.id}` } });
+      const workspace = path.join(repository, key); git('worktree', 'add', '--detach', workspace, candidate);
+      const child = await prisma.task.create({ data: { name: key } });
+      await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { childTaskId: child.id, worktreePath: workspace, worktreeBranch: `refs/heads/adapter-${job.id}` } });
       const progress = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: 0, outcomeId: 'implement',
-        outcome: { kind: 'checkpoint', phase: 'implement', workspaceBase: job.baseCommit, candidateCommit: 'b'.repeat(40), worker: await createGraphWriter() } });
+        outcome: { kind: 'checkpoint', phase: 'implement', workspaceBase: job.baseCommit, candidateCommit: candidate, worker: await createGraphWriter() } });
       if (key === 'COMPLETE') {
         await assert.rejects(completeExecution({ runId: run.id, nodeKey: key, executionKey: 'job', claimToken: token,
-          commit: 'b'.repeat(40), evidence: { checks: [] } }), /phase|阶段/i,
+          commit: candidate, evidence: { checks: [] } }), /phase|阶段/i,
         'Legacy completion API must not integrate a versioned execution before its integration phase');
         assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).status, 'claimed');
       } else if (key === 'RESUME') {
@@ -45,23 +58,23 @@ async function main() {
         const integrating = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: progress.revision,
           outcomeId: 'integrate', outcome: { kind: 'checkpoint', phase: 'integrate' } });
         const delivered = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: integrating.revision,
-          outcomeId: 'delivered', outcome: { kind: 'integrated', commit: 'c'.repeat(40), evidence: { preserved: true } } });
+          outcomeId: 'delivered', outcome: { kind: 'integrated', commit: candidate, evidence: { preserved: true } } });
         await prisma.taskGraphNode.update({ where: { id: job.nodeId }, data: { status: 'delivered_unverified' } });
         const corrected = await applyExecutionOutcome({ executionId: job.id, claimToken: token, expectedRevision: delivered.revision,
           outcomeId: 'reclassified', outcome: { kind: 'delivery_reclassified', authorization: 'audited-operator-correction',
             failure: { code: 'missing_business_material', detail: 'Original delivery was incomplete' } } });
         assert.equal(corrected.phase, 'implement'); assert.equal(corrected.state, 'waiting_decision');
-        assert.equal(corrected.candidateCommit, 'c'.repeat(40));
+        assert.equal(corrected.candidateCommit, candidate);
         const owner = await createGraphWriter();
         await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { dispatchMetadata: metadataWithProgress(null, { ...corrected, worker: owner }) } });
         await releaseGraphExecutionWorker(job.id, token, owner.nonce);
         await scheduleImplementationRecovery(run.id, key, 'explicit-resume');
         const resumed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
-        assert.equal(resumed.status, 'ready'); assert.equal(resumed.commit, 'c'.repeat(40));
+        assert.equal(resumed.status, 'ready'); assert.equal(resumed.commit, candidate);
         assert.deepEqual(resumed.evidence, { preserved: true });
       } else {
         await pauseGraphImplementation({ executionId: job.id, runId: run.id, nodeKey: key, claimToken: token,
-          checkpointCommit: 'd'.repeat(40), workspaceBase: 'e'.repeat(40), taskRunId: 'not-created',
+          checkpointCommit: candidate, workspaceBase: 'e'.repeat(40), taskRunId: 'not-created',
           result: { status: 'blocked', blockerKind: 'scope_change', note: 'Scope now clarified' } });
         const blocked = executionProgress((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } })).dispatchMetadata); assert(blocked);
         assert.equal(blocked.workspaceBase, job.baseCommit, 'A stale adapter base cannot overwrite the authoritative workspace base');
@@ -77,7 +90,7 @@ async function main() {
         assert.equal(resumed.status, 'ready'); assert.equal(next.revision, released.revision + 1);
         assert.equal(next.candidateCommit, blocked.candidateCommit); assert.equal(next.repairAttempts, blocked.repairAttempts);
         assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: job.nodeId, kind: 'execution_outcome',
-          idempotencyKey: { contains: 'operator-resume:' } } }), 1);
+          idempotencyKey: { contains: 'admit:' } } }), 1);
         await claimNode(run.id, key, 'later-node-claim');
         const laterWriter = await createGraphWriter();
         const later = await claimExecution(run.id, key, 'job', 'later-job-claim', undefined, laterWriter); assert(later);

@@ -1,12 +1,7 @@
 import { continuationWorkFingerprint } from './continuation-work';
-import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
-import { requireGraphRunActiveTx } from './run-control';
-import { assertExecutionWriterExited } from './phase-worker';
-import { applyExecutionOutcome, applyExecutionOutcomeTx, executionProgress } from './execution-progress';
+import { applyExecutionOutcome, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
-import { graphGit } from './git-command';
-import { assertPreparationTx, parsePreparationReceipt, validatePreparationArtifacts } from './preparation-contract';
 
 export type ImplementationResult =
   | { status: 'delivered'; note: string; evidence: string[] }
@@ -118,81 +113,12 @@ export function implementationCheckpoint(payload: unknown, executionId: string) 
   return { checkpointCommit: item.checkpointCommit, workspaceBase: item.workspaceBase };
 }
 
-/** Requeue through the existing claims, preserving the previous attempt in an append-only event. */
+/** Trusted server callers retain their authenticated request; admission owns all state changes. */
 export async function scheduleImplementationRecovery(runId: string, nodeKey: string, requestId: string, preparedEventId?: string) {
-  const key = `node:${nodeKey}:implementation-recovery:${requestId}`;
-  const recorded = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } });
-  if (recorded) return { kind: 'already_scheduled' as const, eventId: recorded.id };
-  const prepared = preparedEventId ? parsePreparationReceipt((await prisma.taskGraphEvent.findUniqueOrThrow({ where: { id: preparedEventId } })).payload) : undefined;
-  if (prepared) await validatePreparationArtifacts(prepared.artifacts);
-  const before = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } }, include: { executions: true } });
-  const proof = await observeWriterSnapshot({ jobs: before.executions, scope: 'execution', observeExecution: async job => {
-    if (job.status === 'integrated' || !['waiting_decision', 'waiting_for_user'].includes(executionProgress(job.dispatchMetadata)?.state || '')) return { kind: 'exited' };
-    await assertExecutionWriterExited(prisma, job);
-    return { kind: 'exited' };
-  } });
-  for (const job of before.executions) {
-    if (job.status !== 'integrated' && job.worktreePath && !executionProgress(job.dispatchMetadata)?.conflictRepair &&
-        await graphGit(job.worktreePath, 'rev-parse', '--verify', 'MERGE_HEAD').then(() => true, () => false)) {
-      throw new Error('待完成合并尚无受控冲突修复方案；平台须先核验来源和文件范围，普通继续不能重新实施');
-    }
-  }
-  return prisma.$transaction(async tx => {
-    await requireGraphRunActiveTx(tx, runId);
-    const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
-    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
-    const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
-    const previousRequest = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: key } } });
-    if (previousRequest) return { kind: 'already_scheduled' as const, eventId: previousRequest.id };
-    let preparation: Awaited<ReturnType<typeof assertPreparationTx>> | undefined;
-    if (preparedEventId && prepared) {
-      if (requestId !== `prepared:${preparedEventId}`) throw new Error('Preparation request identity mismatch');
-      preparation = await assertPreparationTx(tx, runId, nodeKey, preparedEventId, prepared);
-    }
-    if (current.status !== 'attention' || current.executions.some(job => job.status === 'claimed')) throw new Error('实施仍在执行或状态已改变');
-    if (await tx.taskRun.count({ where: { taskId: { in: [...current.executions.flatMap(job => job.childTaskId ? [job.childTaskId] : []),
-      `task-graph-review-${node.id}`, `task-graph-architecture-${node.id}`] }, status: { in: ['pending', 'running'] } } })) throw new Error('原任务进程仍在执行，请等待结束');
-    if (!await writerSnapshotMatches(tx, proof) || current.executions.length !== proof.jobs.length) throw new Error('Implementation recovery writer or candidate identity changed');
-    const blocks = await tx.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: { in: ['implementation_blocked', 'node_delivery_reclassified'] } }, orderBy: { createdAt: 'desc' } });
-    const executions = current.executions.flatMap(job => {
-      const progress = executionProgress(job.dispatchMetadata);
-      if (progress?.state === 'exhausted') throw new Error('自动处理预算已耗尽，普通继续不能重置预算；请明确新的修复措施或授权');
-      if (progress?.state === 'ownership_attention') throw new Error('执行归属尚未核对，普通继续不能重新放行写入；须先完成归属核对');
-      if (progress) {
-        if (job.status === 'integrated') return [];
-        if (progress.state !== 'waiting_decision' && !(progress.state === 'waiting_for_user' && progress.phase === 'implement')) throw new Error('当前执行不是可接续的实施等待');
-        if (!progress.candidateCommit || !progress.workspaceBase) throw new Error('缺少当前候选提交或原始基线');
-        return [{ id: job.id, key: job.key, checkpointCommit: progress.candidateCommit, workspaceBase: progress.workspaceBase,
-          previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId, previousCommit: job.commit,
-          previousDispatch: job.dispatchMetadata, previousEvidence: job.evidence }];
-      }
-      const event = blocks.find(block => isRecord(block.payload) && block.payload.executionId === job.id);
-      const payload = event?.payload;
-      if (job.status === 'integrated' && !(event?.kind === 'node_delivery_reclassified' && isRecord(payload) && payload.taskRunId === job.taskRunId)) return [];
-      if (!isRecord(payload) || typeof payload.checkpointCommit !== 'string' || !/^[0-9a-f]{40,64}$/.test(payload.checkpointCommit) ||
-          typeof payload.workspaceBase !== 'string' || !/^[0-9a-f]{40,64}$/.test(payload.workspaceBase)) throw new Error('缺少已核验的实施保存点，保留现场');
-      return [{ id: job.id, key: job.key, checkpointCommit: payload.checkpointCommit, workspaceBase: payload.workspaceBase,
-        previousTaskRunId: job.taskRunId, previousSessionId: job.sessionId, previousCommit: job.commit,
-        previousDispatch: job.dispatchMetadata, previousEvidence: job.evidence }];
-    });
-    if (!executions.length) throw new Error('没有可恢复的实施保存点');
-    const event = await tx.taskGraphEvent.create({ data: { runId, nodeId: node.id, idempotencyKey: key, kind: 'implementation_recovery_scheduled',
-      payload: { recoveryKind: 'implementation', blockedPhase: 'implementation', requestId, executions,
-        ...(preparation ? { preparation: { eventId: preparedEventId, ...preparation, inputPolicy: 'Supplementary reviewed preparation only; frozen upstream commits and acceptance contract remain authoritative' } } : {}) } } });
-    for (const saved of executions) {
-      const job = current.executions.find(item => item.id === saved.id)!;
-      const progress = executionProgress(job.dispatchMetadata);
-      if (progress) {
-        if (!job.claimToken) throw new Error('缺少原执行归属');
-        await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken, expectedRevision: progress.revision,
-          outcomeId: `operator-resume:${requestId}`, outcome: { kind: 'operator_resume', requestId } });
-      } else await tx.taskGraphExecution.update({ where: { id: job.id }, data: {
-        status: 'ready', claimToken: null, claimedAt: null, issueKind: null, taskRunId: null, sessionId: null,
-        dispatchMetadata: Prisma.DbNull,
-      } });
-    }
-    await tx.taskGraphNode.update({ where: { id: node.id }, data: { status: 'ready', passedAt: null, claimToken: null, claimedAt: null } });
-    await tx.taskGraphRun.updateMany({ where: { id: runId, status: { not: 'paused' } }, data: { status: 'running' } });
-    return { kind: 'scheduled' as const, eventId: event.id };
-  });
+  const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId, key: nodeKey } } });
+  const { admitNode, AdmissionRefused } = await import('./preparation-recovery');
+  const result = await admitNode(node.id, { source: 'operator', id: requestId, ...(preparedEventId ? { preparedEventId } : {}) });
+  if (result.kind === 'admitted') return { kind: 'scheduled' as const, eventId: result.eventId };
+  if (result.kind === 'already_scheduled') return result;
+  throw new AdmissionRefused(result);
 }

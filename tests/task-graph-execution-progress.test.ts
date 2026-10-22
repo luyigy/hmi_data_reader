@@ -53,7 +53,7 @@ async function main() {
     assert.equal(current.status, 'attention'); assert.equal(current.issueKind, 'retry_exhausted');
     assert.equal(executionProgress(current.dispatchMetadata)?.candidateCommit, 'b'.repeat(40));
     assert.equal(current.commit, null, 'Saving candidate does not publish an integration');
-    await assert.rejects(scheduleImplementationRecovery(run.id, 'A', 'ordinary-continue'), /耗尽/);
+    await assert.rejects(scheduleImplementationRecovery(run.id, 'A', 'ordinary-continue'), /writer_not_exited/);
     assert.equal(await claimExecution(run.id, 'A', 'repo', 'third'), null);
     await claimNode(run.id, 'B', 'integration');
     const integration = await claimExecution(run.id, 'B', 'repo', 'integration'); assert.ok(integration);
