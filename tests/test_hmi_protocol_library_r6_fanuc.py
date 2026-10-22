@@ -46,6 +46,37 @@ def test_real_feishu_local_caller_recognizes_temperature_without_gpu():
     assert card["header"]["template"] != "red"
 
 
+def test_z036_real_caller_does_not_report_unverified_values_as_success():
+    from feishu_card_assistant import process_hmi_image, build_feishu_card
+
+    review = json.loads((ROOT / "ground_truth/mc_z036_injection/Z036_rank04_full_page_visual_review.json").read_text())
+    image = ROOT / review["image"]
+    assert hashlib.sha256(image.read_bytes()).hexdigest() == review["image_sha256"]
+    directory = OUTPUT / "z036-live"
+    result = process_hmi_image(image, directory)
+    card = build_feishu_card(result)
+    (directory / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    (directory / "card.json").write_text(json.dumps(card, ensure_ascii=False, indent=2))
+    assert result["ocr_line_count"] > 0
+    assert result["profile_id"] == "fanuc.injection_metering.injection_holding_metering"
+    assert result["fields"]["back_pressure_mpa"] is None
+    assert result["fields"]["decompress_position_mm"] is None
+    assert result["status"] == "review" and card["header"]["template"] == "orange"
+    assert "需要人工核验" in card["header"]["title"]["content"]
+    issues = result["extraction_detail"]["field_issues"]
+    by_field = {issue["field"]: issue for issue in issues}
+    assert by_field["back_pressure_mpa"]["reading"] == "missing"
+    rejected = by_field["decompress_position_mm"]
+    assert rejected["reading"] == "uncertain"
+    assert any(c["text"] == "00-9" and c["conf"] < .8 and c["bbox"]
+               for c in rejected["candidates"])
+    observations = {f["label"]: f for f in result["page_observations"]["fields"]}
+    assert observations["手动背压"]["value"] is None
+    assert observations["减压位置"]["value"] is None
+    assert "手动背压" in " ".join(result["warnings"])
+    assert "减压位置" in " ".join(result["warnings"])
+
+
 @pytest.fixture(scope="module")
 def live():
     import httpx
