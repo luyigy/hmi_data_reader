@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-10-22T01:38:12.211Z",
+  "executionId": "cmvdmf880044n9xhgpxl58qyi",
+  "claimToken": "e134eebe-34d4-4519-8112-60d91741f325",
+  "policyHash": "fac64640a6bcab5ba8acf7c1aeb66400d18409ab0e5eb9be68eadc78d969a31c",
+  "source": {
+    "key": "training",
+    "searchField": "品牌",
+    "imageFields": [
+      "成型条件-储料/冷却",
+      "成型条件-射出/保压"
+    ],
+    "viewConfigured": false
+  },
+  "trace": [
+    {
+      "httpStatus": 200,
+      "code": 1254018,
+      "msg": "InvalidFilter",
+      "message": "Invalid request parameter: ''. Correct format : There is no option 'Z036' for the field '品牌'. Please check and modify accordingly."
+    },
+    {
+      "httpStatus": 200,
+      "code": 0,
+      "msg": "success",
+      "message": null
+    }
+  ],
+  "result": [
+    {
+      "query": "Z036",
+      "ok": false,
+      "error": "飞书资料读取失败，code=1254018；请平台核对应用和资源授权"
+    },
+    {
+      "query": "",
+      "ok": true,
+      "recordCount": 20,
+      "hasMore": true
+    }
+  ]
+}

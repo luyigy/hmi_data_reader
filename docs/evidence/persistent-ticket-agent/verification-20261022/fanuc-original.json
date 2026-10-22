@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-10-22T01:40:04.177Z",
+  "source": "training",
+  "query": "发那科",
+  "pages": 2,
+  "scanned": 40,
+  "recordId": "recuQJJFYYxREp",
+  "expectedSha256": "3c37a3f27ba80db8846375478e5dd068bcf195a918fd5a8439a553ca2bfad981",
+  "images": [
+    {
+      "field": "成型条件-储料/冷却",
+      "index": 0,
+      "bytes": 4614726,
+      "sha256": "3c37a3f27ba80db8846375478e5dd068bcf195a918fd5a8439a553ca2bfad981",
+      "matchesExpected": true
+    },
+    {
+      "field": "成型条件-射出/保压",
+      "index": 0,
+      "bytes": 4586394,
+      "sha256": "25aedf3da964992a7b7f9d964aeb5d2766e9c36c2a6b37273c5789d6f1495d1f",
+      "matchesExpected": false
+    }
+  ],
+  "scopeUnchanged": true
+}

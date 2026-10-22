@@ -1,0 +1,79 @@
+{
+  "observedAt": "2026-10-22T01:38:55.095Z",
+  "executionId": "cmvdmf87z043x9xhg4ge3392q",
+  "claimToken": "9947d7fb-a202-459b-af64-7c6503a9eb71",
+  "policyHash": "f990ffbc2d10725485e3af858e5d293ce7d0c43fb8b0e67cc3d106143c511a10",
+  "approvedRoots": [
+    "/data1/code/mold-data-webpage-tool/backend/.venv",
+    "/data1/code/hmi_data_reader/ground_truth",
+    "/home/hello/.agent-platform/runtime-resources/playwright-34336266361056e13a276225",
+    "/opt/google/chrome",
+    "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/poteto-mode"
+  ],
+  "pinId": "cmvieek370nv5z24trsqqvito",
+  "head": "2a3bf035f06030f50027691baf3ad26907eca523",
+  "workspaceBase": "2a3bf035f06030f50027691baf3ad26907eca523",
+  "candidate": "2a3bf035f06030f50027691baf3ad26907eca523",
+  "integrationRef": "refs/heads/task-graph/integration/06360cdbe0d418bf",
+  "hostLeaves": [
+    {
+      "file": "/home/hello/.codex/skills/how/SKILL.md",
+      "hostReadable": true,
+      "realpath": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/how/SKILL.md"
+    },
+    {
+      "file": "/home/hello/.codex/skills/architect/SKILL.md",
+      "hostReadable": true,
+      "realpath": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/architect/SKILL.md"
+    },
+    {
+      "file": "/home/hello/.codex/skills/principle-prove-it-works/SKILL.md",
+      "hostReadable": true,
+      "realpath": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/principle-prove-it-works/SKILL.md"
+    },
+    {
+      "file": "/home/hello/.codex/skills/principle-model-the-domain/SKILL.md",
+      "hostReadable": true,
+      "realpath": "/home/hello/.local/share/pstack-claude/plugins/pstack/skills/principle-model-the-domain/SKILL.md"
+    }
+  ],
+  "identity": {
+    "backend": "bubblewrap",
+    "host": "hello",
+    "uid": 1000,
+    "bootId": "df711df5-3f7b-4b20-a4bc-5b13c45dd313",
+    "root": {
+      "pid": 2147864,
+      "startTime": "2735033301"
+    }
+  },
+  "probe": {
+    "cwd": "/data1/code/.agent-workspaces/mold-data-webpage-tool-4b61e6e30723ffb3-2d88224663aa360a/routes/cmvdmf87w043f9xhgf9yvua6p-06360cdbe0d418bf/cmvdmf87z043x9xhg4ge3392q-d23dba0eb5a29c77",
+    "skillFilesReadable": 70,
+    "playbookCheckExit": 0,
+    "playbookCheckOutput": "Every project playbook matches this pstack's playbooks.\n",
+    "sourceWritable": false,
+    "leaves": [
+      {
+        "file": "/home/hello/.codex/skills/how/SKILL.md",
+        "readable": false,
+        "code": "ENOENT"
+      },
+      {
+        "file": "/home/hello/.codex/skills/architect/SKILL.md",
+        "readable": false,
+        "code": "ENOENT"
+      },
+      {
+        "file": "/home/hello/.codex/skills/principle-prove-it-works/SKILL.md",
+        "readable": false,
+        "code": "ENOENT"
+      },
+      {
+        "file": "/home/hello/.codex/skills/principle-model-the-domain/SKILL.md",
+        "readable": false,
+        "code": "ENOENT"
+      }
+    ]
+  }
+}

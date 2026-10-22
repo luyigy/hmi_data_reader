@@ -1,0 +1,4 @@
+Command: node scripts/test-task-graph-postgres.mjs persistent-ticket-agent-t3
+Exit: 0
+T3: exact parent card/operator, pagination, original-room input and mirror, replay/tamper rejection, pause-safe storage, stale control rejection and explicit resume
+Production cards were not mutated; Feishu transport is isolated in the existing fixture.

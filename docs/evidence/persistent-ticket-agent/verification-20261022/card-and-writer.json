@@ -1,0 +1,30 @@
+{
+  "card": {
+    "observedAt": "2026-10-22T01:40:36.916Z",
+    "lastRenderedAt": "2026-10-21T17:41:26.593Z",
+    "recordedHash": "123832a79201427705b9b099513f44b322cc516f05d5ee055d8675bef52c7a75",
+    "reconstructedHash": "123832a79201427705b9b099513f44b322cc516f05d5ee055d8675bef52c7a75",
+    "matchesLastPublished": true,
+    "page": 0,
+    "hasOriginalAgentReplyForm": true,
+    "title": "任务总览 V1 · 有任务等待输入或处理 · 1/4"
+  },
+  "writerObservation": {
+    "executionId": "cmvdmf87z043x9xhg4ge3392q",
+    "timings": [
+      {
+        "elapsedMs": 706,
+        "kind": "exited"
+      },
+      {
+        "elapsedMs": 719,
+        "kind": "exited"
+      },
+      {
+        "elapsedMs": 738,
+        "kind": "exited"
+      }
+    ],
+    "historicalCauseProven": false
+  }
+}
