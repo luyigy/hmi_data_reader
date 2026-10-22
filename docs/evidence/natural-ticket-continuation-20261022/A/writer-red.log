@@ -19,7 +19,7 @@ W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
 {"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
 {"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
 {"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
-PrismaClientKnownRequestError: 
+PrismaClientKnownRequestError:
 Invalid `tx.taskGraphExecution.update()` invocation in
 /data1/code/.agent-workspaces/agent-platform-v2-ae6fefc29c035345-7ffc88d2640c5656/development/natural-ticket-continuation-20261022-bd5503570cdd28b4/src/lib/task-graph/execution-progress.ts:311:33
 
