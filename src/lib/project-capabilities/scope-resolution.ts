@@ -4,7 +4,7 @@ import { object, parseProjectCapabilityScope, restrictProjectCapabilities, type 
 
 export type ScopeApproval = {
   id: string; runtimePinIds: string[];
-} & ({ kind: 'legacy' } | { kind: 'change'; previousPolicyHash: string; originalClaim: string; candidateCommit: string });
+} & ({ kind: 'legacy' } | { kind: 'change'; previousPolicyHash: string; originalClaim: string; candidateCommit: string; runtimeUpgradeRevision?: number });
 
 /** The same approved scope is consumed by material access and runtime preparation. */
 export async function resolveProjectScope(args: {
@@ -24,11 +24,15 @@ export async function resolveProjectScope(args: {
     if (key === keys[0]) {
       if (receipt.version !== 2 || typeof receipt.previousPolicyHash !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.previousPolicyHash) ||
           typeof receipt.originalClaim !== 'string' || !receipt.originalClaim || typeof receipt.candidateCommit !== 'string' || !/^[a-f0-9]{40,64}$/.test(receipt.candidateCommit)) throw new Error('项目授权变更回执无效');
-      const approval: ScopeApproval = { kind: 'change', id: event.id, previousPolicyHash: receipt.previousPolicyHash, originalClaim: receipt.originalClaim, candidateCommit: receipt.candidateCommit, runtimePinIds };
+      const revision = receipt.runtimeUpgradeRevision;
+      if (revision !== undefined && (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0)) throw new Error('运行工具升级回执版本无效');
+      const approval: ScopeApproval = { kind: 'change', ...(typeof revision === 'number' ? { runtimeUpgradeRevision: revision } : {}), id: event.id, previousPolicyHash: receipt.previousPolicyHash, originalClaim: receipt.originalClaim, candidateCommit: receipt.candidateCommit, runtimePinIds };
       return { policy, approval };
     }
     // Legacy scope adoption never overrides an already approved scope.
     if (!args.originalScope) {
+      const revision = receipt.runtimeUpgradeRevision;
+      if (revision !== undefined && (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0)) throw new Error('运行工具升级回执版本无效');
       const approval: ScopeApproval = { kind: 'legacy', id: event.id, runtimePinIds };
       return { policy, approval };
     }

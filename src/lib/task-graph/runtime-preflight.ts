@@ -116,5 +116,5 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
   await fs.writeFile(path.join(args.outputDirectory, `runtime-preflight-${identity}.json`), JSON.stringify(receipt, null, 2) + '\n');
   return { identity, manifestHash, readOnlyPaths: approved.filter(root => root !== args.workspace).concat(resources.map(resource => resource.path)), env, receipt, verifiedResources: resources,
     instructions: `\n运行能力已按${declaration.origin === 'host_registration' ? '平台显式登记' : '仓内版本化声明'}预检，资源身份 ${identity}。浏览器和 OCR 路径见 AP_GRAPH_RUNTIME_* / AP_GRAPH_BROWSER_* / AP_GRAPH_OCR_MODEL_DIR；这些资源只读，缓存和报告写本阶段输出目录。` +
-      (skillChecks.length ? `\n本次可用技能包：${JSON.stringify(skillChecks.map(skill => ({ id: skill.id, path: skill.package, dependencies: skill.dependencies })))}` : '') };
+      (skillChecks.length ? `\n本次可用技能包：${JSON.stringify(skills.map(({ skill, packageRoot, dependencies }) => ({ id: skill.id, path: packageRoot, entrypoints: skill.requiredFiles.filter(file => path.basename(file) === 'SKILL.md'), dependencies })))}` : '') };
 }

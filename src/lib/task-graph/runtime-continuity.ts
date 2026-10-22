@@ -1,3 +1,4 @@
+import { approvedRuntimeUpgrade } from './approved-runtime-upgrade';
 import { requireGraphNodeActiveTx } from './run-control';
 import { projectPythonRuntime } from '../project-capabilities/python-runtime';
 import { approvedProjectTools } from '../project-capabilities/tool-runtime';
@@ -90,7 +91,7 @@ async function prepareRuntime(args: Arguments, inspectSaved: boolean): Promise<P
     if (!sourceWorkspace) throw new RuntimePreparationError('missing', '本阶段未绑定当前候选的只读源码目录', [args.workspace], expectedCommit || '');
     const key = `runtime-snapshot:${job.id}:${job.claimToken}`;
     const event = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId: job.node.runId, idempotencyKey: key } } });
-    const pin = event ? parsePin(record(event.payload).snapshot) : null;
+    let pin = event ? parsePin(record(event.payload).snapshot) : null;
     if (pin && (pin.executionId !== job.id || pin.claimToken !== job.claimToken || pin.sourceRepository !== repository)) throw new RuntimePreparationError('invalid', '固定运行资源归属不一致', [sourceWorkspace]);
     const current = await runtimeDeclaration(sourceWorkspace).catch(error => { throw new RuntimePreparationError('invalid', error instanceof Error ? error.message : String(error), [sourceWorkspace!]); });
     if (current && current.commit !== expectedCommit) throw new RuntimePreparationError('invalid', '运行能力声明的源码提交已改变', [sourceWorkspace]);
@@ -99,6 +100,11 @@ async function prepareRuntime(args: Arguments, inspectSaved: boolean): Promise<P
     const projectTools = await approvedProjectTools({ taskId: args.taskId!, taskRunId: args.taskRunId, executionId: job.id, repository, sourceWorkspace,
       policyFile: args.projectPolicyFile, permissionConfig: args.permissionConfig, commit: expectedCommit!, declaration: current });
     const approval = projectTools?.approval;
+    // Admission may inspect a separately approved replacement, never pin it under the old claim.
+    if (inspectSaved && savedWait && approval) {
+      const upgrade = await approvedRuntimeUpgrade(job, args.projectPolicyFile);
+      if (upgrade?.approvalId === approval.id) pin = null;
+    }
     const migratedPin = Boolean(pin && !pin.projectPolicyHash && event && approval?.kind === 'legacy' && approval.runtimePinIds.includes(event.id));
     const changedScope = Boolean(pin && event && approval?.kind === 'change' && approval.runtimePinIds.includes(event.id) &&
       approval.previousPolicyHash === pin.projectPolicyHash && approval.originalClaim === job.claimToken && approval.candidateCommit === expectedCommit);

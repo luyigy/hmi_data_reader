@@ -1,3 +1,4 @@
+import { approvedRuntimeUpgrade } from './approved-runtime-upgrade';
 import { readFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { resolveReviewWorkspaces } from './review-workspaces';
@@ -265,7 +266,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       const conditionKey = `conditions-ready:${job.id}:${identity}`;
       if (wake.source === 'conditions' && await prisma.taskGraphEvent.count({ where: { runId: node.runId, idempotencyKey: conditionKey } })) { lastReason = 'conditions_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); if (review) break; continue; }
       if (wake.source === 'conditions' && !review && progress.continuation && progress.continuation.unchangedTurns >= maxUnchangedWorkTurns &&
-          progress.continuation.fingerprint === await continuationWorkFingerprint(job.id, progress.candidateCommit!)) {
+          progress.continuation.fingerprint === await continuationWorkFingerprint(job.id, progress.candidateCommit!) && !await approvedRuntimeUpgrade(job)) {
         lastReason = 'work_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); continue;
       }
       observations.push({ job, progress, proof, exit, review, conditions, conditionKey });

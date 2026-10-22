@@ -6,7 +6,7 @@ import { executionProgress } from '../task-graph/execution-progress';
 import { authorizeProjectCapabilities, object, projectCapabilityPolicy, parseProjectCapabilityScope } from './policy';
 
 /** Host-operator migration only. Approval adds an auditable scope, never a new writer or retry budget. */
-export async function migrateLegacyProjectScope(args: { executionId: string; expectedPolicyHash?: string; apply?: boolean; policyFile?: string }) {
+export async function migrateLegacyProjectScope(args: { executionId: string; expectedPolicyHash?: string; apply?: boolean; policyFile?: string; prepareRuntimeUpgrade?: boolean }) {
   const original = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: args.executionId }, include: { node: { include: { run: { include: { parentTask: true } } } } } });
   const policy = await projectCapabilityPolicy(original.repository, args.policyFile);
   if (!policy) throw new Error('项目未登记，先由平台管理员批准项目能力');
@@ -29,12 +29,16 @@ export async function migrateLegacyProjectScope(args: { executionId: string; exp
     const snapshot = object(object(pin.payload).snapshot), source = snapshot.source === null ? null : object(snapshot.source);
     return !isDeepStrictEqual(source ? source.declaration : null, policy.runtime || null) || !Array.isArray(snapshot.hostReadOnlyRoots) || snapshot.hostReadOnlyRoots.some(root => typeof root !== 'string' || !scope.readOnlyRoots.includes(root)) || scopeChange && !isDeepStrictEqual([...snapshot.hostReadOnlyRoots].sort(), [...scope.readOnlyRoots].sort());
   });
+  const runtimeUpgradeAllowed = Boolean(args.prepareRuntimeUpgrade && writer.kind === 'exited' && incompatible && scopeChange && pins.length === 1 &&
+    original.status === 'attention' && original.claimToken && progress?.phase === 'implement' && !progress.conflictRepair &&
+    ['waiting_for_user', 'waiting_decision'].includes(progress.state) && original.node.status === 'attention' &&
+    ['running', 'attention'].includes(original.node.run.status));
   const report = { executionId: original.id, node: original.node.key, project: policy.repository, policyHash: policy.hash, scope, writer,
-    candidateCommit: progress?.candidateCommit || original.commit, claimToken: original.claimToken, incompatibleRuntimePin: incompatible, previousPolicyHash: previousPolicyHash || null, scopeChange,
-    action: writer.kind !== 'exited' ? '保留现场，不能在写入者退出证明前迁移' : incompatible ? '原工具快照与新批准配置不同，保留现场；需受控新执行固定工具，不能改写原快照' : '可以仅追加项目范围，不重启、不续跑、不改预算' };
+    candidateCommit: progress?.candidateCommit || original.commit, claimToken: original.claimToken, incompatibleRuntimePin: incompatible, runtimeUpgradeAllowed, previousPolicyHash: previousPolicyHash || null, scopeChange,
+    action: writer.kind !== 'exited' ? '保留现场，不能在写入者退出证明前迁移' : runtimeUpgradeAllowed ? '只追加下一 claim 的显式工具批准；旧 claim 不变，原入口预检并领取后才能使用' : incompatible ? '原工具快照与新批准配置不同，保留现场；需受控新执行固定工具，不能改写原快照' : '可以仅追加项目范围，不重启、不续跑、不改预算' };
   if (!args.apply) return { ...report, applied: false };
   if (args.expectedPolicyHash !== policy.hash) throw new Error('必须提供诊断输出中的完整 policyHash，防止批准过期配置');
-  if (writer.kind !== 'exited' || incompatible) throw new Error(report.action);
+  if (writer.kind !== 'exited' || incompatible && !runtimeUpgradeAllowed) throw new Error(report.action);
   if (scopeChange && (!original.claimToken || !report.candidateCommit)) throw new Error('授权变更缺少原执行身份或候选');
   const key = `${scopeChange ? 'project-scope-v2' : 'project-scope'}:${original.id}:${policy.hash}`;
   await prisma.$transaction(async tx => {
@@ -48,11 +52,11 @@ export async function migrateLegacyProjectScope(args: { executionId: string; exp
     if (scopeChange && prior) {
       const receipt = object(prior.payload);
       if (receipt.previousPolicyHash !== previousPolicyHash || receipt.originalClaim !== original.claimToken ||
-          receipt.candidateCommit !== report.candidateCommit || !isDeepStrictEqual(receipt.runtimePinIds, pins.map(pin => pin.id))) throw new Error('已有授权变更回执属于不同保存点，不能复用或覆盖');
+          receipt.candidateCommit !== report.candidateCommit || (receipt.runtimeUpgradeRevision !== undefined) !== runtimeUpgradeAllowed || !isDeepStrictEqual(receipt.runtimePinIds, pins.map(pin => pin.id))) throw new Error('已有授权变更回执属于不同保存点，不能复用或覆盖');
     }
     await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId: original.node.runId, idempotencyKey: key } }, update: {},
       create: { runId: original.node.runId, nodeId: original.nodeId, idempotencyKey: key, kind: 'project_capability_scope_approved',
-        payload: { ...(scopeChange ? { version: 2, previousPolicyHash } : {}), executionId: original.id, repository: original.repository, snapshotHash: original.node.run.snapshotHash, scope,
+        payload: { ...(runtimeUpgradeAllowed && progress ? { runtimeUpgradeRevision: progress.revision } : {}), ...(scopeChange ? { version: 2, previousPolicyHash } : {}), executionId: original.id, repository: original.repository, snapshotHash: original.node.run.snapshotHash, scope,
           principal, approvedBy: `host-operator:${process.getuid?.()}`, originalClaim: original.claimToken, candidateCommit: report.candidateCommit,
           approvalHash: createHash('sha256').update(JSON.stringify(report)).digest('hex'), runtimePinIds: pins.map(pin => pin.id) } } });
   });
