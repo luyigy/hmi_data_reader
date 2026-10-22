@@ -1,0 +1,6 @@
+Live Room thread relay failed; refusing group broadcast {
+  bindingId: 'binding-a',
+  threadScoped: true,
+  error: 'thread unavailable'
+}
+Feishu Live Room relay checks passed

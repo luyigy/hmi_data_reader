@@ -1,0 +1,30 @@
+{
+  "codeCommit": "5211562b885040174aeb1618d6a976fc4e860139",
+  "baseCommit": "eb92bb65d04c3ec40fd4020b12020ceb132589a5",
+  "red": {
+    "command": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/feishu-live-room-relay.test.ts",
+    "exitCode": 1,
+    "assertion": "Routine Graph progress belongs in the existing overview, not a new parent message"
+  },
+  "green": {
+    "sameCommandAsRed": true,
+    "exitCode": 0
+  },
+  "postgres": {
+    "command": "node scripts/test-task-graph-postgres.mjs persistent-ticket-agent-t3 task-graph-notification-recovery",
+    "exitCode": 0
+  },
+  "types": {
+    "command": "npx tsc --noEmit",
+    "exitCode": 0
+  },
+  "baselineNote": "Existing full relay test also expected a removed handoff-plan button. Baseline reproduced that unrelated stale assertion; the test now matches the already-shipped card and asserts no old PLAN action. No PLAN behavior was added.",
+  "isolation": "PostgreSQL cases use a unique scratch schema; remote transport mocked; no production task ledger mutations.",
+  "sha256": {
+    "baseline-stale-plan-test.log": "d0f96867fa8dde963f1d8912b830971519b99914b53d78e07815b83014f124d3",
+    "green.log": "fe09ad73c871c5c755ab2a33cb3c6cd3a7942404dfb156b1e57f7242651d215e",
+    "postgres.log": "6df9f7635737d6a58129230f36eac6c0a975c6c1a4c0c95df4f19b3cc99755cc",
+    "red.log": "cae73f6befa5a78d5e5d9458d4f05835bbaa155f57f275f47b3efde8d62a03ef",
+    "types.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

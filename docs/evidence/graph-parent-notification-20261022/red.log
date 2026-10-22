@@ -1,0 +1,24 @@
+<worktree>/tests/feishu-live-room-relay.test.ts:41
+assert.equal(shouldRelayLiveRoomMessage(message('system', 'task_graph_progress')), false, 'Routine Graph progress belongs in the existing overview, not a new parent message');
+       ^
+AssertionError [ERR_ASSERTION]: Routine Graph progress belongs in the existing overview, not a new parent message
+
+true !== false
+
+    at Object.<anonymous> (<worktree>/tests/feishu-live-room-relay.test.ts:41:8)
+    at Module._compile (node:internal/modules/cjs/loader:1705:14)
+    at Module.m._compile (/data1/code/agent-platform-v2/node_modules/ts-node/src/index.ts:1618:23)
+    at node:internal/modules/cjs/loader:1838:10
+    at Object.require.extensions.<computed> [as .ts] (/data1/code/agent-platform-v2/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: true,
+  expected: false,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
