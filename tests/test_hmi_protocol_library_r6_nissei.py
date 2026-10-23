@@ -241,13 +241,13 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
     manifest = json.loads((ROOT / "datasets/r6_nissei" / PROFILE / "acceptance/manifest.json").read_text())
     assert manifest["package_version"] == VERSION
     assert manifest["package_sha256"] == canonical_hash(tact5_package())
-    independent = manifest["samples"]
+    independent = [sample for sample in manifest["samples"] if sample["purpose"] == "independent_acceptance"]
     assert independent
     development = {sample["image_sha256"] for sample in definition["samples"]}
     regression = json.loads((ROOT / "datasets/r6_nissei" / PROFILE / "regression/manifest.json").read_text())
     development.update(sample["image_sha256"] for sample in regression["samples"])
-    for sample in independent:
-        assert sample["purpose"] == "independent_acceptance"
+    for sample in manifest["samples"]:
+        assert sample["purpose"] in ("independent_acceptance", "diagnostic_regression")
         image = ROOT / sample["image"]
         assert hashlib.sha256(image.read_bytes()).hexdigest() == sample["image_sha256"]
         assert sample["image_sha256"] not in development
@@ -258,7 +258,8 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
         assert receipt["sha256"] == truth["image_sha256"] == sample["image_sha256"]
         assert receipt["source"] == "tact5_images"
         assert receipt["recordId"] == truth["provenance"]["record_id"]
-        assert truth["provenance"]["tuning_involvement"] == "none"
+        assert truth["provenance"]["tuning_involvement"] == (
+            "none" if sample["purpose"] == "independent_acceptance" else "entrypoint_config_diagnostic")
         assert truth["provenance"]["package_sha256"] == manifest["package_sha256"]
         assert set(truth["values"]) == {field["screen_field_key"] for field in definition["fields"]}
         import cv2
@@ -280,11 +281,25 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
                    "--output-dir", str(directory / "extracted"), "--observations-version", "v2",
                    "--original-image", str(image)]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+        if sample.get("partial_evaluation"):
+            (directory / "unbound-cli.log").write_text(result.stdout + result.stderr)
+            assert result.returncode == 2 and "RAW_PAGE_UNSUPPORTED" in result.stderr
+            binding_path = directory / "binding.json"
+            binding_path.write_text(json.dumps(hint(tact5_package())))
+            result = subprocess.run(command + ["--controller-hint", str(binding_path)], cwd=ROOT,
+                                    capture_output=True, text=True, timeout=90)
         (directory / "cli.log").write_text(result.stdout + result.stderr)
-        assert result.returncode == 0, result.stdout + result.stderr
-        cli = json.loads((directory / "extracted/sample.fields.json").read_text())
-        for surface, record in (("direct", observation), ("http", response.json()["page_observations"]),
-                                ("cli", cli["page_observations"])):
+        surfaces = [("direct", observation), ("http", response.json()["page_observations"])]
+        if sample.get("partial_evaluation"):
+            assert result.returncode == 2 and "PAGE_UNKNOWN" in result.stderr
+            assert not (directory / "extracted/sample.fields.json").exists()
+            save("r6-holdout-" + sample["sample_id"] + "-cli-refusal", dict(
+                exit_code=result.returncode, stderr=result.stderr))
+        else:
+            assert result.returncode == 0, result.stdout + result.stderr
+            cli = json.loads((directory / "extracted/sample.fields.json").read_text())
+            surfaces.append(("cli", cli["page_observations"]))
+        for surface, record in surfaces:
             validate_raw_record(record, tact5_package())
             assert record["image_sha256"] == sample["image_sha256"]
             save("r6-holdout-" + sample["sample_id"] + "-" + surface, record)
@@ -295,10 +310,22 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
                 if expected["support"] == "unsupported":
                     assert field["reading"] == "unsupported" and field["original_value"] is None
                     continue
-                for name in ("original_value", "state", "reading"):
-                    assert field[name] == expected[name], (surface, key, name, field, expected)
+                if sample.get("partial_evaluation"):
+                    if key in sample["expected_missing_fields"]:
+                        assert field["reading"] == "missing" and field["original_value"] is None
+                        assert field["state"] == "unknown" and field["original_bbox"] is None
+                        continue
+                    assert field["original_value"] == expected["original_value"], (surface, key, field, expected)
+                    assert field["reading"] in ("known", "uncertain")
+                    assert field["state"] in ("unknown", expected["state"])
+                else:
+                    for name in ("original_value", "state", "reading"):
+                        assert field[name] == expected[name], (surface, key, name, field, expected)
                 assert field["effective_unit"] == expected["unit"]
                 assert field["original_bbox"] and field["bbox"]
+            if sample.get("partial_evaluation"):
+                assert set(record["coverage"]["missing"]) == set(sample["expected_missing_fields"])
+                assert sum(f["reading"] in ("known", "uncertain") for f in record["fields"]) == sample["expected_observed_fields"]
             assert record["coverage"]["status"] == "partial"
         save("r6-independent-acceptance-manifest", manifest)
 
@@ -358,3 +385,43 @@ def test_authorized_dataset_regressions_keep_original_values_and_exposure(live):
             assert record["coverage"]["status"] == "partial"
             assert fields["holding.ramp.1"]["reading"] == "unsupported"
             save("r6-regression-" + sample["sample_id"] + "-" + surface, record)
+
+
+def test_real_feishu_local_tact5_sidecar_preserves_disabled_residual():
+    from feishu_card_assistant import process_hmi_image, build_feishu_card
+
+    sample = ROOT / "datasets/r6_nissei" / PROFILE / "acceptance/TACT5_reczz28QojrlL6Cy.jpg"
+    truth = json.loads((sample.parent / "truth.json").read_text())
+    directory = Path(tempfile.mkdtemp(prefix="r6-feishu-local-", dir=OUTPUT))
+    result = process_hmi_image(sample, directory)
+    save("r6-feishu-local-response", result)
+    save("r6-feishu-local-card", build_feishu_card(result))
+    assert result["profile_id"] == PROFILE
+    legacy = {field["label"]: field for field in result["page_observations"]["fields"]}
+    assert legacy["VS2"]["value"] == 90, legacy["VS2"]
+    assert legacy["VS2"]["state"] == "disabled"
+    sidecar = directory / "rectified" / (sample.stem + ".ocr.json")
+    assert json.loads(sidecar.read_text())["lines"]
+    command = [sys.executable, "scripts/extract_fields.py", sample.stem,
+               "--rectified-dir", str(directory / "rectified"), "--output-dir", str(directory / "v2"),
+               "--observations-version", "v2", "--original-image", str(sample)]
+    process = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=180)
+    (directory / "cli.log").write_text(process.stdout + process.stderr)
+    assert process.returncode == 0, process.stdout + process.stderr
+    record = json.loads((directory / "v2" / (sample.stem + ".fields.json")).read_text())["page_observations"]
+    validate_raw_record(record, tact5_package())
+    fields = by_key(record)
+    assert fields["plasticizing.speed.2"]["original_value"] == 90
+    assert fields["plasticizing.speed.2"]["state"] == "disabled"
+    assert fields["plasticizing.speed.2"]["reading"] == "known"
+    for key, expected in truth["values"].items():
+        field = fields[key]
+        assert field["role"] == expected["role"]
+        if expected["support"] == "unsupported":
+            assert field["reading"] == "unsupported" and field["original_value"] is None
+            continue
+        for name in ("original_value", "state", "reading"):
+            assert field[name] == expected[name], (key, name, field, expected)
+        assert field["effective_unit"] == expected["unit"]
+        assert field["original_bbox"] and field["bbox"]
+    save("r6-feishu-sidecar-v2-response", record)

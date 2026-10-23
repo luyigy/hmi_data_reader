@@ -1,0 +1,391 @@
+{
+  "image_sha256": "2d2c0a99fa46bd2c26c358f61eb2fa420103b23f22ccb733d890be94047d18e6",
+  "provenance": {
+    "source": "tact5_images",
+    "record_id": "reczz28QojrlL6pf",
+    "field": "成型条件-射出/保压",
+    "tuning_involvement": "none",
+    "reference": "Implementation agent visual transcription before running frozen recognizer; platform independent review still required.",
+    "package_version": "0.6.0",
+    "package_sha256": "4a9aff97debff2d8c6da04027602afcb2953c9af52b694d51470c9ece983d2ba",
+    "state_reference": "Visual active stage counts 3 injection / 1 pressure-limit / 2 holding / 1 plasticizing, grey inactive cells, black retract rows. Scalars/enums have no separate enabled evidence -> unknown."
+  },
+  "values": {
+    "injection.speed.1": {
+      "original_value": 110,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "injection.speed.2": {
+      "original_value": 90,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "injection.speed.3": {
+      "original_value": 50,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "injection.speed.4": {
+      "original_value": 50,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "injection.speed.5": {
+      "original_value": 50,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "injection.speed.6": {
+      "original_value": 50,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "injection.end.1": {
+      "original_value": 28.5,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "injection.end.2": {
+      "original_value": 19,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "injection.end.3": {
+      "original_value": 35,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "injection.end.4": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "injection.end.5": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "holding.pressure.1": {
+      "original_value": 110,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "holding.pressure.2": {
+      "original_value": 95,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "holding.pressure.3": {
+      "original_value": 95,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "holding.time.1": {
+      "original_value": 2.5,
+      "role": "setting",
+      "unit": "s",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "holding.time.2": {
+      "original_value": 0.5,
+      "role": "setting",
+      "unit": "s",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "plasticizing.speed.1": {
+      "original_value": 90,
+      "role": "setting",
+      "unit": "rpm",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "plasticizing.speed.2": {
+      "original_value": 90,
+      "role": "setting",
+      "unit": "rpm",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "plasticizing.speed.3": {
+      "original_value": 90,
+      "role": "setting",
+      "unit": "rpm",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "plasticizing.pressure.1": {
+      "original_value": 8,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "plasticizing.pressure.2": {
+      "original_value": 8,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "plasticizing.pressure.3": {
+      "original_value": 8,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "plasticizing.end.1": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "plasticizing.end.2": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "injection.pressure.1": {
+      "original_value": 130,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "injection.pressure.2": {
+      "original_value": 130,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "injection.pressure.3": {
+      "original_value": 130,
+      "role": "setting",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "disabled",
+      "reading": "known"
+    },
+    "metering.end": {
+      "original_value": 40,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "holding.speed.shared": {
+      "original_value": 15,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "total.injection.time": {
+      "original_value": 4,
+      "role": "setting",
+      "unit": "s",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "cooling.time": {
+      "original_value": 8.5,
+      "role": "setting",
+      "unit": "s",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "intermediate.time": {
+      "original_value": 0.5,
+      "role": "setting",
+      "unit": "s",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "screw.position.actual": {
+      "original_value": 45.46,
+      "role": "actual",
+      "unit": "mm",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "resin.pressure.actual": {
+      "original_value": -2,
+      "role": "actual",
+      "unit": "MPa",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "screw.speed.actual": {
+      "original_value": 0,
+      "role": "actual",
+      "unit": "rpm",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "overfill.prevention.time": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "s",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "vp.position": {
+      "original_value": 16,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "retract.pre.speed": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "retract.pre.distance": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "retract.post.speed": {
+      "original_value": 10,
+      "role": "setting",
+      "unit": "mm/s",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "retract.post.distance": {
+      "original_value": 5,
+      "role": "setting",
+      "unit": "mm",
+      "support": "supported",
+      "state": "enabled",
+      "reading": "known"
+    },
+    "control.vp_mode": {
+      "original_value": "位置",
+      "role": "setting",
+      "unit": null,
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "control.vp_response": {
+      "original_value": "高应答",
+      "role": "setting",
+      "unit": null,
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "control.manual_back_pressure": {
+      "original_value": "OFF",
+      "role": "setting",
+      "unit": null,
+      "support": "supported",
+      "state": "unknown",
+      "reading": "known"
+    },
+    "injection.pressure.end.1": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm",
+      "support": "unsupported",
+      "state": "unknown",
+      "reading": "unsupported"
+    },
+    "injection.pressure.end.2": {
+      "original_value": 0,
+      "role": "setting",
+      "unit": "mm",
+      "support": "unsupported",
+      "state": "unknown",
+      "reading": "unsupported"
+    },
+    "holding.ramp.1": {
+      "original_value": 0.1,
+      "role": "setting",
+      "unit": "s",
+      "support": "unsupported",
+      "state": "unknown",
+      "reading": "unsupported"
+    }
+  }
+}
