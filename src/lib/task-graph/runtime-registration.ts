@@ -15,7 +15,7 @@ export function hostRuntimeRegistration(repository: string, file = path.join(pla
   const raw: unknown = Reflect.get(value, repository);
   if (raw === undefined) return null;
   const runtime = parseRuntimeDeclaration(raw);
-  const resources = [...(runtime.browser ? [runtime.browser.module, runtime.browser.executable] : []), ...(runtime.ocr ? [runtime.ocr.weights] : [])];
+  const resources = [...(runtime.postgres ? [runtime.postgres.resource] : []), ...(runtime.browser ? [runtime.browser.module, runtime.browser.executable] : []), ...(runtime.ocr ? [runtime.ocr.weights] : [])];
   if (resources.some(resource => resource.kind !== 'path' || !path.isAbsolute(resource.path))) throw new Error('Registered runtime resources require absolute independently approved paths');
   return { runtime, registrationHash: createHash('sha256').update(text).digest('hex'), configFile: file };
 }

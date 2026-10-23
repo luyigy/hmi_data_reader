@@ -6,7 +6,7 @@ import { graphGit } from './git-command';
 export type RuntimeResource = { kind: 'path'; path: string; sha256: string } | { kind: 'output'; eventId: string; relativePath: string; sha256: string };
 export type SkillDependency = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[] };
 export type SkillRequirement = { id: string; package: Extract<RuntimeResource, { kind: 'path' }>; requiredFiles: string[]; checkScript: string; dependencies?: SkillDependency[] };
-export type RuntimeDeclaration = { version: 1; browser?: { module: RuntimeResource; executable: RuntimeResource }; ocr?: { weights: RuntimeResource; requiredFiles: string[] }; skills?: SkillRequirement[] };
+export type RuntimeDeclaration = { version: 1; postgres?: { resource: Extract<RuntimeResource, { kind: 'path' }> }; browser?: { module: RuntimeResource; executable: RuntimeResource }; ocr?: { weights: RuntimeResource; requiredFiles: string[] }; skills?: SkillRequirement[] };
 const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
 function resource(value: unknown): RuntimeResource {
   const item = record(value);
@@ -21,8 +21,13 @@ function resource(value: unknown): RuntimeResource {
 }
 export function parseRuntimeDeclaration(value: unknown): RuntimeDeclaration {
   const item = record(value);
-  if (item.version !== 1 || Object.keys(item).some(key => !['version', 'browser', 'ocr', 'skills'].includes(key))) throw new Error('运行能力声明版本或字段无效');
+  if (item.version !== 1 || Object.keys(item).some(key => !['version', 'browser', 'ocr', 'skills', 'postgres'].includes(key))) throw new Error('运行能力声明版本或字段无效');
   const result: RuntimeDeclaration = { version: 1 };
+  if (item.postgres !== undefined) {
+    const postgres = record(item.postgres), bundle = resource(postgres.resource);
+    if (Object.keys(postgres).some(key => key !== 'resource') || bundle.kind !== 'path') throw new Error('PostgreSQL 须声明固定路径资源，且不能包含未知字段');
+    result.postgres = { resource: bundle };
+  }
   if (item.browser !== undefined) { const browser = record(item.browser); if (Object.keys(browser).some(key => !['module', 'executable'].includes(key))) throw new Error('浏览器声明存在未知字段'); result.browser = { module: resource(browser.module), executable: resource(browser.executable) }; }
   if (item.ocr !== undefined) {
     const ocr = record(item.ocr);

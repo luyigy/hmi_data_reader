@@ -1,0 +1,35 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres-runtime
+> node scripts/sandbox-postgres-session.mjs run task-graph-postgres-runtime
+
+[run] 沙箱会话启动: 套件 task-graph-postgres-runtime，证据目录 output/sandbox-postgres-runs/2026-10-23T004857-3977030
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+PASS declaration rejects unknown fields, output sources and unauthorized roots
+PASS implementation entry runs real SQL in Bubblewrap with approved fixed resource
+PASS platform check entry runs SQL and protects source writes
+PASS independent acceptance uses identical claim pin and fresh database; source stays readonly
+PASS acceptance denies narrower grants; both entrypoints reject resource drift before execution
+PASS all three stages close their ports and remove data; changed declaration cannot reuse claim
+[inner] shared phase lifecycle: PASS; evidence.json includes SQL and cleanup evidence
+[run] 沙箱退出码 0

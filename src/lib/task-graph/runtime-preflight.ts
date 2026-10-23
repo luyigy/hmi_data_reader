@@ -56,6 +56,7 @@ export async function prepareDeclaredRuntime(args: { workspace: string; approved
   const env: Record<string, string> = {};
   const skills: { skill: NonNullable<RuntimeDeclarationSource['declaration']['skills']>[number]; packageRoot: string; dependencies: { id: string; package: string; requiredFiles: string[] }[] }[] = [];
   try {
+    if (declaration.declaration.postgres) await resolve(declaration.declaration.postgres.resource, 'PostgreSQL');
     if (declaration.declaration.ocr) {
       const ocr = declaration.declaration.ocr;
       const weights = await resolve(ocr.weights, 'OCR 权重');

@@ -1,0 +1,48 @@
+{
+  "base": "fb45ac5",
+  "entrypoints": {
+    "exitCode": 0,
+    "passLines": 6
+  },
+  "compatibility": {
+    "exitCode": 0,
+    "suites": [
+      "task-graph-runtime-pinning",
+      "task-graph-skill-runtime",
+      "task-graph-service-execution"
+    ]
+  },
+  "postgresLifecycle": {
+    "exitCode": 0,
+    "passLines": 12
+  },
+  "browserContinuity": {
+    "exitCode": 0
+  },
+  "tsc": {
+    "exitCode": 0
+  },
+  "eslint": {
+    "exitCode": 0
+  },
+  "workflow": {
+    "exitCode": 0,
+    "issues": []
+  },
+  "longFiles": {
+    "exitCode": 0
+  },
+  "gitDiffCheck": {
+    "exitCode": 0
+  },
+  "gitnexus": {
+    "impact": "prepareDeclaredRuntime -> prepareRuntime -> prepareTaskDeclaredRuntime / inspectSavedTaskRuntime",
+    "limitation": "Index one commit stale; index update stopped after no progress; MCP transport closed; caller search completed from source."
+  },
+  "notRun": [
+    "S05 environment-outcome fix",
+    "S06 independent review",
+    "deployment",
+    "production task resume"
+  ]
+}

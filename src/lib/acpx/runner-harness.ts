@@ -1,7 +1,6 @@
 import type { HarnessExecutionContext, HarnessSandbox } from '../harness/types';
 import { withSandbox, type ManagedProcessControl, type SandboxIdentity } from '../sandbox-manager';
 import { withTaskProjectCapabilities } from '../project-capabilities/task-runtime';
-import { assertRuntimeResourcesUnchanged } from '../task-graph/runtime-preflight';
 import { prepareTaskDeclaredRuntime } from '../task-graph/runtime-continuity';
 import { prepareGraphOutputForTask } from '../task-graph/output-task-context';
 import { graphWriterEnvironment } from '../task-graph/writer-ownership';
@@ -239,7 +238,6 @@ export const executeViaLocalHarness = async (
   serviceSignal = services.signal;
   if (services.receipts.length) task.description += `\n平台已核验的临时服务：${services.env.TASK_GRAPH_SERVICES_JSON}。仅在本阶段使用，数据隔离，阶段结束回收；不得连接未声明的宿主服务。`;
   const taskEnvironment = { ...capabilities.env, ...inputs?.env, ...services.env, ...output?.env, ...declaredRuntime?.env, ...await graphWriterEnvironment(taskRunId) };
-  if (declaredRuntime) await assertRuntimeResourcesUnchanged(declaredRuntime.verifiedResources);
   const runtimeExecution = await beginHarnessRuntimeExecution(participantId);
   let metadataWrites = Promise.resolve();
   let boundSessionId: string | undefined;
@@ -328,7 +326,7 @@ export const executeViaLocalHarness = async (
     sessionKind: result.sessionKind,
     threadId: result.threadId,
   };
-  });
+  }, declaredRuntime);
   });
 };
 

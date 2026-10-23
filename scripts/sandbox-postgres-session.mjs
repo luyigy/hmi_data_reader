@@ -7,10 +7,10 @@
  *    在实际 Bubblewrap 沙箱内启动一次性数据库并执行选定的数据库回归，保存命令、版本、退出码与清理证据。
  *
  * 边界：只读复用父仓库 node_modules；不扩大 sandbox-env.ts 全局变量白名单；
- * DATABASE_URL 不经环境变量进入沙箱（会被过滤），由受控入口经 argv 提供给沙箱内 runner。
+ * 资源路径经 argv 进入沙箱；沙箱内复用阶段生命周期，再向回归子进程提供一次性连接。
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { randomInt, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -67,14 +67,12 @@ function runSession(suites, debugSuite = false) {
   const stamp = `${now.toISOString().slice(0, 10)}T${now.toTimeString().slice(0, 8).replaceAll(':', '')}`;
   const evidenceDir = path.join(root, 'output', 'sandbox-postgres-runs', `${stamp}-${process.pid}`);
   mkdirSync(evidenceDir, { recursive: true });
-  const port = randomInt(30000, 55000);
   const nodeModules = existsSync(path.join(root, 'node_modules')) ? path.join(root, 'node_modules') : undefined;
   if (!nodeModules) throw new Error('缺少 node_modules 只读复用入口（宿主软链未建立）');
   const innerScript = path.join('scripts', 'sandbox-postgres-inner.mjs');
   const launchConfig = {
     command: process.execPath,
-    commandArgs: [innerScript, '--resource-dir', extracted, '--port', String(port),
-      '--user', 'postgres', '--database', 'postgres', '--evidence-dir', evidenceDir, '--suite', ...suites, ...(debugSuite ? ['--suite-debug'] : [])],
+    commandArgs: [innerScript, '--resource-dir', extracted, '--evidence-dir', evidenceDir, '--suite', ...suites, ...(debugSuite ? ['--suite-debug'] : [])],
     cwd: root,
     workspaceRoot: root,
     networkAccess: 'restricted',
@@ -89,7 +87,7 @@ function runSession(suites, debugSuite = false) {
     { cwd: root, encoding: 'utf8', env: { ...process.env, TS_NODE_BASEURL: '.', TS_NODE_COMPILER_OPTIONS: JSON.stringify({ module: 'commonjs', moduleResolution: 'node' }) } });
   const { command, args } = JSON.parse(rendered);
   writeFileSync(path.join(evidenceDir, 'bwrap-command.json'), JSON.stringify({ command, args }, null, 2));
-  console.log(`[run] 沙箱会话启动: 端口 ${port}，套件 ${suites.join(',')}，证据目录 ${path.relative(root, evidenceDir)}`);
+  console.log(`[run] 沙箱会话启动: 套件 ${suites.join(',')}，证据目录 ${path.relative(root, evidenceDir)}`);
   const startedAt = new Date().toISOString();
   const child = spawn(command, args, { cwd: root, env: launchConfig.env, stdio: ['ignore', 'pipe', 'pipe'] });
   const bwrapLog = [];
@@ -104,7 +102,7 @@ function runSession(suites, debugSuite = false) {
     writeFileSync(path.join(evidenceDir, 'bwrap-session.log'), bwrapLog.join(''));
     writeFileSync(path.join(evidenceDir, 'session-summary.json'), JSON.stringify({
       startedAt, endedAt, bwrapExitCode: code, signal,
-      suites, resourceVersion: pinned.version, port,
+      suites, resourceVersion: pinned.version,
       evidence: 'evidence.json（沙箱内写入）',
     }, null, 2));
     console.log(`[run] 沙箱退出码 ${code ?? `signal:${signal}`}${code === 0 ? '' : '，详见 ' + path.relative(root, evidenceDir)}`);

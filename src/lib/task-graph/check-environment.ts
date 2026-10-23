@@ -49,7 +49,7 @@ export async function runSandboxedGraphCheck(argv: string[], cwd: string, extraE
     sandboxMode: 'read-only', networkAccess: 'enabled', env, outputPaths: outputs,
     readOnlyPaths: [...capabilities.readOnlyPaths, ...declaredRuntime.readOnlyPaths, ...output.readOnlyPaths, ...protectedInputs, ...(extra?.paths || []), ...readOnlyWorkspaces, ...readOnlyWorkspaces.flatMap(linkedWorktreeGitDirectories), ...readOnlyWorkspaces.flatMap(graphDependencyPaths), ...dependencies, ...metadata, ...(metadata.length ? [path.join(root, '.git')] : [])] });
   return runGraphCheck([wrapped.command, ...wrapped.args], root, env, undefined, argv, services.signal);
-  });
+  }, declaredRuntime);
   if (!extraEnv.AP_GRAPH_SERVICE_TASK_ID) return check({ env: {}, readOnlyPaths: [] });
   if (!extraEnv.AP_GRAPH_WRITER_NONCE) {
     for (const project of await taskCapabilityRepositories(extraEnv.AP_GRAPH_SERVICE_TASK_ID)) {

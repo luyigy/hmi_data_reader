@@ -1,0 +1,17 @@
+/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/runtime-contract.ts:24
+  if (item.version !== 1 || Object.keys(item).some(key => !['version', 'browser', 'ocr', 'skills'].includes(key))) throw new Error('运行能力声明版本或字段无效');
+                                                                                                                         ^
+/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/runtime-contract.ts:86
+        throw new Error('运行能力声明版本或字段无效');
+        ^
+
+Error: 运行能力声明版本或字段无效
+    at parseRuntimeDeclaration (/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/runtime-contract.ts:24:122)
+    at [eval]:1:83
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:446:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:444:60)
+    at evalFunction (node:internal/process/execution:279:30)
+    at evalTypeScript (node:internal/process/execution:291:3)
+    at node:internal/main/eval_string:74:3
