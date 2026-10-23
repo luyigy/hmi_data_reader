@@ -495,8 +495,16 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     });
     const beforeRun = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
     const progress = executionProgress(beforeRun.dispatchMetadata)!;
+    let receiptError = progress.lastFailure?.detail;
+    if (progress.phase === 'collect_result' && !receiptError && progress.taskRunId) {
+      const previous = await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } });
+      if (previous?.taskId === task.id && previous.status === 'completed') {
+        try { parseImplementationResult(previous.participants[0]?.summary || previous.summary || ''); }
+        catch (error) { receiptError = error instanceof Error ? error.message : String(error); }
+      }
+    }
     const recoveryInstructions = progress.phase === 'collect_result'
-      ? `\n上轮交付回执格式错误：${JSON.stringify(progress.lastFailure)}。继续当前获批 Ticket 的正常实施：可修正回执、修改代码和测试或重新验证，由你判断下一步。只有确实完成目标才能返回合法 delivered；平台将重新固定当前 Worktree 候选，不复用旧候选代表本次交付。`
+      ? `\n上轮交付回执格式错误：${receiptError || '缺少有效交付结论，请核对 TASK_GRAPH_IMPLEMENTATION 契约'}。继续当前获批 Ticket 的正常实施：可修正回执、修改代码和测试或重新验证，由你判断下一步。只有确实完成目标才能返回合法 delivered；平台将重新固定当前 Worktree 候选，不复用旧候选代表本次交付。`
       : progress.lastFailure ? `\n本票自动回修：${JSON.stringify(progress.lastFailure)}\n使用保留的当前源码修复上述故障，并重新运行相同检查。` : '';
     const previousRepairRun = progress.conflictRepair && progress.runtimeDirectory && progress.taskRunId
       ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;

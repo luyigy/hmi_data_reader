@@ -8,8 +8,9 @@ import { prisma } from '../src/lib/prisma';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
+import { scheduleImplementationRecovery } from '../src/lib/task-graph/implementation-result';
 import { receiveGraphTaskMessage } from '../src/lib/task-graph/conversation-inbox';
-import { executionProgress } from '../src/lib/task-graph/execution-progress';
+import { executionProgress, metadataWithProgress } from '../src/lib/task-graph/execution-progress';
 import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/types';
 import { maxUnchangedWorkTurns } from '../src/lib/task-graph/retry-limits';
 
@@ -30,7 +31,8 @@ async function main() {
   const calls = new Map<string, number>();
   const adapter = getHarnessAdapter('codex'); assert.ok(adapter);
   const original = { execute: adapter.execute, resume: adapter.resume };
-  let recoveryDescription = '';
+  let recoveryDescription = '', resumedCorrectionDescription = '';
+  let resumeReceipt = false;
   const directories = new Map<string, string>();
   const execute = async (args: HarnessExecuteArgs | HarnessResumeArgs) => {
     const { task, context } = args;
@@ -41,6 +43,7 @@ async function main() {
       assert.notEqual(context.permissionConfig?.sandboxMode, 'read-only');
     } else directories.set(key, context.workingDirectory);
     const reply = (output: string) => ({ success: true, output, sessionId: `native-${key}`, sessionKind: 'codex_thread', executionTime: 1 });
+    if (key === 'D' && resumeReceipt) resumedCorrectionDescription = 'continuationMessage' in args ? args.continuationMessage : task.description || '';
     if (key === 'A' && count === 2) recoveryDescription = 'continuationMessage' in args ? args.continuationMessage : task.description || '';
     if (key === 'F' && count === 2) await receiveGraphTaskMessage({ taskId: task.id, sourceId: 'new-approved-input', actorId: owner.id, actorOrigin: 'platform', content: 'Continue using the approved fixture input.' });
     if (key === 'C' || key === 'D') {
@@ -51,7 +54,7 @@ async function main() {
     }
     const value = (key === 'A' && count < 3 || key === 'H' && count < 5) ? `in-progress-${count}` : 'fixed';
     writeFileSync(path.join(context.workingDirectory!, `${key}.txt`), value);
-    if (key === 'D' || key === 'A' && count === 1 || key === 'E' && count === 1 || key === 'F' && count < 4 || key === 'G' && count < 3 || key === 'H' && count < 5) return reply('TASK_GRAPH_IMPLEMENTATION {"status":"blocked","note":"required skills missing","evidence":["resume-receipt.json"]}');
+    if (key === 'D' && !resumeReceipt || key === 'A' && count === 1 || key === 'E' && count === 1 || key === 'F' && count < 4 || key === 'G' && count < 3 || key === 'H' && count < 5) return reply('TASK_GRAPH_IMPLEMENTATION {"status":"blocked","note":"required skills missing","evidence":["resume-receipt.json"]}');
     if (key === 'E' && count < 4) return reply('TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"evidence field missing"}');
     if (key === 'A' && count === 2 || key === 'C' || key === 'G' && count < 6) return reply('No delivery conclusion; continuing normal engineering work');
     return reply(`TASK_GRAPH_IMPLEMENTATION ${JSON.stringify({ status: 'delivered', note: `${key} implemented`, evidence: [`${key}.txt`] })}`);
@@ -108,7 +111,22 @@ async function main() {
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: { in: ['conversation_review_recovery_requested', 'implementation_recovery_scheduled'] } } }), 0);
     for (let i = 0; i < 8; i++) { await runTaskGraphCycle(); await new Promise(resolve => setTimeout(resolve, 30)); }
     await drain(); assert.equal(calls.get('D'), 3, 'Conditions scanning must not add a third unchanged correction');
-    console.log('Real coordinator: ordinary output continues implementation; two unchanged format corrections, ordinary work and changed errors/inputs continue; final candidate binds delivery; successor once; human resume0');
+    const legacyJob = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: invalid.id } });
+    // Older coordinators retained collect_result at the unchanged-format stop, as in real M6.
+    await prisma.taskGraphExecution.update({ where: { id: legacyJob.id }, data: { dispatchMetadata: metadataWithProgress(legacyJob.dispatchMetadata, { ...executionProgress(legacyJob.dispatchMetadata)!, phase: 'collect_result' }) } });
+    resumeReceipt = true;
+    assert.equal((await scheduleImplementationRecovery(run.id, 'D', 'explicit-receipt-correction')).kind, 'scheduled');
+    for (let i = 0; i < 200; i++) {
+      await runTaskGraphCycle();
+      const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'D' } } });
+      if (node.status === 'passed') break;
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    await drain();
+    assert.match(resumedCorrectionDescription, /实施阻塞结论缺少有效 blockerKind/, 'Admission clears stale wait reasons, but the bound malformed receipt must still yield its concrete error');
+    assert.doesNotMatch(resumedCorrectionDescription, /回执格式错误：undefined/);
+    assert.equal(calls.get('D'), 4);
+    console.log('Real coordinator: ordinary output continues implementation; two unchanged format corrections, ordinary work and changed errors/inputs continue; final candidate binds delivery; successor once; admitted legacy correction retains concrete format error');
   } finally {
     await drain(); adapter.execute = original.execute; adapter.resume = original.resume;
     const jobs = await prisma.taskGraphExecution.findMany({ where: { node: { runId: run.id } }, select: { childTaskId: true } });
