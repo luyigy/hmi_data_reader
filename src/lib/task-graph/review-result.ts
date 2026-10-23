@@ -11,7 +11,7 @@ type CollectedReview =
 
 /** One bounded result recollection; a missing/unknown result never becomes an approval. */
 export async function collectGraphReview(args: {
-  runId: string; nodeId: string; claimKey: string; marker: string; checks: ReviewCheck[]; request: AcpxRunRequest;
+  runId: string; nodeId: string; claimKey: string; marker: string; checks: ReviewCheck[]; requireCheckEvidence?: boolean; request: AcpxRunRequest;
 }): Promise<CollectedReview> {
   const key = createHash('sha256').update(args.claimKey).digest('hex').slice(0, 24);
   const previous = await prisma.taskGraphEvent.findMany({ where: { runId: args.runId, idempotencyKey: { in: [`review-result:${key}:0`, `review-result:${key}:1`] } } });
@@ -33,10 +33,11 @@ export async function collectGraphReview(args: {
     if (args.request.graphReview && result.taskRunId !== 'not-created') await assertGraphReviewOwnership(args.nodeId, args.request.graphReview.phase, args.claimKey, result.taskRunId);
     if (result.status !== 'completed' && !['failed', 'cancelled', 'interrupted'].includes(result.status)) throw new Error('Reviewer has not reached a terminal state');
     if (result.status !== 'completed') return { kind: 'platform_failure', note: response || '复核进程没有正常结束', taskRunId: result.taskRunId };
-    const match = response.match(new RegExp(args.marker + '\\s*(\\{[^\\r\\n]+\\})'));
+    const matches = Array.from(response.matchAll(new RegExp(args.marker + '\\s*(\\{[^\\r\\n]+\\})', 'g')));
+    const match = args.requireCheckEvidence && matches.length !== 1 ? null : matches[0];
     let raw: unknown;
     try { raw = match ? JSON.parse(match[1]) : null; } catch { raw = null; }
-    const decision = classifyReview(raw, args.checks);
+    const decision = classifyReview(raw, args.checks, args.requireCheckEvidence);
     if (decision) return { kind: 'classified', decision, taskRunId: result.taskRunId };
     await prisma.taskGraphEvent.createMany({ data: [{ runId: args.runId, nodeId: args.nodeId,
       idempotencyKey: `review-result:${key}:${attempt}`, kind: attempt ? 'review_result_exhausted' : 'review_result_recollection',

@@ -45,6 +45,7 @@ export type GraphNode = {
 };
 
 export type GraphDefinition = {
+  deliveryContract?: 'agent_owned_v1';
   specRef: string;
   specPackage?: SpecPackageRef;
   issueSource?: IssueSource;
@@ -66,6 +67,7 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
   if (!input.specRef?.trim() || !Array.isArray(input.nodes) || input.nodes.length === 0) {
     throw new Error('Task graph requires a spec reference and at least one node');
   }
+  if (input.deliveryContract !== undefined && input.deliveryContract !== 'agent_owned_v1') throw new Error('Unknown delivery contract');
   const keys = new Set<string>();
   if (input.adoptRun && (!input.adoptRun.runId?.trim() || !/^[a-f0-9]{64}$/.test(input.adoptRun.snapshotHash))) throw new Error('Invalid existing run association');
   if (input.specPackage && (!isAbsolute(input.specPackage.repository) ||
@@ -98,7 +100,7 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     if (node.services?.some(service => !input.nodes.some(parent => parent.executions.some(job => `${parent.key}/${job.key}` === service.input)))) throw new Error('Service input must name an approved execution');
     const gate = node.acceptance;
     if (!gate || !['automatic', 'agent', 'human'].includes(gate.mode) || !Array.isArray(gate.checks) ||
-        (node.executionMode !== 'implement' && gate.checks.length === 0) || gate.checks.some((check) => !check?.trim()) ||
+        ((input.deliveryContract === 'agent_owned_v1' || node.executionMode !== 'implement') && gate.checks.length === 0) || gate.checks.some((check) => !check?.trim()) ||
         (gate.mode !== 'automatic' && !gate.reviewerId?.trim())) {
       throw new Error(`Invalid acceptance gate for ${node.key}`);
     }

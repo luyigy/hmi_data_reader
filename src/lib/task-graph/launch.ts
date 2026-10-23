@@ -34,8 +34,10 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
   const repositories = new Map<string, string>();
   for (const node of definition.nodes) {
     const availableChecks = new Set<string>();
+    const evidenceNames = [...node.acceptance.checks, 'acceptance:decision'];
     const architect = effectiveArchitectureReview(definition, node);
     if (architect) {
+      evidenceNames.push('architecture:scope');
       const review = architect.reviewLaunchConfig as LaunchConfig | undefined;
       if (!review?.participant?.gatewayId || !review.participant.harnessType ||
           review.participant.executionBackend !== 'platform_local') {
@@ -43,7 +45,7 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
       }
       participants.push(review.participant);
     }
-    if (node.executionMode !== 'implement' && node.acceptance.mode === 'agent') {
+    if ((definition.deliveryContract === 'agent_owned_v1' || node.executionMode !== 'implement') && node.acceptance.mode === 'agent') {
       const reviewer = node.acceptance.reviewLaunchConfig as LaunchConfig | undefined;
       if (!reviewer?.participant?.gatewayId || !reviewer.participant.harnessType ||
           reviewer.participant.executionBackend !== 'platform_local') {
@@ -82,7 +84,10 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
         check.argv.some((arg) => typeof arg !== 'string' || !arg.trim()))) {
         throw new Error(`${node.key}/${execution.key}: 需要显式的验证命令数组`);
       }
-      config.checks.forEach((check) => availableChecks.add(check.name));
+      config.checks.forEach((check) => {
+        availableChecks.add(check.name);
+        evidenceNames.push(`execution:${encodeURIComponent(execution.key)}:${encodeURIComponent(check.name)}`);
+      });
       participants.push(participant);
     }
     const nodeRepositories = new Set(node.executions.map((execution) => execution.repository));
@@ -91,13 +96,15 @@ export const validateExecutionTargets = async (definition: GraphDefinition) => {
       if (!nodeRepositories.has(repository)) throw new Error(`${node.key}: 纵向检查必须在本节点的仓库内运行`);
       check.repository = repository;
       availableChecks.add(check.name);
+      evidenceNames.push(`integration:${encodeURIComponent(check.repository)}:${encodeURIComponent(check.name)}`);
     }
-    if (node.executionMode !== 'implement' && nodeRepositories.size > 1 && node.acceptance.mode !== 'human' &&
+    if (definition.deliveryContract === 'agent_owned_v1' && new Set(evidenceNames).size !== evidenceNames.length) throw new Error(`${node.key}: 验收证据 ID 重复，请使用唯一检查名称`);
+    if ((definition.deliveryContract === 'agent_owned_v1' || node.executionMode !== 'implement') && nodeRepositories.size > 1 && node.acceptance.mode !== 'human' &&
         (!node.acceptance.integrationChecks?.length ||
           node.acceptance.checks.some((check) => !node.acceptance.integrationChecks?.some((item) => item.name === check)))) {
       throw new Error(`${node.key}: 多仓自动或 Agent 验收需要覆盖所有验收项的固定版本纵向检查`);
     }
-    if (node.executionMode !== 'implement' && node.acceptance.checks.some((check) => !availableChecks.has(check))) {
+    if ((definition.deliveryContract === 'agent_owned_v1' || node.executionMode !== 'implement') && node.acceptance.checks.some((check) => !availableChecks.has(check))) {
       throw new Error(`${node.key}: 验收项必须关联至少一个仓内验证命令`);
     }
   }

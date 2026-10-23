@@ -1,3 +1,4 @@
+import { verificationInputs } from './quality-contract';
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
@@ -37,7 +38,7 @@ export async function runArchitectureReview(args: {
     description: `独立检查任务图 ${args.runId} / ${args.nodeKey} 的变更范围与架构影响。`,
     workingDirectory: args.workspaces.at(-1)?.path || null,
   }, update: { workingDirectory: args.workspaces.at(-1)?.path || null } });
-  const executions = await prisma.taskGraphExecution.findMany({ where: { nodeId: args.nodeId }, select: { id: true, repository: true } });
+  const executions = await prisma.taskGraphExecution.findMany({ where: { nodeId: args.nodeId }, select: { id: true, repository: true, key: true, commit: true } });
   const checks = graphReviewChecks(args.definition, args.nodeKey, executions);
   const prompt = `${architectureReviewInstructions}\n请检查 ${args.nodeKey}。` +
     `\n目标：${node.goal}\nSpec：${args.definition.specRef}` +
@@ -65,7 +66,7 @@ export async function runArchitectureReview(args: {
     runId: args.runId, nodeId: args.nodeId, idempotencyKey: resultKey,
     kind: approved ? 'architecture_passed' : 'architecture_failed',
     payload: { ...(workspaceInvalid ? { failureKind: 'ownership_mismatch' } : result.kind === 'classified' ? result.decision : { failureKind: result.kind }), approved, note, reviewerId: review.reviewerId,
-      taskRunId: result.taskRunId, claimKey, commits: args.commits } as Prisma.InputJsonValue,
+      taskRunId: result.taskRunId, claimKey, commits: args.commits, ...(args.definition.deliveryContract === 'agent_owned_v1' ? { inputs: verificationInputs(executions) } : {}) } as Prisma.InputJsonValue,
   } });
   });
   return approved ? 'passed' : 'failed';

@@ -1,3 +1,4 @@
+import { qualityOwner, assertQualityPublication } from './quality-contract';
 import { graphRunCanStartTx, graphRunBusinessStatus } from './run-control';
 import { observeTaskRunWriter, observeGraphWriter, type GraphWriter } from './writer-ownership';
 import { applyReviewFailureTx, type ReviewPublication } from './review-publication';
@@ -74,7 +75,9 @@ export async function releaseReadyNodes(runId: string, db: Database = prisma): P
   return db.$transaction(async (tx) => {
     if (!await graphRunCanStartTx(tx, runId)) return [];
     const nodes = await tx.taskGraphNode.findMany({ where: { runId }, select: { id: true, key: true, dependsOn: true, status: true } });
-    const passed = new Set(nodes.filter((node) => isCompletedNodeStatus(node.status)).map((node) => node.key));
+    const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
+    const definition = run.snapshot as unknown as GraphDefinition;
+    const passed = new Set(nodes.filter((node) => definition.deliveryContract === 'agent_owned_v1' ? node.status === 'passed' : isCompletedNodeStatus(node.status)).map((node) => node.key));
     const released: string[] = [];
     for (const node of nodes) {
       if (node.status !== 'planned' || !node.dependsOn.every((key) => passed.has(key))) continue;
@@ -263,6 +266,7 @@ export async function markNodeIntegrationsReady(runId: string, nodeKey: string, 
 export type VerificationEvidence = {
   checks: { name: string; passed: boolean; evidence: string }[];
   summary: string;
+  inputs?: { executionId: string; commit: string | null }[];
 };
 
 /** An approved implement-only policy permits relay, while retaining the unverified result. */
@@ -270,6 +274,7 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
   return db.$transaction(async (tx) => {
     const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
     const definition = run.snapshot as unknown as GraphDefinition;
+    if (definition.deliveryContract === 'agent_owned_v1') throw new Error('Agent-owned delivery contract requires verification');
     if (definition.nodes.find((node) => node.key === nodeKey)?.executionMode !== 'implement') {
       throw new Error('Only an approved implement-only node may finish without verification');
     }
@@ -294,8 +299,13 @@ export async function submitNodeVerification(args: {
   review?: ReviewPublication;
 }, db: Database = prisma) {
   return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${args.runId} AND key = ${args.nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId: args.runId, key: args.nodeKey } } });
     if (!node) throw new Error('Unknown graph node');
+    const snapshot = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
+    const definition = snapshot.snapshot as unknown as GraphDefinition;
+    const agentOwned = definition.deliveryContract === 'agent_owned_v1';
+    if (agentOwned) await assertQualityPublication(tx, { ...args, definition, nodeId: node.id });
     if (['passed', 'awaiting_human', 'attention'].includes(node.status) &&
         JSON.stringify(node.evidence) === JSON.stringify(args.evidence)) return node;
     if (node.status !== 'verifying') throw new Error('Node is not ready for verification');
@@ -304,12 +314,10 @@ export async function submitNodeVerification(args: {
       const failed = await tx.taskRun.findUniqueOrThrow({ where: { id: args.review.taskRunId }, select: { status: true } });
       if (!['failed', 'cancelled', 'interrupted'].includes(failed.status) || (await observeTaskRunWriter(args.review.taskRunId)).kind !== 'exited') throw new Error('Review platform retry requires a finished writer');
     }
-    const snapshot = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
-    const definition = snapshot.snapshot as unknown as GraphDefinition;
     const checks = definition.nodes.find((item) => item.key === args.nodeKey)?.acceptance.checks;
     if (!checks) throw new Error('Acceptance policy missing from snapshot');
     if (node.acceptance === 'agent' && node.reviewerId !== args.actorId) throw new Error('Wrong review agent');
-    if (node.acceptance === 'human' && args.actorId !== 'system') throw new Error('Human gate must be requested by the coordinator');
+    if (!agentOwned && node.acceptance === 'human' && args.actorId !== 'system') throw new Error('Human gate must be requested by the coordinator');
     const results = args.evidence?.checks;
     if (!Array.isArray(results) || !args.evidence.summary?.trim() ||
         checks.some((check) => !results.some((item) => item.name === check && item.evidence?.trim()))) {
@@ -338,6 +346,7 @@ export async function approveHumanNode(args: {
 }, db: Database = prisma) {
   required(args.note, 'review note');
   return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${args.runId} AND key = ${args.nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId: args.runId, key: args.nodeKey } } });
     if (!node || node.acceptance !== 'human') {
       throw new Error('Node is not awaiting human review');
@@ -350,6 +359,16 @@ export async function approveHumanNode(args: {
       if (decision && JSON.stringify(decision.payload) === JSON.stringify({ reviewerId: args.reviewerId, note: args.note })) return node;
     }
     if (node.status !== 'awaiting_human') throw new Error('Node is not awaiting human review');
+    const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
+    const definition = run.snapshot as unknown as GraphDefinition;
+    if (args.approved && definition.deliveryContract === 'agent_owned_v1') {
+      const planned = definition.nodes.find(item => item.key === args.nodeKey)!;
+      const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
+      const binding = executionProgress(jobs[0]?.dispatchMetadata)?.review;
+      if (binding?.kind !== 'running' || binding.phase !== 'acceptance') throw new Error('Human approval has no pinned quality review');
+      await assertQualityPublication(tx, { definition, nodeKey: args.nodeKey, nodeId: node.id, actorId: qualityOwner(planned).actorId,
+        evidence: node.evidence as unknown as VerificationEvidence, review: { ...binding, outcome: 'classified' } });
+    }
     const updated = await tx.taskGraphNode.update({
       where: { id: node.id }, data: { status: args.approved ? 'passed' : 'attention',
         passedAt: args.approved ? new Date() : undefined },

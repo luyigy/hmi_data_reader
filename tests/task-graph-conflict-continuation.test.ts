@@ -15,7 +15,7 @@ import { releaseGraphExecutionWorker } from '../src/lib/task-graph/phase-worker'
 import { ensureIntegrationRef, ensureJobWorktree, integrateJobWorktree, TaskGraphGitError } from '../src/lib/task-graph/worktree';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
 
-async function main(completedBlocked = false) {
+async function main(completedBlocked = false, agentOwned = false) {
   assert.match(new URL(process.env.DATABASE_URL || '').searchParams.get('schema') || '', /^task_graph_test_[a-f0-9]+$/);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'graph-conflict-continuation-')), repository = path.join(root, 'repo'); await fs.mkdir(repository);
   const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' }).trim();
@@ -27,7 +27,7 @@ async function main(completedBlocked = false) {
   const check = { name: 'both deliveries and latest integration', argv: [process.execPath, '-e', "const fs=require('fs'),s=fs.readFileSync('contract.md','utf8');if(!s.includes('first')||!s.includes('second')||!fs.existsSync('R04'))throw Error('delivery lost')"] };
   const parent = await prisma.task.create({ data: { name: 'legacy conflict continuation' } });
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: {
-    specRef: 'fixture://conflict', nodes: [{ key: 'N', goal: 'Preserve both approved contract deliveries', dependsOn: [],
+    ...(agentOwned ? { deliveryContract: 'agent_owned_v1' as const } : {}), specRef: 'fixture://conflict', nodes: [{ key: 'N', goal: 'Preserve both approved contract deliveries', dependsOn: [],
       architectureReview: { reviewerId: 'local:kimi-code', reviewLaunchConfig: { participant: { ...participant, harnessType: 'kimi-code', role: 'reviewer' } } },
       acceptance: { mode: 'automatic', checks: [check.name], integrationChecks: [{ ...check, repository }] },
       executions: ['A', 'B', 'R04'].map(key => ({ key, repository, gitRef: 'refs/heads/main', baseCommit: base, agentSelector: 'local:codex', instructions: 'Preserve both contract sections; no change outside this ticket.', launchConfig: { participant, checks: key === 'B' ? [check] : [] } })) },
@@ -105,9 +105,19 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
       await prisma.taskRunParticipant.update({ where: { id: originalParticipant.id }, data: { status: 'completed', summary: blocked } });
     }
     assert.equal(git(trees.get('B')!, 'rev-parse', 'MERGE_HEAD'), first.commit);
-    let repairs = 0, successors = 0, architecture = 0, resumedMessage = '';
+    let repairs = 0, successors = 0, architecture = 0, qualityReviews = 0, resumedMessage = '';
     let resumeCalls = 0;
     getHarnessAdapter('codex')!.execute = async ({ task, context }) => {
+      if (task.id.startsWith('task-graph-review-')) {
+        qualityReviews++;
+        const checks = JSON.parse((task.description || '').match(/稳定检查 ID 和可回修执行：(\[[^\n]+\])。/)![1]);
+        const workspaces = JSON.parse((task.description || '').match(/仓库检出目录: (\[[^\n]+\])\n证据:/)![1]);
+        const directory = workspaces[workspaces.length - 1].path;
+        if (task.name.startsWith('N')) execFileSync(check.argv[0], check.argv.slice(1), { cwd: directory, stdio: 'pipe' });
+        else execFileSync('test', ['-f', 'next'], { cwd: directory });
+        return { success: true, executionTime: 1, output: 'TASK_GRAPH_REVIEW ' + JSON.stringify({ approved: true, note: 'all approved commands verified on integrated inputs',
+          checks: checks.map((item: { id: string }) => ({ name: item.id, passed: true, evidence: `real command passed on ${workspaces[workspaces.length - 1].commit}` })) }) };
+      }
       if (task.name.startsWith('N ·')) {
         repairs++; assert.match(task.description || '', /受控冲突修复/); assert.notEqual(context.workingDirectory, trees.get('B'));
         assert.notEqual(context.workingDirectory, Reflect.get(interrupted, 'directory'), 'Interrupted repair retains its original output directory and starts a fresh artifact attempt');
@@ -149,7 +159,7 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
     assert.match(resumedMessage, /受控冲突修复/, 'DEMAG replay: current stage missing from actual Resume input');
     const runErrors = await prisma.taskRun.findMany({ where: { taskId: { startsWith: 'task-graph-' } }, select: { status: true, error: true, summary: true } });
     assert.equal((await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: run.id } })).status, 'completed', JSON.stringify({ failures, progress: executionProgress(final.dispatchMetadata), runErrors }));
-    assert.equal(repairs, 1); assert.equal(successors, 1); assert.equal(architecture, 1);
+    assert.equal(repairs, 1); assert.equal(successors, 1); assert.equal(architecture, 1); assert.equal(qualityReviews, agentOwned ? 2 : 0);
     assert.equal(executionProgress(final.dispatchMetadata)?.repairAttempts, 1);
     assert.equal(executionProgress(final.dispatchMetadata)?.platformAttempts, 1, 'Actual repair process exit uses the existing bounded restart budget');
     git(repository, 'merge-base', '--is-ancestor', advanced.commit, final.commit!);
@@ -158,4 +168,4 @@ const {runTaskGraphCycle}=require(${JSON.stringify(path.join(cwd, 'src/lib/task-
     console.log(completedBlocked ? 'Completed-but-blocked repair result is not replayed; fresh native Resume and artifact pass' : 'Legacy waiting conflict + advanced approved integration + SIGKILL during repair: automatic fresh artifact attempt, merged checks, independent architecture, acceptance and successor once; human resume 0');
   } finally { if (child && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); globalThis.fetch = fetch; await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true }); }
 }
-main().then(() => main(true)).catch(error => { console.error(error); process.exitCode = 1; });
+main().then(() => main(true)).then(() => main(false, true)).catch(error => { console.error(error); process.exitCode = 1; });

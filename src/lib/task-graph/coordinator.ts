@@ -1,3 +1,4 @@
+import { qualityOwner, qualityCheckEvidence, verificationInputs } from './quality-contract';
 import { transientPlatformCode } from './platform-failure';
 import { continuationWorkFingerprint } from './continuation-work';
 import { stopPausedGraphTurns, requireGraphRunActive, graphRunIsPaused } from './run-control';
@@ -169,7 +170,10 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   const definition = { ...run.snapshot as unknown as GraphDefinition, ...(source ? { issueSource: source } : {}) };
   const policy = definition.nodes.find((item) => item.key === nodeKey)?.acceptance;
   if (!policy) throw new Error(`Unknown acceptance policy for ${nodeKey}`);
-  if (definition.nodes.find((item) => item.key === nodeKey)?.executionMode === 'implement') {
+  const plannedNode = definition.nodes.find((item) => item.key === nodeKey)!;
+  const agentOwned = definition.deliveryContract === 'agent_owned_v1';
+  const owner = agentOwned ? qualityOwner(plannedNode) : null;
+  if (!agentOwned && plannedNode.executionMode === 'implement') {
     await completeUnverifiedNode(runId, nodeKey);
     await cleanupCompletedNodeWorkspaces(runId, nodeKey);
     await releaseReadyNodes(runId);
@@ -195,7 +199,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const env = { AP_GRAPH_WRITER_NONCE: writerNonce || '', AP_GRAPH_SERVICE_TASK_ID: `task-graph-review-${node.id}`, TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify(upstream.map(input => input.manifest)), TASK_GRAPH_REPOSITORIES_JSON: JSON.stringify(Object.fromEntries(
       workspaces.map((workspace) => [workspace.repository, workspace.path]),
     )) };
-    for (const check of policy.integrationChecks || []) {
+    for (const check of agentOwned ? [] : policy.integrationChecks || []) {
       const workspace = workspaces.slice().reverse().find((item) => item.repository === check.repository);
       if (!workspace) throw new Error(`Missing pinned repository for ${check.name}`);
       try {
@@ -235,6 +239,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       return { name, passed: matches.length > 0 && matches.every((item) => item.passed),
         evidence: matches.map((item) => item.evidence).join('\n') || '没有验证结果' };
     }), ...integrationResults],
+    ...(agentOwned ? { inputs: verificationInputs(node.executions) } : {}),
     summary: `已检查 ${policy.checks.length} 项；固定提交组合 ${JSON.stringify(commits)}。`,
   };
   const architecture = await runArchitectureReview({
@@ -252,26 +257,26 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   if (architecture === 'failed') {
     const result = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: { in: ['architecture_passed', 'architecture_failed'] } }, orderBy: { createdAt: 'desc' } });
     const note = String((result.payload as { note?: string }).note || '架构复核未通过');
-    evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
+    evidence.checks = (agentOwned ? qualityCheckEvidence(plannedNode, reviewChecks, null) : evidence.checks).map((item) => ({ ...item, passed: false,
       evidence: `${item.evidence}\n架构复核：${note}` }));
-    evidence.checks.push({ name: 'architecture:scope', passed: false, evidence: note });
+    if (!evidence.checks.some(item => item.name === 'architecture:scope')) evidence.checks.push({ name: 'architecture:scope', passed: false, evidence: note });
     evidence.summary = `架构复核未通过：${note}`;
-    const owner = isRecord(result.payload) && typeof result.payload.claimKey === 'string' && typeof result.payload.taskRunId === 'string'
+    const architectureOwner = isRecord(result.payload) && typeof result.payload.claimKey === 'string' && typeof result.payload.taskRunId === 'string'
       ? { phase: 'architecture' as const, claimKey: result.payload.claimKey, taskRunId: result.payload.taskRunId, outcome: result.payload.failureKind === 'protocol_exhausted' ? 'protocol_exhausted' as const : result.payload.failureKind === 'platform_failure' ? 'platform_failure' as const : 'classified' as const,
         ...(['blocked_require_human', 'ownership_mismatch'].includes(String(result.payload.failureKind)) ? { decision: { code: result.payload.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: note } } : {}) } : undefined;
-    await submitNodeVerification({ runId, nodeKey, review: owner,
-      actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: verificationAttempt });
+    await submitNodeVerification({ runId, nodeKey, review: architectureOwner,
+      actorId: owner?.actorId || (policy.mode === 'agent' ? policy.reviewerId! : 'system'), evidence, attempt: verificationAttempt });
     const decision = result.payload && typeof result.payload === 'object' && !Array.isArray(result.payload) ? result.payload : {};
     await scheduleGraphRepair(runId, nodeKey, decision, evidence);
     await refreshTaskGraphRunStatus(runId);
     return;
   }
-  if (policy.mode === 'agent') {
+  if (agentOwned || policy.mode === 'agent') {
     if (activeReviews.has(node.id)) return;
     activeReviews.add(node.id);
     try {
-    const review = policy.reviewLaunchConfig as { participant?: AcpxParticipantRequest } | undefined;
-    if (!review?.participant || !policy.reviewerId) throw new Error(`Review agent missing for ${nodeKey}`);
+    const review = (owner?.launchConfig || policy.reviewLaunchConfig) as { participant?: AcpxParticipantRequest } | undefined;
+    if (!review?.participant) throw new Error(`Review agent missing for ${nodeKey}`);
     const fallbackClaimKey = `node:${nodeKey}:review_claimed:${verificationAttempt}`;
     const claimKey = await graphReviewClaimKey(node.id, 'acceptance', fallbackClaimKey);
     const claimed = await reserveGraphReviewClaim({ runId, nodeId: node.id, phase: 'acceptance', claimKey, payload: { attempt: verificationAttempt } });
@@ -283,7 +288,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const specInput = await prepareGraphSpecInput(definition);
     await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: claimKey + ':runtime' } }, update: {}, create: { runId, nodeId: node.id, idempotencyKey: claimKey + ':runtime', kind: 'acceptance_runtime_prepared', payload: { directory: runtime.directory, commits } } });
     const taskId = `task-graph-review-${node.id}`;
-    const taskName = `${nodeKey} · 验收复核`;
+    const taskName = `${nodeKey} · ${agentOwned && policy.mode !== 'agent' ? '实施者自查' : '验收复核'}`;
     const task = await prisma.task.upsert({
       where: { id: taskId },
       create: { id: taskId, name: taskName, executionMode: 'acpx', status: 'pending',
@@ -297,7 +302,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
     });
     const materials = await Promise.all(node.executions.flatMap(job => job.childTaskId ? [syncGraphConversationMaterials(job.childTaskId)] : []));
-    const prompt = `${acceptanceReviewInstructions}\n请实际验收 ${nodeKey} 的目标与证据。` +
+    const qualityInstructions = agentOwned ? `\n质量责任人：${owner!.actorId}。${policy.mode === 'agent' ? '独立 Tester' : '你是本票实施者，负责固定集成版本上的自查'}。批准的验证命令（必须逐项执行，不能替换入口）：${JSON.stringify(plannedNode.executions.map(job => ({ execution: job.key, repository: job.repository, checks: isRecord(job.launchConfig) ? job.launchConfig.checks : [] })))}\n批准的纵向检查：${JSON.stringify(policy.integrationChecks || [])}\n同一固定输入、目录与 argv 相同的检查执行一次即可复用实际证据；不同入口或版本不能替代。` : '';
+    const prompt = `${agentOwned && policy.mode !== 'agent' ? acceptanceReviewInstructions.replace('你是独立测试验收者。', '你是本票实施者，负责固定版本的自查。') : acceptanceReviewInstructions}${qualityInstructions}\n请实际验收 ${nodeKey} 的目标与证据。` +
       `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
       `\nSpec: ${definition.specRef}${specInput.instructions}\n固定提交组合: ${JSON.stringify(commits)}` +
       `\nIssue: ${definition.issueSource?.tickets.find((ticket) => ticket.key === nodeKey)?.ref || '历史路线，无关联'}` +
@@ -308,8 +314,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
       '\n失败必须区分 in_scope_defect（原范围内代码或测试缺口）与 blocked_require_human（图片模糊、材料缺失、范围变化或权限越界）。缺少有效结构化结论时不会自动回修。' +
-      reviewResultInstructions('TASK_GRAPH_REVIEW', reviewChecks);
-    const reviewed = await collectGraphReview({ runId, nodeId: node.id, claimKey, marker: 'TASK_GRAPH_REVIEW', checks: reviewChecks,
+      reviewResultInstructions('TASK_GRAPH_REVIEW', reviewChecks, agentOwned);
+    const reviewed = await collectGraphReview({ runId, nodeId: node.id, claimKey, marker: 'TASK_GRAPH_REVIEW', checks: reviewChecks, requireCheckEvidence: agentOwned,
       request: { graphReview: { runId, nodeId: node.id, phase: 'acceptance', claimKey },
         taskId: task.id, taskName: task.name, taskDescription: prompt,
         orchestrationMode: 'single', participants: [review.participant],
@@ -320,7 +326,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const response = decision?.note || (reviewed.kind !== 'classified' ? reviewed.note : '无有效结论');
     reviewDecision = decision || { failureKind: reviewed.kind, note: response };
     const approved = decision?.approved === true;
-    evidence.checks = evidence.checks.map((item) => ({
+    evidence.checks = agentOwned ? qualityCheckEvidence(plannedNode, reviewChecks, decision) : evidence.checks.map((item) => ({
       ...item, passed: item.passed && approved,
       evidence: `${item.evidence}\nAgent review ${reviewed.taskRunId}: ${response}`,
     }));
@@ -328,7 +334,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     evidence.summary = `Agent 复核 ${approved ? '通过' : '未通过'}：${response}`;
     try { await assertReviewWorkspacesClean(workspaces); } catch (error) {
       reviewDecision = { failureKind: 'ownership_mismatch', note: String(error) };
-      evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
+      evidence.checks = (agentOwned ? qualityCheckEvidence(plannedNode, reviewChecks, null) : evidence.checks).map((item) => ({ ...item, passed: false,
         evidence: `${item.evidence}\n复核污染了固定提交工作区：${String(error)}` }));
     }
     await assertGraphReviewOwnership(node.id, 'acceptance', claimKey, reviewed.taskRunId);
@@ -346,7 +352,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     }
   }
   const updated = await submitNodeVerification({
-    runId, nodeKey, actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: verificationAttempt, review: reviewOwner,
+    runId, nodeKey, actorId: owner?.actorId || (policy.mode === 'agent' ? policy.reviewerId! : 'system'), evidence, attempt: verificationAttempt, review: reviewOwner,
   });
   const repairing = updated.status === 'attention' && await scheduleGraphRepair(runId, nodeKey, reviewDecision.failureKind === 'in_scope_defect' ? reviewDecision : reviewDecision.failureKind ? {} : platformDecision, evidence);
   if (updated.status === 'passed') {
@@ -626,7 +632,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       },
       verify: async (staging) => {
         await outcome({ kind: 'checkpoint', phase: 'integrate', candidateCommit: await graphGit(staging, 'rev-parse', 'HEAD') });
-        checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id, AP_GRAPH_WRITER_NONCE: worker.nonce }, inputs.readOnlyPaths);
+        checks = await runChecks(implementOnly || definition.deliveryContract === 'agent_owned_v1' ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id, AP_GRAPH_WRITER_NONCE: worker.nonce }, inputs.readOnlyPaths);
       },
     });
     await outcome({ kind: 'integrated', commit: integrated.commit,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -81,10 +81,20 @@ async function scenario(mode: 'architecture' | 'integration' | 'acceptance' | 'i
       if (modelCommit) { assert.equal(sibling.commit, modelCommit); assert.deepEqual(sibling.evidence, modelEvidence); }
       const repairs = await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'node_repair_scheduled' } });
       assert.equal(repairs.length, 1); assert.deepEqual((repairs[0].payload as { executionIds: string[] }).executionIds, [reader.id]);
-      const archived = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: 'validation_workspace_cleaned' } });
-      const payload = archived.payload as { directory: string };
-      const manifest = JSON.parse(readFileSync(path.join(payload.directory, 'manifest.json'), 'utf8'));
-      assert.equal(manifest.files.filter((file: { path: string }) => file.path.endsWith('joint-proof.txt')).length, 2, 'Joint contract reruns for repaired combination');
+      const archived = await prisma.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'validation_workspace_cleaned' } });
+      if (archived) {
+        const payload = archived.payload as { directory: string };
+        const manifest = JSON.parse(readFileSync(path.join(payload.directory, 'manifest.json'), 'utf8'));
+        assert.equal(manifest.files.filter((file: { path: string }) => file.path.endsWith('joint-proof.txt')).length, 2, 'Joint contract reruns for repaired combination');
+      } else {
+        // Native Sessions retain the source paths; prove preservation and both actual command outputs.
+        const deferred = await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id, kind: 'workspace_cleanup_deferred' } });
+        assert.ok(deferred.some(event => JSON.stringify(event.payload).includes('Session')), JSON.stringify(deferred));
+        const validation = path.join(root, 'validation');
+        const proofs = readdirSync(validation, { recursive: true, encoding: 'utf8' }).filter(file => file.endsWith('joint-proof.txt'));
+        assert.equal(proofs.length, 2, 'Retained runtime has both original and repaired combination results');
+        for (const file of proofs) assert.equal(readFileSync(path.join(validation, file), 'utf8'), 'checked');
+      }
     }
     console.log(`Targeted ${mode}: reader ${readerStarts}, successful model ${modelStarts}, architecture ${architectureStarts}, acceptance ${acceptanceStarts}, successor ${nextStarts}, no human resume`);
   } finally { await prisma.taskGraphRun.delete({ where: { id: run.id } }); rmSync(root, { recursive: true, force: true }); }
