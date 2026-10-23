@@ -67,7 +67,7 @@ def live():
                 digest=digest, record=record)
 
 
-def upload(live, root, binding=None, version="v2"):
+def upload(live, root, binding=None, version="v2", sample=SAMPLE):
     import httpx
     import hmi_service as service
 
@@ -80,7 +80,7 @@ def upload(live, root, binding=None, version="v2"):
             params["controller_hint"] = json.dumps(binding)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=service.app), base_url="http://reader") as client:
             return await client.post("/api/v1/recognize", params=params,
-                                     files={"file": (SAMPLE.name, SAMPLE.read_bytes(), "image/jpeg")})
+                                     files={"file": (sample.name, sample.read_bytes(), "image/jpeg")})
     previous = service.HERE, service.ocr_model, service.is_ready, service.concurrency_semaphore
     try:
         return asyncio.run(run())
@@ -238,35 +238,69 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
         images.append(dict(sample_id=sample["sample_id"], purpose=sample["purpose"], image_sha256=digest))
     save("r6-sample-inventory", dict(images=images, unique_hashes=len({row["image_sha256"] for row in images}),
                                     coverage=definition["coverage"], limitations=definition["limitations"]))
-    independent = [sample for sample in definition["samples"] if sample["purpose"] == "independent_acceptance"]
-    assert independent, ("R6_NISSEI: no independently qualified TACT5 holdout and raw-field truth are frozen. "
-                         "The authorized hmi_finetuning dataset is now accessible; its additional originals "
-                         "are exposed or same-capture-group regression material. "
-                         "Do not relabel development images, near duplicates or another controller as holdout.")
-    development = {sample["image_sha256"] for sample in definition["samples"] if sample["purpose"] != "independent_acceptance"}
+    manifest = json.loads((ROOT / "datasets/r6_nissei" / PROFILE / "acceptance/manifest.json").read_text())
+    assert manifest["package_version"] == VERSION
+    assert manifest["package_sha256"] == canonical_hash(tact5_package())
+    independent = manifest["samples"]
+    assert independent
+    development = {sample["image_sha256"] for sample in definition["samples"]}
+    regression = json.loads((ROOT / "datasets/r6_nissei" / PROFILE / "regression/manifest.json").read_text())
+    development.update(sample["image_sha256"] for sample in regression["samples"])
     for sample in independent:
+        assert sample["purpose"] == "independent_acceptance"
+        image = ROOT / sample["image"]
+        assert hashlib.sha256(image.read_bytes()).hexdigest() == sample["image_sha256"]
         assert sample["image_sha256"] not in development
-        truth = json.loads((ROOT / sample["truth"]).read_text())
-        assert truth["image_sha256"] == sample["image_sha256"]
+        truth_bytes = (ROOT / sample["truth"]).read_bytes()
+        assert hashlib.sha256(truth_bytes).hexdigest() == sample["truth_sha256"]
+        truth = json.loads(truth_bytes)
+        receipt = json.loads((ROOT / sample["source_receipt"]).read_text())
+        assert receipt["sha256"] == truth["image_sha256"] == sample["image_sha256"]
+        assert receipt["source"] == "tact5_images"
+        assert receipt["recordId"] == truth["provenance"]["record_id"]
         assert truth["provenance"]["tuning_involvement"] == "none"
+        assert truth["provenance"]["package_sha256"] == manifest["package_sha256"]
         assert set(truth["values"]) == {field["screen_field_key"] for field in definition["fields"]}
         import cv2
         from rectify import rectify
         directory = Path(tempfile.mkdtemp(prefix="r6-holdout-", dir=OUTPUT))
-        meta = rectify(ROOT / sample["image"], directory / "screen.png", directory / "rectify.json")
+        meta = rectify(image, directory / "sample.png", directory / "sample.rectify.json")
         assert meta["ok"] and meta["original_sha256"] == sample["image_sha256"]
         lines = []
-        for points, (text, confidence) in live["engine"].ocr(str(directory / "screen.png"), cls=False)[0] or []:
+        for points, (text, confidence) in live["engine"].ocr(str(directory / "sample.png"), cls=False)[0] or []:
             xs, ys = zip(*points)
             lines.append(dict(text=text, conf=float(confidence), bbox=dict(
                 x_min=min(xs), y_min=min(ys), x_max=max(xs), y_max=max(ys))))
+        (directory / "sample.ocr.json").write_text(json.dumps(dict(lines=lines)))
         observation = observe_tact5_page(lines, meta, sample["image_sha256"],
-                                        cv2.imread(str(directory / "screen.png"), cv2.IMREAD_GRAYSCALE))
-        save("r6-holdout-" + sample["sample_id"], observation)
-        observed = by_key(observation)
-        for key, expected in truth["values"].items():
-            for name in ("original_value", "role", "state", "reading"):
-                assert observed[key][name] == expected[name], (key, name, observed[key], expected)
+                                        cv2.imread(str(directory / "sample.png"), cv2.IMREAD_GRAYSCALE))
+        response = upload(live, ROOT, hint(tact5_package()), sample=image)
+        assert response.status_code == 200, response.text
+        command = [sys.executable, "scripts/extract_fields.py", "sample", "--rectified-dir", str(directory),
+                   "--output-dir", str(directory / "extracted"), "--observations-version", "v2",
+                   "--original-image", str(image)]
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+        (directory / "cli.log").write_text(result.stdout + result.stderr)
+        assert result.returncode == 0, result.stdout + result.stderr
+        cli = json.loads((directory / "extracted/sample.fields.json").read_text())
+        for surface, record in (("direct", observation), ("http", response.json()["page_observations"]),
+                                ("cli", cli["page_observations"])):
+            validate_raw_record(record, tact5_package())
+            assert record["image_sha256"] == sample["image_sha256"]
+            save("r6-holdout-" + sample["sample_id"] + "-" + surface, record)
+            observed = by_key(record)
+            for key, expected in truth["values"].items():
+                field = observed[key]
+                assert field["role"] == expected["role"], (surface, key, field)
+                if expected["support"] == "unsupported":
+                    assert field["reading"] == "unsupported" and field["original_value"] is None
+                    continue
+                for name in ("original_value", "state", "reading"):
+                    assert field[name] == expected[name], (surface, key, name, field, expected)
+                assert field["effective_unit"] == expected["unit"]
+                assert field["original_bbox"] and field["bbox"]
+            assert record["coverage"]["status"] == "partial"
+        save("r6-independent-acceptance-manifest", manifest)
 
 
 def test_authorized_dataset_regressions_keep_original_values_and_exposure(live):

@@ -1,0 +1,18 @@
+{
+  "profile_id": "tact5.process_settings.injection_holding_metering",
+  "package_version": "0.6.0",
+  "package_sha256": "4a9aff97debff2d8c6da04027602afcb2953c9af52b694d51470c9ece983d2ba",
+  "samples": [
+    {
+      "sample_id": "TACT5_reczz28QojrlL6Cy",
+      "purpose": "independent_acceptance",
+      "image": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/TACT5_reczz28QojrlL6Cy.jpg",
+      "image_sha256": "0cd723749ef8ed4003671057f682c7072d09247cbfce4ae29ae833abc3f9dd9a",
+      "truth": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/truth.json",
+      "source_receipt": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/source-receipt.json",
+      "group": "tact5_images/reczz28QojrlL6Cy",
+      "qualification": "Newly retrieved source record; image hash absent from historical 11-image inventory, September training and local development fixtures. Fixed recognizer unchanged before evaluation; no claim of independently authored reference truth.",
+      "truth_sha256": "73a6e55e64d44e16b5109b3ffb6ac4708829f97ced2c296fe237de4ae45eeb0d"
+    }
+  ]
+}
