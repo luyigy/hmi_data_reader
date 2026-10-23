@@ -1,4 +1,4 @@
-import { qualityOwner, qualityCheckEvidence, verificationInputs } from './quality-contract';
+import { verificationInputs } from './domain';
 import { transientPlatformCode } from './platform-failure';
 import { continuationWorkFingerprint } from './continuation-work';
 import { stopPausedGraphTurns, requireGraphRunActive, graphRunIsPaused } from './run-control';
@@ -134,6 +134,7 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   }) : [];
   const description = materials + `\n目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
     `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}` +
+    (definition.deliveryContract === 'agent_owned_v1' ? `\n本仓自查责任：${plannedExecution.agentSelector} / ${plannedExecution.key}。各执行者对自己的交付和批准命令负责，不代其他执行者签署结果。Ticket 最终验收责任：${plannedNode.acceptance.mode === 'agent' ? plannedNode.acceptance.reviewerId : plannedNode.acceptance.mode === 'human' ? '已配置人工验收人' : '全部执行者各自交付声明的汇总'}。验收项：${JSON.stringify(plannedNode.acceptance.checks)}。` + executionCheckInstructions((plannedNode.acceptance.integrationChecks || []).filter(check => check.repository === plannedExecution.repository)) : '') +
     executionCheckInstructions(config.checks) + (continuation ? `\n继续原任务实施：${JSON.stringify(continuation.payload)}\n${materials}\n父子话题补充：${JSON.stringify(supplements.reverse()).slice(-12000)}\n读取保存进度和话题新材料，按原批准范围接续，不把恢复请求当作完成证据。` : '') + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
   const task = await prisma.task.upsert({
     where: { id: taskId },
@@ -172,8 +173,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   if (!policy) throw new Error(`Unknown acceptance policy for ${nodeKey}`);
   const plannedNode = definition.nodes.find((item) => item.key === nodeKey)!;
   const agentOwned = definition.deliveryContract === 'agent_owned_v1';
-  const owner = agentOwned ? qualityOwner(plannedNode) : null;
-  if (!agentOwned && plannedNode.executionMode === 'implement') {
+  if (plannedNode.executionMode === 'implement') {
     await completeUnverifiedNode(runId, nodeKey);
     await cleanupCompletedNodeWorkspaces(runId, nodeKey);
     await releaseReadyNodes(runId);
@@ -181,12 +181,20 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     await postGraphParentProgress(run.parentTaskId, runId, `${nodeKey} 已交付（未验收），按批准的仅实施模式放行后继。`);
     return;
   }
+  const selfChecked = agentOwned && policy.mode !== 'agent';
   const results = node.executions.flatMap((execution) => {
     const evidence = execution.evidence as unknown as { checks?: CheckResult[] } | null;
     return evidence?.checks || [];
   });
+  if (selfChecked) {
+    for (const job of node.executions) {
+      const receipt = job.evidence;
+      if (!isRecord(receipt) || !isRecord(receipt.implementation) || receipt.implementation.status !== 'delivered' || !Array.isArray(receipt.implementation.evidence) || !receipt.implementation.evidence.length || receipt.taskRunId !== job.taskRunId || receipt.integratedCommit !== job.commit) throw new Error('Execution self-check delivery evidence is missing');
+      for (const name of policy.checks) results.push({ name, passed: true, evidence: `${job.key} / ${job.commit}: ${JSON.stringify(receipt.implementation.evidence)}` });
+    }
+  }
   const reviewPhase = effectiveArchitectureReview(definition, definition.nodes.find(item => item.key === nodeKey)!) ? 'architecture' : 'acceptance';
-  const reviewChecks = graphReviewChecks(definition, nodeKey, node.executions);
+  const reviewChecks = graphReviewChecks(definition, nodeKey, node.executions).filter(check => !agentOwned || check.id !== 'architecture:scope');
   const integrationResults: CheckResult[] = [];
   let platformDecision: ReviewDecision = {};
   let workspaces: Awaited<ReturnType<typeof resolveReviewWorkspaces>> = [];
@@ -217,6 +225,19 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       }
     }
     await assertReviewWorkspacesClean(workspaces);
+    if (selfChecked) {
+      const stale = [];
+      for (const job of node.executions) {
+        const combined = workspaces.slice().reverse().find(workspace => workspace.repository === job.repository)!;
+        if (await graphGit(job.repository, 'rev-parse', `${job.commit}^{tree}`) !== await graphGit(job.repository, 'rev-parse', `${combined.commit}^{tree}`)) stale.push(job);
+      }
+      for (const job of stale) {
+        const progress = executionProgress(job.dispatchMetadata)!;
+        await applyExecutionOutcome({ executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
+          outcomeId: `self-check-version:${job.commit}`, outcome: { kind: 'repair_required', failure: { code: 'verification_input_changed', detail: '同仓固定集成源码已变化；在原 Coding Session 的最新源码上按原批准要求补验，不能复用旧版本自查。' } } });
+      }
+      if (stale.length) return;
+    }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     if (await graphRunIsPaused(runId)) return;
@@ -257,26 +278,26 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   if (architecture === 'failed') {
     const result = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: node.id, kind: { in: ['architecture_passed', 'architecture_failed'] } }, orderBy: { createdAt: 'desc' } });
     const note = String((result.payload as { note?: string }).note || '架构复核未通过');
-    evidence.checks = (agentOwned ? qualityCheckEvidence(plannedNode, reviewChecks, null) : evidence.checks).map((item) => ({ ...item, passed: false,
+    evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
       evidence: `${item.evidence}\n架构复核：${note}` }));
-    if (!evidence.checks.some(item => item.name === 'architecture:scope')) evidence.checks.push({ name: 'architecture:scope', passed: false, evidence: note });
+    evidence.checks.push({ name: 'architecture:scope', passed: false, evidence: note });
     evidence.summary = `架构复核未通过：${note}`;
-    const architectureOwner = isRecord(result.payload) && typeof result.payload.claimKey === 'string' && typeof result.payload.taskRunId === 'string'
+    const owner = isRecord(result.payload) && typeof result.payload.claimKey === 'string' && typeof result.payload.taskRunId === 'string'
       ? { phase: 'architecture' as const, claimKey: result.payload.claimKey, taskRunId: result.payload.taskRunId, outcome: result.payload.failureKind === 'protocol_exhausted' ? 'protocol_exhausted' as const : result.payload.failureKind === 'platform_failure' ? 'platform_failure' as const : 'classified' as const,
         ...(['blocked_require_human', 'ownership_mismatch'].includes(String(result.payload.failureKind)) ? { decision: { code: result.payload.failureKind as 'blocked_require_human' | 'ownership_mismatch', detail: note } } : {}) } : undefined;
-    await submitNodeVerification({ runId, nodeKey, review: architectureOwner,
-      actorId: owner?.actorId || (policy.mode === 'agent' ? policy.reviewerId! : 'system'), evidence, attempt: verificationAttempt });
+    await submitNodeVerification({ runId, nodeKey, review: owner,
+      actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: verificationAttempt });
     const decision = result.payload && typeof result.payload === 'object' && !Array.isArray(result.payload) ? result.payload : {};
     await scheduleGraphRepair(runId, nodeKey, decision, evidence);
     await refreshTaskGraphRunStatus(runId);
     return;
   }
-  if (agentOwned || policy.mode === 'agent') {
+  if (policy.mode === 'agent') {
     if (activeReviews.has(node.id)) return;
     activeReviews.add(node.id);
     try {
-    const review = (owner?.launchConfig || policy.reviewLaunchConfig) as { participant?: AcpxParticipantRequest } | undefined;
-    if (!review?.participant) throw new Error(`Review agent missing for ${nodeKey}`);
+    const review = policy.reviewLaunchConfig as { participant?: AcpxParticipantRequest } | undefined;
+    if (!review?.participant || !policy.reviewerId) throw new Error(`Review agent missing for ${nodeKey}`);
     const fallbackClaimKey = `node:${nodeKey}:review_claimed:${verificationAttempt}`;
     const claimKey = await graphReviewClaimKey(node.id, 'acceptance', fallbackClaimKey);
     const claimed = await reserveGraphReviewClaim({ runId, nodeId: node.id, phase: 'acceptance', claimKey, payload: { attempt: verificationAttempt } });
@@ -288,7 +309,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const specInput = await prepareGraphSpecInput(definition);
     await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: claimKey + ':runtime' } }, update: {}, create: { runId, nodeId: node.id, idempotencyKey: claimKey + ':runtime', kind: 'acceptance_runtime_prepared', payload: { directory: runtime.directory, commits } } });
     const taskId = `task-graph-review-${node.id}`;
-    const taskName = `${nodeKey} · ${agentOwned && policy.mode !== 'agent' ? '实施者自查' : '验收复核'}`;
+    const taskName = `${nodeKey} · 验收复核`;
     const task = await prisma.task.upsert({
       where: { id: taskId },
       create: { id: taskId, name: taskName, executionMode: 'acpx', status: 'pending',
@@ -302,10 +323,9 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
     });
     const materials = await Promise.all(node.executions.flatMap(job => job.childTaskId ? [syncGraphConversationMaterials(job.childTaskId)] : []));
-    const qualityInstructions = agentOwned ? `\n质量责任人：${owner!.actorId}。${policy.mode === 'agent' ? '独立 Tester' : '你是本票实施者，负责固定集成版本上的自查'}。批准的验证命令（必须逐项执行，不能替换入口）：${JSON.stringify(plannedNode.executions.map(job => ({ execution: job.key, repository: job.repository, checks: isRecord(job.launchConfig) ? job.launchConfig.checks : [] })))}\n批准的纵向检查：${JSON.stringify(policy.integrationChecks || [])}\n同一固定输入、目录与 argv 相同的检查执行一次即可复用实际证据；不同入口或版本不能替代。` : '';
-    const prompt = `${agentOwned && policy.mode !== 'agent' ? acceptanceReviewInstructions.replace('你是独立测试验收者。', '你是本票实施者，负责固定版本的自查。') : acceptanceReviewInstructions}${qualityInstructions}\n请实际验收 ${nodeKey} 的目标与证据。` +
+    const prompt = `${acceptanceReviewInstructions}\n请实际验收 ${nodeKey} 的目标与证据。` +
       `\n目标：${definition.nodes.find((item) => item.key === nodeKey)?.goal}` +
-      `\nSpec: ${definition.specRef}${specInput.instructions}\n固定提交组合: ${JSON.stringify(commits)}` +
+      `\n批准的仓内检查：${JSON.stringify(plannedNode.executions.map(job => ({ execution: job.key, repository: job.repository, checks: isRecord(job.launchConfig) ? job.launchConfig.checks : [] })))}\n批准的纵向检查：${JSON.stringify(policy.integrationChecks || [])}\nSpec: ${definition.specRef}${specInput.instructions}\n固定提交组合: ${JSON.stringify(commits)}` +
       `\nIssue: ${definition.issueSource?.tickets.find((ticket) => ticket.key === nodeKey)?.ref || '历史路线，无关联'}` +
       `\n本话题用户补充材料与澄清（只作为输入，不替代验收）：${JSON.stringify(supplements.reverse()).slice(-12000)}` +
       `\n上轮验收证据（保留已通过项，补验缺口）：${JSON.stringify(node.evidence)}` +
@@ -314,8 +334,8 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
       `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
       '\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。' +
       '\n失败必须区分 in_scope_defect（原范围内代码或测试缺口）与 blocked_require_human（图片模糊、材料缺失、范围变化或权限越界）。缺少有效结构化结论时不会自动回修。' +
-      reviewResultInstructions('TASK_GRAPH_REVIEW', reviewChecks, agentOwned);
-    const reviewed = await collectGraphReview({ runId, nodeId: node.id, claimKey, marker: 'TASK_GRAPH_REVIEW', checks: reviewChecks, requireCheckEvidence: agentOwned,
+      reviewResultInstructions('TASK_GRAPH_REVIEW', reviewChecks);
+    const reviewed = await collectGraphReview({ runId, nodeId: node.id, claimKey, marker: 'TASK_GRAPH_REVIEW', checks: reviewChecks,
       request: { graphReview: { runId, nodeId: node.id, phase: 'acceptance', claimKey },
         taskId: task.id, taskName: task.name, taskDescription: prompt,
         orchestrationMode: 'single', participants: [review.participant],
@@ -326,15 +346,15 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const response = decision?.note || (reviewed.kind !== 'classified' ? reviewed.note : '无有效结论');
     reviewDecision = decision || { failureKind: reviewed.kind, note: response };
     const approved = decision?.approved === true;
-    evidence.checks = agentOwned ? qualityCheckEvidence(plannedNode, reviewChecks, decision) : evidence.checks.map((item) => ({
-      ...item, passed: item.passed && approved,
+    evidence.checks = evidence.checks.map((item) => ({
+      ...item, passed: agentOwned ? approved : item.passed && approved,
       evidence: `${item.evidence}\nAgent review ${reviewed.taskRunId}: ${response}`,
     }));
     evidence.checks.push({ name: 'acceptance:decision', passed: approved, evidence: response });
     evidence.summary = `Agent 复核 ${approved ? '通过' : '未通过'}：${response}`;
     try { await assertReviewWorkspacesClean(workspaces); } catch (error) {
       reviewDecision = { failureKind: 'ownership_mismatch', note: String(error) };
-      evidence.checks = (agentOwned ? qualityCheckEvidence(plannedNode, reviewChecks, null) : evidence.checks).map((item) => ({ ...item, passed: false,
+      evidence.checks = evidence.checks.map((item) => ({ ...item, passed: false,
         evidence: `${item.evidence}\n复核污染了固定提交工作区：${String(error)}` }));
     }
     await assertGraphReviewOwnership(node.id, 'acceptance', claimKey, reviewed.taskRunId);
@@ -352,7 +372,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     }
   }
   const updated = await submitNodeVerification({
-    runId, nodeKey, actorId: owner?.actorId || (policy.mode === 'agent' ? policy.reviewerId! : 'system'), evidence, attempt: verificationAttempt, review: reviewOwner,
+    runId, nodeKey, actorId: policy.mode === 'agent' ? policy.reviewerId! : 'system', evidence, attempt: verificationAttempt, review: reviewOwner,
   });
   const repairing = updated.status === 'attention' && await scheduleGraphRepair(runId, nodeKey, reviewDecision.failureKind === 'in_scope_defect' ? reviewDecision : reviewDecision.failureKind ? {} : platformDecision, evidence);
   if (updated.status === 'passed') {
@@ -470,6 +490,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         worktreePath: execution.worktreePath || undefined,
         ...(resumeCommit ? { resumeCommit } : {}),
       });
+      if (persisted?.lastFailure?.code === 'verification_input_changed') await graphGit(workspace.path, 'merge', '--ff-only', integration.commit);
       return { integration, workspace };
     });
     await requireGraphRunActive(runId);
@@ -635,6 +656,11 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         checks = await runChecks(implementOnly || definition.deliveryContract === 'agent_owned_v1' ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id, AP_GRAPH_WRITER_NONCE: worker.nonce }, inputs.readOnlyPaths);
       },
     });
+    if (definition.deliveryContract === 'agent_owned_v1' && !implementOnly && definition.nodes.find(node => node.key === nodeKey)?.acceptance.mode !== 'agent' &&
+        (progress.conflictRepair || await graphGit(execution.repository, 'rev-parse', `${candidate}^{tree}`) !== await graphGit(execution.repository, 'rev-parse', `${integrated.commit}^{tree}`))) {
+      await outcome({ kind: 'repair_required', failure: { code: 'verification_input_changed', detail: '集成或冲突解决改变了已自查的源码；在原 Coding Session 对当前最终源码补验，再交付。' } });
+      return;
+    }
     await outcome({ kind: 'integrated', commit: integrated.commit,
       evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
     });

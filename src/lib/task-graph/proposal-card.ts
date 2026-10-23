@@ -1,4 +1,3 @@
-import { qualityOwner } from './quality-contract';
 import { effectiveArchitectureReview, type GraphDefinition, type GraphNode } from './domain';
 import type { RoleOption } from './role-configuration';
 import { graphFormButtonName, type GraphFormDecision } from './card-actions';
@@ -60,8 +59,8 @@ function roleSummary(definition: GraphDefinition, node: GraphNode) {
   const mode = node.executionMode || 'full';
   const roles = [`实施:${implementationSummary(node)}`];
   if (mode === 'full') roles.push(`审查:${shortSelector(effectiveArchitectureReview(definition, node)?.reviewerId || '未配置')}`);
-  roles.push(`验收:${definition.deliveryContract === 'agent_owned_v1' ? `${node.acceptance.mode === 'human' ? '自查后人工 ' : node.acceptance.mode === 'agent' ? 'Tester ' : '实施者自查 '}${qualityOwner(node).actorId}` : acceptanceSummary(node)}`);
-  return `${definition.deliveryContract === 'agent_owned_v1' && mode === 'implement' ? '实施自查' : shortModeLabels[mode]} · ${roles.join(' / ')}`;
+  roles.push(`验收:${definition.deliveryContract === 'agent_owned_v1' && mode !== 'implement' && node.acceptance.mode === 'automatic' ? '各执行者自查汇总' : acceptanceSummary(node)}`);
+  return `${shortModeLabels[mode]} · ${roles.join(' / ')}`;
 }
 
 function nodeRanks(definition: GraphDefinition) {
@@ -178,14 +177,14 @@ export function buildGraphProposalCard(id: string, definition: GraphDefinition, 
       return [
         text(`**${node.key} · ${shortGoal(node.goal)}${nodeRepositories(node).filter((repository) => repository !== primaryRepository).length
           ? ` (${nodeRepositories(node).filter((repository) => repository !== primaryRepository).join(', ')})` : ''}**`),
-        select(`mode_${i}`, '模式：', mode, Object.entries(graphModeLabels).map(([value, label]) => ({ value, label: definition.deliveryContract === 'agent_owned_v1' && value === 'implement' ? '实施 · 实施者自查' : label }))),
+        select(`mode_${i}`, '模式：', mode, Object.entries(graphModeLabels).map(([value, label]) => ({ value, label }))),
         ...node.executions.map((job, j) => select(`job_${i}_${j}`, multipleJobs ? `实施(${job.key})：` : '实施：', job.agentSelector, agentChoices)),
         mode === 'lean' || mode === 'implement' ? text('审查：此模式不启用')
           : select(`architecture_${i}`, '审查：', effectiveArchitectureReview(definition, node)?.reviewerId || '', agentChoices),
-        mode === 'implement' && definition.deliveryContract !== 'agent_owned_v1' ? text('验收：仅交付，未验收')
+        mode === 'implement' ? text('验收：仅交付，未验收')
           : select(`acceptance_${i}`, '验收：', node.acceptance.mode === 'automatic' ? 'automatic'
             : node.acceptance.mode === 'human' ? 'human' : node.acceptance.reviewerId || '',
-          [{ value: 'automatic', label: definition.deliveryContract === 'agent_owned_v1' ? '实施者自查' : '自动检查' }, { value: 'human', label: '人工验收' }, ...agentChoices]),
+          [{ value: 'automatic', label: '自动检查' }, { value: 'human', label: '人工验收' }, ...agentChoices]),
       ];
     }),
     ...(page > 0 ? [formButton('◀ 保存并上一页', 'page', page - 1)] : []),

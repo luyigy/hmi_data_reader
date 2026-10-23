@@ -1,4 +1,3 @@
-import { qualityOwner, assertQualityPublication } from './quality-contract';
 import { graphRunCanStartTx, graphRunBusinessStatus } from './run-control';
 import { observeTaskRunWriter, observeGraphWriter, type GraphWriter } from './writer-ownership';
 import { applyReviewFailureTx, type ReviewPublication } from './review-publication';
@@ -9,7 +8,7 @@ import { realpath } from 'node:fs/promises';
 import { isDeepStrictEqual } from 'node:util';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../prisma';
-import { isCompletedNodeStatus, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from './domain';
+import { effectiveArchitectureReview, verificationInputs, isCompletedNodeStatus, taskGraphSnapshotHash, validateTaskGraphDefinition, type GraphDefinition } from './domain';
 
 type Database = PrismaClient;
 
@@ -75,9 +74,7 @@ export async function releaseReadyNodes(runId: string, db: Database = prisma): P
   return db.$transaction(async (tx) => {
     if (!await graphRunCanStartTx(tx, runId)) return [];
     const nodes = await tx.taskGraphNode.findMany({ where: { runId }, select: { id: true, key: true, dependsOn: true, status: true } });
-    const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
-    const definition = run.snapshot as unknown as GraphDefinition;
-    const passed = new Set(nodes.filter((node) => definition.deliveryContract === 'agent_owned_v1' ? node.status === 'passed' : isCompletedNodeStatus(node.status)).map((node) => node.key));
+    const passed = new Set(nodes.filter((node) => isCompletedNodeStatus(node.status)).map((node) => node.key));
     const released: string[] = [];
     for (const node of nodes) {
       if (node.status !== 'planned' || !node.dependsOn.every((key) => passed.has(key))) continue;
@@ -274,7 +271,6 @@ export async function completeUnverifiedNode(runId: string, nodeKey: string, db:
   return db.$transaction(async (tx) => {
     const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, select: { snapshot: true } });
     const definition = run.snapshot as unknown as GraphDefinition;
-    if (definition.deliveryContract === 'agent_owned_v1') throw new Error('Agent-owned delivery contract requires verification');
     if (definition.nodes.find((node) => node.key === nodeKey)?.executionMode !== 'implement') {
       throw new Error('Only an approved implement-only node may finish without verification');
     }
@@ -304,8 +300,20 @@ export async function submitNodeVerification(args: {
     if (!node) throw new Error('Unknown graph node');
     const snapshot = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
     const definition = snapshot.snapshot as unknown as GraphDefinition;
+    const planned = definition.nodes.find(item => item.key === args.nodeKey);
+    if (!planned) throw new Error('Acceptance policy missing from snapshot');
     const agentOwned = definition.deliveryContract === 'agent_owned_v1';
-    if (agentOwned) await assertQualityPublication(tx, { ...args, definition, nodeId: node.id });
+    if (node.acceptance === 'agent' && node.reviewerId !== args.actorId) throw new Error('Wrong review agent');
+    if (agentOwned) {
+      if (node.acceptance !== 'agent' && args.actorId !== 'system') throw new Error('Wrong verification actor');
+      const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
+      if (!jobs.length || jobs.some(job => job.status !== 'integrated' || !job.commit) || !isDeepStrictEqual(args.evidence.inputs, verificationInputs(jobs))) throw new Error('Verification input commits changed');
+      if (Array.isArray(args.evidence?.checks) && args.evidence.checks.every(item => item.passed) && effectiveArchitectureReview(definition, planned)) {
+        const architecture = await tx.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'architecture_passed' }, orderBy: { createdAt: 'desc' } });
+        const payload = architecture?.payload;
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !isDeepStrictEqual(payload.inputs, verificationInputs(jobs))) throw new Error('Architecture result does not match fixed inputs');
+      }
+    }
     if (['passed', 'awaiting_human', 'attention'].includes(node.status) &&
         JSON.stringify(node.evidence) === JSON.stringify(args.evidence)) return node;
     if (node.status !== 'verifying') throw new Error('Node is not ready for verification');
@@ -316,8 +324,8 @@ export async function submitNodeVerification(args: {
     }
     const checks = definition.nodes.find((item) => item.key === args.nodeKey)?.acceptance.checks;
     if (!checks) throw new Error('Acceptance policy missing from snapshot');
-    if (node.acceptance === 'agent' && node.reviewerId !== args.actorId) throw new Error('Wrong review agent');
-    if (!agentOwned && node.acceptance === 'human' && args.actorId !== 'system') throw new Error('Human gate must be requested by the coordinator');
+    if (agentOwned && node.acceptance === 'agent' && !args.review) throw new Error('Configured Tester publication is required');
+    if (node.acceptance === 'human' && args.actorId !== 'system') throw new Error('Human gate must be requested by the coordinator');
     const results = args.evidence?.checks;
     if (!Array.isArray(results) || !args.evidence.summary?.trim() ||
         checks.some((check) => !results.some((item) => item.name === check && item.evidence?.trim()))) {
@@ -335,7 +343,7 @@ export async function submitNodeVerification(args: {
     await tx.taskGraphEvent.create({
       data: { runId: args.runId, nodeId: node.id, idempotencyKey: `node:${args.nodeKey}:verified${args.review ? `:${args.review.taskRunId}` : args.attempt ? `:${args.attempt}` : ''}`,
         kind: status === 'passed' ? 'node_passed' : status === 'awaiting_human' ? 'human_review_requested' : 'verification_failed',
-        payload: { actorId: args.actorId, evidence: args.evidence as unknown as Prisma.InputJsonValue } },
+        payload: { actorId: args.actorId, evidence: args.evidence as unknown as Prisma.InputJsonValue, ...(args.review ? { review: { phase: args.review.phase, claimKey: args.review.claimKey, taskRunId: args.review.taskRunId } } : {}) } },
     });
     return updated;
   });
@@ -360,14 +368,14 @@ export async function approveHumanNode(args: {
     }
     if (node.status !== 'awaiting_human') throw new Error('Node is not awaiting human review');
     const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, select: { snapshot: true } });
-    const definition = run.snapshot as unknown as GraphDefinition;
-    if (args.approved && definition.deliveryContract === 'agent_owned_v1') {
-      const planned = definition.nodes.find(item => item.key === args.nodeKey)!;
+    if (args.approved && (run.snapshot as unknown as GraphDefinition).deliveryContract === 'agent_owned_v1') {
       const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
-      const binding = executionProgress(jobs[0]?.dispatchMetadata)?.review;
-      if (binding?.kind !== 'running' || binding.phase !== 'acceptance') throw new Error('Human approval has no pinned quality review');
-      await assertQualityPublication(tx, { definition, nodeKey: args.nodeKey, nodeId: node.id, actorId: qualityOwner(planned).actorId,
-        evidence: node.evidence as unknown as VerificationEvidence, review: { ...binding, outcome: 'classified' } });
+      const formal = await tx.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'human_review_requested' }, orderBy: { createdAt: 'desc' } });
+      const payload = formal?.payload;
+      const evidence = node.evidence;
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !isDeepStrictEqual(payload.evidence, evidence) ||
+          !evidence || typeof evidence !== 'object' || Array.isArray(evidence) || !jobs.length || jobs.some(job => job.status !== 'integrated' || !job.commit) ||
+          !isDeepStrictEqual(evidence.inputs, verificationInputs(jobs))) throw new Error('Formal quality record does not match current input commits');
     }
     const updated = await tx.taskGraphNode.update({
       where: { id: node.id }, data: { status: args.approved ? 'passed' : 'attention',

@@ -1,4 +1,4 @@
-import { verificationInputs } from './quality-contract';
+import { verificationInputs } from './domain';
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import type { AcpxParticipantRequest } from '../acpx/types';
