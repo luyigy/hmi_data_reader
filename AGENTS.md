@@ -24,6 +24,22 @@ GitNexus results should support engineering decisions, not replace understanding
 
 ## 任务图工作流
 
+### 本分支的手动交接例外
+
+用户于 2026-10-23 在 Feishu DM 08a216 明确要求本次环境与阻塞修复改为手动执行，
+分 Session 按 HANDOVER 接续，避免一次耗尽上下文。本例外仅适用于
+`manual/s02-runtime-repair-20261023` 分支及
+`docs/545_PLAN_20261023_运行环境修复手动执行.md`。
+
+- 该 PLAN 内的局部编码和测试已获用户手动执行授权，不再等待新任务图路线卡。
+- 每个 Session 读取最新 HANDOVER，只完成一个可验证单元，提交并写交接后停止。
+  未完成的 Slice 必须记录剩余工作，下一 Session 仍继续该 Slice。
+- PLAN/HANDOVER 使用现有文档合同及校验器，`next_action: none`；下一步写在普通正文，
+  不使用自动 Prompt 标记或 `WORKFLOW_READY`。这表示不触发自动调度，不表示整项工作完成。
+- `legacy.automation_enabled` 保持 false，不启用旧 watcher，不操作 cursor 或 pending。
+- 此授权不恢复 S02/Reader/Mold，不变更旧票快照，不部署或中断生产 TaskRun。
+- 本例外优先于下方默认规则中对新 PLAN/HANDOVER 的禁用；其他工作仍遵循任务图流程。
+
 - 新工作使用经过讨论的原型、定稿 Spec 和依赖图定义纵向 Slice；参阅
   `docs/architecture/task-graph-workflow-spec.md`。人确认整条路线后，平台按依赖图派发，
   Agent 的提交、测试和验收证据写入执行账本。
