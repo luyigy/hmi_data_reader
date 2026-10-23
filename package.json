@@ -20,6 +20,7 @@
     "test:task-graph-workflow": "npm run check:wire-w001 && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-workflow.test.ts",
     "test:task-graph-runtime-integration": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-runtime-preflight.test.ts",
     "test:task-graph-postgres": "node scripts/test-task-graph-postgres.mjs",
+    "test:task-graph-postgres-services": "node scripts/sandbox-postgres-session.mjs prepare && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-postgres-services.test.ts",
     "remote-runner:gateway": "node scripts/remote-runner-gateway.js",
     "remote-runner:register": "node scripts/register-remote-node.js",
     "remote-runner": "node scripts/agent-platform-runner.js",

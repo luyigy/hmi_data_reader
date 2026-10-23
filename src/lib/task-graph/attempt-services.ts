@@ -1,18 +1,18 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
-import { mkdtemp, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 import { wrapWithBubblewrap } from '../harness/bubblewrap';
 import { redactSensitiveText } from '../redact-sensitive';
-import { validateServices, type GraphService } from './service-contract';
+import { validateAttemptServices, type AttemptService } from './service-contract';
+import { prepareServiceLaunch, type ServiceLaunch } from './service-launch';
 import type { TaskInputManifest } from './upstream-inputs';
 
 export class ServiceRuntimeError extends Error {
   constructor(message: string) { super(`联调环境失败：${message}`); this.name = 'ServiceRuntimeError'; Object.setPrototypeOf(this, new.target.prototype); }
 }
-type Receipt = { key: string; input: string; commit: string; inputHash: string; sourcePath: string; entry: string;
-  argv: string[]; pid: number; port: number; health: 'starting' | 'healthy'; closed: boolean; log: string };
+type Receipt = ServiceLaunch['identity'] & { key: string; argv: string[]; pid: number; port: number; health: 'starting' | 'healthy'; closed: boolean; log: string };
 export type ServiceContext = { env: Record<string, string>; signal: AbortSignal; receipts: Receipt[] };
 
 async function freePort() {
@@ -59,15 +59,16 @@ async function stop(child: ChildProcess) {
 
 /** Every phase owns its services. Bubblewrap kills descendants if this owner crashes. */
 export async function withAttemptServices<T>(args: {
-  services: GraphService[]; manifests: TaskInputManifest[]; directory: string; signal?: AbortSignal; timeoutMs?: number; writerNonce?: string;
+  services: AttemptService[]; manifests: TaskInputManifest[]; directory: string; signal?: AbortSignal; timeoutMs?: number; writerNonce?: string;
   record?: (kind: string, payload: object) => Promise<void>;
 }, action: (context: ServiceContext) => Promise<T>): Promise<T> {
-  validateServices(args.services);
+  validateAttemptServices(args.services);
   const controller = new AbortController();
   if (!args.services.length) return action({ env: {}, signal: args.signal || controller.signal, receipts: [] });
   await mkdir(args.directory, { recursive: true, mode: 0o700 });
   const directory = await mkdtemp(path.join(args.directory, 'services-'));
   const receipts: Receipt[] = []; const children: ChildProcess[] = [];
+  const launches: ServiceLaunch[] = [];
   const abort = () => controller.abort(new ServiceRuntimeError('阶段已取消'));
   args.signal?.addEventListener('abort', abort, { once: true });
   if (args.signal?.aborted) abort();
@@ -85,27 +86,18 @@ export async function withAttemptServices<T>(args: {
   try {
     for (const service of args.services) {
       controller.signal.throwIfAborted();
-      const candidates = args.manifests.flatMap(manifest => manifest.inputs.filter(input => input.executions.includes(service.input)).map(input => ({ input, hash: manifest.hash })));
-      if (!candidates.length || new Set(candidates.map(({ input }) => `${input.repository}@${input.commit}`)).size !== 1) throw new ServiceRuntimeError('服务输入未消费或版本不唯一：' + service.input);
-      const { input, hash } = candidates[0];
-      const entry = await realpath(path.join(input.sourcePath, service.entry));
-      if (!entry.startsWith(input.sourcePath + path.sep)) throw new ServiceRuntimeError('服务入口越出固定源码');
-      const data = path.join(directory, service.key); await mkdir(data, { mode: 0o700 });
+      const data = path.join(directory, service.key);
       const port = await freePort();
-      const command = service.runtime === 'python' ? input.pythonExecutable : process.execPath;
-      if (!command) throw new ServiceRuntimeError('前置没有登记 Python 环境：' + service.input);
-      const argv = [...(service.runtime === 'python' ? ['-E', '-s', '-B'] : []), entry,
-        ...service.args.map(arg => arg.replaceAll('{port}', String(port)).replaceAll('{data}', data))];
-      // Do not inherit model, database, proxy or host project import credentials into a test service.
-      const env: NodeJS.ProcessEnv = { ...(args.writerNonce ? { AP_GRAPH_WRITER_NONCE: args.writerNonce } : {}), NODE_ENV: 'test', PATH: '/usr/bin:/bin', HOME: '/tmp', TMPDIR: '/tmp', LANG: 'C.UTF-8', AP_TASK_SANDBOX: '1', AP_SANDBOX_MODEL_ACCESS: '0',
-        NODE_PATH: input.dependencyPaths.filter(directory => path.basename(directory) === 'node_modules').join(path.delimiter),
-        AP_PROJECT_REPOSITORY: input.repository, AP_SERVICE_DATA_DIR: data, AP_SERVICE_PORT: String(port), AP_SERVICE_HOST: '127.0.0.1' };
-      const wrapped = wrapWithBubblewrap({ command, commandArgs: argv, cwd: data, workspaceRoot: data, env, networkAccess: 'enabled',
-        readOnlyPaths: [input.sourcePath, ...input.dependencyPaths, ...(input.projectEnvPath ? [input.projectEnvPath] : [])] });
+      const launch = await prepareServiceLaunch(service, args.manifests, data, port, controller.signal);
+      launches.push(launch);
+      controller.signal.throwIfAborted();
+      const env = { ...launch.env, ...(args.writerNonce ? { AP_GRAPH_WRITER_NONCE: args.writerNonce } : {}) };
+      const wrapped = wrapWithBubblewrap({ command: launch.command, commandArgs: launch.argv, cwd: data, workspaceRoot: data, env,
+        networkAccess: 'enabled', readOnlyPaths: launch.readOnlyPaths });
       const child = spawn(wrapped.command, wrapped.args, { cwd: data, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
       children.push(child);
-      const receipt: Receipt = { key: service.key, input: service.input, commit: input.commit, inputHash: hash, sourcePath: input.sourcePath,
-        entry, argv: [command, ...argv], pid: child.pid || 0, port, health: 'starting', closed: false, log: '' };
+      const receipt: Receipt = { ...launch.identity, key: service.key,
+        argv: [launch.command, ...launch.argv], pid: child.pid || 0, port, health: 'starting', closed: false, log: '' };
       receipts.push(receipt);
       const log = (chunk: Buffer) => { receipt.log = redactSensitiveText((receipt.log + chunk.toString('utf8')).slice(-16_384)); };
       child.stdout?.on('data', log); child.stderr?.on('data', log);
@@ -118,8 +110,7 @@ export async function withAttemptServices<T>(args: {
         const owned = receipt.pid && await ownsListener(receipt.pid, port);
         if (owned) {
           try {
-            const response = await fetch(`http://127.0.0.1:${port}${service.healthPath}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(500)]), redirect: 'error' });
-            const healthy = response.ok; await response.body?.cancel();
+            const healthy = await launch.healthy();
             if (healthy && await ownsListener(receipt.pid, port)) { receipt.health = 'healthy'; break; }
           } catch { controller.signal.throwIfAborted(); }
         }
@@ -134,7 +125,9 @@ export async function withAttemptServices<T>(args: {
         if (!await ownsListener(receipt.pid, receipt.port)) fail(receipt.key + ' 的监听进程归属已丢失');
       })).catch(error => fail(String(error))).finally(() => { checking = false; });
     }, 250);
-    const context: ServiceContext = { env: { TASK_GRAPH_SERVICES_JSON: JSON.stringify(receipts.map(item => ({ key: item.key, input: item.input, commit: item.commit, inputHash: item.inputHash, entry: item.entry, url: `http://127.0.0.1:${item.port}` }))) }, signal: controller.signal, receipts };
+    const context: ServiceContext = { env: { TASK_GRAPH_SERVICES_JSON: JSON.stringify(launches.map((launch, index) => ({
+      key: receipts[index].key, ...launch.identity, url: launch.url,
+    }))) }, signal: controller.signal, receipts };
     controller.signal.throwIfAborted();
     const result = await action(context);
     controller.signal.throwIfAborted();
@@ -145,8 +138,26 @@ export async function withAttemptServices<T>(args: {
     throw error instanceof ServiceRuntimeError ? error : new ServiceRuntimeError(failureNote);
   } finally {
     closing = true; clearTimeout(deadline); if (monitor) clearInterval(monitor); args.signal?.removeEventListener('abort', abort);
-    for (const child of children.reverse()) await stop(child);
-    for (const receipt of receipts) { receipt.closed = true; await rm(path.join(directory, receipt.key), { recursive: true, force: true }); }
+    const cleanupErrors: string[] = [];
+    for (const launch of launches) {
+      try { await launch.close(); } catch (error) { cleanupErrors.push(String(error)); }
+    }
+    for (const child of children.reverse()) {
+      try { await stop(child); } catch (error) { cleanupErrors.push(String(error)); }
+    }
+    // Also remove partial preparation directories when a service failed before spawning.
+    for (const service of args.services) {
+      try {
+        await rm(path.join(directory, service.key), { recursive: true, force: true });
+        if (service.runtime === 'postgres') await rm(path.join(directory, `${service.key}.resource`), { recursive: true, force: true });
+        const receipt = receipts.find(item => item.key === service.key); if (receipt) receipt.closed = true;
+      } catch (error) { cleanupErrors.push(String(error)); }
+    }
+    if (cleanupErrors.length) {
+      failureNote = redactSensitiveText([failureNote, '服务清理失败', ...cleanupErrors].filter(Boolean).join('：'));
+      await persist('failed');
+    }
     await persist('closed');
+    if (cleanupErrors.length && failureNote) throw new ServiceRuntimeError(failureNote);
   }
 }

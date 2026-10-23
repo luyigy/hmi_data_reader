@@ -1,0 +1,70 @@
+{
+  "baseline": "887e310",
+  "scope": "545 PLAN S03: phase-owned PostgreSQL lifecycle; S04 entry wiring not implemented",
+  "red": {
+    "command": "direct withAttemptServices call with runtime postgres and normalized resource",
+    "observed": "Service requires a unique key, consumed input, relative entry, loopback host, port and isolated data arguments"
+  },
+  "checks": [
+    {
+      "command": "npm run test:task-graph-postgres-services",
+      "exitCode": 0,
+      "scenarios": 12,
+      "log": "postgres-services.log"
+    },
+    {
+      "command": "TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-services.test.ts",
+      "exitCode": 0,
+      "log": "legacy-services.log"
+    },
+    {
+      "command": "node scripts/sandbox-postgres-session.mjs run task-graph-service-execution",
+      "exitCode": 0,
+      "log": "service-execution.log",
+      "evidence": "service-execution-evidence.json"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --incremental false --pretty false",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run lint -- --file src/lib/task-graph/attempt-services.ts --file src/lib/task-graph/service-contract.ts --file src/lib/task-graph/service-launch.ts --file src/lib/task-graph/postgres-service.ts --file tests/task-graph-postgres-services.test.ts --file tests/task-graph-services.test.ts",
+      "exitCode": 0,
+      "log": "lint.log"
+    },
+    {
+      "command": "npm run workflow:validate -- --preflight docs/548_HANDOVER_20261024_S03_PostgreSQL阶段服务.md --json",
+      "exitCode": 0,
+      "issues": []
+    },
+    {
+      "command": "npm run check:long-files",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "resource": {
+    "version": "PostgreSQL 14.24",
+    "jarSha256": "2722d05eb22c671104c9918d59d8ba9f5656898f5452a0207bb4cce21eef5dc4",
+    "txzSha256": "a22637a4a9904f6a7ed42ca0849f3db96f29a6d7dc719d9da8487fe4522e5017",
+    "normalizedDirectorySha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d",
+    "note": "Normalized digest independently reproduced from verified archives; host libc and /usr remain host dependencies."
+  },
+  "limitations": [
+    "S04 runtime declaration/authorization/pin and real PostgreSQL entry wiring remain pending.",
+    "S05 environment-outcome test line 81 remains a known failing baseline, not included as a pass.",
+    "No deployment, graph resumption or independent S06 review."
+  ],
+  "gitnexus": {
+    "index": "ap-manual-runtime-repair",
+    "directCaller": "withGraphTaskServices",
+    "entries": [
+      "executeViaLocalHarness",
+      "runSandboxedGraphCheck"
+    ],
+    "note": "Initial parent index unreadable; isolated worktree index rebuilt before implementation. impact identifies both entries; staged detect_changes reports low risk but the pre-edit symbol index does not contain new modules. New modules and direct callers were reviewed in source and covered by real tests."
+  }
+}

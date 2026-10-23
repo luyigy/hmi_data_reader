@@ -1,0 +1,5 @@
+
+> agent-platform-v2@0.1.0 lint
+> next lint --file src/lib/task-graph/attempt-services.ts --file src/lib/task-graph/service-contract.ts --file src/lib/task-graph/service-launch.ts --file src/lib/task-graph/postgres-service.ts --file tests/task-graph-postgres-services.test.ts --file tests/task-graph-services.test.ts
+
+✔ No ESLint warnings or errors

@@ -45,6 +45,7 @@ http.createServer((req,res)=>res.end(JSON.stringify({entry:__filename,data}))).l
     assert.throws(() => validateServices([{ ...service, entry: '../escape.js' }]));
     await withAttemptServices(args, async context => {
       const receipt = context.receipts[0]; url = `http://127.0.0.1:${receipt.port}`;
+      assert.ok(receipt.runtime !== 'postgres');
       assert.equal(receipt.health, 'healthy'); assert.equal(receipt.commit, commit);
       const response = await fetch(url); const body = await response.json();
       assert.equal(body.entry, path.join(sourcePath, 'server.js'));

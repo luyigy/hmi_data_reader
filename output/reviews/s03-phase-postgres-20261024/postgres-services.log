@@ -1,0 +1,17 @@
+
+> agent-platform-v2@0.1.0 test:task-graph-postgres-services
+> node scripts/sandbox-postgres-session.mjs prepare && TS_NODE_BASEURL=. TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}' node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-postgres-services.test.ts
+
+[prepare] 资源就绪: /data1/code/agent-platform-v2-manual-runtime-repair/.cache/sandbox-postgres/pg14.24.0 (postgres (PostgreSQL) 14.24)
+PASS contract rejects unpinned resources, duplicate keys and premature graph admission
+PASS real SQL, connection receipt, secret redaction and cleanup
+PASS two phases own different ports and isolated data
+PASS resource drift fails before action and partial preparation is removed
+PASS startup failure never exposes a connection
+PASS startup timeout reaps the namespace
+PASS cancellation during initdb reaps partial state
+PASS port conflict does not accept or kill an unrelated listener
+PASS server exit aborts the action and fails the phase
+PASS listener loss aborts even while the service wrapper stays alive
+PASS cancellation after readiness closes database and action failures also clean up
+PASS cleanup errors reject success and remain visible in the receipt
