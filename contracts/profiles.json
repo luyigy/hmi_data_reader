@@ -1,10 +1,10 @@
 {
-  "version": "1.1.0",
   "description": "Profile 注册表 v1.0.0。profile_id 格式 <controller-family>.<page>.<layout-family>（稳定 slug，不含 git hash 或机器号）。status 生命周期：unknown -> candidate -> verified -> quarantined。verified 标注 grandfathered 的条目沿用并仓前品牌门禁的生产行为，CT-S02 必须在 >=5 张独立 holdout 上通过 verify_accuracy 全部硬门禁复核，未通过或连续 2 次反馈不符即降级。 注记（026_FIX，field_catalog v2.0.0）：demag.injection_metering.multi_stage_injection 字段语义经领域操作者确认修正（段表上 row=射胶速度、下 row=段起点位置、左列=保压/V-P、右上=全局压力上限），profile 注册状态不变。",
   "apply_thresholds": {
     "verified_min_confidence": 0.9,
     "candidate_min_confidence": 0.7
   },
+  "version": "1.1.0",
   "profiles": [
     {
       "profile_id": "yizumi.injection_metering.metering_f2",
@@ -97,7 +97,8 @@
       "page_type": "temperature",
       "layout_variant": "rightmost5",
       "status": "verified",
-      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：发那科 ROBOSHOT 喷嘴/料筒温度页右起 5 列（N,B1,B2,B3,H）布局。证据：2 份逐图目视核验真值（barrel_A11_9835fbea / barrel_A11_3ce4cae5，calibration）。H 列按料口（drop_port）语义，M1-M4 关断模温加热器不入。 [lifecycle] unknown -> candidate；2026-08-16 083 PLAN S04 豁免晋级（verified）。证据：083 S04 行带 deskew/解析容错修复后，2 份 calibration 真值回放与 042 代码逐值零差异（3ce4cae5 13/13 全对；9835fbea 主 OCR 级 298.8/280.0 与料口实际缺读为修复前既有残留，新旧代码一致）；B004 两张倾斜整机实拍（rijing_Z022_t1_炮筒、unknown_发那科_Z035）设定/现在/上下偏差/输出/低温保持与大模型两遍判读逐值一致（残差仅辅助偏差单格 20.5/20.0，review 保留）。偏差披露：无独立未调参 holdout；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。 [lifecycle] candidate -> verified"
+      "lifecycle_note": "2026-08-12 042 PLAN S01 登记：发那科 ROBOSHOT 喷嘴/料筒温度页右起 5 列（N,B1,B2,B3,H）布局。证据：2 份逐图目视核验真值（barrel_A11_9835fbea / barrel_A11_3ce4cae5，calibration）。H 列按料口（drop_port）语义，M1-M4 关断模温加热器不入。 [lifecycle] unknown -> candidate；2026-08-16 083 PLAN S04 豁免晋级（verified）。证据：083 S04 行带 deskew/解析容错修复后，2 份 calibration 真值回放与 042 代码逐值零差异（3ce4cae5 13/13 全对；9835fbea 主 OCR 级 298.8/280.0 与料口实际缺读为修复前既有残留，新旧代码一致）；B004 两张倾斜整机实拍（rijing_Z022_t1_炮筒、unknown_发那科_Z035）设定/现在/上下偏差/输出/低温保持与大模型两遍判读逐值一致（残差仅辅助偏差单格 20.5/20.0，review 保留）。偏差披露：无独立未调参 holdout；Web 映射经单测覆盖，未做 UI 点击级实测。风险由所有者接受；若反馈连续 2 次字段不符仍自动降级 quarantined。 [lifecycle] candidate -> verified",
+      "template": "fanuc/temperature.json"
     },
     {
       "profile_id": "hot_system.hot_runner_temp.single_zone",
@@ -233,6 +234,48 @@
       "profile_id": "b_and_r.metering.three_stage",
       "status": "candidate",
       "template": "published/b_and_r.metering.three_stage/1.0.1.json"
+    },
+    {
+      "controller_family": "ARBURG",
+      "layout_variant": "selogica_two_stage",
+      "page_identity": {
+        "brand": "ARBURG",
+        "controller_family": "SELOGICA",
+        "evidence_sample_ids": [
+          "development",
+          "retained",
+          "decimal-diagnostic"
+        ],
+        "interface_generation": null,
+        "layout_variant": "selogica_two_stage",
+        "page_type": "storage_cooling"
+      },
+      "page_type": "storage_cooling",
+      "profile_id": "arburg.storage_cooling.selogica_two_stage",
+      "status": "candidate",
+      "template": "arburg/selogica_metering.json"
+    },
+    {
+      "profile_id": "demag.injection_metering.machine_configuration",
+      "controller_family": "DEMAG",
+      "page_type": "injection_metering",
+      "layout_variant": "machine_configuration",
+      "status": "candidate",
+      "template": "demag/configuration.json",
+      "page_identity": {
+        "brand": "DEMAG",
+        "controller_family": "DEMAG",
+        "evidence_sample_ids": [
+          "development",
+          "reserved",
+          "acceptance",
+          "holdout"
+        ],
+        "interface_generation": null,
+        "layout_variant": "machine_configuration",
+        "page_type": "injection_metering"
+      },
+      "lifecycle_note": "R6 frozen overview observations only; raw coverage partial, enable states unknown, exact controller model/generation unverified. Model acceptance and business write are separate."
     }
   ]
 }

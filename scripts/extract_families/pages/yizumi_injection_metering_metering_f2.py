@@ -27,9 +27,28 @@ def extract(lines, template, meta, image_path=None):
     headings = [(stage, cell) for cell in cells for stage in (1, 2)
                 if cell["text"] == f"熔胶{stage}" and width * .55 < xy(cell)[0] < width * .8
                 and height * .34 < xy(cell)[1] < height * .42]
-    row_labels = {cell["text"]: cell for cell in cells if cell["text"] in ROWS
+    row_cells = [cell for cell in cells if cell["text"] in ROWS
                   and width * .33 < xy(cell)[0] < width * .43
-                  and height * .40 < xy(cell)[1] < height * .58}
+                  and height * .40 < xy(cell)[1] < height * .58]
+    stage_ids = [stage for stage, _ in headings]
+    duplicate_stages = sorted({stage for stage in stage_ids if stage_ids.count(stage) > 1})
+    duplicate_rows = sorted({cell["text"] for cell in row_cells
+                             if sum(row["text"] == cell["text"] for row in row_cells) > 1})
+    issues = []
+    if duplicate_stages:
+        issues.append(dict(code="YIZUMI_STAGE_IDENTITY_CONFLICT", section="plasticizing",
+                           stage_ids=duplicate_stages, line_indexes=sorted({cell["index"]
+                               for stage, cell in headings if stage in duplicate_stages})))
+    if duplicate_rows:
+        issues.append(dict(code="YIZUMI_ROW_IDENTITY_CONFLICT", section="plasticizing",
+                           labels=duplicate_rows, line_indexes=sorted(cell["index"]
+                               for cell in row_cells if cell["text"] in duplicate_rows)))
+    if issues:
+        return dict(fields=None, heater_columns=0, warnings=[issue["code"] for issue in issues],
+                    detail=dict(page_variant=template["layout_variant"], page_observations=dict(
+                        version="1.0", profile_id=template["profile_id"], coordinate_space="original_percent",
+                        fields=[], stage_counts={}, visual_stage_counts={}, issues=issues)))
+    row_labels = {cell["text"]: cell for cell in row_cells}
     if len(headings) != 2 or {stage for stage, _ in headings} != {1, 2} or set(row_labels) != set(ROWS):
         return dict(fields=None, heater_columns=0,
                     warnings=["YIZUMI_METERING_GRID_MISSING"], detail={})

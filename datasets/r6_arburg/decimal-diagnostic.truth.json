@@ -1,0 +1,28 @@
+{
+  "image_sha256": "08334385027f4ad9df058aa33ccc7b638a5a78743ec12e4d6fea8bb962fba175",
+  "values": {
+    "metering.speed.actual": 0.0,
+    "metering.speed.stage-1": 100.0,
+    "metering.speed.stage-2": 100.0,
+    "metering.back_pressure.actual": -30.0,
+    "metering.back_pressure.stage-1": 8.0,
+    "metering.back_pressure.stage-2": 8.0,
+    "metering.end_position.actual": 34.96,
+    "metering.end_position.stage-1": 20.0,
+    "metering.end_position.stage-2": 27.0,
+    "decompression.speed": 50.0,
+    "decompression.distance": 8.0,
+    "time.remaining_cooling": 8.0,
+    "time.unlabeled_left": 0.1,
+    "time.unlabeled_right": 0.0,
+    "control.enable_icons": null
+  },
+  "acceptance_provenance": "Independent tester visual transcription of original before OCR; SELOGICA ARBURG double-stage feed page; no icon/unknown timer interpretation",
+  "provenance": {
+    "kind": "independent_tester_visual_transcription_then_failure_diagnostic",
+    "independent_acceptance": false,
+    "tuning_involvement": "decimal OCR diagnostic after failed independent acceptance",
+    "original_acceptance_result": "failed: speed 50.0 read as 500 known",
+    "source_sha256": "08334385027f4ad9df058aa33ccc7b638a5a78743ec12e4d6fea8bb962fba175"
+  }
+}

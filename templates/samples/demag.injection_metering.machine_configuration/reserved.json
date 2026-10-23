@@ -1,0 +1,17 @@
+{
+  "profile_id": "demag.injection_metering.machine_configuration",
+  "sample_id": "reserved",
+  "original_sha256": "e7ecaf17fac5022206a6d34639ce11e029df1ec61d66ab60f49c9d946fe531f5",
+  "original_size": [
+    4032,
+    3024
+  ],
+  "screen_size": [
+    2000,
+    1511
+  ],
+  "original_path": "datasets/r6_demag/demag.injection_metering.machine_configuration/reserved.jpg",
+  "purpose": "diagnostic_regression",
+  "ocr_fixture": "tests/fixtures/demag_configuration_reserved_ocr.json",
+  "ocr_sha256": "e350908499e2656bd6b1cdd9a7edd292046539b876a8bc1e1dfbf98b42ef3daa"
+}

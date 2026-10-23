@@ -1,0 +1,50 @@
+{
+  "scope": {
+    "brand": "BOLE",
+    "controller": "B_AND_R",
+    "generation": null,
+    "existing_physical_page": "b_and_r.injection_holding.multi_stage_position_time",
+    "new_controllers": 0,
+    "new_physical_layouts": 0,
+    "raw_version": "0.6.0",
+    "legacy_template_version": "0.1.2"
+  },
+  "rows": [
+    {
+      "category": "injection",
+      "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+      "status": "v2_partial_verified",
+      "fields": "five physical slots: speed/pressure/end_position/actual_time",
+      "version": "0.6.0"
+    },
+    {
+      "category": "holding",
+      "profile_id": "b_and_r.injection_holding.multi_stage_position_time",
+      "status": "v2_partial_verified",
+      "fields": "five physical slots: speed/pressure/setting_time",
+      "version": "0.6.0"
+    },
+    {
+      "category": "plastification",
+      "profile_id": "b_and_r.metering.three_stage",
+      "status": "existing_v2_regression_review",
+      "fields": "38 previously declared metering/decompression/control/timer/header fields",
+      "version": "1.0.1"
+    },
+    {
+      "category": "temperature",
+      "profile_id": "b_and_r.temperature.fixed",
+      "status": "existing_v1_regression_review",
+      "fields": "six zone set/actual/high/low/output plus low-confidence holding scalar",
+      "raw_v2": "unsupported"
+    },
+    {
+      "category": "related_times",
+      "status": "v2_partial_verified",
+      "fields": "actual injection duration, holding segment duration, switch setting duration, actual switch duration; existing metering timers remain separate",
+      "cooling_time": "unsupported"
+    }
+  ],
+  "sample_policy": "Historical exposed development and reserved regression photos; no independent blind or new-layout generalization claim.",
+  "business_acceptance": "not performed; Model owns acceptance and save/reopen"
+}

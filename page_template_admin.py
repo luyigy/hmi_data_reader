@@ -185,12 +185,12 @@ def get_template_versions(profile_id: str):
 
 @router.get("/{profile_id}/package")
 def get_package(profile_id: str, version: str | None = None):
-    if version in ("0.4.0", "0.4.1"):
+    if version is not None:
         try:
             return export_page_package(profile_id, version, ROOT)
         except (ValueError, FileNotFoundError, KeyError) as exc:
             raise HTTPException(404, f"页面版本不可用：{exc}") from None
-    current = _active(profile_id, ROOT)
+    current = json.loads(_registered_path(profile_id, ROOT).read_text())
     try:
         return export_page_package(profile_id, version or current["version"], ROOT)
     except (ValueError, FileNotFoundError, KeyError) as exc:

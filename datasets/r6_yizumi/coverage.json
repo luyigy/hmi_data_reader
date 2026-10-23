@@ -1,0 +1,36 @@
+{
+  "brand": "YIZUMI",
+  "controller_family": "YIZUMI",
+  "interface_generation": null,
+  "identity_basis": "YIZUMI bezel/display and F2 layout; OEM hardware not inferred",
+  "source_records": 5,
+  "attachment_references": 10,
+  "unique_images": 4,
+  "physical_page_types": 2,
+  "selected_raw_profile": "yizumi.injection_metering.injection_holding_f2",
+  "selected_raw_version": "1.0.0",
+  "new_physical_layouts": 0,
+  "declared_fields": 40,
+  "sample_separation": "Two independent captures from same machine; retained capture diagnostic-exposed, not blind/independent truth",
+  "categories": {
+    "injection": "v1 regression and new v2 partial readings",
+    "holding": "v1 regression and new v2 partial readings",
+    "plasticizing": "legacy P12 regression only; machine30 grid variation not added",
+    "temperature": "unsupported: no supplied temperature page",
+    "related_times": "protection, cooling and segment time readings separate; ambiguous roles remain unknown"
+  },
+  "uncovered": [
+    "OEM controller model and interface generation",
+    "Checkbox decoding and enabled-state inference",
+    "Header icons and footer/navigation",
+    "Independent blind holdout and independent annotated truth",
+    "Model business save/reopen and browser"
+  ],
+  "machine30_metering_actual_result": {
+    "profile_id": null,
+    "status": "reject",
+    "warnings": [
+      "YIZUMI_METERING_GRID_MISSING"
+    ]
+  }
+}

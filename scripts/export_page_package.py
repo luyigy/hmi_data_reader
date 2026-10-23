@@ -15,6 +15,12 @@ def export_page_package(profile_id: str, version: str, root: Path = ROOT) -> dic
         except ModuleNotFoundError:
             from scripts.raw_tact5 import tact5_package
         return tact5_package(root, version)
+    if version == "0.6.0" and profile_id == "b_and_r.injection_holding.multi_stage_position_time":
+        try:
+            from raw_bole_injection import bole_injection_package
+        except ModuleNotFoundError:
+            from scripts.raw_bole_injection import bole_injection_package
+        return bole_injection_package(root)
     if version in ("0.4.0", "0.4.1"):
         try:
             from raw_temperature_time import DEFINITIONS, temperature_time_package

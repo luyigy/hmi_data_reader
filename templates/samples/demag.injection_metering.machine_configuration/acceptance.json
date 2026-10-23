@@ -1,0 +1,17 @@
+{
+  "profile_id": "demag.injection_metering.machine_configuration",
+  "sample_id": "acceptance",
+  "original_sha256": "ef5b16d2afe0d763ce96d10c1f0c1e3b14f1971ab448ebd016d5f23ce4cf4e9a",
+  "original_size": [
+    4032,
+    3024
+  ],
+  "screen_size": [
+    2000,
+    1477
+  ],
+  "original_path": "datasets/r6_demag/demag.injection_metering.machine_configuration/acceptance.jpg",
+  "purpose": "diagnostic_regression",
+  "ocr_fixture": "tests/fixtures/demag_configuration_acceptance_ocr.json",
+  "ocr_sha256": "88a8200a6a9c1e97515315da1684f9d6040764152d375d1c377abe8cdbe65c99"
+}

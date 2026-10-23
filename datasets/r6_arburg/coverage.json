@@ -1,0 +1,322 @@
+{
+  "version": 1,
+  "scope": {
+    "brand": "ARBURG",
+    "controller": "SELOGICA",
+    "interface_generation": null,
+    "one_new_layout": "selogica_two_stage",
+    "profile_id": "arburg.storage_cooling.selogica_two_stage",
+    "package_version": "1.0.0",
+    "package_sha256": "fe755a802f7ef83f72dc2d0e366266d1765152e4e6be925cdb8e2b95fc0399e8",
+    "raw_contract_sha256": "199b61caa60c60e3e5984c8e99034d0a7d9d06e820d3c1a6b90cae899f6215f6",
+    "field_definition_sha256": "4358aadb1de5e8edb292acae4a3456e06ce0e3f7a327bfae09d0e73b187857cb"
+  },
+  "live_coverage": {
+    "development": {
+      "reading_counts": {
+        "missing": 4,
+        "known": 9,
+        "uncertain": 1,
+        "unsupported": 1
+      },
+      "fields": [
+        {
+          "screen_field_key": "metering.speed.actual",
+          "original_value": null,
+          "original_unit": "mm/s",
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-1",
+          "original_value": 100.0,
+          "original_unit": "mm/s",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-2",
+          "original_value": 100.0,
+          "original_unit": "mm/s",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.actual",
+          "original_value": null,
+          "original_unit": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-1",
+          "original_value": 8.0,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "uncertain"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-2",
+          "original_value": null,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.actual",
+          "original_value": null,
+          "original_unit": "mm",
+          "role": "actual",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-1",
+          "original_value": 20.0,
+          "original_unit": "mm",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-2",
+          "original_value": 27.0,
+          "original_unit": "mm",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.speed",
+          "original_value": 50.0,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.distance",
+          "original_value": 8.0,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.remaining_cooling",
+          "original_value": 8.0,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_left",
+          "original_value": 0.1,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_right",
+          "original_value": 0.0,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "control.enable_icons",
+          "original_value": null,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "unsupported"
+        }
+      ]
+    },
+    "retained": {
+      "reading_counts": {
+        "known": 13,
+        "missing": 1,
+        "unsupported": 1
+      },
+      "fields": [
+        {
+          "screen_field_key": "metering.speed.actual",
+          "original_value": 0.0,
+          "original_unit": "mm/s",
+          "role": "actual",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-1",
+          "original_value": 100.0,
+          "original_unit": "mm/s",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.speed.stage-2",
+          "original_value": 100.0,
+          "original_unit": "mm/s",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.actual",
+          "original_value": -35.0,
+          "original_unit": null,
+          "role": "actual",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-1",
+          "original_value": 8.0,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.back_pressure.stage-2",
+          "original_value": null,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "missing"
+        },
+        {
+          "screen_field_key": "metering.end_position.actual",
+          "original_value": 34.96,
+          "original_unit": "mm",
+          "role": "actual",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-1",
+          "original_value": 20.0,
+          "original_unit": "mm",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "metering.end_position.stage-2",
+          "original_value": 27.0,
+          "original_unit": "mm",
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.speed",
+          "original_value": 50.0,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "decompression.distance",
+          "original_value": 8.0,
+          "original_unit": null,
+          "role": "setting",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.remaining_cooling",
+          "original_value": 8.0,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_left",
+          "original_value": 0.1,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "time.unlabeled_right",
+          "original_value": 0.0,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "known"
+        },
+        {
+          "screen_field_key": "control.enable_icons",
+          "original_value": null,
+          "original_unit": null,
+          "role": "unknown",
+          "state": "unknown",
+          "reading": "unsupported"
+        }
+      ]
+    }
+  },
+  "categories": {
+    "injection": {
+      "status": "existing_regression_passed",
+      "evidence": "legacy-injection-live.json",
+      "fields": "All eight legacy field keys, including inverse stage arrays and delay 0.0, equal historical truth; delay from actual local OCR."
+    },
+    "holding": {
+      "status": "unsupported",
+      "reason": "No holding-page adaptation in this ticket"
+    },
+    "metering": {
+      "status": "partial",
+      "reason": "Fourteen declared numeric cells and one unsupported icon item; second back-pressure stage missing in both originals; no arbitrary stage-count support"
+    },
+    "temperature": {
+      "status": "unsupported",
+      "reason": "No temperature-page adaptation in this ticket"
+    },
+    "related_time": {
+      "status": "partial",
+      "reason": "Three raw displays read separately with role unknown; no cooling setpoint interpretation"
+    }
+  },
+  "acceptance": {
+    "A04": "Reader observed actual/setting/unknown, missing, uncertain and unsupported; OCR mutations and duplicate cell conflict verified. Disabled icon decoder unsupported, no business exclusion claim.",
+    "A07": "Distinct wrong binding, unknown, disabled, page conflict, package mismatch and contract-incompatible refusals; no generic fallback; HTTP wrong binding 422.",
+    "A11": "Real legacy three-stage inverse arrays match truth. New two-stage physical slots fixed by verified layout; duplicate OCR cell is conflict. Temperature zones and unobserved reverse/new-stage layouts outside scope.",
+    "A17": "Complete source index, three SHA-256-distinct originals, source receipts and explicit developer/retained provenance. Independent platform review pending.",
+    "A18": "Existing injection fields fully regress with real local delay OCR; five historical raw-package files byte-identical to HEAD. Unknown remains unknown; Model stored records not exercised."
+  },
+  "surfaces": {
+    "real_cpu_ocr": "passed",
+    "http_upload": "passed",
+    "cli_subprocess": "passed",
+    "package_api_and_new_client_reopen": "passed",
+    "browser": "not_applicable_to_reader_only_change; not_executed",
+    "model_acceptance_and_save_reopen": "not_executed",
+    "formal_run_submission": "not_executed",
+    "independent_acceptance": "platform_pending"
+  },
+  "remaining": [
+    "OCR recovery for missing back-pressure cell and actual cells",
+    "Enable-icon decoding with evidence",
+    "Confirm unlabeled timers and remaining-cooling role",
+    "Other ARBURG pages/controllers need separately scoped work",
+    "Model acceptance and independent platform verification"
+  ]
+}
