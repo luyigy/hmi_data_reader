@@ -12,6 +12,7 @@ import { executionProgress, metadataWithProgress } from '../src/lib/task-graph/e
 import { RuntimePreparationError } from '../src/lib/task-graph/runtime-preflight';
 import { validationRuntimeDirectory } from '../src/lib/task-graph/acceptance-runtime';
 import { getHarnessAdapter } from '../src/lib/harness';
+import { platformRepository } from '../src/lib/platform-repository';
 import { setGraphRunPaused } from '../src/lib/task-graph/run-control';
 
 async function main() {
@@ -27,6 +28,8 @@ async function main() {
   const adapter = getHarnessAdapter('codex')!, original = { execute: adapter.execute, resume: adapter.resume };
   const runtime: typeof import('../src/lib/task-graph/runtime-preflight') = require('../src/lib/task-graph/runtime-preflight');
   const prepare = runtime.prepareDeclaredRuntime;
+  const gitBoundary: typeof import('../src/lib/task-graph/git-command') = require('../src/lib/task-graph/git-command');
+  const originalGit = gitBoundary.graphGit;
   const participant = { gatewayId: 'platform-local', executionBackend: 'platform_local' as const, harnessType: 'codex', role: 'implementer' };
   const parent = await prisma.task.create({ data: { name: 'condition recheck' } });
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition: { specRef: 'fixture://conditions',
@@ -91,10 +94,26 @@ async function main() {
     assert.equal(reviewed.commit, reviewJob.commit); assert.equal(reviewCalls, 1);
     assert.equal(executionProgress(reviewed.dispatchMetadata)?.platformAttempts, 77);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: reviewNode.id, kind: 'node_admitted' } }), 1);
+    // A deployment is a real condition change even when a development server has no BUILD_ID.
+    await prisma.taskGraphRun.update({ where: { id: reviewRun.id }, data: { status: 'attention' } });
+    await prisma.taskGraphNode.update({ where: { id: reviewNode.id }, data: { status: 'attention' } });
+    const completed = executionProgress(reviewed.dispatchMetadata)!;
+    await prisma.taskGraphExecution.update({ where: { id: reviewed.id }, data: { status: 'attention', dispatchMetadata: metadataWithProgress(reviewed.dispatchMetadata,
+      { ...completed, phase: 'acceptance', state: 'exhausted', revision: completed.revision + 1, platformAttempts: 77, lastFailure: reviewBefore.lastFailure }) } });
+    for (let i = 0; i < 3; i++) await runTaskGraphCycle();
+    assert.equal(reviewCalls, 1, 'Unchanged already-checked conditions do not launch another review');
+    gitBoundary.graphGit = async (repository, ...args) => repository === platformRepository() && args.join(' ') === 'rev-parse HEAD'
+      ? 'f'.repeat(40) : originalGit(repository, ...args);
+    await until(async () => (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: reviewNode.id } })).status === 'passed');
+    assert.equal(reviewCalls, 2, 'New platform code automatically rechecks and resumes the original acceptance');
+    const resumed = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: reviewed.id } });
+    assert.equal(resumed.commit, reviewJob.commit);
+    assert.equal(executionProgress(resumed.dispatchMetadata)?.platformAttempts, 77);
+    console.log('Deployment condition: code revision change resumes exhausted acceptance once without resetting counters or implementation');
     console.log('Review conditions: original fixed candidate independently verified after platform repair; historical count 77 retained; implementation not repeated');
     console.log('Conditions: unavailable platform resource launches no model; independent peer delivers; successful recheck reclaims original candidate/worktree despite old count 77; user pause and downstream dependency remain enforced');
   } finally {
-    await drain(); adapter.execute = original.execute; adapter.resume = original.resume; runtime.prepareDeclaredRuntime = prepare;
+    await drain(); gitBoundary.graphGit = originalGit; adapter.execute = original.execute; adapter.resume = original.resume; runtime.prepareDeclaredRuntime = prepare;
     if (reviewRunId) await prisma.taskGraphRun.delete({ where: { id: reviewRunId } });
     await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); await fs.rm(root, { recursive: true, force: true });
   }

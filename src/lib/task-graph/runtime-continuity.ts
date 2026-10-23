@@ -128,6 +128,9 @@ async function prepareRuntime(args: Arguments, inspectSaved: boolean): Promise<P
     if (restricted && python && ![args.workspace, ...args.approvedReadOnlyRoots].some(root => python.project.directory === root || python.project.directory.startsWith(root + path.sep))) throw new RuntimePreparationError('invalid', 'Python 环境超出本次显式文件权限', [python.project.directory]);
     const grants = !restricted ? [...hostReadOnlyRoots, ...(python ? [python.project.directory] : [])] : [];
     const tools = await prepareDeclaredRuntime({ ...args, sourceDeclaration: source, resourceWorkspace: sourceWorkspace, strictReadOnlyRoots: Boolean(projectTools),
+      probeScope: { runId: job.node.runId, nodeId: job.nodeId, repository, pythonIdentity: python?.identity || null,
+        policy: createHash('sha256').update(JSON.stringify({ authority: projectTools ? 'project' : restricted ? 'workflow' : 'legacy', policy: projectTools?.policyHash || null, roots: [...hostReadOnlyRoots].sort() })).digest('hex'),
+        sourceIdentity: source?.origin === 'host_registration' ? null : source?.commit || null },
       approvedReadOnlyRoots: Array.from(new Set([...args.approvedReadOnlyRoots, ...grants])) });
     const pinPython = !pin || pin.pythonIdentity !== undefined;
     const pythonIdentity = python && pinPython ? createHash('sha256').update(JSON.stringify([tools.identity, python.identity])).digest('hex') : tools.identity;

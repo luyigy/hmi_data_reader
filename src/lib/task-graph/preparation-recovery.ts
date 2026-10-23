@@ -506,6 +506,7 @@ export async function registerPreparedReviewRecovery(input: unknown, remediation
 
 async function executionConditionsVersion() {
   // Operational facts bound retries; they never grant resources or replace a source pin.
-  return { build: await readFile(path.join(platformRepository(), '.next/BUILD_ID'), 'utf8').then(value => value.trim(), () => 'development'),
+  return { code: await graphGit(platformRepository(), 'rev-parse', 'HEAD'),
+    build: await readFile(path.join(platformRepository(), '.next/BUILD_ID'), 'utf8').then(value => value.trim(), () => 'development'),
     upstreamMaxBytes: process.env.TASK_GRAPH_UPSTREAM_MAX_BYTES || '268435456' };
 }
