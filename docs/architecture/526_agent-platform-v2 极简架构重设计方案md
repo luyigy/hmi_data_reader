@@ -1,0 +1,379 @@
+agent-platform-v2 极简架构重设计方案
+
+Architecture Proposal · 基于 oss-prep@bac31f2 与 526 审计 · 2026-10-21
+一、我的结论：应该简化的不是几个判断，而是平台对 Agent 的控制方式
+我重新核对了现有 coordinator.ts、execution-progress.ts、repair.ts、review-publication.ts、conversation-inbox.ts 和 store.ts。
+
+我建议采用一次明确的架构方向调整：从「平台驱动每一个执行阶段」转为「Agent 持有 Ticket 的持续工作权，平台只管理边界与交付」。
+
+现在最大的设计问题不是状态太多这么简单，而是：
+- 平台负责判断 Agent 是否应该继续调查。
+- 平台负责判断一次普通错误是否需要恢复。
+- 平台用 repairAttempts 等次数决定 Agent 能否继续修代码。
+- 平台把普通 Agent 对话、阻塞问答和恢复实施分成不同路径。
+- 一次模型运行结束，经常被当作需要重新取得执行资格的事件。
+这使得每次 Agent 遇到问题，都可能变成一次平台状态转换。
+
+我建议彻底改变这条基本规则：
+一个 Ticket 获批后，Coding Agent 就持续拥有在该 Ticket 范围内工作的资格，直到交付、用户明确暂停或真正触碰红线。普通工程错误、缺少资料、测试失败不应该撤销这个资格。
+
+这里的“持续”不要求 Agent 进程永远运行，也不要求不断调用模型。它指的是工作会话及已批准的工作权限持续有效。Agent 可以结束一轮、等待用户回复、下次继续，不需要重新经过人工恢复审批。
+目标架构
+Matt Skills / Alignment
+
+Grill → Spec → Tickets → 批准整个执行计划
+
+Task Graph — 极薄调度层
+
+判断依赖、分配并发槽、启动 Ticket、接收最终交付
+
+Ticket A · Reader
+Coding Agent
+
+Persistent Session
+
+Worktree A / 飞书话题 A
+
+
+Ticket B · Reader
+Coding Agent
+
+Persistent Session
+
+Worktree B / 飞书话题 B
+
+
+
+独立并行，自主编码、查资料、调试和交流
+
+Git Integration + Independent Verifier
+
+受控合并、测试、反馈原 Agent、再次交付
+
+合格交付 → 自动释放后继 Tickets
+
+Sandbox Manager、资源授权、Writer Ownership、W001 作为底层强制边界运行，不参与日常工程判断。
+二、只保留四条平台红线
+这是整份设计最重要的部分。
+红线	实施机制	平台应当拒绝什么
+1. 权限与范围	批准快照、Project Capabilities、Sandbox	越权读取、写入或改变批准的业务目标
+2. 写入与集成安全	Worktree、单 Writer、Git CAS	同一工作区双 Writer、旧候选覆盖新成果
+3. 阶段执行一致性	W001、Stage Request	只读 Review 获得源码写权限、Session 续接丢失当前任务合同
+4. 交付真实性	Git 固定候选、独立 Verifier、依赖图	未经批准模式要求的验收就释放后继
+第一和第三条实际上可以归为一个大的信任边界，但保留区分有利于工程实现。
+
+其他所有判断，原则上不应该撤销 Agent 在 Ticket 内继续工作的资格。
+
+例如缺图、查询分页结束、pytest 失败、普通 Git 冲突或 Agent 发现代码缺陷，都不属于红线。
+
+需要强调：Worktree 并不消灭 Git 合并冲突。但它使多个 Agent 可以安全地并行修改独立工作区。平台只需要在更新共享集成目标时保证原子性，并在冲突出现后将其作为正常工程任务处理。
+
+三、建议的 Ticket 生命周期：五个产品状态就够了
+Pending
+
+Working
+
+Verifying
+
+Done
+
+
+
+Waiting — Agent 等用户输入，或者暂时没有可执行动作；原会话和工作区保留，收到信息后接回 Working。
+
+
+
+这是建议的对外产品模型，不是要求立即将数据库全部迁移成五种状态。
+
+最核心的区别是：
+- Working 可以包含搜索、编码、测试、冲突修复和多轮 Agent 工作。
+- Verifying 是独立交付检查，不再代表 Agent 失去继续修复的权利。
+- Waiting 不需要再细分十几种审批和恢复状态。
+- Done 只代表真正满足当前 Ticket 交付合同。
+- 用户停止、权限撤销和安全隔离异常可以作为单独的运行控制或异常标记，不需要混入业务进度状态。
+这里要区分 Session 和 Process。
+
+一个 Ticket 可以长期保持 Working，但没有正在运行的 Codex 进程。只要原 Session 身份、Worktree、批准范围和输入保存完好，下次就能够继续。
+
+四、现有模块哪些保留、哪些收敛、哪些最终淘汰？
+我不建议立刻删除代码，而是按目标职责制定迁移清单。
+现有模块	建议	理由
+coordinator.ts	保留、瘦身	只做依赖、派发、完成事件消费及并发调度
+store.ts	保留	执行身份、提交、节点状态的持久化权威
+execution-progress.ts	大幅简化	保留实际阶段和归属；移除失败类别驱动的复杂重试决策
+conversation-session.ts	保留	原生 Agent Session 连续性
+conversation-inbox.ts	保留	消息归属、幂等投递、续接原 Agent
+conversation-followup.ts	逐步收缩	不再承担未交付任务的常规实施恢复
+conversation-recovery.ts	兼容后收缩	正常继续不应走特殊恢复协议
+preparation-recovery.ts	逐步退役普通恢复用途	不再成为平台问题解决后的通用人工放行入口
+conflict-repair-recovery.ts	职责收敛	冲突作为 Agent 正常工程任务；保留旧现场恢复适配
+repair.ts	简化	保留 Verifier 反馈到原实施者；去掉固定修复次数
+retry-limits.ts	目标淘汰	业务工程迭代不应由固定次数上限决定
+review-publication.ts	简化	独立验收结果发布，不再管理平台重试预算
+restart-recovery.ts	保留核心	崩溃恢复、Writer 身份和未完成任务重建是基础设施
+writer-ownership.ts	完整保留	防止并发写入的关键红线
+runtime-continuity.ts	保留	已批准运行资源的身份、授权、版本校验
+sandbox-manager/	保留	隔离环境与进程生命周期
+stage-execution-request.ts	保留	W001 保障当前阶段要求不丢失
+integration-retry.ts	转为集成协调	处理 Git CAS、冲突和重新集成，不再靠固定次数停止 Ticket
+upstream-inputs.ts	保留	防止未验收的上游成果进入下游交付
+以上“淘汰”是目标架构决策，而非当前仓库已经安全删除。历史账本仍需要兼容读取。
+最值得删除的是哪些逻辑？
+我在源码里直接看到三处代表性问题：
+
+第一，execution-progress.ts 同时承担阶段状态和失败预算裁判。
+
+它会根据 repairAttempts、platformAttempts、integrationAttempts、formatAttempts 是否达到上限，把执行变成 exhausted。
+
+这些计数可以作为历史指标，但不应决定原 Agent 是否有权继续做同一个已批准任务。
+
+第二，repair.ts 存在两套修复额度判断。
+
+它既统计 node_repair_scheduled 事件数量，又核对 ExecutionProgress 内的 repairAttempts，达到上限后不再给原 Agent 回修机会。
+
+目标设计中，Verifier 发现具体缺陷就把报告交回原 Agent；不通过的原因没有变化，也没有新代码或新输入时，不应无意义地再次派发，但不必设置“最多两次修复”的业务限制。
+
+第三，review-publication.ts 仍有硬编码的两次上限。
+
+它在平台验收失败后，达到 platformAttempts >= 2 就走 retry_exhausted。
+
+这正是 BOLE 已经解决部分平台问题后，依旧需要证明如何获得额外验收资格的背景之一。
+
+我建议在新任务路径上取消这些固定次数的业务恢复门禁；旧账本中的计数保留为审计历史。
+
+不过，一次运行的资源消耗、用户停止、成本控制以及无进展熔断仍要存在。这是运行资源管理，不是按 Bug 类型限制 Agent 只能尝试两次。
+五、极简的持续工作模型：不需要 Recovery Manager
+这部分才是真正的架构变化。
+
+过去的模型是：
+Agent 完成一次模型调用
+    ↓
+平台解析结果分类
+    ↓
+检查 retry budget / failure kind
+    ↓
+可能改为 attention
+    ↓
+等待专用恢复入口
+    ↓
+重新获得执行资格
+
+
+建议改成：
+Ticket 获批 → 原 Agent Session 开始
+
+Agent 在工作中：
+  可以读资料、改代码、测试、反复调试
+  可以回答用户、提问并等待回复
+  可以接收 Verifier 的失败报告继续修改
+
+一次 Agent Turn 结束：
+  ├─ 有交付 → 进入集成和验收
+  ├─ 等用户 → 保留 Session，等待消息
+  ├─ 仍有工作 → 保留 Session，由已有调度器安排下一工作轮次
+  └─ 真正越界或无法安全执行 → 停止相关操作并报告
+
+验收：
+  ├─ 通过 → Done → 自动放行后继
+  └─ 不通过 → 报告交还原 Agent → Working
+
+
+注意，我不建议平台在一次 Agent 回复结束后，不加判断地每两秒重新启动模型。这会造成无限调用和费用风险。
+
+简化的关键不是取消所有运行控制，而是取消“业务失败分类决定是否允许继续”。
+
+平台只需知道：
+- 当前 Session 有没有仍在运行的 Turn；
+- 是否有新的工作输入、执行计划或 Verifier 反馈；
+- 是否有新的可消费工作，避免重复处理同一内容；
+- 是否已经交付或明确等待；
+- 是否有触碰红线的事实。
+具体工作怎么做，由 Agent 自己决定。
+我建议的最小内部接口
+这里甚至不需要定义一个很复杂的新 Orchestrator。
+
+已有 Coordinator 只要消费以下几种结果就够了：
+type AgentTurnResult =
+  | { kind: 'continue'; note?: string }
+  | { kind: 'waiting'; question: string }
+  | { kind: 'submitted'; candidate: string }
+  | { kind: 'stopped'; reason: string };
+
+
+这是目标合同示意，而非要求立刻增加一个与原 ExecutionProgress 并存的新状态枚举。
+
+Agent 普通聊天应该仍然是普通聊天。结果合同属于平台与 Harness 的内部边界，不应该要求用户在飞书里输入特殊命令，也不应该过度依赖模型每轮严格输出机器标记。
+
+continue 代表本轮结束但还有明确工作；waiting 代表 Agent 确实需要新的输入；submitted 才启动交付流程。真正的进程异常则由 Harness 报告，不伪装成业务结果。
+关于自动重试：我建议明确废弃当前的分类预算机制
+但不是废弃所有自动化。
+行为	目标架构
+Agent 自己调试、改代码、重新运行测试	自主，不限制工程尝试次数
+Verifier 指出新缺陷并反馈原 Agent	自动交回，不限制固定回修次数
+用户在飞书提供新材料	继续原 Session
+Agent 明确仍有下一步工作	已有 Coordinator 继续调度
+平台进程崩溃后重启	恢复已持久化的未完成工作
+同一输入、相同代码、相同错误，没有任何新进展	不重复启动
+新的资源、资料或部署条件出现	重新评估未完成工作
+用户暂停或停止	尊重用户操作，不自行重启
+运行成本或资源达到限制	保留现场并要求明确继续，不绕过额度
+最后两项属于资源控制权，不应再变成 platformAttempts 等针对业务错误的分类预算。
+
+六、最小可验证切片：不要先重构全仓，先证明一个 Ticket 像正常 Codex 一样工作
+我建议用一个垂直切片作为整个极简架构的第一步：
+
+S01 — Persistent Ticket Agent Loop
+
+这个切片不处理 BOLE、FANUC 的所有历史恢复问题，而是建立未来所有新 Ticket 共享的持续工作机制。
+S01 应该修改哪些东西？
+文件	最小变化
+coordinator.ts	将 Ticket 正常继续视为已有工作，不依赖新的人工恢复请求；复用既有并发槽
+implementation-result.ts	区分“本轮结束”和“正式交付”，普通工程障碍不必转平台 decision_required
+conversation-inbox.ts	等用户信息时继续沿原 Session，不创建特殊只读实施代理
+conversation-session.ts	保持原生 Session 身份；不重建第二个 Agent
+execution-progress.ts	新路径不再使用固定分类预算终止正常工程迭代
+repair.ts / review-publication.ts	Verifier 失败回到原实施者，不走固定次数 exhausted；保留独立验收
+store.ts	继续提供单一事务状态操作和依赖放行，无需整体重写
+建议分成两个很小的提交，而非先创建一批新模块：
+
+第一个提交只完成“未交付 Ticket 可以连续多轮工作、提问和继续”，不动验收与旧预算迁移。
+
+第二个提交只完成“Verifier 失败反馈原 Agent，Agent 改好后再次提交”，取消新路径的固定回修次数。
+
+这样两步分别能够被测试，出问题也容易定位。
+必须看到的 S01 实际行为
+第 1 轮
+
+Codex 收到任务，调查资料，完成部分代码，发现还有工作，保存进度后继续下一轮。
+
+
+
+第 2 轮
+
+Codex 自主运行测试，发现失败，修改代码再测试，不请求平台审批，也不消耗固定修复额度。
+
+
+
+第 3 轮
+
+Agent 遇到真正需要用户提供的信息，在飞书 Topic 提问。用户回答后，沿原 Session 继续。
+
+
+
+交付与验收
+
+Codex 提交候选。Verifier 不通过，反馈原 Codex 修复；再次提交并验收通过，平台自动释放后继。
+
+
+
+测试还要证明同一个输入不会被重复消费、没有两个并行 Writer、原候选不会被错误覆盖、用户要求停止后不会自动重新启动。
+
+如果 S01 做成，你的平台第一次真正拥有持续 Ticket Agent，而不仅仅是多个由平台编排的短期模型调用。
+七、用真实 Reader/Mold 验证：我建议分两个阶段
+这里不建议一上来直接迁移全部 24 个旧节点。
+
+因为当前历史账本保留了大量 waiting_decision、exhausted、旧 Runtime Pin 和特殊恢复事件。直接替换这些状态，会让你无法判断新架构的问题究竟来自哪里。
+第一阶段：新建一条最小真实业务路线
+用 Reader/Mold 两个真实仓库，但只建三个经过正常批准的 Ticket。
+R-A · Reader
+
+选择 BOLE HMI 代表页，完成一个可独立验收的参数识别纵向功能
+
+
+R-B · Reader
+
+选择 DEMAG HMI 代表页，完成另一个独立识别功能
+
+
+
+各自验证，允许同文件修改及受控集成
+
+M-A · Mold
+
+消费已经通过验收的 Reader 产物，实现参数映射、写入及保存重开验证
+
+
+要求 R-A 和 R-B 真正并行。不是先启动 A，等 A 结束再启动 B。
+
+这个实验至少证明：
+能力	验收要求
+真并行	两个真实 Codex 执行时间段重叠
+Worktree 隔离	两个独立可写工作区，互不污染
+自主工作	Agent 自行查资料、调试、运行测试
+对话连续性	原 Topic 补图或纠正后，原 Session 继续
+同文件冲突	不提前阻止实施，集成时受控处理
+独立验收	每个 Reader 分别有真实测试证据
+跨仓交付	Mold 只消费合格且身份固定的 Reader 产物
+业务成果	API、CLI、页面保存重开确实工作
+特别说明：两个 Reader Ticket 可以同时开发，但如果 Mold 同时消费两个 Reader 成果，则应在 Spec 中明确两个前置依赖；如果只消费其中一个，也只需要等那一个通过即可。
+
+不要人为要求所有 Reader 全部完成，才开始 Mold。
+第二阶段：兼容恢复原来的 24 节点路线
+新架构验收后，再处理原来的六个暂停节点。
+Ticket	建议映射到新架构
+ARBURG	Working：原保存点继续实施
+NISSEI	Working：原 Session 继续已授权查询
+YIZUMI	Working：使用已有资料证据继续工作
+FANUC	Working / Integration：保留原冲突现场，完成受控合并
+BOLE	Verifying：从原固定候选进行合法的独立验收
+M6_DEMAG	Pending：等待 BOLE 合格，再自动启动
+这里只是目标状态映射建议，不是当前可直接写入生产数据库的操作指令。
+
+必须有一个专门的历史兼容步骤：读取原始 claim、Writer、candidate、Runtime Pin、保存点和未完成产物，判断能否在不损坏证据的条件下进入新路径。
+
+不能把 exhausted 直接批量改成 working，也不能因为目标架构取消了固定尝试次数，就清空旧账本里的次数。
+
+最重要的是：一次性迁移历史执行，不应该成为新架构设计的主导因素。
+
+旧账本可以保留必要的只读兼容适配，新的 Ticket 则直接使用简单执行模型。等真实旧路线安全恢复之后，再逐步删除不再被使用的特殊恢复入口。
+
+八、我建议的实施路线
+
+S01 · Persistent Ticket Agent
+
+正常多轮实施、资料查找、用户问答、原 Session 继续。不再让普通工程障碍撤销执行资格。
+
+
+
+S02 · Simple Verification Feedback
+
+正式交付 → Verifier → 缺陷反馈原 Agent → 再次交付。去掉固定业务修复次数和多套重试预算。
+
+
+
+S03 · Parallel Integration
+
+独立 Worktree 并行，Git 目标受控更新，冲突由原 Agent 或受控修复 Agent 处理。保留失败现场，不要求人工重新启动工程工作。
+
+
+
+S04 · Legacy Run Compatibility
+
+将历史 Ticket 的合法保存点接入新模型，首先验证 Reader/Mold，最后逐步退役旧的特殊恢复消费者。
+
+
+
+我不建议把四个 Slice 同时启动，也不建议为了 S01 提前引入一套新的 AgentLifecycleManager。
+
+S01 直接改造已有 Coordinator 的正常执行路径即可。 后续如果出现多个重复的内部调用再抽取模块，而不是先按漂亮的架构图创建目录。
+
+九、最终的架构裁决
+我的建议可以概括为三种不同的控制权：
+
+Task Graph 拥有工作安排权。 它只关心哪个 Ticket 可以开始、哪个已经合格完成、哪些依赖可以释放。
+
+Coding Agent 拥有工程执行权。 在既有批准和 Sandbox 边界内，搜索、实现、尝试、修复、提问与继续都由 Agent 自己决定。
+
+Verifier 拥有交付判定权。 它不能控制 Agent 日常怎么工作，但能拒绝不符合交付条件的成果，并把具体问题反馈原 Agent。
+
+安全基础设施在这三者下方提供强制隔离。它们不需要成为第四套业务编排逻辑。
+
+如果你采纳这个架构，我建议你现在暂停 526 原来的 A/B 实施计划，改以 S01 Persistent Ticket Agent 为第一片。
+
+评价新架构是否成功，也不应该再用“状态种类减少了多少”作为唯一指标，而应看这三项实际结果：
+- 一个 Ticket 能否自主完成多轮工作，不因普通工程障碍被平台永久阻塞。
+- 多个互不依赖的 Ticket 能否真正并行。
+- Verifier 拒绝成果后，原 Agent 能否自然继续、重新交付并解锁后继。
+这三件事跑通，比再做一轮全面重构更能证明极简架构有效。
+
+这份方案是基于现有源码和固定审计的架构建议，不是已实施代码。 我没有修改仓库或恢复 Reader/Mold 生产任务。
