@@ -1,0 +1,87 @@
+{
+  "startedAt": "2026-10-23T15:50:29.567Z",
+  "insideSandbox": true,
+  "postgres": "postgres (PostgreSQL) 14.24",
+  "databaseUrl": "postgres://postgres@127.0.0.1:41196/postgres",
+  "steps": [
+    {
+      "name": "postgres-version",
+      "ok": true,
+      "durationMs": 8,
+      "version": "postgres (PostgreSQL) 14.24"
+    },
+    {
+      "name": "initdb",
+      "ok": true,
+      "durationMs": 654,
+      "exitCode": 0
+    },
+    {
+      "name": "pg-ctl-start",
+      "ok": true,
+      "durationMs": 117,
+      "exitCode": 0,
+      "note": "pg_ctl -w 已等待就绪"
+    },
+    {
+      "name": "server-identity",
+      "ok": true,
+      "durationMs": 133,
+      "tcp": {
+        "connected": true
+      },
+      "serverVersion": "PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+      "address": "127.0.0.1",
+      "note": "loopback 直连成立，未使用容器豁免路径"
+    },
+    {
+      "name": "isolated-write",
+      "ok": true,
+      "durationMs": 15,
+      "schema": "s02_probe_8fc5bd45ba984a4da855409a2070d931",
+      "wrote": 1,
+      "readBack": 1,
+      "dropped": true
+    },
+    {
+      "name": "regression-suite",
+      "ok": true,
+      "durationMs": 75086,
+      "suites": [
+        "task-graph-environment-outcome"
+      ],
+      "exitCode": 1
+    },
+    {
+      "name": "suite-schema-cleanup-check",
+      "ok": true,
+      "durationMs": 5,
+      "leftoverSchemas": [],
+      "cleaned": true
+    }
+  ],
+  "suiteFailure": "回归套件退出码 1（旧预期与当前代码的分歧见 HANDOVER）",
+  "cleanup": [
+    {
+      "action": "pg_ctl-fast-stop",
+      "exitCode": 0,
+      "note": "server stopped"
+    },
+    {
+      "action": "pg_ctl-status-after-stop",
+      "exitCode": 3,
+      "running": false
+    },
+    {
+      "action": "tcp-port-after-stop",
+      "connected": false,
+      "error": "ECONNREFUSED"
+    },
+    {
+      "action": "remove-data-directory",
+      "existsAfter": false
+    }
+  ],
+  "serverLogTail": "2026-10-23 15:50:30.291 UTC [30] LOG:  starting PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit\n2026-10-23 15:50:30.291 UTC [30] LOG:  listening on IPv4 address \"127.0.0.1\", port 41196\n2026-10-23 15:50:30.291 UTC [30] LOG:  listening on Unix socket \"/tmp/s02-postgres-session-2/sock/.s.PGSQL.41196\"\n2026-10-23 15:50:30.294 UTC [31] LOG:  database system was shut down at 2026-10-23 15:50:30 UTC\n2026-10-23 15:50:30.298 UTC [30] LOG:  database system is ready to accept connections\n2026-10-23 15:50:39.060 UTC [4506] LOG:  could not receive data from client: Connection reset by peer\n",
+  "finishedAt": "2026-10-23T15:51:45.812Z"
+}

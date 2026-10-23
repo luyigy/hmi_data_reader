@@ -1,0 +1,12 @@
+{
+  "startedAt": "2026-10-23T15:50:29.450Z",
+  "endedAt": "2026-10-23T15:51:45.854Z",
+  "bwrapExitCode": 1,
+  "signal": null,
+  "suites": [
+    "task-graph-environment-outcome"
+  ],
+  "resourceVersion": "14.24.0",
+  "port": 41196,
+  "evidence": "evidence.json（沙箱内写入）"
+}

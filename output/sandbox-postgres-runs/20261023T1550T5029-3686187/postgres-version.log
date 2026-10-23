@@ -1,0 +1,4 @@
+$ postgres --version
+postgres (PostgreSQL) 14.24
+
+[exit 0]

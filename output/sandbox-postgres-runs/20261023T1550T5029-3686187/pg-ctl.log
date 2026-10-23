@@ -1,0 +1,5 @@
+$ pg_ctl -D /tmp/s02-postgres-session-2/data -l /tmp/s02-postgres-session-2/server.log -w -t 60 -o -p 41196 -h 127.0.0.1 -k /tmp/s02-postgres-session-2/sock -c fsync=off -c full_page_writes=off start
+waiting for server to start.... done
+server started
+
+[exit 0]

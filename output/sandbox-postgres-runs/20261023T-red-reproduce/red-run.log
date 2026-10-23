@@ -1,0 +1,42 @@
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+node:fs:440
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open '.env'
+    at readFileSync (node:fs:440:20)
+    at file:///data1/code/agent-platform-v2-manual-runtime-repair/scripts/test-task-graph-postgres.mjs:11:18
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '.env'
+}
+
+Node.js v22.22.1
+
+real	0m6.762s
+user	0m17.439s
+sys	0m1.461s

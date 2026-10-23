@@ -1,0 +1,38 @@
+{
+  "command": "/home/hello/.nvm/versions/node/v22.22.1/bin/node",
+  "commandArgs": [
+    "scripts/sandbox-postgres-inner.mjs",
+    "--resource-dir",
+    "/data1/code/agent-platform-v2-manual-runtime-repair/.cache/sandbox-postgres/pg14.24.0",
+    "--port",
+    "41196",
+    "--user",
+    "postgres",
+    "--database",
+    "postgres",
+    "--evidence-dir",
+    "/data1/code/agent-platform-v2-manual-runtime-repair/output/sandbox-postgres-runs/20261023T1550T5029-3686187",
+    "--suite",
+    "task-graph-environment-outcome"
+  ],
+  "cwd": "/data1/code/agent-platform-v2-manual-runtime-repair",
+  "workspaceRoot": "/data1/code/agent-platform-v2-manual-runtime-repair",
+  "networkAccess": "restricted",
+  "env": {
+    "AP_TASK_SANDBOX": "1",
+    "AP_PROJECT_REPOSITORY": "/data1/code/agent-platform-v2-manual-runtime-repair",
+    "PATH": "/home/hello/.pi/agent/bin:/data1/code/agent-platform-v2/node_modules/.bin:/data1/code/node_modules/.bin:/data1/node_modules/.bin:/node_modules/.bin:/home/hello/.nvm/versions/node/v22.22.1/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/node-gyp-bin:/home/hello/.cargo/bin:/home/hello/.kimi-code/bin:/home/hello/.local/bin:/home/hello/.local/bin:/home/hello/.opencode/bin:/home/hello/.opencode/bin:/home/hello/.local/share/pnpm:/home/hello/.local/share/pnpm/global/5/.pnpm/node_modules/.bin:/home/hello/.nvm/versions/node/v22.22.1/bin:/usr/local/cuda-12.4/bin:/home/hello/anaconda3/bin:/home/hello/anaconda3/condabin:/home/hello/.local/bin:/home/hello/.local/bin:/home/hello/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin",
+    "HOME": "/tmp",
+    "LANG": "C.UTF-8"
+  },
+  "readOnlyPaths": [
+    "/data1/code/agent-platform-v2-manual-runtime-repair/.cache/sandbox-postgres/pg14.24.0",
+    "/data1/code/agent-platform-v2-manual-runtime-repair/node_modules",
+    "/etc/passwd",
+    "/etc/nsswitch.conf",
+    "/data1/code/agent-platform-v2",
+    "/data1/code/mold-data-webpage-tool",
+    "/data1/code/workflow-test",
+    "/data1/code/hmi_data_reader"
+  ]
+}

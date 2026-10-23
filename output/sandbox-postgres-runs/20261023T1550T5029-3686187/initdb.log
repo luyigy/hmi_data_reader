@@ -1,0 +1,26 @@
+$ initdb -D /tmp/s02-postgres-session-2/data -U postgres --auth=trust --no-locale -E UTF8
+The files belonging to this database system will be owned by user "hello".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /tmp/s02-postgres-session-2/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default max_connections ... 100
+selecting default shared_buffers ... 128MB
+selecting default time zone ... UTC
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /data1/code/agent-platform-v2-manual-runtime-repair/.cache/sandbox-postgres/pg14.24.0/bin/pg_ctl -D /tmp/s02-postgres-session-2/data -l logfile start
+
+
+[exit 0]

@@ -1,0 +1,126 @@
+$ DATABASE_URL=<受控入口提供> node scripts/test-task-graph-postgres.mjs task-graph-environment-outcome
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 321
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 323
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 315
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 315
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 631
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 631
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 325
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 327
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 947
+[Task Room Context] Total messages: 3
+[Task Room Context] Filtered messages (non-system): 3
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 947
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 317
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1263
+[Task Room Context] Total messages: 4
+[Task Room Context] Filtered messages (non-system): 4
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 1263
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 655
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 635
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ {
++   code: 'environment_failed',
++   detail: 'work_unchanged',
++   owner: 'platform',
++   requiresUserDecision: false
++ }
+- undefined
+
+    at /data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-environment-outcome.test.ts:81:12
+    at step (/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-environment-outcome.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-environment-outcome.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-environment-outcome.test.ts:16:58) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [Object],
+  expected: undefined,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-environment-outcome.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-v2-manual-runtime-repair/scripts/test-task-graph-postgres.mjs:50:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 4908,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1
+
+[exit 1] [75066ms]

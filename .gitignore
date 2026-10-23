@@ -22,6 +22,9 @@
 .DS_Store
 *.pem
 
+# S02 手动修复：一次性 PostgreSQL 测试资源（固定版本下载物，不入库）
+/.cache/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
