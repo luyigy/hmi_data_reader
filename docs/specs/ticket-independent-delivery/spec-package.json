@@ -1,0 +1,169 @@
+{
+  "title": "S02 · Ticket 独立交付优先",
+  "status": "ready",
+  "spec": "spec.md",
+  "artifacts": [
+    "route-review.html",
+    "ticket-a.md",
+    "ticket-b.md",
+    "architecture-reference.md"
+  ],
+  "issueRoute": {
+    "parent": "gitee:luyi1678/agent-platform-v2#IKQ2GA",
+    "repositories": [
+      "gitee:luyi1678/agent-platform-v2"
+    ],
+    "slices": {
+      "S02_A": {
+        "executionMode": "lean",
+        "consumeUpstream": "none",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "independent-and-compatibility",
+            "workflow",
+            "long-files"
+          ],
+          "reviewerId": "local:kimi-code",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "kimi-code",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "gitRef": "refs/heads/feat/s02-ticket-independent-20261023",
+            "baseCommit": "5367a4bed54cf20ce9b4e698f98fc269d7634286",
+            "agentSelector": "local:codex",
+            "instructions": "完整目标、边界和验收见上方绑定 Issue 与固定 Spec 包。按 pstack 限定范围、最小修改、对应回归；发现额外风险先记录。不得部署、重启、中断生产 TaskRun、重跑 passed 票或改变旧票批准合同。保留用户本地修改；历史只追加。本票实现规范、示例、提示和隔离回归，不把自查当成独立验收。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "independent-and-compatibility",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "test:task-graph-postgres",
+                    "--",
+                    "task-graph-ticket-independent",
+                    "task-graph-agent-owned-quality",
+                    "task-graph-result-recollection",
+                    "task-graph-conflict-repair",
+                    "task-graph-review-repair",
+                    "task-graph-issues",
+                    "task-graph-issue-proposal"
+                  ]
+                },
+                {
+                  "name": "workflow",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "test:task-graph-workflow"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ]
+      },
+      "S02_B": {
+        "executionMode": "lean",
+        "consumeUpstream": "direct",
+        "acceptance": {
+          "mode": "agent",
+          "checks": [
+            "real-agent-and-legacy-evidence",
+            "long-files"
+          ],
+          "reviewerId": "local:kimi-code",
+          "reviewLaunchConfig": {
+            "participant": {
+              "gatewayId": "platform-local",
+              "executionBackend": "platform_local",
+              "harnessType": "kimi-code",
+              "role": "tester"
+            }
+          }
+        },
+        "executions": [
+          {
+            "key": "platform",
+            "repository": "/data1/code/agent-platform-v2",
+            "gitRef": "refs/heads/feat/s02-ticket-independent-20261023",
+            "baseCommit": "5367a4bed54cf20ce9b4e698f98fc269d7634286",
+            "agentSelector": "local:codex",
+            "instructions": "完整目标、边界和验收见上方绑定 Issue 与固定 Spec 包。按 pstack 限定范围、最小修改、对应回归；发现额外风险先记录。不得部署、重启、中断生产 TaskRun、重跑 passed 票或改变旧票批准合同。保留用户本地修改；历史只追加。先固定并读取 S02_A 正式交付，再提审真实 IA/IB/IC/ID 测试路线；未批准不能派发。旧兼容的真实续接缺项必须报告未完成。只读证据断言脚本是本票验收辅助，不接入运行时。",
+            "launchConfig": {
+              "participant": {
+                "gatewayId": "platform-local",
+                "executionBackend": "platform_local",
+                "harnessType": "codex",
+                "role": "implementer"
+              },
+              "checks": [
+                {
+                  "name": "real-agent-and-legacy-evidence",
+                  "argv": [
+                    "node",
+                    "-r",
+                    "ts-node/register/transpile-only",
+                    "-r",
+                    "tsconfig-paths/register",
+                    "tests/task-graph-ticket-independent-live-evidence.test.ts"
+                  ]
+                },
+                {
+                  "name": "long-files",
+                  "argv": [
+                    "npm",
+                    "run",
+                    "check:long-files"
+                  ]
+                }
+              ],
+              "env": {
+                "TS_NODE_COMPILER_OPTIONS": "{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}",
+                "TS_NODE_BASEURL": "."
+              }
+            }
+          }
+        ],
+        "extraRepositories": [
+          {
+            "repository": "/data1/code/hmi_data_reader",
+            "access": "read"
+          },
+          {
+            "repository": "/data1/code/mold-data-webpage-tool",
+            "access": "read"
+          }
+        ]
+      }
+    }
+  }
+}
