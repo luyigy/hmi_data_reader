@@ -6,6 +6,7 @@ import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 import { deliverGraphChildProgress, postGraphChildProgress } from '../src/lib/task-graph/feishu';
 import { relayTaskGraphReplies, relayTaskGraphRunReply } from '../src/lib/task-graph/run-reply-relay';
+import { publishGraphOverview } from '../src/lib/task-graph/overview';
 import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
 
 async function main() {
@@ -171,7 +172,7 @@ async function main() {
       lastFailure: { code: 'test_failed', detail: '原检查连续失败，自动处理额度已用尽。' },
     } } } });
     await relayTaskGraphRunReply(started.id, true);
-    assert.match(JSON.stringify(updates.at(-1)?.card), /自动处理已耗尽/);
+    assert.match(JSON.stringify(updates.at(-1)?.card), /本轮自动尝试已停止/);
 
     const chat = await fixture(), chatRun = await run(chat.task.id);
     const answer = '补 1 张可以。\n\n你这张是伯乐三段熔胶页，不能作为白色五段页的独立验收图。\n\n请补白色五段储料射退设定整屏照片。';
@@ -197,6 +198,23 @@ async function main() {
     assert.equal(await relayTaskGraphRunReply(chatRun.id), false, 'A completed conversation does not resend its answer on each poll');
     assert.deepEqual(await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: chat.job.id } }), beforeChat,
       'Rendering a conversation cannot resume the execution or alter its claim, candidate or budget');
+    const overviewRoom = await prisma.liveRoom.create({ data: { title: 'Parent', sourceTaskId: first.graph.parentTaskId } });
+    roomIds.push(overviewRoom.id);
+    await prisma.feishuConversationBinding.create({ data: { scopeKey: `parent-${first.graph.id}`, liveRoomId: overviewRoom.id, appId: 'fixture', chatId: 'repo-group', chatType: 'group', rootMessageId: 'parent-root' } });
+    assert.equal(await publishGraphOverview(first.graph.id), true);
+    const rootCard = () => updates.filter(item => item.id === first.binding.rootMessageId).at(-1)?.card as ReturnType<typeof buildRunReplyCard>;
+    assert.equal(rootCard().header.template, 'red', 'The topic root reflects failure even when its last TaskRun completed long ago');
+    const beforeRefresh = updates.length;
+    assert.equal(await publishGraphOverview(first.graph.id), false);
+    assert.equal(updates.length, beforeRefresh, 'Unchanged topic roots do not produce periodic API writes');
+    await prisma.taskGraphNode.update({ where: { id: first.job.nodeId }, data: { status: 'awaiting_human' } });
+    await publishGraphOverview(first.graph.id);
+    assert.equal(rootCard().header.template, 'yellow');
+    await prisma.taskGraphNode.update({ where: { id: first.job.nodeId }, data: { status: 'passed' } });
+    const savedJob = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.job.id } });
+    await publishGraphOverview(first.graph.id);
+    assert.equal(rootCard().header.template, 'green');
+    assert.deepEqual(await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.job.id } }), savedJob, 'Card refresh cannot change execution, claim or budget');
     console.log('New runs own new cards; same-run uncertain sends retain their age; 100 superseded cursors cannot starve delivery; current failure reaches the folded card');
   } finally {
     await prisma.taskGraphRun.deleteMany({ where: { id: { in: graphIds } } });

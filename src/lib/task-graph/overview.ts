@@ -7,28 +7,30 @@ import { isFeishuAdmin } from '../feishu-access-approval';
 import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { redactSensitiveText } from '../redact-sensitive';
 import { receiveGraphTaskMessageTx } from './conversation-inbox';
-import { executionProgress } from './execution-progress';
 import { deliverGraphNotificationOnce } from './notifications';
 import { postGraphChildProgress } from './feishu';
 import { setGraphRunPaused } from './run-control';
+import { executionProgress } from './execution-progress';
+import { graphCardStatus } from './card-status';
+import { buildGraphNodeCard } from './node-card';
 
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 const identity = (runId: string) => `graph-overview:${runId}`;
 const receiptKey = (runId: string) => `notification-message:${hash(identity(runId))}`;
-const labels: Record<string, string> = { planned: '等待前置', ready: '准备执行', claimed: '工作中', verifying: '独立验收中',
-  passed: '验收通过', attention: '现场保留', delivered_unverified: '实施已交付，未独立验收', awaiting_human: '等待人工验收' };
 
 export async function loadGraphOverview(runId: string) {
   const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: runId }, include: { nodes: {
     orderBy: { createdAt: 'asc' }, include: { executions: true },
   } } });
   const binding = await prisma.feishuConversationBinding.findFirst({ where: { liveRoom: { sourceTaskId: run.parentTaskId }, appId: { not: null } }, orderBy: { updatedAt: 'desc' } });
+  const childBindings = await prisma.feishuConversationBinding.findMany({ where: { liveRoom: { sourceTaskId: { in: run.nodes.flatMap(node => node.executions.flatMap(job => job.childTaskId ? [job.childTaskId] : [])) } },
+    chatType: 'group', rootMessageId: { not: null } }, select: { rootMessageId: true, liveRoom: { select: { sourceTaskId: true } } } });
   const control = await prisma.taskGraphEvent.findFirst({ where: { runId, kind: { in: ['run_user_paused', 'run_user_resumed'] } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   const taskRunIds = run.nodes.flatMap(node => node.executions.flatMap(job => job.taskRunId ? [job.taskRunId] : []));
   const nativeTurns = await prisma.taskRun.findMany({ where: { id: { in: taskRunIds } }, select: { id: true, summary: true, status: true } });
   const liveOutputs = await prisma.taskRunEvent.findMany({ where: { taskRunId: { in: taskRunIds }, eventType: 'stdout_chunk' },
     distinct: ['taskRunId'], orderBy: [{ taskRunId: 'asc' }, { sequence: 'desc' }], select: { taskRunId: true, content: true } });
-  return { run, binding, nativeTurns, liveOutputs, controlVersion: control?.id || 'initial' };
+  return { run, binding, childBindings, nativeTurns, liveOutputs, controlVersion: control?.id || 'initial' };
 }
 
 export function buildGraphOverview(data: Awaited<ReturnType<typeof loadGraphOverview>>, requestedPage = 0) {
@@ -50,13 +52,17 @@ export function buildGraphOverview(data: Awaited<ReturnType<typeof loadGraphOver
         : job.status === 'attention' ? ' · 尚未启动下一轮，等待条件核对或输入' : '';
       return `${job.key} · ${job.agentSelector}${waiting}\n${redactSensitiveText(note).replace(/^TASK_GRAPH_IMPLEMENTATION.*$/gm, '').slice(-700)}`;
     }).join('\n');
-    return { tag: 'markdown', content: `**${node.key} · ${labels[node.status] || node.status}**${node.dependsOn.length ? ` · 前置 ${node.dependsOn.join('、')}` : ''}\n${details}` };
+    const appearance = graphCardStatus(node.status, node.executions.map(job => executionProgress(job.dispatchMetadata)));
+    return { tag: 'markdown', content: `**${appearance.icon} ${node.key} · ${appearance.label}**${node.dependsOn.length ? ` · 前置 ${node.dependsOn.join('、')}` : ''}\n${details}` };
   });
   const targets = nodes.flatMap(node => node.executions.filter(job => job.childTaskId).map(job => ({ text: { tag: 'plain_text', content: `${node.key}/${job.key}` }, value: job.id })));
-  return { schema: '2.0', config: { update_multi: true }, header: { template: run.status === 'paused' ? 'orange' : 'blue',
+  const appearances = run.nodes.map(node => graphCardStatus(node.status, node.executions.map(job => executionProgress(job.dispatchMetadata))));
+  const count = (color: string) => appearances.filter(item => item.template === color).length;
+  const template = run.status === 'paused' ? 'yellow' : count('red') ? 'red' : count('yellow') ? 'yellow' : count('green') === run.nodes.length ? 'green' : 'blue';
+  return { schema: '2.0', config: { update_multi: true }, header: { template,
     title: { tag: 'plain_text', content: `任务总览 V${run.version} · ${run.status === 'paused' ? '用户已暂停' : run.status.startsWith('completed') ? '路线已结束' : run.status === 'attention' ? '有任务等待输入或处理' : '按依赖推进'} · ${page + 1}/${pages}` } },
   body: { elements: [
-    { tag: 'markdown', content: 'Agent 自主实施与提问。回复会送回所选原 Agent；实施已提交与独立验收通过分别展示。' }, ...rows,
+    { tag: 'markdown', content: `🟢 已完成 ${count('green')} · 🔴 异常／未通过 ${count('red')} · 🟡 待确认 ${count('yellow')} · 🔵 执行中 ${count('blue')} · ⚪ 等待前置 ${count('grey')}\n回复会送回所选原 Agent。` }, ...rows,
     ...(targets.length ? [{ tag: 'form', name: 'ticket_reply', elements: [
       { tag: 'select_static', name: 'execution', width: 'fill', required: true, placeholder: { tag: 'plain_text', content: '回复哪个任务？' }, options: targets },
       { tag: 'input', name: 'reply', required: true, placeholder: { tag: 'plain_text', content: '给原 Agent 的回答或补充' } },
@@ -78,7 +84,19 @@ export async function publishGraphOverview(runId: string) {
   const payload = previous?.payload;
   const page = payload && typeof payload === 'object' && !Array.isArray(payload) && typeof payload.page === 'number' ? payload.page : 0;
   const card = buildGraphOverview(data, page), viewHash = hash(JSON.stringify(card));
-  if (payload && typeof payload === 'object' && !Array.isArray(payload) && payload.hash === viewHash) return false;
+  const previousRoots = payload && typeof payload === 'object' && !Array.isArray(payload) && payload.rootHashes;
+  const rootHashes: Record<string, string> = {};
+  let rootsChanged = false;
+  for (const binding of data.childBindings) {
+    const node = data.run.nodes.find(node => node.executions.some(job => job.childTaskId === binding.liveRoom.sourceTaskId));
+    if (!node || !binding.rootMessageId) continue;
+    const rootCard = buildGraphNodeCard(node), digest = hash(JSON.stringify(rootCard));
+    rootHashes[binding.rootMessageId] = digest;
+    if (previousRoots && typeof previousRoots === 'object' && !Array.isArray(previousRoots) && previousRoots[binding.rootMessageId] === digest) continue;
+    await updateFeishuTaskEntryCard(binding.rootMessageId, rootCard);
+    rootsChanged = true;
+  }
+  if (!rootsChanged && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.hash === viewHash) return false;
   const receipt = await prisma.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: { runId, idempotencyKey: receiptKey(runId) } } });
   const sent = receipt?.payload;
   if (sent && typeof sent === 'object' && !Array.isArray(sent) && typeof sent.messageId === 'string') await updateFeishuTaskEntryCard(sent.messageId, card);
@@ -87,7 +105,7 @@ export async function publishGraphOverview(runId: string) {
     ...(data.binding!.rootMessageId ? { threadRootMessageId: data.binding!.rootMessageId } : {}),
   }) });
   await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: `overview-rendered:${hash((previous?.id || 'initial') + ':' + viewHash)}` } }, update: {},
-    create: { runId, kind: 'overview_rendered', idempotencyKey: `overview-rendered:${hash((previous?.id || 'initial') + ':' + viewHash)}`, payload: { hash: viewHash, page } } });
+    create: { runId, kind: 'overview_rendered', idempotencyKey: `overview-rendered:${hash((previous?.id || 'initial') + ':' + viewHash)}`, payload: { hash: viewHash, page, rootHashes } } });
   return true;
 }
 

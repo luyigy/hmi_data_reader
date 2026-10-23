@@ -4,6 +4,7 @@ import type { TaskRun, TaskRunEvent, TaskRunParticipant, TaskRunInteractionReque
 import { redactSensitiveText } from '../redact-sensitive';
 import type { ExecutionProgress } from './execution-progress';
 import { formatExecutionProgress } from './progress-summary';
+import { graphCardStatus } from './card-status';
 
 type ReplyRun = Pick<TaskRun, 'id' | 'status' | 'summary' | 'error'> & { participants: TaskRunParticipant[]; graphStatus?: string; graphProgress?: ExecutionProgress | null; replyKind?: 'conversation'; graphWorkspace?: { repository: string; executionId: string; branch: string | null; path: string | null } };
 const labels: Record<string, string> = { running: '执行中', waiting_for_input: '等待确认', completed: '会话结束', failed: '执行失败', interrupted: '已中断', stopped: '已停止' };
@@ -56,10 +57,11 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
     return plain.length > 180 ? plain.slice(0, 180) + '…' : plain;
   };
   const progress = run.graphProgress;
+  const appearance = graphCardStatus(run.graphStatus, [progress]);
   const repairing = progress?.phase === 'implement' && progress.repairAttempts > 0 && ['ready', 'active'].includes(progress.state);
-  const phaseFailure = progress?.lastFailure && progress.state !== 'waiting_for_user' && (progress.state !== 'active' || repairing || run.graphStatus === 'attention') ? progress.lastFailure.detail : null;
+  const phaseFailure = progress?.lastFailure && (progress.state !== 'active' || repairing || run.graphStatus === 'attention') ? progress.lastFailure.detail : null;
   const failureSummary = phaseFailure && progress?.lastFailure ? graphFailureSummary(progress.lastFailure, progress.state) : null;
-  const progressStatus = progress?.state === 'waiting_for_user' ? progress.waitingKind === 'answered' ? '本轮已答复，可在本话题继续交流' : '等待你的回复，在本话题回答即可'
+  const progressStatus = progress?.state === 'waiting_for_user' ? failureSummary && !failureSummary.requiresUserDecision ? '待平台处理' : progress.waitingKind === 'answered' ? '本轮已答复，可在本话题继续交流' : '等待你的回复，在本话题回答即可'
     : failureSummary && ['waiting_decision', 'exhausted', 'ownership_attention'].includes(progress?.state || '')
     ? failureSummary.requiresUserDecision ? '需你确认' : failureSummary.owner === 'implementer' ? '待实施回修' : '待平台处理'
     : progress?.state === 'exhausted' ? '待平台提出新的修复措施'
@@ -67,7 +69,7 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
     : progress?.state === 'waiting_decision' ? '需决定，当前执行已暂停'
     : repairing ? '自动修复中，完成后重新检查'
     : progress?.state === 'ready' && progress.lastFailure ? '自动恢复中，等待下一轮执行' : null;
-  const status = run.graphStatus === 'passed' ? '已完成，平台检查与验收通过' : progressStatus || (blocked ? '实施暂停，尚未交付' : run.graphStatus === 'attention' ? '任务需处理，尚未通过平台检查或验收'
+  const status = run.graphStatus === 'passed' ? '已完成，验收通过' : progressStatus || (blocked ? '实施暂停，尚未交付' : run.graphStatus === 'attention' ? '任务需处理，尚未通过平台检查或验收'
     : conclusion?.status === 'delivered' ? '实施已提交结果，尚未代表验收通过' : labels[run.status] || run.status);
   const visible = `${status}\n${phaseFailure && progress?.lastFailure ? formatGraphFailureSummary(progress.lastFailure, progress.state) : snippet(conclusion?.note || response)}${progress ? `\n${formatExecutionProgress(progress, run.graphStatus === 'passed')}` : ''}`;
   const actions = (active ? requests : []).filter((request) => request.status === 'pending' && (!request.expiresAt || request.expiresAt.getTime() > Date.now()))
@@ -84,8 +86,8 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
       ];
     });
   return { schema: '2.0', config: { update_multi: true },
-    header: { template: run.status === 'failed' ? 'red' : run.status === 'waiting_for_input' || !conversation && (blocked || run.graphStatus === 'attention') ? 'orange' : 'blue',
-      title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${conversation ? conversationStatus : progressStatus || (blocked ? '实施暂停' : run.graphStatus === 'attention' ? '任务需处理' : labels[run.status] || run.status)}` } },
+    header: { template: run.status === 'failed' ? 'red' : run.status === 'waiting_for_input' ? 'yellow' : appearance.template,
+      title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${conversation ? conversationStatus : run.graphStatus ? appearance.label + (progressStatus && appearance.template !== 'green' ? ` · ${progressStatus}` : '') : labels[run.status] || run.status}` } },
     body: { elements: [
       { tag: 'markdown', content: conversation ? bounded(conversationResponse, 6000) : visible },
       ...(conversation ? [{ tag: 'collapsible_panel', expanded: false,

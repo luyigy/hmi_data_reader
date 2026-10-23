@@ -17,7 +17,7 @@ import { approveHumanNode, refreshTaskGraphRunStatus, releaseReadyNodes } from '
 function childCard(title: string, state: 'pending' | 'ready') {
   return {
     config: { wide_screen_mode: true },
-    header: { template: state === 'ready' ? 'green' : 'grey', title: { tag: 'plain_text', content: title } },
+    header: { template: state === 'ready' ? 'blue' : 'grey', title: { tag: 'plain_text', content: title } },
     elements: [{ tag: 'div', text: { tag: 'plain_text', content: state === 'ready'
       ? '详细进度与验收结论在当前子话题展示。路线摘要与状态入口同步到父任务。'
       : '正在绑定任务话题。' } }],
@@ -87,7 +87,7 @@ export async function deliverGraphHumanReviewCard(runId: string, nodeKey: string
   if (!binding) throw new Error('Human review destination is not yet bound');
   const card = {
     config: { wide_screen_mode: true },
-    header: { template: 'orange', title: { tag: 'plain_text', content: `任务图人工验收 · ${nodeKey}` } },
+    header: { template: 'yellow', title: { tag: 'plain_text', content: `任务图人工验收 · ${nodeKey}` } },
     elements: [
       { tag: 'markdown', content: `运行 ${runId} 的 ${nodeKey} 已完成执行与自动检查。请核对父任务进度和验收证据。` },
       { tag: 'action', actions: ['approve', 'reject'].map((decision) => ({
