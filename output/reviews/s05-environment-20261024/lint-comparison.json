@@ -1,0 +1,15 @@
+{
+  "baselineCommit": "c3a84d4",
+  "baselineErrors": 7,
+  "currentErrors": 7,
+  "newDiagnostics": [],
+  "unchangedDiagnostics": [
+    "'Prisma' is defined but never used  @typescript-eslint/no-unused-vars",
+    "'_node' is assigned a value but never used      @typescript-eslint/no-unused-vars",
+    "'_progress' is assigned a value but never used  @typescript-eslint/no-unused-vars",
+    "'completeExecution' is defined but never used     @typescript-eslint/no-unused-vars",
+    "'detail' is assigned a value but never used       @typescript-eslint/no-unused-vars",
+    "'detail' is assigned a value but never used       @typescript-eslint/no-unused-vars",
+    "'recordExecutionIssue' is defined but never used  @typescript-eslint/no-unused-vars"
+  ]
+}

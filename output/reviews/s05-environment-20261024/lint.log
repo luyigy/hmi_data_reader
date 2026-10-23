@@ -1,0 +1,15 @@
+
+/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/coordinator.ts
+   43:30  error  'completeExecution' is defined but never used     @typescript-eslint/no-unused-vars
+   44:28  error  'recordExecutionIssue' is defined but never used  @typescript-eslint/no-unused-vars
+  265:11  error  'detail' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  360:13  error  'detail' is assigned a value but never used       @typescript-eslint/no-unused-vars
+
+/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/execution-progress.ts
+  165:21  error  '_progress' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  196:19  error  '_node' is assigned a value but never used      @typescript-eslint/no-unused-vars
+
+/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/implementation-result.ts
+  4:10  error  'Prisma' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 7 problems (7 errors, 0 warnings)

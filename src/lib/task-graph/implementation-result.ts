@@ -3,6 +3,9 @@ import { continuationWorkFingerprint } from './continuation-work';
 import { applyExecutionOutcome, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
+import { RuntimePreparationError } from './runtime-preflight';
+import type { GraphDefinition } from './domain';
+import { redactSensitiveText } from '../redact-sensitive';
 
 export type ImplementationResult =
   | { status: 'delivered'; note: string; evidence: string[]; ticketVerification?: ClassifiedReview }
@@ -64,6 +67,24 @@ export async function pauseGraphImplementation(args: {
       expectedRevision: progress.revision, outcomeId: `${args.claimToken}:${progress.revision}:paused-candidate`,
       outcome: { kind: 'checkpoint', phase: progress.phase, candidateCommit: args.checkpointCommit, workspaceBase: progress.workspaceBase || args.workspaceBase },
     });
+  }
+  if (progress && progress.phase === 'implement' && (args.blockedPhase || 'implementation') === 'implementation' && args.result.blockerKind === 'environment_failed') {
+    const { inspectImplementationConditions } = await import('./preparation-recovery');
+    const run = await prisma.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId } });
+    try {
+      await inspectImplementationConditions(current, progress, run.snapshot as unknown as GraphDefinition, args.runId);
+    } catch (error) {
+      const preparation = error instanceof RuntimePreparationError ? error : null;
+      return applyExecutionOutcome({ executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,
+        outcomeId: `${args.claimToken}:${progress.revision}:environment-checked`,
+        outcome: { kind: preparation?.kind === 'transient' ? 'platform_retry' : 'decision_required',
+          failure: { ...preparation?.failure, code: 'environment_failed',
+            detail: redactSensitiveText(`${args.result.note}\n准备核实：${error instanceof Error ? error.message : String(error)}`),
+            blockedPhase: 'implementation', owner: 'platform', requiresUserDecision: false,
+            ...(preparation ? { blockerCause: preparation.kind === 'transient' ? 'transient' as const : 'missing_capability' as const } : {}),
+          } },
+      });
+    }
   }
   if (progress && progress.phase === 'implement' && (args.blockedPhase || 'implementation') === 'implementation') return applyExecutionOutcome({
     executionId: args.executionId, claimToken: args.claimToken, expectedRevision: progress.revision,

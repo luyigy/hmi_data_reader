@@ -1,0 +1,8 @@
+
+/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/coordinator.ts
+   43:30  error  'completeExecution' is defined but never used     @typescript-eslint/no-unused-vars
+   44:28  error  'recordExecutionIssue' is defined but never used  @typescript-eslint/no-unused-vars
+  265:11  error  'detail' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  360:13  error  'detail' is assigned a value but never used       @typescript-eslint/no-unused-vars
+
+✖ 4 problems (4 errors, 0 warnings)

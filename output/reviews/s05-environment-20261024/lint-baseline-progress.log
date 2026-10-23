@@ -1,0 +1,6 @@
+
+/data1/code/agent-platform-v2-manual-runtime-repair/src/lib/task-graph/execution-progress.ts
+  165:21  error  '_progress' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  196:19  error  '_node' is assigned a value but never used      @typescript-eslint/no-unused-vars
+
+✖ 2 problems (2 errors, 0 warnings)

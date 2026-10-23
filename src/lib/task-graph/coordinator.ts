@@ -688,7 +688,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
           });
           await outcome({ kind: 'checkpoint', phase: saved.phase, candidateCommit });
         }
-        await outcome({ kind: preparation.kind === 'transient' ? 'platform_retry' : 'decision_required', failure: { ...preparation.failure, blockedPhase: 'input_preparation' } });
+        await outcome({ kind: preparation.kind === 'transient' ? 'platform_retry' : 'decision_required', failure: { ...preparation.failure, blockedPhase: 'input_preparation',
+          ...(preparation.kind === 'transient' ? { blockerCause: 'transient' as const } : {}) } });
       } else if (error instanceof TaskInputPreparationError && current.worktreePath) {
         const checkpointCommit = executionProgress(current.dispatchMetadata)?.conflictRepair?.candidateCommit || await withRepositoryLock(execution.repository, async () => {
           await requireGraphRunActive(runId);

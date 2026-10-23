@@ -1,0 +1,103 @@
+[run] 沙箱会话启动: 套件 task-graph-condition-recheck，证据目录 output/sandbox-postgres-runs/2026-10-23T055243-1025526
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 312
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 315
+[Task Room Context] Total messages: 2
+[Task Room Context] Filtered messages (non-system): 2
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 631
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 312
+[Task Room Context] Total messages: 1
+[Task Room Context] Filtered messages (non-system): 1
+[Task Room Context] Latest user message: none
+[Task Room Context] Transcript length: 314
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] verification failed: PrismaClientKnownRequestError:
+Invalid `prisma.$queryRaw()` invocation:
+
+
+Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5018 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.
+    at $n.handleRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:7315)
+    at $n.handleAndLogRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:130:9633) {
+  code: 'P2028',
+  clientVersion: '5.22.0',
+  meta: {
+    error: 'Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5018 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.'
+  }
+}
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] verification failed: PrismaClientKnownRequestError:
+Invalid `prisma.$queryRaw()` invocation:
+
+
+Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5015 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.
+    at $n.handleRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:7315)
+    at $n.handleAndLogRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:130:9633) {
+  code: 'P2028',
+  clientVersion: '5.22.0',
+  meta: {
+    error: 'Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5015 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.'
+  }
+}
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[TaskGraph] verification failed: PrismaClientKnownRequestError:
+Invalid `prisma.$queryRaw()` invocation:
+
+
+Transaction API error: Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5015 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.
+    at $n.handleRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:7315)
+    at $n.handleAndLogRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:130:9633) {
+  code: 'P2028',
+  clientVersion: '5.22.0',
+  meta: {
+    error: 'Transaction already closed: A query cannot be executed on an expired transaction. The timeout for this transaction was 5000 ms, however 5015 ms passed since the start of the transaction. Consider increasing the interactive transaction timeout or doing less work in the transaction.'
+  }
+}
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+[Task Room Context] Total messages: 0
+[Task Room Context] Filtered messages (non-system): 0
+Deployment condition: code revision change resumes exhausted acceptance once without resetting counters or implementation
+Review conditions: original fixed candidate independently verified after platform repair; historical count 77 retained; implementation not repeated
+Conditions: unavailable platform resource launches no model; independent peer delivers; successful recheck reclaims original candidate/worktree despite old count 77; user pause and downstream dependency remain enforced
+[inner] shared phase lifecycle: PASS; evidence.json includes SQL and cleanup evidence
+[run] 沙箱退出码 0

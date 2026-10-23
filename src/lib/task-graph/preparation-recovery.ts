@@ -122,7 +122,7 @@ async function discoverLegacyProgress(nodeId: string) {
   }
 }
 
-async function inspectImplementation(job: TaskGraphExecution, progress: ExecutionProgress, snapshot: GraphDefinition, runId: string) {
+export async function inspectImplementationConditions(job: TaskGraphExecution, progress: ExecutionProgress, snapshot: GraphDefinition, runId: string) {
   if (!job.worktreePath || !job.childTaskId || !progress.candidateCommit || !progress.workspaceBase) throw new PreparationRejected('Missing saved workspace or candidate identity');
   if (!await lstat(job.worktreePath).catch(error => { if (error.code === 'ENOENT') return null; throw error; })) {
     const metadata = job.dispatchMetadata;
@@ -155,7 +155,8 @@ async function deferAdmission(job: TaskGraphExecution, runId: string, progress: 
         if (!await writerSnapshotMatches(tx, proof)) return;
         if (!(wake.source === 'operator' && wake.preparedEventId) && wake.source !== 'prepared_review') await applyExecutionOutcomeTx(tx, { executionId: job.id, claimToken: job.claimToken || '', expectedRevision: progress.revision,
           outcomeId: `admission-deferred:${key}`, outcome: { kind: 'admission_deferred', retryAt,
-            failure: { ...(progress.lastFailure || { code: 'environment_failed', owner: 'platform' as const, requiresUserDecision: false }), detail } } }, exit, job);
+            failure: progress.lastFailure?.blockerCause ? progress.lastFailure
+              : { ...(progress.lastFailure || { code: 'environment_failed', owner: 'platform' as const, requiresUserDecision: false }), detail } } }, exit, job);
         await tx.taskGraphEvent.createMany({ data: [{ runId: runId, nodeId: job.nodeId, kind: 'execution_conditions_unavailable',
           idempotencyKey: `conditions-unavailable:${key}`, payload: { executionId: job.id, detail, retryAt, wakeId: wake.id,
             version: wake.source === 'conditions' ? wake.version || '' : '' } }], skipDuplicates: true });
@@ -274,7 +275,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
           approvedReadOnlyRoots: [...output.readOnlyPaths, ...spec.paths, ...inputs.flatMap(input => input.readOnlyPaths)],
           outputDirectory: output.directory, permissionConfig: output.permissionConfig });
         conditions = { inputHash: preparationHash(inputs.map(input => input.manifest.hash)), runtimeIdentity: runtime.identity };
-      } else conditions = await inspectImplementation(job, progress, node.run.snapshot as unknown as GraphDefinition, node.runId);
+      } else conditions = await inspectImplementationConditions(job, progress, node.run.snapshot as unknown as GraphDefinition, node.runId);
       const identity = preparationHash({ executionId: job.id, candidate: progress.candidateCommit, scope: node.run.snapshotHash,
         ...conditions, failure: progress.lastFailure?.code, conditions: await executionConditionsVersion() });
       const conditionKey = `conditions-ready:${job.id}:${identity}`;

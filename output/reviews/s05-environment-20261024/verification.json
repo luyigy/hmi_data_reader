@@ -1,0 +1,47 @@
+{
+  "baseline": "c3a84d4301fe0674e7d1b1d8f6b90de99f917dab",
+  "slice": "S05",
+  "sliceCompleted": false,
+  "verifiedUnit": "reported environment verification, saved candidate, bounded retries and explicit condition admission",
+  "environmentSuite": {
+    "exit": 0,
+    "passGroups": 5,
+    "sandboxEvidence": "output/sandbox-postgres-runs/2026-10-23T060008-1092394"
+  },
+  "compatibilitySuites": {
+    "exit": 0,
+    "suites": [
+      "task-graph-natural-blockers",
+      "task-graph-preparation-recovery",
+      "task-graph-execution-progress"
+    ]
+  },
+  "mutation": {
+    "change": "bypass environment verification",
+    "exit": 1,
+    "actual": "runtime_capability_missing",
+    "expected": "environment_failed",
+    "restored": true
+  },
+  "typecheckExit": 0,
+  "lint": {
+    "baselineErrors": 7,
+    "currentErrors": 7,
+    "newDiagnostics": 0
+  },
+  "unresolved": [
+    "task-graph-condition-recheck: repeated exit 1 before narrowing; final and S04 baseline exit 0 with P2028 errors (counts recorded separately). Baseline also affected; root cause and exit variability not established.",
+    "GitNexus MCP Transport closed despite successful local index refresh"
+  ],
+  "sourceSha256": {
+    "src/lib/task-graph/implementation-result.ts": "c3948fd055384ba3e4ba530c2ff57b56136a14fe55833875b46cee9e828ec198",
+    "src/lib/task-graph/preparation-recovery.ts": "c6121be084dc4da5c1193f9f5b78421da28a0aefc7c16b011a20eaae353ae418",
+    "src/lib/task-graph/execution-progress.ts": "4016e98a529769ef1ff9c246b9af2a3dbe242ba78a97da132bccd6d682675568",
+    "src/lib/task-graph/coordinator.ts": "828b9ba02b6b3d844004646ce76714ea665ac8be4da0e2c93da6e85d130aa1cb",
+    "tests/task-graph-environment-outcome.test.ts": "bdd9ce094c2f7f32981f9bba23ba0d67879501865b81b7620733303d1a632351"
+  },
+  "conditionTimeoutLogCounts": {
+    "conditions-final.log": 3,
+    "conditions-s04-baseline.log": 3
+  }
+}

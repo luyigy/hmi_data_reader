@@ -276,7 +276,8 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         if (!current.commit) throw new Error('Review restart has no integrated candidate');
         progress.review = { candidateCommit: current.commit, phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
       }
-    } else if (['platform_retry', 'result_incomplete'].includes(outcome.kind) && 'failure' in outcome && outcome.failure.fingerprint) {
+    } else if (['platform_retry', 'result_incomplete'].includes(outcome.kind) && 'failure' in outcome && outcome.failure.fingerprint &&
+        !(outcome.kind === 'platform_retry' && outcome.failure.blockerCause === 'transient')) {
       const sameFailure = outcome.kind !== 'result_incomplete' || before.lastFailure?.code === outcome.failure.code && before.lastFailure?.detail === outcome.failure.detail;
       const unchangedTurns = sameFailure && before.continuation?.fingerprint === outcome.failure.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
       progress.continuation = { fingerprint: outcome.failure.fingerprint, unchangedTurns };
