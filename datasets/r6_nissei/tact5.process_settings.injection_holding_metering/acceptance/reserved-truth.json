@@ -4,11 +4,12 @@
     "source": "tact5_images",
     "record_id": "reczz28QojrlL6pf",
     "field": "成型条件-射出/保压",
-    "tuning_involvement": "none",
+    "tuning_involvement": "shared_routing_diagnostic",
     "reference": "Implementation agent visual transcription before running frozen recognizer; platform independent review still required.",
     "package_version": "0.6.0",
     "package_sha256": "4a9aff97debff2d8c6da04027602afcb2953c9af52b694d51470c9ece983d2ba",
-    "state_reference": "Visual active stage counts 3 injection / 1 pressure-limit / 2 holding / 1 plasticizing, grey inactive cells, black retract rows. Scalars/enums have no separate enabled evidence -> unknown."
+    "state_reference": "Visual active stage counts 3 injection / 1 pressure-limit / 2 holding / 1 plasticizing, grey inactive cells, black retract rows. Scalars/enums have no separate enabled evidence -> unknown.",
+    "initial_qualification": "Visual reference captured before initial fixed recognition; later used for shared router refusal regression. Frozen adapter untouched."
   },
   "values": {
     "injection.speed.1": {

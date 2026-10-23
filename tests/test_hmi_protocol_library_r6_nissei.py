@@ -222,7 +222,11 @@ def test_a18_old_packages_v1_and_independent_get_reopen(live, monkeypatch):
     old_observation = legacy.json()["page_observations"]
     assert old_observation["version"] == "1.0" and "schema_version" not in old_observation
     assert any(field["state"] == "unknown" for field in old_observation["fields"])
-    assert export_page_package(PROFILE, "0.2.1")["package_schema"] == "hmi_page_package.v1"
+    old_package = export_page_package(PROFILE, "0.2.1")
+    assert old_package["package_schema"] == "hmi_page_package.v1"
+    assert old_package["template"]["layout_anchors"] == ["VSL1", "Pp1", "SM", "计量前", "计量后"]
+    assert tact5_package()["template"]["layout_anchors"] == old_package["template"]["layout_anchors"]
+    assert export_page_package(PROFILE, "0.2.2")["template"]["version"] == "0.2.2"
     assert {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in frozen} == before
     save("r6-legacy-response", legacy.json())
     save("r6-frozen-readback", dict(package_sha256=canonical_hash(tact5_package()), legacy_hashes=before))
@@ -241,7 +245,7 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
     manifest = json.loads((ROOT / "datasets/r6_nissei" / PROFILE / "acceptance/manifest.json").read_text())
     assert manifest["package_version"] == VERSION
     assert manifest["package_sha256"] == canonical_hash(tact5_package())
-    independent = [sample for sample in manifest["samples"] if sample["purpose"] == "independent_acceptance"]
+    independent = [sample for sample in manifest["samples"] if sample.get("initial_purpose", sample["purpose"]) == "independent_acceptance"]
     assert independent
     development = {sample["image_sha256"] for sample in definition["samples"]}
     regression = json.loads((ROOT / "datasets/r6_nissei" / PROFILE / "regression/manifest.json").read_text())
@@ -259,7 +263,7 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
         assert receipt["source"] == "tact5_images"
         assert receipt["recordId"] == truth["provenance"]["record_id"]
         assert truth["provenance"]["tuning_involvement"] == (
-            "none" if sample["purpose"] == "independent_acceptance" else "entrypoint_config_diagnostic")
+            "shared_routing_diagnostic" if sample.get("partial_evaluation") else "entrypoint_config_diagnostic")
         assert truth["provenance"]["package_sha256"] == manifest["package_sha256"]
         assert set(truth["values"]) == {field["screen_field_key"] for field in definition["fields"]}
         import cv2
@@ -281,18 +285,23 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
                    "--output-dir", str(directory / "extracted"), "--observations-version", "v2",
                    "--original-image", str(image)]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+        unbound_cli = None
         if sample.get("partial_evaluation"):
             (directory / "unbound-cli.log").write_text(result.stdout + result.stderr)
-            assert result.returncode == 2 and "RAW_PAGE_UNSUPPORTED" in result.stderr
+            assert result.returncode == 0, result.stderr
+            unbound_cli = json.loads((directory / "extracted/sample.fields.json").read_text())
             binding_path = directory / "binding.json"
             binding_path.write_text(json.dumps(hint(tact5_package())))
-            result = subprocess.run(command + ["--controller-hint", str(binding_path)], cwd=ROOT,
+            result = subprocess.run(command + ["--output-dir", str(directory / "bound"),
+                                    "--controller-hint", str(binding_path)], cwd=ROOT,
                                     capture_output=True, text=True, timeout=90)
         (directory / "cli.log").write_text(result.stdout + result.stderr)
         surfaces = [("direct", observation), ("http", response.json()["page_observations"])]
         if sample.get("partial_evaluation"):
             assert result.returncode == 2 and "PAGE_UNKNOWN" in result.stderr
-            assert not (directory / "extracted/sample.fields.json").exists()
+            assert not (directory / "bound/sample.fields.json").exists()
+            assert unbound_cli["profile_id"] == PROFILE
+            surfaces.append(("cli", unbound_cli["page_observations"]))
             save("r6-holdout-" + sample["sample_id"] + "-cli-refusal", dict(
                 exit_code=result.returncode, stderr=result.stderr))
         else:
@@ -425,3 +434,43 @@ def test_real_feishu_local_tact5_sidecar_preserves_disabled_residual():
         assert field["effective_unit"] == expected["unit"]
         assert field["original_bbox"] and field["bbox"]
     save("r6-feishu-sidecar-v2-response", record)
+
+
+def test_real_feishu_local_tact5_incomplete_anchors_never_use_legacy_tact():
+    from feishu_card_assistant import process_hmi_image, build_feishu_card
+
+    image = ROOT / "datasets/r6_nissei" / PROFILE / "acceptance/TACT5_reczz28QojrlL6pf.jpg"
+    directory = Path(tempfile.mkdtemp(prefix="r6-incomplete-local-", dir=OUTPUT))
+    result = process_hmi_image(image, directory)
+    card = build_feishu_card(result)
+    save("r6-incomplete-feishu-local-response", result)
+    save("r6-incomplete-feishu-local-card", card)
+    assert result["status"] == "review"
+    assert result["classification"]["ui_family"] == "TACT5"
+    assert result["classification"]["page"] == "process_settings"
+    assert result["profile_id"] == PROFILE and result["template_version"] == "0.2.2"
+    assert not result.get("fields")  # Raw observations, not legacy business imports.
+    observed = {f["label"]: f for f in result["page_observations"]["fields"]}
+    assert observed["Pp1"]["value"] == 110
+    assert observed["Pp2"]["value"] == 95
+    assert observed["Pp1"]["line_indexes"][1] != observed["Pp2"]["line_indexes"][1]
+    assert observed["Pp1"]["bbox"] != observed["Pp2"]["bbox"]
+    assert not any("GENERIC_FALLBACK" in warning for warning in result["warnings"])
+    assert card["header"]["template"] == "orange"
+    assert "holding_pressure_mpa" not in json.dumps(card)
+    assert "95.0, 95.0" not in json.dumps(card)
+
+    # Removing both retract headers leaves incompatible PB/VSL evidence, not a legacy TACT page.
+    from extract_fields import extract_one
+    rectified = directory / "rectified"
+    source = json.loads((rectified / (image.stem + ".ocr.json")).read_text())
+    source["lines"] = [line for line in source["lines"]
+                       if "计量前" not in line["text"] and "计量后" not in line["text"]]
+    (rectified / "incomplete.ocr.json").write_text(json.dumps(source))
+    shutil.copyfile(rectified / (image.stem + ".rectify.json"), rectified / "incomplete.rectify.json")
+    shutil.copyfile(rectified / (image.stem + ".png"), rectified / "incomplete.png")
+    refused = extract_one("incomplete", rectified, None, None, ROOT / "templates")
+    assert refused["status"] == "reject" and "PAGE_BINDING_MISMATCH" in refused["warnings"]
+    assert not refused.get("fields") and not refused.get("page_observations")
+    assert not any("GENERIC_FALLBACK" in warning for warning in refused["warnings"])
+    save("r6-contradictory-legacy-refusal", refused)

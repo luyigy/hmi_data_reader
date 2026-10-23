@@ -12,18 +12,19 @@
       "source_receipt": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/source-receipt.json",
       "group": "tact5_images/reczz28QojrlL6Cy",
       "qualification": "Previously held-out image now used for entrypoint configuration diagnosis; retains complete 44-supported-field regression, no current blind claim.",
-      "truth_sha256": "99a2cf1196847a7b6d0fce5b1f12cf20a3d81f17daed5af1c92f16b8ec1e4345"
+      "truth_sha256": "99a2cf1196847a7b6d0fce5b1f12cf20a3d81f17daed5af1c92f16b8ec1e4345",
+      "initial_purpose": "independent_acceptance"
     },
     {
       "sample_id": "TACT5_reczz28QojrlL6pf",
-      "purpose": "independent_acceptance",
+      "purpose": "diagnostic_regression",
       "image": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/TACT5_reczz28QojrlL6pf.jpg",
       "image_sha256": "2d2c0a99fa46bd2c26c358f61eb2fa420103b23f22ccb733d890be94047d18e6",
       "truth": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/reserved-truth.json",
-      "truth_sha256": "f27c976c0ce35e483206cdba49d46b9afb39fee70bdf1b0d63c19a91a9cbdba9",
+      "truth_sha256": "32d113a0eabfdbda06017ee48ccacb10a30c99aa5ecc63ac95d06cfb906402c7",
       "source_receipt": "datasets/r6_nissei/tact5.process_settings.injection_holding_metering/acceptance/reserved-source-receipt.json",
       "group": "tact5_images/reczz28QojrlL6pf",
-      "qualification": "Retrieved after local OCR policy fix was fixed; visible TACT5 bezel and same combination layout. Values transcribed before first run. No further recognizer or OCR-policy adjustment using this image; same recipe, no machine-isolation claim.",
+      "qualification": "Retrieved after local OCR policy fix was fixed; visible TACT5 bezel and same combination layout. Values transcribed before first run. No further recognizer or OCR-policy adjustment using this image; same recipe, no machine-isolation claim. Subsequently used to reproduce legacy TACT routing; now diagnostic regression. No current blind claim.",
       "partial_evaluation": true,
       "expected_missing_fields": [
         "injection.speed.5",
@@ -42,7 +43,8 @@
         "control.manual_back_pressure"
       ],
       "expected_observed_fields": 30,
-      "cli_limitation": "Unbound RAW_PAGE_UNSUPPORTED; pinned binding PAGE_UNKNOWN. Explicit refusal, not supported CLI recognition. Direct/HTTP partial evidence only."
+      "cli_limitation": "Unbound active 0.2.2 recognizes the same layout with verified VSLI/combined-header aliases and partial raw output. Pinned old raw package 0.6.0 keeps strict anchors and returns PAGE_UNKNOWN; no silent package upgrade.",
+      "initial_purpose": "independent_acceptance"
     }
   ]
 }

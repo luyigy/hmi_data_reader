@@ -168,6 +168,12 @@ def resolve_page_template(stem: str, lines: list[dict], family: str,
         template = load_template(family, "injection_metering", templates_dir, lines=lines)
         if template is not None:
             page = "injection_metering"
+    if (template is not None and template.get("ui_family") == "TACT"
+            and template.get("page") == "injection_metering"):
+        texts = [line["text"] for line in lines]
+        # TACT5 PB/VSL cells contradict the legacy TACT BP/SD layout.
+        if all(_anchor_hits(anchor, texts) for anchor in ("PB1", "PB2", "PB3", "VSL2")):
+            return "unknown", "PAGE_BINDING_MISMATCH", None
     if template is not None:
         error = template_error(template)
         if error:
