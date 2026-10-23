@@ -55,3 +55,5 @@ npm run test:task-graph-postgres -- task-graph-result-recollection persistent-ti
 - `src/lib/project-capabilities/legacy-scope.ts`、`scope-resolution.ts` 和 `scripts/project-capabilities-scope.ts` 扩展既有显式 scope 批准。
 - `tests/task-graph-result-recollection.test.ts`、`persistent-ticket-agent-t1.test.ts`、`task-graph-skill-claim.test.ts` 和 `scripts/test-task-graph-postgres.mjs` 保存真实控制流回归。
 - 本文及 `docs/evidence/skill-continuation-20261022/{trace-replay,bundle-preview,deployed-loop-observation}.json` 保存诊断和隔离资源证据。
+
+更正与后续：离线预览 hash `47e923...` 的目录集合存在转译错误，未应用生产。保留全部原目录后，实际新 hash 为 `bd718a202061ba7771244e8ecd6cbd3c0f16fa21736e0ab23eb309b68a75d674`。用户随后明确要求直接用 M6 验证，资源已按该范围启用；真实结果见 [539 业务验证记录](539_REPORT_20261022_M6FanucLiveSkillVerification.md)。

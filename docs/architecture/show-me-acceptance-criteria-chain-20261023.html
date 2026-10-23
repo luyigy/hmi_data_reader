@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>验收判据与 verify 技能断链导览 · agent-platform-v2 @ 8fcdcc3</title>
+<style>
+  :root { --focus:#c2410c; --keep:#15803d; --remove:#b91c1c; --build:#1d4ed8; --ctx:#525252; --bg:#fafaf9; --card:#fff; --line:#e7e5e4; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif; background:var(--bg); color:#1c1917; line-height:1.65; padding:24px; max-width:1080px; margin:0 auto; }
+  h1 { font-size:20px; margin-bottom:4px; } h2 { font-size:16px; margin:26px 0 10px; border-left:4px solid var(--ctx); padding-left:8px; }
+  .sub { color:var(--ctx); font-size:13px; margin-bottom:16px; }
+  .tag { display:inline-block; font-size:12px; font-weight:600; padding:1px 8px; border-radius:10px; color:#fff; margin-right:6px; vertical-align:middle; }
+  .focus{background:var(--focus)} .keep{background:var(--keep)} .remove{background:var(--remove)} .build{background:var(--build)} .ctx{background:var(--ctx)}
+  .house { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:14px; }
+  .floor { border:1px dashed var(--line); border-radius:8px; margin:8px 0; padding:8px 12px; display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .floor b { min-width:118px; font-size:14px; }
+  .floor .desc { flex:1; min-width:280px; font-size:13px; color:#44403c; }
+  .chain { list-style:none; } .chain li { margin:6px 0; padding:8px 10px; border-radius:8px; background:var(--card); border:1px solid var(--line); font-size:13.5px; }
+  .chain .route { font-size:11.5px; color:var(--ctx); display:block; }
+  code { background:#f5f5f4; border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:12.5px; font-family:ui-monospace,Menlo,monospace; }
+  pre { background:#0c0a09; color:#e7e5e4; border-radius:8px; padding:12px; overflow-x:auto; font-size:12px; line-height:1.55; margin:8px 0; }
+  pre .c{color:#a8a29e} pre .k{color:#fbbf24} pre .s{color:#86efac}
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media(max-width:760px){.split{grid-template-columns:1fr}}
+  .panel { border:1px solid var(--line); border-radius:8px; background:var(--card); padding:10px; }
+  .panel h3 { font-size:13.5px; margin-bottom:6px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; background:var(--card); }
+  th,td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#f5f5f4; }
+  .verdict { border-left:4px solid var(--focus); background:#fff7ed; padding:10px 12px; border-radius:0 8px 8px 0; font-size:13.5px; margin-top:14px; }
+</style>
+</head>
+<body>
+<h1>为什么有了 Acceptance criteria 和 verify 技能，任务图还是会卡住</h1>
+<div class="verdict"><b>历史讨论稿，不是当前施工方案。</b>用户随后明确要求由已配置 Agent 按 Matt/pstack 自主实施和验证，平台不再额外设置业务门槛。本页新增 automatic 校验、verify 注册为平台门禁等建议不再作为当前方向。通用 ticket-behavior 名称背后已有真实 pytest argv，不能理解为空检查。当前方向见 <a href="show-me-agent-owned-quality-20261023.html">Agent 负责工程判断的现状与改善方案</a>；本页保留作讨论记录。</div>
+<div class="sub">agent-platform-v2 · 分支 oss-prep · SHA <code>8fcdcc3b5157d683a7b12b420ae963e651f8bf5d</code> · 只读导览，未改代码 · 2026-10-23</div>
+
+<div class="verdict">
+<b>一句话定位：</b>不是"完全没有实现"，而是<b>两套资产都进口了、都没接进门闩</b>。Matt 票里的判据全文进了快照和实施者的提示词，但验收者只拿到 Issue 编号，确认卡不显示判据，机器门槛另配了一个通用名；verify 技能真实存在，但只在提示词里被"建议阅读"，平台自己从不执行它。卡住的两道门闩恰好都不是这两套资产。
+</div>
+
+<h2>第 1 层 · 房子鸟瞰：判据住在哪层，门闩装在哪层</h2>
+<div class="house">
+  <div class="floor"><b>4F 确认卡（人）</b><span class="tag focus">FOCUS</span><span class="desc">人批准路线的地方。<b>判据全文不上卡</b>（<code>proposal-card.ts:51-56</code> 只显示 自动/人工/Agent），目标截断 24 字（<code>:19-22</code>）。人确认的是角色矩阵，不是验收标准。</span></div>
+  <div class="floor"><b>3F 运行快照（冻结）</b><span class="tag keep">KEEP</span><span class="desc">Issue 正文逐字冻结进 <code>executions[].instructions</code>（含 Acceptance criteria），哈希锁定不可改。判据在这里<b>存得完好</b>。</span></div>
+  <div class="floor"><b>2F 实施会话（worktree）</b><span class="tag keep">KEEP</span><span class="desc">实施者提示词包含判据全文（<code>coordinator.ts:134</code> 引 <code>instructions</code>）。判据对实施者可见、被要求执行。M6 五项 pytest 就是它跑的（539 报告）。</span></div>
+  <div class="floor"><b>1F 平台集成检查</b><span class="tag ctx">CONTEXT</span><span class="desc">平台在受控环境跑 <code>launchConfig.checks</code>（<code>coordinator.ts:619</code>）。<b>可选配置</b>，不是每票都有。verify 技能不在这一层——平台从不调用 <code>scripts/verify_hmi.py</code>。</span></div>
+  <div class="floor"><b>0F 验收复核（独立 Agent/人）</b><span class="tag focus">FOCUS</span><span class="desc">验收者提示词只有：目标标题、Spec 引用、<b>Issue 编号</b>（<code>coordinator.ts:303</code>），<b>没有票的判据正文</b>。机器门对照的是快照里的 <code>acceptance.checks</code> 名单（<code>store.ts:315</code> 按名字匹配证据行）。</span></div>
+</div>
+
+<h2>第 3 层 · 走廊：判据的真实流向 vs 门闩的真实位置</h2>
+<ul class="chain">
+  <li><span class="tag keep">KEEP</span>to-tickets 写票：Issue 正文含 <code>## Acceptance criteria</code>（M6_ARBURG 实例：四条可观察判据 + 联合验收清单）<span class="route">gitee issue · 冻结于快照</span></li>
+  <li><span class="tag keep">KEEP</span>导入：<code>issue-route.ts:22-23</code> — goal=标题，<b>正文逐字拼进 instructions</b><span class="route">src/lib/task-graph/issue-route.ts:22-23</span></li>
+  <li><span class="tag keep">KEEP</span>实施者提示词：含 instructions 全文 → 判据抵达实施者<span class="route">coordinator.ts:134</span></li>
+  <li><span class="tag remove">REMOVE</span><b>断点 1</b>：验收者提示词只给 <code>Issue: gitee:...#IKNAQT</code> 编号，沙箱无 tracker 凭据，判据正文到不了验收房间<span class="route">coordinator.ts:303</span></li>
+  <li><span class="tag remove">REMOVE</span><b>断点 2</b>：机器门用 spec-package.json 另写的 checks 名。M6 全系票冻结值为 <code>{"mode":"agent","checks":["ticket-behavior"]}</code>，无 integrationChecks — 一个通用词对着四条真判据<span class="route">运行 cmvdmf87w... 快照 · 实测回读</span></li>
+  <li><span class="tag remove">REMOVE</span><b>断点 3</b>：verify 技能（mold 仓 <code>.agents/skills/verify/</code>，含 launch/doctor/drive/features 四件套）只在 <code>prompts.ts:31</code> 被写成"先查找…缺少时报告"，平台层没有一行代码调用它<span class="route">src/lib/task-graph/prompts.ts:31</span></li>
+  <li><span class="tag focus">FOCUS</span>真正的门闩 A：实施者必须吐出格式精确的 <code>TASK_GRAPH_IMPLEMENTATION delivered</code> 单行 JSON（<code>implementation-result.ts:28</code>）——M6 现在卡的就是这道闩<span class="route">coordinator.ts:571-600 非 delivered 一律早退</span></li>
+  <li><span class="tag focus">FOCUS</span>真正的门闩 B：<code>store.ts:315</code> 只校验证据行"名字对上且 passed"，判据质量无人核对——通用名 <code>ticket-behavior</code> 也能过校验<span class="route">domain.ts:99-104 仅要求非空字符串</span></li>
+</ul>
+
+<h2>第 4 层 · 拆开墙体：两段决定性行为的源码</h2>
+<div class="split">
+  <div class="panel">
+    <h3>进口是通的：判据全文进实施指令</h3>
+    <pre>【真实源码 · src/lib/task-graph/issue-route.ts:19-24 · 8fcdcc3】
+<span class="c">// tickets 来自 tracker；正文含 Matt 模板的 Acceptance criteria</span>
+const nodes = tickets.map((ticket): GraphNode =&gt; {
+  ...
+  return { ...configured, key: ticket.key,
+    <span class="k">goal: ticket.title</span>,                      <span class="c">// 目标=标题</span>
+    dependsOn: ticket.blockedBy.map(...),
+    executions: ... instructions:
+      <span class="s">`Issue：${ticket.ref}\n${ticket.body}\n\n本仓范围：${job.instructions}`</span>
+  };                                    <span class="c">// ↑ 判据正文只进了这里</span>
+});</pre>
+  </div>
+  <div class="panel">
+    <h3>出口是断的：验收者只拿编号</h3>
+    <pre>【真实源码 · src/lib/task-graph/coordinator.ts:300-303 · 8fcdcc3】
+const prompt = `${acceptanceReviewInstructions}
+请实际验收 ${nodeKey} 的目标与证据。` +
+  `\n目标：${...node.goal}` +            <span class="c">// 只有标题</span>
+  `\nSpec: ${definition.specRef}...` +
+  <span class="k">`\nIssue: ${...tickets.find(...)?.ref ...}`</span>  <span class="c">// 只有编号，</span>
+                                         <span class="c">// 无 ticket.body，</span>
+                                         <span class="c">// 沙箱亦无凭据可查</span>
+
+【运行时数据 · run cmvdmf87w043f9xhgf9yvua6p · M6 系冻结验收】
+<span class="s">{"mode":"agent","checks":["ticket-behavior"],"reviewerId":"...codex"}</span>
+<span class="c">// 通用名单票 · 无 integrationChecks · 对照票内四条真判据</span></pre>
+  </div>
+</div>
+
+<h2>第 5 层 · 施工清单（讨论稿，未实施）</h2>
+<table>
+  <tr><th>动作</th><th>具体内容</th><th>落点</th></tr>
+  <tr><td><span class="tag build">BUILD</span>接出口</td><td>验收者提示词补 <code>ticket.body</code> 判据正文（快照里现成，加一段字符串）</td><td>coordinator.ts 验收 prompt</td></tr>
+  <tr><td><span class="tag build">BUILD</span>判据上卡</td><td>确认卡显示每票 checks 判据（全文走附件、卡上放摘要，附件先例 <code>proposal-card.ts:113</code>）</td><td>proposal-card.ts</td></tr>
+  <tr><td><span class="tag build">BUILD</span>前置校验</td><td>automatic 票确认时须 ≥1 可执行判据（<code>launchConfig.checks</code> ∪ <code>acceptance.integrationChecks</code>），否则拒绝确认或降级 agent/human —— Kimi 边界 3，与上一行同杠杆</td><td>domain.ts / launch.ts</td></tr>
+  <tr><td><span class="tag build">BUILD</span>verify 进门闩</td><td>verify 技能的 Drive 命令注册为 <code>integrationChecks</code>（如 <code>scripts/verify_hmi.py --mode fixed</code>），平台受控执行，从"建议阅读"升为机器门槛</td><td>spec-package.json + 集成检查</td></tr>
+  <tr><td><span class="tag focus">FOCUS</span>换门闩 A</td><td>交付判定改"writer 退出+diff+（无标记或 delivered）"平台自采；显式畸形标记仍走 result_incomplete（Kimi 边界 4）；blocked/question 路由权威保留（边界 2）；无 diff 走既有 unchangedTurns→waiting_for_user（边界 1）</td><td>coordinator.ts 早退分支</td></tr>
+  <tr><td><span class="tag keep">KEEP</span>承重墙</td><td>快照冻结、独立验收固定提交、worktree 单写者、repair 两轮上限（<code>retry-limits.ts:1</code> 代码强制）、CAS/幂等账本——全部不动</td><td>store / worktree / execution-progress</td></tr>
+</table>
+
+<div class="sub" style="margin-top:18px">证据分级：源码引用=仓库 HEAD 实读；M6 冻结验收=数据库快照回读；verify 技能=mold 仓文件实读（<code>.agents/skills/verify/SKILL.md</code> + features/ 四文件）。目标设计均标注 BUILD，未实现。</div>
+</body>
+</html>

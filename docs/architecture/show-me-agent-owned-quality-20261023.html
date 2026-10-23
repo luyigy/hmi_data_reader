@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>让 Agent 负责工程判断 · 现状与改善方案</title><style>
+:root{color-scheme:light dark;--bg:#f6f7fb;--card:#fff;--text:#172337;--muted:#536278;--line:#d7dfea;--blue:#164cc2;--green:#17643b;--red:#aa2924;--orange:#944200;--soft:#eaf0ff}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1120px;margin:auto;padding:28px 22px 60px}h1{font-size:clamp(25px,4vw,38px);line-height:1.3;margin:12px 0}h2{font-size:22px;margin-top:32px}h3{font-size:17px;margin:8px 0}.muted,small{color:var(--muted);font-size:13px}.lead{font-size:18px;max-width:900px}.tag{display:inline-block;border:1px solid currentColor;border-radius:20px;padding:1px 10px;font-size:12px;font-weight:650}.build{color:var(--blue)}.keep{color:var(--green)}.remove{color:var(--red)}.focus{color:var(--orange)}.card,details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:17px}.alert{border-left:5px solid var(--orange)}.house{display:grid;gap:9px}.floor{display:grid;grid-template-columns:155px 1fr;gap:16px;align-items:start}.floor strong{display:block}.floor p{margin:0}.controls{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);padding:9px 16px;border-radius:9px;cursor:pointer}button[aria-pressed="true"]{border-color:var(--blue);background:var(--soft);color:var(--blue);font-weight:700}button:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid var(--blue);outline-offset:3px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.flow{list-style:none;padding:0;display:grid;gap:9px}.flow li{padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card)}.flow li:not(:last-child)::after{content:"↓";display:block;color:var(--muted);text-align:center;margin-bottom:-16px;position:relative;top:7px}.flow .bad{border:2px solid var(--red)}.flow .good{border:2px solid var(--green)}a{color:var(--blue)}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border:1px solid var(--line);padding:12px;vertical-align:top;text-align:left}th{background:var(--soft)}.table-wrap{overflow-x:auto}summary{cursor:pointer;font-weight:650}summary small{display:block;font-weight:400}details{margin:9px 0}pre{overflow:auto;border-radius:8px;background:#101d30;color:#eef4ff;padding:16px;line-height:1.6;font-size:12px}code{font-family:ui-monospace,monospace}p{margin:10px 0}.bar{display:flex;gap:8px;flex-wrap:wrap}.number{font-size:23px;color:var(--red);font-weight:750;margin-right:5px}.notice{background:var(--soft);padding:12px;border-radius:9px}[hidden]{display:none!important}@media(max-width:700px){main{padding:18px 14px 40px}.grid{grid-template-columns:1fr}.floor{grid-template-columns:1fr;gap:5px}td,th{padding:8px}button{font-size:14px}}@media(prefers-color-scheme:dark){:root{--bg:#0e1725;--card:#172337;--text:#ecf2fc;--muted:#adbed6;--line:#3d506b;--blue:#9dbbff;--green:#91ddb1;--red:#ffa59e;--orange:#ffc185;--soft:#253650}}@media print{button{display:none}.grid{display:block}details{break-inside:avoid}body{font-size:12px}}
+</style></head><body><main>
+<div class="bar"><span class="tag focus">architecture-house-tour × show-me</span><span class="tag build">改善方案 · 尚未实施</span></div>
+<h1>工程判断交给 Agent，平台负责可靠接续</h1>
+<p class="lead">只有实施者：实施者按 Matt、pstack 自查自纠。配置了测试者：测试者负责验证，把缺陷交回原实施者。平台保存结果、集成并按依赖派发，不再另建业务验收门槛。</p>
+<p class="muted">源码基线：/data1/code/agent-platform-v2 · oss-prep · 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d · 2026-10-23。静态源码实读；M6 现场描述引用此前核验记录，本页未重新查询生产状态。未修改运行代码、未部署或恢复任务。</p>
+<div class="card alert"><strong>本次改的是“谁负责判断完成”，不是再增加一套检查。</strong><p>此前提议把 verify 额外注册成平台统一业务门禁，不作为本方案方向。Agent 按任务调用 verify、测试、浏览器等工具，形成自己的判断；平台不把一组另配的命令当作第二份业务标准。</p></div>
+<h2>一栋房子，三层职责</h2><div class="house">
+<div class="card floor"><div><span class="tag keep">保留</span><strong>3F 任务与路线</strong></div><p>Matt：需求 → Spec → Ticket、验收要求和真实依赖。Issue 是工作内容和依赖的来源；批准快照保存本次工作范围。无需设计一套覆盖所有任务的通用业务判定器。</p></div>
+<div class="card floor"><div><span class="tag build">当前改造层</span><strong>2F 工程与验证</strong></div><p>Matt 的实施流程和 pstack 的工程方法交给职责 Agent 执行：读要求、实现、验证、修复、报告。有测试者时由测试者负责验证；没有时实施者自查。两种结果明确区分，不把自查写成独立验收。</p></div>
+<div class="card floor"><div><span class="tag keep">保留</span><strong>1F 平台运行底座</strong></div><p>提供原 Session、Worktree、只读技能及执行工具；保留权限、Sandbox、单写者、Writer 退出证明、固定候选、revision/CAS、幂等和依赖资格。结果归属、权限安全属于平台；业务是否合格由配置的职责 Agent 判断。</p></div></div>
+<h2>现状与目标，切换看</h2><div class="controls" role="group" aria-label="切换流程"><button id="before" aria-pressed="true">现状：8fcdcc3</button><button id="after" aria-pressed="false">改善方案：未实施</button></div>
+<section id="current"><div class="grid"><div><h3>真实主路径</h3><ol class="flow"><li>Ticket 正文 → 实施 Agent，能读到业务要求。</li><li>实施 Agent 修改、验证并结束一轮。</li><li class="bad">平台要求特定 delivered JSON。格式不对 → collect_result → 反复补收。<a href="#src-receipt">查看源码</a></li><li>跨过这道门后，平台再跑预设 launchConfig.checks，集成候选。</li><li class="bad">配置的测试者收到 Spec、目标、证据和 Issue 引用，但此处没有 Ticket 正文。<a href="#src-review">查看源码</a></li><li>测试结论再次依赖结构化输出，平台按检查项与结论判定，通过才释放后继。</li></ol></div><div><h3>目前堵塞在哪里</h3><div class="card"><p><span class="number">1</span><strong>交接格式变成业务关口。</strong>一轮结束本应先识别进度、交付或问题，当前缺字段会在进入检查前卡住。</p><p><span class="number">2</span><strong>验证负责人没拿齐材料。</strong>同一张票的细则没有直接交给测试者，独立验证可能遗漏要求。</p><p><span class="number">3</span><strong>技能能读取，职责仍未贯通。</strong>资源装配已有预检，流程仍同时受技能指令、预设检查配置和回执格式支配。</p></div><p class="muted">M6 的此前证据：真实修改与 12 项专项通过已出现；回执 blocked 缺 blockerKind，进入补收；独立验收尚未完成。另有附近回归错误，不能据此宣布整票完成。</p><p class="notice">ticket-behavior 背后有真实 pytest argv，不是空门槛。问题是其覆盖范围不等同于 Ticket 的全部业务要求。</p></div></div></section>
+<section id="target" hidden><p class="notice">以下均为目标设计，当前代码尚未实现。选择的是质量判断的负责人，不能直接等同于旧“仅实施、未验收”模式。</p><div class="controls" role="group" aria-label="选择职责配置"><button id="solo" aria-pressed="true">只配实施者</button><button id="tester" aria-pressed="false">实施者＋测试者</button></div>
+<div id="solo-flow"><ol class="flow"><li>平台把完整 Ticket、Spec、已有材料、Matt/pstack 技能入口交给实施者。</li><li class="good">实施者自主实施 → 选择适用验证 → 发现缺陷 → 自己修复，继续这个循环。</li><li>实施者根据任务要求与真实证据判断完成，并交回成果和说明。不是把一轮结束或出现 diff 当成完成。</li><li>平台核对结果归属与运行安全，保存、受控集成，记录“实施者自查完成”，释放依赖已满足的后继。</li></ol></div>
+<div id="tester-flow" hidden><ol class="flow"><li>平台把完整 Ticket、Spec、已有材料、Matt/pstack 技能入口交给实施者；候选就绪后交给配置的测试者。</li><li class="good">测试者对固定候选自主选择验证方法：测试、读回、浏览器、项目 verify。验证职责由测试者承担。</li><li>发现范围内缺陷 → 平台把反馈送回原实施者修复 → 测试者复验。只测自己写的测试、复述旧报告均不等于合格。</li><li>测试者判定通过 → 平台核对身份与候选绑定，完成受控集成与账本记录，按依赖继续。实施者自报完成不能越过已配置的测试者。</li></ol></div>
+<p class="muted">目标设计并不强制把 pstack 每个子技能或独立审查步骤都跑一遍；按任务及配置角色使用。用户已明确允许实施者自查，不能再因某个技能默认要求独立审查而凭空增加测试者关卡。</p>
+<div class="grid"><div class="card"><h3>Agent 判断</h3><p>做什么、怎么验证、证据是否足够、是否还需修复。只有真正缺少业务决定、必要材料或额外权限时，才向用户说明具体问题。</p></div><div class="card"><h3>平台保证</h3><p>工具可用、反馈送回原会话、候选不被调包、没有两个 Writer、结果不重复消费、后继不抢跑。格式错误是交接故障，不能冒充业务不合格，也不能默认为通过。</p></div></div>
+</section>
+<h2>拆哪些隔断，保留哪些承重墙</h2><div class="table-wrap"><table><thead><tr><th>位置</th><th>改善方向 · 未实施</th><th>保留</th></tr></thead><tbody>
+<tr><td>角色和模式</td><td>按“是否配置测试者”确定验证职责；没有测试者时实施者自查，不新建一套并行模式。</td><td>自查与独立验证如实区分；不悄悄改变已批准任务的角色。</td></tr>
+<tr><td>prompts.ts / 运行资源</td><td>实际技能入口、引用依赖和工具在每个职责会话可用；简化冲突指令，让 Agent 按技能完成工作。</td><td>只读共享技能，不每轮复制；已批准资源边界。</td></tr>
+<tr><td>coordinator.ts / 结果交接</td><td>去掉“手写特定 JSON 才能进入下一环节”的依赖；根据职责 Agent 的明确结论交接。少量稳定交接信息由运行层承接。</td><td>进度、问题、完成要分清。无输出、崩溃、普通聊天、仅有 diff 不等于成功。</td></tr>
+<tr><td>coordinator.ts / 测试者输入</td><td>完整 Ticket 与证据交给测试者，技能指导测试者选方法，不把 verify 再加成统一平台业务门禁。</td><td>固定候选、真实材料、测试者身份与结果归属。</td></tr>
+<tr><td>运行底座与账本</td><td>只做接续、保存、集成和依赖派发。无进展可停止空跑并说明原因，但普通失败不撤销原工作资格。</td><td>Sandbox、权限、单写者、revision/CAS、W001、幂等、可追溯结果。</td></tr>
+</tbody></table></div>
+<h2>点击下钻：当前真实源码</h2><p class="muted">下列代码均来自固定提交 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d。上面的流程是目标设计，不是已完成改造。</p><details id="src-receipt"><summary>实施回执先挡住检查 <small>src/lib/task-graph/coordinator.ts:570</small></summary><p>非 delivered 先返回；格式错误进入补收，后续检查和独立测试者尚未开始。</p><p class="muted">真实源码节选 · 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d · 570–589 行。未添加教学注释。</p><pre><code>570      const candidateProgress = await outcome({ kind: &#x27;checkpoint&#x27;, phase: progress.phase === &#x27;collect_result&#x27; ? &#x27;collect_result&#x27; : &#x27;implement&#x27;, candidateCommit: candidate, workspaceBase: workspace.baseCommit, ...(progress.conflictRepair ? { conflictRepair: null } : {}) });
+571      let conclusion;
+572      try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || &#x27;&#x27;, { conversation: candidateProgress.phase === &#x27;implement&#x27; &amp;&amp; !progress.conflictRepair }); }
+573      catch (error) { conclusion = { status: &#x27;invalid&#x27; as const, blockerKind: &#x27;invalid_result&#x27; as const, note: error instanceof Error ? error.message : String(error) }; }
+574      if (conclusion.status !== &#x27;delivered&#x27;) {
+575        if (conclusion.status === &#x27;working&#x27;) {
+576          await outcome({ kind: &#x27;continue_work&#x27;, note: conclusion.note, fingerprint: await continuationWorkFingerprint(execution.id, candidate) });
+577        } else if (conclusion.status === &#x27;waiting_for_user&#x27; || conclusion.status === &#x27;answered&#x27;) {
+578          await outcome({ kind: &#x27;waiting_for_user&#x27;, note: conclusion.note, result: conclusion.status === &#x27;answered&#x27; ? &#x27;answered&#x27; : &#x27;question&#x27; });
+579        } else if (conclusion.status === &#x27;invalid&#x27;) {
+580          await outcome({ kind: &#x27;result_incomplete&#x27;, failure: { code: &#x27;invalid_result&#x27;, detail: conclusion.note } });
+581        } else {
+582          await pauseGraphImplementation({ runId, nodeKey, executionId: execution.id, claimToken,
+583            checkpointCommit: candidate, workspaceBase: workspace.baseCommit, taskRunId: result.taskRunId, result: conclusion });
+584        }
+585        await refreshTaskGraphRunStatus(runId);
+586        void postGraphChildProgress(task.id, `implementation-outcome-${claimToken}`,
+587          conclusion.status === &#x27;working&#x27; ? `本轮进度已保存，原 Agent 继续工作：${conclusion.note}` : conclusion.status === &#x27;invalid&#x27; ? &#x27;实施成果已保存，自动补收交付结论；尚未交付。&#x27; : conclusion.note)
+588          .catch(error =&gt; console.error(&#x27;[TaskGraph] outcome delivery failed:&#x27;, error));
+589        return;</code></pre></details><details id="src-review"><summary>测试者缺少 Ticket 正文 <small>src/lib/task-graph/coordinator.ts:300</small></summary><p>有 Spec、目标、Issue 引用和证据；这段没有传入 Ticket 正文。不是完全没有输入。</p><p class="muted">真实源码节选 · 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d · 300–311 行。未添加教学注释。</p><pre><code>300      const prompt = `${acceptanceReviewInstructions}\n请实际验收 ${nodeKey} 的目标与证据。` +
+301        `\n目标：${definition.nodes.find((item) =&gt; item.key === nodeKey)?.goal}` +
+302        `\nSpec: ${definition.specRef}${specInput.instructions}\n固定提交组合: ${JSON.stringify(commits)}` +
+303        `\nIssue: ${definition.issueSource?.tickets.find((ticket) =&gt; ticket.key === nodeKey)?.ref || &#x27;历史路线，无关联&#x27;}` +
+304        `\n本话题用户补充材料与澄清（只作为输入，不替代验收）：${JSON.stringify(supplements.reverse()).slice(-12000)}` +
+305        `\n上轮验收证据（保留已通过项，补验缺口）：${JSON.stringify(node.evidence)}` +
+306        `\n测试运行目录（可写，仅隔离数据和报告）：${runtime.directory}` +
+307        `\n话题原图材料（平台获取，只读输入）：${materials.join(&#x27;\n&#x27;)}` +
+308        `\n仓库检出目录: ${JSON.stringify(workspaces)}\n证据: ${JSON.stringify(evidence)}` +
+309        &#x27;\n实施、测试和验收使用上述同一工作区。同仓多个任务时，最后列出的同仓目录是包含全部交付的复验结果，其余目录保留各任务原始证据。请查阅其中的原始测试产物（如 scratch 下的报告、读回 JSON 和截图），不要仅凭摘要通过。代码在验收期间只读；原仓库路径无需可读。判断路径或文件是否存在时必须直接用 pwd、ls 或 test，不得用 find 的深度限制推断不存在。&#x27; +
+310        &#x27;\n失败必须区分 in_scope_defect（原范围内代码或测试缺口）与 blocked_require_human（图片模糊、材料缺失、范围变化或权限越界）。缺少有效结构化结论时不会自动回修。&#x27; +
+311        reviewResultInstructions(&#x27;TASK_GRAPH_REVIEW&#x27;, reviewChecks);</code></pre></details><details id="src-checks"><summary>平台另跑预设命令 <small>src/lib/task-graph/coordinator.ts:617</small></summary><p>launchConfig.checks 是真实可执行检查，不是空词；当前由平台在集成路径执行。</p><p class="muted">真实源码节选 · 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d · 617–623 行。未添加教学注释。</p><pre><code>617        verify: async (staging) =&gt; {
+618          await outcome({ kind: &#x27;checkpoint&#x27;, phase: &#x27;integrate&#x27;, candidateCommit: await graphGit(staging, &#x27;rev-parse&#x27;, &#x27;HEAD&#x27;) });
+619          checks = await runChecks(implementOnly ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id, AP_GRAPH_WRITER_NONCE: worker.nonce }, inputs.readOnlyPaths);
+620        },
+621      });
+622      await outcome({ kind: &#x27;integrated&#x27;, commit: integrated.commit,
+623        evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit },</code></pre></details><details id="src-recollect"><summary>补收格式也会停成等待 <small>src/lib/task-graph/execution-progress.ts:279</small></summary><p>同输入、同错误累计无进展后停止空转。计数保护本身有用，但格式问题不该变成业务未完成的裁决。</p><p class="muted">真实源码节选 · 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d · 279–291 行。未添加教学注释。</p><pre><code>279      } else if ([&#x27;platform_retry&#x27;, &#x27;result_incomplete&#x27;].includes(outcome.kind) &amp;&amp; &#x27;failure&#x27; in outcome &amp;&amp; outcome.failure.fingerprint) {
+280        const unchangedTurns = before.continuation?.fingerprint === outcome.failure.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
+281        progress.continuation = { fingerprint: outcome.failure.fingerprint, unchangedTurns };
+282        progress.lastFailure = completeExecutionFailure(outcome.failure);
+283        if (outcome.kind === &#x27;platform_retry&#x27;) progress.platformAttempts++;
+284        else progress.formatAttempts++;
+285        if (unchangedTurns &gt;= maxUnchangedWorkTurns) {
+286          status = &#x27;attention&#x27;; progress.state = &#x27;waiting_for_user&#x27;; progress.waitingKind = &#x27;answered&#x27;;
+287          progress.waitingMessage = &#x27;相同输入与相同失败未产生新进展，已停止空转；新消息或有效条件变化可继续原任务。&#x27;;
+288        } else {
+289          status = &#x27;ready&#x27;; progress.state = &#x27;ready&#x27;;
+290          if (outcome.kind === &#x27;result_incomplete&#x27;) progress.phase = &#x27;collect_result&#x27;;
+291          progress.nextRetryAt = new Date(Date.now() + 1000 * (unchangedTurns + 1)).toISOString();</code></pre></details><details id="src-self"><summary>仅实施不等于自查验收 <small>src/lib/task-graph/prompts.ts:14</small></summary><p>现在的仅实施模式明确标未验收；用户要求的实施者自查自纠需要显式职责，不能直接沿用未验收标签冒充。</p><p class="muted">真实源码节选 · 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d · 14–16 行。未添加教学注释。</p><pre><code> 14      &#x27;必需运行能力确实不可用时返回 TASK_GRAPH_IMPLEMENTATION {&quot;status&quot;:&quot;blocked&quot;,&quot;blockerKind&quot;:&quot;environment_failed&quot;,&quot;blockerCause&quot;:&quot;missing_capability&quot;,&quot;note&quot;:&quot;缺少的能力和实际探针结果&quot;}。只读资源是否授权由平台校验，不自行扩大挂载；不要仅更换报告路径重复相同失败探针。&#x27;,
+ 15      node.executionMode === &#x27;implement&#x27;
+ 16        ? &#x27;本片为仅实施模式，不安排独立测试或审查；结果将明确标为未验收。&#x27;</code></pre></details><details id="src-resources"><summary>技能可读不等于已使用 <small>src/lib/task-graph/runtime-preflight.ts:115</small></summary><p>当前资源预检能提供技能入口；业务 Agent 是否按正确工作流实施和验证是另一个职责。</p><p class="muted">真实源码节选 · 8fcdcc3b5157d683a7b12b420ae963e651f8bf5d · 115–119 行。未添加教学注释。</p><pre><code>115    const receipt: RuntimePreflightReceipt = { version: 1, identity, manifestHash, commit: declaration.commit, resources, ...(browserVersion ? { browserVersion } : {}), ...(skillChecks.length ? { skills: skillChecks } : {}) };
+116    await fs.writeFile(path.join(args.outputDirectory, `runtime-preflight-${identity}.json`), JSON.stringify(receipt, null, 2) + &#x27;\n&#x27;);
+117    return { identity, manifestHash, readOnlyPaths: approved.filter(root =&gt; root !== args.workspace).concat(resources.map(resource =&gt; resource.path)), env, receipt, verifiedResources: resources,
+118      instructions: `\n运行能力已按${declaration.origin === &#x27;host_registration&#x27; ? &#x27;平台显式登记&#x27; : &#x27;仓内版本化声明&#x27;}预检，资源身份 ${identity}。浏览器和 OCR 路径见 AP_GRAPH_RUNTIME_* / AP_GRAPH_BROWSER_* / AP_GRAPH_OCR_MODEL_DIR；这些资源只读，缓存和报告写本阶段输出目录。` +
+119        (skillChecks.length ? `\n本次可用技能包：${JSON.stringify(skills.map(({ skill, packageRoot, dependencies }) =&gt; ({ id: skill.id, path: packageRoot, entrypoints: skill.requiredFiles.filter(file =&gt; path.basename(file) === &#x27;SKILL.md&#x27;), dependencies })))}` : &#x27;&#x27;) };</code></pre></details>
+<details><summary>教学伪代码 · 目标设计 · 不存在于仓库</summary><pre><code>负责人 = 已配置测试者，否则实施者
+平台提供完整任务、材料、技能及工具
+实施者持续实施和自查
+如果配置测试者，候选交给测试者验证
+发现缺陷：反馈回原实施者，修复后复验
+负责人明确判断完成：平台记录、受控集成、按依赖接续
+真实业务问题或权限缺口：提出具体请求
+交接失败：报告运行故障，既不宣布通过，也不当成业务失败</code></pre></details>
+<h2>这次交付的范围</h2><p>本页只说明现状和改善方案。结果交接的具体接口、现有模式与旧账本的兼容方式仍待实现设计；没有承诺已经解决。此前隔离草稿未合入。没有新增调度器、状态机或业务判据白名单。</p><p class="muted">技能依据：Matt to-spec / to-tickets / implement-spec、pstack poteto-mode / prove-it-works，以及 show-me、architecture-house-tour。用户的角色配置要求优先于技能的默认角色要求。</p>
+</main><script>
+const el=id=>document.getElementById(id);
+function switchPair(a,b,on){el(a).setAttribute('aria-pressed',String(on));el(b).setAttribute('aria-pressed',String(!on));}
+el('before').onclick=()=>{switchPair('before','after',true);el('current').hidden=false;el('target').hidden=true;};
+el('after').onclick=()=>{switchPair('before','after',false);el('current').hidden=true;el('target').hidden=false;};
+el('solo').onclick=()=>{switchPair('solo','tester',true);el('solo-flow').hidden=false;el('tester-flow').hidden=true;};
+el('tester').onclick=()=>{switchPair('solo','tester',false);el('solo-flow').hidden=true;el('tester-flow').hidden=false;};
+document.querySelectorAll('a[href^="#src-"]').forEach(a=>a.addEventListener('click',()=>{el(a.getAttribute('href').slice(1)).open=true;}));
+</script></body></html>
