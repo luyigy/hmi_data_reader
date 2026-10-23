@@ -239,9 +239,10 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
     save("r6-sample-inventory", dict(images=images, unique_hashes=len({row["image_sha256"] for row in images}),
                                     coverage=definition["coverage"], limitations=definition["limitations"]))
     independent = [sample for sample in definition["samples"] if sample["purpose"] == "independent_acceptance"]
-    assert independent, ("R6_NISSEI missing_business_material: only the development-exposed Z078 original is verified; "
-                         "no distinct reserved TACT5 original and independent raw-field truth are bound. "
-                         "Do not relabel the development image, crop, OCR fixture or another controller as holdout.")
+    assert independent, ("R6_NISSEI: no independently qualified TACT5 holdout and raw-field truth are frozen. "
+                         "The authorized hmi_finetuning dataset is now accessible; its additional originals "
+                         "are exposed or same-capture-group regression material. "
+                         "Do not relabel development images, near duplicates or another controller as holdout.")
     development = {sample["image_sha256"] for sample in definition["samples"] if sample["purpose"] != "independent_acceptance"}
     for sample in independent:
         assert sample["image_sha256"] not in development
@@ -266,3 +267,60 @@ def test_a17_sample_inventory_and_independent_acceptance_material(live):
         for key, expected in truth["values"].items():
             for name in ("original_value", "role", "state", "reading"):
                 assert observed[key][name] == expected[name], (key, name, observed[key], expected)
+
+
+def test_authorized_dataset_regressions_keep_original_values_and_exposure(live):
+    import cv2
+    from rectify import rectify
+
+    manifest = json.loads((ROOT / "datasets/r6_nissei" / PROFILE / "regression/manifest.json").read_text())
+    assert len(manifest["samples"]) == 4
+    for sample in manifest["samples"]:
+        assert sample["purpose"] == "historical_regression_not_independent_acceptance"
+        assert sample["provenance"]["historical_evaluation_status"] in (
+            "development_exposed_not_independent_test", "same_capture_record_as_development_exposed_53934a60")
+        image = ROOT / sample["image"]
+        digest = hashlib.sha256(image.read_bytes()).hexdigest()
+        assert digest == sample["image_sha256"]
+        directory = Path(tempfile.mkdtemp(prefix="r6-regression-", dir=OUTPUT))
+        meta = rectify(image, directory / "sample.png", directory / "sample.rectify.json")
+        assert meta["ok"] and meta["original_sha256"] == digest
+        lines = []
+        for points, (text, confidence) in live["engine"].ocr(str(directory / "sample.png"), cls=False)[0] or []:
+            xs, ys = zip(*points)
+            lines.append(dict(text=text, conf=float(confidence), bbox=dict(
+                x_min=min(xs), y_min=min(ys), x_max=max(xs), y_max=max(ys))))
+        assert lines
+        (directory / "sample.ocr.json").write_text(json.dumps(dict(lines=lines)))
+        command = [sys.executable, "scripts/extract_fields.py", "sample", "--rectified-dir", str(directory),
+                   "--output-dir", str(directory / "extracted"), "--observations-version", "v2",
+                   "--original-image", str(image)]
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=90)
+        (directory / "cli.log").write_text(result.stdout + result.stderr)
+        direct = observe_tact5_page(lines, meta, digest,
+                                   cv2.imread(str(directory / "sample.png"), cv2.IMREAD_GRAYSCALE))
+        surfaces = [("direct-diagnostic", direct)]
+        if sample["cli_expected"] == "RAW_PAGE_UNSUPPORTED":
+            assert result.returncode == 2, result.stdout + result.stderr
+            assert "RAW_PAGE_UNSUPPORTED" in result.stderr
+            assert not (directory / "extracted/sample.fields.json").exists()
+            assert not any(line["text"] == "计量后" for line in lines)
+            assert any(line["text"] == "计贝后" for line in lines)
+            save("r6-regression-" + sample["sample_id"] + "-refusal", dict(
+                exit_code=result.returncode, reason=sample["cli_limitation"], stderr=result.stderr))
+        else:
+            assert sample["cli_expected"] == "recognized_partial"
+            assert result.returncode == 0, result.stdout + result.stderr
+            cli = json.loads((directory / "extracted/sample.fields.json").read_text())
+            surfaces.append(("cli", cli["page_observations"]))
+        for surface, record in surfaces:
+            assert record["image_sha256"] == digest
+            validate_raw_record(record, tact5_package())
+            fields = by_key(record)
+            for key, expected in sample["expected_values"].items():
+                assert fields[key]["original_value"] == expected, (sample["sample_id"], key, fields[key])
+                assert fields[key]["reading"] in ("known", "uncertain")
+                assert fields[key]["original_bbox"] and fields[key]["bbox"]
+            assert record["coverage"]["status"] == "partial"
+            assert fields["holding.ramp.1"]["reading"] == "unsupported"
+            save("r6-regression-" + sample["sample_id"] + "-" + surface, record)
