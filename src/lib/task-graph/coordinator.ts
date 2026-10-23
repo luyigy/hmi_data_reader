@@ -469,6 +469,8 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     await requireGraphRunActive(runId);
     await assertExecutionOwnership(execution.id, claimToken);
     const implementationBase = await graphGit(workspace.path, 'rev-parse', 'HEAD');
+    const workspaceContext = `本轮工作区候选：${implementationBase}。工作区基线：${workspace.baseCommit}。当前集成参考：${integration.commit}。` +
+      '工作区候选与集成参考是独立引用，可以不同；在本轮候选上继续实施，平台在交付时受控合并，不要求先把工作区 HEAD 对齐到集成参考。';
     const { task, room } = await createChildTask(runId, nodeKey, execution, workspace.path);
     await recordExecutionDispatch({
       runId, nodeKey, executionKey: execution.key, claimToken,
@@ -491,7 +493,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       .catch((error) => console.error('[TaskGraph] parent progress delivery failed:', error));
     await postTaskRoomMessage({
       roomId: room.id, userId: 'task-graph', userName: '任务图调度器',
-      content: `执行 ${nodeKey}/${execution.key}。基线 ${integration.commit}。请在此 worktree 编辑代码并报告结果；平台负责受控提交，不要自行运行 git add/commit/merge。`,
+      content: `执行 ${nodeKey}/${execution.key}。${workspaceContext}请在此 worktree 编辑代码并报告结果；平台负责受控提交，不要自行运行 git add/commit/merge。`,
     });
     const beforeRun = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
     const progress = executionProgress(beforeRun.dispatchMetadata)!;
@@ -524,7 +526,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
     const inbox = storedRun ? [] : await conversationInputs(execution.id);
     const inputPrompt = conversationPrompt(inbox) + (inbox.length ? '\n' + await syncGraphConversationMaterials(task.id) : '');
-    const stageDescription = (task.description || '') + specInput.instructions + inputs.instructions + (repairRuntime
+    const stageDescription = (task.description || '') + '\n' + workspaceContext + specInput.instructions + inputs.instructions + (repairRuntime
         ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。必须在本次 AP_GRAPH_OUTPUT_DIR 中写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台按本次 TaskRun 的产物回执读取解决文件、完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
         : recoveryInstructions) + inputPrompt;
     const session = await implementationConversation(execution.id, config.participant);

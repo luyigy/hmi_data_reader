@@ -31,7 +31,7 @@ async function main() {
   const calls = new Map<string, number>();
   const adapter = getHarnessAdapter('codex'); assert.ok(adapter);
   const original = { execute: adapter.execute, resume: adapter.resume };
-  let recoveryDescription = '', resumedCorrectionDescription = '';
+  let recoveryDescription = '', resumedCorrectionDescription = '', correctionCandidate = '';
   let resumeReceipt = false;
   const directories = new Map<string, string>();
   const execute = async (args: HarnessExecuteArgs | HarnessResumeArgs) => {
@@ -44,7 +44,10 @@ async function main() {
     } else directories.set(key, context.workingDirectory);
     const reply = (output: string) => ({ success: true, output, sessionId: `native-${key}`, sessionKind: 'codex_thread', executionTime: 1 });
     if (key === 'D' && resumeReceipt) resumedCorrectionDescription = 'continuationMessage' in args ? args.continuationMessage : task.description || '';
-    if (key === 'A' && count === 2) recoveryDescription = 'continuationMessage' in args ? args.continuationMessage : task.description || '';
+    if (key === 'A' && count === 2) {
+      recoveryDescription = 'continuationMessage' in args ? args.continuationMessage : task.description || '';
+      correctionCandidate = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: context.workingDirectory, encoding: 'utf8' }).trim();
+    }
     if (key === 'F' && count === 2) await receiveGraphTaskMessage({ taskId: task.id, sourceId: 'new-approved-input', actorId: owner.id, actorOrigin: 'platform', content: 'Continue using the approved fixture input.' });
     if (key === 'C' || key === 'D') {
       const turn = await prisma.taskRun.findFirstOrThrow({ where: { taskId: task.id }, orderBy: { createdAt: 'desc' } });
@@ -82,6 +85,7 @@ async function main() {
       if (nodes.every(node => ['C', 'D'].includes(node.key) ? node.status === 'attention' : node.status === 'passed')) { completed = true; break; }
       await new Promise(resolve => setTimeout(resolve, 30));
     }
+    assert.ok(recoveryDescription.includes(`本轮工作区候选：${correctionCandidate}`), 'Agent continuation must identify its actual checkpoint rather than requiring HEAD to match the advancing integration ref');
     assert.match(recoveryDescription, /实施阻塞结论缺少有效 blockerKind/, 'Actual correction turn must explain the missing blockerKind');
     assert.doesNotMatch(recoveryDescription, /不重新实施或修改源码|仅补收已有成果/, 'Correction remains normal engineering work');
     assert.ok(completed, 'The original ticket, successor and independent branch must finish without human resume');

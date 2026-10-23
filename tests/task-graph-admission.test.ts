@@ -57,7 +57,7 @@ async function main() {
     // The request is retried without clearing counters; a sibling's human wait does not become an implicit dependency.
     const results = await Promise.all([admitNode(node.id, { source: 'conditions', id: 'coordinator-1', executionIds: [job.id] }),
       admitNode(node.id, { source: 'conditions', id: 'coordinator-2', executionIds: [job.id] })]);
-    assert.equal(results.filter(result => result.kind === 'admitted').length, 1);
+    assert.equal(results.filter(result => result.kind === 'admitted').length, 1, JSON.stringify(results));
     const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
     assert.equal(current.status, 'ready'); assert.equal(executionProgress(current.dispatchMetadata)?.platformAttempts, 77);
     assert.equal((await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id, key: 'WAIT' } })).status, 'attention');
@@ -89,6 +89,36 @@ async function main() {
     assert.equal(await prisma.$transaction(tx => writerSnapshotMatches(tx, proof)), true, 'Late summary/timestamp changes do not change Writer identity');
     await prisma.taskRun.update({ where: { id: finished.id }, data: { controlMetadata: JSON.stringify({ graphWriter: await createGraphWriter() }) } });
     assert.equal(await prisma.$transaction(tx => writerSnapshotMatches(tx, proof)), false, 'A changed Writer nonce still invalidates the proof');
+    // A legacy read-only turn finished but left its reservation in progress.
+    await prisma.taskRun.update({ where: { id: finished.id }, data: { controlMetadata: JSON.stringify({ graphWriter: nativeWriter }) } });
+    await releaseTaskRunWriter(finished.id, nativeWriter.nonce);
+    const conversationWriter = await createGraphWriter();
+    const conversationRun = await prisma.taskRun.create({ data: { taskId: job.childTaskId!, status: 'completed',
+      controlMetadata: JSON.stringify({ graphWriter: conversationWriter }), participants: { create: [{ gatewayId: 'platform-local', gatewayNameSnapshot: 'Local', executionBackend: 'platform_local', harnessType: 'codex', role: 'implementer', status: 'completed' }] } } });
+    const reservation = await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: 'conversation_followup_reserved', idempotencyKey: 'legacy-conversation', payload: { executionId: job.id, inputIds: [] } } });
+    const retained = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    await prisma.taskGraphExecution.update({ where: { id: job.id }, data: { status: 'attention', claimToken: 'WORK', dispatchMetadata: metadataWithProgress(retained.dispatchMetadata,
+      { ...executionProgress(retained.dispatchMetadata)!, taskRunId: finished.id, conversationOwnerRunId: conversationRun.id, state: 'waiting_decision', lastFailure: { code: 'permission_required', detail: 'Retain approved scope', requiresUserDecision: true },
+        conversation: { kind: 'running', taskRunId: conversationRun.id, reservationId: reservation.id } }) } });
+    const pendingConversation = await admitNode(node.id, { source: 'operator', id: 'unfinished-followup' });
+    assert.equal(pendingConversation.kind, 'deferred');
+    assert.equal('reason' in pendingConversation && pendingConversation.reason, 'conversation_writer_reserved');
+    await prisma.taskGraphEvent.create({ data: { runId: run.id, nodeId: node.id, kind: 'conversation_followup_finished', idempotencyKey: `conversation-followup:${reservation.id}:finished`, payload: {} } });
+    const activeConversation = await admitNode(node.id, { source: 'operator', id: 'live-followup-writer' });
+    assert.equal(activeConversation.kind, 'deferred', 'Finished receipt cannot release a live native Writer');
+    assert.equal('reason' in activeConversation && activeConversation.reason, 'writer_not_exited');
+    await releaseTaskRunWriter(conversationRun.id, conversationWriter.nonce);
+    const humanHold = await admitNode(node.id, { source: 'conditions', id: 'permission-still-required' });
+    assert.equal(humanHold.kind, 'deferred', 'Conversation completion cannot grant requested permissions');
+    assert.equal('reason' in humanHold && humanHold.reason, 'human_input_required');
+    const resumedConversation = await admitNode(node.id, { source: 'operator', id: 'user-continues-original-scope' });
+    assert.equal(resumedConversation.kind, 'admitted', JSON.stringify(resumedConversation));
+    const resumedJob = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
+    assert.equal(executionProgress(resumedJob.dispatchMetadata)?.conversationOwnerRunId, conversationRun.id);
+    assert.equal(executionProgress(resumedJob.dispatchMetadata)?.candidateCommit, baseline);
+    assert.equal(executionProgress(resumedJob.dispatchMetadata)?.platformAttempts, 77);
+    assert.equal(executionProgress(resumedJob.dispatchMetadata)?.conversation, undefined);
+    console.log('Completed read-only conversation permits authorized continuation only after finalization and Writer exit; human permission hold and original candidate retained');
     console.log('Admission: missing owner/exhausted does not revoke work; temporary failure does not consume a request; concurrent admissions select one; independent sibling permission wait remains blocked; count 77 retained');
   } finally {
     await prisma.taskGraphRun.delete({ where: { id: run.id } }); await prisma.$disconnect(); await rm(root, { recursive: true, force: true });

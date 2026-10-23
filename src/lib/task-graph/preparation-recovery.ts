@@ -65,10 +65,10 @@ async function approvedScopeChange(job: TaskGraphExecution) {
   return approval.createdAt > decision.createdAt;
 }
 
-function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeApproved = false): string | undefined {
+function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeApproved = false, conversationFinished = false): string | undefined {
   if (progress.state === 'ownership_attention' || progress.lastFailure?.code === 'ownership_mismatch') return 'ownership_unresolved';
   if (progress.conflictRepair || progress.lastFailure?.code === 'integration_conflict') return 'controlled_conflict_required';
-  if (progress.conversation && !(wake.source === 'materials' && progress.conversation.reservationId === wake.reservationId)) return 'conversation_writer_reserved';
+  if (progress.conversation && !conversationFinished && !(wake.source === 'materials' && progress.conversation.reservationId === wake.reservationId)) return 'conversation_writer_reserved';
   const scopeResolved = wake.source === 'conditions' && scopeApproved && ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '');
   if (wake.source === 'conditions' && !scopeResolved && (progress.lastFailure?.requiresUserDecision === true ||
       ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '') ||
@@ -200,6 +200,17 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
     const code = executionProgress(job.dispatchMetadata)?.lastFailure?.code;
     if (['permission_required', 'scope_change'].includes(code || '') && await approvedScopeChange(job)) resolvedScopes.add(job.id);
   }
+  // Historical reservations do not own a Writer after the read-only turn and its handler finish.
+  const finishedConversations = new Set<string>();
+  for (const job of node.executions) {
+    const conversation = executionProgress(job.dispatchMetadata)?.conversation;
+    if (conversation?.kind !== 'running' || !job.childTaskId) continue;
+    const [turn, finished] = await Promise.all([
+      prisma.taskRun.findFirst({ where: { id: conversation.taskRunId, taskId: job.childTaskId, status: { in: ['completed', 'failed', 'stopped', 'interrupted'] } }, select: { id: true } }),
+      prisma.taskGraphEvent.findFirst({ where: { runId: node.runId, nodeId, kind: 'conversation_followup_finished', idempotencyKey: `conversation-followup:${conversation.reservationId}:finished` }, select: { id: true } }),
+    ]);
+    if (turn && finished) finishedConversations.add(job.id);
+  }
   const wholeReview = node.executions.every(job => { const p = executionProgress(job.dispatchMetadata); return p && ['architecture', 'acceptance'].includes(p.phase); });
   const candidates = node.executions.filter(job => (job.status === 'attention' || job.status === 'integrated' && executionProgress(job.dispatchMetadata) && node.status === 'attention') &&
     (wholeReview || !('executionIds' in wake) || !wake.executionIds || wake.executionIds.includes(job.id)));
@@ -210,7 +221,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
   for (const job of candidates) {
     const progress = executionProgress(job.dispatchMetadata);
     if (!progress || !job.claimToken) { lastReason = 'missing_saved_progress_or_claim'; continue; }
-    const hold = admissionHold(progress, wake, resolvedScopes.has(job.id));
+    const hold = admissionHold(progress, wake, resolvedScopes.has(job.id), finishedConversations.has(job.id));
     if (hold) { lastReason = hold; continue; }
     if (!['waiting_decision', 'waiting_for_user', 'exhausted'].includes(progress.state) && !(job.status === 'integrated' && ['architecture', 'acceptance'].includes(progress.phase) && ['active', 'ready'].includes(progress.state))) { lastReason = 'not_waiting'; continue; }
     if (wake.source === 'materials' && (progress.revision !== wake.expectedRevision || progress.conversation?.reservationId !== wake.reservationId)) { lastReason = 'material_reservation_changed'; continue; }
@@ -242,9 +253,12 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
       const binding = executionProgress(item.dispatchMetadata)?.review; return binding?.kind === 'running' ? [binding.taskRunId] : [];
     }) : [];
     if (isReview && node.executions.some(item => {
-      const p = executionProgress(item.dispatchMetadata); return !p || !['architecture', 'acceptance'].includes(p.phase) || admissionHold(p, wake, resolvedScopes.has(item.id));
+      const p = executionProgress(item.dispatchMetadata); return !p || !['architecture', 'acceptance'].includes(p.phase) || admissionHold(p, wake, resolvedScopes.has(item.id), finishedConversations.has(item.id));
     })) { lastReason = 'review_generation_not_ready'; continue; }
-    const proof = await observeWriterSnapshot({ jobs: isReview ? node.executions : [job], taskRunIds: reviewRunIds, scope: 'execution', observeExecution: observeAdmissionWriter });
+    const conversationRunIds = (isReview ? node.executions : [job]).flatMap(item => {
+      const conversation = executionProgress(item.dispatchMetadata)?.conversation; return conversation?.kind === 'running' ? [conversation.taskRunId] : [];
+    });
+    const proof = await observeWriterSnapshot({ jobs: isReview ? node.executions : [job], taskRunIds: [...reviewRunIds, ...conversationRunIds], scope: 'execution', observeExecution: observeAdmissionWriter });
     if (!proof.exited) { lastReason = 'writer_not_exited'; continue; }
     const exit = job.taskRunId ? await observeTaskRunExit(job.taskRunId) : undefined;
     try {
