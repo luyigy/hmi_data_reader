@@ -1,3 +1,4 @@
+import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -8,12 +9,12 @@ import { prisma } from '../src/lib/prisma';
 import { getHarnessAdapter } from '../src/lib/harness';
 import { createTaskGraphRun, approveHumanNode, releaseReadyNodes, submitNodeVerification, completeUnverifiedNode } from '../src/lib/task-graph/store';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
-import type { GraphDefinition } from '../src/lib/task-graph/domain';
+import { validateTaskGraphDefinition, taskGraphSnapshotHash, type GraphDefinition } from '../src/lib/task-graph/domain';
 import type { HarnessExecuteArgs, HarnessResumeArgs } from '../src/lib/harness/types';
 
-async function scenario(mode: 'self' | 'multi' | 'conflict' | 'tester' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
-  const multiple = mode === 'multi' || mode === 'conflict';
-  let conflictResolutions = 0;
+async function scenario(mode: 'self' | 'plain-delivery' | 'history' | 'cross' | 'self-defect' | 'multi' | 'conflict' | 'tester' | 'human' | 'repair' | 'implement' | 'format' | 'full' | 'self-repair' | 'architecture') {
+  const multiple = mode === 'multi' || mode === 'conflict' || mode === 'cross';
+  let conflictResolutions = 0, jointRuns = 0;
   const root = mkdtempSync(path.join(tmpdir(), 'agent-owned-quality-'));
   const repository = path.join(root, 'repo'); mkdirSync(repository);
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: 'pipe' }).trim();
@@ -32,10 +33,29 @@ async function scenario(mode: 'self' | 'multi' | 'conflict' | 'tester' | 'human'
     executions: [{ key: 'repo', instructions: 'implement behavior', repository, gitRef: 'refs/heads/main', baseCommit: git('rev-parse', 'HEAD'), agentSelector: 'local:codex', launchConfig: { participant, checks: [{ name: 'behavior', argv: command }] } }],
   }] };
   if (multiple) definition.nodes[0].executions.push({ ...structuredClone(definition.nodes[0].executions[0]), key: 'other', agentSelector: 'local:kimi-code', launchConfig: { participant: { ...tester, role: 'implementer' }, checks: [{ name: 'behavior', argv: command }] } });
-  definition.nodes.push({ ...structuredClone(definition.nodes[0]), key: 'B', dependsOn: ['A'], acceptance: { mode: 'automatic', checks: ['behavior'] } });
+  if (multiple) {
+    assert.throws(() => validateTaskGraphDefinition(definition), /selfCheckExecution/, 'Multiple implementors cannot silently assign the first');
+    definition.nodes[0].acceptance.selfCheckExecution = 'other';
+    const changed = structuredClone(definition); changed.nodes[0].acceptance.selfCheckExecution = 'repo';
+    assert.notEqual(taskGraphSnapshotHash(changed), taskGraphSnapshotHash(definition), 'Owner is part of the approval snapshot');
+  }
+  definition.nodes.push({ ...structuredClone(definition.nodes[0]), key: 'B', dependsOn: ['A'], acceptance: { mode: 'automatic', checks: ['behavior'], ...(multiple ? { selfCheckExecution: 'other' } : {}) } });
+  if (mode === 'cross') {
+    const second = path.join(root, 'second'); mkdirSync(second);
+    const otherGit = (...args: string[]) => execFileSync('git', args, { cwd: second, encoding: 'utf8', stdio: 'pipe' }).trim();
+    otherGit('init', '-b', 'main'); otherGit('config', 'user.name', 'Fixture'); otherGit('config', 'user.email', 'fixture@example.test');
+    writeFileSync(path.join(second, 'value'), 'base'); otherGit('add', '.'); otherGit('commit', '-m', 'base');
+    for (const slice of definition.nodes) {
+      slice.executions[1].repository = second; slice.executions[1].baseCommit = otherGit('rev-parse', 'HEAD');
+      slice.acceptance.selfCheckExecution = 'repo';
+      slice.acceptance.integrationChecks = [{ name: 'joint', repository, argv: [process.execPath, '-e',
+        'const fs=require("fs"),p=require("path"),ms=JSON.parse(process.env.TASK_GRAPH_UPSTREAM_INPUTS_JSON); const input=ms.flatMap(m=>m.inputs).find(i=>i.repository!==process.env.AP_PROJECT_REPOSITORY); if(!input||fs.readFileSync(p.join(input.sourcePath,"value"),"utf8")!=="good"||fs.readFileSync("value","utf8")!=="good")throw Error("joint input missing");'] }];
+    }
+  }
   const parent = await prisma.task.create({ data: { name: 'agent-owned fixture' } });
   const run = await createTaskGraphRun({ parentTaskId: parent.id, version: 1, requestKey: parent.id, definition });
   const node = await prisma.taskGraphNode.findUniqueOrThrow({ where: { runId_key: { runId: run.id, key: 'A' } }, include: { executions: true } });
+  if (mode === 'history') await prisma.taskGraphExecution.update({ where: { id: node.executions[0].id }, data: { dispatchMetadata: { progress: { ...initialExecutionProgress(), repairAttempts: 2 } } } });
   const adapter = getHarnessAdapter('codex')!, independent = getHarnessAdapter('kimi-code')!;
   const original = { execute: adapter.execute, resume: adapter.resume, tester: independent.execute, testerResume: independent.resume };
   let starts = 0, successorStarts = 0, reviews = 0, testerReviews = 0, commands = 0;
@@ -82,14 +102,24 @@ async function scenario(mode: 'self' | 'multi' | 'conflict' | 'tester' | 'human'
     if (turns > 1) assert.equal('sessionId' in args ? args.sessionId : null, native, 'repair resumes the responsible implementor Session');
     if (mode === 'conflict' && a && turns === 1) writeFileSync(path.join(context.workingDirectory, 'shared'), `${executionKey}\n`);
     if (multiple) writeFileSync(path.join(context.workingDirectory, `${executionKey}.txt`), executionKey);
-    writeFileSync(path.join(context.workingDirectory!, 'value'), a && ['repair', 'format', 'self-repair', 'architecture'].includes(mode) && starts === 1 ? 'bad' : 'good');
+    writeFileSync(path.join(context.workingDirectory!, 'value'), a && ['repair', 'format', 'self-repair', 'self-defect', 'architecture'].includes(mode) && starts === 1 ? 'bad' : 'good');
     if (a && mode === 'format' && starts === 1) return { success: true, sessionId: 'original-A', sessionKind: 'codex_thread', output: 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","note":"missing blockerKind"}', executionTime: 1 };
-    if (mode !== 'implement' && !(a && (mode === 'repair' || mode === 'architecture') && starts === 1)) {
+    if (mode === 'plain-delivery' && a && turns > 1) assert.equal(successorStarts, 0, 'Plain delivery must not release successors before formal self-check');
+    if (mode !== 'implement' && !(a && (mode === 'repair' || mode === 'architecture' || mode === 'self-defect') && starts === 1)) {
       let passed = true;
       try { execFileSync(command[0], command.slice(1), { cwd: context.workingDirectory, stdio: 'pipe' }); } catch { passed = false; }
       if (!passed) return { success: true, sessionId: native, sessionKind, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"working","note":"self-check failed; fixing in the same Coding Session"}', executionTime: 1 };
     }
-    return { success: true, sessionId: native, sessionKind, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"implemented","evidence":["value"]}', executionTime: 1 };
+    if (multiple) writeFileSync(path.join(context.workingDirectory, `${executionKey}-report.json`), JSON.stringify({ time: Date.now(), turns }));
+    const ownsQuality = !multiple || executionKey === (mode === 'cross' ? 'repo' : 'other');
+    const manifests = JSON.parse(context.taskEnvironment?.TASK_GRAPH_UPSTREAM_INPUTS_JSON || '[]');
+    const ticketReady = manifests.some((m: { ticketInputs?: unknown }) => Array.isArray(m.ticketInputs));
+    if (mode === 'cross' && ownsQuality && ticketReady) {
+      execFileSync(definition.nodes[0].acceptance.integrationChecks![0].argv[0], definition.nodes[0].acceptance.integrationChecks![0].argv.slice(1), { cwd: context.workingDirectory, env: { ...process.env, ...context.taskEnvironment }, stdio: 'pipe' }); jointRuns++;
+    }
+    const formal = mode !== 'implement' && ownsQuality && !(['plain-delivery', 'history'].includes(mode) && a && turns === 1) && (mode !== 'cross' || ticketReady)
+      ? { ticketVerification: { approved: !(mode === 'self-defect' && a && turns === 1), ...(mode === 'self-defect' && a && turns === 1 ? { failureKind: 'in_scope_defect', failureKey: 'acceptance:behavior', executionIds: node.executions.map(job => job.id) } : {}), note: 'Ran the approved behavior and joint commands on the supplied input combination; value=good' } } : {};
+    return { success: true, sessionId: native, sessionKind, output: 'TASK_GRAPH_IMPLEMENTATION ' + JSON.stringify({ status: 'delivered', note: 'implemented', evidence: ['value'], ...formal }), executionTime: 1 };
   };
   adapter.execute = execute; adapter.resume = execute; independent.execute = execute; independent.resume = execute;
   const drain = async () => { const abort = new AbortController(); abort.abort(); await startTaskGraphCoordinator(abort.signal); };
@@ -120,17 +150,21 @@ async function scenario(mode: 'self' | 'multi' | 'conflict' | 'tester' | 'human'
     await drain();
     const after = await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } });
     assert.equal(after.status, mode === 'implement' ? 'delivered_unverified' : 'passed', JSON.stringify(await prisma.taskGraphEvent.findMany({ where: { nodeId: node.id }, take: 5, orderBy: { createdAt: 'desc' } })));
-    if (multiple) assert.ok(starts >= 2); else assert.equal(starts, ['repair', 'format', 'self-repair', 'architecture'].includes(mode) ? 2 : 1);
+    if (mode === 'plain-delivery' || mode === 'history') assert.equal(starts, 2, 'Plain delivered evidence must request a formal Ticket conclusion in the original Session');
+    else if (multiple) assert.ok(starts >= 2); else assert.equal(starts, ['repair', 'format', 'self-repair', 'self-defect', 'architecture'].includes(mode) ? 2 : 1);
     assert.equal(reviews, mode === 'repair' ? 2 : mode === 'tester' ? 1 : 0, 'Only the configured Tester starts a review');
     assert.equal(testerReviews, mode === 'tester' || mode === 'repair' ? reviews : 0);
     assert.ok(successorStarts >= definition.nodes[1].executions.length);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'node_ready', node: { key: 'B' } } }), 1, 'Successor Ticket releases exactly once');
     if (multiple) {
       const jobs = await prisma.taskGraphExecution.findMany({ where: { nodeId: node.id } });
-      assert.equal(new Set(jobs.map(job => git('rev-parse', `${job.commit}^{tree}`))).size, 1, 'Each implementor self-checks the fixed combined source, in its own Coding Session');
+      assert.equal(codingTurns.get(mode === 'cross' ? 'A-other' : 'A-repo'), 1, 'Non-owner must not be requeued merely because another implementor changed the tree');
+      assert.ok((codingTurns.get(mode === 'cross' ? 'A-repo' : 'A-other') || 0) <= 3, 'Only the approved owner verifies the final combination; timestamp reports must converge');
       assert.ok(codingTurns.has('A-repo') && codingTurns.has('A-other'));
     }
     if (mode === 'conflict') { assert.equal(conflictResolutions, 1); const final = await prisma.taskGraphExecution.findFirstOrThrow({ where: { nodeId: node.id } }); assert.equal(git('show', `${final.commit}:shared`), 'repo\nother'); }
+    if (mode === 'cross') assert.equal(jointRuns, 2, 'Both Tickets run actual joint commands against the pinned sibling repository');
+    if (mode === 'history') { const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: node.executions[0].id } }); assert.equal((job.dispatchMetadata as any).progress.repairAttempts, 3); }
     assert.equal(commands, reviews, 'Platform never executes the approved business command');
     if (mode === 'repair') assert.notEqual(reviewedCommits[0], reviewedCommits[1]);
     if (mode !== 'implement') await assert.rejects(() => completeUnverifiedNode(run.id, 'A'), /approved implement-only/i);
@@ -148,7 +182,7 @@ async function main() {
   require('../src/lib/task-graph/check-environment').runSandboxedGraphCheck = async () => { throw new Error('Agent-owned contracts must not execute platform business checks'); };
   require('../src/lib/feishu-api').getFeishuTenantAccessToken = async () => 'fixture';
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, data: { message_id: 'fixture' } }));
-  try { for (const mode of ['self', 'multi', 'conflict', 'tester', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE === mode) await scenario(mode); }
+  try { for (const mode of ['self', 'plain-delivery', 'history', 'cross', 'self-defect', 'multi', 'conflict', 'tester', 'human', 'repair', 'implement', 'format', 'full', 'self-repair', 'architecture'] as const) if (!process.env.GRAPH_QUALITY_CASE || process.env.GRAPH_QUALITY_CASE === mode) await scenario(mode); }
   finally { await prisma.$disconnect(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

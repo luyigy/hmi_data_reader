@@ -1,4 +1,5 @@
-import { verificationInputs } from './domain';
+import { implementationQuality } from './implementation-quality';
+import { selfCheckExecution, verificationInputs } from './domain';
 import { transientPlatformCode } from './platform-failure';
 import { continuationWorkFingerprint } from './continuation-work';
 import { stopPausedGraphTurns, requireGraphRunActive, graphRunIsPaused } from './run-control';
@@ -134,7 +135,7 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   }) : [];
   const description = materials + `\n目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
     `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}` +
-    (definition.deliveryContract === 'agent_owned_v1' ? `\n本仓自查责任：${plannedExecution.agentSelector} / ${plannedExecution.key}。各执行者对自己的交付和批准命令负责，不代其他执行者签署结果。Ticket 最终验收责任：${plannedNode.acceptance.mode === 'agent' ? plannedNode.acceptance.reviewerId : plannedNode.acceptance.mode === 'human' ? '已配置人工验收人' : '全部执行者各自交付声明的汇总'}。验收项：${JSON.stringify(plannedNode.acceptance.checks)}。` + executionCheckInstructions((plannedNode.acceptance.integrationChecks || []).filter(check => check.repository === plannedExecution.repository)) : '') +
+    (definition.deliveryContract === 'agent_owned_v1' ? `\n本仓自查责任：${plannedExecution.agentSelector} / ${plannedExecution.key}。各执行者对自己的交付和批准命令负责，不代其他执行者签署结果。Ticket 最终验收责任：${plannedNode.acceptance.mode === 'agent' ? plannedNode.acceptance.reviewerId : `整票自查 execution ${selfCheckExecution(plannedNode)}${plannedNode.acceptance.mode === 'human' ? '，之后人工批准' : ''}`}。验收项：${JSON.stringify(plannedNode.acceptance.checks)}。` : '') +
     executionCheckInstructions(config.checks) + (continuation ? `\n继续原任务实施：${JSON.stringify(continuation.payload)}\n${materials}\n父子话题补充：${JSON.stringify(supplements.reverse()).slice(-12000)}\n读取保存进度和话题新材料，按原批准范围接续，不把恢复请求当作完成证据。` : '') + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
   const task = await prisma.task.upsert({
     where: { id: taskId },
@@ -186,13 +187,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     const evidence = execution.evidence as unknown as { checks?: CheckResult[] } | null;
     return evidence?.checks || [];
   });
-  if (selfChecked) {
-    for (const job of node.executions) {
-      const receipt = job.evidence;
-      if (!isRecord(receipt) || !isRecord(receipt.implementation) || receipt.implementation.status !== 'delivered' || !Array.isArray(receipt.implementation.evidence) || !receipt.implementation.evidence.length || receipt.taskRunId !== job.taskRunId || receipt.integratedCommit !== job.commit) throw new Error('Execution self-check delivery evidence is missing');
-      for (const name of policy.checks) results.push({ name, passed: true, evidence: `${job.key} / ${job.commit}: ${JSON.stringify(receipt.implementation.evidence)}` });
-    }
-  }
+  const selfQuality = selfChecked ? implementationQuality(plannedNode, node.executions) : null;
   const reviewPhase = effectiveArchitectureReview(definition, definition.nodes.find(item => item.key === nodeKey)!) ? 'architecture' : 'acceptance';
   const reviewChecks = graphReviewChecks(definition, nodeKey, node.executions).filter(check => !agentOwned || check.id !== 'architecture:scope');
   const integrationResults: CheckResult[] = [];
@@ -226,17 +221,18 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
     }
     await assertReviewWorkspacesClean(workspaces);
     if (selfChecked) {
-      const stale = [];
-      for (const job of node.executions) {
-        const combined = workspaces.slice().reverse().find(workspace => workspace.repository === job.repository)!;
-        if (await graphGit(job.repository, 'rev-parse', `${job.commit}^{tree}`) !== await graphGit(job.repository, 'rev-parse', `${combined.commit}^{tree}`)) stale.push(job);
+      const owner = node.executions.find(job => job.key === selfCheckExecution(plannedNode))!;
+      const combined = workspaces.slice().reverse().find(workspace => workspace.repository === owner.repository)!;
+      const tree = await graphGit(owner.repository, 'rev-parse', `${owner.commit}^{tree}`);
+      if (!selfQuality || tree !== await graphGit(owner.repository, 'rev-parse', `${combined.commit}^{tree}`)) {
+        const progress = executionProgress(owner.dispatchMetadata)!;
+        const fingerprint = createHash('sha256').update(JSON.stringify([await continuationWorkFingerprint(owner.id, owner.commit!), verificationInputs(node.executions)])).digest('hex');
+        await applyExecutionOutcome({ executionId: owner.id, claimToken: owner.claimToken!, expectedRevision: progress.revision,
+          outcomeId: `ticket-verification:${progress.revision}:${fingerprint}`, outcome: { kind: 'repair_required', failure: {
+            code: 'verification_input_changed', detail: '请在原 Coding Session 对完整固定组合执行批准的整票验收，并在 delivered.ticketVerification 提交正式结论。', tree, fingerprint } } });
+        return;
       }
-      for (const job of stale) {
-        const progress = executionProgress(job.dispatchMetadata)!;
-        await applyExecutionOutcome({ executionId: job.id, claimToken: job.claimToken!, expectedRevision: progress.revision,
-          outcomeId: `self-check-version:${job.commit}`, outcome: { kind: 'repair_required', failure: { code: 'verification_input_changed', detail: '同仓固定集成源码已变化；在原 Coding Session 的最新源码上按原批准要求补验，不能复用旧版本自查。' } } });
-      }
-      if (stale.length) return;
+      for (const name of policy.checks) results.push({ name, passed: selfQuality.decision.approved, evidence: selfQuality.decision.note });
     }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -252,7 +248,7 @@ async function verifyNodeOnce(runId: string, nodeKey: string, writerNonce?: stri
   }
   const generation = node.executions.map(job => executionProgress(job.dispatchMetadata)?.review).find(binding => binding?.kind === 'ready')?.claimKey;
   const verificationAttempt = generation || `candidate:${createHash('sha256').update(JSON.stringify(commits)).digest('hex').slice(0, 24)}`;
-  let reviewDecision: ReviewDecision = {};
+  let reviewDecision: ReviewDecision = selfQuality?.decision || {};
   let reviewOwner: ReviewPublication | undefined;
   const evidence: VerificationEvidence = {
     checks: [...policy.checks.map((name) => {
@@ -553,7 +549,12 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     if (storedRun && storedRun.status !== 'completed') throw new Error('Previous implementation TaskRun has no completed result');
     const inbox = storedRun ? [] : await conversationInputs(execution.id);
     const inputPrompt = conversationPrompt(inbox) + (inbox.length ? '\n' + await syncGraphConversationMaterials(task.id) : '');
-    const stageDescription = (task.description || '') + '\n' + workspaceContext + specInput.instructions + inputs.instructions + (repairRuntime
+    const plannedNode = definition.nodes.find(node => node.key === nodeKey)!;
+    const ownsQuality = definition.deliveryContract === 'agent_owned_v1' && selfCheckExecution(plannedNode) === execution.key;
+    const qualityChecks = ownsQuality ? graphReviewChecks(definition, nodeKey, await prisma.taskGraphExecution.findMany({ where: { nodeId: execution.nodeId } })).filter(check => check.id !== 'architecture:scope') : [];
+    const qualityInstructions = ownsQuality ? `\n整票自查由本 execution 负责。${inputs.manifest.ticketInputs ? '其他执行已集成；结合当前可写工作区和固定输入清单验证完整组合。' : '其他执行尚未集成；可以先交付本仓，齐备后平台接续同一 Session 做整票自查。'}\n批准的整票命令（按 repository 找对应源码目录）：${JSON.stringify(plannedNode.acceptance.integrationChecks || [])}` +
+      reviewResultInstructions('TASK_GRAPH_IMPLEMENTATION.ticketVerification', qualityChecks).replace('最终答复仅用一行 TASK_GRAPH_IMPLEMENTATION.ticketVerification', '在原 TASK_GRAPH_IMPLEMENTATION delivered 回执中增加 ticketVerification 字段，值为') : '';
+    const stageDescription = (task.description || '') + '\n' + workspaceContext + specInput.instructions + inputs.instructions + qualityInstructions + (repairRuntime
         ? `\n受控冲突修复。原批准范围与上述 Spec/任务说明仍然有效；范围变化必须报告 blocked。源码只读：${workspace.path}。保留双方交付语义，解决 ${JSON.stringify(progress.conflictRepair)}。必须在本次 AP_GRAPH_OUTPUT_DIR 中写 resolution.json，格式 {"files":[{"path":"相对路径","content":"完整解决后文本"}]}，文件集合必须恰好是冲突路径。不要更改 Git 或源码，不要机械拼接；平台按本次 TaskRun 的产物回执读取解决文件、完成合并并重新检查和独立验收。输出 TASK_GRAPH_IMPLEMENTATION 结论。`
         : recoveryInstructions) + inputPrompt;
     const session = await implementationConversation(execution.id, config.participant);
@@ -606,7 +607,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     });
     const candidateProgress = await outcome({ kind: 'checkpoint', phase: 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit, ...(progress.conflictRepair ? { conflictRepair: null } : {}) });
     let conclusion;
-    try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || '', { conversation: candidateProgress.phase === 'implement' && !progress.conflictRepair }); }
+    try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || '', { conversation: candidateProgress.phase === 'implement' && !progress.conflictRepair, reviewChecks: qualityChecks }); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }
     if (conclusion.status !== 'delivered') {
       if (conclusion.status === 'working') {
@@ -656,13 +657,14 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         checks = await runChecks(implementOnly || definition.deliveryContract === 'agent_owned_v1' ? [] : config.checks, staging, { ...inputs.env, AP_GRAPH_SERVICE_TASK_ID: task.id, AP_GRAPH_WRITER_NONCE: worker.nonce }, inputs.readOnlyPaths);
       },
     });
-    if (definition.deliveryContract === 'agent_owned_v1' && !implementOnly && definition.nodes.find(node => node.key === nodeKey)?.acceptance.mode !== 'agent' &&
+    if (ownsQuality &&
         (progress.conflictRepair || await graphGit(execution.repository, 'rev-parse', `${candidate}^{tree}`) !== await graphGit(execution.repository, 'rev-parse', `${integrated.commit}^{tree}`))) {
       await outcome({ kind: 'repair_required', failure: { code: 'verification_input_changed', detail: '集成或冲突解决改变了已自查的源码；在原 Coding Session 对当前最终源码补验，再交付。' } });
       return;
     }
     await outcome({ kind: 'integrated', commit: integrated.commit,
-      evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit },
+      evidence: { checks, implementation: conclusion, extraRepositories: extraRepositoryState, taskRunId: result.taskRunId, integratedCommit: integrated.commit,
+        ...(ownsQuality && inputs.manifest.ticketInputs ? { ticketInputs: [...inputs.manifest.ticketInputs, { executionId: execution.id, commit: integrated.commit }].sort((a, b) => a.executionId.localeCompare(b.executionId)) } : {}) },
     });
     void postGraphParentProgress(graphRun.parentTaskId, runId,
       `${nodeKey}/${execution.key} 已集成 ${integrated.commit.slice(0, 12)}`)

@@ -1,3 +1,4 @@
+import { implementationQuality } from './implementation-quality';
 import { graphRunCanStartTx, graphRunBusinessStatus } from './run-control';
 import { observeTaskRunWriter, observeGraphWriter, type GraphWriter } from './writer-ownership';
 import { applyReviewFailureTx, type ReviewPublication } from './review-publication';
@@ -308,6 +309,10 @@ export async function submitNodeVerification(args: {
       if (node.acceptance !== 'agent' && args.actorId !== 'system') throw new Error('Wrong verification actor');
       const jobs = await tx.taskGraphExecution.findMany({ where: { nodeId: node.id } });
       if (!jobs.length || jobs.some(job => job.status !== 'integrated' || !job.commit) || !isDeepStrictEqual(args.evidence.inputs, verificationInputs(jobs))) throw new Error('Verification input commits changed');
+      if (node.acceptance !== 'agent') {
+        const quality = implementationQuality(planned, jobs);
+        if (!quality || args.evidence.checks.some(item => item.passed && !quality.decision.approved)) throw new Error('Approved implementor Ticket verification is missing or not passed');
+      }
       if (Array.isArray(args.evidence?.checks) && args.evidence.checks.every(item => item.passed) && effectiveArchitectureReview(definition, planned)) {
         const architecture = await tx.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'architecture_passed' }, orderBy: { createdAt: 'desc' } });
         const payload = architecture?.payload;

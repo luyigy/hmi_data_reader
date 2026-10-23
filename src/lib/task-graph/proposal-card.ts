@@ -1,3 +1,4 @@
+import { selfCheckExecution } from './domain';
 import { effectiveArchitectureReview, type GraphDefinition, type GraphNode } from './domain';
 import type { RoleOption } from './role-configuration';
 import { graphFormButtonName, type GraphFormDecision } from './card-actions';
@@ -59,7 +60,7 @@ function roleSummary(definition: GraphDefinition, node: GraphNode) {
   const mode = node.executionMode || 'full';
   const roles = [`实施:${implementationSummary(node)}`];
   if (mode === 'full') roles.push(`审查:${shortSelector(effectiveArchitectureReview(definition, node)?.reviewerId || '未配置')}`);
-  roles.push(`验收:${definition.deliveryContract === 'agent_owned_v1' && mode !== 'implement' && node.acceptance.mode === 'automatic' ? '各执行者自查汇总' : acceptanceSummary(node)}`);
+  roles.push(`验收:${definition.deliveryContract === 'agent_owned_v1' && mode !== 'implement' && node.acceptance.mode !== 'agent' ? `整票自查:${selfCheckExecution(node) || '待指定'}${node.acceptance.mode === 'human' ? ' + 人工批准' : ''}` : acceptanceSummary(node)}`);
   return `${shortModeLabels[mode]} · ${roles.join(' / ')}`;
 }
 

@@ -10,12 +10,12 @@ import { graphDependencyPaths } from './dependency-paths';
 import { graphGit } from './git-command';
 import { withRepositoryLock } from './repository-lock';
 import { materializeUpstream } from './upstream-source';
-import { isCompletedNodeStatus, type GraphDefinition } from './domain';
+import { selfCheckExecution, verificationInputs, isCompletedNodeStatus, type GraphDefinition } from './domain';
 import { isRecord } from './implementation-result';
 
 type Input = { repository: string; commit: string; sourcePath: string; executions: string[]; resultsDirectories: string[];
   projectEnvPath: string | null; pythonExecutable: string | null; dependencyPaths: string[]; quality: string[] };
-export type TaskInputManifest = { version: 1; executionId: string; primaryRepository: string; inputs: Input[]; hash: string };
+export type TaskInputManifest = { version: 1; executionId: string; primaryRepository: string; inputs: Input[]; ticketInputs?: { executionId: string; commit: string | null }[]; hash: string };
 export type PreparedInputs = { manifest: TaskInputManifest; readOnlyPaths: string[]; env: Record<string, string>; instructions: string };
 
 function closure(graph: GraphDefinition, key: string) {
@@ -40,7 +40,7 @@ async function hydrate(manifest: TaskInputManifest): Promise<PreparedInputs> {
   }
   return { manifest, readOnlyPaths: Array.from(new Set(readOnlyPaths)),
     env: { TASK_GRAPH_UPSTREAM_INPUTS_JSON: JSON.stringify([manifest]), AP_PROJECT_REPOSITORY: manifest.primaryRepository },
-    instructions: `\n本轮固定输入清单 ${manifest.hash}：${JSON.stringify(manifest)}\n上游源码和环境只读；跨仓调用使用对应 sourcePath 和 pythonExecutable。默认环境只归主仓，不能拼接多仓 PYTHONPATH。源码副本无 .git，Git 历史操作走平台。归档仅列已绑定交付版本的路径，缺少路径不等于从未验证；不能把旧报告冒充当前版本证据。输入不可用报告平台输入/环境阻塞，不要求用户重复发图。` };
+    instructions: `\n本轮固定输入清单 ${manifest.hash}：${JSON.stringify(manifest)}\n清单含已完成前置及整票责任人本轮可用的同票集成源码；同票 integrated 不表示验收通过。输入源码和环境只读；跨仓调用使用对应 sourcePath 和 pythonExecutable。默认环境只归主仓，不能拼接多仓 PYTHONPATH。源码副本无 .git，Git 历史操作走平台。归档仅列已绑定交付版本的路径，缺少路径不等于从未验证；不能把旧报告冒充当前版本证据。输入不可用报告平台输入/环境阻塞，不要求用户重复发图。` };
 }
 
 /** Resolve approved dependency relations once per execution claim, then replay the same recorded input. */
@@ -63,9 +63,12 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
     if (!isCompletedNodeStatus(ancestor.status) || ancestor.executions.some(job => job.status !== 'integrated' || !job.commit)) throw new Error(`前置 ${ancestor.key} 未达到批准完成条件`);
     if (ancestor.status === 'delivered_unverified' && graph.nodes.find(item => item.key === ancestor.key)?.executionMode !== 'implement') throw new Error('前置未验收状态不符合批准模式');
   }
-  const candidates = all.filter(item => required.has(item.key)).flatMap(item => item.executions.map(job => ({ ...job, nodeKey: item.key, quality: item.status })));
+  const siblings = all.find(item => item.id === node.id)!.executions.filter(job => job.id !== executionId);
+  const ticketInputs = graph.deliveryContract === 'agent_owned_v1' && selfCheckExecution(planned) === execution.key &&
+    siblings.every(job => job.status === 'integrated' && job.commit) ? verificationInputs(siblings) : undefined;
+  const candidates = all.filter(item => required.has(item.key)).flatMap(item => item.executions.map(job => ({ ...job, nodeKey: item.key, quality: item.status }))).concat(ticketInputs ? siblings.map(job => ({ ...job, nodeKey: node.key, quality: 'integrated' })) : []);
   const policy = planned.consumeUpstream || 'direct';
-  const selected = policy === 'none' ? [] : candidates.filter(job => Array.isArray(policy) ? policy.includes(`${job.nodeKey}/${job.key}`) : planned.dependsOn.includes(job.nodeKey));
+  const selected = candidates.filter(job => job.nodeKey === node.key || (policy !== 'none' && (Array.isArray(policy) ? policy.includes(`${job.nodeKey}/${job.key}`) : planned.dependsOn.includes(job.nodeKey))));
   const repositories = Array.from(new Set(selected.map(job => job.repository).filter(repo => repo !== primaryRepository))).sort();
   const inputs: Input[] = [];
   for (const repository of repositories) {
@@ -79,7 +82,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
     }
     if (!commit) throw new Error('前置提交没有已完成的汇合版本，不能自行合并');
     const integratedHistory = await prisma.taskGraphEvent.findMany({ where: { runId: node.runId, kind: 'execution_integrated' }, select: { nodeId: true, payload: true } });
-    for (const sibling of all.filter(item => !required.has(item.key) && !isCompletedNodeStatus(item.status))) {
+    for (const sibling of all.filter(item => !required.has(item.key) && !(ticketInputs && item.id === node.id) && !isCompletedNodeStatus(item.status))) {
       if (!sibling.executions.some(job => job.repository === repository)) continue;
       for (const receipt of integratedHistory.filter(event => event.nodeId === sibling.id)) {
         if (isRecord(receipt.payload) && typeof receipt.payload.commit === 'string' &&
@@ -103,7 +106,7 @@ async function resolveUpstreamInputs(executionId: string): Promise<PreparedInput
       projectEnvPath: project?.directory || null, pythonExecutable: project ? path.join(project.directory, 'bin', 'python') : null,
       dependencyPaths: graphDependencyPaths(repository), quality: jobs.map(job => job.quality) });
   }
-  const content = { version: 1 as const, executionId, primaryRepository, inputs };
+  const content = { version: 1 as const, executionId, primaryRepository, inputs, ...(ticketInputs ? { ticketInputs } : {}) };
   const manifest: TaskInputManifest = { ...content, hash: createHash('sha256').update(JSON.stringify(content)).digest('hex') };
   const event = await prisma.$transaction(async tx => {
     const previous = await tx.taskGraphEvent.findFirst({ where: { nodeId: node.id, kind: 'task_inputs_prepared', idempotencyKey: { not: eventKey },
@@ -130,7 +133,7 @@ function parseManifest(value: unknown): TaskInputManifest {
     return { repository: input.repository, commit: input.commit, sourcePath: input.sourcePath, executions: input.executions, resultsDirectories: input.resultsDirectories,
       projectEnvPath: input.projectEnvPath, pythonExecutable: input.pythonExecutable, dependencyPaths: input.dependencyPaths, quality: input.quality };
   });
-  const manifest: TaskInputManifest = { version: 1, executionId: value.executionId, primaryRepository: value.primaryRepository, inputs, hash: value.hash };
+  const manifest: TaskInputManifest = { version: 1, executionId: value.executionId, primaryRepository: value.primaryRepository, inputs, ...(Array.isArray(value.ticketInputs) ? { ticketInputs: value.ticketInputs.map(item => { if (!isRecord(item) || typeof item.executionId !== 'string' || typeof item.commit !== 'string') throw new Error('整票输入提交无效'); return { executionId: item.executionId, commit: item.commit }; }) } : {}), hash: value.hash };
   const { hash, ...content } = manifest;
   if (createHash('sha256').update(JSON.stringify(content)).digest('hex') !== hash) throw new Error('固定输入清单摘要不一致');
   return manifest;

@@ -153,8 +153,9 @@ async function main() {
     await waitForBlock(1);
     const paused = await prisma.taskGraphEvent.findFirstOrThrow({ where: { nodeId: target.id, kind: 'implementation_blocked' } });
     assert.ok(JSON.stringify(paused.payload).includes('input_preparation'));
-    await recoverTaskGraphNode(failure.id, 'K', 'implementation', 'fixture-input-retry');
-    await waitForBlock(2);
+    await assert.rejects(recoverTaskGraphNode(failure.id, 'K', 'implementation', 'fixture-input-retry'),
+      /Admission deferred.*前置提交没有已完成的汇合版本/, 'Unchanged invalid input is deferred before another execution is dispatched');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: target.id, kind: 'implementation_blocked' } }), 1, 'Admission must not start a second failing attempt');
     assert.equal(starts, 0, 'Bad input never starts a model, including a continuation');
     assert.equal(await prisma.taskRun.count({ where: { taskId: { startsWith: 'task-graph-' }, task: { name: 'K · repo' } } }), 0);
     console.log('Fixed upstream source, archived contracts, frozen attempts, readonly dual environments, ordering-only gate, cache retention/rebuild and atomic repository gate verified');

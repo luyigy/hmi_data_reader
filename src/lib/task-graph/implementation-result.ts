@@ -1,10 +1,11 @@
+import { classifyReview, type ClassifiedReview, type ReviewCheck } from './review-contract';
 import { continuationWorkFingerprint } from './continuation-work';
 import { applyExecutionOutcome, executionProgress } from './execution-progress';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
 export type ImplementationResult =
-  | { status: 'delivered'; note: string; evidence: string[] }
+  | { status: 'delivered'; note: string; evidence: string[]; ticketVerification?: ClassifiedReview }
   | { status: 'waiting_for_user'; note: string }
   | { status: 'answered'; note: string }
   | { status: 'working'; note: string }
@@ -16,15 +17,15 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Harness completion is transport success, never a delivery decision. */
-export function parseImplementationResult(output: string, options?: { conversation: boolean }): ImplementationResult {
-  try { return decodeImplementationResult(output); }
+export function parseImplementationResult(output: string, options?: { conversation?: boolean; reviewChecks?: ReviewCheck[] }): ImplementationResult {
+  try { return decodeImplementationResult(output, options?.reviewChecks); }
   catch (error) {
     if (options?.conversation && output.trim() && !/^[ \t]*TASK_GRAPH_IMPLEMENTATION\b/m.test(output)) return { status: 'working', note: output.trim() };
     throw error;
   }
 }
 
-function decodeImplementationResult(output: string): ImplementationResult {
+function decodeImplementationResult(output: string, checks: ReviewCheck[] = []): ImplementationResult {
   const matches = Array.from(output.matchAll(/^TASK_GRAPH_IMPLEMENTATION[ \t]+(\{[^\r\n]+\})[ \t]*$/gm));
   if (matches.length !== 1) throw new Error('实施缺少唯一的 TASK_GRAPH_IMPLEMENTATION 结论，不自动交付');
   let value: unknown;
@@ -35,7 +36,9 @@ function decodeImplementationResult(output: string): ImplementationResult {
   if (value.status === 'waiting_for_user' || value.status === 'answered' || value.status === 'working') return { status: value.status, note };
   if (value.status === 'delivered' && Array.isArray(value.evidence) && value.evidence.length &&
       value.evidence.every(item => typeof item === 'string' && item.trim())) {
-    return { status: 'delivered', note, evidence: value.evidence };
+    const decision = value.ticketVerification === undefined ? undefined : classifyReview(value.ticketVerification, checks);
+    if (decision === null) throw new Error('ticketVerification 缺少有效的正式验收结论或缺陷归属');
+    return { status: 'delivered', note, evidence: value.evidence, ...(decision ? { ticketVerification: decision } : {}) };
   }
   const kind = value.blockerKind;
   const cause = value.blockerCause;

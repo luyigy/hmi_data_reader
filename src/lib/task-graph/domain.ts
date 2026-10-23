@@ -9,6 +9,7 @@ import type { IssueSource } from './issue-source';
 
 export type Acceptance = {
   mode: 'automatic' | 'agent' | 'human';
+  selfCheckExecution?: string;
   reviewerId?: string;
   reviewLaunchConfig?: unknown;
   integrationChecks?: { name: string; repository: string; argv: string[] }[];
@@ -57,6 +58,12 @@ export type GraphDefinition = {
 export function effectiveArchitectureReview(graph: GraphDefinition, node: GraphNode) {
   if (node.executionMode === 'lean' || node.executionMode === 'implement') return undefined;
   return node.architectureReview || graph.defaultArchitectureReview;
+}
+
+/** The unique implementor needs no selection; multiple executions require an approved key. */
+export function selfCheckExecution(node: GraphNode) {
+  if (node.executionMode === 'implement' || node.acceptance.mode === 'agent') return undefined;
+  return node.acceptance.selfCheckExecution || (node.executions.length === 1 ? node.executions[0].key : undefined);
 }
 
 export function isCompletedNodeStatus(status: string) {
@@ -115,6 +122,10 @@ export function validateTaskGraphDefinition(input: GraphDefinition): GraphDefini
     }
     if (!Array.isArray(node.executions) || node.executions.length === 0) {
       throw new Error(`Node ${node.key} needs at least one repository execution`);
+    }
+    if (input.deliveryContract === 'agent_owned_v1' && node.executionMode !== 'implement' && gate.mode !== 'agent' &&
+        !node.executions.some(job => job.key === selfCheckExecution(node))) {
+      throw new Error(`Ticket ${node.key} requires an explicit selfCheckExecution from its approved executions`);
     }
     if (node.services?.length) {
       if (node.consumeUpstream === 'none') throw new Error('Services require consumed upstream input');
