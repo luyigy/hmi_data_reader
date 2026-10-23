@@ -427,7 +427,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       const work = await continuationWorkFingerprint(execution.id, progress.candidateCommit);
       result = { ...result, failure: { ...result.failure,
         tree: await graphGit(execution.repository, 'rev-parse', '--verify', `${progress.candidateCommit}^{tree}`),
-        fingerprint: createHash('sha256').update(work + ':' + (result.failure.checkId || result.failure.code)).digest('hex') } };
+        fingerprint: result.kind === 'result_incomplete' ? work : createHash('sha256').update(work + ':' + (result.failure.checkId || result.failure.code)).digest('hex') } };
     }
     return applyExecutionOutcome({ executionId: execution.id, claimToken, expectedRevision: progress.revision,
       outcomeId: `${claimToken}:${progress.revision}:${result.kind}`, outcome: result });
@@ -496,7 +496,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
     const beforeRun = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: execution.id } });
     const progress = executionProgress(beforeRun.dispatchMetadata)!;
     const recoveryInstructions = progress.phase === 'collect_result'
-      ? '\n仅补收已有成果的 TASK_GRAPH_IMPLEMENTATION 结论，不重新实施或修改源码。不得合成没有证据的交付。'
+      ? `\n上轮交付回执格式错误：${JSON.stringify(progress.lastFailure)}。继续当前获批 Ticket 的正常实施：可修正回执、修改代码和测试或重新验证，由你判断下一步。只有确实完成目标才能返回合法 delivered；平台将重新固定当前 Worktree 候选，不复用旧候选代表本次交付。`
       : progress.lastFailure ? `\n本票自动回修：${JSON.stringify(progress.lastFailure)}\n使用保留的当前源码修复上述故障，并重新运行相同检查。` : '';
     const previousRepairRun = progress.conflictRepair && progress.runtimeDirectory && progress.taskRunId
       ? await prisma.taskRun.findUnique({ where: { id: progress.taskRunId }, include: { participants: true } }) : null;
@@ -567,7 +567,7 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
         repoPath: execution.repository, runId, jobId: execution.id, message: `Task graph candidate ${nodeKey}/${execution.key}`,
       });
     });
-    const candidateProgress = await outcome({ kind: 'checkpoint', phase: progress.phase === 'collect_result' ? 'collect_result' : 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit, ...(progress.conflictRepair ? { conflictRepair: null } : {}) });
+    const candidateProgress = await outcome({ kind: 'checkpoint', phase: 'implement', candidateCommit: candidate, workspaceBase: workspace.baseCommit, ...(progress.conflictRepair ? { conflictRepair: null } : {}) });
     let conclusion;
     try { conclusion = parseImplementationResult(result.participants[0]?.summary || result.summary || '', { conversation: candidateProgress.phase === 'implement' && !progress.conflictRepair }); }
     catch (error) { conclusion = { status: 'invalid' as const, blockerKind: 'invalid_result' as const, note: error instanceof Error ? error.message : String(error) }; }

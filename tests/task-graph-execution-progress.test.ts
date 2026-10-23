@@ -48,13 +48,16 @@ async function main() {
     assert.equal((await applyExecutionOutcome(retry)).formatAttempts, 1);
     const collected = await claimExecution(run.id, 'A', 'repo', 'second'); assert.ok(collected);
     await assert.rejects(applyExecutionOutcome({ ...retry, outcomeId: 'old-worker', expectedRevision: 2 }), /ownership/);
-    assert.equal((await applyExecutionOutcome({ ...retry, outcomeId: 'invalid-again', claimToken: 'second', expectedRevision: 2 })).state, 'exhausted');
+    const correction = await applyExecutionOutcome({ ...retry, outcomeId: 'invalid-again', claimToken: 'second', expectedRevision: 2 });
+    assert.equal(correction.state, 'ready'); assert.equal(correction.formatAttempts, 2);
+    assert.ok(await claimExecution(run.id, 'A', 'repo', 'third'));
+    assert.equal((await applyExecutionOutcome({ ...retry, outcomeId: 'still-invalid', claimToken: 'third', expectedRevision: 3 })).state, 'exhausted');
     const current = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
     assert.equal(current.status, 'attention'); assert.equal(current.issueKind, 'retry_exhausted');
     assert.equal(executionProgress(current.dispatchMetadata)?.candidateCommit, 'b'.repeat(40));
     assert.equal(current.commit, null, 'Saving candidate does not publish an integration');
     await assert.rejects(scheduleImplementationRecovery(run.id, 'A', 'ordinary-continue'), /writer_not_exited/);
-    assert.equal(await claimExecution(run.id, 'A', 'repo', 'third'), null);
+    assert.equal(await claimExecution(run.id, 'A', 'repo', 'fourth'), null);
     await claimNode(run.id, 'B', 'integration');
     const integration = await claimExecution(run.id, 'B', 'repo', 'integration'); assert.ok(integration);
     await applyExecutionOutcome({ executionId: integration.id, claimToken: 'integration', expectedRevision: 0,

@@ -265,7 +265,7 @@ export async function admitNode(nodeId: string, wake: AdmissionWake): Promise<Ad
         ...conditions, failure: progress.lastFailure?.code, conditions: await executionConditionsVersion() });
       const conditionKey = `conditions-ready:${job.id}:${identity}`;
       if (wake.source === 'conditions' && await prisma.taskGraphEvent.count({ where: { runId: node.runId, idempotencyKey: conditionKey } })) { lastReason = 'conditions_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); if (review) break; continue; }
-      if (wake.source === 'conditions' && !review && progress.continuation && progress.continuation.unchangedTurns >= maxUnchangedWorkTurns &&
+      if (wake.source === 'conditions' && !review && progress.continuation && progress.continuation.unchangedTurns >= (progress.lastFailure?.code === 'invalid_result' ? executionRetryLimits.formatAttempts : maxUnchangedWorkTurns) &&
           progress.continuation.fingerprint === await continuationWorkFingerprint(job.id, progress.candidateCommit!) && !await approvedRuntimeUpgrade(job)) {
         lastReason = 'work_unchanged'; await deferAdmission(job, node.runId, progress, proof, exit, wake, lastReason); continue;
       }

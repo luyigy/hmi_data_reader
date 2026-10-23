@@ -27,7 +27,9 @@ export function parseImplementationResult(output: string, options?: { conversati
 function decodeImplementationResult(output: string): ImplementationResult {
   const matches = Array.from(output.matchAll(/^TASK_GRAPH_IMPLEMENTATION[ \t]+(\{[^\r\n]+\})[ \t]*$/gm));
   if (matches.length !== 1) throw new Error('实施缺少唯一的 TASK_GRAPH_IMPLEMENTATION 结论，不自动交付');
-  const value: unknown = JSON.parse(matches[0][1]);
+  let value: unknown;
+  try { value = JSON.parse(matches[0][1]); }
+  catch { throw new Error('实施结论 JSON 格式无效'); }
   if (!isRecord(value) || typeof value.note !== 'string' || !value.note.trim()) throw new Error('实施结论缺少有效说明');
   const note = value.note.trim();
   if (value.status === 'waiting_for_user' || value.status === 'answered' || value.status === 'working') return { status: value.status, note };
@@ -42,7 +44,9 @@ function decodeImplementationResult(output: string): ImplementationResult {
       kind === 'environment_failed' || kind === 'scope_change' || kind === 'permission_required')) {
     return { status: 'blocked', note, blockerKind: kind, ...(cause ? { blockerCause: cause } : {}) };
   }
-  throw new Error('实施结论无效：交付须有证据，阻塞须有明确类别');
+  if (value.status === 'blocked') throw new Error('实施阻塞结论缺少有效 blockerKind：须为 missing_business_material、missing_upstream_input、environment_failed、scope_change 或 permission_required');
+  if (value.status === 'delivered') throw new Error('实施交付结论缺少有效 evidence 证据：须为非空字符串数组');
+  throw new Error('实施结论无效：status 须为 delivered、working、waiting_for_user、answered 或 blocked');
 }
 
 export async function pauseGraphImplementation(args: {

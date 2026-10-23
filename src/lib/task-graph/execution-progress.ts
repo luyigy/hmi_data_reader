@@ -228,7 +228,7 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
       }
     } else if (outcome.kind === 'continue_work') {
       if (!['implement', 'collect_result'].includes(before.phase) || !/^[a-f0-9]{64}$/.test(outcome.fingerprint) || !outcome.note.trim()) throw new Error('Invalid normal work continuation');
-      const unchangedTurns = before.continuation?.fingerprint === outcome.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
+      const unchangedTurns = before.lastFailure?.code !== 'invalid_result' && before.continuation?.fingerprint === outcome.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
       progress.continuation = { fingerprint: outcome.fingerprint, unchangedTurns };
       progress.phase = 'implement';
       delete progress.lastFailure; delete progress.waitingKind; delete progress.waitingMessage;
@@ -277,12 +277,13 @@ export async function applyExecutionOutcomeTx(tx: Prisma.TransactionClient, args
         progress.review = { candidateCommit: current.commit, phase: progress.phase === 'architecture' ? 'architecture' : 'acceptance', claimKey: outcome.claimKey, kind: 'ready' };
       }
     } else if (['platform_retry', 'result_incomplete'].includes(outcome.kind) && 'failure' in outcome && outcome.failure.fingerprint) {
-      const unchangedTurns = before.continuation?.fingerprint === outcome.failure.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
+      const sameFailure = outcome.kind !== 'result_incomplete' || before.lastFailure?.code === outcome.failure.code && before.lastFailure?.detail === outcome.failure.detail;
+      const unchangedTurns = sameFailure && before.continuation?.fingerprint === outcome.failure.fingerprint ? before.continuation.unchangedTurns + 1 : 0;
       progress.continuation = { fingerprint: outcome.failure.fingerprint, unchangedTurns };
       progress.lastFailure = completeExecutionFailure(outcome.failure);
       if (outcome.kind === 'platform_retry') progress.platformAttempts++;
       else progress.formatAttempts++;
-      if (unchangedTurns >= maxUnchangedWorkTurns) {
+      if (unchangedTurns >= (outcome.kind === 'result_incomplete' ? executionRetryLimits.formatAttempts : maxUnchangedWorkTurns)) {
         status = 'attention'; progress.state = 'waiting_for_user'; progress.waitingKind = 'answered';
         progress.waitingMessage = '相同输入与相同失败未产生新进展，已停止空转；新消息或有效条件变化可继续原任务。';
       } else {
