@@ -9,7 +9,7 @@ execFileSync(process.execPath, ['scripts/check-stage-execution-wire.mjs'], { std
 
 // Every table mutation is confined to a fresh schema; never push a schema into public.
 // Explicit configuration wins; a repository .env is only an optional host-side fallback for sandboxed runs.
-const fromFile = existsSync('.env') ? readFileSync('.env', 'utf8').match(/^DATABASE_URL=["']?([^\r\n"']+)/m)?.[1] : undefined;
+const fromFile = !process.env.DATABASE_URL && existsSync('.env') ? readFileSync('.env', 'utf8').match(/^DATABASE_URL=["']?([^\r\n"']+)/m)?.[1] : undefined;
 const url = new URL(process.env.DATABASE_URL || fromFile || '');
 if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) throw new Error('Only a loopback PostgreSQL server may host the scratch schema');
 const schema = `task_graph_test_${randomUUID().replaceAll('-', '')}`;
