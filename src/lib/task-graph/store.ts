@@ -1,6 +1,7 @@
 import { implementationQuality } from './implementation-quality';
 import { graphRunCanStartTx, graphRunBusinessStatus } from './run-control';
-import { observeTaskRunWriter, observeGraphWriter, type GraphWriter } from './writer-ownership';
+import { observeGraphWriter, type GraphWriter } from './writer-ownership';
+import { observeTaskRunExit, taskRunExitMatches } from './task-run-exit-proof';
 import { applyReviewFailureTx, type ReviewPublication } from './review-publication';
 import { assertGraphReviewOwnershipTx } from './review-ownership';
 import { createHash } from 'node:crypto';
@@ -295,6 +296,7 @@ export async function submitNodeVerification(args: {
   runId: string; nodeKey: string; actorId: string; evidence: VerificationEvidence; attempt?: string;
   review?: ReviewPublication;
 }, db: Database = prisma) {
+  const writerExit = args.review?.outcome === 'platform_failure' ? await observeTaskRunExit(args.review.taskRunId) : undefined;
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${args.runId} AND key = ${args.nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId: args.runId, key: args.nodeKey } } });
@@ -325,7 +327,7 @@ export async function submitNodeVerification(args: {
     if (args.review) await assertGraphReviewOwnershipTx(tx, node.id, args.review.phase, args.review.claimKey, args.review.taskRunId);
     if (args.review?.outcome === 'platform_failure') {
       const failed = await tx.taskRun.findUniqueOrThrow({ where: { id: args.review.taskRunId }, select: { status: true } });
-      if (!['failed', 'cancelled', 'interrupted'].includes(failed.status) || (await observeTaskRunWriter(args.review.taskRunId)).kind !== 'exited') throw new Error('Review platform retry requires a finished writer');
+      if (!['failed', 'cancelled', 'interrupted'].includes(failed.status) || !await taskRunExitMatches(tx, args.review.taskRunId, writerExit)) throw new Error('Review platform retry requires a finished writer');
     }
     const checks = definition.nodes.find((item) => item.key === args.nodeKey)?.acceptance.checks;
     if (!checks) throw new Error('Acceptance policy missing from snapshot');

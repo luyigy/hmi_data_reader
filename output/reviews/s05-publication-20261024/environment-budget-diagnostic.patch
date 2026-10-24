@@ -1,0 +1,12 @@
+diff --git a/tests/task-graph-environment-outcome.test.ts b/tests/task-graph-environment-outcome.test.ts
+index 135f0a2..af5e451 100644
+--- a/tests/task-graph-environment-outcome.test.ts
++++ b/tests/task-graph-environment-outcome.test.ts
+@@ -140,6 +140,7 @@ async function main() {
+     console.log('PASS temporary failures recover within budget; persistent failure exhausts without resetting counters');
+     for (const key of ['FALSE_REPORT', 'ENGINEERING']) {
+       const job = before.find(item => item.node.key === key)!;
++      if (executionProgress(job.dispatchMetadata)?.platformAttempts !== 0) console.error('[DEBUG-s05-environment-budget]', JSON.stringify({key, job, outcomes: await outcomes(job.id)}));
+       assert.equal(starts.get(key), 2); assert.equal(executionProgress(job.dispatchMetadata)?.platformAttempts, 0);
+       assert((await outcomes(job.id)).some(event => JSON.stringify(event.payload).includes('"kind":"continue_work"')));
+     }

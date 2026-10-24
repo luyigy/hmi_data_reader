@@ -1,0 +1,714 @@
+{
+  "source": "output/sandbox-postgres-runs/2026-10-24T103412-2170199/db-observation.jsonl",
+  "sampleCount": 143,
+  "maxAge": 4.978714,
+  "blockingPids": [],
+  "ungrantedLocks": 0,
+  "waits": [
+    [
+      "idle in transaction",
+      "Client",
+      "ClientRead"
+    ]
+  ],
+  "snapshots": [
+    {
+      "at": "2026-10-24T02:34:54.930Z",
+      "sessions": [
+        {
+          "pid": 30,
+          "state": "idle in transaction",
+          "wait_event_type": "Client",
+          "wait_event": "ClientRead",
+          "age": 0.256294,
+          "blockers": [],
+          "query": "SELECT \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"id\", \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"status\" FROM \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\" WHERE (\"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"id\" = $1 AND 1=1) LIMIT $2 OFFSET $3"
+        }
+      ],
+      "locks": [
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_taskSessionId_createdAt_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_taskId_createdAt_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphExecution_nodeId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphExecution\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_parentTaskId_version_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_requestKey_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "virtualxid",
+          "mode": "ExclusiveLock",
+          "granted": true,
+          "relation": null,
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "transactionid",
+          "mode": "ExclusiveLock",
+          "granted": true,
+          "relation": null,
+          "transactionid": "1188",
+          "classid": null,
+          "objid": null
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T02:35:05.951Z",
+      "sessions": [
+        {
+          "pid": 30,
+          "state": "idle in transaction",
+          "wait_event_type": "Client",
+          "wait_event": "ClientRead",
+          "age": 4.978714,
+          "blockers": [],
+          "query": "SELECT \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"id\", \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"status\" FROM \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\" WHERE (\"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"id\" = $1 AND 1=1) LIMIT $2 OFFSET $3"
+        }
+      ],
+      "locks": [
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_taskSessionId_createdAt_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_taskId_createdAt_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphExecution_nodeId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphExecution\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_parentTaskId_version_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_requestKey_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "virtualxid",
+          "mode": "ExclusiveLock",
+          "granted": true,
+          "relation": null,
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "transactionid",
+          "mode": "ExclusiveLock",
+          "granted": true,
+          "relation": null,
+          "transactionid": "1209",
+          "classid": null,
+          "objid": null
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T02:35:12.163Z",
+      "sessions": [
+        {
+          "pid": 30,
+          "state": "idle in transaction",
+          "wait_event_type": "Client",
+          "wait_event": "ClientRead",
+          "age": 4.94306,
+          "blockers": [],
+          "query": "SELECT \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"id\", \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"status\" FROM \"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\" WHERE (\"task_graph_test_033524060efc43808b8add16ffc154a3\".\"TaskRun\".\"id\" = $1 AND 1=1) LIMIT $2 OFFSET $3"
+        }
+      ],
+      "locks": [
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_taskSessionId_createdAt_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_taskId_createdAt_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskRun\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphExecution_nodeId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphExecution\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_parentTaskId_version_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_requestKey_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphRun\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_status_idx\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_pkey\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode_runId_key_key\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "AccessShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "relation",
+          "mode": "RowShareLock",
+          "granted": true,
+          "relation": "task_graph_test_033524060efc43808b8add16ffc154a3.\"TaskGraphNode\"",
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "virtualxid",
+          "mode": "ExclusiveLock",
+          "granted": true,
+          "relation": null,
+          "transactionid": null,
+          "classid": null,
+          "objid": null
+        },
+        {
+          "pid": 30,
+          "locktype": "transactionid",
+          "mode": "ExclusiveLock",
+          "granted": true,
+          "relation": null,
+          "transactionid": "1230",
+          "classid": null,
+          "objid": null
+        }
+      ]
+    }
+  ]
+}

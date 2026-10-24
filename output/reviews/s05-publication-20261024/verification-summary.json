@@ -1,0 +1,251 @@
+{
+  "original.log": {
+    "source": "output/sandbox-postgres-runs/2026-10-24T103246-2157024",
+    "startedAt": "2026-10-24T02:32:46.448Z",
+    "endedAt": "2026-10-24T02:33:55.405Z",
+    "bwrapExitCode": 0,
+    "signal": null,
+    "suites": [
+      "task-graph-condition-recheck"
+    ],
+    "resourceVersion": "14.24.0",
+    "evidence": "evidence.json（沙箱内写入）",
+    "P2028Count": 3,
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    }
+  },
+  "observed.log": {
+    "source": "output/sandbox-postgres-runs/2026-10-24T103412-2170199",
+    "startedAt": "2026-10-24T02:34:13.195Z",
+    "endedAt": "2026-10-24T02:35:20.814Z",
+    "bwrapExitCode": 0,
+    "signal": null,
+    "suites": [
+      "task-graph-condition-recheck"
+    ],
+    "resourceVersion": "14.24.0",
+    "evidence": "evidence.json（沙箱内写入）",
+    "P2028Count": 3,
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    }
+  },
+  "publication-red.log": {
+    "source": "output/sandbox-postgres-runs/2026-10-24T103702-2193625",
+    "startedAt": "2026-10-24T02:37:03.141Z",
+    "endedAt": "2026-10-24T02:37:37.609Z",
+    "bwrapExitCode": 1,
+    "signal": null,
+    "suites": [
+      "task-graph-review-publication"
+    ],
+    "resourceVersion": "14.24.0",
+    "evidence": "evidence.json（沙箱内写入）",
+    "P2028Count": 1,
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": false,
+        "exitCode": 1
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    }
+  },
+  "publication-final.log": {
+    "source": "output/sandbox-postgres-runs/2026-10-24T104013-2230390",
+    "startedAt": "2026-10-24T02:40:13.651Z",
+    "endedAt": "2026-10-24T02:40:28.859Z",
+    "bwrapExitCode": 0,
+    "signal": null,
+    "suites": [
+      "task-graph-review-publication"
+    ],
+    "resourceVersion": "14.24.0",
+    "evidence": "evidence.json（沙箱内写入）",
+    "P2028Count": 0,
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    }
+  },
+  "combined-environment-failed.log": {
+    "source": "output/sandbox-postgres-runs/2026-10-24T103758-2203003",
+    "startedAt": "2026-10-24T02:37:58.614Z",
+    "endedAt": "2026-10-24T02:40:07.381Z",
+    "bwrapExitCode": 1,
+    "signal": null,
+    "suites": [
+      "task-graph-review-publication",
+      "task-graph-condition-recheck",
+      "task-graph-environment-outcome"
+    ],
+    "resourceVersion": "14.24.0",
+    "evidence": "evidence.json（沙箱内写入）",
+    "P2028Count": 0,
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": false,
+        "exitCode": 1
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    }
+  },
+  "compatibility.log": {
+    "source": "output/sandbox-postgres-runs/2026-10-24T103808-2206239",
+    "startedAt": "2026-10-24T02:38:09.222Z",
+    "endedAt": "2026-10-24T02:39:14.275Z",
+    "bwrapExitCode": 0,
+    "signal": null,
+    "suites": [
+      "task-graph-natural-blockers",
+      "task-graph-preparation-recovery",
+      "task-graph-execution-progress"
+    ],
+    "resourceVersion": "14.24.0",
+    "evidence": "evidence.json（沙箱内写入）",
+    "P2028Count": 0,
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    }
+  },
+  "environment-diagnostic.log": {
+    "source": "output/sandbox-postgres-runs/2026-10-24T104057-2238601",
+    "startedAt": "2026-10-24T02:40:57.903Z",
+    "endedAt": "2026-10-24T02:42:46.078Z",
+    "bwrapExitCode": 0,
+    "signal": null,
+    "suites": [
+      "task-graph-environment-outcome"
+    ],
+    "resourceVersion": "14.24.0",
+    "evidence": "evidence.json（沙箱内写入）",
+    "P2028Count": 0,
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    }
+  },
+  "checks": {
+    "typescript": {
+      "command": "npx tsc --noEmit --incremental false",
+      "exitCode": 0
+    },
+    "eslint": {
+      "files": [
+        "src/lib/task-graph/store.ts",
+        "tests/task-graph-review-publication.test.ts",
+        "scripts/test-task-graph-postgres.mjs"
+      ],
+      "exitCode": 0
+    }
+  }
+}
