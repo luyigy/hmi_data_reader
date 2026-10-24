@@ -7,7 +7,7 @@ import { requireGraphRunActiveTx } from './run-control';
 import { isCompletedNodeStatus, type GraphDefinition } from './domain';
 import { prepareGraphSpecInput } from './spec-input';
 import { prepareUpstreamInputs } from './upstream-inputs';
-import { prepareGraphOutputForTask } from './output-task-context';
+import { prepareGraphInspectionOutputForTask } from './output-task-context';
 import { inspectSavedTaskRuntime } from './runtime-continuity';
 import { observeWriterSnapshot, writerSnapshotMatches } from './writer-snapshot';
 import { prisma } from '../prisma';
@@ -136,7 +136,7 @@ export async function inspectImplementationConditions(job: TaskGraphExecution, p
   if (await graphGit(job.worktreePath, 'rev-parse', '--verify', 'MERGE_HEAD').then(() => true, () => false)) throw new PreparationRejected('Pending merge requires controlled conflict repair');
   const inputs = await prepareUpstreamInputs(job.id);
   const spec = await prepareGraphSpecInput(snapshot);
-  const output = await prepareGraphOutputForTask(job.childTaskId, `conditions:${job.id}:${progress.revision}`, [job.worktreePath]);
+  const output = await prepareGraphInspectionOutputForTask(job.childTaskId, job.id);
   const runtime = await inspectSavedTaskRuntime({ taskId: job.childTaskId, workspace: job.worktreePath,
     approvedReadOnlyRoots: [...inputs.readOnlyPaths, ...spec.paths, ...output.readOnlyPaths], outputDirectory: output.directory, priorArtifacts: output.priorArtifacts });
   return { inputHash: inputs.manifest.hash, runtimeIdentity: runtime.identity };
