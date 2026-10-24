@@ -72,7 +72,7 @@ function admissionHold(progress: ExecutionProgress, wake: AdmissionWake, scopeAp
   const scopeResolved = wake.source === 'conditions' && scopeApproved && ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '');
   if (wake.source === 'conditions' && !scopeResolved && (progress.lastFailure?.requiresUserDecision === true ||
       ['permission_required', 'scope_change'].includes(progress.lastFailure?.code || '') ||
-      progress.state === 'waiting_for_user' && progress.waitingKind === 'question')) return 'human_input_required';
+      progress.state === 'waiting_for_user' && (progress.waitingKind === 'question' || !progress.lastFailure))) return 'human_input_required';
 }
 
 async function observeAdmissionWriter(job: TaskGraphExecution) {

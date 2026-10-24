@@ -82,7 +82,11 @@ async function main() {
         env: probeEnv, sandboxMode: 'read-only', networkAccess: 'restricted', readOnlyPaths: access.readOnlyPaths });
       await execute(probe.command, probe.args, { env: probeEnv });
 
-      const sources = await launch(access, ['sources']); assert.equal(sources.sources[0].key, 'approved');
+      const sources = await launch(access, ['sources']);
+      assert.equal(sources.sources[0].key, 'approved');
+      assert.equal(sources.sources[0].baseToken, 'baseTest');
+      assert.equal(sources.sources[0].tableId, 'tblTest');
+      assert.equal(sources.sources[0].viewId, undefined);
       await assert.rejects(launch(access, ['query', 'other', 'brand']));
       await assert.rejects(launch(access, ['image', 'approved', 'recUnknown', 'Photos', '0']));
       const found = await launch(access, ['query', 'approved', 'brand']); assert.equal(found.records[0].id, 'recTest');

@@ -65,3 +65,17 @@ assert.match(visibleText(summaryOnlyFinal), /处理完了，请确认图片来�
 const longProgress = [{ content: '早期过程'.repeat(6000) }, { content: '\n\n最新进度：正在核对第四张图。' }];
 const advancing = buildRunReplyCard({ ...base, status: 'running', summary: null }, [], [], longProgress);
 assert.match(visibleText(advancing), /最新进度：正在核对第四张图/, 'A full card must still show newly streamed output');
+
+const noNewlines = [
+  { sequence: 3, content: '先核对版本。' },
+  { sequence: 9, content: '已经找到原始证据。' },
+  { sequence: 14, content: finalReview },
+];
+const separated = visibleText(buildRunReplyCard({ ...base, summary: finalReview }, [], [], noNewlines));
+assert.match(separated, /先核对版本。\n\n已经找到原始证据。/);
+assert.doesNotMatch(separated, /TASK_GRAPH_REVIEW|approved/);
+assert.equal(separated.split('原有通过项保留，尚缺独立样本。').length - 1, 1);
+const tokens = [{ sequence: 1, content: '正在核' }, { sequence: 2, content: '对图片。' }, { sequence: 3, content: finalReview }];
+const tokenReply = visibleText(buildRunReplyCard({ ...base, summary: finalReview }, [], [], tokens));
+assert.match(tokenReply, /正在核对图片。/);
+assert.doesNotMatch(tokenReply, /TASK_GRAPH_REVIEW|approved/);

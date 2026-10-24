@@ -6,14 +6,17 @@ export function assertBubblewrapAvailable() {
   if (!existsSync('/usr/bin/bwrap')) throw new Error('受限 Feishu 用户需要 /usr/bin/bwrap，但当前主机未安装。');
 }
 
-const parentDirs = (target: string) => {
-  const dirs: string[] = [];
-  for (let current = path.dirname(target); current !== '/'; current = path.dirname(current)) dirs.unshift(current);
-  return dirs.filter((directory) => !['/usr', '/tmp', '/proc', '/dev'].includes(directory)).flatMap((directory) => ['--dir', directory]);
-};
-
 /** This is the only compiler of Bubblewrap flags for both legacy and managed launches. */
 export function renderBubblewrap(plan: PreparedSandboxEnvironment) {
+  const declaredParentDirs = new Set<string>();
+  const parentDirs = (target: string) => {
+    const dirs: string[] = [];
+    for (let current = path.dirname(target); current !== '/'; current = path.dirname(current)) dirs.unshift(current);
+    return dirs.filter((directory) => !['/usr', '/tmp', '/proc', '/dev'].includes(directory) && !declaredParentDirs.has(directory)).flatMap((directory) => {
+      declaredParentDirs.add(directory);
+      return ['--dir', directory];
+    });
+  };
   const systemCertificates = '/etc/ssl/certs';
   const systemHosts = '/etc/hosts';
   const systemResolvConf = '/etc/resolv.conf';

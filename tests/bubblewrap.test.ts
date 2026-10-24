@@ -109,6 +109,30 @@ void (async () => {
   assert.equal(readOnlyResult.status, 0, readOnlyResult.stderr);
   assert.equal(await readFile(sharedAuth, 'utf8'), 'refreshed\n');
 
+  const pressureHistory = path.join(shared, 'history', 'a', 'b', 'c');
+  await mkdir(pressureHistory, { recursive: true });
+  const priorOutputs = await Promise.all(Array.from({ length: 671 }, async (_, index) => {
+    const directory = path.join(pressureHistory, `output-${index}`);
+    await mkdir(directory);
+    return directory;
+  }));
+  const pressure = wrapWithBubblewrap({
+    command: '/usr/bin/sh',
+    commandArgs: ['-c', `test -r ${JSON.stringify(priorOutputs[0])} && ! touch ${JSON.stringify(path.join(priorOutputs[0], 'forbidden'))}`],
+    cwd: root,
+    workspaceRoot: root,
+    networkAccess: 'enabled',
+    env: process.env,
+    readOnlyPaths: priorOutputs,
+  });
+  const parentDeclarations = pressure.args
+    .map((arg, index) => (arg === '--dir' ? pressure.args[index + 1] : null))
+    .filter((arg) => arg !== null);
+  assert.equal(parentDeclarations.length, new Set(parentDeclarations).size);
+  assert.ok(pressure.args.length < 9000);
+  const pressureResult = spawnSync(pressure.command, pressure.args, { encoding: 'utf8' });
+  assert.equal(pressureResult.status, 0, pressureResult.stderr);
+
   const approvalSource = await readFile(path.join(process.cwd(), 'src/lib/feishu-access-approval.ts'), 'utf8');
   assert.equal(approvalSource.match(/networkAccess: 'enabled'/g)?.length, 3);
   assert.doesNotMatch(approvalSource, /networkAccess: 'restricted'/);

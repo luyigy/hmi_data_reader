@@ -23,7 +23,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export function parseImplementationResult(output: string, options?: { conversation?: boolean; reviewChecks?: ReviewCheck[] }): ImplementationResult {
   try { return decodeImplementationResult(output, options?.reviewChecks); }
   catch (error) {
-    if (options?.conversation && output.trim() && !/^[ \t]*TASK_GRAPH_IMPLEMENTATION\b/m.test(output)) return { status: 'working', note: output.trim() };
+    if (options?.conversation && output.trim() && !/^[ \t]*TASK_GRAPH_IMPLEMENTATION\b/m.test(output)) return { status: 'answered', note: output.trim() };
     throw error;
   }
 }
@@ -130,7 +130,10 @@ export async function graphRecoveryKind(nodeId: string): Promise<RecoveryKind> {
 }
 
 export async function latestImplementationRecovery(nodeId: string) {
-  return prisma.taskGraphEvent.findFirst({ where: { nodeId, kind: 'implementation_recovery_scheduled' }, orderBy: { createdAt: 'desc' } });
+  const recovery = await prisma.taskGraphEvent.findFirst({ where: { nodeId, kind: 'implementation_recovery_scheduled' }, orderBy: { createdAt: 'desc' } });
+  if (!recovery) return null;
+  const consumed = await prisma.taskGraphEvent.findFirst({ where: { nodeId, kind: 'implementation_recovery_consumed', payload: { path: ['recoveryEventId'], equals: recovery.id } }, select: { id: true } });
+  return consumed ? null : recovery;
 }
 
 export function implementationCheckpoint(payload: unknown, executionId: string) {

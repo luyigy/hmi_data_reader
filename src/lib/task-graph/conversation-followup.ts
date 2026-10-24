@@ -9,7 +9,7 @@ import type { AcpxParticipantRequest } from '../acpx/types';
 import { executionProgress, metadataWithProgress } from './execution-progress';
 import { observeExecutionWriter } from './phase-worker';
 import { createGraphWriter, parseGraphWriter, observeGraphWriter, observeTaskRunWriter } from './writer-ownership';
-import { bindConversationInputs, conversationPrompt, pendingConversationInputs, pendingConversationNodes, handoffConversationMaterials } from './conversation-inbox';
+import { bindConversationInputs, conversationPrompt, conversationHistoryPrompt, pendingConversationInputs, pendingConversationNodes, handoffConversationMaterials } from './conversation-inbox';
 import { implementationConversation } from './conversation-session';
 import { taskGraphAgentReviewPermissionConfig } from './review-permissions';
 import { ensureReadOnlyWorkspace } from './readonly-workspace';
@@ -109,7 +109,7 @@ export async function startConversationFollowups(capacity: number) {
       const candidate = job.commit || executionProgress(job.dispatchMetadata)?.candidateCommit;
       const directory = candidate ? await ensureReadOnlyWorkspace(job.repository, candidate, job.id) : job.worktreePath;
       if (!directory) throw new Error('Original conversation workspace unavailable; preserve pending input');
-      const prompt = `你负责原任务，继续在这个话题与用户正常交流。结合前几轮图片、说明和纠正核对事实；旧的缺材料判断可以被新证据纠正，不能当成不可改变的要求。先直接回答用户。需要接回实施时，简短说明接下来做什么，再附加一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["本任务当前或历史材料消息id"],"note":"继续实施的依据"}。材料可以引用本任务前几轮已处理的消息，不要求用户重发。平台根据本轮用户身份核验接续权限，并在原会话交回实施。准备接续不代表材料已通过独立验收。当前阶段保护固定成果，源码只读；平台确认 writer 退出并完成交接后，实施轮次才能写入。不能通过聊天扩大范围、放宽权限、重置预算或宣布任务通过。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}`;
+      const prompt = `你负责原任务，继续在这个话题与用户正常交流。结合前几轮图片、说明和纠正核对事实；旧的缺材料判断可以被新证据纠正，不能当成不可改变的要求。先直接回答用户。需要接回实施时，简短说明接下来做什么，再附加一行 TASK_GRAPH_CONVERSATION {"action":"resume_implementation","inputIds":["本任务当前或历史材料消息id"],"note":"继续实施的依据"}。材料可以引用本任务前几轮已处理的消息，不要求用户重发。平台根据本轮用户身份核验接续权限，并在原会话交回实施。准备接续不代表材料已通过独立验收。当前阶段保护固定成果，源码只读；平台确认 writer 退出并完成交接后，实施轮次才能写入。不能通过聊天扩大范围、放宽权限、重置预算或宣布任务通过。\n当前状态：${job.status}\n当前进度：${JSON.stringify(executionProgress(job.dispatchMetadata))}\n${conversationPrompt(pending)}${await conversationHistoryPrompt(job.id, pending)}`;
       const materialPrompt = prompt + '\n' + await syncGraphConversationMaterials(task.id);
       const session = await implementationConversation(job.id, participant);
       const result = await executeAcpxTaskRun({ graphConversation: { executionId: job.id, reservationId: event.id, inputIds: pending.map(input => input.id) },

@@ -43,6 +43,7 @@ async function main() {
   require('../src/lib/feishu-task-entry-api').isFeishuGroupAdmin = async () => false;
   globalThis.fetch = async () => new Response(JSON.stringify({ code: 0, tenant_access_token: 'fixture', expire: 3600, data: { message_id: 'fixture-message' } }));
   let calls = 0;
+  let recoveryRequestId = '';
   const adapter = getHarnessAdapter('codex'); assert.ok(adapter);
   adapter.execute = async ({ task, context }) => {
     calls++;
@@ -52,7 +53,9 @@ async function main() {
       writeFileSync(path.join(context.workingDirectory!, 'saved.txt'), 'progress ' + calls);
       if (calls === 1) return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"need source photo"}', executionTime: 1 };
       assert.match(task.description || '', /NEW-MATERIAL/);
+      if (calls === 2) assert.ok(task.description?.includes(recoveryRequestId), 'The authorized recovery reaches its first real execution');
       if (calls === 3) {
+        assert.ok(!task.description?.includes(recoveryRequestId), 'A later retry must not replay the consumed recovery instruction');
         assert.equal(readFileSync(path.join(context.workingDirectory!, 'baseline'), 'utf8'), 'approved correction during pause');
         assert.equal(readFileSync(path.join(context.workingDirectory!, 'supplement.txt'), 'utf8'), 'new material');
       }
@@ -111,6 +114,7 @@ async function main() {
     await prisma.liveRoomMessage.create({ data: { roomId: room.id, messageType: 'user', content: 'NEW-MATERIAL 用这张图继续' } });
     await assert.rejects(requestGraphConversationRecovery({ ...request, openId: 'stranger' }), /管理员/);
     const event = await requestGraphConversationRecovery(request);
+    recoveryRequestId = event.id;
     assert.equal((await requestGraphConversationRecovery(request)).id, event.id);
     const control = await applyGraphControlOutput({ roomId: room.id, sourceContent: 'A 继续',
       sourceMetadata: JSON.stringify({ source: 'feishu', feishuSenderOpenId: 'fixture-admin', feishuChatId: 'fixture-chat', feishuMessageId: request.messageId }),
@@ -150,13 +154,12 @@ async function main() {
     assert.notEqual(second.taskRunId, first.taskRunId);
     assert.notEqual(second.claimToken, first.claimToken);
     assert.equal(calls, 4, 'Blocked A resumes once, recollects automatically, then B starts once');
-    assert.equal(executionProgress(second.dispatchMetadata)?.formatAttempts, 0);
+    assert.equal(executionProgress(second.dispatchMetadata)?.formatAttempts, 1, 'Recovery consumes no extra result budget and never resets the earlier invalid-result attempt');
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_recovery_scheduled' } }), 1);
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_blocked' } }), 1);
     assert.equal((await prisma.taskRun.findUniqueOrThrow({ where: { id: first.taskRunId } })).status, 'completed', 'Original attempt retained');
     await handleGraphConversationIntent({ ...request, messageId: 'terminal' });
     assert.equal(await handleGraphConversationIntent({ ...request, messageId: 'plain-status', text: '完成了吗？' }), false, 'Natural language is no longer a pre-model control API');
-    assert.ok(notices.some(text => text.includes('原 Agent 继续工作')));
     // An old integrated-but-incomplete delivery is explicitly classified, not guessed from integrated.
     const delivery = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } });
     assert.ok(delivery.commit);
@@ -176,6 +179,7 @@ async function main() {
     await until(async () => (await prisma.taskGraphNode.findUniqueOrThrow({ where: { id: node.id } })).status === 'delivered_unverified');
     assert.equal(calls, 5, 'Historical incomplete delivery resumes implementation and can deliver again');
     assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'delivered_unverified' } }), 2, 'Append a new delivery, retain the original');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'implementation_recovery_consumed' } }), 2, 'Each recovery instruction is consumed by one real execution');
     await until(async () => await prisma.taskGraphEvent.count({ where: { nodeId: node.id, kind: 'workspace_cleanup_deferred' } }) >= 1);
     await drain();
     await cleanupFinishedWorkspaces();

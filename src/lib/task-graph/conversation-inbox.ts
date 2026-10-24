@@ -186,6 +186,18 @@ export function conversationPrompt(inputs: ConversationInput[]) {
       receivedPhase: input.receivedPhase, receivedState: input.receivedState, sourceMetadata: input.sourceMetadata })).join('\n') : '';
 }
 
+export async function conversationHistoryPrompt(executionId: string, current: ConversationInput[]) {
+  const job = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
+  const events = await prisma.taskGraphEvent.findMany({ where: { runId: job.node.runId, nodeId: job.nodeId, kind: 'conversation_input',
+    payload: { path: ['executionId'], equals: executionId } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 50 });
+  const currentIds = new Set(current.map(input => input.id));
+  const previous = events.map(event => parseInput(event.id, event.payload)).filter(input => !currentIds.has(input.id)).reverse();
+  if (!previous.length) return '';
+  return '\n本任务已处理的历史输入，可在接续时按 id 引用；无需要求用户重发。\n' +
+    previous.map(input => JSON.stringify({ id: input.id, history: true, actor: input.actorId, content: input.content,
+      receivedPhase: input.receivedPhase, receivedState: input.receivedState, sourceMetadata: input.sourceMetadata })).join('\n').slice(-20_000);
+}
+
 export async function conversationInputs(executionId: string) {
   return prisma.$transaction(async tx => {
     const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });

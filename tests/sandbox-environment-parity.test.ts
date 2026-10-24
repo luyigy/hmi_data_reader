@@ -57,11 +57,27 @@ try {
     try { return { value: run() }; }
     catch (error) { if (!(error instanceof Error)) throw error; return { error: error.message, name: error.name }; }
   };
+  const withoutRedundantParentDirs = (result: ReturnType<typeof capture>): ReturnType<typeof capture> => {
+    const value = 'value' in result ? result.value : undefined;
+    if (!value) return result;
+    const declared = new Set<string>();
+    const args: string[] = [];
+    for (let index = 0; index < value.args.length; index += 1) {
+      const arg = value.args[index];
+      if (arg === '--dir' && declared.has(value.args[index + 1])) {
+        index += 1;
+        continue;
+      }
+      if (arg === '--dir') declared.add(value.args[index + 1]);
+      args.push(arg);
+    }
+    return { value: { ...value, args } };
+  };
   cases.forEach((input, index) => {
-    assert.deepEqual(capture(() => candidate(input)), capture(() => legacy(input)), `baseline argv/error parity case ${index}`);
+    assert.deepEqual(withoutRedundantParentDirs(capture(() => candidate(input))), withoutRedundantParentDirs(capture(() => legacy(input))), `baseline argv/error parity case ${index}`);
     const workspaceRoot = input.workspaceRoot;
     if (workspaceRoot && !baselineOnly) {
-      assert.deepEqual(capture(() => renderBubblewrap(prepareSandboxEnvironment({ ...input, workspaceRoot }))), capture(() => legacy(input)), `shared renderer parity case ${index}`);
+      assert.deepEqual(capture(() => renderBubblewrap(prepareSandboxEnvironment({ ...input, workspaceRoot }))), withoutRedundantParentDirs(capture(() => legacy(input))), `shared renderer parity case ${index}`);
     }
   });
   const probe = 'test -w "$PWD" && test -r /etc/hosts && test ! -e /etc/passwd && readlink /proc/self/ns/net';

@@ -59,7 +59,7 @@ export async function withProjectCapabilities<T>(args: RuntimeArgs, action: (acc
     const request = object(raw);
     if (request.operation === 'sources') {
       if (Object.keys(request).some(key => key !== 'operation')) throw new Error('资料源列表参数无效');
-      return { sources: context.policy.sources.map(source => ({ key: source.key, searchField: source.searchField, imageFields: source.imageFields })), localReadOnlyRoots: context.policy.readOnlyRoots };
+      return { sources: context.policy.sources.map(source => ({ key: source.key, baseToken: source.baseToken, tableId: source.tableId, ...(source.viewId ? { viewId: source.viewId } : {}), searchField: source.searchField, imageFields: source.imageFields })), localReadOnlyRoots: context.policy.readOnlyRoots };
     }
     const source = context.policy.sources.find(source => source.key === request.source);
     if (!source) throw new Error('资料源别名未获批准');

@@ -40,7 +40,7 @@ async function main() {
     const execution = await prisma.taskGraphExecution.findUnique({ where: { childTaskId: args.task.id }, include: { node: true } });
     if (execution?.node.runId === legacyRunId) {
       if (args.context.permissionConfig?.sandboxMode === 'read-only') {
-        const inputs = prompt.split('\n').filter(line => line.startsWith('{"id":')).map(line => JSON.parse(line));
+        const inputs = prompt.split('\n').filter(line => line.startsWith('{"id":')).map(line => JSON.parse(line)).filter(input => !input.history);
         if (inputs.some(input => input.content === '尺寸材料是42，只检查不要继续')) return { success: true, output: '尺寸材料已收到，先核对。', sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 };
         const input = inputs.find(input => input.content.includes('尺寸材料'));
         return { success: true, output: 'TASK_GRAPH_CONVERSATION ' + JSON.stringify({ action: 'resume_implementation', inputIds: [materialInputId || input.id], note: '材料已提供' }), sessionId: 'legacy-followup', sessionKind: 'codex_thread', executionTime: 1 };
@@ -173,6 +173,9 @@ async function main() {
     await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'continue-earlier-material', actorId: owner.id, actorOrigin: 'platform', content: '按刚才的尺寸继续实施' });
     await followupUntil(3);
     assert.equal(calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length, 3);
+    const materialFollowup = calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly)[2];
+    assert.ok(materialFollowup.prompt.includes(materialInputId!), 'Read-only conversation can cite the earlier material event id');
+    assert.match(materialFollowup.prompt, /尺寸材料是42，只检查不要继续/, 'Earlier material content remains available after its turn completed');
     const continuation = new AbortController(); continuation.abort(); await startTaskGraphCoordinator(continuation.signal);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: legacy.id, kind: 'node_admitted' } }), 1,
       'An authorized continuation can cite material from an earlier turn of the same execution');

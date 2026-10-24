@@ -50,7 +50,7 @@ async function main() {
     await relayTaskGraphRunReply(run.id);
     assert.equal(replies.length, 0, 'Progress must update the same card, not create paragraph cards');
     assert.equal(updated.at(-1)?.id, 'reply-1');
-    assert.match(JSON.stringify(updated.at(-1)?.card), /正在实现 S03。正在检查保存读回/);
+    assert.match(JSON.stringify(updated.at(-1)?.card), /正在实现 S03。\\n\\n正在检查保存读回/);
     await relayTaskGraphRunReply(run.id);
     assert.equal(replies.length, 0, 'Repeated polls must not duplicate progress');
     updated.length = 0;
@@ -80,7 +80,7 @@ async function main() {
     await relayTaskGraphReplies();
     assert.match(JSON.stringify(updated.at(-1)?.card), /S03 已提交，等待验收/, 'Final reply must remain on the same card');
     const finalVisible = (updated.at(-1)?.card as { body: { elements: { tag: string; content?: string }[] } }).body.elements.filter(e => e.tag === 'markdown').map(e => e.content).join('\n');
-    assert.match(finalVisible, /正在实现 S03。正在检查保存读回/, 'Final summary cannot erase earlier streaming conversation');
+    assert.match(finalVisible, /正在实现 S03。\n\n正在检查保存读回/, 'Final summary cannot erase earlier streaming conversation');
     assert.match(finalVisible, /S03 已提交，等待验收/);
     assert.equal(updated.at(-1)?.id, 'reply-1', 'Finalization keeps the streaming message identity');
     assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).lastStatus, 'completed');

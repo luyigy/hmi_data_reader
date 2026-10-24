@@ -24,7 +24,7 @@ function agentReply(response: string) {
   return parts.filter(Boolean).join('\n\n');
 }
 
-export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], requests: TaskRunInteractionRequest[] = [], output: Pick<TaskRunEvent, 'content'>[] = []) {
+export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], requests: TaskRunInteractionRequest[] = [], output: (Pick<TaskRunEvent, 'content'> & Partial<Pick<TaskRunEvent, 'sequence'>>)[] = []) {
   const identity = run.participants.map((p) => `${roles[p.role] || p.role} · ${p.harnessNameSnapshot || p.harnessType || p.runner}`).join(' / ');
   const isTool = (event: TaskRunEvent) => {
     try { if (JSON.parse(event.metadata || '{}').kind === 'tool') return true; } catch { /* Legacy events may lack JSON metadata. */ }
@@ -35,7 +35,13 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
   const systems = history.filter(event => !isTool(event));
   const active = ['running', 'waiting_for_input', 'pending'].includes(run.status);
   const conversation = run.replyKind === 'conversation';
-  const streamed = output.map(event => event.content).join('');
+  const streamed = output.map((event, index) => {
+    const previous = output[index - 1];
+    // Intervening tool/system events separate speech; adjacent token deltas stay joined.
+    const afterActivity = previous?.sequence !== undefined && event.sequence !== undefined && event.sequence > previous.sequence + 1;
+    const control = /^TASK_GRAPH_(?:IMPLEMENTATION|CONVERSATION|REVIEW)\s+\{/.test(event.content);
+    return previous && (afterActivity || control) ? `\n\n${event.content}` : event.content;
+  }).join('');
   const finalReply = run.participants.map(participant => participant.summary || participant.error || '').filter(Boolean).join('\n\n') || run.summary || run.error || streamed;
   const progressReply = agentReply(streamed);
   const finalResponse = active ? '' : agentReply(finalReply);

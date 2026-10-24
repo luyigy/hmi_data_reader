@@ -129,14 +129,15 @@ async function createChildTask(runId: string, nodeKey: string, execution: TaskGr
   const resumed = await latestImplementationRecovery(execution.nodeId);
   const continuation = resumed && (!repair || resumed.createdAt > repair.createdAt) ? resumed : null;
   const materials = await syncGraphConversationMaterials(`task-graph-${execution.id}`);
-  const supplements = repair || continuation ? await prisma.liveRoomMessage.findMany({
+  const supplements = executionProgress(execution.dispatchMetadata) || repair || continuation ? await prisma.liveRoomMessage.findMany({
     where: { room: { sourceTaskId: { in: [run.parentTaskId, taskId] } }, messageType: 'user' },
     orderBy: { createdAt: 'desc' }, take: 20, select: { content: true, createdAt: true },
   }) : [];
+  const supplementInstructions = supplements.length ? `\n父子话题补充：${JSON.stringify(supplements.reverse()).slice(-12000)}` : '';
   const description = materials + `\n目标：${plannedNode.goal}\n本仓交付：${plannedExecution.instructions}` +
     `\n父任务：${run.parentTaskId}\n${implementationInstructions(definition, plannedNode)}` +
     (definition.deliveryContract === 'agent_owned_v1' ? `\n本仓自查责任：${plannedExecution.agentSelector} / ${plannedExecution.key}。各执行者对自己的交付和批准命令负责，不代其他执行者签署结果。Ticket 最终验收责任：${plannedNode.acceptance.mode === 'agent' ? plannedNode.acceptance.reviewerId : `整票自查 execution ${selfCheckExecution(plannedNode)}${plannedNode.acceptance.mode === 'human' ? '，之后人工批准' : ''}`}。验收项：${JSON.stringify(plannedNode.acceptance.checks)}。` : '') +
-    executionCheckInstructions(config.checks) + (continuation ? `\n继续原任务实施：${JSON.stringify(continuation.payload)}\n${materials}\n父子话题补充：${JSON.stringify(supplements.reverse()).slice(-12000)}\n读取保存进度和话题新材料，按原批准范围接续，不把恢复请求当作完成证据。` : '') + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
+    executionCheckInstructions(config.checks) + supplementInstructions + (continuation ? `\n继续原任务实施：${JSON.stringify(continuation.payload)}\n${materials}\n读取保存进度和话题新材料，按原批准范围接续，不把恢复请求当作完成证据。` : '') + (repair ? `\n自动回修报告：${JSON.stringify(repair.payload)}\n${materials}\n只修当前批准范围内的问题。缺材料、权限或范围变化须明确报告，不扩大 Spec。保留旧证据，新报告写独立目录。` : '');
   const task = await prisma.task.upsert({
     where: { id: taskId },
     create: {
@@ -572,6 +573,9 @@ async function executeJob(runId: string, nodeKey: string, execution: TaskGraphEx
       throw error;
     });
     await recordExecutionDispatch({ runId, nodeKey, executionKey: execution.key, claimToken, taskRunId: result.taskRunId });
+    if (continuation) await prisma.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: `implementation-recovery-consumed:${continuation.id}` } },
+      create: { runId, nodeId: execution.nodeId, kind: 'implementation_recovery_consumed', idempotencyKey: `implementation-recovery-consumed:${continuation.id}`,
+        payload: { executionId: execution.id, recoveryEventId: continuation.id, taskRunId: result.taskRunId } }, update: {} });
     if (await graphRunIsPaused(runId)) return;
     const extra = await prepareExtraRepositories(definition.nodes.find(node => node.key === nodeKey)?.extraRepositories);
     const extraRepositoryState = await Promise.all(extra.details.map(async repo => ({ ...repo, workingTreeStatus: (await graphGit(repo.repository, 'status', '--porcelain', '--untracked-files=all')).slice(0, 8000) })));
