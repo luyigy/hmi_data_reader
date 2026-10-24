@@ -21,7 +21,7 @@ function agentReply(response: string) {
       }
     } catch { /* Invalid controls are handled by the execution protocol, not card rendering. */ }
   }
-  return parts.filter(Boolean).join('\n\n') || '本轮没有文字答复。';
+  return parts.filter(Boolean).join('\n\n');
 }
 
 export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], requests: TaskRunInteractionRequest[] = [], output: Pick<TaskRunEvent, 'content'>[] = []) {
@@ -37,8 +37,15 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
   const conversation = run.replyKind === 'conversation';
   const streamed = output.map(event => event.content).join('');
   const finalReply = run.participants.map(participant => participant.summary || participant.error || '').filter(Boolean).join('\n\n') || run.summary || run.error || streamed;
-  const response = active ? streamed || '正在准备执行，尚无 Agent 回复。' : finalReply || '本轮没有最终回复。';
-  const reply = agentReply(response);
+  const progressReply = agentReply(streamed);
+  const finalResponse = active ? '' : agentReply(finalReply);
+  // A final summary may contain only the last answer; it must not replace earlier speech.
+  const reply = !finalResponse ? progressReply
+    : !progressReply || finalResponse.includes(progressReply) ? finalResponse
+    : progressReply.endsWith(finalResponse) ? [progressReply.slice(0, -finalResponse.length).trimEnd(), finalResponse].filter(Boolean).join('\n\n')
+    : progressReply.includes(finalResponse) ? progressReply
+    : `${progressReply}\n\n${finalResponse}`;
+  const response = reply || (active ? '正在准备执行，尚无 Agent 回复。' : '本轮没有文字答复。');
   const errors = Array.from(new Set([run.error, ...run.participants.map(p => p.error)].filter((error): error is string => Boolean(error))));
   const failure = errors.filter(error => !reply.includes(error)).join('\n\n');
   const status = conversation && run.status === 'completed' ? '本轮已答复'
@@ -61,7 +68,7 @@ export function buildRunReplyCard(run: ReplyRun, history: TaskRunEvent[], reques
     header: { template: run.status === 'failed' ? 'red' : run.status === 'waiting_for_input' ? 'yellow' : active ? 'blue' : 'grey',
       title: { tag: 'plain_text', content: `${identity || 'Harness'} · ${status}` } },
     body: { elements: [
-      { tag: 'markdown', content: bounded(reply, 18_000) },
+      { tag: 'markdown', content: boundFeishuCardText(redactSensitiveText(response), 18_000, 'end') },
       ...(failure ? [{ tag: 'markdown', content: bounded(`本轮失败原因：\n${failure}`, 4000) }] : []),
       ...actions,
       ...(run.graphWorkspace ? [{ tag: 'collapsible_panel', expanded: false,

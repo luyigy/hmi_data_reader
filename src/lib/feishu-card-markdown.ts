@@ -20,13 +20,17 @@ export function replyImagePaths(text: string) {
 }
 
 /** Share the ordinary reply card's byte budget, including JSON escaping and Unicode. */
-export function boundFeishuCardText(text: string, budget: number) {
+export function boundFeishuCardText(text: string, budget: number, edge: 'start' | 'end' = 'start') {
   let size = 0;
-  let result = '';
-  for (const character of Array.from(text)) {
+  const kept: string[] = [];
+  const characters = Array.from(text);
+  if (edge === 'end') characters.reverse();
+  for (const character of characters) {
     size += Buffer.byteLength(JSON.stringify(JSON.stringify(character))) - 6;
-    if (size > budget) return `${result}\n…（卡片预览已截断，完整内容请查看任务室）`;
-    result += character;
+    if (size > budget) return edge === 'end'
+      ? `…（前文超出卡片容量，完整内容请查看任务室）\n${kept.reverse().join('')}`
+      : `${kept.join('')}\n…（卡片预览已截断，完整内容请查看任务室）`;
+    kept.push(character);
   }
-  return result;
+  return text;
 }

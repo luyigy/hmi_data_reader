@@ -8,9 +8,9 @@ assert.match(JSON.stringify(card.body.elements[0]), /已定位到浏览器启动
 assert.doesNotMatch(JSON.stringify(card.body.elements[0]), /TASK_GRAPH_IMPLEMENTATION|当前阶段|下一自动动作|剩余额度/);
 assert.deepEqual(buildRunReplyCard({ ...base, summary: report, graphStatus: 'verifying' }, []), card);
 assert.deepEqual(buildRunReplyCard({ ...base, summary: report, graphStatus: 'passed' }, []), card);
-const long = buildRunReplyCard({ ...base, summary: '开头答复\n' + '中文😀\n'.repeat(9000) }, []);
-assert.match(JSON.stringify(long.body.elements[0]), /开头答复/);
-assert.match(JSON.stringify(long.body.elements[0]), /卡片预览已截断/);
+const long = buildRunReplyCard({ ...base, summary: '开头答复\n' + '中文😀\n'.repeat(9000) + '最终答复' }, []);
+assert.match(JSON.stringify(long.body.elements[0]), /最终答复/);
+assert.match(JSON.stringify(long.body.elements[0]), /前文超出卡片容量/);
 assert.ok(Buffer.byteLength(JSON.stringify(JSON.stringify(long))) < 28000);
 const blocked = buildRunReplyCard({ ...base, summary: '正在查原因\nTASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"permission_required","note":"请批准读取指定目录"}' }, []);
 assert.match(JSON.stringify(blocked.body.elements[0]), /请批准读取指定目录/);
@@ -44,3 +44,24 @@ console.log('Conversation answers and live output stay visible; graph delivery s
 const review = buildRunReplyCard({ ...base, summary: 'TASK_GRAPH_REVIEW {"approved":true,"note":"固定版本12项通过，仅限已批准的局部草稿链路"}' }, []);
 assert.match(JSON.stringify(review.body.elements[0]), /固定版本12项通过/);
 assert.doesNotMatch(JSON.stringify(review.body.elements[0]), /TASK_GRAPH_REVIEW|approved/);
+
+const progressChunks = [
+  { content: '我会先核对固定版本。\n\n' },
+  { content: '资料查询返回5条，正在下载4张图。\n\n' },
+  { content: '4张图均命中旧输入，正在整理证据。\n\n' },
+];
+const finalReview = 'TASK_GRAPH_REVIEW {"approved":false,"note":"原有通过项保留，尚缺独立样本。"}';
+const visibleText = (card: ReturnType<typeof buildRunReplyCard>) => card.body.elements.filter(e => e.tag === 'markdown').map(e => 'content' in e ? e.content : '').join('\n');
+for (let count = 1; count <= progressChunks.length; count++) {
+  const activeCard = buildRunReplyCard({ ...base, status: 'running', summary: null }, [], [], progressChunks.slice(0, count));
+  assert.ok(visibleText(activeCard).includes(progressChunks[count - 1].content.trim()), 'Each incremental update shows the latest Agent words');
+}
+const finishedStream = buildRunReplyCard({ ...base, summary: finalReview }, [], [], [...progressChunks, { content: finalReview }]);
+for (const chunk of progressChunks) assert.ok(visibleText(finishedStream).includes(chunk.content.trim()), 'Finalizing must retain every streamed progress message');
+assert.equal(visibleText(finishedStream).split('原有通过项保留，尚缺独立样本。').length - 1, 1, 'Final note must not be duplicated');
+const summaryOnlyFinal = buildRunReplyCard({ ...base, summary: '处理完了，请确认图片来源。' }, [], [], progressChunks);
+assert.ok(visibleText(summaryOnlyFinal).includes(progressChunks[0].content.trim()));
+assert.match(visibleText(summaryOnlyFinal), /处理完了，请确认图片来源/);
+const longProgress = [{ content: '早期过程'.repeat(6000) }, { content: '\n\n最新进度：正在核对第四张图。' }];
+const advancing = buildRunReplyCard({ ...base, status: 'running', summary: null }, [], [], longProgress);
+assert.match(visibleText(advancing), /最新进度：正在核对第四张图/, 'A full card must still show newly streamed output');
