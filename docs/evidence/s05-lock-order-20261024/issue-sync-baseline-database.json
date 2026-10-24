@@ -1,0 +1,64 @@
+{
+  "startedAt": "2026-10-24T09:05:58.654Z",
+  "insideSandbox": true,
+  "suites": [
+    "task-graph-reclassification"
+  ],
+  "steps": [
+    {
+      "name": "isolated-write",
+      "ok": true
+    },
+    {
+      "name": "regression-suite",
+      "ok": false,
+      "exitCode": 1
+    },
+    {
+      "name": "suite-schema-cleanup",
+      "ok": true
+    }
+  ],
+  "postgres": "PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "sha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d",
+  "failure": "联调环境失败：Regression exit=1; leftover scratch schemas=0",
+  "cleanup": {
+    "lifecycleClosed": true,
+    "portClosed": true,
+    "receipts": [
+      {
+        "status": "closed",
+        "directory": "/tmp/sandbox-postgres-baWyv5/attempts/services-nnIce2",
+        "receipts": [
+          {
+            "runtime": "postgres",
+            "resource": {
+              "kind": "path",
+              "path": "/tmp/sandbox-postgres-baWyv5/resource",
+              "sha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d"
+            },
+            "entry": "/tmp/sandbox-postgres-baWyv5/attempts/services-nnIce2/regression.resource/bin/postgres",
+            "key": "regression",
+            "argv": [
+              "/bin/sh",
+              "-c",
+              "set -eu\n\"$1/bin/initdb\" -D \"$2/db\" -U postgres --auth-local=reject --auth-host=scram-sha-256 --pwfile=\"$2/password\" --no-locale -E UTF8\nrm \"$2/password\"\nexec \"$1/bin/postgres\" -D \"$2/db\" -h 127.0.0.1 -p \"$3\" -k ''",
+              "postgres-service",
+              "/tmp/sandbox-postgres-baWyv5/attempts/services-nnIce2/regression.resource",
+              "/tmp/sandbox-postgres-baWyv5/attempts/services-nnIce2/regression",
+              "35971"
+            ],
+            "pid": 13,
+            "port": 35971,
+            "health": "healthy",
+            "closed": true,
+            "log": "The files belonging to this database system will be owned by user \"hello\".\nThis user must also own the server process.\n\nThe database cluster will be initialized with locale \"C\".\nThe default text search configuration will be set to \"english\".\n\nData page checksums are disabled.\n\ncreating directory /tmp/sandbox-postgres-baWyv5/attempts/services-nnIce2/regression/db ... ok\ncreating subdirectories ... ok\nselecting dynamic shared memory implementation ... posix\nselecting default max_connections ... 100\nselecting default shared_buffers ... 128MB\nselecting default time zone ... UTC\ncreating configuration files ... ok\nrunning bootstrap script ... ok\nperforming post-bootstrap initialization ... ok\nsyncing data to disk ... ok\n\nSuccess. You can now start the database server using:\n\n    /tmp/sandbox-postgres-baWyv5/attempts/services-nnIce2/regression.resource/bin/pg_ctl -D /tmp/sandbox-postgres-baWyv5/attempts/services-nnIce2/regression/db -l logfile start\n\n2026-10-24 09:06:01.796 UTC [2] LOG:  starting PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit\n2026-10-24 09:06:01.797 UTC [2] LOG:  listening on IPv4 address \"127.0.0.1\", port 35971\n2026-10-24 09:06:01.802 UTC [17] LOG:  database system was shut down at 2026-10-24 09:06:01 UTC\n2026-10-24 09:06:01.807 UTC [2] LOG:  database system is ready to accept connections\n"
+          }
+        ],
+        "failureNote": "Regression exit=1; leftover scratch schemas=0"
+      }
+    ],
+    "directoryRemoved": true
+  },
+  "finishedAt": "2026-10-24T09:06:24.343Z"
+}

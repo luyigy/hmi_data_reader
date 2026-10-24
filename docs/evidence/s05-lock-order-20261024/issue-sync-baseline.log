@@ -1,0 +1,62 @@
+[run] 沙箱会话启动: 套件 task-graph-reclassification，证据目录 output/sandbox-postgres-runs/2026-10-24T170557-4025821
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+[inner] shared phase lifecycle: FAIL; evidence.json includes SQL and cleanup evidence
+[run] 沙箱退出码 1，详见 output/sandbox-postgres-runs/2026-10-24T170557-4025821
+PrismaClientKnownRequestError:
+Invalid `prisma.taskGraphEvent.findUniqueOrThrow()` invocation in
+/tmp/s05-red-replay-FIF5ID/repo/src/lib/task-graph/issue-sync.ts:40:45
+
+  37   }, { timeout: 120_000 });
+  38 }
+  39 async function syncCurrentIssueDelivery(eventId: string, request: TrackerRequest) {
+→ 40   const event = await prisma.taskGraphEvent.findUniqueOrThrow(
+Timed out fetching a new connection from the connection pool. More info: http://pris.ly/d/connection-pool (Current connection pool timeout: 10, connection limit: 1)
+    at $n.handleRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:7315)
+    at $n.handleAndLogRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:130:9633)
+    at async /data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:31:5086 {
+  code: 'P2024',
+  clientVersion: '5.22.0',
+  meta: { modelName: 'TaskGraphEvent', connection_limit: 1, timeout: 10 }
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-reclassification.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///tmp/s05-red-replay-FIF5ID/repo/scripts/test-task-graph-postgres.mjs:53:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 4908,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1

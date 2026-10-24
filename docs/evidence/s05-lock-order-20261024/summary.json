@@ -1,0 +1,291 @@
+{
+  "baseline": "dee66bc56a3dab8ddead23110ac5d356de714725",
+  "inventoryBaseline": "2f4b9959f1d4f538fffbc5def0faf8b5bc838863",
+  "status": "L1/L2 修复与红绿证据完成；完整旧重分类兼容受 A1 阻塞，第2步不按全部通过结案；S05 未完成，非 S06",
+  "scenarios": [
+    {
+      "name": "workspace",
+      "beforeCycle": true,
+      "beforeRowWait": true,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "rejected",
+        "error": "PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `N/A`. Message: `N/A`"
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        8
+      ],
+      "budget": [
+        0,
+        0
+      ],
+      "status": "attention"
+    },
+    {
+      "name": "retry",
+      "beforeCycle": true,
+      "beforeRowWait": true,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "rejected",
+        "error": "PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `N/A`. Message: `N/A`"
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        9
+      ],
+      "budget": [
+        0,
+        1
+      ],
+      "status": "ready"
+    },
+    {
+      "name": "blocked",
+      "beforeCycle": true,
+      "beforeRowWait": false,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "rejected",
+        "error": "PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `40P01`. Message: `ERROR: deadlock detected\nDETAIL: Process 43 waits for ExclusiveLock on advisory lock [13735,3440010104,3583181943,1]; blocked by process 41.\nProcess 41 waits for ShareLock on transaction 1014; blocked by process 43.\nHINT: See server log for query details.`"
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        9
+      ],
+      "budget": [
+        0,
+        0
+      ],
+      "status": "attention"
+    },
+    {
+      "name": "question",
+      "beforeCycle": false,
+      "beforeRowWait": false,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "fulfilled",
+        "value": true
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        9
+      ],
+      "budget": [
+        0,
+        0
+      ],
+      "status": "attention"
+    },
+    {
+      "name": "answered",
+      "beforeCycle": false,
+      "beforeRowWait": false,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "fulfilled",
+        "value": true
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        9
+      ],
+      "budget": [
+        0,
+        0
+      ],
+      "status": "attention"
+    },
+    {
+      "name": "review-ready",
+      "beforeCycle": true,
+      "beforeRowWait": false,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "rejected",
+        "error": "PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `40P01`. Message: `ERROR: deadlock detected\nDETAIL: Process 52 waits for ExclusiveLock on advisory lock [13735,2152851558,2096807537,1]; blocked by process 50.\nProcess 50 waits for ShareLock on transaction 1092; blocked by process 52.\nHINT: See server log for query details.`"
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        8
+      ],
+      "budget": [
+        0,
+        1
+      ],
+      "status": "integrated"
+    },
+    {
+      "name": "review-running",
+      "beforeCycle": true,
+      "beforeRowWait": true,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "rejected",
+        "error": "PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `40P01`. Message: `ERROR: deadlock detected\nDETAIL: Process 55 waits for ExclusiveLock on advisory lock [13735,3597024631,3532311871,1]; blocked by process 53.\nProcess 53 waits for ShareLock on transaction 1119; blocked by process 55.\nHINT: See server log for query details.`"
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        8
+      ],
+      "budget": [
+        0,
+        1
+      ],
+      "status": "integrated"
+    },
+    {
+      "name": "reclassify-review",
+      "beforeCycle": true,
+      "beforeRowWait": false,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "rejected",
+        "error": "PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `N/A`. Message: `N/A`"
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        8
+      ],
+      "budget": [
+        0,
+        0
+      ],
+      "status": "attention"
+    },
+    {
+      "name": "reclassify-admission",
+      "beforeCycle": true,
+      "beforeRowWait": false,
+      "afterCycle": false,
+      "afterRowWait": false,
+      "beforeResult": {
+        "status": "rejected",
+        "error": "PrismaClientKnownRequestError: \nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `40P01`. Message: `ERROR: deadlock detected\nDETAIL: Process 63 waits for ExclusiveLock on advisory lock [13735,746333887,1255957474,1]; blocked by process 61.\nProcess 61 waits for ShareLock on transaction 1184; blocked by process 63.\nHINT: See server log for query details.`"
+      },
+      "afterResult": "fulfilled",
+      "revision": [
+        7,
+        8
+      ],
+      "budget": [
+        0,
+        0
+      ],
+      "status": "attention"
+    }
+  ],
+  "runs": [
+    {
+      "name": "red",
+      "exit": 1,
+      "suites": [
+        "task-graph-recovery-lock-order"
+      ],
+      "cleanup": "schema/service/port/directory PASS",
+      "deadlocks": 7
+    },
+    {
+      "name": "green",
+      "exit": 0,
+      "suites": [
+        "task-graph-recovery-lock-order"
+      ],
+      "cleanup": "schema/service/port/directory PASS",
+      "deadlocks": 0
+    },
+    {
+      "name": "publication",
+      "exit": 0,
+      "suites": [
+        "task-graph-review-lock-order",
+        "task-graph-review-publication"
+      ],
+      "cleanup": "schema/service/port/directory PASS",
+      "deadlocks": 0
+    },
+    {
+      "name": "compatibility",
+      "exit": 0,
+      "suites": [
+        "task-graph-condition-recheck",
+        "task-graph-environment-outcome",
+        "task-graph-natural-blockers",
+        "task-graph-preparation-recovery",
+        "task-graph-execution-progress"
+      ],
+      "cleanup": "schema/service/port/directory PASS",
+      "deadlocks": 0
+    },
+    {
+      "name": "recovery-compatibility",
+      "exit": 1,
+      "suites": [
+        "task-graph-restart-recovery",
+        "task-graph-review-restart",
+        "task-graph-reclassification",
+        "task-graph-admission"
+      ],
+      "cleanup": "schema/service/port/directory PASS",
+      "deadlocks": 0
+    },
+    {
+      "name": "admission",
+      "exit": 0,
+      "suites": [
+        "task-graph-admission"
+      ],
+      "cleanup": "schema/service/port/directory PASS",
+      "deadlocks": 0
+    },
+    {
+      "name": "issue-sync-baseline",
+      "exit": 1,
+      "suites": [
+        "task-graph-reclassification"
+      ],
+      "cleanup": "schema/service/port/directory PASS",
+      "deadlocks": 0
+    }
+  ],
+  "manifest": [
+    {
+      "file": "src/lib/task-graph/restart-recovery.ts",
+      "sha256": "6302f9d838b39a38815c105cfb987582e4c763c95deccc0f62df6d28e2c9dcdf"
+    },
+    {
+      "file": "src/lib/task-graph/reclassify-delivery.ts",
+      "sha256": "1f27fefc28c1de1743625d5fd214e0e367643bb52c4b04328cf44390044b71ec"
+    },
+    {
+      "file": "tests/task-graph-recovery-lock-order.test.ts",
+      "sha256": "daaf82cc8252d872dcdb248663b584690d88a5cf5b5ac71df80ab6a8d177656b"
+    },
+    {
+      "file": "tests/fixtures/graph-lock-rendezvous.ts",
+      "sha256": "38162f4c828e4a5bd6365d12ce7ea3b88f15490a6b6db7d376019a0708b44f45"
+    },
+    {
+      "file": "scripts/test-task-graph-postgres.mjs",
+      "sha256": "5d6bc614e8263db4964b11fb3429e94b66d79051b09cf03e16df5fbcf4b71479"
+    }
+  ]
+}

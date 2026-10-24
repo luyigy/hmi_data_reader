@@ -1,3 +1,4 @@
+import { graphRunCanStartTx } from './run-control';
 import { isFeishuAdmin } from '../feishu-access-approval';
 import { prisma } from '../prisma';
 import { graphGit } from './git-command';
@@ -18,6 +19,7 @@ export async function reclassifyIncompleteDelivery(args: {
   if (!(await graphGit(job.repository, 'for-each-ref', '--contains', args.commit, '--format=%(refname)')).trim()) throw new Error('原交付缺少 Git 引用保护');
   const source = await resolveRunIssueSource(args.runId);
   return prisma.$transaction(async tx => {
+    await graphRunCanStartTx(tx, args.runId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${args.runId} ORDER BY id FOR NO KEY UPDATE`;
     const run = await tx.taskGraphRun.findUniqueOrThrow({ where: { id: args.runId }, include: { nodes: { include: { executions: true } } } });
     const found = run.nodes.find(item => item.key === args.nodeKey);

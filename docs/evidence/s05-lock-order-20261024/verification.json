@@ -1,0 +1,32 @@
+{
+  "checks": [
+    {
+      "command": "npx tsc --noEmit --incremental false",
+      "exit": 0,
+      "log": "typecheck.log"
+    },
+    {
+      "command": "npx eslint src/lib/task-graph/restart-recovery.ts src/lib/task-graph/reclassify-delivery.ts tests/task-graph-recovery-lock-order.test.ts tests/fixtures/graph-lock-rendezvous.ts scripts/replay-s05-recovery-lock-order.mjs scripts/render-s05-lock-order.mjs docs/evidence/s05-lock-order-20261024/verify-html.mjs",
+      "exit": 0,
+      "log": "lint.log"
+    },
+    {
+      "command": "npm run check:long-files",
+      "exit": 0,
+      "log": "long-files.log"
+    },
+    {
+      "command": "npm run workflow:validate -- --preflight docs/554_HANDOVER_20261024_S05_恢复重分类锁顺序.md --json",
+      "exit": 0,
+      "log": "preflight.log"
+    },
+    {
+      "command": "node scripts/audit-s05-boundaries.cjs --check",
+      "exit": 1,
+      "log": "inventory-expected-drift.log"
+    }
+  ],
+  "expectedInventoryDrift": true,
+  "logNormalization": "Only trailing whitespace removed from text log copies. SQL/ledger JSON contents unchanged.",
+  "originalSandboxPaths": "First line of each run log; replay source checkout is removed by the replay script."
+}

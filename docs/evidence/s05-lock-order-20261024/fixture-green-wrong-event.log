@@ -1,0 +1,86 @@
+[run] 沙箱会话启动: 套件 task-graph-recovery-lock-order，证据目录 output/sandbox-postgres-runs/2026-10-24T170010-3950595
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+PASS workspace: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused workspace: in-flight question/answer saves; active-only outcomes roll back
+PASS retry: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused retry: in-flight question/answer saves; active-only outcomes roll back
+PASS blocked: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused blocked: in-flight question/answer saves; active-only outcomes roll back
+PASS question: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused question: in-flight question/answer saves; active-only outcomes roll back
+PASS answered: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused answered: in-flight question/answer saves; active-only outcomes roll back
+PASS review-ready: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused review-ready: in-flight question/answer saves; active-only outcomes roll back
+PASS review-running: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused review-running: in-flight question/answer saves; active-only outcomes roll back
+PASS reclassify-review: SQL contention resolves and ledger/ownership/budget/idempotency match
+PASS paused reclassify-review: in-flight question/answer saves; active-only outcomes roll back
+FAIL reclassify-admission: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+0 !== 1
+
+PASS paused reclassify-admission: in-flight question/answer saves; active-only outcomes roll back
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
++ [
++   'reclassify-admission: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n' +
++     '\n' +
++     '0 !== 1\n'
++ ]
+- []
+
+    at /data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-recovery-lock-order.test.ts:147:12
+    at step (/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-recovery-lock-order.test.ts:44:23)
+    at Object.next (/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-recovery-lock-order.test.ts:25:53)
+    at fulfilled (/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-recovery-lock-order.test.ts:16:58) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: [Array],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-recovery-lock-order.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-v2-manual-runtime-repair/scripts/test-task-graph-postgres.mjs:53:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 4908,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1
+[inner] shared phase lifecycle: FAIL; evidence.json includes SQL and cleanup evidence
+[run] 沙箱退出码 1，详见 output/sandbox-postgres-runs/2026-10-24T170010-3950595

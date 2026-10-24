@@ -1,0 +1,22 @@
+{
+  "baseline": "dee66bc56a3dab8ddead23110ac5d356de714725",
+  "command": [
+    "/home/hello/.nvm/versions/node/v22.22.1/bin/node",
+    "scripts/sandbox-postgres-session.mjs",
+    "run",
+    "task-graph-reclassification"
+  ],
+  "cwd": "/tmp/s05-red-replay-FIF5ID/repo",
+  "exit": 1,
+  "testFiles": [
+    {
+      "file": "tests/task-graph-recovery-lock-order.test.ts",
+      "sha256": "daaf82cc8252d872dcdb248663b584690d88a5cf5b5ac71df80ab6a8d177656b"
+    },
+    {
+      "file": "tests/fixtures/graph-lock-rendezvous.ts",
+      "sha256": "38162f4c828e4a5bd6365d12ce7ea3b88f15490a6b6db7d376019a0708b44f45"
+    }
+  ],
+  "sourceChanges": ""
+}

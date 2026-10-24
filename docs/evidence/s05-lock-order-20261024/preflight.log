@@ -1,0 +1,5 @@
+
+> agent-platform-v2@0.1.0 workflow:validate
+> TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}' node -r ts-node/register/transpile-only scripts/validate-workflow-documents.ts --preflight docs/554_HANDOVER_20261024_S05_恢复重分类锁顺序.md --json
+
+[]

@@ -1,3 +1,4 @@
+import { graphRunCanStartTx } from './run-control';
 import { observeTaskRunExit } from './task-run-exit-proof';
 import { observeExecutionWriter } from './phase-worker';
 import path from 'node:path';
@@ -61,6 +62,7 @@ export async function recoverGraphExecution(executionId: string) {
       const detail = error instanceof Error ? error.message : String(error);
       const code = error instanceof TaskGraphGitError && error.code === 'integration_conflict' ? 'integration_conflict' : 'ownership_mismatch';
       await prisma.$transaction(async tx => {
+        await graphRunCanStartTx(tx, job.node.runId);
         await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
         const owned = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
         if (owned.status !== 'claimed' || owned.claimToken !== claimToken || executionProgress(owned.dispatchMetadata)?.revision !== progress.revision) return;
@@ -91,6 +93,7 @@ export async function recoverGraphExecution(executionId: string) {
     } catch { phase = 'collect_result'; }
   }
   return prisma.$transaction(async tx => {
+    await graphRunCanStartTx(tx, job.node.runId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${job.nodeId} FOR UPDATE`;
     const current = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: job.id } });
     const currentProgress = executionProgress(current.dispatchMetadata);
@@ -135,6 +138,7 @@ export async function recoverGraphReview(nodeId: string): Promise<'ready' | 'wai
     if (!owned || !reserved || reserved.kind !== 'ready') return 'ready';
     // A reserved claim with an exited phase owner never reached atomic TaskRun binding.
     await prisma.$transaction(async tx => {
+      await graphRunCanStartTx(tx, node.runId);
       await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
       const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
       if (current.status !== 'verifying') return;
@@ -171,6 +175,7 @@ export async function recoverGraphReview(nodeId: string): Promise<'ready' | 'wai
   const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: binding.taskRunId } });
   if (run.status === 'completed') return 'ready';
   await prisma.$transaction(async tx => {
+    await graphRunCanStartTx(tx, node.runId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${node.id} FOR UPDATE`;
     const current = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: node.id }, include: { executions: true } });
     if (current.status !== 'verifying') return;

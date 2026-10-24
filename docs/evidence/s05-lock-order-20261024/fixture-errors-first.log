@@ -1,0 +1,102 @@
+[run] 沙箱会话启动: 套件 task-graph-recovery-lock-order，证据目录 output/sandbox-postgres-runs/2026-10-24T165229-3867760
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+PrismaClientValidationError:
+Invalid `prisma.taskRun.create()` invocation in
+/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-recovery-lock-order.test.ts:43:41
+
+  40 const summary = 'TASK_GRAPH_IMPLEMENTATION ' + JSON.stringify(kind === 'blocked'
+  41   ? { status: 'blocked', blockerKind: 'environment_failed', note: 'saved failure' }
+  42   : { status: kind === 'answered' ? 'answered' : 'waiting_for_user', note: 'saved question' });
+→ 43 const turn = await prisma.taskRun.create({
+       data: {
+         taskId: "cmvm5v3340000d74qb5kgp2nf",
+         status: "running",
+         summary: "TASK_GRAPH_IMPLEMENTATION {\"status\":\"waiting_for_user\",\"note\":\"saved question\"}",
+         controlMetadata: "{\"graphWriter\":{\"version\":1,\"nonce\":\"d21984b3-f51b-4e2a-b969-979349a0ef7a\",\"hostname\":\"hello\",\"uid\":1000,\"supervisor\":{\"pid\":4934,\"startTime\":\"2754916436\",\"bootId\":\"df711df5-3f7b-4b20-a4bc-5b13c45dd313\"},\"ancestry\":[{\"pid\":4934,\"parentPid\":4908,\"startTime\":\"2754916436\"},{\"pid\":4908,\"parentPid\":436,\"startTime\":\"2754916122\"},{\"pid\":436,\"parentPid\":2,\"startTime\":\"2754915210\"},{\"pid\":2,\"parentPid\":1,\"startTime\":\"2754914813\"}]}}",
+         participants: {
+           create: {
+             executionBackend: "platform_local",
+             gatewayNameSnapshot: "local",
+             harnessType: "codex",
+             role: "implementer",
+             status: "running",
+             summary: "TASK_GRAPH_IMPLEMENTATION {\"status\":\"waiting_for_user\",\"note\":\"saved question\"}",
+             sessionId: "native-original",
+             ~~~~~~~~~
+     ?       id?: String,
+     ?       runner?: String | Null,
+     ?       gatewayId?: String | Null,
+     ?       harnessNameSnapshot?: String | Null,
+     ?       agentId?: String | Null,
+     ?       agentNameSnapshot?: String | Null,
+     ?       activityState?: String,
+     ?       error?: String | Null,
+     ?       filesModified?: String | Null,
+     ?       controlMetadata?: String | Null,
+     ?       lastActivityAt?: DateTime | Null,
+     ?       interruptSupported?: Boolean,
+     ?       resumeSupported?: Boolean,
+     ?       sessionControlSupported?: Boolean,
+     ?       softStopSupported?: Boolean,
+     ?       startedAt?: DateTime | Null,
+     ?       completedAt?: DateTime | Null,
+     ?       createdAt?: DateTime,
+     ?       updatedAt?: DateTime,
+     ?       events?: TaskRunEventCreateNestedManyWithoutParticipantInput,
+     ?       controlMessages?: TaskRunControlMessageCreateNestedManyWithoutParticipantInput,
+     ?       interactionRequests?: TaskRunInteractionRequestCreateNestedManyWithoutParticipantInput
+           }
+         }
+       }
+     })
+
+Unknown argument `sessionId`. Available options are marked with ?.
+    at wn (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:29:1363)
+    at $n.handleRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6958)
+    at $n.handleAndLogRequestError (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6623)
+    at $n.request (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:121:6307)
+    at async l (/data1/code/agent-platform-v2/node_modules/@prisma/client/runtime/library.js:130:9633) {
+  clientVersion: '5.22.0'
+}
+node:internal/errors:983
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /home/hello/.nvm/versions/node/v22.22.1/bin/node -r ts-node/register/transpile-only -r tsconfig-paths/register tests/task-graph-recovery-lock-order.test.ts
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at file:///data1/code/agent-platform-v2-manual-runtime-repair/scripts/test-task-graph-postgres.mjs:53:5 {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 4908,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.22.1
+[inner] shared phase lifecycle: FAIL; evidence.json includes SQL and cleanup evidence
+[run] 沙箱退出码 1，详见 output/sandbox-postgres-runs/2026-10-24T165229-3867760
