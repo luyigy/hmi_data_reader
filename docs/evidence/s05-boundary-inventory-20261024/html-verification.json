@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "entries": 94,
+  "findings": 11,
+  "sourceText": "all exact",
+  "search": "pass",
+  "statusFilter": "pass",
+  "sourceJumpAndExpand": "pass",
+  "mobileLightAndDarkNoOverflow": true,
+  "remoteRequests": 0,
+  "javascriptErrors": 0,
+  "limitation": "Artifact usability and source rendering only, not runtime repair acceptance"
+}

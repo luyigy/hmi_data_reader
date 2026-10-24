@@ -1,0 +1,40 @@
+S05 step 1 — recorded verification, 2026-10-24
+Fixed source: 2f4b9959f1d4f538fffbc5def0faf8b5bc838863
+Scope: static inventory and offline artifact; no runtime repair claim.
+
+$ node scripts/audit-s05-boundaries.cjs --check
+exit 0
+PASS fixed baseline, source hashes, reproducible census, and one disposition per transaction/helper
+LIMIT: static inventory consistency only; no runtime, lock, budget or S05 completion claim
+{"scannedSourceFiles":468,"graphSourceFiles":110,"transactions":67,"txHelpers":27,"externalReferences":4}
+
+$ node scripts/render-s05-boundaries.cjs --check
+exit 0
+PASS offline HTML exactly matches fixed inventory and manual assessments
+
+$ node docs/evidence/s05-boundary-inventory-20261024/verify-html.cjs
+exit 0
+See html-verification.json: 94 exact source fragments; 11 finding groups;
+search, filters, source navigation/expand, 390px light/dark layout PASS;
+0 external HTTP requests; 0 JavaScript errors.
+Earlier artifact checks found filtered navigation and mobile long-identifier overflow;
+only the new renderer was corrected. These were not runtime failures.
+
+$ node --check scripts/audit-s05-boundaries.cjs
+exit 0
+$ node --check scripts/render-s05-boundaries.cjs
+exit 0
+
+$ npm run check:long-files
+exit 0
+No files at or above 1000 lines.
+
+$ npm run workflow:validate -- --preflight docs/553_HANDOVER_20261024_S05_事务边界修复清单待审.md --json
+exit 0
+[]
+
+$ git diff --check
+exit 0
+
+Not executed: database regressions, concurrency experiments, budget replay,
+production deployment, business task resume, or S06 review.

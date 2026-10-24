@@ -1,0 +1,828 @@
+{
+  "baseline": "2f4b9959f1d4f538fffbc5def0faf8b5bc838863",
+  "status": "第1步清单已编制，待 Antigravity 审查；S05 未完成；非 S06",
+  "scope": "扫描固定基线全部 src 下 TypeScript，纳入 task-graph 全部直接事务、TransactionClient 类型辅助函数及匹配的目录外事务。手工沿关键调用链核对。不是全仓运行行为证明。",
+  "limitations": [
+    "调用清单是词法枚举，不是控制流或所有传递调用的完备证明；namespace/动态别名等可能需人工补充。",
+    "显式锁以外，UPDATE、外键和插入也可能持锁；没有 SQL 会合实验就不称实际死锁已证实。",
+    "保留表示当前检查范围没有发现需改的同类模式，不表示该功能已全面验收。",
+    "本轮没有运行数据库回归；551/552 的结果仅引用历史证据。",
+    "A1/A2/A3 未得到范围审查意见前，不声称整个架构已收敛；新增范围须明确记录，不悄悄延伸。"
+  ],
+  "findings": [
+    {
+      "id": "L1",
+      "title": "重启恢复四处逆序",
+      "evidence": "源码事实；本入口动态复现待做",
+      "step": "第2步",
+      "entries": [
+        "src/lib/task-graph/restart-recovery.ts:63",
+        "src/lib/task-graph/restart-recovery.ts:93",
+        "src/lib/task-graph/restart-recovery.ts:137",
+        "src/lib/task-graph/restart-recovery.ts:173",
+        "src/lib/task-graph/execution-progress.ts:182"
+      ],
+      "verification": "独立连接会合；分别覆盖 decision_required/platform_retry/review_retry，记录 pg_blocking_pids；checkpoint→waiting_for_user 是保护反例。"
+    },
+    {
+      "id": "L2",
+      "title": "交付重分类也是逆序",
+      "evidence": "源码事实；不等于历史故障根因",
+      "step": "第2步",
+      "entries": [
+        "src/lib/task-graph/reclassify-delivery.ts:20",
+        "src/lib/task-graph/execution-progress.ts:182"
+      ],
+      "verification": "隔离多节点图与 admission/预留竞争，保留后继未执行条件、授权和撤回语义。"
+    },
+    {
+      "id": "T1",
+      "title": "复核 worker 事务内全局查询",
+      "evidence": "源码调用链成立；未动态执行",
+      "step": "第3步",
+      "entries": [
+        "src/lib/task-graph/phase-worker.ts:10"
+      ],
+      "verification": "单连接触发 conversation 分支，真实进程存活/退出/身份更换；事务外观察内核对后同一测试通过。"
+    },
+    {
+      "id": "T2",
+      "title": "待回修复核的间接全局查询",
+      "evidence": "源码调用链成立；未动态执行",
+      "step": "第3步",
+      "entries": [
+        "src/lib/task-graph/pending-review-repair.ts:10",
+        "src/lib/task-graph/repair.ts:28",
+        "src/lib/task-graph/pending-review-repair-contract.ts:29",
+        "src/lib/task-graph/pending-review-repair-contract.ts:63"
+      ],
+      "verification": "分别验证恢复读取及 expectedReview 二次校验；保留 decision/evidence/候选绑定，不能删除校验换绿色。"
+    },
+    {
+      "id": "T3",
+      "title": "锁内本机 I/O",
+      "evidence": "源码事实；不等同连接自锁",
+      "step": "第3步",
+      "entries": [
+        "src/lib/task-graph/store.ts:98",
+        "src/lib/task-graph/store.ts:145",
+        "src/lib/task-graph/restart-recovery.ts:63",
+        "src/lib/task-graph/writer-ownership.ts:115"
+      ],
+      "verification": "外移路径/进程/Git 观察时安排身份改变会合点；验证旧 claim、旧 revision、未知和存活 Writer 都拒绝，收尾照常。"
+    },
+    {
+      "id": "T4",
+      "title": "资源探测在长事务内",
+      "evidence": "源码事实；设计语义需要验证",
+      "step": "第3步",
+      "entries": [
+        "src/lib/task-graph/runtime-probes.ts:31"
+      ],
+      "verification": "probe 缓存命中/未命中、双调用去重、取消/暂停、资源变动、失败无成功回执；不能增大现有 timeout。"
+    },
+    {
+      "id": "B1",
+      "title": "额外预算的来源与恢复语义",
+      "evidence": "历史 actual=1 expected=0 未归因",
+      "step": "第4步",
+      "entries": [
+        "src/lib/task-graph/execution-progress.ts:182"
+      ],
+      "verification": "从 executeJob catch、pauseGraphImplementation 两次事务和 outcome 幂等边界设计故障时点；捕获 executionId/阶段/claim/revision/outcomeId/error/预算/模型启动。人工故障复现不替代历史归因。"
+    },
+    {
+      "id": "H1",
+      "title": "历史退出码与并发时序",
+      "evidence": "551/552 保留项；未完成",
+      "step": "第4/5步",
+      "entries": [
+        "src/lib/task-graph/execution-progress.ts:180"
+      ],
+      "verification": "重放后台记录错误与前台争抢连接的区分；没有现场时序就明确未归因。有限次数重跑不能证明发生概率为零。"
+    },
+    {
+      "id": "A1",
+      "title": "通知和 Issue 同步的事务内外部调用",
+      "evidence": "相邻运行路径，须审范围",
+      "step": "第3步范围裁定",
+      "entries": [
+        "src/lib/task-graph/feishu.ts:169",
+        "src/lib/task-graph/notifications.ts:66",
+        "src/lib/task-graph/run-reply-relay.ts:40",
+        "src/lib/task-graph/issue-sync.ts:34",
+        "src/lib/task-graph/issue-sync.ts:118"
+      ],
+      "verification": "不得把模型/飞书替身测试当真实通知证明；若纳入用隔离账本与受控服务验证发送意图、回执丢失、重入和去重，不发真实消息/Issue。"
+    },
+    {
+      "id": "A2",
+      "title": "显式旧进度/能力迁移",
+      "evidence": "相邻人工入口，须审范围",
+      "step": "第3步范围裁定",
+      "entries": [
+        "src/lib/task-graph/execution-progress-adoption.ts:15",
+        "src/lib/project-capabilities/legacy-scope.ts:44"
+      ],
+      "verification": "仅隔离夹具，保留批准、仓库身份和旧 pin；是否纳入 S05 由本次范围审查明确，未排除前不能称全局完成。"
+    },
+    {
+      "id": "A3",
+      "title": "资料唤醒的管理员 HTTP 查询",
+      "evidence": "admitNode 的条件分支，须审范围",
+      "step": "第3步范围裁定",
+      "entries": [
+        "src/lib/task-graph/preparation-recovery.ts:297",
+        "src/lib/task-graph/conversation-inbox.ts:246"
+      ],
+      "verification": "验证撤销权限、身份变化、HTTP 失败时不放行；不能把授权检查直接缓存或移走而不重验适用身份。"
+    }
+  ],
+  "entries": {
+    "src/lib/task-graph/store.ts:33": {
+      "status": "保留（静态核对）",
+      "locks": "新建图，无显式 G/N",
+      "io": "tx 数据操作与纯计算",
+      "next": "第5步兼容",
+      "reason": "请求幂等及初建；不是既有节点锁顺序修复入口。"
+    },
+    "src/lib/task-graph/store.ts:76": {
+      "status": "保留（静态核对）",
+      "locks": "G → 节点 UPDATE 隐式行锁",
+      "io": "tx",
+      "next": "第2步兼容",
+      "reason": "释放后继要遵守暂停；保留控制检查，隐式写锁仍计入实验。"
+    },
+    "src/lib/task-graph/store.ts:98": {
+      "status": "待处理（源码事实）",
+      "locks": "G → repository advisory（排序）→ 节点 UPDATE",
+      "io": "事务内 canonical → fs.realpath",
+      "next": "第3步 T3",
+      "reason": "路径规范化在事务内；迁移时保留额外仓库互斥与授权路径身份，不删除锁。"
+    },
+    "src/lib/task-graph/store.ts:145": {
+      "status": "待处理（源码事实）",
+      "locks": "G → N",
+      "io": "observeGraphWriter → /proc",
+      "next": "第3步 T3",
+      "reason": "旧 worker 退出判断在锁内；需观察外移并复核同一 worker 身份。"
+    },
+    "src/lib/task-graph/store.ts:178": {
+      "status": "保留（静态核对）",
+      "locks": "没有显式 G；Execution/Node/Run UPDATE 产生隐式锁",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "归属保存、旧记录故障/陈旧声明、汇总；未看到本事务后取 G，不据此宣称不存在其他锁竞争。"
+    },
+    "src/lib/task-graph/store.ts:413": {
+      "status": "保留（静态核对）",
+      "locks": "没有显式 G；Execution/Node/Run UPDATE 产生隐式锁",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "归属保存、旧记录故障/陈旧声明、汇总；未看到本事务后取 G，不据此宣称不存在其他锁竞争。"
+    },
+    "src/lib/task-graph/store.ts:441": {
+      "status": "保留（静态核对）",
+      "locks": "没有显式 G；Execution/Node/Run UPDATE 产生隐式锁",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "归属保存、旧记录故障/陈旧声明、汇总；未看到本事务后取 G，不据此宣称不存在其他锁竞争。"
+    },
+    "src/lib/task-graph/store.ts:464": {
+      "status": "保留（静态核对）",
+      "locks": "没有显式 G；Execution/Node/Run UPDATE 产生隐式锁",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "归属保存、旧记录故障/陈旧声明、汇总；未看到本事务后取 G，不据此宣称不存在其他锁竞争。"
+    },
+    "src/lib/task-graph/store.ts:213": {
+      "status": "保留（静态核对）",
+      "locks": "versioned: applyExecutionOutcomeTx(integrated) → N；legacy: UPDATE",
+      "io": "tx",
+      "next": "第2/5步保护例外",
+      "reason": "完成保存不强制 active；保留授权、归属和完成语义，不统一加未暂停限制。"
+    },
+    "src/lib/task-graph/store.ts:248": {
+      "status": "保留（静态核对）",
+      "locks": "N；后续不取 G",
+      "io": "tx",
+      "next": "第2/5步保护例外",
+      "reason": "节点集成就绪/人工决定可独立落账；单锁不是 N→G。"
+    },
+    "src/lib/task-graph/store.ts:365": {
+      "status": "保留（静态核对）",
+      "locks": "N；后续不取 G",
+      "io": "tx",
+      "next": "第2/5步保护例外",
+      "reason": "节点集成就绪/人工决定可独立落账；单锁不是 N→G。"
+    },
+    "src/lib/task-graph/store.ts:273": {
+      "status": "保留（静态核对）",
+      "locks": "节点 UPDATE 隐式锁；不取 G",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "仅获批 implement 模式交付；不得改变批准合同。"
+    },
+    "src/lib/task-graph/store.ts:300": {
+      "status": "已有局部动态证据",
+      "locks": "G → N → helper 再取已持有 G/N",
+      "io": "观察在事务外，事务内 taskRunExitMatches/writerSnapshotMatches",
+      "next": "第2/3/5步回归",
+      "reason": "551/552 已有发布红绿与锁竞争证据，本轮未复跑；只证明已测路径。"
+    },
+    "src/lib/task-graph/review-publication.ts:59": {
+      "status": "已有局部动态证据",
+      "locks": "G → N → helper 再取已持有 G/N",
+      "io": "观察在事务外，事务内 taskRunExitMatches/writerSnapshotMatches",
+      "next": "第2/3/5步回归",
+      "reason": "551/552 已有发布红绿与锁竞争证据，本轮未复跑；只证明已测路径。"
+    },
+    "src/lib/task-graph/architecture-review.ts:63": {
+      "status": "保留（静态核对）",
+      "locks": "assertGraphReviewOwnershipTx → N；无后续 G",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "固定复核归属校验与发布记录，保留暂停后结果保存边界。"
+    },
+    "src/lib/task-graph/review-ownership.ts:76": {
+      "status": "保留（静态核对）",
+      "locks": "assertGraphReviewOwnershipTx → N；无后续 G",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "固定复核归属校验与发布记录，保留暂停后结果保存边界。"
+    },
+    "src/lib/task-graph/review-ownership.ts:22": {
+      "status": "保留（静态核对）",
+      "locks": "G → N",
+      "io": "tx",
+      "next": "第2步竞争对手",
+      "reason": "既有复核预留；552 已用作真实竞争对手，不能代表所有 admission 分支。"
+    },
+    "src/lib/task-graph/phase-worker.ts:10": {
+      "status": "待处理（源码事实）",
+      "locks": "G → N",
+      "io": "observeExecutionWriter → 全局 prisma + /proc；另有 observeGraphWriter",
+      "next": "第3步 T1",
+      "reason": "conversation 条件分支可到全局查询，单连接风险路径成立；本入口尚无本轮动态复现。"
+    },
+    "src/lib/task-graph/phase-worker.ts:32": {
+      "status": "保留（静态核对）",
+      "locks": "N；不取 G",
+      "io": "tx",
+      "next": "第3/5步保护例外",
+      "reason": "nonce/claim 校验后标记释放，暂停后也需要收尾；不能套 active 门禁。"
+    },
+    "src/lib/task-graph/phase-worker.ts:48": {
+      "status": "保留（静态核对）",
+      "locks": "N；不取 G",
+      "io": "tx",
+      "next": "第3/5步保护例外",
+      "reason": "nonce/claim 校验后标记释放，暂停后也需要收尾；不能套 active 门禁。"
+    },
+    "src/lib/task-graph/writer-ownership.ts:115": {
+      "status": "待处理（源码事实）",
+      "locks": "TaskRun FOR UPDATE",
+      "io": "createGraphWriter → processIdentity/readProcessAncestry/fs",
+      "next": "第3步 T3",
+      "reason": "属于 TaskRun 释放，需保留真实身份核对，不能以状态代替退出证明。"
+    },
+    "src/lib/task-graph/restart-recovery.ts:63": {
+      "status": "待处理（源码事实）",
+      "locks": "N → applyExecutionOutcomeTx(decision_required) → G",
+      "io": "锁内 graphGit（条件分支最多四个调用）",
+      "next": "第2步 L1 / 第3步 T3",
+      "reason": "源码顺序明确；尚未安排此入口的双连接实验。不能把它冒充旧 P2028 根因。"
+    },
+    "src/lib/task-graph/restart-recovery.ts:93": {
+      "status": "待处理（源码事实）",
+      "locks": "N → checkpoint(N) → decision_required/platform_retry(G)；waiting_for_user 分支只 N",
+      "io": "观察在事务外；内部 tx 记账",
+      "next": "第2步 L1 / 第3步退出身份复核",
+      "reason": "分支决定是否倒序；检查 restart 前后身份核对和重复结算，不统一认定所有分支死锁。"
+    },
+    "src/lib/task-graph/restart-recovery.ts:137": {
+      "status": "待处理（源码事实）",
+      "locks": "N → review_retry → G",
+      "io": "事务外退出观察，事务内部分归属比对",
+      "next": "第2步 L1 / 第3步退出身份复核",
+      "reason": "ready 预留与 running review 恢复两条路径；并发触发和退出证明覆盖仍待验证。"
+    },
+    "src/lib/task-graph/restart-recovery.ts:173": {
+      "status": "待处理（源码事实）",
+      "locks": "N → review_retry → G",
+      "io": "事务外退出观察，事务内部分归属比对",
+      "next": "第2步 L1 / 第3步退出身份复核",
+      "reason": "ready 预留与 running review 恢复两条路径；并发触发和退出证明覆盖仍待验证。"
+    },
+    "src/lib/task-graph/reclassify-delivery.ts:20": {
+      "status": "待处理（源码事实）",
+      "locks": "多节点 FOR NO KEY UPDATE → outcome(delivery_reclassified) → G → N",
+      "io": "来源读取在事务外；内部 tx",
+      "next": "第2步 L2",
+      "reason": "另一个明确逆序入口，需覆盖多节点锁及后继撤回语义；只测试隔离夹具，不操作业务票。"
+    },
+    "src/lib/task-graph/repair.ts:28": {
+      "status": "待处理（源码事实）",
+      "locks": "G → N → outcome(G/N)",
+      "io": "expectedReview 分支 assertPendingReviewRepairTx → pendingReviewRepairTx → 全局查询/进程观察",
+      "next": "第3步 T2",
+      "reason": "外层已有 writerSnapshot，内层仍再次观察；收敛不能删掉复核绑定、decision/evidence 比对。"
+    },
+    "src/lib/task-graph/pending-review-repair.ts:10": {
+      "status": "待处理（源码事实）",
+      "locks": "无显式 G/N（仍占事务连接）",
+      "io": "pendingReviewRepairTx → 全局查询/进程观察",
+      "next": "第3步 T2",
+      "reason": "即便无行锁，单连接事务也可能等待全局借连接；走到实际观察分支才构成触发。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:110": {
+      "status": "保留（静态核对）",
+      "locks": "G → N；必要时 outcome 重入已持有 G",
+      "io": "观察外移，writerSnapshotMatches/tx 内核对",
+      "next": "第2/3/5步兼容",
+      "reason": "旧进度发现与 admission 推迟；保留原环境失败与条件探测分离。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:152": {
+      "status": "保留（静态核对）",
+      "locks": "G → N；必要时 outcome 重入已持有 G",
+      "io": "观察外移，writerSnapshotMatches/tx 内核对",
+      "next": "第2/3/5步兼容",
+      "reason": "旧进度发现与 admission 推迟；保留原环境失败与条件探测分离。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:297": {
+      "status": "边界待审",
+      "locks": "G → N → outcomes",
+      "io": "materials 授权分支可经 authorizedMaterialHandoffInput 调 Feishu HTTP；其他观察在外",
+      "next": "第2步竞争对手 / 第3步 A3 范围裁定",
+      "reason": "环境恢复核心入口；不能把 tx 参数当作整个传递调用链均无外部 I/O 的证据。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:413": {
+      "status": "保留（静态核对）",
+      "locks": "纯读取，无显式 G/N",
+      "io": "tx 读、哈希",
+      "next": "第5步兼容",
+      "reason": "准备绑定哈希不是派发；不得把 read-only binding 读强行当 active 修改。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:477": {
+      "status": "保留（静态核对）",
+      "locks": "纯读取，无显式 G/N",
+      "io": "tx 读、哈希",
+      "next": "第5步兼容",
+      "reason": "准备绑定哈希不是派发；不得把 read-only binding 读强行当 active 修改。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:420": {
+      "status": "保留（静态核对）",
+      "locks": "preparationRequestTx → N，无后续 G",
+      "io": "Git/资源/退出观察在外；内部使用 tx 和 snapshot 比对",
+      "next": "第3/5步兼容",
+      "reason": "准备登记与条件唤醒分离；保留回执绑定、授权及幂等。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:491": {
+      "status": "保留（静态核对）",
+      "locks": "preparationRequestTx → N，无后续 G",
+      "io": "Git/资源/退出观察在外；内部使用 tx 和 snapshot 比对",
+      "next": "第3/5步兼容",
+      "reason": "准备登记与条件唤醒分离；保留回执绑定、授权及幂等。"
+    },
+    "src/lib/task-graph/runtime-continuity.ts:149": {
+      "status": "保留（静态核对）",
+      "locks": "G → N",
+      "io": "approvedProjectTools 传 ledger.db=tx + registeredPolicy + executionId；所到分支只 ledger/纯计算",
+      "next": "第3/5步保留反例",
+      "reason": "context.ts: executionId 排除 Git 分支，ledger 排除配置文件读取；不能按函数名误报为事务内 Git。"
+    },
+    "src/lib/task-graph/runtime-probes.ts:31": {
+      "status": "待验证（设计边界）",
+      "locks": "probe advisory → 外部探测 → G",
+      "io": "run 回调执行 skill/browser 等资源探测；既有 timeout=120s",
+      "next": "第3步 T4",
+      "reason": "源码确认长事务外部 I/O，但未证明此处引发历史预算异常；锁承载探测去重，外移要保持固定资源与去重语义。"
+    },
+    "src/lib/task-graph/execution-progress.ts:180": {
+      "status": "保留（静态核对）",
+      "locks": "按 outcome：G→N 或 N",
+      "io": "TaskRun 退出观察在事务外",
+      "next": "第2/3/4步公共边界",
+      "reason": "外层包装支持外观察内核对，但不能补救已持 N 的直接 Tx 调用者。"
+    },
+    "src/lib/task-graph/implementation-result.ts:105": {
+      "status": "保留（静态核对）",
+      "locks": "legacy 分支 N，不取 G",
+      "io": "tx",
+      "next": "第4/5步兼容",
+      "reason": "此处仅旧账本路径；versioned 候选/结论两次事务需另见 B1，不能只审该 callback。"
+    },
+    "src/lib/task-graph/run-control.ts:28": {
+      "status": "保留（静态核对）",
+      "locks": "G；setPaused 之后 Run UPDATE 隐式锁",
+      "io": "tx",
+      "next": "第2/5步兼容",
+      "reason": "取 G 与要求 active 是不同契约；pause 自身没有显式 N，不直接判其与发布形成锁循环。"
+    },
+    "src/lib/task-graph/run-control.ts:41": {
+      "status": "保留（静态核对）",
+      "locks": "G；setPaused 之后 Run UPDATE 隐式锁",
+      "io": "tx",
+      "next": "第2/5步兼容",
+      "reason": "取 G 与要求 active 是不同契约；pause 自身没有显式 N，不直接判其与发布形成锁循环。"
+    },
+    "src/lib/task-graph/run-control.ts:47": {
+      "status": "保留（静态核对）",
+      "locks": "G；setPaused 之后 Run UPDATE 隐式锁",
+      "io": "tx",
+      "next": "第2/5步兼容",
+      "reason": "取 G 与要求 active 是不同契约；pause 自身没有显式 N，不直接判其与发布形成锁循环。"
+    },
+    "src/lib/task-graph/conversation-followup.ts:65": {
+      "status": "保留（静态核对）",
+      "locks": "G → N",
+      "io": "外部进程观察与 createGraphWriter 在事务外；内部 snapshot 核对",
+      "next": "第3/5步兼容",
+      "reason": "保留候选、消息批次、worker 身份和只读 followup 权限。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:67": {
+      "status": "保留（静态核对）",
+      "locks": "receiveGraphTaskMessageTx → N",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "接收消息与恢复执行分开；不因用户发消息即放行新执行。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:102": {
+      "status": "保留（静态核对）",
+      "locks": "N；无后续 G",
+      "io": "tx；steering 实际发送在事务外",
+      "next": "第3/5步兼容",
+      "reason": "结果保存、封口和消息预留需保留原会话及不确定副作用证据。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:203": {
+      "status": "保留（静态核对）",
+      "locks": "N；无后续 G",
+      "io": "tx；steering 实际发送在事务外",
+      "next": "第3/5步兼容",
+      "reason": "结果保存、封口和消息预留需保留原会话及不确定副作用证据。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:294": {
+      "status": "保留（静态核对）",
+      "locks": "N；无后续 G",
+      "io": "tx；steering 实际发送在事务外",
+      "next": "第3/5步兼容",
+      "reason": "结果保存、封口和消息预留需保留原会话及不确定副作用证据。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:160": {
+      "status": "保留（静态核对）",
+      "locks": "N → TaskRun 行锁；无 G",
+      "io": "退出观察在事务外；内部 tx",
+      "next": "第2/3/5步兼容",
+      "reason": "这是额外的锁层级，不能只检查 G/N；真实退出与TaskRun身份变化的覆盖待后续测试。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:195": {
+      "status": "保留（静态核对）",
+      "locks": "无显式 G/N",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "读取待处理输入或记录 steering 结果，不直接派发。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:308": {
+      "status": "保留（静态核对）",
+      "locks": "无显式 G/N",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "读取待处理输入或记录 steering 结果，不直接派发。"
+    },
+    "src/lib/task-graph/conversation-members.ts:38": {
+      "status": "保留（静态核对）",
+      "locks": "LiveRoom 行锁",
+      "io": "tx",
+      "next": "范围外围保留",
+      "reason": "只绑定获批参与者；不属于 G/N 两锁缺陷，不改成员和权限。"
+    },
+    "src/lib/task-graph/overview.ts:138": {
+      "status": "保留（静态核对）",
+      "locks": "overview-input advisory → receiveGraphTaskMessageTx(N)",
+      "io": "tx",
+      "next": "第5步兼容",
+      "reason": "消息入箱而非执行恢复；其他 advisory 层级保留在清单。"
+    },
+    "src/lib/task-graph/completed-workspaces.ts:48": {
+      "status": "保留（静态核对）",
+      "locks": "无显式行锁；writerSnapshotMatches",
+      "io": "观察在外；内部 tx",
+      "next": "第5步资源清理验证",
+      "reason": "快照比对完成到实际文件清理间的身份竞争需端到端验证；静态记录不宣布清理安全。"
+    },
+    "src/lib/task-graph/completed-workspaces.ts:54": {
+      "status": "保留（静态核对）",
+      "locks": "Prisma 数组事务",
+      "io": "existsSync 在构造 PrismaPromise 时执行，不在交互式回调内",
+      "next": "第5步资源清理验证",
+      "reason": "这里使用 prisma.xxx 是数组事务正常形式，不能被“全局 prisma”词法门禁误报。"
+    },
+    "src/lib/task-graph/run-doctor.ts:126": {
+      "status": "保留（静态核对）",
+      "locks": "READ ONLY / RepeatableRead",
+      "io": "tx",
+      "next": "范围外围保留",
+      "reason": "诊断快照不写状态；进程观察位于快照事务之后。"
+    },
+    "src/lib/task-graph/run-reply-migration.ts:5": {
+      "status": "保留（静态核对）",
+      "locks": "graph-reply advisory",
+      "io": "tx",
+      "next": "范围外围保留",
+      "reason": "历史话题迁移入口只记录，不执行迁移。"
+    },
+    "src/lib/task-graph/issue-adoption.ts:58": {
+      "status": "保留（静态核对）",
+      "locks": "TaskGraphRun 行锁",
+      "io": "tx",
+      "next": "范围外围保留",
+      "reason": "历史 Issue 来源关联；不改旧票快照。"
+    },
+    "src/lib/task-graph/issue-dispatch.ts:32": {
+      "status": "保留（静态核对）",
+      "locks": "Node UPDATE → Execution UPDATE 隐式锁",
+      "io": "远端检查在外；内部 tx",
+      "next": "第5步兼容",
+      "reason": "Issue 来源变化阻断；单独记录隐式锁，不保证无其他数据库争用。"
+    },
+    "src/lib/task-graph/upstream-inputs.ts:111": {
+      "status": "保留（静态核对）",
+      "locks": "无显式 G/N；事件写入隐式锁",
+      "io": "manifest 准备在外；内部 tx",
+      "next": "第5步兼容",
+      "reason": "上游输入变化与候选绑定应保留。"
+    },
+    "src/lib/task-graph/feishu.ts:169": {
+      "status": "边界待审",
+      "locks": "通知/话题 advisory；notifications 可嵌套进入另一事务",
+      "io": "Feishu HTTP + deliverProgressCard/deliverGraphNotificationOnce 全局 prisma",
+      "next": "第3步 A1 范围裁定",
+      "reason": "同源连接占用路径，不是此次历史预算根因证据；原环境套件替换 Feishu，不能拿它证明通知真实安全。"
+    },
+    "src/lib/task-graph/run-reply-relay.ts:40": {
+      "status": "边界待审",
+      "locks": "通知/话题 advisory；notifications 可嵌套进入另一事务",
+      "io": "Feishu HTTP + deliverProgressCard/deliverGraphNotificationOnce 全局 prisma",
+      "next": "第3步 A1 范围裁定",
+      "reason": "同源连接占用路径，不是此次历史预算根因证据；原环境套件替换 Feishu，不能拿它证明通知真实安全。"
+    },
+    "src/lib/task-graph/notifications.ts:66": {
+      "status": "边界待审",
+      "locks": "通知/话题 advisory；notifications 可嵌套进入另一事务",
+      "io": "Feishu HTTP + deliverProgressCard/deliverGraphNotificationOnce 全局 prisma",
+      "next": "第3步 A1 范围裁定",
+      "reason": "同源连接占用路径，不是此次历史预算根因证据；原环境套件替换 Feishu，不能拿它证明通知真实安全。"
+    },
+    "src/lib/task-graph/issue-sync.ts:34": {
+      "status": "边界待审",
+      "locks": "N 的 FOR NO KEY UPDATE → 下游全局 prisma",
+      "io": "syncCurrentIssue* 使用全局查询与 Tracker HTTP",
+      "next": "第3步 A1 范围裁定",
+      "reason": "运行期真实相邻路径；原子性包含已提交 send intent，不能简单把所有 prisma 改 tx。不得实际发送 Issue。"
+    },
+    "src/lib/task-graph/issue-sync.ts:118": {
+      "status": "边界待审",
+      "locks": "N 的 FOR NO KEY UPDATE → 下游全局 prisma",
+      "io": "syncCurrentIssue* 使用全局查询与 Tracker HTTP",
+      "next": "第3步 A1 范围裁定",
+      "reason": "运行期真实相邻路径；原子性包含已提交 send intent，不能简单把所有 prisma 改 tx。不得实际发送 Issue。"
+    },
+    "src/lib/task-graph/execution-progress-adoption.ts:15": {
+      "status": "边界待审",
+      "locks": "repository flock → N",
+      "io": "assertWriterExited 回调 + graphGit/inspectJobWorktree/commitJobWorktree",
+      "next": "第3步 A2 范围裁定",
+      "reason": "显式旧进度迁移；源码中无生产直接调用，测试可调用。不得自动执行迁移，也不能称全仓事务已清空 I/O。"
+    },
+    "src/lib/project-capabilities/legacy-scope.ts:44": {
+      "status": "边界待审",
+      "locks": "N",
+      "io": "observeExecutionWriter → 全局查询/OS；projectCapabilityPolicy → 文件",
+      "next": "第3步 A2 范围裁定",
+      "reason": "人工 project-capabilities-scope CLI 路径，与旧授权迁移有关；保留用户批准边界。"
+    },
+    "src/lib/acpx/runner.ts:120": {
+      "status": "保留（静态核对）",
+      "locks": "createRun 写入 TaskRun/participant → binder G → N",
+      "io": "createRun(tx)，单种 graph authority；模型实际启动在事务外",
+      "next": "第2/3/5步交叉调用兼容",
+      "reason": "核对目录外唯一 Tx-helper 调用文件的四处调用。显式 G/N 顺序正常，TaskRun 隐式锁仍需兼容验证。"
+    },
+    "src/lib/task-graph/conversation-followup.ts:30": {
+      "status": "保留（静态核对）",
+      "locks": "G → N；要求调用前不持有逆序锁",
+      "io": "传入 tx",
+      "next": "第2/3/5步共用原语",
+      "reason": "三个绑定入口由 acpx/runner 创建事务；参数 tx 本身不能保证调用前锁序。"
+    },
+    "src/lib/task-graph/execution-progress.ts:358": {
+      "status": "保留（静态核对）",
+      "locks": "G → N；要求调用前不持有逆序锁",
+      "io": "传入 tx",
+      "next": "第2/3/5步共用原语",
+      "reason": "三个绑定入口由 acpx/runner 创建事务；参数 tx 本身不能保证调用前锁序。"
+    },
+    "src/lib/task-graph/review-ownership.ts:49": {
+      "status": "保留（静态核对）",
+      "locks": "G → N；要求调用前不持有逆序锁",
+      "io": "传入 tx",
+      "next": "第2/3/5步共用原语",
+      "reason": "三个绑定入口由 acpx/runner 创建事务；参数 tx 本身不能保证调用前锁序。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:34": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/db 读取、写入或纯计算；调用者须传实际 tx",
+      "next": "第3/5步兼容",
+      "reason": "db 默认可能为 prisma，核对事务调用点传参；当前核心事务调用显式传 tx。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:40": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/db 读取、写入或纯计算；调用者须传实际 tx",
+      "next": "第3/5步兼容",
+      "reason": "db 默认可能为 prisma，核对事务调用点传参；当前核心事务调用显式传 tx。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:91": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/db 读取、写入或纯计算；调用者须传实际 tx",
+      "next": "第3/5步兼容",
+      "reason": "db 默认可能为 prisma，核对事务调用点传参；当前核心事务调用显式传 tx。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:119": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/db 读取、写入或纯计算；调用者须传实际 tx",
+      "next": "第3/5步兼容",
+      "reason": "db 默认可能为 prisma，核对事务调用点传参；当前核心事务调用显式传 tx。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:225": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/db 读取、写入或纯计算；调用者须传实际 tx",
+      "next": "第3/5步兼容",
+      "reason": "db 默认可能为 prisma，核对事务调用点传参；当前核心事务调用显式传 tx。"
+    },
+    "src/lib/task-graph/waiting-cause.ts:7": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/db 读取、写入或纯计算；调用者须传实际 tx",
+      "next": "第3/5步兼容",
+      "reason": "db 默认可能为 prisma，核对事务调用点传参；当前核心事务调用显式传 tx。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:51": {
+      "status": "保留（静态核对）",
+      "locks": "N；后续不取 G",
+      "io": "传入 tx",
+      "next": "第2/5步调用前提",
+      "reason": "只锁节点的辅助函数，不等于已建立 G→N；与其他 helper 组合时检查整个事务。"
+    },
+    "src/lib/task-graph/review-ownership.ts:79": {
+      "status": "保留（静态核对）",
+      "locks": "N；后续不取 G",
+      "io": "传入 tx",
+      "next": "第2/5步调用前提",
+      "reason": "只锁节点的辅助函数，不等于已建立 G→N；与其他 helper 组合时检查整个事务。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:405": {
+      "status": "保留（静态核对）",
+      "locks": "N；后续不取 G",
+      "io": "传入 tx",
+      "next": "第2/5步调用前提",
+      "reason": "只锁节点的辅助函数，不等于已建立 G→N；与其他 helper 组合时检查整个事务。"
+    },
+    "src/lib/task-graph/conversation-inbox.ts:246": {
+      "status": "边界待审",
+      "locks": "本 helper 无锁，admitNode 调用时已持 G/N",
+      "io": "authorizedConversationInput(db) 后 isFeishuGroupAdmin → HTTP",
+      "next": "第3步 A3 范围裁定",
+      "reason": "必须保留管理员真实性；不能为了消除 HTTP 跳过授权。"
+    },
+    "src/lib/task-graph/execution-progress.ts:182": {
+      "status": "待处理（源码事实）",
+      "locks": "checkpoint/integrated/waiting_for_user 只 N；其余 G→N",
+      "io": "tx 和 taskRunExitMatches；无直接外部观察",
+      "next": "第2步 L1/L2 / 第4步 B1",
+      "reason": "本身按分支取锁，但已有 N 的调用者会倒序；幂等 event 检查/claim revision/预算/退出证明为必保约束。"
+    },
+    "src/lib/task-graph/pending-review-repair-contract.ts:29": {
+      "status": "待处理（源码事实）",
+      "locks": "继承调用者锁",
+      "io": "observeTaskRunWriter/observeExecutionWriter → 全局 prisma 与 OS",
+      "next": "第3步 T2",
+      "reason": "Tx 名称不代表只访问 tx；实际条件满足后才走外部观察。"
+    },
+    "src/lib/task-graph/pending-review-repair-contract.ts:63": {
+      "status": "待处理（源码事实）",
+      "locks": "继承调用者锁",
+      "io": "observeTaskRunWriter/observeExecutionWriter → 全局 prisma 与 OS",
+      "next": "第3步 T2",
+      "reason": "Tx 名称不代表只访问 tx；实际条件满足后才走外部观察。"
+    },
+    "src/lib/task-graph/phase-worker.ts:80": {
+      "status": "边界待审",
+      "locks": "继承调用者上下文",
+      "io": "observeExecutionWriter → 全局查询/OS",
+      "next": "第3步核对调用上下文",
+      "reason": "当前 production 调用 preparation-recovery:81 传 prisma 且在 admission 事务外；不能只因 tx 参数判当前自锁。未来事务内复用须限制。"
+    },
+    "src/lib/task-graph/preparation-contract.ts:62": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/纯哈希",
+      "next": "第3/5步兼容",
+      "reason": "绑定校验无外部观察；保留候选/授权/资源与依赖身份。"
+    },
+    "src/lib/task-graph/preparation-contract.ts:81": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/纯哈希",
+      "next": "第3/5步兼容",
+      "reason": "绑定校验无外部观察；保留候选/授权/资源与依赖身份。"
+    },
+    "src/lib/task-graph/preparation-recovery.ts:465": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "tx/纯哈希",
+      "next": "第3/5步兼容",
+      "reason": "绑定校验无外部观察；保留候选/授权/资源与依赖身份。"
+    },
+    "src/lib/task-graph/restart-recovery.ts:20": {
+      "status": "保留（静态核对）",
+      "locks": "TaskRun/participant UPDATE 隐式锁",
+      "io": "tx",
+      "next": "第2/3/5步兼容",
+      "reason": "仅把已证实退出的 run 标为 interrupted；不能代替实际退出证明。"
+    },
+    "src/lib/task-graph/review-publication.ts:20": {
+      "status": "已有局部动态证据",
+      "locks": "先 N 再 outcome(G)；要求调用者已经持有 G",
+      "io": "tx",
+      "next": "第2步调用前提收敛",
+      "reason": "两处生产调用者均先 G（552）；辅助函数本身不强制这一前提，需防新入口漏锁。"
+    },
+    "src/lib/task-graph/run-control.ts:17": {
+      "status": "保留（静态核对）",
+      "locks": "G；Node helper 先读取 runId 不锁 N",
+      "io": "tx",
+      "next": "第2步共同规则",
+      "reason": "锁获取与 active 拒绝策略分开；不得机械将 checkpoint 改为 require-active。"
+    },
+    "src/lib/task-graph/run-control.ts:23": {
+      "status": "保留（静态核对）",
+      "locks": "G；Node helper 先读取 runId 不锁 N",
+      "io": "tx",
+      "next": "第2步共同规则",
+      "reason": "锁获取与 active 拒绝策略分开；不得机械将 checkpoint 改为 require-active。"
+    },
+    "src/lib/task-graph/run-control.ts:35": {
+      "status": "保留（静态核对）",
+      "locks": "G；Node helper 先读取 runId 不锁 N",
+      "io": "tx",
+      "next": "第2步共同规则",
+      "reason": "锁获取与 active 拒绝策略分开；不得机械将 checkpoint 改为 require-active。"
+    },
+    "src/lib/task-graph/task-run-exit-proof.ts:23": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "只使用 tx 查询与身份比较",
+      "next": "第3步共同规则",
+      "reason": "外部证明须绑定同一身份；匹配函数不是独立的实时进程观察。"
+    },
+    "src/lib/task-graph/writer-snapshot.ts:32": {
+      "status": "保留（静态核对）",
+      "locks": "无新增显式 G/N",
+      "io": "只使用 tx 查询与身份比较",
+      "next": "第3步共同规则",
+      "reason": "外部证明须绑定同一身份；匹配函数不是独立的实时进程观察。"
+    }
+  },
+  "budget": {
+    "entry": "src/lib/task-graph/coordinator.ts:435",
+    "checkpoint": "src/lib/task-graph/implementation-result.ts:66",
+    "conclusion": "src/lib/task-graph/implementation-result.ts:89",
+    "catch": "src/lib/task-graph/coordinator.ts:675",
+    "retry": "src/lib/task-graph/coordinator.ts:745",
+    "counter": "src/lib/task-graph/execution-progress.ts:285",
+    "facts": [
+      "pauseGraphImplementation 的 versioned 路径先 checkpoint 再核实/结论，存在两次提交边界。",
+      "executeJob catch 需未暂停且 current.status===claimed 才进入分类处理；并非所有异常无条件加预算。",
+      "已核实暂时平台故障使用既有预算；普通 continue_work 不应消耗平台预算；重复同一 outcome 的归属与内容必须一致。",
+      "platform_retry 的指纹分支和有界分支、review_retry 各自可能增加预算；必须按实际 outcome 辨别。"
+    ],
+    "hypotheses": [
+      "B-H1：候选已保存后记账失败落入 dispatch_failed/platform_retry。",
+      "B-H2：准备边界确实发生暂时平台故障，增加的是合法恢复预算。",
+      "B-H3：并发归属/revision 变化使一次拒绝进入兜底；需检查事件幂等与错误阶段。"
+    ],
+    "requiredEvidence": "实际额外预算 outcome + 原错误 + 同一 execution/claim/revision 时序；未拿到就不能关闭历史异常。"
+  },
+  "reviewQuestions": [
+    "入口或 helper 是否遗漏，尤其目录外调用、隐式行锁和跨 helper 的顺序？",
+    "L1/L2/T1/T2 调用链是否成立，动态触发条件是否写准？",
+    "T3/T4 的修复是否保留暂停收尾、资源去重与真实退出证明？",
+    "A1/A2/A3 应纳入本次必修还是单独记录？需要明确理由，不能默默排除。",
+    "预算假设是否被错误写成历史根因？5步结束条件是否足够且没有擅自降低原验收？"
+  ]
+}
