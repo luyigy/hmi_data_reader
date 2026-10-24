@@ -1,0 +1,12 @@
+{
+  "startedAt": "2026-10-24T12:44:39.302Z",
+  "endedAt": "2026-10-24T12:45:51.296Z",
+  "bwrapExitCode": 0,
+  "signal": null,
+  "suites": [
+    "task-graph-postgres-runtime",
+    "task-graph-service-execution"
+  ],
+  "resourceVersion": "14.24.0",
+  "evidence": "evidence.json（沙箱内写入）"
+}

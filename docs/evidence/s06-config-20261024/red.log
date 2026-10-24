@@ -1,0 +1,92 @@
+TAP version 13
+# Subtest: explicit URL bypasses a genuinely unreadable fallback
+not ok 1 - explicit URL bypasses a genuinely unreadable fallback
+  ---
+  duration_ms: 4.025087
+  type: 'test'
+  location: '/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-postgres-config.test.mjs:37:1'
+  failureType: 'testCodeFailure'
+  error: "EACCES: permission denied, open '/tmp/postgres-config-Y0YIQY/.env'"
+  code: 'EACCES'
+  stack: |-
+    Module.readFileSync (node:fs:440:20)
+    readFileSync (file:///data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-postgres-config.test.mjs:31:19)
+    evalmachine.<anonymous>:1:39
+    Script.runInContext (node:vm:149:12)
+    Script.runInNewContext (node:vm:154:17)
+    Object.evaluate (file:///data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-postgres-config.test.mjs:26:35)
+    TestContext.<anonymous> (file:///data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-postgres-config.test.mjs:40:18)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+  ...
+# Subtest: explicit URL works without a fallback file
+ok 2 - explicit URL works without a fallback file
+  ---
+  duration_ms: 1.130333
+  type: 'test'
+  ...
+# Subtest: missing explicit URL uses the existing quoted .env format
+ok 3 - missing explicit URL uses the existing quoted .env format
+  ---
+  duration_ms: 1.172044
+  type: 'test'
+  ...
+# Subtest: empty explicit URL preserves fallback behavior
+ok 4 - empty explicit URL preserves fallback behavior
+  ---
+  duration_ms: 1.02941
+  type: 'test'
+  ...
+# Subtest: no explicit URL and no usable fallback still fail
+ok 5 - no explicit URL and no usable fallback still fail
+  ---
+  duration_ms: 5.692707
+  type: 'test'
+  ...
+# Subtest: invalid explicit URL fails without silently selecting fallback
+not ok 6 - invalid explicit URL fails without silently selecting fallback
+  ---
+  duration_ms: 1.72213
+  type: 'test'
+  location: '/data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-postgres-config.test.mjs:70:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+    + [
+    +   '.env'
+    + ]
+    - []
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: '.env'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///data1/code/agent-platform-v2-manual-runtime-repair/tests/task-graph-postgres-config.test.mjs:73:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: both configuration sources retain the loopback restriction
+ok 7 - both configuration sources retain the loopback restriction
+  ---
+  duration_ms: 1.69785
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 5
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 85.497979

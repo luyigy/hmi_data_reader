@@ -1,0 +1,108 @@
+{
+  "baseline": "0fb3ac02e3a9c790866414a7cfadf46cf305880f",
+  "reviewedCodeCommit": "ab6931808dee2d4d900fa94374ff9d125d65051d",
+  "configuration": {
+    "command": "node --test tests/task-graph-postgres-config.test.mjs",
+    "red": {
+      "exit": 1,
+      "pass": 5,
+      "fail": 2,
+      "log": "red.log"
+    },
+    "green": {
+      "exit": 0,
+      "pass": 7,
+      "fail": 0,
+      "log": "green.log"
+    },
+    "scope": "Actual runner configuration source and real filesystem; full runner separately exercised in sandbox"
+  },
+  "sandbox": {
+    "command": "node scripts/sandbox-postgres-session.mjs run task-graph-postgres-runtime task-graph-service-execution",
+    "exit": 0,
+    "runtimePass": 6,
+    "legacyServiceExecution": "passed",
+    "insideSandbox": true,
+    "isolatedWrite": true,
+    "schemaCleanup": true,
+    "lifecycleClosed": true,
+    "portClosed": true,
+    "directoryRemoved": true,
+    "originalDirectory": "output/sandbox-postgres-runs/2026-10-24T204438-745697"
+  },
+  "review": {
+    "reviewer": "/root/s06_final_reviewer",
+    "independentContext": true,
+    "result": "pass",
+    "standardsFindings": 0,
+    "specFindings": 0,
+    "independentConfigGreen": {
+      "exit": 0,
+      "pass": 7,
+      "fail": 0
+    },
+    "independentBaselineRed": {
+      "exit": 1,
+      "pass": 5,
+      "fail": 2,
+      "temporaryFixtureRemoved": true
+    },
+    "sandboxEvidenceRead": true,
+    "sandboxRerunByReviewer": false,
+    "conclusion": "通过。本次局部修复无范围内阻断。555 首轮指出的配置读取 P2 可以关闭。"
+  },
+  "checks": [
+    {
+      "command": "npx eslint scripts/test-task-graph-postgres.mjs tests/task-graph-postgres-config.test.mjs",
+      "exit": 0
+    },
+    {
+      "command": "npm run check:long-files",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check 0fb3ac0...ab69318",
+      "exit": 0
+    },
+    {
+      "command": "npm run workflow:validate -- --preflight docs/545_PLAN_20261023_运行环境修复手动执行.md --json",
+      "exit": 0,
+      "issues": []
+    },
+    {
+      "command": "npm run workflow:validate -- --preflight docs/556_HANDOVER_20261024_S06完成与运行环境修复收口.md --json",
+      "exit": 0,
+      "issues": []
+    }
+  ],
+  "evidenceFiles": [
+    {
+      "file": "green.log",
+      "sha256": "dca11a449affcd410256512ab332d5c4146a707eb81d0d9aa2c143bd9fa78322"
+    },
+    {
+      "file": "red.log",
+      "sha256": "98d832025d6103dea7169c269c8dc85390b0523157b6dd5cf1c2c1141cbb3809"
+    },
+    {
+      "file": "sandbox-database.json",
+      "sha256": "a995c16013997ed7cf94eee39560a2bb076885fbf8cfb2b177e55b77dbfab626"
+    },
+    {
+      "file": "sandbox-session.json",
+      "sha256": "45104465510e9cf776d34208ecb60d062770514b600699a3e7d983a795adf5ca"
+    },
+    {
+      "file": "sandbox.log",
+      "sha256": "74415c3dde6beb9504aa6db268f1cb01497830ddd3a87c19a025cc9f58e1543e"
+    }
+  ],
+  "notPerformed": [
+    "merge",
+    "deployment",
+    "production task resume",
+    "S05 reopening",
+    "Issue Sync or historical budget fixes"
+  ],
+  "logNormalization": "Only trailing whitespace removed from red.log copy; original unchanged at output/reviews/s06-config-20261024/red.log. Other evidence copied byte-for-byte."
+}
