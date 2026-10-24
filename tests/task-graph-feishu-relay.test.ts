@@ -34,8 +34,7 @@ async function main() {
     assert.match(json, /实施者.*Codex/); assert.match(json, /正在实现 S03/); assert.match(json, /运行开始/);
     const progress = sent[0].card as { body: { elements: { tag: string; expanded?: boolean; header?: { title: { content: string } }; elements?: unknown[] }[] } };
     const panels = progress.body.elements.filter(element => element.tag === 'collapsible_panel');
-    assert.equal(panels.length, 3);
-    panels.shift();
+    assert.equal(panels.length, 2);
     assert.equal(panels[0].expanded, false); assert.equal(panels[1].expanded, false);
     assert.match(panels[0].header?.title.content || '', /系统信息/);
     assert.match(panels[1].header?.title.content || '', /工具调用/);
@@ -61,13 +60,19 @@ async function main() {
     await relayTaskGraphRunReply(run.id);
     assert.equal(updated[0].id, 'reply-1');
     assert.match(JSON.stringify(updated[0].card), new RegExp(`approve:${request.id}`));
+    assert.match(JSON.stringify(updated[0].card), new RegExp(`deny:${request.id}`));
+    const question = await prisma.taskRunInteractionRequest.create({ data: { taskId: task.id, taskRunId: run.id,
+      requestKind: 'input_request', message: '请选择需要核对的控制器型号' } });
+    await relayTaskGraphRunReply(run.id, true);
+    assert.match(JSON.stringify((updated.at(-1)?.card as { body: { elements: { tag: string }[] } }).body.elements.filter(e => e.tag === 'markdown')), /请选择需要核对的控制器型号/);
+    await prisma.taskRunInteractionRequest.update({ where: { id: question.id }, data: { status: 'answered' } });
     await prisma.taskRunEvent.create({ data: { taskRunId: run.id, sequence: 6, eventType: 'control_message', content: '等待权限确认' } });
     rejectUpdate = true;
     await assert.rejects(() => relayTaskGraphRunReply(run.id), /update failed/);
     assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).deliveredSequence, 5);
     rejectUpdate = false;
     await Promise.all([relayTaskGraphRunReply(run.id), relayTaskGraphRunReply(run.id)]);
-    assert.equal(updated.length, 2, 'Concurrent relays must update once');
+    assert.equal(updated.length, 3, 'Concurrent relays must update once');
     assert.equal(sent.length, 1);
     await prisma.taskRunParticipant.updateMany({ where: { taskRunId: run.id }, data: { status: 'completed', summary: 'S03 已提交，等待验收。' } });
     await prisma.taskRun.update({ where: { id: run.id }, data: { status: 'completed', completedAt: new Date() } });
@@ -77,14 +82,14 @@ async function main() {
     assert.equal((await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: run.id } })).lastStatus, 'completed');
     assert.equal(sent.length, 1);
     assert.equal(replies.length, 0, 'Final result must not create another card');
-    assert.match(JSON.stringify(updated.at(-1)?.card), /会话结束/);
+    assert.match(JSON.stringify(updated.at(-1)?.card), /本轮已结束/);
     assert.doesNotMatch(JSON.stringify(updated.at(-1)?.card), /Slice 已完成/);
     await relayTaskGraphReplies();
     assert.equal(replies.length, 0, 'The final result must not create a new reply');
     const marker = 'TASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"environment_failed","note":"project environment missing"}';
     await prisma.taskRunParticipant.updateMany({ where: { taskRunId: run.id }, data: { summary: marker } });
     await relayTaskGraphRunReply(run.id, true);
-    assert.match(JSON.stringify(updated.at(-1)?.card), /实施暂停/);
+    assert.match(JSON.stringify(updated.at(-1)?.card), /本轮已结束/);
     assert.match(JSON.stringify(updated.at(-1)?.card), /project environment missing/);
     assert.equal(sent.length, 1); assert.equal(replies.length, 0);
     const retry = await prisma.taskRun.create({ data: { taskId: task.id, mode: 'acpx', status: 'running',
@@ -100,7 +105,7 @@ async function main() {
     assert.equal(updated.at(-1)?.id, 'reply-2', 'Only the current run card is updated during its lifetime');
     assert.equal(sent.length, 2);
     const latestCard = updated.at(-1)?.card;
-    assert.equal(await relayTaskGraphRunReply(run.id, true), false, 'An older TaskRun must not overwrite the current task card');
+    assert.equal(await relayTaskGraphRunReply(run.id), false, 'An older TaskRun must not overwrite the current task card');
     assert.deepEqual(updated.at(-1)?.card, latestCard);
     console.log('Each TaskRun owns a new topic card; legacy shared cursors migrate, current output updates once, and superseded runs cannot overwrite it');
   } finally {

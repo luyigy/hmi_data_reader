@@ -5,7 +5,6 @@ import { prisma } from '../prisma';
 import { executionProgress, metadataWithProgress } from './execution-progress';
 import { observeExecutionWriter } from './phase-worker';
 import type { HarnessSteer } from '../acpx/types';
-import { postGraphChildProgress } from './feishu';
 import { observeTaskRunWriter } from './writer-ownership';
 import { syncGraphConversationMaterials } from './conversation-materials';
 
@@ -64,11 +63,7 @@ export async function receiveGraphTaskMessageTx(tx: Prisma.TransactionClient, ar
 }
 
 export async function receiveGraphTaskMessage(args: GraphTaskMessageInput) {
-  const queued = await prisma.$transaction(tx => receiveGraphTaskMessageTx(tx, args));
-  if (!queued) return false;
-  await postGraphChildProgress(args.taskId, `conversation:queued:${args.sourceId}`, '消息已进入原任务会话。执行中会交给当前执行者；正在合流或验收时会排队，并保留当前交付状态。')
-    .catch(error => console.error('[TaskGraph] conversation queue notification deferred:', error));
-  return true;
+  return prisma.$transaction(tx => receiveGraphTaskMessageTx(tx, args));
 }
 
 /** A persisted room message can be retried after enqueue failed or the webhook disconnected. */

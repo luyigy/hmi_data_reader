@@ -18,3 +18,15 @@ export function replyImagePaths(text: string) {
   return Array.from(new Set(Array.from(plain.matchAll(/!\[[^\]]*\]\((?:<([^>\n]+)>|([^\s)]+))\)/g), match => match[1] || match[2])
     .filter(target => !/^[a-z][a-z0-9+.-]*:/i.test(target))));
 }
+
+/** Share the ordinary reply card's byte budget, including JSON escaping and Unicode. */
+export function boundFeishuCardText(text: string, budget: number) {
+  let size = 0;
+  let result = '';
+  for (const character of Array.from(text)) {
+    size += Buffer.byteLength(JSON.stringify(JSON.stringify(character))) - 6;
+    if (size > budget) return `${result}\n…（卡片预览已截断，完整内容请查看任务室）`;
+    result += character;
+  }
+  return result;
+}

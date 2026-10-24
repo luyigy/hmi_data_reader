@@ -1,4 +1,4 @@
-import { safeFeishuCard } from './feishu-card-markdown';
+import { boundFeishuCardText, safeFeishuCard } from './feishu-card-markdown';
 import { PROGRESS_CARD_MIN_MS, sanitizePreview } from '@/lib/acpx/harness-events';
 import { resolveFeishuMessageTarget, sendFeishuInteractiveMessage } from '@/lib/feishu-api';
 
@@ -106,30 +106,18 @@ export class FeishuProgressTracker {
   }
 
   private buildReplyCard(status: string): Record<string, unknown> {
-    // ponytail: card previews are bounded; full answers remain in the task room.
-    // Budget the doubly encoded request, including Unicode and escaped characters.
-    const bounded = (text: string, budget: number) => {
-      let size = 0;
-      let result = '';
-      for (const character of text) {
-        size += Buffer.byteLength(JSON.stringify(JSON.stringify(character))) - 6;
-        if (size > budget) return `${result}\n…（卡片预览已截断，完整内容请查看任务室）`;
-        result += character;
-      }
-      return result;
-    };
     const reply = this.replyContent!;
     const system = this.systemEntries.map(entry => `${entry.emoji} ${entry.message}`).join('\n');
     return {
       config: { wide_screen_mode: true },
       header: { template: 'blue', title: { tag: 'plain_text', content: `${this.displayName} · ${status}` } },
       elements: [
-        { tag: 'markdown', content: bounded(reply.text || '正在处理…', 12000) },
+        { tag: 'markdown', content: boundFeishuCardText(reply.text || '正在处理…', 12000) },
         {
           tag: 'collapsible_panel',
           header: { title: { tag: 'plain_text', content: '⚙️ 系统信息详情' } },
           expanded: false,
-          elements: [{ tag: 'div', text: { tag: 'plain_text', content: bounded(
+          elements: [{ tag: 'div', text: { tag: 'plain_text', content: boundFeishuCardText(
             [reply.details, system].filter(Boolean).join('\n') || '暂无过程信息', 6000,
           ) } }],
         },

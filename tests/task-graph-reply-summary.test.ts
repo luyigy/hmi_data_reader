@@ -2,20 +2,20 @@ import assert from 'node:assert/strict';
 import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 const base = { id: 'fixture', status: 'completed' as const, error: null, participants: [] };
-const report = '冗长的技术过程\n\n' + '原始技术日志'.repeat(600) + '\n\nTASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"新版 OCR 识读和离线包已实现，覆盖尚有缺项","evidence":["report.md"]}';
+const report = '已定位到浏览器启动参数问题。\n\n修正后正在运行对应测试。\n\nTASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"新版 OCR 已实现","evidence":["report.md"]}';
 const card = buildRunReplyCard({ ...base, summary: report }, []);
-const visible = card.body.elements[0];
-assert.ok('content' in visible && typeof visible.content === 'string');
-assert.ok(visible.content.length <= 240, 'Collapsed progress must remain short');
-assert.match(visible.content, /新版 OCR/);
-assert.doesNotMatch(visible.content, /TASK_GRAPH_IMPLEMENTATION|原始技术日志/);
-assert.ok(card.body.elements.some(element => element.tag === 'collapsible_panel' && 'expanded' in element && element.expanded === false));
-console.log('Main progress is a short delivery note; technical report and machine marker stay outside the main text');
-
-const paused = buildRunReplyCard({ ...base, summary: report, graphStatus: 'attention' }, []);
-assert.match(JSON.stringify(paused.body.elements[0]), /任务需处理/);
-assert.doesNotMatch(JSON.stringify(paused.body.elements[0]), /实施已提交结果/);
-
+assert.match(JSON.stringify(card.body.elements[0]), /已定位到浏览器启动参数问题.*修正后正在运行对应测试/);
+assert.doesNotMatch(JSON.stringify(card.body.elements[0]), /TASK_GRAPH_IMPLEMENTATION|当前阶段|下一自动动作|剩余额度/);
+assert.deepEqual(buildRunReplyCard({ ...base, summary: report, graphStatus: 'verifying' }, []), card);
+assert.deepEqual(buildRunReplyCard({ ...base, summary: report, graphStatus: 'passed' }, []), card);
+const long = buildRunReplyCard({ ...base, summary: '开头答复\n' + '中文😀\n'.repeat(9000) }, []);
+assert.match(JSON.stringify(long.body.elements[0]), /开头答复/);
+assert.match(JSON.stringify(long.body.elements[0]), /卡片预览已截断/);
+assert.ok(Buffer.byteLength(JSON.stringify(JSON.stringify(long))) < 28000);
+const blocked = buildRunReplyCard({ ...base, summary: '正在查原因\nTASK_GRAPH_IMPLEMENTATION {"status":"blocked","blockerKind":"permission_required","note":"请批准读取指定目录"}' }, []);
+assert.match(JSON.stringify(blocked.body.elements[0]), /请批准读取指定目录/);
+const failed = buildRunReplyCard({ ...base, status: 'failed', summary: '已读取文件', error: '浏览器启动失败 ECONNREFUSED' }, []);
+assert.match(JSON.stringify(failed.body.elements.filter(e => e.tag === 'markdown')), /已读取文件.*ECONNREFUSED/);
 const answer = '补 1 张可以。\n\n你这张是伯乐三段“熔胶”页，不能作为白色五段页的独立验收图。\n\n请补一张白色五段“储料射退设定”整屏照片。';
 const conversation = { ...base, replyKind: 'conversation', summary: answer, graphStatus: 'attention', graphProgress: {
   ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'missing_business_material', detail: '旧阻塞：缺独立验收图。' },
@@ -24,9 +24,7 @@ const reply = buildRunReplyCard(conversation, []);
 assert.match(JSON.stringify(reply.body.elements[0]), /补 1 张可以.*你这张是伯乐三段.*请补一张白色五段/);
 assert.doesNotMatch(JSON.stringify(reply.body.elements[0]), /旧阻塞|请确认这项请求|TASK_GRAPH_/);
 assert.match(reply.header.title.content, /本轮已答复/);
-const taskState = reply.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header?.title.content === '任务交付状态');
-assert.ok(taskState && 'expanded' in taskState && taskState.expanded === false);
-assert.match(JSON.stringify(taskState), /旧阻塞/);
+assert.doesNotMatch(JSON.stringify(reply), /旧阻塞|任务交付状态/);
 const streaming = buildRunReplyCard({ ...conversation, status: 'running' }, [], [], [{ content: '正在核对你补充的图片。' }]);
 assert.match(JSON.stringify(streaming.body.elements[0]), /正在核对你补充的图片/);
 assert.doesNotMatch(streaming.header.title.content, /需你确认/);
@@ -42,3 +40,7 @@ const controlOnly = buildRunReplyCard({ ...conversation, summary: 'TASK_GRAPH_CO
 assert.match(JSON.stringify(controlOnly.body.elements[0]), /用户已澄清段数/);
 assert.doesNotMatch(JSON.stringify(controlOnly.body.elements[0]), /没有文字答复|已恢复|已启动|TASK_GRAPH_CONVERSATION/);
 console.log('Conversation answers and live output stay visible; graph delivery state remains separate and unchanged');
+
+const review = buildRunReplyCard({ ...base, summary: 'TASK_GRAPH_REVIEW {"approved":true,"note":"固定版本12项通过，仅限已批准的局部草稿链路"}' }, []);
+assert.match(JSON.stringify(review.body.elements[0]), /固定版本12项通过/);
+assert.doesNotMatch(JSON.stringify(review.body.elements[0]), /TASK_GRAPH_REVIEW|approved/);

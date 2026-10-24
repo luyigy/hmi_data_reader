@@ -3,6 +3,7 @@ import { queueGraphNotification, deliverGraphNotificationOnce } from './notifica
 import { graphTopicDestination } from './repository-topic';
 import { cleanupCompletedNodeWorkspaces } from './completed-workspaces';
 import { deliverProgressCard } from './progress-card-delivery';
+import { buildGraphNodeCard } from './node-card';
 import { prisma } from '../prisma';
 import { redactSensitiveText } from '../redact-sensitive';
 import { sendFeishuInteractiveMessage, replyFeishuMessage } from '../feishu-api';
@@ -146,22 +147,23 @@ export async function postGraphChildProgress(childTaskId: string, eventKey: stri
 }
 
 export async function deliverGraphChildProgress(childTaskId: string, eventKey: string, text: string) {
+  // Retire previously queued transport notices without publishing them after an upgrade.
+  if (/^conversation:(queued|overview-reply):/.test(eventKey)) return true;
   const binding = await prisma.feishuConversationBinding.findFirst({
     where: { liveRoom: { sourceTaskId: childTaskId }, chatType: 'group', rootMessageId: { not: null } },
     orderBy: { updatedAt: 'desc' },
   });
   if (!binding?.rootMessageId) return null;
   const rootMessageId = binding.rootMessageId;
-  if (eventKey.startsWith('conversation:')) {
+  if (eventKey.startsWith('conversation:') || eventKey.startsWith('reply-image-failed:')) {
     return replyFeishuMessage({ messageId: rootMessageId, msgType: 'text', replyInThread: true,
       content: { text: redactSensitiveText(text) }, uuid: createHash('sha256').update(`${childTaskId}:${eventKey}`).digest('hex').slice(0, 48) });
   }
   const run = await prisma.taskRun.findFirst({ where: { taskId: childTaskId }, orderBy: { createdAt: 'desc' }, select: { id: true } });
   if (run) {
-    const { relayTaskGraphRunReply } = await import('./run-reply-relay');
-    const current = await prisma.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id },
-      orderBy: [{ taskRun: { createdAt: 'desc' } }, { taskRunId: 'desc' }], select: { taskRunId: true } });
-    if (!await relayTaskGraphRunReply(current?.taskRunId || run.id, true)) throw new Error('Task progress card is busy; retry delivery');
+    const execution = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { childTaskId },
+      include: { node: { include: { executions: true } } } });
+    await updateFeishuTaskEntryCard(rootMessageId, buildGraphNodeCard(execution.node));
     return true;
   }
   const detail = redactSensitiveText(text).slice(-10_000);

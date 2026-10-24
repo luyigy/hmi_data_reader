@@ -4,7 +4,6 @@ import { redactSensitiveText } from '../redact-sensitive';
 import { prisma } from '../prisma';
 import { buildRunReplyCard } from './run-reply-card';
 import { deliverProgressCard } from './progress-card-delivery';
-import { executionProgress } from './execution-progress';
 
 async function runBinding(taskId: string) {
   const direct = await prisma.feishuConversationBinding.findFirst({
@@ -44,19 +43,25 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
     if (cursor.bindingId !== binding.id) throw new Error(`Reply target changed for ${run.id}; reconcile the original card`);
     const newest = await tx.taskRunFeishuRelay.findFirstOrThrow({ where: { bindingId: binding.id },
       orderBy: [{ taskRun: { createdAt: 'desc' } }, { taskRunId: 'desc' }] });
-    if (newest.taskRunId !== run.id) {
+    const older = newest.taskRunId !== run.id;
+    const sharedCard = cursor.messageId && await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, taskRunId: { not: run.id }, messageId: cursor.messageId }, select: { taskRunId: true } });
+    // Older runs may finalize their own card, but must never overwrite a shared legacy card.
+    if (older && (!cursor.messageId || sharedCard)) {
       await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded' } });
       return false;
     }
-    const sharedCard = cursor.messageId && await tx.taskRunFeishuRelay.findFirst({ where: { bindingId: binding.id, taskRunId: { not: run.id }, messageId: cursor.messageId }, select: { taskRunId: true } });
     const latest = await tx.taskRunEvent.findFirst({ where: { taskRunId: run.id }, orderBy: { sequence: 'desc' } });
     const sequence = latest?.sequence || 0;
     const requests = await tx.taskRunInteractionRequest.findMany({ where: { taskRunId: run.id, status: 'pending' } });
     const expiredSinceDelivery = requests.some((request) => request.expiresAt && request.expiresAt <= new Date() && request.expiresAt > cursor.updatedAt);
     const execution = await tx.taskGraphExecution.findFirst({ where: { childTask: { liveRooms: { some: { id: binding.liveRoomId } } } },
-      select: { id: true, nodeId: true, childTaskId: true, repository: true, worktreePath: true, worktreeBranch: true, dispatchMetadata: true, updatedAt: true, node: { select: { runId: true, status: true, updatedAt: true } } } });
-    const graphChanged = execution && (execution.updatedAt > cursor.updatedAt || execution.node.updatedAt > cursor.updatedAt);
-    if (!forceRefresh && !sharedCard && !graphChanged && cursor.deliveredSequence === sequence && cursor.lastStatus === run.status && !expiredSinceDelivery) return false;
+      select: { id: true, nodeId: true, childTaskId: true, repository: true, worktreePath: true, worktreeBranch: true, node: { select: { runId: true } } } });
+    if (!forceRefresh && !sharedCard && cursor.deliveredSequence === sequence && (cursor.lastStatus === run.status || older && cursor.lastStatus === 'superseded') && !expiredSinceDelivery) {
+      if (older && cursor.lastStatus !== 'superseded' && !['running', 'pending', 'waiting_for_input'].includes(run.status)) {
+        await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id }, data: { lastStatus: 'superseded' } });
+      }
+      return false;
+    }
     const output = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: 'stdout_chunk' }, orderBy: { sequence: 'desc' }, take: 1000 });
     const history = await tx.taskRunEvent.findMany({ where: { taskRunId: run.id, eventType: { notIn: ['stdout_chunk', 'stderr_chunk', 'summary'] } }, orderBy: { sequence: 'desc' }, take: 100 });
     output.reverse();
@@ -64,7 +69,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
       runId: execution.node.runId, nodeId: execution.nodeId, kind: 'conversation_followup_bound',
       AND: [{ payload: { path: ['taskRunId'], equals: run.id } }, { payload: { path: ['executionId'], equals: execution.id } }],
     }, select: { id: true } });
-    const card = buildRunReplyCard({ ...run, ...(execution ? { graphWorkspace: { repository: execution.repository, executionId: execution.id, branch: execution.worktreeBranch, path: execution.worktreePath } } : {}), graphStatus: execution?.node.status, graphProgress: executionProgress(execution?.dispatchMetadata),
+    const card = buildRunReplyCard({ ...run, ...(execution ? { graphWorkspace: { repository: execution.repository, executionId: execution.id, branch: execution.worktreeBranch, path: execution.worktreePath } } : {}),
       ...(conversation ? { replyKind: 'conversation' } : {}) }, history.reverse(), requests, output);
     card.header.title.content = `${run.task.name} · ${card.header.title.content}`;
     const messageId = await deliverProgressCard({ bindingId: binding.id, runId: execution?.node.runId,
@@ -72,7 +77,7 @@ export async function relayTaskGraphRunReply(taskRunId: string, forceRefresh = f
       taskRunId: run.id, messageId: sharedCard ? null : cursor.messageId, firstRun: cursor });
     if (!messageId) throw new Error('Reply card send returned no message id');
     await tx.taskRunFeishuRelay.update({ where: { taskRunId: run.id },
-      data: { messageId, deliveredSequence: sequence, lastStatus: run.status } });
+      data: { messageId, deliveredSequence: sequence, lastStatus: older && !['running', 'pending', 'waiting_for_input'].includes(run.status) ? 'superseded' : run.status } });
     return true;
   }, { timeout: 25_000 });
   if (!['running', 'pending', 'waiting_for_input'].includes(run.status)) {

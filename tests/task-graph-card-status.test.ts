@@ -2,20 +2,18 @@ import assert from 'node:assert/strict';
 import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 const base = { id: 'fixture', status: 'completed', summary: '原始记录', error: null, participants: [] };
-assert.equal(buildRunReplyCard({ ...base, graphStatus: 'passed' }, []).header.template, 'green');
-assert.equal(buildRunReplyCard({ ...base, graphStatus: 'awaiting_human' }, []).header.template, 'yellow');
-assert.equal(buildRunReplyCard({ ...base, graphStatus: 'attention', graphProgress: {
-  ...initialExecutionProgress(), phase: 'acceptance', state: 'waiting_decision', lastFailure: { code: 'blocked_require_human', detail: '缺独立验收样本' },
-} }, []).header.template, 'red');
-assert.equal(buildRunReplyCard({ ...base, graphStatus: 'attention', graphProgress: {
-  ...initialExecutionProgress(), state: 'waiting_for_user', waitingKind: 'question', waitingMessage: '请提供来源位置',
-} }, []).header.template, 'yellow');
-assert.equal(buildRunReplyCard({ ...base, graphStatus: 'attention', graphProgress: {
-  ...initialExecutionProgress(), state: 'waiting_for_user', lastFailure: { code: 'environment_failed', detail: '导航超时', requiresUserDecision: false },
-} }, []).header.template, 'red');
-assert.equal(buildRunReplyCard({ ...base, graphStatus: 'claimed', status: 'running' }, []).header.template, 'blue');
-assert.notEqual(buildRunReplyCard(base, []).header.template, 'green', 'A completed Agent turn is not a passed Ticket');
-console.log('Task cards distinguish accepted, failed, waiting for confirmation and running');
+for (const graphStatus of ['passed', 'awaiting_human', 'attention', 'verifying', 'claimed']) {
+  const card = buildRunReplyCard({ ...base, graphStatus, graphProgress: {
+    ...initialExecutionProgress(), phase: 'acceptance', state: 'waiting_decision', lastFailure: { code: 'blocked_require_human', detail: '旧故障' },
+  } }, []);
+  assert.equal(card.header.template, 'grey');
+  assert.match(card.header.title.content, /本轮已结束/);
+  assert.doesNotMatch(JSON.stringify(card), /验收中|已验收|旧故障/);
+}
+assert.equal(buildRunReplyCard({ ...base, status: 'running' }, []).header.template, 'blue');
+assert.equal(buildRunReplyCard({ ...base, status: 'waiting_for_input' }, []).header.template, 'yellow');
+assert.equal(buildRunReplyCard({ ...base, status: 'failed' }, []).header.template, 'red');
+console.log('Run status is independent of the Ticket; Ticket decisions remain on the entry card');
 
 import { buildGraphNodeCard } from '../src/lib/task-graph/node-card';
 const question = { ...initialExecutionProgress(), state: 'waiting_for_user', waitingKind: 'question', waitingMessage: '请补充独立图片来源' } as const;

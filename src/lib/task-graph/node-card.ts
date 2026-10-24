@@ -3,6 +3,7 @@ import { executionProgress } from './execution-progress';
 import { graphCardStatus } from './card-status';
 import { formatGraphFailureSummary } from './failure-summary';
 import { redactSensitiveText } from '../redact-sensitive';
+import { boundFeishuCardText } from '../feishu-card-markdown';
 
 type Node = Pick<TaskGraphNode, 'key' | 'status' | 'evidence'> & {
   executions: Pick<TaskGraphExecution, 'key' | 'dispatchMetadata'>[];
@@ -24,5 +25,12 @@ export function buildGraphNodeCard(node: Node) {
     body: { elements: [
       { tag: 'markdown', content: `**${appearance.label}**${details ? `\n${redactSensitiveText(details).slice(0, 900)}` : ''}` },
       { tag: 'markdown', content: '原 Agent 的回复、测试证据与操作记录见本话题。' },
+      ...(node.status === 'attention' ? node.executions.flatMap((job, index) => {
+        const failure = progresses[index]?.lastFailure;
+        return failure ? [{ tag: 'collapsible_panel', expanded: false,
+          header: { title: { tag: 'plain_text', content: `${job.key} · 故障详情` } },
+          elements: [{ tag: 'markdown', content: boundFeishuCardText(redactSensitiveText(`${failure.code}\n${failure.detail}\n${failure.command?.join(' ') || ''}`), 6000) }],
+        }] : [];
+      }) : []),
     ] } };
 }

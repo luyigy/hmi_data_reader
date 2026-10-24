@@ -7,6 +7,7 @@ import { initialExecutionProgress } from '../src/lib/task-graph/execution-progre
 import { deliverGraphChildProgress, postGraphChildProgress } from '../src/lib/task-graph/feishu';
 import { relayTaskGraphReplies, relayTaskGraphRunReply } from '../src/lib/task-graph/run-reply-relay';
 import { publishGraphOverview } from '../src/lib/task-graph/overview';
+import { receiveGraphTaskMessage, conversationInputs, conversationPrompt } from '../src/lib/task-graph/conversation-inbox';
 import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
 
 async function main() {
@@ -15,6 +16,8 @@ async function main() {
   const api = require('../src/lib/feishu-api'), entry = require('../src/lib/feishu-task-entry-api');
   const sends = new Map<string, string>(); const attempts: string[] = []; const updates: { id: string; card: unknown }[] = [];
   const rendered: ReturnType<typeof buildRunReplyCard>[] = [];
+  const textReplies: { content: { text: string } }[] = [];
+  api.replyFeishuMessage = async (args: { content: { text: string } }) => { textReplies.push(args); return 'failure-message'; };
   const taskIds: string[] = [], graphIds: string[] = [], roomIds: string[] = [];
   let loseResponse = false;
   let onSend: (() => Promise<void>) | undefined;
@@ -50,6 +53,24 @@ async function main() {
     completedAt: new Date(0), summary: 'TASK_GRAPH_IMPLEMENTATION {"status":"delivered","note":"implementation done","evidence":["code"]}' } });
   try {
     const first = await fixture();
+    const input = { taskId: first.task.id, sourceId: 'human-message', actorId: 'operator', actorOrigin: 'feishu' as const,
+      content: '请检查原图\n然后说明具体原因。', sourceMetadata: '{"image":"fixture.png"}' };
+    await Promise.all([receiveGraphTaskMessage(input), receiveGraphTaskMessage(input)]);
+    const pending = await conversationInputs(first.job.id);
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0].content, input.content);
+    assert.equal(pending[0].sourceMetadata, input.sourceMetadata);
+    assert.ok(conversationPrompt(pending).includes(JSON.stringify(input.content)));
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: first.graph.id, kind: 'notification_requested' } }), 0);
+    assert.equal(await deliverGraphChildProgress(first.task.id, 'conversation:queued:old', '旧入队提示'), true);
+    assert.equal(await deliverGraphChildProgress(first.task.id, 'conversation:overview-reply:old', '旧转交提示'), true);
+    assert.equal(sends.size, 0, 'New input and old queued notices do not produce cards');
+    assert.equal(textReplies.length, 0, 'Transport notices must not become text replies either');
+    await deliverGraphChildProgress(first.task.id, 'conversation:deferred:failed', '原会话连接失败：ECONNREFUSED');
+    await deliverGraphChildProgress(first.task.id, 'reply-image-failed:run', '图片上传失败：file missing');
+    assert.match(textReplies[0].content.text, /ECONNREFUSED/);
+    assert.match(textReplies[1].content.text, /file missing/);
+
     await postGraphChildProgress(first.task.id, 'input-missing', '缺少必要输入。请补充原图。');
     await deliverGraphChildProgress(first.task.id, 'input-missing', '缺少必要输入。请补充原图。');
     const before = sends.size;
@@ -62,12 +83,34 @@ async function main() {
       ...initialExecutionProgress(), phase: 'check', repairAttempts: 1,
     } } } });
     const beforePhase = sends.size;
-    assert.equal(await relayTaskGraphRunReply(started.id), true, 'A phase checkpoint without stdout or node changes must refresh the existing card');
-    const phaseCard = JSON.stringify(updates.at(-1)?.card);
-    assert.match(phaseCard, /当前阶段：平台检查/); assert.match(phaseCard, /剩余额度：回修 1/);
-    assert.match(phaseCard, /下一自动动作：/);
-    assert.equal(sends.size, beforePhase, 'A phase checkpoint must not create another progress card');
-    assert.equal(await relayTaskGraphRunReply(started.id), false, 'An unchanged phase must not continuously update');
+    assert.equal(await relayTaskGraphRunReply(started.id), false, 'Ticket phase changes do not rewrite completed replies');
+    assert.equal(sends.size, beforePhase);
+
+    const late = await fixture();
+    const implementation = await run(late.task.id);
+    await prisma.taskRun.update({ where: { id: implementation.id }, data: { status: 'running' } });
+    await prisma.taskRunParticipant.create({ data: { taskRunId: implementation.id, gatewayNameSnapshot: 'Local', harnessType: 'codex', role: 'implementer' } });
+    await relayTaskGraphRunReply(implementation.id);
+    const implementationMessage = rendered.at(-1);
+    assert.match(implementationMessage?.header.title.content || '', /实施者.*执行中/);
+    const implementCursor = await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: implementation.id } });
+    const reviewTask = await prisma.task.create({ data: { id: `task-graph-review-${late.job.nodeId}`, name: 'independent review' } });
+    taskIds.push(reviewTask.id);
+    const review = await run(reviewTask.id, new Date(Date.now() + 1000));
+    await prisma.taskRun.update({ where: { id: review.id }, data: { status: 'running' } });
+    await prisma.taskRunParticipant.create({ data: { taskRunId: review.id, gatewayNameSnapshot: 'Local', harnessType: 'codex', role: 'tester' } });
+    await relayTaskGraphRunReply(review.id);
+    assert.match(rendered.at(-1)?.header.title.content || '', /测试验收.*正在复核/);
+    const reviewCursor = await prisma.taskRunFeishuRelay.findUniqueOrThrow({ where: { taskRunId: review.id } });
+    assert.notEqual(implementCursor.messageId, reviewCursor.messageId);
+    await prisma.taskRun.update({ where: { id: implementation.id }, data: { status: 'completed', summary: '修复已提交。' } });
+    assert.equal(await relayTaskGraphRunReply(implementation.id), true, 'An older run can still finalize its own card');
+    assert.equal(updates.at(-1)?.id, implementCursor.messageId);
+    assert.match(rendered.at(-1)?.header.title.content || '', /实施者.*本轮已结束/);
+    assert.match(JSON.stringify(rendered.at(-1)?.body.elements[0]), /修复已提交/);
+    assert.equal(await relayTaskGraphRunReply(implementation.id), false);
+    await prisma.taskGraphNode.update({ where: { id: late.job.nodeId }, data: { status: 'passed' } });
+    assert.equal(await relayTaskGraphRunReply(implementation.id), false, 'Ticket acceptance cannot rewrite a finalized reply');
 
     const lost = await fixture(); loseResponse = true;
     await assert.rejects(deliverGraphChildProgress(lost.task.id, 'input', '等待输入'), /accepted response lost/);
@@ -154,7 +197,7 @@ async function main() {
     await prisma.taskGraphNode.update({ where: { id: first.job.nodeId }, data: { status: 'attention' } });
     await deliverGraphChildProgress(first.task.id, 'technical-conflict', 'shared.txt 存在技术冲突，待平台处理。');
     const technicalCard = JSON.stringify(updates.at(-1)?.card);
-    assert.match(technicalCard, /shared.txt/); assert.match(technicalCard, /待平台处理/);
+    assert.match(technicalCard, /shared.txt/); assert.match(technicalCard, /待处理/);
     assert.doesNotMatch(technicalCard, /需你确认/); assert.match(technicalCard, /需要你决定：否/);
     await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
       ...initialExecutionProgress(), phase: 'integrate', state: 'waiting_decision',
@@ -164,14 +207,14 @@ async function main() {
     } } } });
     await deliverGraphChildProgress(first.task.id, 'business-decision', '请确认采用哪项业务规则。');
     const card = JSON.stringify(updates.at(-1)?.card);
-    assert.match(card, /shared.txt/); assert.match(card, /请确认采用哪项业务规则/); assert.match(card, /需你确认/);
+    assert.match(card, /shared.txt/); assert.match(card, /请确认采用哪项业务规则/); assert.match(card, /待你确认/);
     assert.match(card, /负责人：你/); assert.match(card, /需要你决定：是/);
-    assert.match(card, /最近故障详情/);
     await prisma.taskGraphExecution.update({ where: { id: first.job.id }, data: { dispatchMetadata: { progress: {
       ...initialExecutionProgress(), phase: 'check', state: 'exhausted', repairAttempts: 2,
       lastFailure: { code: 'test_failed', detail: '原检查连续失败，自动处理额度已用尽。' },
     } } } });
-    await relayTaskGraphRunReply(started.id, true);
+    await deliverGraphChildProgress(first.task.id, 'exhausted', '自动处理额度已用尽');
+    assert.equal(updates.at(-1)?.id, first.binding.rootMessageId);
     assert.match(JSON.stringify(updates.at(-1)?.card), /本轮自动尝试已停止/);
 
     const chat = await fixture(), chatRun = await run(chat.task.id);
@@ -184,8 +227,9 @@ async function main() {
     await prisma.taskGraphEvent.create({ data: { runId: chat.graph.id, nodeId: chat.job.nodeId, kind: 'conversation_followup_bound',
       idempotencyKey: 'wrong-execution', payload: { taskRunId: chatRun.id, executionId: 'another-execution' } } });
     await relayTaskGraphRunReply(chatRun.id, true);
-    assert.match(JSON.stringify(rendered.at(-1)?.body.elements[0]), /旧材料暂停/,
-      'A conversation receipt for another execution cannot relabel this run');
+    assert.match(JSON.stringify(rendered.at(-1)?.body.elements[0]), /你这张是伯乐三段/,
+      'Every run shows the Agent answer without requiring a conversation binding');
+    assert.match(rendered.at(-1)?.header.title.content || '', /本轮已结束/);
     await prisma.taskGraphEvent.create({ data: { runId: chat.graph.id, nodeId: chat.job.nodeId, kind: 'conversation_followup_bound',
       idempotencyKey: 'chat-binding', payload: { taskRunId: chatRun.id, executionId: chat.job.id } } });
     const beforeChat = await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: chat.job.id } });

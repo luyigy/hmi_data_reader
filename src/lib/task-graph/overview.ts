@@ -8,7 +8,6 @@ import { isFeishuGroupAdmin } from '../feishu-task-entry-api';
 import { redactSensitiveText } from '../redact-sensitive';
 import { receiveGraphTaskMessageTx } from './conversation-inbox';
 import { deliverGraphNotificationOnce } from './notifications';
-import { postGraphChildProgress } from './feishu';
 import { setGraphRunPaused } from './run-control';
 import { executionProgress } from './execution-progress';
 import { graphCardStatus } from './card-status';
@@ -135,7 +134,7 @@ export async function handleGraphOverviewAction(args: { value: Record<string, un
     const executionId = args.form.execution, text = args.form.reply;
     if (typeof executionId !== 'string' || typeof text !== 'string' || !text.trim() || text.length > 10000) throw new Error('Select a Ticket and enter a reply');
     const content = redactSensitiveText(text.trim());
-    const result = await prisma.$transaction(async tx => {
+    await prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${'overview-input:' + requestId}, 0))`;
       const key = { runId, idempotencyKey: `overview-input:${requestId}` };
       const old = await tx.taskGraphEvent.findUnique({ where: { runId_idempotencyKey: key } });
@@ -156,9 +155,9 @@ export async function handleGraphOverviewAction(args: { value: Record<string, un
       const event = await tx.taskGraphEvent.create({ data: { ...key, nodeId: job.nodeId, kind: 'overview_input_received', payload: { executionId, taskId: job.childTaskId, actorId, content, roomMessageId: message.id } } });
       return { taskId: job.childTaskId, eventId: event.id };
     });
-    await postGraphChildProgress(result.taskId, `conversation:overview-reply:${result.eventId}`, `用户从总览回复：\n${content}`);
   }
-  return { toast: { type: 'success' as const, content: action === 'reply' ? '已送入原 Agent 会话；暂停中的路线保持暂停' : action === 'pause' ? '已暂停派发，正在核对进程退出' : '已明确继续，原安全保护仍有效' } };
+  if (action === 'reply') return {};
+  return { toast: { type: 'success' as const, content: action === 'pause' ? '已暂停派发，正在核对进程退出' : '已明确继续，原安全保护仍有效' } };
 }
 
 export async function relayGraphOverviews() {

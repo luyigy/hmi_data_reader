@@ -58,11 +58,12 @@ async function main() {
     await prisma.feishuConversationBinding.update({ where: { id: binding.id }, data: { rootMessageId: null } });
     const paused = { runId: run.id, paused: true, requestId: 'operator-pause', actorId: 'overview-operator', reason: 'maintenance' };
     await setGraphRunPaused(paused);
-    await handleGraphOverviewAction(action); await handleGraphOverviewAction(action);
+    assert.deepEqual(await handleGraphOverviewAction(action), {}, 'Reply submits silently');
+    await handleGraphOverviewAction(action);
     assert.equal(await prisma.liveRoomMessage.count({ where: { roomId: childRoom.id, messageType: 'user' } }), 1);
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'conversation_input' } }), 1);
     assert.deepEqual(await pendingConversationInputs(prisma, run.id, jobs[0].id), [], 'Paused route stores a reply without consuming it');
-    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'notification_requested' } }), 1, 'Original Topic mirror is an idempotent outbox item');
+    assert.equal(await prisma.taskGraphEvent.count({ where: { runId: run.id, kind: 'notification_requested' } }), 0, 'No public relay notice is queued for an overview reply');
     await assert.rejects(handleGraphOverviewAction({ ...action, form: { ...action.form, reply: 'changed content' } }), /identity reused/);
     const page = await handleGraphOverviewAction({ ...action, value: { ...value, action: 'page', page: 1 }, callbackId: 'page-two' });
     assert.ok('card' in page && page.card); assert.match(JSON.stringify(page.card), /2\/2/);

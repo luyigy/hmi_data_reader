@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { buildRunReplyCard } from '../src/lib/task-graph/run-reply-card';
+import { buildGraphNodeCard } from '../src/lib/task-graph/node-card';
+import { formatGraphFailureSummary } from '../src/lib/task-graph/failure-summary';
 import { initialExecutionProgress } from '../src/lib/task-graph/execution-progress';
 import { formatExecutionProgress } from '../src/lib/task-graph/progress-summary';
 
@@ -14,37 +16,27 @@ const recovered = buildRunReplyCard({ id: 'recovered', status: 'running', summar
   ...initialExecutionProgress(), phase: 'acceptance', lastFailure: { code: 'test_failed', detail: '此前的检查缺陷已修复，保留历史记录。' },
 } }, []);
 assert.doesNotMatch(JSON.stringify(recovered.body.elements[0]), /此前的检查缺陷/);
-assert.match(JSON.stringify(recovered.body.elements), /此前的检查缺陷/);
+assert.doesNotMatch(JSON.stringify(recovered), /此前的检查缺陷/);
 
 const failure = { code: 'integration_conflict', detail: JSON.stringify({ message: 'Merge failed', integration: { paths: ['backend/app/contract.py', 'frontend/src/Main.vue'], candidateCommit: 'a'.repeat(40), integrationCommit: 'b'.repeat(40), mergeHead: 'c'.repeat(40) } }) };
-const card = buildRunReplyCard({ id: 'fixture', status: 'completed', summary: 'raw technical summary', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: failure } }, []);
-const visible = card.body.elements[0]; assert.ok('content' in visible && typeof visible.content === 'string');
-assert.match(visible.content, /backend\/app\/contract.py/); assert.match(visible.content, /下一步：/); assert.match(visible.content, /负责人：平台/); assert.match(visible.content, /需要你决定：否/);
-assert.doesNotMatch(visible.content, /Merge failed|candidateCommit|integrationCommit|mergeHead|"paths"/);
-const detail = card.body.elements.find(element => element.tag === 'collapsible_panel' && 'header' in element && element.header?.title.content === '最近故障详情'); assert.ok(detail && 'expanded' in detail && detail.expanded === false);
-assert.match(JSON.stringify(detail), /candidateCommit/);
-console.log('Conflict summary shows files, next action, owner and decision requirement in Chinese; raw Git JSON remains folded');
-
-assert.match(card.header.title.content, /待平台处理/); assert.doesNotMatch(card.header.title.content, /需决定|需你确认/);
-const scope = buildRunReplyCard({ id: 'scope', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'scope_change', detail: '本票需新增伯乐科巴控制器页面，超出原批准范围，请确认是否纳入。' } } }, []);
-assert.match(JSON.stringify(scope.body.elements[0]), /伯乐科巴/); assert.match(scope.header.title.content, /需你确认/);
-const exhausted = buildRunReplyCard({ id: 'exhausted', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'exhausted', lastFailure: { code: 'unknown', detail: '{}' } } }, []);
-assert.match(exhausted.header.title.content, /待平台处理/); assert.doesNotMatch(JSON.stringify(exhausted.body.elements[0]), /需要你决定：是/);
-
-const material = buildRunReplyCard({ id: 'material', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'missing_business_material', detail: '缺少阿博格冷却页面原图，请提供这张原图后核验。' } } }, []);
-assert.doesNotMatch(material.header.title.content, /需你确认/); assert.match(JSON.stringify(material.body.elements[0]), /阿博格冷却页面/); assert.match(JSON.stringify(material.body.elements[0]), /负责人：平台/);
-const explicitFailure: typeof failure & { action: string; owner: 'user'; requiresUserDecision: boolean } = { ...failure, action: '请选择是否保留新增机型的接口范围', owner: 'user', requiresUserDecision: true };
-const explicit = buildRunReplyCard({ id: 'explicit', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: explicitFailure } }, []);
-assert.match(explicit.header.title.content, /需你确认/); assert.match(JSON.stringify(explicit.body.elements[0]), /请选择是否保留新增机型/);
-
-const exhaustedChecks = buildRunReplyCard({ id: 'exhausted-checks', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: { ...initialExecutionProgress(), state: 'exhausted', repairAttempts: 2, lastFailure: { code: 'test_failed', detail: '相同检查再次失败。' } } }, []);
-assert.match(exhaustedChecks.header.title.content, /待平台处理/);
-const exhaustedBody = JSON.stringify(exhaustedChecks.body.elements[0]);
-assert.match(exhaustedBody, /本轮自动尝试已停止/); assert.match(exhaustedBody, /保留原工作资格/);
-assert.match(exhaustedBody, /负责人：平台/); assert.doesNotMatch(exhaustedBody, /修复失败检查后重新验证|待实施回修/);
-
-const upstream = buildRunReplyCard({ id: 'upstream', status: 'completed', summary: '', error: null, participants: [], graphStatus: 'attention', graphProgress: {
-  ...initialExecutionProgress(), state: 'waiting_decision', lastFailure: { code: 'missing_upstream_input', detail: '固定Reader包缺少控制器身份。' },
-} }, []);
-assert.match(JSON.stringify(upstream.body.elements[0]), /核对前置集成提交、合同版本与固定包/);
-assert.doesNotMatch(JSON.stringify(upstream.body.elements[0]), /待平台补充处理说明/);
+const entry = (lastFailure: Parameters<typeof formatGraphFailureSummary>[0], state: 'waiting_decision' | 'exhausted' = 'waiting_decision') => buildGraphNodeCard({
+  key: 'N', status: 'attention', evidence: null,
+  executions: [{ key: 'repo', dispatchMetadata: { progress: { ...initialExecutionProgress(), state, lastFailure } } }],
+});
+const card = entry(failure);
+const visible = JSON.stringify(card.body.elements[0]);
+assert.match(visible, /backend\/app\/contract.py/); assert.match(visible, /下一步：/); assert.match(visible, /负责人：平台/); assert.match(visible, /需要你决定：否/);
+assert.doesNotMatch(visible, /Merge failed|candidateCommit|integrationCommit|mergeHead|"paths"/);
+assert.match(JSON.stringify(card.body.elements.filter(e => e.tag === 'collapsible_panel')), /candidateCommit/);
+assert.match(card.header.title.content, /待处理/);
+const scope = entry({ code: 'scope_change', detail: '本票需新增伯乐科巴控制器页面，超出原批准范围，请确认是否纳入。' });
+assert.match(JSON.stringify(scope), /伯乐科巴/); assert.match(scope.header.title.content, /待你确认/);
+const material = entry({ code: 'missing_business_material', detail: '缺少阿博格冷却页面原图，请提供这张原图后核验。' });
+assert.match(JSON.stringify(material), /阿博格冷却页面/);
+const explicit = entry({ ...failure, action: '请选择是否保留新增机型的接口范围', owner: 'user', requiresUserDecision: true });
+assert.match(explicit.header.title.content, /待你确认/); assert.match(JSON.stringify(explicit), /请选择是否保留新增机型/);
+const exhausted = entry({ code: 'test_failed', detail: '相同检查再次失败。' }, 'exhausted');
+assert.match(JSON.stringify(exhausted), /本轮自动尝试已停止/);
+const upstream = entry({ code: 'missing_upstream_input', detail: '固定Reader包缺少控制器身份。' });
+assert.match(JSON.stringify(upstream), /核对前置集成提交、合同版本与固定包/);
+console.log('Ticket failures and actionable decisions remain visible on the entry card; old run replies remain stable');
