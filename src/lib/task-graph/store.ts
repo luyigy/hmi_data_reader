@@ -298,6 +298,8 @@ export async function submitNodeVerification(args: {
 }, db: Database = prisma) {
   const writerExit = args.review?.outcome === 'platform_failure' ? await observeTaskRunExit(args.review.taskRunId) : undefined;
   return db.$transaction(async (tx) => {
+    // Match admission/reservation lock order; outcome handling retains the pause policy.
+    await graphRunCanStartTx(tx, args.runId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE "runId" = ${args.runId} AND key = ${args.nodeKey} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUnique({ where: { runId_key: { runId: args.runId, key: args.nodeKey } } });
     if (!node) throw new Error('Unknown graph node');

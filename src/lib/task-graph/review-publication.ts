@@ -7,6 +7,7 @@ import { ServiceRuntimeError } from './attempt-services';
 import { GraphCheckTimeoutError } from './check-runner';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
+import { graphRunCanStartTx } from './run-control';
 import { applyExecutionOutcomeTx, executionProgress, initialExecutionProgress, metadataWithProgress, type ExecutionFailure } from './execution-progress';
 
 export type ReviewPublication = {
@@ -15,7 +16,7 @@ export type ReviewPublication = {
   decision?: { code: 'blocked_require_human' | 'ownership_mismatch'; detail: string };
 };
 
-/** All reviewed inputs move together; a platform retry never dispatches implementation again. */
+/** Caller holds graph-control before node; a platform retry never dispatches implementation again. */
 export async function applyReviewFailureTx(tx: Prisma.TransactionClient, nodeId: string, args: {
   phase: 'architecture' | 'acceptance'; claimKey: string; identity: string;
   failure: ExecutionFailure; kind: 'platform_failure' | 'protocol_exhausted' | 'decision_required';
@@ -56,6 +57,8 @@ export async function publishReviewPreparationFailure(nodeId: string, failure: E
   }) : [];
   const proof = await observeWriterSnapshot({ jobs: before, taskRunIds: ids, scope: 'review-model' });
   return prisma.$transaction(async tx => {
+    const { runId } = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, select: { runId: true } });
+    await graphRunCanStartTx(tx, runId);
     await tx.$queryRaw`SELECT id FROM "TaskGraphNode" WHERE id = ${nodeId} FOR UPDATE`;
     const node = await tx.taskGraphNode.findUniqueOrThrow({ where: { id: nodeId }, include: { executions: true } });
     if (!await writerSnapshotMatches(tx, proof) || node.executions.length !== proof.jobs.length) throw new Error('Review preparation cannot replace an unproven writer or changed candidate');

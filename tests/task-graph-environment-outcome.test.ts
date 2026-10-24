@@ -140,7 +140,8 @@ async function main() {
     console.log('PASS temporary failures recover within budget; persistent failure exhausts without resetting counters');
     for (const key of ['FALSE_REPORT', 'ENGINEERING']) {
       const job = before.find(item => item.node.key === key)!;
-      assert.equal(starts.get(key), 2); assert.equal(executionProgress(job.dispatchMetadata)?.platformAttempts, 0);
+      assert.equal(starts.get(key), 2);
+      assert.equal(executionProgress(job.dispatchMetadata)?.platformAttempts, 0, JSON.stringify({ key, progress: executionProgress(job.dispatchMetadata), outcomes: await outcomes(job.id) }));
       assert((await outcomes(job.id)).some(event => JSON.stringify(event.payload).includes('"kind":"continue_work"')));
     }
     const permission = before.find(job => job.node.key === 'PERMISSION')!;

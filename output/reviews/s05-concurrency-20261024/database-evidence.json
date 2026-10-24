@@ -1,0 +1,175 @@
+[
+  {
+    "name": "condition-environment-initial",
+    "rawEvidence": "output/sandbox-postgres-runs/2026-10-24T105839-2317306/evidence.json",
+    "insideSandbox": true,
+    "startedAt": "2026-10-24T02:58:40.357Z",
+    "finishedAt": "2026-10-24T03:01:14.651Z",
+    "suites": [
+      "task-graph-condition-recheck",
+      "task-graph-environment-outcome"
+    ],
+    "postgres": "PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+    "sha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d",
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    },
+    "postgresDeadlocks": []
+  },
+  {
+    "name": "lock-order-red",
+    "rawEvidence": "output/sandbox-postgres-runs/2026-10-24T110037-2335835/evidence.json",
+    "insideSandbox": true,
+    "startedAt": "2026-10-24T03:00:38.574Z",
+    "finishedAt": "2026-10-24T03:00:57.790Z",
+    "suites": [
+      "task-graph-review-lock-order"
+    ],
+    "postgres": "PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+    "sha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d",
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": false,
+        "exitCode": 1
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    },
+    "postgresDeadlocks": [
+      "The files belonging to this database system will be owned by user \"hello\".\nThis user must also own the server process.\n\nThe database cluster will be initialized with locale \"C\".\nThe default text search configuration will be set to \"english\".\n\nData page checksums are disabled.\n\ncreating directory /tmp/sandbox-postgres-GLBAMm/attempts/services-yifJIt/regression/db ... ok\ncreating subdirectories ... ok\nselecting dynamic shared memory implementation ... posix\nselecting default max_connections ... 100\nselecting default shared_buffers ... 128MB\nselecting default time zone ... UTC\ncreating configuration files ... ok\nrunning bootstrap script ... ok\nperforming post-bootstrap initialization ... ok\nsyncing data to disk ... ok\n\nSuccess. You can now start the database server using:\n\n    /tmp/sandbox-postgres-GLBAMm/attempts/services-yifJIt/regression.resource/bin/pg_ctl -D /tmp/sandbox-postgres-GLBAMm/attempts/services-yifJIt/regression/db -l logfile start\n\n2026-10-24 03:00:41.801 UTC [2] LOG:  starting PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit\n2026-10-24 03:00:41.801 UTC [2] LOG:  listening on IPv4 address \"127.0.0.1\", port 33983\n2026-10-24 03:00:41.804 UTC [17] LOG:  database system was shut down at 2026-10-24 03:00:41 UTC\n2026-10-24 03:00:41.810 UTC [2] LOG:  database system is ready to accept connections\n2026-10-24 03:00:53.630 UTC [30] ERROR:  deadlock detected\n2026-10-24 03:00:53.630 UTC [30] DETAIL:  Process 30 waits for ExclusiveLock on advisory lock [13735,2061208697,1969075533,1]; blocked by process 31.\n\tProcess 31 waits for ShareLock on transaction 960; blocked by process 30.\n\tProcess 30: SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n\tProcess 31: SELECT id FROM \"TaskGraphNode\" WHERE id = $1 FOR UPDATE\n2026-10-24 03:00:53.630 UTC [30] HINT:  See server log for query details.\n2026-10-24 03:00:53.630 UTC [30] STATEMENT:  SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n2026-10-24 03:00:54.926 UTC [30] ERROR:  deadlock detected\n2026-10-24 03:00:54.926 UTC [30] DETAIL:  Process 30 waits for ExclusiveLock on advisory lock [13735,2220983997,1727218881,1]; blocked by process 33.\n\tProcess 33 waits for ShareLock on transaction 971; blocked by process 30.\n\tProcess 30: SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n\tProcess 33: SELECT id FROM \"TaskGraphNode\" WHERE id = $1 FOR UPDATE\n2026-10-24 03:00:54.926 UTC [30] HINT:  See server log for query details.\n2026-10-24 03:00:54.926 UTC [30] STATEMENT:  SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n2026-10-24 03:00:56.173 UTC [30] ERROR:  deadlock detected\n2026-10-24 03:00:56.173 UTC [30] DETAIL:  Process 30 waits for ExclusiveLock on advisory lock [13735,3582601967,3891335758,1]; blocked by process 35.\n\tProcess 35 waits for ShareLock on transaction 982; blocked by process 30.\n\tProcess 30: SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n\tProcess 35: SELECT id FROM \"TaskGraphNode\" WHERE id = $1 FOR UPDATE\n2026-10-24 03:00:56.173 UTC [30] HINT:  See server log for query details.\n2026-10-24 03:00:56.173 UTC [30] STATEMENT:  SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n2026-10-24 03:00:57.427 UTC [30] ERROR:  deadlock detected\n2026-10-24 03:00:57.427 UTC [30] DETAIL:  Process 30 waits for ExclusiveLock on advisory lock [13735,1271434292,2905669660,1]; blocked by process 37.\n\tProcess 37 waits for ShareLock on transaction 993; blocked by process 30.\n\tProcess 30: SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n\tProcess 37: SELECT id FROM \"TaskGraphNode\" WHERE id = $1 FOR UPDATE\n2026-10-24 03:00:57.427 UTC [30] HINT:  See server log for query details.\n2026-10-24 03:00:57.427 UTC [30] STATEMENT:  SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))\n"
+    ]
+  },
+  {
+    "name": "lock-order-publication-green",
+    "rawEvidence": "output/sandbox-postgres-runs/2026-10-24T110136-2348682/evidence.json",
+    "insideSandbox": true,
+    "startedAt": "2026-10-24T03:01:37.735Z",
+    "finishedAt": "2026-10-24T03:01:54.939Z",
+    "suites": [
+      "task-graph-review-lock-order",
+      "task-graph-review-publication"
+    ],
+    "postgres": "PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+    "sha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d",
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    },
+    "postgresDeadlocks": []
+  },
+  {
+    "name": "lock-order-final",
+    "rawEvidence": "output/sandbox-postgres-runs/2026-10-24T110244-2366675/evidence.json",
+    "insideSandbox": true,
+    "startedAt": "2026-10-24T03:02:45.838Z",
+    "finishedAt": "2026-10-24T03:03:01.212Z",
+    "suites": [
+      "task-graph-review-lock-order"
+    ],
+    "postgres": "PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+    "sha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d",
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    },
+    "postgresDeadlocks": []
+  },
+  {
+    "name": "compatibility-green",
+    "rawEvidence": "output/sandbox-postgres-runs/2026-10-24T110213-2357872/evidence.json",
+    "insideSandbox": true,
+    "startedAt": "2026-10-24T03:02:14.739Z",
+    "finishedAt": "2026-10-24T03:05:55.659Z",
+    "suites": [
+      "task-graph-condition-recheck",
+      "task-graph-environment-outcome",
+      "task-graph-natural-blockers",
+      "task-graph-preparation-recovery",
+      "task-graph-execution-progress"
+    ],
+    "postgres": "PostgreSQL 14.24 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+    "sha256": "88173c650921e15528294eccd26e6f53d5cc37eb4f8e8035bfe4700c7a98d21d",
+    "steps": [
+      {
+        "name": "isolated-write",
+        "ok": true
+      },
+      {
+        "name": "regression-suite",
+        "ok": true,
+        "exitCode": 0
+      },
+      {
+        "name": "suite-schema-cleanup",
+        "ok": true
+      }
+    ],
+    "cleanup": {
+      "lifecycleClosed": true,
+      "portClosed": true,
+      "directoryRemoved": true
+    },
+    "postgresDeadlocks": []
+  }
+]

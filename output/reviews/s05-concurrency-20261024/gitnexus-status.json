@@ -1,0 +1,14 @@
+{
+  "indexCommand": "gitnexus analyze --index-only --name ap-manual-runtime-repair",
+  "indexExitCode": 130,
+  "reason": "Stopped owned auxiliary index process after more than six minutes without a completed index; source inspection and all regression runs completed.",
+  "queries": [
+    "impact submitNodeVerification",
+    "impact publishReviewPreparationFailure",
+    "context submitNodeVerification",
+    "detect_changes scope=all"
+  ],
+  "queryResult": "LadybugDB unavailable: could not replay shadow pages under read-only mode. No complete impact report obtained.",
+  "fallback": "rg production call sites and actual source: coordinator verifyNodeOnce calls both publication functions; applyReviewFailureTx is called only by store and review-publication.",
+  "limitation": "Local GitNexus cache may need rebuilding/recovery on a later session; no source, runtime database, workflow cursor or pending modified by index operation."
+}

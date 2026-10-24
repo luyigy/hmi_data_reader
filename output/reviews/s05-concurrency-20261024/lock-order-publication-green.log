@@ -1,0 +1,35 @@
+[run] 沙箱会话启动: 套件 task-graph-review-lock-order,task-graph-review-publication，证据目录 output/sandbox-postgres-runs/2026-10-24T110136-2348682
+W001 Stage Execution Contract source boundaries passed
+W001 AST mutation matrix: 20 structural counterexamples rejected
+W001 AST boundary gate passed; 20 structural counterexamples rejected
+W001 immutable contract: candidate, claim/revision, stage, permissions, output binding and source protections passed.
+W001 rejected before dispatch: missing request
+W001 rejected before dispatch: candidate drift
+W001 rejected before dispatch: claim drift
+W001 rejected before dispatch: revision drift
+W001 rejected before dispatch: input identity drift
+W001 rejected before dispatch: input manifest drift
+W001 rejected before dispatch: stage switch without rebuilding
+W001 rejected before dispatch: permissions/source write drift
+W001 rejected before dispatch: network mismatch
+W001 rejected before dispatch: output directory drift
+W001 rejected before dispatch: output binding drift
+W001 first start, Resume, stage switch and ordinary-chat compatibility passed.
+{"wire":"W001","mutant":"old-resume-input","exit":1,"matchedFailure":"Resume must send the current finalized stage"}
+{"wire":"W001","mutant":"permission-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: writable root overlaps"}
+{"wire":"W001","mutant":"output-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: output directory lacks"}
+{"wire":"W001","mutant":"candidate-drift","exit":1,"matchedFailure":"W001StageContractError: W001 Stage Execution Contract Consistency: stage authority drift"}
+{"wire":"W001","mutant":"validation-bypass","exit":1,"matchedFailure":"Missing expected rejection: candidate drift"}
+Ticket admission AST gate passed; 6 boundary counterexamples checked. Covers direct Prisma writes and literal outcome calls; dynamic aliases are outside this static check.
+{"phase":"acceptance","preparation":false,"samples":[[{"pid":30,"blockers":[31],"wait":"advisory","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"},{"pid":31,"blockers":[],"wait":"ClientRead","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"}]],"results":[{"status":"fulfilled"},{"status":"fulfilled"}]}
+PASS acceptance result: concurrent reservation and failure publication preserve candidate/claim and consume one retry
+{"phase":"acceptance","preparation":true,"samples":[[{"pid":30,"blockers":[33],"wait":"advisory","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"},{"pid":33,"blockers":[],"wait":"ClientRead","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"}]],"results":[{"status":"fulfilled"},{"status":"fulfilled"}]}
+PASS acceptance preparation: concurrent reservation and failure publication preserve candidate/claim and consume one retry
+{"phase":"architecture","preparation":false,"samples":[[{"pid":30,"blockers":[35],"wait":"advisory","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"},{"pid":35,"blockers":[],"wait":"ClientRead","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"}]],"results":[{"status":"fulfilled"},{"status":"fulfilled"}]}
+PASS architecture result: concurrent reservation and failure publication preserve candidate/claim and consume one retry
+{"phase":"architecture","preparation":true,"samples":[[{"pid":30,"blockers":[37],"wait":"advisory","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"},{"pid":37,"blockers":[],"wait":"ClientRead","query":"SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended($1, 0))"}]],"results":[{"status":"fulfilled"},{"status":"fulfilled"}]}
+PASS architecture preparation: concurrent reservation and failure publication preserve candidate/claim and consume one retry
+PASS acceptance: real exited writer publishes on one connection in 46 ms; live/unknown/changed writer and stale claim rejected without ledger writes
+PASS architecture: real exited writer publishes on one connection in 39 ms; live/unknown/changed writer and stale claim rejected without ledger writes
+[inner] shared phase lifecycle: PASS; evidence.json includes SQL and cleanup evidence
+[run] 沙箱退出码 0

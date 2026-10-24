@@ -1,0 +1,28 @@
+{
+  "baseline": "5f7aa1e",
+  "commands": [
+    {
+      "command": "npx tsc --noEmit --incremental false",
+      "exitCode": 0
+    },
+    {
+      "command": "npx eslint src/lib/task-graph/store.ts src/lib/task-graph/review-publication.ts tests/task-graph-review-lock-order.test.ts tests/task-graph-environment-outcome.test.ts scripts/test-task-graph-postgres.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run check:long-files",
+      "exitCode": 0,
+      "result": "No files at or above 1000 lines."
+    },
+    {
+      "command": "npm run workflow:validate -- --preflight docs/552_HANDOVER_20261024_S05_复核发布锁顺序.md",
+      "exitCode": 0,
+      "result": "PASS action=none"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "scope": "S05 lock-order unit only; not S06 independent review"
+}
