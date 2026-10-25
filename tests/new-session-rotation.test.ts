@@ -78,8 +78,10 @@ async function main() {
 
   const prismaModule = await import('../src/lib/prisma') as unknown as { prisma: Record<string, unknown> };
   prismaModule.prisma = {
+    $queryRaw: async () => [],
     $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(prismaModule.prisma),
     taskRun: { count: async () => 1 },
+    taskGraphExecution: { findFirst: async () => null },
     liveRoomDelivery: { count: async () => 1 },
     taskSession: {
       findFirst: async ({ where }: { where: { metadata: { contains: string } } }) => {
@@ -454,10 +456,13 @@ async function main() {
     assert.deepEqual(JSON.parse(config).writableRoots, [workspace]);
   }
   const rotationsBeforeRetry = rotations;
+  const clearsBeforeRetry = threadClears;
+  threaded = true;
   permissionWrites.length = 0;
   await handleNewSessionCommand(permissionCommand, context);
   assert.equal(rotations, rotationsBeforeRetry, 'retry must reuse the rotated session');
-  assert.equal(permissionWrites.length, 3, 'retry must still synchronize member permissions');
+  assert.equal(threadClears, clearsBeforeRetry, 'completed replay must preserve the new native Session');
+  assert.equal(permissionWrites.length, 0, 'completed retry must not overwrite permissions changed by a later action');
 
   const targetedOptions: Record<string, string>[] = [
     { agent: 'Codex', all: 'false' },

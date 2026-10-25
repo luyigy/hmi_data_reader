@@ -1,3 +1,4 @@
+import { graphRoomMemberTaskIds, graphRoomParticipantMatches } from './task-graph/conversation-reset-stop';
 import { promises as fs } from 'node:fs';
 import { requestRunControl } from '@/lib/acpx/process-registry';
 import type { RunControlAction } from '@/lib/acpx/types';
@@ -93,6 +94,7 @@ export const interruptLiveRoomMemberReplies = async ({
       displayName: true,
       backend: true,
       canReply: true,
+      role: true, harnessType: true, runtimeAgentId: true, gatewayId: true,
     },
   });
 
@@ -130,15 +132,16 @@ export const interruptLiveRoomMemberReplies = async ({
     },
   });
 
+  const graphTaskIds = room.sourceTask ? await graphRoomMemberTaskIds(room.sourceTask.id) : [];
   const runningRuns = room.sourceTask
     ? await prisma.taskRun.findMany({
-        where: { taskId: room.sourceTask.id, status: { in: ['running', 'waiting_for_input'] } },
-        include: { participants: { where: { status: { in: ['running', 'waiting_for_input'] } } } },
+        where: { taskId: { in: [room.sourceTask.id, ...graphTaskIds] }, status: { in: ['pending', 'running', 'waiting_for_input'] } },
+        include: { participants: { where: { status: { in: ['pending', 'running', 'waiting_for_input'] } } } },
       })
     : [];
   const continuationKey = getLiveRoomParticipantContinuationKey(member.id);
   const runningParticipants = runningRuns.flatMap((run) => run.participants
-    .filter((participant) => parseAcpxMetadata(participant.controlMetadata).continuationKey === continuationKey)
+    .filter((participant) => parseAcpxMetadata(participant.controlMetadata).continuationKey === continuationKey || graphTaskIds.includes(run.taskId) && graphRoomParticipantMatches(participant, member))
     .map((participant) => ({
       runId: run.id,
       participantId: participant.id,

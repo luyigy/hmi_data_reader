@@ -1,3 +1,4 @@
+import { graphRoomMemberWriters, waitForGraphRoomMemberStop } from './task-graph/conversation-reset-stop';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -484,6 +485,16 @@ export function formatPermissionProfileLabel(profile: string) {
 
 export async function handleNewSessionCommand(command: NewSessionCommand, context?: FeishuConversationContext) {
   const room = await getBoundLiveRoom(context);
+  if (!room?.sourceTask) return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法启动 new session。';
+  // Serialize callbacks across bot processes; checkpoints remain durable if a step fails.
+  return prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`session-reset:${room.id}`}, 0))::text`;
+    return rotateRoomSession(command, context);
+  }, { timeout: 60_000, maxWait: 10_000 });
+}
+
+async function rotateRoomSession(command: NewSessionCommand, context?: FeishuConversationContext) {
+  const room = await getBoundLiveRoom(context);
   if (!room || !room.sourceTask) {
     return '当前 Feishu 会话未绑定可继续的 live room / task，上下文不足，无法启动 new session。';
   }
@@ -600,7 +611,29 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
     },
     orderBy: { createdAt: 'desc' },
   });
-  if (!freshTaskSession) {
+  if (freshTaskSession && parseTaskSessionMetadata(freshTaskSession.metadata).rotationCheckpoint === 'completed') {
+    return '✅ 此次 session 重置已完成；重复回调不会再次停止运行或清除新会话。';
+  }
+  const graphJob = await prisma.taskGraphExecution.findFirst({ where: { childTaskId: sourceTask.id }, select: { id: true } });
+  const createSession = async () => {
+    return rotateTaskSession(sourceTask.id, {
+      taskName: sourceTask.name,
+      metadata: {
+        source: 'feishu_new_session',
+        rotationKey,
+        rotationCheckpoint: 'session_created',
+        workflowEventKey: command.options['workflow-event-key'] || null,
+        handoverPath: handoverPath?.relativePath || null,
+        targetMemberId: allMembers ? null : member.id,
+        targetMemberIds: members.map(targetMember => targetMember.id),
+        targetMemberName: allMembers ? 'all' : member.userNickname || member.displayName,
+      },
+    });
+  };
+  // Persist the graph fence before stopping writers; retries finish this same rotation.
+  if (graphJob && !freshTaskSession) freshTaskSession = await createSession();
+  if (!freshTaskSession || graphJob && parseTaskSessionMetadata(freshTaskSession.metadata).rotationCheckpoint !== 'completed') {
+    const graphWriters = graphJob ? await Promise.all(members.map(target => graphRoomMemberWriters(sourceTask.id, target))) : [];
     const interruptions = await Promise.all(members.map(async (targetMember) => {
       cancelQueuedLiveRoomMemberExecutions(targetMember.id);
       return interruptLiveRoomMemberReplies({
@@ -610,24 +643,14 @@ export async function handleNewSessionCommand(command: NewSessionCommand, contex
       });
     }));
     if (interruptions.some((interruption) => interruption.failedRunningCount > 0)) {
-      return '❌ 旧 Agent 运行未能实际终止，已取消 Session 重置。请先运行 /ap sessions 查看，再用 /ap stop 重试。';
+      return '❌ 旧 Agent 运行未能实际终止，Session 重置尚未完成。请先运行 /ap sessions 查看，再用 /ap stop 重试。';
     }
     interruptedPreviousReplies = interruptions.some((interruption) =>
       interruption.interruptedRunningCount > 0 || interruption.cancelledQueuedCount > 0);
     await Promise.all(members.map((targetMember) =>
       waitForLiveRoomMemberExecutionStop(targetMember.id)));
-    freshTaskSession = await rotateTaskSession(room.sourceTask.id, {
-      taskName: room.sourceTask.name,
-      metadata: {
-        source: 'feishu_new_session',
-        rotationKey,
-        rotationCheckpoint: 'session_created',
-        workflowEventKey: command.options['workflow-event-key'] || null,
-        handoverPath: handoverPath?.relativePath || null,
-        targetMemberId: allMembers ? null : member.id,
-        targetMemberName: allMembers ? 'all' : member.userNickname || member.displayName,
-      },
-    });
+    if (graphJob) await Promise.all(members.map((targetMember, index) => waitForGraphRoomMemberStop(sourceTask.id, targetMember, graphWriters[index])));
+    if (!freshTaskSession) freshTaskSession = await createSession();
   } else {
     await prisma.task.update({
       where: { id: room.sourceTask.id },

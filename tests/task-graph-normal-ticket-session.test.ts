@@ -5,6 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
+import { rotateTaskSession } from '../src/lib/acpx/session';
 import { prisma } from '../src/lib/prisma';
 import { createTaskGraphRun } from '../src/lib/task-graph/store';
 import { runTaskGraphCycle, startTaskGraphCoordinator } from '../src/lib/task-graph/coordinator';
@@ -38,6 +39,12 @@ async function main() {
     if (turns === 1) {
       originalDirectory = directory;
       return { success: true, output: 'TASK_GRAPH_IMPLEMENTATION {"status":"waiting_for_user","note":"请补充期望值"}', sessionId: native, sessionKind: 'codex_thread', executionTime: 1 };
+    }
+    if (turns >= 6) {
+      assert.equal('sessionId' in args ? args.sessionId : null, turns === 6 ? null : 'reset-native');
+      assert.equal(directory, originalDirectory);
+      assert.equal(readFileSync(path.join(directory, 'value'), 'utf8'), '42');
+      return { success: true, output: '重置后的正常答复', sessionId: 'reset-native', sessionKind: 'codex_thread', executionTime: 1 };
     }
     assert.equal('sessionId' in args ? args.sessionId : null, native);
     assert.equal(directory, originalDirectory);
@@ -121,7 +128,15 @@ async function main() {
     assert.equal(JSON.parse(attempts[3].controlMetadata!).graphReplyIdentity, JSON.parse(attempts[4].controlMetadata!).graphReplyIdentity, 'Native recovery preserves the original user card identity');
     assert.notEqual(JSON.parse(attempts[2].controlMetadata!).graphReplyIdentity, JSON.parse(attempts[3].controlMetadata!).graphReplyIdentity);
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: first.id } })).commit, null);
-    console.log(JSON.stringify({ fixture: true, turns, sameSession: true, sameWorktree: true, inputReceipts: 2, testOutput, candidate: progress.candidateCommit, accepted: false }));
+    const reset = await rotateTaskSession(first.childTaskId!, { metadata: { source: 'feishu_new_session', rotationKey: 'full-reset', targetMemberId: null, rotationCheckpoint: 'completed' } });
+    await receiveGraphTaskMessage({ ...input, sourceId: 'reset-first', content: '新会话只解释当前值' });
+    await waitForTurn(6);
+    await receiveGraphTaskMessage({ ...input, sourceId: 'reset-second', content: '继续解释，不修改' });
+    await waitForTurn(7);
+    const resetRuns = await prisma.taskRun.findMany({ where: { taskId: first.childTaskId!, taskSessionId: reset.id } });
+    assert.equal(resetRuns.length, 2); assert.ok(resetRuns.every(run => run.status === 'completed'));
+    assert.equal((await job()).commit, null, 'Reset does not deliver a candidate');
+    console.log(JSON.stringify({ fixture: true, turns, resetFreshThenResume: true, sameSession: true, sameWorktree: true, inputReceipts: 2, testOutput, candidate: progress.candidateCommit, accepted: false }));
   } finally {
     await drain(); adapter.execute = saved.execute; adapter.resume = saved.resume;
     await prisma.taskGraphRun.delete({ where: { id: graph.id } }); await prisma.$disconnect(); rmSync(root, { recursive: true, force: true });

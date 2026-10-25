@@ -134,40 +134,20 @@ export const ensureTaskSession = async (taskId: string, options: EnsureTaskSessi
 });
 
 export const rotateTaskSession = async (taskId: string, options: EnsureTaskSessionOptions = {}) => {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { name: true, currentTaskSessionId: true },
+  const { session, previousId } = await prisma.$transaction(async tx => {
+    // Serialize reset with TaskRun creation so a pre-reset launch cannot bind afterward.
+    await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${taskId} FOR UPDATE`;
+    if (typeof options.metadata?.rotationKey === 'string') {
+      const existing = await tx.taskSession.findFirst({ where: { taskId, metadata: { contains: `"rotationKey":${JSON.stringify(options.metadata.rotationKey)}` } } });
+      if (existing) return { session: existing, previousId: null };
+    }
+    const task = await tx.task.findUniqueOrThrow({ where: { id: taskId }, select: { name: true, currentTaskSessionId: true } });
+    const session = await tx.taskSession.create({ data: { taskId, status: 'active', attentionState: 'normal',
+      metadata: stringifyMetadata({ taskName: options.taskName ?? task.name, ...(options.metadata ?? {}) }) } });
+    await tx.task.update({ where: { id: taskId }, data: { currentTaskSessionId: session.id } });
+    return { session, previousId: task.currentTaskSessionId };
   });
-
-  if (!task) {
-    throw new Error(`Task "${taskId}" not found`);
-  }
-  if (task.currentTaskSessionId) {
-    await finishPendingTaskRunInteractionRequests({
-      taskSessionId: task.currentTaskSessionId,
-      status: 'cancelled',
-    });
-  }
-
-  const session = await prisma.taskSession.create({
-    data: {
-      taskId,
-      status: 'active',
-      attentionState: 'normal',
-      metadata: stringifyMetadata({
-        taskName: options.taskName ?? task.name,
-        ...(options.metadata ?? {}),
-      }),
-    },
-  });
-
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      currentTaskSessionId: session.id,
-    },
-  });
-
+  if (previousId) await finishPendingTaskRunInteractionRequests({ taskSessionId: previousId, status: 'cancelled' });
   return session;
 };
 

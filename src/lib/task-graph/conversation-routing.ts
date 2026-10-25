@@ -1,3 +1,4 @@
+import { conversationTargetWasReset } from './conversation-reset';
 import type { Prisma, TaskGraphExecution } from '@prisma/client';
 import { executionProgress, type ExecutionProgress } from './execution-progress';
 import { authorizedConversationInput, type ConversationInput } from './conversation-inbox';
@@ -20,7 +21,8 @@ export async function implementationConversationInputs(tx: Prisma.TransactionCli
   const eligible: ConversationInput[] = [];
   for (const input of inputs) {
     if (!isImplementationInput(input) || !await authorizedConversationInput(input, job.childTaskId, node.run.parentTask.ownerUserId, tx)) continue;
-    if (ownerId) {
+    if (await conversationTargetWasReset(tx, job, input.target)) continue;
+    if (ownerId && !(input.target?.kind === 'session' && input.target.resetSourceSessionId)) {
       try { await assertConversationTargetRun(tx, input.target, ownerId); } catch { continue; }
     }
     if (allRoots || !eligible.length || eligible[0].rootInputId === input.rootInputId) eligible.push(input);

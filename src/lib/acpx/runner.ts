@@ -1,3 +1,4 @@
+import { assertGraphResetComplete } from '../task-graph/conversation-reset';
 import { attachScheduledResourceContinuation, reserveResourceContinuation, resourceContinuationExit } from '../task-resources/runtime';
 import type { Prisma } from '@prisma/client';
 import { createGraphWriter, releaseTaskRunWriter } from '../task-graph/writer-ownership';
@@ -126,12 +127,17 @@ export const executeAcpxTaskRun = async (request: AcpxRunRequest) => {
     : request.graphReview ? (await prisma.taskGraphExecution.findMany({ where: { nodeId: request.graphReview.nodeId }, select: { id: true } })).map(job => job.id) : [];
   const resourceExit = await resourceContinuationExit(request);
   const taskRun = await prisma.$transaction(async tx => {
+    const resetTasks = conversationExecutions.length ? await tx.taskGraphExecution.findMany({ where: { id: { in: conversationExecutions } }, select: { childTaskId: true } }) : [];
+    for (const id of Array.from(new Set(resetTasks.map(job => job.childTaskId).filter((id): id is string => !!id))).sort()) {
+      await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${id} FOR UPDATE`;
+    }
     await tx.$queryRaw`SELECT id FROM "Task" WHERE id = ${request.taskId} FOR UPDATE`;
     if (request.resourceContinuation && (await tx.task.findUniqueOrThrow({ where: { id: request.taskId } })).currentTaskSessionId !== taskSession.id) throw new Error('原任务 Session 已改变');
     await tx.$queryRaw`SELECT id FROM "TaskSession" WHERE id = ${taskSession.id} FOR UPDATE`;
     if (!graphExecution && !request.graphReview && !request.graphConversation && await tx.taskRun.count({
       where: { taskSessionId: taskSession.id, status: { in: ['pending', 'running', 'waiting_for_input'] } },
     })) throw new Error('Session already has an active run');
+    await assertGraphResetComplete(tx, conversationExecutions, request.participants);
     const created = await createRun(tx);
     if (graphExecution) {
       await bindExecutionTaskRun(tx, graphExecution, created.id);

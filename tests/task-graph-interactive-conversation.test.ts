@@ -167,16 +167,20 @@ async function main() {
     await receiveGraphTaskMessage({ taskId: legacyJob.childTaskId!, sourceId: 'untrusted-material', actorId: 'not-owner', actorOrigin: 'platform', content: '尺寸材料是42' });
     await followupUntil(1);
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status, 'attention', 'An unauthenticated message cannot admit implementation even if its read-only reply emits a legacy token');
+    // Admit explicitly before the cycle's legacy condition-recovery lane can win the same wake.
     const ownerMessage = { taskId: legacyJob.childTaskId!, actorId: owner.id, actorOrigin: 'platform' as const };
     await receiveGraphTaskMessage({ ...ownerMessage, sourceId: 'owner-status', content: '现在进度如何？' });
-    await until(async () => calls.some(call => call.task === legacyJob.childTaskId && !call.readOnly && call.prompt.includes('现在进度如何？')) && (await conversationInputs(legacyJob.id)).length === 0);
+    await Promise.all((await startConversationFollowups(1)).map(work => work.promise));
+    await until(async () => calls.some(call => call.task === legacyJob.childTaskId && !call.readOnly && call.prompt.includes('现在进度如何？')) && (await conversationInputs(legacyJob.id)).length === 0 && (await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status === 'attention');
     const answered = new AbortController(); answered.abort(); await startTaskGraphCoordinator(answered.signal);
     await receiveGraphTaskMessage({ ...ownerMessage, sourceId: 'legacy-answer', content: '尺寸材料是42，只检查不要继续' });
-    await until(async () => calls.some(call => call.task === legacyJob.childTaskId && !call.readOnly && call.prompt.includes('只检查不要继续')) && (await conversationInputs(legacyJob.id)).length === 0);
+    await Promise.all((await startConversationFollowups(1)).map(work => work.promise));
+    await until(async () => calls.some(call => call.task === legacyJob.childTaskId && !call.readOnly && call.prompt.includes('只检查不要继续')) && (await conversationInputs(legacyJob.id)).length === 0 && (await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status === 'attention');
     const checked = new AbortController(); checked.abort(); await startTaskGraphCoordinator(checked.signal);
     assert.equal((await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status, 'attention');
     assert.equal(calls.filter(call => call.task === legacyJob.childTaskId && call.readOnly).length, 1, 'Authenticated ordinary messages do not require read-only transit');
     await receiveGraphTaskMessage({ ...ownerMessage, sourceId: 'continue-earlier-material', content: '按刚才的尺寸继续实施' });
+    await Promise.all((await startConversationFollowups(1)).map(work => work.promise));
     await until(async () => (await prisma.taskGraphExecution.findUniqueOrThrow({ where: { id: legacyJob.id } })).status === 'integrated');
     assert.equal(await prisma.taskGraphEvent.count({ where: { runId: legacy.id, kind: 'conversation_turn_scheduled' } }), 3);
     const peer = await prisma.taskGraphExecution.findFirstOrThrow({ where: { node: { runId: legacy.id }, key: 'peer' } });

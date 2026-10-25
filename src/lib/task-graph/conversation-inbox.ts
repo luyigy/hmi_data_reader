@@ -1,3 +1,4 @@
+import { conversationTargetWasReset, assertGraphConversationRunSession } from './conversation-reset';
 import { implementationConversationInputs } from './conversation-routing';
 import { bindConversationReplyIdentity } from './conversation-reply-identity';
 import { isFeishuAdmin } from '../feishu-access-approval';
@@ -46,7 +47,17 @@ export async function pendingConversationInputs(tx: Prisma.TransactionClient, ru
     WHERE i."runId" = ${runId} AND ${unassignedInput} AND i.payload->>'executionId' = ${executionId}
     ORDER BY i."createdAt", i.id LIMIT 50`);
   const inputs = await tx.taskGraphEvent.findMany({ where: { id: { in: ids.map(item => item.id) } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
-  return inputs.map(input => parseInput(input.id, input.payload));
+  const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId } });
+  const pending: ConversationInput[] = [];
+  for (const event of inputs) {
+    const input = parseInput(event.id, event.payload);
+    if (await conversationTargetWasReset(tx, job, input.target)) {
+      await tx.taskGraphEvent.upsert({ where: { runId_idempotencyKey: { runId, idempotencyKey: conversationReceiptKey(input.id) } }, update: {},
+        create: { runId, nodeId: job.nodeId, kind: 'conversation_input_cancelled', idempotencyKey: conversationReceiptKey(input.id),
+          payload: { executionId, inputId: input.id, reason: 'session_reset' } } });
+    } else pending.push(input);
+  }
+  return pending;
 }
 
 /** Messages target an execution, never whichever TaskRun happens to be newest. */
@@ -96,6 +107,7 @@ export async function receiveGraphRoomMessage(roomId: string, roomMessageId: str
 /** Input assignment and TaskRun creation commit together; processing is acknowledged separately. */
 export async function bindConversationInputs(tx: Prisma.TransactionClient, executionId: string, inputIds: string[], taskRunId: string) {
   const job = await tx.taskGraphExecution.findUniqueOrThrow({ where: { id: executionId }, include: { node: true } });
+  await assertGraphConversationRunSession(tx, job, taskRunId);
   const pending = await pendingConversationInputs(tx, job.node.runId, job.id);
   await bindConversationReplyIdentity(tx, taskRunId, pending.filter(input => inputIds.includes(input.id)).map(input => input.rootInputId));
   for (const id of inputIds) {

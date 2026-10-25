@@ -1,3 +1,4 @@
+import { conversationTargetWasReset } from './conversation-reset';
 import { prisma } from '../prisma';
 import { getContinuationSession } from '../acpx/session-tracking';
 import { approvedConversationParticipant } from './conversation-members';
@@ -12,7 +13,8 @@ export async function conversationContinuation(executionId: string, target?: Con
   }
   if (target.kind === 'unresolved') throw new Error(target.reason);
   const run = await prisma.taskRun.findUniqueOrThrow({ where: { id: target.taskRunId }, include: { participants: true } });
-  if (run.taskId !== target.taskId || run.taskSessionId !== target.taskSessionId) throw new Error('Original conversation identity changed');
+  if (await conversationTargetWasReset(prisma, job, target)) throw new Error('Conversation reset superseded this queued input');
+  if (run.taskId !== target.taskId || !target.resetSourceSessionId && run.taskSessionId !== target.taskSessionId) throw new Error('Original conversation identity changed');
   const original = run.participants.find(p => p.role === target.role);
   if (!original) throw new Error('Original conversation participant unavailable');
   let native = getContinuationSession(original);
@@ -28,7 +30,9 @@ export async function conversationContinuation(executionId: string, target?: Con
       if (prior) native = prior;
     }
   }
-  if (!native.sessionId || target.nativeSessionId && native.sessionId !== target.nativeSessionId) throw new Error('原生会话身份不可用；消息已保留，不能改送新会话。');
+  const freshReset = !!target.resetSourceSessionId && !target.nativeSessionId;
+  if (freshReset) native = { sessionId: null, sessionKind: null };
+  if (!freshReset && (!native.sessionId || target.nativeSessionId && native.sessionId !== target.nativeSessionId)) throw new Error('原生会话身份不可用；消息已保留，不能改送新会话。');
   const snapshot = job.node.run.snapshot;
   const nodes = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot.nodes : null;
   const node = Array.isArray(nodes) ? nodes.find(n => n && typeof n === 'object' && !Array.isArray(n) && n.key === job.node.key) : null;
@@ -46,6 +50,6 @@ export async function conversationContinuation(executionId: string, target?: Con
     if (Array.isArray(data.extraReadOnlyPaths) && data.extraReadOnlyPaths.every((p: unknown) => typeof p === 'string')) extraReadOnlyPaths = data.extraReadOnlyPaths; } catch { /* Missing evidence must not invent a new workspace. */ }
   if (!workingDirectory) throw new Error('原会话工作区记录不可用；消息已保留，不能切换到其他工作区。');
   return { taskId: target.taskId, taskSessionId: target.taskSessionId, workingDirectory, extraReadOnlyPaths, context: '',
-    participant: { ...approved, resumeSessionId: native.sessionId, continuationSessionKind: native.sessionKind || undefined,
-      ...(native.sessionKind === 'codex_thread' ? { resumeThreadId: native.sessionId } : {}) } };
+    participant: { ...approved, resumeSessionId: native.sessionId || undefined, continuationSessionKind: native.sessionKind || undefined,
+      ...(native.sessionKind === 'codex_thread' && native.sessionId ? { resumeThreadId: native.sessionId } : {}) } };
 }
